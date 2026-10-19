@@ -21,8 +21,11 @@ This build of ZFSBootMenu can unlock LUKS (dm-crypt) volumes that hold ZFS vdevs
   wipes the volume keys from memory.
 - `zluks` in the recovery shell (or over SSH) unlocks, closes and lists volumes.
 
-Images from the build container (`zbm-builder.sh`, `releng/docker`) use the Void Linux `linux7.2` kernel series (7.2.11
-at the time of writing), which needs OpenZFS 2.4.4 or later.
+Images from the build container (`releng/docker`) are pinned to the Void Linux `linux7.2` kernel series (7.2.11 at the
+time of writing; patch releases are picked up automatically), which needs OpenZFS 2.4.4 or later. The series is set by
+`KERNELS` in `releng/docker/Dockerfile` (or `-k` for `image-build.sh`) and selected by `Kernel.Version` in
+`etc/zbm-builder/config.yaml`. Build with a locally built container (`zbm-builder.sh -i ...`), because the default
+upstream image does not include it.
 
 See [ZFS Pools on LUKS Volumes](docs/general/luks.rst) for details, including how to avoid a second passphrase prompt in
 the booted system.

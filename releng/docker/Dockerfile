@@ -21,7 +21,9 @@ ARG XBPS_REPOS="https://repo-fastly.voidlinux.org/current"
 #
 # (multiple entries must be seperated by spaces)
 #
-# Linux 7.2 (7.2.11 at the time of writing) requires OpenZFS >= 2.4.4
+# The 7.2 series is pinned: etc/zbm-builder/config.yaml selects it with
+# Kernel.Version, so keep the two in step. Linux 7.2 (7.2.11 at the time of
+# writing) requires OpenZFS >= 2.4.4.
 ARG KERNELS="linux7.2"
 # Update repos and install kernels and base dependencies.
 
