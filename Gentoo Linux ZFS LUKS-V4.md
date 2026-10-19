@@ -594,8 +594,7 @@ initrd_generator=dracut
 (chroot) root # ls /boot
 ```
 
-One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, and `/boot` contains `vmlinuz-<version>` and
-`initramfs-<version>.img`. This first initramfs cannot unlock the SSD yet; that is fixed in
+One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, and `/boot` contains `kernel-<version>` (or `vmlinuz-<version>`) and `initramfs-<version>.img`. This first initramfs cannot unlock the SSD yet; that is fixed in
 [Configuring the initramfs](#configuring-the-initramfs).
 
 ## Creating the LUKS key file

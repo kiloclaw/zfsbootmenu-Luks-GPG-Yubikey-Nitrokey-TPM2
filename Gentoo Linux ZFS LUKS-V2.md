@@ -542,7 +542,7 @@ echo "CATEGORY/PACKAGE ~amd64" >> /etc/portage/package.accept_keywords/zfsbootme
 ls /lib/modules/                                    # one directory, e.g. 6.12.40-gentoo-dist
 find /lib/modules -name 'zfs.ko*'                   # the ZFS module was built for that kernel
 ls /usr/lib/systemd/boot/efi/linuxx64.efi.stub      # UEFI stub for the ZFSBootMenu EFI image
-ls /boot                                            # vmlinuz-<version> and initramfs-<version>.img
+ls /boot                                            # kernel-<version> and initramfs-<version>.img
 ```
 
 If `zfs.ko` is missing, the kernel is newer than ZFS supports; see [Troubleshooting](#troubleshooting).
@@ -577,7 +577,8 @@ EOF
 ### 11.3 Keep kernels in /boot
 
 ZFSBootMenu looks for kernels in the boot environment's `/boot`. This file makes sure Gentoo's kernel installer puts
-them there, named `vmlinuz-<version>` and `initramfs-<version>.img`:
+them there, named `kernel-<version>` (older installkernel versions use `vmlinuz-<version>`) and
+`initramfs-<version>.img`:
 
 ```sh
 mkdir -p /etc/kernel

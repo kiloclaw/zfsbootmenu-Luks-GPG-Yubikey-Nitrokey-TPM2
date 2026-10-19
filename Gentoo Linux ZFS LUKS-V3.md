@@ -530,8 +530,7 @@ initrd_generator=dracut
 (chroot) root # gpg --version | head -n 1
 ```
 
-One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, `/boot` contains `vmlinuz-<version>` and
-`initramfs-<version>.img`, and GnuPG prints its version. The initramfs does not unlock the disk yet; that is done in
+One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, `/boot` contains `kernel-<version>` (or `vmlinuz-<version>`) and `initramfs-<version>.img`, and GnuPG prints its version. The initramfs does not unlock the disk yet; that is done in
 [Configuring the initramfs](#configuring-the-initramfs).
 
 ## Creating the GnuPG key file
