@@ -39,6 +39,22 @@
   man/zfsbootmenu.7
   man/generate-zbm.8
   man/zbm-kcl.8
+  man/zfsbootmenu-luks.7
+  man/zfsbootmenu-crypttab.5
+  man/zluks.8
+
+.. toctree::
+  :caption: Encrypted Pools (LUKS)
+  :maxdepth: 3
+  :titlesonly:
+  :includehidden:
+  :hidden:
+
+  luks/features
+  general/luks
+  luks/vdev-configurations
+  luks/administration
+  luks/tools
 
 .. toctree::
   :caption: General Information
@@ -52,7 +68,6 @@
   general/container-building
   general/mkinitcpio
   general/native-encryption
-  general/luks
   general/portable
   general/remote-access
   general/tailscale

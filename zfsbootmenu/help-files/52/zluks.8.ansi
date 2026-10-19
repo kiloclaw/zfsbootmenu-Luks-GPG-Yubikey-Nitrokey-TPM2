@@ -1,0 +1,240 @@
+[1mzluks[0m
+
+  [1mSYNOPSIS[0m
+
+    [1mzluks[0m [[1munlock[0m]
+
+    [1mzluks[0m [1mopen[0m [33mdevice[0m [[33mname[0m]
+
+    [1mzluks[0m [1mclose[0m [[33mname[0m]
+
+    [1mzluks[0m [1mstatus[0m
+
+    [1mzluks[0m [1mlist[0m
+
+    [1mzluks[0m [1mhelp[0m
+
+  [1mDESCRIPTION[0m
+
+    [1mzluks[0m manages LUKS (dm-crypt) volumes that hold
+    ZFS vdevs from within a running ZFSBootMenu
+    image: from the recovery shell, or from an
+    SSH session when remote access is
+    configured. It uses the same unlock
+    procedure that ZFSBootMenu runs at start-up,
+    described in zfsbootmenu-luks(7), so key
+    scripts, key files, GnuPG-encrypted key
+    files, LUKS2 tokens (TPM2, FIDO2 and
+    clevis), YubiKey challenge-response and
+    passphrases all work the same way.
+
+    Mappings opened by [1mzluks[0m or by ZFSBootMenu
+    itself are recorded, so that they are closed
+    again before ZFSBootMenu boots a boot
+    environment. Mappings opened directly with
+    [1mcryptsetup[0m(8) are not recorded and are left
+    alone.
+
+    After unlocking volumes, type [1mexit[0m in the
+    recovery shell to return to ZFSBootMenu,
+    which retries the pool import, or import
+    pools manually with [1mzpool import[0m.
+
+    [1mzluks[0m is only present in images built with LUKS
+    support (the default when [1mcryptsetup[0m is
+    installed on the build host).
+
+  [1mSUBCOMMANDS[0m
+
+    [1munlock[0m
+
+      Unlock every LUKS volume selected by the
+      configuration, exactly as ZFSBootMenu
+      does at start-up: the volumes listed in
+      [1mzbm.luks[0m, otherwise those in the image's
+      crypttab, otherwise every LUKS volume on
+      the system. Volumes that are already
+      open are skipped. This is the default
+      when no subcommand is given.
+
+    [1mopen[0m [33mdevice[0m [[33mname[0m]
+
+      Unlock a single LUKS volume. [33mdevice[0m is a path
+      below [33m/dev[0m or a device specification of
+      the form [1mUUID=[0m, [1mPARTUUID=[0m, [1mLABEL=[0m,
+      [1mPARTLABEL=[0m, [1mID=[0m ([33m/dev/disk/by-id[0m) or
+      [1mPATH=[0m ([33m/dev/disk/by-path[0m). A bare LUKS
+      UUID, or [1mluks-[0m[33mUUID[0m, is also accepted.
+
+      The mapping is created as [33m/dev/mapper/[0m[33mname[0m.
+      When [33mname[0m is omitted, the mapping is
+      called [1mluks-[0m[33mUUID[0m, which is also the
+      default name used by systemd-cryptsetup
+      and dracut. The key file given by
+      [1mzbm.luks_key[0m, if any, is tried before
+      the volume's LUKS2 tokens and a
+      passphrase prompt.
+
+    [1mclose[0m [[33mname[0m]
+
+      Export every imported pool that has a vdev on
+      a mapping opened by ZFSBootMenu, then
+      close the mapping. Data, special, log,
+      cache and spare vdevs are recognized,
+      including vdevs on partitions inside a
+      mapping. With [33mname[0m, only that mapping is
+      closed. A mapping whose pools cannot be
+      exported stays open and is reported.
+
+    [1mstatus[0m
+
+      List the mappings opened by ZFSBootMenu:
+      mapping name, LUKS device, whether the
+      mapping is open, and the imported pools
+      that use it.
+
+    [1mlist[0m
+
+      List every LUKS volume on the system with its
+      size and label, whether it is in use
+      (opened by anything), and the types of
+      LUKS2 tokens in its header
+      ([1msystemd-tpm2[0m, [1msystemd-fido2[0m, [1mclevis[0m or
+      others).
+
+    [1mhelp[0m, [1m-h[0m, [1m--help[0m
+
+      Print a usage summary.
+
+  [1mENVIRONMENT VARIABLES[0m
+
+    [1mLUKS_TPM2_TCTI[0m
+
+      The TPM2 software stack TCTI used for TPM2 and
+      clevis tokens. The default is
+      [33mdevice:/dev/tpmrm0[0m.
+
+    [1mLUKS_NO_TOKEN_PLUGINS[0m
+
+      When set to any non-empty value, ignore
+      systemd's cryptsetup token plugins and
+      use ZFSBootMenu's own TPM2 and FIDO2
+      implementations. Useful for diagnosing
+      plugin problems.
+
+    [1mLUKS_DEFAULT_TRIES[0m
+
+      Passphrase attempts per round when the
+      crypttab sets no [1mtries=[0m option. The
+      default is 3.
+
+    [1mZBM_CRYPTTAB[0m
+
+      The crypttab to read. The default is
+      [33m/etc/zfsbootmenu/crypttab[0m.
+
+  [1mFILES[0m
+
+    [33m/etc/zfsbootmenu/crypttab[0m
+
+      Volumes to unlock, embedded in the image at
+      build time; see zfsbootmenu-crypttab(5).
+
+    [33m/etc/zfsbootmenu/gnupg/[0m
+
+      Public keyring used to decrypt GnuPG-encrypted
+      key files.
+
+    [33m/zfsbootmenu/luks-mappings[0m
+
+      Mappings opened by ZFSBootMenu: name, device
+      and whether the volume was discovered
+      automatically.
+
+    [33m/zfsbootmenu/luks-skipped[0m
+
+      Volumes the user chose to skip; they are not
+      offered again when ZFSBootMenu retries
+      the pool import.
+
+  [1mEXIT STATUS[0m
+
+    [1m0[0m
+
+      Successful completion. For [1munlock[0m, every
+      selected volume was opened, or at least
+      one was opened.
+
+    [1m1[0m
+
+      An error occurred: a volume could not be
+      unlocked, a device was not found, a
+      mapping could not be closed, [1mcryptsetup[0m
+      is not available, or the command line
+      was invalid.
+
+  [1mEXAMPLES[0m
+
+    [1mExample 1: Listing LUKS volumes and their tokens[0m
+
+      The following command shows every LUKS volume
+      that ZFSBootMenu can see. The first two
+      volumes hold a mirror and are locked;
+      the third has a TPM2 token and is
+      already open:
+
+      # zluks list
+      /dev/sda2 "zfs0" (931.5G)   locked   tokens: systemd-fido2
+      /dev/sdb2 "zfs1" (931.5G)   locked   tokens: systemd-fido2
+      /dev/nvme0n1p2 (476.9G)     in use   tokens: systemd-tpm2
+
+    [1mExample 2: Unlocking all volumes from the recovery shell[0m
+
+      After skipping the passphrase prompt at
+      start-up, unlock the configured volumes
+      and return to ZFSBootMenu, which imports
+      the pools:
+
+      # zluks
+      Unlock LUKS volume /dev/sda2 "zfs0" (931.5G)
+      Passphrase (leave empty to skip):
+      # exit
+
+    [1mExample 3: Unlocking one volume with a chosen mapping name[0m
+
+      Hot spare and cache vdevs are located by the
+      device path recorded in the pool. To
+      make such a vdev available, open its
+      LUKS volume under the same name the
+      running system uses:
+
+      # zluks open PARTLABEL=spare0 luks-3f1c6e0a-5b7d-4e8b-9d3e-2a6c1f0e9b42
+      # zpool status zroot
+
+    [1mExample 4: Unlocking over SSH while the console waits[0m
+
+      When ZFSBootMenu waits at a passphrase prompt
+      on the console, an SSH session can
+      unlock the same volume; the console
+      prompt notices and continues:
+
+      $ ssh -p 222 root@zbm-host
+      # zluks open UUID=0a1b2c3d-4e5f-6789-abcd-ef0123456789
+
+    [1mExample 5: Showing and closing mappings[0m
+
+      The following commands show which pools use
+      the mappings opened by ZFSBootMenu, then
+      export the pool [33mtank[0m and close its
+      mapping:
+
+      # zluks status
+      luks-0a1b2c3d-...   /dev/sdc2   open   pools: tank
+      luks-9f8e7d6c-...   /dev/sdd2   open   pools: zroot
+      # zluks close luks-0a1b2c3d-4e5f-6789-abcd-ef0123456789
+
+  [1mSEE ALSO[0m
+
+    zfsbootmenu-luks(7), zfsbootmenu-crypttab(5),
+    zfsbootmenu(7), [1mcryptsetup[0m(8),
+    [1msystemd-cryptenroll[0m(1), [1mzpool[0m(8)

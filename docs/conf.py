@@ -106,6 +106,9 @@ man_pages = [
     ('man/generate-zbm.8', 'generate-zbm', 'ZFSBootMenu initramfs generator', man_author, '8'),
     ('man/zbm-kcl.8', 'zbm-kcl', 'manipulate kernel command lines for boot environments and EFI executables', man_author, '8'),
     ('man/zfsbootmenu.7', 'zfsbootmenu', 'System Integration', man_author, '7'),
+    ('man/zfsbootmenu-luks.7', 'zfsbootmenu-luks', 'ZFS pools on LUKS volumes, and hardware-backed unlocking', man_author, '7'),
+    ('man/zfsbootmenu-crypttab.5', 'zfsbootmenu-crypttab', 'LUKS volumes unlocked by ZFSBootMenu', man_author, '5'),
+    ('man/zluks.8', 'zluks', 'manage LUKS volumes from ZFSBootMenu', man_author, '8'),
 ]
 
 try:

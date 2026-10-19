@@ -1,0 +1,274 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "ZLUKS" "8" "2026-10-19" "" "ZFSBootMenu"
+.SH NAME
+zluks \- manage LUKS volumes from ZFSBootMenu
+.SH SYNOPSIS
+.sp
+\fBzluks\fP [\fBunlock\fP]
+.sp
+\fBzluks\fP \fBopen\fP \fIdevice\fP [\fIname\fP]
+.sp
+\fBzluks\fP \fBclose\fP [\fIname\fP]
+.sp
+\fBzluks\fP \fBstatus\fP
+.sp
+\fBzluks\fP \fBlist\fP
+.sp
+\fBzluks\fP \fBhelp\fP
+.SH DESCRIPTION
+.sp
+\fBzluks\fP manages LUKS (dm\-crypt) volumes that hold ZFS vdevs from within a running ZFSBootMenu image: from the
+recovery shell, or from an SSH session when remote access is configured. It uses the same unlock procedure that
+ZFSBootMenu runs at start\-up, described in \fI\%zfsbootmenu\-luks(7)\fP, so key scripts,
+key files, GnuPG\-encrypted key files, LUKS2 tokens (TPM2, FIDO2 and clevis), YubiKey challenge\-response and
+passphrases all work the same way.
+.sp
+Mappings opened by \fBzluks\fP or by ZFSBootMenu itself are recorded, so that they are closed again before ZFSBootMenu
+boots a boot environment. Mappings opened directly with \fBcryptsetup\fP(8) are not recorded and are left alone.
+.sp
+After unlocking volumes, type \fBexit\fP in the recovery shell to return to ZFSBootMenu, which retries the pool import,
+or import pools manually with \fBzpool import\fP\&.
+.sp
+\fBzluks\fP is only present in images built with LUKS support (the default when \fBcryptsetup\fP is installed on the build
+host).
+.SH SUBCOMMANDS
+.sp
+\fBunlock\fP
+.INDENT 0.0
+.INDENT 3.5
+Unlock every LUKS volume selected by the configuration, exactly as ZFSBootMenu does at start\-up: the volumes listed
+in \fBzbm.luks\fP, otherwise those in the image\(aqs crypttab, otherwise every LUKS volume on the system. Volumes that are
+already open are skipped. This is the default when no subcommand is given.
+.UNINDENT
+.UNINDENT
+.sp
+\fBopen\fP \fIdevice\fP [\fIname\fP]
+.INDENT 0.0
+.INDENT 3.5
+Unlock a single LUKS volume. \fIdevice\fP is a path below \fI/dev\fP or a device specification of the form \fBUUID=\fP,
+\fBPARTUUID=\fP, \fBLABEL=\fP, \fBPARTLABEL=\fP, \fBID=\fP (\fI/dev/disk/by\-id\fP) or \fBPATH=\fP (\fI/dev/disk/by\-path\fP). A bare
+LUKS UUID, or \fBluks\-\fP\fIUUID\fP, is also accepted.
+.sp
+The mapping is created as \fI/dev/mapper/\fP\fIname\fP\&. When \fIname\fP is omitted, the mapping is called \fBluks\-\fP\fIUUID\fP,
+which is also the default name used by systemd\-cryptsetup and dracut. The key file given by \fBzbm.luks_key\fP, if
+any, is tried before the volume\(aqs LUKS2 tokens and a passphrase prompt.
+.UNINDENT
+.UNINDENT
+.sp
+\fBclose\fP [\fIname\fP]
+.INDENT 0.0
+.INDENT 3.5
+Export every imported pool that has a vdev on a mapping opened by ZFSBootMenu, then close the mapping. Data, special,
+log, cache and spare vdevs are recognized, including vdevs on partitions inside a mapping. With \fIname\fP, only that
+mapping is closed. A mapping whose pools cannot be exported stays open and is reported.
+.UNINDENT
+.UNINDENT
+.sp
+\fBstatus\fP
+.INDENT 0.0
+.INDENT 3.5
+List the mappings opened by ZFSBootMenu: mapping name, LUKS device, whether the mapping is open, and the imported
+pools that use it.
+.UNINDENT
+.UNINDENT
+.sp
+\fBlist\fP
+.INDENT 0.0
+.INDENT 3.5
+List every LUKS volume on the system with its size and label, whether it is in use (opened by anything), and the
+types of LUKS2 tokens in its header (\fBsystemd\-tpm2\fP, \fBsystemd\-fido2\fP, \fBclevis\fP or others).
+.UNINDENT
+.UNINDENT
+.sp
+\fBhelp\fP, \fB\-h\fP, \fB\-\-help\fP
+.INDENT 0.0
+.INDENT 3.5
+Print a usage summary.
+.UNINDENT
+.UNINDENT
+.SH ENVIRONMENT VARIABLES
+.sp
+\fBLUKS_TPM2_TCTI\fP
+.INDENT 0.0
+.INDENT 3.5
+The TPM2 software stack TCTI used for TPM2 and clevis tokens. The default is \fIdevice:/dev/tpmrm0\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBLUKS_NO_TOKEN_PLUGINS\fP
+.INDENT 0.0
+.INDENT 3.5
+When set to any non\-empty value, ignore systemd\(aqs cryptsetup token plugins and use ZFSBootMenu\(aqs own TPM2 and FIDO2
+implementations. Useful for diagnosing plugin problems.
+.UNINDENT
+.UNINDENT
+.sp
+\fBLUKS_DEFAULT_TRIES\fP
+.INDENT 0.0
+.INDENT 3.5
+Passphrase attempts per round when the crypttab sets no \fBtries=\fP option. The default is 3.
+.UNINDENT
+.UNINDENT
+.sp
+\fBZBM_CRYPTTAB\fP
+.INDENT 0.0
+.INDENT 3.5
+The crypttab to read. The default is \fI/etc/zfsbootmenu/crypttab\fP\&.
+.UNINDENT
+.UNINDENT
+.SH FILES
+.sp
+\fI/etc/zfsbootmenu/crypttab\fP
+.INDENT 0.0
+.INDENT 3.5
+Volumes to unlock, embedded in the image at build time; see
+\fI\%zfsbootmenu\-crypttab(5)\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/etc/zfsbootmenu/gnupg/\fP
+.INDENT 0.0
+.INDENT 3.5
+Public keyring used to decrypt GnuPG\-encrypted key files.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/zfsbootmenu/luks\-mappings\fP
+.INDENT 0.0
+.INDENT 3.5
+Mappings opened by ZFSBootMenu: name, device and whether the volume was discovered automatically.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/zfsbootmenu/luks\-skipped\fP
+.INDENT 0.0
+.INDENT 3.5
+Volumes the user chose to skip; they are not offered again when ZFSBootMenu retries the pool import.
+.UNINDENT
+.UNINDENT
+.SH EXIT STATUS
+.sp
+\fB0\fP
+.INDENT 0.0
+.INDENT 3.5
+Successful completion. For \fBunlock\fP, every selected volume was opened, or at least one was opened.
+.UNINDENT
+.UNINDENT
+.sp
+\fB1\fP
+.INDENT 0.0
+.INDENT 3.5
+An error occurred: a volume could not be unlocked, a device was not found, a mapping could not be closed,
+\fBcryptsetup\fP is not available, or the command line was invalid.
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES
+.SS Example 1: Listing LUKS volumes and their tokens
+.sp
+The following command shows every LUKS volume that ZFSBootMenu can see. The first two volumes hold a mirror and are
+locked; the third has a TPM2 token and is already open:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zluks list
+/dev/sda2 \(dqzfs0\(dq (931.5G)   locked   tokens: systemd\-fido2
+/dev/sdb2 \(dqzfs1\(dq (931.5G)   locked   tokens: systemd\-fido2
+/dev/nvme0n1p2 (476.9G)     in use   tokens: systemd\-tpm2
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 2: Unlocking all volumes from the recovery shell
+.sp
+After skipping the passphrase prompt at start\-up, unlock the configured volumes and return to ZFSBootMenu, which
+imports the pools:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zluks
+Unlock LUKS volume /dev/sda2 \(dqzfs0\(dq (931.5G)
+Passphrase (leave empty to skip):
+# exit
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 3: Unlocking one volume with a chosen mapping name
+.sp
+Hot spare and cache vdevs are located by the device path recorded in the pool. To make such a vdev available, open its
+LUKS volume under the same name the running system uses:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zluks open PARTLABEL=spare0 luks\-3f1c6e0a\-5b7d\-4e8b\-9d3e\-2a6c1f0e9b42
+# zpool status zroot
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 4: Unlocking over SSH while the console waits
+.sp
+When ZFSBootMenu waits at a passphrase prompt on the console, an SSH session can unlock the same volume; the console
+prompt notices and continues:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+$ ssh \-p 222 root@zbm\-host
+# zluks open UUID=0a1b2c3d\-4e5f\-6789\-abcd\-ef0123456789
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 5: Showing and closing mappings
+.sp
+The following commands show which pools use the mappings opened by ZFSBootMenu, then export the pool \fItank\fP and close
+its mapping:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zluks status
+luks\-0a1b2c3d\-...   /dev/sdc2   open   pools: tank
+luks\-9f8e7d6c\-...   /dev/sdd2   open   pools: zroot
+# zluks close luks\-0a1b2c3d\-4e5f\-6789\-abcd\-ef0123456789
+.EE
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.sp
+\fI\%zfsbootmenu\-luks(7)\fP, \fI\%zfsbootmenu\-crypttab(5)\fP,
+\fI\%zfsbootmenu(7)\fP, \fBcryptsetup\fP(8), \fBsystemd\-cryptenroll\fP(1), \fBzpool\fP(8)
+.SH AUTHOR
+ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
+.SH COPYRIGHT
+2019 Zach Dykstra, 2020-2025 ZFSBootMenu Team
+.\" Generated by docutils manpage writer.
+.

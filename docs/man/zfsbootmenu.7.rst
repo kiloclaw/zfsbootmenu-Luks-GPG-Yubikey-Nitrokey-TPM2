@@ -182,6 +182,8 @@ These options are set on the kernel command line when booting the initramfs or U
 
   How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on to other unlock methods (default: 10). Pressing any key skips the wait.
 
+  See :doc:`zfsbootmenu-luks(7) </man/zfsbootmenu-luks.7>` for a complete description of LUKS support.
+
 Deprecated Parameters
 ---------------------
 
@@ -477,4 +479,4 @@ Hooks should be marked executable and placed in a subdirectory of *${zfsbootmenu
 SEE ALSO
 ========
 
-:doc:`generate-zbm(5) </man/generate-zbm.5>` :doc:`generate-zbm(8) </man/generate-zbm.8>` :manpage:`dracut.conf(5)` :manpage:`mkinitcpio.conf(5)`
+:doc:`generate-zbm(5) </man/generate-zbm.5>` :doc:`generate-zbm(8) </man/generate-zbm.8>` :doc:`zfsbootmenu-luks(7) </man/zfsbootmenu-luks.7>` :doc:`zfsbootmenu-crypttab(5) </man/zfsbootmenu-crypttab.5>` :doc:`zluks(8) </man/zluks.8>` :manpage:`dracut.conf(5)` :manpage:`mkinitcpio.conf(5)`

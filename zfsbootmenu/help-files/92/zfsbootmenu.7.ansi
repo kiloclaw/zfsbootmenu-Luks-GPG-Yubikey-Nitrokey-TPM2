@@ -214,6 +214,55 @@
       should be avoided. The delay interval between device checks can be controlled by
       [1mzbm.retry_delay[0m.
 
+    [1mzbm.luks=<off|auto|device,device,...>[0m
+
+      Control the unlocking of LUKS (dm-crypt) volumes that hold ZFS vdevs, which happens
+      after early-setup hooks and before pools are imported.
+
+      [33moff[0m
+
+        Do not unlock any LUKS volumes.
+
+      [33mauto[0m
+
+        Try every LUKS volume on the system, closing again any whose contents are recognized
+        as something other than a ZFS vdev. This is the default when the image
+        contains no LUKS crypttab.
+
+      [33mdevice,device,...[0m
+
+        Unlock only the listed devices. Each device may be a path below [1m/dev[0m, a typed
+        indicator of the form [1mUUID=[0m, [1mPARTUUID=[0m, [1mLABEL=[0m, [1mPARTLABEL=[0m, [1mID=[0m or [1mPATH=[0m, or
+        a bare LUKS UUID.
+
+      When this option is absent, the crypttab embedded with [1mzfsbootmenu_luks_crypttab[0m is
+      used if it exists; otherwise [33mauto[0m applies. A passphrase that unlocks one volume
+      is tried on the others before prompting again, and an empty passphrase skips a
+      volume. See the [33mZFS Pools on LUKS Volumes[0m guide for details.
+
+    [1mzbm.luks_key=<path>[:<device>][0m
+
+      A key file used to unlock any LUKS volume that has no key file of its own. With
+      [1m:<device>[0m (specified as for [1mzbm.luks[0m), the device is mounted read-only and
+      [1m<path>[0m is read relative to its root. ZFSBootMenu falls back to a passphrase
+      prompt if the key is unavailable or does not work. Key files named [33m*.gpg[0m, [33m*.asc[0m
+      or [33m*.pgp[0m are decrypted with GnuPG first, using a passphrase or an OpenPGP smart
+      card.
+
+    [1mzbm.luks_tokens=0[0m
+
+      Do not use LUKS2 tokens. By default, ZFSBootMenu unlocks volumes with TPM2 and FIDO2
+      tokens enrolled by [1msystemd-cryptenroll[0m and with clevis tokens before asking for
+      a passphrase.
+
+    [1mzbm.luks_token_wait=<seconds>[0m
+
+      How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged
+      in before moving on to other unlock methods (default: 10). Pressing any key
+      skips the wait.
+
+      See zfsbootmenu-luks(7) for a complete description of LUKS support.
+
     [1mDeprecated Parameters[0m
 
       [1mtimeout[0m
@@ -271,21 +320,9 @@
 
     [1morg.zfsbootmenu:commandline[0m
 
-      A list of command-line arguments passed to the kernel selected by ZFSBootMenu for
-      final boot. The special keyword [33m%{parent}[0m will be recursively expanded to the
-      value of [1morg.zfsbootmenu:commandline[0m at the parent of the boot environment.
-      Thus, for example,
-
-      zfs set org.zfsbootmenu:commandline="zfs.zfs_arc_max=8589934592" zroot
-      zfs set org.zfsbootmenu:commandline="%{parent} elevator=noop" zroot/ROOT
-      zfs set org.zfsbootmenu:commandline="loglevel=7 %{parent}" zroot/ROOT/be
-
-      will cause ZFSBootMenu to interpret the kernel command-line for [33mzroot/ROOT/be[0m as
-
-      loglevel=7 zfs.zfs_arc_max=8589934592 elevator=noop
-
-      Never set the [33mroot=[0m argument; ZFSBootMenu always sets this option based on the
-      selected boot environment.
+      A list of command-line arguments to be passed to any kernel in this environment that
+      does not have an associated per-kernel argument file. Refer to [1mPassing Kernel
+      Command Lines to Boot Environments[0m for details.
 
     [1morg.zfsbootmenu:active[0m
 
@@ -408,6 +445,60 @@
       is present in an undetected location, set this option and configure dracut or
       mkinitcpio to explicitly install the library.
 
+    [1mzfsbootmenu_luks=no[0m
+
+      Omit support for ZFS pools on LUKS volumes. By default, when [1mcryptsetup[0m is installed
+      on the build host, the image includes [1mcryptsetup[0m, [1mdmsetup[0m, device-mapper udev
+      rules and the dm-crypt and common kernel crypto modules.
+
+    [1mzfsbootmenu_luks_crypttab=<path>[0m
+
+      A crypttab(5)-style file that lists the LUKS volumes to unlock, with optional key
+      files and options (default: [33m/etc/zfsbootmenu/crypttab[0m). It is embedded in the
+      image as [33m/etc/zfsbootmenu/crypttab[0m, together with any [1mkeyscript=[0m programs it
+      references. Key files are never embedded. The file is ignored for release
+      builds.
+
+    [1mzfsbootmenu_luks_tokens=no[0m
+
+      Omit support for LUKS2 tokens (TPM2, FIDO2 and clevis). By default, the systemd
+      [1msystemd-tpm2[0m and [1msystemd-fido2[0m cryptsetup plugins, [1mtpm2-tools[0m, [1mopenssl[0m,
+      [1mfido2-assert[0m, [1mfido2-token[0m and the clevis tools are installed when present on the
+      build host, together with TPM, USB and HID drivers.
+
+    [1mzfsbootmenu_luks_token_plugins=no[0m
+
+      Omit the systemd cryptsetup token plugins; ZFSBootMenu then unlocks systemd TPM2 and
+      FIDO2 tokens with its own implementation.
+
+    [1mzfsbootmenu_luks_clevis=no[0m
+
+      Omit clevis even when it is installed.
+
+    [1mzfsbootmenu_luks_gpg=no[0m
+
+      Omit GnuPG. By default, [1mgpg[0m, [1mgpg-agent[0m and [1mscdaemon[0m are installed when present, so
+      that GnuPG-encrypted LUKS key files can be decrypted with a passphrase or an
+      OpenPGP smart card (YubiKey, Nitrokey, ...). GnuPG-encrypted key files listed in
+      the crypttab are embedded in the image.
+
+    [1mzfsbootmenu_luks_gpg_keys="<key id> ..."[0m
+
+      OpenPGP public keys to export from the build host's keyring into the image.
+
+    [1mzfsbootmenu_luks_gpg_pubkeys="<file> ..."[0m
+
+      Files with OpenPGP public keys to import into the image.
+
+    [1mzfsbootmenu_luks_pcscd=yes[0m
+
+      Include [1mpcscd[0m and its card reader drivers, for smart card readers that GnuPG's
+      built-in CCID driver does not support.
+
+    [1mzfsbootmenu_luks_yubikey=no[0m
+
+      Omit [1mykchalresp[0m, used for YubiKey challenge-response unlocking.
+
     [1mzfsbootmenu_miser=yes[0m (mkinitcpio only)
 
       By default, [1mmkinitcpio[0m uses busybox to populate initramfs images. However, the
@@ -432,6 +523,51 @@
 
         Deprecated; place teardown hooks in the directory
         [33m${zfsbootmenu_hook_root}/teardown.d[0m.
+
+  [1mPassing Kernel Command Lines to Boot Environments[0m
+
+    An online editor within ZFSBootMenu allows the user to provide a one-time command line
+    that will be passed to the kernel of the selected boot environment. However, changes
+    passed at boot time are not retained for subsequent boots. To specify options that
+    will be used with every boot, two mechanisms exist: the [1morg.zfsbootmenu:commandline[0m
+    dataset property that will apply to all kernels within the boot environment, or a
+    per-kernel file that sits along the kernel to which it applies.
+
+    The [1morg.zfsbootmenu:commandline[0m property is the generally preferred mechanism for
+    specifying command-line arguments to kernels. Using standard inheritance rules for
+    ZFS properties, common arguments can be applied at a higher level in the dataset
+    hierarchy; this enables multiple related boot environments to share a common set of
+    arguments. Per-environment customization of a common command line is made possible
+    with the special keyword [33m%{parent}[0m in the property. When loading the command-line
+    arguments for the dataset that represents a particular boot environment, the
+    [33m%{parent}%[0m keyword will be recursively expanded to the value of
+    [1morg.zfsbootmenu:commandline[0m at the parent of the dataset. Thus, for example,
+
+      zfs set org.zfsbootmenu:commandline="zfs.zfs_arc_max=8589934592" zroot
+      zfs set org.zfsbootmenu:commandline="%{parent} elevator=noop" zroot/ROOT
+      zfs set org.zfsbootmenu:commandline="loglevel=7 %{parent}" zroot/ROOT/be
+
+    will cause ZFSBootMenu to interpret the kernel command-line for [33mzroot/ROOT/be[0m as
+
+      loglevel=7 zfs.zfs_arc_max=8589934592 elevator=noop
+
+    If per-kernel arguments are required, a file containing the command line may be placed
+    alongside its associated kernel, with a name that exactly matches the kernel except
+    for the addition of a [33m.kcl[0m extension. Thus, for example, the command-line file
+
+      /boot/vmlinuz-6.18.36_1.kcl
+
+    will provide arguments for the kernel
+
+      /boot/vmlinuz-6.18.36_1
+
+    if that kernel exists and is usable by ZFSBootMenu. Within the command-line file, the
+    special keyword [33m%{parent}[0m will be substituted with the command line derived from the
+    [1morg.zfsbootmenu:commandline[0m property on the dataset containing the file, recursively
+    expanded as described above.
+
+    [1mNOTE[0m: Never set the [33mroot=[0m argument in any argument list; ZFSBootMenu always sets this
+    option based on the selected boot environment.
 
   [1mUser Hooks[0m
 
@@ -524,6 +660,10 @@
         relative to which ZFSBootMenu will attempt to load the selected kernel and
         initramfs.
 
+      The system teardown hook [33m80-luks-close.sh[0m exports pools that reside on LUKS volumes
+      opened by ZFSBootMenu and closes those volumes, so later teardown hooks should
+      not expect them to be available.
+
       Teardown hooks should never assume that the filesystem named in [1mZBM_SELECTED_BE[0m is
       currently mounted. In addition, no teardown hook should assume that the
       ZFSBootMenu environment is in a consistent operating state. ZFSBootMenu may have
@@ -538,4 +678,5 @@
 
   [1mSEE ALSO[0m
 
-    generate-zbm(5) generate-zbm(8) dracut.conf(5) mkinitcpio.conf(5)
+    generate-zbm(5) generate-zbm(8) zfsbootmenu-luks(7) zfsbootmenu-crypttab(5) zluks(8)
+    dracut.conf(5) mkinitcpio.conf(5)

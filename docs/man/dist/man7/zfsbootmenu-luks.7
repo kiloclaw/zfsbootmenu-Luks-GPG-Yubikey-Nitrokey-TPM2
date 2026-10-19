@@ -1,0 +1,430 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "ZFSBOOTMENU-LUKS" "7" "2026-10-19" "" "ZFSBootMenu"
+.SH NAME
+zfsbootmenu-luks \- ZFS pools on LUKS volumes, and hardware-backed unlocking
+.SH SYNOPSIS
+.sp
+ZFSBootMenu kernel command line:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zbm.luks=off|auto|device[,device...]
+zbm.luks_key=path[:device]
+zbm.luks_tokens=0|1
+zbm.luks_token_wait=seconds
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Build options (dracut configuration or ZFSBootMenu \fImkinitcpio.conf\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zfsbootmenu_luks=yes|no
+zfsbootmenu_luks_crypttab=path
+zfsbootmenu_luks_tokens=yes|no
+zfsbootmenu_luks_token_plugins=yes|no
+zfsbootmenu_luks_clevis=yes|no
+zfsbootmenu_luks_gpg=yes|no
+zfsbootmenu_luks_gpg_keys=\(dqkeyid ...\(dq
+zfsbootmenu_luks_gpg_pubkeys=\(dqfile ...\(dq
+zfsbootmenu_luks_pcscd=yes|no
+zfsbootmenu_luks_yubikey=yes|no
+.EE
+.UNINDENT
+.UNINDENT
+.SH DESCRIPTION
+.sp
+ZFSBootMenu can import ZFS pools whose vdevs are stored on LUKS (dm\-crypt) volumes. Every vdev type is supported: data
+vdevs of any layout (single disks, mirrors, RAIDZ, dRAID), special, dedup, log, cache and spare vdevs, on whole disks or
+on partitions, alone or mixed with unencrypted vdevs. LUKS can be combined with ZFS native encryption.
+.sp
+During start\-up, ZFSBootMenu loads the ZFS modules, configures the hostid, waits for any devices named by
+\fBzbm.wait_for\fP, runs early\-setup hooks, then unlocks LUKS volumes before it imports pools. Right before it starts the
+selected boot environment with \fBkexec\fP(8), it exports the pools on those volumes and closes them, which wipes the
+volume keys from kernel memory. The boot environment\(aqs own initramfs then unlocks the volumes again.
+.sp
+A volume can be unlocked with a passphrase, a key file (plain, on another device, or GnuPG\-encrypted), a key script, a
+TPM 2.0 chip, a FIDO2 security key, a clevis policy, an OpenPGP smart card, or YubiKey challenge\-response. The LUKS
+passphrase always remains available as a fallback.
+.sp
+The \fBzluks\fP(8) command manages LUKS volumes from the recovery shell or over SSH.
+.SH VOLUME SELECTION
+.sp
+The volumes to unlock are chosen by the first of these that applies:
+.INDENT 0.0
+.IP 1. 3
+\fBzbm.luks\fP on the kernel command line;
+.IP 2. 3
+the crypttab embedded in the image, see \fI\%zfsbootmenu\-crypttab(5)\fP;
+.IP 3. 3
+automatic discovery: every LUKS volume on the system.
+.UNINDENT
+.sp
+Automatically discovered volumes are mapped as \fI/dev/mapper/luks\-\fP\fIUUID\fP\&. After unlocking, a discovered volume whose
+contents are recognized as something other than a ZFS vdev, such as an ext4 file system or swap, is closed again.
+.SH UNLOCK SEQUENCE
+.sp
+For each volume, ZFSBootMenu tries the following methods in order and stops at the first one that opens the volume:
+.INDENT 0.0
+.IP 1. 3
+a key script (\fBkeyscript=\fP);
+.IP 2. 3
+a key file, plain or GnuPG\-encrypted;
+.IP 3. 3
+LUKS2 tokens. Tokens that need no interaction come first: TPM2 without a PIN, then clevis. Tokens that need
+interaction follow: TPM2 with a PIN, then FIDO2 security keys;
+.IP 4. 3
+passphrases, and YubiKey responses, that unlocked an earlier volume in this run;
+.IP 5. 3
+YubiKey challenge\-response (\fBykchalresp\fP);
+.IP 6. 3
+a passphrase prompt.
+.UNINDENT
+.sp
+Every prompt can be answered with an empty line to move on to the next method. An empty answer at the final
+passphrase prompt skips the volume.
+.sp
+Secrets are reused within one unlock run, so the members of a mirror or RAIDZ vdev ask only once:
+.INDENT 0.0
+.IP \(bu 2
+a passphrase or YubiKey response that opened one volume is tried on the others;
+.IP \(bu 2
+a TPM2 PIN that worked is tried once on other PIN\-protected TPM2 tokens;
+.IP \(bu 2
+a GnuPG key file is decrypted only once.
+.UNINDENT
+.sp
+All of these live in RAM only, in a subshell, and are wiped when the run ends.
+.sp
+When a volume is unlocked from elsewhere while a prompt is waiting, for example with \fBzluks\fP over SSH, the prompt
+notices and moves on.
+.SH COMMAND-LINE PARAMETERS
+.sp
+These options are given on the ZFSBootMenu kernel command line, for example with \fBzbm\-kcl\fP(8) or with
+\fIKernel.CommandLine\fP in \fBgenerate\-zbm\fP(5).
+.sp
+\fBzbm.luks=off\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not unlock LUKS volumes.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks=auto\fP
+.INDENT 0.0
+.INDENT 3.5
+Use automatic discovery, even when the image has a crypttab.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks=\fP\fIdevice\fP[,\fIdevice\fP\&...]
+.INDENT 0.0
+.INDENT 3.5
+Unlock only the listed devices. Each \fIdevice\fP takes the forms described for the \fIdevice\fP field in
+\fI\%zfsbootmenu\-crypttab(5)\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_key=\fP\fIpath\fP[:\fIdevice\fP]
+.INDENT 0.0
+.INDENT 3.5
+A key file for every volume that has none of its own. With \fIdevice\fP, the key file is read from that device, which
+is mounted read\-only for the purpose. Files ending in \fI\&.gpg\fP, \fI\&.asc\fP or \fI\&.pgp\fP are decrypted with GnuPG.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_tokens=0\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not use LUKS2 tokens.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_token_wait=\fP\fIseconds\fP
+.INDENT 0.0
+.INDENT 3.5
+How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on. The
+default is 10 seconds. Pressing any key ends the wait.
+.UNINDENT
+.UNINDENT
+.SH UNLOCK METHODS
+.SS TPM2
+.sp
+LUKS2 tokens created with \fBsystemd\-cryptenroll \-\-tpm2\-device\fP, with or without \fB\-\-tpm2\-with\-pin\fP, and optionally
+bound to PCRs. When the image contains systemd\(aqs \fIsystemd\-tpm2\fP cryptsetup plugin, the plugin unlocks the token.
+Otherwise ZFSBootMenu unseals it with \fBtpm2\-tools\fP\&. The native implementation handles tokens created by systemd 254
+or later, with or without a PIN and with or without a PCR policy. Signed PCR policies (\fB\-\-tpm2\-public\-key\fP),
+\fB\-\-tpm2\-pcrlock\fP and tokens created by older systemd versions need the plugin.
+.sp
+When the TPM refuses PINs after too many wrong attempts (dictionary\-attack lockout), ZFSBootMenu says so and moves on
+instead of asking for a PIN it cannot use.
+.SS FIDO2
+.sp
+LUKS2 tokens created with \fBsystemd\-cryptenroll \-\-fido2\-device\fP for security keys with the \fIhmac\-secret\fP extension,
+such as YubiKey 5 and Nitrokey 3. ZFSBootMenu waits for the key, asks for its PIN if the token requires one, and asks
+for a touch. Without systemd\(aqs \fIsystemd\-fido2\fP plugin, ZFSBootMenu computes the secret with \fBfido2\-assert\fP(1).
+.SS clevis
+.sp
+LUKS2 tokens created with \fBclevis luks bind\fP\&. TPM2 policies work in every image that contains clevis. Tang policies
+need networking in ZFSBootMenu.
+.SS GnuPG\-encrypted key files
+.sp
+A key file encrypted with \fBgpg \-\-encrypt\fP to an OpenPGP key, typically one stored on a YubiKey or Nitrokey, or with
+\fBgpg \-\-symmetric\fP\&. For keys on a card, ZFSBootMenu first reads the card and checks that it holds the key the file is
+encrypted to. Only then does it ask for the card PIN, showing the number of attempts left. The public keys come from
+\fBzfsbootmenu_luks_gpg_keys\fP or \fBzfsbootmenu_luks_gpg_pubkeys\fP\&. GnuPG\(aqs built\-in CCID driver handles common
+readers; \fBzfsbootmenu_luks_pcscd=yes\fP adds \fBpcscd\fP(8) for others.
+.SS YubiKey challenge\-response
+.sp
+The scheme used by \fByubikey\-luks\fP: the typed passphrase (or its SHA\-256) is sent to an HMAC\-SHA1 slot, and the
+response (optionally appended to the challenge) is a LUKS passphrase. It is enabled per volume with the \fBykchalresp\fP
+crypttab options.
+.SS Key files and key scripts
+.sp
+Plain key files present in the running image or on another device, and Debian\-style key scripts; see
+\fI\%zfsbootmenu\-crypttab(5)\fP\&.
+.SH LATE DEVICES
+.sp
+Devices named in the crypttab or in \fBzbm.luks\fP are waited for at start\-up. Disks that appear later, such as slow USB
+enclosures or some SAS controllers, are handled by the pool\-import retry loop. Before each import retry, ZFSBootMenu
+looks for LUKS volumes that are neither open nor skipped by the user, unlocks them, and retries the import at once.
+.SH BOOT ENVIRONMENT HAND-OFF
+.sp
+The system teardown hook \fI80\-luks\-close.sh\fP runs right before \fBkexec\fP\&. It exports every pool that has a vdev on a
+mapping opened by ZFSBootMenu, including vdevs on partitions inside a mapping, and closes the mappings. It can be
+disabled with \fBzbm.skip_hooks=80\-luks\-close.sh\fP\&.
+.sp
+The boot environment must unlock its LUKS volumes again from its own initramfs, for example with a key file embedded
+in that initramfs. Because the initramfs is stored inside the encrypted pool, this does not expose the key.
+.SH BUILD OPTIONS
+.sp
+These options are set in a dracut configuration file in the directory named by \fIGlobal.DracutConfDir\fP in
+\fBgenerate\-zbm\fP(5), or in the ZFSBootMenu \fImkinitcpio.conf\fP\&.
+.sp
+\fBzfsbootmenu_luks=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out LUKS support. By default it is included whenever \fBcryptsetup\fP is installed on the build host.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_crypttab=\fP\fIpath\fP
+.INDENT 0.0
+.INDENT 3.5
+The crypttab to embed. The default is \fI/etc/zfsbootmenu/crypttab\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_tokens=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out TPM2, FIDO2 and clevis support.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_token_plugins=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out systemd\(aqs cryptsetup token plugins; ZFSBootMenu\(aqs own TPM2 and FIDO2 code is used instead.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_clevis=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out clevis.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out GnuPG.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg_keys=\fP\(dq\fIkeyid\fP ...\(dq
+.INDENT 0.0
+.INDENT 3.5
+Export these OpenPGP public keys from the build host\(aqs keyring into the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg_pubkeys=\fP\(dq\fIfile\fP ...\(dq
+.INDENT 0.0
+.INDENT 3.5
+Import the OpenPGP public keys in these files into the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_pcscd=yes\fP
+.INDENT 0.0
+.INDENT 3.5
+Include \fBpcscd\fP and its card\-reader drivers.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_yubikey=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Leave out \fBykchalresp\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Each optional component is included only when it is installed on the build host. The image also receives
+\fBcryptsetup\fP, \fBdmsetup\fP, the device\-mapper udev rules, \fIdm\-crypt\fP and common crypto modules, and TPM, USB and HID
+drivers. The dracut \fIcrypt\fP module is left out of ZFSBootMenu images, and \fIrd.luks=0\fP is embedded as a safeguard, so
+that dracut does not prompt for LUKS volumes on its own.
+.SH FILES
+.sp
+\fI/etc/zfsbootmenu/crypttab\fP
+.INDENT 0.0
+.INDENT 3.5
+Volumes to unlock (on the build host, and in the image).
+.UNINDENT
+.UNINDENT
+.sp
+\fI/etc/zfsbootmenu/gnupg/\fP
+.INDENT 0.0
+.INDENT 3.5
+Public keyring in the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/lib/zfsbootmenu\-luks.sh\fP, \fI/lib/zfsbootmenu\-luks\-keys.sh\fP
+.INDENT 0.0
+.INDENT 3.5
+Unlock and teardown functions, and hardware key support.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/libexec/init.d/45\-luks\-unlock\fP
+.INDENT 0.0
+.INDENT 3.5
+Start\-up stage that unlocks volumes.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/libexec/hooks/teardown.d/80\-luks\-close.sh\fP
+.INDENT 0.0
+.INDENT 3.5
+Teardown hook that exports pools and closes volumes before \fBkexec\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/zfsbootmenu/luks\-mappings\fP, \fI/zfsbootmenu/luks\-skipped\fP
+.INDENT 0.0
+.INDENT 3.5
+Run\-time state: mappings opened by ZFSBootMenu, and volumes skipped by the user.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/usr/share/examples/zfsbootmenu/crypttab\fP
+.INDENT 0.0
+.INDENT 3.5
+Annotated example crypttab, installed with ZFSBootMenu.
+.UNINDENT
+.UNINDENT
+.SH SECURITY
+.INDENT 0.0
+.IP \(bu 2
+Plain key files are never embedded in an image, because images normally live on an unencrypted EFI system
+partition. GnuPG\-encrypted key files are embedded. Those protected only by a passphrase can be attacked offline by
+anyone with the image, and the build warns about them.
+.IP \(bu 2
+A TPM2 token without a PIN unlocks the pools for anyone who can start the computer, and ZFSBootMenu offers a
+recovery shell. Bind such tokens to PCR 7 with Secure Boot enabled, or require a PIN.
+.IP \(bu 2
+Every vdev that stores pool data must be encrypted: data, special, dedup, log and cache vdevs, and spares. An
+unencrypted log or cache device holds plaintext data.
+.IP \(bu 2
+Decrypted key material exists only in RAM, below \fI/run\fP, and is removed when unlocking ends. GnuPG agents are stopped
+after each use.
+.UNINDENT
+.SH EXAMPLES
+.SS Example 1: Unlocking only two devices
+.sp
+The following kernel command line makes ZFSBootMenu unlock only the two partitions of the boot pool, ignoring any other
+LUKS volumes:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zbm\-kcl \-a \(aqzbm.luks=PARTLABEL=zfs0,PARTLABEL=zfs1\(aq /boot/efi/EFI/zbm/vmlinuz.EFI
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 2: Using a key file on a USB stick for every volume
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zbm\-kcl \-a \(aqzbm.luks_key=/keys/pool.key:LABEL=KEYSTICK\(aq /boot/efi/EFI/zbm/vmlinuz.EFI
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 3: Disabling LUKS2 tokens for one boot
+.sp
+At the ZFSBootMenu kernel command\-line editor, or in the boot loader, add:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zbm.luks_tokens=0
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 4: Building an image with OpenPGP smart card support
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# cat /etc/zfsbootmenu/dracut.conf.d/luks.conf
+zfsbootmenu_luks_gpg_keys=\(dq0x0123456789ABCDEF\(dq
+# generate\-zbm
+.EE
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.sp
+\fI\%zluks(8)\fP, \fI\%zfsbootmenu\-crypttab(5)\fP,
+\fI\%zfsbootmenu(7)\fP, \fI\%generate\-zbm(5)\fP,
+\fI\%zbm\-kcl(8)\fP, \fBcryptsetup\fP(8), \fBsystemd\-cryptenroll\fP(1), \fBclevis\-luks\-bind\fP(1),
+\fBgpg\fP(1), \fBykpersonalize\fP(1), \fBzpool\fP(8), \fBzpoolconcepts\fP(7)
+.SH AUTHOR
+ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
+.SH COPYRIGHT
+2019 Zach Dykstra, 2020-2025 ZFSBootMenu Team
+.\" Generated by docutils manpage writer.
+.

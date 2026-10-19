@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "ZFSBOOTMENU" "7" "2026-01-01" "" "ZFSBootMenu"
+.TH "ZFSBOOTMENU" "7" "2026-10-19" "" "ZFSBootMenu"
 .SH NAME
 zfsbootmenu \- System Integration
 .SH SYNOPSIS
@@ -270,6 +270,59 @@ Ensure that one or more devices are present before starting the pool import proc
 The use of full device paths other than descendants of \fB/dev/disk/\fP is fragile and should be avoided. The delay interval between device checks can be controlled by \fBzbm.retry_delay\fP\&.
 .UNINDENT
 .UNINDENT
+.sp
+\fBzbm.luks=<off|auto|device,device,...>\fP
+.INDENT 0.0
+.INDENT 3.5
+Control the unlocking of LUKS (dm\-crypt) volumes that hold ZFS vdevs, which happens after early\-setup hooks and before pools are imported.
+.sp
+\fIoff\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not unlock any LUKS volumes.
+.UNINDENT
+.UNINDENT
+.sp
+\fIauto\fP
+.INDENT 0.0
+.INDENT 3.5
+Try every LUKS volume on the system, closing again any whose contents are recognized as something other than a ZFS vdev. This is the default when the image contains no LUKS crypttab.
+.UNINDENT
+.UNINDENT
+.sp
+\fIdevice,device,...\fP
+.INDENT 0.0
+.INDENT 3.5
+Unlock only the listed devices. Each device may be a path below \fB/dev\fP, a typed indicator of the form \fBUUID=\fP, \fBPARTUUID=\fP, \fBLABEL=\fP, \fBPARTLABEL=\fP, \fBID=\fP or \fBPATH=\fP, or a bare LUKS UUID.
+.UNINDENT
+.UNINDENT
+.sp
+When this option is absent, the crypttab embedded with \fBzfsbootmenu_luks_crypttab\fP is used if it exists; otherwise \fIauto\fP applies. A passphrase that unlocks one volume is tried on the others before prompting again, and an empty passphrase skips a volume. See the \fIZFS Pools on LUKS Volumes\fP guide for details.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_key=<path>[:<device>]\fP
+.INDENT 0.0
+.INDENT 3.5
+A key file used to unlock any LUKS volume that has no key file of its own. With \fB:<device>\fP (specified as for \fBzbm.luks\fP), the device is mounted read\-only and \fB<path>\fP is read relative to its root. ZFSBootMenu falls back to a passphrase prompt if the key is unavailable or does not work. Key files named \fI*.gpg\fP, \fI*.asc\fP or \fI*.pgp\fP are decrypted with GnuPG first, using a passphrase or an OpenPGP smart card.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_tokens=0\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not use LUKS2 tokens. By default, ZFSBootMenu unlocks volumes with TPM2 and FIDO2 tokens enrolled by \fBsystemd\-cryptenroll\fP and with clevis tokens before asking for a passphrase.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzbm.luks_token_wait=<seconds>\fP
+.INDENT 0.0
+.INDENT 3.5
+How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on to other unlock methods (default: 10). Pressing any key skips the wait.
+.sp
+See \fI\%zfsbootmenu\-luks(7)\fP for a complete description of LUKS support.
+.UNINDENT
+.UNINDENT
 .SS Deprecated Parameters
 .sp
 \fBtimeout\fP
@@ -346,29 +399,7 @@ If the identifier does not match any kernels, the latest kernel will be chosen a
 \fBorg.zfsbootmenu:commandline\fP
 .INDENT 0.0
 .INDENT 3.5
-A list of command\-line arguments passed to the kernel selected by ZFSBootMenu for final boot. The special keyword \fI%{parent}\fP will be recursively expanded to the value of \fBorg.zfsbootmenu:commandline\fP at the parent of the boot environment. Thus, for example,
-.INDENT 0.0
-.INDENT 3.5
-.sp
-.EX
-zfs set org.zfsbootmenu:commandline=\(dqzfs.zfs_arc_max=8589934592\(dq zroot
-zfs set org.zfsbootmenu:commandline=\(dq%{parent} elevator=noop\(dq zroot/ROOT
-zfs set org.zfsbootmenu:commandline=\(dqloglevel=7 %{parent}\(dq zroot/ROOT/be
-.EE
-.UNINDENT
-.UNINDENT
-.sp
-will cause ZFSBootMenu to interpret the kernel command\-line for \fIzroot/ROOT/be\fP as
-.INDENT 0.0
-.INDENT 3.5
-.sp
-.EX
-loglevel=7 zfs.zfs_arc_max=8589934592 elevator=noop
-.EE
-.UNINDENT
-.UNINDENT
-.sp
-Never set the \fIroot=\fP argument; ZFSBootMenu always sets this option based on the selected boot environment.
+A list of command\-line arguments to be passed to any kernel in this environment that does not have an associated per\-kernel argument file. Refer to \fBPassing Kernel Command Lines to Boot Environments\fP for details.
 .UNINDENT
 .UNINDENT
 .sp
@@ -475,6 +506,76 @@ The ZFSBootMenu module attempts to detect and install a copy of the library \fBl
 .UNINDENT
 .UNINDENT
 .sp
+\fBzfsbootmenu_luks=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit support for ZFS pools on LUKS volumes. By default, when \fBcryptsetup\fP is installed on the build host, the image includes \fBcryptsetup\fP, \fBdmsetup\fP, device\-mapper udev rules and the dm\-crypt and common kernel crypto modules.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_crypttab=<path>\fP
+.INDENT 0.0
+.INDENT 3.5
+A crypttab(5)\-style file that lists the LUKS volumes to unlock, with optional key files and options (default: \fI/etc/zfsbootmenu/crypttab\fP). It is embedded in the image as \fI/etc/zfsbootmenu/crypttab\fP, together with any \fBkeyscript=\fP programs it references. Key files are never embedded. The file is ignored for release builds.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_tokens=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit support for LUKS2 tokens (TPM2, FIDO2 and clevis). By default, the systemd \fBsystemd\-tpm2\fP and \fBsystemd\-fido2\fP cryptsetup plugins, \fBtpm2\-tools\fP, \fBopenssl\fP, \fBfido2\-assert\fP, \fBfido2\-token\fP and the clevis tools are installed when present on the build host, together with TPM, USB and HID drivers.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_token_plugins=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit the systemd cryptsetup token plugins; ZFSBootMenu then unlocks systemd TPM2 and FIDO2 tokens with its own implementation.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_clevis=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit clevis even when it is installed.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit GnuPG. By default, \fBgpg\fP, \fBgpg\-agent\fP and \fBscdaemon\fP are installed when present, so that GnuPG\-encrypted LUKS key files can be decrypted with a passphrase or an OpenPGP smart card (YubiKey, Nitrokey, ...). GnuPG\-encrypted key files listed in the crypttab are embedded in the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg_keys=\(dq<key id> ...\(dq\fP
+.INDENT 0.0
+.INDENT 3.5
+OpenPGP public keys to export from the build host\(aqs keyring into the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_gpg_pubkeys=\(dq<file> ...\(dq\fP
+.INDENT 0.0
+.INDENT 3.5
+Files with OpenPGP public keys to import into the image.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_pcscd=yes\fP
+.INDENT 0.0
+.INDENT 3.5
+Include \fBpcscd\fP and its card reader drivers, for smart card readers that GnuPG\(aqs built\-in CCID driver does not support.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_luks_yubikey=no\fP
+.INDENT 0.0
+.INDENT 3.5
+Omit \fBykchalresp\fP, used for YubiKey challenge\-response unlocking.
+.UNINDENT
+.UNINDENT
+.sp
 \fBzfsbootmenu_miser=yes\fP (mkinitcpio only)
 .INDENT 0.0
 .INDENT 3.5
@@ -503,6 +604,71 @@ Deprecated; place setup hooks in the directory \fI${zfsbootmenu_hook_root}/setup
 Deprecated; place teardown hooks in the directory \fI${zfsbootmenu_hook_root}/teardown.d\fP\&.
 .UNINDENT
 .UNINDENT
+.SH PASSING KERNEL COMMAND LINES TO BOOT ENVIRONMENTS
+.sp
+An online editor within ZFSBootMenu allows the user to provide a one\-time command line that will be passed to the kernel of the selected boot environment. However, changes passed at boot time are not retained for subsequent boots. To specify options that will be used with every boot, two mechanisms exist: the \fBorg.zfsbootmenu:commandline\fP dataset property that will apply to all kernels within the boot environment, or a per\-kernel file that sits along the kernel to which it applies.
+.sp
+The \fBorg.zfsbootmenu:commandline\fP property is the generally preferred mechanism for specifying command\-line arguments to kernels. Using standard inheritance rules for ZFS properties, common arguments can be applied at a higher level in the dataset hierarchy; this enables multiple related boot environments to share a common set of arguments. Per\-environment customization of a common command line is made possible with the special keyword \fI%{parent}\fP in the property. When loading the command\-line arguments for the dataset that represents a particular boot environment, the \fI%{parent}%\fP keyword will be recursively expanded to the value of \fBorg.zfsbootmenu:commandline\fP at the parent of the dataset. Thus, for example,
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zfs set org.zfsbootmenu:commandline=\(dqzfs.zfs_arc_max=8589934592\(dq zroot
+zfs set org.zfsbootmenu:commandline=\(dq%{parent} elevator=noop\(dq zroot/ROOT
+zfs set org.zfsbootmenu:commandline=\(dqloglevel=7 %{parent}\(dq zroot/ROOT/be
+.EE
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+will cause ZFSBootMenu to interpret the kernel command\-line for \fIzroot/ROOT/be\fP as
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+loglevel=7 zfs.zfs_arc_max=8589934592 elevator=noop
+.EE
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+If per\-kernel arguments are required, a file containing the command line may be placed alongside its associated kernel, with a name that exactly matches the kernel except for the addition of a \fI\&.kcl\fP extension. Thus, for example, the command\-line file
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+/boot/vmlinuz\-6.18.36_1.kcl
+.EE
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+will provide arguments for the kernel
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+/boot/vmlinuz\-6.18.36_1
+.EE
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+if that kernel exists and is usable by ZFSBootMenu. Within the command\-line file, the special keyword \fI%{parent}\fP will be substituted with the command line derived from the \fBorg.zfsbootmenu:commandline\fP property on the dataset containing the file, recursively expanded as described above.
+.sp
+\fBNOTE\fP: Never set the \fIroot=\fP argument in any argument list; ZFSBootMenu always sets this option based on the selected boot environment.
 .SH USER HOOKS
 .sp
 At various points during operation, ZFSBootMenu will execute optional hooks that allow critical operations to be supplemented with custom behavior. System hooks are provided in the directory \fI${zfsbootmenu_module_root}/hooks\fP and are automatically installed in all ZFSBootMenu images. User hooks may be provided in the directory \fI${zfsbootmenu_hook_root}\fP\&.
@@ -586,6 +752,8 @@ The path where the selected boot environment is currently mounted, which is the 
 .UNINDENT
 .UNINDENT
 .sp
+The system teardown hook \fI80\-luks\-close.sh\fP exports pools that reside on LUKS volumes opened by ZFSBootMenu and closes those volumes, so later teardown hooks should not expect them to be available.
+.sp
 Teardown hooks should never assume that the filesystem named in \fBZBM_SELECTED_BE\fP is currently mounted. In addition, no teardown hook should assume that the ZFSBootMenu environment is in a consistent operating state. ZFSBootMenu may have exported some or all pools prior to executing teardown hooks.
 .sp
 In general, it is not possible to cleanly abort a boot attempt from boot\-selection or teardown hooks. However, a boot\-selection or teardown hook may take control of the boot attempt by implementing its own \fBkexec\fP load and execution without returning to ZFSBootMenu. This may be useful, for example, to allow ZFSBootMenu to select a boot environment and then restructure the boot process to launch a Xen kernel with the selected environment configured as dom0.
@@ -593,7 +761,7 @@ In general, it is not possible to cleanly abort a boot attempt from boot\-select
 .UNINDENT
 .SH SEE ALSO
 .sp
-\fI\%generate\-zbm(5)\fP \fI\%generate\-zbm(8)\fP \fB\X'tty: link https://man.voidlinux.org/dracut.conf.5'\fI\%dracut.conf(5)\fP\X'tty: link'\fP \fB\X'tty: link https://man.voidlinux.org/mkinitcpio.conf.5'\fI\%mkinitcpio.conf(5)\fP\X'tty: link'\fP
+\fI\%generate\-zbm(5)\fP \fI\%generate\-zbm(8)\fP \fI\%zfsbootmenu\-luks(7)\fP \fI\%zfsbootmenu\-crypttab(5)\fP \fI\%zluks(8)\fP \fB\X'tty: link https://man.voidlinux.org/dracut.conf.5'\fI\%dracut.conf(5)\fP\X'tty: link'\fP \fB\X'tty: link https://man.voidlinux.org/mkinitcpio.conf.5'\fI\%mkinitcpio.conf(5)\fP\X'tty: link'\fP
 .SH AUTHOR
 ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
 .SH COPYRIGHT

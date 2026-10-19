@@ -20,6 +20,11 @@
 
     Access the snapshot browser for a dataset, allowing cloning and rollback operations to be initiated.
 
+  [1mzluks[0m [[33munlock[0m | [33mopen device[0m [[33mname[0m] | [33mclose[0m [[33mname[0m] | [33mstatus[0m | [33mlist[0m]
+
+    Unlock, list and close LUKS volumes that hold ZFS vdevs. Without arguments, unlock every configured volume as at start-up; then
+    type [33mexit[0m to return to ZFSBootMenu, which imports the pools.
+
   [1mzreport[0m
 
     List ZFS module, pool and dataset details for bug reports.

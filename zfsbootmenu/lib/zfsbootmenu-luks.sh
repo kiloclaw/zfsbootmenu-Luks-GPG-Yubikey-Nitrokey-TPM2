@@ -46,6 +46,27 @@ source "${LUKS_KEYS_LIB}" >/dev/null 2>&1 || return 1
 # Default number of passphrase attempts per round for each volume
 : "${LUKS_DEFAULT_TRIES:=3}"
 
+# Secrets reused across the volumes of one unlock run, so that every member of
+# a mirror or RAIDZ vdev does not ask again: typed passphrases (and YubiKey
+# responses), TPM2 PINs, and decrypted GnuPG key files (key file spec -> file
+# in RAM). luks_forget_secrets() wipes all of them.
+_luks_passphrases=()
+_luks_tpm2_pins=()
+declare -gA _luks_gpg_plain=()
+
+# prints: nothing
+# returns: nothing
+
+luks_forget_secrets() {
+  local f
+  for f in "${_luks_gpg_plain[@]}"; do
+    rm -f "${f}"
+  done
+  _luks_gpg_plain=()
+  _luks_passphrases=()
+  _luks_tpm2_pins=()
+}
+
 # prints: nothing
 # returns: 0 if cryptsetup is usable, 1 otherwise
 
@@ -567,17 +588,30 @@ luks_open_device() {
   # 2. A key file, possibly on a separate key device (with a key script, the
   #    key file field is the script's argument rather than a file). GnuPG-
   #    encrypted key files are decrypted to RAM first.
-  if [ -n "${keyspec}" ] && [ -z "${_luks_keyscript}" ]; then
+  plain="${_luks_gpg_plain[${keyspec:-none}]}"
+  if [ -n "${keyspec}" ] && [ -z "${_luks_keyscript}" ] && [ -n "${plain}" ] && [ -s "${plain}" ]; then
+    # Decrypted earlier in this run for another volume
+    zinfo "unlocking ${dev} with GnuPG key file ${keyspec} (already decrypted)"
+    if luks_cryptsetup_open "${name}" "${dev}" "${plain}" "${_luks_args[@]}" < /dev/null; then
+      luks_record_mapping "${name}" "${dev}" "${discovered}"
+      zinfo "unlocked ${dev} as ${name} with key file"
+      return 0
+    fi
+    zwarn "key file ${keyspec} failed to unlock ${dev}"
+  elif [ -n "${keyspec}" ] && [ -z "${_luks_keyscript}" ]; then
     if luks_find_keyfile "${keyspec}" keypath keymnt; then
       if [ -n "${_luks_gpg}" ] || luks_is_gpg_keyfile "${keypath}" ""; then
         ret=1
         if plain="$( mktemp /run/zbm-key.XXXXXX 2>/dev/null || mktemp /tmp/zbm-key.XXXXXX )"; then
           if luks_gpg_decrypt "${keypath}" "${plain}" "${dev}"; then
+            # Kept in RAM for other volumes until luks_forget_secrets
+            _luks_gpg_plain[${keyspec}]="${plain}"
             zinfo "unlocking ${dev} with GnuPG key file ${keyspec}"
             luks_cryptsetup_open "${name}" "${dev}" "${plain}" "${_luks_args[@]}" < /dev/null
             ret=$?
+          else
+            rm -f "${plain}"
           fi
-          rm -f "${plain}"
         fi
       else
         zinfo "unlocking ${dev} with key file ${keyspec}"
@@ -607,15 +641,7 @@ luks_open_device() {
     luks_is_open "${dev}" && return 0
   fi
 
-  # 4. YubiKey HMAC-SHA1 challenge-response
-  if [ -n "${_luks_yk}" ]; then
-    if luks_try_ykchalresp "${name}" "${dev}" "${_luks_args[@]}"; then
-      luks_record_mapping "${name}" "${dev}" "${discovered}"
-      return 0
-    fi
-  fi
-
-  # 5. Passphrases that already unlocked another volume
+  # 4. Passphrases (and YubiKey responses) that unlocked another volume
   for cached in "${_luks_passphrases[@]}"; do
     if printf '%s' "${cached}" | luks_cryptsetup_open "${name}" "${dev}" - "${_luks_args[@]}"; then
       luks_record_mapping "${name}" "${dev}" "${discovered}"
@@ -623,6 +649,14 @@ luks_open_device() {
       return 0
     fi
   done
+
+  # 5. YubiKey HMAC-SHA1 challenge-response
+  if [ -n "${_luks_yk}" ]; then
+    if luks_try_ykchalresp "${name}" "${dev}" "${_luks_args[@]}"; then
+      luks_record_mapping "${name}" "${dev}" "${discovered}"
+      return 0
+    fi
+  fi
 
   # 6. Ask the user
   desc="$( luks_describe_device "${dev}" )"
@@ -784,12 +818,19 @@ luks_unlock_all() {
   local -a devs
   local -A seen
 
+  # A retry from the import loop succeeds only if it unlocked something new;
+  # reporting success when LUKS is unavailable or disabled would make the loop
+  # retry the import forever without ever offering the recovery shell
   if ! luks_available; then
     zdebug "cryptsetup is not available; LUKS support disabled"
-    return 0
+    [ -z "${LUKS_RETRY}" ]
+    return
   fi
 
-  luks_load_config || return 0
+  if ! luks_load_config; then
+    [ -z "${LUKS_RETRY}" ]
+    return
+  fi
 
   # Default key for volumes without one of their own
   local global_key
@@ -799,8 +840,7 @@ luks_unlock_all() {
 
   unlocked=0
   failed=0
-  _luks_passphrases=()
-  _luks_tpm2_pins=()
+  luks_forget_secrets
 
   if [ "${_luks_mode}" = "auto" ]; then
     mapfile -t devs < <( luks_discover_devices )
@@ -864,8 +904,7 @@ luks_unlock_all() {
     done
   fi
 
-  _luks_passphrases=()
-  _luks_tpm2_pins=()
+  luks_forget_secrets
 
   # Let udev create /dev/disk/by-* links for the new mappings before import
   udevadm settle >/dev/null 2>&1

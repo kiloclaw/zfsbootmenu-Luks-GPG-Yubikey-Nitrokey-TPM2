@@ -51,9 +51,12 @@ For every volume, ZFSBootMenu tries these methods in order and stops at the firs
 2. a key file, plain or GnuPG-encrypted;
 3. LUKS2 tokens: TPM2 without a PIN and clevis first, then TPM2 with a PIN and FIDO2 security keys (see
    `Hardware keys and encrypted key files`_);
-4. YubiKey challenge-response (``ykchalresp``);
-5. passphrases that unlocked other volumes;
+4. passphrases (and YubiKey responses) that unlocked other volumes;
+5. YubiKey challenge-response (``ykchalresp``);
 6. a passphrase prompt.
+
+Within one unlock run, secrets are reused across volumes, so the members of a mirror or RAIDZ vdev ask only once. This
+covers passphrases, YubiKey responses, TPM2 PINs, and GnuPG key files, which are decrypted only once.
 
 Every interactive method can be skipped by answering with an empty line, which moves on to the next one, so the
 LUKS passphrase always remains available as a fallback.

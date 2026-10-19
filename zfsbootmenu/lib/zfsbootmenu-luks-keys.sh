@@ -975,6 +975,8 @@ luks_try_ykchalresp() {
     challenge=""
 
     if printf '%s' "${response}" | luks_cryptsetup_open "${name}" "${dev}" - "$@"; then
+      # Other volumes enrolled with the same YubiKey slot reuse the response
+      _luks_passphrases+=( "${response}" )
       response=""
       zinfo "unlocked ${dev} with YubiKey challenge-response"
       return 0

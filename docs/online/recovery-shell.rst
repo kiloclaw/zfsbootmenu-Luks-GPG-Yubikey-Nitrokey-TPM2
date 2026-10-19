@@ -20,6 +20,11 @@ Common Commands
 
   Access the snapshot browser for a dataset, allowing cloning and rollback operations to be initiated.
 
+**zluks** [*unlock* | *open device* [*name*] | *close* [*name*] | *status* | *list*]
+
+  Unlock, list and close LUKS volumes that hold ZFS vdevs. Without arguments, unlock every configured volume as at
+  start-up; then type *exit* to return to ZFSBootMenu, which imports the pools.
+
 **zreport**
 
   List ZFS module, pool and dataset details for bug reports.

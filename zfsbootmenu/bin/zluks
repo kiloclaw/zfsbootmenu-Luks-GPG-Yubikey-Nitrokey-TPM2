@@ -65,6 +65,7 @@ case "${cmd}" in
 
     luks_open_device "${2}" "${dev}" "$( get_zbm_arg zbm.luks_key )" "" ""
     ret=$?
+    luks_forget_secrets
     udevadm settle >/dev/null 2>&1
     exit "${ret}"
     ;;

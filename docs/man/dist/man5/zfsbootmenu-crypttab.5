@@ -1,0 +1,385 @@
+'\" t
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "ZFSBOOTMENU-CRYPTTAB" "5" "2026-10-19" "" "ZFSBootMenu"
+.SH NAME
+zfsbootmenu-crypttab \- LUKS volumes unlocked by ZFSBootMenu
+.SH SYNOPSIS
+.sp
+\fI/etc/zfsbootmenu/crypttab\fP
+.SH DESCRIPTION
+.sp
+The ZFSBootMenu crypttab lists the LUKS (dm\-crypt) volumes that ZFSBootMenu unlocks before it imports ZFS pools, and
+how to unlock each of them. It is read on the build host when a ZFSBootMenu image is created, and embedded in the image
+as \fI/etc/zfsbootmenu/crypttab\fP with mode 0600. A different source file may be chosen with the
+\fBzfsbootmenu_luks_crypttab\fP build option. The file is ignored for release builds.
+.sp
+The crypttab is optional. When it is absent or empty, ZFSBootMenu offers every LUKS volume on the system for unlocking.
+The kernel command\-line option \fBzbm.luks\fP overrides the crypttab; see
+\fI\%zfsbootmenu\-luks(7)\fP\&.
+.sp
+The format follows \fBcrypttab\fP(5) as used by systemd and Debian, so an existing \fI/etc/crypttab\fP can often serve as a
+starting point. Options that matter only to other crypttab consumers are accepted and ignored.
+.SH FILE FORMAT
+.sp
+Each line describes one volume and has up to four fields separated by spaces or tabs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+name  device  key  options
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Empty lines and lines starting with \fB#\fP are ignored.
+.sp
+\fIname\fP
+.INDENT 0.0
+.INDENT 3.5
+The name of the mapping created below \fI/dev/mapper\fP\&. Data, special and log vdevs are found by their ZFS labels
+whatever the mapping is called. Hot spare and cache vdevs are found by the path recorded in the pool, so for those
+the name must match the mapping name used by the running system. When volumes are discovered automatically, they are
+named \fBluks\-\fP\fIUUID\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fIdevice\fP
+.INDENT 0.0
+.INDENT 3.5
+The LUKS volume, as a path below \fI/dev\fP or in one of these forms:
+.TS
+box center;
+l|l.
+T{
+\fBUUID=\fP\fIuuid\fP
+T}	T{
+LUKS UUID or file system UUID
+T}
+_
+T{
+\fBPARTUUID=\fP\fIuuid\fP
+T}	T{
+GPT partition UUID
+T}
+_
+T{
+\fBLABEL=\fP\fIlabel\fP
+T}	T{
+LUKS2 label
+T}
+_
+T{
+\fBPARTLABEL=\fP\fIlabel\fP
+T}	T{
+GPT partition name
+T}
+_
+T{
+\fBID=\fP\fIname\fP
+T}	T{
+entry below \fI/dev/disk/by\-id\fP
+T}
+_
+T{
+\fBPATH=\fP\fIname\fP
+T}	T{
+entry below \fI/dev/disk/by\-path\fP
+T}
+.TE
+.sp
+A bare LUKS UUID, or \fBluks\-\fP\fIUUID\fP, is also accepted. When the device is missing, ZFSBootMenu waits for it,
+checking again every \fBzbm.retry_delay\fP seconds, until it appears or the user presses \fIEscape\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fIkey\fP
+.INDENT 0.0
+.INDENT 3.5
+How the volume is unlocked before LUKS2 tokens and passphrases are tried:
+.sp
+\fBnone\fP, \fB\-\fP or empty
+.INDENT 0.0
+.INDENT 3.5
+No key file.
+.UNINDENT
+.UNINDENT
+.sp
+\fIpath\fP
+.INDENT 0.0
+.INDENT 3.5
+A key file that exists in the running ZFSBootMenu system, for example one provided by an early\-setup hook. Plain
+key files are never copied into the image, because the image is normally stored unencrypted on the EFI system
+partition; the build prints a warning instead.
+.UNINDENT
+.UNINDENT
+.sp
+\fIpath\fP\fB:\fP\fIdevice\fP
+.INDENT 0.0
+.INDENT 3.5
+A key file stored on another device, such as a USB stick. \fIdevice\fP takes the same forms as the \fIdevice\fP field. The
+device is mounted read\-only, \fIpath\fP is read relative to its root, and the device is unmounted again.
+.UNINDENT
+.UNINDENT
+.sp
+\fIpath\fP\fB\&.gpg\fP, \fIpath\fP\fB\&.asc\fP or \fIpath\fP\fB\&.pgp\fP
+.INDENT 0.0
+.INDENT 3.5
+A GnuPG\-encrypted key file, decrypted with a passphrase or with an OpenPGP smart card such as a YubiKey or
+Nitrokey. Encrypted key files named in the crypttab are embedded in the image. The \fBgpg\fP option marks files with
+other names as GnuPG\-encrypted.
+.UNINDENT
+.UNINDENT
+.sp
+With \fBkeyscript=\fP, this field is passed to the key script as its argument instead.
+.sp
+If the key does not unlock the volume, ZFSBootMenu moves on to the remaining methods.
+.UNINDENT
+.UNINDENT
+.sp
+\fIoptions\fP
+.INDENT 0.0
+.INDENT 3.5
+A comma\-separated list of the options below.
+.UNINDENT
+.UNINDENT
+.SH OPTIONS
+.sp
+\fBdiscard\fP, \fBallow\-discards\fP
+.INDENT 0.0
+.INDENT 3.5
+Pass TRIM requests through to the device (\fBcryptsetup \-\-allow\-discards\fP).
+.UNINDENT
+.UNINDENT
+.sp
+\fBreadonly\fP, \fBread\-only\fP
+.INDENT 0.0
+.INDENT 3.5
+Open the mapping read\-only.
+.UNINDENT
+.UNINDENT
+.sp
+\fBtries=\fP\fIn\fP
+.INDENT 0.0
+.INDENT 3.5
+Passphrase attempts per round before ZFSBootMenu offers to try again or skip the volume. The default is 3; \fB0\fP
+means unlimited.
+.UNINDENT
+.UNINDENT
+.sp
+\fBnoauto\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not unlock the volume at start\-up. It can still be opened with \fBzluks open\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBnofail\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not wait or prompt when the device is missing.
+.UNINDENT
+.UNINDENT
+.sp
+\fBkeyscript=\fP\fIpath\fP
+.INDENT 0.0
+.INDENT 3.5
+Run \fIpath\fP and use its standard output as the key. A name without a slash refers to \fI/lib/cryptsetup/scripts/\fP\fIname\fP\&. The script receives the \fIkey\fP field as its first argument and the environment variables \fBCRYPTTAB_NAME\fP,
+\fBCRYPTTAB_SOURCE\fP, \fBCRYPTTAB_KEY\fP, \fBCRYPTTAB_OPTIONS\fP and \fBCRYPTTAB_TRIED\fP\&. Key scripts named in the crypttab
+are installed in the image with their library dependencies.
+.UNINDENT
+.UNINDENT
+.sp
+\fBheader=\fP\fIpath\fP
+.INDENT 0.0
+.INDENT 3.5
+Use a detached LUKS header.
+.UNINDENT
+.UNINDENT
+.sp
+\fBkeyfile\-offset=\fP\fIn\fP
+.INDENT 0.0
+.INDENT 3.5
+Skip \fIn\fP bytes at the start of the key file.
+.UNINDENT
+.UNINDENT
+.sp
+\fBkeyfile\-size=\fP\fIn\fP
+.INDENT 0.0
+.INDENT 3.5
+Read at most \fIn\fP bytes of the key file.
+.UNINDENT
+.UNINDENT
+.sp
+\fBkey\-slot=\fP\fIn\fP, \fBkeyslot=\fP\fIn\fP
+.INDENT 0.0
+.INDENT 3.5
+Try only key slot \fIn\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBgpg\fP
+.INDENT 0.0
+.INDENT 3.5
+The key file is GnuPG\-encrypted, whatever its name.
+.UNINDENT
+.UNINDENT
+.sp
+\fBno\-tokens\fP, \fBnotoken\fP, \fBno\-token\fP
+.INDENT 0.0
+.INDENT 3.5
+Do not try the volume\(aqs LUKS2 tokens (TPM2, FIDO2, clevis).
+.UNINDENT
+.UNINDENT
+.sp
+\fBykchalresp\fP, \fBykchalresp=\fP\fIslot\fP
+.INDENT 0.0
+.INDENT 3.5
+Unlock with YubiKey HMAC\-SHA1 challenge\-response, using \fIslot\fP 1 or 2 (default 2). The typed passphrase is the
+challenge and the response is the LUKS passphrase, as with \fByubikey\-luks\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBykchalresp\-hash\fP
+.INDENT 0.0
+.INDENT 3.5
+Send the SHA\-256 of the passphrase, in hexadecimal, as the challenge (\fByubikey\-luks\fP \fIHASH=1\fP). Implies
+\fBykchalresp\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBykchalresp\-concat\fP
+.INDENT 0.0
+.INDENT 3.5
+Use the challenge followed by the response as the LUKS passphrase (\fByubikey\-luks\fP \fICONCATENATE=1\fP). Implies
+\fBykchalresp\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBno\-read\-workqueue\fP, \fBno\-write\-workqueue\fP, \fBsame\-cpu\-crypt\fP, \fBsubmit\-from\-crypt\-cpus\fP
+.INDENT 0.0
+.INDENT 3.5
+dm\-crypt performance flags, passed to \fBcryptsetup\fP as \fB\-\-perf\-\fP\fIflag\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBluks\fP, \fBluks1\fP, \fBluks2\fP, \fBinitramfs\fP, \fBx\-initrd.attach\fP, \fB_netdev\fP, \fBnoearly\fP, \fBforce\fP
+.INDENT 0.0
+.INDENT 3.5
+Accepted for compatibility with other crypttab files and ignored.
+.UNINDENT
+.UNINDENT
+.sp
+Any other option is ignored and logged.
+.SH EXAMPLES
+.SS Example 1: A mirror of two LUKS partitions
+.sp
+Both halves of the mirror share a passphrase, so ZFSBootMenu asks for it once:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zroot\-a  PARTLABEL=zfs0  none  discard
+zroot\-b  PARTLABEL=zfs1  none  discard
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 2: A RAIDZ vdev with mapping names that match the running system
+.sp
+The names match those in the host\(aqs \fI/etc/crypttab\fP, so the pool\(aqs hot spare is found as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+luks\-5d0c...a1  UUID=5d0c...a1  none  discard
+luks\-6e1d...b2  UUID=6e1d...b2  none  discard
+luks\-7f2e...c3  UUID=7f2e...c3  none  discard
+luks\-8a3f...d4  UUID=8a3f...d4  none  discard
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 3: A key file on a USB stick
+.sp
+The pool \fItank\fP unlocks with a key file on a USB stick labelled KEYSTICK, and is skipped when the stick is absent:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+tank0  PARTLABEL=tank0  /keys/tank.key:LABEL=KEYSTICK  nofail
+tank1  PARTLABEL=tank1  /keys/tank.key:LABEL=KEYSTICK  nofail
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 4: A key file protected by an OpenPGP smart card
+.sp
+The key file is encrypted to a key on a YubiKey or Nitrokey and embedded in the image; its public key is named by the
+\fBzfsbootmenu_luks_gpg_keys\fP build option. The card PIN is asked for once for both volumes:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zroot\-a  PARTLABEL=zfs0  /etc/zfsbootmenu/keys/zroot.key.gpg  discard
+zroot\-b  PARTLABEL=zfs1  /etc/zfsbootmenu/keys/zroot.key.gpg  discard
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 5: YubiKey challenge\-response
+.sp
+Volumes enrolled with \fByubikey\-luks\fP using slot 2 and \fIHASH=1\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+zroot\-a  PARTLABEL=zfs0  none  discard,ykchalresp=2,ykchalresp\-hash
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 6: Volumes with TPM2 or FIDO2 tokens
+.sp
+LUKS2 tokens enrolled with \fBsystemd\-cryptenroll\fP or \fBclevis\fP need no options; ZFSBootMenu finds them in the LUKS2
+header. To keep a token from being used on one volume:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+backup0  PARTLABEL=backup0  none  no\-tokens,noauto
+.EE
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.sp
+\fI\%zfsbootmenu\-luks(7)\fP, \fI\%zluks(8)\fP,
+\fI\%generate\-zbm(5)\fP, \fBcrypttab\fP(5), \fBcryptsetup\fP(8)
+.SH AUTHOR
+ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
+.SH COPYRIGHT
+2019 Zach Dykstra, 2020-2025 ZFSBootMenu Team
+.\" Generated by docutils manpage writer.
+.
