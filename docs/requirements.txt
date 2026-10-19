@@ -1,7 +1,10 @@
-sphinx<9.0
-sphinx-reredirects
-sphinx-tabs
-sphinx-book-theme
-sphinx-copybutton
-recommonmark
-setuptools
+sphinx>=9.1
+# docutils 0.22 and 0.23 render cross-references in man pages as a stray
+# "\%<>" (e.g., "generate-zbm(5) <>"); keep 0.21 until that is fixed
+docutils>=0.21,<0.22
+sphinx-reredirects>=1.1
+sphinx-tabs>=3.5
+sphinx-book-theme>=1.4
+sphinx-copybutton>=0.5.2
+recommonmark>=0.7.1
+setuptools>=84

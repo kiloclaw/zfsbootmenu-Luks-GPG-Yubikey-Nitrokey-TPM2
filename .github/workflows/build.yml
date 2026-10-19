@@ -26,7 +26,7 @@ jobs:
     container:
       image: ghcr.io/zbm-dev/zbm-builder:development
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v7
 
       - name: Prepare repository for build
         run: |
@@ -44,13 +44,13 @@ jobs:
           /zbm/releng/docker/build-init.sh -- --debug
 
       - name: Archive release EFI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Release-EFI
           path: /build/build/*.EFI
 
       - name: Archive release components
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Release-Components
           path: |
@@ -69,13 +69,13 @@ jobs:
           /zbm/releng/docker/build-init.sh -- --debug
 
       - name: Archive recovery EFI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Recovery-EFI
           path: /build/build/*.EFI
 
       - name: Archive recovery components
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Recovery-Components
           path: |
