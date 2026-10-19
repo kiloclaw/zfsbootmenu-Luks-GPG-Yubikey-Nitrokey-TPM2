@@ -60,7 +60,7 @@ ENVIRONMENT VARIABLES
   (e.g., "main universe multiverse")
 
   KERNEL (Void)
-  Set KERNEL to the Void kernel series to use (e.g., "linux5.10", "linux6.1")
+  Set KERNEL to the Void kernel series to use (e.g., "linux6.18", "linux7.2")
 
   ZPOOL_COMPAT (All)
   Set ZPOOL_COMPAT to one of the ZFS pool compatiblity targets listed below.

@@ -28,7 +28,7 @@ usage() {
 	   series take the form <major>.<minor> and correspond to Void packages
 	   linux<kver> and linux<kver>-headers
 	
-	   Default: install 6.6, 6.12, 6.18
+	   Default: install 7.2
 	
 	   (One version per argument; may be repeated as needed)
 	
@@ -122,7 +122,7 @@ fi
 
 # Use default kernel series when nothing was specified
 if [ "${#kern_series[@]}" -lt 1 ]; then
-  kern_series=( "linux6.6" "linux6.12" "linux6.18" )
+  kern_series=( "linux7.2" )
 fi
 
 # Populate the correspoding headers list

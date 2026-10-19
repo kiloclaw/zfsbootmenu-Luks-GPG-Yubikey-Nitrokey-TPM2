@@ -20,7 +20,9 @@ ARG XBPS_REPOS="https://repo-fastly.voidlinux.org/current"
 # kernel series take the form linux<major>.<minor>
 #
 # (multiple entries must be seperated by spaces)
-ARG KERNELS="linux6.6 linux6.12 linux6.18"
+#
+# Linux 7.2 (7.2.11 at the time of writing) requires OpenZFS >= 2.4.4
+ARG KERNELS="linux7.2"
 # Update repos and install kernels and base dependencies.
 
 # Run the following within an external cache (/var/cache/xbps) for the

@@ -34,7 +34,7 @@ for keyfile in /etc/zfs/*.key; do
   echo "install_items+=\" ${keyfile} \"" >> /etc/dracut.conf.d/zol.conf
 done
 
-: "${KERNEL:=linux6.12}"
+: "${KERNEL:=linux7.2}"
 
 xbps-install -y "${KERNEL}" "${KERNEL}-headers" dracut zfs
 

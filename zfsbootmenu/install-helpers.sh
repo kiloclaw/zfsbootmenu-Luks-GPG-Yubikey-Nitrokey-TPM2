@@ -105,6 +105,7 @@ zfsbootmenu_luks_modules=(
   "sha256_arm64"
   "sha512_arm64"
   "crc32c_generic"
+  "crc32c_cryptoapi"
   "crc32c_intel"
   "serpent_generic"
   "twofish_generic"

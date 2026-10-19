@@ -76,8 +76,8 @@ will add ``zbmuser`` to the ``docker`` group on systems that provide the ``userm
 The Build Container and Its Helper
 ----------------------------------
 
-The ``zbm-builder`` container is based on a Void Linux image that uses an LTS kernel and a relatively recent version of
-ZFS. When run, the container entrypoint will:
+The ``zbm-builder`` container is based on a Void Linux image that uses the Linux 7.2 kernel series (7.2.11 at the time of
+writing) and a version of ZFS that supports it (OpenZFS 2.4.4 or later). When run, the container entrypoint will:
 
 1. Fetch a specified or default version of the ZFSBootMenu source repository (or use a local copy that is bind-mounted
    into the container);
