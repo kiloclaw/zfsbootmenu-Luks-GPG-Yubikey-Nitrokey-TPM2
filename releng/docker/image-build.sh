@@ -24,14 +24,11 @@ usage() {
 	   (One repository per argument; may be repeated as needed)
 	
 	-k <kver>:
-	   Include the specified Void Linux kernel in the image; <kver> takes
-	   the form <major>.<minor> for the newest build of a series (Void
-	   packages linux<kver> and linux<kver>-headers) or
-	   <major>.<minor>-<version>_<revision> for an exact package version
+	   Include the specified Void Linux kernel series in the image; kernel
+	   series take the form <major>.<minor> and correspond to Void packages
+	   linux<kver> and linux<kver>-headers
 	
-	   Default: the exact version pinned in releng/docker/kernel-pin
-	   (currently 7.2-7.2.11_1). If releng/docker/kernel-cache holds a
-	   repository made by cache-kernel.sh, it is preferred over all others.
+	   Default: install 7.2
 	
 	   (One version per argument; may be repeated as needed)
 	
@@ -123,40 +120,16 @@ if [ "${#web_repos[@]}" -lt 1 ]; then
   web_repos=( "https://repo-fastly.voidlinux.org/current" )
 fi
 
-docker_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Use the pinned kernel when nothing was specified
+# Use default kernel series when nothing was specified
 if [ "${#kern_series[@]}" -lt 1 ]; then
-  # shellcheck disable=SC1091
-  . "${docker_dir}/kernel-pin"
-  kern_series=( "linux${KERNEL_SERIES}-${KERNEL_PKGVER}" )
+  kern_series=( "linux7.2" )
 fi
 
-# Populate the corresponding package-name and headers lists; for an exact
-# version such as linux7.2-7.2.11_1, the headers are linux7.2-headers-7.2.11_1
-kern_names=()
+# Populate the correspoding headers list
 kern_headers=()
-kern_header_names=()
 for _kern in "${kern_series[@]}"; do
-  _name="${_kern%%-[0-9]*}"
-  kern_names+=( "${_name}" )
-  kern_headers+=( "${_name}-headers${_kern#"${_name}"}" )
-  kern_header_names+=( "${_name}-headers" )
+  kern_headers+=( "${_kern}-headers" )
 done
-
-# A local repository holding the pinned kernel, made by cache-kernel.sh
-kern_cache="${docker_dir}/kernel-cache"
-kern_cache_mounts=()
-if compgen -G "${kern_cache}/*-repodata" >/dev/null; then
-  if [ -e "${kern_cache}/SHA256SUMS" ]; then
-    if ! ( cd "${kern_cache}" && sha256sum --quiet -c SHA256SUMS ); then
-      echo "ERROR: kernel cache in ${kern_cache} failed verification"
-      exit 1
-    fi
-  fi
-  echo "INFO: using kernel cache in ${kern_cache}"
-  kern_cache_mounts=( --mount "type=bind,src=${kern_cache},dst=/kernel-cache,ro" )
-fi
 
 if [ -z "${ZBM_BUILDER}" ]; then
   ZBM_BUILDER="./releng/docker/build-init.sh"
@@ -207,42 +180,16 @@ EOF
 buildah run "${host_mounts[@]}" "${container}" \
   sh -c 'xbps-query -Rp run_depends zfsbootmenu | xargs xbps-install -y'
 
-# The kernel cache is preferred over every other repository, but only while
-# it is mounted for the kernel installation
-if [ "${#kern_cache_mounts[@]}" -gt 0 ]; then
-  buildah run "${container}" sh -c \
-    'echo "repository=/kernel-cache" > /etc/xbps.d/00-0-kernel-cache.conf'
-fi
-
-# Exact versions vanish from Void mirrors once a newer build is published
-for _kern in "${kern_series[@]}"; do
-  [[ "${_kern}" == *-[0-9]* ]] || continue
-  found="$( buildah run "${host_mounts[@]}" "${kern_cache_mounts[@]}" "${container}" \
-    xbps-query -R -p pkgver "${_kern}" 2>/dev/null )" || found=
-  if [ "${found}" != "${_kern}" ]; then
-    echo "ERROR: ${_kern} is not available from any repository."
-    echo "Populate ${kern_cache} with cache-kernel.sh while it is current,"
-    echo "or update kernel-pin to a version Void still provides."
-    buildah rm "${container}" >/dev/null
-    exit 1
-  fi
-done
-
-buildah run "${host_mounts[@]}" "${kern_cache_mounts[@]}" "${container}" \
+buildah run "${host_mounts[@]}" "${container}" \
   xbps-install -y "${kern_series[@]}" "${kern_headers[@]}" \
   git zstd systemd-boot-efistub curl yq-go bash kbd \
   dracut mkinitcpio dracut-network gptfdisk iproute2 iputils parted \
   curl dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx
 
-buildah run "${container}" rm -f /etc/xbps.d/00-0-kernel-cache.conf
-
-# Keep the installed kernels at the requested versions
-buildah run "${container}" xbps-pkgdb -m hold "${kern_names[@]}"
-
 # Remove headers and development toolchain, but keep binutils for objcopy
 buildah run "${container}" sh -c 'echo "ignorepkg=dkms" > /etc/xbps.d/10-nodkms.conf'
 buildah run "${container}" xbps-pkgdb -m manual binutils
-buildah run "${container}" xbps-remove -Roy dkms "${kern_header_names[@]}"
+buildah run "${container}" xbps-remove -Roy dkms "${kern_headers[@]}"
 
 # Record a commit hash if one is available
 if [ -n "${zbm_commit_hash}" ]; then

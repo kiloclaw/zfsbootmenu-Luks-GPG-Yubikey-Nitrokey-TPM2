@@ -1,5 +1,0 @@
-# Kernel packages are large; keep them out of git (see ../README.md).
-# SHA256SUMS is small and worth committing so the cache can be verified.
-*.xbps
-*-repodata
-*-stagedata
