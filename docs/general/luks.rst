@@ -40,7 +40,9 @@ At each prompt:
 * if a volume is unlocked from somewhere else while the prompt is waiting, for example with ``zluks`` over SSH, the
   prompt notices and moves on.
 
-If no pool can be imported afterwards, the normal ZFSBootMenu import loop takes over. From the recovery shell, use
+If no pool can be imported afterwards, the normal ZFSBootMenu import loop takes over. Before every retry it looks for
+LUKS volumes that appeared since the last attempt (slow USB enclosures and some SAS controllers enumerate late),
+unlocks them, and imports again right away. Volumes you skipped are not offered again. From the recovery shell, use
 ``zluks`` to unlock volumes and then ``exit`` to resume.
 
 For every volume, ZFSBootMenu tries these methods in order and stops at the first that works:
@@ -121,8 +123,11 @@ Each line has four whitespace-separated fields::
 The fields are:
 
 *mapping name*
-  The name of the mapping created below ``/dev/mapper``. It only matters inside ZFSBootMenu; the boot environment
-  chooses its own names.
+  The name of the mapping created below ``/dev/mapper``. ZFS finds data, special and log vdevs by their labels,
+  whatever the mapping is called. Hot spares and cache (L2ARC) devices, however, are found by the path recorded in the
+  pool, so on LUKS they show as ``UNAVAIL`` in ZFSBootMenu unless the mapping has the same name as on the running
+  system. Automatic discovery names mappings ``luks-<UUID>``, the default of systemd and dracut; if your system uses
+  other names, list the volumes here with those names.
 
 *device*
   Any of the device forms accepted by ``zbm.luks``.

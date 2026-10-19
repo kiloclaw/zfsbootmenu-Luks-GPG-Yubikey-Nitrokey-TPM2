@@ -40,6 +40,9 @@ source "${LUKS_KEYS_LIB}" >/dev/null 2>&1 || return 1
 : "${ZBM_CRYPTTAB:=/etc/zfsbootmenu/crypttab}"
 : "${LUKS_STATE:=${BASE}/luks-mappings}"
 
+# Volumes the user chose to skip; later retries leave them alone
+: "${LUKS_SKIPPED:=${BASE}/luks-skipped}"
+
 # Default number of passphrase attempts per round for each volume
 : "${LUKS_DEFAULT_TRIES:=3}"
 
@@ -449,7 +452,31 @@ luks_release_keyfile() {
 
 luks_record_mapping() {
   mkdir -p "${LUKS_STATE%/*}"
+
+  # Concurrent sessions (console and SSH) may both report the same mapping
+  if [ -r "${LUKS_STATE}" ] && grep -q "^${1}"$'\t' "${LUKS_STATE}"; then
+    return 0
+  fi
+
   printf '%s\t%s\t%s\n' "${1}" "${2}" "${3:-0}" >> "${LUKS_STATE}"
+}
+
+# arg1: LUKS device
+# prints: nothing
+# returns: nothing
+
+luks_mark_skipped() {
+  mkdir -p "${LUKS_SKIPPED%/*}"
+  grep -qxF "${1}" "${LUKS_SKIPPED}" 2>/dev/null || echo "${1}" >> "${LUKS_SKIPPED}"
+}
+
+# arg1: LUKS device
+# prints: nothing
+# returns: 0 if a retry should leave the device alone (open or skipped)
+
+luks_retry_ignores() {
+  luks_is_open "${1}" && return 0
+  grep -qxF "${1}" "${LUKS_SKIPPED}" 2>/dev/null
 }
 
 # arg1: mapping name
@@ -643,6 +670,7 @@ luks_open_device() {
 
       if [ -z "${pass}" ]; then
         zinfo "skipping LUKS volume ${dev} at user request"
+        luks_mark_skipped "${dev}"
         return 1
       fi
 
@@ -672,6 +700,7 @@ luks_open_device() {
       tput cnorm 2>/dev/null
       tput clear 2>/dev/null
       zwarn "giving up on LUKS volume ${dev}"
+      luks_mark_skipped "${dev}"
       return 1
     fi
 
@@ -771,11 +800,23 @@ luks_unlock_all() {
   unlocked=0
   failed=0
   _luks_passphrases=()
+  _luks_tpm2_pins=()
 
   if [ "${_luks_mode}" = "auto" ]; then
     mapfile -t devs < <( luks_discover_devices )
+
+    # On retries, only volumes that appeared since the last pass matter
+    if [ -n "${LUKS_RETRY}" ]; then
+      local -a fresh=()
+      for dev in "${devs[@]}"; do
+        luks_retry_ignores "${dev}" || fresh+=( "${dev}" )
+      done
+      devs=( "${fresh[@]}" )
+    fi
+
     if [ "${#devs[@]}" -eq 0 ]; then
       zdebug "no LUKS volumes found"
+      [ -n "${LUKS_RETRY}" ] && return 1
       return 0
     fi
 
@@ -800,7 +841,11 @@ luks_unlock_all() {
         continue
       fi
 
-      if ! dev="$( luks_wait_device "${spec}" "${_luks_nofail}" )"; then
+      # Retries never wait: a device still missing is checked again next time
+      if [ -n "${LUKS_RETRY}" ]; then
+        dev="$( luks_resolve_device "${spec}" )" || continue
+        luks_retry_ignores "${dev}" && continue
+      elif ! dev="$( luks_wait_device "${spec}" "${_luks_nofail}" )"; then
         [ -n "${_luks_nofail}" ] || failed=$(( failed + 1 ))
         continue
       fi
@@ -820,6 +865,7 @@ luks_unlock_all() {
   fi
 
   _luks_passphrases=()
+  _luks_tpm2_pins=()
 
   # Let udev create /dev/disk/by-* links for the new mappings before import
   udevadm settle >/dev/null 2>&1
@@ -848,11 +894,19 @@ luks_unlock_all() {
   fi
 
   zinfo "LUKS: ${unlocked} volume(s) available, ${failed} not unlocked"
+
+  # A retry succeeds only if it unlocked something new
+  if [ -n "${LUKS_RETRY}" ]; then
+    [ "${unlocked}" -gt 0 ]
+    return
+  fi
+
   [ "${failed}" -eq 0 ] || [ "${unlocked}" -gt 0 ]
 }
 
 # arg1: block device (e.g., /dev/mapper/name)
-# prints: names of imported pools with a vdev on the device
+# prints: names of imported pools with a vdev (data, log, cache, special or
+#         spare) on the device or on one of its partitions
 # returns: nothing
 
 luks_pools_on_device() {
@@ -861,10 +915,14 @@ luks_pools_on_device() {
   target="$( readlink -f "${1}" 2>/dev/null )" || return 0
   [ -n "${target}" ] || return 0
 
+  # zpool status -L -P prints resolved paths such as /dev/dm-3; a vdev on a
+  # partition of the mapping shows up as /dev/dm-3p1
   while read -r pool; do
     [ -n "${pool}" ] || continue
     if zpool status -L -P "${pool}" 2>/dev/null \
-        | awk -v t="${target}" '{ for (i = 1; i <= NF; i++) if ($i == t) f = 1 } END { exit !f }'; then
+        | awk -v t="${target}" '
+            { for (i = 1; i <= NF; i++) if ($i == t || ($i ~ "^" t "p[0-9]+$")) f = 1 }
+            END { exit !f }'; then
       echo "${pool}"
     fi
   done <<< "$( zpool list -H -o name 2>/dev/null )"

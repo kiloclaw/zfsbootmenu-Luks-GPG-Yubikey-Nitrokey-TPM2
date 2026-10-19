@@ -93,6 +93,9 @@ luks_wait_for() {
   for (( i = 0; i < secs; i++ )); do
     if IFS= read -r -s -n 1 -t 1 _; then
       return 1
+    elif [ $? -le 128 ]; then
+      # No console input (end of file): read returns at once, so wait here
+      sleep 1
     fi
     if "$@"; then
       udevadm settle >/dev/null 2>&1
@@ -170,11 +173,21 @@ luks_have_tpm2() {
 
   [ -c "${LUKS_TPM2_TCTI#device:}" ] && return 0
 
+  # Probe once; some chips take a moment to initialize after the driver loads
   if [ -z "${_luks_tpm2_probed}" ]; then
+    local i
     _luks_tpm2_probed=1
     modprobe -q tpm_crb >/dev/null 2>&1
     modprobe -q tpm_tis >/dev/null 2>&1
-    udevadm settle >/dev/null 2>&1
+    for (( i = 0; i < 30; i++ )); do
+      udevadm settle >/dev/null 2>&1
+      [ -c "${LUKS_TPM2_TCTI#device:}" ] && return 0
+      # Give up early when the kernel found no TPM at all
+      if [ -z "$( ls -A /sys/class/tpm 2>/dev/null )" ]; then
+        break
+      fi
+      sleep 0.1
+    done
   fi
 
   [ -c "${LUKS_TPM2_TCTI#device:}" ]
