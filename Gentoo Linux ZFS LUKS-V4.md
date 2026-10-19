@@ -659,6 +659,27 @@ add_drivers+=" nvme "
 install_items+=" /etc/cryptsetup-keys.d/zroot.key "
 ```
 
+The installer copies the initramfs to `/boot` readable by everyone, and it contains the key file. This
+kernel-install plugin makes every installed initramfs readable by root only, now and after every kernel update:
+
+**FILE** `/etc/kernel/install.d/95-initramfs-mode.install`
+
+```
+#!/bin/sh
+# The initramfs holds the LUKS key file: make it readable by root only.
+# Runs after 90-compat.install, which copies the kernel and initramfs to /boot.
+[ "${1}" = "add" ] || exit 0
+for f in "${KERNEL_INSTALL_BOOT_ROOT:-/boot}/initramfs-${2}.img" "/boot/initramfs-${2}.img"; do
+  [ -e "${f}" ] && chmod 0600 "${f}"
+done
+exit 0
+```
+
+```
+(chroot) root # mkdir -p /etc/kernel/install.d
+(chroot) root # chmod 0755 /etc/kernel/install.d/95-initramfs-mode.install
+```
+
 Make sure no crypttab is present, then rebuild the initramfs:
 
 ```
@@ -678,9 +699,9 @@ Use `sys-kernel/gentoo-kernel` in the last command if that kernel was installed 
 (chroot) root # ls /boot/efi
 ```
 
-- The initramfs is readable only by root (`-rw-------`). If not, run `chmod 600 /boot/initramfs-*`.
+- The initramfs is readable only by root (`-rw-------`). If not, check the plugin above.
 - The `grep` lists `zfs.ko`, `zroot.key`, `etc/hostid`, `zpool.cache` and `systemd-cryptsetup`, and `nvme.ko` if
-  the kernel builds NVMe support as a module (Gentoo's distribution kernels do).
+  the kernel builds NVMe support as a module. Gentoo's distribution kernels build it in, so no `nvme.ko` is listed.
 - `etc/crypttab` prints nothing.
 - `/boot/efi` contains only `EFI`: no kernel or initramfs was put on the unencrypted ESP.
 

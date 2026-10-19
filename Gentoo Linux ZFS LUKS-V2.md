@@ -598,6 +598,26 @@ This file replaces Gentoo's default `/usr/lib/kernel/install.conf` completely, s
 as soon as the ESP is mounted at `/boot/efi`: systemd's `kernel-install` would otherwise detect the ESP and put kernels
 and initramfs images there, unencrypted, together with the key file inside the initramfs.
 
+### 11.3a Keep the initramfs private
+
+The installer copies the initramfs to `/boot` readable by everyone, and it contains the key file. This
+kernel-install plugin makes every installed initramfs readable by root only, now and after every kernel update:
+
+```sh
+mkdir -p /etc/kernel/install.d
+cat > /etc/kernel/install.d/95-initramfs-mode.install <<'EOF'
+#!/bin/sh
+# The initramfs holds the LUKS key file: make it readable by root only.
+# Runs after 90-compat.install, which copies the kernel and initramfs to /boot.
+[ "${1}" = "add" ] || exit 0
+for f in "${KERNEL_INSTALL_BOOT_ROOT:-/boot}/initramfs-${2}.img" "/boot/initramfs-${2}.img"; do
+  [ -e "${f}" ] && chmod 0600 "${f}"
+done
+exit 0
+EOF
+chmod 0755 /etc/kernel/install.d/95-initramfs-mode.install
+```
+
 ### 11.4 Rebuild the initramfs
 
 ```sh
@@ -610,7 +630,7 @@ emerge --config sys-kernel/gentoo-kernel-bin
 
 ```sh
 INITRD="$(ls -t /boot/initramfs-*.img | head -n 1)"
-ls -l "$INITRD"                                     # -rw------- (if not: chmod 600 /boot/initramfs-*)
+ls -l "$INITRD"                                     # -rw------- (set by the plugin in 11.3a)
 lsinitrd "$INITRD" | grep -E 'zfs\.ko|zroot\.key|etc/crypttab|etc/hostid|zpool\.cache'
 lsinitrd -f etc/crypttab "$INITRD"                  # shows your luks-<UUID> line
 ```
