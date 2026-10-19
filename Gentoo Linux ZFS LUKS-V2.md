@@ -755,9 +755,14 @@ EFI:
   Versions: false
   Enabled: true
 Kernel:
+  Prefix: vmlinuz
   CommandLine: quiet loglevel=0
 EOF
 ```
+
+`Prefix: vmlinuz` fixes the image names to `vmlinuz.EFI` and `vmlinuz-backup.EFI`. Without it, `generate-zbm`
+names them after the kernel file, and current Gentoo kernels are installed as `kernel-<version>`, which would produce
+`kernel.EFI` instead of the file the boot entries below point to.
 
 ZFSBootMenu uses its own dracut settings in `/etc/zfsbootmenu/dracut.conf.d`, separate from Gentoo's
 `/etc/dracut.conf.d`.

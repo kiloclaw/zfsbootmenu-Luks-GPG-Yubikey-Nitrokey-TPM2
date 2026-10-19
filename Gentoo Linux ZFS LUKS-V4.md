@@ -799,9 +799,14 @@ EFI:
   Versions: false
   Enabled: true
 Kernel:
+  Prefix: vmlinuz
   CommandLine: "quiet loglevel=0 zbm.luks=UUID=${LUKS_UUID}"
 EOF
 ```
+
+`Prefix: vmlinuz` fixes the image names to `vmlinuz.EFI` and `vmlinuz-backup.EFI`. Without it, `generate-zbm`
+names them after the kernel file, and current Gentoo kernels are installed as `kernel-<version>`, which would produce
+`kernel.EFI` instead of the file the boot entries below point to.
 
 `zbm.luks=UUID=<UUID>` tells ZFSBootMenu to unlock exactly this container, as `luks-<UUID>`, asking for the passphrase.
 
@@ -872,6 +877,7 @@ that holds the file; ZFSBootMenu mounts it read-only, reads the key and unmounts
 
 ```
 Kernel:
+  Prefix: vmlinuz
   CommandLine: "quiet loglevel=0 zbm.luks=UUID=YOUR-LUKS-UUID zbm.luks_key=/zroot.key:LABEL=ZROOTKEY"
 ```
 
