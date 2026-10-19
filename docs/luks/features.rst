@@ -156,5 +156,7 @@ volumes:
 * TPM2 with and without a PIN (systemd plugin and native code), PCR policies, lockout handling, clevis TPM2, and
   passphrase-protected GnuPG key files, against a software TPM.
 * GnuPG key files encrypted to an OpenPGP key, FIDO2 and YubiKey challenge-response, against software stand-ins.
+* The procedures in :doc:`vdev-configurations` and :doc:`administration` (creating every pool layout, adding special,
+  log, cache and spare vdevs, replacing and attaching disks), run as written, followed by a boot through ZFSBootMenu.
 
 Not yet tested on real hardware: YubiKey, Nitrokey and other FIDO2 or OpenPGP devices. Please report problems.
