@@ -677,7 +677,11 @@ Create the initramfs key file and add it to a third key slot (cryptsetup asks fo
 (chroot) root # cryptsetup luksAddKey "${LUKS_PART}" /etc/cryptsetup-keys.d/zroot-initrd.key
 ```
 
-Configure dracut:
+Configure dracut. The stage3 has no `/etc/dracut.conf.d` directory yet, so create it first:
+
+```
+(chroot) root # mkdir -p /etc/dracut.conf.d
+```
 
 **FILE** `/etc/dracut.conf.d/10-zfs-luks.conf`
 

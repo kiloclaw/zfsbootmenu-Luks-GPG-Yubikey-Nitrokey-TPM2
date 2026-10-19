@@ -563,6 +563,8 @@ cat /etc/crypttab
 ### 11.2 Configure dracut
 
 ```sh
+# The stage3 has no /etc/dracut.conf.d directory yet
+mkdir -p /etc/dracut.conf.d
 cat > /etc/dracut.conf.d/10-zfs-luks.conf <<'EOF'
 # Only include what this computer needs
 hostonly="yes"

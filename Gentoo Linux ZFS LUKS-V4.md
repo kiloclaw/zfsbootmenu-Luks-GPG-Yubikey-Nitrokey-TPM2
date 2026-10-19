@@ -629,6 +629,12 @@ The file is `-r--------` and owned by root, cryptsetup reports `Key slot 1 unloc
 Gentoo's initramfs unlocks the container using only the `luks.*` kernel parameters set in
 [Creating the ZFS pool](#creating-the-zfs-pool). It needs the ZFS and crypt dracut modules and the key file.
 
+The stage3 has no `/etc/dracut.conf.d` directory yet; create it:
+
+```
+(chroot) root # mkdir -p /etc/dracut.conf.d
+```
+
 **FILE** `/etc/dracut.conf.d/10-zfs-luks.conf`
 
 ```
