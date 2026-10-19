@@ -176,6 +176,10 @@ volumes:
   ``efibootmgr``, and a reboot through the firmware: one passphrase prompt, none in the boot environment. A key file
   on a FAT USB stick unlocked without a prompt, and without the stick ZFSBootMenu waited, then asked for the
   passphrase.
+* The Gentoo installation guide ``Gentoo Linux ZFS LUKS-V4.md`` on a real Gentoo stage3 (systemd profile,
+  ``gentoo-kernel-bin`` 6.18, systemd 261) in a UEFI virtual machine with an emulated NVMe SSD: from partitioning to
+  the first boot through the firmware, ZFSBootMenu and Gentoo's own systemd initramfs, with one passphrase prompt, no
+  crypttab, and no failed systemd units.
 * Edge cases in scripted tests: crypttab files with CRLF line endings, without a final newline, with tabs and
   comments; upper-case UUIDs; the same device listed twice or under two names; mapping-name clashes; unknown device
   specifications and non-LUKS devices; invalid numeric options; passphrases with spaces, quotes, backslashes, a
