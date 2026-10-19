@@ -57,6 +57,37 @@ fetch a ZFSBootMenu archive when the container is instantiated (or allow a
 local copy to be bind-mounted) and, as noted above, attempt to check out a
 specific commit based on the contents of `/etc/zbm-commit-hash`.
 
+# Pinned Kernel
+
+Builder images install one exact Void Linux kernel package, recorded in
+`kernel-pin` (currently `linux7.2-7.2.11_1`, i.e. Linux 7.2.11, which needs
+OpenZFS 2.4.4 or later). The kernel is placed on hold, so package updates in
+the image (including `build-init.sh -u`) never replace it.
+
+Void mirrors only carry the newest build of each package. Once Void publishes
+7.2.12, `linux7.2-7.2.11_1` disappears from every mirror and an image build
+from the mirrors alone stops with an error. To keep the pinned kernel
+buildable, run
+
+    ./cache-kernel.sh
+
+from this directory **while the pinned version is still current**. It starts
+a Void container (podman or docker), downloads the kernel and its headers,
+verifies both against the SHA-256 sums in Void's signed repository index,
+records the sums in `kernel-cache/SHA256SUMS` and makes `kernel-cache` a local
+XBPS repository. Both the `Dockerfile` and `image-build.sh` check those sums
+and then prefer this repository over all others. The package files are not
+tracked by git; commit `kernel-cache/SHA256SUMS` and keep a backup of the
+directory if you need to rebuild images later.
+
+To move to a different kernel, edit `kernel-pin` and run `cache-kernel.sh`
+again. To build with whatever is newest instead, override the default:
+`podman build --build-arg KERNELS=linux7.2 ...` or `image-build.sh -k 7.2`.
+
+`zbm-builder.sh` uses the upstream `ghcr.io/zbm-dev/zbm-builder` image unless
+told otherwise; to build with the pinned kernel, pass the locally built image,
+e.g. `./zbm-builder.sh -i localhost/zbm:latest`.
+
 # Running a ZFSBootMenu Builder Container
 
 When running a container from the ZFSBootMenu builder image, it is generally

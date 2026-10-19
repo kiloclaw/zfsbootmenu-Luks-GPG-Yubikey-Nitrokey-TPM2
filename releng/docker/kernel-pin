@@ -1,0 +1,10 @@
+# Void Linux kernel package pinned for ZFSBootMenu builder images.
+#
+# Both Dockerfile and image-build.sh install exactly this package version
+# (linux<SERIES>-<PKGVER> and its headers) and place it on hold. Void mirrors
+# only carry the newest build of each package, so run ./cache-kernel.sh while
+# this version is still current to keep a local copy in ./kernel-cache.
+#
+# OpenZFS supports Linux 7.2 from release 2.4.4.
+KERNEL_SERIES=7.2
+KERNEL_PKGVER=7.2.11_1
