@@ -59,7 +59,17 @@ The ``zluks`` command
 
 Late devices
   Configured devices are waited for. Disks that appear even later are unlocked during the pool-import retry loop, and
-  volumes the user skipped are not offered again.
+  volumes the user skipped are not offered again. Key devices such as USB sticks are waited for, once per boot, for
+  ``zbm.luks_token_wait`` seconds.
+
+No crypttab needed
+  ``zbm.luks=`` and ``zbm.luks_key=`` on ZFSBootMenu's command line replace its crypttab, and systemd's ``luks.*``
+  parameters, passed through ``org.zfsbootmenu:commandline``, replace ``/etc/crypttab`` in the boot environment.
+  Activation flags such as TRIM stored in the LUKS2 header with ``cryptsetup open --persistent`` are honoured.
+
+Tolerant configuration
+  crypttab files may use CRLF line endings and lack a final newline; ``UUID=`` and ``PARTUUID=`` match in either case;
+  invalid numeric options are ignored with a warning instead of making every unlock attempt fail.
 
 Build integration
   The dracut module and the mkinitcpio hook install ``cryptsetup``, device-mapper udev rules, dm-crypt and crypto
@@ -127,6 +137,8 @@ Other Changes in This Build
   GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and openssl. Void has no systemd, so container builds
   use ZFSBootMenu's own TPM2 and FIDO2 code.
 * The mkinitcpio hook no longer fails the build when an optional kernel module does not exist.
+* ``make install`` no longer fails when the version is taken from a branch name containing ``/``, which happens in
+  clones without release tags.
 * Documentation is built with Sphinx 9.1 and ``myst-parser``. ``docutils`` is held below 0.22 because 0.22 and 0.23
   render cross-references in man pages incorrectly.
 * CI uses ``actions/checkout@v7``, ``actions/upload-artifact@v7`` and ``ludeeus/action-shellcheck@2.0.0``.

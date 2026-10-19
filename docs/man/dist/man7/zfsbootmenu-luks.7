@@ -160,7 +160,13 @@ Unlock only the listed devices. Each \fIdevice\fP takes the forms described for 
 .INDENT 0.0
 .INDENT 3.5
 A key file for every volume that has none of its own. With \fIdevice\fP, the key file is read from that device, which
-is mounted read\-only for the purpose. Files ending in \fI\&.gpg\fP, \fI\&.asc\fP or \fI\&.pgp\fP are decrypted with GnuPG.
+is mounted read\-only for the purpose and unmounted again. When \fIdevice\fP is not present yet, for example a USB stick
+that the kernel has not finished detecting, ZFSBootMenu waits for it for \fBzbm.luks_token_wait\fP seconds. It waits
+once per device in each unlock run, and not at all during pool\-import retries. Files ending in \fI\&.gpg\fP, \fI\&.asc\fP or
+\fI\&.pgp\fP are decrypted with GnuPG.
+.sp
+A key file named only here, and not in the crypttab, is not copied into the image automatically. A GnuPG\-encrypted
+key file can be added with dracut\(aqs \fBinstall_items\fP; see \fI\%UNLOCKING WITHOUT A CRYPTTAB\fP\&.
 .UNINDENT
 .UNINDENT
 .sp
@@ -174,8 +180,8 @@ Do not use LUKS2 tokens.
 \fBzbm.luks_token_wait=\fP\fIseconds\fP
 .INDENT 0.0
 .INDENT 3.5
-How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on. The
-default is 10 seconds. Pressing any key ends the wait.
+How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device to be plugged in before moving
+on. The default is 10 seconds; \fB0\fP disables waiting. Pressing any key ends the wait.
 .UNINDENT
 .UNINDENT
 .SH UNLOCK METHODS
@@ -227,6 +233,31 @@ disabled with \fBzbm.skip_hooks=80\-luks\-close.sh\fP\&.
 .sp
 The boot environment must unlock its LUKS volumes again from its own initramfs, for example with a key file embedded
 in that initramfs. Because the initramfs is stored inside the encrypted pool, this does not expose the key.
+.SH UNLOCKING WITHOUT A CRYPTTAB
+.sp
+Both stages of the boot can be configured entirely on kernel command lines, so that neither ZFSBootMenu nor the boot
+environment reads a crypttab.
+.INDENT 0.0
+.TP
+.B ZFSBootMenu
+Put \fBzbm.luks\fP and, if needed, \fBzbm.luks_key\fP into \fIKernel.CommandLine\fP in \fBgenerate\-zbm\fP(5). Do not create
+\fI/etc/zfsbootmenu/crypttab\fP; \fBzbm.luks\fP takes precedence over it in any case. A GnuPG\-encrypted key file must be
+added to the image with \fBinstall_items\fP in a file in \fIGlobal.DracutConfDir\fP\&. Plain key files must not be added:
+the image is stored unencrypted.
+.TP
+.B Boot environment
+An initramfs that runs systemd, as built by dracut on systemd distributions, unlocks volumes named on its kernel
+command line by \fBluks.uuid=\fP\fIUUID\fP, with the key file given by \fBluks.key=\fP\fIUUID\fP\fB=\fP\fIpath\fP and
+options given by \fBluks.options=\fP\fIUUID\fP\fB=\fP\fIoptions\fP; see \fBsystemd\-cryptsetup\-generator\fP(8).
+\fBluks.crypttab=no\fP makes systemd ignore \fI/etc/crypttab\fP\&. Set these parameters in the
+\fIorg.zfsbootmenu:commandline\fP property of the boot environment, or of its parent so that all boot environments
+inherit them. The initramfs must contain the key file (dracut \fBinstall_items\fP) and the dracut \fIcrypt\fP module.
+Set \fBhostonly_cmdline=\(dqno\(dq\fP, so that dracut does not also embed \fBrd.luks\fP parameters it detects itself.
+.UNINDENT
+.sp
+Activation flags such as TRIM and the dm\-crypt work\-queue options can be stored in the LUKS2 header with
+\fBcryptsetup open \-\-persistent\fP\&. ZFSBootMenu, systemd and \fBcryptsetup open\fP apply stored flags at every activation,
+so no crypttab options are needed for them. \fBcryptsetup luksDump\fP shows them on the \fIFlags\fP line.
 .SH BUILD OPTIONS
 .sp
 These options are set in a dracut configuration file in the directory named by \fIGlobal.DracutConfDir\fP in
@@ -416,12 +447,60 @@ zfsbootmenu_luks_gpg_keys=\(dq0x0123456789ABCDEF\(dq
 .EE
 .UNINDENT
 .UNINDENT
+.SS Example 5: Unlocking with a GnuPG key file, without a crypttab
+.sp
+The key file is decrypted with the OpenPGP card that holds key \fI0x0123456789ABCDEF\fP\&. The LUKS passphrase remains the
+fallback:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# cat /etc/zfsbootmenu/dracut.conf.d/luks\-gpg.conf
+install_items+=\(dq /etc/zfsbootmenu/keys/zroot.key.gpg \(dq
+zfsbootmenu_luks_gpg_keys=\(dq0x0123456789ABCDEF\(dq
+# grep CommandLine /etc/zfsbootmenu/config.yaml
+  CommandLine: \(dqquiet zbm.luks=UUID=3f1c0b2e\-8d4a\-4c55\-9a0e\-1f2d3c4b5a69 zbm.luks_key=/etc/zfsbootmenu/keys/zroot.key.gpg\(dq
+# generate\-zbm
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 6: Unlocking a mirror in the boot environment without a crypttab
+.sp
+Each LUKS volume of the mirror gets its own \fBluks.uuid\fP and \fBluks.key\fP pair. Both volumes have a key slot for the
+same key file, which is stored inside the pool and copied into the boot environment\(aqs initramfs:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# U0=$(cryptsetup luksUUID /dev/disk/by\-partlabel/zfs0)
+# U1=$(cryptsetup luksUUID /dev/disk/by\-partlabel/zfs1)
+# K=/etc/cryptsetup\-keys.d/zroot.key
+# zfs set org.zfsbootmenu:commandline=\(dqquiet luks.crypttab=no luks.uuid=$U0 luks.key=$U0=$K luks.uuid=$U1 luks.key=$U1=$K\(dq zroot/ROOT
+# cat /etc/dracut.conf.d/10\-zfs\-luks.conf
+hostonly_cmdline=\(dqno\(dq
+add_dracutmodules+=\(dq zfs crypt \(dq
+install_items+=\(dq /etc/cryptsetup\-keys.d/zroot.key \(dq
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 7: Storing TRIM and NVMe performance flags in the LUKS2 header
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# cryptsetup open \-\-allow\-discards \-\-perf\-no_read_workqueue \-\-perf\-no_write_workqueue \e
+    \-\-persistent /dev/nvme0n1p2 luks\-$(cryptsetup luksUUID /dev/nvme0n1p2)
+# cryptsetup luksDump /dev/nvme0n1p2 | grep Flags
+Flags:        allow\-discards no\-read\-workqueue no\-write\-workqueue
+.EE
+.UNINDENT
+.UNINDENT
 .SH SEE ALSO
 .sp
 \fI\%zluks(8)\fP, \fI\%zfsbootmenu\-crypttab(5)\fP,
 \fI\%zfsbootmenu(7)\fP, \fI\%generate\-zbm(5)\fP,
 \fI\%zbm\-kcl(8)\fP, \fBcryptsetup\fP(8), \fBsystemd\-cryptenroll\fP(1), \fBclevis\-luks\-bind\fP(1),
-\fBgpg\fP(1), \fBykpersonalize\fP(1), \fBzpool\fP(8), \fBzpoolconcepts\fP(7)
+\fBgpg\fP(1), \fBykpersonalize\fP(1), \fBsystemd\-cryptsetup\-generator\fP(8), \fBzpool\fP(8), \fBzpoolconcepts\fP(7)
 .SH AUTHOR
 ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
 .SH COPYRIGHT

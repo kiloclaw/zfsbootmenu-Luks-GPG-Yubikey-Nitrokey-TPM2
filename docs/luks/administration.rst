@@ -240,6 +240,98 @@ Removing an unlock method
 
 Never remove the last key slot that you can still use. Make a new header backup afterwards.
 
+Using a key file on a USB stick
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A key file on a removable stick unlocks the pool without typing, while the passphrase keeps working when the stick is
+absent. Anyone holding both the stick and the computer can unlock the pool, so store them apart.
+
+1. Format the stick with a label (this erases it), and create the key file on it:
+
+   .. code-block:: bash
+
+     # mkfs.vfat -F 32 -n ZROOTKEY /dev/sdX1
+     # mount /dev/disk/by-label/ZROOTKEY /mnt
+     # dd if=/dev/urandom of=/mnt/zroot.key bs=64 count=1
+
+2. Add it to every volume of the pool:
+
+   .. code-block:: bash
+
+     # for p in $(pool_luks_devices zroot); do
+         cryptsetup luksAddKey --pbkdf pbkdf2 --pbkdf-force-iterations 1000 "$p" /mnt/zroot.key
+       done
+     # umount /mnt
+
+3. Point ZFSBootMenu at it, either per volume in the crypttab (``/zroot.key:LABEL=ZROOTKEY`` in the key field) or
+   for all volumes on the kernel command line, and rebuild the image:
+
+   .. code-block:: bash
+
+     # zbm-kcl -a 'zbm.luks_key=/zroot.key:LABEL=ZROOTKEY' /boot/efi/EFI/zbm/vmlinuz.EFI
+
+ZFSBootMenu waits up to ``zbm.luks_token_wait`` seconds (default 10) for a stick that the kernel has not detected yet,
+once per stick and boot. Raise the value for slow hubs or card readers. To retire a stick, remove its slot with
+``cryptsetup luksRemoveKey <device> /mnt/zroot.key`` on every volume while the stick is mounted.
+
+Unlocking without a crypttab
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An existing system can drop both crypttabs:
+
+1. Move the volume list into ZFSBootMenu's kernel command line, then remove its crypttab:
+
+   .. code-block:: bash
+
+     # for p in $(pool_luks_devices zroot); do echo "UUID=$(cryptsetup luksUUID "$p")"; done
+     # $EDITOR /etc/zfsbootmenu/config.yaml     # Kernel.CommandLine: "... zbm.luks=UUID=<a>,UUID=<b>"
+     # mv /etc/zfsbootmenu/crypttab /etc/zfsbootmenu/crypttab.unused
+     # generate-zbm
+
+   GnuPG-encrypted key files that the crypttab used to embed must now be listed with ``install_items`` in a file in
+   ``/etc/zfsbootmenu/dracut.conf.d/``, and named with ``zbm.luks_key=``.
+
+2. Give the boot environment's systemd initramfs ``luks.uuid=`` and ``luks.key=`` for each volume, as in Example 12
+   of :doc:`vdev-configurations`, set ``hostonly_cmdline="no"`` in its dracut configuration, rename
+   ``/etc/crypttab`` and rebuild the initramfs.
+
+3. Before rebooting, confirm that the new initramfs holds the key file and no crypttab:
+
+   .. code-block:: bash
+
+     # lsinitrd /boot/initramfs-$(uname -r).img | grep -E 'cryptsetup-keys.d|systemd-cryptsetup$'
+     # lsinitrd -f etc/crypttab /boot/initramfs-$(uname -r).img     # prints nothing
+
+Keep a live medium at hand for the first reboot; see `Recovery`_.
+
+NVMe SSDs
+---------
+
+Sector size
+  Many NVMe SSDs can switch from 512-byte to 4096-byte logical blocks. ``nvme id-ns -H /dev/nvme0n1`` lists the
+  formats; ``nvme format /dev/nvme0n1 --lbaf=<n> --force`` switches, **erasing the SSD**. Format LUKS volumes with
+  ``--sector-size 4096`` and create pools with ``ashift=12`` in either case.
+
+Flags in the LUKS header
+  ``cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue --persistent`` stores TRIM and
+  the work-queue flags in the LUKS2 header, where ZFSBootMenu, systemd and cryptsetup apply them on every activation.
+  ``cryptsetup luksDump <device> | grep Flags`` shows them; ``cryptsetup refresh`` with the same options changes them
+  on an open volume.
+
+TRIM
+  With ``autotrim=on`` and discards allowed, freed space is trimmed continuously. A periodic full TRIM is still
+  useful: ``zpool trim zroot``, or the ``zfs-trim-monthly@zroot.timer`` unit shipped with OpenZFS. Watch progress
+  with ``zpool status -t``.
+
+Health
+  ``nvme smart-log /dev/nvme0`` reports ``critical_warning``, ``percentage_used`` (wear), ``media_errors`` and
+  ``available_spare``. Replace an SSD whose spare capacity runs low as described in `Replacing a failed disk`_.
+
+Drivers
+  ZFSBootMenu images built without host-only mode include the NVMe driver. For a boot environment initramfs built
+  with dracut in host-only mode, add ``add_drivers+=" nvme "``: host-only detection does not always see through ZFS
+  and LUKS to the SSD.
+
 Pool Maintenance
 ----------------
 
@@ -400,6 +492,18 @@ To confirm that the crypttab and the unlock tools are in a dracut-built image:
 
 Use ``lsinitcpio`` for images built with mkinitcpio.
 
+When only the unified EFI executable is built (``Components.Enabled: false``), extract its initramfs first, and read
+its embedded command line with ``zbm-kcl``:
+
+.. code-block:: bash
+
+  # objcopy -O binary --only-section=.initrd /boot/efi/EFI/zbm/vmlinuz.EFI /run/zbm-initrd.img
+  # lsinitrd /run/zbm-initrd.img | grep -E 'crypttab|cryptsetup|gpg|nvme'
+  # zbm-kcl /boot/efi/EFI/zbm/vmlinuz.EFI
+  # rm /run/zbm-initrd.img
+
+No plain key file may ever appear in this listing.
+
 Building in the container
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -475,6 +579,27 @@ A cache or spare vdev shows UNAVAIL
 
 The volume is open under a different name than the one recorded in the pool. Name it as on the running system, in the
 ZFSBootMenu crypttab or with ``zluks open <device> <name>``; see :doc:`vdev-configurations`.
+
+The USB key stick is ignored
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ZFSBootMenu waited ``zbm.luks_token_wait`` seconds and then asked for the passphrase. In the recovery shell, check that
+the stick is visible with ``ls /dev/disk/by-label/`` and readable with ``mount -o ro /dev/disk/by-label/<label> /mnt``.
+Raise ``zbm.luks_token_wait`` for slow hubs. If the stick never appears, add ``add_drivers+=" usb_storage uas "`` to a
+file in ``/etc/zfsbootmenu/dracut.conf.d/`` and rebuild the image.
+
+The boot environment asks for the passphrase again
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Its initramfs could not use its own key file. After booting, check ``cat /proc/cmdline`` for the ``luks.*`` (or
+``rd.luks.*``) parameters and the initramfs for the key file:
+
+.. code-block:: bash
+
+  # lsinitrd /boot/initramfs-$(uname -r).img | grep -E 'cryptsetup-keys.d|crypttab|systemd-cryptsetup$'
+
+A missing key file means the dracut ``install_items`` line is wrong; a missing ``systemd-cryptsetup`` means the dracut
+*crypt* module was not included.
 
 See Also
 --------

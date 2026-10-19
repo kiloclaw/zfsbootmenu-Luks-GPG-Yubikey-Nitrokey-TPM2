@@ -59,7 +59,8 @@ name  device  key  options
 .UNINDENT
 .UNINDENT
 .sp
-Empty lines and lines starting with \fB#\fP are ignored.
+Empty lines and lines starting with \fB#\fP are ignored. Lines may end in CR LF, as in files edited on Windows, and the
+last line does not need a trailing newline.
 .sp
 \fIname\fP
 .INDENT 0.0
@@ -115,8 +116,10 @@ entry below \fI/dev/disk/by\-path\fP
 T}
 .TE
 .sp
-A bare LUKS UUID, or \fBluks\-\fP\fIUUID\fP, is also accepted. When the device is missing, ZFSBootMenu waits for it,
-checking again every \fBzbm.retry_delay\fP seconds, until it appears or the user presses \fIEscape\fP\&.
+A bare LUKS UUID, or \fBluks\-\fP\fIUUID\fP, is also accepted. \fBUUID=\fP and \fBPARTUUID=\fP values match in upper or
+lower case, so GPT UUIDs copied from \fBsgdisk\fP(8), which prints them in upper case, work unchanged. When the
+device is missing, ZFSBootMenu waits for it, checking again every \fBzbm.retry_delay\fP seconds, until it appears or
+the user presses \fIEscape\fP\&.
 .UNINDENT
 .UNINDENT
 .sp
@@ -145,7 +148,9 @@ partition; the build prints a warning instead.
 .INDENT 0.0
 .INDENT 3.5
 A key file stored on another device, such as a USB stick. \fIdevice\fP takes the same forms as the \fIdevice\fP field. The
-device is mounted read\-only, \fIpath\fP is read relative to its root, and the device is unmounted again.
+device is mounted read\-only, \fIpath\fP is read relative to its root, and the device is unmounted again. A device
+that is not present yet is waited for, for up to \fBzbm.luks_token_wait\fP seconds (default 10), once per unlock
+run; pressing any key ends the wait. The image includes the \fIvfat\fP driver for FAT\-formatted sticks.
 .UNINDENT
 .UNINDENT
 .sp
@@ -190,7 +195,7 @@ Open the mapping read\-only.
 .INDENT 0.0
 .INDENT 3.5
 Passphrase attempts per round before ZFSBootMenu offers to try again or skip the volume. The default is 3; \fB0\fP
-means unlimited.
+means unlimited. An invalid value is ignored with a warning.
 .UNINDENT
 .UNINDENT
 .sp
@@ -242,6 +247,9 @@ Read at most \fIn\fP bytes of the key file.
 .INDENT 0.0
 .INDENT 3.5
 Try only key slot \fIn\fP\&.
+.sp
+The values of \fBkeyfile\-offset\fP, \fBkeyfile\-size\fP and \fBkey\-slot\fP must be non\-negative integers. Other values are
+ignored with a warning, because they would make every attempt fail, the passphrase included.
 .UNINDENT
 .UNINDENT
 .sp
@@ -370,6 +378,20 @@ header. To keep a token from being used on one volume:
 .sp
 .EX
 backup0  PARTLABEL=backup0  none  no\-tokens,noauto
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 7: Waiting longer for a slow USB key stick
+.sp
+Some USB hubs and card readers take longer than 10 seconds to appear. Raise the wait on the ZFSBootMenu kernel
+command line and keep the crypttab entry unchanged:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# zbm\-kcl \-a zbm.luks_token_wait=30 /boot/efi/EFI/zbm/vmlinuz.EFI
+# cat /etc/zfsbootmenu/crypttab
+zroot0  PARTLABEL=zfs0  /keys/zroot.key:LABEL=KEYSTICK  discard
 .EE
 .UNINDENT
 .UNINDENT

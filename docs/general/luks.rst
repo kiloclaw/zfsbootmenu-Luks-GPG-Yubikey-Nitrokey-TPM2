@@ -103,7 +103,10 @@ Kernel command line
 
     zbm.luks_key=/keys/zroot.key:LABEL=KEYSTICK
 
-  If the key file is missing or does not unlock a volume, ZFSBootMenu falls back to a passphrase prompt.
+  When the device is not there yet, as often happens with USB sticks that the kernel is still detecting, ZFSBootMenu
+  waits for it for ``zbm.luks_token_wait`` seconds (default 10; any key ends the wait). It waits once per device in
+  each unlock run, and not during pool-import retries. If the key file is missing or does not unlock a volume,
+  ZFSBootMenu falls back to a passphrase prompt.
 
 Kernel command-line options can be embedded in the image through ``Kernel.CommandLine`` in
 :doc:`/man/generate-zbm.5`, or set at boot with ``zbm-kcl``.
@@ -206,8 +209,9 @@ All of them work on top of an ordinary LUKS passphrase: keep that passphrase in 
 configuration is needed for tokens, which ZFSBootMenu finds in the LUKS2 header; GnuPG key files and challenge-response
 are configured in the crypttab. ``zluks list`` shows the tokens of every volume.
 
-ZFSBootMenu waits ``zbm.luks_token_wait`` seconds (default 10) for a security key or smart card to be plugged in before
-moving on; pressing any key skips the wait. ``zbm.luks_tokens=0`` disables all tokens.
+ZFSBootMenu waits ``zbm.luks_token_wait`` seconds (default 10) for a security key, smart card or key device to be
+plugged in before moving on; pressing any key skips the wait, and ``0`` disables waiting. ``zbm.luks_tokens=0``
+disables all tokens.
 
 TPM2
 ~~~~
@@ -360,6 +364,36 @@ Then reference the key file from ``/etc/crypttab`` and include it in the initram
     FILES+=(/etc/cryptsetup-keys.d/zroot.key)
 
 Regenerate the initramfs afterwards, and always confirm that the resulting image is readable by root only.
+
+Unlocking without a crypttab
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both stages can do without a crypttab:
+
+* **ZFSBootMenu** reads ``zbm.luks=`` and ``zbm.luks_key=`` from its own kernel command line (``Kernel.CommandLine`` in
+  ``/etc/zfsbootmenu/config.yaml``). A GnuPG-encrypted key file named only on the command line is not embedded
+  automatically; add it with dracut's ``install_items`` in ``/etc/zfsbootmenu/dracut.conf.d/``.
+* **A systemd-based initramfs** in the boot environment reads ``luks.uuid=``, ``luks.key=`` and ``luks.options=``
+  from its kernel command line, and ``luks.crypttab=no`` makes it ignore ``/etc/crypttab``. Set them in the
+  ``org.zfsbootmenu:commandline`` property, which ZFSBootMenu passes to the boot environment::
+
+    # U=$(cryptsetup luksUUID /dev/disk/by-partlabel/zfs0)
+    # zfs set org.zfsbootmenu:commandline="quiet luks.crypttab=no luks.uuid=$U luks.key=$U=/etc/cryptsetup-keys.d/zroot.key" zroot/ROOT
+
+    # /etc/dracut.conf.d/10-zfs-luks.conf
+    hostonly_cmdline="no"
+    add_dracutmodules+=" zfs crypt "
+    install_items+=" /etc/cryptsetup-keys.d/zroot.key "
+
+  ``hostonly_cmdline="no"`` stops dracut from embedding ``rd.luks`` parameters it detects on its own. On NVMe systems,
+  also add ``add_drivers+=" nvme "``, because host-only detection does not always see through ZFS and LUKS to the
+  disk.
+
+TRIM and the dm-crypt work-queue flags need no crypttab options either when they are stored in the LUKS2 header with
+``cryptsetup open --persistent``; every later activation applies them::
+
+  # cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue --persistent \
+      /dev/nvme0n1p2 luks-$(cryptsetup luksUUID /dev/nvme0n1p2)
 
 Building images
 ---------------

@@ -104,7 +104,13 @@ These options are given on the ZFSBootMenu kernel command line, for example with
 **zbm.luks_key=**\ *path*\ [:*device*]
 
   A key file for every volume that has none of its own. With *device*, the key file is read from that device, which
-  is mounted read-only for the purpose. Files ending in *.gpg*, *.asc* or *.pgp* are decrypted with GnuPG.
+  is mounted read-only for the purpose and unmounted again. When *device* is not present yet, for example a USB stick
+  that the kernel has not finished detecting, ZFSBootMenu waits for it for **zbm.luks_token_wait** seconds. It waits
+  once per device in each unlock run, and not at all during pool-import retries. Files ending in *.gpg*, *.asc* or
+  *.pgp* are decrypted with GnuPG.
+
+  A key file named only here, and not in the crypttab, is not copied into the image automatically. A GnuPG-encrypted
+  key file can be added with dracut's **install_items**; see `UNLOCKING WITHOUT A CRYPTTAB`_.
 
 **zbm.luks_tokens=0**
 
@@ -112,8 +118,8 @@ These options are given on the ZFSBootMenu kernel command line, for example with
 
 **zbm.luks_token_wait=**\ *seconds*
 
-  How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on. The
-  default is 10 seconds. Pressing any key ends the wait.
+  How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device to be plugged in before moving
+  on. The default is 10 seconds; **0** disables waiting. Pressing any key ends the wait.
 
 UNLOCK METHODS
 ==============
@@ -181,6 +187,31 @@ disabled with **zbm.skip_hooks=80-luks-close.sh**.
 
 The boot environment must unlock its LUKS volumes again from its own initramfs, for example with a key file embedded
 in that initramfs. Because the initramfs is stored inside the encrypted pool, this does not expose the key.
+
+UNLOCKING WITHOUT A CRYPTTAB
+============================
+
+Both stages of the boot can be configured entirely on kernel command lines, so that neither ZFSBootMenu nor the boot
+environment reads a crypttab.
+
+ZFSBootMenu
+  Put **zbm.luks** and, if needed, **zbm.luks_key** into *Kernel.CommandLine* in **generate-zbm**\ (5). Do not create
+  */etc/zfsbootmenu/crypttab*; **zbm.luks** takes precedence over it in any case. A GnuPG-encrypted key file must be
+  added to the image with **install_items** in a file in *Global.DracutConfDir*. Plain key files must not be added:
+  the image is stored unencrypted.
+
+Boot environment
+  An initramfs that runs systemd, as built by dracut on systemd distributions, unlocks volumes named on its kernel
+  command line by **luks.uuid=**\ *UUID*, with the key file given by **luks.key=**\ *UUID*\ **=**\ *path* and
+  options given by **luks.options=**\ *UUID*\ **=**\ *options*; see **systemd-cryptsetup-generator**\ (8).
+  **luks.crypttab=no** makes systemd ignore */etc/crypttab*. Set these parameters in the
+  *org.zfsbootmenu:commandline* property of the boot environment, or of its parent so that all boot environments
+  inherit them. The initramfs must contain the key file (dracut **install_items**) and the dracut *crypt* module.
+  Set **hostonly_cmdline="no"**, so that dracut does not also embed **rd.luks** parameters it detects itself.
+
+Activation flags such as TRIM and the dm-crypt work-queue options can be stored in the LUKS2 header with
+**cryptsetup open --persistent**. ZFSBootMenu, systemd and **cryptsetup open** apply stored flags at every activation,
+so no crypttab options are needed for them. **cryptsetup luksDump** shows them on the *Flags* line.
 
 BUILD OPTIONS
 =============
@@ -311,10 +342,48 @@ Example 4: Building an image with OpenPGP smart card support
   zfsbootmenu_luks_gpg_keys="0x0123456789ABCDEF"
   # generate-zbm
 
+Example 5: Unlocking with a GnuPG key file, without a crypttab
+--------------------------------------------------------------
+
+The key file is decrypted with the OpenPGP card that holds key *0x0123456789ABCDEF*. The LUKS passphrase remains the
+fallback::
+
+  # cat /etc/zfsbootmenu/dracut.conf.d/luks-gpg.conf
+  install_items+=" /etc/zfsbootmenu/keys/zroot.key.gpg "
+  zfsbootmenu_luks_gpg_keys="0x0123456789ABCDEF"
+  # grep CommandLine /etc/zfsbootmenu/config.yaml
+    CommandLine: "quiet zbm.luks=UUID=3f1c0b2e-8d4a-4c55-9a0e-1f2d3c4b5a69 zbm.luks_key=/etc/zfsbootmenu/keys/zroot.key.gpg"
+  # generate-zbm
+
+Example 6: Unlocking a mirror in the boot environment without a crypttab
+------------------------------------------------------------------------
+
+Each LUKS volume of the mirror gets its own **luks.uuid** and **luks.key** pair. Both volumes have a key slot for the
+same key file, which is stored inside the pool and copied into the boot environment's initramfs::
+
+  # U0=$(cryptsetup luksUUID /dev/disk/by-partlabel/zfs0)
+  # U1=$(cryptsetup luksUUID /dev/disk/by-partlabel/zfs1)
+  # K=/etc/cryptsetup-keys.d/zroot.key
+  # zfs set org.zfsbootmenu:commandline="quiet luks.crypttab=no luks.uuid=$U0 luks.key=$U0=$K luks.uuid=$U1 luks.key=$U1=$K" zroot/ROOT
+  # cat /etc/dracut.conf.d/10-zfs-luks.conf
+  hostonly_cmdline="no"
+  add_dracutmodules+=" zfs crypt "
+  install_items+=" /etc/cryptsetup-keys.d/zroot.key "
+
+Example 7: Storing TRIM and NVMe performance flags in the LUKS2 header
+----------------------------------------------------------------------
+
+::
+
+  # cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue \
+      --persistent /dev/nvme0n1p2 luks-$(cryptsetup luksUUID /dev/nvme0n1p2)
+  # cryptsetup luksDump /dev/nvme0n1p2 | grep Flags
+  Flags:       	allow-discards no-read-workqueue no-write-workqueue
+
 SEE ALSO
 ========
 
 :doc:`zluks(8) </man/zluks.8>`, :doc:`zfsbootmenu-crypttab(5) </man/zfsbootmenu-crypttab.5>`,
 :doc:`zfsbootmenu(7) </man/zfsbootmenu.7>`, :doc:`generate-zbm(5) </man/generate-zbm.5>`,
 :doc:`zbm-kcl(8) </man/zbm-kcl.8>`, **cryptsetup**\ (8), **systemd-cryptenroll**\ (1), **clevis-luks-bind**\ (1),
-**gpg**\ (1), **ykpersonalize**\ (1), **zpool**\ (8), **zpoolconcepts**\ (7)
+**gpg**\ (1), **ykpersonalize**\ (1), **systemd-cryptsetup-generator**\ (8), **zpool**\ (8), **zpoolconcepts**\ (7)

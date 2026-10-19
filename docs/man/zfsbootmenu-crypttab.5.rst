@@ -29,7 +29,8 @@ Each line describes one volume and has up to four fields separated by spaces or 
 
   name  device  key  options
 
-Empty lines and lines starting with **#** are ignored.
+Empty lines and lines starting with **#** are ignored. Lines may end in CR LF, as in files edited on Windows, and the
+last line does not need a trailing newline.
 
 *name*
 
@@ -51,8 +52,10 @@ Empty lines and lines starting with **#** are ignored.
   **PATH=**\ *name*            entry below */dev/disk/by-path*
   ===========================  ========================================
 
-  A bare LUKS UUID, or **luks-**\ *UUID*, is also accepted. When the device is missing, ZFSBootMenu waits for it,
-  checking again every **zbm.retry_delay** seconds, until it appears or the user presses *Escape*.
+  A bare LUKS UUID, or **luks-**\ *UUID*, is also accepted. **UUID=** and **PARTUUID=** values match in upper or
+  lower case, so GPT UUIDs copied from **sgdisk**\ (8), which prints them in upper case, work unchanged. When the
+  device is missing, ZFSBootMenu waits for it, checking again every **zbm.retry_delay** seconds, until it appears or
+  the user presses *Escape*.
 
 *key*
 
@@ -71,7 +74,9 @@ Empty lines and lines starting with **#** are ignored.
   *path*\ **:**\ *device*
 
     A key file stored on another device, such as a USB stick. *device* takes the same forms as the *device* field. The
-    device is mounted read-only, *path* is read relative to its root, and the device is unmounted again.
+    device is mounted read-only, *path* is read relative to its root, and the device is unmounted again. A device
+    that is not present yet is waited for, for up to **zbm.luks_token_wait** seconds (default 10), once per unlock
+    run; pressing any key ends the wait. The image includes the *vfat* driver for FAT-formatted sticks.
 
   *path*\ **.gpg**, *path*\ **.asc** or *path*\ **.pgp**
 
@@ -101,7 +106,7 @@ OPTIONS
 **tries=**\ *n*
 
   Passphrase attempts per round before ZFSBootMenu offers to try again or skip the volume. The default is 3; **0**
-  means unlimited.
+  means unlimited. An invalid value is ignored with a warning.
 
 **noauto**
 
@@ -133,6 +138,9 @@ OPTIONS
 **key-slot=**\ *n*, **keyslot=**\ *n*
 
   Try only key slot *n*.
+
+  The values of **keyfile-offset**, **keyfile-size** and **key-slot** must be non-negative integers. Other values are
+  ignored with a warning, because they would make every attempt fail, the passphrase included.
 
 **gpg**
 
@@ -219,6 +227,16 @@ LUKS2 tokens enrolled with **systemd-cryptenroll** or **clevis** need no options
 header. To keep a token from being used on one volume::
 
   backup0  PARTLABEL=backup0  none  no-tokens,noauto
+
+Example 7: Waiting longer for a slow USB key stick
+--------------------------------------------------
+
+Some USB hubs and card readers take longer than 10 seconds to appear. Raise the wait on the ZFSBootMenu kernel
+command line and keep the crypttab entry unchanged::
+
+  # zbm-kcl -a zbm.luks_token_wait=30 /boot/efi/EFI/zbm/vmlinuz.EFI
+  # cat /etc/zfsbootmenu/crypttab
+  zroot0  PARTLABEL=zfs0  /keys/zroot.key:LABEL=KEYSTICK  discard
 
 SEE ALSO
 ========

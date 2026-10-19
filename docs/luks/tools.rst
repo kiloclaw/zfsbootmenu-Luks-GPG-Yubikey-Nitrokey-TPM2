@@ -49,6 +49,8 @@ Tool                                      Used to
 ``zbm-builder.sh``                        build images in a container; see :doc:`administration`
 ``zbm-kcl``                               set ZFSBootMenu command-line options; see :doc:`zbm-kcl(8) </man/zbm-kcl.8>`
 ``lsinitrd``, ``lsinitcpio``              list the contents of an image
+``objcopy``                               extract the initramfs from a unified EFI image (``--only-section=.initrd``)
+``nvme`` (nvme-cli)                       NVMe sector formats (``id-ns``, ``format``) and health (``smart-log``)
 ========================================  ============================================================================
 
 Kernel Command-Line Parameters
@@ -62,9 +64,25 @@ Parameter                             Effect
 ``zbm.luks=<device>[,...]``           unlock only the listed devices
 ``zbm.luks_key=<path>[:<dev>]``       key file for volumes without their own; ``*.gpg`` files are decrypted
 ``zbm.luks_tokens=0``                 do not use LUKS2 tokens (TPM2, FIDO2, clevis)
-``zbm.luks_token_wait=<seconds>``     how long to wait for a security key or card (default 10)
+``zbm.luks_token_wait=<seconds>``     wait for a security key, card or key stick (default 10, 0 = no wait)
 ``zbm.skip_hooks=80-luks-close.sh``   keep volumes open at hand-off (not recommended)
 ====================================  =========================================================================
+
+Boot Environment Parameters
+---------------------------
+
+These parameters belong on the boot environment's kernel command line, set through the ``org.zfsbootmenu:commandline``
+property. They are read by an initramfs that runs systemd, and replace ``/etc/crypttab``; see
+**systemd-cryptsetup-generator**\ (8).
+
+========================================  ============================================================================
+Parameter                                 Effect
+========================================  ============================================================================
+``luks.crypttab=no``                      ignore ``/etc/crypttab`` (initramfs and running system)
+``luks.uuid=<UUID>``                      unlock this LUKS volume, as ``luks-<UUID>``
+``luks.key=<UUID>=<path>``                key file for that volume; must be in the initramfs
+``luks.options=<UUID>=<options>``         crypttab-style options for that volume
+========================================  ============================================================================
 
 crypttab Options
 ----------------

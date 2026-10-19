@@ -259,6 +259,81 @@ of devices is prepared separately:
       spare "${SPARE[@]}"
   # zpool status -P zroot
 
+Example 12: A mirror of two NVMe SSDs, unlocked without a crypttab
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A boot pool mirrored across two NVMe SSDs, with 4 KiB sectors throughout. TRIM and the dm-crypt work-queue flags are
+stored in the LUKS2 headers, and both ZFSBootMenu and the boot environment are told what to unlock on their kernel
+command lines, so no crypttab is needed anywhere. The single-SSD form of this procedure was tested in a UEFI virtual
+machine with an emulated NVMe SSD.
+
+1. Optionally switch each SSD to 4 KiB sectors. ``nvme id-ns -H`` lists the supported formats; use the number of a
+   ``4096 bytes`` format without metadata. This erases the SSD:
+
+   .. code-block:: bash
+
+     # nvme id-ns -H /dev/nvme0n1 | grep '^LBA Format'
+     # nvme format /dev/nvme0n1 --lbaf=1 --force
+     # nvme format /dev/nvme1n1 --lbaf=1 --force
+
+2. Partition both SSDs as in `Preparing LUKS Volumes`_ (an ESP and a type ``8309`` partition on each), then create
+   the LUKS volumes with 4 KiB encryption sectors and open them with the flags stored in the header:
+
+   .. code-block:: bash
+
+     # for p in /dev/disk/by-id/nvme-SSD{1,2}-part2; do
+         cryptsetup luksFormat --type luks2 --sector-size 4096 "$p" &&
+         cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue \
+           --persistent "$p" "luks-$(cryptsetup luksUUID "$p")"
+       done
+     # U1=$(cryptsetup luksUUID /dev/disk/by-id/nvme-SSD1-part2)
+     # U2=$(cryptsetup luksUUID /dev/disk/by-id/nvme-SSD2-part2)
+
+3. Create the pool:
+
+   .. code-block:: bash
+
+     # zpool create -f "${POOL_OPTS[@]}" zroot mirror /dev/mapper/luks-$U1 /dev/mapper/luks-$U2
+     # zpool status -P zroot
+
+4. Tell the boot environment's systemd initramfs to unlock both volumes with one key file that has a slot on each
+   (``luks.crypttab=no`` makes systemd ignore ``/etc/crypttab``):
+
+   .. code-block:: bash
+
+     # K=/etc/cryptsetup-keys.d/zroot.key
+     # zfs set org.zfsbootmenu:commandline="quiet luks.crypttab=no luks.uuid=$U1 luks.key=$U1=$K luks.uuid=$U2 luks.key=$U2=$K" zroot/ROOT
+
+   After installing the operating system, create the key file, add it to both volumes, and include it and the NVMe
+   driver in the initramfs:
+
+   .. code-block:: bash
+
+     # install -d -m 0700 /etc/cryptsetup-keys.d && install -m 0400 /dev/null $K
+     # dd if=/dev/urandom of=$K bs=64 count=1
+     # for p in /dev/disk/by-id/nvme-SSD{1,2}-part2; do
+         cryptsetup luksAddKey --pbkdf pbkdf2 --pbkdf-force-iterations 1000 "$p" $K
+       done
+     # cat /etc/dracut.conf.d/10-zfs-luks.conf
+     hostonly="yes"
+     hostonly_cmdline="no"
+     add_dracutmodules+=" zfs crypt "
+     add_drivers+=" nvme "
+     install_items+=" /etc/cryptsetup-keys.d/zroot.key "
+
+5. Tell ZFSBootMenu which volumes to unlock, in ``/etc/zfsbootmenu/config.yaml``, and build it:
+
+   .. code-block:: yaml
+
+     Kernel:
+       CommandLine: "quiet loglevel=0 zbm.luks=UUID=<U1>,UUID=<U2>"
+
+   ZFSBootMenu asks for the passphrase once, for both SSDs. A random key file needs no slow key derivation, which is
+   why it is added with ``--pbkdf pbkdf2 --pbkdf-force-iterations 1000``; the passphrase slots keep the default
+   memory-hard Argon2id.
+
+For a complete single-disk installation along these lines, see ``Gentoo Linux ZFS LUKS-V4.md`` in the repository.
+
 .. _luks-making-pool-bootable:
 
 Making the Pool Bootable

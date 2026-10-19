@@ -106,8 +106,16 @@
     [1mzbm.luks_key=[0m[33mpath[0m[:[33mdevice[0m]
 
       A key file for every volume that has none of its own. With [33mdevice[0m, the key file is
-      read from that device, which is mounted read-only for the purpose. Files ending
-      in [33m.gpg[0m, [33m.asc[0m or [33m.pgp[0m are decrypted with GnuPG.
+      read from that device, which is mounted read-only for the purpose and unmounted
+      again. When [33mdevice[0m is not present yet, for example a USB stick that the kernel
+      has not finished detecting, ZFSBootMenu waits for it for [1mzbm.luks_token_wait[0m
+      seconds. It waits once per device in each unlock run, and not at all during
+      pool-import retries. Files ending in [33m.gpg[0m, [33m.asc[0m or [33m.pgp[0m are decrypted with
+      GnuPG.
+
+      A key file named only here, and not in the crypttab, is not copied into the image
+      automatically. A GnuPG-encrypted key file can be added with dracut's
+      [1minstall_items[0m; see [4;36mUNLOCKING WITHOUT A CRYPTTAB[0m [0].
 
     [1mzbm.luks_tokens=0[0m
 
@@ -115,8 +123,9 @@
 
     [1mzbm.luks_token_wait=[0m[33mseconds[0m
 
-      How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged
-      in before moving on. The default is 10 seconds. Pressing any key ends the wait.
+      How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device
+      to be plugged in before moving on. The default is 10 seconds; [1m0[0m disables
+      waiting. Pressing any key ends the wait.
 
   [1mUNLOCK METHODS[0m
 
@@ -185,6 +194,34 @@
     The boot environment must unlock its LUKS volumes again from its own initramfs, for
     example with a key file embedded in that initramfs. Because the initramfs is stored
     inside the encrypted pool, this does not expose the key.
+
+  [1mUNLOCKING WITHOUT A CRYPTTAB[0m
+
+    Both stages of the boot can be configured entirely on kernel command lines, so that
+    neither ZFSBootMenu nor the boot environment reads a crypttab.
+
+    ZFSBootMenu
+      Put [1mzbm.luks[0m and, if needed, [1mzbm.luks_key[0m into [33mKernel.CommandLine[0m in [1mgenerate-zbm[0m(5).
+      Do not create [33m/etc/zfsbootmenu/crypttab[0m; [1mzbm.luks[0m takes precedence over it in
+      any case. A GnuPG-encrypted key file must be added to the image with
+      [1minstall_items[0m in a file in [33mGlobal.DracutConfDir[0m. Plain key files must not be
+      added: the image is stored unencrypted.
+
+    Boot environment
+      An initramfs that runs systemd, as built by dracut on systemd distributions, unlocks
+      volumes named on its kernel command line by [1mluks.uuid=[0m[33mUUID[0m, with the key file
+      given by [1mluks.key=[0m[33mUUID[0m[1m=[0m[33mpath[0m and options given by [1mluks.options=[0m[33mUUID[0m[1m=[0m[33moptions[0m; see
+      [1msystemd-cryptsetup-generator[0m(8). [1mluks.crypttab=no[0m makes systemd ignore
+      [33m/etc/crypttab[0m. Set these parameters in the [33morg.zfsbootmenu:commandline[0m property
+      of the boot environment, or of its parent so that all boot environments inherit
+      them. The initramfs must contain the key file (dracut [1minstall_items[0m) and the
+      dracut [33mcrypt[0m module. Set [1mhostonly_cmdline="no"[0m, so that dracut does not also
+      embed [1mrd.luks[0m parameters it detects itself.
+
+    Activation flags such as TRIM and the dm-crypt work-queue options can be stored in the
+    LUKS2 header with [1mcryptsetup open --persistent[0m. ZFSBootMenu, systemd and [1mcryptsetup
+    open[0m apply stored flags at every activation, so no crypttab options are needed for
+    them. [1mcryptsetup luksDump[0m shows them on the [33mFlags[0m line.
 
   [1mBUILD OPTIONS[0m
 
@@ -309,8 +346,46 @@
       zfsbootmenu_luks_gpg_keys="0x0123456789ABCDEF"
       # generate-zbm
 
+    [1mExample 5: Unlocking with a GnuPG key file, without a crypttab[0m
+
+      The key file is decrypted with the OpenPGP card that holds key [33m0x0123456789ABCDEF[0m. The
+      LUKS passphrase remains the fallback:
+
+      # cat /etc/zfsbootmenu/dracut.conf.d/luks-gpg.conf
+      install_items+=" /etc/zfsbootmenu/keys/zroot.key.gpg "
+      zfsbootmenu_luks_gpg_keys="0x0123456789ABCDEF"
+      # grep CommandLine /etc/zfsbootmenu/config.yaml
+        CommandLine: "quiet zbm.luks=UUID=3f1c0b2e-8d4a-4c55-9a0e-1f2d3c4b5a69 zbm.luks_key=/etc/zfsbootmenu/keys/zroot.key.gpg"
+      # generate-zbm
+
+    [1mExample 6: Unlocking a mirror in the boot environment without a crypttab[0m
+
+      Each LUKS volume of the mirror gets its own [1mluks.uuid[0m and [1mluks.key[0m pair. Both volumes
+      have a key slot for the same key file, which is stored inside the pool and
+      copied into the boot environment's initramfs:
+
+      # U0=$(cryptsetup luksUUID /dev/disk/by-partlabel/zfs0)
+      # U1=$(cryptsetup luksUUID /dev/disk/by-partlabel/zfs1)
+      # K=/etc/cryptsetup-keys.d/zroot.key
+      # zfs set org.zfsbootmenu:commandline="quiet luks.crypttab=no luks.uuid=$U0 luks.key=$U0=$K luks.uuid=$U1 luks.key=$U1=$K" zroot/ROOT
+      # cat /etc/dracut.conf.d/10-zfs-luks.conf
+      hostonly_cmdline="no"
+      add_dracutmodules+=" zfs crypt "
+      install_items+=" /etc/cryptsetup-keys.d/zroot.key "
+
+    [1mExample 7: Storing TRIM and NVMe performance flags in the LUKS2 header[0m
+
+      # cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue \
+          --persistent /dev/nvme0n1p2 luks-$(cryptsetup luksUUID /dev/nvme0n1p2)
+      # cryptsetup luksDump /dev/nvme0n1p2 | grep Flags
+      Flags:        allow-discards no-read-workqueue no-write-workqueue
+
   [1mSEE ALSO[0m
 
     zluks(8), zfsbootmenu-crypttab(5), zfsbootmenu(7), generate-zbm(5), zbm-kcl(8),
     [1mcryptsetup[0m(8), [1msystemd-cryptenroll[0m(1), [1mclevis-luks-bind[0m(1), [1mgpg[0m(1),
-    [1mykpersonalize[0m(1), [1mzpool[0m(8), [1mzpoolconcepts[0m(7)
+    [1mykpersonalize[0m(1), [1msystemd-cryptsetup-generator[0m(8), [1mzpool[0m(8), [1mzpoolconcepts[0m(7)
+
+  [1mReferences:[0m
+
+    [0]: <[4;36m[0m>
