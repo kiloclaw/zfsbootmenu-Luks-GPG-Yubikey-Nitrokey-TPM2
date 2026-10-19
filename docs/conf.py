@@ -19,7 +19,7 @@ extensions = [
     'sphinx.ext.extlinks',
     'sphinx_tabs.tabs',
     'sphinx_copybutton',
-    'recommonmark',
+    'myst_parser',
     'sphinx_reredirects',
 ]
 
