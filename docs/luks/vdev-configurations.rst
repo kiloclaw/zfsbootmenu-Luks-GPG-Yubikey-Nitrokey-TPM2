@@ -180,14 +180,20 @@ with ``zpool add``.
 Example 7: Special allocation class
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A special vdev stores metadata, and optionally small blocks, on fast devices. Losing it loses the pool, so mirror it:
+A special vdev stores metadata, and optionally small blocks, on fast devices. Losing it loses the pool, so give it at
+least as much redundancy as the data vdevs: a two-way mirror for a mirror or RAIDZ1 pool, a three-way mirror for
+RAIDZ2:
 
 .. code-block:: bash
 
   # VDEVS=()
-  # luks_create /dev/disk/by-id/nvme-FAST1-part2 /dev/disk/by-id/nvme-FAST2-part2
-  # zpool add tank special mirror "${VDEVS[@]}"
+  # luks_create /dev/disk/by-id/nvme-FAST{1,2,3}-part2
+  # zpool add -f tank special mirror "${VDEVS[@]}"
   # zfs set special_small_blocks=64K tank
+
+On a pool of RAIDZ or dRAID vdevs, ``zpool add`` refuses a mirror without ``-f``, reporting *mismatched replication
+level*, because the vdev types differ. ``-f`` is needed only for that reason; check the rest of the command before using
+it. On a pool of mirrors, omit ``-f``.
 
 A dedup vdev is added the same way with ``dedup`` instead of ``special``.
 
@@ -241,7 +247,7 @@ of devices is prepared separately:
 .. code-block:: bash
 
   # VDEVS=(); luks_create /dev/disk/by-id/ata-DISK{1,2,3,4}-part2; DATA=( "${VDEVS[@]}" )
-  # VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST{1,2}-part2;    SPECIAL=( "${VDEVS[@]}" )
+  # VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST{1,2,3}-part2;  SPECIAL=( "${VDEVS[@]}" )
   # VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST{1,2}-part3;    LOG=( "${VDEVS[@]}" )
   # VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST1-part4;        CACHE=( "${VDEVS[@]}" )
   # VDEVS=(); luks_create /dev/disk/by-id/ata-DISK5-part2;         SPARE=( "${VDEVS[@]}" )
