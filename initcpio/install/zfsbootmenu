@@ -44,9 +44,13 @@ add_optional_module() {
     local target="${1%.ko*}"
     target="${target//-/_}"
 
-    # Try to determine path to module, if there is one
+    # Try to determine path to module, if there is one. As in
+    # add_optional_binary, the test must be inverted to avoid tripping the
+    # mkinitcpio RETURN trap when the module does not exist.
     local kfile
-    kfile="$( modinfo -k "${KERNELVERSION}" -n "${target}" 2>/dev/null )" || return 0
+    if ! kfile="$( modinfo -k "${KERNELVERSION}" -n "${target}" 2>/dev/null )"; then
+        return 0
+    fi
 
     # If module has a valid path, try to add it properly
     case "${kfile}" in
@@ -139,6 +143,22 @@ build() {
     # Binaries required for ZBM operation
     add_zbm_binaries
 
+    # Support for ZFS pools on LUKS volumes
+    if zbm_luks_enabled && command -v cryptsetup >/dev/null 2>&1; then
+        # shellcheck disable=SC2154
+        map add_optional_binary "${zfsbootmenu_luks_binaries[@]}"
+
+        # shellcheck disable=SC2154
+        map add_optional_module "${zfsbootmenu_luks_modules[@]}"
+
+        local _rule
+        # shellcheck disable=SC2154
+        for _rule in "${zfsbootmenu_luks_udev_rules[@]}"; do
+            zbm_have_udev_rule "${_rule}" || continue
+            add_udev_rule "${_rule}" || warning "failed to install udev rule '${_rule}'"
+        done
+    fi
+
     # Add libgcc_s as appropriate
     local _libgcc_s
     if ! _libgcc_s="$( find_libgcc_s )"; then
@@ -200,6 +220,8 @@ build() {
     create_zbm_profiles
     create_zbm_traceconf
     create_zbm_entrypoint
+
+    install_zbm_luks || warning "LUKS configuration was not fully installed"
 
     if command -v setfont >/dev/null 2>&1; then
       install_zbm_fonts && add_binary setfont

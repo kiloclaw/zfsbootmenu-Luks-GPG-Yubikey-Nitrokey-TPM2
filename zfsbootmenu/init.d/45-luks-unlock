@@ -1,0 +1,17 @@
+#!/bin/bash
+# vim: softtabstop=2 shiftwidth=2 expandtab
+
+[ "${ZFSBOOTMENU_INITIALIZATION}" = "yes" ] || return 0
+
+# Unlock LUKS volumes that hold ZFS vdevs before pools are imported. This runs
+# after early-setup hooks, so a hook may provide key files (e.g., by mounting
+# a key store) or unlock volumes itself.
+#
+# The work happens in a subshell so that any passphrases entered at the
+# console do not linger in the memory of the long-running init process.
+
+# shellcheck disable=SC1091
+if [ -r /lib/zfsbootmenu-luks.sh ] && command -v cryptsetup >/dev/null 2>&1; then
+  ( source /lib/zfsbootmenu-luks.sh && luks_unlock_all )
+  tput clear
+fi

@@ -152,6 +152,28 @@ These options are set on the kernel command line when booting the initramfs or U
 
   The use of full device paths other than descendants of **/dev/disk/** is fragile and should be avoided. The delay interval between device checks can be controlled by **zbm.retry_delay**.
 
+**zbm.luks=<off|auto|device,device,...>**
+
+  Control the unlocking of LUKS (dm-crypt) volumes that hold ZFS vdevs, which happens after early-setup hooks and before pools are imported.
+
+  *off*
+
+    Do not unlock any LUKS volumes.
+
+  *auto*
+
+    Try every LUKS volume on the system, closing again any whose contents are recognized as something other than a ZFS vdev. This is the default when the image contains no LUKS crypttab.
+
+  *device,device,...*
+
+    Unlock only the listed devices. Each device may be a path below **/dev**, a typed indicator of the form **UUID=**, **PARTUUID=**, **LABEL=**, **PARTLABEL=**, **ID=** or **PATH=**, or a bare LUKS UUID.
+
+  When this option is absent, the crypttab embedded with **zfsbootmenu_luks_crypttab** is used if it exists; otherwise *auto* applies. A passphrase that unlocks one volume is tried on the others before prompting again, and an empty passphrase skips a volume. See the *ZFS Pools on LUKS Volumes* guide for details.
+
+**zbm.luks_key=<path>[:<device>]**
+
+  A key file used to unlock any LUKS volume that has no key file of its own. With **:<device>** (specified as for **zbm.luks**), the device is mounted read-only and **<path>** is read relative to its root. ZFSBootMenu falls back to a passphrase prompt if the key is unavailable or does not work.
+
 Deprecated Parameters
 ---------------------
 
@@ -281,6 +303,14 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
   The ZFSBootMenu module attempts to detect and install a copy of the library **libgcc_s.so** in its initramfs image on glibc systems. Because several executables may have latent dependencies on this library via a **dlopen** call in glibc itself, a failure to detect and install the library will cause initramfs generation to fail. If the host system has no dependencies on **libgcc_s.so**, set **zfsbootmenu_skip_gcc_s=yes** to avoid this failure. Alternatively, if **libgcc_s.so** is present in an undetected location, set this option and configure dracut or mkinitcpio to explicitly install the library.
 
+**zfsbootmenu_luks=no**
+
+  Omit support for ZFS pools on LUKS volumes. By default, when **cryptsetup** is installed on the build host, the image includes **cryptsetup**, **dmsetup**, device-mapper udev rules and the dm-crypt and common kernel crypto modules.
+
+**zfsbootmenu_luks_crypttab=<path>**
+
+  A crypttab(5)-style file that lists the LUKS volumes to unlock, with optional key files and options (default: */etc/zfsbootmenu/crypttab*). It is embedded in the image as */etc/zfsbootmenu/crypttab*, together with any **keyscript=** programs it references. Key files are never embedded. The file is ignored for release builds.
+
 **zfsbootmenu_miser=yes** (mkinitcpio only)
 
   By default, **mkinitcpio** uses busybox to populate initramfs images. However, the *zfsbootmenu* hook will install system versions of several utilities that it requires to operate. On most systems, these versions will be provided by util-linux rather than busybox. To prefer busybox for these utilities when possible, set **zfsbootmenu_miser=yes**. Synonyms for *yes* are *1*, *y* or *on*, without regard to letter case.
@@ -396,6 +426,8 @@ Hooks should be marked executable and placed in a subdirectory of *${zfsbootmenu
   **ZBM_SELECTED_MOUNTPOINT**
 
     The path where the selected boot environment is currently mounted, which is the root relative to which ZFSBootMenu will attempt to load the selected kernel and initramfs.
+
+  The system teardown hook *80-luks-close.sh* exports pools that reside on LUKS volumes opened by ZFSBootMenu and closes those volumes, so later teardown hooks should not expect them to be available.
 
   Teardown hooks should never assume that the filesystem named in **ZBM_SELECTED_BE** is currently mounted. In addition, no teardown hook should assume that the ZFSBootMenu environment is in a consistent operating state. ZFSBootMenu may have exported some or all pools prior to executing teardown hooks.
 

@@ -52,6 +52,7 @@
   general/container-building
   general/mkinitcpio
   general/native-encryption
+  general/luks
   general/portable
   general/remote-access
   general/tailscale

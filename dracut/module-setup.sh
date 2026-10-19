@@ -26,6 +26,14 @@ installkernel() {
   for mod in "${zfsbootmenu_optional_modules[@]}"; do
     instmods "${mod}"
   done
+
+  # dm-crypt and crypto modules for ZFS pools on LUKS volumes
+  if zbm_luks_enabled; then
+    # shellcheck disable=SC2154
+    for mod in "${zfsbootmenu_luks_modules[@]}"; do
+      instmods "${mod}"
+    done
+  fi
 }
 
 install() {
@@ -69,6 +77,29 @@ install() {
       dwarning "optional component '${_exec}' not found, omitting from image"
     fi
   done
+
+  # Support for ZFS pools on LUKS volumes
+  if zbm_luks_enabled && command -v cryptsetup >/dev/null 2>&1; then
+    # shellcheck disable=SC2154
+    for _exec in "${zfsbootmenu_luks_binaries[@]}"; do
+      if ! dracut_install "${_exec}"; then
+        dwarning "LUKS component '${_exec}' not found, omitting from image"
+      fi
+    done
+
+    # shellcheck disable=SC2154
+    for _rule in "${zfsbootmenu_luks_udev_rules[@]}"; do
+      zbm_have_udev_rule "${_rule}" || continue
+      inst_rules "${_rule}" || dwarning "failed to install udev rule '${_rule}'"
+    done
+
+    install_zbm_luks || dwarning "LUKS configuration was not fully installed"
+
+    # If the dracut crypt module is included anyway, keep it from prompting
+    # for LUKS volumes before ZFSBootMenu can handle them
+    mkdir -p "${initdir}/etc/cmdline.d"
+    echo "rd.luks=0" > "${initdir}/etc/cmdline.d/zfsbootmenu-luks.conf"
+  fi
 
   # Add libgcc_s as appropriate
   local _libgcc_s

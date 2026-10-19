@@ -53,6 +53,63 @@ zfsbootmenu_udev_rules=(
   "60-zvol.rules"
 )
 
+# Device-mapper udev rules let cryptsetup synchronize with udev and create
+# /dev/disk/by-* links for unlocked LUKS volumes; names vary by distribution
+# shellcheck disable=SC2034
+zfsbootmenu_luks_udev_rules=(
+  "10-dm.rules"
+  "13-dm-disk.rules"
+  "55-dm.rules"
+  "60-persistent-storage-dm.rules"
+  "95-dm-notify.rules"
+)
+
+# Programs needed to unlock LUKS volumes that hold ZFS vdevs
+# shellcheck disable=SC2034
+zfsbootmenu_luks_binaries=(
+  "cryptsetup"
+  "dmsetup"
+  "udevadm"
+)
+
+# dm-crypt and the kernel crypto modules commonly used by LUKS; any that are
+# missing (or built into the kernel) are silently skipped
+# shellcheck disable=SC2034
+zfsbootmenu_luks_modules=(
+  "dm_mod"
+  "dm_crypt"
+  "dm_integrity"
+  "af_alg"
+  "algif_skcipher"
+  "algif_hash"
+  "cryptd"
+  "crypto_simd"
+  "gf128mul"
+  "aes_generic"
+  "aesni_intel"
+  "aes_ce_blk"
+  "aes_ce_cipher"
+  "aes_neon_blk"
+  "aes_neon_bs"
+  "xts"
+  "cbc"
+  "ecb"
+  "ctr"
+  "lrw"
+  "essiv"
+  "sha256_generic"
+  "sha256_ssse3"
+  "sha512_generic"
+  "sha512_ssse3"
+  "sha2_ce"
+  "sha256_arm64"
+  "sha512_arm64"
+  "crc32c_generic"
+  "crc32c_intel"
+  "serpent_generic"
+  "twofish_generic"
+)
+
 # shellcheck disable=SC2034
 zfsbootmenu_essential_modules=(
   "zfs"
@@ -401,6 +458,117 @@ install_zbm_hooks() {
   return $ret
 }
 
+
+# prints: nothing
+# returns: 0 unless LUKS support has been disabled with zfsbootmenu_luks=no
+
+zbm_luks_enabled() {
+  # shellcheck disable=SC2154
+  case "${zfsbootmenu_luks,,}" in
+    no|n|off|0|false) return 1 ;;
+  esac
+  return 0
+}
+
+# arg1: name of a udev rule file
+# prints: nothing
+# returns: 0 if the rule exists on the build host
+
+zbm_have_udev_rule() {
+  local rdir
+  for rdir in /etc/udev/rules.d /usr/lib/udev/rules.d /lib/udev/rules.d; do
+    [ -e "${rdir}/${1}" ] && return 0
+  done
+  return 1
+}
+
+# arg1: path to an executable
+# prints: nothing
+# returns: 0 if the executable (and its dependencies) were installed
+
+zbm_install_executable() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) add_binary "${1}" ;;
+    dracut) inst "${1}" ;;
+    *) return 1 ;;
+  esac
+}
+
+zbm_warn() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) warning "$@" ;;
+    dracut) dwarning "$@" ;;
+    *) echo "WARNING: $*" >&2 ;;
+  esac
+}
+
+# Install LUKS configuration: the ZFSBootMenu crypttab and any key scripts it
+# references. Binaries, modules and udev rules are installed by the builder.
+#
+# prints: nothing
+# returns: 0 on success
+
+install_zbm_luks() {
+  local crypttab name device keyfile options opt ks ret
+  local -a optlist
+
+  zbm_luks_enabled || return 0
+
+  if ! command -v cryptsetup >/dev/null 2>&1; then
+    zbm_warn "cryptsetup not found; ZFS pools on LUKS volumes will not be unlocked"
+    return 0
+  fi
+
+  ret=0
+
+  : "${zfsbootmenu_luks_crypttab:=/etc/zfsbootmenu/crypttab}"
+  crypttab="${zfsbootmenu_luks_crypttab}"
+
+  # Like hostid, a crypttab is host-specific and never belongs in releases
+  # shellcheck disable=SC2154
+  [ -n "${zfsbootmenu_release_build}" ] && return 0
+  [ -r "${crypttab}" ] || return 0
+
+  mkdir -p "${BUILDROOT}/etc/zfsbootmenu"
+  if ! cp "${crypttab}" "${BUILDROOT}/etc/zfsbootmenu/crypttab"; then
+    zbm_warn "failed to install LUKS crypttab ${crypttab}"
+    return 1
+  fi
+  chmod 0600 "${BUILDROOT}/etc/zfsbootmenu/crypttab"
+
+  while read -r name device keyfile options _; do
+    case "${name}" in
+      ""|"#"*) continue ;;
+    esac
+
+    # Key files are deliberately not embedded: the image is not encrypted
+    case "${keyfile}" in
+      ""|-|none) ;;
+      /*:*) ;;
+      *)
+        zbm_warn "crypttab entry '${name}' uses key file '${keyfile}', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device"
+        ;;
+    esac
+
+    IFS=',' read -r -a optlist <<< "${options}"
+    for opt in "${optlist[@]}"; do
+      case "${opt}" in
+        keyscript=*)
+          ks="${opt#keyscript=}"
+          [[ "${ks}" == /* ]] || ks="/lib/cryptsetup/scripts/${ks}"
+          if [ -x "${ks}" ]; then
+            zbm_install_executable "${ks}" || ret=1
+          else
+            zbm_warn "key script '${ks}' for crypttab entry '${name}' not found"
+            ret=1
+          fi
+          ;;
+      esac
+    done
+  done < "${crypttab}"
+
+  return "${ret}"
+}
 
 find_libgcc_s() {
   local f libdirs libbase ldir zlibs matched

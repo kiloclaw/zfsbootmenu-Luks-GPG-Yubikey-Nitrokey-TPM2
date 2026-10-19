@@ -1,0 +1,109 @@
+#!/bin/bash
+# vim: softtabstop=2 shiftwidth=2 expandtab
+
+# zluks: manage LUKS volumes from the ZFSBootMenu recovery shell or over SSH
+
+sources=(
+  /lib/profiling-lib.sh
+  /etc/zfsbootmenu.conf
+  /lib/kmsg-log-lib.sh
+  /lib/zfsbootmenu-core.sh
+  /lib/zfsbootmenu-luks.sh
+)
+
+for src in "${sources[@]}"; do
+  # shellcheck disable=SC1090
+  if ! source "${src}" >/dev/null 2>&1; then
+    echo "ERROR: unable to source ${src}" >&2
+    exit 1
+  fi
+done
+
+unset src sources
+
+usage() {
+  cat <<-USAGE
+	Usage: ${0##*/} [command]
+
+	Commands:
+	  unlock               Unlock all configured LUKS volumes (default)
+	  open <device> [name] Unlock a single LUKS volume; device may be a path or
+	                       UUID=, PARTUUID=, LABEL=, PARTLABEL=, ID=, PATH=
+	  close [name]         Export pools on, and close, mappings opened by
+	                       ZFSBootMenu (all of them unless a name is given)
+	  status               List mappings opened by ZFSBootMenu
+	  list                 List all LUKS volumes on the system
+
+	After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
+	run 'zpool import' manually.
+	USAGE
+}
+
+if ! luks_available; then
+  echo "ERROR: cryptsetup is not available in this image" >&2
+  exit 1
+fi
+
+cmd="${1:-unlock}"
+[ "$#" -gt 0 ] && shift
+
+case "${cmd}" in
+  unlock)
+    luks_unlock_all
+    ;;
+  open)
+    if [ -z "${1}" ]; then
+      usage >&2
+      exit 1
+    fi
+
+    if ! dev="$( luks_resolve_device "${1}" )"; then
+      echo "ERROR: device '${1}' not found" >&2
+      exit 1
+    fi
+
+    luks_open_device "${2}" "${dev}" "$( get_zbm_arg zbm.luks_key )" "" ""
+    ret=$?
+    udevadm settle >/dev/null 2>&1
+    exit "${ret}"
+    ;;
+  close)
+    luks_close_all "${1}"
+    ;;
+  status)
+    if [ ! -s "${LUKS_STATE}" ]; then
+      echo "No LUKS mappings opened by ZFSBootMenu"
+      exit 0
+    fi
+
+    while IFS=$'\t' read -r name dev _; do
+      [ -n "${name}" ] || continue
+      if [ -b "/dev/mapper/${name}" ]; then
+        state="$( colorize green "open" )"
+        pools="$( luks_pools_on_device "/dev/mapper/${name}" | tr '\n' ' ' )"
+      else
+        state="$( colorize red "closed" )"
+        pools=""
+      fi
+      echo -e "${name}\t${dev}\t${state}${pools:+\tpools: ${pools}}"
+    done < "${LUKS_STATE}"
+    ;;
+  list)
+    while read -r dev; do
+      [ -n "${dev}" ] || continue
+      if luks_is_open "${dev}"; then
+        state="$( colorize green "in use" )"
+      else
+        state="$( colorize yellow "locked" )"
+      fi
+      echo -e "$( luks_describe_device "${dev}" )\t${state}"
+    done <<< "$( luks_discover_devices )"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

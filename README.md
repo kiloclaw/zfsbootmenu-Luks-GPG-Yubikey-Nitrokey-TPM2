@@ -8,6 +8,22 @@ In essence, ZFSBootMenu is a small, self-contained Linux system that knows how t
 
 ![screenshot](/media/v2.3.0-multi-be.png)
 
+### ZFS pools on LUKS volumes
+
+This build of ZFSBootMenu can unlock LUKS (dm-crypt) volumes that hold ZFS vdevs before importing pools:
+
+- With no configuration, every LUKS volume is offered for unlocking. A passphrase that opens one volume is reused for the
+  others, so a mirror on two LUKS disks needs a single passphrase.
+- Volumes, key files, key devices (e.g. a USB stick) and key scripts can be configured with the `zbm.luks` and
+  `zbm.luks_key` kernel options or with a crypttab embedded at build time (`/etc/zfsbootmenu/crypttab`; see
+  [`examples/crypttab`](examples/crypttab)).
+- Before booting the selected environment, ZFSBootMenu exports the affected pools and closes the LUKS mappings, which
+  wipes the volume keys from memory.
+- `zluks` in the recovery shell (or over SSH) unlocks, closes and lists volumes.
+
+See [ZFS Pools on LUKS Volumes](docs/general/luks.rst) for details, including how to avoid a second passphrase prompt in
+the booted system.
+
 ### For more details, see:
 
 - [Documentation](https://docs.zfsbootmenu.org)

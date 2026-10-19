@@ -1,0 +1,30 @@
+# ZFSBootMenu LUKS crypttab
+#
+# Copy to /etc/zfsbootmenu/crypttab (or point zfsbootmenu_luks_crypttab at it)
+# and rebuild the ZFSBootMenu image. Only list the LUKS volumes that hold ZFS
+# vdevs. Without this file every LUKS volume on the system is offered for
+# unlocking. See zfsbootmenu(7) and the "ZFS Pools on LUKS Volumes" guide.
+#
+# <name>  <device>  <key file>  <options>
+#
+# name       Mapping name below /dev/mapper (only used inside ZFSBootMenu).
+#
+# device     /dev/..., UUID=, PARTUUID=, LABEL=, PARTLABEL=, ID= or PATH=.
+#
+# key file   none or -       prompt for a passphrase
+#            /path/to/key    a key file present when ZFSBootMenu runs
+#                            (e.g., provided by an early-setup hook)
+#            /path:DEVICE    read /path from DEVICE, mounted read-only
+#            Key files are NEVER copied into the (unencrypted) image.
+#
+# options    discard, readonly, tries=N (0 = unlimited), noauto, nofail,
+#            keyscript=/path, header=/path, keyfile-offset=N, keyfile-size=N,
+#            key-slot=N, no-read-workqueue, no-write-workqueue,
+#            same-cpu-crypt, submit-from-crypt-cpus
+#
+# The members of a mirror usually share a passphrase; ZFSBootMenu asks once.
+#zroot-a   PARTLABEL=zfs0   none                      discard
+#zroot-b   PARTLABEL=zfs1   none                      discard
+#
+# A data pool unlocked by a key file on a USB stick, skipped if it is absent:
+#tank0     UUID=00000000-0000-0000-0000-000000000000   /keys/tank.key:LABEL=KEYSTICK   nofail
