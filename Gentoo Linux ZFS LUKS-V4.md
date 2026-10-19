@@ -583,7 +583,15 @@ Tell the kernel installer to keep kernels in `/boot`, where ZFSBootMenu looks fo
 ```
 layout=compat
 initrd_generator=dracut
+uki_generator=none
+# Never install kernels onto the EFI system partition: it is not encrypted, and the initramfs holds the key file
+BOOT_ROOT=/boot
 ```
+
+This file replaces Gentoo's default `/usr/lib/kernel/install.conf` completely, so it must repeat
+`uki_generator=none`; without it, `sys-kernel/installkernel` refuses to install kernels. `BOOT_ROOT=/boot` matters
+as soon as the ESP is mounted at `/boot/efi`: systemd's `kernel-install` would otherwise detect the ESP and put kernels
+and initramfs images there, unencrypted, together with the key file inside the initramfs.
 
 **Check:**
 
