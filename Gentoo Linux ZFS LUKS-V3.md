@@ -721,12 +721,14 @@ Use `sys-kernel/gentoo-kernel` in the last command if that kernel was installed 
 (chroot) root # ls -l "${INITRD}"
 (chroot) root # lsinitrd "${INITRD}" | grep -E 'zfs\.ko|zroot-initrd\.key|etc/hostid|zpool\.cache|systemd-cryptsetup$'
 (chroot) root # lsinitrd -f etc/crypttab "${INITRD}"
+(chroot) root # ls /boot/efi
 (chroot) root # cryptsetup luksDump "${LUKS_PART}" | grep -E '^\s+[0-9]+: luks2'
 ```
 
 - The initramfs is readable only by root (`-rw-------`). If not, run `chmod 600 /boot/initramfs-*`.
 - The `grep` lists all five names.
 - `etc/crypttab` prints nothing.
+- `/boot/efi` contains only `EFI`: no kernel or initramfs was put on the unencrypted ESP.
 - Three key slots are listed: `0`, `1` and `2`.
 
 ## Configuring the system

@@ -675,12 +675,14 @@ Use `sys-kernel/gentoo-kernel` in the last command if that kernel was installed 
 (chroot) root # ls -l "${INITRD}"
 (chroot) root # lsinitrd "${INITRD}" | grep -E 'zfs\.ko|zroot\.key|etc/hostid|zpool\.cache|systemd-cryptsetup$|nvme'
 (chroot) root # lsinitrd -f etc/crypttab "${INITRD}"
+(chroot) root # ls /boot/efi
 ```
 
 - The initramfs is readable only by root (`-rw-------`). If not, run `chmod 600 /boot/initramfs-*`.
 - The `grep` lists `zfs.ko`, `zroot.key`, `etc/hostid`, `zpool.cache` and `systemd-cryptsetup`, and `nvme.ko` if
   the kernel builds NVMe support as a module (Gentoo's distribution kernels do).
 - `etc/crypttab` prints nothing.
+- `/boot/efi` contains only `EFI`: no kernel or initramfs was put on the unencrypted ESP.
 
 ## Configuring the system
 
