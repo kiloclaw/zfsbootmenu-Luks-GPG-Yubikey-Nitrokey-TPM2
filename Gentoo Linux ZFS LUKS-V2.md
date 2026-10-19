@@ -462,7 +462,8 @@ sys-fs/zfs-kmod dist-kernel-cap
 # Build an initramfs with dracut whenever a kernel is installed
 sys-kernel/installkernel dracut
 # systemd-cryptsetup unlocks the disk in Gentoo's initramfs
-sys-apps/systemd cryptsetup
+# boot: the UEFI stub (linuxx64.efi.stub) that generate-zbm needs to build the ZFSBootMenu EFI image
+sys-apps/systemd cryptsetup boot
 EOF
 ```
 
@@ -540,6 +541,7 @@ echo "CATEGORY/PACKAGE ~amd64" >> /etc/portage/package.accept_keywords/zfsbootme
 ```sh
 ls /lib/modules/                                    # one directory, e.g. 6.12.40-gentoo-dist
 find /lib/modules -name 'zfs.ko*'                   # the ZFS module was built for that kernel
+ls /usr/lib/systemd/boot/efi/linuxx64.efi.stub      # UEFI stub for the ZFSBootMenu EFI image
 ls /boot                                            # vmlinuz-<version> and initramfs-<version>.img
 ```
 

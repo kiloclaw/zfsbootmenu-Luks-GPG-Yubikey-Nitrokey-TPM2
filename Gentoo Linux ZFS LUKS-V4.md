@@ -508,7 +508,8 @@ sys-fs/zfs-kmod dist-kernel-cap
 # Build an initramfs with dracut for every installed kernel
 sys-kernel/installkernel dracut
 # systemd-cryptsetup and its generator, which read the luks.* kernel parameters
-sys-apps/systemd cryptsetup
+# boot: the UEFI stub (linuxx64.efi.stub) that generate-zbm needs to build the ZFSBootMenu EFI image
+sys-apps/systemd cryptsetup boot
 ```
 
 | Package | USE flag | Why |
@@ -516,7 +517,7 @@ sys-apps/systemd cryptsetup
 | `sys-fs/zfs` | `dracut`, `rootfs` | dracut module for a ZFS root in Gentoo's initramfs |
 | `sys-fs/zfs-kmod` | `dist-kernel-cap` | keeps the kernel within the range ZFS supports |
 | `sys-kernel/installkernel` | `dracut` | creates the initramfs when a kernel is installed |
-| `sys-apps/systemd` | `cryptsetup` | unlocks the container from the `luks.*` parameters |
+| `sys-apps/systemd` | `cryptsetup`, `boot` | unlocks the container from the `luks.*` parameters; `boot` installs the UEFI stub for the ZFSBootMenu image |
 
 ### Localization and host name
 
@@ -589,10 +590,11 @@ initrd_generator=dracut
 ```
 (chroot) root # ls /lib/modules/
 (chroot) root # find /lib/modules -name 'zfs.ko*'
+(chroot) root # ls /usr/lib/systemd/boot/efi/linuxx64.efi.stub
 (chroot) root # ls /boot
 ```
 
-One kernel version is listed, `zfs.ko` exists for it, and `/boot` contains `vmlinuz-<version>` and
+One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, and `/boot` contains `vmlinuz-<version>` and
 `initramfs-<version>.img`. This first initramfs cannot unlock the SSD yet; that is fixed in
 [Configuring the initramfs](#configuring-the-initramfs).
 

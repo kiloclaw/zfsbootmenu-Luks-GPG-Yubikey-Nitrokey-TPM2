@@ -440,7 +440,8 @@ sys-fs/zfs-kmod dist-kernel-cap
 # Build an initramfs with dracut for every installed kernel
 sys-kernel/installkernel dracut
 # systemd-cryptsetup and its generator, which read the luks.* kernel parameters
-sys-apps/systemd cryptsetup
+# boot: the UEFI stub (linuxx64.efi.stub) that generate-zbm needs to build the ZFSBootMenu EFI image
+sys-apps/systemd cryptsetup boot
 # GnuPG with scdaemon and its built-in USB smart card driver
 app-crypt/gnupg smartcard usb
 ```
@@ -450,7 +451,7 @@ app-crypt/gnupg smartcard usb
 | `sys-fs/zfs` | `dracut`, `rootfs` | dracut module for a ZFS root in Gentoo's initramfs |
 | `sys-fs/zfs-kmod` | `dist-kernel-cap` | keeps the kernel within the range ZFS supports |
 | `sys-kernel/installkernel` | `dracut` | creates the initramfs when a kernel is installed |
-| `sys-apps/systemd` | `cryptsetup` | unlocks the container from `luks.*` parameters |
+| `sys-apps/systemd` | `cryptsetup`, `boot` | unlocks the container from `luks.*` parameters; `boot` installs the UEFI stub for the ZFSBootMenu image |
 | `app-crypt/gnupg` | `smartcard`, `usb` | `scdaemon` with the built-in CCID driver for YubiKeys and Nitrokeys; also copied into the ZFSBootMenu image |
 
 ### Localization and host name
@@ -524,11 +525,12 @@ initrd_generator=dracut
 ```
 (chroot) root # ls /lib/modules/
 (chroot) root # find /lib/modules -name 'zfs.ko*'
+(chroot) root # ls /usr/lib/systemd/boot/efi/linuxx64.efi.stub
 (chroot) root # ls /boot
 (chroot) root # gpg --version | head -n 1
 ```
 
-One kernel version is listed, `zfs.ko` exists for it, `/boot` contains `vmlinuz-<version>` and
+One kernel version is listed, `zfs.ko` exists for it, the UEFI stub exists, `/boot` contains `vmlinuz-<version>` and
 `initramfs-<version>.img`, and GnuPG prints its version. The initramfs does not unlock the disk yet; that is done in
 [Configuring the initramfs](#configuring-the-initramfs).
 
