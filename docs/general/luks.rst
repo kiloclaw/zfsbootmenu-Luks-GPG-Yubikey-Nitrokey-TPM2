@@ -43,6 +43,19 @@ At each prompt:
 If no pool can be imported afterwards, the normal ZFSBootMenu import loop takes over. From the recovery shell, use
 ``zluks`` to unlock volumes and then ``exit`` to resume.
 
+For every volume, ZFSBootMenu tries these methods in order and stops at the first that works:
+
+1. a key script (``keyscript=``);
+2. a key file, plain or GnuPG-encrypted;
+3. LUKS2 tokens: TPM2 without a PIN and clevis first, then TPM2 with a PIN and FIDO2 security keys (see
+   `Hardware keys and encrypted key files`_);
+4. YubiKey challenge-response (``ykchalresp``);
+5. passphrases that unlocked other volumes;
+6. a passphrase prompt.
+
+Every interactive method can be skipped by answering with an empty line, which moves on to the next one, so the
+LUKS passphrase always remains available as a fallback.
+
 Choosing which volumes to unlock
 --------------------------------
 
@@ -116,8 +129,10 @@ The fields are:
 
 *key file*
   ``none`` or ``-`` to prompt for a passphrase; a path to a key file present in the running ZFSBootMenu system, for
-  example one provided by an early-setup hook; or ``<path>:<device>`` to read the key from another device. Key files
-  are **never** copied into the image (see `Security notes`_), and the build prints a warning if one would be needed.
+  example one provided by an early-setup hook; or ``<path>:<device>`` to read the key from another device. Plain key
+  files are **never** copied into the image (see `Security notes`_), and the build prints a warning if one would be
+  needed. GnuPG-encrypted key files (``*.gpg``, ``*.asc``, ``*.pgp`` or the ``gpg`` option) are different: they are
+  embedded in the image, because they are useless without their passphrase or smart card.
 
 *options*
   A comma-separated list. ZFSBootMenu understands:
@@ -133,6 +148,11 @@ The fields are:
   ``keyfile-offset=N``             skip N bytes of the key file
   ``keyfile-size=N``               read at most N bytes of the key file
   ``key-slot=N``                   only try key slot N
+  ``gpg``                          the key file is GnuPG-encrypted, whatever its name
+  ``no-tokens``                    do not try LUKS2 tokens (TPM2, FIDO2, clevis) for this volume
+  ``ykchalresp[=1|2]``             YubiKey challenge-response with the given slot (default 2)
+  ``ykchalresp-hash``              use the SHA-256 of the passphrase as the challenge
+  ``ykchalresp-concat``            the LUKS passphrase is the challenge followed by the response
   ``no-read-workqueue``,           dm-crypt performance flags
   ``no-write-workqueue``,
   ``same-cpu-crypt``,
@@ -157,6 +177,119 @@ Key scripts referenced from the crypttab are installed into the image automatica
 library dependencies. Any other programs a script needs (``gpg``, ``pcscd`` ...) must be added through the image
 builder, for example with ``install_items`` in dracut or ``BINARIES``/``FILES`` in mkinitcpio. Key scripts are the
 intended integration point for hardware tokens such as OpenPGP smart cards.
+
+Hardware keys and encrypted key files
+-------------------------------------
+
+ZFSBootMenu supports the common ways of tying a LUKS volume to hardware:
+
+======================================  ==================================================  ===========================
+Method                                  Hardware                                            Set up with
+======================================  ==================================================  ===========================
+TPM2 token                              the computer's TPM 2.0                              ``systemd-cryptenroll``
+FIDO2 token                             YubiKey 5, Nitrokey 3, SoloKey, other FIDO2 keys    ``systemd-cryptenroll``
+clevis token                            TPM 2.0 (and tang servers on a network)             ``clevis luks bind``
+GnuPG-encrypted key file                OpenPGP card: YubiKey, Nitrokey Pro/Start/3, ...;   ``gpg --encrypt``
+                                        or a passphrase only
+YubiKey challenge-response              YubiKey (HMAC-SHA1 slot)                            ``ykpersonalize``
+======================================  ==================================================  ===========================
+
+All of them work on top of an ordinary LUKS passphrase: keep that passphrase in a key slot as a fallback. No
+configuration is needed for tokens, which ZFSBootMenu finds in the LUKS2 header; GnuPG key files and challenge-response
+are configured in the crypttab. ``zluks list`` shows the tokens of every volume.
+
+ZFSBootMenu waits ``zbm.luks_token_wait`` seconds (default 10) for a security key or smart card to be plugged in before
+moving on; pressing any key skips the wait. ``zbm.luks_tokens=0`` disables all tokens.
+
+TPM2
+~~~~
+
+Enroll the TPM from the running system::
+
+  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/disk/by-partlabel/zfs0
+  # or, to also require a PIN:
+  systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --tpm2-with-pin=yes /dev/disk/by-partlabel/zfs0
+
+Without a PIN the volume unlocks with no interaction. With a PIN, ZFSBootMenu asks for it, and a PIN that worked is
+tried once on further PIN-protected volumes. Wrong PINs count towards the TPM's dictionary-attack protection. When the
+TPM locks up, ZFSBootMenu says so and moves on to other methods instead of asking again.
+
+Choosing PCRs matters, because ZFSBootMenu itself is part of the boot chain:
+
+* **PCR 7** (Secure Boot state) is stable across ZFSBootMenu, kernel and initramfs updates, and is the usual choice.
+* PCRs 4, 8, 9 and 11 change whenever the ZFSBootMenu image or the kernel changes. Binding to them means re-enrolling
+  after every update.
+* ``--tpm2-pcrs=`` (no PCRs) together with a PIN works on systems without Secure Boot.
+
+Volumes enrolled this way are opened through systemd's ``systemd-tpm2`` cryptsetup plugin when the image contains it
+(images built on distributions with systemd). Images without it, such as those built in the Void Linux build
+container, use ZFSBootMenu's own implementation based on ``tpm2-tools``. That implementation covers tokens created by
+systemd 254 or later with or without a PIN and with or without a PCR policy. Signed PCR policies (``--tpm2-public-key``),
+``--tpm2-pcrlock`` and tokens from older systemd versions need the plugin.
+
+clevis tokens created with ``clevis luks bind -d <device> tpm2 '{"pcr_ids":"7"}'`` are unlocked as well, through the
+clevis tools in the image. Tang policies work only if networking is set up in ZFSBootMenu (see :doc:`remote-access`).
+
+FIDO2 security keys (YubiKey, Nitrokey, ...)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Enroll a key that supports the FIDO2 ``hmac-secret`` extension::
+
+  systemd-cryptenroll --fido2-device=auto /dev/disk/by-partlabel/zfs0
+  # by default this requires the key's PIN and a touch; see --fido2-with-client-pin= and --fido2-with-user-presence=
+
+At boot, ZFSBootMenu waits for the key, asks for its PIN if the token requires one, and asks you to touch the key.
+Images with systemd's ``systemd-fido2`` plugin use it. Otherwise ZFSBootMenu talks to the key with ``fido2-assert``
+from libfido2, which then asks for the PIN itself. Each volume has its own credential, so a mirror of two volumes
+enrolled with the same key needs two touches.
+
+GnuPG and OpenPGP smart cards (YubiKey, Nitrokey, ...)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A random key file, added to a LUKS key slot and encrypted with GnuPG, can be protected by an OpenPGP key that lives on
+a smart card such as a YubiKey or Nitrokey::
+
+  dd if=/dev/urandom of=/root/zroot.key bs=64 count=1
+  cryptsetup luksAddKey /dev/disk/by-partlabel/zfs0 /root/zroot.key
+  mkdir -p /etc/zfsbootmenu/keys
+  gpg --encrypt --recipient 0xYOURKEYID --output /etc/zfsbootmenu/keys/zroot.key.gpg /root/zroot.key
+  shred -u /root/zroot.key
+
+Then list the encrypted file in the crypttab and name the public key so it is copied into the image (in a dracut
+configuration file, or in the ZFSBootMenu ``mkinitcpio.conf``)::
+
+  # /etc/zfsbootmenu/crypttab
+  zroot-a  PARTLABEL=zfs0  /etc/zfsbootmenu/keys/zroot.key.gpg  discard
+
+  # /etc/zfsbootmenu/dracut.conf.d/gpg.conf
+  zfsbootmenu_luks_gpg_keys="0xYOURKEYID"
+
+At boot ZFSBootMenu asks for the card, reads it, and confirms that the card holds the key the file is encrypted to.
+Only then does it ask for the card PIN, showing how many PIN attempts remain, so a missing or wrong card never uses up
+PIN attempts. Touch the key if it is configured to require touch for decryption. The same key file can be encrypted to
+several recipients (for example a primary and a backup card).
+
+GnuPG's built-in CCID driver handles YubiKeys and Nitrokeys directly. For other readers, set
+``zfsbootmenu_luks_pcscd=yes`` to include ``pcscd`` and its drivers; ZFSBootMenu starts it when needed.
+
+A key file encrypted with a passphrase only (``gpg --symmetric``) also works. Because it is embedded in the image,
+anyone with the image can attack its passphrase offline, so the build warns about it. Use a strong passphrase.
+
+YubiKey challenge-response
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is the scheme used by ``yubikey-luks``: a passphrase is sent to an HMAC-SHA1 slot of the YubiKey, and the response
+is a LUKS passphrase::
+
+  ykpersonalize -2 -ochal-resp -ochal-hmac -ohmac-lt64 -oserial-api-visible   # program slot 2 (once)
+  printf '%s' 'my passphrase' | ykchalresp -2 -i- | tr -d '\n' > /root/yk.key
+  cryptsetup luksAddKey /dev/disk/by-partlabel/zfs0 /root/yk.key && shred -u /root/yk.key
+
+  # /etc/zfsbootmenu/crypttab
+  zroot-a  PARTLABEL=zfs0  none  discard,ykchalresp=2
+
+Volumes enrolled with ``yubikey-luks`` work unchanged. If ``yubikey-luks`` was set up with ``HASH=1`` or
+``CONCATENATE=1``, add ``ykchalresp-hash`` or ``ykchalresp-concat`` respectively.
 
 Tools in the recovery shell
 ---------------------------
@@ -230,7 +363,11 @@ dracut module and mkinitcpio hook add the following to the image:
 * the device-mapper udev rules;
 * ``dm-crypt`` and the common kernel crypto modules (AES, XTS, SHA-2 and their accelerated variants), where these are
   built as modules;
-* the crypttab and any key scripts it references.
+* the crypttab and any key scripts and GnuPG-encrypted key files it references;
+* when installed on the build host: systemd's ``systemd-tpm2`` and ``systemd-fido2`` cryptsetup plugins (with the
+  libraries they load at run time), ``tpm2-tools`` and ``openssl`` for native TPM2 unlocking, ``fido2-assert`` and
+  ``fido2-token``, the clevis tools, GnuPG (``gpg``, ``gpg-agent``, ``scdaemon``), and ``ykchalresp``;
+* TPM, USB and HID drivers for TPM chips, security keys and smart cards.
 
 Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
 
@@ -240,6 +377,35 @@ Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
 ``zfsbootmenu_luks_crypttab=<path>``
   The crypttab to embed (default ``/etc/zfsbootmenu/crypttab``). It is ignored for release builds, which only use
   automatic discovery and the kernel command line.
+
+``zfsbootmenu_luks_tokens=no``
+  Leave out TPM2, FIDO2 and clevis support.
+
+``zfsbootmenu_luks_token_plugins=no``
+  Leave out systemd's cryptsetup token plugins and always use ZFSBootMenu's own TPM2 and FIDO2 code.
+
+``zfsbootmenu_luks_clevis=no``
+  Leave out clevis, even if it is installed.
+
+``zfsbootmenu_luks_gpg=no``
+  Leave out GnuPG.
+
+``zfsbootmenu_luks_gpg_keys="<key id> ..."``
+  OpenPGP public keys to export from the build host's keyring into the image, so key files encrypted to them (and to
+  the cards holding them) can be decrypted.
+
+``zfsbootmenu_luks_gpg_pubkeys="<file> ..."``
+  Files holding OpenPGP public keys to import into the image.
+
+``zfsbootmenu_luks_pcscd=yes``
+  Include ``pcscd`` and its card reader drivers for readers that GnuPG's built-in driver does not handle.
+
+``zfsbootmenu_luks_yubikey=no``
+  Leave out ``ykchalresp``.
+
+The Void Linux build container (``releng/docker``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools,
+ykpers and openssl, so its images support every method. Void does not ship systemd, so these images use ZFSBootMenu's
+own TPM2 and FIDO2 implementations.
 
 Volumes that use a cipher not covered by the default module list need their modules added explicitly, for example
 ``add_drivers+=" serpent_avx2 "`` for dracut or ``MODULES=(...)`` for mkinitcpio.
@@ -263,6 +429,11 @@ Security notes
 * Mappings opened by ZFSBootMenu are closed before ``kexec``, which wipes their volume keys from kernel memory. The
   ``80-luks-close.sh`` teardown hook does this. It can be disabled with ``zbm.skip_hooks=80-luks-close.sh``, but there
   is rarely a reason to.
+* **A TPM2 token without a PIN unlocks the pools for anyone who can start the computer.** ZFSBootMenu offers a recovery
+  shell and lets you edit kernel command lines. Combine TPM-only unlocking with Secure Boot (bind to PCR 7) and a boot
+  environment whose data is also protected otherwise, or require a PIN.
+* Decrypted key material from GnuPG, TPM2, FIDO2 and challenge-response exists only in RAM (``/run``), and is deleted
+  as soon as the volume is open. GnuPG's agents are stopped and their temporary home removed after every use.
 * Pools are imported read-only by default, as always. When ZFSBootMenu needs write access (for snapshots, cloning,
   setting properties ...) it re-imports the pool; the LUKS mappings stay open until boot.
 
@@ -275,3 +446,8 @@ Troubleshooting
   is probably missing from the image.
 * ``cryptsetup open`` failing with errors about unknown ciphers means a kernel crypto module is missing (see
   `Building images`_).
+* A TPM2 token is ignored if no TPM device appears (``ls /dev/tpm*``). Check that the TPM is enabled in the firmware.
+* A TPM2 token stops working after firmware, Secure Boot or ZFSBootMenu changes if it is bound to PCRs that changed.
+  Unlock with the passphrase and re-enroll: ``systemd-cryptenroll --wipe-slot=tpm2 --tpm2-device=auto ...``.
+* If a security key or card is not detected, check ``ls /dev/hidraw*`` (FIDO2) and ``gpg --card-status`` (OpenPGP) in
+  the recovery shell. Missing USB host controller drivers are the usual cause on hostonly images.

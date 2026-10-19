@@ -70,6 +70,86 @@ zfsbootmenu_luks_binaries=(
   "cryptsetup"
   "dmsetup"
   "udevadm"
+  "base64"
+  "cut"
+  "tr"
+  "wc"
+  "sha256sum"
+)
+
+# TPM and USB/HID drivers for TPM2 chips, FIDO2 security keys and OpenPGP
+# smart cards; missing or built-in modules are skipped
+# shellcheck disable=SC2034
+zfsbootmenu_luks_token_modules=(
+  "tpm"
+  "tpm_tis_core"
+  "tpm_tis"
+  "tpm_crb"
+  "xhci_pci"
+  "xhci_hcd"
+  "ehci_pci"
+  "ehci_hcd"
+  "ohci_pci"
+  "ohci_hcd"
+  "uhci_hcd"
+  "usbhid"
+  "hid_generic"
+  "hid"
+)
+
+# Libraries that the systemd token plugins and tpm2-tools load with dlopen()
+# shellcheck disable=SC2034
+zfsbootmenu_luks_token_libs=(
+  "libtss2-esys.so.0"
+  "libtss2-rc.so.0"
+  "libtss2-mu.so.0"
+  "libtss2-tctildr.so.0"
+  "libtss2-tcti-device.so.0"
+  "libfido2.so.1"
+)
+
+# Native unlocking of systemd-tpm2 tokens
+# shellcheck disable=SC2034
+zfsbootmenu_luks_tpm2_binaries=(
+  "tpm2_load"
+  "tpm2_startauthsession"
+  "tpm2_policypcr"
+  "tpm2_policyauthvalue"
+  "tpm2_unseal"
+  "tpm2_flushcontext"
+  "tpm2_getcap"
+  "openssl"
+)
+
+# Native unlocking of systemd-fido2 tokens
+# shellcheck disable=SC2034
+zfsbootmenu_luks_fido2_binaries=(
+  "fido2-token"
+  "fido2-assert"
+)
+
+# clevis LUKS2 tokens (TPM2, tang and sss policies)
+# shellcheck disable=SC2034
+zfsbootmenu_luks_clevis_binaries=(
+  "jose"
+  "luksmeta"
+  "curl"
+  "tpm2_createprimary"
+  "tpm2_load"
+  "tpm2_unseal"
+  "tpm2_flushcontext"
+  "tpm2_pcrread"
+  "tpm2_getcap"
+  "tpm2_startauthsession"
+  "tpm2_policypcr"
+  "tpm2_createpolicy"
+)
+
+# YubiKey HMAC-SHA1 challenge-response
+# shellcheck disable=SC2034
+zfsbootmenu_luks_yubikey_binaries=(
+  "ykchalresp"
+  "ykinfo"
 )
 
 # dm-crypt and the kernel crypto modules commonly used by LUKS; any that are
@@ -495,6 +575,14 @@ zbm_install_executable() {
   esac
 }
 
+zbm_info() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) msg2 "$@" ;;
+    dracut) dinfo "$@" ;;
+    *) echo "INFO: $*" >&2 ;;
+  esac
+}
+
 zbm_warn() {
   case "${ZBM_BUILDSTYLE,,}" in
     mkinitcpio) warning "$@" ;;
@@ -503,8 +591,230 @@ zbm_warn() {
   esac
 }
 
-# Install LUKS configuration: the ZFSBootMenu crypttab and any key scripts it
-# references. Binaries, modules and udev rules are installed by the builder.
+# arg1: option value
+# arg2: default (yes or no)
+# prints: nothing
+# returns: 0 if the option is enabled
+
+zbm_opt_enabled() {
+  local val="${1:-${2}}"
+  case "${val,,}" in
+    no|n|off|0|false) return 1 ;;
+  esac
+  return 0
+}
+
+# arg1: library soname, e.g. libfido2.so.1
+# prints: path of the library on the build host
+# returns: 0 if found
+
+zbm_find_library() {
+  local lib
+  lib="$( ldconfig -p 2>/dev/null | awk -v so="${1}" '$1 == so { print $NF; exit }' )"
+  if [ -z "${lib}" ]; then
+    for lib in /usr/lib/*/"${1}" /usr/lib64/"${1}" /usr/lib/"${1}" /lib/*/"${1}" /lib64/"${1}" /lib/"${1}"; do
+      [ -e "${lib}" ] && break
+      lib=""
+    done
+  fi
+  [ -n "${lib}" ] && echo "${lib}"
+}
+
+# arg1: path to a shared library
+# prints: nothing
+# returns: 0 if the library and its dependencies were installed
+
+zbm_install_library() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) add_binary "${1}" ;;
+    dracut) inst_library "${1}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# args: names of executables
+# prints: nothing
+# returns: 0 if every executable was found and installed
+
+zbm_install_executables() {
+  local exe path ret=0
+  for exe in "$@"; do
+    if ! path="$( command -v "${exe}" 2>/dev/null )"; then
+      ret=1
+      continue
+    fi
+    zbm_install_executable "${path}" || ret=1
+  done
+  return "${ret}"
+}
+
+# Install support for LUKS2 tokens: systemd-tpm2 and systemd-fido2 (plugins
+# and native tools) and clevis
+#
+# prints: nothing
+# returns: 0 on success
+
+install_zbm_luks_tokens() {
+  local plugin dir found lib exe cdir
+
+  # shellcheck disable=SC2154
+  zbm_opt_enabled "${zfsbootmenu_luks_tokens}" yes || return 0
+
+  # systemd's cryptsetup token plugins (systemd-cryptenroll)
+  # shellcheck disable=SC2154
+  if zbm_opt_enabled "${zfsbootmenu_luks_token_plugins}" yes; then
+    for plugin in systemd-tpm2 systemd-fido2; do
+      found=""
+      for dir in /usr/lib/*/cryptsetup /usr/lib64/cryptsetup /usr/lib/cryptsetup \
+          /lib/*/cryptsetup /lib64/cryptsetup /lib/cryptsetup; do
+        [ -e "${dir}/libcryptsetup-token-${plugin}.so" ] || continue
+        zbm_install_library "${dir}/libcryptsetup-token-${plugin}.so" && found=1
+        break
+      done
+      [ -n "${found}" ] || zbm_info "cryptsetup ${plugin} token plugin not found; using native support"
+    done
+  fi
+
+  # Libraries loaded at run time by the plugins and tpm2-tools
+  # shellcheck disable=SC2154
+  for lib in "${zfsbootmenu_luks_token_libs[@]}"; do
+    lib="$( zbm_find_library "${lib}" )" || continue
+    zbm_install_library "${lib}"
+  done
+
+  # Native systemd-tpm2 and systemd-fido2 support
+  # shellcheck disable=SC2154
+  zbm_install_executables "${zfsbootmenu_luks_tpm2_binaries[@]}" \
+    || zbm_info "tpm2-tools/openssl incomplete; native TPM2 unlocking may be unavailable"
+  # shellcheck disable=SC2154
+  zbm_install_executables "${zfsbootmenu_luks_fido2_binaries[@]}" \
+    || zbm_info "fido2-tools not found; native FIDO2 unlocking unavailable"
+
+  # clevis
+  # shellcheck disable=SC2154
+  if zbm_opt_enabled "${zfsbootmenu_luks_clevis}" yes && exe="$( command -v clevis 2>/dev/null )"; then
+    cdir="${exe%/*}"
+    for exe in "${cdir}"/clevis "${cdir}"/clevis-*; do
+      [ -e "${exe}" ] || continue
+      if [ -x "${exe}" ]; then
+        zbm_install_executable "${exe}"
+      else
+        zbm_install_file "${exe}" "${exe}"
+      fi
+    done
+    # shellcheck disable=SC2154
+    zbm_install_executables "${zfsbootmenu_luks_clevis_binaries[@]}"
+  fi
+
+  return 0
+}
+
+# Install GnuPG with the public keys used to encrypt LUKS key files
+#
+# prints: nothing
+# returns: 0 on success
+
+install_zbm_luks_gpg() {
+  local comp path tmphome key ret=0
+  local -a keyids keyfiles
+
+  # shellcheck disable=SC2154
+  zbm_opt_enabled "${zfsbootmenu_luks_gpg}" yes || return 0
+  command -v gpg >/dev/null 2>&1 || return 0
+
+  zbm_install_executables gpg gpgconf gpg-connect-agent || ret=1
+
+  # gpg-agent, scdaemon (OpenPGP smart cards) and keyboxd live in
+  # distribution-specific locations; gpgconf knows where
+  while IFS=: read -r comp _ path; do
+    case "${comp}" in
+      gpg-agent|scdaemon|keyboxd)
+        [ -x "${path}" ] && zbm_install_executable "${path}"
+        ;;
+    esac
+  done <<< "$( gpgconf --list-components 2>/dev/null )"
+
+  # Optional PC/SC daemon for readers not handled by GnuPG's own CCID driver
+  # shellcheck disable=SC2154
+  if zbm_opt_enabled "${zfsbootmenu_luks_pcscd}" no && path="$( command -v pcscd 2>/dev/null )"; then
+    zbm_install_executable "${path}"
+    for path in /usr/lib/pcsc /usr/lib64/pcsc /etc/reader.conf.d /etc/libccid_Info.plist; do
+      [ -e "${path}" ] || continue
+      ( cd / && tar -cf - "${path#/}" ) | ( cd "${BUILDROOT}" && tar -xf - )
+    done
+  fi
+
+  # Public keys never belong in release images
+  [ -n "${zfsbootmenu_release_build}" ] && return "${ret}"
+
+  # shellcheck disable=SC2154
+  read -r -a keyids <<< "${zfsbootmenu_luks_gpg_keys}"
+  # shellcheck disable=SC2154
+  read -r -a keyfiles <<< "${zfsbootmenu_luks_gpg_pubkeys}"
+  [ "$(( ${#keyids[@]} + ${#keyfiles[@]} ))" -gt 0 ] || return "${ret}"
+
+  # Build the keyring in a short path (agent sockets must fit a sockaddr_un);
+  # an empty common.conf keeps gpg from switching to keyboxd
+  tmphome="$( mktemp -d /tmp/zbmgpg.XXXXXX )" || return 1
+  chmod 700 "${tmphome}"
+  : > "${tmphome}/common.conf"
+
+  for key in "${keyids[@]}"; do
+    if ! gpg --batch --export "${key}" 2>/dev/null | GNUPGHOME="${tmphome}" gpg --batch --import 2>/dev/null; then
+      zbm_warn "unable to export GnuPG public key ${key} from the build host"
+      ret=1
+    fi
+  done
+
+  for key in "${keyfiles[@]}"; do
+    if ! GNUPGHOME="${tmphome}" gpg --batch --import "${key}" 2>/dev/null; then
+      zbm_warn "unable to import GnuPG public key file ${key}"
+      ret=1
+    fi
+  done
+
+  mkdir -p "${BUILDROOT}/etc/zfsbootmenu/gnupg"
+  for key in pubring.kbx pubring.gpg trustdb.gpg common.conf; do
+    [ -e "${tmphome}/${key}" ] && cp "${tmphome}/${key}" "${BUILDROOT}/etc/zfsbootmenu/gnupg/"
+  done
+  chmod -R go-rwx "${BUILDROOT}/etc/zfsbootmenu/gnupg"
+
+  GNUPGHOME="${tmphome}" gpgconf --kill all >/dev/null 2>&1
+  rm -rf "${tmphome}"
+
+  return "${ret}"
+}
+
+# arg1: path of a GnuPG-encrypted key file on the build host
+# prints: nothing
+# returns: 0 if the file was embedded in the image
+
+install_zbm_luks_gpg_keyfile() {
+  local file="${1}"
+
+  if [ ! -r "${file}" ]; then
+    zbm_warn "GnuPG key file ${file} not found"
+    return 1
+  fi
+
+  # Only encrypted files may be embedded; refuse anything else
+  if ! gpg --batch --list-only --list-packets "${file}" 2>/dev/null | grep -q '^:\(pubkey\|symkey\) enc packet:'; then
+    zbm_warn "${file} is not GnuPG-encrypted; refusing to embed it in the image"
+    return 1
+  fi
+
+  if ! gpg --batch --list-only --list-packets "${file}" 2>/dev/null | grep -q '^:pubkey enc packet:'; then
+    zbm_warn "${file} is only protected by a passphrase; anyone with the image can attack it offline"
+  fi
+
+  mkdir -p "${BUILDROOT}${file%/*}"
+  cp "${file}" "${BUILDROOT}${file}" && chmod 0600 "${BUILDROOT}${file}"
+}
+
+# Install LUKS configuration: the ZFSBootMenu crypttab, any key scripts and
+# GnuPG-encrypted key files it references, and support for tokens, GnuPG and
+# YubiKeys. Binaries, modules and udev rules for dm-crypt are installed by the
+# builder.
 #
 # prints: nothing
 # returns: 0 on success
@@ -521,6 +831,15 @@ install_zbm_luks() {
   fi
 
   ret=0
+
+  install_zbm_luks_tokens || ret=1
+  install_zbm_luks_gpg || ret=1
+
+  # shellcheck disable=SC2154
+  if zbm_opt_enabled "${zfsbootmenu_luks_yubikey}" yes; then
+    # shellcheck disable=SC2154
+    zbm_install_executables "${zfsbootmenu_luks_yubikey_binaries[@]}"
+  fi
 
   : "${zfsbootmenu_luks_crypttab:=/etc/zfsbootmenu/crypttab}"
   crypttab="${zfsbootmenu_luks_crypttab}"
@@ -542,12 +861,21 @@ install_zbm_luks() {
       ""|"#"*) continue ;;
     esac
 
-    # Key files are deliberately not embedded: the image is not encrypted
+    # Plain key files are deliberately not embedded: the image is not
+    # encrypted. GnuPG-encrypted key files are, as they are useless without
+    # their passphrase or smart card.
     case "${keyfile}" in
       ""|-|none) ;;
       /*:*) ;;
+      *.gpg|*.asc|*.pgp)
+        install_zbm_luks_gpg_keyfile "${keyfile}" || ret=1
+        ;;
       *)
-        zbm_warn "crypttab entry '${name}' uses key file '${keyfile}', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device"
+        if [[ ",${options}," == *,gpg,* ]]; then
+          install_zbm_luks_gpg_keyfile "${keyfile}" || ret=1
+        else
+          zbm_warn "crypttab entry '${name}' uses key file '${keyfile}', which is NOT embedded in the image; provide it at boot time (e.g., from an early-setup hook) or use path:device"
+        fi
         ;;
     esac
 

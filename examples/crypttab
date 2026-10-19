@@ -17,10 +17,20 @@
 #            /path:DEVICE    read /path from DEVICE, mounted read-only
 #            Key files are NEVER copied into the (unencrypted) image.
 #
+#            /path/key.gpg   a GnuPG-encrypted key file (also *.asc, *.pgp or the
+#                            gpg option); it IS embedded in the image and needs
+#                            its passphrase or OpenPGP smart card at boot
+#
 # options    discard, readonly, tries=N (0 = unlimited), noauto, nofail,
 #            keyscript=/path, header=/path, keyfile-offset=N, keyfile-size=N,
 #            key-slot=N, no-read-workqueue, no-write-workqueue,
-#            same-cpu-crypt, submit-from-crypt-cpus
+#            same-cpu-crypt, submit-from-crypt-cpus,
+#            gpg, no-tokens, ykchalresp[=1|2], ykchalresp-hash,
+#            ykchalresp-concat
+#
+# TPM2, FIDO2 (YubiKey, Nitrokey, ...) and clevis tokens enrolled with
+# systemd-cryptenroll or clevis need no entry here: ZFSBootMenu finds them in
+# the LUKS2 header and tries them before asking for a passphrase.
 #
 # The members of a mirror usually share a passphrase; ZFSBootMenu asks once.
 #zroot-a   PARTLABEL=zfs0   none                      discard
@@ -28,3 +38,10 @@
 #
 # A data pool unlocked by a key file on a USB stick, skipped if it is absent:
 #tank0     UUID=00000000-0000-0000-0000-000000000000   /keys/tank.key:LABEL=KEYSTICK   nofail
+#
+# A key file encrypted to an OpenPGP key on a YubiKey or Nitrokey (set
+# zfsbootmenu_luks_gpg_keys to the key ID so its public key is included):
+#zroot-a   PARTLABEL=zfs0   /etc/zfsbootmenu/keys/zroot.key.gpg   discard
+#
+# YubiKey HMAC-SHA1 challenge-response on slot 2 (yubikey-luks compatible):
+#zroot-a   PARTLABEL=zfs0   none                      discard,ykchalresp=2

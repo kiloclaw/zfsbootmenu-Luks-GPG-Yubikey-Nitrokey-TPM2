@@ -33,6 +33,12 @@ installkernel() {
     for mod in "${zfsbootmenu_luks_modules[@]}"; do
       instmods "${mod}"
     done
+
+    # TPM and USB/HID drivers for TPM2 chips, security keys and smart cards
+    # shellcheck disable=SC2154
+    for mod in "${zfsbootmenu_luks_token_modules[@]}"; do
+      instmods "${mod}"
+    done
   fi
 }
 

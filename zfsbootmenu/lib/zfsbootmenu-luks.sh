@@ -15,6 +15,11 @@
 #
 # Mappings opened by ZFSBootMenu are recorded in ${LUKS_STATE} so that the
 # teardown hook and the zluks helper know which ones to close.
+#
+# For each volume, unlock methods are tried in this order: key script, key
+# file (plain or GnuPG-encrypted), LUKS2 tokens (TPM2, FIDO2, clevis), YubiKey
+# challenge-response, passphrases entered for other volumes, and finally a
+# passphrase prompt. See zfsbootmenu-luks-keys.sh for the hardware methods.
 
 # Include guard
 [ -n "${_ZFSBOOTMENU_LUKS}" ] && return
@@ -25,6 +30,11 @@ if [ -z "${_ZFSBOOTMENU_CORE}" ]; then
   # shellcheck disable=SC1091
   source /lib/zfsbootmenu-core.sh >/dev/null 2>&1 || return 1
 fi
+
+# TPM2, FIDO2, clevis, GnuPG and YubiKey support
+: "${LUKS_KEYS_LIB:=/lib/zfsbootmenu-luks-keys.sh}"
+# shellcheck disable=SC1090
+source "${LUKS_KEYS_LIB}" >/dev/null 2>&1 || return 1
 
 : "${BASE:=/zfsbootmenu}"
 : "${ZBM_CRYPTTAB:=/etc/zfsbootmenu/crypttab}"
@@ -172,7 +182,8 @@ luks_describe_device() {
 # returns: nothing
 #
 # sets: _luks_args (array of cryptsetup arguments), _luks_tries,
-#       _luks_noauto, _luks_nofail, _luks_keyscript, _luks_header
+#       _luks_noauto, _luks_nofail, _luks_keyscript, _luks_header, _luks_gpg,
+#       _luks_notoken, _luks_yk, _luks_yk_slot, _luks_yk_hash, _luks_yk_concat
 
 luks_parse_options() {
   local opts opt
@@ -186,6 +197,12 @@ luks_parse_options() {
   _luks_nofail=""
   _luks_keyscript=""
   _luks_header=""
+  _luks_gpg=""
+  _luks_notoken=""
+  _luks_yk=""
+  _luks_yk_slot=2
+  _luks_yk_hash=""
+  _luks_yk_concat=""
 
   [ -n "${opts}" ] && [ "${opts}" != "-" ] || return 0
 
@@ -230,6 +247,30 @@ luks_parse_options() {
         ;;
       key-slot=*|keyslot=*)
         _luks_args+=( "--key-slot" "${opt#*=}" )
+        ;;
+      gpg)
+        _luks_gpg=1
+        ;;
+      no-tokens|notoken|no-token)
+        _luks_notoken=1
+        ;;
+      ykchalresp)
+        _luks_yk=1
+        ;;
+      ykchalresp=*)
+        _luks_yk=1
+        case "${opt#ykchalresp=}" in
+          1|2) _luks_yk_slot="${opt#ykchalresp=}" ;;
+          *) zwarn "ignoring invalid YubiKey slot in '${opt}'" ;;
+        esac
+        ;;
+      ykchalresp-hash)
+        _luks_yk=1
+        _luks_yk_hash=1
+        ;;
+      ykchalresp-concat)
+        _luks_yk=1
+        _luks_yk_concat=1
         ;;
       no-read-workqueue)
         _luks_args+=( "--perf-no_read_workqueue" )
@@ -449,7 +490,7 @@ luks_cryptsetup_open() {
 
 luks_open_device() {
   local name dev keyspec opts discovered
-  local keypath keymnt desc pass ret attempt cached
+  local keypath keymnt desc pass ret attempt cached plain
 
   name="${1}"
   dev="${2}"
@@ -497,12 +538,25 @@ luks_open_device() {
   fi
 
   # 2. A key file, possibly on a separate key device (with a key script, the
-  #    key file field is the script's argument rather than a file)
+  #    key file field is the script's argument rather than a file). GnuPG-
+  #    encrypted key files are decrypted to RAM first.
   if [ -n "${keyspec}" ] && [ -z "${_luks_keyscript}" ]; then
     if luks_find_keyfile "${keyspec}" keypath keymnt; then
-      zinfo "unlocking ${dev} with key file ${keyspec}"
-      luks_cryptsetup_open "${name}" "${dev}" "${keypath}" "${_luks_args[@]}" < /dev/null
-      ret=$?
+      if [ -n "${_luks_gpg}" ] || luks_is_gpg_keyfile "${keypath}" ""; then
+        ret=1
+        if plain="$( mktemp /run/zbm-key.XXXXXX 2>/dev/null || mktemp /tmp/zbm-key.XXXXXX )"; then
+          if luks_gpg_decrypt "${keypath}" "${plain}" "${dev}"; then
+            zinfo "unlocking ${dev} with GnuPG key file ${keyspec}"
+            luks_cryptsetup_open "${name}" "${dev}" "${plain}" "${_luks_args[@]}" < /dev/null
+            ret=$?
+          fi
+          rm -f "${plain}"
+        fi
+      else
+        zinfo "unlocking ${dev} with key file ${keyspec}"
+        luks_cryptsetup_open "${name}" "${dev}" "${keypath}" "${_luks_args[@]}" < /dev/null
+        ret=$?
+      fi
       luks_release_keyfile "${keymnt}"
 
       if [ "${ret}" -eq 0 ]; then
@@ -516,7 +570,25 @@ luks_open_device() {
     fi
   fi
 
-  # 3. Passphrases that already unlocked another volume
+  # 3. LUKS2 tokens: TPM2, FIDO2 security keys and clevis
+  if [ -z "${_luks_notoken}" ] && luks_tokens_enabled; then
+    if luks_try_tokens "${name}" "${dev}" "${_luks_header:-${dev}}" "${_luks_args[@]}"; then
+      luks_record_mapping "${name}" "${dev}" "${discovered}"
+      return 0
+    fi
+    # Another tool may have unlocked the device while tokens were tried
+    luks_is_open "${dev}" && return 0
+  fi
+
+  # 4. YubiKey HMAC-SHA1 challenge-response
+  if [ -n "${_luks_yk}" ]; then
+    if luks_try_ykchalresp "${name}" "${dev}" "${_luks_args[@]}"; then
+      luks_record_mapping "${name}" "${dev}" "${discovered}"
+      return 0
+    fi
+  fi
+
+  # 5. Passphrases that already unlocked another volume
   for cached in "${_luks_passphrases[@]}"; do
     if printf '%s' "${cached}" | luks_cryptsetup_open "${name}" "${dev}" - "${_luks_args[@]}"; then
       luks_record_mapping "${name}" "${dev}" "${discovered}"
@@ -525,7 +597,7 @@ luks_open_device() {
     fi
   done
 
-  # 4. Ask the user
+  # 6. Ask the user
   desc="$( luks_describe_device "${dev}" )"
 
   while true; do

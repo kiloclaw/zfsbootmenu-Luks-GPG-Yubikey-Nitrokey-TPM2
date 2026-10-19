@@ -20,6 +20,14 @@ This build of ZFSBootMenu can unlock LUKS (dm-crypt) volumes that hold ZFS vdevs
 - Before booting the selected environment, ZFSBootMenu exports the affected pools and closes the LUKS mappings, which
   wipes the volume keys from memory.
 - `zluks` in the recovery shell (or over SSH) unlocks, closes and lists volumes.
+- Hardware keys:
+  - **TPM2** tokens from `systemd-cryptenroll` (with or without a PIN, optionally bound to PCRs) and clevis tokens;
+  - **FIDO2** security keys such as YubiKey and Nitrokey 3, enrolled with `systemd-cryptenroll`;
+  - **GnuPG**-encrypted key files, protected by an OpenPGP smart card (YubiKey, Nitrokey) or a passphrase;
+  - **YubiKey challenge-response**, compatible with `yubikey-luks`.
+
+  systemd's cryptsetup plugins are used when available; otherwise ZFSBootMenu unlocks TPM2 and FIDO2 tokens with
+  `tpm2-tools` and `fido2-assert`, so images from the Void-based build container support every method too.
 
 Images from the build container (`releng/docker`) are pinned to the Void Linux `linux7.2` kernel series (7.2.11 at the
 time of writing; patch releases are picked up automatically), which needs OpenZFS 2.4.4 or later. The series is set by

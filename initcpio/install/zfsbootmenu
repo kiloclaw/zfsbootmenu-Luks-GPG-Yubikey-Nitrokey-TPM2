@@ -151,6 +151,9 @@ build() {
         # shellcheck disable=SC2154
         map add_optional_module "${zfsbootmenu_luks_modules[@]}"
 
+        # shellcheck disable=SC2154
+        map add_optional_module "${zfsbootmenu_luks_token_modules[@]}"
+
         local _rule
         # shellcheck disable=SC2154
         for _rule in "${zfsbootmenu_luks_udev_rules[@]}"; do

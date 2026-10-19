@@ -172,7 +172,15 @@ These options are set on the kernel command line when booting the initramfs or U
 
 **zbm.luks_key=<path>[:<device>]**
 
-  A key file used to unlock any LUKS volume that has no key file of its own. With **:<device>** (specified as for **zbm.luks**), the device is mounted read-only and **<path>** is read relative to its root. ZFSBootMenu falls back to a passphrase prompt if the key is unavailable or does not work.
+  A key file used to unlock any LUKS volume that has no key file of its own. With **:<device>** (specified as for **zbm.luks**), the device is mounted read-only and **<path>** is read relative to its root. ZFSBootMenu falls back to a passphrase prompt if the key is unavailable or does not work. Key files named *\*.gpg*, *\*.asc* or *\*.pgp* are decrypted with GnuPG first, using a passphrase or an OpenPGP smart card.
+
+**zbm.luks_tokens=0**
+
+  Do not use LUKS2 tokens. By default, ZFSBootMenu unlocks volumes with TPM2 and FIDO2 tokens enrolled by **systemd-cryptenroll** and with clevis tokens before asking for a passphrase.
+
+**zbm.luks_token_wait=<seconds>**
+
+  How long to wait for a FIDO2 security key, OpenPGP smart card or YubiKey to be plugged in before moving on to other unlock methods (default: 10). Pressing any key skips the wait.
 
 Deprecated Parameters
 ---------------------
@@ -310,6 +318,38 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 **zfsbootmenu_luks_crypttab=<path>**
 
   A crypttab(5)-style file that lists the LUKS volumes to unlock, with optional key files and options (default: */etc/zfsbootmenu/crypttab*). It is embedded in the image as */etc/zfsbootmenu/crypttab*, together with any **keyscript=** programs it references. Key files are never embedded. The file is ignored for release builds.
+
+**zfsbootmenu_luks_tokens=no**
+
+  Omit support for LUKS2 tokens (TPM2, FIDO2 and clevis). By default, the systemd **systemd-tpm2** and **systemd-fido2** cryptsetup plugins, **tpm2-tools**, **openssl**, **fido2-assert**, **fido2-token** and the clevis tools are installed when present on the build host, together with TPM, USB and HID drivers.
+
+**zfsbootmenu_luks_token_plugins=no**
+
+  Omit the systemd cryptsetup token plugins; ZFSBootMenu then unlocks systemd TPM2 and FIDO2 tokens with its own implementation.
+
+**zfsbootmenu_luks_clevis=no**
+
+  Omit clevis even when it is installed.
+
+**zfsbootmenu_luks_gpg=no**
+
+  Omit GnuPG. By default, **gpg**, **gpg-agent** and **scdaemon** are installed when present, so that GnuPG-encrypted LUKS key files can be decrypted with a passphrase or an OpenPGP smart card (YubiKey, Nitrokey, ...). GnuPG-encrypted key files listed in the crypttab are embedded in the image.
+
+**zfsbootmenu_luks_gpg_keys="<key id> ..."**
+
+  OpenPGP public keys to export from the build host's keyring into the image.
+
+**zfsbootmenu_luks_gpg_pubkeys="<file> ..."**
+
+  Files with OpenPGP public keys to import into the image.
+
+**zfsbootmenu_luks_pcscd=yes**
+
+  Include **pcscd** and its card reader drivers, for smart card readers that GnuPG's built-in CCID driver does not support.
+
+**zfsbootmenu_luks_yubikey=no**
+
+  Omit **ykchalresp**, used for YubiKey challenge-response unlocking.
 
 **zfsbootmenu_miser=yes** (mkinitcpio only)
 

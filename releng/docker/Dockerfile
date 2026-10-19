@@ -61,7 +61,8 @@ RUN --mount=type=cache,target=/var/cache/xbps <<-EOF
 	xbps-install -y ${KERNELS} ${kern_headers} ${zbm_deps} \
 		zstd systemd-boot-efistub curl yq-go bash kbd \
 		dracut mkinitcpio dracut-network gptfdisk iproute2 iputils parted \
-		dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx
+		dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx \
+		gnupg gnupg2-scdaemon libfido2 clevis tpm2-tools ykpers openssl
 
 	# Remove headers and development toolchain, but keep binutils for objcopy
 	echo "ignorepkg=dkms" > /etc/xbps.d/10-nodkms.conf

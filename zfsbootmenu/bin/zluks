@@ -32,7 +32,8 @@ usage() {
 	  close [name]         Export pools on, and close, mappings opened by
 	                       ZFSBootMenu (all of them unless a name is given)
 	  status               List mappings opened by ZFSBootMenu
-	  list                 List all LUKS volumes on the system
+	  list                 List all LUKS volumes on the system and their
+	                       LUKS2 tokens (TPM2, FIDO2, clevis)
 
 	After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
 	run 'zpool import' manually.
@@ -96,7 +97,8 @@ case "${cmd}" in
       else
         state="$( colorize yellow "locked" )"
       fi
-      echo -e "$( luks_describe_device "${dev}" )\t${state}"
+      tokens="$( luks_list_tokens "${dev}" | awk '{ print $2 }' | sort -u | tr '\n' ' ' )"
+      echo -e "$( luks_describe_device "${dev}" )\t${state}${tokens:+\ttokens: ${tokens}}"
     done <<< "$( luks_discover_devices )"
     ;;
   -h|--help|help)

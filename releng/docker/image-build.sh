@@ -184,7 +184,8 @@ buildah run "${host_mounts[@]}" "${container}" \
   xbps-install -y "${kern_series[@]}" "${kern_headers[@]}" \
   git zstd systemd-boot-efistub curl yq-go bash kbd \
   dracut mkinitcpio dracut-network gptfdisk iproute2 iputils parted \
-  curl dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx
+  curl dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx \
+  gnupg gnupg2-scdaemon libfido2 clevis tpm2-tools ykpers openssl
 
 # Remove headers and development toolchain, but keep binutils for objcopy
 buildah run "${container}" sh -c 'echo "ignorepkg=dkms" > /etc/xbps.d/10-nodkms.conf'
