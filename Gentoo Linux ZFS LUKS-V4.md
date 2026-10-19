@@ -248,6 +248,7 @@ root # mkfs.vfat -F 32 -n EFI "${ESP_PART}"
 **Check:**
 
 ```
+root # udevadm settle
 root # lsblk -o NAME,SIZE,FSTYPE,PARTLABEL "${NVME_NS}"
 ```
 
@@ -637,6 +638,8 @@ hostonly_cmdline="no"
 nofsck="yes"
 # ZFS root, and systemd-cryptsetup for the luks.* kernel parameters
 add_dracutmodules+=" zfs crypt "
+# Always include the NVMe driver; host-only detection may not see through ZFS and LUKS to the SSD
+add_drivers+=" nvme "
 # The key file named by luks.key=
 install_items+=" /etc/cryptsetup-keys.d/zroot.key "
 ```
@@ -660,8 +663,8 @@ Use `sys-kernel/gentoo-kernel` in the last command if that kernel was installed 
 ```
 
 - The initramfs is readable only by root (`-rw-------`). If not, run `chmod 600 /boot/initramfs-*`.
-- The `grep` lists `zfs.ko`, `zroot.key`, `etc/hostid`, `zpool.cache` and `systemd-cryptsetup`, and NVMe modules if
-  the kernel builds NVMe support as a module.
+- The `grep` lists `zfs.ko`, `zroot.key`, `etc/hostid`, `zpool.cache` and `systemd-cryptsetup`, and `nvme.ko` if
+  the kernel builds NVMe support as a module (Gentoo's distribution kernels do).
 - `etc/crypttab` prints nothing.
 
 ## Configuring the system

@@ -820,7 +820,7 @@ install_zbm_luks_gpg_keyfile() {
 # returns: 0 on success
 
 install_zbm_luks() {
-  local crypttab name device keyfile options opt ks ret
+  local crypttab line name device keyfile options opt ks ret
   local -a optlist
 
   zbm_luks_enabled || return 0
@@ -856,7 +856,10 @@ install_zbm_luks() {
   fi
   chmod 0600 "${BUILDROOT}/etc/zfsbootmenu/crypttab"
 
-  while read -r name device keyfile options _; do
+  # The last line may lack a newline; files edited on Windows end in CRLF
+  while IFS= read -r line || [ -n "${line}" ]; do
+    line="${line%$'\r'}"
+    read -r name device keyfile options _ <<< "${line}"
     case "${name}" in
       ""|"#"*) continue ;;
     esac

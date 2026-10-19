@@ -103,7 +103,10 @@ update_version() {
   # Update generate-zbm
   if [ -w bin/generate-zbm ]; then
     echo "Updating bin/generate-zbm"
-    sed -e "s/our \$VERSION.*/our \$VERSION = '${version}';/" -i bin/generate-zbm
+    # Versions derived from branch names may contain '/' (e.g., feature/x);
+    # escape what sed treats specially and drop what would break the Perl string
+    sedver="$( printf '%s\n' "${version}" | sed -e "s/['\\\\]//g" -e 's/[&|]/\\&/g' )"
+    sed -e "s|our \$VERSION.*|our \$VERSION = '${sedver}';|" -i bin/generate-zbm
   fi
 }
 

@@ -53,6 +53,7 @@ source "${LUKS_KEYS_LIB}" >/dev/null 2>&1 || return 1
 _luks_passphrases=()
 _luks_tpm2_pins=()
 declare -gA _luks_gpg_plain=()
+declare -gA _luks_keydev_absent=()
 
 # prints: nothing
 # returns: nothing
@@ -65,6 +66,7 @@ luks_forget_secrets() {
   _luks_gpg_plain=()
   _luks_passphrases=()
   _luks_tpm2_pins=()
+  _luks_keydev_absent=()
 }
 
 # prints: nothing
@@ -132,17 +134,39 @@ luks_resolve_device() {
       ;;
   esac
 
+  # LUKS and GPT UUIDs are lower case, FAT volume IDs upper case; tools such
+  # as sgdisk print GPT UUIDs in upper case, so accept either
+  if [ ! -b "${dev}" ]; then
+    case "${key}" in
+      UUID) [ -b "/dev/disk/by-uuid/${val,,}" ] && dev="/dev/disk/by-uuid/${val,,}" ;;
+      PARTUUID) [ -b "/dev/disk/by-partuuid/${val,,}" ] && dev="/dev/disk/by-partuuid/${val,,}" ;;
+    esac
+  fi
+
   # udev symlinks may be missing or escaped differently; ask blkid directly
   if [ ! -b "${dev}" ] && [ -n "${key}" ]; then
     case "${key}" in
       UUID|PARTUUID|LABEL|PARTLABEL)
         dev="$( blkid -c /dev/null -l -o device -t "${key}=${val}" 2>/dev/null )"
+        if [ -z "${dev}" ] && [ "${val}" != "${val,,}" ]; then
+          case "${key}" in
+            UUID|PARTUUID) dev="$( blkid -c /dev/null -l -o device -t "${key}=${val,,}" 2>/dev/null )" ;;
+          esac
+        fi
         ;;
     esac
   fi
 
   [ -n "${dev}" ] && [ -b "${dev}" ] || return 1
   readlink -f "${dev}"
+}
+
+# arg1: device specification, as for luks_resolve_device
+# prints: nothing
+# returns: 0 if the device exists
+
+luks_device_present() {
+  luks_resolve_device "${1}" >/dev/null 2>&1
 }
 
 # arg1: block device
@@ -263,14 +287,16 @@ luks_parse_options() {
         _luks_header="${opt#header=}"
         _luks_args+=( "--header" "${_luks_header}" )
         ;;
-      keyfile-offset=*)
-        _luks_args+=( "--keyfile-offset" "${opt#keyfile-offset=}" )
-        ;;
-      keyfile-size=*)
-        _luks_args+=( "--keyfile-size" "${opt#keyfile-size=}" )
-        ;;
-      key-slot=*|keyslot=*)
-        _luks_args+=( "--key-slot" "${opt#*=}" )
+      keyfile-offset=*|keyfile-size=*|key-slot=*|keyslot=*)
+        # A bad value would make every attempt fail, the passphrase included
+        if [[ "${opt#*=}" =~ ^[0-9]+$ ]]; then
+          case "${opt%%=*}" in
+            keyslot) _luks_args+=( "--key-slot" "${opt#*=}" ) ;;
+            *) _luks_args+=( "--${opt%%=*}" "${opt#*=}" ) ;;
+          esac
+        else
+          zwarn "ignoring invalid LUKS option '${opt}'"
+        fi
         ;;
       gpg)
         _luks_gpg=1
@@ -359,7 +385,11 @@ luks_load_config() {
     esac
   elif [ -r "${ZBM_CRYPTTAB}" ]; then
     # shellcheck disable=SC2034
-    while read -r name device keyfile options _; do
+    local line
+    # The last line may lack a newline; files edited on Windows end in CRLF
+    while IFS= read -r line || [ -n "${line}" ]; do
+      line="${line%$'\r'}"
+      read -r name device keyfile options _ <<< "${line}"
       case "${name}" in
         ""|"#"*) continue ;;
       esac
@@ -428,8 +458,19 @@ luks_find_keyfile() {
   fi
 
   if ! _kf_dev="$( luks_resolve_device "${_kf_devspec}" )"; then
-    zwarn "LUKS key device ${_kf_devspec} not found"
-    return 1
+    # USB storage often appears a few seconds after boot. Wait once per run
+    # (not during import retries), as for security keys and smart cards.
+    if [ -z "${LUKS_RETRY}" ] && [ -z "${_luks_keydev_absent[${_kf_devspec}]}" ] \
+      && luks_wait_for "$( luks_token_wait )" \
+        "$( colorize cyan "Insert the key device $( colorize yellow "${_kf_devspec}" ) holding ${_kf_file}" )" \
+        luks_device_present "${_kf_devspec}"; then
+      _kf_dev="$( luks_resolve_device "${_kf_devspec}" )"
+    fi
+    if [ -z "${_kf_dev}" ]; then
+      _luks_keydev_absent[${_kf_devspec}]=1
+      zwarn "LUKS key device ${_kf_devspec} not found"
+      return 1
+    fi
   fi
 
   mkdir -p /tmp
