@@ -151,8 +151,17 @@ Kernel names like `nvme0n1` can change when there are several NVMe SSDs. Use the
 root # ls -l /dev/disk/by-id/ | grep nvme | grep -v -- -part
 ```
 
-Each SSD usually appears twice: as `nvme-MODEL_SERIAL` and as `nvme-eui.<number>`. Use the **`nvme-MODEL_SERIAL`**
-name. It is easier to recognize, and it matches the serial number printed by `nvme list`.
+Each SSD usually appears several times, for example:
+
+```
+nvme-Samsung_SSD_980_1TB_S64ANS0T123456X -> ../../nvme0n1
+nvme-Samsung_SSD_980_1TB_S64ANS0T123456X_1 -> ../../nvme0n1
+nvme-eui.002538b111b2c3d4 -> ../../nvme0n1
+```
+
+Use the **`nvme-MODEL_SERIAL`** name without a suffix. It is easier to recognize, and it matches the serial number
+printed by `nvme list`. The `_1` variant (the namespace number) and the `eui.` or `nvme.` names point to the same
+device.
 
 ### Setting variables
 
