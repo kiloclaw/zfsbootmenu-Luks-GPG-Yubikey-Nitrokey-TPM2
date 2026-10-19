@@ -297,7 +297,7 @@ wget -O - https://qa-reports.gentoo.org/output/service-keys.gpg | gpg --import
 gpg --verify stage3-amd64-systemd-*.tar.xz.asc
 ```
 
-**Check:** the output says `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key)"`.
+**Check:** the output says `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key) <releng@gentoo.org>"`.
 A warning that the key is "not certified with a trusted signature" is normal.
 
 ### 6.3 Unpack it

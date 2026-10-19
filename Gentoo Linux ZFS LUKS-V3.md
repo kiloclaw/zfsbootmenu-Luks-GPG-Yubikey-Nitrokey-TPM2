@@ -335,7 +335,7 @@ root # gpg --verify stage3-amd64-systemd-*.tar.xz.asc
 root # gpgconf --kill all
 ```
 
-The output must include `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key)"`.
+The output must include `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key) <releng@gentoo.org>"`.
 
 Extract it and mount the ESP:
 

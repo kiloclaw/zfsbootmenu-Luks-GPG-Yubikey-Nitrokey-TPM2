@@ -406,7 +406,7 @@ root # wget -O - https://qa-reports.gentoo.org/output/service-keys.gpg | gpg --i
 root # gpg --verify stage3-amd64-systemd-*.tar.xz.asc
 ```
 
-The output must include `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key)"`.
+The output must include `Good signature from "Gentoo Linux Release Engineering (Automated Weekly Release Key) <releng@gentoo.org>"`.
 
 Extract the stage file and mount the ESP:
 
