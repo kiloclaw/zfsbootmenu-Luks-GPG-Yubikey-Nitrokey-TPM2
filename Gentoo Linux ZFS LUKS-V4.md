@@ -843,7 +843,8 @@ Kernel:
 (chroot) root # generate-zbm
 ```
 
-If the stick is missing, ZFSBootMenu asks for the passphrase.
+If the stick is missing, ZFSBootMenu shows *Insert the key device LABEL=ZROOTKEY*, waits up to 10 seconds (press any
+key to stop waiting; `zbm.luks_token_wait=` changes the time), and then asks for the passphrase.
 
 ## Finalizing the installation
 

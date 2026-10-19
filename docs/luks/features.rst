@@ -170,5 +170,16 @@ volumes:
 * GnuPG key files encrypted to an OpenPGP key, FIDO2 and YubiKey challenge-response, against software stand-ins.
 * The procedures in :doc:`vdev-configurations` and :doc:`administration` (creating every pool layout, adding special,
   log, cache and spare vdevs, replacing and attaching disks), run as written, followed by a boot through ZFSBootMenu.
+* A single-disk NVMe installation in a UEFI virtual machine with an emulated NVMe SSD: switching to 4 KiB sectors,
+  LUKS2 with 4 KiB sectors and TRIM and work-queue flags stored in the header, unlocking without any crypttab
+  (``zbm.luks=`` in ZFSBootMenu, systemd's ``luks.*`` parameters in the boot environment), boot entries created with
+  ``efibootmgr``, and a reboot through the firmware: one passphrase prompt, none in the boot environment. A key file
+  on a FAT USB stick unlocked without a prompt, and without the stick ZFSBootMenu waited, then asked for the
+  passphrase.
+* Edge cases in scripted tests: crypttab files with CRLF line endings, without a final newline, with tabs and
+  comments; upper-case UUIDs; the same device listed twice or under two names; mapping-name clashes; unknown device
+  specifications and non-LUKS devices; invalid numeric options; passphrases with spaces, quotes, backslashes, a
+  leading dash, non-ASCII characters and 400 characters; empty, missing and directory key files; key files inside a
+  larger file (``keyfile-offset``, ``keyfile-size``); a USB key stick arriving late, absent, or missing its key file.
 
 Not yet tested on real hardware: YubiKey, Nitrokey and other FIDO2 or OpenPGP devices. Please report problems.
