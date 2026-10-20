@@ -36,8 +36,10 @@ LUKS_TPM2_SRK_HANDLE="0x81000001"
 # Seconds to wait for a security key or smart card to be plugged in
 luks_token_wait() {
   local wait
-  if wait="$( get_zbm_arg zbm.luks_token_wait )" && [ "${wait}" -ge 0 ] 2>/dev/null; then
-    echo "${wait}"
+  # Up to six decimal digits; printed without leading zeros, because the value
+  # is used in shell arithmetic, which reads 08 as an invalid octal number
+  if wait="$( get_zbm_arg zbm.luks_token_wait )" && [[ "${wait}" =~ ^[0-9]{1,6}$ ]]; then
+    echo "$(( 10#${wait} ))"
   else
     echo 10
   fi
@@ -138,6 +140,34 @@ luks_json_bool() {
 # returns: nothing
 
 luks_list_tokens() {
+  local tokens
+
+  # The JSON metadata is the reliable source: with systemd's token plugins
+  # installed, cryptsetup 2.8 (systemd 261) prints the human-readable token
+  # sections after the first one to stderr, so parsing 'luksDump' text misses
+  # every token but the first. The JSON is pretty-printed, one key per line;
+  # track the brace depth to find "tokens" and the "type" of each member.
+  if tokens="$( cryptsetup luksDump --dump-json-metadata "${1}" 2>/dev/null | awk '
+      {
+        line = $0
+        if (depth == 1 && line ~ /^[[:space:]]*"tokens"[[:space:]]*:/) intok = 1
+        if (intok && depth == 2 && line ~ /^[[:space:]]*"[0-9]+"[[:space:]]*:/) {
+          id = line; sub(/^[[:space:]]*"/, "", id); sub(/".*/, "", id); want = 1
+        }
+        if (intok && want && depth == 3 && line ~ /^[[:space:]]*"type"[[:space:]]*:/) {
+          type = line; sub(/^[^:]*:[[:space:]]*"/, "", type); sub(/".*/, "", type)
+          print id, type; want = 0
+        }
+        opens = gsub(/[{]/, "{", line); closes = gsub(/[}]/, "}", line)
+        depth += opens - closes
+        if (intok && depth <= 1) intok = 0
+      }
+      END { if (NR == 0) exit 1 }' )"; then
+    [ -n "${tokens}" ] && echo "${tokens}"
+    return 0
+  fi
+
+  # cryptsetup before 2.4 has no --dump-json-metadata
   cryptsetup luksDump "${1}" 2>/dev/null | awk '
     /^Tokens:/ { t = 1; next }
     /^[^[:space:]]/ { t = 0 }

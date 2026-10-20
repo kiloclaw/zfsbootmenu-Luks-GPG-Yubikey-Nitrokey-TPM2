@@ -513,14 +513,25 @@ luks_release_keyfile() {
 # returns: nothing
 
 luks_record_mapping() {
+  local lock="${LUKS_STATE}.lock" tries=0
+
   mkdir -p "${LUKS_STATE%/*}"
 
-  # Concurrent sessions (console and SSH) may both report the same mapping
-  if [ -r "${LUKS_STATE}" ] && grep -q "^${1}"$'\t' "${LUKS_STATE}"; then
-    return 0
+  # Concurrent sessions (console and SSH) may report the same mapping at the
+  # same time: hold a lock (mkdir is atomic) across the check and the append.
+  # A lock older than five seconds is assumed stale.
+  while ! mkdir "${lock}" 2>/dev/null; do
+    tries=$(( tries + 1 ))
+    [ "${tries}" -ge 50 ] && break
+    sleep 0.1
+  done
+
+  if ! { [ -r "${LUKS_STATE}" ] && grep -q "^${1}"$'\t' "${LUKS_STATE}"; }; then
+    printf '%s\t%s\t%s\n' "${1}" "${2}" "${3:-0}" >> "${LUKS_STATE}"
   fi
 
-  printf '%s\t%s\t%s\n' "${1}" "${2}" "${3:-0}" >> "${LUKS_STATE}"
+  rmdir "${lock}" 2>/dev/null
+  return 0
 }
 
 # arg1: LUKS device
