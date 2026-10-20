@@ -556,6 +556,7 @@ BOOT_PROMPTS = {
     "status": r"ZBMTEST-STATUS-BEGIN",
     "keyload": r"unable to load key",
     "emergency": r"Dropping to an emergency shell",
+    "menu": r"Boot Environments - Snapshots",
     "be_ask": r"Please enter passphrase for disk|Enter passphrase for /dev/",
     "be_zfskey": r"(?:Enter passphrase for|Encrypted ZFS password for) [a-z]+/ROOT",
 }
@@ -586,7 +587,7 @@ class Boot:
         return res
 
 
-def follow_boot(vm, answers=None, on=None, be=True, timeout=2400):
+def follow_boot(vm, answers=None, on=None, be=True, timeout=2400, menu=False):
     """
     Follow a boot: answer prompts, capture ZFSBootMenu's pool status and
     teardown report, then the boot environment's report.
@@ -594,11 +595,15 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400):
       answers   {prompt kind: list of replies}; defaults answer LUKS with PW
                 and the ZFS key with ZFSKEY
       on        {prompt kind: callback(vm)} for "missing" and "retry"
+      menu      press Enter in the boot menu, for boots that do not start
+                automatically (after the emergency shell)
     """
     answers = {k: list(v) for k, v in (answers or {}).items()}
     on = on or {}
     b = Boot()
     kinds = ["luks", "zfskey", "tpm2pin", "gpg", "missing", "retry", "status", "keyload", "emergency"]
+    if menu:
+        kinds.append("menu")
     while True:
         i = vm.expect([BOOT_PROMPTS[k] for k in kinds], timeout=timeout)
         kind = kinds[i]
@@ -607,6 +612,13 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400):
         if kind == "keyload":
             b.prompts.append("keyload-failed")
             return b
+        if kind == "menu":
+            b.prompts.append("menu")
+            vm.t.step("boot menu -> Enter")
+            time.sleep(2)
+            vm.send("\r")
+            kinds.remove("menu")
+            continue
         if kind == "emergency":
             # ZFSBootMenu found nothing to boot; the caller may open the shell
             b.prompts.append("emergency")

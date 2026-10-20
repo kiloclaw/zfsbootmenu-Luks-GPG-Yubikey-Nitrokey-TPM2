@@ -176,8 +176,9 @@ def setup(t):
     vm.poweroff()
 
 
-def expect_healthy(t, b, states=None, prompts_ok=None):
+def expect_healthy(t, b, states=None, prompts_ok=None, be_states=None):
     states = states or {}
+    be_states = states if be_states is None else be_states
     pools = b.pools()
     for p in POOLS:
         want = states.get(p, "ONLINE")
@@ -192,7 +193,7 @@ def expect_healthy(t, b, states=None, prompts_ok=None):
                 "raidz2-0 has five members after RAIDZ expansion")
     check_teardown(t, b)
     t.check("be-zfskey" in b.prompts, "boot environment asked for the ZFS key of its encrypted root")
-    check_be(t, b, "tank", POOLS, states)
+    check_be(t, b, "tank", POOLS, be_states)
     feats = be_features(b)
     for f in NEW_FEATURES:
         t.check(feats.get(("tank", f)) == "active", f"boot environment sees tank feature {f} active")
@@ -280,16 +281,22 @@ def main():
         vm = VM(t, scenario, disks=disks(), kernel=auto["kernel"], initrd=auto["initrd"], append=base).start()
         skipped = 0
         while True:
-            i = vm.expect([r"Passphrase \(leave empty to skip\): ", r"Unable to import"], timeout=1800)
-            if i == 1:
+            i = vm.expect([r"Passphrase \(leave empty to skip\): ", r"Unable to import",
+                           r"Dropping to an emergency shell"], timeout=1800)
+            if i > 0:
                 break
             skipped += 1
             vm.sendline("")
-        t.check(skipped >= 2, f"{skipped} LUKS prompts skipped; no pool can be imported")
-        vm.send("\x1b")
+        # mixed and parts import DEGRADED through their unencrypted halves, so
+        # ZFSBootMenu finds no boot environment and opens its emergency shell
+        # (with no importable pool it would stay in the import retry loop)
+        t.check(skipped >= 2 and i == 2,
+                f"{skipped} LUKS prompts skipped; no boot environment without tank, emergency shell")
         vm.shell_ready()
+        rc, out = vm.sh("zpool list -H -o name,health", show=True)
+        t.check("tank" not in out and "DEGRADED" in out, "only the pools with unencrypted halves are imported")
         rc, out = vm.sh("zluks status", show=True)
-        t.check("closed" in out or "locked" in out or rc == 0, "zluks status lists the locked volumes")
+        t.check(rc == 0, "zluks status runs")
         vm.sendline("zluks unlock; echo RC=$?")
         prompts = 0
         while True:
@@ -300,10 +307,12 @@ def main():
             vm.sendline(PW if prompts == 1 else PW_OTHER)
         t.check(vm.match.group(1) == "0", f"zluks unlock opened the volumes ({prompts} prompts)")
         rc, out = vm.sh("zluks status | grep -c open", show=True)
-        t.step("leaving the recovery shell; ZFSBootMenu retries the import")
+        t.step("leaving the shell; ZFSBootMenu imports tank and shows its menu")
         vm.sendline("exit")
-        b = follow_boot(vm)
-        expect_healthy(t, b)
+        b = follow_boot(vm, menu=True)
+        t.check("menu" in b.prompts, "the boot menu lists tank's boot environment after the shell")
+        # mixed and parts were imported before their LUKS halves were open
+        expect_healthy(t, b, states={"mixed": "DEGRADED", "parts": "DEGRADED"}, be_states={})
 
     elif scenario == "oldzfs":
         k, i = os.environ.get("ZBMTEST_OLD_KERNEL"), os.environ.get("ZBMTEST_OLD_INITRD")

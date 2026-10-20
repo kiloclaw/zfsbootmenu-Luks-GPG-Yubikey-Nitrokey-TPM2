@@ -90,4 +90,21 @@ fi
 while true; do
   [ -x /bin/zfsbootmenu ] && /bin/zfsbootmenu
   emergency_shell
+
+  # Pools may have become importable in the shell, for example after zluks
+  # unlocked their LUKS volumes: import them read-only as at start-up, so that
+  # the menu finds their boot environments, and restrict unhealthy ones
+  # shellcheck disable=SC2154
+  if [ "${zbm_require_pool}" = "only" ]; then
+    read_write='' import_pool "${zbm_prefer_pool}" >/dev/null 2>&1
+  else
+    read_write='' import_pool >/dev/null 2>&1
+  fi
+  while IFS=$'\t' read -r _pool _health; do
+    if [ -n "${_pool}" ] && [ "${_health}" != "ONLINE" ] \
+        && ! grep -qx "${_pool}" "${BASE}/degraded" >/dev/null 2>&1; then
+      echo "${_pool}" >> "${BASE}/degraded"
+    fi
+  done <<<"$( zpool list -H -o name,health 2>/dev/null )"
+  unset _pool _health
 done
