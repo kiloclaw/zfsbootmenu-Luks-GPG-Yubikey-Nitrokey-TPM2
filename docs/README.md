@@ -37,12 +37,14 @@ See `make help` for a list of all possible targets.
 
 - `conf.py`: the Sphinx configuration file
 - `index.rst`: the main page, and where the primary `toctree`s are listed
-- `CHANGELOG.md`: the changelog for ZFSBootMenu
+- `CHANGELOG.md`: includes the changelog for ZFSBootMenu, which lives in `CHANGELOG.md` at the root of the repository
 - `general`: where most documentation should reside. Documents about various topics, including various configuration options
   + `general/_include/` contains various documentation snippets
 - `guides`: Documents about installation on various distros
   + `guides/_include/` contains distribution agonostic snippets
   + `guides/<distro>/_include/` contains distribution specific snippets
+  + `guides/gentoo/` holds Markdown installation guides that are read on GitHub; `conf.py` leaves them out of the site
+- `luks`: documentation of LUKS support, its administration tools and its tests
 - `man`: manpages
 - `online`: documentation primarily to be shown within ZFSBootMenu's help system
 - `_static`: various static files for use within the documentation
@@ -61,6 +63,10 @@ To link to files within the ZFSBootMenu repository, use the `:zbm:` macro:
 ```
 
 will both create a link to the file `/bin/generate-zbm` on GitHub.
+
+The macro links to the upstream repository at the tag of the current release, so its paths follow the upstream layout
+(`bin/`, `etc/`, `releng/`), not the layout of this repository (`legacy/bin/`, `config/`, `scripts/`). To refer to a file
+that exists only here, or that has moved, write its path in this repository as a literal (``` ``packaging/container`` ```).
 
 ### Headings
 
