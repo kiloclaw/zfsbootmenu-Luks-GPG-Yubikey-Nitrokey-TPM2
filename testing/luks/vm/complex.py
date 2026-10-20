@@ -40,6 +40,7 @@ Scenarios (complex.py <scenario>):
                 not configured
 """
 
+import json
 import os
 import re
 import sys
@@ -49,7 +50,7 @@ import pexpect
 
 from zbmtest import (FAST_PBKDF, PW, PW_OTHER, WORK, ZFSKEY, Test, VM, be_features,
                      check_be, check_teardown, disk, follow_boot, hostid_arg, partition,
-                     payload_disk, zbm_image)
+                     payload_disk, run, zbm_image)
 
 N = 16
 OPTS = ("-o ashift=12 -o autotrim=on -o compatibility=openzfs-2.4-linux "
@@ -63,6 +64,35 @@ CRYPTTAB = WORK / "disks" / "complex" / "crypttab"
 
 def disks(skip=()):
     return [(None if i in skip else disk("complex", i), f"d{i}") for i in range(N)]
+
+
+def luks_uuid(path, part=None):
+    """UUID of the LUKS volume on a disk image, or on its partition part."""
+    off = 0
+    if part:
+        info = json.loads(run(["sfdisk", "--json", str(path)]))["partitiontable"]
+        off = info["partitions"][part - 1]["start"] * info.get("sectorsize", 512)
+    with open(path, "rb") as f:
+        f.seek(off)
+        hdr = f.read(208)
+    assert hdr[:6] == b"LUKS\xba\xbe", f"no LUKS header on {path}"
+    return hdr[168:208].split(b"\0")[0].decode()
+
+
+def be_cmdline(skip=()):
+    """
+    The boot environment's command line as setup sets it (becmdline), without
+    the volumes of the disks in skip: dracut waits for every rd.luks.uuid=
+    volume and then drops to its emergency shell.
+    """
+    cl = ["console=ttyS0", "loglevel=4", "rd.luks.key=/etc/zbmtest/be.key"]
+    cl += [f"rd.luks.uuid={luks_uuid(disk('complex', i))}" for i in list(range(12)) + [14] if i not in skip]
+    if 12 not in skip:
+        u = luks_uuid(disk("complex", 12))
+        cl += [f"rd.luks.key={u}=/etc/zbmtest/be-other.key", f"rd.luks.uuid={u}"]
+    if 15 not in skip:
+        cl.append(f"rd.luks.uuid={luks_uuid(disk('complex', 15), 1)}")
+    return " ".join(cl)
 
 
 def setup(t):
@@ -196,8 +226,12 @@ def main():
         expect_healthy(t, b)
 
     elif scenario == "degraded":
+        # the boot environment's initramfs must not wait for the missing
+        # volume: its command line for this boot leaves it out, as MOD+E in
+        # ZFSBootMenu would (docs/luks/administration.rst)
+        kcl = be_cmdline(skip=(1, 13))
         vm = VM(t, scenario, disks=disks(skip=(1, 13)), kernel=auto["kernel"], initrd=auto["initrd"],
-                append=base).start()
+                append=f'{base} zbm.kcl_override="{kcl}"').start()
         b = follow_boot(vm, answers={"luks": [PW, PW_OTHER]})
         expect_healthy(t, b, states={"tank": "DEGRADED", "mixed": "DEGRADED"})
 
