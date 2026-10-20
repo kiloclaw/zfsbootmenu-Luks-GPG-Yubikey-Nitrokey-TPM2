@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Repository layout
+
+The source tree has been reorganised to prepare the port of ZFSBootMenu to Rust. Installed files and built images are
+unchanged; only paths in the repository moved:
+
+| Old path | New path |
+| --- | --- |
+| `zfsbootmenu/` | `legacy/zfsbootmenu/` |
+| `bin/` | `legacy/bin/` |
+| `cpanfile` | `legacy/cpanfile` |
+| `dracut/` | `packaging/dracut/` |
+| `initcpio/` | `packaging/initcpio/` |
+| `releng/docker/` | `packaging/container/` |
+| `zbm-builder.sh` | `packaging/container/zbm-builder.sh` |
+| `install-tree.sh`, `releng/version.sh`, `releng/rst2help.sh`, `releng/update-includes.sh` | `scripts/` |
+| other files in `releng/` (release tools and signing keys) | `scripts/release/` |
+| `etc/` | `config/` |
+| `testing/` | `tests/` |
+| `media/` | `assets/` |
+| `docs/CHANGELOG.md` | `CHANGELOG.md` |
+| `Gentoo Linux ZFS LUKS-V2.md` (and V3, V4) | `docs/guides/gentoo/zfs-luks-v2.md` (and v3, v4) |
+
+The build container accepts source trees with either layout, so `zbm-builder.sh -l` and `-L` still work with upstream
+source trees, and the container still builds from upstream source tarballs. Container images built before this change
+know only the old layout: rebuild the image (`podman build -t localhost/zbm-builder packaging/container`) before
+building from a tree with the new layout.
+
+New files: a Cargo workspace (`Cargo.toml`, `rust-toolchain.toml`, `crates/zbm-core`) with its CI workflow, and
+`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.editorconfig`, a pull request template and a Dependabot
+configuration.
+
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
 ZFSBootMenu v3.1.0 includes fixes, additional platform tooling and feature enhancements. 

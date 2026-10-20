@@ -38,6 +38,28 @@ packaging/container` (or `docker build`), which is the default image of `packagi
 See [ZFS Pools on LUKS Volumes](docs/general/luks.rst) for details, including how to avoid a second passphrase prompt in
 the booted system.
 
+### Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `legacy/zfsbootmenu/` | The bootloader runtime, written in Bash: init hooks, libraries and help pages. Installed as `/usr/share/zfsbootmenu`. |
+| `legacy/bin/` | `generate-zbm` (Perl) and `zbm-kcl`. `legacy/cpanfile` lists the Perl modules `generate-zbm` needs. |
+| `crates/` | Rust crates for the port of ZFSBootMenu to Rust, in the Cargo workspace defined by `Cargo.toml`. |
+| `packaging/dracut/` | The dracut module (`90zfsbootmenu`). |
+| `packaging/initcpio/` | The mkinitcpio hooks and install scripts. |
+| `packaging/container/` | The build container: `Dockerfile`, its entrypoint `build-init.sh`, `image-build.sh` and `zbm-builder.sh`. |
+| `config/` | Default configuration, installed in `/etc/zfsbootmenu` (`config/zfsbootmenu/`) or used by the build container (`config/zbm-builder/`). |
+| `contrib/`, `examples/` | `generate-zbm` hooks, helper scripts and example configuration files, installed as examples. |
+| `scripts/` | Development tools (`install-tree.sh`, `version.sh`, `rst2help.sh`, `update-includes.sh`); release tools and signing keys in `scripts/release/`. |
+| `tests/` | Test suites: `tests/luks/` (unit and VM tests), `tests/validation/` and the test VMs created by `tests/setup.sh`. |
+| `docs/` | Sphinx documentation and manual pages. Gentoo installation guides are in `docs/guides/gentoo/`. |
+| `assets/` | Logos, screenshots and the splash image. |
+
+The bootloader that ships is the Bash and Perl code under `legacy/`; Rust crates in `crates/` will replace it one part at
+a time. `make install` installs files from `legacy/`, `packaging/dracut/`, `packaging/initcpio/`, `config/zfsbootmenu/`,
+`contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`; it installs no Rust code yet. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test each part.
+
 ### For more details, see:
 
 - [Documentation](https://docs.zfsbootmenu.org)
