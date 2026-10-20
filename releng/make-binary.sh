@@ -59,9 +59,9 @@ else
   mkdir -p "${assets}"
 fi
 
+# Kernel series (X.Y) installed in the build container
 kernels="$(podman run --rm --entrypoint /bin/sh "${buildtag}" -c \
-  "xbps-query -p pkgver -s '^linux[0-9]+\.[0-9]+' --regex \
-    | sed -e 's/^linux//' -e 's/-.*//' | sort | uniq")" || kernels=
+  "ls /boot | sed -n 's/^vmlinuz-\([0-9]*\.[0-9]*\)\..*/\1/p' | sort -u")" || kernels=
 
 for style in release recovery; do
   echo "Building style: ${style}"

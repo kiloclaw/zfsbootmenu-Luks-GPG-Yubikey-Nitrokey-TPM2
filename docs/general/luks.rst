@@ -234,8 +234,8 @@ Choosing PCRs matters, because ZFSBootMenu itself is part of the boot chain:
 * ``--tpm2-pcrs=`` (no PCRs) together with a PIN works on systems without Secure Boot.
 
 Volumes enrolled this way are opened through systemd's ``systemd-tpm2`` cryptsetup plugin when the image contains it
-(images built on distributions with systemd, including the Ubuntu build container). Images without it, such as those
-built in the Void Linux build container, use ZFSBootMenu's own implementation based on ``tpm2-tools``. That implementation covers tokens created by
+(images built on distributions with systemd, including the build container). Images without it use ZFSBootMenu's own
+implementation based on ``tpm2-tools``. That implementation covers tokens created by
 systemd 254 or later with or without a PIN and with or without a PCR policy. Signed PCR policies (``--tpm2-public-key``),
 ``--tpm2-pcrlock`` and tokens from older systemd versions need the plugin.
 
@@ -445,11 +445,9 @@ Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
 ``zfsbootmenu_luks_yubikey=no``
   Leave out ``ykchalresp``.
 
-The Void Linux build container (``releng/docker``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools,
-ykpers and openssl, so its images support every method. Void does not ship systemd, so these images use ZFSBootMenu's
-own TPM2 and FIDO2 implementations. The Ubuntu build container (``releng/docker/Dockerfile.ubuntu``) installs the same
-tools plus systemd's cryptsetup token plugins, so its images also unlock tokens that only the plugins support; see
-:doc:`container-building`.
+The build container (``releng/docker``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and
+openssl together with systemd's cryptsetup token plugins, so its images support every method, including tokens that only
+the plugins support; see :doc:`container-building`.
 
 Volumes that use a cipher not covered by the default module list need their modules added explicitly, for example
 ``add_drivers+=" serpent_avx2 "`` for dracut or ``MODULES=(...)`` for mkinitcpio.

@@ -8,12 +8,16 @@ on:
       - 'zfsbootmenu/**'
       - 'dracut/**'
       - 'initcpio/**'
+      - 'releng/docker/**'
+      - 'etc/**'
   pull_request:
     paths:
       - 'bin/**'
       - 'zfsbootmenu/**'
       - 'dracut/**'
       - 'initcpio/**'
+      - 'releng/docker/**'
+      - 'etc/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,61 +27,63 @@ jobs:
   build:
     name: Build boot images
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/zbm-dev/zbm-builder:development
+    env:
+      BUILD_DIR: /tmp/zbm-build
     steps:
       - uses: actions/checkout@v7
 
+      - name: Create the build container
+        run: docker build -t localhost/zbm-builder releng/docker
+
       - name: Prepare repository for build
         run: |
-          mkdir -p /build
-          rm -rf /zbm
-          ln -s "$(pwd)" /zbm
-          echo "zfsbootmenu_module_root='/zbm/zfsbootmenu'" > /zbm/etc/zfsbootmenu/dracut.conf.d/zbm_modroot.conf
-          yq-go e '.Global.DracutFlags += ["--no-early-microcode"]' /zbm/etc/zbm-builder/config.yaml > /build/config.yaml
+          mkdir -p "${BUILD_DIR}"
+          docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" \
+            --entrypoint /bin/bash localhost/zbm-builder -c '
+              echo "zfsbootmenu_module_root=/zbm/zfsbootmenu" > /zbm/etc/zfsbootmenu/dracut.conf.d/zbm_modroot.conf
+              yq-go e ".Global.DracutFlags += [\"--no-early-microcode\"]" /zbm/etc/zbm-builder/config.yaml > /build/config.yaml
+            '
 
       - name: Build release artifacts
         run: |
-          rm -rf /build/dracut.conf.d
-          mkdir -p /build/dracut.conf.d
-          cp /zbm/etc/zfsbootmenu/release.conf.d/*.conf /build/dracut.conf.d/
-          /zbm/releng/docker/build-init.sh -- --debug
+          sudo rm -rf "${BUILD_DIR}/dracut.conf.d" "${BUILD_DIR}/build"
+          mkdir -p "${BUILD_DIR}/dracut.conf.d"
+          cp etc/zfsbootmenu/release.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
+          docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
+          sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
 
       - name: Archive release EFI
         uses: actions/upload-artifact@v7
         with:
           name: Release-EFI
-          path: /build/build/*.EFI
+          path: /tmp/zbm-build/build/*.EFI
 
       - name: Archive release components
         uses: actions/upload-artifact@v7
         with:
           name: Release-Components
           path: |
-            /build/build/*
-            !/build/build/*.EFI
-
-      - name: Prune release artifacts
-        run: |
-          rm -r /build/build
+            /tmp/zbm-build/build/*
+            !/tmp/zbm-build/build/*.EFI
 
       - name: Build recovery artifacts
         run: |
-          rm -rf /build/dracut.conf.d
-          mkdir -p /build/dracut.conf.d
-          cp /zbm/etc/zfsbootmenu/recovery.conf.d/*.conf /build/dracut.conf.d/
-          /zbm/releng/docker/build-init.sh -- --debug
+          sudo rm -rf "${BUILD_DIR}/dracut.conf.d" "${BUILD_DIR}/build"
+          mkdir -p "${BUILD_DIR}/dracut.conf.d"
+          cp etc/zfsbootmenu/recovery.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
+          docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
+          sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
 
       - name: Archive recovery EFI
         uses: actions/upload-artifact@v7
         with:
           name: Recovery-EFI
-          path: /build/build/*.EFI
+          path: /tmp/zbm-build/build/*.EFI
 
       - name: Archive recovery components
         uses: actions/upload-artifact@v7
         with:
           name: Recovery-Components
           path: |
-            /build/build/*
-            !/build/build/*.EFI
+            /tmp/zbm-build/build/*
+            !/tmp/zbm-build/build/*.EFI

@@ -14,15 +14,11 @@ error() {
   exit 1
 }
 
-# The container is either Void Linux (xbps) or Ubuntu/Debian (apt)
-if command -v xbps-install >/dev/null 2>&1; then
-  PKGMGR="xbps"
-elif command -v apt-get >/dev/null 2>&1; then
-  PKGMGR="apt"
-  export DEBIAN_FRONTEND=noninteractive
-else
-  error "no supported package manager (xbps or apt) found"
+# The build container is based on Ubuntu
+if ! command -v apt-get >/dev/null 2>&1; then
+  error "this build script runs in the Ubuntu-based ZFSBootMenu build container"
 fi
+export DEBIAN_FRONTEND=noninteractive
 
 # Ubuntu kernel flavour used by -k
 : "${ZBM_KERNEL_FLAVOUR:=generic}"
@@ -35,13 +31,6 @@ update_apt() {
   [ -n "${APT_UPDATE_COMPLETE}" ] && return 0
   readonly APT_UPDATE_COMPLETE="yes"
   apt-get update || error "failed to update package lists"
-}
-
-update_pkgdb() {
-  case "${PKGMGR}" in
-    xbps) update_xbps ;;
-    apt) update_apt ;;
-  esac
 }
 
 # Install the newest Ubuntu kernel of a series, with its ZFS module
@@ -71,36 +60,18 @@ install_apt_kernel() {
   apt-mark hold "${pkgs[@]}"
 }
 
-# Package names of ZFS userspace on Ubuntu/Debian
+# Package names of ZFS userspace
 apt_zfs_packages() {
   dpkg-query -W -f '${Package}\n' 2>/dev/null \
     | grep -E '^(zfsutils-linux|libzfs|libzpool|libnvpair|libuutil)'
 }
 
 update_zfs() {
-  local packages zpkg
+  local packages
 
-  if [ "${PKGMGR}" = "apt" ]; then
-    mapfile -t packages < <( apt_zfs_packages )
-    [ "${#packages[@]}" -ge 1 ] || return 0
-    apt_install --only-upgrade --allow-change-held-packages "${packages[@]}"
-    return
-  fi
-
-  packages=()
-  for zpkg in zfs libzfs zfs-lts libzfs-lts; do
-    xbps-query -p pkgname "${zpkg}" >/dev/null 2>&1 || continue
-    packages+=( "${zpkg}" )
-  done
-
+  mapfile -t packages < <( apt_zfs_packages )
   [ "${#packages[@]}" -ge 1 ] || return 0
-  xbps-install -uy "${packages[@]}"
-}
-
-update_xbps() {
-  [ -n "${XBPS_UPDATE_COMPLETE}" ] && return 0
-  readonly XBPS_UPDATE_COMPLETE="yes"
-  xbps-install -Suy xbps || error "failed to update xbps"
+  apt_install --only-upgrade --allow-change-held-packages "${packages[@]}"
 }
 
 usage() {
@@ -118,7 +89,7 @@ Usage: $0 [options]
      (Default: \${BUILDROOT}/build)
 
   -p <package>
-     Install the named distribution package in the container
+     Install the named Ubuntu package in the container
      before building. May be specified more than once to
      install more than one package.
 
@@ -127,21 +98,20 @@ Usage: $0 [options]
      (Ignored if /zbm already contains a ZFSBootMenu tree)
 
   -u
-    Update distribution packages in the container
+    Update Ubuntu packages in the container
     (Kernel and ZFS packages will be ignored)
 
   -k <series>
-    Install the specified kernel series, headers and all
-    components necessary to build ZFS modules for the series
-    (Void), or the newest kernel of the series that has an
-    Ubuntu ZFS module package (Ubuntu; the flavour is taken
-    from \$ZBM_KERNEL_FLAVOUR, default "generic")
+    Install the newest Ubuntu kernel of the specified series
+    for which Ubuntu publishes a ZFS module, and build with it
+    (the flavour is taken from \$ZBM_KERNEL_FLAVOUR,
+    default "generic")
 
     The <series> argument takes the form "X.Y" for a major
     version X and minor version Y.
 
   -z
-    Update the ZFS package when installing kernels with -k
+    Update the ZFS packages when installing kernels with -k
 
   -V
      Do not attempt to update the version recorded in the source tree
@@ -157,25 +127,6 @@ Usage: $0 [options]
   -- <arguments>
       Additional arguments to the generate-zbm binary
 EOF
-}
-
-hold_kern_zfs() {
-  local kernels zpkg
-
-  # Ubuntu images hold kernel and ZFS packages with apt-mark already
-  [ "${PKGMGR}" = "apt" ] && return 0
-
-  # Hold all kernel packages
-  kernels="$(xbps-query -p pkgname --regex -s 'linux[0-9]+\.[0-9]')" || kernels=
-  if [ -n "${kernels}" ]; then
-    cut -d' ' -f2 <<< "${kernels}" | xargs xbps-pkgdb -m hold
-  fi
-
-  # Hold ZFS packages
-  for zpkg in zfs libzfs zfs-lts libzfs-lts; do
-    xbps-query -p pkgname "${zpkg}" >/dev/null 2>&1 || continue
-    xbps-pkgdb -m hold "${zpkg}"
-  done
 }
 
 PACKAGES=()
@@ -246,31 +197,21 @@ if [ -z "${ZBMTAG}" ]; then
   fi
 fi
 
-# Update packages, if desired
+# Update packages, if desired; the image holds its kernel and ZFS packages, so
+# apt keeps them back
 if [ -n "${UPDATE}" ]; then
-  update_pkgdb
-  if [ "${PKGMGR}" = "apt" ]; then
-    # Held kernel and ZFS packages are kept back
-    apt-get -y upgrade || error "failed to update packages"
-  else
-    hold_kern_zfs
-    xbps-install -uy || error "failed to update packages"
-    xbps-query -H | xargs -r xbps-pkgdb -m unhold
-  fi
+  update_apt
+  apt-get -y upgrade || error "failed to update packages"
 fi
 
 if [ "${#PACKAGES[@]}" -gt 0 ]; then
   # Install all requested packages
-  update_pkgdb
-  if [ "${PKGMGR}" = "apt" ]; then
-    apt_install "${PACKAGES[@]}" || error "failed to install requested packages"
-  else
-    xbps-install -y "${PACKAGES[@]}" || error "failed to install requested packages"
-  fi
+  update_apt
+  apt_install "${PACKAGES[@]}" || error "failed to install requested packages"
 fi
 
-if [ -n "${KERN_SERIES}" ] && [ "${PKGMGR}" = "apt" ]; then
-  update_pkgdb
+if [ -n "${KERN_SERIES}" ]; then
+  update_apt
 
   if [ -n "${UPDATE_ZFS}" ]; then
     update_zfs || error "failed to update ZFS packages"
@@ -278,25 +219,6 @@ if [ -n "${KERN_SERIES}" ] && [ "${PKGMGR}" = "apt" ]; then
 
   install_apt_kernel "${KERN_SERIES}" \
     || error "failed to install a ${ZBM_KERNEL_FLAVOUR} kernel of series ${KERN_SERIES} with ZFS"
-
-  # Override kernel version to match the requested series by default
-  CONFIGEVALS=(
-    ".Kernel.Version = \"${KERN_SERIES}.*\""
-    "${CONFIGEVALS[@]}"
-  )
-elif [ -n "${KERN_SERIES}" ]; then
-  update_pkgdb
-
-  if [ -n "${UPDATE_ZFS}" ]; then
-    update_zfs || error "failed to update ZFS packages"
-  fi
-
-  # Install dkms and the requested kernel series
-  xbps-install -uy dkms "linux${KERN_SERIES}" "linux${KERN_SERIES}-headers" \
-    || error "failed to install requested kernel series"
-
-  # Force a reconfigure to ensure the driver is build
-  xbps-reconfigure -f zfs
 
   # Override kernel version to match the requested series by default
   CONFIGEVALS=(
@@ -321,7 +243,7 @@ if [ ! -d /zbm ] || ! ls -Aq /zbm 2>/dev/null | grep -q . >/dev/null 2>&1; then
 
   mkdir -p /zbm
 
-  # Void and Ubuntu both use GNU tar, so --strip-components is available
+  # Ubuntu's tar is GNU tar, so --strip-components is available
   tar -xv --strip-components=1 -f "${ZBMWORKDIR}/zbm.tar.gz" -C /zbm
 fi
 
@@ -334,13 +256,6 @@ if [ -d /zbm/zfsbootmenu ]; then
   mkdir -p /usr/share
   ln -Tsf /zbm/zfsbootmenu /usr/share/zfsbootmenu \
     || error "unable to link core ZFSBootMenu libraries"
-
-  # Link to initcpio hook components
-  for cdir in initcpio/hooks initcpio/install; do
-    mkdir -p "/usr/lib/${cdir}"
-    ln -Tsf /zbm/${cdir}/zfsbootmenu /usr/lib/${cdir}/zfsbootmenu \
-      || error "unable to link mkinitcpio script ${cdir}/zfsbootmenu"
-  done
 
   # dracut module is in "dracut"
   dracutmod=/zbm/dracut
@@ -386,8 +301,8 @@ mkdir -p /etc/zfsbootmenu
 
 # Images built in a container must not depend on the container host, whose
 # loaded modules have nothing to do with the machines ZFSBootMenu will boot.
-# Some distributions (Ubuntu, for one) make dracut host-only by default, which
-# would leave the ZFS and dm-crypt modules out. Files linked below may still
+# Ubuntu's dracut is host-only by default, which would leave the ZFS and
+# dm-crypt modules out. Files linked below may still
 # override this.
 mkdir -p /etc/zfsbootmenu/dracut.conf.d
 echo 'hostonly="no"' > /etc/zfsbootmenu/dracut.conf.d/00-zbm-builder-generic.conf \
@@ -398,19 +313,15 @@ confroots=(
   "${BUILDROOT}"
 )
 for confroot in "${confroots[@]}"; do
-  for cfile in "config.yaml" "mkinitcpio.conf"; do
-    [ -e "${confroot}/${cfile}" ] || continue
-    ln -Tsf "${confroot}/${cfile}" "/etc/zfsbootmenu/${cfile}" \
-      || error "unable to link mkinitcpio.conf"
-  done
+  if [ -e "${confroot}/config.yaml" ]; then
+    ln -Tsf "${confroot}/config.yaml" "/etc/zfsbootmenu/config.yaml" \
+      || error "unable to link config.yaml"
+  fi
 
-  for confd in "dracut.conf.d" "mkinitcpio.conf.d"; do
-    mkdir -p "/etc/zfsbootmenu/${confd}"
-    for cfile in "${confroot}/${confd}"/*; do
-      [ -e "${cfile}" ] || continue
-      ln -Tsf "${cfile}" "/etc/zfsbootmenu/${confd}/${cfile##*/}" \
-        || error "unable to link ${cfile}"
-    done
+  for cfile in "${confroot}/dracut.conf.d"/*; do
+    [ -e "${cfile}" ] || continue
+    ln -Tsf "${cfile}" "/etc/zfsbootmenu/dracut.conf.d/${cfile##*/}" \
+      || error "unable to link ${cfile}"
   done
 done
 
@@ -433,9 +344,13 @@ for ceval in "${CONFIGEVALS[@]}"; do
     || error "failed to apply '${ceval}' to config"
 done
 
-# Containers whose kernel series differs from the one in the configuration
-# (Ubuntu images record theirs in /etc/zbm-kernel-version) fall back to their
-# own kernel when the configured version matches no installed kernel
+# Ubuntu does not package mkinitcpio, so the container builds with dracut only
+if [ "$( yq-go eval '.Global.InitCPIO // false' "${ZBMCONF}" )" = "true" ]; then
+  error "the build container has no mkinitcpio; remove Global.InitCPIO from the configuration to build with dracut"
+fi
+
+# When the configured kernel version matches no installed kernel, use the
+# series the image recorded in /etc/zbm-kernel-version
 if [ -z "${KERN_SERIES}" ] && [ -r /etc/zbm-kernel-version ]; then
   read -r default_kver < /etc/zbm-kernel-version
   conf_kver="$( yq-go eval '.Kernel.Version // ""' "${ZBMCONF}" )"

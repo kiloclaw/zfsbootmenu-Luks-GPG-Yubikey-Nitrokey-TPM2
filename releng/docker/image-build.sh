@@ -5,43 +5,33 @@ usage() {
   cat <<-EOF
 	USAGE: $0 [OPTIONS] <tag> [zbm-commit-like]
 	Create a container image for building ZFSBootMenu
-	
+
 	OPTIONS
-	
+
 	-h: Display this message and exit
-	
-	-r <path>:
-	   Mount the specified path into the build container when installing
-	   packages and configure XBPS to use the path as a package repository
-	
-	   (One path per argument; may be repeated as needed)
-	
-	-R <repo>:
-	   Configure XBPS to use the specified Void Linux package repository
-	
-	   Default: https://repo-fastly.voidlinux.org/current/
-	
-	   (One repository per argument; may be repeated as needed)
-	
-	-k <kver>:
-	   Include the specified Void Linux kernel series in the image; kernel
-	   series take the form <major>.<minor> and correspond to Void packages
-	   linux<kver> and linux<kver>-headers
-	
-	   Default: install 7.2
-	
-	   (One version per argument; may be repeated as needed)
-	
+
+	-u <release>:
+	   Build on the specified Ubuntu release, which decides the kernel
+	   series and the OpenZFS version (26.10 or later)
+
+	   Default: 26.10 (Linux 7.3, OpenZFS 2.4.4)
+
+	-f <flavour>:
+	   Install the specified Ubuntu kernel flavour; the flavour must have an
+	   Ubuntu ZFS module package
+
+	   Default: generic
+
 	-p <pkg>:
-	   Include the specified Void Linux package in the image
+	   Include the specified Ubuntu package in the image
 	   (One package per argument; may be repeated as needed)
-	
-	
+
+
 	ARGUMENTS
-	
+
 	<tag>:
 	   Tag assigned to container image
-	
+
 	[zbm-commit-like]:
 	   ZFSBootMenu commit hash, tag or branch name used by
 	   default to build ZFSBootMenu images (default: master)
@@ -51,38 +41,16 @@ usage() {
 set -o errexit
 
 extra_pkgs=()
+ubuntu_release=
+kernel_flavour=
 
-kern_series=()
-
-# By default, mount tmpfs on /var/cache/xbps
-host_mounts=( --mount "type=tmpfs,dst=/var/cache/xbps" )
-
-host_repos=()
-
-web_repos=()
-
-while getopts "hr:R:k:p:" opt; do
+while getopts "hu:f:p:" opt; do
   case "${opt}" in
-    r)
-      target="/pkgs/${#host_repos[@]}"
-      host_repos+=( "${target}" )
-      host_mounts+=( --mount "type=bind,src=${OPTARG},dst=${target},ro" )
+    u)
+      ubuntu_release="${OPTARG}"
       ;;
-    R)
-      # Sanitize repo arguments
-      case "${OPTARG}" in
-        /*|http://*|https://*)
-          ;;
-        *)
-          echo "ERROR: '${OPTARG}' does not appear to be a valid repository"
-          exit 1
-          ;;
-      esac
-
-      web_repos+=( "${OPTARG}" )
-      ;;
-    k)
-      kern_series+=( "linux${OPTARG}" )
+    f)
+      kernel_flavour="${OPTARG}"
       ;;
     p)
       extra_pkgs+=( "${OPTARG}" )
@@ -115,22 +83,6 @@ if [ -z "${zbm_commit_hash}" ]; then
   fi
 fi
 
-# Use default Void repo when nothing was specified
-if [ "${#web_repos[@]}" -lt 1 ]; then
-  web_repos=( "https://repo-fastly.voidlinux.org/current" )
-fi
-
-# Use default kernel series when nothing was specified
-if [ "${#kern_series[@]}" -lt 1 ]; then
-  kern_series=( "linux7.2" )
-fi
-
-# Populate the correspoding headers list
-kern_headers=()
-for _kern in "${kern_series[@]}"; do
-  kern_headers+=( "${_kern}-headers" )
-done
-
 if [ -z "${ZBM_BUILDER}" ]; then
   ZBM_BUILDER="./releng/docker/build-init.sh"
 fi
@@ -141,70 +93,26 @@ if [ ! -r "${ZBM_BUILDER}" ]; then
   exit 1
 fi
 
-maintainer="ZFSBootMenu Team, https://zfsbootmenu.org"
-container="$(buildah from ghcr.io/void-linux/void-glibc-full:latest)"
+dockerfile="$( dirname "${BASH_SOURCE[0]}" )/Dockerfile"
+if [ ! -r "${dockerfile}" ]; then
+  echo "ERROR: cannot find ${dockerfile}"
+  exit 1
+fi
 
-buildah config --label author="${maintainer}" "${container}"
+# Build from a private context that holds just the Dockerfile and scripts
+context="$( mktemp -d )"
+trap 'rm -rf "${context}"' EXIT
+cp "${dockerfile}" "${context}/Dockerfile"
+cp "${ZBM_BUILDER}" "${context}/build-init.sh"
+cp "$( dirname "${dockerfile}" )/setup-image.sh" "${context}/setup-image.sh"
 
-# Favor custom repositories
-for repo in "${host_repos[@]}" "${web_repos[@]}"; do
-  buildah run "${container}" sh -c "cat >> /etc/xbps.d/00-custom-repos.conf" <<-EOF
-	repository=${repo}
-	EOF
-done
-
-# Make sure image is up to date
-buildah run "${host_mounts[@]}" "${container}" xbps-install -Syu xbps
-buildah run "${host_mounts[@]}" "${container}" xbps-install -Syu
-
-# Add extra packages, as desired
+build_args=()
+[ -n "${ubuntu_release}" ] && build_args+=( --build-arg "UBUNTU_RELEASE=${ubuntu_release}" )
+[ -n "${kernel_flavour}" ] && build_args+=( --build-arg "KERNEL_FLAVOUR=${kernel_flavour}" )
+[ -n "${zbm_commit_hash}" ] && build_args+=( --build-arg "ZBM_COMMIT_HASH=${zbm_commit_hash}" )
 if [ "${#extra_pkgs[@]}" -gt 0 ]; then
-  echo "INFO: adding extra Void packages: ${extra_pkgs[*]}"
-  # shellcheck disable=SC2086
-  buildah run "${host_mounts[@]}" "${container}" xbps-install -y "${extra_pkgs[@]}"
+  echo "INFO: adding extra Ubuntu packages: ${extra_pkgs[*]}"
+  build_args+=( --build-arg "PACKAGES=${extra_pkgs[*]}" )
 fi
 
-# Prefer an LTS version over whatever Void thinks is current
-buildah run "${container}" sh -c "cat > /etc/xbps.d/10-nolinux.conf" <<-EOF
-	ignorepkg=linux
-	ignorepkg=linux-headers
-EOF
-
-# Prevent initramfs kernel hooks from being installed
-buildah run "${container}" sh -c "cat > /etc/xbps.d/15-noinitramfs.conf" <<-EOF
-	noextract=/usr/libexec/mkinitcpio/*
-	noextract=/usr/libexec/dracut/*
-EOF
-
-# Install ZFSBootMenu dependencies and components necessary to build images
-buildah run "${host_mounts[@]}" "${container}" \
-  sh -c 'xbps-query -Rp run_depends zfsbootmenu | xargs xbps-install -y'
-
-buildah run "${host_mounts[@]}" "${container}" \
-  xbps-install -y "${kern_series[@]}" "${kern_headers[@]}" \
-  git zstd systemd-boot-efistub curl yq-go bash kbd \
-  dracut mkinitcpio dracut-network gptfdisk iproute2 iputils parted \
-  curl dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx \
-  gnupg gnupg2-scdaemon libfido2 clevis tpm2-tools ykpers openssl
-
-# Remove headers and development toolchain, but keep binutils for objcopy
-buildah run "${container}" sh -c 'echo "ignorepkg=dkms" > /etc/xbps.d/10-nodkms.conf'
-buildah run "${container}" xbps-pkgdb -m manual binutils
-buildah run "${container}" xbps-remove -Roy dkms "${kern_headers[@]}"
-
-# Record a commit hash if one is available
-if [ -n "${zbm_commit_hash}" ]; then
-  echo "${zbm_commit_hash}" | \
-    buildah run "${container}" sh -c 'cat > /etc/zbm-commit-hash'
-fi
-
-buildah copy "${container}" "${ZBM_BUILDER}" /build-init.sh
-buildah run "${container}" chmod 755 /build-init.sh
-
-buildah config \
-  --workingdir / \
-  --entrypoint '[ "/build-init.sh" ]' \
-  --cmd '[ ]' \
-  "${container}"
-
-buildah commit --rm "${container}" "${tag}"
+buildah build --layers "${build_args[@]}" -t "${tag}" "${context}"

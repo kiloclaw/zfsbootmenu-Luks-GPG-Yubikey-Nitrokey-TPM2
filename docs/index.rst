@@ -247,8 +247,8 @@ for ``generate-zbm``.
 Building in a Container
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The official ZFSBootMenu release images are built in a standard Void Linux OCI container that provides a predictable
-environment that is known to be supported with ZFSBootMenu. The container entrypoint provides full access to all of the
+ZFSBootMenu release images are built in an Ubuntu-based OCI container that provides a predictable environment that is
+known to be supported with ZFSBootMenu. The container entrypoint provides full access to all of the
 configurability of ZFSBootMenu, and a helper script simplifies the process or running the container and managing the
 images that it produces. The :doc:`ZFSBootMenu container guide </general/container-building>` provides a detailed
 description of the containerized build process as well as a straightforward example of local image management using the

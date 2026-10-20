@@ -53,8 +53,13 @@
 
 # This script forwards arguments to the zbm-builder.sh helper script, but
 # overrides any build-directory specification. In addition, the script adds
-# arguments to bind-mount \${BUILD_DIR}/cmdline.d and install the `dropbear`
-# and `dracut-crypt-ssh` packages inside the container.
+# arguments to bind-mount \${BUILD_DIR}/cmdline.d and install the Ubuntu
+# packages `dropbear-bin` and `network-manager` inside the container. Ubuntu
+# does not package the `dracut-crypt-ssh` module, so the script fetches it into
+# \${BUILD_DIR}/dracut-crypt-ssh with git (unless it is already there) and
+# installs it in the container with an rc.d hook. Dracut configures the network
+# in the image with NetworkManager, the only network back end in Ubuntu's
+# Dracut that works without systemd.
 
 
 BUILD_DIR=$(realpath "${BUILD_DIR:-${PWD}}")
@@ -110,6 +115,31 @@ if [ ! -f "${RS_AUTH}" ]; then
 fi
 
 
+## PREPARE THE DRACUT MODULE
+
+RS_MODSRC="${BUILD_DIR}/dracut-crypt-ssh"
+if [ ! -d "${RS_MODSRC}/modules/60crypt-ssh" ]; then
+  git clone --depth 1 https://github.com/dracut-crypt-ssh/dracut-crypt-ssh "${RS_MODSRC}" || {
+    echo "ERROR: unable to fetch dracut-crypt-ssh into ${RS_MODSRC}"
+    exit 1
+  }
+fi
+
+# Generated hook, not user customizable: install the module without its
+# optional helpers, which would need to be compiled
+mkdir -p "${BUILD_DIR}/rc.d"
+cat > "${BUILD_DIR}/rc.d/crypt-ssh" <<'EOF'
+#!/bin/sh
+set -e
+mod=/usr/lib/dracut/modules.d/60crypt-ssh
+mkdir -p "${mod}"
+cp /build/dracut-crypt-ssh/modules/60crypt-ssh/*.sh \
+  /build/dracut-crypt-ssh/modules/60crypt-ssh/*.rules "${mod}/"
+sed -i '/helper\//d' "${mod}/module-setup.sh"
+EOF
+chmod 755 "${BUILD_DIR}/rc.d/crypt-ssh"
+
+
 ## PREPARE SETTINGS
 
 mkdir -p "${BUILD_DIR}/cmdline.d"
@@ -158,4 +188,4 @@ done
 
 "${ZBM_BUILDER}" "${HELPER_ARGS[@]}" -b "${BUILD_DIR}" \
   -O -v -O "${BUILD_DIR}/cmdline.d:/etc/cmdline.d:ro" \
-  -- "${BUILDER_ARGS[@]}" -p dracut-crypt-ssh -p dropbear
+  -- "${BUILDER_ARGS[@]}" -p dropbear-bin -p network-manager

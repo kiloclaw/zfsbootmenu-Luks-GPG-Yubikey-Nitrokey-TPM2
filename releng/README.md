@@ -29,7 +29,8 @@ needed or run the publication command manually.
 The release-engineering scripts require several helpers:
 
 - The `gh` command-line tool is used to manipulate GitHub and publish the release
-- Both `podman` and `buildah` are required to produce build-container images and prepare release assets
+- Both `podman` and `buildah` are required to produce the Ubuntu-based build-container image
+  (`releng/docker/image-build.sh`) and prepare release assets
 - The `signify` utility is necessary to sign assets for the release
 
 When `jq` is available, `tag-release.sh` will attempt to verify the authentication status of `gh` before the local
@@ -59,4 +60,5 @@ release should take a few actions after publication:
 2. The release process should leave a local OCI container image with a name of the form
    `ghcr.io/zbm-dev/zbm-builder:YYYYMMDD`. This tag should be pushed upstream to the GitHub container registry. The
    image should also be tagged `ghcr.io/zbm-dev/zbm-builder:latest`, and this tagged pushed to replace any exist
-   `:latest` tag. This ensures that the default image will produce ZFSBootMenu artifacts for the latest release.
+   `:latest` tag. `zbm-builder.sh` uses a locally built `localhost/zbm-builder:latest` by default; users of the
+   published image select it with `-i ghcr.io/zbm-dev/zbm-builder:latest`.

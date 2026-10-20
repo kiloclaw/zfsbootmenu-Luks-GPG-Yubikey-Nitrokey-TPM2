@@ -67,7 +67,9 @@ OPTIONS:
 
   -i <image>
      Build within the named container image
-     (Default: ghcr.io/zbm-dev/zbm-builder:latest)
+     (Default: localhost/zbm-builder:latest, built from the
+     ZFSBootMenu source tree with
+     "podman build -t localhost/zbm-builder releng/docker")
 
   -l <path>
      Build from ZFSBootMenu source tree at <path>, mounted read-only
@@ -96,8 +98,9 @@ SKIP_HOSTID=
 REMOVE_HOST_FILES=
 MOUNT_FLAGS=
 
-# By default, use the latest upstream build container image
-BUILD_IMG="ghcr.io/zbm-dev/zbm-builder:latest"
+# By default, use the build container image made locally from releng/docker
+DEFAULT_BUILD_IMG="localhost/zbm-builder:latest"
+BUILD_IMG="${DEFAULT_BUILD_IMG}"
 
 # By default, build from the current directory
 BUILD_DIRECTORY="${PWD}"
@@ -208,6 +211,16 @@ if ! command -v "${PODMAN}" >/dev/null 2>&1; then
   exit 1
 fi
 
+# The default image is not published in a registry; it must be built locally
+if [ "${BUILD_IMG}" = "${DEFAULT_BUILD_IMG}" ] \
+    && ! "${PODMAN}" image inspect "${BUILD_IMG}" >/dev/null 2>&1; then
+  echo "ERROR: build container image ${BUILD_IMG} not found"
+  echo "Build it from the ZFSBootMenu source tree with"
+  echo "  ${PODMAN} build -t localhost/zbm-builder releng/docker"
+  echo "or name another image with '-i'"
+  exit 1
+fi
+
 # Always mount a build directory at /build
 RUNTIME_ARGS+=( "-v" "${BUILD_DIRECTORY}:/build${MOUNT_FLAGS:+:${MOUNT_FLAGS}}" )
 
@@ -263,11 +276,6 @@ if [ -d "${BUILD_DIRECTORY}/hooks" ]; then
   mkdir -p "${BUILD_DIRECTORY}/dracut.conf.d"
   echo "zfsbootmenu_hook_root=/build/hooks" \
     > "${BUILD_DIRECTORY}/dracut.conf.d/user_hooks.conf"
-
-  # Write a mkinitcpio configuration snippet
-  mkdir -p "${BUILD_DIRECTORY}/mkinitcpio.conf.d"
-  echo "zfsbootmenu_hook_root=/build/hooks" \
-    > "${BUILD_DIRECTORY}/mkinitcpio.conf.d/user_hooks.conf"
 fi
 
 # Make `/build` the working directory so relative paths in configs make sense

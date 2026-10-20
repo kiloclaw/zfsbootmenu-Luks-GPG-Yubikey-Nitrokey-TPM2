@@ -27,13 +27,13 @@ This build of ZFSBootMenu can unlock LUKS (dm-crypt) volumes that hold ZFS vdevs
   - **YubiKey challenge-response**, compatible with `yubikey-luks`.
 
   systemd's cryptsetup plugins are used when available; otherwise ZFSBootMenu unlocks TPM2 and FIDO2 tokens with
-  `tpm2-tools` and `fido2-assert`, so images from the Void-based build container support every method too.
+  `tpm2-tools` and `fido2-assert`, so images built without systemd support every method too.
 
-Images from the build container (`releng/docker`) are pinned to the Void Linux `linux7.2` kernel series (7.2.11 at the
-time of writing; patch releases are picked up automatically), which needs OpenZFS 2.4.4 or later. The series is set by
-`KERNELS` in `releng/docker/Dockerfile` (or `-k` for `image-build.sh`) and selected by `Kernel.Version` in
-`etc/zbm-builder/config.yaml`. Build with a locally built container (`zbm-builder.sh -i ...`), because the default
-upstream image does not include it.
+The build container (`releng/docker`) is based on Ubuntu 26.10 and builds images with Ubuntu's Linux 7.3 kernel and its
+OpenZFS 2.4.4 module, selected by `Kernel.Version: 7.3.*` in `etc/zbm-builder/config.yaml`. It also includes systemd's
+cryptsetup token plugins. The image is not published; build it with `podman build -t localhost/zbm-builder
+releng/docker` (or `docker build`), which is the default image of `zbm-builder.sh`. See
+[ZFSBootMenu Build Containers](docs/general/container-building.rst).
 
 See [ZFS Pools on LUKS Volumes](docs/general/luks.rst) for details, including how to avoid a second passphrase prompt in
 the booted system.

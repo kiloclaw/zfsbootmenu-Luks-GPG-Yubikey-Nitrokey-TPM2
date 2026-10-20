@@ -9,8 +9,6 @@ and populating a simple ``config.yaml`` for container builds::
   mkdir -p /etc/zfsbootmenu
 
   cat > /etc/zfsbootmenu/config.yaml <<EOF
-  Global:
-    InitCPIO: true
   Components:
     Enabled: false
   EFI:
@@ -24,48 +22,38 @@ and populating a simple ``config.yaml`` for container builds::
   curl -L -o /etc/zfsbootmenu/zbm-builder.sh https://raw.githubusercontent.com/zbm-dev/zfsbootmenu/master/zbm-builder.sh
   chmod 755 /etc/zfsbootmenu/zbm-builder.sh
 
-In this configuration, ``mkinitcpio`` will be used instead of ``dracut``. Component generation is disabled, so
+The build container creates images with ``dracut``; it has no ``mkinitcpio``. Component generation is disabled, so
 ``generate-zbm`` will produce only a UEFI bundle. That bundle has numeric versioning disabled, so ``generate-zbm`` will
 produce an unversioned ``zfsbootmenu.EFI``; if the generator detects an existing ``zfsbootmenu.EFI`` in the output
 directory, it will make a single backup of that file as ``zfsbootmenu-backup.EFI`` before overwriting it. A simple
 kernel command-line is specified and may be overridden as necessary.
 
-The default ``mkinitcpio.conf`` in the container, which should generally not be overridden, will source all files in
-``/etc/zfsbootmenu/mkinitcpio.conf.d``.
+Additional ``dracut`` settings go in files in ``/etc/zfsbootmenu/dracut.conf.d``, which the container adds to its
+default ZFSBootMenu configuration. Each file name must end in ``.conf``.
 
 Custom Font
 -----------
 
-On high-resolution screens, the Linux kernel does not always do a good job choosing a console font. A nice font can be
-explicitly specified in the ZFSBootMenu configuration for ``mkinitcpio``. The container entrypoint must be told to
-install the desired font and the ``mkinitcpio`` configuration should include the necessary module and executable to set
-the font::
+On high-resolution screens, the Linux kernel does not always do a good job choosing a console font. ZFSBootMenu images
+include Terminus fonts in several sizes and, by default, pick the largest one that still leaves at least 110 columns on
+the screen. To always use one size instead, add an early-setup hook that sets it after the automatic choice::
 
-  echo "BUILD_ARGS+=( -p terminus-font )" >> /etc/zfsbootmenu/zbm-builder.conf
+  mkdir -p /etc/zfsbootmenu/hooks/early-setup.d
 
-  cat > /etc/zfsbootmenu/mkinitcpio.conf.d/consolefont.conf <<EOF
-  BINARIES+=(setfont)
-  HOOKS+=(consolefont)
-  EOF
-
-This approach uses the configuration file capability of ``zbm-builder.sh`` to specify build options without requiring
-that they be included on the command line.
-
-As configured, ``mkinitcpio`` will not see a configured console font and will omit the font from generated images. To
-make ``mkinitcpio`` aware of the desired font, it must be specified in ``/etc/rc.conf`` within the container. The
-"terraform" capabilities of the container entrypoint can be used to accomplish this::
-
-  mkdir -p /etc/zfsbootmenu/rc.d
-
-  cat > /etc/zfsbootmenu/rc.d/consolefont <<EOF
+  cat > /etc/zfsbootmenu/hooks/early-setup.d/40-console-font.sh <<EOF
   #!/bin/sh
-  sed -e '/FONT=/a FONT="ter-132n"' -i /etc/rc.conf
+  setfont /usr/share/zfsbootmenu/fonts/ter-v28b.psf 2>/dev/null || true
   EOF
 
-  chmod 755 /etc/zfsbootmenu/rc.d/consolefont
+  chmod 755 /etc/zfsbootmenu/hooks/early-setup.d/40-console-font.sh
 
-When the container entrypoint finds an ``rc.d`` subdirectory in the build root, it will run each executable file therein
-before generating a ZFSBootMenu image.  If any of these executable should fail, image generation is aborted.
+The bundled sizes are ``ter-v12n``, ``ter-v14b``, ``ter-v20b``, ``ter-v24b``, ``ter-v28b`` and ``ter-v32b``. When
+``zbm-builder.sh`` finds a ``hooks`` subdirectory in the build directory, it includes the hooks found there in the
+image; see :ref:`zbm-dracut-options`.
+
+The container entrypoint can also "terraform" the container before it builds an image: when it finds an ``rc.d``
+subdirectory in the build root, it runs each executable file therein before generating a ZFSBootMenu image. If any of
+these executables should fail, image generation is aborted. The remote-access setup below uses this.
 
 Host-Specific Files
 -------------------
@@ -139,108 +127,67 @@ network stack, which can be accomplished by running
 
 .. code-block::
 
-  echo "RUTNIME_ARGS+=( --net=host )" >> /etc/zfsbootmenu/zbm-builder.conf
+  echo "RUNTIME_ARGS+=( --net=host )" >> /etc/zfsbootmenu/zbm-builder.conf
 
 Adding Remote Access Capabilities
 ---------------------------------
 
-The process for including ``dropbear`` for remote access to container-built
-ZFSBootMenu images is largely the same as the
-:doc:`process for host-built images </general/remote-access>`, but care must be taken to ensure that all
-necessary components are available within the build directory.
+ZFSBootMenu images can run an SSH server for remote access, as described in :doc:`/general/remote-access`. Container
+builds use the Dracut instructions there, with the changes below. All files must be in the build directory, because
+the container cannot see the rest of the host.
 
-- The :doc:`core configuration changes </general/mkinitcpio>` should be **ignored**. They are unnecessary with the
-  container configuration described above.
+The build container needs two more Ubuntu packages: ``dropbear-bin`` for the SSH server and ``network-manager``, which
+Dracut uses to configure the network in the image (Ubuntu's Dracut has no other network back end that works without
+systemd)::
 
-- The :ref:`basic network access <remote-mkinitcpio-net>` and :ref:`dropbear <remote-mkinitcpio-dropbear>` instructions
-  are generally applicable, except **no changes should be made to** ``/etc/zfsbootmenu/mkinitcpio.conf`` and **all
-  references to paths in** ``/etc/dropbear`` **should be replaced with corresponding references to paths in**
-  ``/etc/zfsbootmenu/dropbear``.
+  echo "BUILD_ARGS+=( -p dropbear-bin -p network-manager )" >> /etc/zfsbootmenu/zbm-builder.conf
 
-Specific alterations are noted below.
+Fetch the ``dracut-crypt-ssh`` module into the build directory::
 
-Configuring Basic Network Access
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  git clone https://github.com/dracut-crypt-ssh/dracut-crypt-ssh /etc/zfsbootmenu/dracut-crypt-ssh
 
-Commands to fetch and unpack the ``mkinitcpio-rclocal`` module and create an ``/etc/zfsbootmenu/initcpio/rc.local``
-script still apply as described to containerized builds. Subsequent ``sed`` and ``echo`` commands that write to
-``/etc/zfsbootmenu/mkinitcpio.conf`` should be ignored because this file should not exist. Instead, create a
-configuration snippet that will add network configuration to the ZFSBootMenu image::
-
-  cat > /etc/zfsbootmenu/mkinitcpio.conf.d/network.conf <<EOF
-  BINARIES+=(ip dhclient dhclient-script)
-  HOOKS+=(rclocal)
-  rclocal_hook="/build/initcpio/rc.local"
-  EOF
-
-.. note::
-
-  If a static IP address will be configured, it is acceptable to leave ``dhclient`` and ``dhclient-script`` out of the
-  ``BINARIES`` array.
-
-Next, edit ``/etc/zfsbootmenu/config.yaml`` to add a hook directory configuration telling `mkinitcpio` where to find
-custom modules:
-
-.. code-block:: yaml
-
-  Global:
-    InitCPIOHookDirs:
-      - /build/initcpio
-      - /usr/lib/initcpio
-
-Configuring Dropbear
-~~~~~~~~~~~~~~~~~~~~
-
-The commands to fetch and unpack the ``mkinitcpio-dropbear`` module still apply to containerized builds. Instead of
-adding ``dropbear`` to the non-existent configuration ``/etc/zfsbootmenu/mkinitcpio.conf``, create a snippet::
-
-  cat > /etc/zfsbootmenu/mkinitcpio.conf.d/dropbear.conf <<EOF
-  HOOKS+=(dropbear)
-  EOF
-
-Rather than creating keys (and optional configuration) in ``/etc/dropbear``, create the keys and configuration in
-``/etc/zfsbootmenu/dropbear``::
+Create SSH host keys in the PEM format that ``dracut-crypt-ssh`` converts for ``dropbear``, and the list of keys that
+may log in::
 
   mkdir -p /etc/zfsbootmenu/dropbear
-
-  ## Not strictly required; see note below
   for keytype in rsa ecdsa ed25519; do
-      dropbearkey -t "${keytype}" -f "/etc/zfsbootmenu/dropbear/dropbear_${keytype}_host_key"
+    ssh-keygen -q -N "" -m PEM -t "${keytype}" -f "/etc/zfsbootmenu/dropbear/ssh_host_${keytype}_key"
   done
 
-  ## If desired
-  echo 'dropbear_listen=2222' > /etc/zfsbootmenu/dropbear/dropbear.conf
+  cp "/home/${dropbear_user}/.ssh/authorized_keys" /etc/zfsbootmenu/dropbear/root_key
 
-.. note::
+Replace ``${dropbear_user}`` with the user whose ``authorized_keys`` file should govern access to ZFSBootMenu. The file
+must be a copy, not a symbolic link: the link target would not exist in the container.
 
-  Generating keys is not strictly necessary and can be skipped if ``dropbearkey`` is not available on the host. The
-  build container will generally lack SSH host keys, so the ``mkinitcpio-dropbear`` module will default to creating new,
-  random keys in the build directory. These keys will persist for subsequent use.
+Add a "terraform" script that installs the module in the container without its optional helpers, which would need to
+be compiled, and that writes the network parameters for the image::
 
-The file ``/etc/zfsbootmenu/dropbear/root_key`` is required to provide a list of authorized keys in the ZFSBootMenu
-image. Unlike with host builds, this may not be a symlink to a user's ``authorized_keys`` file because that path will be
-unavailble in the container. Instead, simply copy a desired ``authorized_keys`` file to
-``/etc/zfsbootmenu/dropbear/root_key``. Alternatively, dynamism can be preserved by relying on bind-mounting a specific
-``authorized_keys`` file into the build container::
+  mkdir -p /etc/zfsbootmenu/rc.d
 
-  echo "RUNTIME_ARGS+=( -v /home/${dropbear_user}/.ssh/authorized_keys:/authorized_keys:ro )" >> /etc/zfsbootmenu/zbm-builder.conf
-  ln -s /authorized_keys /etc/zfsbootmenu/dropbear/root_key
-
-Replace ``${dropbear_user}`` with the desired user whose ``authorized_keys`` file should govern access to ZFSBootMenu.
-
-Make sure that the build container installs the packages necessary to provide ``dropbear``::
-
-  echo "BUILD_ARGS+=( -p dropbear -p psmisc )" >> /etc/zfsbootmenu/zbm-builder.conf
-
-Finally, add a "terraform" script to copy contents to the expected ``/etc/dropbear`` directory from the build directory::
-
-  cat > /etc/zfsbootmenu/rc.d/dropbear <<EOF
+  cat > /etc/zfsbootmenu/rc.d/crypt-ssh <<'EOF'
   #!/bin/sh
-
-  [ -d /build/dropbear ] || exit 0
-
-  mkdir -p /etc/dropbear
-  cp -R /build/dropbear/* /etc/dropbear/
+  set -e
+  mod=/usr/lib/dracut/modules.d/60crypt-ssh
+  mkdir -p "${mod}"
+  cp /build/dracut-crypt-ssh/modules/60crypt-ssh/*.sh \
+    /build/dracut-crypt-ssh/modules/60crypt-ssh/*.rules "${mod}/"
+  sed -i '/helper\//d' "${mod}/module-setup.sh"
+  mkdir -p /etc/cmdline.d
+  echo "ip=dhcp rd.neednet=1" > /etc/cmdline.d/dracut-network.conf
   EOF
 
-  chmod 755 /etc/zfsbootmenu/rc.d/dropbear
+  chmod 755 /etc/zfsbootmenu/rc.d/crypt-ssh
+
+Replace ``ip=dhcp`` with a static configuration if desired; see :manpage:`dracut.cmdline(7)`. Finally, tell Dracut to
+include the module, the keys and the network parameters::
+
+  cat > /etc/zfsbootmenu/dracut.conf.d/dropbear.conf <<EOF
+  add_dracutmodules+=" crypt-ssh "
+  dropbear_rsa_key=/build/dropbear/ssh_host_rsa_key
+  dropbear_ecdsa_key=/build/dropbear/ssh_host_ecdsa_key
+  dropbear_ed25519_key=/build/dropbear/ssh_host_ed25519_key
+  dropbear_acl=/build/dropbear/root_key
+  install_items+=" /etc/cmdline.d/dracut-network.conf "
+  EOF
+
+The next build includes an SSH server listening on port 222. Connect with ``ssh -p 222 root@<address>``.

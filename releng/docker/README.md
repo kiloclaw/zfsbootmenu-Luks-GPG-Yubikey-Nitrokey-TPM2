@@ -2,10 +2,8 @@
 
 Files in this directory provide a means for creating a container that is
 capable of building ZFSBootMenu kernel and initramfs components as well as a
-standalone UEFI bundle. The standard container image is built atop Void Linux;
-an alternative image built atop Ubuntu is described in
-[Ubuntu-Based Builder Image](#ubuntu-based-builder-image). Both images
-provide the basic components necessary to build an image from an arbitrary
+standalone UEFI bundle. The container image is built atop Ubuntu and provides
+the basic components necessary to build an image from an arbitrary
 ZFSBootMenu repository, including a build script that runs by default when the
 container is started.
 
@@ -17,10 +15,22 @@ the commands should work just as well by substituting `docker` for `podman`.
 
 # Creating a ZFSBootMenu Builder Image
 
-The script `image-build.sh` uses `buildah` to construct a ZBM builder image.
-This is the preferred way to construct the image and may, in the future,
-provide features not available with a `podman build` workflow. The script
-requires a single argument, the tag to use when naming the image.
+The image is not published in a registry; build it from this repository. From
+the root of the ZFSBootMenu tree, run
+
+    podman build -t localhost/zbm-builder releng/docker
+
+to create the image `localhost/zbm-builder:latest`, which is the default image
+of `zbm-builder.sh`. Any other tag may be used and given to `zbm-builder.sh`
+with `-i`.
+
+Alternatively, the script `image-build.sh` uses `buildah` to build the same
+`Dockerfile`. It requires a single argument, the tag to use when naming the
+image, and accepts these options:
+
+- `-u <release>` builds on another Ubuntu release (default `26.10`);
+- `-f <flavour>` installs another Ubuntu kernel flavour (default `generic`);
+- `-p <package>` adds an Ubuntu package to the image (may be repeated).
 
 An optional second argument is a Git commit-like reference (a hash or tag) that
 will be recorded as `/etc/zbm-commit-hash` in the image. The contents of this
@@ -37,32 +47,13 @@ entrypoint for build containers. To run the `image-build.sh` script from
 another directory, simply set the `ZBM_BUILDER` environment variable to the
 location of the `build-init.sh` script to use.
 
-For those without access to `buildah`, the `Dockerfile` will also create of a
-ZFSBootMenu builder image. From this directory, simply run
+The same settings are available as build arguments when building with
+`podman build` or `docker build`: `UBUNTU_RELEASE`, `KERNEL_FLAVOUR`,
+`ZBM_COMMIT_HASH` and `PACKAGES` (a space-separated list).
 
-    podman build --squash -t zbm .
+## Builder Image Contents
 
-to create an image named `zbm`. (Podman automatically prepends `localhost` and
-appends `:latest` to unqualified tags, so the full image name will be
-`localhost/zbm:latest`.) Any suitable tag may be substituted for `zbm`.
-
-The resulting image contains all ZFSBootMenu prerequisites. Hard dependencies
-of ZFSBootMenu are determined by querying the Void Linux `zfsbootmenu` package,
-which will generally provide up-to-date information. In rare cases, a build
-from the master branch may introduce new requirements that are not reflected in
-the latest release version packaged for Void; manually editing the `Dockerfile`
-to add new dependencies may be necessary until a new release is packaged.
-
-## Ubuntu-Based Builder Image
-
-`Dockerfile.ubuntu` creates a builder image from Ubuntu instead of Void Linux.
-From this directory, run
-
-    podman build --squash -f Dockerfile.ubuntu -t zbm-ubuntu .
-
-The image runs the same `build-init.sh` entrypoint and is used in exactly the
-same way as the Void image, for example with `zbm-builder.sh -i zbm-ubuntu`.
-It differs as follows:
+`setup-image.sh` installs the image contents while the image is built:
 
 - The kernel and ZFS come from Ubuntu. Ubuntu builds the ZFS module for each
   of its kernels and ships it in a separate package
@@ -71,33 +62,29 @@ It differs as follows:
 
 - The Ubuntu release selects the kernel series and the OpenZFS version. The
   default release, 26.10, provides Linux 7.3 and OpenZFS 2.4.4. A later
-  release can be chosen with `--build-arg UBUNTU_RELEASE=<version>`; earlier
-  ones, including 26.04 LTS, do not package `yq-go`, which the entrypoint
-  needs. Choose another kernel flavour with
-  `--build-arg KERNEL_FLAVOUR=<flavour>` (default `generic`; the `realtime`
-  flavour has no ZFS module).
+  release can be chosen as described above; earlier ones, including 26.04 LTS,
+  do not package `yq-go`, which the entrypoint needs. The `realtime` kernel
+  flavour has no ZFS module.
 
 - The image records its kernel series (for example `7.3.*`) in
-  `/etc/zbm-kernel-version`. When the configured `Kernel.Version` matches no
-  installed kernel, which is the case for the `7.2.*` default in
-  `etc/zbm-builder/config.yaml`, the build uses that series instead and says
-  so. A version that matches an installed kernel is left alone.
+  `/etc/zbm-kernel-version`. `etc/zbm-builder/config.yaml` selects the same
+  series with `Kernel.Version`. When the configured version matches no
+  installed kernel, for example after building the image from another Ubuntu
+  release, the entrypoint uses the recorded series instead and says so. A
+  version that matches an installed kernel is left alone.
 
-- Kernel and ZFS packages are held with `apt-mark`, so `-u` updates
-  everything else. `-k <series>` installs the newest kernel of that series
-  for which Ubuntu publishes a ZFS module (the flavour comes from
-  `$ZBM_KERNEL_FLAVOUR`, default `generic`), and `-z` also updates the ZFS
-  userspace packages. `-p` installs Ubuntu packages.
+- Kernel and ZFS packages are held with `apt-mark`, so the entrypoint's `-u`
+  option updates everything else.
 
-- Images are built with dracut only, because Ubuntu does not package
-  `mkinitcpio`.
+- Images are built with dracut. Ubuntu does not package `mkinitcpio`, so
+  configurations that set `Global.InitCPIO` are refused.
 
-- systemd's cryptsetup token plugins are installed, so images built in this
-  container unlock TPM2, FIDO2 and PKCS#11 LUKS2 tokens through systemd's own
-  code. That includes TPM2 tokens with signed PCR policies or `--tpm2-pcrlock`,
-  which ZFSBootMenu's built-in TPM2 code does not support.
-
-## Builder Image Contents
+- GnuPG with `scdaemon`, libfido2, clevis, tpm2-tools, ykpers and openssl are
+  installed for LUKS unlocking, together with systemd's cryptsetup token
+  plugins. Images therefore unlock TPM2, FIDO2 and PKCS#11 LUKS2 tokens
+  through systemd's own code, including TPM2 tokens with signed PCR policies
+  or `--tpm2-pcrlock`, which ZFSBootMenu's built-in TPM2 code does not
+  support.
 
 The builder image does **not** contain a ZFSBootMenu installation or a copy of
 the upstream git repository. Instead, the entrypoint `/build-init.sh` will
@@ -166,14 +153,16 @@ A couple of additional arguments may only be set from the command line:
   > Do not use this unless you review the build script and understand, without
   > documentation, what will happen!
 
-- `-p <package>` specifies a package to install in the container before images
-  are generated: a Void Linux package in the Void image, an Ubuntu package in
-  the Ubuntu image. This option may be specified more than once.
+- `-p <package>` specifies an Ubuntu package to install in the container
+  before images are generated. This option may be specified more than once.
 
-- `-k <series>` installs a kernel series (`X.Y`) and builds with it; `-z`
-  also updates ZFS. `-u` updates all other packages. See
-  [Ubuntu-Based Builder Image](#ubuntu-based-builder-image) for how these
-  work in the Ubuntu image.
+- `-u` updates the Ubuntu packages in the container, except the held kernel
+  and ZFS packages.
+
+- `-k <series>` installs the newest Ubuntu kernel of a series (`X.Y`) for
+  which Ubuntu publishes a ZFS module and builds with it. The kernel flavour
+  comes from `$ZBM_KERNEL_FLAVOUR` (default `generic`). With `-z`, the ZFS
+  userspace packages are updated too.
 
 ## ZFSBootMenu Configuration and Execution
 
@@ -198,53 +187,34 @@ filesystem:
 
   will serve the same purpose.
 
-- If the ZFSBootMenu repository contains a mkinitcpio module, a family of links
-
-      /usr/lib/initcpio/hooks/* -> /zbm/initcpio/hooks/*
-      /usr/lib/initcpio/install/* -> /zbm/initcpio/install/*
-
-  for each file in `/zbm/initcpio/{hooks,install}` will be made to make
-  `mkinitcpio` aware of the ZFSBootMenu module.
-
 Configuration files are handled in a multi-pass approach that synthesizes a
 composite configuration from increasingly specific sources. In the first pass,
 generic upstream configurations are linked *if the source exists*:
 
     /etc/zfsbootmenu/config.yaml -> /zbm/etc/zfsbootmenu/config.yaml
-    /etc/zfsbootmenu/mkinitcpio.conf -> /zbm/etc/zfsbootmenu/mkinitcpio.conf
     /etc/zfsbootmenu/dracut.conf.d/* -> /zbm/etc/zfsbootmenu/dracut.conf.d/*
-    /etc/zfsbootmenu/mkinitcpio.conf.d/* -> /zbm/etc/zfsbootmenu/mkinitcpio.conf.d/*
 
 Next, container-specific defaults are linked *if the source exists*:
 
     /etc/zfsbootmenu/config.yaml -> /zbm/etc/zbm-builder/config.yaml
-    /etc/zfsbootmenu/mkinitcpio.conf -> /zbm/etc/zbm-builder/mkinitcpio.conf
     /etc/zfsbootmenu/dracut.conf.d/* -> /zbm/etc/zbm-builder/dracut.conf.d/*
-    /etc/zfsbootmenu/mkinitcpio.conf.d/* -> /zbm/etc/zbm-builder/mkinitcpio.conf.d/*
 
 Finally, build-specific configurations are linked *if the source exists*:
 
     /etc/zfsbootmenu/config.yaml -> ${BUILDROOT}/config.yaml
-    /etc/zfsbootmenu/mkinitcpio.conf -> ${BUILDROOT}/mkinitcpio.conf
     /etc/zfsbootmenu/dracut.conf.d/* -> ${BUILDROOT}/dracut.conf.d/*
-    /etc/zfsbootmenu/mkinitcpio.conf.d/* -> ${BUILDROOT}/mkinitcpio.conf.d/*
 
 Conflicting links will *replace* any links made by earlier passes. This allows
 each level of configurations to mask or augment earlier defaults.
-
-> NOTE: `mkinitcpio` does not natively support configuration snippets in
-> `/etc/zfsbootmenu/mkinitcpio.conf.d`. ZFSBootMenu includes a default
-> `mkinitcpio.conf` that manually sources these snippets to emulate the
-> standard configuration behavior of dracut.
 
 Before these passes, the entrypoint writes
 
     /etc/zfsbootmenu/dracut.conf.d/00-zbm-builder-generic.conf
 
 containing `hostonly="no"`. Images made in a container must work on any
-machine, and some distributions (Ubuntu among them) make dracut "host-only"
-by default, which would include only the kernel modules loaded where the
-container runs and leave out ZFS and dm-crypt. Configuration files from the
+machine, and Ubuntu's dracut is "host-only" by default, which would include
+only the kernel modules loaded where the container runs and leave out ZFS and
+dm-crypt. Configuration files from the
 passes above may still override the setting.
 
 In addition, the hostid file is linked if it exists:
@@ -259,19 +229,13 @@ finds in either of the directories `${BUILDROOT}/rc.pre.d` or
 container before producing a ZFSBootMenu image. For example, hooks might be
 used to
 
-- Modify the `FONT` variable defined in `/etc/rc.conf`, which will be parsed by
-  `mkinitcpio` to set a default console font in ZFSBootMenu images.
+- Copy additional dracut modules from `$BUILDROOT` into
+  `/usr/lib/dracut/modules.d`, such as `dracut-crypt-ssh` for remote access
+  over SSH.
 
-- Create additional links to directories in `$BUILDROOT`, such as
-
-      /etc/initcpio -> ${BUILDROOT}/initcpio
-
-  to provide additional `mkinitcpio` modules or
-
-      /etc/dropbear -> ${BUILDROOT}/dropbear
-
-  to provide host keys and configuration for the `dropbear` `mkinitcpio`
-  module.
+- Write files that a dracut configuration in `${BUILDROOT}/dracut.conf.d`
+  adds to the image with `install_items`, such as an
+  `/etc/cmdline.d/dracut-network.conf` with network parameters.
 
 The `rc.pre.d` hooks will execute after installing any requested packages in
 the container, but before confirming the existence of (or populating) a
@@ -287,15 +251,14 @@ to customize ZFSBootMenu configuration before creating an image.
 
 ## Build Examples
 
-To use the previously created `zbm` image to produce ZFSBootMenu files from the
-default configuration, simply run
+To use the previously created `localhost/zbm-builder` image to produce
+ZFSBootMenu files from the default configuration, simply run
 
-    podman run -v .:/build zbm
+    podman run -v .:/build localhost/zbm-builder
 
 After some console output, the container should terminate and the directory
 `./build` should contain the UEFI bundle `vmlinuz.EFI` as well as the
-components `vmlinuz-bootmenu` (a stock Void Linux kernel, or an Ubuntu kernel
-in the Ubuntu image) and corresponding
+components `vmlinuz-bootmenu` (a stock Ubuntu kernel) and corresponding
 ZFSBootMenu initramfs `initramfs-bootmenu.img`.
 
 To provide the hostid and pool cache files to the build container and run from
@@ -303,12 +266,12 @@ the `/etc/zfsbootmenu/build` directory, copy the desired files and run the
 container with the appropriate volume mount:
 
     cp /etc/hostid /etc/zfsbootmenu/build
-    podman run -v /etc/zfsbootmenu/build:/build zbm
+    podman run -v /etc/zfsbootmenu/build:/build localhost/zbm-builder
 
 To create an image from a local repository available at `/sw/zfsbootmenu` and
 again use a build root of `/etc/zfsbootmenu/build`, run
 
-    podman run -v /etc/zfsbootmenu/build:/build -v /sw/zfsbootmenu:/zbm:ro zbm
+    podman run -v /etc/zfsbootmenu/build:/build -v /sw/zfsbootmenu:/zbm:ro localhost/zbm-builder
 
 Because the build container does not modify the repository found in `/zbm`, it
 is possible to mount that volume read-only (as indicated by the `:ro` suffix)

@@ -1,74 +1,44 @@
-# syntax=docker/dockerfile:1.4
+# This Dockerfile creates the container that builds ZFSBootMenu EFI
+# executables and separate kernel/initramfs components. It is based on
+# Ubuntu: the kernel and the ZFS module are Ubuntu's own packages (Ubuntu
+# builds the module for each kernel, so no DKMS build or kernel headers are
+# needed), and the Ubuntu release decides the kernel series and OpenZFS
+# version. Ubuntu 26.10 ships Linux 7.3 and OpenZFS 2.4.4.
 #
-# This Dockerfile creates a container that will create an EFI executable and
-# separate kernel/initramfs components from a ZFSBootMenu repository. The
-# container will pre-populate its /zbm directory with a clone of the master
-# branch of the upstream ZFSBootMenu branch and build the images from that.
+# Build the image from the root of the repository with
 #
-# To use a different ZFSBootMenu repository or version, bind-mound the
-# repository you want on /zbm inside the container.
+#   podman build -t localhost/zbm-builder releng/docker
 #
-# Note - this Dockerfile depends on Docker >= 23 and the docker buildx plugin.
+# (or "docker build" with the same arguments) and run it with zbm-builder.sh,
+# whose default image is localhost/zbm-builder:latest.
+#
+# The container records its kernel series in /etc/zbm-kernel-version, and
+# build-init.sh uses it when the configured Kernel.Version matches no
+# installed kernel. Images are built with dracut; Ubuntu does not package
+# mkinitcpio. systemd's cryptsetup token plugins are installed, so images
+# unlock TPM2, FIDO2 and PKCS#11 LUKS2 tokens through systemd's own code.
+#
+# The image does not contain ZFSBootMenu; the entrypoint fetches it, or uses a
+# copy bind-mounted on /zbm.
+#
+# The image builds with podman, buildah, or Docker 23 or later.
 
-# Use the official Void Linux container
-FROM ghcr.io/void-linux/void-glibc-full
+# Ubuntu 26.10 or later: earlier releases do not package yq-go, which
+# build-init.sh needs
+ARG UBUNTU_RELEASE=26.10
+FROM ubuntu:${UBUNTU_RELEASE}
 LABEL org.opencontainers.image.authors="ZFSBootMenu Team, https://zfsbootmenu.org"
 
-ARG XBPS_REPOS="https://repo-fastly.voidlinux.org/current"
+# Ubuntu kernel flavour to install; the matching kernel image, modules and ZFS
+# module packages are installed without the firmware and microcode packages,
+# which an EFI boot loader does not need
+ARG KERNEL_FLAVOUR=generic
 
-# Include the specified Void Linux kernel series in the image;
-# kernel series take the form linux<major>.<minor>
-#
-# (multiple entries must be seperated by spaces)
-#
-# The 7.2 series is pinned: etc/zbm-builder/config.yaml selects it with
-# Kernel.Version, so keep the two in step. Linux 7.2 (7.2.11 at the time of
-# writing) requires OpenZFS >= 2.4.4.
-ARG KERNELS="linux7.2"
-# Update repos and install kernels and base dependencies.
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Run the following within an external cache (/var/cache/xbps) for the
-# package manager; so when this layer is rebuilt, at least you save
-# some bandwidth.
-RUN --mount=type=cache,target=/var/cache/xbps <<-EOF
-	if [ -z "${KERNELS}" ]; then
-		echo "ARG KERNELS must contain a value"
-		exit 1
-	fi
-
-	mkdir -p /etc/xbps.d
-	for _repo in ${XBPS_REPOS}; do
-		echo "repository=${_repo}" >> /etc/xbps.d/00-custom-repos.conf
-	done
-
-	# Ensure everything is up-to-date
-	xbps-install -Suy xbps && xbps-install -Suy
-
-	# Prefer an LTS version over whatever Void thinks is current
-	echo "ignorepkg=linux" > /etc/xbps.d/10-nolinux.conf
-	echo "ignorepkg=linux-headers" >> /etc/xbps.d/10-nolinux.conf
-
-	# Prevent initramfs kernel hooks from being installed
-	echo "noextract=/usr/libexec/mkinitcpio/*" > /etc/xbps.d/15-noinitramfs.conf
-	echo "noextract=/usr/libexec/dracut/*" >> /etc/xbps.d/15-noinitramfs.conf
-
-	for _kern in ${KERNELS}; do
-		kern_headers="${kern_headers} ${_kern}-headers"
-	done
-
-	# Install ZFSBootMenu dependencies and components necessary to build images
-	zbm_deps="$(xbps-query -Rp run_depends zfsbootmenu)"
-	xbps-install -y ${KERNELS} ${kern_headers} ${zbm_deps} \
-		zstd systemd-boot-efistub curl yq-go bash kbd \
-		dracut mkinitcpio dracut-network gptfdisk iproute2 iputils parted \
-		dosfstools e2fsprogs efibootmgr cryptsetup openssh util-linux kpartx \
-		gnupg gnupg2-scdaemon libfido2 clevis tpm2-tools ykpers openssl
-
-	# Remove headers and development toolchain, but keep binutils for objcopy
-	echo "ignorepkg=dkms" > /etc/xbps.d/10-nodkms.conf
-	xbps-pkgdb -m manual binutils
-	xbps-remove -Roy dkms ${kern_headers}
-	EOF
+# Install the kernel, ZFS and the ZFSBootMenu dependencies
+COPY --chmod=755 setup-image.sh /tmp/setup-image.sh
+RUN /tmp/setup-image.sh && rm -f /tmp/setup-image.sh
 
 # ZFSBootMenu commit hash, tag or branch name used by
 # default to build ZFSBootMenu images (default: master)
@@ -76,17 +46,13 @@ ARG ZBM_COMMIT_HASH=
 # Record a commit hash if one was provided
 RUN [ -z "${ZBM_COMMIT_HASH}" ] || echo "${ZBM_COMMIT_HASH}" > /etc/zbm-commit-hash
 
-# Include the specified Void Linux package in the image
-# (multiple entries must be seperated by spaces)
+# Include the specified Ubuntu packages in the image
+# (multiple entries must be separated by spaces)
 ARG PACKAGES=
-# Run ${PACKAGES} install in seperate layer so that the zfs dkms packages
-# are not rebuilt when ${PACKAGES} change. reuse. Additionally: use xbps cache.
-# Install ZFSBootMenu dependencies and components necessary to build images
-RUN --mount=type=cache,target=/var/cache/xbps \
-	[ -z "${PACKAGES}" ] || xbps-install -y ${PACKAGES}
-
-# Free space in image
-RUN rm -f /var/cache/xbps/*
+# Install ${PACKAGES} in a separate layer so that the kernel layer is reused
+RUN [ -z "${PACKAGES}" ] || { apt-get update && \
+	apt-get -y install --no-install-recommends ${PACKAGES} && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*; }
 
 ARG ZBM_BUILDER=build-init.sh
 # Install the build script under a fixed name: variables are not expanded in

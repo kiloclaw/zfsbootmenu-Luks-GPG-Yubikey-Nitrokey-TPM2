@@ -14,15 +14,13 @@ ZFSBootMenu Build Containers
 Introduction
 ------------
 
-Official ZFSBootMenu release assets are built within OCI containers based on the
-`zbm-builder image <https://github.com/zbm-dev/zfsbootmenu/pkgs/container/zbm-builder>`_. The image is built atop
-`Void Linux <https://voidlinux.org/>`_ and provides a predictable environment without the need to install ZFSBootMenu or
-its dependencies on the host system. While ZFSBootMenu is officially packaged for Void Linux and is guaranteed to work
-well with the tools provided therein, the experience is not always as smooth for users of other distributions. System
-packages for ZFSBootMenu or its requirements may be missing entirely. Tooling may be outdated and missing features that
-ZFSBootMenu uses to provide an enhanced user experience. (Where possible, ZFSBootMenu will test for features and work
-around their absence.) The ``zbm-builder`` container image provides a means to work around the limitations of particular
-distributions and provides all users with first-class ZFSBootMenu support.
+ZFSBootMenu images and release assets are built within an OCI container based on
+`Ubuntu <https://ubuntu.com/>`_. The container provides a predictable environment without the need to install
+ZFSBootMenu or its dependencies on the host system, whatever distribution the host runs. System packages for
+ZFSBootMenu or its requirements may be missing entirely on some distributions, and tooling may be outdated and missing
+features that ZFSBootMenu uses to provide an enhanced user experience. (Where possible, ZFSBootMenu will test for
+features and work around their absence.) The build container works around these limitations and provides all users
+with first-class ZFSBootMenu support.
 
 The ``zbm-builder.sh`` script provides a front-end for integrating custom ZFSBootMenu configurations into the build
 container without the complexity of directly controlling the container runtime.
@@ -40,19 +38,19 @@ To build ZFSBootMenu images from a build container, either `podman <https://podm
 `docker <https://www.docker.com>`_ is required. The development team prefers ``podman``, but ``docker`` or a
 compatible container utility may generally be substituted without consequence.
 
-If a custom build container is desired, `buildah <https://buildah.io>`_ and ``podman`` are generally required. A
-:zbm:`Dockerfile <releng/docker/Dockerfile>` is provided for convenience, but feature parity with the ``buildah``
-script is not guaranteed. The :zbm:`container README <releng/docker/README.md>` provides more information about the
-process of creating a custom build image.
+The build container image is not published in a registry; it is built from the
+:zbm:`Dockerfile <releng/docker/Dockerfile>` in this repository with ``podman build``, ``docker build`` or the
+``buildah``-based ``releng/docker/image-build.sh`` script. The :zbm:`container README <releng/docker/README.md>`
+provides more information about the process of creating the build image.
 
 Podman
 ~~~~~~
 
 Install ``podman`` and ``buildah`` (if desired) using the package manager in your distribution:
 
+* On Ubuntu, Debian or their derivatives, ``apt-get install podman buildah``
 * On Void, ``xbps-install podman buildah``
 * On Arch or its derivatives, ``pacman -S podman buildah``
-* On Debian or its derivatives, ``apt-get install podman buildah``
 
 It is possible to configure ``podman`` for rootless container deployment. Consult the
 `tutorial <https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md>`_ for details.
@@ -62,9 +60,9 @@ Docker
 
 Install ``docker`` using the package manager in your distribution:
 
+- On Ubuntu, Debian or their derivatives, ``apt-get install docker.io``
 - On Void, ``xbps-install docker``
 - On Arch or its derivatives, ``pacman -S docker``
-- On Debian or its derivatives, ``apt-get install docker``
 
 Non-root users that should be permitted to work with Docker images and containers should belong to the ``docker``
 groups. For example::
@@ -76,11 +74,18 @@ will add ``zbmuser`` to the ``docker`` group on systems that provide the ``userm
 The Build Container and Its Helper
 ----------------------------------
 
-The ``zbm-builder`` container is based on a Void Linux image pinned to the Linux 7.2 kernel series (7.2.11 at the time
-of writing; newer 7.2 patch releases are used as Void publishes them) and a version of ZFS that supports it (OpenZFS 2.4.4
-or later). The series is installed through ``KERNELS`` in ``releng/docker/Dockerfile`` and selected for image builds by
-``Kernel.Version: 7.2.*`` in ``etc/zbm-builder/config.yaml``. Images built from this repository must be used with
-``zbm-builder.sh -i <image>``, because the default upstream image does not include this kernel series. When run, the container entrypoint will:
+The build container is based on Ubuntu 26.10, which provides the Linux 7.3 kernel and OpenZFS 2.4.4. Ubuntu builds the
+ZFS module for each of its kernels, so the container needs no DKMS build, and the Ubuntu release decides both versions.
+``etc/zbm-builder/config.yaml`` selects the series with ``Kernel.Version: 7.3.*``. Build the image from the root of the
+ZFSBootMenu source tree:
+
+.. code-block:: bash
+
+  podman build -t localhost/zbm-builder releng/docker
+
+``localhost/zbm-builder:latest`` is the default image of ``zbm-builder.sh``. ``docker build`` takes the same arguments.
+
+When run, the container entrypoint will:
 
 1. Fetch a specified or default version of the ZFSBootMenu source repository (or use a local copy that is bind-mounted
    into the container);
@@ -96,32 +101,21 @@ The entrypoint always builds generic images (dracut's ``hostonly="no"``), becaus
 container runs say nothing about the machines ZFSBootMenu will boot. A ``dracut.conf.d`` file in the build directory may
 still override this.
 
-Ubuntu-Based Build Container
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Container Contents
+~~~~~~~~~~~~~~~~~~
 
-``releng/docker/Dockerfile.ubuntu`` builds an alternative image from Ubuntu 26.10, which provides Linux 7.3 and OpenZFS
-2.4.4. It runs the same entrypoint and is used in the same way:
-
-.. code-block:: bash
-
-  docker build -f releng/docker/Dockerfile.ubuntu -t zbm-builder:ubuntu releng/docker
-  ./zbm-builder.sh -i zbm-builder:ubuntu
-
-Compared with the Void image:
-
-* The kernel and the ZFS module are Ubuntu's own packages. Ubuntu builds the module for each kernel, so no DKMS build
-  is needed. The Ubuntu release chooses both versions. Later releases can be selected with
-  ``--build-arg UBUNTU_RELEASE=<version>``; earlier ones, including 26.04 LTS, lack the ``yq-go`` package that the
-  entrypoint needs.
+* A later Ubuntu release can be selected with ``--build-arg UBUNTU_RELEASE=<version>`` (``-u`` for
+  ``image-build.sh``). Earlier releases, including 26.04 LTS, lack the ``yq-go`` package that the entrypoint needs.
 * The image records its kernel series in ``/etc/zbm-kernel-version``. When ``Kernel.Version`` in the configuration
-  matches no installed kernel (the repository default is ``7.2.*``), the build uses the image's series and says so.
-* ``-k <series>`` installs the newest Ubuntu kernel of the series that has a ZFS module package; ``-p`` installs Ubuntu
-  packages.
-* Only dracut is available; Ubuntu does not package ``mkinitcpio``.
+  matches no installed kernel, the build uses the image's series and says so.
+* The entrypoint's ``-k <series>`` option installs the newest Ubuntu kernel of the series that has a ZFS module package;
+  ``-p`` installs Ubuntu packages.
+* Images are built with dracut. Ubuntu does not package ``mkinitcpio``, so configurations that set
+  ``Global.InitCPIO`` are refused.
 * systemd's cryptsetup token plugins are included, so TPM2 tokens with signed PCR policies or ``--tpm2-pcrlock`` can be
   unlocked (see :doc:`luks`).
 
-The :zbm:`container README <releng/docker/README.md>` describes both images in detail.
+The :zbm:`container README <releng/docker/README.md>` describes the image in detail.
 
 
 .. note::
@@ -144,7 +138,7 @@ script, run ``./zbm-builder.sh`` to produce a default kernel/initramfs pair in t
 
 The default behavior of ``zbm-builder.sh`` will:
 
-1. Pull the default builder image, ``ghcr.io/zbm-dev/zbm-builder:latest``.
+1. Use the builder image ``localhost/zbm-builder:latest``, which must have been built as described above.
 2. If ``./hostid`` does not exist, copy ``/etc/hostid`` (if it exists) to ``./hostid``.
 3. Spawn an ephemeral container from the builder image and run its build process:
 
@@ -177,19 +171,8 @@ Fully Customizing Images
 The entrypoint for the ZFSBootMenu implements a
 :zbm:`tiered configuration approach <releng/docker/README.md#zfsbootmenu-configuration-and-execution>`
 that allows default configurations to be augmented or replaced with local configurations in the build directory. A
-custom ``config.yaml`` may be provided in the working directory to override the default ZFSBootMenu configuration;
-configuration snippets for ``dracut`` or ``mkinitcpio`` can be placed in the ``dracut.conf.d`` and ``mkinitcpio.conf.d``
-subdirectories, respectively. For ``mkinitcpio`` configurations, a complete ``mkinitcpio.conf`` can be placed in the
-working directory to override the standard configuration.
-
-.. note::
-
-  The ``mkinitcpio`` configuration prepared by ``zbm-builder.sh`` may include custom snippets installed in a
-  ``mkinitcpio.d`` subdirectory of the build directory. The
-  :zbm:`default mkinitcpio configuration <etc/zbm-builder/mkinitcpio.conf>` includes a loop to source these snippets.
-  Should you prefer to overide the default ``mkinitcpio.conf`` in your build, any files in the ``mkinitcpio.d``
-  subdirectory will need to be sourced within your custom configuration. In general, it is better to leave the default
-  ``mkinitcpio.conf`` and store all custom configurations in the ``mkinitcpio.d`` subdirectory.
+custom ``config.yaml`` may be provided in the working directory to override the default ZFSBootMenu configuration, and
+configuration snippets for ``dracut`` can be placed in the ``dracut.conf.d`` subdirectory.
 
 The build container runs its build script from the working directory on the host. In general, relative paths in custom
 configuration files are generally acceptable and refer to locations relative to the build directory. If absolute paths
@@ -198,8 +181,7 @@ container.
 
 The internal build script **always** overrides the output paths for ZFSBootMenu components and UEFI executables to
 ensure that the images will reside in a specified output directory (or, by default, a ``build`` subdirectory of build
-directory) upon completion. Relative paths are primarily useful for specifying local ``dracut`` or ``mkinitcpio``
-configuration paths.
+directory) upon completion. Relative paths are primarily useful for specifying local ``dracut`` configuration paths.
 
 More advanced users may wish to alter the build process itself. Some control over the build process is exposed through
 command-line options that are described in the output of ``zbm-builder.sh -h``.

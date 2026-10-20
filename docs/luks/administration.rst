@@ -131,7 +131,7 @@ booting with the passphrase, replace the TPM enrollment:
 Binding with clevis instead
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-clevis TPM2 policies work in every image, including those built in the Void Linux container:
+clevis TPM2 policies work in every image, including those built without systemd's token plugins:
 
 .. code-block:: bash
 
@@ -507,19 +507,17 @@ No plain key file may ever appear in this listing.
 Building in the container
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The upstream ``zbm-builder`` container image and source tree do not contain these features. Build the container from
-this repository, and point ``zbm-builder.sh`` at both the image and the source tree:
+The upstream ZFSBootMenu source tree does not contain these features. Build the container from this repository, and
+point ``zbm-builder.sh`` at the source tree; ``localhost/zbm-builder`` is its default image:
 
 .. code-block:: bash
 
   # git clone https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
-  # cd /usr/src/zbm/releng/docker && podman build -t zbm-builder .
-  # # or, for the Ubuntu-based image with systemd's token plugins:
-  # # podman build -f Dockerfile.ubuntu -t zbm-builder .
+  # cd /usr/src/zbm && podman build -t localhost/zbm-builder releng/docker
   # mkdir -p /root/zbm-build/dracut.conf.d && cd /root/zbm-build
   # cp /etc/zfsbootmenu/crypttab ./crypttab
   # echo 'zfsbootmenu_luks_crypttab="/build/crypttab"' > dracut.conf.d/luks.conf
-  # /usr/src/zbm/zbm-builder.sh -i localhost/zbm-builder -l /usr/src/zbm
+  # /usr/src/zbm/zbm-builder.sh -l /usr/src/zbm
 
 The build directory is mounted in the container as */build*, and the images appear in its *build* subdirectory.
 Inside the container:
