@@ -30,6 +30,9 @@ ADMIN = REPO / "docs" / "luks" / "administration.rst"
 
 # placeholder name -> (disk serial, partition layout or None)
 PARTED = [("esp", "64M"), ("zfs", None)]
+# Example 12 on SSDs that keep 512-byte sectors: the LUKS partition has a size
+# in MiB, so that 4 KiB encryption sectors fit (see the example)
+SSD = [("esp", "64M"), ("zfs", "300M")]
 # auxiliary partitions hold a 16 MiB LUKS2 header and at least the 64 MiB
 # ZFS needs for a vdev
 FAST = [("esp", "32M"), ("special", "128M"), ("log", "128M"), ("cache", "128M"), ("dedup", None)]
@@ -37,7 +40,7 @@ DISKS = ([(f"ata-DISK{i}", f"w{i}", PARTED) for i in range(1, 8)]
          + [(f"ata-DISK{i}", f"x{i}", None) for i in range(1, 8)]
          + [(f"nvme-FAST{i}", f"f{i}", FAST) for i in range(1, 4)]
          + [("ata-NEWDISK", "n1", PARTED)]
-         + [(f"nvme-SSD{i}", f"s{i}", PARTED) for i in range(1, 3)])
+         + [(f"nvme-SSD{i}", f"s{i}", SSD) for i in range(1, 3)])
 
 
 def links():
