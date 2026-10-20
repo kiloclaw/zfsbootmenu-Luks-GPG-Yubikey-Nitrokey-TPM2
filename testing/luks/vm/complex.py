@@ -103,12 +103,14 @@ def setup(t):
     vm.must("n=; for i in {1..300}; do n=${n}n; done; : > \"/data/t/${n}\" && zpool sync tank")
     rc, _ = vm.sh("zfs rewrite -P /data/t/a && zpool sync tank")
     t.check(rc == 0, "zfs rewrite -P (physical rewrite, new in OpenZFS 2.4)")
-    # gang blocks: with ashift=12 every gang header is larger than 512 bytes,
-    # which activates dynamic_gang_header; force ganging of 128 KiB records
-    # in a dataset without dedup and compression
+    # gang blocks: ZFS 2.4 activates dynamic_gang_header when the children of
+    # a gang block do not fit (zio_write_gang_block). Forcing every block of
+    # 32 KiB or more to gang makes 128 KiB records gang and their ~43 KiB
+    # children gang again; their ~15 KiB grandchildren are allocated normally.
+    # Use a dataset without dedup and compression.
     try:
         rc, _ = vm.sh("zfs create -o mountpoint=/data/g -o dedup=off -o compression=off -o recordsize=128k tank/gang && "
-                      "P=/sys/module/zfs/parameters; echo 65537 > $P/metaslab_force_ganging; "
+                      "P=/sys/module/zfs/parameters; echo 32769 > $P/metaslab_force_ganging; "
                       "echo 100 > $P/metaslab_force_ganging_pct; "
                       "head -c 1048576 /dev/urandom > /data/g/gang; zpool sync tank; "
                       "echo 16777217 > $P/metaslab_force_ganging; zpool sync tank", t=900)
@@ -121,13 +123,13 @@ def setup(t):
     vm.must("zfs create -o mountpoint=/data/m mixed/data && zfs create -o mountpoint=/data/p parts/data && "
             "head -c 4194304 /dev/urandom > /data/m/f && head -c 4194304 /dev/urandom > /data/p/f && "
             "zpool sync mixed parts")
-    rc, out = vm.sh("features tank", show=True)
-    for f in NEW_FEATURES:
-        t.check(f in out.split(), f"tank: feature {f} active")
 
     # boot environment: encrypted root on tank
     vm.must(f"printf '{ZFSKEY}\\n{ZFSKEY}\\n' | mkbe tank -o encryption=on -o keyformat=passphrase "
             "-o keylocation=prompt")
+    rc, out = vm.sh("zpool sync tank && features tank", show=True)
+    for f in NEW_FEATURES:
+        t.check(f in out.split(), f"tank: feature {f} active")
     vm.must('becmdline tank/ROOT/be "${U[@]:0:13}" "${U[13]}=/etc/zbmtest/be-other.key" "${U[14]}"')
     rc, out = vm.sh("zpool status -P", show=True)
     # crypttab for the crypttab scenario: the names the pool was created with

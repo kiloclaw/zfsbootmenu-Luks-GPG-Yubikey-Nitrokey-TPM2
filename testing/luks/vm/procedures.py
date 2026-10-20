@@ -25,6 +25,7 @@ from zbmtest import (REPO, Test, VM, check_teardown, disk, follow_boot, partitio
                      zbm_image)
 
 VDEV = REPO / "docs" / "luks" / "vdev-configurations.rst"
+ZV = REPO / "docs" / "luks" / "zfs-versions.rst"
 ADMIN = REPO / "docs" / "luks" / "administration.rst"
 
 # placeholder name -> (disk serial, partition layout or None)
@@ -96,9 +97,10 @@ def feature_states(vm, pool):
 def upgrade_pool(t, vm, r):
     """
     Two pools created with compatibility=openzfs-2.3-linux on LUKS volumes:
-    zroot is upgraded with the commands of "Upgrading a Pool", zoff with the
-    compatibility property turned off, which leaves dynamic_gang_header to an
-    explicit zpool set.
+    zroot is upgraded with the commands of "Upgrading a Pool" of
+    zfs-versions.rst, zoff with the compatibility property turned off. zpool
+    upgrade never enables dynamic_gang_header (ZFEATURE_FLAG_NO_UPGRADE); the
+    documentation enables it with zpool set.
     """
     vm.must("V=(); U=(); mkluks pw \"--pbkdf argon2id --pbkdf-memory 65536 --iter-time 500\" "
             "/dev/disk/by-id/ata-DISK1-part2 /dev/disk/by-id/ata-DISK2-part2")
@@ -113,11 +115,19 @@ def upgrade_pool(t, vm, r):
     vm.sh("zpool upgrade zroot", show=True)
     t.check(feature_states(vm, "zroot").get("block_cloning_endian") == "disabled",
             "zpool upgrade keeps to the compatibility set")
-    out = r.doc(REPO / "docs" / "luks" / "zfs-versions.rst", "Upgrading a Pool")
+    # the documented upgrade, first without its zpool set step
+    dgh_set = [c for c in commands(ZV, "Upgrading a Pool") if "feature@dynamic_gang_header=enabled" in c]
+    t.check(len(dgh_set) == 1, "Upgrading a Pool enables dynamic_gang_header with zpool set")
+    r.doc(ZV, "Upgrading a Pool", skip=[r"feature@dynamic_gang_header=enabled"])
     f = feature_states(vm, "zroot")
-    t.check(all(f.get(x) == "enabled" for x in NEW_IN_24),
+    t.check(f.get("block_cloning_endian") == "enabled" and f.get("physical_rewrite") == "enabled",
+            "openzfs-2.4-linux and zpool upgrade enable block_cloning_endian and physical_rewrite")
+    t.check(f.get("dynamic_gang_header") == "disabled",
+            f"zpool upgrade leaves dynamic_gang_header {f.get('dynamic_gang_header')} (documented: disabled)")
+    rc, out = vm.sh(dgh_set[0] if dgh_set else "false", show=True)
+    f = feature_states(vm, "zroot")
+    t.check(rc == 0 and all(f.get(x) == "enabled" for x in NEW_IN_24),
             f"Upgrading a Pool: the 2.4 features are enabled ({[f.get(x) for x in NEW_IN_24]})")
-    t.check("feature@dynamic_gang_header" in out, "Upgrading a Pool: the check lists dynamic_gang_header")
 
     vm.sh("zpool set compatibility=off zoff && zpool upgrade zoff", show=True)
     f = feature_states(vm, "zoff")
