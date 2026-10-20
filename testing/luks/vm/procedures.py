@@ -194,10 +194,11 @@ def main():
 
     # Auxiliary vdevs on the RAIDZ2 pool of Example 5
     r.doc(VDEV, "Example 5: RAIDZ")
-    rc, out = vm.sh('VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST{1,2,3}-part2 && '
-                    'zpool add tank special mirror "${VDEVS[@]}"')
+    # zpool add accepts a mirror on RAIDZ2 only when it is three-way (parity + 1)
+    rc, out = vm.sh('VDEVS=(); luks_create /dev/disk/by-id/nvme-FAST{1,2}-part2 && '
+                    'zpool add tank special mirror "${VDEVS[@]}"', show=True)
     t.check(rc != 0 and "mismatched replication level" in out,
-            "without -f, zpool add refuses a special mirror on RAIDZ (as documented)")
+            "zpool add refuses a two-way special mirror on RAIDZ2 (as documented)")
     vm.sh('for v in "${VDEVS[@]}"; do cryptsetup close "${v##*/}"; done')
     r.doc(VDEV, "Example 7: Special allocation class")
     r.doc(VDEV, "Example 8: Log (SLOG)")
