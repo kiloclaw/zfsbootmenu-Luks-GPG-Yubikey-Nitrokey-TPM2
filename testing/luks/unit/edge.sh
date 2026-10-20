@@ -44,7 +44,7 @@ cleanup(){ rm -f /dev/mapper/* 2>/dev/null; detach_own_loops "$K"; rm -f /dev/hi
 trap cleanup EXIT
 
 run(){ export FAKE; FAKE="$(mktemp -d)"; mkdir -p "$FAKE"/{holders,maps,content,pools,busy}; rm -f /dev/mapper/* 2>/dev/null
-  for d in $STALE $MULTI $FIDOONLY $TOK $L1 $PLAIN $HDRDATA $GK; do echo zfs_member > "$FAKE/content/${d##*/}"; done
+  for d in $STALE $MULTI $FIDOONLY $TOK $L1 $PLAIN $HDRDATA $GK $CLV2; do echo zfs_member > "$FAKE/content/${d##*/}"; done
   echo "== $1"
   ( export PATH="$S/kstubs:$S/stubs:$PATH" BASE="$FAKE/base" LUKS_TPM2_TCTI="$TCTI" ANSWERS="$FAKE/answers"
     mkdir -p "$BASE/cmdline.d"; echo 0 > "$BASE/cmdline.d/zbm.luks_token_wait"
@@ -107,6 +107,35 @@ check "mapped" mapped v; check "no token export" bash -c "! grep -q 'token expor
 t(){ tab "v $HDRDATA none header=$K/hdr"; luks_unlock_all; }
 run "detached LUKS header" t <<< $'pw'
 check "mapped" mapped v; check "header passed to cryptsetup" grep -q -- "--header $K/hdr" "$FAKE/calls"
+
+# clevis as the second token, behind a TPM2 token with a PIN. clevis itself
+# finds a slot's token in the luksDump text, which lacks later tokens with
+# systemd 261's token plugins (emulated here, in front of the stub).
+CLV2=$(mkluks clev2 luks2 L); PASSWORD=pw NEWPIN=1234 systemd-cryptenroll --tpm2-device="$TCTI" --tpm2-pcrs= --tpm2-with-pin=yes "$CLV2" >/dev/null 2>&1
+printf 'pw' | clevis luks bind -y -k - -d "$CLV2" tpm2 '{}' >/dev/null 2>&1
+mkdir -p "$K/stderrstub"
+printf '%s\n' '#!/bin/bash' \
+  'if [ "$1" = luksDump ] && [[ " $* " != *" --dump-json-metadata "* ]]; then' \
+  '  /usr/sbin/cryptsetup "$@" | awk '"'"'/^  1: /{e=1} {if (e) print > "/dev/stderr"; else print}'"'"'; exit "${PIPESTATUS[0]}"; fi' \
+  "exec '$S/stubs/cryptsetup' \"\$@\"" > "$K/stderrstub/cryptsetup"; chmod 755 "$K/stderrstub/cryptsetup"
+t(){ PATH="$K/stderrstub:$PATH"; tab "v $CLV2 none"; luks_unlock_all; }
+run "clevis as second token, luksDump prints it to stderr (systemd 261 plugins)" t < /dev/null
+check "mapped with no prompt" mapped v; check "unlocked via clevis" grep -q "unlocked $CLV2 with clevis" "$FAKE/log"
+check "no PIN prompt" [ "$(prompts 'TPM2 PIN')" -eq 0 ]
+
+# clevis token in a detached header: the JWE of CLV2 opens a new key slot
+# of the header
+CLPASS=$(cryptsetup token export --token-id 1 "$CLV2" | jose fmt -j- -Og jwe -o- | jose jwe fmt -i- -c | clevis decrypt 2>/dev/null)
+slots(){ cryptsetup luksDump "$1" 2>/dev/null | sed -n '/^Keyslots:/,/^Tokens:/p' | sed -En 's/^  ([0-9]+): luks2.*/\1/p' | sort; }
+before=$(slots "$K/hdr")
+printf 'pw' | cryptsetup luksAddKey -q --header "$K/hdr" --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --key-file=- "$HDRDATA" <(printf '%s' "$CLPASS")
+NEWSLOT=$(comm -13 <(echo "$before") <(slots "$K/hdr"))
+cryptsetup token export --token-id 1 "$CLV2" | sed -E 's/"keyslots": *\[[^]]*\]/"keyslots":["'"$NEWSLOT"'"]/' > "$K/clevhdr.json"
+cryptsetup token import --json-file "$K/clevhdr.json" "$K/hdr"
+t(){ tab "v $HDRDATA none header=$K/hdr"; luks_unlock_all; }
+run "clevis token in a detached LUKS2 header" t < /dev/null
+check "clevis slot added (${NEWSLOT:-none})" [ -n "$NEWSLOT" ]
+check "mapped with no prompt" mapped v; check "unlocked via clevis" grep -q "unlocked $HDRDATA with clevis" "$FAKE/log"
 
 t(){ tab "v $L1 none"; luks_unlock_all; }
 run "LUKS1 volume (no tokens)" t <<< $'pw'

@@ -643,8 +643,8 @@ luks_try_clevis_token() {
   json="${4}"
   shift 4
 
-  if ! command -v clevis >/dev/null 2>&1; then
-    zinfo "clevis token ${id} on ${dev} needs clevis in the image"
+  if ! command -v clevis >/dev/null 2>&1 || ! command -v jose >/dev/null 2>&1; then
+    zinfo "clevis token ${id} on ${dev} needs clevis and jose in the image"
     return 1
   fi
 
@@ -656,9 +656,14 @@ luks_try_clevis_token() {
   # Load TPM drivers in case the clevis policy uses the TPM
   luks_have_tpm2 >/dev/null 2>&1
 
+  # Decrypt the token's JWE as 'clevis luks pass' does, but from the token
+  # JSON exported above: clevis finds the token of a key slot by parsing
+  # 'cryptsetup luksDump' text, which lacks every token after the first with
+  # systemd's token plugins (cryptsetup 2.8, systemd 261), and it cannot
+  # read a detached header.
   work="$( mktemp /run/zbm-key.XXXXXX 2>/dev/null || mktemp /tmp/zbm-key.XXXXXX )" || return 1
-  if TPM2TOOLS_TCTI="${LUKS_TPM2_TCTI}" clevis luks pass -d "${dev}" -s "${slot}" \
-      > "${work}" 2>/dev/null && [ -s "${work}" ]; then
+  if jose fmt -j- -Og jwe -o- <<< "${json}" 2>/dev/null | jose jwe fmt -i- -c 2>/dev/null \
+      | TPM2TOOLS_TCTI="${LUKS_TPM2_TCTI}" clevis decrypt > "${work}" 2>/dev/null && [ -s "${work}" ]; then
     luks_cryptsetup_open "${name}" "${dev}" - "$@" < "${work}"
     ret=$?
   else

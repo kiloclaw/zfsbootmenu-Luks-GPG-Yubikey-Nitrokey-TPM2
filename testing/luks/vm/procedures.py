@@ -30,7 +30,9 @@ ADMIN = REPO / "docs" / "luks" / "administration.rst"
 
 # placeholder name -> (disk serial, partition layout or None)
 PARTED = [("esp", "64M"), ("zfs", None)]
-FAST = [("esp", "32M"), ("special", "72M"), ("log", "72M"), ("cache", "72M"), ("dedup", None)]
+# auxiliary partitions hold a 16 MiB LUKS2 header and at least the 64 MiB
+# ZFS needs for a vdev
+FAST = [("esp", "32M"), ("special", "128M"), ("log", "128M"), ("cache", "128M"), ("dedup", None)]
 DISKS = ([(f"ata-DISK{i}", f"w{i}", PARTED) for i in range(1, 8)]
          + [(f"ata-DISK{i}", f"x{i}", None) for i in range(1, 8)]
          + [(f"nvme-FAST{i}", f"f{i}", FAST) for i in range(1, 4)]
@@ -147,7 +149,7 @@ def main():
     t = Test("procedures")
     vdisks = []
     for name, serial, parts in DISKS:
-        d = disk("procedures", serial, fresh=True)
+        d = disk("procedures", serial, size="768M" if parts is FAST else "384M", fresh=True)
         if parts:
             partition(d, parts)
         vdisks.append((d, serial))
