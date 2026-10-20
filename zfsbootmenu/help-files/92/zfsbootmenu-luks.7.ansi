@@ -63,9 +63,9 @@
 
       1. a key script ([1mkeyscript=[0m);
       2. a key file, plain or GnuPG-encrypted;
-      3. LUKS2 tokens. Tokens that need no interaction come first: TPM2 without a PIN, then
-      clevis. Tokens that need interaction follow: TPM2 with a PIN, then FIDO2
-      security keys;
+      3. LUKS2 tokens, as listed in the volume's JSON metadata. Tokens that need no
+      interaction come first: TPM2 without a PIN, then clevis. Tokens that need
+      interaction follow: TPM2 with a PIN, then FIDO2 security keys;
       4. passphrases, and YubiKey responses, that unlocked an earlier volume in this run;
       5. YubiKey challenge-response ([1mykchalresp[0m);
       6. a passphrase prompt.
@@ -124,8 +124,9 @@
     [1mzbm.luks_token_wait=[0m[33mseconds[0m
 
       How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device
-      to be plugged in before moving on. The default is 10 seconds; [1m0[0m disables
-      waiting. Pressing any key ends the wait.
+      to be plugged in before moving on: a whole number of seconds from [1m0[0m to [1m999999[0m,
+      read as decimal even with leading zeros. The default is 10 seconds, also used
+      for any other value; [1m0[0m disables waiting. Pressing any key ends the wait.
 
   [1mUNLOCK METHODS[0m
 
@@ -183,6 +184,12 @@
     the pool-import retry loop. Before each import retry, ZFSBootMenu looks for LUKS
     volumes that are neither open nor skipped by the user, unlocks them, and retries the
     import at once.
+
+    The retry loop ends as soon as a pool can be imported, even [1mDEGRADED[0m: a redundant pool
+    is then booted without the disks that have not appeared yet, and their volumes stay
+    locked. To wait for slow disks, name them in [1mzbm.wait_for[0m (the disks themselves;
+    ZFSBootMenu waits for them before unlocking anything), in [1mzbm.luks[0m, or in the
+    crypttab.
 
   [1mBOOT ENVIRONMENT HAND-OFF[0m
 

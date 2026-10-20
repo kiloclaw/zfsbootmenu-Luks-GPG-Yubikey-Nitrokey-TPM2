@@ -45,6 +45,10 @@ LUKS volumes that appeared since the last attempt (slow USB enclosures and some 
 unlocks them, and imports again right away. Volumes you skipped are not offered again. From the recovery shell, use
 ``zluks`` to unlock volumes and then ``exit`` to resume.
 
+The loop ends as soon as a pool can be imported, even ``DEGRADED``, so disks that appear after that are not used. To
+make ZFSBootMenu wait for slow disks, list them in ``zbm.wait_for`` (it waits for them before unlocking anything), or
+name their volumes in ``zbm.luks`` or the crypttab.
+
 For every volume, ZFSBootMenu tries these methods in order and stops at the first that works:
 
 1. a key script (``keyscript=``);

@@ -34,8 +34,13 @@ Conventions
 
   .. code-block:: bash
 
-    POOL_OPTS=( -o ashift=12 -o autotrim=on -o compatibility=openzfs-2.3-linux
+    POOL_OPTS=( -o ashift=12 -o autotrim=on -o compatibility=openzfs-2.4-linux
                 -O compression=lz4 -O acltype=posixacl -O xattr=sa -O relatime=on -m none )
+
+  ``compatibility=openzfs-2.4-linux`` limits the pool to the features of OpenZFS 2.4. The ZFSBootMenu build container
+  provides OpenZFS 2.4.4, and every system that imports the pool, including the booted system and any rescue system,
+  needs OpenZFS 2.4 or later. If one of them runs an older version, use the matching set, such as
+  ``openzfs-2.3-linux``. See :doc:`zfs-versions`.
 
 .. warning::
 
@@ -106,7 +111,7 @@ A pool on one LUKS volume. It has no redundancy: a failed disk loses the pool.
 .. code-block:: bash
 
   # VDEVS=()
-  # luks_create /dev/disk/by-id/nvme-DISK1-part2
+  # luks_create /dev/disk/by-id/ata-DISK1-part2
   # zpool create -f "${POOL_OPTS[@]}" zroot "${VDEVS[0]}"
 
 Example 2: Two-way mirror
@@ -177,6 +182,9 @@ Special, log, cache and spare vdevs hold pool data too, and must also be on LUKS
 example, holds the plaintext of recent synchronous writes. They can be given when the pool is created, or added later
 with ``zpool add``.
 
+ZFS refuses vdevs smaller than 64 MiB (*device is less than the minimum size*), and a LUKS2 header takes 16 MiB of the
+partition, so a partition for a small log or special vdev needs at least 80 MiB.
+
 Example 7: Special allocation class
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -188,14 +196,21 @@ RAIDZ2:
 
   # VDEVS=()
   # luks_create /dev/disk/by-id/nvme-FAST{1,2,3}-part2
-  # zpool add -f tank special mirror "${VDEVS[@]}"
+  # zpool add tank special mirror "${VDEVS[@]}"
   # zfs set special_small_blocks=64K tank
 
-On a pool of RAIDZ or dRAID vdevs, ``zpool add`` refuses a mirror without ``-f``, reporting *mismatched replication
-level*, because the vdev types differ. ``-f`` is needed only for that reason; check the rest of the command before using
-it. On a pool of mirrors, omit ``-f``.
+``zpool add`` checks that a new special or dedup vdev is as redundant as the data vdevs. On a RAIDZ or dRAID pool it
+accepts a mirror with one device more than the parity level, such as the three-way mirror for RAIDZ2 above, and
+refuses other widths with *mismatched replication level*. ``-f`` overrides the check, but the pool is then only as
+redundant as its weakest vdev.
 
-A dedup vdev is added the same way with ``dedup`` instead of ``special``.
+A dedup vdev holds the deduplication tables of datasets with ``dedup=on``. It is added the same way:
+
+.. code-block:: bash
+
+  # VDEVS=()
+  # luks_create /dev/disk/by-id/nvme-FAST{1,2,3}-part5
+  # zpool add tank dedup mirror "${VDEVS[@]}"
 
 Example 8: Log (SLOG)
 ~~~~~~~~~~~~~~~~~~~~~
@@ -276,8 +291,13 @@ machine with an emulated NVMe SSD.
      # nvme format /dev/nvme0n1 --lbaf=1 --force
      # nvme format /dev/nvme1n1 --lbaf=1 --force
 
-2. Partition both SSDs as in `Preparing LUKS Volumes`_ (an ESP and a type ``8309`` partition on each), then create
-   the LUKS volumes with 4 KiB encryption sectors and open them with the flags stored in the header:
+2. Partition both SSDs as in `Preparing LUKS Volumes`_ (an ESP and a type ``8309`` partition on each). On an SSD
+   that keeps 512-byte sectors, 4 KiB encryption sectors need a partition whose size is a multiple of 4 KiB.
+   ``sgdisk -n2:0:0`` ends the partition on the last usable sector, so its size usually is not; give it a size in MiB
+   instead, such as ``-n2:0:+900000M`` (``sfdisk`` ends partitions on 1 MiB boundaries by itself). Otherwise
+   ``luksFormat`` stops with *Device size is not aligned to requested sector size*.
+
+   Create the LUKS volumes with 4 KiB encryption sectors and open them with the flags stored in the header:
 
    .. code-block:: bash
 

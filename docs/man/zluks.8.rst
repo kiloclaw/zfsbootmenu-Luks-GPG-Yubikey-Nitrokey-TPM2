@@ -30,7 +30,9 @@ Mappings opened by **zluks** or by ZFSBootMenu itself are recorded, so that they
 boots a boot environment. Mappings opened directly with **cryptsetup**\ (8) are not recorded and are left alone.
 
 After unlocking volumes, type **exit** in the recovery shell to return to ZFSBootMenu, which retries the pool import,
-or import pools manually with **zpool import**.
+or import pools manually with **zpool import**. This also applies to the emergency shell that ZFSBootMenu opens when it
+finds no boot environment, for example because only pools with unencrypted devices could be imported: when the shell
+exits, ZFSBootMenu imports the pools that became importable and shows its menu.
 
 **zluks** is only present in images built with LUKS support (the default when **cryptsetup** is installed on the build
 host).

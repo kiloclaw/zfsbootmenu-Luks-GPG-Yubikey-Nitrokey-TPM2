@@ -54,7 +54,9 @@
   general/luks
   luks/vdev-configurations
   luks/administration
+  luks/zfs-versions
   luks/tools
+  luks/testing
 
 .. toctree::
   :caption: General Information

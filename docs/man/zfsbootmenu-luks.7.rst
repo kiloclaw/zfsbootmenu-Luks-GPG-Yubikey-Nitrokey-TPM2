@@ -62,8 +62,8 @@ For each volume, ZFSBootMenu tries the following methods in order and stops at t
 
 1. a key script (**keyscript=**);
 2. a key file, plain or GnuPG-encrypted;
-3. LUKS2 tokens. Tokens that need no interaction come first: TPM2 without a PIN, then clevis. Tokens that need
-   interaction follow: TPM2 with a PIN, then FIDO2 security keys;
+3. LUKS2 tokens, as listed in the volume's JSON metadata. Tokens that need no interaction come first: TPM2 without a
+   PIN, then clevis. Tokens that need interaction follow: TPM2 with a PIN, then FIDO2 security keys;
 4. passphrases, and YubiKey responses, that unlocked an earlier volume in this run;
 5. YubiKey challenge-response (**ykchalresp**);
 6. a passphrase prompt.
@@ -119,7 +119,8 @@ These options are given on the ZFSBootMenu kernel command line, for example with
 **zbm.luks_token_wait=**\ *seconds*
 
   How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device to be plugged in before moving
-  on. The default is 10 seconds; **0** disables waiting. Pressing any key ends the wait.
+  on: a whole number of seconds from **0** to **999999**, read as decimal even with leading zeros. The default is 10
+  seconds, also used for any other value; **0** disables waiting. Pressing any key ends the wait.
 
 UNLOCK METHODS
 ==============
@@ -177,6 +178,10 @@ LATE DEVICES
 Devices named in the crypttab or in **zbm.luks** are waited for at start-up. Disks that appear later, such as slow USB
 enclosures or some SAS controllers, are handled by the pool-import retry loop. Before each import retry, ZFSBootMenu
 looks for LUKS volumes that are neither open nor skipped by the user, unlocks them, and retries the import at once.
+
+The retry loop ends as soon as a pool can be imported, even **DEGRADED**: a redundant pool is then booted without the
+disks that have not appeared yet, and their volumes stay locked. To wait for slow disks, name them in **zbm.wait_for**
+(the disks themselves; ZFSBootMenu waits for them before unlocking anything), in **zbm.luks**, or in the crypttab.
 
 BOOT ENVIRONMENT HAND-OFF
 =========================

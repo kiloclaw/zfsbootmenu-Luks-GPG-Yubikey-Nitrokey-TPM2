@@ -51,7 +51,23 @@ Tool                                      Used to
 ``lsinitrd``, ``lsinitcpio``              list the contents of an image
 ``objcopy``                               extract the initramfs from a unified EFI image (``--only-section=.initrd``)
 ``nvme`` (nvme-cli)                       NVMe sector formats (``id-ns``, ``format``) and health (``smart-log``)
+``zfs version``                           ZFS tools and module version, here and in ZFSBootMenu; see :doc:`zfs-versions`
+``zpool upgrade``                         enable new pool features, within the ``compatibility`` set
 ========================================  ============================================================================
+
+Test Suites
+-----------
+
+The test suites of the LUKS support live in ``testing/luks``; :doc:`testing` describes them.
+
+==========================================  ==========================================================================
+Script                                      Runs
+==========================================  ==========================================================================
+``testing/luks/unit/run-all.sh``            the unit suites on the host (root)
+``testing/luks/unit/run-in-container.sh``   the unit suites in the build container, with its tool versions
+``testing/luks/vm/run-all.sh``              the virtual-machine tests: pools created with ZFS 2.4.4, booted through
+                                            ZFSBootMenu into a ZFS 2.4.4 boot environment
+==========================================  ==========================================================================
 
 Kernel Command-Line Parameters
 ------------------------------

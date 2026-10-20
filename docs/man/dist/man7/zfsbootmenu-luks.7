@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "ZFSBOOTMENU-LUKS" "7" "2026-10-19" "" "ZFSBootMenu"
+.TH "ZFSBOOTMENU-LUKS" "7" "2026-10-20" "" "ZFSBootMenu"
 .SH NAME
 zfsbootmenu-luks \- ZFS pools on LUKS volumes, and hardware-backed unlocking
 .SH SYNOPSIS
@@ -102,8 +102,8 @@ a key script (\fBkeyscript=\fP);
 .IP 2. 3
 a key file, plain or GnuPG\-encrypted;
 .IP 3. 3
-LUKS2 tokens. Tokens that need no interaction come first: TPM2 without a PIN, then clevis. Tokens that need
-interaction follow: TPM2 with a PIN, then FIDO2 security keys;
+LUKS2 tokens, as listed in the volume\(aqs JSON metadata. Tokens that need no interaction come first: TPM2 without a
+PIN, then clevis. Tokens that need interaction follow: TPM2 with a PIN, then FIDO2 security keys;
 .IP 4. 3
 passphrases, and YubiKey responses, that unlocked an earlier volume in this run;
 .IP 5. 3
@@ -181,7 +181,8 @@ Do not use LUKS2 tokens.
 .INDENT 0.0
 .INDENT 3.5
 How long to wait for a FIDO2 security key, OpenPGP smart card, YubiKey or key device to be plugged in before moving
-on. The default is 10 seconds; \fB0\fP disables waiting. Pressing any key ends the wait.
+on: a whole number of seconds from \fB0\fP to \fB999999\fP, read as decimal even with leading zeros. The default is 10
+seconds, also used for any other value; \fB0\fP disables waiting. Pressing any key ends the wait.
 .UNINDENT
 .UNINDENT
 .SH UNLOCK METHODS
@@ -225,6 +226,10 @@ Plain key files present in the running image or on another device, and Debian\-s
 Devices named in the crypttab or in \fBzbm.luks\fP are waited for at start\-up. Disks that appear later, such as slow USB
 enclosures or some SAS controllers, are handled by the pool\-import retry loop. Before each import retry, ZFSBootMenu
 looks for LUKS volumes that are neither open nor skipped by the user, unlocks them, and retries the import at once.
+.sp
+The retry loop ends as soon as a pool can be imported, even \fBDEGRADED\fP: a redundant pool is then booted without the
+disks that have not appeared yet, and their volumes stay locked. To wait for slow disks, name them in \fBzbm.wait_for\fP
+(the disks themselves; ZFSBootMenu waits for them before unlocking anything), in \fBzbm.luks\fP, or in the crypttab.
 .SH BOOT ENVIRONMENT HAND-OFF
 .sp
 The system teardown hook \fI80\-luks\-close.sh\fP runs right before \fBkexec\fP\&. It exports every pool that has a vdev on a

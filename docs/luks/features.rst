@@ -13,7 +13,9 @@ how to use it:
 * :doc:`/general/luks` explains how unlocking works and how to configure it;
 * :doc:`vdev-configurations` walks through creating pools of every common layout on LUKS, step by step;
 * :doc:`administration` covers key management and day-to-day administration;
-* :doc:`tools` lists every command, option and file.
+* :doc:`tools` lists every command, option and file;
+* :doc:`zfs-versions` explains which ZFS versions can import which pools;
+* :doc:`testing` describes the test suites and how to run them.
 
 The reference manual pages are :doc:`zfsbootmenu-luks(7) </man/zfsbootmenu-luks.7>`,
 :doc:`zfsbootmenu-crypttab(5) </man/zfsbootmenu-crypttab.5>` and :doc:`zluks(8) </man/zluks.8>`.
@@ -71,6 +73,19 @@ Tolerant configuration
   crypttab files may use CRLF line endings and lack a final newline; ``UUID=`` and ``PARTUUID=`` match in either case;
   invalid numeric options are ignored with a warning instead of making every unlock attempt fail.
 
+Every token of a volume
+  LUKS2 tokens are read from the volume's JSON metadata (``cryptsetup luksDump --dump-json-metadata``), so a volume
+  with several tokens, such as a TPM2 token and a FIDO2 key or a clevis binding, tries each of them in turn. Reading
+  the human-readable dump instead missed every token after the first with cryptsetup 2.8 and systemd 261's token
+  plugins, which print those sections to standard error. For the same reason, clevis tokens are decrypted from the
+  token's JWE (``jose`` and ``clevis decrypt``) rather than with ``clevis luks pass``, which also makes them work with
+  detached headers.
+
+OpenZFS 2.4.4
+  Images built in the build container use OpenZFS 2.4.4 and import pools that use any OpenZFS 2.4 feature, including
+  RAIDZ expansion, fast deduplication, block cloning, long names, physical rewrites and dynamic gang headers. See
+  :doc:`zfs-versions`.
+
 Build integration
   The dracut module and the mkinitcpio hook install ``cryptsetup``, device-mapper udev rules, dm-crypt and crypto
   modules, TPM/USB/HID drivers, and, when installed on the build host, systemd's token plugins, ``tpm2-tools``,
@@ -88,9 +103,11 @@ Configuration                               Notes
 Single disk (stripe)                        no redundancy
 Mirror (2-way, 3-way, ...)                  most common for boot pools
 Striped mirrors ("RAID 10")                 several mirror vdevs in one pool
-RAIDZ1, RAIDZ2, RAIDZ3                      RAIDZ expansion needs OpenZFS 2.3 or later
+RAIDZ1, RAIDZ2, RAIDZ3                      any width
 dRAID                                       needs OpenZFS 2.1 or later
-Special and dedup allocation classes        should be mirrored; holds metadata and small blocks
+Special allocation class                    should be mirrored; holds metadata and small blocks
+Dedup allocation class                      should be mirrored; holds the deduplication tables
+RAIDZ expansion (``zpool attach``)          needs OpenZFS 2.3 or later
 Log (SLOG)                                  must be encrypted: holds plaintext of synchronous writes
 Cache (L2ARC)                               must be encrypted; found by path (see below)
 Hot spares                                  found by path (see below)
@@ -127,7 +144,9 @@ Requirements
 * For TPM2 tokens without systemd's plugin: tokens created by systemd 254 or later, ``tpm2-tools`` and ``openssl``.
 * For FIDO2 tokens without systemd's plugin: ``fido2-tools`` (libfido2).
 * For OpenPGP cards: GnuPG 2.2 or later with ``scdaemon``.
-* The ZFS version in the ZFSBootMenu image must support every feature enabled on the pools.
+* The ZFS version in the ZFSBootMenu image must support every feature that is active on the pools (OpenZFS 2.4.4 in
+  images built in the build container); see :doc:`zfs-versions`.
+* ``cryptsetup`` 2.4 or later reads token metadata as JSON; older versions fall back to parsing ``luksDump`` output.
 
 Other Changes in This Build
 ---------------------------
@@ -142,6 +161,9 @@ Other Changes in This Build
   host-only by default, which left the ZFS and dm-crypt modules out of container builds.
 * The build container starts again: its entrypoint was declared as ``/${ZBM_BUILDER}``, which is not expanded in that
   form of ``ENTRYPOINT``.
+* When ZFSBootMenu finds no boot environment, it opens an emergency shell. When that shell exits, ZFSBootMenu now
+  imports the pools that became importable in it, read-only as at start-up, before it shows the menu again, so that
+  ``zluks unlock`` followed by ``exit`` works there as in the recovery shell of the import loop.
 * The mkinitcpio hook no longer fails the build when an optional kernel module does not exist.
 * ``make install`` no longer fails when the version is taken from a branch name containing ``/``, which happens in
   clones without release tags.
@@ -165,39 +187,29 @@ Known Limitations
 Validation Status
 -----------------
 
-The following was tested, in virtual machines running this ZFSBootMenu build and in scripted tests on real LUKS
-volumes:
+The test suites in ``testing/luks`` cover every feature on this page; :doc:`testing` describes each test and lists
+the latest results. In summary:
 
-* Pools: a RAIDZ2 data vdev with special and log mirrors, a cache device and a hot spare, all on LUKS, plus a mirror
-  mixing a whole-disk LUKS volume with a plain partition, and ZFS native encryption on top. Tested healthy, with two
-  disks missing (degraded), with disks hot-plugged while ZFSBootMenu waited, and during the import retry loop.
-* Root mount failures: a wrong ZFS key leads to the recovery shell, with volumes and pools still available.
-* TPM2 with and without a PIN (systemd plugin and native code), PCR policies, lockout handling, clevis TPM2, and
-  passphrase-protected GnuPG key files, against a software TPM.
-* GnuPG key files encrypted to an OpenPGP key, FIDO2 and YubiKey challenge-response, against software stand-ins.
-* The procedures in :doc:`vdev-configurations` and :doc:`administration` (creating every pool layout, adding special,
-  log, cache and spare vdevs, replacing and attaching disks), run as written, followed by a boot through ZFSBootMenu.
-* A single-disk NVMe installation in a UEFI virtual machine with an emulated NVMe SSD: switching to 4 KiB sectors,
-  LUKS2 with 4 KiB sectors and TRIM and work-queue flags stored in the header, unlocking without any crypttab
-  (``zbm.luks=`` in ZFSBootMenu, systemd's ``luks.*`` parameters in the boot environment), boot entries created with
-  ``efibootmgr``, and a reboot through the firmware: one passphrase prompt, none in the boot environment. A key file
-  on a FAT USB stick unlocked without a prompt, and without the stick ZFSBootMenu waited, then asked for the
-  passphrase.
+* Unit suites run the LUKS code against real LUKS1 and LUKS2 headers, a software TPM, ``systemd-cryptenroll``,
+  clevis and GnuPG, with the host's tools and with those of the build container: unlocking and teardown, every key
+  method, tokens, configuration parsing and edge cases, and races between sessions.
+* Virtual-machine tests boot images built by the build container (Ubuntu 26.10, Linux 7.3, OpenZFS 2.4.4) into a
+  boot environment that also runs OpenZFS 2.4.4: single-disk, mirror, striped-mirror, RAIDZ1-3 and dRAID pools on
+  LUKS; a RAIDZ2 pool with special, dedup and log mirrors, a cache and a spare, expanded by RAIDZ expansion, with
+  ZFS native encryption on top; pools mixing LUKS and plain disks or partitions; healthy, degraded and hot-plugged
+  disks; wrong keys and skipped prompts (root mount failures); TPM2, clevis and GnuPG key management; a UEFI boot
+  from NVMe without a crypttab, with and without a USB key stick; and the procedures of :doc:`vdev-configurations`,
+  :doc:`administration` and :doc:`zfs-versions`, run as written.
+
+Tested outside the suites, by hand:
+
 * The Gentoo installation guide ``Gentoo Linux ZFS LUKS-V4.md`` on a real Gentoo stage3 (systemd profile,
   ``gentoo-kernel-bin`` 6.18, systemd 261) in a UEFI virtual machine with an emulated NVMe SSD: from partitioning to
   the first boot through the firmware, ZFSBootMenu and Gentoo's own systemd initramfs, with one passphrase prompt, no
   crypttab, and no failed systemd units.
-* Images built by the build container (Ubuntu 26.10, Linux 7.3, OpenZFS 2.4.4): the pool tests above (healthy, with
-  matching mapping names, degraded, hot-plugged disks, a wrong ZFS key), TPM2 with a PIN through both systemd's plugin
-  and the native code together with a GnuPG key file, and its EFI image booted through the firmware on the Gentoo
-  NVMe installation described above. The container image built with ``podman build``, ``docker build`` and
-  ``image-build.sh``; the CI build steps and ``releng/make-binary.sh`` produced release and recovery assets; images with
-  ``dracut-crypt-ssh``, set up as in :doc:`/general/container-building/example` and by
-  ``contrib/remote-ssh-build.sh``, accepted SSH logins with the authorized key only.
-* Edge cases in scripted tests: crypttab files with CRLF line endings, without a final newline, with tabs and
-  comments; upper-case UUIDs; the same device listed twice or under two names; mapping-name clashes; unknown device
-  specifications and non-LUKS devices; invalid numeric options; passphrases with spaces, quotes, backslashes, a
-  leading dash, non-ASCII characters and 400 characters; empty, missing and directory key files; key files inside a
-  larger file (``keyfile-offset``, ``keyfile-size``); a USB key stick arriving late, absent, or missing its key file.
+* The build container image built with ``podman build``, ``docker build`` and ``image-build.sh``; the CI build steps
+  and ``releng/make-binary.sh`` produced release and recovery assets; images with ``dracut-crypt-ssh``, set up as in
+  :doc:`/general/container-building/example` and by ``contrib/remote-ssh-build.sh``, accepted SSH logins with the
+  authorized key only.
 
 Not yet tested on real hardware: YubiKey, Nitrokey and other FIDO2 or OpenPGP devices. Please report problems.

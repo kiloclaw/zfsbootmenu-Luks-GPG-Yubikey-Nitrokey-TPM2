@@ -25,7 +25,9 @@
     environment. Mappings opened directly with [1mcryptsetup[0m(8) are not recorded and are left alone.
 
     After unlocking volumes, type [1mexit[0m in the recovery shell to return to ZFSBootMenu, which retries the pool import, or import
-    pools manually with [1mzpool import[0m.
+    pools manually with [1mzpool import[0m. This also applies to the emergency shell that ZFSBootMenu opens when it finds no boot
+    environment, for example because only pools with unencrypted devices could be imported: when the shell exits, ZFSBootMenu
+    imports the pools that became importable and shows its menu.
 
     [1mzluks[0m is only present in images built with LUKS support (the default when [1mcryptsetup[0m is installed on the build host).
 

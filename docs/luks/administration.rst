@@ -51,6 +51,14 @@ table:
 
 Inside ZFSBootMenu, ``zluks list`` shows the token types of every volume.
 
+In scripts, read tokens from the JSON metadata instead of the text output. With systemd's token plugins installed,
+cryptsetup 2.8 and later print the sections of all tokens after the first to standard error, so a pipe sees only the
+first one:
+
+.. code-block:: bash
+
+  # cryptsetup luksDump --dump-json-metadata /dev/sda2 | grep '"type"'
+
 Backing up LUKS headers
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -310,7 +318,8 @@ NVMe SSDs
 Sector size
   Many NVMe SSDs can switch from 512-byte to 4096-byte logical blocks. ``nvme id-ns -H /dev/nvme0n1`` lists the
   formats; ``nvme format /dev/nvme0n1 --lbaf=<n> --force`` switches, **erasing the SSD**. Format LUKS volumes with
-  ``--sector-size 4096`` and create pools with ``ashift=12`` in either case.
+  ``--sector-size 4096`` and create pools with ``ashift=12`` in either case. With 512-byte logical blocks, the LUKS
+  partition's size must then be a multiple of 4 KiB (see Example 12 in :doc:`vdev-configurations`).
 
 Flags in the LUKS header
   ``cryptsetup open --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue --persistent`` stores TRIM and
@@ -334,6 +343,22 @@ Drivers
 
 Pool Maintenance
 ----------------
+
+Booting with a failed disk
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When a disk has failed or is missing, ZFSBootMenu unlocks the volumes that are present, imports the pool
+``DEGRADED`` and boots it, as long as the pool's redundancy covers the missing disk. The booted system's initramfs must
+then also do without the missing volume:
+
+* dracut waits for every volume named with ``rd.luks.uuid=`` on the command line, and after its timeout drops to its
+  emergency shell. For one boot, press *MOD+E* in ZFSBootMenu and remove the missing volume's ``rd.luks.uuid=``
+  (and its ``rd.luks.key=``). The change does not persist.
+* With a crypttab in the initramfs, systemd waits for every device listed without the ``nofail`` option, and the boot
+  fails if one does not appear. Mark the volumes of redundant pools ``nofail`` so that a missing disk does not stop the
+  boot; see **crypttab**\ (5).
+
+Then replace the disk as described below.
 
 Replacing a failed disk
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -400,7 +425,9 @@ Expanding a RAIDZ vdev
 ~~~~~~~~~~~~~~~~~~~~~~
 
 OpenZFS 2.3 and later can add a disk to an existing RAIDZ vdev. The pool's ZFS version must support the
-``raidz_expansion`` feature, and so must the ZFS version in the ZFSBootMenu image:
+``raidz_expansion`` feature, and so must the ZFS version in the ZFSBootMenu image (images built in the build container
+have OpenZFS 2.4.4). Once the expansion starts, ZFS versions older than 2.3 can no longer import the pool; see
+:doc:`zfs-versions`:
 
 .. code-block:: bash
 
@@ -408,6 +435,12 @@ OpenZFS 2.3 and later can add a disk to an existing RAIDZ vdev. The pool's ZFS v
   # luks_create /dev/disk/by-id/ata-DISK7-part2
   # zpool attach tank raidz2-0 "${VDEVS[0]}"
   # zpool wait -t raidz_expand tank
+
+Upgrading pool features
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Enable new pool features only after updating ZFSBootMenu and every other system that imports the pool; see
+:doc:`zfs-versions` for the order and the commands.
 
 Removing an auxiliary vdev
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -503,6 +536,9 @@ its embedded command line with ``zbm-kcl``:
   # rm /run/zbm-initrd.img
 
 No plain key file may ever appear in this listing.
+
+The ZFS version in the image determines which pools it can import. Run ``zfs version`` in a recovery shell of the
+running image; see :doc:`zfs-versions`.
 
 Building in the container
 ~~~~~~~~~~~~~~~~~~~~~~~~~
