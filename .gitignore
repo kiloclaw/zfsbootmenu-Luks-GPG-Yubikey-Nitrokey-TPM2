@@ -8,3 +8,6 @@ tests/stubs/local.*
 build
 hostid
 zpool.cache
+
+# Rust build output
+/target/

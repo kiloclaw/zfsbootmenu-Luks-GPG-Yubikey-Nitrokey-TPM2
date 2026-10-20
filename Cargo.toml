@@ -1,0 +1,30 @@
+# Cargo workspace for the Rust port of ZFSBootMenu.
+#
+# The bootloader that ships today is the Bash and Perl code in legacy/. Each crate in crates/ replaces one part of it;
+# see CONTRIBUTING.md.
+
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/kiloclaw/zfsbootmenu-luks-gpg-yubikey-nitrokey-tpm2"
+publish = false
+
+[workspace.lints.rust]
+# Crates that need FFI (ioctl, kexec_file_load) can allow it locally with #![allow(unsafe_code)].
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+# Binaries end up in an initramfs, so size matters more than build time.
+lto = true
+codegen-units = 1
+strip = true

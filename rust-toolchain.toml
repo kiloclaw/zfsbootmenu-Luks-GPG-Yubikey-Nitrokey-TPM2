@@ -1,0 +1,5 @@
+# The toolchain used by CI and by default for local builds. The oldest supported compiler is rust-version in Cargo.toml.
+[toolchain]
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
