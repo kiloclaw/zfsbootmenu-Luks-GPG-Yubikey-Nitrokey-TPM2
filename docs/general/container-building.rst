@@ -26,10 +26,11 @@ The ``zbm-builder.sh`` script provides a front-end for integrating custom ZFSBoo
 container without the complexity of directly controlling the container runtime.
 
 Users wishing to build custom ZFSBootMenu images should be familiar with the core concepts of ZFSBootMenu as outlined in
-the :zbm:`project README <README.md>`. For those interested, the :zbm:`container README <releng/docker/README.md>`
-provides more details on the operation of the ZFSBootMenu build container. However, the ``zbm-builder.sh``
-:zbm:`build helper <zbm-builder.sh>` provides a front-end for integrating custom ZFSBootMenu configurations into the
-build container and abstracts away many of the complex details discussed in that document.
+the :zbm:`project README <README.md>`. For those interested, the container README
+(``packaging/container/README.md`` in this repository) provides more details on the operation of the ZFSBootMenu build
+container. However, the ``zbm-builder.sh`` build helper (``packaging/container/zbm-builder.sh``) provides a front-end
+for integrating custom ZFSBootMenu configurations into the build container and abstracts away many of the complex
+details discussed in that document.
 
 Dependencies
 ------------
@@ -38,10 +39,10 @@ To build ZFSBootMenu images from a build container, either `podman <https://podm
 `docker <https://www.docker.com>`_ is required. The development team prefers ``podman``, but ``docker`` or a
 compatible container utility may generally be substituted without consequence.
 
-The build container image is not published in a registry; it is built from the
-:zbm:`Dockerfile <releng/docker/Dockerfile>` in this repository with ``podman build``, ``docker build`` or the
-``buildah``-based ``releng/docker/image-build.sh`` script. The :zbm:`container README <releng/docker/README.md>`
-provides more information about the process of creating the build image.
+The build container image is not published in a registry; it is built from ``packaging/container/Dockerfile`` in
+this repository with ``podman build``, ``docker build`` or the ``buildah``-based ``packaging/container/image-build.sh``
+script. The container README (``packaging/container/README.md``) provides more information about the process of
+creating the build image.
 
 Podman
 ~~~~~~
@@ -76,12 +77,12 @@ The Build Container and Its Helper
 
 The build container is based on Ubuntu 26.10, which provides the Linux 7.3 kernel and OpenZFS 2.4.4. Ubuntu builds the
 ZFS module for each of its kernels, so the container needs no DKMS build, and the Ubuntu release decides both versions.
-``etc/zbm-builder/config.yaml`` selects the series with ``Kernel.Version: 7.3.*``. Build the image from the root of the
-ZFSBootMenu source tree:
+``config/zbm-builder/config.yaml`` selects the series with ``Kernel.Version: 7.3.*``. Build the image from the root of
+the ZFSBootMenu source tree:
 
 .. code-block:: bash
 
-  podman build -t localhost/zbm-builder releng/docker
+  podman build -t localhost/zbm-builder packaging/container
 
 ``localhost/zbm-builder:latest`` is the default image of ``zbm-builder.sh``. ``docker build`` takes the same arguments.
 
@@ -115,7 +116,7 @@ Container Contents
 * systemd's cryptsetup token plugins are included, so TPM2 tokens with signed PCR policies or ``--tpm2-pcrlock`` can be
   unlocked (see :doc:`luks`).
 
-The :zbm:`container README <releng/docker/README.md>` describes the image in detail.
+The container README (``packaging/container/README.md``) describes the image in detail.
 
 
 .. note::
@@ -168,11 +169,11 @@ allow custom hooks to be included in ZFSBootMenu images.
 Fully Customizing Images
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The entrypoint for the ZFSBootMenu implements a
-:zbm:`tiered configuration approach <releng/docker/README.md#zfsbootmenu-configuration-and-execution>`
-that allows default configurations to be augmented or replaced with local configurations in the build directory. A
-custom ``config.yaml`` may be provided in the working directory to override the default ZFSBootMenu configuration, and
-configuration snippets for ``dracut`` can be placed in the ``dracut.conf.d`` subdirectory.
+The entrypoint for the ZFSBootMenu implements a tiered configuration approach (see "ZFSBootMenu Configuration and
+Execution" in ``packaging/container/README.md``) that allows default configurations to be augmented or replaced with
+local configurations in the build directory. A custom ``config.yaml`` may be provided in the working directory to
+override the default ZFSBootMenu configuration, and configuration snippets for ``dracut`` can be placed in the
+``dracut.conf.d`` subdirectory.
 
 The build container runs its build script from the working directory on the host. In general, relative paths in custom
 configuration files are generally acceptable and refer to locations relative to the build directory. If absolute paths
@@ -187,7 +188,7 @@ More advanced users may wish to alter the build process itself. Some control ove
 command-line options that are described in the output of ``zbm-builder.sh -h``.
 
 Before adjusting these command-line options, seek a thorough understanding of the
-:zbm:`image build process <releng/docker/README.md>` and the command sequence of ``zbm-builder.sh`` itself.
+image build process (``packaging/container/README.md``) and the command sequence of ``zbm-builder.sh`` itself.
 
 ..
   vim: softtabstop=2 shiftwidth=2 textwidth=120

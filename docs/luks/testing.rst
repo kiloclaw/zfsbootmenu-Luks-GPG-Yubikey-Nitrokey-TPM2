@@ -9,15 +9,15 @@ Testing
 Introduction
 ------------
 
-The LUKS support of ZFSBootMenu is tested at two levels, both kept in ``testing/luks``:
+The LUKS support of ZFSBootMenu is tested at two levels, both kept in ``tests/luks``:
 
-Unit suites (``testing/luks/unit``)
+Unit suites (``tests/luks/unit``)
   Shell scripts that run ZFSBootMenu's LUKS code (``zfsbootmenu-luks.sh`` and ``zfsbootmenu-luks-keys.sh``) against
   real LUKS1 and LUKS2 headers on loop devices, a software TPM, real ``systemd-cryptenroll``, clevis and GnuPG, and
   stand-ins for FIDO2 keys and YubiKeys. Device-mapper and ``zpool`` are replaced by stubs, so the suites check the
   decisions the code makes: what it asks, which method it uses, what it opens and closes, and what it leaves behind.
 
-Virtual-machine tests (``testing/luks/vm``)
+Virtual-machine tests (``tests/luks/vm``)
   Python scripts that boot ZFSBootMenu images in QEMU and follow every boot from the firmware or kernel to the booted
   system. The images are built by the build container from the source tree under test, so they contain OpenZFS 2.4.4
   and the container's cryptsetup, systemd and GnuPG. Every pool is created with the ZFS 2.4.4 tools of those images,
@@ -52,10 +52,10 @@ Running the Tests
 
 .. code-block:: bash
 
-  # testing/luks/unit/run-all.sh
-  # testing/luks/unit/run-in-container.sh
-  # testing/luks/vm/run-all.sh
-  # testing/luks/vm/run-all.sh layouts-main complex-hotplug
+  # tests/luks/unit/run-all.sh
+  # tests/luks/unit/run-in-container.sh
+  # tests/luks/vm/run-all.sh
+  # tests/luks/vm/run-all.sh layouts-main complex-hotplug
 
 ``vm/run-all.sh`` runs every VM test, or the named ones, one virtual machine at a time, and prints a summary. Setups
 must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a

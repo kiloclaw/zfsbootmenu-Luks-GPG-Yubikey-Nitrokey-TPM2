@@ -2,7 +2,7 @@
 generate-zbm
 ============
 
-.. KEEP IN SYNC WITH bin/generate-zbm
+.. KEEP IN SYNC WITH legacy/bin/generate-zbm
 
 .. only:: html
 

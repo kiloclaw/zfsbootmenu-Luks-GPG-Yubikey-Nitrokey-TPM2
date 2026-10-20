@@ -24,7 +24,9 @@ extensions = [
 ]
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '*env', '**/_include', 'README.md']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '*env', '**/_include', 'README.md',
+                    # Markdown guides read on GitHub, not part of the rendered site
+                    'guides/gentoo/*.md']
 
 today_fmt = '%Y-%m-%d'
 highlight_language = 'sh'

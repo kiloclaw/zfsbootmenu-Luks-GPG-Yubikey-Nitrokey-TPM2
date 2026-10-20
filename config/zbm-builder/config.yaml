@@ -1,0 +1,21 @@
+Global:
+  # The build container uses dracut; it has no mkinitcpio
+  # The build container *forces* Global.ManageImages
+Components:
+  # Enable only current kernel/initramfs components and a backup
+  Enabled: true
+  Versions: false
+  # The ZBM build container *forces* Components.ImageDir
+EFI:
+  # Enable only current EFI executable and a backup file
+  Enabled: true
+  Versions: false
+  # The ZBM build container *forces* EFI.ImageDir
+Kernel:
+  # Build with the Linux 7.3 kernel of the Ubuntu 26.10 build container; the
+  # series follows UBUNTU_RELEASE in packaging/container/Dockerfile (build-init.sh -k
+  # overrides it, and a version that matches no installed kernel falls back to
+  # the series recorded in the container)
+  Version: 7.3.*
+  # Set ZBM command-line options for the EFI bundle here
+  CommandLine: zfsbootmenu ro quiet loglevel=4 nomodeset

@@ -5,19 +5,19 @@ on:
       - master
     paths:
       - '**.sh'
-      - 'bin/**'
-      - 'initcpio/**'
-      - 'testing/**'
-      - 'zfsbootmenu/bin/**'
-      - 'zfsbootmenu/libexec/**'
+      - 'legacy/**'
+      - 'packaging/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'contrib/**'
   pull_request:
     paths:
       - '**.sh'
-      - 'bin/**'
-      - 'initcpio/**'
-      - 'testing/**'
-      - 'zfsbootmenu/bin/**'
-      - 'zfsbootmenu/libexec/**'
+      - 'legacy/**'
+      - 'packaging/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'contrib/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

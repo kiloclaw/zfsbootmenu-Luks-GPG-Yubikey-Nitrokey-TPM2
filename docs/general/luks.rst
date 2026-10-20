@@ -449,7 +449,7 @@ Options for ``dracut.conf.d`` or the ZFSBootMenu ``mkinitcpio.conf``:
 ``zfsbootmenu_luks_yubikey=no``
   Leave out ``ykchalresp``.
 
-The build container (``releng/docker``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and
+The build container (``packaging/container``) installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and
 openssl together with systemd's cryptsetup token plugins, so its images support every method, including tokens that only
 the plugins support; see :doc:`container-building`.
 

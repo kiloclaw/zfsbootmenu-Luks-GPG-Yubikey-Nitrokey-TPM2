@@ -19,8 +19,8 @@ LUKS does not change any of this: ZFS does not know that its devices are encrypt
 ZFS in ZFSBootMenu Images
 -------------------------
 
-Images built in the build container (``releng/docker``, Ubuntu 26.10) contain OpenZFS 2.4.4, both the tools and the
-kernel module, with the Linux 7.3 kernel. Images built on a host contain the host's ZFS.
+Images built in the build container (``packaging/container``, Ubuntu 26.10) contain OpenZFS 2.4.4, both the tools and
+the kernel module, with the Linux 7.3 kernel. Images built on a host contain the host's ZFS.
 
 To see the version of a running image, open a recovery shell in ZFSBootMenu (*Escape*, then *MOD+R*) and run:
 

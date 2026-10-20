@@ -58,14 +58,14 @@ Tool                                      Used to
 Test Suites
 -----------
 
-The test suites of the LUKS support live in ``testing/luks``; :doc:`testing` describes them.
+The test suites of the LUKS support live in ``tests/luks``; :doc:`testing` describes them.
 
 ==========================================  ==========================================================================
 Script                                      Runs
 ==========================================  ==========================================================================
-``testing/luks/unit/run-all.sh``            the unit suites on the host (root)
-``testing/luks/unit/run-in-container.sh``   the unit suites in the build container, with its tool versions
-``testing/luks/vm/run-all.sh``              the virtual-machine tests: pools created with ZFS 2.4.4, booted through
+``tests/luks/unit/run-all.sh``              the unit suites on the host (root)
+``tests/luks/unit/run-in-container.sh``     the unit suites in the build container, with its tool versions
+``tests/luks/vm/run-all.sh``                the virtual-machine tests: pools created with ZFS 2.4.4, booted through
                                             ZFSBootMenu into a ZFS 2.4.4 boot environment
 ==========================================  ==========================================================================
 

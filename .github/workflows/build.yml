@@ -4,20 +4,16 @@ on:
     branches:
       - master
     paths:
-      - 'bin/**'
-      - 'zfsbootmenu/**'
-      - 'dracut/**'
-      - 'initcpio/**'
-      - 'releng/docker/**'
-      - 'etc/**'
+      - 'legacy/**'
+      - 'packaging/**'
+      - 'config/**'
+      - 'scripts/**'
   pull_request:
     paths:
-      - 'bin/**'
-      - 'zfsbootmenu/**'
-      - 'dracut/**'
-      - 'initcpio/**'
-      - 'releng/docker/**'
-      - 'etc/**'
+      - 'legacy/**'
+      - 'packaging/**'
+      - 'config/**'
+      - 'scripts/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,22 +29,22 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Create the build container
-        run: docker build -t localhost/zbm-builder releng/docker
+        run: docker build -t localhost/zbm-builder packaging/container
 
       - name: Prepare repository for build
         run: |
           mkdir -p "${BUILD_DIR}"
           docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" \
             --entrypoint /bin/bash localhost/zbm-builder -c '
-              echo "zfsbootmenu_module_root=/zbm/zfsbootmenu" > /zbm/etc/zfsbootmenu/dracut.conf.d/zbm_modroot.conf
-              yq-go e ".Global.DracutFlags += [\"--no-early-microcode\"]" /zbm/etc/zbm-builder/config.yaml > /build/config.yaml
+              echo "zfsbootmenu_module_root=/zbm/legacy/zfsbootmenu" > /zbm/config/zfsbootmenu/dracut.conf.d/zbm_modroot.conf
+              yq-go e ".Global.DracutFlags += [\"--no-early-microcode\"]" /zbm/config/zbm-builder/config.yaml > /build/config.yaml
             '
 
       - name: Build release artifacts
         run: |
           sudo rm -rf "${BUILD_DIR}/dracut.conf.d" "${BUILD_DIR}/build"
           mkdir -p "${BUILD_DIR}/dracut.conf.d"
-          cp etc/zfsbootmenu/release.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
+          cp config/zfsbootmenu/release.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
           docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
           sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
 
@@ -70,7 +66,7 @@ jobs:
         run: |
           sudo rm -rf "${BUILD_DIR}/dracut.conf.d" "${BUILD_DIR}/build"
           mkdir -p "${BUILD_DIR}/dracut.conf.d"
-          cp etc/zfsbootmenu/recovery.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
+          cp config/zfsbootmenu/recovery.conf.d/*.conf "${BUILD_DIR}/dracut.conf.d/"
           docker run --rm -v "${PWD}:/zbm" -v "${BUILD_DIR}:/build" localhost/zbm-builder -- --debug
           sudo chown -R "$(id -u):$(id -g)" "${BUILD_DIR}"
 

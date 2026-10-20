@@ -352,7 +352,8 @@ machine with an emulated NVMe SSD.
    why it is added with ``--pbkdf pbkdf2 --pbkdf-force-iterations 1000``; the passphrase slots keep the default
    memory-hard Argon2id.
 
-For a complete single-disk installation along these lines, see ``Gentoo Linux ZFS LUKS-V4.md`` in the repository.
+For a complete single-disk installation along these lines, see the Gentoo guide ``docs/guides/gentoo/zfs-luks-v4.md``
+in the repository.
 
 .. _luks-making-pool-bootable:
 

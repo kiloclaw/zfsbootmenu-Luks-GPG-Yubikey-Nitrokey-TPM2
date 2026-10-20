@@ -151,12 +151,12 @@ Requirements
 Other Changes in This Build
 ---------------------------
 
-* The build container (``releng/docker``) is based on Ubuntu 26.10 instead of Void Linux. It uses Ubuntu's kernel
+* The build container (``packaging/container``) is based on Ubuntu 26.10 instead of Void Linux. It uses Ubuntu's kernel
   (Linux 7.3) and ZFS module (OpenZFS 2.4.4), selected by ``Kernel.Version: 7.3.*`` in
-  ``etc/zbm-builder/config.yaml``, and installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers, openssl
-  and systemd's cryptsetup token plugins. It builds with dracut only, because Ubuntu does not package ``mkinitcpio``.
-  The image is built locally (``podman build -t localhost/zbm-builder releng/docker``), and ``zbm-builder.sh`` uses it
-  by default; see :doc:`/general/container-building`. CI builds the same image.
+  ``config/zbm-builder/config.yaml``, and installs GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers,
+  openssl and systemd's cryptsetup token plugins. It builds with dracut only, because Ubuntu does not package
+  ``mkinitcpio``. The image is built locally (``podman build -t localhost/zbm-builder packaging/container``), and
+  ``zbm-builder.sh`` uses it by default; see :doc:`/general/container-building`. CI builds the same image.
 * The build container entrypoint always builds generic images (dracut ``hostonly="no"``). Ubuntu's dracut is
   host-only by default, which left the ZFS and dm-crypt modules out of container builds.
 * The build container starts again: its entrypoint was declared as ``/${ZBM_BUILDER}``, which is not expanded in that
@@ -187,7 +187,7 @@ Known Limitations
 Validation Status
 -----------------
 
-The test suites in ``testing/luks`` cover every feature on this page; :doc:`testing` describes each test and lists
+The test suites in ``tests/luks`` cover every feature on this page; :doc:`testing` describes each test and lists
 the latest results. In summary:
 
 * Unit suites run the LUKS code against real LUKS1 and LUKS2 headers, a software TPM, ``systemd-cryptenroll``,
@@ -203,13 +203,13 @@ the latest results. In summary:
 
 Tested outside the suites, by hand:
 
-* The Gentoo installation guide ``Gentoo Linux ZFS LUKS-V4.md`` on a real Gentoo stage3 (systemd profile,
+* The Gentoo installation guide ``docs/guides/gentoo/zfs-luks-v4.md`` on a real Gentoo stage3 (systemd profile,
   ``gentoo-kernel-bin`` 6.18, systemd 261) in a UEFI virtual machine with an emulated NVMe SSD: from partitioning to
   the first boot through the firmware, ZFSBootMenu and Gentoo's own systemd initramfs, with one passphrase prompt, no
   crypttab, and no failed systemd units.
 * The build container image built with ``podman build``, ``docker build`` and ``image-build.sh``; the CI build steps
-  and ``releng/make-binary.sh`` produced release and recovery assets; images with ``dracut-crypt-ssh``, set up as in
-  :doc:`/general/container-building/example` and by ``contrib/remote-ssh-build.sh``, accepted SSH logins with the
+  and ``scripts/release/make-binary.sh`` produced release and recovery assets; images with ``dracut-crypt-ssh``, set up
+  as in :doc:`/general/container-building/example` and by ``contrib/remote-ssh-build.sh``, accepted SSH logins with the
   authorized key only.
 
 Not yet tested on real hardware: YubiKey, Nitrokey and other FIDO2 or OpenPGP devices. Please report problems.

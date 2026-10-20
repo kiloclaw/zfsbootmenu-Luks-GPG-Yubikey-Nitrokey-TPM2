@@ -549,11 +549,11 @@ point ``zbm-builder.sh`` at the source tree; ``localhost/zbm-builder`` is its de
 .. code-block:: bash
 
   # git clone https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
-  # cd /usr/src/zbm && podman build -t localhost/zbm-builder releng/docker
+  # cd /usr/src/zbm && podman build -t localhost/zbm-builder packaging/container
   # mkdir -p /root/zbm-build/dracut.conf.d && cd /root/zbm-build
   # cp /etc/zfsbootmenu/crypttab ./crypttab
   # echo 'zfsbootmenu_luks_crypttab="/build/crypttab"' > dracut.conf.d/luks.conf
-  # /usr/src/zbm/zbm-builder.sh -l /usr/src/zbm
+  # /usr/src/zbm/packaging/container/zbm-builder.sh -l /usr/src/zbm
 
 The build directory is mounted in the container as */build*, and the images appear in its *build* subdirectory.
 Inside the container:
