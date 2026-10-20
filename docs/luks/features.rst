@@ -188,6 +188,10 @@ volumes:
   ``gentoo-kernel-bin`` 6.18, systemd 261) in a UEFI virtual machine with an emulated NVMe SSD: from partitioning to
   the first boot through the firmware, ZFSBootMenu and Gentoo's own systemd initramfs, with one passphrase prompt, no
   crypttab, and no failed systemd units.
+* Images built by the Ubuntu 26.10 build container (Linux 7.3, OpenZFS 2.4.4): the pool tests above (healthy, with
+  matching mapping names, degraded, hot-plugged disks, a wrong ZFS key), TPM2 with a PIN through both systemd's plugin
+  and the native code together with a GnuPG key file, and its EFI image booted through the firmware on the Gentoo
+  NVMe installation described above.
 * Edge cases in scripted tests: crypttab files with CRLF line endings, without a final newline, with tabs and
   comments; upper-case UUIDs; the same device listed twice or under two names; mapping-name clashes; unknown device
   specifications and non-LUKS devices; invalid numeric options; passphrases with spaces, quotes, backslashes, a
