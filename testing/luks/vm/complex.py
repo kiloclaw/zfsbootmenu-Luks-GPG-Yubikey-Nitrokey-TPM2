@@ -245,9 +245,13 @@ def main():
         expect_healthy(t, b)
 
     elif scenario == "hotplug-auto":
+        # All late disks are plugged in within one retry interval. Disks that
+        # arrive after a retry has imported the pools DEGRADED are not used:
+        # the loop ends once a pool imports (see LATE DEVICES in
+        # zfsbootmenu-luks(7)).
         late = [0, 1, 2, 3, 12, 13, 14, 15]
         vm = VM(t, scenario, disks=disks(skip=late), kernel=auto["kernel"], initrd=auto["initrd"],
-                append=base).start()
+                append="console=ttyS0 zbm.timeout=3 zbm.retry_delay=60").start()
 
         def plug(v):
             t.step("ZFSBootMenu is in its import retry loop; adding the remaining disks")
