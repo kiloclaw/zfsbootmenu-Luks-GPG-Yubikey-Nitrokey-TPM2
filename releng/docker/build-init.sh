@@ -14,8 +14,78 @@ error() {
   exit 1
 }
 
+# The container is either Void Linux (xbps) or Ubuntu/Debian (apt)
+if command -v xbps-install >/dev/null 2>&1; then
+  PKGMGR="xbps"
+elif command -v apt-get >/dev/null 2>&1; then
+  PKGMGR="apt"
+  export DEBIAN_FRONTEND=noninteractive
+else
+  error "no supported package manager (xbps or apt) found"
+fi
+
+# Ubuntu kernel flavour used by -k
+: "${ZBM_KERNEL_FLAVOUR:=generic}"
+
+apt_install() {
+  apt-get -y install --no-install-recommends "$@"
+}
+
+update_apt() {
+  [ -n "${APT_UPDATE_COMPLETE}" ] && return 0
+  readonly APT_UPDATE_COMPLETE="yes"
+  apt-get update || error "failed to update package lists"
+}
+
+update_pkgdb() {
+  case "${PKGMGR}" in
+    xbps) update_xbps ;;
+    apt) update_apt ;;
+  esac
+}
+
+# Install the newest Ubuntu kernel of a series, with its ZFS module
+install_apt_kernel() {
+  local series="${1}" abi pkg
+  local -a pkgs
+
+  abi="$(
+    apt-cache search --names-only \
+      "^linux-image-${series//./\\.}\.[0-9]+-[0-9]+-${ZBM_KERNEL_FLAVOUR}\$" \
+      | sed -n "s/^linux-image-\([^ ]*\) .*/\1/p" | sort -V | tail -n 1
+  )"
+  [ -n "${abi}" ] || return 1
+
+  # The ZFS module is in linux-main-modules-zfs-* since Ubuntu 26.04 and in
+  # linux-modules-* before
+  pkgs=( "linux-image-${abi}" )
+  for pkg in "linux-modules-${abi}" "linux-main-modules-zfs-${abi}"; do
+    apt-cache show "${pkg}" >/dev/null 2>&1 && pkgs+=( "${pkg}" )
+  done
+
+  apt_install --allow-change-held-packages "${pkgs[@]}" || return 1
+  modinfo -k "${abi}" zfs >/dev/null 2>&1 || {
+    echo "ERROR: kernel ${abi} has no ZFS module"
+    return 1
+  }
+  apt-mark hold "${pkgs[@]}"
+}
+
+# Package names of ZFS userspace on Ubuntu/Debian
+apt_zfs_packages() {
+  dpkg-query -W -f '${Package}\n' 2>/dev/null \
+    | grep -E '^(zfsutils-linux|libzfs|libzpool|libnvpair|libuutil)'
+}
+
 update_zfs() {
   local packages zpkg
+
+  if [ "${PKGMGR}" = "apt" ]; then
+    mapfile -t packages < <( apt_zfs_packages )
+    [ "${#packages[@]}" -ge 1 ] || return 0
+    apt_install --only-upgrade --allow-change-held-packages "${packages[@]}"
+    return
+  fi
 
   packages=()
   for zpkg in zfs libzfs zfs-lts libzfs-lts; do
@@ -48,7 +118,7 @@ Usage: $0 [options]
      (Default: \${BUILDROOT}/build)
 
   -p <package>
-     Install the named Void Linux package in the container
+     Install the named distribution package in the container
      before building. May be specified more than once to
      install more than one package.
 
@@ -57,12 +127,15 @@ Usage: $0 [options]
      (Ignored if /zbm already contains a ZFSBootMenu tree)
 
   -u
-    Update Void packages in the container
+    Update distribution packages in the container
     (Kernel and ZFS packages will be ignored)
 
   -k <series>
-    Install the specified Void kernel series, headers and all
+    Install the specified kernel series, headers and all
     components necessary to build ZFS modules for the series
+    (Void), or the newest kernel of the series that has an
+    Ubuntu ZFS module package (Ubuntu; the flavour is taken
+    from \$ZBM_KERNEL_FLAVOUR, default "generic")
 
     The <series> argument takes the form "X.Y" for a major
     version X and minor version Y.
@@ -88,6 +161,9 @@ EOF
 
 hold_kern_zfs() {
   local kernels zpkg
+
+  # Ubuntu images hold kernel and ZFS packages with apt-mark already
+  [ "${PKGMGR}" = "apt" ] && return 0
 
   # Hold all kernel packages
   kernels="$(xbps-query -p pkgname --regex -s 'linux[0-9]+\.[0-9]')" || kernels=
@@ -172,20 +248,44 @@ fi
 
 # Update packages, if desired
 if [ -n "${UPDATE}" ]; then
-  update_xbps
-  hold_kern_zfs
-  xbps-install -uy || error "failed to update packages"
-  xbps-query -H | xargs -r xbps-pkgdb -m unhold
+  update_pkgdb
+  if [ "${PKGMGR}" = "apt" ]; then
+    # Held kernel and ZFS packages are kept back
+    apt-get -y upgrade || error "failed to update packages"
+  else
+    hold_kern_zfs
+    xbps-install -uy || error "failed to update packages"
+    xbps-query -H | xargs -r xbps-pkgdb -m unhold
+  fi
 fi
 
 if [ "${#PACKAGES[@]}" -gt 0 ]; then
   # Install all requested packages
-  update_xbps
-  xbps-install -y "${PACKAGES[@]}" || error "failed to install requested packages"
+  update_pkgdb
+  if [ "${PKGMGR}" = "apt" ]; then
+    apt_install "${PACKAGES[@]}" || error "failed to install requested packages"
+  else
+    xbps-install -y "${PACKAGES[@]}" || error "failed to install requested packages"
+  fi
 fi
 
-if [ -n "${KERN_SERIES}" ]; then
-  update_xbps
+if [ -n "${KERN_SERIES}" ] && [ "${PKGMGR}" = "apt" ]; then
+  update_pkgdb
+
+  if [ -n "${UPDATE_ZFS}" ]; then
+    update_zfs || error "failed to update ZFS packages"
+  fi
+
+  install_apt_kernel "${KERN_SERIES}" \
+    || error "failed to install a ${ZBM_KERNEL_FLAVOUR} kernel of series ${KERN_SERIES} with ZFS"
+
+  # Override kernel version to match the requested series by default
+  CONFIGEVALS=(
+    ".Kernel.Version = \"${KERN_SERIES}.*\""
+    "${CONFIGEVALS[@]}"
+  )
+elif [ -n "${KERN_SERIES}" ]; then
+  update_pkgdb
 
   if [ -n "${UPDATE_ZFS}" ]; then
     update_zfs || error "failed to update ZFS packages"
@@ -221,7 +321,7 @@ if [ ! -d /zbm ] || ! ls -Aq /zbm 2>/dev/null | grep -q . >/dev/null 2>&1; then
 
   mkdir -p /zbm
 
-  # In Void, tar is gnutar, so --strip-components is available
+  # Void and Ubuntu both use GNU tar, so --strip-components is available
   tar -xv --strip-components=1 -f "${ZBMWORKDIR}/zbm.tar.gz" -C /zbm
 fi
 
@@ -283,6 +383,15 @@ fi
 # Link all configuration files in standard location;
 # go from most generic to most specificj
 mkdir -p /etc/zfsbootmenu
+
+# Images built in a container must not depend on the container host, whose
+# loaded modules have nothing to do with the machines ZFSBootMenu will boot.
+# Some distributions (Ubuntu, for one) make dracut host-only by default, which
+# would leave the ZFS and dm-crypt modules out. Files linked below may still
+# override this.
+mkdir -p /etc/zfsbootmenu/dracut.conf.d
+echo 'hostonly="no"' > /etc/zfsbootmenu/dracut.conf.d/00-zbm-builder-generic.conf \
+  || error "unable to write dracut configuration"
 confroots=(
   "/zbm/etc/zfsbootmenu"
   "/zbm/etc/zbm-builder"
@@ -323,6 +432,29 @@ for ceval in "${CONFIGEVALS[@]}"; do
   yq-go eval "${ceval}" -i "${ZBMCONF}" \
     || error "failed to apply '${ceval}' to config"
 done
+
+# Containers whose kernel series differs from the one in the configuration
+# (Ubuntu images record theirs in /etc/zbm-kernel-version) fall back to their
+# own kernel when the configured version matches no installed kernel
+if [ -z "${KERN_SERIES}" ] && [ -r /etc/zbm-kernel-version ]; then
+  read -r default_kver < /etc/zbm-kernel-version
+  conf_kver="$( yq-go eval '.Kernel.Version // ""' "${ZBMCONF}" )"
+  kver_found=
+  if [ -n "${conf_kver}" ]; then
+    for kprefix in vmlinuz linux vmlinux kernel; do
+      if compgen -G "/boot/${kprefix}-${conf_kver}" >/dev/null; then
+        kver_found="yes"
+        break
+      fi
+    done
+  fi
+
+  if [ -n "${default_kver}" ] && [ -n "${conf_kver}" ] && [ -z "${kver_found}" ]; then
+    echo "INFO: no kernel matches Kernel.Version ${conf_kver}; using ${default_kver}"
+    yq-go eval ".Kernel.Version = \"${default_kver}\"" -i "${ZBMCONF}" \
+      || error "failed to set kernel version ${default_kver}"
+  fi
+fi
 
 # If possible, update the version recorded in the ZFSBootMenu repository
 if [ "${SKIP_VERSIONING,,}" != "yes" ] && [ -x /zbm/releng/version.sh ]; then

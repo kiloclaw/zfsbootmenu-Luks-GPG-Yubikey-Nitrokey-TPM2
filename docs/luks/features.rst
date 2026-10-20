@@ -136,6 +136,13 @@ Other Changes in This Build
   later, and ``etc/zbm-builder/config.yaml`` selects it with ``Kernel.Version: 7.2.*``. The container also installs
   GnuPG with ``scdaemon``, libfido2, clevis, tpm2-tools, ykpers and openssl. Void has no systemd, so container builds
   use ZFSBootMenu's own TPM2 and FIDO2 code.
+* An Ubuntu-based build container (``releng/docker/Dockerfile.ubuntu``) uses Ubuntu 26.10's kernel (Linux 7.3) and
+  ZFS module (OpenZFS 2.4.4) and includes systemd's cryptsetup token plugins. The same entrypoint serves both
+  containers; see :doc:`/general/container-building`.
+* The build container entrypoint always builds generic images (dracut ``hostonly="no"``). Ubuntu's dracut is
+  host-only by default, which left the ZFS and dm-crypt modules out of container builds.
+* The build containers start again: their entrypoint was declared as ``/${ZBM_BUILDER}``, which is not expanded in
+  that form of ``ENTRYPOINT``.
 * The mkinitcpio hook no longer fails the build when an optional kernel module does not exist.
 * ``make install`` no longer fails when the version is taken from a branch name containing ``/``, which happens in
   clones without release tags.
@@ -150,7 +157,8 @@ Known Limitations
 * Each FIDO2 credential belongs to one volume, so a pool of *n* volumes enrolled with one security key needs *n*
   touches.
 * The native TPM2 code does not support signed PCR policies, ``--tpm2-pcrlock`` or tokens created before systemd 254.
-  Images built in the Void container therefore cannot unlock such tokens; build on a systemd distribution instead.
+  Images built in the Void container therefore cannot unlock such tokens; use the Ubuntu container or build on
+  another systemd distribution instead.
 * Cache and spare vdevs on LUKS need matching mapping names, as described above.
 * Pools are exported and volumes closed before ``kexec``. If ``kexec`` itself fails afterwards, which is rare, use
   ``zluks`` and ``zpool import`` in the recovery shell to continue.

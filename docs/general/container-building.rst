@@ -92,6 +92,37 @@ or later). The series is installed through ``KERNELS`` in ``releng/docker/Docker
 To facilitate interaction with the host, the container should be run with a build directory (along with an output
 directory, if it is not already a child of the build directory) bind-mounted into the container.
 
+The entrypoint always builds generic images (dracut's ``hostonly="no"``), because the kernel modules loaded where the
+container runs say nothing about the machines ZFSBootMenu will boot. A ``dracut.conf.d`` file in the build directory may
+still override this.
+
+Ubuntu-Based Build Container
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``releng/docker/Dockerfile.ubuntu`` builds an alternative image from Ubuntu 26.10, which provides Linux 7.3 and OpenZFS
+2.4.4. It runs the same entrypoint and is used in the same way:
+
+.. code-block:: bash
+
+  docker build -f releng/docker/Dockerfile.ubuntu -t zbm-builder:ubuntu releng/docker
+  ./zbm-builder.sh -i zbm-builder:ubuntu
+
+Compared with the Void image:
+
+* The kernel and the ZFS module are Ubuntu's own packages. Ubuntu builds the module for each kernel, so no DKMS build
+  is needed. The Ubuntu release chooses both versions. Later releases can be selected with
+  ``--build-arg UBUNTU_RELEASE=<version>``; earlier ones, including 26.04 LTS, lack the ``yq-go`` package that the
+  entrypoint needs.
+* The image records its kernel series in ``/etc/zbm-kernel-version``. When ``Kernel.Version`` in the configuration
+  matches no installed kernel (the repository default is ``7.2.*``), the build uses the image's series and says so.
+* ``-k <series>`` installs the newest Ubuntu kernel of the series that has a ZFS module package; ``-p`` installs Ubuntu
+  packages.
+* Only dracut is available; Ubuntu does not package ``mkinitcpio``.
+* systemd's cryptsetup token plugins are included, so TPM2 tokens with signed PCR policies or ``--tpm2-pcrlock`` can be
+  unlocked (see :doc:`luks`).
+
+The :zbm:`container README <releng/docker/README.md>` describes both images in detail.
+
 
 .. note::
 

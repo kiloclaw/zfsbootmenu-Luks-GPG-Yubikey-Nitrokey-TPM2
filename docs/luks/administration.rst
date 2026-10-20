@@ -514,6 +514,8 @@ this repository, and point ``zbm-builder.sh`` at both the image and the source t
 
   # git clone https://github.com/kiloclaw/zfsbootmenu-Luks-GPG-Yubikey-Nitrokey-TPM2 /usr/src/zbm
   # cd /usr/src/zbm/releng/docker && podman build -t zbm-builder .
+  # # or, for the Ubuntu-based image with systemd's token plugins:
+  # # podman build -f Dockerfile.ubuntu -t zbm-builder .
   # mkdir -p /root/zbm-build/dracut.conf.d && cd /root/zbm-build
   # cp /etc/zfsbootmenu/crypttab ./crypttab
   # echo 'zfsbootmenu_luks_crypttab="/build/crypttab"' > dracut.conf.d/luks.conf

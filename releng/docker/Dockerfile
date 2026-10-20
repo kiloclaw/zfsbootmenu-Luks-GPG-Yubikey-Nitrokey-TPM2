@@ -89,6 +89,8 @@ RUN --mount=type=cache,target=/var/cache/xbps \
 RUN rm -f /var/cache/xbps/*
 
 ARG ZBM_BUILDER=build-init.sh
-COPY --chmod=755 ${ZBM_BUILDER} /
+# Install the build script under a fixed name: variables are not expanded in
+# the exec form of ENTRYPOINT
+COPY --chmod=755 ${ZBM_BUILDER} /build-init.sh
 # Run the build script with no arguments by default
-ENTRYPOINT [ "/${ZBM_BUILDER}" ]
+ENTRYPOINT [ "/build-init.sh" ]
