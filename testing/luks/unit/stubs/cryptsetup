@@ -1,0 +1,36 @@
+#!/bin/bash
+# Stub: real cryptsetup for header work, fake device-mapper for open/close.
+REAL=/usr/sbin/cryptsetup
+F="${FAKE:?}"
+echo "cryptsetup $*" >> "$F/calls"
+case "$1" in
+  open)
+    [[ " $* " == *" --test-passphrase "* ]] && exec "$REAL" "$@"
+    shift
+    args=(); pos=()
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --type|--key-file=*|--header|--keyfile-offset|--keyfile-size|--key-slot|--token-id|--token-type) 
+          if [[ "$1" == *=* ]]; then args+=("$1"); else args+=("$1" "$2"); shift; fi ;;
+        --allow-discards|--readonly|--perf-*) ;;   # mapping-only flags
+        --*) args+=("$1") ;;
+        *) pos+=("$1") ;;
+      esac
+      shift
+    done
+    dev="${pos[0]}"; name="${pos[1]}"
+    [ -e "/dev/mapper/$name" ] && { echo "exists" >&2; exit 5; }
+    "$REAL" open --test-passphrase "${args[@]}" "$dev" || exit $?
+    n=$(cat "$F/minor" 2>/dev/null || echo 100); echo $((n+1)) > "$F/minor"
+    mknod "/dev/mapper/$name" b 7 "$n"
+    echo "$name" > "$F/holders/$(basename "$(readlink -f "$dev")")"
+    echo "$dev" > "$F/maps/$name"
+    exit 0 ;;
+  close)
+    name="$2"
+    [ -e "$F/busy/$name" ] && { echo "busy" >&2; exit 5; }
+    [ -e "/dev/mapper/$name" ] || exit 4
+    dev=$(cat "$F/maps/$name"); rm -f "/dev/mapper/$name" "$F/maps/$name" "$F/holders/$(basename "$(readlink -f "$dev")")"
+    exit 0 ;;
+  *) exec "$REAL" "$@" ;;
+esac

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stub: pools are files in $FAKE/pools/<pool> listing their vdev paths
+echo "zpool $*" >> "$FAKE/calls"
+case "$1" in
+  list) ls "$FAKE/pools" ;;
+  status) p="${*: -1}"; echo "  pool: $p"; echo "config:"; while read -r v; do printf '\t  %s  ONLINE 0 0 0\n' "$(readlink -f "$v")"; done < "$FAKE/pools/$p" ;;
+  export) [ -e "$FAKE/pools/$2" ] || exit 1; rm "$FAKE/pools/$2"; echo "$2" >> "$FAKE/exported" ;;
+esac

@@ -1,0 +1,6 @@
+#!/bin/bash
+# YubiKey stand-in: HMAC-SHA1 with a fixed secret (slot 2); challenge from -i- (stdin) or argument
+echo "ykchalresp $*" >> "$FAKE/calls"
+[ "$1" = "-2" ] || exit 1
+if [ "$2" = "-i-" ]; then ch="$(cat)"; else ch="$2"; fi
+printf '%s' "$ch" | openssl dgst -sha1 -hmac "yk-secret" | awk '{print $NF}'

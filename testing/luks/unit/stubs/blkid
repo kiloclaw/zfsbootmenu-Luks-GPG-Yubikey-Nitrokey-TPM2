@@ -1,0 +1,11 @@
+#!/bin/bash
+# Stub: report fake contents for /dev/mapper/*, otherwise real blkid
+for a in "$@"; do
+  case "$a" in
+    /dev/mapper/*)
+      n=${a#/dev/mapper/}; dev=$(cat "$FAKE/maps/$n" 2>/dev/null) || exit 2
+      f="$FAKE/content/$(basename "$(readlink -f "$dev")")"
+      [ -r "$f" ] && cat "$f"; exit 0 ;;
+  esac
+done
+exec /usr/sbin/blkid "$@"
