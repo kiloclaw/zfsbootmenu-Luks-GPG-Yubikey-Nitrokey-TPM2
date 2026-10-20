@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 from zbmtest import (FAST_PBKDF, PW, WORK, Swtpm, Test, VM, check_be, check_teardown, disk,
-                     follow_boot, partition, payload_disk, run, zbm_image)
+                     follow_boot, loop_partition, partition, payload_disk, run, zbm_image)
 
 CRYPTTAB = """zroot-a  PARTLABEL=zfs0  none                                discard
 zroot-b  PARTLABEL=zfs1  none                                discard
@@ -63,9 +63,8 @@ def host_prepare(t):
         for i in range(4):
             d = disk("keys", i, fresh=True)
             partition(d, [(f"zfs{i}", None)])
-            loop = run(["losetup", "-fP", "--show", str(d)]).strip()
-            loops.append(loop)
-            part = f"{loop}p1"
+            part = loop_partition(d, 1)
+            loops.append(part)
             subprocess.run(["udevadm", "settle"], check=False)
             run(f"printf '%s' {PW} | cryptsetup luksFormat -q --type luks2 {FAST_PBKDF} --key-file=- {part}",
                 shell=True)

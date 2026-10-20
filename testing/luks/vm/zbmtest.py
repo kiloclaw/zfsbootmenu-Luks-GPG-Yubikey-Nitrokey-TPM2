@@ -141,6 +141,66 @@ def partition(path, parts):
         run(["sgdisk", "-n", f"{i}:0:{end}", "-c", f"{i}:{label}", str(path)])
 
 
+GPT_ESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
+GPT_LINUX = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+
+
+def gpt_disk(path, size, sector, parts):
+    """
+    Write a GPT for any logical sector size (sfdisk before util-linux 2.40 and
+    sgdisk cannot write one for 4 KiB sectors into a file). parts is a list of
+    (name, type GUID, first LBA, number of sectors or None for the rest).
+    """
+    import uuid
+    import zlib
+    nent, esize = 128, 128
+    esec = nent * esize // sector
+    last = size // sector - 1
+    first_usable, last_usable = 2 + esec, last - esec - 1
+    entries = bytearray(nent * esize)
+    for i, (name, ptype, start, count) in enumerate(parts):
+        end = last_usable if count is None else start + count - 1
+        entries[i * esize:(i + 1) * esize] = (
+            uuid.UUID(ptype).bytes_le + uuid.uuid4().bytes_le + start.to_bytes(8, "little")
+            + end.to_bytes(8, "little") + bytes(8) + name.encode("utf-16-le").ljust(72, b"\0"))
+    ecrc = zlib.crc32(entries)
+    disk_guid = uuid.uuid4().bytes_le
+
+    def header(cur, other, elba):
+        h = bytearray(b"EFI PART" + (0x10000).to_bytes(4, "little") + (92).to_bytes(4, "little") + bytes(8)
+                      + cur.to_bytes(8, "little") + other.to_bytes(8, "little")
+                      + first_usable.to_bytes(8, "little") + last_usable.to_bytes(8, "little") + disk_guid
+                      + elba.to_bytes(8, "little") + nent.to_bytes(4, "little") + esize.to_bytes(4, "little")
+                      + ecrc.to_bytes(4, "little"))
+        h[16:20] = zlib.crc32(h).to_bytes(4, "little")
+        return bytes(h).ljust(sector, b"\0")
+
+    mbr = bytearray(sector)
+    mbr[446:462] = (b"\x00\x00\x02\x00\xee\xff\xff\xff" + (1).to_bytes(4, "little")
+                    + min(last, 0xFFFFFFFF).to_bytes(4, "little"))
+    mbr[510:512] = b"\x55\xaa"
+    with open(path, "wb") as f:
+        f.truncate(size)
+        f.write(mbr)
+        f.write(header(1, last, 2))
+        f.write(entries)
+        f.seek((last - esec) * sector)
+        f.write(entries)
+        f.write(header(last, 1, last - esec))
+
+
+def loop_partition(path, n):
+    """
+    Loop device over partition n of a disk image, by offset: kernels without
+    GPT support (such as some sandbox kernels) do not scan loop partitions.
+    """
+    info = json.loads(run(["sfdisk", "--json", str(path)]))["partitiontable"]
+    p = info["partitions"][n - 1]
+    ss = info.get("sectorsize", 512)
+    return run(["losetup", "-f", "--show", "--offset", str(p["start"] * ss),
+                "--sizelimit", str(p["size"] * ss), str(path)]).strip()
+
+
 def payload_disk():
     """ext4 disk labelled PAYLOAD holding the test boot environment."""
     build_be()

@@ -24,8 +24,8 @@ import shutil
 import sys
 import time
 
-from zbmtest import (FAST_PBKDF, OVMF_VARS, PW, WORK, Test, VM, check_be, check_teardown,
-                     follow_boot, payload_disk, run, vfat_disk, zbm_image)
+from zbmtest import (FAST_PBKDF, GPT_ESP, GPT_LINUX, OVMF_VARS, PW, WORK, Test, VM, check_be,
+                     check_teardown, follow_boot, gpt_disk, payload_disk, run, vfat_disk, zbm_image)
 
 D = WORK / "disks" / "firmware"
 NVME = D / "nvme.img"
@@ -40,12 +40,8 @@ def make_nvme():
     D.mkdir(parents=True, exist_ok=True)
     if NVME.exists():
         NVME.unlink()
-    with open(NVME, "wb") as f:
-        f.truncate(2 << 30)
-    layout = (f"label: gpt\nsector-size: {SECTOR}\n"
-              f"start={ESP_START}, size={ESP_SECTORS}, type=U, name=ESP\n"
-              f"start={ESP_START + ESP_SECTORS}, type=L, name=zroot-luks\n")
-    run(["sfdisk", "-q", "--sector-size", str(SECTOR), str(NVME)], input=layout)
+    gpt_disk(NVME, 2 << 30, SECTOR, [("ESP", GPT_ESP, ESP_START, ESP_SECTORS),
+                                     ("zroot-luks", GPT_LINUX, ESP_START + ESP_SECTORS, None)])
 
 
 def write_esp(efi):
