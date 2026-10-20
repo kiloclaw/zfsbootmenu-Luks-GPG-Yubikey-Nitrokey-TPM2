@@ -714,10 +714,16 @@ def check_be(t, b, root_pool, expect_pools, expect_states=None):
             t.check(healthy, f"scrub of {pool} in the boot environment: {line[len(pool):].strip()[:80]}")
 
 
-def check_teardown(t, b):
+def check_teardown(t, b, readonly_pools=()):
+    """
+    Every LUKS mapping closed and every pool exported before kexec, except
+    readonly_pools: pools imported read-only through unencrypted devices only,
+    which ZFSBootMenu leaves imported as it does without LUKS.
+    """
     if b.teardown is None:
         t.check(False, "teardown report missing")
         return
     dm, pools, state = b.teardown
-    t.check(not dm and not pools and not state,
+    left = sorted(set(pools.split()) - set(readonly_pools))
+    t.check(not dm and not left and not state,
             f"teardown exported pools and closed volumes (dm=[{dm}] pools=[{pools}] state=[{state}])")

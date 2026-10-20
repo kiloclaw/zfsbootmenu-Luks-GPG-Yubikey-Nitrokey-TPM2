@@ -3,12 +3,29 @@
 
 [ "${ZFSBOOTMENU_INITIALIZATION}" = "yes" ] || return 0
 
+# Disks that showed up late (slow USB or SAS enumeration) may hold LUKS
+# volumes that were not there during the initial unlock; unlock those.
+# returns: 0 if a volume was opened
+zbm_luks_unlock_late() {
+  # shellcheck disable=SC1091
+  [ -r /lib/zfsbootmenu-luks.sh ] && command -v cryptsetup >/dev/null 2>&1 \
+    && ( source /lib/zfsbootmenu-luks.sh && LUKS_RETRY=1 luks_unlock_all )
+}
+
 # If a boot pool is specified, that will be tried first
 # shellcheck disable=SC2154
 try_pool="${zbm_prefer_pool}"
 zbm_import_attempt=0
 
 while true; do
+  # On a retry, first unlock LUKS volumes on disks that appeared during the
+  # delay: if unencrypted devices of a pool appeared at the same time, the
+  # pool would otherwise be imported without its LUKS devices, and the loop
+  # would end before they are unlocked
+  if [ "${zbm_import_attempt}" -gt 0 ] && zbm_luks_unlock_late; then
+    zinfo "unlocked LUKS volumes that appeared late"
+  fi
+
   if [ -n "${try_pool}" ]; then
     zdebug "attempting to import preferred pool ${try_pool}"
   fi
@@ -57,12 +74,9 @@ while true; do
   zbm_import_attempt="$((zbm_import_attempt + 1))"
   zinfo "unable to import a pool on attempt ${zbm_import_attempt}"
 
-  # Disks that showed up late (slow USB or SAS enumeration) may hold LUKS
-  # volumes that were not there during the initial unlock; try those now and
-  # import again right away if any was opened
-  # shellcheck disable=SC1091
-  if [ -r /lib/zfsbootmenu-luks.sh ] && command -v cryptsetup >/dev/null 2>&1 \
-      && ( source /lib/zfsbootmenu-luks.sh && LUKS_RETRY=1 luks_unlock_all ); then
+  # LUKS volumes that appeared since the initial unlock: import again right
+  # away if any was opened
+  if zbm_luks_unlock_late; then
     zinfo "unlocked LUKS volumes that appeared late, retrying import"
     continue
   fi
@@ -88,6 +102,7 @@ while IFS=$'\t' read -r _pool _health; do
   fi
 done <<<"$( zpool list -H -o name,health )"
 unset _pool _health
+unset -f zbm_luks_unlock_late
 
 zdebug && zdebug "$( zreport )"
 

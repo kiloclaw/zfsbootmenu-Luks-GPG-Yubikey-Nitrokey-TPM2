@@ -176,7 +176,7 @@ def setup(t):
     vm.poweroff()
 
 
-def expect_healthy(t, b, states=None, prompts_ok=None, be_states=None):
+def expect_healthy(t, b, states=None, prompts_ok=None, be_states=None, readonly_pools=()):
     states = states or {}
     be_states = states if be_states is None else be_states
     pools = b.pools()
@@ -191,7 +191,7 @@ def expect_healthy(t, b, states=None, prompts_ok=None, be_states=None):
         t.check(re.search(r"spares\s*\n\s*/dev/mapper/\S+\s+AVAIL", st) is not None, "hot spare AVAIL")
         t.check(len(re.findall(r"raidz2-0.*\n(?:\s+/dev/mapper/\S+\s+ONLINE.*\n){5}", st)) == 1,
                 "raidz2-0 has five members after RAIDZ expansion")
-    check_teardown(t, b)
+    check_teardown(t, b, readonly_pools)
     t.check("be-zfskey" in b.prompts, "boot environment asked for the ZFS key of its encrypted root")
     check_be(t, b, "tank", POOLS, be_states)
     feats = be_features(b)
@@ -246,10 +246,11 @@ def main():
         expect_healthy(t, b)
 
     elif scenario == "hotplug-auto":
-        # All late disks are plugged in within one retry interval. Disks that
-        # arrive after a retry has imported the pools DEGRADED are not used:
-        # the loop ends once a pool imports (see LATE DEVICES in
-        # zfsbootmenu-luks(7)).
+        # All late disks, LUKS volumes and the unencrypted halves of mixed
+        # and parts, are plugged in within one retry interval: the retry must
+        # unlock the late volumes before it imports. Disks that arrive after a
+        # retry has imported the pools DEGRADED are not used, as the loop ends
+        # once a pool imports (see LATE DEVICES in zfsbootmenu-luks(7)).
         late = [0, 1, 2, 3, 12, 13, 14, 15]
         vm = VM(t, scenario, disks=disks(skip=late), kernel=auto["kernel"], initrd=auto["initrd"],
                 append="console=ttyS0 zbm.timeout=3 zbm.retry_delay=60").start()
@@ -311,8 +312,11 @@ def main():
         vm.sendline("exit")
         b = follow_boot(vm, menu=True)
         t.check("menu" in b.prompts, "the boot menu lists tank's boot environment after the shell")
-        # mixed and parts were imported before their LUKS halves were open
-        expect_healthy(t, b, states={"mixed": "DEGRADED", "parts": "DEGRADED"}, be_states={})
+        # mixed and parts were imported, read-only, through their unencrypted
+        # halves before zluks opened the LUKS halves; ZFSBootMenu leaves such
+        # pools imported at kexec
+        expect_healthy(t, b, states={"mixed": "DEGRADED", "parts": "DEGRADED"}, be_states={},
+                       readonly_pools=("mixed", "parts"))
 
     elif scenario == "oldzfs":
         k, i = os.environ.get("ZBMTEST_OLD_KERNEL"), os.environ.get("ZBMTEST_OLD_INITRD")

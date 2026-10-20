@@ -229,6 +229,35 @@ t(){ echo off > "$BASE/cmdline.d/zbm.luks"; luks_unlock_all < /dev/null; }
 run "initial run with zbm.luks=off still succeeds" t
 check "rc 0" [ "$RC" -eq 0 ]
 
+# The import loop itself (init.d/50-import-pools), with stand-ins for the
+# import and the LUKS library: during the retry delay a late LUKS volume and an
+# unencrypted device of another pool appear together. The LUKS volume must be
+# unlocked before the import that then succeeds, or the boot pool on it is
+# never imported.
+hookloop(){
+  local d="$1"; mkdir -p "$d"; : > "$d/log"
+  printf '%s\n' 'luks_unlock_all(){ if [ -e "$D/late" ] && [ ! -e "$D/opened" ]; then touch "$D/opened"; echo unlock-opened >> "$D/log"; return 0; fi; echo unlock-none >> "$D/log"; return 1; }' > "$d/lib.sh"
+  sed "s|/lib/zfsbootmenu-luks.sh|$d/lib.sh|g" "$REPO/zfsbootmenu/init.d/50-import-pools" > "$d/hook"
+  ( D="$d"; export D; BASE="$d/base"; mkdir -p "$BASE"
+    zinfo(){ :; }; zdebug(){ return 1; }; zerror(){ :; }; colorize(){ shift; echo -n "$@"; }
+    cryptsetup(){ :; }
+    import_pool(){ if [ -e "$D/opened" ]; then echo import-all >> "$D/log"; touch "$D/imported-boot"; touch "$D/imported-any"
+                   elif [ -e "$D/late" ]; then echo import-plain-only >> "$D/log"; touch "$D/imported-any"
+                   else echo import-none >> "$D/log"; fi; }
+    check_for_pools(){ [ -e "$D/imported-any" ]; }
+    match_hostid(){ return 1; }
+    timed_prompt(){ echo delay >> "$D/log"; touch "$D/late"; return 0; }
+    log_unimportable(){ :; }; emergency_shell(){ echo EMERGENCY >> "$D/log"; exit 1; }
+    zpool(){ :; }; is_zfs_filesystem(){ return 1; }
+    import_policy=hostid ZFSBOOTMENU_INITIALIZATION=yes source "$d/hook" )
+  tr '\n' ' ' < "$d/log"; echo
+}
+echo "== import loop: late LUKS volume and unencrypted device appear in the same retry delay"
+seq_=$(hookloop "$K/hookloop")
+echo "  sequence: $seq_"
+check "late volume unlocked before the import that succeeds" grep -q "delay unlock-opened import-all" <<< "$seq_"
+check "boot pool imported" [ -e "$K/hookloop/imported-boot" ]
+
 echo "### failure paths"
 t(){ LUKS_NO_TOKEN_PLUGINS=1; LUKS_TPM2_TCTI="device:/dev/no-such-tpm"; mv /dev/hidraw99 /dev/xhid; LUKS_GNUPG_DIR="$K/onlyb"; tab "a $MULTI $K/good.key.gpg" "b $STALE none"; luks_unlock_all; local r=$?; mv /dev/xhid /dev/hidraw99; return $r; }
 run "everything fails on EOF: nothing mapped, nothing left behind" t < /dev/null
