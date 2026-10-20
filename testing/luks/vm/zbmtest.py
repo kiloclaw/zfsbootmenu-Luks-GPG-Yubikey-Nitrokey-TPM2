@@ -462,8 +462,12 @@ class VM:
 
     def hotplug_disk(self, path, serial):
         self.t.step(f"hot-plugging disk {serial}")
-        self.monitor(f"drive_add 0 file={path},if=none,id=drv-{serial},format=raw")
-        self.monitor(f"device_add virtio-blk-pci,drive=drv-{serial},serial={serial},id=dev-{serial}")
+        for cmd in (f"drive_add 0 file={path},if=none,id=drv-{serial},format=raw",
+                    f"device_add virtio-blk-pci,drive=drv-{serial},serial={serial},id=dev-{serial}"):
+            out = self.monitor(cmd)
+            reply = "\n".join(l for l in out.splitlines() if l.strip() and not l.startswith("(qemu)"))
+            if reply.strip() and reply.strip() != "OK":
+                self.t.show(f"monitor: {cmd.split()[0]}: {reply.strip()}")
 
     def hotplug_usb(self, path, ident):
         self.t.step(f"inserting USB stick {ident}")
@@ -556,7 +560,7 @@ BOOT_PROMPTS = {
     "status": r"ZBMTEST-STATUS-BEGIN",
     "keyload": r"unable to load key",
     "emergency": r"Dropping to an emergency shell",
-    "menu": r"Boot Environments - Snapshots",
+    "menu": r"edit kcl",
     "be_ask": r"Please enter passphrase for disk|Enter passphrase for /dev/",
     "be_zfskey": r"(?:Enter passphrase for|Encrypted ZFS password for) [a-z]+/ROOT",
 }
