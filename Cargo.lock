@@ -120,6 +120,7 @@ dependencies = [
  "zbm-core",
  "zbm-log",
  "zbm-state",
+ "zbm-sys",
  "zbm-system",
  "zbm-testutil",
 ]

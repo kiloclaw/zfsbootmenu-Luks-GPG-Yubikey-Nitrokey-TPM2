@@ -318,7 +318,7 @@ mod tests {
         files.device("/dev/kmsg");
         assert_eq!(
             files.metadata(&path("/dev/kmsg")).unwrap().kind,
-            FileKind::Other
+            FileKind::CharDevice
         );
 
         // Every change is one second later than the one before.

@@ -186,10 +186,15 @@ impl FakeFiles {
         self
     }
 
-    /// Adds a device node (or another special file), such as `/dev/kmsg` or a
-    /// link target in `/dev/disk/by-id`. Writes to it are recorded and kept.
+    /// Adds a character device, such as `/dev/kmsg`. Writes to it are
+    /// recorded and kept.
     pub fn device(&self, path: impl AsRef<Path>) -> &FakeFiles {
-        self.special(path.as_ref(), FileKind::Other)
+        self.special(path.as_ref(), FileKind::CharDevice)
+    }
+
+    /// Adds a socket, such as `/run/pcscd/pcscd.comm`.
+    pub fn socket(&self, path: impl AsRef<Path>) -> &FakeFiles {
+        self.special(path.as_ref(), FileKind::Socket)
     }
 
     /// Adds a block device node, such as `/dev/sda`.
@@ -381,6 +386,12 @@ impl FakeFiles {
 }
 
 impl Files for FakeFiles {
+    fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
+        let mut data = self.read(path)?;
+        data.truncate(len);
+        Ok(data)
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;

@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-use zbm_core::exec::{Command, Stream};
+use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::shell::command_substitution;
 use zbm_system::System;
 
@@ -199,6 +199,7 @@ pub fn parse_dump_text(text: &str) -> Vec<Token> {
 /// What `cryptsetup luksDump [options] <device>` prints, without its errors.
 fn luks_dump(system: &System<'_>, options: &[&str], device: &str) -> String {
     let command = Command::new("cryptsetup")
+        .stdin(Input::Null)
         .arg("luksDump")
         .args(options)
         .arg(device)

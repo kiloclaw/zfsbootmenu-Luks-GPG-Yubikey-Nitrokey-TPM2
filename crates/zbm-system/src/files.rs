@@ -20,7 +20,11 @@ pub enum FileKind {
     Directory,
     /// A block device, which the shell's `-b` test finds.
     BlockDevice,
-    /// Anything else: a character device, a pipe or a socket.
+    /// A character device, which the shell's `-c` test finds.
+    CharDevice,
+    /// A socket, which the shell's `-S` test finds.
+    Socket,
+    /// Anything else, such as a pipe.
     Other,
 }
 
@@ -50,6 +54,10 @@ impl Metadata {
 pub trait Files {
     /// Reads a whole file (`cat`).
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
+
+    /// Reads at most `len` bytes from the start of a file, as `head -c <len>`
+    /// does; for devices such as `/dev/urandom`, which never end.
+    fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>>;
 
     /// Creates or truncates a file and writes `contents` (`> file`).
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
@@ -144,6 +152,15 @@ impl Files for RealFiles {
         std::fs::read(path)
     }
 
+    fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
+        use std::io::Read;
+        let mut data = Vec::with_capacity(len);
+        std::fs::File::open(path)?
+            .take(len as u64)
+            .read_to_end(&mut data)?;
+        Ok(data)
+    }
+
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         std::fs::write(path, contents)
     }
@@ -192,6 +209,10 @@ impl Files for RealFiles {
             FileKind::Directory
         } else if metadata.file_type().is_block_device() {
             FileKind::BlockDevice
+        } else if metadata.file_type().is_char_device() {
+            FileKind::CharDevice
+        } else if metadata.file_type().is_socket() {
+            FileKind::Socket
         } else {
             FileKind::Other
         };
@@ -243,8 +264,11 @@ mod tests {
         assert!(metadata.is_executable());
         assert_eq!(
             files.metadata(Path::new("/dev/null")).unwrap().kind,
-            FileKind::Other
+            FileKind::CharDevice
         );
+        let random = files.read_prefix(Path::new("/dev/urandom"), 32).unwrap();
+        assert_eq!(random.len(), 32);
+        assert_eq!(files.read_prefix(&file, 4).unwrap(), b"tank");
 
         let lock = dir.join("state/lock");
         files.create_dir(&lock).unwrap();

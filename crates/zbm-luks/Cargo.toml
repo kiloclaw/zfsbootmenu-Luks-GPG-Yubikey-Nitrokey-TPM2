@@ -12,6 +12,7 @@ publish.workspace = true
 zbm-core.workspace = true
 zbm-log.workspace = true
 zbm-state.workspace = true
+zbm-sys.workspace = true
 zbm-system.workspace = true
 
 [dev-dependencies]

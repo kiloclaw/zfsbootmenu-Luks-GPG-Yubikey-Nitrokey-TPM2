@@ -195,6 +195,8 @@ pub struct Session<'a> {
     pub(crate) gpg_plain: BTreeMap<String, Secret>,
     /// Key devices that did not appear in this run.
     pub(crate) keydev_absent: BTreeSet<String>,
+    /// Whether the TPM drivers were loaded already.
+    pub(crate) tpm2_probed: bool,
     /// Whether `udev`'s device-mapper rules are missing, so `cryptsetup` must
     /// not wait for `udev` (`DM_DISABLE_UDEV=1`).
     pub(crate) dm_disable_udev: bool,
@@ -209,6 +211,7 @@ impl<'a> Session<'a> {
             tpm2_pins: Vec::new(),
             gpg_plain: BTreeMap::new(),
             keydev_absent: BTreeSet::new(),
+            tpm2_probed: false,
             dm_disable_udev: false,
         }
     }

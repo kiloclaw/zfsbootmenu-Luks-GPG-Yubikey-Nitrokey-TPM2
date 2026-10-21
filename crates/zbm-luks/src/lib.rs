@@ -16,8 +16,10 @@
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 
 pub mod config;
+pub mod crypto;
 pub mod device;
 pub mod keyfile;
+pub mod keys;
 pub mod mappings;
 pub mod session;
 pub mod tokens;
