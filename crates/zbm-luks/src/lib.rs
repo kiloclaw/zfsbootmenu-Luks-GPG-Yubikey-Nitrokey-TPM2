@@ -17,6 +17,9 @@
 
 pub mod config;
 pub mod device;
+pub mod keyfile;
+pub mod mappings;
+pub mod session;
 pub mod tokens;
 
 #[cfg(test)]

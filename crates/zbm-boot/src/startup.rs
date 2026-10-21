@@ -63,13 +63,7 @@ pub struct Modes {
 /// Whether `name` is an executable file in a directory of `PATH`, as
 /// `command -v` finds it.
 pub fn command_exists(system: &System<'_>, name: &str) -> bool {
-    let path = system.environment.var("PATH").unwrap_or_default();
-    path.split(':').filter(|dir| !dir.is_empty()).any(|dir| {
-        system
-            .files
-            .metadata(&Path::new(dir).join(name))
-            .is_ok_and(|metadata| metadata.kind == FileKind::File && metadata.is_executable())
-    })
+    system.command_exists(name)
 }
 
 /// The LUKS volumes on the machine, as `luks_discover_devices` lists them.

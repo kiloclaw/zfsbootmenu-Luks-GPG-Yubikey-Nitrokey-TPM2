@@ -8,10 +8,12 @@
 //! This crate holds what every other crate needs: running external programs
 //! behind a trait that tests can replace ([`exec`]), the error type of the
 //! runtime ([`error`]), secrets that are wiped after use ([`secret`]), the file
-//! tests of Perl and the shell ([`fs`]), the Bash semantics the legacy code
-//! relies on ([`shell`]), the release information in `/etc/zbm-release`
-//! ([`release`]) and the ZFSBootMenu version ([`version`]).
+//! tests of Perl and the shell ([`fs`]), the colours of the menu and prompts
+//! ([`color`]), the Bash semantics the legacy code relies on ([`shell`]), the
+//! release information in `/etc/zbm-release` ([`release`]) and the
+//! ZFSBootMenu version ([`version`]).
 
+pub mod color;
 pub mod error;
 pub mod exec;
 pub mod fs;

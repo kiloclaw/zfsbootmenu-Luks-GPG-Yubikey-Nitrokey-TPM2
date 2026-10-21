@@ -53,6 +53,17 @@ impl<'a> System<'a> {
     pub fn kernel_log(&self, loglevel: &str, base: &std::path::Path) -> KernelLog<'a> {
         KernelLog::new(self.files, loglevel, base, self.processes.id())
     }
+
+    /// Whether `name` is an executable file in a directory of `PATH`, as
+    /// `command -v` finds it.
+    pub fn command_exists(&self, name: &str) -> bool {
+        let path = self.environment.var("PATH").unwrap_or_default();
+        path.split(':').filter(|dir| !dir.is_empty()).any(|dir| {
+            self.files
+                .metadata(&std::path::Path::new(dir).join(name))
+                .is_ok_and(|metadata| metadata.kind == FileKind::File && metadata.is_executable())
+        })
+    }
 }
 
 /// The real system, owning its parts, from which a [`System`] is borrowed.

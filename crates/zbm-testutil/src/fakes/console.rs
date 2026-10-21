@@ -6,7 +6,7 @@ use std::io;
 use std::time::Duration;
 
 use zbm_core::secret::Secret;
-use zbm_system::console::{Console, Size};
+use zbm_system::console::{Console, Size, Timed};
 
 use super::clock::FakeClock;
 
@@ -15,11 +15,13 @@ use super::clock::FakeClock;
 pub enum ConsoleInput {
     /// A key press, for [`Console::read_key`].
     Key(u8),
-    /// No key press before the timeout, for [`Console::read_key`].
+    /// No key press (or line) before the timeout, for [`Console::read_key`]
+    /// and [`Console::read_secret_within`].
     Timeout,
     /// A line of text, for [`Console::read_line`].
     Line(String),
-    /// A passphrase or PIN, for [`Console::read_secret`].
+    /// A passphrase or PIN, for [`Console::read_secret`] and
+    /// [`Console::read_secret_within`].
     Secret(Vec<u8>),
     /// The end of the input: every read returns `None`.
     End,
@@ -36,6 +38,7 @@ pub struct FakeConsole {
     output: RefCell<Vec<u8>>,
     size: Cell<Size>,
     clock: Option<FakeClock>,
+    echo: RefCell<Vec<bool>>,
 }
 
 impl Default for FakeConsole {
@@ -55,6 +58,7 @@ impl FakeConsole {
                 columns: 80,
             }),
             clock: None,
+            echo: RefCell::new(Vec::new()),
         }
     }
 
@@ -109,6 +113,11 @@ impl FakeConsole {
         String::from_utf8_lossy(&self.output.borrow()).into_owned()
     }
 
+    /// Every switch of echo, in order: `true` for on.
+    pub fn echo_changes(&self) -> Vec<bool> {
+        self.echo.borrow().clone()
+    }
+
     /// The input the code did not read.
     pub fn remaining(&self) -> Vec<ConsoleInput> {
         self.script.borrow().iter().cloned().collect()
@@ -126,6 +135,10 @@ impl FakeConsole {
                     ("key", ConsoleInput::Key(_) | ConsoleInput::Timeout)
                         | ("line", ConsoleInput::Line(_))
                         | ("secret", ConsoleInput::Secret(_))
+                        | (
+                            "timed secret",
+                            ConsoleInput::Secret(_) | ConsoleInput::Timeout
+                        )
                 );
                 assert!(
                     fits,
@@ -172,6 +185,23 @@ impl Console for FakeConsole {
         match self.next("line") {
             ConsoleInput::Line(line) => Ok(Some(line)),
             _ => Ok(None),
+        }
+    }
+
+    fn set_echo(&self, on: bool) {
+        self.echo.borrow_mut().push(on);
+    }
+
+    fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>> {
+        match self.next("timed secret") {
+            ConsoleInput::Secret(bytes) => Ok(Timed::Read(Secret::from_vec(bytes))),
+            ConsoleInput::Timeout => {
+                if let Some(clock) = &self.clock {
+                    clock.advance(timeout);
+                }
+                Ok(Timed::TimedOut)
+            }
+            _ => Ok(Timed::Ended),
         }
     }
 }

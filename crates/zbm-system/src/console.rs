@@ -25,6 +25,17 @@ pub struct Size {
     pub columns: u16,
 }
 
+/// What a read with a time limit got.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Timed<T> {
+    /// What was read.
+    Read(T),
+    /// Nothing arrived in time.
+    TimedOut,
+    /// The input ended.
+    Ended,
+}
+
 /// Input from and output to the user.
 pub trait Console {
     /// Writes text (`echo -n`).
@@ -46,6 +57,16 @@ pub trait Console {
     /// Reads a line with echo on, without its newline. Returns `None` if the
     /// input ends before a newline.
     fn read_line(&self) -> io::Result<Option<String>>;
+
+    /// Switches echo on or off (`stty echo`, `stty -echo`), ignoring failures,
+    /// as when the input is not a terminal.
+    fn set_echo(&self, on: bool);
+
+    /// Reads a line as a secret, without changing echo, if input arrives within
+    /// `timeout`, as `IFS= read -r -t <seconds>` does on a terminal, where a
+    /// line arrives whole. A line that the end of the input cuts short counts
+    /// as the end.
+    fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>>;
 }
 
 /// The console on standard input and standard output, as the legacy code
@@ -167,6 +188,20 @@ impl Console for Terminal<'_> {
         let line = read_until_newline(|| self.read_byte())?;
         Ok(line.map(|line| String::from_utf8_lossy(line.expose()).into_owned()))
     }
+
+    fn set_echo(&self, on: bool) {
+        self.stty(&[if on { "echo" } else { "-echo" }]);
+    }
+
+    fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>> {
+        if !zbm_sys::wait_readable(self.input.as_raw_fd(), Some(timeout))? {
+            return Ok(Timed::TimedOut);
+        }
+        Ok(match read_until_newline(|| self.read_byte())? {
+            Some(line) => Timed::Read(line),
+            None => Timed::Ended,
+        })
+    }
 }
 
 /// Parses the output of `stty size`: rows and columns.
@@ -265,6 +300,42 @@ mod tests {
         // The rest of the input stays for the next reader.
         assert_eq!(terminal.read_line().unwrap().as_deref(), Some("next line"));
         assert_eq!(terminal.read_line().unwrap(), None);
+    }
+
+    #[test]
+    fn timed_reads_wait_for_a_line() {
+        let setup = setup(b"pw\npartial", true);
+        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
+        terminal.set_echo(false);
+        let second = Duration::from_secs(1);
+        match terminal.read_secret_within(second).unwrap() {
+            Timed::Read(secret) => assert_eq!(secret.expose(), b"pw"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(terminal.read_secret_within(second).unwrap(), Timed::Ended);
+        terminal.set_echo(true);
+        assert_eq!(setup.runner.lines(), ["stty -echo", "stty echo"]);
+
+        // A pipe that stays open without data times out.
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pipe = File::from(std::os::fd::OwnedFd::from(child.stdout.take().unwrap()));
+        let output = null_output();
+        let terminal = Terminal::new(&setup.runner, pipe, output);
+        let short = Duration::from_millis(50);
+        assert_eq!(terminal.read_secret_within(short).unwrap(), Timed::TimedOut);
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
+
+    fn null_output() -> File {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/null")
+            .unwrap()
     }
 
     #[test]

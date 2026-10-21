@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 use zbm_system::files::{FileKind, Files, Metadata};
@@ -73,11 +74,15 @@ const MAX_LINKS: usize = 40;
 /// code under test then sees a file system with the usual errors (`NotFound`,
 /// `AlreadyExists`, `NotADirectory` and so on). Modification times advance by
 /// one second with each change, so "newer than" comparisons are predictable.
+///
+/// Clones share one file system, so a stand-in for a program (a responder of
+/// the fake runner) can change the files the code under test sees.
+#[derive(Clone)]
 pub struct FakeFiles {
-    nodes: RefCell<BTreeMap<PathBuf, Node>>,
-    operations: RefCell<Vec<FileOperation>>,
-    failures: RefCell<Vec<(PathBuf, io::ErrorKind)>>,
-    ticks: Cell<u64>,
+    nodes: Rc<RefCell<BTreeMap<PathBuf, Node>>>,
+    operations: Rc<RefCell<Vec<FileOperation>>>,
+    failures: Rc<RefCell<Vec<(PathBuf, io::ErrorKind)>>>,
+    ticks: Rc<Cell<u64>>,
 }
 
 impl Default for FakeFiles {
@@ -118,10 +123,10 @@ impl FakeFiles {
             },
         );
         FakeFiles {
-            nodes: RefCell::new(nodes),
-            operations: RefCell::new(Vec::new()),
-            failures: RefCell::new(Vec::new()),
-            ticks: Cell::new(0),
+            nodes: Rc::new(RefCell::new(nodes)),
+            operations: Rc::new(RefCell::new(Vec::new())),
+            failures: Rc::new(RefCell::new(Vec::new())),
+            ticks: Rc::new(Cell::new(0)),
         }
     }
 
