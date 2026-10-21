@@ -6,6 +6,8 @@
 # Usage: tokens.sh [ZFSBootMenu source tree]   (root; see docs/luks/testing.rst)
 # shellcheck source=isolate.sh
 source "$(dirname "$0")/isolate.sh"
+# shellcheck source=impl.sh
+source "$(dirname "$0")/impl.sh"; zbm_impl_check
 REPO="${1:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 S="$(cd "$(dirname "$0")" && pwd)"
 K=/tmp/zk; rm -rf "$K"; mkdir -p "$K"   # short path: gpg-agent sockets
@@ -73,10 +75,7 @@ run() {
     zdebug() { [ $# -gt 0 ] && echo "DEBUG: $*" >> "$FAKE/log"; return 0; }
     colorize() { shift; echo -ne "$@"; }
     timed_prompt() { echo "timed_prompt $*" >> "$FAKE/prompts"; return 1; }
-    _ZFSBOOTMENU_CORE=1
-    source "$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-kcl.sh"
-    ZBM_CRYPTTAB="$FAKE/crypttab"; LUKS_KEYS_LIB="$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh"
-    source "$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-luks.sh"
+    zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
     luks_is_open() { [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2"
   ) > "$FAKE/out" 2>&1

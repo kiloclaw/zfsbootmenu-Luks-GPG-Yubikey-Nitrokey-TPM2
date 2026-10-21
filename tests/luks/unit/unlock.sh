@@ -5,6 +5,8 @@
 # Usage: unlock.sh [ZFSBootMenu source tree]   (root; see docs/luks/testing.rst)
 # shellcheck source=isolate.sh
 source "$(dirname "$0")/isolate.sh"
+# shellcheck source=impl.sh
+source "$(dirname "$0")/impl.sh"; zbm_impl_check
 REPO="${1:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 S="$(cd "$(dirname "$0")" && pwd)"
 IMG="${ZBMTEST_UNIT_WORK:-/var/tmp/zbm-luks-unit}/unlock"; mkdir -p "$IMG"
@@ -58,13 +60,7 @@ run() {
       local a; a=$(head -n1 "$FAKE/answers" 2>/dev/null); sed -i 1d "$FAKE/answers" 2>/dev/null
       return "${a:-1}"
     }
-    _ZFSBOOTMENU_CORE=1
-    # shellcheck disable=SC1091
-    source "$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-kcl.sh"
-    ZBM_CRYPTTAB="$FAKE/crypttab"
-    LUKS_KEYS_LIB="$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh"
-    # shellcheck disable=SC1091
-    source "$REPO/legacy/zfsbootmenu/lib/zfsbootmenu-luks.sh"
+    zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
     # sysfs holders cannot be faked; consult the stub's record instead
     luks_is_open() { [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2"
