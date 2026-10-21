@@ -8,6 +8,9 @@
 # Environment:
 #   ZBMTEST_IMAGE    build container image (default localhost/zbm-builder)
 #   ZBMTEST_RUNTIME  docker or podman (default: docker if installed)
+#   ZBMTEST_IMPL     legacy or rust, as for run-all.sh; for rust, build the test
+#                    build of zbm on the host first (see impl.sh), as the
+#                    source tree is mounted read-only
 #
 # The container runs privileged with the host's /dev, because the suites use
 # loop devices; see docs/luks/testing.rst.
@@ -20,6 +23,7 @@ if [ -z "${runtime}" ]; then
 fi
 
 exec "${runtime}" run --rm --privileged -v /dev:/dev -v "${repo}:/zbm:ro" \
+  -e ZBMTEST_IMPL="${ZBMTEST_IMPL:-legacy}" \
   -v "${ZBMTEST_UNIT_WORK:-/var/tmp/zbm-luks-unit}-container:/var/tmp/zbm-luks-unit" \
   --entrypoint /bin/bash "${image}" -c '
     apt-get update -qq >/dev/null &&

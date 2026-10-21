@@ -91,9 +91,21 @@ The first Rust runtime (Phase 5 of `PORT-ROADMAP.md`) can be selected with `zfsb
 or mkinitcpio configuration, and needs `zbm`. It starts ZFSBootMenu as process 1 under a supervisor, runs the start-up
 stages (kernel modules, host ID, hooks, pool import), and boots the default boot environment of an unencrypted pool,
 as the legacy runtime does with `zbm.skip`, with every start-up and import option (`zbm.import_policy`,
-`zbm.force_import`, `zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`, `zbm.skip_hooks`). Where a machine needs more (LUKS
-volumes, a locked encryption root or the menu), it logs what it cannot handle yet and opens the recovery shell. The
-legacy runtime stays the default; see `zfsbootmenu(7)`.
+`zbm.force_import`, `zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`, `zbm.skip_hooks`). Where a machine needs more (a
+locked encryption root, `load-key.d` hooks or the menu), it logs what it cannot handle yet and opens the recovery
+shell. The legacy runtime stays the default; see `zfsbootmenu(7)`.
+
+### Rust runtime, LUKS
+
+The Rust runtime unlocks LUKS volumes (package B of Phase 6): the crypttab, `zbm.luks` and `zbm.luks_key`, discovery
+of volumes that may hold ZFS, missing and late devices, passphrases shared by several volumes, key files and key
+devices, key scripts, TPM2 tokens (with cryptsetup's plugin or tpm2-tools, PINs and the lockout check), FIDO2 tokens,
+clevis, GnuPG key files with a smart card or passphrase, and YubiKey challenge-response. In Rust images, `zluks` is
+the Rust command, and the teardown hook closes the mappings with it. Unlike the legacy runtime, it writes no decrypted
+key to a file, and computes the salted TPM2 PIN in the process instead of passing it to `openssl kdf` as an argument.
+
+Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
+(`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
