@@ -12,6 +12,7 @@ Rust version does what the legacy code in `legacy/` does today, nothing more. Ne
 - [Rust unit tests](#rust-unit-tests)
 - [Compatibility contract](#compatibility-contract)
 - [Overview](#overview)
+- [Status](#status)
 - Phases: [1](#phase-1-foundations) · [2](#phase-2-shared-libraries-and-zbm-kcl) · [3](#phase-3-generate-zbm) ·
   [4](#phase-4-runtime-design) · [5](#phase-5-minimal-bootable-runtime) · [6](#phase-6-complete-the-runtime) ·
   [7](#phase-7-beta-with-the-legacy-image-as-fallback) · [8](#phase-8-cutover-and-removal-of-the-legacy-code)
@@ -161,6 +162,70 @@ The total is about 40 to 57 weeks, or 9 to 13 months. The estimates include writ
 take roughly a sixth of each phase and save time later, because most mistakes show up in seconds instead of in VM
 runs. Phase 3 does not depend on the runtime: with a second developer on phases 2 and 3 and on some of the work
 packages, the port takes about 6 to 9 months.
+
+## Status
+
+| Phase | Status |
+| --- | --- |
+| 1. Foundations | Done, with the deviations below |
+| 2. Shared libraries and `zbm-kcl` | Done |
+| 3. `generate-zbm` | Done |
+| 4 to 8 | Not started |
+
+**Delivered by phases 1 to 3:**
+
+- **Crates:** `zbm-sys` (the only FFI: signals and process credentials), `zbm-core` (running programs, file tests
+  with Perl's rules, the Bash semantics the legacy code relies on, `getopts`, release information), `zbm-log`,
+  `zbm-cmdline`, `zbm-zfs`, the host tools `zbm-kcl` and `generate-zbm`, the multi-call program `zbm` with an empty
+  command table, and `zbm-testutil` (fakes, helpers that run legacy Bash functions and Perl code, a seeded input
+  generator). Every crate follows The Rust Style Guide (`CONTRIBUTING.md`).
+- **Building:** `make` builds the Rust programs with `cargo build --release --locked` from crates vendored in
+  `vendor/`; `make install` installs `generate-zbm` and `zbm-kcl` in place of the legacy tools (`TOOLS=legacy` keeps
+  them) and `zbm` as `/usr/libexec/zfsbootmenu/zbm`. The build container builds the programs from the tree it builds
+  images from, offline, and builds images with the Rust `generate-zbm` (`-g perl` selects the Perl one), so
+  `legacy/cpanfile` is no longer needed. `scripts/version.sh` sets the version of the Rust programs too.
+- **Images:** the dracut module and the mkinitcpio hook install `zbm` as `/libexec/zbm`. The build setting
+  `zfsbootmenu_runtime` selects the runtime; only `legacy`, the default, is accepted until the Rust runtime boots.
+- **Tests:** 139 Rust tests. Parity tests compare the Rust code with the legacy Bash functions, with Perl's
+  `Getopt::Long`, `File::Glob`, `YAML::PP`, `Data::Dumper` and `Sort::Versions`, and with the whole legacy
+  `zbm-kcl` and `generate-zbm` in sandboxes, on hand-written and generated inputs. The release, recovery and
+  container-default images built by the Perl and the Rust `generate-zbm` have the same contents
+  (`scripts/dev/compare-generators.sh`). The LUKS unit suites load the code under test through
+  `tests/luks/unit/impl.sh` (`ZBMTEST_IMPL`). `scripts/dev/record-fixtures.py` records `zfs`, `zpool` and mount
+  output of OpenZFS 2.4.4 as fixtures for the `zbm-zfs` tests.
+- **CI:** the Rust workflow checks formatting, line widths, clippy, the tests, the documentation, the oldest supported
+  compiler, the musl and aarch64 targets and line coverage; the build workflow builds the images and compares the
+  two generators.
+- **Legacy bugs fixed while porting,** in the legacy code too and with tests: `%{parent}` with an `&` in the parent's
+  command line, unsafe arithmetic evaluation of untrusted input in `spl_hostid`, and in `generate-zbm` unquoted paths
+  in shell commands, a second unmount after a signal, commands killed by signals counted as successes, an exit status
+  of 0 when `uname -r` prints nothing, offsets computed without a section alignment, offsets misprinted in the debug
+  log, and unchecked writes of the configuration (`CHANGELOG.md` lists them).
+
+**Deviations from the plan:**
+
+- Generated test inputs come from a small seeded generator in `zbm-testutil` (`ZBM_TEST_SEED` selects other inputs)
+  instead of `proptest`, and `insta` is not used yet; both would add dependencies to the vendored tree for little
+  gain so far. Phase 6 decides on `insta` for the menu screens.
+- The runtime crates (`zbm-luks`, `zbm-boot`, `zbm-menu`) are created in Phase 4, whose design decides them; Phase 1
+  created the crates the host tools need and the `zbm` program.
+- Until the Rust runtime can boot (Phase 5), there is no Rust image to build: CI builds images with both generators
+  and compares them, and every image includes `zbm`. The Rust image joins CI when `zfsbootmenu_runtime=rust` works.
+- Fixtures are recorded in a QEMU virtual machine booted from an image the build container builds, because creating
+  pools needs the OpenZFS 2.4.4 kernel module, which the container cannot load on most hosts.
+- The coverage job reports coverage; the 80% target and the rule that coverage must not drop will be enforced once
+  the reports have settled.
+
+**Known differences between the Perl and the Rust `generate-zbm`,** in cases that do not occur in practice:
+
+- A configuration section that is not a mapping (`EFI: yes`) ends both with an error; Perl exits with whatever error
+  number an earlier system call left, the Rust version with 255. Perl's fatal messages also name its source lines.
+- The Rust version reads the configuration as UTF-8 and skips file names that are not valid UTF-8; the Perl version
+  writes non-ASCII configuration strings as Latin-1 bytes, which breaks paths that contain them.
+- Complex mapping keys in the configuration (`? [a, b]`) and cyclic aliases are rejected by the Rust version; YAML::PP
+  accepts the first and rejects the second.
+- `--help` prints the manual page as Pod::Usage renders it; the Perl version runs `perldoc`, whose output depends on
+  the host. Both exit with status 1.
 
 ## Phase 1: Foundations
 

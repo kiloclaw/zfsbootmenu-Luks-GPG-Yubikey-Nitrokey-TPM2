@@ -366,6 +366,18 @@
       Set this variable to override the default [1m<path>[0m where the ZFSBootMenu module expects to find optional user hooks that will be
       installed in the created image. When unspecified, a default of [33m/etc/zfsbootmenu/hooks[0m is assumed.
 
+    [1mzfsbootmenu_runtime=legacy[0m
+
+      Select the runtime that the image boots with. The only runtime available is [33mlegacy[0m, the shell implementation, which is also
+      the default. A Rust runtime is being written; until it can boot, [33mrust[0m and any other value stop the image build with an
+      error.
+
+    [1mzfsbootmenu_zbm=<path>[0m
+
+      Set this variable to override the default [1m<path>[0m of [1mzbm[0m, the program of the Rust runtime, which is installed in the image as
+      [33m/libexec/zbm[0m. When unspecified, a default of [33m/usr/libexec/zfsbootmenu/zbm[0m is assumed, which is where [1mmake install[0m puts
+      it. The [33mlegacy[0m runtime does not use [1mzbm[0m; when it is not found, the image is built without it.
+
     [1mzfsbootmenu_skip_gcc_s=yes[0m
 
       The ZFSBootMenu module attempts to detect and install a copy of the library [1mlibgcc_s.so[0m in its initramfs image on glibc

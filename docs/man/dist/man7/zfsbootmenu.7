@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "ZFSBOOTMENU" "7" "2026-10-19" "" "ZFSBootMenu"
+.TH "ZFSBOOTMENU" "7" "2026-10-21" "" "ZFSBootMenu"
 .SH NAME
 zfsbootmenu \- System Integration
 .SH SYNOPSIS
@@ -496,6 +496,20 @@ Set this variable to override the default \fB<path>\fP where the ZFSBootMenu mod
 .INDENT 0.0
 .INDENT 3.5
 Set this variable to override the default \fB<path>\fP where the ZFSBootMenu module expects to find optional user hooks that will be installed in the created image. When unspecified, a default of \fI/etc/zfsbootmenu/hooks\fP is assumed.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_runtime=legacy\fP
+.INDENT 0.0
+.INDENT 3.5
+Select the runtime that the image boots with. The only runtime available is \fIlegacy\fP, the shell implementation, which is also the default. A Rust runtime is being written; until it can boot, \fIrust\fP and any other value stop the image build with an error.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_zbm=<path>\fP
+.INDENT 0.0
+.INDENT 3.5
+Set this variable to override the default \fB<path>\fP of \fBzbm\fP, the program of the Rust runtime, which is installed in the image as \fI/libexec/zbm\fP\&. When unspecified, a default of \fI/usr/libexec/zfsbootmenu/zbm\fP is assumed, which is where \fBmake install\fP puts it. The \fIlegacy\fP runtime does not use \fBzbm\fP; when it is not found, the image is built without it.
 .UNINDENT
 .UNINDENT
 .sp

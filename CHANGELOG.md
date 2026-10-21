@@ -33,6 +33,32 @@ New files: a Cargo workspace (`Cargo.toml`, `rust-toolchain.toml`, `crates/zbm-c
 `CONTRIBUTING.md`, `PORT-ROADMAP.md`, `ROADMAP.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.editorconfig`, a pull
 request template and a Dependabot configuration.
 
+### Rust host tools
+
+`generate-zbm` and `zbm-kcl` are now Rust programs (phases 1 to 3 of `PORT-ROADMAP.md`). They accept the same options
+and configuration, print the same messages and build the same images as the Perl and Bash tools, which parity tests
+and image comparisons check. `make` builds them offline from vendored crates, `make install` installs them, and the
+build container builds images with them; Perl is no longer needed to build images. `make install TOOLS=legacy`
+installs the legacy tools, and the build container's `-g perl` option uses the Perl `generate-zbm`.
+
+Images now include `zbm`, the program of the future Rust runtime, as `/libexec/zbm`, but still boot the legacy runtime.
+The dracut and mkinitcpio setting `zfsbootmenu_runtime` selects the runtime (only `legacy` is available) and
+`zfsbootmenu_zbm` names the program to include (default `/usr/libexec/zfsbootmenu/zbm`); see `zfsbootmenu(7)`.
+
+Fixes found while porting, in both versions of the tools:
+
+- `generate-zbm` quotes paths in the commands it runs, so kernels, hooks, the boot mount point and the dracut and
+  mkinitcpio configuration may have spaces or quotes in their paths.
+- `generate-zbm` unmounts the boot partition once, not twice, when it is interrupted.
+- `generate-zbm` no longer counts a command killed by a signal as a success, and no longer exits with status 0 when
+  `uname -r` prints nothing for `%{current}`.
+- `generate-zbm` stops with an error when `objdump` reports no section alignment or sections for the EFI stub, instead
+  of building a bundle with wrong offsets, and its debug log shows the section offsets correctly.
+- `generate-zbm --enable` and `--disable` report a failed write of the configuration instead of truncating it silently.
+- `%{parent}` in `org.zfsbootmenu:commandline` inserts the parent's command line as it is, in the runtime and in
+  `zbm-kcl`; with Bash 5.2 and later, an `&` in it was replaced. The `spl_hostid` kernel option accepts only decimal
+  and hexadecimal numbers.
+
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
 ZFSBootMenu v3.1.0 includes fixes, additional platform tooling and feature enhancements. 

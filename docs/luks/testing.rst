@@ -87,6 +87,10 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
 each case to */tmp/z?/cases*.
 
+The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
+for the Bash libraries, ``rust`` for the Rust runtime of the port. Until the Rust runtime exists, ``ZBMTEST_IMPL=rust``
+makes every suite report that it is skipped.
+
 Unit Suites
 -----------
 
