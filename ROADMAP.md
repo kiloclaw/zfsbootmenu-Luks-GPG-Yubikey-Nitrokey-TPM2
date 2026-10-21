@@ -1,8 +1,9 @@
 # Roadmap
 
 This roadmap lists features to add to ZFSBootMenu during and after its port to Rust. Each entry is a proposal, not a
-commitment. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the port itself proceeds: the Bash and Perl code in
-`legacy/` ships until a Rust part matches it.
+commitment. The port itself, which only reaches parity with the Bash and Perl code in `legacy/`, is planned in
+[PORT-ROADMAP.md](PORT-ROADMAP.md). The features in phase 1 below can follow each part of the port as soon as that
+part matches the legacy code, as separate changes; the others wait until the port is done.
 
 Each feature lists why it is useful, how it could work and when it counts as done. Effort is a rough estimate for one
 developer who knows the code: **Small** is under a week, **Medium** a few weeks, **Large** a few months.
@@ -37,9 +38,10 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
-## Phase 1: improvements built into the port
+## Phase 1: improvements that follow the port
 
-These come with porting the code they touch, at little extra cost.
+Each of these touches code that the port rewrites anyway, so it costs little once that code is in Rust. It is added
+as a separate change after the part it touches matches the legacy code, never as part of the port itself.
 
 ### 1. Wipe secrets from memory
 

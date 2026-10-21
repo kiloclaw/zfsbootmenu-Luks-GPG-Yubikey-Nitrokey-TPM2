@@ -58,8 +58,8 @@ the booted system.
 The bootloader that ships is the Bash and Perl code under `legacy/`; Rust crates in `crates/` will replace it one part
 at a time. `make install` installs files from `legacy/`, `packaging/dracut/`, `packaging/initcpio/`,
 `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`; it installs no Rust code
-yet. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test each part, and [ROADMAP.md](ROADMAP.md) for the
-features planned for the Rust port.
+yet. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test each part, [PORT-ROADMAP.md](PORT-ROADMAP.md)
+for the phases of the port, and [ROADMAP.md](ROADMAP.md) for the features planned after it.
 
 ### For more details, see:
 
