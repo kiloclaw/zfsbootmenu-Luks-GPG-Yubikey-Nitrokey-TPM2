@@ -409,6 +409,9 @@ pub struct BootSettings {
     pub set_hostid: bool,
     /// Where the hook directories are.
     pub hooks: PathBuf,
+    /// Variables the start-up program exported after it started (`BOOTFS`),
+    /// which hooks get on top of its environment.
+    pub env: Vec<(String, String)>,
 }
 
 impl Default for BootSettings {
@@ -416,6 +419,7 @@ impl Default for BootSettings {
         BootSettings {
             set_hostid: true,
             hooks: PathBuf::from(hooks::HOOKS),
+            env: Vec::new(),
         }
     }
 }
@@ -480,11 +484,16 @@ pub fn kexec_kernel(
         return;
     };
     let mnt_text = mnt.to_string_lossy().into_owned();
-    let mut hook_env = vec![
+    let mut hook_env: Vec<(&str, &str)> = settings
+        .env
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
+    hook_env.extend([
         ("ZBM_SELECTED_BE", fs.as_str()),
         ("ZBM_SELECTED_KERNEL", kernel.as_str()),
         ("ZBM_SELECTED_INITRAMFS", initramfs.as_str()),
-    ];
+    ]);
     let mut boot_sel_env = hook_env.clone();
     boot_sel_env.push(("ZBM_SELECTED_MOUNTPOINT", &mnt_text));
     hooks::run_stage(
@@ -592,7 +601,6 @@ pub fn kexec_kernel(
         }
     }
 
-    hook_env.truncate(3);
     hooks::run_stage(system, log, &settings.hooks, "teardown.d", false, &hook_env);
 
     let booting = format!(
@@ -985,6 +993,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             let settings = BootSettings {
                 set_hostid: true,
                 hooks: hooks.to_path_buf(),
+                env: Vec::new(),
             };
             kexec_kernel(system, state, log, &settings, &selected, shells);
             String::new()
@@ -1121,6 +1130,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             let settings = BootSettings {
                 set_hostid: true,
                 hooks: hooks.to_path_buf(),
+                env: Vec::new(),
             };
             let selected = Kernel::parse("tank/ROOT/void\t/boot/vmlinuz\t/boot/initrd.img");
             kexec_kernel(system, state, log, &settings, &selected, shells);

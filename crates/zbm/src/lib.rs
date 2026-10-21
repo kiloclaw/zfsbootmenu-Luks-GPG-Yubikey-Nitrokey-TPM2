@@ -3,11 +3,14 @@
 //! Like BusyBox, `zbm` is one program that acts as each of its commands, chosen
 //! by the name it is run under (through a link such as `/bin/zfsbootmenu ->
 //! /libexec/zbm`) or by its first argument (`zbm zfsbootmenu`). One binary
-//! keeps the boot image small. The commands arrive with the runtime port, from
-//! Phase 5 of `PORT-ROADMAP.md` on; until then the table is empty, and images
-//! that include `zbm` do not use it.
+//! keeps the boot image small. The commands arrive with the runtime port: Phase
+//! 5 of `PORT-ROADMAP.md` brings the start-up hooks, the start-up program and
+//! the supervisor.
 
 use std::io::Write;
+
+pub mod applets;
+pub mod supervisor;
 
 /// The program's output streams.
 pub struct Io<'a> {
@@ -28,7 +31,23 @@ pub struct Applet {
 }
 
 /// The commands `zbm` provides.
-pub const APPLETS: &[Applet] = &[];
+pub const APPLETS: &[Applet] = &[
+    Applet {
+        name: "zfsbootmenu-init",
+        summary: "the start-up program, and with --supervise process 1",
+        run: applets::init,
+    },
+    Applet {
+        name: "zfsbootmenu-parse-commandline",
+        summary: "read the command line into /etc/zfsbootmenu.conf (dracut cmdline hook)",
+        run: applets::parse_commandline,
+    },
+    Applet {
+        name: "zfsbootmenu-preinit",
+        summary: "set up the console and start the supervisor (dracut pre-mount hook)",
+        run: applets::preinit,
+    },
+];
 
 /// The exit status for a command that does not exist, as a shell reports it.
 pub const NOT_FOUND: i32 = 127;
@@ -191,11 +210,29 @@ mod tests {
         assert_eq!(stdout, format!("zbm {}\n", zbm_core::version::ZBM_VERSION));
         let (code, stdout, _) = call(APPLETS, "zbm", &["--help"]);
         assert_eq!(code, 0);
-        assert!(stdout.contains("No commands are available yet."));
-        assert_eq!(
-            call(APPLETS, "zbm", &["--list"]),
-            (0, String::new(), String::new())
+        assert!(!stdout.contains("No commands are available yet."));
+        assert!(
+            call(&[], "zbm", &["--help"])
+                .1
+                .contains("No commands are available yet.")
         );
+        let (code, list, _) = call(APPLETS, "zbm", &["--list"]);
+        assert_eq!(code, 0);
+        let names: Vec<&str> = list
+            .lines()
+            .filter_map(|line| line.split_whitespace().next())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "zfsbootmenu-init",
+                "zfsbootmenu-parse-commandline",
+                "zfsbootmenu-preinit"
+            ]
+        );
+        let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
+        assert_eq!(code, USAGE);
+        assert_eq!(stderr, "zfsbootmenu-init: unknown option --bogus\n");
         assert_eq!(command_name("/a/b/"), "b");
     }
 }

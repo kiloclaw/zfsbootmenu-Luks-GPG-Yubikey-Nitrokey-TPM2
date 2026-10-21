@@ -56,8 +56,11 @@ dependencies = [
 name = "zbm"
 version = "0.1.0"
 dependencies = [
+ "zbm-boot",
+ "zbm-cmdline",
  "zbm-core",
  "zbm-sys",
+ "zbm-system",
  "zbm-testutil",
 ]
 

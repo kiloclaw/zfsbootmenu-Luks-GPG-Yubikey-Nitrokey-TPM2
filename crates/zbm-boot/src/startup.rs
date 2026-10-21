@@ -437,9 +437,11 @@ impl<'a> Startup<'a> {
         if boot::find_kernels(system, &self.state, &self.log, bootfs) && !self.state.is_active() {
             let selected = boot::select_kernel(system, &self.state, &self.log, bootfs)
                 .unwrap_or_else(|| Kernel::parse(""));
+            // 50-import-pools exported BOOTFS in the legacy program.
             let settings = BootSettings {
                 set_hostid: self.options.set_hostid,
                 hooks: self.hooks.clone(),
+                env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
             };
             let mut shell = self.shell();
             boot::kexec_kernel(
