@@ -9,6 +9,7 @@ Rust version does what the legacy code in `legacy/` does today, nothing more. Ne
 - [Approach](#approach)
 - [End state](#end-state)
 - [Rules for every phase](#rules-for-every-phase)
+- [Rust unit tests](#rust-unit-tests)
 - [Compatibility contract](#compatibility-contract)
 - [Overview](#overview)
 - Phases: [1](#phase-1-foundations) · [2](#phase-2-shared-libraries-and-zbm-kcl) · [3](#phase-3-generate-zbm) ·
@@ -66,19 +67,58 @@ plan remains the better choice for a single developer who wants a shippable resu
 2. **Tests first.** Behaviour that the port touches but no test covers gets a test, which must pass against the legacy
    code before the Rust version is written. The legacy code is the reference: when the two disagree, the Rust code is
    wrong unless the legacy code has a bug.
-3. **Freeze the legacy runtime and track every change.** From Phase 4 on, the legacy runtime gets bug fixes only. Each
+3. **Rust unit tests from the start.** Every change that adds or ports Rust code adds Rust unit tests for it, in the
+   same change, from the first code written in Phase 1. Code without them is not merged. See
+   [Rust unit tests](#rust-unit-tests).
+4. **Freeze the legacy runtime and track every change.** From Phase 4 on, the legacy runtime gets bug fixes only. Each
    change to it, including changes merged from upstream ZFSBootMenu, is recorded in a tracking issue and must be ported
    before the beta ends. A bug found in the legacy code while porting is fixed there too, with a test.
-4. **Every suite runs against both images.** CI builds a legacy and a Rust image and runs the LUKS unit suites
+5. **Every suite runs against both images.** CI builds a legacy and a Rust image and runs the LUKS unit suites
    (`tests/luks/unit/run-all.sh` and `run-in-container.sh`), the LUKS VM tests (`tests/luks/vm/run-all.sh`), the
-   upstream test VMs (`tests/setup.sh`, `tests/run.sh`), the Rust tests and the CI build. Results against the legacy
-   image decide whether a change can be merged. Until Phase 6 ends, results against the Rust image are reported as the
-   progress measure; after that, they decide too.
-5. **No new features.** Changes in behaviour, even improvements, belong to ROADMAP.md, not to this plan. Its phase 1
+   upstream test VMs (`tests/setup.sh`, `tests/run.sh`) and the CI build; the Rust unit tests run on every change.
+   Results against the legacy image decide whether a change can be merged. Until Phase 6 ends, results against the
+   Rust image are reported as the progress measure; after that, they decide too.
+6. **No new features.** Changes in behaviour, even improvements, belong to ROADMAP.md, not to this plan. Its phase 1
    improvements can follow a host tool once it has been swapped, and the runtime once the cutover (Phase 8) is done,
    so the beta compares the same behaviour. Within the port, an error message changes only where the legacy message is
    wrong.
-6. **Keep `unsafe` out** except where a crate needs FFI, and document each use.
+7. **Keep `unsafe` out** except where a crate needs FFI, and document each use.
+
+## Rust unit tests
+
+Rust unit tests are written from the start, together with the code they test. They do not replace the existing
+suites: the Bash unit suites and the VM tests check that the Rust code behaves like the legacy code on real devices
+and in real boots, which takes minutes to hours and needs root, QEMU and the build container. Rust unit tests check
+each piece of logic on its own, in seconds, without root, on every change, so most mistakes are found before a VM
+boots.
+
+- **What they cover:** everything that decides something without changing the system.
+  - Parsing: `zbm.*` options, kernel command lines, crypttab and `zbm.luks` options, `config.yaml`, `zbm-release`, and
+    the output of `zfs`, `zpool`, `cryptsetup`, `tpm2-tools` and `gpg`.
+  - Decisions: import policies, which volumes may hold ZFS, the order of key methods, boot environment sorting and the
+    default choice, kernel selection, the naming and clean-up of generated images, EFI section offsets.
+  - What goes out to the system: the arguments and environment of every external program, the hook environment, the
+    `kexec` command line.
+  - Menu state: which screen follows which key, and what each row shows.
+- **Testable code:** code that runs programs, reads files, waits for devices, or reads the clock or the keyboard does so
+  through a small interface (a Rust trait), which unit tests replace with a fake. Phase 4 defines these interfaces for
+  the runtime. The fakes record what the code tried to do, so tests also check what it must not do, such as passing a
+  secret in an argument, the environment or a file.
+- **Real tool output:** output of `zfs`, `zpool`, `cryptsetup luksDump`, `tpm2_getcap` and similar commands is
+  recorded in the build container (OpenZFS 2.4.4) and in the VM tests, and stored next to the tests
+  (`crates/*/tests/fixtures/`), so parsers are tested against real output, not hand-made examples only.
+- **Parity tests:** where a Bash function has a Rust counterpart without side effects (the command line tokenizer,
+  option parsing, crypttab parsing, sort keys), a test runs both on the same inputs and compares the results. Inputs
+  are written by hand and generated with `proptest`. These tests need only Bash and the legacy source tree, so they
+  run in the normal Rust CI job. Before Phase 8 removes `legacy/`, their expected results are saved as fixtures, so the
+  tests keep working without the Bash code.
+- **Regressions:** a bug found by the existing suites, in the beta or by users gets a Rust unit test that reproduces
+  it before it is fixed, whenever the bug is in logic a unit test can reach.
+- **Measuring:** CI runs `cargo test` on every change (the Rust workflow already does) and measures line coverage with
+  `cargo llvm-cov`. Library crates aim for at least 80%, and coverage must not drop. Code that only acts on the system
+  (mounting, `kexec`, waiting for devices) is left to the VM tests.
+- **Test-only dependencies** such as `proptest`, and `insta` for snapshot tests of menu screens, are dev-dependencies:
+  they never reach the boot image.
 
 ## Compatibility contract
 
@@ -106,7 +146,7 @@ code.
 
 | Phase | Work | Legacy lines | Estimate | Users get |
 | --- | --- | --- | --- | --- |
-| 1. Foundations | Build, packaging and test setup | (new) | 2–3 weeks | — |
+| 1. Foundations | Build, packaging, test setup, Rust unit test tooling | (new) | 3–4 weeks | — |
 | 2. Shared libraries and `zbm-kcl` | Logging, command line parsing, KCL handling, ZFS command layer, `zbm-kcl` | ~1,300 | 3–4 weeks | Rust `zbm-kcl` |
 | 3. `generate-zbm` | The image generator | ~1,170 | 5–7 weeks | Rust `generate-zbm`, no Perl |
 | 4. Runtime design | Data model, process model, crates, tests | — | 2–3 weeks | — |
@@ -117,8 +157,10 @@ code.
 
 ¹ Including about 1,450 lines of install helpers and packaging glue, which shrink rather than move to Rust.
 
-The total is about 39 to 56 weeks, or 9 to 13 months. Phase 3 does not depend on the runtime: with a second
-developer on phases 2 and 3 and on some of the work packages, the port takes about 6 to 9 months.
+The total is about 40 to 57 weeks, or 9 to 13 months. The estimates include writing the Rust unit tests, which
+take roughly a sixth of each phase and save time later, because most mistakes show up in seconds instead of in VM
+runs. Phase 3 does not depend on the runtime: with a second developer on phases 2 and 3 and on some of the work
+packages, the port takes about 6 to 9 months.
 
 ## Phase 1: Foundations
 
@@ -138,9 +180,12 @@ developer on phases 2 and 3 and on some of the work packages, the port takes abo
 - **Tests:** the LUKS unit suites source the Bash libraries directly. Give them a way to call the code under test
   through commands, so the same suites can run against the Rust code. CI builds a legacy and a Rust image and can run
   every suite against both.
+- **Rust unit test tooling:** a helper that runs a function from a legacy Bash library and returns its output, for
+  parity tests; a script that records tool output in the build container as fixtures; `proptest` and `insta` as
+  dev-dependencies; and a coverage job (`cargo llvm-cov`) in the Rust workflow.
 
 **Done when:** an image that contains `zbm` but does not use it passes every suite; CI builds both images; release
-builds for x86_64 and aarch64 work in the build container.
+builds for x86_64 and aarch64 work in the build container; a first parity test runs in CI and coverage is reported.
 
 ## Phase 2: Shared libraries and zbm-kcl
 
@@ -159,9 +204,10 @@ run: `zbm-kcl`.
 The command line code is shared: `zbm-kcl` on the host and the menu in the image must split and join command lines
 the same way.
 
-**Done when:** Rust unit tests cover the libraries, including the quoting cases of the Bash tokenizer; a test runs
-legacy and Rust `zbm-kcl` on the same boot environments and EFI images and gets the same results; `make install`
-installs the Rust `zbm-kcl`.
+**Done when:** Rust unit tests cover the libraries: parity tests compare the tokenizer and the option parser with
+the Bash versions on hand-written and generated inputs, including every quoting case, and the `zfs` and `zpool`
+parsers are tested against recorded OpenZFS 2.4.4 output. A test runs legacy and Rust `zbm-kcl` on the same boot
+environments and EFI images and gets the same results, and `make install` installs the Rust `zbm-kcl`.
 
 ## Phase 3: generate-zbm
 
@@ -180,8 +226,10 @@ longer needed. This phase does not depend on the runtime and can run in parallel
 
 **Done when:** for the release, recovery and test configurations, the Rust and Perl generators produce images with the
 same contents. The comparison checks file lists, contents, permissions and symlinks after extraction, the method used
-to check the repository reorganization. The build container and `scripts/release/make-binary.sh` use the Rust
-generator, and `legacy/cpanfile` is no longer needed for builds.
+to check the repository reorganization. Rust unit tests cover every configuration key, default and error described
+in `generate-zbm(5)`, the naming and clean-up rules, kernel version ordering (compared with Perl's `Sort::Versions`)
+and the EFI section offsets (compared with images built by the Perl version). The build container and
+`scripts/release/make-binary.sh` use the Rust generator, and `legacy/cpanfile` is no longer needed for builds.
 
 ## Phase 4: Runtime design
 
@@ -199,11 +247,14 @@ The design is written down in `crates/DESIGN.md` and answers at least:
   is offered after a failure.
 - **External programs:** how they are run, how their output is parsed, and how secrets are passed to them without
   command-line arguments, environment variables or files.
-- **Testing:** how each work package is tested, and how the existing suites drive the Rust runtime.
+- **Testing:** the interfaces through which the runtime reaches the system (programs, files, devices, clock,
+  console), so that every part can be unit-tested with fakes; how each work package is tested; and how the existing
+  suites drive the Rust runtime.
 
-The legacy runtime is frozen at the start of this phase (rule 3), and the tracking issue for its changes is opened.
+The legacy runtime is frozen at the start of this phase (rule 4), and the tracking issue for its changes is opened.
 
-**Done when:** `crates/DESIGN.md` has been reviewed, the crate layout matches it, and the tracking issue exists.
+**Done when:** `crates/DESIGN.md` has been reviewed, the crate layout matches it, the system interfaces exist with
+their fakes and their own unit tests, and the tracking issue exists.
 
 ## Phase 5: Minimal bootable runtime
 
@@ -217,16 +268,17 @@ The legacy runtime is frozen at the start of this phase (rule 3), and the tracki
 - **New test:** a VM test boots the default boot environment of an unencrypted pool. It must pass with the legacy
   image first (rule 2).
 
-**Done when:** the new VM test passes with the Rust image, and CI runs every suite against the Rust image from now on
-and reports how many tests pass.
+**Done when:** Rust unit tests cover the import, the choice of boot environment and kernel, and the `kexec`
+arguments, using the fakes from Phase 4; the new VM test passes with the Rust image; and CI runs every suite against
+the Rust image from now on and reports how many tests pass.
 
 ## Phase 6: Complete the runtime
 
 **Goal:** everything else the legacy runtime does, until every suite passes against the Rust image.
 
 The work is split into six packages. They can be done in any order, or by several developers at once, but the order
-below follows the start-up sequence and puts the largest risk early. A package is done when the tests covering it pass
-against the Rust image; the phase is done when every suite passes against it.
+below follows the start-up sequence and puts the largest risk early. A package is done when its Rust unit tests
+pass and the suites covering it pass against the Rust image; the phase is done when every suite passes against it.
 
 | Package | Ports | Legacy lines | Estimate |
 | --- | --- | --- | --- |
@@ -249,7 +301,8 @@ Phase 5 already covers the basic paths of A and C, so their estimates are lower 
 | Pool import: import policies, retries and delays, read-only import, host ID matching, unsupported feature detection, `zbm.prefer` | `init.d/50-import-pools`, `import_pool`, `export_pool`, `check_for_pools`, `match_hostid`, `write_hostid` |
 | Timed prompts and the resume check | `timed_prompt`, `has_resume_device`, `resume_prompt` |
 
-**Done when:** the upstream test VMs and the LUKS VM tests that cover import policies, host IDs and late devices pass.
+**Done when:** Rust unit tests cover every import policy, retry and host ID case, and the upstream test VMs and the
+LUKS VM tests that cover import policies, host IDs and late devices pass.
 
 ### B. LUKS and key handling
 
@@ -268,8 +321,10 @@ The largest and most security-sensitive package.
 Secrets stay out of command lines, environment variables and files, as they do today. Calling `cryptsetup` through
 `libcryptsetup-rs` instead of the program is allowed if every suite passes with it.
 
-**Done when:** the LUKS unit suites (248 checks today) and every LUKS VM test pass against the Rust image, on the host
-and in the build container, including the key, lockout, hot-plug and firmware tests.
+**Done when:** Rust unit tests cover the configuration parsing (with parity tests against the Bash parser), the order
+of key methods, token metadata parsed from recorded `cryptsetup luksDump` output, and check that no secret reaches an
+argument, the environment or a file. The LUKS unit suites (248 checks today) and every LUKS VM test pass against the
+Rust image, on the host and in the build container, including the key, lockout, hot-plug and firmware tests.
 
 ### C. Boot environments and booting
 
@@ -282,8 +337,9 @@ and in the build container, including the key, lockout, hot-plug and firmware te
 | Booting: `boot-sel.d` and `teardown.d` hooks, exporting pools, `kexec` | `kexec_kernel`, `bin/zkexec` |
 | Automatic boot after the timeout (`zbm.timeout`, `zbm.skip`, `zbm.show`) | `libexec/zfsbootmenu-init` |
 
-**Done when:** every VM test that boots a boot environment passes, including the native encryption, `keysource`,
-`rootprefix` and device tree cases of the upstream test VMs.
+**Done when:** Rust unit tests cover sorting, kernel selection, the command line cache, key source handling and the
+hook environment, and every VM test that boots a boot environment passes, including the native encryption,
+`keysource`, `rootprefix` and device tree cases of the upstream test VMs.
 
 ### D. Snapshot and pool management
 
@@ -298,7 +354,8 @@ and in the build container, including the key, lockout, hot-plug and firmware te
 
 Most of these actions have no automated test today, so this package adds the tests first, against the legacy image.
 
-**Done when:** a test covers each action, and each test passes against the Rust image.
+**Done when:** Rust unit tests check the commands each action runs, a suite test covers each action, and each test
+passes against the Rust image.
 
 ### E. Interactive menu
 
@@ -313,8 +370,9 @@ The menu keeps driving `fzf`, with the same screens, key bindings and previews.
 | Command line editor, power menu, input helper | `libexec/zfsbootmenu-edit-kcl`, `libexec/zpowermenu`, `libexec/zfsbootmenu-input` |
 | Console set-up hooks | `hooks/early-setup.d/*` |
 
-**Done when:** every key binding in `docs/online/` works, each screen shows the same information, and the VM tests,
-which drive the menu over the serial console, pass.
+**Done when:** Rust unit tests cover the menu state for every key binding in `docs/online/`, and snapshot tests the
+text of each screen; every key binding works, each screen shows the same information, and the VM tests, which drive
+the menu over the serial console, pass.
 
 ### F. Recovery tools and image assembly
 
@@ -329,8 +387,9 @@ The install helpers shrink to installing `zbm`, the external programs and librar
 and fonts. `zbm` can list the programs it needs, so the list is kept in one place. The xHCI teardown hook
 (`hooks/teardown.d/90-xhci-unbind.sh`) stays a shell script, like user hooks.
 
-**Done when:** the Rust image contains no ZFSBootMenu Bash libraries except the compatibility library; the hooks in
-`contrib/` work unchanged; image sizes are compared with the legacy image.
+**Done when:** Rust unit tests cover the list of programs `zbm` needs and the recovery commands' logic; the Rust image
+contains no ZFSBootMenu Bash libraries except the compatibility library; the hooks in `contrib/` work unchanged; image
+sizes are compared with the legacy image.
 
 ## Phase 7: Beta with the legacy image as fallback
 
@@ -339,7 +398,9 @@ and fonts. `zbm` can list the programs it needs, so the list is kept in one plac
 - **Both images:** release and recovery builds produce a Rust image and a legacy image from the same tree. The Rust
   image is the first boot entry; the documentation shows how to keep the legacy image as a second entry with
   `efibootmgr`, or as a second entry in other boot loaders.
-- **Catch up:** every change recorded in the tracking issue (rule 3) is ported, and the issue is closed.
+- **Catch up:** every change recorded in the tracking issue (rule 4) is ported, and the issue is closed.
+- **Bugs:** every bug found in the beta gets a Rust unit test, or a suite test where a unit test cannot reach it,
+  that fails before the fix.
 - **Hardware:** the beta is tested on UEFI x86_64 and aarch64 machines, on firmware with Secure Boot enabled, and on a
   BIOS machine booting through syslinux, in addition to the VM tests.
 
@@ -351,15 +412,16 @@ has been open for four weeks of beta.
 **Goal:** Rust is the only implementation.
 
 - **Default:** make the Rust runtime the default, and ship one release with the legacy runtime still selectable.
-- **Removal:** after that release, remove `legacy/`, the build-time setting and the legacy CI build. `make install`
-  installs the Rust programs at the same paths as before.
+- **Removal:** after that release, save the expected results of the parity tests as fixtures, then remove
+  `legacy/`, the build-time setting and the legacy CI build. `make install` installs the Rust programs at the same
+  paths as before.
 - **Documentation:** update the man pages, the online help and `docs/`, which describe behaviour and stay valid, and
   remove references to Perl and the legacy libraries.
 - **Release tooling:** update `scripts/release/` for the Rust builds, and give the release notes upgrade instructions
   for distribution packagers (Rust toolchain, vendored dependencies, no Perl).
 
-**Done when:** every suite passes on the Rust-only tree; release images are built and signed with the updated tooling;
-the release notes are published.
+**Done when:** every suite and every Rust unit test passes on the Rust-only tree; release images are built and signed
+with the updated tooling; the release notes are published.
 
 ## Alternatives
 
@@ -388,5 +450,6 @@ is not recommended.
   image, and stay shell.
 - **The dracut and mkinitcpio glue:** both expect shell scripts, so it stays shell (work package F shrinks it).
 - **The test suites:** the Bash unit suites and the Python VM tests stay as they are, because they check that the
-  Rust code behaves like the legacy code. Rust unit tests are added alongside them.
+  Rust code behaves like the legacy code. The Rust unit tests are written alongside them (see
+  [Rust unit tests](#rust-unit-tests)).
 - **`contrib/` scripts and user hooks:** they stay shell, and keep working through the compatibility library.
