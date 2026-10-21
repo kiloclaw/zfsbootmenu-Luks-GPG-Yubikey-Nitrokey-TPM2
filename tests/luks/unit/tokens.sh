@@ -69,14 +69,9 @@ run() {
   (
     export PATH="$S/kstubs:$S/stubs:$PATH" BASE="$FAKE/base" LUKS_TPM2_TCTI="$TCTI"
     mkdir -p "$BASE/cmdline.d"; echo 0 > "$BASE/cmdline.d/zbm.luks_token_wait"
-    zinfo()  { echo "INFO: $*"  >> "$FAKE/log"; }
-    zwarn()  { echo "WARN: $*"  >> "$FAKE/log"; }
-    zerror() { echo "ERROR: $*" >> "$FAKE/log"; }
-    zdebug() { [ $# -gt 0 ] && echo "DEBUG: $*" >> "$FAKE/log"; return 0; }
-    colorize() { shift; echo -ne "$@"; }
-    timed_prompt() { echo "timed_prompt $*" >> "$FAKE/prompts"; return 1; }
+    # Logging, timed prompts (always ESCAPE: no answers file) and open
+    # volumes go through the seams of impl.sh
     zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
-    luks_is_open() { [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2"
   ) > "$FAKE/out" 2>&1
   RC=$?

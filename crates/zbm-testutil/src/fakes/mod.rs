@@ -4,11 +4,13 @@
 //! [`System`]. Each fake records what the code did: the commands it ran
 //! ([`FakeRunner`]), the files it changed ([`FakeFiles`]), how long it slept
 //! ([`FakeClock`]), what it showed and read ([`FakeConsole`]) and the signals
-//! it sent ([`FakeProcesses`]). [`FakeSystem::assert_no_leak`] checks all of
+//! it sent ([`FakeProcesses`]); [`FakeEnvironment`] holds the variables the
+//! test sets. [`FakeSystem::assert_no_leak`] checks all of
 //! them for a secret.
 
 mod clock;
 mod console;
+mod environment;
 mod files;
 mod processes;
 
@@ -17,6 +19,7 @@ use std::path::Path;
 
 pub use clock::{FakeClock, START};
 pub use console::{ConsoleInput, FakeConsole};
+pub use environment::FakeEnvironment;
 pub use files::{FakeFiles, FileOperation};
 pub use processes::FakeProcesses;
 
@@ -37,6 +40,8 @@ pub struct FakeSystem {
     pub console: FakeConsole,
     /// Processes; this one has the ID 4242.
     pub processes: FakeProcesses,
+    /// Environment variables: none until the test sets them.
+    pub environment: FakeEnvironment,
 }
 
 impl Default for FakeSystem {
@@ -63,6 +68,7 @@ impl FakeSystem {
             console: FakeConsole::new().with_clock(clock.clone()),
             clock,
             processes: FakeProcesses::default(),
+            environment: FakeEnvironment::new(),
         }
     }
 
@@ -74,6 +80,7 @@ impl FakeSystem {
             clock: &self.clock,
             console: &self.console,
             processes: &self.processes,
+            environment: &self.environment,
         }
     }
 
@@ -457,6 +464,19 @@ mod tests {
         assert!(fake.kmsg().ends_with("<3>ZFSBootMenu: broken\n"));
         assert!(fake.files.exists(&path("/have_errors")));
         assert_eq!(system.processes.id(), 4242);
+        assert_eq!(system.environment.var("SSH_TTY"), None);
+        fake.environment
+            .set("SSH_TTY", "/dev/pts/0")
+            .set("read_write", "");
+        assert_eq!(
+            system.environment.var("SSH_TTY").as_deref(),
+            Some("/dev/pts/0")
+        );
+        assert_eq!(system.environment.var("read_write").as_deref(), Some(""));
+        assert_eq!(system.environment.non_empty("read_write"), None);
+        assert_eq!(system.environment.vars_os().len(), 2);
+        fake.environment.remove("SSH_TTY");
+        assert_eq!(system.environment.vars_os()[0].0, "read_write");
     }
 
     #[test]

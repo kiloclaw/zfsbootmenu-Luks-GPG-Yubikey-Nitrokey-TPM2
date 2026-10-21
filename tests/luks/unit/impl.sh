@@ -8,8 +8,43 @@
 #           until then
 #
 # Suites source this file, call zbm_impl_check before setting anything up, and
-# call zbm_impl_load in each case, after defining the stand-ins for logging and
-# prompts and before overriding functions that only exist in the Bash code.
+# call zbm_impl_load in each case. Everything a suite observes or controls in
+# the code under test goes through the seams below, so that another
+# implementation can provide the same seams (see "Driving the existing suites"
+# in crates/DESIGN.md).
+#
+# What the suites observe:
+#
+#   $FAKE/log      one line per message, "LEVEL: text" (INFO, WARN, ERROR,
+#                  DEBUG), instead of the kernel log
+#   $FAKE/prompts  one line per timed prompt, "timed_prompt <arguments>"
+#   $FAKE/out      everything written to standard output and standard error
+#   $FAKE/calls    the commands the stub programs in stubs/ and kstubs/ ran
+#   /dev/mapper    the mappings, which the stub cryptsetup creates
+#
+# What the suites control:
+#
+#   standard input                  passphrases, PINs and other typed answers
+#   $FAKE/answers (or $ANSWERS)     timed prompts: one status per line, 0 for
+#                                   RETURN and 1 for ESCAPE; 1 when empty
+#   ZBMTEST_PROMPT_DELAY            seconds each timed prompt waits (default 0)
+#   $FAKE/holders/<device>          a volume counts as open while this exists;
+#                                   the stub cryptsetup creates and removes it
+#   $BASE/cmdline.d/<option>        ZFSBootMenu command line options
+#   ZBM_CRYPTTAB, LUKS_STATE, LUKS_SKIPPED, LUKS_GNUPG_DIR, LUKS_TPM2_TCTI,
+#   LUKS_NO_TOKEN_PLUGINS, LUKS_DEFAULT_TRIES, LUKS_RETRY
+#                                   configuration of the LUKS code
+#   PATH                            stub programs and extra stand-ins
+#
+# What the suites call:
+#
+#   luks_unlock_all, luks_close_all [name...], luks_resolve_device <spec>,
+#   luks_list_tokens <device>, luks_record_mapping <name> <device> <auto>
+#
+# Two cases in edge.sh reach inside the legacy code and run only against it
+# (zbm_impl_is_legacy): the retry without cryptsetup replaces luks_available,
+# and the import-loop case runs init.d/50-import-pools with its functions
+# replaced. The Rust runtime covers both with unit tests.
 
 # Reports whether the selected implementation can be tested; exits with 77,
 # which run-all.sh reports as skipped, when it cannot.
@@ -29,20 +64,48 @@ zbm_impl_check() {
   esac
 }
 
+# Whether the selected implementation is the legacy one, for the cases that
+# replace a function inside it.
+zbm_impl_is_legacy() {
+  [ "${ZBMTEST_IMPL:-legacy}" = "legacy" ]
+}
+
+# The stand-ins for logging and prompts, which write to $FAKE.
+_zbm_impl_seams() {
+  zinfo()  { echo "INFO: $*"  >> "${FAKE:?}/log"; }
+  zwarn()  { echo "WARN: $*"  >> "${FAKE:?}/log"; }
+  zerror() { echo "ERROR: $*" >> "${FAKE:?}/log"; }
+  zdebug() { [ $# -gt 0 ] && echo "DEBUG: $*" >> "${FAKE:?}/log"; return 0; }
+  colorize() { shift; echo -ne "$@"; }
+  timed_prompt() {
+    local answers="${ANSWERS:-${FAKE:?}/answers}" a
+    echo "timed_prompt $*" >> "${FAKE:?}/prompts"
+    [ "${ZBMTEST_PROMPT_DELAY:-0}" -gt 0 ] && sleep "${ZBMTEST_PROMPT_DELAY}"
+    a=$(head -n1 "${answers}" 2>/dev/null); sed -i 1d "${answers}" 2>/dev/null
+    return "${a:-1}"
+  }
+}
+
 # arg1: the ZFSBootMenu source tree
 # arg2: the crypttab the code reads
-# Loads the LUKS code into the calling shell.
+# Loads the LUKS code into the calling shell, with the seams described above.
 zbm_impl_load() {
   local repo="${1?a source tree is required}"
   case "${ZBMTEST_IMPL:-legacy}" in
     legacy)
+      _zbm_impl_seams
       _ZFSBOOTMENU_CORE=1
       # shellcheck disable=SC1091
       source "${repo}/legacy/zfsbootmenu/lib/zfsbootmenu-kcl.sh" || return 1
+      # Both are read by the library sourced below
+      # shellcheck disable=SC2034
       ZBM_CRYPTTAB="${2?a crypttab is required}"
+      # shellcheck disable=SC2034
       LUKS_KEYS_LIB="${repo}/legacy/zfsbootmenu/lib/zfsbootmenu-luks-keys.sh"
       # shellcheck disable=SC1091
       source "${repo}/legacy/zfsbootmenu/lib/zfsbootmenu-luks.sh" || return 1
+      # sysfs holders cannot be faked; consult the stub's record instead
+      luks_is_open() { [ -e "${FAKE:?}/holders/$(basename "$(readlink -f "$1")")" ]; }
       ;;
     *)
       echo "zbm_impl_load: no implementation '${ZBMTEST_IMPL}' to load" >&2

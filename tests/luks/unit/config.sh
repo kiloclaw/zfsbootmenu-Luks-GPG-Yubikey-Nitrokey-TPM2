@@ -50,12 +50,10 @@ run(){ export FAKE; FAKE="$(mktemp -d)"; mkdir -p "$FAKE"/{holders,maps,content,
   for d in $STALE $MULTI $FIDOONLY $TOK $L1 $PLAIN $HDRDATA $GK; do echo zfs_member > "$FAKE/content/${d##*/}"; done
   echo "== $1"
   ( export PATH="$S/kstubs:$S/stubs:$PATH" BASE="$FAKE/base" LUKS_TPM2_TCTI="$TCTI" ANSWERS="$FAKE/answers"
+    export ZBMTEST_PROMPT_DELAY=1
     mkdir -p "$BASE/cmdline.d"; echo 0 > "$BASE/cmdline.d/zbm.luks_token_wait"
-    zinfo(){ echo "INFO: $*" >> "$FAKE/log"; }; zwarn(){ echo "WARN: $*" >> "$FAKE/log"; }; zerror(){ echo "ERROR: $*" >> "$FAKE/log"; }
-    zdebug(){ [ $# -gt 0 ] && echo "DEBUG: $*" >> "$FAKE/log"; return 0; }; colorize(){ shift; echo -ne "$@"; }
-    timed_prompt(){ echo "timed_prompt $*" >> "$FAKE/prompts"; sleep 1; local a; a=$(head -n1 "$ANSWERS" 2>/dev/null); sed -i 1d "$ANSWERS" 2>/dev/null; return "${a:-1}"; }
+    # Logging, timed prompts and open volumes go through the seams of impl.sh
     zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
-    luks_is_open(){ [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2" ) > "$FAKE/out" 2>&1; RC=$?
   N=$((N+1)); mkdir -p "$K/cases"; { echo "### $1 (rc=$RC)"; cat "$FAKE/out"; echo "--- calls"; cat "$FAKE/calls" 2>/dev/null; echo "--- log"; cat "$FAKE/log" 2>/dev/null; echo "--- prompts"; cat "$FAKE/prompts" 2>/dev/null; echo "--- mapper"; ls /dev/mapper; } > "$K/cases/$N.txt" 2>&1; }
 mapped(){ [ -b "/dev/mapper/$1" ]; }; prompts(){ grep -c "$1" "$FAKE/out"; }; tab(){ printf '%s\n' "$@" > "$ZBM_CRYPTTAB"; }

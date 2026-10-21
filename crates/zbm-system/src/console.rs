@@ -48,7 +48,8 @@ pub trait Console {
     fn read_line(&self) -> io::Result<Option<String>>;
 }
 
-/// The control terminal: standard input and standard output.
+/// The console on standard input and standard output, as the legacy code
+/// uses it; the start-up sequence connects both to the control terminal.
 pub struct Terminal<'a> {
     runner: &'a dyn Runner,
     input: File,

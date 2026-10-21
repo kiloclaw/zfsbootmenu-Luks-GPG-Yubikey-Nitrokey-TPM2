@@ -49,20 +49,9 @@ run() {
     export PATH="$S/stubs:$PATH" BASE="$FAKE/base"
     mkdir -p "$BASE/cmdline.d"
     : > "$FAKE/prompts"
-    zinfo()  { echo "INFO: $*"  >> "$FAKE/log"; }
-    zwarn()  { echo "WARN: $*"  >> "$FAKE/log"; }
-    zerror() { echo "ERROR: $*" >> "$FAKE/log"; }
-    zdebug() { [ $# -gt 0 ] && echo "DEBUG: $*" >> "$FAKE/log"; return 0; }
-    colorize() { shift; echo -ne "$@"; }
-    # timed_prompt answers come from $FAKE/answers (0 = RETURN, 1 = ESC)
-    timed_prompt() {
-      echo "timed_prompt $*" >> "$FAKE/prompts"
-      local a; a=$(head -n1 "$FAKE/answers" 2>/dev/null); sed -i 1d "$FAKE/answers" 2>/dev/null
-      return "${a:-1}"
-    }
+    # Logging, timed prompts (answers in $FAKE/answers) and open volumes go
+    # through the seams of impl.sh
     zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
-    # sysfs holders cannot be faked; consult the stub's record instead
-    luks_is_open() { [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2"
   ) > "$FAKE/out" 2>&1
   RC=$?

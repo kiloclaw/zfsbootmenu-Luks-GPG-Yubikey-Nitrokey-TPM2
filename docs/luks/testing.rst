@@ -89,7 +89,10 @@ each case to */tmp/z?/cases*.
 
 The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
 for the Bash libraries, ``rust`` for the Rust runtime of the port. Until the Rust runtime exists, ``ZBMTEST_IMPL=rust``
-makes every suite report that it is skipped.
+makes every suite report that it is skipped. ``impl.sh`` also provides, and documents, every seam through which the
+suites observe and control the code under test: the log file, the recorded and answered timed prompts, the stand-ins
+for open volumes, and the operations the suites call. A new case uses only these seams, so that it runs against both
+implementations; the two cases that reach inside the legacy code are marked as legacy-only.
 
 Unit Suites
 -----------

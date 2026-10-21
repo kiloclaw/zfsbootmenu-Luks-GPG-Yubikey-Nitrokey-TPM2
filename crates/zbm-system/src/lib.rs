@@ -11,18 +11,21 @@
 //! - [`Clock`]: time and waiting; [`SystemClock`].
 //! - [`Console`]: prompts, key presses and passphrases; [`Terminal`].
 //! - [`Processes`]: the process ID and signals; [`SystemProcesses`].
+//! - [`Environment`]: environment variables; [`ProcessEnvironment`].
 //!
 //! [`System`] bundles one of each, so functions take a single parameter for
 //! all of them. [`KernelLog`] writes the kernel log through [`Files`].
 
 pub mod clock;
 pub mod console;
+pub mod env;
 pub mod files;
 pub mod log;
 pub mod process;
 
 pub use clock::{Clock, SystemClock};
 pub use console::{Console, Size, Terminal};
+pub use env::{Environment, ProcessEnvironment};
 pub use files::{FileKind, Files, Metadata, RealFiles};
 pub use log::KernelLog;
 pub use process::{Processes, Signal, SystemProcesses};
@@ -41,6 +44,8 @@ pub struct System<'a> {
     pub console: &'a dyn Console,
     /// The process and signals.
     pub processes: &'a dyn Processes,
+    /// Environment variables.
+    pub environment: &'a dyn Environment,
 }
 
 impl<'a> System<'a> {
@@ -56,6 +61,7 @@ pub struct RealSystem {
     files: RealFiles,
     clock: SystemClock,
     processes: SystemProcesses,
+    environment: ProcessEnvironment,
 }
 
 impl RealSystem {
@@ -66,10 +72,12 @@ impl RealSystem {
             files: RealFiles,
             clock: SystemClock::new(),
             processes: SystemProcesses,
+            environment: ProcessEnvironment,
         }
     }
 
-    /// The control terminal on standard input and output.
+    /// The console on standard input and output, which the start-up sequence
+    /// connects to the control terminal.
     pub fn terminal(&self) -> std::io::Result<Terminal<'_>> {
         Terminal::standard(&self.runner)
     }
@@ -82,6 +90,7 @@ impl RealSystem {
             clock: &self.clock,
             console,
             processes: &self.processes,
+            environment: &self.environment,
         }
     }
 }
@@ -102,6 +111,7 @@ mod tests {
         let terminal = real.terminal().unwrap();
         let system = real.with_console(&terminal);
         assert_eq!(system.processes.id(), std::process::id());
+        assert!(system.environment.var("PATH").is_some());
         assert!(system.files.exists(std::path::Path::new("/proc/self")));
         let log = system.kernel_log("x", std::path::Path::new("/nonexistent"));
         assert!(!log.error("not written: the level is invalid"));

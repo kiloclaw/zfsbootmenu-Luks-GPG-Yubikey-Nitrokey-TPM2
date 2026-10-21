@@ -290,6 +290,27 @@ impl<'a> State<'a> {
     pub fn luks_skipped(&self) -> PathBuf {
         self.path("luks-skipped")
     }
+
+    /// The lock directory held while a mapping is added to `luks-mappings`
+    /// (`luks-mappings.lock`), so that the console and an SSH session cannot
+    /// record the same mapping twice.
+    pub fn luks_mappings_lock(&self) -> PathBuf {
+        self.path("luks-mappings.lock")
+    }
+
+    /// The marker that stops the key source `dataset` from being cached again
+    /// by process `pid` while it is being cached, as `cache_key` names it
+    /// (`.keys/<dataset>/.cachemutex.<pid>`).
+    pub fn key_cache_mutex(&self, dataset: &str, pid: u32) -> PathBuf {
+        self.key_cache(dataset).join(format!(".cachemutex.{pid}"))
+    }
+
+    /// The marker dracut's `initqueue/settled` hook creates and its
+    /// `initqueue/finished` hook waits for (`ready`), so that dracut runs its
+    /// `pre-mount` hooks, which start ZFSBootMenu.
+    pub fn ready(&self) -> PathBuf {
+        self.path("ready")
+    }
 }
 
 #[cfg(test)]
@@ -426,6 +447,15 @@ mod tests {
         assert_eq!(state.errors_since(), path("/zfsbootmenu/errors_since"));
         assert_eq!(state.luks_mappings(), path("/zfsbootmenu/luks-mappings"));
         assert_eq!(state.luks_skipped(), path("/zfsbootmenu/luks-skipped"));
+        assert_eq!(
+            state.luks_mappings_lock(),
+            path("/zfsbootmenu/luks-mappings.lock")
+        );
+        assert_eq!(
+            state.key_cache_mutex("tank/keys", 42),
+            path("/zfsbootmenu/.keys/tank/keys/.cachemutex.42")
+        );
+        assert_eq!(state.ready(), path("/zfsbootmenu/ready"));
 
         assert!(!files.exists(&path("/zfsbootmenu/environments/tank")));
         let environment = state.environment("tank/ROOT/void").unwrap();

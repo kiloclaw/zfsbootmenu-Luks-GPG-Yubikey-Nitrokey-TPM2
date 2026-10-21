@@ -49,12 +49,10 @@ run(){ export FAKE; FAKE="$(mktemp -d)"; mkdir -p "$FAKE"/{holders,maps,content,
   for d in $STALE $MULTI $FIDOONLY $TOK $L1 $PLAIN $HDRDATA $GK $CLV2; do echo zfs_member > "$FAKE/content/${d##*/}"; done
   echo "== $1"
   ( export PATH="$S/kstubs:$S/stubs:$PATH" BASE="$FAKE/base" LUKS_TPM2_TCTI="$TCTI" ANSWERS="$FAKE/answers"
+    export ZBMTEST_PROMPT_DELAY=1
     mkdir -p "$BASE/cmdline.d"; echo 0 > "$BASE/cmdline.d/zbm.luks_token_wait"
-    zinfo(){ echo "INFO: $*" >> "$FAKE/log"; }; zwarn(){ echo "WARN: $*" >> "$FAKE/log"; }; zerror(){ echo "ERROR: $*" >> "$FAKE/log"; }
-    zdebug(){ [ $# -gt 0 ] && echo "DEBUG: $*" >> "$FAKE/log"; return 0; }; colorize(){ shift; echo -ne "$@"; }
-    timed_prompt(){ echo "timed_prompt $*" >> "$FAKE/prompts"; sleep 1; local a; a=$(head -n1 "$ANSWERS" 2>/dev/null); sed -i 1d "$ANSWERS" 2>/dev/null; return "${a:-1}"; }
+    # Logging, timed prompts and open volumes go through the seams of impl.sh
     zbm_impl_load "$REPO" "$FAKE/crypttab" || exit 1
-    luks_is_open(){ [ -e "$FAKE/holders/$(basename "$(readlink -f "$1")")" ]; }
     "$2" ) > "$FAKE/out" 2>&1; RC=$?
   N=$((N+1)); mkdir -p "$K/cases"; { echo "### $1 (rc=$RC)"; cat "$FAKE/out"; echo "--- calls"; cat "$FAKE/calls" 2>/dev/null; echo "--- log"; cat "$FAKE/log" 2>/dev/null; echo "--- prompts"; cat "$FAKE/prompts" 2>/dev/null; echo "--- mapper"; ls /dev/mapper; } > "$K/cases/$N.txt" 2>&1; }
 mapped(){ [ -b "/dev/mapper/$1" ]; }; prompts(){ grep -c "$1" "$FAKE/out"; }; tab(){ printf '%s\n' "$@" > "$ZBM_CRYPTTAB"; }
@@ -222,9 +220,12 @@ t(){ echo off > "$BASE/cmdline.d/zbm.luks"; LUKS_RETRY=1 luks_unlock_all < /dev/
 run "retry with zbm.luks=off reports nothing new (no endless import loop)" t
 check "retry rc 1" [ "$RC" -eq 1 ]
 
+# Legacy only: replaces a function inside the legacy code
+if zbm_impl_is_legacy; then
 t(){ luks_available(){ return 1; }; LUKS_RETRY=1 luks_unlock_all < /dev/null; }
 run "retry without cryptsetup reports nothing new" t
 check "retry rc 1" [ "$RC" -eq 1 ]
+fi
 
 t(){ echo off > "$BASE/cmdline.d/zbm.luks"; luks_unlock_all < /dev/null; }
 run "initial run with zbm.luks=off still succeeds" t
@@ -253,11 +254,15 @@ hookloop(){
     import_policy=hostid ZFSBOOTMENU_INITIALIZATION=yes source "$d/hook" )
   tr '\n' ' ' < "$d/log"; echo
 }
+# Legacy only: runs the legacy import stage with its functions replaced. The
+# Rust runtime checks the same order in a unit test of the import loop.
+if zbm_impl_is_legacy; then
 echo "== import loop: late LUKS volume and unencrypted device appear in the same retry delay"
 seq_=$(hookloop "$K/hookloop")
 echo "  sequence: $seq_"
 check "late volume unlocked before the import that succeeds" grep -q "delay unlock-opened import-all" <<< "$seq_"
 check "boot pool imported" [ -e "$K/hookloop/imported-boot" ]
+fi
 
 echo "### failure paths"
 t(){ LUKS_NO_TOKEN_PLUGINS=1; LUKS_TPM2_TCTI="device:/dev/no-such-tpm"; mv /dev/hidraw99 /dev/xhid; LUKS_GNUPG_DIR="$K/onlyb"; tab "a $MULTI $K/good.key.gpg" "b $STALE none"; luks_unlock_all; local r=$?; mv /dev/xhid /dev/hidraw99; return $r; }

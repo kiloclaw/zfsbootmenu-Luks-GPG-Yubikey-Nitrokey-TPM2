@@ -171,7 +171,7 @@ packages, the port takes about 6 to 9 months.
 | 1. Foundations | Done, with the deviations below |
 | 2. Shared libraries and `zbm-kcl` | Done |
 | 3. `generate-zbm` | Done |
-| 4. Runtime design | Done, except the review of `crates/DESIGN.md` |
+| 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
 | 5 to 8 | Not started |
 
 **Delivered by phases 1 to 3:**
@@ -216,7 +216,7 @@ packages, the port takes about 6 to 9 months.
   that take or return a secret through a pipe; `zbm-sys` gained `kill`, `poll` and memory wiping.
 - **Fakes:** `zbm-testutil::fakes` fakes every interface (in-memory files with links and injected failures, a clock
   that moves only when the code sleeps, a scripted console, recorded signals) and checks that a secret appears in no
-  argument, environment variable, file or console output. 189 Rust tests in all.
+  argument, environment variable, file or console output. 190 Rust tests in all.
 - **Freeze:** the legacy runtime takes bug fixes only, from commit `661e9f8` on; every change goes into the tracking
   list `legacy/RUNTIME-CHANGES.md`, and `scripts/dev/legacy-runtime-changes.sh` lists the commits. Two legacy bugs were
   fixed with tests: restricted (degraded) pools were matched as substrings and patterns, and the TPM2 authorization
@@ -230,7 +230,11 @@ packages, the port takes about 6 to 9 months.
 - The runtime crates (`zbm-luks`, `zbm-boot`, `zbm-menu`) were created in Phase 4, whose design decided them, along
   with `zbm-system` and `zbm-state`, which the design added; Phase 1 created the crates the host tools need and the
   `zbm` program.
-- `crates/DESIGN.md` still needs its review, which Phase 4 requires before Phase 5 builds on it.
+- `crates/DESIGN.md` had a first review, which checked its claims against the legacy code, dracut, mkinitcpio and the
+  suites; its findings changed the design (configuration read by every applet, the dracut hooks, the supervisor's
+  restart and waiting, signals, the compatibility library, the version order, the scope of Phase 5) and moved the
+  seams of the LUKS unit suites into `tests/luks/unit/impl.sh`. A maintainer's review is still needed before Phase 5
+  builds on it.
 - The changes to the frozen legacy runtime are tracked in `legacy/RUNTIME-CHANGES.md` instead of a GitHub issue,
   because the repository has issues turned off; the file also lets a fix record its entry in the same commit.
 - Until the Rust runtime can boot (Phase 5), there is no Rust image to build: CI builds images with both generators
@@ -352,17 +356,20 @@ their fakes and their own unit tests, and the tracking list exists.
 
 **Goal:** the smallest Rust runtime that boots a machine: from start-up to `kexec`, with no menu.
 
-- **Included:** loading kernel modules, the host ID, waiting for devices, importing pools with the default import
-  policy, finding the default boot environment (`bootfs`) and its kernel, initramfs and command line, exporting the
-  pools, and `kexec`. It behaves like the legacy runtime with `zbm.skip`.
-- **Left out until Phase 6:** LUKS, the menu, hooks, ZFS native encryption and every option the default boot does not
-  need. When the Rust runtime meets something it cannot handle yet, it says so and opens the recovery shell.
+- **Included:** the supervisor as process 1 and the start-up hooks of dracut and mkinitcpio, reading
+  `/etc/zfsbootmenu.conf`, loading kernel modules, the host ID, waiting for devices, the bundled hooks (every image
+  installs them) and the hook runner, importing pools with the default import policy, finding the default boot
+  environment (`bootfs`) and its kernel, initramfs and command line, exporting the pools, and `kexec`. It behaves like
+  the legacy runtime with `zbm.skip`.
+- **Left out until Phase 6:** LUKS, the menu, `load-key.d` hooks, ZFS native encryption and every option the default
+  boot does not need. Before it acts, the Rust runtime checks for what it cannot handle yet ("The minimal runtime of
+  Phase 5" in `crates/DESIGN.md` lists it); if it finds any, it says so and opens the recovery shell.
 - **New test:** a VM test boots the default boot environment of an unencrypted pool. It must pass with the legacy
   image first (rule 2).
 
-**Done when:** Rust unit tests cover the import, the choice of boot environment and kernel, and the `kexec`
-arguments, using the fakes from Phase 4; the new VM test passes with the Rust image; and CI runs every suite against
-the Rust image from now on and reports how many tests pass.
+**Done when:** Rust unit tests cover the import, the choice of boot environment and kernel, the `kexec` arguments, the
+configuration file and the check for unsupported set-ups, using the fakes from Phase 4; the new VM test passes with the
+Rust image; and CI runs every suite against the Rust image from now on and reports how many tests pass.
 
 ## Phase 6: Complete the runtime
 
@@ -393,8 +400,10 @@ Phase 5 already covers the basic paths of A and C, so their estimates are lower 
 | Pool import: import policies, retries and delays, read-only import, host ID matching, unsupported feature detection, `zbm.prefer` | `init.d/50-import-pools`, `import_pool`, `export_pool`, `check_for_pools`, `match_hostid`, `write_hostid` |
 | Timed prompts and the resume check | `timed_prompt`, `has_resume_device`, `resume_prompt` |
 
-**Done when:** Rust unit tests cover every import policy, retry and host ID case, and the upstream test VMs and the
-LUKS VM tests that cover import policies, host IDs and late devices pass.
+**Done when:** Rust unit tests cover every import policy, retry and host ID case, the modes of the start-up program
+and the order of the import loop with late LUKS volumes; a new VM test, passing against the legacy image first,
+records the signal dispositions of hooks, `fzf` and the shells, which the Rust image reproduces; and the upstream test
+VMs and the LUKS VM tests that cover import policies, host IDs and late devices pass.
 
 ### B. LUKS and key handling
 
@@ -416,7 +425,8 @@ key files in RAM below `/run` (see "Secrets" in `crates/DESIGN.md`). Calling `cr
 
 **Done when:** Rust unit tests cover the configuration parsing (with parity tests against the Bash parser), the order
 of key methods, token metadata parsed from recorded `cryptsetup luksDump` output, and check that no secret reaches an
-argument, the environment or a file. The LUKS unit suites (252 checks today) and every LUKS VM test pass against the
+argument, the environment or a file. The LUKS unit suites (252 checks today) pass with `ZBMTEST_IMPL=rust`, through a
+test build of `zbm` that provides the seams of `tests/luks/unit/impl.sh`, and every LUKS VM test passes against the
 Rust image, on the host and in the build container, including the key, lockout, hot-plug and firmware tests.
 
 ### C. Boot environments and booting
@@ -430,9 +440,10 @@ Rust image, on the host and in the build container, including the key, lockout, 
 | Booting: `boot-sel.d` and `teardown.d` hooks, exporting pools, `kexec` | `kexec_kernel`, `bin/zkexec` |
 | Automatic boot after the timeout (`zbm.timeout`, `zbm.skip`, `zbm.show`) | `libexec/zfsbootmenu-init` |
 
-**Done when:** Rust unit tests cover sorting, kernel selection, the command line cache, key source handling and the
-hook environment, and every VM test that boots a boot environment passes, including the native encryption,
-`keysource`, `rootprefix` and device tree cases of the upstream test VMs.
+**Done when:** Rust unit tests cover sorting, kernel selection and its version order (compared with GNU coreutils and
+BusyBox `sort -V` on recorded kernel names), the command line cache, key source handling and the hook environment, and
+every VM test that boots a boot environment passes, including the native encryption, `keysource`, `rootprefix` and
+device tree cases of the upstream test VMs.
 
 ### D. Snapshot and pool management
 
@@ -473,15 +484,17 @@ the menu over the serial console, pass.
 | --- | --- |
 | Recovery shell commands: `zlogtail`, `ztrace`, `zsnapshots`, `mount_esp`, `reboot` and its aliases | `bin/` |
 | Error printer, debug report (`zreport`), shell completions | `libexec/recovery-error-printer`, `zreport`, `lib/zfsbootmenu-completions.sh` |
-| The functions hooks source from `/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh` | a small compatibility library, written in shell, that calls `zbm` |
+| Every function hooks get from `/lib/zfsbootmenu-core.sh`, `/lib/zfsbootmenu-kcl.sh` and `/lib/kmsg-log-lib.sh` | a small compatibility library, written in shell, that calls `zbm` |
 | Choosing what goes into the image | `install-helpers.sh`, `packaging/dracut/module-setup.sh`, `packaging/initcpio/install/zfsbootmenu` |
 
 The install helpers shrink to installing `zbm`, the external programs and libraries it needs, the hooks, help pages
 and fonts. `zbm` can list the programs it needs, so the list is kept in one place. The xHCI teardown hook
 (`hooks/teardown.d/90-xhci-unbind.sh`) stays a shell script, like user hooks.
 
-**Done when:** Rust unit tests cover the list of programs `zbm` needs and the recovery commands' logic; the Rust image
-contains no ZFSBootMenu Bash libraries except the compatibility library; the hooks in `contrib/` work unchanged; image
+**Done when:** Rust unit tests cover the list of programs `zbm` needs and the recovery commands' logic; a test checks
+that the compatibility library defines every function of the three legacy libraries, and each function that sets a
+variable in its caller has a test; the Rust image contains no ZFSBootMenu Bash libraries except the compatibility
+library; the hooks in `contrib/` work unchanged; image
 sizes are compared with the legacy image.
 
 ## Phase 7: Beta with the legacy image as fallback
