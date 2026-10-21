@@ -312,7 +312,8 @@ mod tests {
             .env("LUKS_STATE", &state.to_string_lossy())
             .code(
                 "record() { luks_record_mapping a /dev/sda 1; luks_record_mapping b /dev/sdb; \
-                 luks_record_mapping a /dev/sdc; }",
+                 luks_record_mapping a /dev/sdc; luks_record_mapping axb /dev/sdd; \
+                 luks_record_mapping a.b /dev/sde; luks_record_mapping 'a*' /dev/sdf; }",
             )
             .call("record", &[], b"");
         assert!(legacy.status.success());
@@ -321,6 +322,10 @@ mod tests {
             session.record_mapping("a", "/dev/sda", true);
             session.record_mapping("b", "/dev/sdb", false);
             session.record_mapping("a", "/dev/sdc", false);
+            // Names are text, not patterns (fixed in the legacy code too).
+            session.record_mapping("axb", "/dev/sdd", false);
+            session.record_mapping("a.b", "/dev/sde", false);
+            session.record_mapping("a*", "/dev/sdf", false);
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),

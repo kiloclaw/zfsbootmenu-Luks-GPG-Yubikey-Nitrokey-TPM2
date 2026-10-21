@@ -202,6 +202,9 @@ t(){ local r n; for r in $(seq 1 50); do rm -f "$LUKS_STATE"; for n in 1 2 3 4; 
      [ "$(grep -c '^v' "$LUKS_STATE")" -eq 1 ] || echo DUPLICATE; done; }
 run "four sessions record the same mapping at once, 50 rounds" t
 check "never recorded twice" bash -c "! grep -q DUPLICATE '$FAKE/out'"; check "no lock left" bash -c "[ ! -e '$FAKE/base/luks-mappings.lock' ]"
+t(){ luks_record_mapping axb /dev/loop98 0; luks_record_mapping a.b /dev/loop99 0; luks_record_mapping 'a*' /dev/loop97 0; luks_record_mapping a.b /dev/loop96 0; }
+run "mapping names are compared as text, not as patterns" t
+check "a.b recorded after axb" grep -qx $'a.b\t/dev/loop99\t0' "$FAKE/base/luks-mappings"; check "a* recorded" grep -qxF $'a*\t/dev/loop97\t0' "$FAKE/base/luks-mappings"; check "a.b recorded once" [ "$(grep -c '^a\.b' "$FAKE/base/luks-mappings")" -eq 1 ]
 
 echo "### import-loop retries (late disks)"
 t(){ tab "v $PLAIN none"; luks_unlock_all <<< $'\n'; LUKS_RETRY=1 luks_unlock_all <<< $'pw'; }

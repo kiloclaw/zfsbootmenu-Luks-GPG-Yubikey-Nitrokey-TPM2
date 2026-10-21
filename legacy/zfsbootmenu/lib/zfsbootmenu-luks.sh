@@ -513,7 +513,7 @@ luks_release_keyfile() {
 # returns: nothing
 
 luks_record_mapping() {
-  local lock="${LUKS_STATE}.lock" tries=0
+  local lock="${LUKS_STATE}.lock" tries=0 line recorded=""
 
   mkdir -p "${LUKS_STATE%/*}"
 
@@ -526,7 +526,17 @@ luks_record_mapping() {
     sleep 0.1
   done
 
-  if ! { [ -r "${LUKS_STATE}" ] && grep -q "^${1}"$'\t' "${LUKS_STATE}"; }; then
+  # The name is compared as text: as a pattern, a.b would match axb
+  if [ -r "${LUKS_STATE}" ]; then
+    while IFS= read -r line || [ -n "${line}" ]; do
+      if [[ "${line}" == "${1}"$'\t'* ]]; then
+        recorded=1
+        break
+      fi
+    done < "${LUKS_STATE}"
+  fi
+
+  if [ -z "${recorded}" ]; then
     printf '%s\t%s\t%s\n' "${1}" "${2}" "${3:-0}" >> "${LUKS_STATE}"
   fi
 
