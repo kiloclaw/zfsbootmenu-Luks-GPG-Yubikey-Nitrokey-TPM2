@@ -213,8 +213,11 @@ packages, the port takes about 6 to 9 months.
   and compares them, and every image includes `zbm`. The Rust image joins CI when `zfsbootmenu_runtime=rust` works.
 - Fixtures are recorded in a QEMU virtual machine booted from an image the build container builds, because creating
   pools needs the OpenZFS 2.4.4 kernel module, which the container cannot load on most hosts.
-- The coverage job reports coverage; the 80% target and the rule that coverage must not drop will be enforced once
-  the reports have settled.
+- The coverage job reports coverage (94% of lines when phases 1 to 3 were finished); the 80% target and the rule
+  that coverage must not drop will be enforced once the reports have settled.
+- aarch64 is checked with `cargo check`, for glibc and musl, but not built or tested: linking needs an aarch64
+  toolchain or build host, which neither CI nor the build container has yet. On x86_64, CI tests with glibc and checks
+  musl; the tests also pass when built for musl (`cargo test --target x86_64-unknown-linux-musl`).
 
 **Known differences between the Perl and the Rust `generate-zbm`,** in cases that do not occur in practice:
 
