@@ -1560,6 +1560,17 @@ is_snapshot() {
 # prints: nothing
 # returns: 0 when pool is writable, 1 otherwise
 
+# arg1: pool name
+# prints: nothing
+# returns: 0 if the pool is listed in ${BASE}/degraded, which restricts it to
+#          read-only imports
+
+is_degraded() {
+  # The whole line must be the pool's name: a pool whose name is part of a
+  # restricted pool's name, or matches it as a pattern, is not restricted
+  [ -n "${1}" ] && grep -qxF -- "${1}" "${BASE}/degraded" >/dev/null 2>&1
+}
+
 is_writable() {
   local pool roflag
 
@@ -1620,7 +1631,7 @@ set_rw_pool() {
     prohibited=yes
   fi
 
-  if grep -q "${pool}" "${BASE}/degraded" >/dev/null 2>&1; then
+  if is_degraded "${pool}"; then
     zdebug "prohibited: ${BASE}/degraded is set"
     zerror "read-write operation for '${pool}' prohibited - pool marked as degraded"
     prohibited=yes

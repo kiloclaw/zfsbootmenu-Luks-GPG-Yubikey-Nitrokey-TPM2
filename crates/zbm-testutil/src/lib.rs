@@ -5,6 +5,8 @@
 //!
 //! - [`FakeRunner`] replaces the system's programs: it records every command
 //!   and answers it.
+//! - [`fakes`] replaces the other system interfaces of `zbm-system` (files, the
+//!   clock, the console, processes) and bundles them as a `FakeSystem`.
 //! - [`legacy`] runs the Bash and Perl code in `legacy/`, so parity tests can
 //!   compare it with the Rust code.
 //! - [`Rng`] generates test inputs from a seed, so a failing generated case can
@@ -19,6 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use zbm_core::exec::{Command, Output, Runner, Status};
 
 pub mod fake_zfs;
+pub mod fakes;
 pub mod legacy;
 
 /// A response function: returns the output for commands it handles and `None`

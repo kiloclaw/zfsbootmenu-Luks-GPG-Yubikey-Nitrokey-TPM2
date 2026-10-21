@@ -6,14 +6,17 @@
 //! suites in `tests/` are the reference.
 //!
 //! This crate holds what every other crate needs: running external programs
-//! behind a trait that tests can replace ([`exec`]), the file tests of Perl and
-//! the shell ([`fs`]), the Bash semantics the legacy code relies on
-//! ([`shell`]), the release information in `/etc/zbm-release` ([`release`]) and
-//! the ZFSBootMenu version ([`version`]).
+//! behind a trait that tests can replace ([`exec`]), the error type of the
+//! runtime ([`error`]), secrets that are wiped after use ([`secret`]), the file
+//! tests of Perl and the shell ([`fs`]), the Bash semantics the legacy code
+//! relies on ([`shell`]), the release information in `/etc/zbm-release`
+//! ([`release`]) and the ZFSBootMenu version ([`version`]).
 
+pub mod error;
 pub mod exec;
 pub mod fs;
 pub mod getopts;
 pub mod release;
+pub mod secret;
 pub mod shell;
 pub mod version;

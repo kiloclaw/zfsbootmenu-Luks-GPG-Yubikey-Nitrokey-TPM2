@@ -1,0 +1,24 @@
+[package]
+name = "zbm-boot"
+description = "Start-up, pool import, boot environments, kernels, keys, kexec and pool management of the ZFSBootMenu runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-cmdline.workspace = true
+zbm-core.workspace = true
+zbm-log.workspace = true
+zbm-luks.workspace = true
+zbm-state.workspace = true
+zbm-system.workspace = true
+zbm-zfs.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true

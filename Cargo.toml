@@ -20,11 +20,16 @@ publish = false
 [workspace.dependencies]
 generate-zbm = { path = "crates/generate-zbm" }
 zbm = { path = "crates/zbm" }
+zbm-boot = { path = "crates/zbm-boot" }
 zbm-cmdline = { path = "crates/zbm-cmdline" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-log = { path = "crates/zbm-log" }
+zbm-luks = { path = "crates/zbm-luks" }
+zbm-menu = { path = "crates/zbm-menu" }
+zbm-state = { path = "crates/zbm-state" }
 zbm-sys = { path = "crates/zbm-sys" }
+zbm-system = { path = "crates/zbm-system" }
 zbm-testutil = { path = "crates/zbm-testutil" }
 zbm-zfs = { path = "crates/zbm-zfs" }
 yaml-rust2 = { version = "0.13", default-features = false }

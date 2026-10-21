@@ -4,7 +4,11 @@
 use std::io::Write;
 
 fn main() {
-    let _ = zbm_sys::restore_default_sigpipe();
+    // Unlike the host tools, the runtime keeps SIGPIPE ignored (the Rust
+    // default): a program that exits without reading all of its input, such as
+    // `cryptsetup` refusing a device while a key is written to it, must not end
+    // the process that feeds it. Writes to a closed pipe fail instead, and the
+    // runtime handles the failure (see "Signals" in crates/DESIGN.md).
     let mut args = std::env::args();
     let argv0 = args.next().unwrap_or_else(|| "zbm".to_owned());
     let args: Vec<String> = args.collect();

@@ -59,6 +59,17 @@ Fixes found while porting, in both versions of the tools:
   `zbm-kcl`; with Bash 5.2 and later, an `&` in it was replaced. The `spl_hostid` kernel option accepts only decimal
   and hexadecimal numbers.
 
+### Rust runtime design
+
+`crates/DESIGN.md` describes how the Rust runtime will be built (Phase 4 of `PORT-ROADMAP.md`). The crates it lays out
+exist: the interfaces through which the runtime reaches the system, with fakes for unit tests (`zbm-system`), the state
+directory `/zfsbootmenu` (`zbm-state`), and the crates the runtime's packages will fill (`zbm-boot`, `zbm-luks`,
+`zbm-menu`). Images and the legacy runtime behave as before, except for this fix:
+
+- A pool whose name is part of a restricted pool's name (`data` and an unhealthy `data2`), or matches it as a pattern
+  (`a.b` and `axb`), is no longer refused read-write imports, and is recorded as restricted when it has unsupported
+  features.
+
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
 ZFSBootMenu v3.1.0 includes fixes, additional platform tooling and feature enhancements. 

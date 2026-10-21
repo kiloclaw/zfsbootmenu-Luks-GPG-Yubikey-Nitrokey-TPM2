@@ -1,6 +1,6 @@
 [package]
 name = "zbm-testutil"
-description = "Test helpers of the Rust port of ZFSBootMenu: a fake command runner, parity tests, generated inputs"
+description = "Test helpers of the Rust port of ZFSBootMenu: fakes of the system, parity tests, generated inputs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,6 +12,7 @@ publish.workspace = true
 
 [dependencies]
 zbm-core.workspace = true
+zbm-system.workspace = true
 
 [lints]
 workspace = true

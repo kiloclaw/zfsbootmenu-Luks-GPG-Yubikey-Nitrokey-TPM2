@@ -62,6 +62,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbm-boot"
+version = "0.1.0"
+dependencies = [
+ "zbm-cmdline",
+ "zbm-core",
+ "zbm-log",
+ "zbm-luks",
+ "zbm-state",
+ "zbm-system",
+ "zbm-testutil",
+ "zbm-zfs",
+]
+
+[[package]]
 name = "zbm-cmdline"
 version = "0.1.0"
 dependencies = [
@@ -97,14 +111,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbm-luks"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-log",
+ "zbm-state",
+ "zbm-system",
+ "zbm-testutil",
+]
+
+[[package]]
+name = "zbm-menu"
+version = "0.1.0"
+dependencies = [
+ "zbm-boot",
+ "zbm-cmdline",
+ "zbm-core",
+ "zbm-state",
+ "zbm-system",
+ "zbm-testutil",
+]
+
+[[package]]
+name = "zbm-state"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-system",
+ "zbm-testutil",
+]
+
+[[package]]
 name = "zbm-sys"
 version = "0.1.0"
+
+[[package]]
+name = "zbm-system"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-log",
+ "zbm-sys",
+ "zbm-testutil",
+]
 
 [[package]]
 name = "zbm-testutil"
 version = "0.1.0"
 dependencies = [
  "zbm-core",
+ "zbm-system",
 ]
 
 [[package]]

@@ -5,11 +5,17 @@
 //! code uses [`SystemRunner`]; unit tests use a fake runner that records the
 //! commands and answers them, so tests can check exactly what would run,
 //! including that no secret appears in an argument or the environment.
+//!
+//! Secrets travel only through pipes: [`Input::Secret`] writes one to a
+//! command's standard input, and [`Stream::CaptureSecret`] reads a command's
+//! standard output into a [`Secret`].
 
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
+
+use crate::secret::Secret;
 
 /// Where standard output or standard error of a command goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,6 +24,10 @@ pub enum Stream {
     Inherit,
     /// A pipe whose contents end up in [`Output`].
     Capture,
+    /// For standard output only: a pipe whose contents end up in
+    /// [`Output::secret`], never in a plain buffer. On standard error it acts as
+    /// [`Stream::Capture`].
+    CaptureSecret,
     /// `/dev/null`.
     Null,
 }
@@ -31,6 +41,9 @@ pub enum Input {
     Null,
     /// The given bytes, followed by end of file.
     Bytes(Vec<u8>),
+    /// A secret, followed by end of file. It is written from where it is kept,
+    /// without copies.
+    Secret(Secret),
 }
 
 /// A program to run, with its arguments and standard streams.
@@ -224,6 +237,8 @@ pub struct Output {
     pub stdout: Vec<u8>,
     /// Standard error, if it was captured.
     pub stderr: Vec<u8>,
+    /// Standard output, if it was captured as a secret.
+    pub secret: Option<Secret>,
 }
 
 impl Output {
@@ -233,6 +248,16 @@ impl Output {
             status,
             stdout: stdout.into(),
             stderr: Vec::new(),
+            secret: None,
+        }
+    }
+
+    /// An output with the given status and standard output captured as a
+    /// secret.
+    pub fn with_secret(status: Status, secret: Secret) -> Output {
+        Output {
+            secret: Some(secret),
+            ..Output::new(status, Vec::new())
         }
     }
 
@@ -264,18 +289,21 @@ pub struct SystemRunner;
 fn stdio(stream: Stream) -> Stdio {
     match stream {
         Stream::Inherit => Stdio::inherit(),
-        Stream::Capture => Stdio::piped(),
+        Stream::Capture | Stream::CaptureSecret => Stdio::piped(),
         Stream::Null => Stdio::null(),
     }
 }
 
+/// Reads a pipe to its end.
+fn read_pipe(mut pipe: impl Read) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    pipe.read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
 fn not_found(command: &Command) -> io::Result<Output> {
     let message = format!("{}: command not found\n", command.program.to_string_lossy());
-    let mut output = Output {
-        status: Status::exited(127),
-        stdout: Vec::new(),
-        stderr: Vec::new(),
-    };
+    let mut output = Output::new(Status::exited(127), Vec::new());
     let target = if command.merge_stderr {
         command.stdout
     } else {
@@ -283,6 +311,7 @@ fn not_found(command: &Command) -> io::Result<Output> {
     };
     match target {
         Stream::Inherit => io::stderr().write_all(message.as_bytes())?,
+        Stream::CaptureSecret => output.secret = Some(Secret::from_vec(message.into_bytes())),
         Stream::Capture if command.merge_stderr => output.stdout = message.into_bytes(),
         Stream::Capture => output.stderr = message.into_bytes(),
         Stream::Null => {}
@@ -332,7 +361,7 @@ impl Runner for SystemRunner {
         process.stdin(match command.stdin {
             Input::Inherit => Stdio::inherit(),
             Input::Null => Stdio::null(),
-            Input::Bytes(_) => Stdio::piped(),
+            Input::Bytes(_) | Input::Secret(_) => Stdio::piped(),
         });
         for (key, value) in &command.env {
             match value {
@@ -347,29 +376,60 @@ impl Runner for SystemRunner {
             Err(error) => return Err(error),
         };
 
-        // Write standard input from another thread, so that a command that writes a lot
-        // of output before reading all of its input cannot block on a full pipe.
-        let writer = match (&command.stdin, child.stdin.take()) {
-            (Input::Bytes(bytes), Some(mut stdin)) => {
-                let bytes = bytes.clone();
-                Some(std::thread::spawn(move || {
-                    // A command may exit without reading all of its input; that is not an error
-                    // here.
-                    let _ = stdin.write_all(&bytes);
-                }))
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        let secret_stdout = command.stdout == Stream::CaptureSecret;
+
+        // Standard input is written, and standard error read, by other threads,
+        // so that a command that writes a lot before reading all of its input, or
+        // fills one pipe while this thread reads the other, cannot block.
+        let (stdout, stderr) = std::thread::scope(|scope| {
+            if let Some(mut pipe) = stdin {
+                let bytes = match &command.stdin {
+                    Input::Bytes(bytes) => bytes.as_slice(),
+                    Input::Secret(secret) => secret.expose(),
+                    Input::Inherit | Input::Null => &[],
+                };
+                // A command may exit without reading all of its input; that is not
+                // an error here. Closing the pipe ends the input.
+                scope.spawn(move || {
+                    let _ = pipe.write_all(bytes);
+                });
             }
-            _ => None,
-        };
-        let output = child.wait_with_output()?;
-        if let Some(writer) = writer {
-            let _ = writer.join();
+            let stderr = stderr.map(|pipe| scope.spawn(move || read_pipe(pipe)));
+            let stdout = stdout.map(|mut pipe| {
+                if secret_stdout {
+                    Secret::read_from(&mut pipe).map(Captured::Secret)
+                } else {
+                    read_pipe(pipe).map(Captured::Plain)
+                }
+            });
+            let stderr = stderr.map(|reader| {
+                reader
+                    .join()
+                    .unwrap_or_else(|_| Err(io::Error::other("reading standard error failed")))
+            });
+            (stdout, stderr)
+        });
+        // Wait before reporting a read error, so that no child is left behind.
+        let status = child.wait()?;
+
+        let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
+        match stdout.transpose()? {
+            Some(Captured::Plain(bytes)) => output.stdout = bytes,
+            Some(Captured::Secret(secret)) => output.secret = Some(secret),
+            None => {}
         }
-        Ok(Output {
-            status: Status::from_raw(output.status.into_raw()),
-            stdout: output.stdout,
-            stderr: output.stderr,
-        })
+        output.stderr = stderr.transpose()?.unwrap_or_default();
+        Ok(output)
     }
+}
+
+/// Captured standard output.
+enum Captured {
+    Plain(Vec<u8>),
+    Secret(Secret),
 }
 
 #[cfg(test)]
@@ -425,6 +485,59 @@ mod tests {
             )
             .unwrap();
         assert_eq!(output.stdout_text().trim(), (1 << 20).to_string());
+    }
+
+    #[test]
+    fn secrets_travel_through_pipes() {
+        let output = SystemRunner
+            .run(
+                &Command::new("sh")
+                    .args(["-c", "tr a-z A-Z; echo done >&2"])
+                    .stdin(Input::Secret(Secret::copy_from(b"hunter2")))
+                    .stdout(Stream::CaptureSecret)
+                    .stderr(Stream::Capture),
+            )
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.secret.as_ref().unwrap().expose(), b"HUNTER2");
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"done\n");
+
+        let missing = SystemRunner
+            .run(
+                &Command::new("zbm-no-such-program")
+                    .stdin(Input::Secret(Secret::copy_from(b"x")))
+                    .stdout(Stream::CaptureSecret)
+                    .merge_stderr(),
+            )
+            .unwrap();
+        assert_eq!(missing.status.code(), Some(127));
+        assert!(missing.secret.is_some());
+    }
+
+    #[test]
+    fn input_the_command_does_not_read_is_not_an_error() {
+        // More than a pipe holds, to a program that exits at once.
+        let big = vec![b'x'; 1 << 20];
+        let output = SystemRunner
+            .run(&Command::new("true").stdin(Input::Bytes(big)))
+            .unwrap();
+        assert!(output.status.success());
+        let output = SystemRunner
+            .run(&Command::new("false").stdin(Input::Secret(Secret::copy_from(&[0; 1 << 20]))))
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+    }
+
+    #[test]
+    fn a_secret_input_does_not_show_in_debug_output() {
+        let command = Command::new("cryptsetup")
+            .arg("open")
+            .stdin(Input::Secret(Secret::copy_from(b"hunter2")));
+        assert!(!format!("{command:?}").contains("hunter2"));
+        let output = Output::with_secret(Status::exited(0), Secret::copy_from(b"key"));
+        assert!(!format!("{output:?}").contains("key\""));
+        assert_eq!(output.secret.unwrap().expose(), b"key");
     }
 
     #[test]

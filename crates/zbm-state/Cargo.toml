@@ -1,0 +1,19 @@
+[package]
+name = "zbm-state"
+description = "The state directory of the ZFSBootMenu runtime, /zfsbootmenu: its layout and files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-core.workspace = true
+zbm-system.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true
