@@ -165,7 +165,10 @@ A couple of additional arguments may only be set from the command line:
 
 - `-g <generator>` selects the `generate-zbm` that builds the images: `rust`
   (the default for trees that contain the Rust crates) or `perl`, the legacy
-  program, which older trees always use. Both produce the same images.
+  program, which older trees always use. Both produce the same images. A build
+  container without `cargo`, such as one built from an older `Dockerfile`, uses
+  `perl` and leaves `zbm` out of the images, with a warning; the legacy runtime,
+  the only one so far, does not need it. `-g rust` fails there instead.
 
 ## ZFSBootMenu Configuration and Execution
 

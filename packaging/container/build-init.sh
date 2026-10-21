@@ -126,7 +126,8 @@ Usage: $0 [options]
 
   -g <generator>
      Build images with the "rust" or the "perl" generate-zbm
-     (Default: rust when the tree contains the Rust crates)
+     (Default: rust when the tree contains the Rust crates and
+      the container has cargo, perl otherwise)
 
   -- <arguments>
       Additional arguments to the generate-zbm binary
@@ -405,14 +406,22 @@ fi
 
 # Trees with the Rust crates build zbm, which images include, and the Rust
 # generate-zbm, which builds them unless "-g perl" selects the Perl one. The
-# crates' dependencies are vendored, so the build needs no network.
+# crates' dependencies are vendored, so the build needs no network. A build
+# container without cargo builds with the Perl generate-zbm instead, unless
+# "-g rust" asks for the Rust one: both build the same images, and the legacy
+# runtime, the only one so far, does not need zbm.
 case "${GENERATOR:-default}" in
   default|rust|perl) ;;
   *) error "unknown generator '${GENERATOR}'; use rust or perl" ;;
 esac
 
-if [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
-  command -v cargo >/dev/null 2>&1 || error "cargo is needed to build the Rust programs"
+if [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ] && ! command -v cargo >/dev/null 2>&1; then
+  if [ "${GENERATOR}" = rust ]; then
+    error "cargo is needed to build the Rust generate-zbm; use -g perl, or a build container with cargo"
+  fi
+  echo "WARNING: cargo is not available: building with the Perl generate-zbm, and without zbm" >&2
+  echo "WARNING: (the legacy runtime does not need it; rebuild the build container to get cargo)" >&2
+elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   : "${CARGO_TARGET_DIR:=${ZBMWORKDIR}/target}"
   ( cd /zbm && cargo build --release --locked --offline --target-dir "${CARGO_TARGET_DIR}" \
       --bin zbm --bin generate-zbm ) || error "failed to build the Rust programs"

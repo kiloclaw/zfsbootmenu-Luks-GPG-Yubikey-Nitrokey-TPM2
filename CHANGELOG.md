@@ -39,7 +39,9 @@ request template and a Dependabot configuration.
 and configuration, print the same messages and build the same images as the Perl and Bash tools, which parity tests
 and image comparisons check. `make` builds them offline from vendored crates, `make install` installs them, and the
 build container builds images with them; Perl is no longer needed to build images. `make install TOOLS=legacy`
-installs the legacy tools, and the build container's `-g perl` option uses the Perl `generate-zbm`.
+installs the legacy tools, and the build container's `-g perl` option uses the Perl `generate-zbm`. A build container
+without `cargo`, such as one built from an older `Dockerfile`, builds with the Perl `generate-zbm` and without `zbm`,
+with a warning, since the legacy runtime does not need it; `-g rust` fails there.
 
 Images now include `zbm`, the program of the future Rust runtime, as `/libexec/zbm`, but still boot the legacy runtime.
 The dracut and mkinitcpio setting `zfsbootmenu_runtime` selects the runtime (only `legacy` is available) and
