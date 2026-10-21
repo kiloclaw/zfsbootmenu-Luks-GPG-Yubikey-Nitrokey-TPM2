@@ -36,6 +36,9 @@ off, and so that a change to the runtime adds its entry in the same commit.
   wrote the file anew.
   **Rust:** done; `zbm_boot::preinit` writes `embedded_kcl` to `/etc/cmdline.d/zfsbootmenu.conf` as the legacy parser
   does, and `crates/zbm/tests/image.rs` checks both runtimes' images.
+- [x] `bd1b300`: the online help of `zfsbootmenu(7)` (`help-files/`) describes what the Rust runtime handles after
+  package A; the legacy runtime is unchanged.
+  **Rust:** nothing to port; documentation only.
 
 ## Legacy limitations the Rust runtime must not copy
 
