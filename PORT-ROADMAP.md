@@ -4,6 +4,9 @@ This roadmap plans the port of ZFSBootMenu from Bash and Perl to Rust, in eight 
 Rust version does what the legacy code in `legacy/` does today, nothing more. New features are listed separately in
 [ROADMAP.md](ROADMAP.md). [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build and test.
 
+[REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md) proposes a refactoring of the whole code base into idiomatic Rust,
+including a new menu built with Nucleo and Ratatui, and how it changes the later phases of this plan.
+
 ## Contents
 
 - [Approach](#approach)
