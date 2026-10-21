@@ -8,6 +8,7 @@
 use std::time::Duration;
 
 use zbm_core::exec::{Command, Stream};
+use zbm_core::shell::test_integer;
 use zbm_system::System;
 
 /// `colorize`: `text` in `color`, followed by the reset sequence.
@@ -75,6 +76,16 @@ pub fn decolorize(text: &str) -> String {
         }
     }
     String::from_utf8_lossy(&kept).into_owned()
+}
+
+/// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`. The start-up
+/// writes only positive numbers; anything else answers at once, as
+/// `timed_prompt` does with a delay that is not a number.
+pub fn retry_delay(value: &str) -> i64 {
+    match value {
+        "" => 5,
+        delay => test_integer(delay).unwrap_or(0),
+    }
 }
 
 /// The text of the countdown line for `seconds` left.

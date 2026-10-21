@@ -172,7 +172,7 @@ packages, the port takes about 6 to 9 months.
 | 2. Shared libraries and `zbm-kcl` | Done |
 | 3. `generate-zbm` | Done |
 | 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
-| 5. Minimal bootable runtime | In progress: the configuration reader and the check for unsupported set-ups |
+| 5. Minimal bootable runtime | In progress: the start-up stages, kernels and `kexec` commands are ported; the applets, the supervisor and the Rust image are next |
 | 6 to 8 | Not started |
 
 **Delivered by phases 1 to 3:**
@@ -227,8 +227,17 @@ packages, the port takes about 6 to 9 months.
 
 - `zbm_cmdline::conf` reads `/etc/zfsbootmenu.conf`, with parity tests against Bash sourcing the file the image build
   and the start-up write; the writers now quote values with single quotes in them, in the legacy code too.
-- `zbm_boot::support` lists what the minimal runtime cannot handle yet, and `zbm_boot::hooks` finds the hooks of a
-  stage as `zfsbootmenu-run-hooks` does, with a parity test.
+- `zbm_boot::support` lists what the minimal runtime cannot handle yet.
+- `zbm_boot::kernels` finds and selects the kernels of a boot environment in the version order of GNU coreutils, and
+  `zbm_boot::commandline` builds its command line and the `kexec` commands, with parity tests against the legacy
+  functions and GNU `sort -V`.
+- The start-up stages: kernel modules (`modules`), the host ID (`hostid`), waiting for devices (`devices`), hooks with
+  `zbm.hookroot` and `zbm.skip_hooks` (`hooks`), and pool import (`import`) with its retries, host ID matching, every
+  import policy, restricted pools, unsupported features and `bootfs`; with the timed prompt (`prompt`) they use.
+  Parity tests run the legacy stages and functions against the same files, and the import stage against a fake
+  `zpool` shared by both, comparing the commands, the log and the state they leave. Options beyond the default boot
+  stay on the list of unsupported set-ups until the VM tests of package A pass against the Rust image; the system
+  report (`zreport`) that debugging output adds after import comes with package F.
 
 **Deviations from the plan:**
 

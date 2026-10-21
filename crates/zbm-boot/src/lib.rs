@@ -17,9 +17,14 @@
 //! state only through `zbm_state::State`. The code arrives in phases 5 and 6.
 
 pub mod commandline;
+pub mod devices;
 pub mod hooks;
 pub mod hostid;
+pub mod import;
 pub mod kernels;
 pub mod modules;
 pub mod prompt;
 pub mod support;
+
+#[cfg(test)]
+mod testing;

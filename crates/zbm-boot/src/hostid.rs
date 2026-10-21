@@ -67,7 +67,7 @@ pub fn stage(files: &dyn Files, log: &KernelLog<'_>, spl_hostid: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_system::files::RealFiles;
+    use crate::testing::Redirect;
     use zbm_testutil::fakes::{FakeFiles, FakeSystem};
     use zbm_testutil::legacy::{Bash, LOG_STUBS, path};
     use zbm_testutil::{Rng, TempDir};
@@ -175,10 +175,7 @@ mod tests {
             std::fs::write(&spl, "5\n").unwrap();
 
             // The Rust code writes the same files through a view of the directory.
-            let files = Redirect {
-                etc: etc.clone(),
-                spl: spl.clone(),
-            };
+            let files = Redirect::new(&[(ETC_HOSTID, &etc), (SPL_HOSTID, &spl)]);
             let log = KernelLog::new(&files, "7", dir.path(), 1).with_device(&dir.join("kmsg"));
             let rust = write_hostid(&files, &log, &value);
             assert_eq!(
@@ -196,63 +193,6 @@ mod tests {
                 legacy_spl,
                 "case {case}"
             );
-        }
-    }
-
-    /// Real files, with `/etc/hostid` and the SPL parameter moved.
-    struct Redirect {
-        etc: std::path::PathBuf,
-        spl: std::path::PathBuf,
-    }
-
-    impl Redirect {
-        fn map<'a>(&'a self, path: &'a Path) -> &'a Path {
-            if path == Path::new(ETC_HOSTID) {
-                &self.etc
-            } else if path == Path::new(SPL_HOSTID) {
-                &self.spl
-            } else {
-                path
-            }
-        }
-    }
-
-    impl Files for Redirect {
-        fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
-            RealFiles.read(self.map(path))
-        }
-        fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
-            RealFiles.write(self.map(path), contents)
-        }
-        fn append(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
-            RealFiles.append(self.map(path), contents)
-        }
-        fn create_dir(&self, path: &Path) -> std::io::Result<()> {
-            RealFiles.create_dir(self.map(path))
-        }
-        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
-            RealFiles.create_dir_all(self.map(path))
-        }
-        fn remove_file(&self, path: &Path) -> std::io::Result<()> {
-            RealFiles.remove_file(self.map(path))
-        }
-        fn remove_dir(&self, path: &Path) -> std::io::Result<()> {
-            RealFiles.remove_dir(self.map(path))
-        }
-        fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()> {
-            RealFiles.rename(self.map(from), self.map(to))
-        }
-        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<std::ffi::OsString>> {
-            RealFiles.read_dir(self.map(path))
-        }
-        fn metadata(&self, path: &Path) -> std::io::Result<zbm_system::files::Metadata> {
-            RealFiles.metadata(self.map(path))
-        }
-        fn set_mode(&self, path: &Path, mode: u32) -> std::io::Result<()> {
-            RealFiles.set_mode(self.map(path), mode)
-        }
-        fn canonicalize(&self, path: &Path) -> std::io::Result<std::path::PathBuf> {
-            RealFiles.canonicalize(self.map(path))
         }
     }
 }

@@ -255,29 +255,10 @@ pub fn early_stage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::stub_lines;
     use zbm_testutil::TempDir;
     use zbm_testutil::fakes::{FakeFiles, FakeSystem, FileOperation};
     use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines, path};
-
-    /// The kernel log as the legacy log stubs print it.
-    fn stub_lines(kmsg: &str) -> String {
-        kmsg.lines()
-            .filter_map(|line| {
-                if let Some(debug) = line.strip_prefix("<7>ZBM:") {
-                    let message = debug.splitn(3, '|').nth(2)?;
-                    return Some(format!("DEBUG: {message}\n"));
-                }
-                let (level, message) = line.split_once(">ZFSBootMenu: ")?;
-                let label = match level {
-                    "<3" => "ERROR",
-                    "<4" => "WARN",
-                    "<5" => "NOTICE",
-                    _ => "INFO",
-                };
-                Some(format!("{label}: {message}\n"))
-            })
-            .collect()
-    }
 
     fn log(fake: &FakeSystem) -> KernelLog<'_> {
         fake.files.dir("/zfsbootmenu");

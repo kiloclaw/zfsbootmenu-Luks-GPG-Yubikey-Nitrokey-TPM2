@@ -155,6 +155,13 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    /// Restricts `pool` even if it is already restricted, as the start-up does
+    /// for unhealthy pools; a second line changes nothing for
+    /// [`State::is_degraded`].
+    pub fn restrict(&self, pool: &str) -> Result<()> {
+        self.append("degraded", format!("{pool}\n").as_bytes())
+    }
+
     /// The host ID found by matching pools (`spl_hostid`), if any.
     pub fn spl_hostid(&self) -> Option<String> {
         self.read_line("spl_hostid")
@@ -398,6 +405,9 @@ mod tests {
         // Not a substring or a pattern: the legacy bug fixed with this port.
         assert!(!state.is_degraded("data") && !state.is_degraded("ata2"));
         assert!(!state.is_degraded("axb") && !state.is_degraded(""));
+        // The start-up restricts unhealthy pools without checking.
+        state.restrict("data2").unwrap();
+        assert_eq!(state.degraded_pools(), ["data2", "a.b", "data2"]);
     }
 
     #[test]
