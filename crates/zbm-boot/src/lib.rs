@@ -18,5 +18,8 @@
 
 pub mod commandline;
 pub mod hooks;
+pub mod hostid;
 pub mod kernels;
+pub mod modules;
+pub mod prompt;
 pub mod support;

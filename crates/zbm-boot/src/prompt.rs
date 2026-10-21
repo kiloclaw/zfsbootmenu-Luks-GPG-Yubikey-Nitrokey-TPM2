@@ -1,0 +1,374 @@
+//! Colours and the timed prompt.
+//!
+//! The Rust counterparts of `colorize`, `decolorize` and `timed_prompt`. The
+//! prompt draws centred lines with `tput`, as the legacy function does, so the
+//! terminal gets the same sequences; `tput`'s output is captured and written
+//! to the console, so tests see it.
+
+use std::time::Duration;
+
+use zbm_core::exec::{Command, Stream};
+use zbm_system::System;
+
+/// `colorize`: `text` in `color`, followed by the reset sequence.
+pub fn colorize(color: &str, text: &str) -> String {
+    let code = match color {
+        "black" => "0;30",
+        "red" => "0;31",
+        "green" => "0;32",
+        "orange" => "0;33",
+        "blue" => "0;34",
+        "magenta" => "0;35",
+        "cyan" => "0;36",
+        "lightgray" => "0;37",
+        "darkgray" => "1;30",
+        "lightred" => "1;31",
+        "lightgreen" => "1;32",
+        "yellow" => "1;33",
+        "lightblue" => "1;34",
+        "lightmagenta" => "1;35",
+        "lightcyan" => "1;36",
+        "white" => "1;37",
+        _ => "0",
+    };
+    format!("\x1b[{code}m{text}\x1b[0m")
+}
+
+/// The length of a colour sequence at the start of `text`: an escape (or the
+/// four characters `\033`, or any control character) followed by `[0m` or
+/// `[<0-1>;3<0-7>m`.
+fn sequence_len(text: &[u8]) -> Option<usize> {
+    let introducer = if text.starts_with(b"\\033") {
+        4
+    } else if text.first().is_some_and(u8::is_ascii_control) {
+        1
+    } else {
+        return None;
+    };
+    let rest = &text[introducer..];
+    if rest.starts_with(b"[0m") {
+        return Some(introducer + 3);
+    }
+    match rest {
+        [b'[', bold, b';', b'3', color, b'm', ..]
+            if matches!(bold, b'0' | b'1') && (b'0'..=b'7').contains(color) =>
+        {
+            Some(introducer + 6)
+        }
+        _ => None,
+    }
+}
+
+/// `decolorize`: `text` without colour sequences, as the legacy pattern
+/// removes them.
+pub fn decolorize(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut kept = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match sequence_len(&bytes[i..]) {
+            Some(len) => i += len,
+            None => {
+                kept.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&kept).into_owned()
+}
+
+/// The text of the countdown line for `seconds` left.
+type PromptText = Box<dyn Fn(u64) -> String>;
+
+/// A centred prompt that waits for RETURN or ESCAPE, counting down.
+pub struct TimedPrompt {
+    delay: Option<i64>,
+    prompt: Option<PromptText>,
+    messages: Vec<String>,
+}
+
+/// What the user did.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Answer {
+    /// RETURN, or the time ran out (status 0).
+    Continue,
+    /// ESCAPE (status 1).
+    Escape,
+}
+
+impl Default for TimedPrompt {
+    fn default() -> TimedPrompt {
+        TimedPrompt::new()
+    }
+}
+
+impl TimedPrompt {
+    /// A prompt with the default delay of 30 seconds and no messages.
+    pub fn new() -> TimedPrompt {
+        TimedPrompt {
+            delay: None,
+            prompt: None,
+            messages: Vec::new(),
+        }
+    }
+
+    /// `-d`: the delay in seconds; 0 answers at once, a negative delay waits
+    /// without limit.
+    pub fn delay(mut self, seconds: i64) -> TimedPrompt {
+        self.delay = Some(seconds);
+        self
+    }
+
+    /// `-p`: the countdown line, given the seconds left.
+    pub fn prompt(mut self, text: impl Fn(u64) -> String + 'static) -> TimedPrompt {
+        self.prompt = Some(Box::new(text));
+        self
+    }
+
+    /// `-m`: a line of text.
+    pub fn message(mut self, text: impl Into<String>) -> TimedPrompt {
+        self.messages.push(text.into());
+        self
+    }
+
+    /// `-r`: what RETURN does.
+    pub fn on_return(self, text: &str) -> TimedPrompt {
+        let line = format!("{} {text}", colorize("green", "[RETURN]"));
+        self.message(line)
+    }
+
+    /// `-e`: what ESCAPE does.
+    pub fn on_escape(self, text: &str) -> TimedPrompt {
+        let line = format!("{} {text}", colorize("red", "[ESCAPE]"));
+        self.message(line)
+    }
+
+    /// Shows the prompt and waits, as `timed_prompt` does.
+    pub fn run(self, system: &System<'_>) -> Answer {
+        let (delay, infinite) = match self.delay {
+            Some(0) => return Answer::Continue,
+            Some(delay) if delay < 0 => (30, true),
+            Some(delay) => (delay.unsigned_abs(), false),
+            None => (30, false),
+        };
+        let width = delay.to_string().len();
+        let prompt: PromptText = match self.prompt {
+            Some(prompt) => prompt,
+            None => Box::new(move |seconds| {
+                let mut text = format!("Press {} to continue", colorize("green", "[RETURN]"));
+                if !infinite {
+                    let left = colorize("yellow", &format!("{seconds:0width$}"));
+                    text.push_str(&format!(" or wait {left} seconds"));
+                }
+                text
+            }),
+        };
+        let mut messages = self.messages;
+        messages.push(String::new());
+
+        tput(system, &["civis"]);
+        let height = tput_number(system, "lines");
+        let columns = tput_number(system, "cols");
+        tput(system, &["clear"]);
+
+        let lines = i64::try_from(messages.len()).unwrap_or(i64::MAX);
+        let mut row = (height / 2 - lines).max(0);
+        let column = |text: &str| {
+            let len = i64::try_from(decolorize(text).chars().count()).unwrap_or(0);
+            ((columns - len) / 2).max(0)
+        };
+        for message in &messages {
+            tput(
+                system,
+                &["cup", &row.to_string(), &column(message).to_string()],
+            );
+            let _ = system.console.write(message.as_bytes());
+            row += 1;
+        }
+
+        let timeout = (!infinite).then_some(Duration::from_secs(1));
+        let mut left = delay;
+        while left > 0 {
+            let text = prompt(left);
+            tput(
+                system,
+                &["cup", &row.to_string(), &column(&text).to_string()],
+            );
+            let _ = system.console.write(text.as_bytes());
+            match system.console.read_key(timeout) {
+                Ok(Some(0x1b)) => return Answer::Escape,
+                Ok(Some(b'\n')) => return Answer::Continue,
+                // The end of the input: `read` fails at once, every time, so the
+                // legacy loop would spin; a terminal never ends, so stopping here
+                // changes nothing a user can see
+                Ok(None) | Err(_) if infinite => return Answer::Continue,
+                _ => {}
+            }
+            if !infinite {
+                left -= 1;
+            }
+        }
+        Answer::Continue
+    }
+}
+
+/// Runs `tput` with `args` and writes what it prints to the console.
+pub(crate) fn tput(system: &System<'_>, args: &[&str]) {
+    let command = Command::new("tput").args(args).stderr(Stream::Null);
+    if let Ok(output) = system.runner.run(&command) {
+        let _ = system.console.write(&output.stdout);
+    }
+}
+
+/// `$( tput <capability> )` as a number, 0 when it cannot be read.
+fn tput_number(system: &System<'_>, capability: &str) -> i64 {
+    let command = Command::new("tput").arg(capability).stderr(Stream::Null);
+    system
+        .runner
+        .run(&command)
+        .ok()
+        .and_then(|output| output.stdout_text().trim().parse().ok())
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbm_system::clock::Clock;
+    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testutil::legacy::{Bash, LOG_STUBS};
+
+    fn legacy_core() -> Bash {
+        Bash::new()
+            .code(LOG_STUBS)
+            .code(
+                r#"source() {
+                    case "$1" in
+                      /lib/*) builtin source "$LEGACY/zfsbootmenu/lib/${1#/lib/}" ;;
+                      *) builtin source "$@" ;;
+                    esac
+                  }"#,
+            )
+            .source("zfsbootmenu/lib/zfsbootmenu-core.sh")
+    }
+
+    #[test]
+    fn colours_match_the_legacy_functions() {
+        for color in [
+            "red",
+            "lightcyan",
+            "white",
+            "yellow",
+            "nothing",
+            "black",
+            "darkgray",
+        ] {
+            let legacy = legacy_core().call("colorize", &[color, "tank/ROOT/void"], b"");
+            assert_eq!(
+                colorize(color, "tank/ROOT/void"),
+                legacy.stdout_text(),
+                "{color}"
+            );
+            let decolorized = legacy_core().call("decolorize", &[&legacy.stdout_text()], b"");
+            assert_eq!(
+                format!("{}\n", decolorize(&legacy.stdout_text())),
+                decolorized.stdout_text()
+            );
+        }
+        for text in [
+            "\\033[1;31mred\\033[0m",
+            "a\x01[0;35mb",
+            "\x1b[2;31mkept",
+            "[0m",
+        ] {
+            let legacy = legacy_core().call("decolorize", &[text], b"");
+            assert_eq!(
+                format!("{}\n", decolorize(text)),
+                legacy.stdout_text(),
+                "{text:?}"
+            );
+        }
+    }
+
+    fn setup() -> FakeSystem {
+        let fake = FakeSystem::new();
+        fake.runner.respond("tput lines", 0, "25\n");
+        fake.runner.respond("tput cols", 0, "80\n");
+        fake
+    }
+
+    #[test]
+    fn counts_down_and_continues() {
+        let fake = setup();
+        fake.console.timeout().timeout().timeout();
+        let answer = TimedPrompt::new()
+            .delay(3)
+            .message("Unsupported features detected")
+            .run(&fake.system());
+        assert_eq!(answer, Answer::Continue);
+        let output = fake.console.output_text();
+        assert!(output.contains("Unsupported features detected"));
+        assert!(output.contains("or wait \x1b[1;33m1\x1b[0m seconds"));
+        assert_eq!(fake.clock.now(), Duration::from_secs(3));
+        // Two lines (the message and a blank) centred on 25 rows: rows 10 and 11,
+        // then the countdown on row 12.
+        let lines = fake.runner.lines();
+        assert_eq!(
+            lines[..4],
+            ["tput civis", "tput lines", "tput cols", "tput clear"]
+        );
+        assert_eq!(lines[4], format!("tput cup 10 {}", (80 - 29) / 2));
+        assert_eq!(lines[5], "tput cup 11 40");
+        assert!(lines[6].starts_with("tput cup 12 "));
+        assert!(fake.console.remaining().is_empty());
+    }
+
+    #[test]
+    fn keys_answer_the_prompt() {
+        let fake = setup();
+        fake.console.keys(b"x\n");
+        let answer = TimedPrompt::new()
+            .delay(5)
+            .prompt(|seconds| format!("retrying in {seconds:02} seconds"))
+            .on_return("to retry immediately")
+            .on_escape("for a recovery shell")
+            .run(&fake.system());
+        assert_eq!(answer, Answer::Continue);
+        let output = fake.console.output_text();
+        assert!(output.contains("retrying in 05 seconds"));
+        // Any other key counts as a second.
+        assert!(output.contains("retrying in 04 seconds"));
+        assert!(output.contains("\x1b[0;32m[RETURN]\x1b[0m to retry immediately"));
+
+        let fake = setup();
+        fake.console.keys(&[0x1b]);
+        assert_eq!(
+            TimedPrompt::new().delay(5).run(&fake.system()),
+            Answer::Escape
+        );
+        assert_eq!(
+            TimedPrompt::new().delay(0).run(&fake.system()),
+            Answer::Continue
+        );
+    }
+
+    #[test]
+    fn an_infinite_prompt_waits_for_a_key() {
+        let fake = setup();
+        fake.console.keys(b"abc\x1b");
+        let answer = TimedPrompt::new()
+            .delay(-1)
+            .message("ZFSBootMenu must be initialized to continue")
+            .run(&fake.system());
+        assert_eq!(answer, Answer::Escape);
+        let output = fake.console.output_text();
+        assert!(output.contains("Press \x1b[0;32m[RETURN]\x1b[0m to continue"));
+        assert!(!output.contains("or wait"));
+        // Without a timeout, the end of the input ends the wait.
+        let fake = setup();
+        assert_eq!(
+            TimedPrompt::new().delay(-1).run(&fake.system()),
+            Answer::Continue
+        );
+    }
+}
