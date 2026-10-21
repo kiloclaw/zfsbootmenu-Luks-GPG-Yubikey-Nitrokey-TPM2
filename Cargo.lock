@@ -53,6 +53,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbm"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-sys",
+]
+
+[[package]]
 name = "zbm-cmdline"
 version = "0.1.0"
 dependencies = [

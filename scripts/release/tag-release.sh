@@ -136,7 +136,8 @@ if ! out="$( scripts/version.sh -v "${release}" -u )"; then
 fi
 
 # Push updates for the release
-git add CHANGELOG.md legacy/bin/generate-zbm docs/ legacy/zfsbootmenu/zbm-release legacy/zfsbootmenu/help-files/
+git add CHANGELOG.md legacy/bin/generate-zbm docs/ legacy/zfsbootmenu/zbm-release legacy/zfsbootmenu/help-files/ \
+  crates/zbm-core/src/version.rs
 git commit -m "Bump to version ${release}"
 
 # Publish release, as prerelease if version contains alphabetics
@@ -237,7 +238,7 @@ echo "Pushed and tagged release ${release}"
 dver="${release}+dev"
 if ! (
   scripts/version.sh -v "${dver}" -u || exit 1
-  git add legacy/bin/generate-zbm legacy/zfsbootmenu/zbm-release || exit 1
+  git add legacy/bin/generate-zbm legacy/zfsbootmenu/zbm-release crates/zbm-core/src/version.rs || exit 1
   git commit -m "Bump to version ${dver}" || exit 1
   git push
 ); then

@@ -19,6 +19,7 @@ publish = false
 
 [workspace.dependencies]
 generate-zbm = { path = "crates/generate-zbm" }
+zbm = { path = "crates/zbm" }
 zbm-cmdline = { path = "crates/zbm-cmdline" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-kcl = { path = "crates/zbm-kcl" }

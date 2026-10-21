@@ -10,7 +10,7 @@ usage() {
 	   Display this message and exit
 	
 	-u
-	   Update zbm-release and generate-zbm version information
+	   Update the version in zbm-release, generate-zbm and the Rust crates
 	
 	-v <version>
 	   Specify a particular version to use
@@ -82,7 +82,9 @@ detect_version() (
 )
 
 update_version() {
-  version="${1?a version is required}"
+  # Quotes, backslashes, dollar signs and backticks would end or expand the
+  # strings the version is written into
+  version="$( printf '%s\n' "${1?a version is required}" | tr -d "'\"\\\\\$\`" )"
 
   # Write zbm-release
   if [ -d legacy/zfsbootmenu ] && [ -w legacy/zfsbootmenu ]; then
@@ -100,13 +102,21 @@ update_version() {
 	EOF
   fi
 
+  # Versions derived from branch names may contain '/' (e.g., feature/x);
+  # escape what sed treats specially
+  sedver="$( printf '%s\n' "${version}" | sed -e 's/[&|]/\\&/g' )"
+
   # Update generate-zbm
   if [ -w legacy/bin/generate-zbm ]; then
     echo "Updating legacy/bin/generate-zbm"
-    # Versions derived from branch names may contain '/' (e.g., feature/x);
-    # escape what sed treats specially and drop what would break the Perl string
-    sedver="$( printf '%s\n' "${version}" | sed -e "s/['\\\\]//g" -e 's/[&|]/\\&/g' )"
     sed -e "s|our \$VERSION.*|our \$VERSION = '${sedver}';|" -i legacy/bin/generate-zbm
+  fi
+
+  # Update the version the Rust programs report
+  rustver="crates/zbm-core/src/version.rs"
+  if [ -w "${rustver}" ]; then
+    echo "Updating ${rustver}"
+    sed -e "s|^pub const ZBM_VERSION: .*|pub const ZBM_VERSION: \&str = \"${sedver}\";|" -i "${rustver}"
   fi
 }
 

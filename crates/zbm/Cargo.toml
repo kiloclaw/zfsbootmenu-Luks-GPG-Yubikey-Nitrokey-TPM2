@@ -1,0 +1,16 @@
+[package]
+name = "zbm"
+description = "The ZFSBootMenu runtime: one program that acts as each of its commands, like BusyBox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-core.workspace = true
+zbm-sys.workspace = true
+
+[lints]
+workspace = true
