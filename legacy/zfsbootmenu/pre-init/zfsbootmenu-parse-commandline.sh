@@ -49,12 +49,15 @@ if cli_spl_hostid=$( get_zbm_arg spl.spl_hostid spl_hostid ) ; then
   # Start empty so only valid hostids are set for future use
   spl_hostid=
 
+  # Only plain digits are evaluated: Bash arithmetic would evaluate any expression in the value, including
+  # command substitutions in array subscripts
+
   # Test for decimal
-  if (( 10#${cli_spl_hostid} )) >/dev/null 2>&1 ; then
+  if [[ "${cli_spl_hostid}" =~ ^[0-9]+$ ]] && (( 10#${cli_spl_hostid} )) >/dev/null 2>&1 ; then
     spl_hostid="$( printf "%08x" "${cli_spl_hostid}" )"
   # Test for hex. Requires 0x, if present, to be stripped
   # The change to cli_spl_hostid isn't saved outside of the test
-  elif (( 16#${cli_spl_hostid#0x} )) >/dev/null 2>&1 ; then
+  elif [[ "${cli_spl_hostid#0x}" =~ ^[0-9a-fA-F]+$ ]] && (( 16#${cli_spl_hostid#0x} )) >/dev/null 2>&1 ; then
     spl_hostid="${cli_spl_hostid#0x}"
     # printf will strip leading 0s if there are more than 8 hex digits
     # normalize to a maximum of 8, then run through printf to fill in

@@ -98,7 +98,9 @@ read_kcl_prop() {
     fi
   fi
 
-  echo "${args//%\{parent\}/${par_args}}"
+  # Quote the replacement: with patsub_replacement (on by default since Bash 5.2), an unquoted & in the parent
+  # command line would be replaced by "%{parent}"
+  echo "${args//%\{parent\}/"${par_args}"}"
   return 0
 }
 
@@ -134,7 +136,7 @@ read_kcl_value() {
 
   # ...and expand any %{parent} reference from the property
   par_args="$( read_kcl_prop "${zfsbe}" )" || par_args=""
-  echo "${args//%\{parent\}/${par_args}}"
+  echo "${args//%\{parent\}/"${par_args}"}"
   return 0
 }
 
