@@ -1,0 +1,578 @@
+//! Tests of unlocking and closing, on a fake machine with LUKS volumes.
+
+use std::path::Path;
+
+use zbm_core::exec::{Command, Input, Output, Status};
+use zbm_system::files::Files;
+use zbm_testutil::fakes::{ConsoleInput, FakeFiles, FakeSystem};
+
+use crate::device::OpenCheck;
+use crate::session::{Luks, Session, Settings};
+use crate::testing::{Prompts, log, warnings};
+
+/// A LUKS volume of the fake machine.
+#[derive(Clone, Copy)]
+struct Volume {
+    device: &'static str,
+    uuid: &'static str,
+    passphrase: &'static [u8],
+    /// What `blkid -p` finds in the open volume.
+    content: &'static str,
+}
+
+const A: Volume = Volume {
+    device: "/dev/loop1",
+    uuid: "0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1a",
+    passphrase: b"secret1",
+    content: "zfs_member",
+};
+const B: Volume = Volume {
+    device: "/dev/loop2",
+    uuid: "0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b",
+    passphrase: b"secret1",
+    content: "zfs_member",
+};
+const C: Volume = Volume {
+    device: "/dev/loop3",
+    uuid: "0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1c",
+    passphrase: b"other",
+    content: "ext4",
+};
+
+fn args(command: &Command) -> Vec<String> {
+    command
+        .get_args()
+        .iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect()
+}
+
+fn base(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or_default()
+}
+
+/// The stand-in for `cryptsetup`, as the unit suites' stub: real headers,
+/// fake device-mapper nodes.
+fn cryptsetup(files: &FakeFiles, volumes: &[Volume], command: &Command) -> Output {
+    let args = args(command);
+    let volume = |device: &str| volumes.iter().find(|volume| volume.device == device);
+    let status = |code: u8| Output::new(Status::exited(code), "");
+    match args.first().map(String::as_str) {
+        Some("isLuks") => status(if volume(&args[1]).is_some() { 0 } else { 1 }),
+        Some("luksUUID") => match volume(&args[1]) {
+            Some(volume) => Output::new(Status::exited(0), format!("{}\n", volume.uuid)),
+            None => status(1),
+        },
+        Some("luksDump" | "token") => status(1),
+        Some("open") => {
+            let device = &args[args.len() - 2];
+            let name = &args[args.len() - 1];
+            let key = if args.iter().any(|arg| arg == "--key-file=-") {
+                match command.get_stdin() {
+                    Input::Secret(secret) => secret.expose().to_vec(),
+                    _ => Vec::new(),
+                }
+            } else {
+                let path = args
+                    .iter()
+                    .find_map(|arg| arg.strip_prefix("--key-file="))
+                    .unwrap_or_default();
+                files.read(Path::new(path)).unwrap_or_default()
+            };
+            let mapper = format!("/dev/mapper/{name}");
+            if files.exists(Path::new(&mapper)) {
+                return status(5);
+            }
+            match volume(device) {
+                Some(volume) if volume.passphrase == key.as_slice() => {
+                    files.block_device(&mapper);
+                    files.file(
+                        format!("/fake/holders/{}", base(device)),
+                        format!("{name}\n"),
+                    );
+                    files.file(format!("/fake/maps/{name}"), volume.content);
+                    status(0)
+                }
+                _ => Output::new(
+                    Status::exited(2),
+                    "No key available with this passphrase.\n",
+                ),
+            }
+        }
+        Some("close") => {
+            let name = &args[1];
+            let mapper = format!("/dev/mapper/{name}");
+            if files.exists(Path::new(&format!("/fake/busy/{name}"))) {
+                return status(5);
+            }
+            if !files.exists(Path::new(&mapper)) {
+                return status(4);
+            }
+            let _ = files.remove_file(Path::new(&mapper));
+            let _ = files.remove_file(Path::new(&format!("/fake/maps/{name}")));
+            for volume in volumes {
+                let marker = format!("/fake/holders/{}", base(volume.device));
+                if files.read_to_string(Path::new(&marker)).ok().as_deref()
+                    == Some(&format!("{name}\n"))
+                {
+                    let _ = files.remove_file(Path::new(&marker));
+                }
+            }
+            status(0)
+        }
+        _ => status(0),
+    }
+}
+
+/// A machine with `volumes` and `zpool` pools on mapping paths.
+fn machine(
+    volumes: &'static [Volume],
+    pools: &'static [(&'static str, &'static str)],
+) -> FakeSystem {
+    let fake = FakeSystem::new();
+    fake.environment.set("PATH", "/sbin");
+    fake.files
+        .file_with_mode("/sbin/cryptsetup", "", 0o755)
+        .file("/usr/lib/udev/rules.d/95-dm-notify.rules", "")
+        .dir("/dev/mapper")
+        .dir("/fake/holders")
+        .dir("/zfsbootmenu");
+    for volume in volumes {
+        fake.files.block_device(volume.device);
+        fake.files.symlink(
+            format!("/dev/disk/by-uuid/{}", volume.uuid),
+            format!("../../{}", base(volume.device)),
+        );
+    }
+    let files = fake.files.clone();
+    fake.runner.on(move |command| {
+        let program = command.program().to_string_lossy().into_owned();
+        let args = args(command);
+        match program.as_str() {
+            "cryptsetup" => Some(Ok(cryptsetup(&files, volumes, command))),
+            "blkid" if args.contains(&"TYPE=crypto_LUKS".to_owned()) => {
+                let list: String = volumes
+                    .iter()
+                    .map(|volume| format!("{}\n", volume.device))
+                    .collect();
+                Some(Ok(Output::new(Status::exited(0), list)))
+            }
+            "blkid" if args.contains(&"-p".to_owned()) => {
+                let name = base(args.last()?).to_owned();
+                let content = files
+                    .read_to_string(Path::new(&format!("/fake/maps/{name}")))
+                    .ok()?;
+                Some(Ok(Output::new(Status::exited(0), format!("{content}\n"))))
+            }
+            "lsblk" => Some(Ok(Output::new(Status::exited(0), "1G\n"))),
+            "zpool" => match args.first().map(String::as_str) {
+                Some("list") => {
+                    let names: String = pools.iter().map(|(pool, _)| format!("{pool}\n")).collect();
+                    Some(Ok(Output::new(Status::exited(0), names)))
+                }
+                Some("status") => {
+                    let pool = args.last()?;
+                    let vdev = pools.iter().find(|(name, _)| name == pool)?.1;
+                    Some(Ok(Output::new(
+                        Status::exited(0),
+                        format!("  pool: {pool}\nconfig:\n\t  {vdev}  ONLINE 0 0 0\n"),
+                    )))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    });
+    fake
+}
+
+fn settings() -> Settings {
+    let mut settings = Settings::new("/zfsbootmenu");
+    settings.open_check = OpenCheck::Markers("/fake/holders".into());
+    settings.colors = false;
+    settings
+}
+
+fn with_session<T>(
+    fake: &FakeSystem,
+    settings: Settings,
+    prompts: &Prompts,
+    body: impl FnOnce(&mut Session<'_>) -> T,
+) -> T {
+    let log = log(fake);
+    let luks = Luks {
+        system: fake.system(),
+        log: &log,
+        settings: &settings,
+        prompter: prompts,
+    };
+    body(&mut Session::new(luks))
+}
+
+fn mappings(fake: &FakeSystem) -> String {
+    fake.files
+        .text("/zfsbootmenu/luks-mappings")
+        .unwrap_or_default()
+}
+
+fn infos(fake: &FakeSystem) -> Vec<String> {
+    fake.kmsg()
+        .lines()
+        .filter_map(|line| line.strip_prefix("<6>ZFSBootMenu: "))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn discovery_shares_passphrases_and_closes_volumes_without_zfs() {
+    let fake = machine(&[A, B, C], &[]);
+    fake.console.secret(b"secret1").secret(b"other");
+    let prompts = Prompts::default();
+    let ok = with_session(&fake, settings(), &prompts, |session| session.unlock_all());
+    assert!(ok);
+    assert!(
+        fake.files
+            .exists(Path::new(&format!("/dev/mapper/luks-{}", A.uuid)))
+    );
+    assert!(
+        fake.files
+            .exists(Path::new(&format!("/dev/mapper/luks-{}", B.uuid)))
+    );
+    assert!(
+        !fake
+            .files
+            .exists(Path::new(&format!("/dev/mapper/luks-{}", C.uuid)))
+    );
+    assert_eq!(
+        mappings(&fake),
+        format!(
+            "luks-{}\t/dev/loop1\t1\nluks-{}\t/dev/loop2\t1\n",
+            A.uuid, B.uuid
+        )
+    );
+    let output = fake.console.output_text();
+    assert_eq!(
+        output.matches("Passphrase (leave empty to skip): ").count(),
+        2
+    );
+    assert!(output.contains("Unlock LUKS volume /dev/loop1 (1G)"));
+    let infos = infos(&fake);
+    assert!(
+        infos.contains(&"discovered LUKS volumes: /dev/loop1 /dev/loop2 /dev/loop3".to_owned())
+    );
+    assert!(infos.contains(&format!(
+        "unlocked /dev/loop2 as luks-{} with a previously entered passphrase",
+        B.uuid
+    )));
+    assert!(infos.contains(&format!(
+        "closing luks-{}: /dev/loop3 does not contain a ZFS vdev",
+        C.uuid
+    )));
+    assert_eq!(
+        infos.last().map(String::as_str),
+        Some("LUKS: 2 volume(s) available, 0 not unlocked")
+    );
+    fake.assert_no_leak(b"secret1");
+    fake.assert_no_leak(b"other");
+}
+
+#[test]
+fn empty_passphrases_skip_and_retries_leave_skipped_volumes_alone() {
+    let fake = machine(&[A], &[]);
+    fake.console.secret(b"");
+    let prompts = Prompts::default();
+    assert!(!with_session(&fake, settings(), &prompts, |session| {
+        session.unlock_all()
+    }));
+    assert_eq!(
+        fake.files.text("/zfsbootmenu/luks-skipped").as_deref(),
+        Some("/dev/loop1\n")
+    );
+    assert!(infos(&fake).contains(&"skipping LUKS volume /dev/loop1 at user request".to_owned()));
+
+    // The retry of the import loop finds nothing new.
+    let mut retry = settings();
+    retry.retry = true;
+    assert!(!with_session(&fake, retry, &prompts, |session| session.unlock_all()));
+    assert!(fake.console.remaining().is_empty());
+    assert!(fake.kmsg().contains("no LUKS volumes found"));
+}
+
+#[test]
+fn the_end_of_the_input_fails_gracefully() {
+    let fake = machine(&[A], &[]);
+    fake.console.push(ConsoleInput::End);
+    let prompts = Prompts::default();
+    assert!(!with_session(&fake, settings(), &prompts, |session| {
+        session.unlock_all()
+    }));
+    assert_eq!(
+        warnings(&fake),
+        ["no console available to unlock /dev/loop1"]
+    );
+    // Echo comes back on.
+    assert_eq!(fake.console.echo_changes(), [false, true]);
+}
+
+#[test]
+fn wrong_passphrases_end_in_a_retry_prompt() {
+    let fake = machine(&[A], &[]);
+    fake.console
+        .secret(b"bad1")
+        .secret(b"bad2")
+        .secret(b"secret1");
+    let mut settings = settings();
+    settings.default_tries = 2;
+    let prompts = Prompts::answering(&[true]);
+    assert!(with_session(&fake, settings, &prompts, |session| session.unlock_all()));
+    assert_eq!(
+        prompts.messages(),
+        ["Unable to unlock LUKS volume /dev/loop1 (1G)"]
+    );
+    let output = fake.console.output_text();
+    assert_eq!(
+        output
+            .matches("No key available with this passphrase.")
+            .count(),
+        1
+    );
+    assert_eq!(
+        warnings(&fake),
+        [
+            "failed to unlock /dev/loop1 (attempt 1)",
+            "failed to unlock /dev/loop1 (attempt 2)"
+        ]
+    );
+
+    // ESCAPE gives up and marks the volume skipped.
+    let fake = machine(&[A], &[]);
+    fake.console.secret(b"bad1");
+    let mut once = self::settings();
+    once.default_tries = 1;
+    assert!(!with_session(&fake, once, &Prompts::default(), |session| {
+        session.unlock_all()
+    }));
+    assert!(warnings(&fake).contains(&"giving up on LUKS volume /dev/loop1".to_owned()));
+    assert!(fake.files.exists(Path::new("/zfsbootmenu/luks-skipped")));
+}
+
+#[test]
+fn volumes_unlocked_elsewhere_end_the_prompt() {
+    let fake = machine(&[A], &[]);
+    fake.console.timeout();
+    // The second poll finds the volume open, as zluks over SSH would leave it.
+    let files = fake.files.clone();
+    fake.runner.on(move |command| {
+        (command.program() == "tput").then(|| {
+            files.file("/fake/holders/loop1", "elsewhere\n");
+            Ok(Output::new(Status::exited(0), ""))
+        })
+    });
+    let prompts = Prompts::default();
+    let mut settings = settings();
+    settings.mappings = "/zfsbootmenu/luks-mappings".into();
+    assert!(with_session(&fake, settings, &prompts, |session| {
+        session.open_device("v", "/dev/loop1", "", "", false)
+    }));
+    assert!(infos(&fake).contains(&"/dev/loop1 was unlocked elsewhere".to_owned()));
+    assert_eq!(mappings(&fake), "");
+}
+
+#[test]
+fn crypttab_entries_use_key_files_options_and_names() {
+    let fake = machine(&[A, B, C], &[]);
+    fake.files.file("/etc/plainkey", "secret1");
+    fake.files.file(
+        "/etc/zfsbootmenu/crypttab",
+        format!(
+            "# name device key options\n\
+             pool-a UUID={} /etc/plainkey discard,no-read-workqueue\n\
+             pool-b /dev/loop2 none tries=2\n\
+             ext-c /dev/loop3 - noauto\n\
+             gone PARTLABEL=nothere none nofail\n",
+            A.uuid
+        ),
+    );
+    fake.console.secret(b"wrong").secret(b"secret1");
+    let prompts = Prompts::default();
+    assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()));
+    assert_eq!(
+        mappings(&fake),
+        "pool-a\t/dev/loop1\t0\npool-b\t/dev/loop2\t0\n"
+    );
+    let opens: Vec<String> = fake
+        .runner
+        .lines()
+        .into_iter()
+        .filter(|line| line.starts_with("cryptsetup open"))
+        .collect();
+    assert_eq!(
+        opens[0],
+        "cryptsetup open --type luks --key-file=/etc/plainkey --allow-discards \
+         --perf-no_read_workqueue /dev/loop1 pool-a"
+    );
+    // The key file's passphrase is not kept, so pool-b asks.
+    assert_eq!(
+        fake.console
+            .output_text()
+            .matches("Passphrase (leave empty")
+            .count(),
+        2
+    );
+    assert!(prompts.messages().is_empty());
+    assert!(
+        infos(&fake)
+            .contains(&"optional LUKS device PARTLABEL=nothere not found, skipping".to_owned())
+    );
+    assert!(fake.kmsg().contains("not unlocking /dev/loop3 (noauto)"));
+}
+
+#[test]
+fn missing_devices_are_asked_about_and_duplicates_are_skipped() {
+    let fake = machine(&[A], &[]);
+    fake.files.file(
+        "/etc/zfsbootmenu/crypttab",
+        format!("a1 /dev/loop1\na2 UUID={}\nm LABEL=missing\n", A.uuid),
+    );
+    fake.console.secret(b"secret1");
+    let prompts = Prompts::default();
+    // One unlocked, one failed: still a success.
+    assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()));
+    assert_eq!(prompts.messages(), ["LUKS device LABEL=missing is missing"]);
+    assert!(
+        warnings(&fake).contains(&"LUKS device /dev/loop1 is configured more than once".to_owned())
+    );
+    assert!(fake.kmsg().contains("LUKS device LABEL=missing not found"));
+    assert!(infos(&fake).contains(&"LUKS: 1 volume(s) available, 1 not unlocked".to_owned()));
+}
+
+#[test]
+fn key_scripts_come_first() {
+    let fake = machine(&[A], &[]);
+    fake.files.file_with_mode("/etc/ks", "", 0o755);
+    fake.runner.on(|command| {
+        (command.program() == "/etc/ks").then(|| {
+            Ok(Output::with_secret(
+                Status::exited(0),
+                zbm_core::secret::Secret::copy_from(b"secret1"),
+            ))
+        })
+    });
+    let prompts = Prompts::default();
+    assert!(with_session(&fake, settings(), &prompts, |session| {
+        session.open_device("ks-a", "/dev/loop1", "", "keyscript=/etc/ks", false)
+    }));
+    let script = fake
+        .runner
+        .calls()
+        .into_iter()
+        .find(|call| call.program() == "/etc/ks")
+        .unwrap();
+    assert_eq!(args(&script), ["none"]);
+    let env: Vec<String> = script
+        .get_env()
+        .iter()
+        .map(|(key, value)| {
+            format!(
+                "{}={}",
+                key.to_string_lossy(),
+                value.as_deref().unwrap_or_default().to_string_lossy()
+            )
+        })
+        .collect();
+    assert_eq!(
+        env,
+        [
+            "CRYPTTAB_NAME=ks-a",
+            "CRYPTTAB_SOURCE=/dev/loop1",
+            "CRYPTTAB_KEY=none",
+            "CRYPTTAB_OPTIONS=keyscript=/etc/ks",
+            "CRYPTTAB_TRIED=0",
+        ]
+    );
+    assert_eq!(*script.get_stdin(), Input::Inherit);
+    assert_eq!(mappings(&fake), "ks-a\t/dev/loop1\t0\n");
+    fake.assert_no_leak(b"secret1");
+}
+
+#[test]
+fn volumes_in_use_and_taken_names_are_left_alone() {
+    let fake = machine(&[A, C], &[]);
+    fake.files.file("/fake/holders/loop1", "x\n");
+    fake.files.block_device("/dev/mapper/taken");
+    let prompts = Prompts::default();
+    with_session(&fake, settings(), &prompts, |session| {
+        assert!(session.open_device("", "/dev/loop1", "", "", false));
+        assert!(!session.open_device("taken", "/dev/loop3", "", "", false));
+        assert!(!session.open_device("", "/dev/sdz", "", "", false));
+    });
+    assert!(
+        infos(&fake).contains(&"LUKS device /dev/loop1 is already in use, skipping".to_owned())
+    );
+    assert!(
+        fake.kmsg()
+            .contains("cannot unlock /dev/loop3: mapping taken already exists")
+    );
+    assert!(
+        warnings(&fake)
+            .contains(&"/dev/sdz is not a LUKS volume (header), skipping /dev/sdz".to_owned())
+    );
+}
+
+#[test]
+fn disabled_or_unavailable_unlocking_fails_only_retries() {
+    let fake = machine(&[A], &[]);
+    fake.files.file("/zfsbootmenu/cmdline.d/zbm.luks", "off\n");
+    let prompts = Prompts::default();
+    assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()));
+    let mut retry = settings();
+    retry.retry = true;
+    assert!(!with_session(&fake, retry.clone(), &prompts, |session| {
+        session.unlock_all()
+    }));
+    let fake = FakeSystem::new();
+    assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()));
+    assert!(!with_session(&fake, retry, &prompts, |session| session.unlock_all()));
+}
+
+#[test]
+fn closing_exports_pools_first_and_keeps_busy_mappings() {
+    let fake = machine(
+        &[A, B],
+        &[("zroot", "/dev/mapper/a1"), ("other", "/dev/vda")],
+    );
+    fake.console.secret(b"secret1");
+    fake.files.file(
+        "/etc/zfsbootmenu/crypttab",
+        "a1 /dev/loop1 none\nb1 /dev/loop2 none\n",
+    );
+    let prompts = Prompts::default();
+    assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()));
+    fake.files.file("/fake/busy/b1", "");
+    assert!(!with_session(&fake, settings(), &prompts, |session| {
+        session.close_all(None)
+    }));
+    let lines = fake.runner.lines();
+    let export = lines
+        .iter()
+        .position(|line| line == "zpool export zroot")
+        .unwrap();
+    let close = lines
+        .iter()
+        .position(|line| line == "cryptsetup close a1")
+        .unwrap();
+    assert!(export < close);
+    assert!(!lines.contains(&"zpool export other".to_owned()));
+    assert_eq!(mappings(&fake), "b1\t/dev/loop2\t0\n");
+    assert!(infos(&fake).contains(&"closed LUKS mapping a1".to_owned()));
+    assert!(warnings(&fake).contains(&"unable to close LUKS mapping b1".to_owned()));
+
+    // Only the named mapping is closed.
+    let _ = fake.files.remove_file(Path::new("/fake/busy/b1"));
+    assert!(with_session(&fake, settings(), &prompts, |session| session
+        .close_all(Some("a1"))));
+    assert_eq!(mappings(&fake), "b1\t/dev/loop2\t0\n");
+    assert!(with_session(&fake, settings(), &prompts, |session| session
+        .close_all(Some("b1"))));
+    assert_eq!(mappings(&fake), "");
+}

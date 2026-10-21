@@ -15,6 +15,7 @@
 //! Every secret is a `zbm_core::secret::Secret` and reaches programs only on
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 
+pub mod close;
 pub mod config;
 pub mod crypto;
 pub mod device;
@@ -23,6 +24,7 @@ pub mod keys;
 pub mod mappings;
 pub mod session;
 pub mod tokens;
+pub mod unlock;
 
 #[cfg(test)]
 mod testing;
