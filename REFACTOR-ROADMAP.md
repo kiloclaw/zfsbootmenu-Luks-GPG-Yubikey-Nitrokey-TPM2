@@ -1,7 +1,7 @@
 # Refactoring Roadmap
 
-This roadmap turns the ZFSBootMenu code base into an idiomatic Rust project that a computer science student can read,
-change, debug and test, and on which a new menu built with [Nucleo] and [Ratatui] is straightforward to write. It is
+This roadmap turns the ZFSBootMenu code base into an idiomatic Rust project that developers can read, change, debug
+and test, and on which a new menu built with [Nucleo] and [Ratatui] is straightforward to write. It is
 based on an analysis of the whole tree in October 2026, during Phase 6 of [PORT-ROADMAP.md](PORT-ROADMAP.md), and it
 changes that plan: fundamental changes to structure and behaviour are allowed, and every line of code and every test
 ends up in Rust.
@@ -34,7 +34,7 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | --- | --- | --- |
 | G1 | Rust-native idioms, Rust design patterns, [The Rust Style Guide], rustdoc as the documentation standard | `rustfmt` (style edition 2024), `clippy::pedantic` with a short, reasoned allow list, `missing_docs` and `rustdoc::all` denied, every public item documented with an example |
 | G2 | No direct binding to libzfs | No FFI to `libzfs`, `libzfs_core` or `libnvpair`; ZFS is reached only through the `zfs` and `zpool` programs (see [The ZFS boundary](#the-zfs-boundary)) |
-| G3 | Maintainability and readability, especially for computer science students | No function over 60 lines, no module over 600 lines, no crate without an architecture page, domain types instead of strings, a guided tour (`docs/dev/`) |
+| G3 | Maintainability and readability for developers | No function over 60 lines, no module over 600 lines, no crate without an architecture page, domain types instead of strings, developer documentation in `docs/dev/` |
 | G4 | Modularity, so that a Nucleo + Ratatui menu and other features are easy to add | Front ends depend on one application crate and never on adapters; a new screen touches only `zbm-tui`; a new key method or boot step is one new type registered in one place |
 | G5 | Debuggability | Structured `tracing` spans for every stage, volume, pool and external command; a command journal; `zbm debug` reports; every failure carries its cause chain |
 | G6 | Fundamental changes allowed | Behaviour changes are listed in `CHANGES-FROM-LEGACY.md` with the reason; the legacy runtime is not the reference after the cutover |
@@ -73,7 +73,7 @@ Each finding names the goals it touches and an example; the phases below fix the
 ### F1. The code is shaped like the Bash it replaced (G1, G3)
 
 - Functions are named and documented after the shell functions they port: 104 doc comments explain a function as "as
-  `luks_xxx` does". A student must read the Bash to understand the Rust.
+  `luks_xxx` does". A developer must read the Bash to understand the Rust.
 - Shell semantics are emulated rather than replaced: `command_substitution`, `read_lines`, `test_integer`,
   `read_first_line` and `echo` are called 131 times. They exist so that output matches the legacy code byte for byte.
 - Parsers reproduce the quirks of `sed` and `awk` instead of parsing the format: `zbm_luks::tokens::last_match`
@@ -249,7 +249,7 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
 ## How the rules are enforced
 
 A rule that only a reviewer checks is forgotten within a few pull requests. Every rule above is checked by a tool in
-CI, so that students and AI tools learn the rules from the build instead of from review comments.
+CI, so that developers and AI tools learn the rules from the build instead of from review comments.
 
 | Rule | Tool | How |
 | --- | --- | --- |
@@ -467,15 +467,14 @@ tests are the proof); behaviour changes start with R5.
 - **Exit:** no Bash, Perl or Python under `tests/`, `scripts/` or `packaging/container/`; CI runs device and VM tests
   through `xtask`.
 
-### R8. Documentation for students (2 to 3 weeks, finishing alongside R7)
+### R8. Developer documentation (2 to 3 weeks, finishing alongside R7)
 
-- `docs/dev/`: a guided tour (follow one boot from `zbm` start to `kexec`, with links into rustdoc), "how to add a
-  key method", "how to add a menu screen", "how to add a boot step", "how to debug a failing boot" (journal, `zbm
-  debug`, QEMU serial logs), "how the tests are organised".
+- `docs/dev/`: the boot flow from `zbm` start to `kexec`, stage by stage, with links into rustdoc; "how to add a key
+  method", "how to add a menu screen", "how to add a boot step", "how to debug a failing boot" (journal, `zbm debug`,
+  QEMU serial logs), "how the tests are organised".
 - Rustdoc landing pages per crate with the architecture position; `cargo doc --workspace` published by CI.
-- Glossary of ZFS, LUKS, TPM and boot terms for readers new to them.
-- **Exit:** a reviewer new to the project adds a trivial key method and a trivial menu screen by following the
-  guides alone.
+- **Exit:** a developer who has not worked on the code base adds a key method and a menu screen using only the
+  documentation.
 
 ### R9. Cutover and removal (with PORT-ROADMAP phases 7 and 8)
 
@@ -522,7 +521,7 @@ running against the Rust image, are the regression check from R1 on.
 | The refactor stalls half way, with two architectures | The R0 pilots prove the architecture before migration; each phase is complete on its own; adapters can wrap old code during transition; crates move one at a time; `xtask metrics` shows how far each crate has come |
 | A refactor breaks the tests that should catch it | Test suites move to Rust before the code they protect changes (device suites in R2, VM harness in R3 and R4), and old and new suites run side by side until they agree |
 | Rules erode as more people contribute | Every rule is checked by a tool in CI ([How the rules are enforced](#how-the-rules-are-enforced)) |
-| Students meet too many abstractions | Patterns only where the table above says; the guided tour explains each one where it is used |
+| Too many abstractions for the size of the code | Patterns only where the table above says; `docs/dev/architecture.md` explains each one where it is used |
 
 ## Decisions for review
 
@@ -550,9 +549,9 @@ the plan yet; each would be added to a phase when it is adopted.
 2. **Debugging failures offline:** `zbm debug bundle` writes a redacted archive of the journal, the commands run, the
    configuration and the pool layout; `xtask replay <bundle>` turns it into a fake machine, so a reported boot
    failure becomes a `cargo test`; boot timelines exported as Chrome trace files for Perfetto.
-3. **Starting points for students:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine;
-   Architecture Decision Records in `docs/dev/adr/`; runnable `examples/` per crate; "good first issue" labels tied to
-   phases; an `AGENTS.md` per crate with its invariants, commands and test conventions for AI tools.
+3. **Developer experience:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine;
+   Architecture Decision Records in `docs/dev/adr/`; runnable `examples/` per crate; an `AGENTS.md` per crate with its
+   invariants, commands and test conventions for AI tools.
 4. **Stable error codes:** `ZBM-E0412: no key method could open /dev/sda2`, explained by `zbm explain <code>` and one
    documentation page per code.
 5. **Boot environment specifics:** terminal capability detection with ASCII borders, 16 colours and `NO_COLOR`;
