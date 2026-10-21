@@ -364,7 +364,10 @@ luks_tpm2_native_unseal() {
       fi
     fi
 
-    # authValue = SHA-256 of the PIN with trailing zero bytes removed
+    # authValue = SHA-256 of the PIN with trailing zero bytes removed. It goes to
+    # tpm2_unseal on standard input as "hex:<value>" (printf is a shell
+    # built-in), so it never appears in a process's arguments in /proc; raw
+    # bytes would not do, since tpm2-tools reads the input as a string
     auth="$( printf '%s' "${pin}" | sha256sum | cut -c1-64 )"
     while [ "${auth%00}" != "${auth}" ]; do
       auth="${auth%00}"
@@ -380,8 +383,8 @@ luks_tpm2_native_unseal() {
     if { [ -z "${pcrs}" ] || tpm2_policypcr -S "${work}/session.ctx" \
           -l "${bank:-sha256}:${pcrs}" >/dev/null 2>&1; } \
         && { [ -z "${pin}" ] || tpm2_policyauthvalue -S "${work}/session.ctx" >/dev/null 2>&1; } \
-        && tpm2_unseal -c "${work}/obj.ctx" \
-          -p "session:${work}/session.ctx${auth:++hex:${auth}}" > "${work}/secret" 2>/dev/null; then
+        && printf 'hex:%s' "${auth}" | tpm2_unseal -c "${work}/obj.ctx" \
+          -p "session:${work}/session.ctx${auth:++file:-}" > "${work}/secret" 2>/dev/null; then
       base64 < "${work}/secret" | tr -d '\n' > "${out}"
       ret=0
     fi

@@ -170,7 +170,8 @@ packages, the port takes about 6 to 9 months.
 | 1. Foundations | Done, with the deviations below |
 | 2. Shared libraries and `zbm-kcl` | Done |
 | 3. `generate-zbm` | Done |
-| 4 to 8 | Not started |
+| 4. Runtime design | Done, except the review of `crates/DESIGN.md` |
+| 5 to 8 | Not started |
 
 **Delivered by phases 1 to 3:**
 
@@ -202,13 +203,33 @@ packages, the port takes about 6 to 9 months.
   of 0 when `uname -r` prints nothing, offsets computed without a section alignment, offsets misprinted in the debug
   log, and unchecked writes of the configuration (`CHANGELOG.md` lists them).
 
+**Delivered by Phase 4:**
+
+- **Design:** [crates/DESIGN.md](crates/DESIGN.md) describes the data model, the process model (a supervisor as
+  process 1, the legacy processes and applet names, the state directory as the only shared state), hooks and their
+  compatibility library, errors and logging, external programs and secrets, and how everything is tested. Its last
+  section lists the decisions to review.
+- **Crates:** `zbm-system` (the interfaces to files, the clock, the console and processes, with their real
+  implementations and a kernel log writer), `zbm-state` (the layout and files of `/zfsbootmenu`), and `zbm-boot`,
+  `zbm-luks` and `zbm-menu`, which phases 5 and 6 fill. `zbm-core` gained the `Error` type, `Secret` and commands
+  that take or return a secret through a pipe; `zbm-sys` gained `kill`, `poll` and memory wiping.
+- **Fakes:** `zbm-testutil::fakes` fakes every interface (in-memory files with links and injected failures, a clock
+  that moves only when the code sleeps, a scripted console, recorded signals) and checks that a secret appears in no
+  argument, environment variable, file or console output. 189 Rust tests in all.
+- **Freeze:** the legacy runtime takes bug fixes only, from commit `661e9f8` on; every change goes into the tracking
+  issue, and `scripts/dev/legacy-runtime-changes.sh` lists them. Two legacy bugs were fixed with tests: restricted
+  (degraded) pools were matched as substrings and patterns, and the TPM2 authorization value derived from a PIN was
+  passed to `tpm2_unseal` as an argument.
+
 **Deviations from the plan:**
 
 - Generated test inputs come from a small seeded generator in `zbm-testutil` (`ZBM_TEST_SEED` selects other inputs)
   instead of `proptest`, and `insta` is not used yet; both would add dependencies to the vendored tree for little
   gain so far. Phase 6 decides on `insta` for the menu screens.
-- The runtime crates (`zbm-luks`, `zbm-boot`, `zbm-menu`) are created in Phase 4, whose design decides them; Phase 1
-  created the crates the host tools need and the `zbm` program.
+- The runtime crates (`zbm-luks`, `zbm-boot`, `zbm-menu`) were created in Phase 4, whose design decided them, along
+  with `zbm-system` and `zbm-state`, which the design added; Phase 1 created the crates the host tools need and the
+  `zbm` program.
+- `crates/DESIGN.md` still needs its review, which Phase 4 requires before Phase 5 builds on it.
 - Until the Rust runtime can boot (Phase 5), there is no Rust image to build: CI builds images with both generators
   and compares them, and every image includes `zbm`. The Rust image joins CI when `zfsbootmenu_runtime=rust` works.
 - Fixtures are recorded in a QEMU virtual machine booted from an image the build container builds, because creating
@@ -386,12 +407,13 @@ The largest and most security-sensitive package.
 | Closing volumes and forgetting secrets before booting | `hooks/teardown.d/80-luks-close.sh`, `luks_close_all`, `luks_forget_secrets` |
 | `zluks` | `bin/zluks` |
 
-Secrets stay out of command lines, environment variables and files, as they do today. Calling `cryptsetup` through
+Secrets stay out of command lines, environment variables and files; the legacy code comes close but keeps decrypted
+key files in RAM below `/run` (see "Secrets" in `crates/DESIGN.md`). Calling `cryptsetup` through
 `libcryptsetup-rs` instead of the program is allowed if every suite passes with it.
 
 **Done when:** Rust unit tests cover the configuration parsing (with parity tests against the Bash parser), the order
 of key methods, token metadata parsed from recorded `cryptsetup luksDump` output, and check that no secret reaches an
-argument, the environment or a file. The LUKS unit suites (248 checks today) and every LUKS VM test pass against the
+argument, the environment or a file. The LUKS unit suites (252 checks today) and every LUKS VM test pass against the
 Rust image, on the host and in the build container, including the key, lockout, hot-plug and firmware tests.
 
 ### C. Boot environments and booting

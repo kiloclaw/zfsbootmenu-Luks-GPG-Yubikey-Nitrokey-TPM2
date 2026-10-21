@@ -113,6 +113,18 @@ run "TPM2 PIN and no-PIN volumes together" t <<< $'1234'
 check "a mapped" mapped a
 check "b mapped" mapped b
 
+# The authorization value derived from the PIN reaches tpm2_unseal on standard
+# input, never in its arguments, which any process can read in /proc
+UNSEAL="$(command -v tpm2_unseal)"
+t() { LUKS_NO_TOKEN_PLUGINS=1; mkdir -p "$FAKE/argv"
+  printf '#!/bin/sh\necho "$*" >> "%s/unseal-args"\nexec "%s" "$@"\n' "$FAKE" "$UNSEAL" > "$FAKE/argv/tpm2_unseal"
+  chmod +x "$FAKE/argv/tpm2_unseal"; PATH="$FAKE/argv:$PATH"; tab "v $T1 none"; luks_unlock_all; }
+run "TPM2 PIN token: the PIN's authorization value stays out of arguments" t <<< $'1234'
+check "mapped" mapped v
+check "tpm2_unseal ran" [ -s "$FAKE/unseal-args" ]
+check "authorization read from standard input" grep -q '+file:-' "$FAKE/unseal-args"
+check "no authorization value in the arguments" bash -c "! grep -q 'hex:' '$FAKE/unseal-args'"
+
 t() { LUKS_NO_TOKEN_PLUGINS=1; tpm2_pcrextend 16:sha256=0000000000000000000000000000000000000000000000000000000000000001; tab "v $T2 none"; luks_unlock_all; }
 run "TPM2 token bound to PCR 16 after PCR 16 changed -> passphrase" t <<< $'pw'
 check "mapped via passphrase" mapped v

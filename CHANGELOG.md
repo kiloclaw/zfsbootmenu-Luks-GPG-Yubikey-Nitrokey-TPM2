@@ -64,11 +64,17 @@ Fixes found while porting, in both versions of the tools:
 `crates/DESIGN.md` describes how the Rust runtime will be built (Phase 4 of `PORT-ROADMAP.md`). The crates it lays out
 exist: the interfaces through which the runtime reaches the system, with fakes for unit tests (`zbm-system`), the state
 directory `/zfsbootmenu` (`zbm-state`), and the crates the runtime's packages will fill (`zbm-boot`, `zbm-luks`,
-`zbm-menu`). Images and the legacy runtime behave as before, except for this fix:
+`zbm-menu`).
+
+The legacy runtime is frozen from now on: it gets bug fixes only, and each change is recorded in a tracking issue so
+that the Rust runtime ports it. Images and the legacy runtime behave as before, except for these fixes:
 
 - A pool whose name is part of a restricted pool's name (`data` and an unhealthy `data2`), or matches it as a pattern
   (`a.b` and `axb`), is no longer refused read-write imports, and is recorded as restricted when it has unsupported
   features.
+- When ZFSBootMenu unseals a TPM2 token with a PIN itself (without systemd's plugin), the authorization value derived
+  from the PIN reaches `tpm2_unseal` on standard input instead of as an argument, which any process could read in
+  `/proc`. A salted PIN still reaches `openssl kdf` as an argument, which `openssl` cannot avoid.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 

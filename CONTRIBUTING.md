@@ -96,7 +96,15 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
 - Every change to Rust code comes with Rust unit tests in the same pull request: parsers tested against recorded tool
   output, parity tests against the Bash functions they replace, and fakes instead of real programs and devices. The
   "Rust unit tests" section of [PORT-ROADMAP.md](PORT-ROADMAP.md) describes what they cover.
-- Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default.
+- Runtime code follows [crates/DESIGN.md](crates/DESIGN.md): it reaches the system only through the interfaces of
+  `zbm-system` and `Runner`, shares state between processes only through `zbm-state`, and is tested with the fakes in
+  `zbm-testutil::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
+  to depart from the design, change the design document in the same pull request.
+- The legacy runtime (`legacy/zfsbootmenu/` and the dracut and mkinitcpio files in `packaging/`) is frozen: it gets
+  bug fixes only, each with a test. Record every change in the tracking issue, so the Rust runtime ports it;
+  `scripts/dev/legacy-runtime-changes.sh` lists the commits since the freeze.
+- Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default, and `zbm-sys` is
+  the only crate that allows it.
 - Features beyond parity are listed in [ROADMAP.md](ROADMAP.md). Update an entry's status when you start or finish
   it.
 

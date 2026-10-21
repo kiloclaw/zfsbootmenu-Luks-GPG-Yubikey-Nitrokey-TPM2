@@ -346,7 +346,9 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   `zbm-sys`) when it is dropped, it grows without leaving copies behind, and it prints as `Secret(..)`, so it cannot
   end up in a log message or an error by accident.
 - **Into a program,** a secret goes only on standard input (`Input::Secret`), for example
-  `cryptsetup open --key-file=- ...`, `gpg --passphrase-fd 0`, or `tpm2_unseal -p session:<context>+file:-`.
+  `cryptsetup open --key-file=- ...`, `gpg --passphrase-fd 0`, or `tpm2_unseal -p session:<context>+file:-`. Some
+  programs read their input as text: `tpm2_unseal` stops at a zero byte and drops a final newline, so the
+  authorization value goes to it as `hex:<value>`.
 - **Out of a program,** a secret is captured from standard output into a `Secret` (`Stream::CaptureSecret`), for
   example the output of `gpg --decrypt`, `tpm2_unseal`, `fido2-assert`, `ykchalresp` and `clevis decrypt`.
 - **From the user,** a secret is read from the console with echo off, directly into a `Secret`.
@@ -362,9 +364,9 @@ The legacy code is close to this but not the same, and the Rust runtime is stric
   input instead, and creates no such files.
 - It passes the TPM2 authorization value derived from a PIN to `tpm2_unseal` as an argument, and a salted PIN to
   `openssl kdf` as an argument, where any process could read them in `/proc` while the program runs. The first is
-  fixed in the legacy code as well, since `tpm2_unseal` accepts the value on standard input. The second cannot be
-  fixed there without another program, because `openssl kdf` only takes the password as an argument; it is recorded
-  in the tracking issue and disappears with the legacy runtime.
+  fixed in the legacy code as well: `tpm2_unseal` reads the value from standard input. The second cannot be fixed
+  there without another program, because `openssl kdf` only takes the password as an argument; it is recorded in the
+  tracking issue and disappears with the legacy runtime.
 - ZFS key files cached from an `org.zfsbootmenu:keysource` (`/zfsbootmenu/.keys`) remain files, because the feature
   is defined as copying them and `zfs load-key` reads them by path. They are copies of files the user stored in a
   pool, not secrets the runtime created.
