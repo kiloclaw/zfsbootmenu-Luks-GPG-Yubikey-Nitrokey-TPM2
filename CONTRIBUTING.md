@@ -66,13 +66,13 @@ request which ones you ran.
 
 The Bash and Perl code in `legacy/` is what ships, and it stays the reference until a Rust replacement matches it.
 
-- Port one part at a time, into a crate in `crates/`. Keep the legacy code working until the Rust part replaces it in
-  the images.
+- Follow [PORT-ROADMAP.md](PORT-ROADMAP.md): the host tools (`zbm-kcl`, `generate-zbm`) replace the legacy ones one
+  at a time, and the boot runtime is written as a whole, next to the legacy runtime, which stays the default until the
+  Rust runtime has passed a beta. Keep the legacy code working until then.
 - The existing suites decide whether a Rust part behaves like the code it replaces. Add tests to them for behaviour
   that is not tested yet, and run them against the legacy code first.
 - Add Rust unit tests for the Rust code itself.
 - Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default.
-- [PORT-ROADMAP.md](PORT-ROADMAP.md) splits the port into phases, with what each one ports and when it is done.
 - Features beyond parity are listed in [ROADMAP.md](ROADMAP.md). Update an entry's status when you start or finish
   it.
 

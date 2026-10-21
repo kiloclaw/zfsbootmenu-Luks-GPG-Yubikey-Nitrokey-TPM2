@@ -1,7 +1,8 @@
 //! Core library of the Rust port of ZFSBootMenu.
 //!
-//! The bootloader that ships is still the Bash runtime in `legacy/zfsbootmenu`. Code moves here one part at a time,
-//! and each part must behave like the Bash code it replaces: the test suites in `tests/` are the reference.
+//! The bootloader that ships is still the Bash runtime in `legacy/zfsbootmenu`. `PORT-ROADMAP.md` plans how the
+//! Rust code replaces it; whatever the order, the Rust code must behave like the Bash code it replaces, and the test
+//! suites in `tests/` are the reference.
 
 /// Version of the Rust crates, from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

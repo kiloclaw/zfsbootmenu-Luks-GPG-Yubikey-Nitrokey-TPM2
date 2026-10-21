@@ -1,22 +1,49 @@
 # Rust port roadmap
 
-This roadmap plans the port of ZFSBootMenu from Bash and Perl to Rust, in ten phases. Its goal is **parity**: the Rust
-version does what the legacy code in `legacy/` does today, nothing more. New features wait until the port is done;
-they are listed separately in [ROADMAP.md](ROADMAP.md). [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build and
-test.
+This roadmap plans the port of ZFSBootMenu from Bash and Perl to Rust, in eight phases. Its goal is **parity**: the
+Rust version does what the legacy code in `legacy/` does today, nothing more. New features are listed separately in
+[ROADMAP.md](ROADMAP.md). [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build and test.
 
 ## Contents
 
+- [Approach](#approach)
 - [End state](#end-state)
 - [Rules for every phase](#rules-for-every-phase)
 - [Compatibility contract](#compatibility-contract)
 - [Overview](#overview)
 - Phases: [1](#phase-1-foundations) · [2](#phase-2-shared-libraries-and-zbm-kcl) · [3](#phase-3-generate-zbm) ·
-  [4](#phase-4-startup-and-pool-import) · [5](#phase-5-luks-and-key-handling) ·
-  [6](#phase-6-boot-environments-and-booting) · [7](#phase-7-snapshot-and-pool-management) ·
-  [8](#phase-8-interactive-menu) · [9](#phase-9-recovery-tools-and-image-assembly) ·
-  [10](#phase-10-cutover-and-removal-of-the-legacy-code)
+  [4](#phase-4-runtime-design) · [5](#phase-5-minimal-bootable-runtime) · [6](#phase-6-complete-the-runtime) ·
+  [7](#phase-7-beta-with-the-legacy-image-as-fallback) · [8](#phase-8-cutover-and-removal-of-the-legacy-code)
+- [Alternatives](#alternatives)
 - [Out of scope](#out-of-scope)
+
+## Approach
+
+The port mixes two strategies, because the code has two kinds of parts:
+
+- **Host tools are replaced one at a time.** `zbm-kcl` and `generate-zbm` are standalone programs. Each Rust version
+  replaces the legacy one as soon as it passes the same tests, at no extra cost, and users get Rust code early.
+- **The boot runtime is ported as a whole.** The Bash code in the image shares state through files under
+  `/zfsbootmenu` and global variables, and `fzf` calls back into scripts that reload the libraries. Replacing it piece
+  by piece would force the Rust code to copy those interfaces until the end. Instead, the Rust runtime is designed as
+  one program and built next to the legacy one, starting with a version that can only boot the default boot
+  environment. From then on the VM tests run against it every day, and the number that pass measures progress.
+- **The legacy image stays as a fallback.** During a beta, the Rust image is the first boot entry and the legacy image
+  the second, so a faulty Rust build never leaves a machine unbootable.
+
+| | Fully phased | **Mixed (this plan)** | Everything in one go |
+| --- | --- | --- | --- |
+| Host tools | One at a time | One at a time | At the end |
+| Boot runtime | One part at a time, Bash and Rust calling each other | As a whole, from a minimal bootable version | As a whole |
+| First Rust code in use | After about 2 months | After about 2 months | At the end |
+| Glue between Bash and Rust | 1–2 months of work, discarded at the end | None: tools are swapped whole, the runtime is switched whole | None |
+| First full boot of the Rust runtime | Every phase, with part of the runtime in Rust | Phase 5, after 4 to 5 months | At the end |
+| Total, one developer | 9–13 months | 9–13 months | 8–12 months |
+
+The mixed plan takes about as long as the fully phased one: the glue it saves pays for a design phase and a beta. What
+it buys is a runtime designed as a whole instead of shaped by the Bash code, and no throwaway glue. The fully phased
+plan remains the better choice for a single developer who wants a shippable result at every step; see
+[Alternatives](#alternatives).
 
 ## End state
 
@@ -33,26 +60,30 @@ test.
 
 ## Rules for every phase
 
-1. **Replace one part at a time.** Every phase ends with a working, shippable image. Until a phase is done, a
-   build-time setting selects the legacy or the Rust version of each ported part; the legacy version stays the default
-   until the Rust version passes every test.
-2. **Tests first.** Behaviour that a phase ports but no test covers gets a test, which must pass against the legacy code
-   before porting starts. The legacy code is the reference: when the two disagree, the Rust code is wrong unless the
-   legacy code has a bug.
-3. **Fix bugs in both.** A bug found in the legacy code while porting is fixed in the legacy code too, with a test,
-   so the two stay comparable until the legacy code is removed.
-4. **Every phase runs every suite:** the LUKS unit suites (`tests/luks/unit/run-all.sh` and `run-in-container.sh`),
-   the LUKS VM tests (`tests/luks/vm/run-all.sh`), the upstream test VMs (`tests/setup.sh`, `tests/run.sh`), the Rust
-   tests and the CI build. CI runs the suites against both the legacy and the Rust build until Phase 10.
+1. **Host tools are swapped whole; the runtime is switched whole.** A Rust host tool replaces the legacy one when it
+   passes its tests. For the boot runtime, a build-time setting selects the legacy or the Rust runtime for the entire
+   image; the legacy runtime stays the default until the beta (Phase 7) ends.
+2. **Tests first.** Behaviour that the port touches but no test covers gets a test, which must pass against the legacy
+   code before the Rust version is written. The legacy code is the reference: when the two disagree, the Rust code is
+   wrong unless the legacy code has a bug.
+3. **Freeze the legacy runtime and track every change.** From Phase 4 on, the legacy runtime gets bug fixes only. Each
+   change to it, including changes merged from upstream ZFSBootMenu, is recorded in a tracking issue and must be ported
+   before the beta ends. A bug found in the legacy code while porting is fixed there too, with a test.
+4. **Every suite runs against both images.** CI builds a legacy and a Rust image and runs the LUKS unit suites
+   (`tests/luks/unit/run-all.sh` and `run-in-container.sh`), the LUKS VM tests (`tests/luks/vm/run-all.sh`), the
+   upstream test VMs (`tests/setup.sh`, `tests/run.sh`), the Rust tests and the CI build. Results against the legacy
+   image decide whether a change can be merged. Until Phase 6 ends, results against the Rust image are reported as the
+   progress measure; after that, they decide too.
 5. **No new features.** Changes in behaviour, even improvements, belong to ROADMAP.md, not to this plan. Its phase 1
-   improvements can follow a part as soon as that part matches the legacy code, as separate changes with their own
-   tests. Within the port, an error message changes only where the legacy message is wrong.
+   improvements can follow a host tool once it has been swapped, and the runtime once the cutover (Phase 8) is done,
+   so the beta compares the same behaviour. Within the port, an error message changes only where the legacy message is
+   wrong.
 6. **Keep `unsafe` out** except where a crate needs FFI, and document each use.
 
 ## Compatibility contract
 
-These interfaces are used by systems, scripts and users, and must not change during the port. Each phase lists the
-parts it touches, and its tests cover them.
+These interfaces are used by systems, scripts and users, and must not change during the port. The tests of each phase
+cover the parts it touches.
 
 | Interface | Where it is defined today |
 | --- | --- |
@@ -69,54 +100,52 @@ parts it touches, and its tests cover them.
 ## Overview
 
 The legacy code holds about 10,800 lines of Bash and Perl in `legacy/` (not counting help pages and fonts), plus
-about 480 lines of dracut and mkinitcpio glue in `packaging/`. Line counts per phase are rough, because
-`lib/zfsbootmenu-core.sh` is split across several phases. The estimates are for one developer who knows the code, and
-add up to about 9 to 13 months.
+about 480 lines of dracut and mkinitcpio glue in `packaging/`. Line counts are rough, because
+`lib/zfsbootmenu-core.sh` is split across several work packages. The estimates are for one developer who knows the
+code.
 
-| Phase | Ports | Legacy lines | Estimate |
-| --- | --- | --- | --- |
-| 1. Foundations | Build, packaging and test setup | (new) | 3–4 weeks |
-| 2. Shared libraries and `zbm-kcl` | Logging, command line parsing, KCL handling, ZFS command layer, `zbm-kcl` | ~1,300 | 3–4 weeks |
-| 3. `generate-zbm` | The image generator | ~1,170 | 5–7 weeks |
-| 4. Startup and pool import | Start-up sequence, hooks, pool import | ~750 | 4–6 weeks |
-| 5. LUKS and key handling | Unlocking, tokens, GnuPG, YubiKey, `zluks` | ~2,300 | 7–9 weeks |
-| 6. Boot environments and booting | Discovery, kernel selection, ZFS encryption keys, `kexec` | ~1,000 | 4–6 weeks |
-| 7. Snapshot and pool management | Snapshots, rollback, clones, checkpoints, chroot, diff | ~650 | 3–4 weeks |
-| 8. Interactive menu | Menu screens with `fzf`, previews, help, KCL editor | ~1,400 | 5–7 weeks |
-| 9. Recovery tools and image assembly | Recovery shell commands, hook library, install helpers | ~1,900¹ | 3–4 weeks |
-| 10. Cutover | Rust by default, legacy removed, release | — | 2–3 weeks |
+| Phase | Work | Legacy lines | Estimate | Users get |
+| --- | --- | --- | --- | --- |
+| 1. Foundations | Build, packaging and test setup | (new) | 2–3 weeks | — |
+| 2. Shared libraries and `zbm-kcl` | Logging, command line parsing, KCL handling, ZFS command layer, `zbm-kcl` | ~1,300 | 3–4 weeks | Rust `zbm-kcl` |
+| 3. `generate-zbm` | The image generator | ~1,170 | 5–7 weeks | Rust `generate-zbm`, no Perl |
+| 4. Runtime design | Data model, process model, crates, tests | — | 2–3 weeks | — |
+| 5. Minimal bootable runtime | Start-up, import, default boot environment, `kexec` | part of A and C | 4–6 weeks | — |
+| 6. Complete the runtime | Work packages A to F | ~8,000¹ | 18–26 weeks | — |
+| 7. Beta | Both images, legacy as fallback | — | 3–4 weeks | Rust image (beta) |
+| 8. Cutover | Rust by default, legacy removed, release | — | 2–3 weeks | Rust release |
 
-¹ Most of it is the install helpers and packaging glue, which shrink rather than move to Rust.
+¹ Including about 1,450 lines of install helpers and packaging glue, which shrink rather than move to Rust.
 
-Phases 2 and 3 run on the host and do not touch the boot path, so they come first: they prove the toolchain, the
-packaging and the release process at low risk. Phases 4 to 9 follow the order in which the image runs: start-up,
-unlocking, choosing and booting a boot environment, then the menu and the tools around it.
+The total is about 39 to 56 weeks, or 9 to 13 months. Phase 3 does not depend on the runtime: with a second
+developer on phases 2 and 3 and on some of the work packages, the port takes about 6 to 9 months.
 
 ## Phase 1: Foundations
 
 **Goal:** everything needed to build, ship and test Rust code, before any behaviour is ported.
 
-- **Crates:** split the workspace into crates along the phases: `zbm-core` (shared types, errors), `zbm-log`,
-  `zbm-cmdline`, `zbm-zfs`, `zbm-luks`, `zbm-boot`, `zbm-menu`, the `zbm` binary, and the host tools `generate-zbm`
-  and `zbm-kcl`.
+- **Crates:** split the workspace into crates: `zbm-core` (shared types, errors), `zbm-log`, `zbm-cmdline`, `zbm-zfs`,
+  `zbm-luks`, `zbm-boot`, `zbm-menu`, the `zbm` binary, and the host tools `generate-zbm` and `zbm-kcl`. Phase 4 may
+  change the runtime crates.
 - **One binary:** set up `zbm` as a multi-call binary with an empty set of commands.
 - **Linking:** link dynamically against the host's C library, glibc or musl, like the other programs dracut and
   mkinitcpio install (the test VMs include Alpine and Void musl systems); libcryptsetup is a shared library. Check that
   x86_64 and aarch64 builds work, since ZFSBootMenu supports both.
 - **Building:** `make` builds the workspace with `cargo build --release --locked`. The build container compiles it
   from the source tree, offline, from dependencies vendored with `cargo vendor`, so container builds need no network.
-- **Image integration:** the dracut module and the mkinitcpio hooks install `zbm`, and a build-time setting chooses
-  legacy or Rust for each ported part (all legacy for now).
+- **Image integration:** the dracut module and the mkinitcpio hooks install `zbm`, and a build-time setting selects
+  the legacy or the Rust runtime for the whole image (legacy by default).
 - **Tests:** the LUKS unit suites source the Bash libraries directly. Give them a way to call the code under test
-  through commands, so the same suites can run against the Rust code. CI builds two images, legacy and Rust, and runs
+  through commands, so the same suites can run against the Rust code. CI builds a legacy and a Rust image and can run
   every suite against both.
 
-**Done when:** an image that contains `zbm` but does not use it passes every suite; CI runs the suites against both
-builds; release builds for x86_64 and aarch64 work in the build container.
+**Done when:** an image that contains `zbm` but does not use it passes every suite; CI builds both images; release
+builds for x86_64 and aarch64 work in the build container.
 
 ## Phase 2: Shared libraries and zbm-kcl
 
-**Goal:** the libraries every later phase needs, and the first Rust program that users run: `zbm-kcl`.
+**Goal:** the libraries that `zbm-kcl` needs now and the runtime needs later, and the first Rust program that users
+run: `zbm-kcl`.
 
 | Ports | From |
 | --- | --- |
@@ -131,20 +160,20 @@ The command line code is shared: `zbm-kcl` on the host and the menu in the image
 the same way.
 
 **Done when:** Rust unit tests cover the libraries, including the quoting cases of the Bash tokenizer; a test runs
-legacy and Rust `zbm-kcl` on the same boot environments and EFI images and gets the same results; the image uses the
-Rust command line parser and logging, and every suite passes.
+legacy and Rust `zbm-kcl` on the same boot environments and EFI images and gets the same results; `make install`
+installs the Rust `zbm-kcl`.
 
 ## Phase 3: generate-zbm
 
 **Goal:** a Rust `generate-zbm` that reads the same configuration and builds the same images, so that Perl is no
-longer needed.
+longer needed. This phase does not depend on the runtime and can run in parallel with phases 4 to 6.
 
 - **Configuration:** read `config.yaml` with the same keys, defaults and errors, and accept the same command line
   options.
 - **Image generation:** find kernels and their versions, build the initramfs with dracut or mkinitcpio, and keep the
   components and EFI versions with the same naming and clean-up rules.
 - **EFI bundles:** assemble them with `objcopy` as today: the stub, the section offsets and alignment, and the
-  `.osrel`, `.cmdline`, `.linux`, `.initrd`, `.splash` and device tree sections.
+  `.osrel`, `.cmdline`, `.linux`, `.initrd`, `.splash` and `.dtb` sections.
 - **Hooks and environment:** run the pre- and post-generation hooks (`PreHooksDir`, `PostHooksDir`), pass mkinitcpio
   hook directories (`InitCPIOHookDirs`, `--hookd`), and support the way the build container runs `generate-zbm`
   (variables and paths in `build-init.sh`).
@@ -154,9 +183,63 @@ same contents. The comparison checks file lists, contents, permissions and symli
 to check the repository reorganization. The build container and `scripts/release/make-binary.sh` use the Rust
 generator, and `legacy/cpanfile` is no longer needed for builds.
 
-## Phase 4: Startup and pool import
+## Phase 4: Runtime design
 
-**Goal:** the image starts up and imports pools with Rust code, then hands over to the legacy menu.
+**Goal:** decide how the Rust runtime is built before writing it, and freeze the legacy runtime.
+
+The design is written down in `crates/DESIGN.md` and answers at least:
+
+- **Data model:** pools, boot environments, kernels, snapshots, LUKS volumes and keys, and how they relate.
+- **Process model:** which work happens in one long-running process, and how commands that `fzf` and hooks start
+  (previews, key bindings, the recovery shell commands) reach the state the legacy code keeps in files under
+  `/zfsbootmenu`.
+- **Hooks:** how hooks run, which environment they get, and how the compatibility library for hooks that source
+  `/lib/zfsbootmenu-core.sh` and `/lib/kmsg-log-lib.sh` calls `zbm`.
+- **Errors and logging:** one error type, how errors reach the screen and the kernel log, and how the recovery shell
+  is offered after a failure.
+- **External programs:** how they are run, how their output is parsed, and how secrets are passed to them without
+  command-line arguments, environment variables or files.
+- **Testing:** how each work package is tested, and how the existing suites drive the Rust runtime.
+
+The legacy runtime is frozen at the start of this phase (rule 3), and the tracking issue for its changes is opened.
+
+**Done when:** `crates/DESIGN.md` has been reviewed, the crate layout matches it, and the tracking issue exists.
+
+## Phase 5: Minimal bootable runtime
+
+**Goal:** the smallest Rust runtime that boots a machine: from start-up to `kexec`, with no menu.
+
+- **Included:** loading kernel modules, the host ID, waiting for devices, importing pools with the default import
+  policy, finding the default boot environment (`bootfs`) and its kernel, initramfs and command line, exporting the
+  pools, and `kexec`. It behaves like the legacy runtime with `zbm.skip`.
+- **Left out until Phase 6:** LUKS, the menu, hooks, ZFS native encryption and every option the default boot does not
+  need. When the Rust runtime meets something it cannot handle yet, it says so and opens the recovery shell.
+- **New test:** a VM test boots the default boot environment of an unencrypted pool. It must pass with the legacy
+  image first (rule 2).
+
+**Done when:** the new VM test passes with the Rust image, and CI runs every suite against the Rust image from now on
+and reports how many tests pass.
+
+## Phase 6: Complete the runtime
+
+**Goal:** everything else the legacy runtime does, until every suite passes against the Rust image.
+
+The work is split into six packages. They can be done in any order, or by several developers at once, but the order
+below follows the start-up sequence and puts the largest risk early. A package is done when the tests covering it pass
+against the Rust image; the phase is done when every suite passes against it.
+
+| Package | Ports | Legacy lines | Estimate |
+| --- | --- | --- | --- |
+| [A](#a-startup-and-pool-import) | Start-up sequence, hooks, every import option | ~750 | 2–3 weeks |
+| [B](#b-luks-and-key-handling) | Unlocking, tokens, GnuPG, YubiKey, `zluks` | ~2,300 | 6–8 weeks |
+| [C](#c-boot-environments-and-booting) | Discovery, kernel selection, ZFS encryption keys, `kexec` | ~1,000 | 2–3 weeks |
+| [D](#d-snapshot-and-pool-management) | Snapshots, rollback, clones, checkpoints, chroot, diff | ~650 | 2–3 weeks |
+| [E](#e-interactive-menu) | Menu screens with `fzf`, previews, help, KCL editor | ~1,400 | 4–6 weeks |
+| [F](#f-recovery-tools-and-image-assembly) | Recovery shell commands, hook library, install helpers | ~1,900 | 2–3 weeks |
+
+Phase 5 already covers the basic paths of A and C, so their estimates are lower than porting them from scratch.
+
+### A. Startup and pool import
 
 | Ports | From |
 | --- | --- |
@@ -166,16 +249,11 @@ generator, and `legacy/cpanfile` is no longer needed for builds.
 | Pool import: import policies, retries and delays, read-only import, host ID matching, unsupported feature detection, `zbm.prefer` | `init.d/50-import-pools`, `import_pool`, `export_pool`, `check_for_pools`, `match_hostid`, `write_hostid` |
 | Timed prompts and the resume check | `timed_prompt`, `has_resume_device`, `resume_prompt` |
 
-LUKS unlocking (`init.d/45-luks-unlock`) runs between device waiting and pool import. Until Phase 5, the Rust
-start-up sequence calls the legacy LUKS code at that point.
+**Done when:** the upstream test VMs and the LUKS VM tests that cover import policies, host IDs and late devices pass.
 
-**Done when:** the upstream test VMs and every LUKS VM test pass with the Rust start-up sequence, including the import
-policy, host ID and late-device cases.
+### B. LUKS and key handling
 
-## Phase 5: LUKS and key handling
-
-**Goal:** unlocking and closing LUKS volumes in Rust, with every key method this fork supports. This is the largest
-and most security-sensitive phase.
+The largest and most security-sensitive package.
 
 | Ports | From |
 | --- | --- |
@@ -188,14 +266,12 @@ and most security-sensitive phase.
 | `zluks` | `bin/zluks` |
 
 Secrets stay out of command lines, environment variables and files, as they do today. Calling `cryptsetup` through
-`libcryptsetup-rs` instead of the program is allowed in this phase if every suite passes with it.
+`libcryptsetup-rs` instead of the program is allowed if every suite passes with it.
 
-**Done when:** the LUKS unit suites (248 checks today) and every LUKS VM test pass against the Rust code, on the host
+**Done when:** the LUKS unit suites (248 checks today) and every LUKS VM test pass against the Rust image, on the host
 and in the build container, including the key, lockout, hot-plug and firmware tests.
 
-## Phase 6: Boot environments and booting
-
-**Goal:** finding what can be booted and booting it, in Rust.
+### C. Boot environments and booting
 
 | Ports | From |
 | --- | --- |
@@ -206,12 +282,10 @@ and in the build container, including the key, lockout, hot-plug and firmware te
 | Booting: `boot-sel.d` and `teardown.d` hooks, exporting pools, `kexec` | `kexec_kernel`, `bin/zkexec` |
 | Automatic boot after the timeout (`zbm.timeout`, `zbm.skip`, `zbm.show`) | `libexec/zfsbootmenu-init` |
 
-**Done when:** every VM test that boots a boot environment passes with Rust doing the selection and the `kexec`,
-including native encryption, `keysource`, `rootprefix` and device tree cases from the upstream test VMs.
+**Done when:** every VM test that boots a boot environment passes, including the native encryption, `keysource`,
+`rootprefix` and device tree cases of the upstream test VMs.
 
-## Phase 7: Snapshot and pool management
-
-**Goal:** every action the menu offers on snapshots and pools, as Rust commands the legacy menu can call.
+### D. Snapshot and pool management
 
 | Ports | From |
 | --- | --- |
@@ -222,12 +296,13 @@ including native encryption, `keysource`, `rootprefix` and device tree cases fro
 | Chroot into a boot environment | `zfs_chroot`, `bin/zfs-chroot` |
 | Pool status for the health screen | `draw_pool_status` (the data part) |
 
-**Done when:** tests cover each action on the upstream test VMs (most have no automated test today, so this phase
-adds them first), and every action behaves the same with the Rust commands.
+Most of these actions have no automated test today, so this package adds the tests first, against the legacy image.
 
-## Phase 8: Interactive menu
+**Done when:** a test covers each action, and each test passes against the Rust image.
 
-**Goal:** the menu itself in Rust. It keeps driving `fzf` with the same screens, key bindings and previews.
+### E. Interactive menu
+
+The menu keeps driving `fzf`, with the same screens, key bindings and previews.
 
 | Ports | From |
 | --- | --- |
@@ -241,9 +316,7 @@ adds them first), and every action behaves the same with the Rust commands.
 **Done when:** every key binding in `docs/online/` works, each screen shows the same information, and the VM tests,
 which drive the menu over the serial console, pass.
 
-## Phase 9: Recovery tools and image assembly
-
-**Goal:** the last ZFSBootMenu code in the image is Rust, and the image contains only what `zbm` needs.
+### F. Recovery tools and image assembly
 
 | Ports | From |
 | --- | --- |
@@ -256,16 +329,29 @@ The install helpers shrink to installing `zbm`, the external programs and librar
 and fonts. `zbm` can list the programs it needs, so the list is kept in one place. The xHCI teardown hook
 (`hooks/teardown.d/90-xhci-unbind.sh`) stays a shell script, like user hooks.
 
-**Done when:** the image contains no ZFSBootMenu Bash libraries except the compatibility library; the hooks in
-`contrib/` work unchanged; every suite passes; image sizes are compared with the legacy image.
+**Done when:** the Rust image contains no ZFSBootMenu Bash libraries except the compatibility library; the hooks in
+`contrib/` work unchanged; image sizes are compared with the legacy image.
 
-## Phase 10: Cutover and removal of the legacy code
+## Phase 7: Beta with the legacy image as fallback
+
+**Goal:** real machines run the Rust runtime, with the legacy runtime one boot entry away.
+
+- **Both images:** release and recovery builds produce a Rust image and a legacy image from the same tree. The Rust
+  image is the first boot entry; the documentation shows how to keep the legacy image as a second entry with
+  `efibootmgr`, or as a second entry in other boot loaders.
+- **Catch up:** every change recorded in the tracking issue (rule 3) is ported, and the issue is closed.
+- **Hardware:** the beta is tested on UEFI x86_64 and aarch64 machines, on firmware with Secure Boot enabled, and on a
+  BIOS machine booting through syslinux, in addition to the VM tests.
+
+**Done when:** every suite passes against both images, the tracking issue is closed, and no bug that prevents booting
+has been open for four weeks of beta.
+
+## Phase 8: Cutover and removal of the legacy code
 
 **Goal:** Rust is the only implementation.
 
-- **Default:** make Rust the default for every part, and ship one release with the legacy code still selectable as a
-  fallback.
-- **Removal:** after that release, remove `legacy/`, the build-time switch and the second CI build. `make install`
+- **Default:** make the Rust runtime the default, and ship one release with the legacy runtime still selectable.
+- **Removal:** after that release, remove `legacy/`, the build-time setting and the legacy CI build. `make install`
   installs the Rust programs at the same paths as before.
 - **Documentation:** update the man pages, the online help and `docs/`, which describe behaviour and stay valid, and
   remove references to Perl and the legacy libraries.
@@ -275,12 +361,32 @@ and fonts. `zbm` can list the programs it needs, so the list is kept in one plac
 **Done when:** every suite passes on the Rust-only tree; release images are built and signed with the updated tooling;
 the release notes are published.
 
+## Alternatives
+
+### Fully phased
+
+Each work package of Phase 6 becomes its own phase, in the order A to F, and replaces its part of the legacy runtime
+as soon as it is done. Phases 4 and 5 are dropped. Each part gets its own build-time setting, and Bash and Rust call
+each other where ported and legacy parts meet: until package B is done, for example, the Rust start-up sequence from
+package A calls the legacy LUKS code.
+
+This ships a working result at every step and keeps the first full boot of Rust code early. It costs 1 to 2 months of
+glue that is thrown away at the end, and the Rust code has to follow the Bash code's state files until the last
+package. Choose it if a single developer wants shippable progress at every step. The total time is the same, 9 to 13
+months.
+
+### Everything in one go
+
+The host tools are also written next to the legacy ones and switched together with the runtime. Nothing is usable
+until the end, and the risk of the whole port lands on one switch. It saves a few weeks at most (8 to 12 months), and
+is not recommended.
+
 ## Out of scope
 
 - **New features and behaviour changes:** see [ROADMAP.md](ROADMAP.md).
 - **The build container scripts** (`packaging/container/`): they run on the host or in the container, not in the
   image, and stay shell.
-- **The dracut and mkinitcpio glue:** both expect shell scripts, so it stays shell (Phase 9 shrinks it).
+- **The dracut and mkinitcpio glue:** both expect shell scripts, so it stays shell (work package F shrinks it).
 - **The test suites:** the Bash unit suites and the Python VM tests stay as they are, because they check that the
   Rust code behaves like the legacy code. Rust unit tests are added alongside them.
 - **`contrib/` scripts and user hooks:** they stay shell, and keep working through the compatibility library.

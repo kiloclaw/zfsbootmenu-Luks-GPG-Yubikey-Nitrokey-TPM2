@@ -1,7 +1,7 @@
 # Cargo workspace for the Rust port of ZFSBootMenu.
 #
-# The bootloader that ships today is the Bash and Perl code in legacy/. Each crate in crates/ replaces one part of it;
-# see CONTRIBUTING.md.
+# The bootloader that ships today is the Bash and Perl code in legacy/. The crates in crates/ replace it as planned in
+# PORT-ROADMAP.md.
 
 [workspace]
 resolver = "3"
