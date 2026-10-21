@@ -184,13 +184,21 @@ impl FakeFiles {
     /// Adds a device node (or another special file), such as `/dev/kmsg` or a
     /// link target in `/dev/disk/by-id`. Writes to it are recorded and kept.
     pub fn device(&self, path: impl AsRef<Path>) -> &FakeFiles {
-        let path = path.as_ref();
+        self.special(path.as_ref(), FileKind::Other)
+    }
+
+    /// Adds a block device node, such as `/dev/sda`.
+    pub fn block_device(&self, path: impl AsRef<Path>) -> &FakeFiles {
+        self.special(path.as_ref(), FileKind::BlockDevice)
+    }
+
+    fn special(&self, path: &Path, kind: FileKind) -> &FakeFiles {
         self.make_parents(path);
         self.nodes.borrow_mut().insert(
             path.to_owned(),
             Node::File {
                 contents: Vec::new(),
-                kind: FileKind::Other,
+                kind,
                 mode: 0o600,
                 modified: SystemTime::UNIX_EPOCH + EPOCH,
             },

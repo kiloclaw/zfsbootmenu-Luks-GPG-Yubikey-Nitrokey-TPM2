@@ -7,7 +7,7 @@
 
 use std::ffi::OsString;
 use std::io::{self, Write};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -18,7 +18,9 @@ pub enum FileKind {
     File,
     /// A directory.
     Directory,
-    /// Anything else: a device node, a pipe or a socket.
+    /// A block device, which the shell's `-b` test finds.
+    BlockDevice,
+    /// Anything else: a character device, a pipe or a socket.
     Other,
 }
 
@@ -188,6 +190,8 @@ impl Files for RealFiles {
             FileKind::File
         } else if metadata.is_dir() {
             FileKind::Directory
+        } else if metadata.file_type().is_block_device() {
+            FileKind::BlockDevice
         } else {
             FileKind::Other
         };

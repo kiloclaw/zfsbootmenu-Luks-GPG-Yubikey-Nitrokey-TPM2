@@ -91,7 +91,7 @@ pub fn luks_volumes(system: &System<'_>) -> Vec<String> {
         system
             .files
             .metadata(Path::new(device))
-            .is_ok_and(|metadata| metadata.kind == FileKind::Other)
+            .is_ok_and(|metadata| metadata.kind == FileKind::BlockDevice)
     })
     .map(|device| {
         system
@@ -810,7 +810,7 @@ mod tests {
         fake.environment.set("PATH", "/sbin");
         fake.files
             .file_with_mode("/sbin/cryptsetup", "", 0o755)
-            .device("/dev/sdb2");
+            .block_device("/dev/sdb2");
         fake.runner.respond(
             "blkid -c /dev/null -o device -t TYPE=crypto_LUKS",
             0,

@@ -301,6 +301,17 @@ impl<'a> State<'a> {
         self.path("errors_since")
     }
 
+    /// The value of ZFSBootMenu's command line option `key`, as `get_zbm_arg`
+    /// reads it from `cmdline.d/<key>`: the first line without the spaces and
+    /// tabs around it, `1` for an option without a value, and `None` when the
+    /// command line lacks the option.
+    pub fn zbm_arg(&self, key: &str) -> Option<String> {
+        if key.is_empty() || key.contains('/') {
+            return None;
+        }
+        self.read_line(&format!("cmdline.d/{key}"))
+    }
+
     /// The LUKS mappings ZFSBootMenu opened (`luks-mappings`), documented in
     /// `zluks(8)`.
     pub fn luks_mappings(&self) -> PathBuf {
@@ -456,6 +467,20 @@ mod tests {
         assert_eq!(state.cmdline_override().as_deref(), Some("quiet\nro\n"));
         state.clear_cmdline_override();
         assert_eq!(state.cmdline_override(), None);
+    }
+
+    #[test]
+    fn command_line_options_are_read_as_get_zbm_arg_reads_them() {
+        let files = FakeFiles::new();
+        let state = State::new(&files, BASE);
+        files.file("/zfsbootmenu/cmdline.d/zbm.luks", "\tUUID=a, b \nmore\n");
+        files.file("/zfsbootmenu/cmdline.d/zbm.luks_key", "");
+        assert_eq!(state.zbm_arg("zbm.luks").as_deref(), Some("UUID=a, b"));
+        // An empty file is a value, as `read` leaves it empty and succeeds.
+        assert_eq!(state.zbm_arg("zbm.luks_key").as_deref(), Some(""));
+        assert_eq!(state.zbm_arg("zbm.luks_tokens"), None);
+        assert_eq!(state.zbm_arg(""), None);
+        assert_eq!(state.zbm_arg("../cmdline.d/zbm.luks"), None);
     }
 
     #[test]

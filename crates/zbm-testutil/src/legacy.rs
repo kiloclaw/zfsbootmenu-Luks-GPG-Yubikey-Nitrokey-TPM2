@@ -39,6 +39,45 @@ pub fn log_lines(stderr: &str) -> String {
         .collect()
 }
 
+/// Log stubs for parity tests whose messages span lines: each line gets the
+/// label, as each line of a debugging message gets the prefix in the kernel
+/// log. Messages go to the file `ZBM_LOG` names, as the real functions write to
+/// `/dev/kmsg` and not to a stream a command substitution could capture, or
+/// to standard error without it.
+pub const LINE_LOG_STUBS: &str = r#"
+_zstub() {
+  local _l
+  while IFS= read -r _l; do echo "$1: ${_l}"; done <<< "$2" >> "${ZBM_LOG:-/dev/stderr}"
+}
+zdebug() { _zstub DEBUG "$*"; }
+zinfo() { _zstub INFO "$*"; }
+znotice() { _zstub NOTICE "$*"; }
+zwarn() { _zstub WARN "$*"; }
+zerror() { _zstub ERROR "$*"; }
+"#;
+
+/// The kernel log as the legacy log stubs print it: `LABEL: message` lines.
+/// Continuation lines of messages other than debugging output are left out,
+/// as `log_lines` leaves them out.
+pub fn stub_lines(kmsg: &str) -> String {
+    kmsg.lines()
+        .filter_map(|line| {
+            if let Some(debug) = line.strip_prefix("<7>ZBM:") {
+                let message = debug.splitn(3, '|').nth(2)?;
+                return Some(format!("DEBUG: {message}\n"));
+            }
+            let (level, message) = line.split_once(">ZFSBootMenu: ")?;
+            let label = match level {
+                "<3" => "ERROR",
+                "<4" => "WARN",
+                "<5" => "NOTICE",
+                _ => "INFO",
+            };
+            Some(format!("{label}: {message}\n"))
+        })
+        .collect()
+}
+
 /// A Bash program built from legacy libraries, a prelude and a call.
 #[derive(Clone, Debug, Default)]
 pub struct Bash {
