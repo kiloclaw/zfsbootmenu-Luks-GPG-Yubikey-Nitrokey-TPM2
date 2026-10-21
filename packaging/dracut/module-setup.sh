@@ -59,6 +59,12 @@ install() {
   # shellcheck disable=SC2034
   ZBM_BUILDSTYLE="dracut"
 
+  # Check the selected runtime and install zbm
+  if ! install_zbm_runtime; then
+    dfatal "Unable to install the ZFSBootMenu runtime"
+    exit 1
+  fi
+
   local _rule _exec _ret
 
   # shellcheck disable=SC2154

@@ -129,6 +129,12 @@ build() {
     # shellcheck disable=SC2034
     ZBM_BUILDSTYLE="mkinitcpio"
 
+    # Check the selected runtime and install zbm
+    if ! install_zbm_runtime; then
+        error "Unable to install the ZFSBootMenu runtime"
+        exit 1
+    fi
+
     # Modules (required and optional) used by ZBM
     # shellcheck disable=SC2154
     map add_module "${zfsbootmenu_essential_modules[@]}"

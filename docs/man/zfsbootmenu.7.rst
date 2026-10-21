@@ -308,6 +308,14 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 **zfsbootmenu_hook_root=<path>**
 
   Set this variable to override the default **<path>** where the ZFSBootMenu module expects to find optional user hooks that will be installed in the created image. When unspecified, a default of */etc/zfsbootmenu/hooks* is assumed.
+
+**zfsbootmenu_runtime=legacy**
+
+  Select the runtime that the image boots with. The only runtime available is *legacy*, the shell implementation, which is also the default. A Rust runtime is being written; until it can boot, *rust* and any other value stop the image build with an error.
+
+**zfsbootmenu_zbm=<path>**
+
+  Set this variable to override the default **<path>** of **zbm**, the program of the Rust runtime, which is installed in the image as */libexec/zbm*. When unspecified, a default of */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy* runtime does not use **zbm**; when it is not found, the image is built without it.
   
 **zfsbootmenu_skip_gcc_s=yes**
 

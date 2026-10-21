@@ -288,6 +288,7 @@ create_zbm_conf() {
 	export HAS_RAW="${has_raw}"
 	export ZBM_BUILDSTYLE="${ZBM_BUILDSTYLE}"
 	export ZBM_RELEASE_BUILD="${zfsbootmenu_release_build}"
+	export ZBM_RUNTIME="${ZBM_RUNTIME:-legacy}"
 	EOF
 }
 
@@ -589,6 +590,68 @@ zbm_warn() {
     dracut) dwarning "$@" ;;
     *) echo "WARNING: $*" >&2 ;;
   esac
+}
+
+zbm_error() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) error "$@" ;;
+    dracut) derror "$@" ;;
+    *) echo "ERROR: $*" >&2 ;;
+  esac
+}
+
+# arg1: path to an executable
+# arg2: path in the image
+# prints: nothing
+# returns: 0 if the executable (and its dependencies) were installed
+
+zbm_install_executable_as() {
+  case "${ZBM_BUILDSTYLE,,}" in
+    mkinitcpio) add_binary "${1}" "${2}" ;;
+    dracut) inst_binary "${1}" "${2}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Check the runtime selected with zfsbootmenu_runtime and install zbm, the
+# Rust runtime program, from zfsbootmenu_zbm. Only the legacy runtime exists
+# so far: images include zbm at /libexec/zbm when it is found, but do not use
+# it. Sets ZBM_RUNTIME for create_zbm_conf.
+#
+# prints: nothing
+# returns: 0 unless the setting is wrong or zbm cannot be installed
+
+install_zbm_runtime() {
+  local runtime zbm
+
+  # shellcheck disable=SC2154
+  runtime="${zfsbootmenu_runtime:-legacy}"
+  case "${runtime,,}" in
+    legacy)
+      ZBM_RUNTIME="legacy"
+      ;;
+    rust)
+      zbm_error "zfsbootmenu_runtime=${runtime}: the Rust runtime is not available yet; use zfsbootmenu_runtime=legacy"
+      return 1
+      ;;
+    *)
+      zbm_error "zfsbootmenu_runtime=${runtime}: unknown runtime; use zfsbootmenu_runtime=legacy"
+      return 1
+      ;;
+  esac
+
+  # shellcheck disable=SC2154
+  zbm="${zfsbootmenu_zbm:-/usr/libexec/zfsbootmenu/zbm}"
+  if [ ! -x "${zbm}" ]; then
+    zbm_info "zbm not found at ${zbm}; the legacy runtime does not need it"
+    return 0
+  fi
+
+  if ! zbm_install_executable_as "${zbm}" "/libexec/zbm"; then
+    zbm_error "failed to install ${zbm}"
+    return 1
+  fi
+  return 0
 }
 
 # arg1: option value

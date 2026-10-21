@@ -58,6 +58,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-core",
  "zbm-sys",
+ "zbm-testutil",
 ]
 
 [[package]]
