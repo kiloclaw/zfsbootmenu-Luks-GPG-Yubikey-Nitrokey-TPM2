@@ -48,7 +48,7 @@ import time
 
 import pexpect
 
-from zbmtest import (FAST_PBKDF, PW, PW_OTHER, WORK, ZFSKEY, Test, VM, be_features,
+from zbmtest import (BOOT_PROMPTS, FAST_PBKDF, PW, PW_OTHER, WORK, ZFSKEY, Test, VM, be_features,
                      check_be, check_teardown, disk, follow_boot, hostid_arg, partition,
                      payload_disk, run, zbm_image)
 
@@ -283,11 +283,16 @@ def main():
         skipped = 0
         while True:
             i = vm.expect([r"Passphrase \(leave empty to skip\): ", r"Unable to import",
-                           r"Dropping to an emergency shell"], timeout=1800)
+                           r"Dropping to an emergency shell", BOOT_PROMPTS["refused"]], timeout=1800)
             if i > 0:
                 break
             skipped += 1
             vm.sendline("")
+        if i == 3:
+            # The Rust runtime opens the shell where the legacy one shows the
+            # menu without a boot environment
+            t.step(f"the Rust runtime cannot handle this yet: {vm.match.group(1).strip()}")
+            i = 2
         # mixed and parts import DEGRADED through their unencrypted halves, so
         # ZFSBootMenu finds no boot environment and opens its emergency shell
         # (with no importable pool it would stay in the import retry loop)

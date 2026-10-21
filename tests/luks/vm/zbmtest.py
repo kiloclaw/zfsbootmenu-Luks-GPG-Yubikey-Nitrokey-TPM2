@@ -497,7 +497,8 @@ class VM:
         self.shell_ready()
 
     def shell_ready(self):
-        self.expect(r"zfsbootmenu", timeout=600)
+        # A shell prepared before (see follow_boot) shows its own prompt
+        self.expect([r"zfsbootmenu", r"zbm# "], timeout=600)
         time.sleep(3)
         self.sendline("stty -echo cols 250; export PS1='zbm# ' PS2=''")
         time.sleep(2)
