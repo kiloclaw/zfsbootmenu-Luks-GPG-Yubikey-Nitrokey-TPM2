@@ -1,0 +1,21 @@
+[package]
+name = "zbm-kcl"
+description = "Review or change the kernel command line of a ZFS boot environment or a ZFSBootMenu EFI image"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-cmdline.workspace = true
+zbm-core.workspace = true
+zbm-sys.workspace = true
+zbm-zfs.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true

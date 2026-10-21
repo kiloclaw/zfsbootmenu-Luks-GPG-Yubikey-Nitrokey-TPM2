@@ -2,6 +2,8 @@
 #
 # The bootloader that ships today is the Bash and Perl code in legacy/. The crates in crates/ replace it as planned in
 # PORT-ROADMAP.md.
+#
+# Third-party crates are vendored in vendor/ (see .cargo/config.toml), so every build works offline.
 
 [workspace]
 resolver = "3"
@@ -15,8 +17,20 @@ license = "MIT"
 repository = "https://github.com/kiloclaw/zfsbootmenu-luks-gpg-yubikey-nitrokey-tpm2"
 publish = false
 
+[workspace.dependencies]
+generate-zbm = { path = "crates/generate-zbm" }
+zbm-cmdline = { path = "crates/zbm-cmdline" }
+zbm-core = { path = "crates/zbm-core" }
+zbm-kcl = { path = "crates/zbm-kcl" }
+zbm-log = { path = "crates/zbm-log" }
+zbm-sys = { path = "crates/zbm-sys" }
+zbm-testutil = { path = "crates/zbm-testutil" }
+zbm-zfs = { path = "crates/zbm-zfs" }
+# yaml-rust2 = { version = "0.13", default-features = false }
+
 [workspace.lints.rust]
-# Crates that need FFI (ioctl, kexec_file_load) can allow it locally with #![allow(unsafe_code)].
+# Crates that need FFI (signals, ioctl, kexec_file_load) allow it locally with #![allow(unsafe_code)] and document
+# every unsafe block.
 unsafe_code = "deny"
 missing_docs = "warn"
 

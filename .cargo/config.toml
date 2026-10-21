@@ -1,0 +1,7 @@
+# Build from the crates vendored in vendor/, never from the network. Refresh them with `cargo vendor` after changing
+# a dependency in Cargo.toml.
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"

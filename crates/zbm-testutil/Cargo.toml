@@ -1,0 +1,17 @@
+[package]
+name = "zbm-testutil"
+description = "Test helpers of the Rust port of ZFSBootMenu: a fake command runner, parity tests, generated inputs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# Only other crates' tests depend on this crate; it never reaches a binary.
+
+[dependencies]
+zbm-core.workspace = true
+
+[lints]
+workspace = true

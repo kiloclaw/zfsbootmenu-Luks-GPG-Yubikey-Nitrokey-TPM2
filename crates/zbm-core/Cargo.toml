@@ -1,6 +1,6 @@
 [package]
 name = "zbm-core"
-description = "Core library of the Rust port of ZFSBootMenu"
+description = "Shared types of the Rust port of ZFSBootMenu: running programs, file tests, release information"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+zbm-sys.workspace = true
 
 [lints]
 workspace = true

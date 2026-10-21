@@ -1,0 +1,19 @@
+[package]
+name = "zbm-cmdline"
+description = "Kernel command lines in the Rust port of ZFSBootMenu: tokenizing, editing, zbm.* options"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-core.workspace = true
+zbm-log.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true

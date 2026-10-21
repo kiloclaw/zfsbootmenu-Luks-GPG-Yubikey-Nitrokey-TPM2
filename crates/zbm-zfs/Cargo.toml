@@ -1,0 +1,20 @@
+[package]
+name = "zbm-zfs"
+description = "ZFS in the Rust port of ZFSBootMenu: the zfs and zpool commands, mounts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-cmdline.workspace = true
+zbm-core.workspace = true
+zbm-log.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true

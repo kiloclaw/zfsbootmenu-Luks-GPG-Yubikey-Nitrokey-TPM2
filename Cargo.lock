@@ -3,5 +3,57 @@
 version = 4
 
 [[package]]
+name = "zbm-cmdline"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-log",
+ "zbm-testutil",
+]
+
+[[package]]
 name = "zbm-core"
 version = "0.1.0"
+dependencies = [
+ "zbm-sys",
+]
+
+[[package]]
+name = "zbm-kcl"
+version = "0.1.0"
+dependencies = [
+ "zbm-cmdline",
+ "zbm-core",
+ "zbm-sys",
+ "zbm-testutil",
+ "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-log"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+ "zbm-testutil",
+]
+
+[[package]]
+name = "zbm-sys"
+version = "0.1.0"
+
+[[package]]
+name = "zbm-testutil"
+version = "0.1.0"
+dependencies = [
+ "zbm-core",
+]
+
+[[package]]
+name = "zbm-zfs"
+version = "0.1.0"
+dependencies = [
+ "zbm-cmdline",
+ "zbm-core",
+ "zbm-log",
+ "zbm-testutil",
+]
