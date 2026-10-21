@@ -311,11 +311,11 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
 **zfsbootmenu_runtime=legacy**
 
-  Select the runtime that the image boots with. The only runtime available is *legacy*, the shell implementation, which is also the default. A Rust runtime is being written; until it can boot, *rust* and any other value stop the image build with an error.
+  Select the runtime that the image boots with: *legacy*, the shell implementation, which is the default, or *rust*, the Rust runtime that is being written to replace it. The Rust runtime needs **zbm** (see **zfsbootmenu_zbm**). So far it boots the default boot environment of an unencrypted pool, as the legacy runtime does with **zbm.skip**; where a machine needs more (LUKS volumes, a locked encryption root, the menu, or import options other than the defaults), it logs what it cannot handle yet and opens the recovery shell. Any other value stops the image build with an error.
 
 **zfsbootmenu_zbm=<path>**
 
-  Set this variable to override the default **<path>** of **zbm**, the program of the Rust runtime, which is installed in the image as */libexec/zbm*. When unspecified, a default of */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy* runtime does not use **zbm**; when it is not found, the image is built without it.
+  Set this variable to override the default **<path>** of **zbm**, the program of the Rust runtime, which is installed in the image as */libexec/zbm*. When unspecified, a default of */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy* runtime does not use **zbm**; when it is not found, the image is built without it. The *rust* runtime cannot be built without it.
   
 **zfsbootmenu_skip_gcc_s=yes**
 

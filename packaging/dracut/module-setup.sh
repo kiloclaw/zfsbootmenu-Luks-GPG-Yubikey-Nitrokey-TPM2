@@ -144,8 +144,14 @@ install() {
   install_zbm_hooks || _ret=$?
 
   # Hooks necessary to initialize ZBM
-  inst_hook cmdline 95 "${zfsbootmenu_module_root}/pre-init/zfsbootmenu-parse-commandline.sh" || _ret=$?
-  inst_hook pre-mount 90 "${zfsbootmenu_module_root}/pre-init/zfsbootmenu-preinit.sh" || _ret=$?
+  # shellcheck disable=SC2154
+  if [ "${ZBM_RUNTIME}" = "rust" ]; then
+    inst_hook cmdline 95 "${moddir}/zfsbootmenu-rust-cmdline.sh" || _ret=$?
+    inst_hook pre-mount 90 "${moddir}/zfsbootmenu-rust-preinit.sh" || _ret=$?
+  else
+    inst_hook cmdline 95 "${zfsbootmenu_module_root}/pre-init/zfsbootmenu-parse-commandline.sh" || _ret=$?
+    inst_hook pre-mount 90 "${zfsbootmenu_module_root}/pre-init/zfsbootmenu-preinit.sh" || _ret=$?
+  fi
 
   # Hooks to force the dracut event loop to fire at least once
   # Things like console configuration are done in optional event-loop hooks
@@ -210,12 +216,6 @@ install() {
     mark_hostonly /etc/hostid
   fi
 
-  # Embed a kernel command line in the initramfs
-  # shellcheck disable=SC2154
-  if [ -n "${embedded_kcl}" ]; then
-    echo "export embedded_kcl=\"${embedded_kcl}\"" >> "${initdir}/etc/zfsbootmenu.conf"
-  fi
-
   # Force rd.hostonly=0 in the KCL for releases, this will purge itself after 99base/init.sh runs
   # shellcheck disable=SC2154
   if [ -n "${zfsbootmenu_release_build}" ]; then
@@ -225,6 +225,13 @@ install() {
   create_zbm_conf
   create_zbm_profiles
   create_zbm_traceconf
+
+  # Embed a kernel command line in the initramfs; create_zbm_conf writes the
+  # file anew, so this comes after it
+  # shellcheck disable=SC2154
+  if [ -n "${embedded_kcl}" ]; then
+    echo "export embedded_kcl=\"${embedded_kcl}\"" >> "${initdir}/etc/zfsbootmenu.conf"
+  fi
 
   if command -v setfont >/dev/null 2>&1; then
     install_zbm_fonts && dracut_install setfont

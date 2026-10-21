@@ -44,7 +44,7 @@ without `cargo`, such as one built from an older `Dockerfile`, builds with the P
 with a warning, since the legacy runtime does not need it; `-g rust` fails there.
 
 Images now include `zbm`, the program of the future Rust runtime, as `/libexec/zbm`, but still boot the legacy runtime.
-The dracut and mkinitcpio setting `zfsbootmenu_runtime` selects the runtime (only `legacy` is available) and
+The dracut and mkinitcpio setting `zfsbootmenu_runtime` selects the runtime (`legacy` by default) and
 `zfsbootmenu_zbm` names the program to include (default `/usr/libexec/zfsbootmenu/zbm`); see `zfsbootmenu(7)`.
 
 Fixes found while porting, in both versions of the tools:
@@ -81,6 +81,18 @@ for these fixes:
 - Values from the kernel command line that contain a single quote (in `zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`
   or `console`) are written to `/etc/zfsbootmenu.conf` so that sourcing the file gives them back, instead of breaking
   the file.
+- dracut images keep the command line set with `embedded_kcl`; it was written to `/etc/zfsbootmenu.conf` before the
+  file was created anew, and so was lost. (Release images also set `rd.hostonly=0` another way, so they were not
+  affected.)
+
+### Rust runtime, first boot
+
+The first Rust runtime (Phase 5 of `PORT-ROADMAP.md`) can be selected with `zfsbootmenu_runtime=rust` in the dracut
+or mkinitcpio configuration, and needs `zbm`. It starts ZFSBootMenu as process 1 under a supervisor, runs the start-up
+stages (kernel modules, host ID, hooks, pool import), and boots the default boot environment of an unencrypted pool,
+as the legacy runtime does with `zbm.skip`. Where a machine needs more (LUKS volumes, a locked encryption root, the
+menu, or import options other than the defaults), it logs what it cannot handle yet and opens the recovery shell. The
+legacy runtime stays the default; see `zfsbootmenu(7)`.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 

@@ -502,14 +502,14 @@ Set this variable to override the default \fB<path>\fP where the ZFSBootMenu mod
 \fBzfsbootmenu_runtime=legacy\fP
 .INDENT 0.0
 .INDENT 3.5
-Select the runtime that the image boots with. The only runtime available is \fIlegacy\fP, the shell implementation, which is also the default. A Rust runtime is being written; until it can boot, \fIrust\fP and any other value stop the image build with an error.
+Select the runtime that the image boots with: \fIlegacy\fP, the shell implementation, which is the default, or \fIrust\fP, the Rust runtime that is being written to replace it. The Rust runtime needs \fBzbm\fP (see \fBzfsbootmenu_zbm\fP). So far it boots the default boot environment of an unencrypted pool, as the legacy runtime does with \fBzbm.skip\fP; where a machine needs more (LUKS volumes, a locked encryption root, the menu, or import options other than the defaults), it logs what it cannot handle yet and opens the recovery shell. Any other value stops the image build with an error.
 .UNINDENT
 .UNINDENT
 .sp
 \fBzfsbootmenu_zbm=<path>\fP
 .INDENT 0.0
 .INDENT 3.5
-Set this variable to override the default \fB<path>\fP of \fBzbm\fP, the program of the Rust runtime, which is installed in the image as \fI/libexec/zbm\fP\&. When unspecified, a default of \fI/usr/libexec/zfsbootmenu/zbm\fP is assumed, which is where \fBmake install\fP puts it. The \fIlegacy\fP runtime does not use \fBzbm\fP; when it is not found, the image is built without it.
+Set this variable to override the default \fB<path>\fP of \fBzbm\fP, the program of the Rust runtime, which is installed in the image as \fI/libexec/zbm\fP\&. When unspecified, a default of \fI/usr/libexec/zfsbootmenu/zbm\fP is assumed, which is where \fBmake install\fP puts it. The \fIlegacy\fP runtime does not use \fBzbm\fP; when it is not found, the image is built without it. The \fIrust\fP runtime cannot be built without it.
 .UNINDENT
 .UNINDENT
 .sp

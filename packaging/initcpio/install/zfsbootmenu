@@ -98,6 +98,21 @@ create_zbm_entrypoint() {
     # Create an entrypoint to initialize the ZBM environment
 
     mkdir -p "${BUILDROOT}/libexec"
+
+    # The Rust runtime: the zbm applets do what the two hooks below do
+    if [ "${ZBM_RUNTIME}" = "rust" ]; then
+        cat > "${BUILDROOT}/libexec/zfsbootmenu-initcpio" <<-'EOF'
+	#!/bin/bash
+	if ! /libexec/zbm zfsbootmenu-parse-commandline; then
+	    echo "ERROR: failed to parse the command line; good luck..."
+	    exec /bin/bash
+	fi
+	exec /libexec/zbm zfsbootmenu-preinit
+	EOF
+        chmod 755 "${BUILDROOT}/libexec/zfsbootmenu-initcpio"
+        return
+    fi
+
     cat > "${BUILDROOT}/libexec/zfsbootmenu-initcpio" <<-'EOF'
 	#!/bin/bash
 	hooks=(

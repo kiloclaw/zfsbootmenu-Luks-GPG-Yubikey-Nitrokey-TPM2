@@ -415,9 +415,16 @@ install_zbm_core() {
   ret=0
   for cdir in lib libexec bin; do
     for cfile in "${zfsbootmenu_module_root}/${cdir}"/*; do
+      # The Rust runtime starts with zbm; the shell libraries and tools stay,
+      # for hooks and the recovery shell
+      if [ "${ZBM_RUNTIME}" = "rust" ] && [ "${cdir}/${cfile##*/}" = "libexec/zfsbootmenu-init" ]; then
+        continue
+      fi
       zbm_install_file "${cfile}" "/${cdir}/${cfile##*/}" || ret=$?
     done
   done
+
+  [ "${ZBM_RUNTIME}" = "rust" ] && return $ret
 
   for cfile in "${zfsbootmenu_module_root}/init.d"/*; do
     zbm_install_file "${cfile}" "/libexec/init.d/${cfile##*/}" || ret=$?
@@ -614,9 +621,10 @@ zbm_install_executable_as() {
 }
 
 # Check the runtime selected with zfsbootmenu_runtime and install zbm, the
-# Rust runtime program, from zfsbootmenu_zbm. Only the legacy runtime exists
-# so far: images include zbm at /libexec/zbm when it is found, but do not use
-# it. Sets ZBM_RUNTIME for create_zbm_conf.
+# Rust runtime program, from zfsbootmenu_zbm. The legacy runtime is the
+# default; its images include zbm at /libexec/zbm when it is found, but do not
+# use it. The Rust runtime (zfsbootmenu_runtime=rust) needs zbm. Sets
+# ZBM_RUNTIME for create_zbm_conf and the start-up hooks.
 #
 # prints: nothing
 # returns: 0 unless the setting is wrong or zbm cannot be installed
@@ -631,11 +639,10 @@ install_zbm_runtime() {
       ZBM_RUNTIME="legacy"
       ;;
     rust)
-      zbm_error "zfsbootmenu_runtime=${runtime}: the Rust runtime is not available yet; use zfsbootmenu_runtime=legacy"
-      return 1
+      ZBM_RUNTIME="rust"
       ;;
     *)
-      zbm_error "zfsbootmenu_runtime=${runtime}: unknown runtime; use zfsbootmenu_runtime=legacy"
+      zbm_error "zfsbootmenu_runtime=${runtime}: unknown runtime; use zfsbootmenu_runtime=legacy or rust"
       return 1
       ;;
   esac
@@ -643,6 +650,10 @@ install_zbm_runtime() {
   # shellcheck disable=SC2154
   zbm="${zfsbootmenu_zbm:-/usr/libexec/zfsbootmenu/zbm}"
   if [ ! -x "${zbm}" ]; then
+    if [ "${ZBM_RUNTIME}" = "rust" ]; then
+      zbm_error "zfsbootmenu_runtime=rust: zbm not found at ${zbm}"
+      return 1
+    fi
     zbm_info "zbm not found at ${zbm}; the legacy runtime does not need it"
     return 0
   fi
