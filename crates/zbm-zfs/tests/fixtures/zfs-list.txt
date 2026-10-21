@@ -1,0 +1,6 @@
+tfix	none	on	-	-	-
+tfix/ROOT	none	off	-	-	quiet loglevel=4
+tfix/ROOT/be	/	noauto	-	-	quiet loglevel=4
+tfix/ROOT/other	/	noauto	-	-	%{parent} rw
+tfix/ROOT/other/child	/child	noauto	-	-	%{parent} rw
+tfix/secret	/secret	noauto	tfix/secret	available	-

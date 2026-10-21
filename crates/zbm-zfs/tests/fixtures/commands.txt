@@ -1,0 +1,19 @@
+Recorded with zfs-2.4.4-1ubuntu4 zfs-kmod-2.4.4-1ubuntu4 by scripts/dev/record-fixtures.py
+
+zfs-list.txt (exit status 0): zfs list -H -p -o name,mountpoint,canmount,encroot,keystatus,org.zfsbootmenu:commandline
+zfs-list-snapshots.txt (exit status 0): zfs list -H -p -t snapshot -o name,used
+zfs-list-name.txt (exit status 0): zfs list -o name -H tfix/ROOT/be
+zfs-list-filesystem.txt (exit status 0): zfs list -H -o name -t filesystem tfix/ROOT/be
+zfs-list-filesystem-snapshot.txt (exit status 1): zfs list -H -o name -t filesystem tfix/ROOT/be@one
+zfs-get-value-local.txt (exit status 0): zfs get -H -o value org.zfsbootmenu:commandline tfix/ROOT/other
+zfs-get-value-inherited.txt (exit status 0): zfs get -H -o value org.zfsbootmenu:commandline tfix/ROOT/be
+zfs-get-value-root.txt (exit status 0): zfs get -H -o value org.zfsbootmenu:commandline tfix/ROOT
+zfs-get-value-child.txt (exit status 0): zfs get -H -o value org.zfsbootmenu:commandline tfix/ROOT/other/child
+zfs-get-value-unset.txt (exit status 0): zfs get -H -o value org.zfsbootmenu:commandline tfix
+zfs-get-source-inherited.txt (exit status 0): zfs get -H -o source -s inherited org.zfsbootmenu:commandline tfix/ROOT/be
+zfs-get-source-local.txt (exit status 0): zfs get -H -o source -s inherited org.zfsbootmenu:commandline tfix/ROOT/other
+zfs-get-source-child.txt (exit status 0): zfs get -H -o source -s inherited org.zfsbootmenu:commandline tfix/ROOT/other/child
+zpool-list-name.txt (exit status 0): zpool list -H -o name
+zpool-list.txt (exit status 0): zpool list -H -p -o name,health,size,allocated
+zpool-get-bootfs.txt (exit status 0): zpool get -H -o value bootfs tfix
+mounts.txt (exit status 0): cat /proc/self/mounts

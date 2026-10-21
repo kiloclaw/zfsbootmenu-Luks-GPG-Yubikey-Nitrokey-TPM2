@@ -1,0 +1,8 @@
+rootfs / rootfs rw,size=1966608k,nr_inodes=491652,inode64 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
+devtmpfs /dev devtmpfs rw,nosuid,noexec,size=1966608k,nr_inodes=491652,mode=755,inode64 0 0
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=600,ptmxmode=000 0 0
+tmpfs /dev/shm tmpfs rw,nosuid,nodev,noexec,inode64 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,noexec,mode=755,inode64 0 0
+tfix/ROOT/be /mnt/be zfs rw,relatime,xattr,posixacl,casesensitive 0 0
