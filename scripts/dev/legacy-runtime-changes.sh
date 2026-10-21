@@ -3,7 +3,7 @@
 #
 # Lists the commits that changed the frozen legacy runtime since the freeze at
 # the start of Phase 4 of PORT-ROADMAP.md, with the files each one changed.
-# Every one of them must be listed in the tracking issue and ported to the Rust
+# Every one of them must be listed in legacy/RUNTIME-CHANGES.md and ported to the Rust
 # runtime before the beta ends (rule 4 of PORT-ROADMAP.md).
 #
 # Usage: scripts/dev/legacy-runtime-changes.sh [revision]   (default: HEAD)

@@ -366,7 +366,7 @@ The legacy code is close to this but not the same, and the Rust runtime is stric
   `openssl kdf` as an argument, where any process could read them in `/proc` while the program runs. The first is
   fixed in the legacy code as well: `tpm2_unseal` reads the value from standard input. The second cannot be fixed
   there without another program, because `openssl kdf` only takes the password as an argument; it is recorded in the
-  tracking issue and disappears with the legacy runtime.
+  tracking list and disappears with the legacy runtime.
 - ZFS key files cached from an `org.zfsbootmenu:keysource` (`/zfsbootmenu/.keys`) remain files, because the feature
   is defined as copying them and `zfs load-key` reads them by path. They are copies of files the user stored in a
   pool, not secrets the runtime created.
@@ -417,9 +417,9 @@ in phases 2 and 3.
 ## Freezing the legacy runtime
 
 From Phase 4 on, the legacy runtime (`legacy/zfsbootmenu/`, and the dracut and mkinitcpio files in `packaging/` that
-install it) gets bug fixes only. Each change is listed in the tracking issue, with the commit and what the Rust runtime
-must do about it, and must be ported before the beta ends. `scripts/dev/legacy-runtime-changes.sh` lists the commits
-that changed the frozen files since the freeze, so the issue can be checked against the history.
+install it) gets bug fixes only. Each change is listed in `legacy/RUNTIME-CHANGES.md`, with the commit and what the Rust
+runtime must do about it, and must be ported before the beta ends. `scripts/dev/legacy-runtime-changes.sh` lists the
+commits that changed the frozen files since the freeze, so the list can be checked against the history.
 
 ## Decisions for review
 

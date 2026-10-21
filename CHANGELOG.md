@@ -66,7 +66,7 @@ exist: the interfaces through which the runtime reaches the system, with fakes f
 directory `/zfsbootmenu` (`zbm-state`), and the crates the runtime's packages will fill (`zbm-boot`, `zbm-luks`,
 `zbm-menu`).
 
-The legacy runtime is frozen from now on: it gets bug fixes only, and each change is recorded in a tracking issue so
+The legacy runtime is frozen from now on: it gets bug fixes only, and each change is recorded in `legacy/RUNTIME-CHANGES.md` so
 that the Rust runtime ports it. Images and the legacy runtime behave as before, except for these fixes:
 
 - A pool whose name is part of a restricted pool's name (`data` and an unhealthy `data2`), or matches it as a pattern

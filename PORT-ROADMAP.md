@@ -72,8 +72,9 @@ plan remains the better choice for a single developer who wants a shippable resu
    same change, from the first code written in Phase 1. Code without them is not merged. See
    [Rust unit tests](#rust-unit-tests).
 4. **Freeze the legacy runtime and track every change.** From Phase 4 on, the legacy runtime gets bug fixes only. Each
-   change to it, including changes merged from upstream ZFSBootMenu, is recorded in a tracking issue and must be ported
-   before the beta ends. A bug found in the legacy code while porting is fixed there too, with a test.
+   change to it, including changes merged from upstream ZFSBootMenu, is recorded in the tracking list
+   (`legacy/RUNTIME-CHANGES.md`) and must be ported before the beta ends. A bug found in the legacy code while porting
+   is fixed there too, with a test.
 5. **Every suite runs against both images.** CI builds a legacy and a Rust image and runs the LUKS unit suites
    (`tests/luks/unit/run-all.sh` and `run-in-container.sh`), the LUKS VM tests (`tests/luks/vm/run-all.sh`), the
    upstream test VMs (`tests/setup.sh`, `tests/run.sh`) and the CI build; the Rust unit tests run on every change.
@@ -217,9 +218,9 @@ packages, the port takes about 6 to 9 months.
   that moves only when the code sleeps, a scripted console, recorded signals) and checks that a secret appears in no
   argument, environment variable, file or console output. 189 Rust tests in all.
 - **Freeze:** the legacy runtime takes bug fixes only, from commit `661e9f8` on; every change goes into the tracking
-  issue, and `scripts/dev/legacy-runtime-changes.sh` lists them. Two legacy bugs were fixed with tests: restricted
-  (degraded) pools were matched as substrings and patterns, and the TPM2 authorization value derived from a PIN was
-  passed to `tpm2_unseal` as an argument.
+  list `legacy/RUNTIME-CHANGES.md`, and `scripts/dev/legacy-runtime-changes.sh` lists the commits. Two legacy bugs were
+  fixed with tests: restricted (degraded) pools were matched as substrings and patterns, and the TPM2 authorization
+  value derived from a PIN was passed to `tpm2_unseal` as an argument.
 
 **Deviations from the plan:**
 
@@ -230,6 +231,8 @@ packages, the port takes about 6 to 9 months.
   with `zbm-system` and `zbm-state`, which the design added; Phase 1 created the crates the host tools need and the
   `zbm` program.
 - `crates/DESIGN.md` still needs its review, which Phase 4 requires before Phase 5 builds on it.
+- The changes to the frozen legacy runtime are tracked in `legacy/RUNTIME-CHANGES.md` instead of a GitHub issue,
+  because the repository has issues turned off; the file also lets a fix record its entry in the same commit.
 - Until the Rust runtime can boot (Phase 5), there is no Rust image to build: CI builds images with both generators
   and compares them, and every image includes `zbm`. The Rust image joins CI when `zfsbootmenu_runtime=rust` works.
 - Fixtures are recorded in a QEMU virtual machine booted from an image the build container builds, because creating
@@ -340,10 +343,10 @@ The design is written down in `crates/DESIGN.md` and answers at least:
   console), so that every part can be unit-tested with fakes; how each work package is tested; and how the existing
   suites drive the Rust runtime.
 
-The legacy runtime is frozen at the start of this phase (rule 4), and the tracking issue for its changes is opened.
+The legacy runtime is frozen at the start of this phase (rule 4), and the tracking list for its changes is started.
 
 **Done when:** `crates/DESIGN.md` has been reviewed, the crate layout matches it, the system interfaces exist with
-their fakes and their own unit tests, and the tracking issue exists.
+their fakes and their own unit tests, and the tracking list exists.
 
 ## Phase 5: Minimal bootable runtime
 
@@ -488,14 +491,14 @@ sizes are compared with the legacy image.
 - **Both images:** release and recovery builds produce a Rust image and a legacy image from the same tree. The Rust
   image is the first boot entry; the documentation shows how to keep the legacy image as a second entry with
   `efibootmgr`, or as a second entry in other boot loaders.
-- **Catch up:** every change recorded in the tracking issue (rule 4) is ported, and the issue is closed.
+- **Catch up:** every change recorded in the tracking list (rule 4) is ported, and every entry is ticked.
 - **Bugs:** every bug found in the beta gets a Rust unit test, or a suite test where a unit test cannot reach it,
   that fails before the fix.
 - **Hardware:** the beta is tested on UEFI x86_64 and aarch64 machines, on firmware with Secure Boot enabled, and on a
   BIOS machine booting through syslinux, in addition to the VM tests.
 
-**Done when:** every suite passes against both images, the tracking issue is closed, and no bug that prevents booting
-has been open for four weeks of beta.
+**Done when:** every suite passes against both images, every entry of the tracking list is ticked, and no bug that
+prevents booting has been open for four weeks of beta.
 
 ## Phase 8: Cutover and removal of the legacy code
 

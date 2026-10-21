@@ -101,7 +101,7 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
   `zbm-testutil::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
   to depart from the design, change the design document in the same pull request.
 - The legacy runtime (`legacy/zfsbootmenu/` and the dracut and mkinitcpio files in `packaging/`) is frozen: it gets
-  bug fixes only, each with a test. Record every change in the tracking issue, so the Rust runtime ports it;
+  bug fixes only, each with a test. Record every change in `legacy/RUNTIME-CHANGES.md`, so the Rust runtime ports it;
   `scripts/dev/legacy-runtime-changes.sh` lists the commits since the freeze.
 - Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default, and `zbm-sys` is
   the only crate that allows it.
