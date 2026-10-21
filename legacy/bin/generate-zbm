@@ -38,6 +38,7 @@ sub latestKernel;
 sub createInitramfs;
 sub createUEFIBundle;
 sub execute;
+sub shellQuote;
 sub safeCopy;
 sub has_value;
 sub cleanupMount;
@@ -116,7 +117,13 @@ if ( defined $runConf{enable} ) {
     header  => 0,
   );
 
-  $yaml->dump_file( $runConf{config}, \%config );
+  # Write the file here rather than with dump_file, which ignores write errors
+  my $text = $yaml->dump_string( \%config );
+  open( my $fh, '>:encoding(UTF-8)', $runConf{config} )
+    or die "Could not open '$runConf{config}' for writing: $!\n";
+  unless ( print $fh $text and close $fh ) {
+    die "Unable to write $runConf{config}: $!\n";
+  }
   my $state = $runConf{enable} ? "true" : "false";
   printf "ManageImages set to '%s' in %s\n", $state, $runConf{config};
   exit;
@@ -188,11 +195,11 @@ $runConf{umount_on_exit} = 0;
 if ( has_value $config{Global}{BootMountPoint} ) {
   my $mounted = 0;
 
-  my @output = execute(qq(mountpoint $config{Global}{BootMountPoint}));
+  my @output = execute( "mountpoint " . shellQuote( $config{Global}{BootMountPoint} ) );
   my $status = pop(@output);
   unless ( $status eq 0 ) {
     print "Mounting $config{Global}{BootMountPoint}\n";
-    my @output = execute(qq(mount $config{Global}{BootMountPoint}));
+    my @output = execute( "mount " . shellQuote( $config{Global}{BootMountPoint} ) );
     my $status = pop(@output);
     if ( $status eq 0 ) {
       $runConf{umount_on_exit} = 1;
@@ -210,7 +217,7 @@ if ( has_value $config{Global}{PreHooksDir} and -d $config{Global}{PreHooksDir} 
   while ( my $hook = <$config{Global}{PreHooksDir}/*> ) {
     next unless -x $hook;
     Log("Processing hook: $hook");
-    my @output = execute(qq($hook));
+    my @output = execute( shellQuote($hook) );
     Log( \@output );
   }
 }
@@ -254,7 +261,7 @@ if ( has_value $runConf{kernel_version} and $runConf{kernel_version} =~ /%\{curr
   my $status = pop(@uname);
   unless ( $status eq 0 and scalar @uname ) {
     print "Cannot determine current kernel version\n";
-    exit $status;
+    exit( $status || 1 );
   }
   chomp @uname;
   $runConf{kernel_version} =~ s/%\{current\}/$uname[0]/i;
@@ -503,7 +510,7 @@ if ( has_value $config{Global}{PostHooksDir} and -d $config{Global}{PostHooksDir
   while ( my $hook = <$config{Global}{PostHooksDir}/*> ) {
     next unless -x $hook;
     Log("Processing hook: $hook");
-    my @output = execute(qq($hook));
+    my @output = execute( shellQuote($hook) );
     Log( \@output );
   }
 }
@@ -589,7 +596,7 @@ sub kernelVersion {
   }
 
   # Read strings in the kernel to recover a version, if possible
-  my @output = execute(qq(strings $kernel));
+  my @output = execute( "strings " . shellQuote($kernel) );
   my $status = pop(@output);
   if ( $status eq 0 ) {
     for (@output) {
@@ -647,7 +654,7 @@ EOF
 sub increaseBundleOffset {
   my ( $step, $offset, $alignment ) = @_;
   $offset += int( ( $step + $alignment - 1 ) / $alignment * $alignment );
-  Log( "New offset is: " . hex($offset) );
+  Log( sprintf( "New offset is: 0x%X", $offset ) );
   return $offset;
 }
 
@@ -657,7 +664,8 @@ sub addBundleSection {
   my ( $cmds, $secname, $filename, $offset, $alignment ) = @_;
 
   my $hex_offset = sprintf( "0x%X", $offset );
-  push( @$cmds, ( "--add-section", "$secname=\"$filename\"" ), qw(--change-section-vma), ("$secname=\"$hex_offset\""),
+  push( @$cmds, ( "--add-section", "$secname=" . shellQuote($filename) ),
+    qw(--change-section-vma), ("$secname=$hex_offset"),
   );
 
   my $sb = stat($filename);
@@ -715,7 +723,7 @@ sub createUEFIBundle {
 
   # Determine stub alignment, most likely 4096
   my @cmd = qw(objdump -p);
-  push( @cmd, $uefi_stub );
+  push( @cmd, shellQuote($uefi_stub) );
 
   my @output = execute(@cmd);
   my $status = pop(@output);
@@ -726,7 +734,10 @@ sub createUEFIBundle {
         $uki_alignment = hex($1);
       }
     }
-  } else {
+  }
+
+  # Without an alignment, the section offsets cannot be computed
+  unless ( $status eq 0 and $uki_alignment ) {
     print "Unable to determine stub alignment!\n";
     exit 1;
   }
@@ -734,23 +745,28 @@ sub createUEFIBundle {
   # Determine initial UKI offset value by grabbing the size and VMA of
   # the last section of the EFI stub.
   @cmd = qw(objdump -w -h);
-  push( @cmd, $uefi_stub );
+  push( @cmd, shellQuote($uefi_stub) );
 
   @output = execute(@cmd);
   $status = pop(@output);
-  if ( $status eq 0 ) {
-    my @sizes = split( /\s+/, @output[ scalar @output - 1 ] );
+  my @sizes = split( /\s+/, $output[-1] // "" );
 
-    my $size = "0x" . $sizes[3];
-    my $vma  = "0x" . $sizes[4];
-    my $sum  = hex($size) + hex($vma);
-
-    $uki_offset = increaseBundleOffset( $sum, 0, $uki_alignment );
-    Log( "Initial offset is: " . hex($uki_offset) );
-  } else {
+  # The last line describes the last section; its size and VMA are hex
+  unless ( $status eq 0
+    and defined $sizes[4]
+    and $sizes[3] =~ /^[0-9a-fA-F]+$/
+    and $sizes[4] =~ /^[0-9a-fA-F]+$/ )
+  {
     print "Unable to determine initial stub offset!\n";
     exit 1;
   }
+
+  my $size = "0x" . $sizes[3];
+  my $vma  = "0x" . $sizes[4];
+  my $sum  = hex($size) + hex($vma);
+
+  $uki_offset = increaseBundleOffset( $sum, 0, $uki_alignment );
+  Log( sprintf( "Initial offset is: 0x%X", $uki_offset ) );
 
   @cmd = qw(objcopy);
 
@@ -815,7 +831,7 @@ sub createUEFIBundle {
   # Add the kernel last, so that it can decompress without overflowing other sections
   $uki_offset = addBundleSection( \@cmd, ".linux", $kernel, $uki_offset, $uki_alignment );
 
-  push( @cmd, ( $uefi_stub, $output_file ) );
+  push( @cmd, ( shellQuote($uefi_stub), shellQuote($output_file) ) );
 
   my $command = join( ' ', @cmd );
   Log("Executing: $command");
@@ -846,25 +862,26 @@ sub createInitramfs {
   my $flagsKey;
 
   if ( $runConf{usecpio} ) {
-    push( @cmd, ( qw(mkinitcpio --config), $runConf{confd} ) );
+    push( @cmd, ( qw(mkinitcpio --config), shellQuote( $runConf{confd} ) ) );
     push( @cmd, qw(-v) ) if $runConf{debug};
 
     # Add hook directories as appropriate
     if ( defined $runConf{cpio_hookd} ) {
       foreach my $hookd ( @{ $runConf{cpio_hookd} } ) {
-        push( @cmd, ( "--hookdir", $hookd ) );
+        push( @cmd, ( "--hookdir", shellQuote($hookd) ) );
       }
     }
 
     $flagsKey = "InitCPIOFlags";
   } else {
-    push( @cmd, ( qw(dracut -f --confdir), $runConf{confd} ) );
+    push( @cmd, ( qw(dracut -f --confdir), shellQuote( $runConf{confd} ) ) );
     push( @cmd, qw(-q) ) unless $runConf{debug};
 
     $flagsKey = "DracutFlags";
   }
 
-  # Load custom flag additions from configuration file
+  # Load custom flag additions from configuration file; they are passed to
+  # the shell as written, so one entry may hold several arguments
   if ( defined $config{Global}{$flagsKey} ) {
     if ( ref $config{Global}{$flagsKey} eq REFARRAY ) {
       foreach my $flag ( @{ $config{Global}{$flagsKey} } ) {
@@ -877,9 +894,9 @@ sub createInitramfs {
 
   # Specify kernel version and ouptut location
   if ( $runConf{usecpio} ) {
-    push( @cmd, ( qw(-A zfsbootmenu), "--generate", $output_file, "--kernel", $kver ) );
+    push( @cmd, ( qw(-A zfsbootmenu), "--generate", shellQuote($output_file), "--kernel", shellQuote($kver) ) );
   } else {
-    push( @cmd, ( $output_file, $kver ) );
+    push( @cmd, ( shellQuote($output_file), shellQuote($kver) ) );
   }
 
   my $command = join( ' ', @cmd );
@@ -901,8 +918,20 @@ sub createInitramfs {
   }
 }
 
+# Runs a shell command and returns its output lines followed by its exit
+# status; a command killed by a signal reports 128 plus the signal number
 sub execute {
-  ( @_ = qx{@_ 2>&1}, $? >> 8 );
+  my @output = qx{@_ 2>&1};
+  my $signal = $? & 127;
+  return ( @output, $signal ? 128 + $signal : $? >> 8 );
+}
+
+# Quotes a value as a single shell word
+sub shellQuote {
+  my $value = shift;
+  $value = "" unless defined $value;
+  $value =~ s/'/'\\''/g;
+  return "'$value'";
 }
 
 sub safeCopy {
@@ -941,7 +970,10 @@ sub cleanupMount {
 
   if ( $runConf{umount_on_exit} ) {
     print "Unmounting $config{Global}{BootMountPoint}\n";
-    execute(qq(umount $config{Global}{BootMountPoint}));
+    execute( "umount " . shellQuote( $config{Global}{BootMountPoint} ) );
+
+    # The END block calls this again after a signal handler exits
+    $runConf{umount_on_exit} = 0;
   }
 
   if ( defined $signal ) {
