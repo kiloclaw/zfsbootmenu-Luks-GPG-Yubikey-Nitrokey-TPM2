@@ -19,11 +19,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   and re-import code use it.
   **Rust:** done; `zbm_state::State::is_degraded` matches whole names, with a parity test against the legacy
   `is_degraded`.
-- [ ] `712bf06`: the TPM2 authorization value derived from a PIN went to `tpm2_unseal` as an argument (`+hex:...`),
+- [x] `712bf06`: the TPM2 authorization value derived from a PIN went to `tpm2_unseal` as an argument (`+hex:...`),
   readable by any process in `/proc`. It now goes on standard input (`+file:-`) as `hex:<value>`; raw bytes do not
   work, because tpm2-tools reads the input as a string. The token suite checks `tpm2_unseal`'s arguments.
-  **Rust (package B):** pass the value as `hex:<value>` with `Input::Secret`, and check with
-  `FakeSystem::assert_no_leak` that it appears in no argument.
+  **Rust:** done (package B); `zbm_luks::keys::tpm2` passes `hex:<value>` with `Input::Secret`, its tests check with
+  `FakeSystem::assert_no_leak` that the PIN appears in no argument, and the token suite passes against Rust.
 - [x] `48f9d4d`: `zfsbootmenu-preinit.sh` wrote command line values to `/etc/zfsbootmenu.conf` between single quotes
   without escaping, so a value with a single quote in it (`zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`, `console`)
   broke the file. `zbm_conf_quote` now writes each quote as `'\''`.
@@ -39,6 +39,14 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `bd1b300`: the online help of `zfsbootmenu(7)` (`help-files/`) describes what the Rust runtime handles after
   package A; the legacy runtime is unchanged.
   **Rust:** nothing to port; documentation only.
+- [x] `935f6c6`: `luks_record_mapping` compared the new mapping name with the recorded ones as a pattern, so `a.b`
+  was not recorded when `axb` was, and the teardown hook left that volume open, with its key in memory. Names are now
+  compared as text; `edge.sh` checks it.
+  **Rust:** done; `zbm_luks::mappings` compares names as text, with a parity test against the legacy function.
+- [x] `5ac0150`: images with `zfsbootmenu_runtime=rust` link `/bin/zluks` to `zbm` instead of installing the legacy
+  script, and their teardown hook `80-luks-close.sh` runs `zluks close`; legacy images are unchanged. The online help
+  of `zfsbootmenu(7)` and `zfsbootmenu-luks(7)` describes what the Rust runtime does with LUKS.
+  **Rust:** done; `crates/zbm/tests/image.rs` checks both runtimes' images.
 
 ## Legacy limitations the Rust runtime must not copy
 
@@ -48,11 +56,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   **Rust:** done; `zbm_boot::kernels` orders like GNU coreutils, tested against GNU `sort -V`. BusyBox is still to be
   compared (package C).
 
-- [ ] A salted TPM2 PIN (systemd 252 and later) reaches `openssl kdf` as an argument (`-kdfopt pass:<pin>`), the only
+- [x] A salted TPM2 PIN (systemd 252 and later) reaches `openssl kdf` as an argument (`-kdfopt pass:<pin>`), the only
   way `openssl kdf` accepts it, so the legacy code keeps this until it is removed.
-  **Rust (package B):** compute PBKDF2-HMAC-SHA256 and SHA-256 in the process (see "Secrets" in
-  [crates/DESIGN.md](../crates/DESIGN.md)).
-- [ ] Decrypted GnuPG key files and unsealed TPM2 and FIDO2 secrets are kept in temporary files below `/run` (RAM), as
+  **Rust:** done (package B); `zbm_luks::crypto` computes PBKDF2-HMAC-SHA256 and SHA-256 in the process, checked
+  against the standard test vectors and the output of `openssl kdf` and `sha256sum`.
+- [x] Decrypted GnuPG key files and unsealed TPM2 and FIDO2 secrets are kept in temporary files below `/run` (RAM), as
   `zfsbootmenu-luks(7)` documents.
-  **Rust (package B):** capture them with `Stream::CaptureSecret` and pass them with `--key-file=-`, creating no
-  files.
+  **Rust:** done (package B); they are captured with `Stream::CaptureSecret` and passed with `--key-file=-`, and the
+  unit suites check that nothing is left below `/run` or `/tmp`.
