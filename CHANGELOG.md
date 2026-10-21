@@ -30,8 +30,8 @@ know only the old layout: rebuild the image (`podman build -t localhost/zbm-buil
 building from a tree with the new layout.
 
 New files: a Cargo workspace (`Cargo.toml`, `rust-toolchain.toml`, `crates/zbm-core`) with its CI workflow, and
-`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.editorconfig`, a pull request template and a Dependabot
-configuration.
+`CONTRIBUTING.md`, `ROADMAP.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.editorconfig`, a pull request template and a
+Dependabot configuration.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 

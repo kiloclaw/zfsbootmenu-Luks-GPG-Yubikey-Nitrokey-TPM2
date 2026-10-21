@@ -72,6 +72,8 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
   that is not tested yet, and run them against the legacy code first.
 - Add Rust unit tests for the Rust code itself.
 - Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default.
+- Features beyond parity are listed in [ROADMAP.md](ROADMAP.md). Update an entry's status when you start or finish
+  it.
 
 ## Style
 
