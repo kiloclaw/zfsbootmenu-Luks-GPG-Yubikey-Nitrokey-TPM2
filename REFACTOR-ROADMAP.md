@@ -36,7 +36,7 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | G2 | No direct binding to libzfs | No FFI to `libzfs`, `libzfs_core` or `libnvpair`; ZFS is reached only through the `zfs` and `zpool` programs (see [The ZFS boundary](#the-zfs-boundary)) |
 | G3 | Maintainability and readability for developers | No function over 60 lines, no module over 600 lines, no crate without an architecture page, domain types instead of strings, developer documentation in `docs/dev/` |
 | G4 | Modularity, so that a Nucleo + Ratatui menu and other features are easy to add | Front ends depend on one application crate and never on adapters; a new screen touches only `zbm-tui`; a new key method or boot step is one new type registered in one place |
-| G5 | Debuggability | Structured `tracing` spans for every stage, volume, pool and external command; a command journal; `zbm debug` reports; every failure carries its cause chain |
+| G5 | Debuggability | Structured `tracing` spans for every stage, volume, pool and external command; a command journal; `zbm debug` reports; every failure carries its cause chain; every panic leaves a crash report that `xtask symbolize` turns into function names and lines |
 | G6 | Fundamental changes allowed | Behaviour changes are listed in `CHANGES-FROM-LEGACY.md` with the reason; the legacy runtime is not the reference after the cutover |
 | G7 | Unit tests that AI tools work well with | Deterministic, self-describing tests; a machine-readable test map; one behaviour per test; fixtures and golden files instead of shelling out to Bash |
 | G8 | Unit tests that people find easy to use | `cargo test` (or `cargo nextest run`) runs everything without root in under a minute; builders for test machines; readable failure diffs; `docs/dev/testing.md` |
@@ -219,6 +219,44 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
 - Tests: `update` with table-driven cases; `view` with `TestBackend` and `insta` snapshots at 80×25, 120×40 and
   52×20; one end-to-end test per screen through `zbm-app` with fakes.
 
+### Options defined once
+
+Today each kernel command line option, configuration key and crypttab option is defined three times: a parser in
+`zbm-cmdline` or `zbm-luks`, a section in a hand-written man page (`docs/man/zfsbootmenu.7.rst`,
+`zfsbootmenu-crypttab.5.rst`, `generate-zbm.5.rst`) and, for the menu, a help file rendered from RST. They drift.
+
+After the refactor, `zbm-config` holds one table of option specifications, a `const` slice of `OptionSpec` values:
+name, type (a `zbm-types` type with `FromStr`), default, accepted values, the release it appeared in, deprecation,
+a one-line summary, the full description and examples. From that table:
+
+- the parsers are driven by the table, so an option without a specification cannot be parsed;
+- `xtask gen-docs` writes the option sections of the man pages as RST fragments that the pages include, and the
+  option reference in `docs/`;
+- `zbm debug config` prints each value with its specification and where it came from;
+- deprecated names produce a warning naming the replacement;
+- a table-driven test parses every example of every specification and checks that it round-trips through `Display`.
+
+The menu's key bindings work the same way: `zbm-tui`'s `keymap.rs` table drives the input handling, the help screen
+and a generated section of the man page. CI runs `xtask gen-docs --check`, which fails when a generated fragment is
+out of date.
+
+### Crash reports
+
+The runtime is built with `strip = true`, so a panic on a user's machine produces a backtrace of bare addresses that
+nobody can read. After the refactor:
+
+- **Release builds keep their debug information outside the image.** They are built with debug information and a
+  GNU build ID; `xtask build-image` splits it into a separate file per binary (`objcopy --only-keep-debug`), strips
+  the binary in the image and links the two by build ID. The debug files are published with each release and kept
+  as CI artifacts for test images, so the image size does not change.
+- **A panic hook in `zbm-trace`** writes a crash report to the journal and to `/zfsbootmenu/crash-<time>.txt`: the
+  panic message (secrets cannot appear, since `Secret` has a redacted `Debug`), the location, the build ID, the
+  open `tracing` spans (stage, volume, pool) and the backtrace as offsets from the binary's load address, read from
+  `/proc/self/maps`, so that address space randomisation does not matter. The supervisor records a child killed by
+  a signal the same way, then opens the recovery shell with the path of the report.
+- **`zbm debug crash`** shows the latest report on the machine; **`xtask symbolize <report>`** finds the debug file
+  by build ID and prints function names, files and lines, using the `addr2line` crate.
+
 ## Rules for refactored code
 
 1. **Formatting and lints:** `rustfmt` style edition 2024 with no options; the width rules of
@@ -260,6 +298,7 @@ CI, so that developers and AI tools learn the rules from the build instead of fr
 | Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts, per crate: functions over 60 lines, modules over 600 lines, public functions returning `bool`, `Result`-returning functions, doc comments that name a legacy function, calls to the shell-semantics helpers, tests that run Bash. It writes `target/metrics.json` and a table in the CI summary, and fails when a crate that a finished phase has refactored goes above its limits |
 | Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs the width check that is `scripts/dev/check-rust-width.sh` today |
 | Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for G2) |
+| Documentation matches behaviour | `xtask gen-docs --check` | Fails when a man page fragment generated from the option or key binding tables is out of date ([Options defined once](#options-defined-once)) |
 
 `xtask metrics` starts from the numbers in [Findings](#findings): 135 public and private functions returning `bool`,
 26 returning `Result`, 104 doc comments naming legacy functions, 131 calls to shell-semantics helpers and 55 tests
@@ -299,6 +338,38 @@ CI run rather than claimed at the end.
   (test name, file, line, feature tags from `#[doc]` comments) for tools and reviewers; each test module starts with a
   comment that lists the behaviours it covers.
 - **Fast:** the whole default suite under one minute on a laptop; `cargo nextest` profiles for CI.
+
+### Shadow mode on real machines
+
+Phases R1 to R4 must not change behaviour, and the golden files and VM tests check that on the machines the tests
+describe. Users' machines have disks, firmware, pool layouts and option combinations that no test describes. Shadow
+mode checks the refactored code on them without letting it act:
+
+- **What it does.** An image built with `zfsbootmenu_shadow=yes` (a `generate-zbm` option) contains `zbm` and a
+  `boot-sel.d` hook. That stage runs after the legacy runtime has chosen a boot environment and before it loads the
+  kernel, while pools are still imported, so no frozen legacy code changes. The hook runs `zbm shadow`, which works
+  out from the same inputs what the Rust code would have decided, and compares the result with what the legacy
+  runtime did:
+  - the host ID;
+  - the pools imported and how (read-only or not, forced or not);
+  - the LUKS volumes opened and their mapping names;
+  - the default boot environment, when the user did not choose one in the menu;
+  - the kernel and initramfs (from `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS`);
+  - the key sources of encryption roots.
+
+  Each phase adds the decisions it refactors.
+- **It cannot act.** `zbm shadow` runs on a `ReadOnlyExec` adapter. That adapter allows only listed read-only
+  commands (`zfs list` and `zfs get`, `zpool list`, `zpool get` and `zpool status`, `cryptsetup luksDump` and
+  `cryptsetup status`, `blkid`) and refuses everything else with an error, and a unit test pins the list. It never
+  prompts, never reads a secret, gives up after a time budget of a few seconds, and its exit status is ignored, so it
+  can never stop or slow a boot.
+- **Where the result goes.** Each comparison is a `tracing` event with the inputs and both answers. A summary line
+  `ZBM-SHADOW: <n> differences` goes to the console and the kernel log. Because the ZFSBootMenu memory file system is
+  gone after `kexec`, testers on UEFI machines can set `zbm.shadow=efivar`: only when there are differences, and at
+  most once per boot, the summary is written to one EFI variable under a ZFSBootMenu GUID. `zbm shadow report`, run
+  on the booted system, reads and clears it.
+- **In tests.** The VM harness builds legacy images with shadow mode and reads the summary line from the serial
+  console. Every VM scenario must report zero differences.
 
 ### Replacing the Bash-based parity tests
 
@@ -377,7 +448,7 @@ tests are the proof); behaviour changes start with R5.
   this file; both pilots pass their tests, and the menu pilot is usable on a serial console. If a pilot shows that
   part of the architecture does not work, the architecture is changed here before R1 starts.
 
-### R1. Foundations: types, errors, tracing, test kit (3 to 4 weeks)
+### R1. Foundations: types, errors, tracing, test kit, crash reports, shadow mode (5 to 6 weeks)
 
 - Create `zbm-types` and move every domain concept into it, with `FromStr`, `Display` and property tests.
 - Create `zbm-trace`: `tracing` with the kmsg layer (keeping the legacy formats for users who read `dmesg`), the
@@ -386,9 +457,16 @@ tests are the proof); behaviour changes start with R5.
   crate, starting with `zbm-luks` and `zbm-boot`.
 - Turn `zbm-testutil` into `zbm-testkit`: `FakeMachine` builders, assertion macros, golden helpers; record the legacy
   parity results (`xtask record-parity`) and switch the 55 Bash-running tests to golden files.
+- [Crash reports](#crash-reports): the panic hook in `zbm-trace`, the supervisor's record of children killed by a
+  signal, split debug files with build IDs in `xtask build-image` (replacing `strip = true` in the release profile),
+  and `xtask symbolize`.
+- [Shadow mode](#shadow-mode-on-real-machines): `zbm shadow`, `ReadOnlyExec`, the `boot-sel.d` hook, the
+  `zfsbootmenu_shadow` image option and `zbm.shadow=efivar`, starting with the decisions today's Rust code already
+  makes (host ID, pool imports, LUKS volumes, kernel order).
 - **Exit:** no Rust test runs Bash, Perl or the legacy tree; every public function of the touched crates returns
   typed results; `clippy::pedantic` and the no-panic lints denied in `zbm-types`, `zbm-trace`, `zbm-testkit`;
-  `xtask metrics` shows those crates within the limits.
+  `xtask metrics` shows those crates within the limits; a VM test makes a test-only applet panic and
+  `xtask symbolize` names the function and line from the report; every VM scenario reports zero shadow differences.
 
 ### R2. Platform and adapters (3 to 4 weeks)
 
@@ -408,7 +486,7 @@ tests are the proof); behaviour changes start with R5.
   removed.
 - **Exit:** adapters are the only code that builds `Command`s, which `disallowed-methods` now enforces; every adapter
   has a fake and fixture tests; the LUKS device suite passes in Rust with the same 255 checks; all VM tests pass
-  unchanged.
+  unchanged with zero shadow differences.
 
 ### R3. Domain services (4 to 6 weeks)
 
@@ -418,22 +496,27 @@ tests are the proof); behaviour changes start with R5.
   tested; host ID handling as a type.
 - `zbm-startup`: the start-up program as `Vec<Box<dyn Step>>` with `Stage` from `zbm-types`; hooks as a `Step`.
 - `zbm-config`: one `Config` from command line, configuration file and crypttab, with the origin of each value for
-  `zbm debug config`.
+  `zbm debug config`, built on the [option specification table](#options-defined-once); `xtask gen-docs` generates
+  the option sections of `zfsbootmenu(7)`, `zfsbootmenu-crypttab(5)` and `generate-zbm(5)`, and CI checks them.
 - Split `import.rs`, `boot.rs`, `generate.rs` along these lines; no module over 600 lines.
 - **Port the VM test harness to Rust** (`zbm-vmtest`, alongside R3 and R4): the QEMU driver, a serial console with
   `expect`-style matching, swtpm and USB hot-plug, disk builders, and the existing LUKS scenarios. This has to be done
   before R5: the menu's VM tests are new, and written once, in Rust, instead of in Python and again in R7. Python and
   Rust harnesses run the same scenarios until their results match, then the Python harness is removed.
 - **Exit:** the size and type rules hold in these crates (checked by `xtask metrics`); golden files unchanged; the VM
-  tests pass in the Rust harness.
+  tests pass in the Rust harness with zero shadow differences; every option in the man pages comes from the table.
 
 ### R4. Application layer (3 to 4 weeks)
 
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
   the applets already need (boot the default environment, unlock, close, import).
 - Rewrite the applets (`zluks`, `zfsbootmenu-init`, the supervisor glue) as thin front ends over `zbm-app`.
-- Add `zbm debug` (`config`, `state`, `journal`, `commands`, `luks`, `pools`), replacing `ztrace` and `zlogtail`.
-- **Exit:** no front end imports an adapter crate; `zbm debug` documented in `zbm-debug(8)`.
+- Add `zbm debug` (`config`, `state`, `journal`, `commands`, `luks`, `pools`, `crash`), replacing `ztrace` and
+  `zlogtail`.
+- Shadow mode covers the use cases of `zbm-app`; ask users to run the shadow images and report differences before R5
+  starts changing behaviour.
+- **Exit:** no front end imports an adapter crate; `zbm debug` documented in `zbm-debug(8)`; zero shadow differences
+  in the VM tests and no open shadow difference reported by users.
 
 ### R5. The new menu (6 to 8 weeks)
 
@@ -444,7 +527,7 @@ tests are the proof); behaviour changes start with R5.
   `zbm-kexec` as the boot environment screen needs it, and package D (snapshots, rollback, clone, set default) into
   `zbm-app` use cases.
 - Decide and document every behaviour change against the `fzf` menu in `CHANGES-FROM-LEGACY.md` (key bindings,
-  layout, previews).
+  layout, previews). The key binding section of the man page is generated from `keymap.rs`.
 - **Exit:** the VM tests that drive the menu are written for the new screens in `zbm-vmtest` and pass; snapshot
   tests cover every screen at three sizes; the menu runs without `fzf` in images, including on a serial console.
 
@@ -456,6 +539,8 @@ tests are the proof); behaviour changes start with R5.
   steps; user hooks stay shell scripts, run by `zbm-startup`.
 - Image assembly logic moves from `install-helpers.sh` into `zbm-generate` (a library computing the file list); the
   dracut `module-setup.sh` and the mkinitcpio install hook shrink to shims that call it.
+- Releases publish the debug files of every binary next to the images, indexed by build ID, so `xtask symbolize`
+  can find them for any released version.
 - **Exit:** the only shell scripts left in the runtime are the two packaging shims and the user hook examples.
 
 ### R7. Remaining tests and tooling in Rust (3 to 4 weeks, can run alongside R5 and R6)
@@ -512,7 +597,10 @@ running against the Rust image, are the regression check from R1 on.
 
 | Risk | Mitigation |
 | --- | --- |
-| Behaviour drifts while structure changes (R1 to R4) | Golden files recorded from today's code and the full VM suite after each phase; no behaviour change before R5 |
+| Behaviour drifts while structure changes (R1 to R4) | Golden files recorded from today's code, the full VM suite after each phase, and shadow mode on testers' machines; no behaviour change before R5 |
+| Documentation drifts from behaviour | Options and key bindings are defined once and their documentation generated; `xtask gen-docs --check` in CI |
+| Crashes on users' machines cannot be diagnosed | Crash reports with build IDs and published debug files; `xtask symbolize` |
+| Shadow mode harms a boot | Read-only adapter with an allowlist, no prompts or secrets, a time budget, an ignored exit status; opt-in images only |
 | The new menu is slower or worse on small consoles than `fzf` | The R0 menu pilot on a serial console; snapshot tests at 52 columns; a performance test with 10,000 snapshots; keep `zbm.menu=fzf` available until R9 if users need it |
 | New dependencies grow the image and the attack surface | Measure image size per crate (`xtask size`), `cargo deny` advisories, minimal features, vendoring |
 | uutils behaviour differs from what users expect on GNU systems | Golden tests for every coreutils behaviour the runtime relies on; document differences |
@@ -562,3 +650,19 @@ the plan yet; each would be added to a phase when it is adopted.
    `zbm config check`.
 7. **One concurrency model:** threads and channels with a single event loop, no async runtime, documented once for
    Nucleo's matcher, the countdown, and USB key hot-plug.
+8. **Fewer crates, with a rule for splitting:** split a crate only when it has its own dependencies or a second user,
+   otherwise use a module; track build time in CI (`cargo build --timings`) against a budget.
+9. **The Rust API Guidelines as the review checklist** for G1: naming, conversions, `#[must_use]` on outcome types,
+   `#[non_exhaustive]` on public enums that will grow (key methods, events, actions).
+10. **A version matrix in CI:** scheduled VM runs across ZFS versions × dracut and mkinitcpio × x86_64 and aarch64,
+    to exercise the JSON adapter's text fallback on real older ZFS.
+11. **Small, mergeable steps:** one tracking issue per phase with a checklist, no step larger than a reviewable pull
+    request, every merge leaves the main branch releasable, and old and new code paths coexist behind internal
+    switches rather than on long-lived branches.
+12. **A log level policy:** error (the boot cannot continue), warn (a fallback was used), info (each stage and
+    decision), debug (each external command), trace (data); a test that a normal boot at the default level fits on an
+    80×25 console.
+13. **`xtask doctor`:** checks the toolchain, the build container, QEMU and KVM, swtpm and loop devices, and says what
+    is missing and how to fix it.
+14. **More static checks:** `cargo machete` for unused dependencies, and address and undefined behaviour sanitizers on
+    the `zbm-sys` tests.
