@@ -172,7 +172,8 @@ packages, the port takes about 6 to 9 months.
 | 2. Shared libraries and `zbm-kcl` | Done |
 | 3. `generate-zbm` | Done |
 | 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
-| 5 to 8 | Not started |
+| 5. Minimal bootable runtime | In progress: the configuration reader and the check for unsupported set-ups |
+| 6 to 8 | Not started |
 
 **Delivered by phases 1 to 3:**
 
@@ -221,6 +222,13 @@ packages, the port takes about 6 to 9 months.
   list `legacy/RUNTIME-CHANGES.md`, and `scripts/dev/legacy-runtime-changes.sh` lists the commits. Two legacy bugs were
   fixed with tests: restricted (degraded) pools were matched as substrings and patterns, and the TPM2 authorization
   value derived from a PIN was passed to `tpm2_unseal` as an argument.
+
+**Phase 5 so far:**
+
+- `zbm_cmdline::conf` reads `/etc/zfsbootmenu.conf`, with parity tests against Bash sourcing the file the image build
+  and the start-up write; the writers now quote values with single quotes in them, in the legacy code too.
+- `zbm_boot::support` lists what the minimal runtime cannot handle yet, and `zbm_boot::hooks` finds the hooks of a
+  stage as `zfsbootmenu-run-hooks` does, with a parity test.
 
 **Deviations from the plan:**
 

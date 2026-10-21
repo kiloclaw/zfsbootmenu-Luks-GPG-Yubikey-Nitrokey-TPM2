@@ -8,7 +8,7 @@
 //! [`ZbmOptions::conf`]): a valid timeout of `+5` stays `+5`, as the shell
 //! keeps it.
 
-use zbm_core::shell::test_integer;
+use zbm_core::shell::{quote, test_integer};
 use zbm_log::Message;
 
 use crate::args::ZbmArgs;
@@ -283,8 +283,9 @@ impl ZbmOptions {
     }
 
     /// The lines `zfsbootmenu-preinit.sh` appends to `/etc/zfsbootmenu.conf`.
-    /// Values are written between single quotes without escaping, as the legacy
-    /// heredoc writes them.
+    /// Values are written between single quotes, with each single quote in them
+    /// written as `'\''`, as `zbm_conf_quote` writes them, so that sourcing the
+    /// file (or [`crate::conf::Conf::parse`]) gives the values back.
     pub fn conf(&self, base: &str) -> String {
         let set_hostid = if self.set_hostid { "1" } else { "0" };
         let mut conf = String::from("# BEGIN additions by zfsbootmenu-preinit.sh\n");
@@ -298,7 +299,7 @@ impl ZbmOptions {
             ("zbm_require_pool", &self.require_pool),
             ("zbm_prefer_bootfs", &self.prefer_bootfs),
         ] {
-            conf.push_str(&format!("export {name}='{value}'\n"));
+            conf.push_str(&format!("export {name}={}\n", quote(value)));
         }
         conf.push_str("export default_hostid=00bab10c\n");
         for (name, value) in [
@@ -309,7 +310,7 @@ impl ZbmOptions {
             ("zbm_wait_for_devices", &self.wait_for_devices),
             ("control_term", &self.control_term),
         ] {
-            conf.push_str(&format!("export {name}='{value}'\n"));
+            conf.push_str(&format!("export {name}={}\n", quote(value)));
         }
         conf.push_str("# END additions by zfsbootmenu-preinit.sh\n");
         conf

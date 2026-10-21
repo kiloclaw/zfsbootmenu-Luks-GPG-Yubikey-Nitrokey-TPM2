@@ -68,8 +68,9 @@ exist: the interfaces through which the runtime reaches the system, with fakes f
 directory `/zfsbootmenu` (`zbm-state`), and the crates the runtime's packages will fill (`zbm-boot`, `zbm-luks`,
 `zbm-menu`).
 
-The legacy runtime is frozen from now on: it gets bug fixes only, and each change is recorded in `legacy/RUNTIME-CHANGES.md` so
-that the Rust runtime ports it. Images and the legacy runtime behave as before, except for these fixes:
+The legacy runtime is frozen from now on: it gets bug fixes only, and each change is recorded in
+`legacy/RUNTIME-CHANGES.md` so that the Rust runtime ports it. Images and the legacy runtime behave as before, except
+for these fixes:
 
 - A pool whose name is part of a restricted pool's name (`data` and an unhealthy `data2`), or matches it as a pattern
   (`a.b` and `axb`), is no longer refused read-write imports, and is recorded as restricted when it has unsupported
@@ -77,6 +78,9 @@ that the Rust runtime ports it. Images and the legacy runtime behave as before, 
 - When ZFSBootMenu unseals a TPM2 token with a PIN itself (without systemd's plugin), the authorization value derived
   from the PIN reaches `tpm2_unseal` on standard input instead of as an argument, which any process could read in
   `/proc`. A salted PIN still reaches `openssl kdf` as an argument, which `openssl` cannot avoid.
+- Values from the kernel command line that contain a single quote (in `zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`
+  or `console`) are written to `/etc/zfsbootmenu.conf` so that sourcing the file gives them back, instead of breaking
+  the file.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 

@@ -75,7 +75,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-system` | The interfaces to the system (files, clock, console, processes, environment), their real implementations, the `System` bundle, and the kernel log writer. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
 | `zbm-log` | Message levels and the formats of the kernel log, reading the log back. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
-| `zbm-cmdline` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and `/etc/zfsbootmenu.conf` (Phase 5). | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
+| `zbm-cmdline` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
 | `zbm-boot` | Packages A, C and D: the start-up sequence, hooks, pool import, boot environments, kernels, ZFS encryption keys, `kexec`, snapshots and pool management. | `init.d/*`, `zfsbootmenu-core.sh` |

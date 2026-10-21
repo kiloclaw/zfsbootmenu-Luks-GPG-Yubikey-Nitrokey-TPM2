@@ -17,6 +17,7 @@
 //! therefore take and return the same text as their Bash counterparts.
 
 pub mod args;
+pub mod conf;
 pub mod kcl;
 pub mod options;
 pub mod parent;
