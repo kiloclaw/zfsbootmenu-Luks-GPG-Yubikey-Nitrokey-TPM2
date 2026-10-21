@@ -97,6 +97,12 @@ pub fn be_cmdline(
         log.push(Message::error("filesystem is undefined"));
         return String::new();
     }
+    // Each kernel_kcl_cache call logs this in be_location.
+    let location = || Message::debug(format!("fs set to {dataset}"));
+    log.push(location());
+    if !kernel.is_empty() {
+        log.push(location());
+    }
     let kernel_kcl = state
         .kcl_cache(dataset, kernel)
         .filter(|path| files.exists(path));
@@ -108,7 +114,10 @@ pub fn be_cmdline(
             )));
             None
         }
-        None => state.kcl_cache(dataset, "default"),
+        None => {
+            log.push(location());
+            state.kcl_cache(dataset, "default")
+        }
     };
 
     if let Some(text) = state.cmdline_override() {
@@ -255,6 +264,13 @@ pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> Str
     if let Some(prefix) = property.filter(|prefix| *prefix != "-") {
         return prefix.to_owned();
     }
+    os_release_prefix(files, mnt).unwrap_or_else(|| "root=zfs:".to_owned())
+}
+
+/// The prefix of the `root=` argument for the distribution named in `ID` or
+/// `ID_LIKE` of the `os-release` of the boot environment mounted at `mnt`, if
+/// `find_root_prefix` knows it.
+pub fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
     let mut id = String::new();
     let mut id_like = String::new();
     for file in ["usr/lib/os-release", "etc/os-release"] {
@@ -278,9 +294,9 @@ pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> Str
             "gentoo" | "alpine" => "root=ZFS=",
             _ => continue,
         };
-        return prefix.to_owned();
+        return Some(prefix.to_owned());
     }
-    "root=zfs:".to_owned()
+    None
 }
 
 /// The device tree of `kernel` in the boot environment mounted at `mnt`, as
@@ -294,7 +310,16 @@ pub fn devicetree(
     kernel: &str,
     mnt: &Path,
 ) -> Option<PathBuf> {
-    let property = property.filter(|value| !value.is_empty() && *value != "-")?;
+    let candidate = devicetree_candidate(property?, kernel, mnt)?;
+    files.is_file(&candidate).then_some(candidate)
+}
+
+/// The file `kexec_kernel` tries as the device tree of `kernel` for the value
+/// of `org.zfsbootmenu:devicetree`, or `None` when the property is unset.
+pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<PathBuf> {
+    if property.is_empty() || property == "-" {
+        return None;
+    }
     // kver="${kernel#"${kernel%%-*}"-}"
     let base = kernel.split('-').next().unwrap_or(kernel);
     let kver = kernel
@@ -307,8 +332,7 @@ pub fn devicetree(
     } else {
         format!("{mnt}/boot/dtbs/dtbs-{kver}/{property}")
     };
-    let candidate = PathBuf::from(candidate);
-    files.is_file(&candidate).then_some(candidate)
+    Some(PathBuf::from(candidate))
 }
 
 /// The spaces between the root argument and the rest of the command line: the
@@ -374,7 +398,7 @@ mod tests {
     use zbm_system::files::RealFiles;
     use zbm_testutil::fake_zfs::FakeZfs;
     use zbm_testutil::fakes::FakeFiles;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS};
+    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testutil::{Rng, TempDir};
     use zbm_zfs::Zfs;
 
@@ -783,6 +807,15 @@ mod tests {
                 legacy.stderr_text()
             );
             assert_eq!(snapshot(&dir), legacy_cache, "case {case}: cache");
+            let messages: String = log
+                .iter()
+                .map(|message| format!("{}\n", message.stderr_line()))
+                .collect();
+            assert_eq!(
+                messages,
+                log_lines(&legacy.stderr_text()),
+                "case {case}: log"
+            );
         }
     }
 

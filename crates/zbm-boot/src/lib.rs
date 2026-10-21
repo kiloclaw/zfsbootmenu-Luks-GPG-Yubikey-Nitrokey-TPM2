@@ -16,6 +16,7 @@
 //! Every function reaches the system through `zbm_system::System` and shares
 //! state only through `zbm_state::State`. The code arrives in phases 5 and 6.
 
+pub mod boot;
 pub mod commandline;
 pub mod devices;
 pub mod hooks;
@@ -24,6 +25,7 @@ pub mod import;
 pub mod kernels;
 pub mod modules;
 pub mod prompt;
+pub mod recovery;
 pub mod support;
 
 #[cfg(test)]

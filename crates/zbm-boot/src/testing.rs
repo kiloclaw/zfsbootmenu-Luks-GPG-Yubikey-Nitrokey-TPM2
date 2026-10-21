@@ -8,9 +8,14 @@ use zbm_system::files::{Files, Metadata, RealFiles};
 
 /// Log stubs for parity tests whose messages span lines: each line gets the
 /// label, as each line of a debugging message gets the prefix in the kernel
-/// log.
+/// log. Messages go to the file `ZBM_LOG` names, as the real functions write to
+/// `/dev/kmsg` and not to a stream a command substitution could capture, or
+/// to standard error without it.
 pub const LINE_LOG_STUBS: &str = r#"
-_zstub() { local _l; while IFS= read -r _l; do echo "$1: ${_l}" >&2; done <<< "$2"; }
+_zstub() {
+  local _l
+  while IFS= read -r _l; do echo "$1: ${_l}"; done <<< "$2" >> "${ZBM_LOG:-/dev/stderr}"
+}
 zdebug() { _zstub DEBUG "$*"; }
 zinfo() { _zstub INFO "$*"; }
 znotice() { _zstub NOTICE "$*"; }

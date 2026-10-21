@@ -16,6 +16,7 @@ use zbm_zfs::Zfs;
 use crate::commandline;
 use crate::hostid;
 use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
+use crate::recovery::Recovery;
 
 /// The settings of the stage, from `/etc/zfsbootmenu.conf`.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -291,17 +292,6 @@ pub struct Imported {
     pub bootfs: Option<String>,
     /// The host ID that host ID matching wrote, if it matched one.
     pub spl_hostid: Option<String>,
-}
-
-/// What the stage needs from the start-up program.
-pub trait Recovery {
-    /// Unlocks LUKS volumes that appeared since the first unlock, and returns
-    /// whether one was opened (`zbm_luks_unlock_late`).
-    fn unlock_late(&mut self) -> bool;
-
-    /// Opens the recovery shell with a message (`emergency_shell`); the stage
-    /// tries again when it ends.
-    fn emergency_shell(&mut self, message: &str);
 }
 
 /// The start-up stage `init.d/50-import-pools`.
