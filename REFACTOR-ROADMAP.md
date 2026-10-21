@@ -16,6 +16,7 @@ ends up in Rust.
 - [Findings](#findings)
 - [Target architecture](#target-architecture)
 - [Rules for refactored code](#rules-for-refactored-code)
+- [How the rules are enforced](#how-the-rules-are-enforced)
 - [Testing strategy](#testing-strategy)
 - [Using uutils coreutils](#using-uutils-coreutils)
 - [The ZFS boundary](#the-zfs-boundary)
@@ -23,6 +24,7 @@ ends up in Rust.
 - [Relation to PORT-ROADMAP.md](#relation-to-port-roadmapmd)
 - [Risks](#risks)
 - [Decisions for review](#decisions-for-review)
+- [Proposals for later](#proposals-for-later)
 
 ## Goals
 
@@ -244,6 +246,26 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
    advisories, duplicates).
 10. **Everything new is Rust:** no new Bash, Perl or Python, including tests and tooling.
 
+## How the rules are enforced
+
+A rule that only a reviewer checks is forgotten within a few pull requests. Every rule above is checked by a tool in
+CI, so that students and AI tools learn the rules from the build instead of from review comments.
+
+| Rule | Tool | How |
+| --- | --- | --- |
+| Lints (1) | `[workspace.lints]` in `Cargo.toml` | The workspace already denies `unsafe_code` and warns on `missing_docs` and `clippy::all`. The refactor adds `clippy::pedantic`, the `rustdoc` lints and the no-panic lints below. Each lint starts as `warn` and becomes `deny` per crate when the phase that refactors the crate ends (`[lints] workspace = true` plus a crate-level `#![deny(...)]`) |
+| No panics in the runtime | `clippy::unwrap_used`, `expect_used`, `panic`, `indexing_slicing`, `unreachable`, `todo` | Denied in every crate that runs at boot; tests are exempt (`allow-unwrap-in-tests` and `allow-expect-in-tests` in `clippy.toml`) |
+| No hidden IO (7), adapters only (R2 exit) | `disallowed-methods` and `disallowed-types` in `clippy.toml` | `std::process::Command`, `std::fs::*`, `std::env::var*`, `std::thread::sleep`, `std::time::SystemTime::now`, `Instant::now`, `println!` and `eprintln!` are disallowed everywhere. The real implementations in `zbm-platform` and `zbm-sys`, and `xtask`, allow them in one module each with `#[expect(clippy::disallowed_methods, reason = "...")]` |
+| Layering (front ends never import adapters) | `xtask check-deps` | Reads `cargo metadata` and fails on any dependency edge that the architecture diagram does not allow (for example `zbm-tui` → `zbm-zfs`, or any domain crate → `zbm-platform`'s real implementations). The allowed edges are a table in `xtask` that `docs/dev/architecture.md` is generated from, so the picture and the check cannot drift |
+| Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts, per crate: functions over 60 lines, modules over 600 lines, public functions returning `bool`, `Result`-returning functions, doc comments that name a legacy function, calls to the shell-semantics helpers, tests that run Bash. It writes `target/metrics.json` and a table in the CI summary, and fails when a crate that a finished phase has refactored goes above its limits |
+| Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs the width check that is `scripts/dev/check-rust-width.sh` today |
+| Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for G2) |
+
+`xtask metrics` starts from the numbers in [Findings](#findings): 135 public and private functions returning `bool`,
+26 returning `Result`, 104 doc comments naming legacy functions, 131 calls to shell-semantics helpers and 55 tests
+that run Bash. Each phase's exit names the crates whose numbers must reach the limits, so progress is visible in every
+CI run rather than claimed at the end.
+
 ## Testing strategy
 
 ### Layers
@@ -329,14 +351,31 @@ Each phase ends with every suite green on its own branch merge, the measures of 
 touched, and its docs written. Phases R1 to R4 change structure without changing behaviour (the golden files and VM
 tests are the proof); behaviour changes start with R5.
 
-### R0. Decisions and scaffolding (1 to 2 weeks)
+### R0. Decisions, scaffolding and pilot slices (3 to 5 weeks)
 
 - Decide the [open questions](#decisions-for-review): dependency set, MSRV, menu replacing `fzf` outright, when the
   legacy runtime goes.
-- Add `xtask` with `lint`, `test`, `doc`, `bless`; add `cargo deny`, `cargo nextest`, `clippy::pedantic` as warnings.
+- Add `xtask` with `lint`, `test`, `doc`, `bless`, `check-deps` and `metrics`; add `cargo deny`, `cargo nextest`, and
+  the lints of [How the rules are enforced](#how-the-rules-are-enforced) as warnings. Record the starting metrics.
 - Vendor the agreed crates; write `vendor/README.md`.
 - Write `docs/dev/architecture.md` (the diagram above, crate by crate) and `docs/dev/testing.md`.
-- **Exit:** CI runs `xtask lint` and `xtask test`; the decisions are recorded in this file.
+- **Pilot slices.** Before any crate is migrated, build two thin features through every layer of the target
+  architecture, so that the design is tested on real code while it is still cheap to change:
+  1. **Unlocking with a key file**, from `zbm-types` (`DevicePath`, `MappingName`) through `zbm-platform`, `zbm-crypt`
+     (typed `cryptsetup open`, a typestate mapping), one `KeyMethod` in a new `zbm-luks` module, a `zbm-app` use case,
+     `tracing` spans and the command journal, to the `zluks` applet. Tests at every layer use the conventions of
+     [Testing strategy](#testing-strategy). The slice runs beside today's code, behind `zluks --pilot`, and the LUKS
+     device suite and VM tests run against it.
+  2. **The boot environment list of the new menu,** with Ratatui and Nucleo over a `zbm-app` `Snapshot` built from a
+     fake machine, with snapshot tests at the three sizes; then in an image booted in QEMU on a serial console only
+     (`-nographic`, `TERM=linux` and `TERM=vt100`) to check terminal set-up, key input, resizing and redraw speed in
+     the initramfs.
+- What the pilots teach is written into this file and `docs/dev/architecture.md`: crate boundaries, the shape of
+  `Context`, the error and event types, and whether Ratatui and Nucleo behave on a serial console. The pilot code is
+  kept and becomes the template that R1 to R5 copy.
+- **Exit:** CI runs `xtask lint`, `xtask test`, `xtask check-deps` and `xtask metrics`; the decisions are recorded in
+  this file; both pilots pass their tests, and the menu pilot is usable on a serial console. If a pilot shows that
+  part of the architecture does not work, the architecture is changed here before R1 starts.
 
 ### R1. Foundations: types, errors, tracing, test kit (3 to 4 weeks)
 
@@ -347,8 +386,9 @@ tests are the proof); behaviour changes start with R5.
   crate, starting with `zbm-luks` and `zbm-boot`.
 - Turn `zbm-testutil` into `zbm-testkit`: `FakeMachine` builders, assertion macros, golden helpers; record the legacy
   parity results (`xtask record-parity`) and switch the 55 Bash-running tests to golden files.
-- **Exit:** no test runs Bash, Perl or the legacy tree; every public function of the touched crates returns typed
-  results; `clippy::pedantic` denied in `zbm-types`, `zbm-trace`, `zbm-testkit`.
+- **Exit:** no Rust test runs Bash, Perl or the legacy tree; every public function of the touched crates returns
+  typed results; `clippy::pedantic` and the no-panic lints denied in `zbm-types`, `zbm-trace`, `zbm-testkit`;
+  `xtask metrics` shows those crates within the limits.
 
 ### R2. Platform and adapters (3 to 4 weeks)
 
@@ -360,8 +400,15 @@ tests are the proof); behaviour changes start with R5.
   spike and decide.
 - Remove the shell-semantics helpers (`command_substitution`, `read_lines`, `test_integer`, `echo`) from all code
   except `zbm-config`'s parsing of legacy configuration files.
-- **Exit:** adapters are the only code that builds `Command`s; every adapter has a fake and fixture tests; the
-  LUKS device suite and all VM tests pass unchanged.
+- **Port the LUKS device suites to Rust** (`tests/luks/unit`, 255 checks, to `crates/zbm-luks/tests/devices/`, run by
+  `xtask test devices` in the build container as root). This has to happen before R3: the Bash suites reach the Rust
+  code through the `test-seams` build and its hidden `zbm-luks-test` applet, which call `Session` methods that R3
+  replaces. The Rust suites call `zbm-crypt` and, from R3 on, `zbm-luks` directly. Both suites run side by side until
+  the Rust one has every check of the Bash one, against both runtimes; then the Bash suite and `test-seams` are
+  removed.
+- **Exit:** adapters are the only code that builds `Command`s, which `disallowed-methods` now enforces; every adapter
+  has a fake and fixture tests; the LUKS device suite passes in Rust with the same 255 checks; all VM tests pass
+  unchanged.
 
 ### R3. Domain services (4 to 6 weeks)
 
@@ -373,7 +420,12 @@ tests are the proof); behaviour changes start with R5.
 - `zbm-config`: one `Config` from command line, configuration file and crypttab, with the origin of each value for
   `zbm debug config`.
 - Split `import.rs`, `boot.rs`, `generate.rs` along these lines; no module over 600 lines.
-- **Exit:** the size and type rules hold in these crates; golden files and VM tests unchanged.
+- **Port the VM test harness to Rust** (`zbm-vmtest`, alongside R3 and R4): the QEMU driver, a serial console with
+  `expect`-style matching, swtpm and USB hot-plug, disk builders, and the existing LUKS scenarios. This has to be done
+  before R5: the menu's VM tests are new, and written once, in Rust, instead of in Python and again in R7. Python and
+  Rust harnesses run the same scenarios until their results match, then the Python harness is removed.
+- **Exit:** the size and type rules hold in these crates (checked by `xtask metrics`); golden files unchanged; the VM
+  tests pass in the Rust harness.
 
 ### R4. Application layer (3 to 4 weeks)
 
@@ -393,8 +445,8 @@ tests are the proof); behaviour changes start with R5.
   `zbm-app` use cases.
 - Decide and document every behaviour change against the `fzf` menu in `CHANGES-FROM-LEGACY.md` (key bindings,
   layout, previews).
-- **Exit:** the VM tests that drive the menu are rewritten for the new screens and pass; snapshot tests cover every
-  screen at three sizes; the menu runs without `fzf` in images.
+- **Exit:** the VM tests that drive the menu are written for the new screens in `zbm-vmtest` and pass; snapshot
+  tests cover every screen at three sizes; the menu runs without `fzf` in images, including on a serial console.
 
 ### R6. Recovery tools and image assembly in Rust (3 to 4 weeks)
 
@@ -406,14 +458,10 @@ tests are the proof); behaviour changes start with R5.
   dracut `module-setup.sh` and the mkinitcpio install hook shrink to shims that call it.
 - **Exit:** the only shell scripts left in the runtime are the two packaging shims and the user hook examples.
 
-### R7. Tests and tooling in Rust (4 to 6 weeks, can run alongside R3 to R6)
+### R7. Remaining tests and tooling in Rust (3 to 4 weeks, can run alongside R5 and R6)
 
-- Port the LUKS unit suites (`tests/luks/unit`, 255 checks) to `crates/zbm-luks/tests/devices/`, run by
-  `xtask test devices` in the build container as root; drop the `test-seams` build, which the new ports make
-  unnecessary.
-- Port the VM harness and scenarios (`tests/luks/vm`, Python) to `zbm-vmtest`: a QEMU driver, a serial console with
-  `expect`-style matching, swtpm and USB hot-plug, disk builders; then the upstream test VMs (`tests/setup.sh`,
-  `tests/run.sh`) as non-interactive scenarios.
+- The LUKS device suites moved in R2 and the VM harness in R3 and R4. What is left: the upstream test VMs
+  (`tests/setup.sh`, `tests/run.sh`) as non-interactive `zbm-vmtest` scenarios.
 - Replace `scripts/` and `packaging/container/*.sh` with `xtask` subcommands (`build-image`, `record-fixtures`,
   `release`, `compare-images`); the container's entry point becomes a Rust program.
 - **Exit:** no Bash, Perl or Python under `tests/`, `scripts/` or `packaging/container/`; CI runs device and VM tests
@@ -439,11 +487,16 @@ tests are the proof); behaviour changes start with R5.
 
 ```text
 R0 ─ R1 ─ R2 ─ R3 ─ R4 ─ R5 ─ R6 ─ R9
-                └──── R7 (tests, tooling) ────┘
-                          R8 (docs) ──────────┘
+          │    └────┤    └────┤
+          │         │         └ R7: upstream test VMs and tooling (alongside R5 and R6)
+          │         └ VM harness in Rust (alongside R3 and R4, done before R5)
+          └ LUKS device suites in Rust (done before R3)
+
+R0 includes the pilot slices; R8 (docs) runs alongside R7 and ends before R9.
 ```
 
-R7 starts once R2 has stable ports, because the device and VM tests in Rust use them. Package B's VM tests, now
+Two test ports are tied to the code they protect: the LUKS device suites move to Rust in R2, before R3 rewrites
+`zbm-luks`, and the VM harness moves during R3 and R4, before R5 adds the menu's VM tests. Package B's VM tests, now
 running against the Rust image, are the regression check from R1 on.
 
 ## Relation to PORT-ROADMAP.md
@@ -461,12 +514,14 @@ running against the Rust image, are the regression check from R1 on.
 | Risk | Mitigation |
 | --- | --- |
 | Behaviour drifts while structure changes (R1 to R4) | Golden files recorded from today's code and the full VM suite after each phase; no behaviour change before R5 |
-| The new menu is slower or worse on small consoles than `fzf` | Snapshot tests at 52 columns; a performance test with 10,000 snapshots; keep `zbm.menu=fzf` available until R9 if users need it |
+| The new menu is slower or worse on small consoles than `fzf` | The R0 menu pilot on a serial console; snapshot tests at 52 columns; a performance test with 10,000 snapshots; keep `zbm.menu=fzf` available until R9 if users need it |
 | New dependencies grow the image and the attack surface | Measure image size per crate (`xtask size`), `cargo deny` advisories, minimal features, vendoring |
 | uutils behaviour differs from what users expect on GNU systems | Golden tests for every coreutils behaviour the runtime relies on; document differences |
 | MSRV rises with uutils and Ratatui | Decide the MSRV in R0; the build container pins the toolchain |
 | JSON output is missing in older ZFS | Text fallback with the same types and fixtures from ZFS 2.2 |
-| The refactor stalls half way, with two architectures | Each phase is complete on its own; adapters can wrap old code during transition; crates move one at a time |
+| The refactor stalls half way, with two architectures | The R0 pilots prove the architecture before migration; each phase is complete on its own; adapters can wrap old code during transition; crates move one at a time; `xtask metrics` shows how far each crate has come |
+| A refactor breaks the tests that should catch it | Test suites move to Rust before the code they protect changes (device suites in R2, VM harness in R3 and R4), and old and new suites run side by side until they agree |
+| Rules erode as more people contribute | Every rule is checked by a tool in CI ([How the rules are enforced](#how-the-rules-are-enforced)) |
 | Students meet too many abstractions | Patterns only where the table above says; the guided tour explains each one where it is used |
 
 ## Decisions for review
@@ -482,3 +537,29 @@ running against the Rust image, are the regression check from R1 on.
    dependency in the boot image.
 6. **When the legacy runtime goes:** keep the PORT-ROADMAP beta (phase 7) with the legacy image as fallback, or cut
    over directly after R6.
+
+## Proposals for later
+
+Improvements that were suggested during review and kept for a later revision of this roadmap. None of them is part of
+the plan yet; each would be added to a phase when it is adopted.
+
+1. **Trustworthy fakes:** contract tests that run one suite against both `FakeZfs` and `ZfsCli` (in a VM), and the same
+   for the `zbm-crypt` adapters; mutation testing with `cargo-mutants` to measure whether tests catch faults; state
+   machine property tests (`proptest-state-machine`) for the import retry loop and the unlocker against a reference
+   model.
+2. **Debugging failures offline:** `zbm debug bundle` writes a redacted archive of the journal, the commands run, the
+   configuration and the pool layout; `xtask replay <bundle>` turns it into a fake machine, so a reported boot
+   failure becomes a `cargo test`; boot timelines exported as Chrome trace files for Perfetto.
+3. **Starting points for students:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine;
+   Architecture Decision Records in `docs/dev/adr/`; runnable `examples/` per crate; "good first issue" labels tied to
+   phases; an `AGENTS.md` per crate with its invariants, commands and test conventions for AI tools.
+4. **Stable error codes:** `ZBM-E0412: no key method could open /dev/sda2`, explained by `zbm explain <code>` and one
+   documentation page per code.
+5. **Boot environment specifics:** terminal capability detection with ASCII borders, 16 colours and `NO_COLOR`;
+   budgets for boot time, image size and memory with CI gates; `zeroize` or `secrecy` instead of the hand-written
+   `Secret`, `mlock` for secret memory and no core dumps; `cargo vet` and `cargo auditable` for the supply chain.
+6. **A deprecation policy** for kernel command line options and configuration files: old names keep working with a
+   warning for one release and `zbm debug config` lists them; possibly a typed TOML configuration with
+   `zbm config check`.
+7. **One concurrency model:** threads and channels with a single event loop, no async runtime, documented once for
+   Nucleo's matcher, the countdown, and USB key hot-plug.
