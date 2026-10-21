@@ -150,8 +150,17 @@ impl fmt::Display for Unsupported {
 }
 
 /// Everything in `options` and `facts` that the Phase 5 runtime cannot handle
-/// yet, in the order the legacy start-up meets it.
+/// yet, in the order the legacy start-up meets it: [`before_start`], then
+/// [`before_boot`].
 pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
+    let mut list = before_start(options, facts);
+    list.extend(before_boot(options, facts));
+    list
+}
+
+/// What the start-up stages cannot handle yet: options beyond the default
+/// boot and LUKS volumes.
+pub fn before_start(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     let mut list = Vec::new();
     if !options.wait_for_devices.is_empty() {
         list.push(Unsupported::WaitForDevices(
@@ -181,6 +190,13 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
         };
         list.push(Unsupported::PreferredPool(prefer.clone()));
     }
+    list
+}
+
+/// What booting the default boot environment cannot handle yet: the menu,
+/// locked encryption roots and `load-key.d` hooks.
+pub fn before_boot(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
+    let mut list = Vec::new();
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
     if !test_integer(&options.menu_timeout).is_some_and(|timeout| timeout >= 0) {

@@ -83,6 +83,29 @@ impl ZbmArgs {
     }
 }
 
+/// The files `make_cmdline_dir` writes in `${BASE}/cmdline.d` for a tokenized
+/// command line: each key with the `echo` output of its value (`1` for an
+/// argument without `=`), in the order written, so a later one replaces an
+/// earlier one with the same key.
+pub fn cmdline_files(text: &str) -> Vec<(String, String)> {
+    let input = format!("{}\n", command_substitution(text));
+    read_lines(&input)
+        .into_iter()
+        .filter_map(|arg| {
+            let key = arg.split_once('=').map_or(arg.as_str(), |(key, _)| key);
+            if key.is_empty() || !can_be_file_name(key) {
+                return None;
+            }
+            let contents = if key.len() == arg.len() {
+                "1\n".to_owned()
+            } else {
+                echo(&arg[key.len() + 1..])
+            };
+            Some((key.to_owned(), contents))
+        })
+        .collect()
+}
+
 /// Whether the legacy code can store `key` as a file in `cmdline.d`: names with
 /// `/`, the names `.` and `..`, and names longer than a file name may be cannot
 /// be written, so those arguments are ignored.
@@ -178,6 +201,40 @@ mod tests {
         "y=Off",
         "z=0",
     ];
+
+    #[test]
+    fn cmdline_files_match_make_cmdline_dir() {
+        let mut rng = Rng::from_env(5);
+        for _ in 0..40 {
+            let cmdline = rng.join(PIECES, 10);
+            let base = TempDir::new("zbm-cmdline-dir");
+            let file = base.write("cmdline", &cmdline);
+            Bash::new()
+                .code(LOG_STUBS)
+                .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
+                .code(&format!(
+                    "BASE={}; _build_zbm_kcl() {{ kcl_tokenize < {}; }}",
+                    base.path().display(),
+                    file.display()
+                ))
+                .call("make_cmdline_dir", &[], b"");
+            let mut legacy: Vec<(String, String)> = std::fs::read_dir(base.join("cmdline.d"))
+                .unwrap()
+                .map(|entry| {
+                    let entry = entry.unwrap();
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    (name, std::fs::read_to_string(entry.path()).unwrap())
+                })
+                .collect();
+            legacy.sort();
+            let mut rust = std::collections::BTreeMap::new();
+            for (key, contents) in cmdline_files(&tokenize(&cmdline)) {
+                rust.insert(key, contents);
+            }
+            let rust: Vec<(String, String)> = rust.into_iter().collect();
+            assert_eq!(rust, legacy, "cmdline {cmdline:?}");
+        }
+    }
 
     #[test]
     fn lookups_match_get_zbm_arg_and_get_zbm_bool() {

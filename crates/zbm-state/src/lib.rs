@@ -99,6 +99,21 @@ impl<'a> State<'a> {
         self.write("initialized", b"")
     }
 
+    /// The start-up stages that have finished (`.stages`), in order.
+    pub fn finished_stages(&self) -> Vec<String> {
+        self.files
+            .read_to_string(&self.path(".stages"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Records that the start-up stage `stage` has finished.
+    pub fn finish_stage(&self, stage: &str) -> Result<()> {
+        self.append(".stages", format!("{stage}\n").as_bytes())
+    }
+
     /// Whether a menu holds the lock (`active`).
     pub fn is_active(&self) -> bool {
         self.files.exists(&self.path("active"))
@@ -389,6 +404,21 @@ mod tests {
         state.set_spl_hostid("00bab10c").unwrap();
         assert_eq!(files.text("/zfsbootmenu/spl_hostid").unwrap(), "00bab10c");
         assert_eq!(state.spl_hostid().as_deref(), Some("00bab10c"));
+    }
+
+    #[test]
+    fn finished_stages_are_listed_in_order() {
+        let files = FakeFiles::new();
+        files.dir(BASE);
+        let state = State::new(&files, BASE);
+        assert!(state.finished_stages().is_empty());
+        state.finish_stage("10-kmods").unwrap();
+        state.finish_stage("20-hostid").unwrap();
+        assert_eq!(state.finished_stages(), ["10-kmods", "20-hostid"]);
+        assert_eq!(
+            files.text("/zfsbootmenu/.stages").as_deref(),
+            Some("10-kmods\n20-hostid\n")
+        );
     }
 
     #[test]

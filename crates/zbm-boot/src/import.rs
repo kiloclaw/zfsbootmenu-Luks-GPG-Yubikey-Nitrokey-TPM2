@@ -265,7 +265,7 @@ pub fn log_unimportable(runner: &dyn Runner, log: &KernelLog<'_>) {
 }
 
 /// The two fields `IFS=$'\t' read -r first rest` reads from a line.
-fn tab_fields(line: &str) -> (&str, &str) {
+pub(crate) fn tab_fields(line: &str) -> (&str, &str) {
     let line = line.trim_matches('\t');
     match line.split_once('\t') {
         Some((first, rest)) => (first, rest.trim_start_matches('\t')),
@@ -275,7 +275,7 @@ fn tab_fields(line: &str) -> (&str, &str) {
 
 /// The lines `while IFS=$'\t' read -r ...; done <<< "$( command )"` reads:
 /// only tabs are trimmed.
-fn tab_lines(output: &str) -> Vec<String> {
+pub(crate) fn tab_lines(output: &str) -> Vec<String> {
     let text = format!("{}\n", command_substitution(output));
     let mut lines: Vec<String> = text
         .split('\n')

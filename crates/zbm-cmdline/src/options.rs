@@ -282,6 +282,33 @@ impl ZbmOptions {
         (options, log)
     }
 
+    /// The options `/etc/zfsbootmenu.conf` holds, as the start-up wrote them
+    /// with [`ZbmOptions::conf`]. The file has no `zbm.lines`, `zbm.columns` or
+    /// `zbm.kcl_override` (which goes to `${BASE}/cmdline`), so they are
+    /// `None`; a missing variable is empty, as an unset shell variable is.
+    pub fn from_conf(conf: &crate::conf::Conf) -> ZbmOptions {
+        let get = |name: &str| conf.get(name).unwrap_or_default().to_owned();
+        ZbmOptions {
+            loglevel: get("loglevel"),
+            spl_hostid: get("spl_hostid"),
+            control_term: get("control_term"),
+            import_policy: get("import_policy"),
+            menu_timeout: get("menu_timeout"),
+            retry_delay: get("zbm_retry_delay"),
+            lines: None,
+            columns: None,
+            sort: get("zbm_sort"),
+            hook_root: get("zbm_hook_root"),
+            // `[ "${zbm_set_hostid}" -eq 1 ]`
+            set_hostid: test_integer(&get("zbm_set_hostid")) == Some(1),
+            kcl_override: None,
+            wait_for_devices: get("zbm_wait_for_devices"),
+            prefer_pool: get("zbm_prefer_pool"),
+            require_pool: get("zbm_require_pool"),
+            prefer_bootfs: get("zbm_prefer_bootfs"),
+        }
+    }
+
     /// The lines `zfsbootmenu-preinit.sh` appends to `/etc/zfsbootmenu.conf`.
     /// Values are written between single quotes, with each single quote in them
     /// written as `'\''`, as `zbm_conf_quote` writes them, so that sourcing the
@@ -649,6 +676,24 @@ mod tests {
         "=x",
         "\"",
     ];
+
+    #[test]
+    fn options_survive_the_configuration_file() {
+        let mut rng = Rng::from_env(6);
+        for _ in 0..50 {
+            let cmdline = rng.join(PIECES, 8);
+            let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&cmdline));
+            let conf = crate::conf::Conf::parse(&options.conf("/zfsbootmenu")).unwrap();
+            let read = ZbmOptions::from_conf(&conf);
+            let expected = ZbmOptions {
+                lines: None,
+                columns: None,
+                kcl_override: None,
+                ..options
+            };
+            assert_eq!(read, expected, "cmdline {cmdline:?}");
+        }
+    }
 
     #[test]
     fn options_match_the_legacy_parser() {

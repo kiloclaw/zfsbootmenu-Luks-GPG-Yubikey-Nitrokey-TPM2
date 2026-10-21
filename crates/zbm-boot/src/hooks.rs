@@ -241,7 +241,18 @@ pub fn early_stage(
     hook_root: &str,
     skip: Option<&str>,
 ) {
-    let root = Path::new(HOOKS);
+    early_stage_in(system, log, state, Path::new(HOOKS), hook_root, skip);
+}
+
+/// [`early_stage`] with the hook directories below `root`.
+pub fn early_stage_in(
+    system: &System<'_>,
+    log: &KernelLog<'_>,
+    state: &State<'_>,
+    root: &Path,
+    hook_root: &str,
+    skip: Option<&str>,
+) {
     if !hook_root.is_empty() {
         import_hooks(system, log, state, root, hook_root);
     }

@@ -24,8 +24,10 @@ pub mod hostid;
 pub mod import;
 pub mod kernels;
 pub mod modules;
+pub mod preinit;
 pub mod prompt;
 pub mod recovery;
+pub mod startup;
 pub mod support;
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 
 use crate::secret::Secret;
+pub use zbm_sys::Signal;
 
 /// Where standard output or standard error of a command goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,6 +57,7 @@ pub struct Command {
     stderr: Stream,
     merge_stderr: bool,
     env: Vec<(OsString, Option<OsString>)>,
+    default_signals: Vec<Signal>,
 }
 
 impl Command {
@@ -71,6 +73,7 @@ impl Command {
             stderr: Stream::Inherit,
             merge_stderr: false,
             env: Vec::new(),
+            default_signals: Vec::new(),
         }
     }
 
@@ -131,6 +134,18 @@ impl Command {
     pub fn env_remove(mut self, key: impl Into<OsString>) -> Command {
         self.env.push((key.into(), None));
         self
+    }
+
+    /// Starts the program with the default action of `signal`, as
+    /// `trap - SIG; exec program` does, even when this process ignores it.
+    pub fn default_signal(mut self, signal: Signal) -> Command {
+        self.default_signals.push(signal);
+        self
+    }
+
+    /// The signals the program starts with the default action of.
+    pub fn get_default_signals(&self) -> &[Signal] {
+        &self.default_signals
     }
 
     /// The program to run.
@@ -358,6 +373,9 @@ impl Runner for SystemRunner {
             process
         };
         process.stdout(stdio(command.stdout));
+        if !command.default_signals.is_empty() {
+            zbm_sys::restore_in_child(&mut process, &command.default_signals);
+        }
         process.stdin(match command.stdin {
             Input::Inherit => Stdio::inherit(),
             Input::Null => Stdio::null(),
@@ -435,6 +453,37 @@ enum Captured {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn programs_can_start_with_default_signal_actions() {
+        let interrupt = 1_u64 << (Signal::Interrupt.number() - 1);
+        let mask = |command: Command| {
+            let output = SystemRunner
+                .run(&command.args(["SigIgn", "/proc/self/status"]))
+                .unwrap();
+            let text = output.stdout_text();
+            u64::from_str_radix(text.trim().trim_start_matches("SigIgn:").trim(), 16).unwrap()
+        };
+        // Children of this test may run meanwhile; ignoring SIGINT does them no harm.
+        zbm_sys::ignore_signal(Signal::Interrupt).unwrap();
+        let inherited = mask(Command::new("grep"));
+        let restored = mask(Command::new("grep").default_signal(Signal::Interrupt));
+        let merged = mask(
+            Command::new("grep")
+                .default_signal(Signal::Interrupt)
+                .merge_stderr(),
+        );
+        zbm_sys::restore_default(Signal::Interrupt).unwrap();
+        assert_ne!(inherited & interrupt, 0);
+        assert_eq!(restored & interrupt, 0);
+        assert_eq!(merged & interrupt, 0);
+        assert_eq!(
+            Command::new("bash")
+                .default_signal(Signal::Interrupt)
+                .get_default_signals(),
+            [Signal::Interrupt]
+        );
+    }
 
     #[test]
     fn captures_output_and_status() {
