@@ -29,6 +29,13 @@ off, and so that a change to the runtime adds its entry in the same commit.
   broke the file. `zbm_conf_quote` now writes each quote as `'\''`.
   **Rust:** done; `ZbmOptions::conf` quotes the same way, `zbm_cmdline::conf` reads the file back, and parity tests
   compare both writers and check the values against Bash sourcing the file.
+- [x] `1346d04`: the image build accepts `zfsbootmenu_runtime=rust`, which installs the Rust start-up hooks
+  (`packaging/dracut/zfsbootmenu-rust-*.sh`, the mkinitcpio entry point) and leaves out the legacy start-up program and
+  `init.d`; legacy images are unchanged. The online help of `zfsbootmenu(7)` describes the setting. Also a fix: dracut
+  images lost `embedded_kcl`, which `module-setup.sh` appended to `/etc/zfsbootmenu.conf` before `create_zbm_conf`
+  wrote the file anew.
+  **Rust:** done; `zbm_boot::preinit` writes `embedded_kcl` to `/etc/cmdline.d/zfsbootmenu.conf` as the legacy parser
+  does, and `crates/zbm/tests/image.rs` checks both runtimes' images.
 
 ## Legacy limitations the Rust runtime must not copy
 
