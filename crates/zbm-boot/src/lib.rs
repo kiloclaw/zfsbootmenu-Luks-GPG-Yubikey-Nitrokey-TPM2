@@ -16,6 +16,7 @@
 //! Every function reaches the system through `zbm_system::System` and shares
 //! state only through `zbm_state::State`. The code arrives in phases 5 and 6.
 
+pub mod commandline;
 pub mod hooks;
 pub mod kernels;
 pub mod support;

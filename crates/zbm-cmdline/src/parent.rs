@@ -93,17 +93,29 @@ pub fn read_kcl_value(
     kclfile: &std::path::Path,
     log: &mut Vec<Message>,
 ) -> Option<String> {
+    let contents = zbm_core::fs::is_readable(kclfile)
+        .then(|| std::fs::read(kclfile).ok())
+        .flatten();
+    read_kcl_contents(source, filesystem, kclfile, contents.as_deref(), log)
+}
+
+/// [`read_kcl_value`] with the contents of `kclfile` already read: `None` when
+/// it was not readable. The runtime reads the file through its files interface.
+pub fn read_kcl_contents(
+    source: &dyn CommandLineSource,
+    filesystem: &str,
+    kclfile: &std::path::Path,
+    contents: Option<&[u8]>,
+    log: &mut Vec<Message>,
+) -> Option<String> {
     if filesystem.is_empty() {
         log.push(Message::error("zfsbe is undefined"));
         return None;
     }
-    let contents = zbm_core::fs::is_readable(kclfile)
-        .then(|| std::fs::read(kclfile).ok())
-        .flatten();
     let Some(contents) = contents else {
         return read_kcl_prop(source, filesystem, log);
     };
-    let args = read_first_line(&String::from_utf8_lossy(&contents));
+    let args = read_first_line(&String::from_utf8_lossy(contents));
     if !args.contains("%{parent}") {
         log.push(Message::debug(format!(
             "no parent reference in {} on {filesystem}",
