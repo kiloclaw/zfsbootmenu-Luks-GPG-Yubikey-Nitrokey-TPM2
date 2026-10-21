@@ -57,7 +57,10 @@ fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
         .arg(format!(".linux=0x{next:X}"))
         .arg(STUB)
         .arg(&image)
-        .stderr(Stream::Capture);
+        .stderr(Stream::Capture)
+        // objcopy stamps the PE header with the time unless this is set; a fixed stamp makes the images of the
+        // two sandboxes identical.
+        .env("SOURCE_DATE_EPOCH", "0");
     let output = run(command);
     assert!(output.status.success(), "{}", output.stderr_text());
     image
@@ -102,7 +105,9 @@ impl Sandbox {
             .stderr(Stream::Capture)
             .env("PATH", self.zfs.path_env())
             .env("TMPDIR", self.tmp.path())
-            .env("LC_ALL", "C");
+            .env("LC_ALL", "C")
+            // Both programs modify images with objcopy, which would otherwise stamp them with the current time.
+            .env("SOURCE_DATE_EPOCH", "0");
         command = match editor {
             Some(editor) => command.env("EDITOR", self.work.join(editor)),
             None => command.env_remove("EDITOR"),
