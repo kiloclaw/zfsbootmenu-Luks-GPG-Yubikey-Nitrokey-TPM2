@@ -8,6 +8,9 @@
 #   scenarios that need them.
 #
 # Environment: see zbmtest.py (ZBMTEST_WORK, ZBMTEST_IMAGE, ZBMTEST_ACCEL ...).
+# With ZBMTEST_ZBM_RUNTIME=rust, the tests boot Rust runtime images and their
+# results are named <test>-rust (the runtime tests choose their runtime
+# themselves).
 # Set ZBMTEST_OLD_KERNEL and ZBMTEST_OLD_INITRD to an image with an older ZFS to
 # run complex-oldzfs.
 
@@ -46,20 +49,24 @@ for test in "${tests[@]}"; do
   args=()
   [ "${script}" = "procedures.py" ] || args=( "${test#*-}" )
   echo "=== ${test} ($( date +%T ))"
-  ( cd "${here}" && python3 "${script}" "${args[@]}" ) > "${work}/run-${test}.out" 2>&1
+  out="${work}/run-${test}${ZBMTEST_ZBM_RUNTIME:+-${ZBMTEST_ZBM_RUNTIME}}.out"
+  ( cd "${here}" && python3 "${script}" "${args[@]}" ) > "${out}" 2>&1
   r=$?
-  tail -n 1 "${work}/run-${test}.out"
+  tail -n 1 "${out}"
   [ "${r}" -eq 0 ] || rc=1
 done
 
 echo
 echo "Summary (${work}/tests/*/result.json):"
-python3 - "${work}" "${tests[@]}" <<'EOF'
+python3 - "${work}" "${ZBMTEST_ZBM_RUNTIME:-legacy}" "${tests[@]}" <<'EOF'
 import json, sys
 from pathlib import Path
 work = Path(sys.argv[1])
+rust = sys.argv[2] == "rust"
 total_p = total_f = 0
-for name in sys.argv[2:]:
+for name in sys.argv[3:]:
+    if rust and not name.startswith("runtime-"):
+        name += "-rust"
     p = work / "tests" / name / "result.json"
     if not p.exists():
         print(f"  {name:22} no result")

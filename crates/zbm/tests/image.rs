@@ -208,6 +208,18 @@ fn dracut_images_start_the_selected_runtime() {
     );
     assert!(legacy.join("libexec/zfsbootmenu-init").exists());
     assert!(legacy.join("libexec/init.d/50-import-pools").exists());
+    // zluks and the LUKS teardown hook are the legacy scripts.
+    assert!(
+        std::fs::read_to_string(legacy.join("bin/zluks"))
+            .unwrap()
+            .contains("source")
+    );
+    let teardown = legacy.join("libexec/hooks/teardown.d/80-luks-close.sh");
+    assert!(
+        std::fs::read_to_string(&teardown)
+            .unwrap()
+            .contains("luks_close_all")
+    );
     let conf = std::fs::read_to_string(legacy.join("etc/zfsbootmenu.conf")).unwrap();
     assert!(conf.contains("export ZBM_RUNTIME=\"legacy\"\n"), "{conf}");
     // The embedded command line survives the configuration file being written.
@@ -241,4 +253,15 @@ fn dracut_images_start_the_selected_runtime() {
     );
     let conf = std::fs::read_to_string(rust.join("etc/zfsbootmenu.conf")).unwrap();
     assert!(conf.contains("export ZBM_RUNTIME=\"rust\"\n"), "{conf}");
+    // zbm is zluks, which also closes the LUKS mappings before booting.
+    assert_eq!(
+        std::fs::read_link(rust.join("bin/zluks")).unwrap(),
+        std::path::Path::new("/libexec/zbm")
+    );
+    let teardown = rust.join("libexec/hooks/teardown.d/80-luks-close.sh");
+    let hook = std::fs::read_to_string(&teardown).unwrap();
+    assert!(hook.starts_with("#!/bin/bash\n"), "{hook}");
+    assert!(hook.contains("\n/bin/zluks close\nexit 0\n"), "{hook}");
+    assert!(!hook.contains("luks_close_all"), "{hook}");
+    assert!(zbm_core::fs::is_executable(&teardown));
 }

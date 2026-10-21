@@ -15,6 +15,11 @@ Environment:
   ZBMTEST_RUNTIME   docker or podman (default: docker if installed)
   ZBMTEST_ACCEL     kvm or tcg (default: kvm when /dev/kvm is usable)
   ZBMTEST_REUSE     1 = reuse already built ZFSBootMenu test images
+  ZBMTEST_ZBM_RUNTIME
+                    legacy or rust: the runtime of the ZFSBootMenu images
+                    (default legacy); with rust, image and result names end
+                    in -rust (the runtime tests choose their runtime
+                    themselves)
 """
 
 import json
@@ -36,6 +41,7 @@ IMAGE = os.environ.get("ZBMTEST_IMAGE", "localhost/zbm-builder")
 RUNTIME = os.environ.get("ZBMTEST_RUNTIME") or ("docker" if shutil.which("docker") else "podman")
 ACCEL = os.environ.get("ZBMTEST_ACCEL") or ("kvm" if os.access("/dev/kvm", os.W_OK) else "tcg")
 REUSE = os.environ.get("ZBMTEST_REUSE") == "1"
+ZBM_RUNTIME = os.environ.get("ZBMTEST_ZBM_RUNTIME") or "legacy"
 
 OVMF_CODE = "/usr/share/OVMF/OVMF_CODE_4M.fd"
 OVMF_VARS = "/usr/share/OVMF/OVMF_VARS_4M.fd"
@@ -61,6 +67,8 @@ class Test:
     """Collects steps and checks of one test and writes its result."""
 
     def __init__(self, name):
+        if ZBM_RUNTIME == "rust" and not name.startswith("runtime-"):
+            name += "-rust"
         self.name = name
         self.fails = []
         self.passes = 0
@@ -280,7 +288,8 @@ def be_kver():
     return (WORK / "payload" / "kver").read_text().strip()
 
 
-def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=False, rc=None):
+def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=False, rc=None,
+              runtime=None):
     """
     Build a ZFSBootMenu test image with the build container from this source
     tree. Returns a dict with paths of kernel, initrd and (if efi) EFI image.
@@ -291,7 +300,11 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
       conf      extra dracut configuration lines
       cmdline   Kernel.CommandLine of the EFI image
       rc        shell script run in the container before the build (rc.d)
+      runtime   legacy or rust (default: ZBMTEST_ZBM_RUNTIME)
     """
+    if (runtime or ZBM_RUNTIME) == "rust":
+        variant += "-rust"
+        conf += '\nzfsbootmenu_runtime="rust"'
     bdir = WORK / "zbm" / variant
     out = {"kernel": bdir / "build" / "vmlinuz-bootmenu",
            "initrd": bdir / "build" / "initramfs-bootmenu.img",
@@ -566,6 +579,8 @@ BOOT_PROMPTS = {
     "menu": r"edit kcl",
     "be_ask": r"Please enter passphrase for disk|Enter passphrase for /dev/",
     "be_zfskey": r"(?:Enter passphrase for|Encrypted ZFS password for) [a-z]+/ROOT",
+    # The Rust runtime, where it cannot handle something yet
+    "refused": r"not supported by this build of ZFSBootMenu yet: ([^\r\n]*)",
 }
 
 
@@ -608,7 +623,8 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400, menu=False):
     answers = {k: list(v) for k, v in (answers or {}).items()}
     on = on or {}
     b = Boot()
-    kinds = ["luks", "zfskey", "tpm2pin", "gpg", "missing", "retry", "status", "keyload", "emergency"]
+    kinds = ["luks", "zfskey", "tpm2pin", "gpg", "missing", "retry", "status", "keyload", "emergency",
+             "refused"]
     if menu:
         kinds.append("menu")
     while True:
@@ -618,6 +634,10 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400, menu=False):
             break
         if kind == "keyload":
             b.prompts.append("keyload-failed")
+            return b
+        if kind == "refused":
+            b.prompts.append("refused")
+            vm.t.step(f"the Rust runtime cannot handle this yet: {clean(vm.match.group(1)).strip()}")
             return b
         if kind == "menu":
             b.prompts.append("menu")

@@ -17,7 +17,6 @@ use zbm_core::exec::{Command, Input, Signal, Stream};
 use zbm_core::shell::{read_lines, test_integer};
 use zbm_log::read::read_logs;
 use zbm_state::State;
-use zbm_system::files::FileKind;
 use zbm_system::{KernelLog, System};
 
 use crate::boot::{self, BootSettings};
@@ -25,7 +24,7 @@ use crate::import::{self, Import, Settings};
 use crate::kernels::Kernel;
 use crate::prompt::{Answer, TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
-use crate::support::{self, Facts, LuksMode, Unsupported};
+use crate::support::{self, Facts, Unsupported};
 use crate::{devices, hooks, hostid, modules};
 
 /// The start-up stages, in order, with the names of the legacy scripts.
@@ -66,37 +65,23 @@ pub fn command_exists(system: &System<'_>, name: &str) -> bool {
     system.command_exists(name)
 }
 
-/// The LUKS volumes on the machine, as `luks_discover_devices` lists them.
-pub fn luks_volumes(system: &System<'_>) -> Vec<String> {
-    let blkid = Command::new("blkid")
-        .args(["-c", "/dev/null", "-o", "device", "-t", "TYPE=crypto_LUKS"])
-        .stderr(Stream::Null);
-    let output = system
+/// Runs `zluks unlock` in a process of its own, as the legacy stage runs
+/// `luks_unlock_all` in a subshell, so that passphrases entered at the console
+/// do not stay in this program's memory; `retry` marks a retry of the import
+/// loop (`LUKS_RETRY=1`). Returns whether it succeeded.
+pub fn zluks_unlock(system: &System<'_>, retry: bool) -> bool {
+    let mut command = Command::new("zluks")
+        .arg("unlock")
+        .stdin(Input::Inherit)
+        .stdout(Stream::Inherit)
+        .stderr(Stream::Inherit);
+    if retry {
+        command = command.env("LUKS_RETRY", "1");
+    }
+    system
         .runner
-        .run(&blkid)
-        .map(|output| output.stdout_text())
-        .unwrap_or_default();
-    let mut volumes: Vec<String> = read_lines(&format!(
-        "{}\n",
-        zbm_core::shell::command_substitution(&output)
-    ))
-    .into_iter()
-    .filter(|device| {
-        system
-            .files
-            .metadata(Path::new(device))
-            .is_ok_and(|metadata| metadata.kind == FileKind::BlockDevice)
-    })
-    .map(|device| {
-        system
-            .files
-            .canonicalize(Path::new(&device))
-            .map_or(device, |path| path.to_string_lossy().into_owned())
-    })
-    .collect();
-    volumes.sort();
-    volumes.dedup();
-    volumes
+        .run(&command)
+        .is_ok_and(|output| output.status.success())
 }
 
 /// The recovery shell and late LUKS volumes of the start-up program.
@@ -104,27 +89,15 @@ pub struct Shell<'s, 'a> {
     system: System<'a>,
     state: &'s State<'a>,
     log: &'s KernelLog<'a>,
-    luks: LuksMode,
 }
 
 impl<'s, 'a> Shell<'s, 'a> {
-    /// The recovery shell of `system`; `luks` decides whether LUKS volumes
-    /// that appear late are looked for.
-    pub fn new(
-        system: System<'a>,
-        state: &'s State<'a>,
-        log: &'s KernelLog<'a>,
-        luks: LuksMode,
-    ) -> Shell<'s, 'a> {
-        Shell {
-            system,
-            state,
-            log,
-            luks,
-        }
+    /// The recovery shell of `system`.
+    pub fn new(system: System<'a>, state: &'s State<'a>, log: &'s KernelLog<'a>) -> Shell<'s, 'a> {
+        Shell { system, state, log }
     }
 
-    /// Logs each thing the Phase 5 runtime cannot handle as an error and opens
+    /// Logs each thing the runtime cannot handle yet as an error and opens
     /// the recovery shell, if there is any. Returns whether there was.
     pub fn refuse(&mut self, list: &[Unsupported]) -> bool {
         if list.is_empty() {
@@ -139,16 +112,11 @@ impl<'s, 'a> Shell<'s, 'a> {
 }
 
 impl Recovery for Shell<'_, '_> {
-    /// LUKS volumes cannot be unlocked yet: volumes that appear late are
-    /// reported, and none is opened.
+    /// Unlocks LUKS volumes on disks that appeared late
+    /// (`zbm_luks_unlock_late`): `zluks unlock` as a retry, which succeeds only
+    /// if it opened a volume.
     fn unlock_late(&mut self) -> bool {
-        if self.luks == LuksMode::Auto {
-            let volumes = luks_volumes(&self.system);
-            if !volumes.is_empty() {
-                self.refuse(&[Unsupported::LuksVolumes(volumes)]);
-            }
-        }
-        false
+        self.system.command_exists("cryptsetup") && zluks_unlock(&self.system, true)
     }
 
     /// `emergency_shell`: a banner with the message and the errors logged since
@@ -224,7 +192,6 @@ pub struct Startup<'a> {
     args: ZbmArgs,
     release_build: bool,
     hooks: PathBuf,
-    luks: LuksMode,
 }
 
 impl<'a> Startup<'a> {
@@ -240,9 +207,6 @@ impl<'a> Startup<'a> {
             .read_to_string(&base.join("zbm.cmdline"))
             .unwrap_or_default();
         let args = ZbmArgs::from_kcl(&kcl);
-        let cryptsetup = command_exists(&system, "cryptsetup");
-        let crypttab = system.files.read(Path::new(support::CRYPTTAB)).is_ok();
-        let luks = LuksMode::decide(args.get("zbm.luks"), crypttab, cryptsetup);
         Startup {
             system,
             state,
@@ -251,7 +215,6 @@ impl<'a> Startup<'a> {
             args,
             release_build: !conf.get("ZBM_RELEASE_BUILD").unwrap_or_default().is_empty(),
             hooks: PathBuf::from(hooks::HOOKS),
-            luks,
         }
     }
 
@@ -262,7 +225,7 @@ impl<'a> Startup<'a> {
     }
 
     fn shell(&self) -> Shell<'_, 'a> {
-        Shell::new(self.system, &self.state, &self.log, self.luks)
+        Shell::new(self.system, &self.state, &self.log)
     }
 
     fn import_settings(&self) -> Settings {
@@ -277,11 +240,7 @@ impl<'a> Startup<'a> {
     }
 
     fn facts(&self) -> Facts {
-        Facts {
-            luks: Some(self.luks),
-            load_key_hooks: hooks::executable_hooks(self.system.files, &self.hooks, "load-key.d"),
-            ..Facts::default()
-        }
+        Facts::from_files(self.system.files, &self.hooks)
     }
 
     /// Runs the program. Without the console mode it returns after the stages;
@@ -291,27 +250,15 @@ impl<'a> Startup<'a> {
         let _ = self.state.create();
         boot::mount_efivarfs(&self.system, &self.log, "ro");
 
-        let pending = STAGES.iter().any(|stage| {
-            modes.force
-                || !self
-                    .state
-                    .finished_stages()
-                    .iter()
-                    .any(|done| done == stage)
-        });
-        let refused = pending && self.shell().refuse(&support::before_start(&self.facts()));
-        let mut bootfs = None;
-        if !refused {
-            bootfs = self.run_stages(modes.force);
-            if let Err(error) = self.state.mark_initialized() {
-                self.log.error(error.to_string());
-            }
+        let bootfs = self.run_stages(modes.force);
+        if let Err(error) = self.state.mark_initialized() {
+            self.log.error(error.to_string());
         }
         if !modes.console {
             return 0;
         }
         let bootfs = bootfs.or_else(|| self.state.bootfs());
-        if !refused && !modes.resume {
+        if !modes.resume {
             self.countdown(bootfs.as_deref());
         }
         if self.state.is_active() {
@@ -362,11 +309,11 @@ impl<'a> Startup<'a> {
                     );
                 }
                 "45-luks-unlock" => {
-                    if self.luks == LuksMode::Auto {
-                        let volumes = luks_volumes(system);
-                        if !volumes.is_empty() {
-                            shell.refuse(&[Unsupported::LuksVolumes(volumes)]);
-                        }
+                    // A hook may have provided key files or unlocked volumes
+                    // itself.
+                    if system.command_exists("cryptsetup") {
+                        zluks_unlock(system, false);
+                        tput(system, &["clear"]);
                     }
                 }
                 _ => {
@@ -390,7 +337,7 @@ impl<'a> Startup<'a> {
         let timeout = test_integer(&self.options.menu_timeout);
         let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
             self.shell()
-                .refuse(&support::before_boot(&self.options, &facts));
+                .refuse(&support::unsupported(&self.options, &facts));
             return;
         };
 
@@ -408,7 +355,7 @@ impl<'a> Startup<'a> {
         if answer == Answer::Escape {
             facts.countdown_interrupted = true;
             self.shell()
-                .refuse(&support::before_boot(&self.options, &facts));
+                .refuse(&support::unsupported(&self.options, &facts));
             return;
         }
         // Someone took over over SSH: do not boot.
@@ -421,7 +368,7 @@ impl<'a> Startup<'a> {
         facts.locked_encryption_root = boot::locked_root(system.runner, &self.log, bootfs);
         if self
             .shell()
-            .refuse(&support::before_boot(&self.options, &facts))
+            .refuse(&support::unsupported(&self.options, &facts))
         {
             return;
         }
@@ -565,7 +512,7 @@ mod tests {
             let fake = machine();
             let state = State::new(&fake.files, "/zfsbootmenu");
             let log = KernelLog::new(&fake.files, "4", Path::new("/zfsbootmenu"), 1);
-            Shell::new(fake.system(), &state, &log, LuksMode::Unavailable).emergency_shell(message);
+            Shell::new(fake.system(), &state, &log).emergency_shell(message);
             assert_eq!(
                 fake.console.output_text(),
                 legacy.stdout_text(),
@@ -678,22 +625,10 @@ mod tests {
 
     #[test]
     fn what_the_minimal_runtime_refuses() {
-        // LUKS volumes from the command line: no stage runs.
-        let fake = machine();
-        fake.environment.set("PATH", "/sbin");
-        fake.files
-            .file_with_mode("/sbin/cryptsetup", "", 0o755)
-            .file("/zfsbootmenu/zbm.cmdline", "zbm.luks=UUID=1234\n");
         let console = Modes {
             console: true,
             ..Modes::default()
         };
-        startup(&fake, "zbm.luks=UUID=1234").run(console, Some(1));
-        assert!(!has(&fake, "modprobe zfs"));
-        assert!(!State::new(&fake.files, "/zfsbootmenu").is_initialized());
-        assert!(fake.kmsg().contains("LUKS volumes from zbm.luks"));
-        assert_eq!(shells(&fake).len(), 2);
-
         // The menu.
         let fake = machine();
         startup(&fake, "zbm.show").run(console, Some(0));
@@ -799,19 +734,55 @@ mod tests {
     }
 
     #[test]
-    fn late_luks_volumes_are_refused() {
+    fn luks_volumes_are_unlocked_by_zluks() {
         let fake = machine();
         fake.environment.set("PATH", "/sbin");
-        fake.files
-            .file_with_mode("/sbin/cryptsetup", "", 0o755)
-            .block_device("/dev/sdb2");
-        fake.runner.respond(
-            "blkid -c /dev/null -o device -t TYPE=crypto_LUKS",
-            0,
-            "/dev/sdb2\n",
+        fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
+        startup(&fake, "zbm.luks=UUID=1234").run(Modes::default(), Some(0));
+        let calls = fake.runner.calls();
+        let zluks = calls
+            .iter()
+            .find(|call| call.program() == "zluks")
+            .expect("zluks ran");
+        assert_eq!(zluks.display(), "zluks unlock");
+        assert_eq!(*zluks.get_stdin(), Input::Inherit);
+        assert!(zluks.get_env().is_empty());
+        // After the stage, before the import.
+        let lines = fake.runner.lines();
+        let unlock = lines
+            .iter()
+            .position(|line| line == "zluks unlock")
+            .unwrap();
+        assert_eq!(lines[unlock + 1], "tput clear");
+        assert!(
+            lines[unlock..]
+                .iter()
+                .any(|line| line.starts_with("zpool import"))
         );
+        assert!(!fake.kmsg().contains(support::MESSAGE));
+
+        // Without cryptsetup there is nothing to unlock.
+        let fake = machine();
         startup(&fake, "quiet").run(Modes::default(), Some(0));
-        assert!(fake.kmsg().contains("LUKS volumes: /dev/sdb2"));
-        assert_eq!(shells(&fake).len(), 1);
+        assert!(!has(&fake, "zluks unlock"));
+    }
+
+    #[test]
+    fn late_luks_volumes_are_unlocked_as_retries() {
+        let fake = machine();
+        fake.environment.set("PATH", "/sbin");
+        fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
+        fake.runner.respond("zluks unlock", 1, "");
+        let mut shell = Shell::new(fake.system(), &state, &log);
+        assert!(!shell.unlock_late());
+        let retry = fake.runner.calls().pop().unwrap();
+        assert_eq!(retry.display(), "zluks unlock");
+        assert_eq!(retry.get_env(), [("LUKS_RETRY".into(), Some("1".into()))]);
+        let fake = machine();
+        let mut shell = Shell::new(fake.system(), &state, &log);
+        assert!(!shell.unlock_late());
+        assert!(fake.runner.calls().is_empty());
     }
 }

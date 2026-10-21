@@ -311,7 +311,7 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
 **zfsbootmenu_runtime=legacy**
 
-  Select the runtime that the image boots with: *legacy*, the shell implementation, which is the default, or *rust*, the Rust runtime that is being written to replace it. The Rust runtime needs **zbm** (see **zfsbootmenu_zbm**). So far it imports unencrypted pools, with every import option, and boots the default boot environment, as the legacy runtime does with **zbm.skip**; where a machine needs more (LUKS volumes, a locked encryption root or the menu), it logs what it cannot handle yet and opens the recovery shell. Any other value stops the image build with an error.
+  Select the runtime that the image boots with: *legacy*, the shell implementation, which is the default, or *rust*, the Rust runtime that is being written to replace it. The Rust runtime needs **zbm** (see **zfsbootmenu_zbm**). So far it unlocks LUKS volumes, with every key method and **zluks**, imports pools, with every import option, and boots the default boot environment, as the legacy runtime does with **zbm.skip**; where a machine needs more (a locked encryption root, **load-key.d** hooks or the menu), it logs what it cannot handle yet and opens the recovery shell. Any other value stops the image build with an error.
 
 **zfsbootmenu_zbm=<path>**
 

@@ -1,12 +1,12 @@
-//! What the minimal runtime of Phase 5 cannot handle yet.
+//! What the runtime cannot handle yet.
 //!
-//! The Phase 5 runtime boots only the default boot environment of an
+//! The Phase 5 runtime booted only the default boot environment of an
 //! unencrypted pool; package A of Phase 6 added every start-up and import
-//! option. Before it does anything the legacy runtime would do differently, it
-//! lists what it cannot handle with [`unsupported`] and, if the list is not
-//! empty, logs each item and opens the recovery shell (see "The minimal runtime
-//! of Phase 5" in `crates/DESIGN.md`). Phase 6 shortens the list as its
-//! packages arrive.
+//! option, and package B LUKS volumes. Before booting, the runtime lists what
+//! it still cannot handle with [`unsupported`] and, if the list is not empty,
+//! logs each item and opens the recovery shell (see "The minimal runtime of
+//! Phase 5" in `crates/DESIGN.md`). Phase 6 shortens the list as its packages
+//! arrive.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -20,53 +20,9 @@ use crate::hooks;
 /// The message of the recovery shell when something is not supported yet.
 pub const MESSAGE: &str = "not supported by this build of ZFSBootMenu yet";
 
-/// Where the image keeps its crypttab.
-pub const CRYPTTAB: &str = "/etc/zfsbootmenu/crypttab";
-
-/// How the legacy runtime would choose LUKS volumes (`luks_load_config` and
-/// `init.d/45-luks-unlock`).
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LuksMode {
-    /// The image has no `cryptsetup`, so LUKS is never tried.
-    Unavailable,
-    /// `zbm.luks=off` (or `no`, `none`, `0`, `false`, `disable`, `disabled`).
-    Disabled,
-    /// Every LUKS volume found on the machine: `zbm.luks` empty, `auto`, `on`,
-    /// `yes`, `1` or `true`, or neither `zbm.luks` nor a crypttab.
-    Auto,
-    /// The volumes `zbm.luks` lists.
-    CommandLine,
-    /// The volumes of the crypttab.
-    Crypttab,
-}
-
-impl LuksMode {
-    /// The mode for the value of `zbm.luks` (if given), whether the crypttab
-    /// is readable, and whether the image has `cryptsetup`, in the legacy
-    /// order of checks.
-    pub fn decide(zbm_luks: Option<&str>, crypttab: bool, cryptsetup: bool) -> LuksMode {
-        if !cryptsetup {
-            return LuksMode::Unavailable;
-        }
-        match zbm_luks.map(str::to_lowercase).as_deref() {
-            Some("off" | "no" | "none" | "0" | "false" | "disable" | "disabled") => {
-                LuksMode::Disabled
-            }
-            Some("" | "auto" | "on" | "yes" | "1" | "true") => LuksMode::Auto,
-            Some(_) => LuksMode::CommandLine,
-            None if crypttab => LuksMode::Crypttab,
-            None => LuksMode::Auto,
-        }
-    }
-}
-
 /// What the runtime found out about the machine before booting.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Facts {
-    /// How LUKS volumes would be chosen; `None` counts as unavailable.
-    pub luks: Option<LuksMode>,
-    /// The LUKS volumes found on the machine, for [`LuksMode::Auto`].
-    pub luks_volumes: Vec<String>,
     /// The executable `load-key.d` hooks.
     pub load_key_hooks: Vec<PathBuf>,
     /// The default boot environment (`bootfs`), if one was found.
@@ -78,30 +34,18 @@ pub struct Facts {
 }
 
 impl Facts {
-    /// Fills in what the files tell: the hooks below `hooks_root` and whether
-    /// the crypttab is readable, for the given `zbm.luks` and `cryptsetup`.
-    pub fn from_files(
-        files: &dyn Files,
-        hooks_root: &Path,
-        zbm_luks: Option<&str>,
-        cryptsetup: bool,
-    ) -> Facts {
-        let crypttab = files.read(Path::new(CRYPTTAB)).is_ok();
+    /// Fills in what the files tell: the hooks below `hooks_root`.
+    pub fn from_files(files: &dyn Files, hooks_root: &Path) -> Facts {
         Facts {
-            luks: Some(LuksMode::decide(zbm_luks, crypttab, cryptsetup)),
             load_key_hooks: hooks::executable_hooks(files, hooks_root, "load-key.d"),
             ..Facts::default()
         }
     }
 }
 
-/// One thing the Phase 5 runtime cannot handle yet.
+/// One thing the runtime cannot handle yet.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Unsupported {
-    /// LUKS volumes from a crypttab or `zbm.luks`.
-    LuksConfiguration(LuksMode),
-    /// LUKS volumes found on the machine.
-    LuksVolumes(Vec<String>),
     /// `load-key.d` hooks.
     LoadKeyHooks(Vec<PathBuf>),
     /// A locked encryption root.
@@ -114,13 +58,6 @@ pub enum Unsupported {
 impl fmt::Display for Unsupported {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Unsupported::LuksConfiguration(LuksMode::Crypttab) => {
-                write!(formatter, "LUKS volumes from {CRYPTTAB}")
-            }
-            Unsupported::LuksConfiguration(_) => formatter.write_str("LUKS volumes from zbm.luks"),
-            Unsupported::LuksVolumes(volumes) => {
-                write!(formatter, "LUKS volumes: {}", volumes.join(", "))
-            }
             Unsupported::LoadKeyHooks(hooks) => {
                 let names: Vec<String> = hooks
                     .iter()
@@ -136,33 +73,10 @@ impl fmt::Display for Unsupported {
     }
 }
 
-/// Everything in `options` and `facts` that the Phase 5 runtime cannot handle
-/// yet, in the order the legacy start-up meets it: [`before_start`], then
-/// [`before_boot`].
+/// Everything in `options` and `facts` that the runtime cannot handle yet: the
+/// menu, locked encryption roots and `load-key.d` hooks, in the order the
+/// legacy start-up meets them.
 pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
-    let mut list = before_start(facts);
-    list.extend(before_boot(options, facts));
-    list
-}
-
-/// What the start-up stages cannot handle yet: LUKS volumes.
-pub fn before_start(facts: &Facts) -> Vec<Unsupported> {
-    let mut list = Vec::new();
-    match facts.luks.unwrap_or(LuksMode::Unavailable) {
-        mode @ (LuksMode::CommandLine | LuksMode::Crypttab) => {
-            list.push(Unsupported::LuksConfiguration(mode));
-        }
-        LuksMode::Auto if !facts.luks_volumes.is_empty() => {
-            list.push(Unsupported::LuksVolumes(facts.luks_volumes.clone()));
-        }
-        _ => {}
-    }
-    list
-}
-
-/// What booting the default boot environment cannot handle yet: the menu,
-/// locked encryption roots and `load-key.d` hooks.
-pub fn before_boot(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     let mut list = Vec::new();
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
@@ -194,7 +108,6 @@ mod tests {
 
     fn supported() -> Facts {
         Facts {
-            luks: Some(LuksMode::Auto),
             bootfs: Some("tank/ROOT/void".to_owned()),
             ..Facts::default()
         }
@@ -205,26 +118,15 @@ mod tests {
         assert_eq!(unsupported(&options(""), &supported()), []);
         assert_eq!(unsupported(&options("zbm.timeout=0"), &supported()), []);
         assert_eq!(unsupported(&options("zbm.skip"), &supported()), []);
-        assert_eq!(
-            unsupported(
-                &options("zbm.luks=off zbm.import_policy=hostid"),
-                &supported()
-            ),
-            []
-        );
-        let none = Facts {
-            luks: None,
-            ..supported()
-        };
-        assert_eq!(unsupported(&options(""), &none), []);
     }
 
     #[test]
-    fn start_up_and_import_options_are_supported() {
+    fn start_up_import_and_luks_options_are_supported() {
         let list = unsupported(
             &options(concat!(
                 "zbm.wait_for=/dev/sda zbm.hookroot=tank/hooks ",
-                "zbm.import_policy=strict zbm.prefer=tank/ROOT/x! zbm.force_import",
+                "zbm.import_policy=strict zbm.prefer=tank/ROOT/x! zbm.force_import ",
+                "zbm.luks=UUID=1234 zbm.luks_key=/k zbm.luks_tokens=0",
             )),
             &supported(),
         );
@@ -256,9 +158,8 @@ mod tests {
     }
 
     #[test]
-    fn encryption_and_luks() {
+    fn encryption() {
         let facts = Facts {
-            luks_volumes: vec!["/dev/vda2".to_owned(), "/dev/vdb2".to_owned()],
             locked_encryption_root: Some("tank/ROOT".to_owned()),
             load_key_hooks: vec![PathBuf::from("/libexec/hooks/load-key.d/10-key")],
             ..supported()
@@ -270,50 +171,10 @@ mod tests {
         assert_eq!(
             text,
             [
-                "LUKS volumes: /dev/vda2, /dev/vdb2",
                 "the locked encryption root tank/ROOT",
                 "load-key hooks: /libexec/hooks/load-key.d/10-key",
             ]
         );
-        for (mode, message) in [
-            (
-                LuksMode::Crypttab,
-                "LUKS volumes from /etc/zfsbootmenu/crypttab",
-            ),
-            (LuksMode::CommandLine, "LUKS volumes from zbm.luks"),
-        ] {
-            let facts = Facts {
-                luks: Some(mode),
-                ..supported()
-            };
-            assert_eq!(unsupported(&options(""), &facts)[0].to_string(), message);
-        }
-        // Volumes found while LUKS is off do not matter.
-        let off = Facts {
-            luks: Some(LuksMode::Disabled),
-            luks_volumes: vec!["/dev/vda2".to_owned()],
-            ..supported()
-        };
-        assert_eq!(unsupported(&options(""), &off), []);
-    }
-
-    #[test]
-    fn luks_modes_follow_the_legacy_order() {
-        use LuksMode::*;
-        assert_eq!(LuksMode::decide(Some("off"), true, false), Unavailable);
-        for value in ["off", "No", "NONE", "0", "false", "disable", "Disabled"] {
-            assert_eq!(
-                LuksMode::decide(Some(value), true, true),
-                Disabled,
-                "{value}"
-            );
-        }
-        for value in ["", "auto", "On", "yes", "1", "TRUE"] {
-            assert_eq!(LuksMode::decide(Some(value), true, true), Auto, "{value}");
-        }
-        assert_eq!(LuksMode::decide(Some("UUID=x"), true, true), CommandLine);
-        assert_eq!(LuksMode::decide(None, true, true), Crypttab);
-        assert_eq!(LuksMode::decide(None, false, true), Auto);
     }
 
     #[test]
@@ -321,17 +182,11 @@ mod tests {
         let files = FakeFiles::new();
         files.file_with_mode("/libexec/hooks/load-key.d/10-key", "", 0o755);
         files.file_with_mode("/libexec/hooks/load-key.d/20-off", "", 0o644);
-        let facts = Facts::from_files(&files, Path::new(hooks::HOOKS), None, true);
-        assert_eq!(facts.luks, Some(LuksMode::Auto));
+        let facts = Facts::from_files(&files, Path::new(hooks::HOOKS));
         assert_eq!(
             facts.load_key_hooks,
             [PathBuf::from("/libexec/hooks/load-key.d/10-key")]
         );
-        files.file(CRYPTTAB, "zfs0 PARTLABEL=zfs0 none\n");
-        let facts = Facts::from_files(&files, Path::new(hooks::HOOKS), None, true);
-        assert_eq!(facts.luks, Some(LuksMode::Crypttab));
-        let facts = Facts::from_files(&files, Path::new(hooks::HOOKS), Some("off"), true);
-        assert_eq!(facts.luks, Some(LuksMode::Disabled));
         assert_eq!(MESSAGE, "not supported by this build of ZFSBootMenu yet");
     }
 }

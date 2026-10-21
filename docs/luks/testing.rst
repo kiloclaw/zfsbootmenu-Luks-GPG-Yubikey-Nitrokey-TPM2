@@ -76,6 +76,9 @@ Variable                 Meaning
 ``ZBMTEST_REUSE``        ``1`` reuses ZFSBootMenu test images built earlier in the work directory
 ``ZBMTEST_OLD_KERNEL``,  kernel and initramfs of a ZFSBootMenu image with an older ZFS, for the ``oldzfs`` tests;
 ``ZBMTEST_OLD_INITRD``   those tests are skipped when unset, and pass the test images' host ID with ``spl_hostid=``
+``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
+                         image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
+                         choose their runtime themselves
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
@@ -88,11 +91,22 @@ The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool version
 each case to */tmp/z?/cases*.
 
 The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
-for the Bash libraries, ``rust`` for the Rust runtime of the port. Until the Rust runtime exists, ``ZBMTEST_IMPL=rust``
-makes every suite report that it is skipped. ``impl.sh`` also provides, and documents, every seam through which the
-suites observe and control the code under test: the log file, the recorded and answered timed prompts, the stand-ins
-for open volumes, and the operations the suites call. A new case uses only these seams, so that it runs against both
-implementations; the two cases that reach inside the legacy code are marked as legacy-only.
+for the Bash libraries, ``rust`` for the Rust runtime of the port. ``impl.sh`` also provides, and documents, every seam
+through which the suites observe and control the code under test: the log file, the recorded and answered timed
+prompts, the stand-ins for open volumes, and the six operations the suites call. A new case uses only these seams, so
+that it runs against both implementations; the cases that reach inside the legacy code are marked as legacy-only, and
+Rust unit tests cover them for the Rust runtime.
+
+With ``ZBMTEST_IMPL=rust``, the suites run a test build of ``zbm`` (the Cargo feature ``test-seams``), whose hidden
+command ``zbm-luks-test`` runs the operations with the seams. ``impl.sh`` uses ``ZBMTEST_ZBM``, by default
+*target/test-seams/debug/zbm*, and builds it with ``cargo`` when it is missing:
+
+.. code-block:: bash
+
+  $ CARGO_TARGET_DIR=target/test-seams cargo build -p zbm --features test-seams
+  # ZBMTEST_IMPL=rust tests/luks/unit/run-all.sh
+
+Images never contain the test build; CI checks that the release ``zbm`` has no ``zbm-luks-test`` command.
 
 Unit Suites
 -----------
@@ -350,6 +364,9 @@ Each fix of ZFSBootMenu's code has a regression test that fails without it.
 * Two sessions unlocking at the same time, such as the console and an SSH session, could record one volume
   twice, so ``zluks status`` listed it twice (15 of 200 rounds of the race test). Recording is now serialized
   (``edge.sh``).
+* A mapping was not recorded when its name, read as a pattern, matched one recorded earlier: ``a.b`` after ``axb``.
+  The teardown hook closes only recorded mappings, so such a volume stayed open, with its key in memory, when the boot
+  environment started. Names are now compared as text (``edge.sh``; found while porting the code to Rust).
 * With ``zbm.luks_token_wait=08`` or ``09``, ZFSBootMenu did not wait for the key device (a shell arithmetic
   error), and ``010`` waited 8 seconds instead of 10. The value is now read as a decimal number of up to six digits
   (``config.sh``).

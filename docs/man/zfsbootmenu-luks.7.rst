@@ -77,7 +77,8 @@ Secrets are reused within one unlock run, so the members of a mirror or RAIDZ vd
 * a TPM2 PIN that worked is tried once on other PIN-protected TPM2 tokens;
 * a GnuPG key file is decrypted only once.
 
-All of these live in RAM only, in a subshell, and are wiped when the run ends.
+All of these live in RAM only, in a subshell (with the Rust runtime, in the **zluks** process), and are wiped when
+the run ends.
 
 When a volume is unlocked from elsewhere while a prompt is waiting, for example with **zluks** over SSH, the prompt
 notices and moves on.
@@ -310,8 +311,9 @@ SECURITY
   recovery shell. Bind such tokens to PCR 7 with Secure Boot enabled, or require a PIN.
 * Every vdev that stores pool data must be encrypted: data, special, dedup, log and cache vdevs, and spares. An
   unencrypted log or cache device holds plaintext data.
-* Decrypted key material exists only in RAM, below */run*, and is removed when unlocking ends. GnuPG agents are stopped
-  after each use.
+* Decrypted key material exists only in RAM, below */run*, and is removed when unlocking ends; the Rust runtime
+  (**zfsbootmenu_runtime=rust**) keeps it in the memory of the unlocking process and writes it to no file. GnuPG
+  agents are stopped after each use.
 
 EXAMPLES
 ========

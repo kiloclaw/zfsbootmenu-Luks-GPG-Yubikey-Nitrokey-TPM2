@@ -415,16 +415,21 @@ install_zbm_core() {
   ret=0
   for cdir in lib libexec bin; do
     for cfile in "${zfsbootmenu_module_root}/${cdir}"/*; do
-      # The Rust runtime starts with zbm; the shell libraries and tools stay,
-      # for hooks and the recovery shell
-      if [ "${ZBM_RUNTIME}" = "rust" ] && [ "${cdir}/${cfile##*/}" = "libexec/zfsbootmenu-init" ]; then
-        continue
+      # The Rust runtime starts with zbm, and zbm is zluks; the shell
+      # libraries and the other tools stay, for hooks and the recovery shell
+      if [ "${ZBM_RUNTIME}" = "rust" ]; then
+        case "${cdir}/${cfile##*/}" in
+          libexec/zfsbootmenu-init|bin/zluks) continue ;;
+        esac
       fi
       zbm_install_file "${cfile}" "/${cdir}/${cfile##*/}" || ret=$?
     done
   done
 
-  [ "${ZBM_RUNTIME}" = "rust" ] && return $ret
+  if [ "${ZBM_RUNTIME}" = "rust" ]; then
+    ln -sf /libexec/zbm "${BUILDROOT}/bin/zluks" || ret=$?
+    return $ret
+  fi
 
   for cfile in "${zfsbootmenu_module_root}/init.d"/*; do
     zbm_install_file "${cfile}" "/libexec/init.d/${cfile##*/}" || ret=$?
@@ -509,6 +514,23 @@ install_zbm_hooks() {
     [ -d "${hsrc}" ] || continue
     populate_hook_dir "${hdir}" "${hsrc}"/* || ret=$?
   done
+
+  # The Rust runtime closes LUKS mappings with its own zluks
+  if [ "${ZBM_RUNTIME}" = "rust" ] && [ -e "${BUILDROOT}/libexec/hooks/teardown.d/80-luks-close.sh" ]; then
+    cat > "${BUILDROOT}/libexec/hooks/teardown.d/80-luks-close.sh" <<-'EOF'
+	#!/bin/bash
+	## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with
+	## zluks: the pools on them are exported first, and closing them makes the
+	## kernel wipe the dm-crypt volume keys before the new kernel starts.
+	##
+	## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh
+
+	command -v cryptsetup >/dev/null 2>&1 || exit 0
+	/bin/zluks close
+	exit 0
+	EOF
+    chmod 755 "${BUILDROOT}/libexec/hooks/teardown.d/80-luks-close.sh" || ret=$?
+  fi
 
   # Install user hooks via deprecated syntax first
 

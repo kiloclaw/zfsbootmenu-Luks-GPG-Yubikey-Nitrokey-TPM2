@@ -77,9 +77,7 @@ SIG_KEYS = ("SigBlk", "SigIgn", "SigCgt")
 def image(runtime, signals=False):
     files = {"hooks/early-setup.d/95-zbmtest-signals": SIGNALS_HOOK} if signals else None
     suffix = "-signals" if signals else ""
-    if runtime == "rust":
-        return zbm_image("rust" + suffix, conf='zfsbootmenu_runtime="rust"', files=files)
-    return zbm_image("auto" + suffix, files=files)
+    return zbm_image("auto" + suffix, files=files, runtime=runtime)
 
 
 def masks(text):
