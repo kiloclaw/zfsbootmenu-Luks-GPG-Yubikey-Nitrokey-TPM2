@@ -32,6 +32,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
 
 ## Legacy limitations the Rust runtime must not copy
 
+- [x] Kernels are ordered by the image's `sort -V`, which is GNU coreutils, uutils (images built in the build
+  container, Ubuntu 26.10) or BusyBox (mkinitcpio). uutils 0.12.0 and GNU 9.4 differ only for names where a version
+  part is `0` and another name has a dot followed by a letter at that place (`kernel-0`, `kernel-.X`).
+  **Rust:** done; `zbm_boot::kernels` orders like GNU coreutils, tested against GNU `sort -V`. BusyBox is still to be
+  compared (package C).
+
 - [ ] A salted TPM2 PIN (systemd 252 and later) reaches `openssl kdf` as an argument (`-kdfopt pass:<pin>`), the only
   way `openssl kdf` accepts it, so the legacy code keeps this until it is removed.
   **Rust (package B):** compute PBKDF2-HMAC-SHA256 and SHA-256 in the process (see "Secrets" in

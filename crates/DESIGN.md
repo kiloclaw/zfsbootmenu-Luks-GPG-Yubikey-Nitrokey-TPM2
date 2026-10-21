@@ -142,11 +142,13 @@ These are pure functions: they take text and values and return values, so unit t
 ### Version order
 
 The legacy runtime orders kernels with the `sort -V` of the image, which is not the same program in every image:
-dracut images include the host's GNU coreutils `sort`, and mkinitcpio images use BusyBox's where BusyBox provides one.
-The Rust runtime implements the order of GNU coreutils (`filevercmp`), the one most images use. Package C records
-kernel file names from real distributions and compares both programs on them; any difference is listed in
-`legacy/RUNTIME-CHANGES.md` as a known inconsistency of the legacy runtime, which the Rust runtime resolves in favour
-of GNU coreutils.
+dracut images include the host's `sort`, which is GNU coreutils on most distributions but uutils (0.12.0) in the
+build container, whose Ubuntu 26.10 ships the Rust coreutils, and mkinitcpio images use BusyBox's where BusyBox
+provides one. The Rust runtime implements the order of GNU coreutils (`filevercmp`, in `zbm_boot::kernels`), tested
+against GNU `sort -V` on generated names. On 2,745 kernel-like names, uutils differed from GNU only where a version
+part is `0` and another name has a dot followed by a letter at that place (`kernel-0` against `kernel-.X`); no
+distribution names kernels that way. `legacy/RUNTIME-CHANGES.md` lists this as a known inconsistency of the legacy
+runtime, and package C compares BusyBox on recorded kernel names.
 
 ## Process model
 
