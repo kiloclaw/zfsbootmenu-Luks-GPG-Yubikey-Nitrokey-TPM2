@@ -1,11 +1,12 @@
 //! What the minimal runtime of Phase 5 cannot handle yet.
 //!
 //! The Phase 5 runtime boots only the default boot environment of an
-//! unencrypted pool. Before it does anything the legacy runtime would do
-//! differently, it lists what it cannot handle with [`unsupported`] and, if the
-//! list is not empty, logs each item and opens the recovery shell (see "The
-//! minimal runtime of Phase 5" in `crates/DESIGN.md`). Phase 6 shortens the
-//! list as its packages arrive.
+//! unencrypted pool; package A of Phase 6 added every start-up and import
+//! option. Before it does anything the legacy runtime would do differently, it
+//! lists what it cannot handle with [`unsupported`] and, if the list is not
+//! empty, logs each item and opens the recovery shell (see "The minimal runtime
+//! of Phase 5" in `crates/DESIGN.md`). Phase 6 shortens the list as its
+//! packages arrive.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -105,14 +106,6 @@ pub enum Unsupported {
     LoadKeyHooks(Vec<PathBuf>),
     /// A locked encryption root.
     LockedEncryptionRoot(String),
-    /// An import policy other than the default, `hostid`.
-    ImportPolicy(String),
-    /// `zbm.prefer`.
-    PreferredPool(String),
-    /// `zbm.wait_for`.
-    WaitForDevices(String),
-    /// `zbm.hookroot`.
-    HookRoot(String),
     /// The menu: `zbm.show`, no default boot environment, or a key pressed during
     /// the countdown.
     Menu(&'static str),
@@ -138,12 +131,6 @@ impl fmt::Display for Unsupported {
             Unsupported::LockedEncryptionRoot(root) => {
                 write!(formatter, "the locked encryption root {root}")
             }
-            Unsupported::ImportPolicy(policy) => {
-                write!(formatter, "the import policy {policy}")
-            }
-            Unsupported::PreferredPool(pool) => write!(formatter, "zbm.prefer={pool}"),
-            Unsupported::WaitForDevices(devices) => write!(formatter, "zbm.wait_for={devices}"),
-            Unsupported::HookRoot(root) => write!(formatter, "zbm.hookroot={root}"),
             Unsupported::Menu(reason) => write!(formatter, "the menu ({reason})"),
         }
     }
@@ -153,23 +140,14 @@ impl fmt::Display for Unsupported {
 /// yet, in the order the legacy start-up meets it: [`before_start`], then
 /// [`before_boot`].
 pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
-    let mut list = before_start(options, facts);
+    let mut list = before_start(facts);
     list.extend(before_boot(options, facts));
     list
 }
 
-/// What the start-up stages cannot handle yet: options beyond the default
-/// boot and LUKS volumes.
-pub fn before_start(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
+/// What the start-up stages cannot handle yet: LUKS volumes.
+pub fn before_start(facts: &Facts) -> Vec<Unsupported> {
     let mut list = Vec::new();
-    if !options.wait_for_devices.is_empty() {
-        list.push(Unsupported::WaitForDevices(
-            options.wait_for_devices.clone(),
-        ));
-    }
-    if !options.hook_root.is_empty() {
-        list.push(Unsupported::HookRoot(options.hook_root.clone()));
-    }
     match facts.luks.unwrap_or(LuksMode::Unavailable) {
         mode @ (LuksMode::CommandLine | LuksMode::Crypttab) => {
             list.push(Unsupported::LuksConfiguration(mode));
@@ -178,17 +156,6 @@ pub fn before_start(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
             list.push(Unsupported::LuksVolumes(facts.luks_volumes.clone()));
         }
         _ => {}
-    }
-    if options.import_policy != "hostid" {
-        list.push(Unsupported::ImportPolicy(options.import_policy.clone()));
-    }
-    if !options.prefer_pool.is_empty() {
-        let prefer = if options.prefer_bootfs.is_empty() {
-            &options.prefer_pool
-        } else {
-            &options.prefer_bootfs
-        };
-        list.push(Unsupported::PreferredPool(prefer.clone()));
     }
     list
 }
@@ -253,32 +220,15 @@ mod tests {
     }
 
     #[test]
-    fn options_beyond_the_default_boot() {
+    fn start_up_and_import_options_are_supported() {
         let list = unsupported(
             &options(concat!(
                 "zbm.wait_for=/dev/sda zbm.hookroot=tank/hooks ",
-                "zbm.import_policy=force zbm.prefer=tank/ROOT/x!",
+                "zbm.import_policy=strict zbm.prefer=tank/ROOT/x! zbm.force_import",
             )),
             &supported(),
         );
-        let text: Vec<String> = list.iter().map(ToString::to_string).collect();
-        assert_eq!(
-            text,
-            [
-                "zbm.wait_for=/dev/sda",
-                "zbm.hookroot=tank/hooks",
-                "the import policy force",
-                "zbm.prefer=tank/ROOT/x",
-            ]
-        );
-        assert_eq!(
-            unsupported(&options("zbm.force_import"), &supported()),
-            [Unsupported::ImportPolicy("force".to_owned())]
-        );
-        assert_eq!(
-            unsupported(&options("zbm.prefer=tank"), &supported()),
-            [Unsupported::PreferredPool("tank".to_owned())]
-        );
+        assert_eq!(list, []);
     }
 
     #[test]

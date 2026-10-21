@@ -1126,6 +1126,64 @@ exit 0
     }
 
     #[test]
+    fn host_id_cases() {
+        // Two pools of different foreign hosts: the first match decides the host
+        // ID, and only pools of that host follow.
+        let outcome = Scenario {
+            pools: vec![
+                ("alpha", "id=1\nhostid=0000abcd\nbootfs=alpha/ROOT/a"),
+                ("beta", "id=2\nhostid=deadbeef"),
+                ("gamma", "id=3\nhostid=0000abcd"),
+            ],
+            hostid: Some([0x0c, 0xb1, 0xba, 0x00]),
+            settings: hostid_settings(),
+            ..Scenario::default()
+        }
+        .check();
+        assert_eq!(outcome.imported, "alpha\ngamma\n");
+        assert_eq!(outcome.spl_hostid_file.as_deref(), Some("0000abcd"));
+
+        // The pool's host ID is this machine's: no matching.
+        let outcome = Scenario {
+            pools: vec![("tank", "id=7\nhostid=00bab10c")],
+            hostid: Some([0x0c, 0xb1, 0xba, 0x00]),
+            settings: hostid_settings(),
+            ..Scenario::default()
+        }
+        .check();
+        assert_eq!(outcome.spl_hostid_file, None);
+
+        // Without /etc/hostid, a pool with a host ID is matched too.
+        let outcome = Scenario {
+            pools: vec![("tank", "id=7\nhostid=00bab10c")],
+            settings: hostid_settings(),
+            ..Scenario::default()
+        }
+        .check();
+        assert_eq!(outcome.etc_hostid, Some(vec![0x0c, 0xb1, 0xba, 0x00]));
+    }
+
+    #[test]
+    fn a_required_pool_that_never_appears() {
+        for policy in ["strict", "hostid"] {
+            let mut settings = hostid_settings();
+            settings.import_policy = policy.to_owned();
+            settings.prefer_pool = "missing".to_owned();
+            settings.require_pool = "only".to_owned();
+            let outcome = Scenario {
+                pools: vec![("other", "id=1\nbootfs=other/ROOT/a")],
+                settings,
+                escapes: vec![false, true],
+                on_shell: "printf 'id=9\\n' > pools/missing\n",
+                ..Scenario::default()
+            }
+            .check();
+            assert_eq!(outcome.prompts, 2, "{policy}");
+            assert_eq!(outcome.imported, "missing\n", "{policy}");
+        }
+    }
+
+    #[test]
     fn strict_and_forced_policies() {
         let mut settings = hostid_settings();
         settings.import_policy = "force".to_owned();

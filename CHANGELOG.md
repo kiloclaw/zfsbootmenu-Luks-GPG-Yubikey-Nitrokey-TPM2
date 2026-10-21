@@ -90,8 +90,9 @@ for these fixes:
 The first Rust runtime (Phase 5 of `PORT-ROADMAP.md`) can be selected with `zfsbootmenu_runtime=rust` in the dracut
 or mkinitcpio configuration, and needs `zbm`. It starts ZFSBootMenu as process 1 under a supervisor, runs the start-up
 stages (kernel modules, host ID, hooks, pool import), and boots the default boot environment of an unencrypted pool,
-as the legacy runtime does with `zbm.skip`. Where a machine needs more (LUKS volumes, a locked encryption root, the
-menu, or import options other than the defaults), it logs what it cannot handle yet and opens the recovery shell. The
+as the legacy runtime does with `zbm.skip`, with every start-up and import option (`zbm.import_policy`,
+`zbm.force_import`, `zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`, `zbm.skip_hooks`). Where a machine needs more (LUKS
+volumes, a locked encryption root or the menu), it logs what it cannot handle yet and opens the recovery shell. The
 legacy runtime stays the default; see `zfsbootmenu(7)`.
 
 ## ZFSBootMenu v3.1.0 (2026-01-01)

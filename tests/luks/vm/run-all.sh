@@ -23,6 +23,14 @@ ALL=(
   firmware-setup firmware-boot firmware-usbkey firmware-usblate firmware-nostick
   procedures
   runtime-setup runtime-legacy runtime-rust
+  runtime-legacy-hostid runtime-rust-hostid
+  runtime-legacy-strict runtime-rust-strict
+  runtime-legacy-force runtime-rust-force
+  runtime-legacy-prefer runtime-rust-prefer
+  runtime-legacy-late runtime-rust-late
+  runtime-legacy-waitfor runtime-rust-waitfor
+  runtime-legacy-hooks runtime-rust-hooks
+  runtime-legacy-signals runtime-rust-signals
 )
 
 tests=( "$@" )

@@ -173,7 +173,8 @@ packages, the port takes about 6 to 9 months.
 | 3. `generate-zbm` | Done |
 | 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
 | 5. Minimal bootable runtime | The Rust image boots the default boot environment of an unencrypted pool (VM test passes); left: CI runs only that test against the Rust image, not every suite yet, and the new CI job has not run on GitHub yet |
-| 6 to 8 | Not started |
+| 6. Complete the runtime | In progress: package A (start-up and pool import) done, except the upstream test VMs and the LUKS VM tests, which need a host with the ZFS module and package B; packages B to F not started |
+| 7 and 8 | Not started |
 
 **Delivered by phases 1 to 3:**
 
@@ -235,9 +236,8 @@ packages, the port takes about 6 to 9 months.
   `zbm.hookroot` and `zbm.skip_hooks` (`hooks`), and pool import (`import`) with its retries, host ID matching, every
   import policy, restricted pools, unsupported features and `bootfs`; with the timed prompt (`prompt`) they use.
   Parity tests run the legacy stages and functions against the same files, and the import stage against a fake
-  `zpool` shared by both, comparing the commands, the log and the state they leave. Options beyond the default boot
-  stay on the list of unsupported set-ups until the VM tests of package A pass against the Rust image; the system
-  report (`zreport`) that debugging output adds after import comes with package F.
+  `zpool` shared by both, comparing the commands, the log and the state they leave. The system report (`zreport`)
+  that debugging output adds after import comes with package F.
 - The boot: `zbm_boot::boot` mounts the default boot environment, finds and selects its kernel, runs the `boot-sel.d`
   and `teardown.d` hooks, exports the pools and runs `kexec`, with parity tests that run the legacy functions and the
   Rust ones against the same fake programs and hook scripts and compare every command, hook environment and log line.
@@ -248,6 +248,26 @@ packages, the port takes about 6 to 9 months.
 - `zfsbootmenu_runtime=rust` builds images that start the Rust runtime, with dracut and mkinitcpio. A new VM test
   (`tests/luks/vm/runtime.py`) boots an unencrypted pool's default boot environment with each runtime, and CI runs it:
   the legacy result decides, the Rust result is reported.
+
+**Phase 6, package A (start-up and pool import):**
+
+- Every start-up and import option now runs in the Rust runtime: `zbm.import_policy` (and `zbm.force_import`),
+  `zbm.prefer` with `!` and `!!`, `zbm.wait_for`, `zbm.hookroot` and `zbm.skip_hooks`. The Phase 5 runtime refused
+  them; only LUKS, locked encryption roots, `load-key.d` hooks and the menu are still refused.
+- `zbm_boot::resume` ports the resume check (`has_resume_device`, `resume_prompt`), with a parity test of the prompt,
+  its answers and the `noresume` marker.
+- More parity scenarios for the import loop: pools of two different foreign hosts, a pool of this host, no
+  `/etc/hostid`, and a required pool that never appears under the strict and the host ID policies. Unit tests cover the
+  order of the import loop with late LUKS volumes and the modes of the start-up program.
+- The runtime VM test (`tests/luks/vm/runtime.py`) gained scenarios for host ID matching, the strict and force
+  policies, `zbm.prefer`, disks that appear during the import retry loop or while `zbm.wait_for` waits, and
+  `zbm.hookroot` with `zbm.skip_hooks`, and a test that records the signal dispositions of a hook, `fzf` and the
+  recovery shell on the console. Each passed with the legacy image first, then with the Rust image, which reproduces
+  the dispositions of the hook and the recovery shell exactly; `fzf` comes with the menu (package E). CI runs them all.
+- Not done: the upstream test VMs (`tests/setup.sh`, `tests/run.sh`) need the ZFS kernel module on the host and are
+  interactive, so they could not run here; the LUKS VM tests that cover import policies, host IDs and late devices
+  need LUKS, which arrives with package B. The signal dispositions over SSH and of the chroot shell come with
+  packages D and F, which bring the chroot and remote access.
 
 **Deviations from the plan:**
 

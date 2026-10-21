@@ -115,7 +115,7 @@ jobs:
         run: sudo env ZBM_COMPARE_WORK=/tmp/zbm-compare scripts/dev/compare-generators.sh
 
   runtime:
-    name: Boot an unencrypted pool with each runtime
+    name: Start-up and pool import with each runtime
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
@@ -141,13 +141,17 @@ jobs:
       # The legacy image is the reference: its result decides (rules 2 and 5 of
       # PORT-ROADMAP.md)
       - name: Legacy runtime
-        run: sudo -E tests/luks/vm/run-all.sh runtime-setup runtime-legacy
+        run: >-
+          sudo -E tests/luks/vm/run-all.sh runtime-setup
+          runtime-legacy runtime-legacy-hostid runtime-legacy-strict runtime-legacy-force runtime-legacy-prefer runtime-legacy-late runtime-legacy-waitfor runtime-legacy-hooks runtime-legacy-signals
 
       # Results against the Rust image are reported, not required, until Phase 6
       # ends
       - name: Rust runtime
         continue-on-error: true
-        run: sudo -E tests/luks/vm/run-all.sh runtime-rust
+        run: >-
+          sudo -E tests/luks/vm/run-all.sh
+          runtime-rust runtime-rust-hostid runtime-rust-strict runtime-rust-force runtime-rust-prefer runtime-rust-late runtime-rust-waitfor runtime-rust-hooks runtime-rust-signals
 
       - name: Archive the test logs
         if: always()

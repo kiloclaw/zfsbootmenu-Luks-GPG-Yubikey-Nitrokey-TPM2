@@ -286,7 +286,8 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
     tree. Returns a dict with paths of kernel, initrd and (if efi) EFI image.
 
       crypttab  text of /etc/zfsbootmenu/crypttab, or None for none
-      files     {relative path in build dir: bytes} copied into the build dir
+      files     {relative path in build dir: bytes} copied into the build dir;
+                files below hooks/ are executable
       conf      extra dracut configuration lines
       cmdline   Kernel.CommandLine of the EFI image
       rc        shell script run in the container before the build (rc.d)
@@ -313,6 +314,8 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
         p = bdir / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
+        if rel.startswith("hooks/"):
+            p.chmod(0o755)
     if rc:
         (bdir / "rc.d").mkdir()
         (bdir / "rc.d" / "10-test").write_text("#!/bin/sh\nset -e\n" + rc + "\n")

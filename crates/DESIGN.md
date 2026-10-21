@@ -542,9 +542,10 @@ set-up with a pure function, which lists what it cannot handle yet:
 - a crypttab or `zbm.luks` and `zbm.luks_key` options, or LUKS volumes the legacy runtime would unlock;
 - an encryption root that is locked when its boot environment is chosen;
 - an executable hook in `load-key.d`, which only runs for locked encryption roots;
-- import options other than the default policy (`zbm.import_policy`, `zbm.prefer`, `zbm.force_import`,
-  `zbm.wait_for`), and `zbm.hookroot`;
-- any key press during the countdown, which in the legacy runtime opens the menu.
+- the menu: `zbm.show`, no default boot environment, or any key press during the countdown.
+
+Package A of Phase 6 removed the import options (`zbm.import_policy`, `zbm.prefer`, `zbm.force_import`,
+`zbm.wait_for`) and `zbm.hookroot` from the list, once their VM tests passed against the Rust image.
 
 Hooks themselves are not on the list: every image installs the bundled hooks (console set-up in `early-setup.d`, LUKS
 closing and xHCI unbinding in `teardown.d`), so the Phase 5 runtime already runs the `early-setup.d`, `boot-sel.d` and
@@ -554,16 +555,14 @@ with an environment is small, and leaving it out would leave the console unset a
 
 If the list is not empty, the runtime logs each item as an error and opens the recovery shell with the message
 `not supported by this build of ZFSBootMenu yet`, from which the user can boot by hand or switch to the legacy image.
-The options are checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import would unlock
-them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opens the recovery
+The LUKS configuration is checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import
+would unlock them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opens the recovery
 shell with the same message, and keeps doing so, importing pools again between shells as the legacy loop does. Phase 6
 removes items from the list as the packages arrive.
 
 Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
 recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and
-`init.d` are left out. The code for the options on the list (every import policy, `zbm.prefer`, `zbm.wait_for`,
-`zbm.hookroot`) is ported with parity tests, but stays refused until the VM tests of package A pass against the Rust
-image.
+`init.d` are left out.
 
 ## Freezing the legacy runtime
 

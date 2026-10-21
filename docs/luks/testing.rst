@@ -226,16 +226,25 @@ Following a boot
   the 2.4 set and with the property ``off``) and making the pool bootable, then reboots and checks the verification
   step.
 
-``runtime.py``: the default boot with each runtime, without LUKS
-  One unencrypted pool on one disk holds the test boot environment as its ``bootfs``. Both boots import the pool
-  read-only, run the bundled and test hooks and boot the boot environment after the countdown. The test runs
-  outside the LUKS groups because it checks the runtime itself (Phase 5 of ``PORT-ROADMAP.md``); the legacy boot is
-  the reference.
+``runtime.py``: start-up and pool import with each runtime, without LUKS
+  Two unencrypted pools hold the test boot environment as their ``bootfs``: ``tplain`` on one disk, exported by this
+  host, and ``tforeign`` on another, left imported by a host with the ID ``deadbeef``. The tests check the runtime
+  itself (Phase 5 and package A of Phase 6 in ``PORT-ROADMAP.md``); every scenario runs with the legacy image first,
+  which is the reference, then with an image built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``).
 
-  * ``runtime-setup``: creates the pool in the recovery shell of the legacy image.
-  * ``runtime-legacy``: boots it with the legacy runtime.
-  * ``runtime-rust``: boots it with an image built with ``zfsbootmenu_runtime="rust"``; process 1 must be the Rust
-    supervisor, and hooks must see ``BOOTFS``.
+  * ``runtime-setup``: creates the pools in the recovery shell of the legacy image.
+  * ``runtime-legacy``, ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
+    start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
+  * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
+  * ``-strict``: ``tforeign`` alone with ``zbm.import_policy=strict``: no import, the retry prompt appears.
+  * ``-force``: ``tforeign`` alone with ``zbm.import_policy=force``: imported at once.
+  * ``-prefer``: both pools with ``zbm.prefer=tplain!!``: only ``tplain`` is imported and booted.
+  * ``-late``: the disk of ``tplain`` is plugged in during the import retry loop.
+  * ``-waitfor``: ``zbm.wait_for`` names that disk, which is plugged in while ZFSBootMenu waits.
+  * ``-hooks``: ``zbm.hookroot`` adds a teardown hook from a FAT disk; ``zbm.skip_hooks`` disables a test hook.
+  * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook, of ``fzf`` in
+    the menu and of the recovery shell, on the console. The legacy run records them; the Rust run must reproduce
+    those of the hook and the shell (its menu arrives with package E).
 
 Results
 -------
@@ -268,37 +277,53 @@ The images were built by the build container from this source tree. When a test 
 fixed and the tests that exercise the changed code ran again on rebuilt images; the table lists the last run of each
 test. Durations are with software emulation and up to three virtual machines at a time.
 
-=========================  ======  ======  ========
-Test                       Passed  Failed  Duration
-=========================  ======  ======  ========
-``layouts-main``           44      0       16 min
-``layouts-parity``         37      0       21 min
-``layouts-parity-oldzfs``  16      0       8 min
-``complex-setup``          19      0       7 min
-``complex-healthy``        37      0       16 min
-``complex-crypttab``       36      0       15 min
-``complex-degraded``       30      0       16 min
-``complex-hotplug``        36      0       14 min
-``complex-hotplug-auto``   36      0       16 min
-``complex-badkey``         4       0       12 min
-``complex-skip-recover``   40      0       16 min
-``complex-oldzfs``         4       0       3 min
-``keys-setup``             9       0       3 min
-``keys-plugin``            13      0       6 min
-``keys-native``            13      0       8 min
-``keys-lockout``           13      0       8 min
-``keys-notpm``             13      0       8 min
-``firmware-setup``         3       0       2 min
-``firmware-boot``          14      0       3 min
-``firmware-usbkey``        14      0       3 min
-``firmware-usblate``       14      0       4 min
-``firmware-nostick``       14      0       4 min
-``procedures``             78      0       47 min
-``runtime-setup``          1       0       3 min
-``runtime-legacy``         15      0       4 min
-``runtime-rust``           15      0       4 min
-Total                      568     0
-=========================  ======  ======  ========
+==========================  ======  ======  ========
+Test                        Passed  Failed  Duration
+==========================  ======  ======  ========
+``layouts-main``            44      0       16 min
+``layouts-parity``          37      0       21 min
+``layouts-parity-oldzfs``   16      0       8 min
+``complex-setup``           19      0       7 min
+``complex-healthy``         37      0       16 min
+``complex-crypttab``        36      0       15 min
+``complex-degraded``        30      0       16 min
+``complex-hotplug``         36      0       14 min
+``complex-hotplug-auto``    36      0       16 min
+``complex-badkey``          4       0       12 min
+``complex-skip-recover``    40      0       16 min
+``complex-oldzfs``          4       0       3 min
+``keys-setup``              9       0       3 min
+``keys-plugin``             13      0       6 min
+``keys-native``             13      0       8 min
+``keys-lockout``            13      0       8 min
+``keys-notpm``              13      0       8 min
+``firmware-setup``          3       0       2 min
+``firmware-boot``           14      0       3 min
+``firmware-usbkey``         14      0       3 min
+``firmware-usblate``        14      0       4 min
+``firmware-nostick``        14      0       4 min
+``procedures``              78      0       47 min
+``runtime-setup``           3       0       1 min
+``runtime-legacy``          15      0       4 min
+``runtime-rust``            15      0       4 min
+``runtime-legacy-hostid``   15      0       5 min
+``runtime-rust-hostid``     15      0       4 min
+``runtime-legacy-strict``   2       0       1 min
+``runtime-rust-strict``     2       0       1 min
+``runtime-legacy-force``    3       0       1 min
+``runtime-rust-force``      3       0       1 min
+``runtime-legacy-prefer``   16      0       5 min
+``runtime-rust-prefer``     16      0       4 min
+``runtime-legacy-late``     15      0       3 min
+``runtime-rust-late``       15      0       5 min
+``runtime-legacy-waitfor``  15      0       3 min
+``runtime-rust-waitfor``    15      0       4 min
+``runtime-legacy-hooks``    13      0       3 min
+``runtime-rust-hooks``      13      0       3 min
+``runtime-legacy-signals``  3       0       1 min
+``runtime-rust-signals``    9       0       1 min
+Total                       740     0
+==========================  ======  ======  ========
 
 Problems found and fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~

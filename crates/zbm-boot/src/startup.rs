@@ -305,10 +305,7 @@ impl<'a> Startup<'a> {
                     .iter()
                     .any(|done| done == stage)
         });
-        let refused = pending
-            && self
-                .shell()
-                .refuse(&support::before_start(&self.options, &self.facts()));
+        let refused = pending && self.shell().refuse(&support::before_start(&self.facts()));
         let mut bootfs = None;
         if !refused {
             bootfs = self.run_stages(modes.force);
@@ -687,16 +684,20 @@ mod tests {
 
     #[test]
     fn what_the_minimal_runtime_refuses() {
-        // An option the stages do not handle yet: no stage runs.
+        // LUKS volumes from the command line: no stage runs.
         let fake = machine();
+        fake.environment.set("PATH", "/sbin");
+        fake.files
+            .file_with_mode("/sbin/cryptsetup", "", 0o755)
+            .file("/zfsbootmenu/zbm.cmdline", "zbm.luks=UUID=1234\n");
         let console = Modes {
             console: true,
             ..Modes::default()
         };
-        startup(&fake, "zbm.wait_for=/dev/sda").run(console, Some(1));
+        startup(&fake, "zbm.luks=UUID=1234").run(console, Some(1));
         assert!(!has(&fake, "modprobe zfs"));
         assert!(!State::new(&fake.files, "/zfsbootmenu").is_initialized());
-        assert!(fake.kmsg().contains("zbm.wait_for=/dev/sda"));
+        assert!(fake.kmsg().contains("LUKS volumes from zbm.luks"));
         assert_eq!(shells(&fake).len(), 2);
 
         // The menu.
@@ -728,6 +729,37 @@ mod tests {
                 .iter()
                 .any(|line| line.starts_with("mount"))
         );
+    }
+
+    #[test]
+    fn start_up_and_import_options_run_through() {
+        let fake = machine();
+        fake.files
+            .device("/dev/sda")
+            .device("/dev/disk/by-label/hooks");
+        fake.runner
+            .respond("zpool list -H -o bootfs tank", 0, "tank/ROOT/void\n");
+        fake.runner.respond(
+            "zfs list -H -o name -t filesystem tank/ROOT/void",
+            0,
+            "tank/ROOT/void\n",
+        );
+        let cmdline = concat!(
+            "loglevel=7 zbm.wait_for=/dev/sda zbm.import_policy=force ",
+            "zbm.prefer=tank/ROOT/void! zbm.hookroot=LABEL=hooks//zbm",
+        );
+        startup(&fake, cmdline).run(Modes::default(), Some(0));
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        assert_eq!(state.finished_stages(), STAGES);
+        assert_eq!(state.bootfs().as_deref(), Some("tank/ROOT/void"));
+        for line in [
+            "zpool import -N -f -o readonly=on tank",
+            "mount -r LABEL=hooks /zfsbootmenu/.external_hooks",
+        ] {
+            assert!(has(&fake, line), "{line}");
+        }
+        assert!(shells(&fake).is_empty());
+        assert!(!fake.kmsg().contains(support::MESSAGE));
     }
 
     #[test]
