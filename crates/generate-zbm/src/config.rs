@@ -197,7 +197,7 @@ fn float_to_int(number: f64) -> i64 {
 
 /// The number at the start of a string, as Perl reads a string in numeric context: optional white space and sign,
 /// digits with an optional fraction, and an optional exponent. Anything else gives 0.
-fn numeric_prefix(text: &str) -> f64 {
+pub(crate) fn numeric_prefix(text: &str) -> f64 {
     let text = text.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
     let bytes = text.as_bytes();
     let mut end = 0;

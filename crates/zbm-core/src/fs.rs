@@ -29,6 +29,8 @@ pub fn exists(path: impl AsRef<Path>) -> bool {
 pub enum Access {
     /// Read access (`-r`).
     Read,
+    /// Write access (`-w`).
+    Write,
     /// Execute access (`-x`).
     Execute,
 }
@@ -38,12 +40,13 @@ impl Access {
     fn owner_bit(self) -> u32 {
         match self {
             Access::Read => 0o400,
+            Access::Write => 0o200,
             Access::Execute => 0o100,
         }
     }
 }
 
-/// Whether the process may access `path` the given way (`-r`, `-x`).
+/// Whether the process may access `path` the given way (`-r`, `-w`, `-x`).
 pub fn can_access(path: impl AsRef<Path>, access: Access) -> bool {
     can_access_as(path, access, &zbm_sys::credentials())
 }
@@ -78,13 +81,13 @@ pub struct FileAccess {
 impl FileAccess {
     /// Whether a process with the given credentials may access the file the given way.
     ///
-    /// This is Perl's `cando`: root reads anything and executes anything with an execute bit, or any directory;
-    /// other users get the owner, group or other bits, whichever class they belong to first.
+    /// This is Perl's `cando`: root reads and writes anything and executes anything with an execute bit, or any
+    /// directory; other users get the owner, group or other bits, whichever class they belong to first.
     pub fn permits(self, access: Access, credentials: &Credentials) -> bool {
         let bit = access.owner_bit();
         if credentials.uid == 0 {
             return match access {
-                Access::Read => true,
+                Access::Read | Access::Write => true,
                 Access::Execute => self.mode & 0o111 != 0 || self.is_dir,
             };
         }
@@ -101,6 +104,11 @@ impl FileAccess {
 /// Whether the process may read `path` (`-r`).
 pub fn is_readable(path: impl AsRef<Path>) -> bool {
     can_access(path, Access::Read)
+}
+
+/// Whether the process may write `path` (`-w`).
+pub fn is_writable(path: impl AsRef<Path>) -> bool {
+    can_access(path, Access::Write)
 }
 
 /// Whether the process may execute `path` (`-x`).
