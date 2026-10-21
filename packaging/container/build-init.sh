@@ -124,6 +124,10 @@ Usage: $0 [options]
      to modify the configuration used for image building.
      May be specified more than once to chain modifications.
 
+  -g <generator>
+     Build images with the "rust" or the "perl" generate-zbm
+     (Default: rust when the tree contains the Rust crates)
+
   -- <arguments>
       Additional arguments to the generate-zbm binary
 EOF
@@ -137,8 +141,9 @@ UPDATE=
 UPDATE_ZFS=
 KERN_SERIES=
 SKIP_VERSIONING=
+GENERATOR=
 
-while getopts "hb:o:t:e:p:k:uzV" opt; do
+while getopts "hb:o:t:e:p:k:uzVg:" opt; do
   case "${opt}" in
     b)
       BUILDROOT="${OPTARG}"
@@ -166,6 +171,9 @@ while getopts "hb:o:t:e:p:k:uzV" opt; do
       ;;
     V)
       SKIP_VERSIONING="yes"
+      ;;
+    g)
+      GENERATOR="${OPTARG}"
       ;;
     h)
       usage
@@ -393,6 +401,29 @@ fi
 # If possible, update the version recorded in the ZFSBootMenu repository
 if [ "${SKIP_VERSIONING,,}" != "yes" ] && [ -x "/zbm/${versioner}" ]; then
   ( cd /zbm && "./${versioner}" -u ) || true
+fi
+
+# Trees with the Rust crates build zbm, which images include, and the Rust
+# generate-zbm, which builds them unless "-g perl" selects the Perl one. The
+# crates' dependencies are vendored, so the build needs no network.
+case "${GENERATOR:-default}" in
+  default|rust|perl) ;;
+  *) error "unknown generator '${GENERATOR}'; use rust or perl" ;;
+esac
+
+if [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
+  command -v cargo >/dev/null 2>&1 || error "cargo is needed to build the Rust programs"
+  : "${CARGO_TARGET_DIR:=${ZBMWORKDIR}/target}"
+  ( cd /zbm && cargo build --release --locked --offline --target-dir "${CARGO_TARGET_DIR}" \
+      --bin zbm --bin generate-zbm ) || error "failed to build the Rust programs"
+  install -m 0755 -D "${CARGO_TARGET_DIR}/release/zbm" /usr/libexec/zfsbootmenu/zbm \
+    || error "unable to install zbm"
+
+  if [ "${GENERATOR:-rust}" = rust ]; then
+    genzbm="${CARGO_TARGET_DIR}/release/generate-zbm"
+  fi
+elif [ "${GENERATOR}" = rust ]; then
+  error "this ZFSBootMenu tree has no Rust generate-zbm"
 fi
 
 exec "${genzbm}" "${GENARGS[@]}"

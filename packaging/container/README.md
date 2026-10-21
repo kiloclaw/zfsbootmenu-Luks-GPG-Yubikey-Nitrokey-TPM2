@@ -163,6 +163,10 @@ A couple of additional arguments may only be set from the command line:
   comes from `$ZBM_KERNEL_FLAVOUR` (default `generic`). With `-z`, the ZFS
   userspace packages are updated too.
 
+- `-g <generator>` selects the `generate-zbm` that builds the images: `rust`
+  (the default for trees that contain the Rust crates) or `perl`, the legacy
+  program, which older trees always use. Both produce the same images.
+
 ## ZFSBootMenu Configuration and Execution
 
 After the ZFSBootMenu container entrypoint fetches (or identifies) a copy of
@@ -205,6 +209,13 @@ Finally, build-specific configurations are linked *if the source exists*:
 
 Conflicting links will *replace* any links made by earlier passes. This allows
 each level of configurations to mask or augment earlier defaults.
+
+For trees that contain the Rust crates, the entrypoint then builds `zbm` and
+the Rust `generate-zbm` with the container's `cargo`, offline from the
+dependencies vendored in the tree, in a temporary directory (set
+`CARGO_TARGET_DIR` to keep the build between runs). It installs `zbm` as
+`/usr/libexec/zfsbootmenu/zbm`, where the dracut module finds it; images
+include it, but the legacy runtime they boot does not use it yet.
 
 Before these passes, the entrypoint writes
 

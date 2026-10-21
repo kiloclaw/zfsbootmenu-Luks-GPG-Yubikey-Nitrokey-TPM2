@@ -8,12 +8,26 @@ on:
       - 'packaging/**'
       - 'config/**'
       - 'scripts/**'
+      # Images include zbm and are built with the Rust generate-zbm
+      - 'crates/**'
+      - 'vendor/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build.yml'
   pull_request:
     paths:
       - 'legacy/**'
       - 'packaging/**'
       - 'config/**'
       - 'scripts/**'
+      # Images include zbm and are built with the Rust generate-zbm
+      - 'crates/**'
+      - 'vendor/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -83,3 +97,17 @@ jobs:
           path: |
             /tmp/zbm-build/build/*
             !/tmp/zbm-build/build/*.EFI
+
+  generators:
+    name: Compare the Perl and Rust generators
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create the build container
+        run: docker build -t localhost/zbm-builder packaging/container
+
+      # Builds the release, recovery and container-default images with both
+      # generate-zbm programs and compares their contents
+      - name: Build and compare images
+        run: sudo env ZBM_COMPARE_WORK=/tmp/zbm-compare scripts/dev/compare-generators.sh

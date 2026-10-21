@@ -17,6 +17,8 @@
 # installed kernel. Images are built with dracut; Ubuntu does not package
 # mkinitcpio. systemd's cryptsetup token plugins are installed, so images
 # unlock TPM2, FIDO2 and PKCS#11 LUKS2 tokens through systemd's own code.
+# Ubuntu's Rust toolchain builds the Rust programs of the tree, and the Perl
+# modules remain for trees that still use the Perl generate-zbm.
 #
 # The image does not contain ZFSBootMenu; the entrypoint fetches it, or uses a
 # copy bind-mounted on /zbm.

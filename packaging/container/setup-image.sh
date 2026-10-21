@@ -45,7 +45,7 @@ apt-get -y install --no-install-recommends ${kpkgs} zfsutils-linux \
   e2fsprogs efibootmgr cryptsetup-bin openssh-client util-linux \
   util-linux-extra less kpartx gnupg scdaemon libfido2-1 fido2-tools \
   clevis clevis-luks clevis-tpm2 tpm2-tools yubikey-personalization \
-  openssl
+  openssl cargo rustc
 
 # The ZFS module must exist for the installed kernel
 if ! modinfo -k "${kabi}" zfs >/dev/null; then
