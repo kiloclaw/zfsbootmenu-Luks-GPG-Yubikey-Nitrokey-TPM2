@@ -1,9 +1,11 @@
 //! `zbm`: the ZFSBootMenu runtime.
 //!
-//! Like BusyBox, `zbm` is one program that acts as each of its commands, chosen by the name it is run under (through
-//! a link such as `/bin/zfsbootmenu -> /libexec/zbm`) or by its first argument (`zbm zfsbootmenu`). One binary keeps
-//! the boot image small. The commands arrive with the runtime port, from Phase 5 of `PORT-ROADMAP.md` on; until then
-//! the table is empty, and images that include `zbm` do not use it.
+//! Like BusyBox, `zbm` is one program that acts as each of its commands, chosen
+//! by the name it is run under (through a link such as `/bin/zfsbootmenu ->
+//! /libexec/zbm`) or by its first argument (`zbm zfsbootmenu`). One binary
+//! keeps the boot image small. The commands arrive with the runtime port, from
+//! Phase 5 of `PORT-ROADMAP.md` on; until then the table is empty, and images
+//! that include `zbm` do not use it.
 
 use std::io::Write;
 
@@ -34,7 +36,8 @@ pub const NOT_FOUND: i32 = 127;
 /// The exit status for wrong usage.
 pub const USAGE: i32 = 2;
 
-/// The base name of a path, which selects the command when `zbm` runs under another name.
+/// The base name of a path, which selects the command when `zbm` runs under
+/// another name.
 fn command_name(argv0: &str) -> &str {
     argv0
         .rsplit('/')
@@ -44,9 +47,14 @@ fn command_name(argv0: &str) -> &str {
 
 fn usage(applets: &[Applet]) -> String {
     let mut text = String::from(
-        "Usage: zbm <command> [arguments]\n       <command> [arguments]   (through a link named after the command)\n\
-         \n       zbm --list      list the commands\n       zbm --version   print the version\n       zbm --help      \
-         print this help\n",
+        "\
+Usage: zbm <command> [arguments]
+       <command> [arguments]   (through a link named after the command)
+
+       zbm --list      list the commands
+       zbm --version   print the version
+       zbm --help      print this help
+",
     );
     if applets.is_empty() {
         text.push_str("\nNo commands are available yet.\n");
@@ -54,7 +62,8 @@ fn usage(applets: &[Applet]) -> String {
     text
 }
 
-/// Runs `zbm` with the name it was started under and its arguments, using the commands in `applets`.
+/// Runs `zbm` with the name it was started under and its arguments, using the
+/// commands in `applets`.
 pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -> i32 {
     let find = |name: &str| applets.iter().find(|applet| applet.name == name);
     let name = command_name(argv0);

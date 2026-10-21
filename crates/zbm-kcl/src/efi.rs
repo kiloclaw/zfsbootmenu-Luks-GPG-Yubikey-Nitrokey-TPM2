@@ -1,11 +1,14 @@
-//! Finding where a new `.cmdline` section of an EFI image can go, as `find_cmdline_gap` does.
+//! Finding where a new `.cmdline` section of an EFI image can go, as
+//! `find_cmdline_gap` does.
 
 use zbm_core::shell::{read_lines, test_integer};
 
-/// The address of the `.cmdline` section, as upper-case hex digits, and the space up to the next section, from the
-/// section table that `objdump -h -w <file>` prints.
+/// The address of the `.cmdline` section, as upper-case hex digits, and the
+/// space up to the next section, from the section table that `objdump -h -w
+/// <file>` prints.
 ///
-/// The values follow the script's 64-bit shell arithmetic. Errors are the messages the script prints.
+/// The values follow the script's 64-bit shell arithmetic. Errors are the
+/// messages the script prints.
 pub fn cmdline_gap(objdump: &str, file: &str) -> Result<(String, i64), Vec<String>> {
     let mut header_seen = false;
     let mut cmdline = None;
@@ -58,7 +61,8 @@ pub fn fits(size: usize, gap: i64) -> bool {
     i64::try_from(size).is_ok_and(|size| size <= gap)
 }
 
-/// The value of hex digits in 64-bit shell arithmetic (wrapping), or `None` when they are not hex digits.
+/// The value of hex digits in 64-bit shell arithmetic (wrapping), or `None`
+/// when they are not hex digits.
 fn hex_value(digits: &str) -> Option<i64> {
     if digits.is_empty() {
         return None;
@@ -73,18 +77,8 @@ fn hex_value(digits: &str) -> Option<i64> {
 mod tests {
     use super::*;
 
-    const TABLE: &str = "
-/tmp/zbm.EFI:     file format pei-x86-64
-
-Sections:
-Idx Name          Size      VMA               LMA               File off  Algn  Flags
-  0 .text         0000b2e0  0000000000001000  0000000000001000  00000400  2**4  CONTENTS, ALLOC, LOAD, READONLY, CODE
-  1 .reloc        0000000c  000000000000f000  000000000000f000  0000c200  2**2  CONTENTS, ALLOC, LOAD, READONLY, DATA
-  2 .osrel        00000165  0000000000010000  0000000000010000  0000c400  2**2  CONTENTS, ALLOC, LOAD, READONLY, DATA
-  3 .cmdline      0000002e  0000000000011000  0000000000011000  0000c600  2**2  CONTENTS, ALLOC, LOAD, READONLY, DATA
-  4 .initrd       00f00000  0000000000012000  0000000000012000  0000c800  2**2  CONTENTS, ALLOC, LOAD, READONLY, DATA
-  5 .linux        00c00000  0000000000f12000  0000000000f12000  00f0c800  2**2  CONTENTS, ALLOC, LOAD, READONLY, DATA
-";
+    /// `objdump -w -h` of a ZFSBootMenu EFI bundle.
+    const TABLE: &str = include_str!("../tests/fixtures/objdump-w-h.txt");
 
     #[test]
     fn finds_the_space_before_the_next_section() {

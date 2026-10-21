@@ -1,14 +1,16 @@
 //! Splitting, editing and joining kernel command lines.
 //!
-//! Each function takes and returns the text its Bash counterpart in `zfsbootmenu-kcl.sh` reads and prints: a
-//! *tokenized* command line has one argument per line.
+//! Each function takes and returns the text its Bash counterpart in
+//! `zfsbootmenu-kcl.sh` reads and prints: a *tokenized* command line has one
+//! argument per line.
 
 use zbm_core::shell::{echo, read_lines};
 
 /// Splits a command line into arguments, one per line, as `kcl_tokenize` does.
 ///
-/// Arguments are separated by spaces, tabs and newlines, except within double quotes: words of a quoted argument
-/// are joined by a single space. When a quote is never closed, the last argument has no newline.
+/// Arguments are separated by spaces, tabs and newlines, except within double
+/// quotes: words of a quoted argument are joined by a single space. When a
+/// quote is never closed, the last argument has no newline.
 pub fn tokenize(input: &str) -> String {
     let mut text = String::new();
     let mut quoted = false;
@@ -34,11 +36,11 @@ pub fn tokenize(input: &str) -> String {
     text
 }
 
-/// Removes arguments, as `kcl_suppress` does: an argument is removed when it equals one of `removals`, or when its
-/// part before the first `=` does.
+/// Removes arguments, as `kcl_suppress` does: an argument is removed when it
+/// equals one of `removals`, or when its part before the first `=` does.
 ///
-/// Like the `while read -r` loop of the legacy function, this drops a last argument without a newline and trims
-/// blanks around each argument.
+/// Like the `while read -r` loop of the legacy function, this drops a last
+/// argument without a newline and trims blanks around each argument.
 pub fn suppress(text: &str, removals: &[&str]) -> String {
     read_lines(text)
         .iter()
@@ -52,8 +54,8 @@ pub fn suppress(text: &str, removals: &[&str]) -> String {
         .collect()
 }
 
-/// Adds arguments, as `kcl_append` does: the text is kept as it is, and each non-empty argument is added as one
-/// line, even if it contains spaces.
+/// Adds arguments, as `kcl_append` does: the text is kept as it is, and each
+/// non-empty argument is added as one line, even if it contains spaces.
 pub fn append(text: &str, args: &[&str]) -> String {
     let mut result = text.to_owned();
     for arg in args.iter().filter(|arg| !arg.is_empty()) {
@@ -62,13 +64,14 @@ pub fn append(text: &str, args: &[&str]) -> String {
     result
 }
 
-/// Joins a tokenized command line with single spaces, as `kcl_assemble` does. The result has no newline.
+/// Joins a tokenized command line with single spaces, as `kcl_assemble` does.
+/// The result has no newline.
 pub fn assemble(text: &str) -> String {
     lines(text).join(" ")
 }
 
-/// The lines of a tokenized command line as awk reads them: a last line without a newline counts, an empty text has
-/// no lines.
+/// The lines of a tokenized command line as awk reads them: a last line without
+/// a newline counts, an empty text has no lines.
 pub fn lines(text: &str) -> Vec<&str> {
     let mut lines: Vec<&str> = text.split('\n').collect();
     if lines.last() == Some(&"") {
@@ -85,11 +88,12 @@ pub fn arguments(input: &str) -> Vec<String> {
         .collect()
 }
 
-/// The tokenized form of ZFSBootMenu's own command line, as `_build_zbm_kcl` builds it: the text of each source is
-/// tokenized separately and the results are concatenated.
+/// The tokenized form of ZFSBootMenu's own command line, as `_build_zbm_kcl`
+/// builds it: the text of each source is tokenized separately and the results
+/// are concatenated.
 ///
-/// The sources are `/etc/cmdline`, the files `/etc/cmdline.d/*.conf` and `/proc/cmdline`, in that order; see
-/// [`zbm_sources`].
+/// The sources are `/etc/cmdline`, the files `/etc/cmdline.d/*.conf` and
+/// `/proc/cmdline`, in that order; see [`zbm_sources`].
 pub fn build_zbm_kcl<S: AsRef<str>>(sources: &[S]) -> String {
     sources
         .iter()
@@ -97,8 +101,9 @@ pub fn build_zbm_kcl<S: AsRef<str>>(sources: &[S]) -> String {
         .collect()
 }
 
-/// The files `_build_zbm_kcl` reads, in order, under `root` (normally `/`): `etc/cmdline`, the `etc/cmdline.d/*.conf`
-/// files sorted by name, and `proc/cmdline`. Files that cannot be read are skipped.
+/// The files `_build_zbm_kcl` reads, in order, under `root` (normally `/`):
+/// `etc/cmdline`, the `etc/cmdline.d/*.conf` files sorted by name, and
+/// `proc/cmdline`. Files that cannot be read are skipped.
 pub fn zbm_sources(root: &std::path::Path) -> Vec<String> {
     let mut paths = vec![root.join("etc/cmdline")];
     if let Ok(entries) = std::fs::read_dir(root.join("etc/cmdline.d")) {
@@ -112,7 +117,8 @@ pub fn zbm_sources(root: &std::path::Path) -> Vec<String> {
                         .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
             })
             .collect();
-        // The initramfs runs in the C locale, where Bash sorts glob results by byte value.
+        // The initramfs runs in the C locale, where Bash sorts glob results by byte
+        // value.
         confs.sort();
         paths.extend(confs);
     }

@@ -1,7 +1,9 @@
-//! Parity tests: `legacy/bin/generate-zbm` and the Rust `generate-zbm` run with the same arguments and
-//! configuration in identical sandboxes, with fake `dracut`, `mkinitcpio`, mount tools and hooks and the real
-//! `objcopy`, `objdump` and `strings`. They must exit the same way, print the same messages and debug log, run the
-//! same commands and leave the same files, byte for byte.
+//! Parity tests: `legacy/bin/generate-zbm` and the Rust `generate-zbm` run with
+//! the same arguments and configuration in identical sandboxes, with fake
+//! `dracut`, `mkinitcpio`, mount tools and hooks and the real `objcopy`,
+//! `objdump` and `strings`. They must exit the same way, print the same
+//! messages and debug log, run the same commands and leave the same files, byte
+//! for byte.
 
 use std::path::{Path, PathBuf};
 
@@ -25,44 +27,55 @@ for arg in "$@"; do printf ' [%s]' "$arg" >> "$ZBM_FAKE_LOG"; done
 echo >> "$ZBM_FAKE_LOG"
 "#;
 
+/// A fake program that logs its arguments and then runs `body`.
+fn logging_script(body: &str) -> String {
+    format!("#!/bin/sh\n{LOG_ARGS}{body}")
+}
+
+/// dracut writes the image named by its next-to-last argument, for the kernel
+/// version in its last.
+const FAKE_DRACUT: &str = r#"echo "dracut: building"
+echo "dracut: a warning" >&2
+if [ -n "$FAKE_DRACUT_FAIL" ]; then echo "dracut: failed"; exit "$FAKE_DRACUT_FAIL"; fi
+eval "out=\${$(($# - 1))}"; eval "kver=\${$#}"
+printf 'initramfs for %s\n' "$kver" > "$out"
+head -c 4096 /dev/zero >> "$out"
+"#;
+
+const FAKE_MKINITCPIO: &str = r#"out=; kver=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --generate) out=$2; shift ;;
+    --kernel) kver=$2; shift ;;
+  esac
+  shift
+done
+echo "==> Building image"
+printf 'cpio for %s\n' "$kver" > "$out"
+"#;
+
+const FAKE_MOUNT: &str = r#"if [ -n "$FAKE_MOUNT_FAIL" ]; then
+  echo "mount: $1: permission denied"
+  exit 32
+fi
+"#;
+
+const FAKE_UNAME: &str = r#"#!/bin/sh
+[ "$1" = -r ] && [ "$FAKE_UNAME" != none ] && echo "${FAKE_UNAME:-6.2.5-test}"
+exit 0
+"#;
+
 fn fake_programs() -> Vec<(&'static str, String)> {
     vec![
-        (
-            "dracut",
-            format!(
-                "#!/bin/sh\n{LOG_ARGS}echo \"dracut: building\"\necho \"dracut: a warning\" >&2\n\
-                 if [ -n \"$FAKE_DRACUT_FAIL\" ]; then echo \"dracut: failed\"; exit \"$FAKE_DRACUT_FAIL\"; fi\n\
-                 eval \"out=\\${{$(($# - 1))}}\"; eval \"kver=\\${{$#}}\"\n\
-                 printf 'initramfs for %s\\n' \"$kver\" > \"$out\"\n\
-                 head -c 4096 /dev/zero >> \"$out\"\n"
-            ),
-        ),
-        (
-            "mkinitcpio",
-            format!(
-                "#!/bin/sh\n{LOG_ARGS}out=; kver=\n\
-                 while [ $# -gt 0 ]; do case \"$1\" in --generate) out=$2; shift;; --kernel) kver=$2; shift;; esac; \
-                 shift; done\n\
-                 echo \"==> Building image\"\n\
-                 printf 'cpio for %s\\n' \"$kver\" > \"$out\"\n"
-            ),
-        ),
+        ("dracut", logging_script(FAKE_DRACUT)),
+        ("mkinitcpio", logging_script(FAKE_MKINITCPIO)),
         (
             "mountpoint",
-            format!("#!/bin/sh\n{LOG_ARGS}exit \"${{FAKE_MOUNTPOINT_STATUS:-0}}\"\n"),
+            logging_script("exit \"${FAKE_MOUNTPOINT_STATUS:-0}\"\n"),
         ),
-        (
-            "mount",
-            format!(
-                "#!/bin/sh\n{LOG_ARGS}if [ -n \"$FAKE_MOUNT_FAIL\" ]; then echo \"mount: $1: permission denied\"; \
-                 exit 32; fi\n"
-            ),
-        ),
-        ("umount", format!("#!/bin/sh\n{LOG_ARGS}")),
-        (
-            "uname",
-            "#!/bin/sh\n[ \"$1\" = -r ] && [ \"$FAKE_UNAME\" != none ] && echo \"${FAKE_UNAME:-6.2.5-test}\"\nexit 0\n".to_owned(),
-        ),
+        ("mount", logging_script(FAKE_MOUNT)),
+        ("umount", logging_script("")),
+        ("uname", FAKE_UNAME.to_owned()),
     ]
 }
 
@@ -78,12 +91,16 @@ fn kernel_image(strings: &[&str]) -> Vec<u8> {
     bytes
 }
 
-/// One scenario: a configuration and arguments, with `{root}` standing for the sandbox, and extra setup.
+/// Extra setup of a sandbox.
+type Setup = fn(&Sandbox);
+
+/// One scenario: a configuration and arguments, with `{root}` standing for the
+/// sandbox, and extra setup.
 struct Case {
     config: String,
     args: &'static [&'static str],
     env: &'static [(&'static str, &'static str)],
-    setup: fn(&Sandbox),
+    setup: Setup,
 }
 
 impl Case {
@@ -225,7 +242,8 @@ impl Sandbox {
         text
     }
 
-    /// The files the run left, with sizes, contents and permissions; the call log is shown in full.
+    /// The files the run left, with sizes, contents and permissions; the call log
+    /// is shown in full.
     fn state(&self, program: &str) -> String {
         let mut state = String::new();
         let mut files = Vec::new();
@@ -247,7 +265,8 @@ impl Sandbox {
                 continue;
             }
             let bytes = std::fs::read(&file).unwrap();
-            // These name the sandbox, so their normalized text is compared instead of their bytes.
+            // These name the sandbox, so their normalized text is compared instead of their
+            // bytes.
             if relative == "calls.log" || relative == "config.yaml" {
                 state.push_str(&format!(
                     "{relative}, mode {:o}:\n{}",
@@ -279,8 +298,9 @@ fn collect(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
-/// The debug log in standard error: `## ` lines and `Data::Dumper` blocks. Perl's warnings and the texts of fatal
-/// errors, which name Perl source lines, are left out.
+/// The debug log in standard error: `## ` lines and `Data::Dumper` blocks.
+/// Perl's warnings and the texts of fatal errors, which name Perl source lines,
+/// are left out.
 fn debug_log(stderr: &str) -> String {
     let mut log = String::new();
     let mut in_dump = false;
@@ -304,7 +324,8 @@ fn debug_log(stderr: &str) -> String {
     log
 }
 
-/// What a run did, after normalization: exit status, standard output, debug log and files.
+/// What a run did, after normalization: exit status, standard output, debug log
+/// and files.
 struct Outcome {
     code: i32,
     stdout: String,
@@ -312,7 +333,8 @@ struct Outcome {
     state: String,
 }
 
-/// Runs a case with both implementations, checks they agree and returns what the Perl program did.
+/// Runs a case with both implementations, checks they agree and returns what
+/// the Perl program did.
 fn compare(case: &Case) -> Outcome {
     let script = legacy::path("bin/generate-zbm").display().to_string();
     let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
@@ -324,8 +346,8 @@ fn compare(case: &Case) -> Outcome {
     let describe = format!("args {:?}, config:\n{}", case.args, case.config);
     let perl_stdout = perl_box.normalize(&perl.stdout_text(), &script);
     let rust_stdout = rust_box.normalize(&rust.stdout_text(), &binary);
-    // Perl dies over a configuration section that is not a mapping with whatever error number an earlier call
-    // left; the Rust port exits with 255.
+    // Perl dies over a configuration section that is not a mapping with whatever
+    // error number an earlier call left; the Rust port exits with 255.
     let perl_code = perl.status.shell_code();
     let type_error = (perl.stderr_text().contains("as a HASH ref")
         || perl.stderr_text().contains("Not a HASH reference"))
@@ -338,8 +360,8 @@ fn compare(case: &Case) -> Outcome {
     assert_eq!(
         rust.status.shell_code(),
         perl_code,
-        "exit status, {describe}\nperl stdout:\n{perl_stdout}\nperl stderr:\n{}\nrust stdout:\n{rust_stdout}\n\
-         rust stderr:\n{}",
+        "exit status, {describe}\nperl stdout:\n{perl_stdout}\nperl stderr:\n{}\n\
+         rust stdout:\n{rust_stdout}\nrust stderr:\n{}",
         perl.stderr_text(),
         rust.stderr_text()
     );
@@ -455,7 +477,7 @@ EFI:
   Enabled: true
   Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub
 ";
-    let setup: fn(&Sandbox) = |sandbox| {
+    let setup: Setup = |sandbox| {
         std::fs::create_dir_all(sandbox.path().join("esp/EFI/zbm")).unwrap();
         for name in [
             "vmlinuz-3.1.0_1",
@@ -566,7 +588,8 @@ fn chooses_kernels() {
     for list in args {
         compare(&Case::new(COMPONENTS, list));
     }
-    // `uname -r` printing nothing is an error; the Perl program used to exit with status 0.
+    // `uname -r` printing nothing is an error; the Perl program used to exit with
+    // status 0.
     let outcome = compare(&Case {
         env: &[("FAKE_UNAME", "none")],
         ..Case::new(
@@ -733,16 +756,13 @@ Components:
             &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
         )
     });
-    // A hook that sends SIGTERM to the generator: the partition is unmounted once and the generator exits. The
-    // Perl program used to unmount twice, once in the handler and again in its END block.
+    // A hook that sends SIGTERM to the generator: the partition is unmounted once
+    // and the generator exits. The Perl program used to unmount twice, once in the
+    // handler and again in its END block.
     let outcome = compare(&Case {
         env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
         setup: |sandbox| {
-            sandbox.dir.write_executable(
-                "pre.d/05-signal",
-                "#!/bin/sh\np=$PPID\n[ \"$(cat /proc/$p/comm)\" = sh ] && p=$(cut -d' ' -f4 /proc/$p/stat)\n\
-                 kill -TERM \"$p\"\n",
-            );
+            sandbox.dir.write_executable("pre.d/05-signal", SIGNAL_HOOK);
         },
         ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
     });
@@ -770,8 +790,8 @@ kill -KILL $$
         )
     });
     assert!(outcome.log.contains("## 137\n"), "{}", outcome.log);
-    // A boot directory and kernel names with spaces and quotes, which the Perl program used to pass to the shell
-    // unquoted.
+    // A boot directory and kernel names with spaces and quotes, which the Perl
+    // program used to pass to the shell unquoted.
     let outcome = compare(&Case {
         setup: |sandbox| {
             std::fs::create_dir_all(sandbox.path().join("my boot")).unwrap();
@@ -806,6 +826,29 @@ kill -KILL $$
     );
 }
 
+/// A hook that sends SIGTERM to the generator, which may be its parent or the
+/// parent of the shell that runs it.
+const SIGNAL_HOOK: &str = r#"#!/bin/sh
+p=$PPID
+[ "$(cat /proc/$p/comm)" = sh ] && p=$(cut -d' ' -f4 /proc/$p/stat)
+kill -TERM "$p"
+"#;
+
+/// An objdump that prints neither the section alignment nor sections.
+const OBJDUMP_NOTHING: &str = "#!/bin/sh\necho \"no headers here\"\n";
+
+/// An objdump that prints the section alignment but no sections.
+const OBJDUMP_NO_SECTIONS: &str = r#"#!/bin/sh
+[ "$1" = -p ] && printf 'SectionAlignment\t00001000\n'
+echo "Idx Name"
+"#;
+
+/// Copies the stub into the sandbox and replaces objdump with `script`.
+fn fake_objdump(sandbox: &Sandbox, script: &str) {
+    std::fs::copy(STUB, sandbox.path().join("stub.efi")).unwrap();
+    sandbox.dir.write_executable("bin/objdump", script);
+}
+
 #[test]
 fn bundle_failures() {
     if !tools() || !efi_tools() {
@@ -823,36 +866,23 @@ EFI:
         config,
         &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
     ));
-    // An objdump that reports no section alignment or sections: the Perl program used to go on with offsets it
-    // could not compute.
-    for objdump in [
-        "#!/bin/sh\necho \"no headers here\"\n",
-        "#!/bin/sh\n[ \"$1\" = -p ] && echo \"SectionAlignment\t00001000\"\necho \"Idx Name\"\n",
-    ] {
+    // An objdump that reports no section alignment or sections: the Perl program
+    // used to go on with offsets it could not compute.
+    let cases: [(Setup, &str); 2] = [
+        (
+            |sandbox| fake_objdump(sandbox, OBJDUMP_NOTHING),
+            "Unable to determine stub alignment!\n",
+        ),
+        (
+            |sandbox| fake_objdump(sandbox, OBJDUMP_NO_SECTIONS),
+            "Unable to determine initial stub offset!\n",
+        ),
+    ];
+    for (setup, expected) in cases {
         let outcome = compare(&Case {
-            setup: if objdump.contains("SectionAlignment") {
-                |sandbox: &Sandbox| {
-                    std::fs::copy(STUB, sandbox.path().join("stub.efi")).unwrap();
-                    sandbox.dir.write_executable(
-                        "bin/objdump",
-                        "#!/bin/sh\n[ \"$1\" = -p ] && echo \"SectionAlignment\t00001000\"\necho \"Idx Name\"\n",
-                    );
-                }
-            } else {
-                |sandbox: &Sandbox| {
-                    std::fs::copy(STUB, sandbox.path().join("stub.efi")).unwrap();
-                    sandbox
-                        .dir
-                        .write_executable("bin/objdump", "#!/bin/sh\necho \"no headers here\"\n");
-                }
-            },
+            setup,
             ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
         });
-        let expected = if objdump.contains("SectionAlignment") {
-            "Unable to determine initial stub offset!\n"
-        } else {
-            "Unable to determine stub alignment!\n"
-        };
         assert_eq!(outcome.code, 1);
         assert!(outcome.stdout.ends_with(expected), "{}", outcome.stdout);
     }

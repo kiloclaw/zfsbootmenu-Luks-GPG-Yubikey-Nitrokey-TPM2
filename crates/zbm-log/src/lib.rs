@@ -1,10 +1,13 @@
 //! Logging of the Rust port of ZFSBootMenu.
 //!
-//! This is the Rust counterpart of `kmsg-log-lib.sh` and `echo-log-lib.sh`. In the boot image, messages go to the
-//! kernel log (`/dev/kmsg`) as `<N>ZFSBootMenu: message`, and warnings and errors leave marker files in the base
-//! directory; host tools write `LEVEL: message` lines to standard error. A message is written when the log level is
-//! at least the message's level, and no message is written when the log level is not an integer, as with the
-//! legacy `[ "${loglevel}" -ge N ]` tests. [`read`] reads the kernel log back, as `print_kmsg_logs` does.
+//! This is the Rust counterpart of `kmsg-log-lib.sh` and `echo-log-lib.sh`. In
+//! the boot image, messages go to the kernel log (`/dev/kmsg`) as
+//! `<N>ZFSBootMenu: message`, and warnings and errors leave marker files in the
+//! base directory; host tools write `LEVEL: message` lines to standard error. A
+//! message is written when the log level is at least the message's level, and
+//! no message is written when the log level is not an integer, as with the
+//! legacy `[ "${loglevel}" -ge N ]` tests. [`read`] reads the kernel log back,
+//! as `print_kmsg_logs` does.
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -101,16 +104,18 @@ impl Message {
     }
 }
 
-/// The log level as the legacy code reads it: an integer operand of `test`, or `None` when it is not one, in which
-/// case nothing is logged.
+/// The log level as the legacy code reads it: an integer operand of `test`, or
+/// `None` when it is not one, in which case nothing is logged.
 pub fn parse_level(loglevel: &str) -> Option<i64> {
     zbm_core::shell::test_integer(loglevel)
 }
 
 /// The kernel log lines of a message, as `kmsg-log-lib.sh` writes them.
 ///
-/// Debugging output is written line by line: every line starts with `<7>ZBM:[pid]|`, and the last line carries the
-/// call site between the bars (`<7>ZBM:[pid]|trace|line`). Other levels are written as `<N>ZFSBootMenu: text`.
+/// Debugging output is written line by line: every line starts with
+/// `<7>ZBM:[pid]|`, and the last line carries the call site between the bars
+/// (`<7>ZBM:[pid]|trace|line`). Other levels are written as `<N>ZFSBootMenu:
+/// text`.
 pub fn kmsg_lines(level: Level, text: &str, pid: u32, trace: &str) -> Vec<String> {
     match level {
         Level::Debug => {
@@ -132,8 +137,8 @@ pub fn kmsg_lines(level: Level, text: &str, pid: u32, trace: &str) -> Vec<String
 /// Where a [`Logger`] writes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Sink {
-    /// The kernel log, as in the boot image: messages are written to `device`, and warnings and errors create
-    /// `have_warnings` and `have_errors` in `base`.
+    /// The kernel log, as in the boot image: messages are written to `device`, and
+    /// warnings and errors create `have_warnings` and `have_errors` in `base`.
     Kmsg {
         /// The kernel log device, normally `/dev/kmsg`.
         device: PathBuf,
@@ -182,7 +187,8 @@ impl Logger {
             .is_some_and(|loglevel| loglevel >= level.number())
     }
 
-    /// Writes a message if its level is enabled, and returns whether it was. Debugging output records the caller.
+    /// Writes a message if its level is enabled, and returns whether it was.
+    /// Debugging output records the caller.
     #[track_caller]
     pub fn log(&self, message: &Message) -> bool {
         if !self.enabled(message.level) {
@@ -285,7 +291,8 @@ mod tests {
         assert!(logger.enabled(Level::Warning));
         assert!(!logger.enabled(Level::Notice));
         assert!(Logger::stderr("+7").enabled(Level::Debug));
-        // A log level that is not an integer disables everything, as `[ x -ge 3 ]` fails.
+        // A log level that is not an integer disables everything, as `[ x -ge 3 ]`
+        // fails.
         assert!(!Logger::stderr("high").enabled(Level::Error));
         assert!(!Logger::stderr("").enabled(Level::Error));
     }

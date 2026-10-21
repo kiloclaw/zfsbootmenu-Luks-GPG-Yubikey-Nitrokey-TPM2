@@ -13,6 +13,11 @@ max_line_length = 120
 [*.{rs,py,toml}]
 indent_size = 4
 
+# The Rust Style Guide: lines of at most 100 characters (comment lines: 80,
+# without indentation; scripts/dev/check-rust-width.sh checks both)
+[*.rs]
+max_line_length = 100
+
 [{Makefile,*.mk}]
 indent_style = tab
 

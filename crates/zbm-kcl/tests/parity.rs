@@ -1,6 +1,7 @@
-//! Parity tests: `legacy/bin/zbm-kcl` and the Rust `zbm-kcl` run with the same arguments, environment and input,
-//! against the same fake `zfs` and real EFI images, and must produce the same exit code, output, `zfs` calls,
-//! properties and files.
+//! Parity tests: `legacy/bin/zbm-kcl` and the Rust `zbm-kcl` run with the same
+//! arguments, environment and input, against the same fake `zfs` and real EFI
+//! images, and must produce the same exit code, output, `zfs` calls, properties
+//! and files.
 
 use std::path::{Path, PathBuf};
 
@@ -12,7 +13,8 @@ const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 const PROPERTY: &str = "org.zfsbootmenu:commandline";
 const DATASETS: &[&str] = &["pool", "pool/be", "pool/other", "pool/unset", "pool/flag"];
 
-/// Whether the tools the EFI cases need are available; the cases are skipped otherwise.
+/// Whether the tools the EFI cases need are available; the cases are skipped
+/// otherwise.
 fn efi_tools() -> bool {
     Path::new(STUB).is_file() && have_program("objcopy") && have_program("objdump")
 }
@@ -27,8 +29,9 @@ fn hex(field: &str) -> u64 {
     u64::from_str_radix(field, 16).expect("objdump prints hex numbers")
 }
 
-/// Builds an EFI image from the systemd stub with the given `.cmdline` section (none when `None`), followed by a
-/// `.linux` section one alignment unit later, as `generate-zbm` lays them out.
+/// Builds an EFI image from the systemd stub with the given `.cmdline` section
+/// (none when `None`), followed by a `.linux` section one alignment unit later,
+/// as `generate-zbm` lays them out.
 fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
     let headers = run(Command::new("objdump").args(["-w", "-h", STUB])).stdout_text();
     let last: Vec<&str> = headers.lines().last().unwrap().split_whitespace().collect();
@@ -58,15 +61,16 @@ fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
         .arg(STUB)
         .arg(&image)
         .stderr(Stream::Capture)
-        // objcopy stamps the PE header with the time unless this is set; a fixed stamp makes the images of the
-        // two sandboxes identical.
+        // objcopy stamps the PE header with the time unless this is set; a fixed stamp
+        // makes the images of the two sandboxes identical.
         .env("SOURCE_DATE_EPOCH", "0");
     let output = run(command);
     assert!(output.status.success(), "{}", output.stderr_text());
     image
 }
 
-/// A sandbox for one implementation: a working directory, a fake `zfs`, a temporary directory and an editor.
+/// A sandbox for one implementation: a working directory, a fake `zfs`, a
+/// temporary directory and an editor.
 struct Sandbox {
     work: TempDir,
     tmp: TempDir,
@@ -106,7 +110,8 @@ impl Sandbox {
             .env("PATH", self.zfs.path_env())
             .env("TMPDIR", self.tmp.path())
             .env("LC_ALL", "C")
-            // Both programs modify images with objcopy, which would otherwise stamp them with the current time.
+            // Both programs modify images with objcopy, which would otherwise stamp them
+            // with the current time.
             .env("SOURCE_DATE_EPOCH", "0");
         command = match editor {
             Some(editor) => command.env("EDITOR", self.work.join(editor)),
@@ -115,7 +120,8 @@ impl Sandbox {
         run(command.env("ZBM_PARITY_CWD", self.work.path()))
     }
 
-    /// The state the run left: properties, `zfs` calls and the files of the working directory.
+    /// The state the run left: properties, `zfs` calls and the files of the working
+    /// directory.
     fn state(&self) -> String {
         let mut state = String::new();
         for dataset in DATASETS {
@@ -178,7 +184,8 @@ fn compare(
 ) {
     let script = legacy::path("bin/zbm-kcl").display().to_string();
     let binary = env!("CARGO_BIN_EXE_zbm-kcl").to_owned();
-    // Both programs run from the sandbox's working directory, so relative paths in `args` name the same files.
+    // Both programs run from the sandbox's working directory, so relative paths in
+    // `args` name the same files.
     let in_dir = |program: &str| -> Vec<String> {
         vec![
             "sh".to_owned(),

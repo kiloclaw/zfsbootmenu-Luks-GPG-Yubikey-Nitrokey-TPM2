@@ -1,9 +1,12 @@
-//! The program: the Rust counterpart of the main part of `legacy/bin/generate-zbm`.
+//! The program: the Rust counterpart of the main part of
+//! `legacy/bin/generate-zbm`.
 //!
-//! The steps, messages and exit statuses follow the Perl program. Like it, the generator runs every external program
-//! through `/bin/sh -c '<command> 2>&1'`: the initramfs flags in the configuration are shell words, so the commands
-//! must keep shell semantics, and paths are quoted. Perl's `exit` and `die` become [`Stop`]; whichever way the
-//! program ends, the boot partition is unmounted if the generator mounted it, as the Perl `END` block does.
+//! The steps, messages and exit statuses follow the Perl program. Like it, the
+//! generator runs every external program through `/bin/sh -c '<command> 2>&1'`:
+//! the initramfs flags in the configuration are shell words, so the commands
+//! must keep shell semantics, and paths are quoted. Perl's `exit` and `die`
+//! become `Stop`; whichever way the program ends, the boot partition is
+//! unmounted if the generator mounted it, as the Perl `END` block does.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -39,7 +42,8 @@ pub struct Context<'a> {
     pub etc_hostid: PathBuf,
     /// The release information added to EFI bundles.
     pub os_release: PathBuf,
-    /// Where device trees named by a relative `EFI.DeviceTree` are, per kernel version.
+    /// Where device trees named by a relative `EFI.DeviceTree` are, per kernel
+    /// version.
     pub dtb_dir: String,
     /// The EFI stubs tried when `EFI.Stub` is not set.
     pub default_stubs: Vec<String>,
@@ -80,11 +84,14 @@ pub struct Io<'a> {
     pub stderr: &'a mut dyn Write,
 }
 
-/// Why the program stops early: Perl's `exit` with a status, or `die` with a message and a status.
+/// Why the program stops early: Perl's `exit` with a status, or `die` with a
+/// message and a status.
 ///
-/// A Perl program that dies exits with `errno` when it is set, so a `die` after a failed system call exits with
-/// that call's error number; [`Stop::fatal`] keeps it. Other dies, such as a configuration section that is not a
-/// mapping, exit with 255 here; Perl exits with whatever error number an earlier call left behind.
+/// A Perl program that dies exits with `errno` when it is set, so a `die` after
+/// a failed system call exits with that call's error number; [`Stop::fatal`]
+/// keeps it. Other dies, such as a configuration section that is not a mapping,
+/// exit with 255 here; Perl exits with whatever error number an earlier call
+/// left behind.
 #[derive(Debug)]
 enum Stop {
     Exit(i32),
@@ -109,7 +116,8 @@ impl From<Fatal> for Stop {
 
 type Step<T> = Result<T, Stop>;
 
-/// A temporary directory removed when the program ends, as `File::Temp->newdir` arranges.
+/// A temporary directory removed when the program ends, as `File::Temp->newdir`
+/// arranges.
 struct WorkDir(PathBuf);
 
 impl Drop for WorkDir {
@@ -140,7 +148,8 @@ pub fn run(context: &Context, args: &[String], io: &mut Io) -> i32 {
     code
 }
 
-/// The values the Perl program keeps in `%runConf` once the options and the configuration are combined.
+/// The values the Perl program keeps in `%runConf` once the options and the
+/// configuration are combined.
 struct Settings {
     usecpio: bool,
     confd: String,
@@ -163,7 +172,8 @@ fn has_value(text: Option<&String>) -> bool {
     text.is_some_and(|text| !text.is_empty())
 }
 
-/// Splits program output into lines that keep their newline, as `qx` does in list context.
+/// Splits program output into lines that keep their newline, as `qx` does in
+/// list context.
 fn output_lines(output: &[u8]) -> Vec<Vec<u8>> {
     output
         .split_inclusive(|byte| *byte == b'\n')
@@ -225,8 +235,9 @@ impl Generator<'_, '_, '_> {
             .is_some_and(|value| value.truthy()))
     }
 
-    /// `execute`: runs a shell command with standard error merged into its output, and returns the output lines and
-    /// the exit status (128 plus the signal number for a command killed by a signal).
+    /// `execute`: runs a shell command with standard error merged into its output,
+    /// and returns the output lines and the exit status (128 plus the signal number
+    /// for a command killed by a signal).
     fn run_shell(&self, command: &str) -> (Vec<Vec<u8>>, i32) {
         let command = Command::new("/bin/sh")
             .arg("-c")
@@ -236,7 +247,8 @@ impl Generator<'_, '_, '_> {
             .stderr(Stream::Inherit);
         match self.context.runner.run(&command) {
             Ok(output) => (output_lines(&output.stdout), output.status.shell_code()),
-            // Perl reports a shell that cannot be started as status -1, which the fixed `execute` turns into 255.
+            // Perl reports a shell that cannot be started as status -1, which the fixed
+            // `execute` turns into 255.
             Err(_) => (Vec::new(), 255),
         }
     }
@@ -248,7 +260,8 @@ impl Generator<'_, '_, '_> {
         Ok(result)
     }
 
-    /// The `INT` and `TERM` handler: unmount, report the signal and exit with status 1.
+    /// The `INT` and `TERM` handler: unmount, report the signal and exit with
+    /// status 1.
     fn check_signal(&mut self) -> Step<()> {
         if let Some(signal) = (self.context.signal)() {
             self.cleanup_mount();
@@ -347,7 +360,8 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `--enable` and `--disable`: rewrite the configuration with `Global.ManageImages` set.
+    /// `--enable` and `--disable`: rewrite the configuration with
+    /// `Global.ManageImages` set.
     fn set_manage_images(&mut self, path: &str, enable: bool) -> Step<()> {
         self.config
             .set("Global", "ManageImages", Value::Bool(enable))?;
@@ -368,7 +382,8 @@ impl Generator<'_, '_, '_> {
         Err(Stop::Exit(0))
     }
 
-    /// Combines the options with the configuration: the initramfs generator, its configuration and hook directories.
+    /// Combines the options with the configuration: the initramfs generator, its
+    /// configuration and hook directories.
     fn settings(&mut self, options: &Options) -> Step<Settings> {
         let usecpio = match options.initcpio {
             Some(usecpio) => usecpio,
@@ -446,7 +461,8 @@ impl Generator<'_, '_, '_> {
         Ok(())
     }
 
-    /// Runs the executables in `Global.PreHooksDir` or `Global.PostHooksDir`, in glob order.
+    /// Runs the executables in `Global.PreHooksDir` or `Global.PostHooksDir`, in
+    /// glob order.
     fn run_hooks(&mut self, key: &str) -> Step<()> {
         let Some(dir) = self.setting("Global", key)?.filter(|text| !text.is_empty()) else {
             return Ok(());
@@ -459,7 +475,8 @@ impl Generator<'_, '_, '_> {
                 continue;
             }
             self.log(&format!("Processing hook: {hook}"));
-            // The Perl program logs the whole result of `execute`, whose last element is the exit status.
+            // The Perl program logs the whole result of `execute`, whose last element is
+            // the exit status.
             let (mut output, status) = self.execute(&quote(&hook))?;
             output.push(status.to_string().into_bytes());
             self.log_lines(&output);
@@ -467,7 +484,8 @@ impl Generator<'_, '_, '_> {
         Ok(())
     }
 
-    /// File::Spec's `tmpdir`: `$TMPDIR` when it is a writable directory, otherwise `/tmp`, otherwise `.`.
+    /// File::Spec's `tmpdir`: `$TMPDIR` when it is a writable directory, otherwise
+    /// `/tmp`, otherwise `.`.
     fn temp_base(&self) -> PathBuf {
         let candidates = [self.context.tmpdir.clone(), Some(PathBuf::from("/tmp"))];
         let base = candidates
@@ -680,7 +698,8 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `latestKernel`: the kernel with the highest version among the first prefix that has any.
+    /// `latestKernel`: the kernel with the highest version among the first prefix
+    /// that has any.
     fn latest_kernel(&mut self, bootdir: &str) -> Step<Option<String>> {
         for prefix in ["vmlinuz*", "vmlinux*", "linux*", "kernel*"] {
             let mut kernels: BTreeMap<String, String> = BTreeMap::new();
@@ -701,7 +720,8 @@ impl Generator<'_, '_, '_> {
         Ok(None)
     }
 
-    /// `kernelVersion`: the version from the file name and from the kernel's strings.
+    /// `kernelVersion`: the version from the file name and from the kernel's
+    /// strings.
     fn kernel_version(&mut self, kernel: &str) -> Step<Option<String>> {
         if !is_readable(kernel) {
             self.log(&format!(
@@ -739,8 +759,9 @@ impl Generator<'_, '_, '_> {
         })
     }
 
-    /// Runs a command built for the initramfs or the bundle: its output is logged when it succeeds and printed when
-    /// it fails, and failure ends the program with the command's status.
+    /// Runs a command built for the initramfs or the bundle: its output is logged
+    /// when it succeeds and printed when it fails, and failure ends the program
+    /// with the command's status.
     fn run_build_step(&mut self, words: &[String], output_file: &str) -> Step<()> {
         let command = words.join(" ");
         self.log(&format!("Executing: {command}"));
@@ -848,8 +869,9 @@ impl Generator<'_, '_, '_> {
         Ok(self.next_offset(u128::from(size), offset, alignment))
     }
 
-    /// `createUEFIBundle`: combines the stub, the release information, the command line, a splash image, a device
-    /// tree, the initramfs and the kernel with objcopy.
+    /// `createUEFIBundle`: combines the stub, the release information, the command
+    /// line, a splash image, a device tree, the initramfs and the kernel with
+    /// objcopy.
     fn create_bundle(
         &mut self,
         dir: &str,
@@ -947,7 +969,8 @@ impl Generator<'_, '_, '_> {
             offset = self.add_section(&mut words, ".dtb", &path, offset, alignment)?;
         }
         offset = self.add_section(&mut words, ".initrd", initramfs, offset, alignment)?;
-        // The kernel goes last, so that it can decompress without overwriting other sections.
+        // The kernel goes last, so that it can decompress without overwriting other
+        // sections.
         self.add_section(&mut words, ".linux", kernel, offset, alignment)?;
         words.push(quote(&stub));
         words.push(quote(&output));
@@ -970,8 +993,8 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `verboseUnlink`: removes a file if it exists, printing `message` first, or a confirmation when there is no
-    /// message.
+    /// `verboseUnlink`: removes a file if it exists, printing `message` first, or a
+    /// confirmation when there is no message.
     fn verbose_unlink(&mut self, file: &str, message: Option<&str>) {
         if !is_file(file) {
             return;
@@ -1022,7 +1045,8 @@ impl Generator<'_, '_, '_> {
                 };
                 Stop::fatal(
                     format!(
-                        "Error in tempfile() using template {template}: Could not create temp file: {}",
+                        "Error in tempfile() using template {template}: \
+                         Could not create temp file: {}",
                         strerror(&error)
                     ),
                     &error,
@@ -1035,7 +1059,8 @@ impl Generator<'_, '_, '_> {
         std::fs::rename(from, to).is_ok()
     }
 
-    /// Places the EFI bundle in `EFI.ImageDir`, as a new revision or replacing the previous image.
+    /// Places the EFI bundle in `EFI.ImageDir`, as a new revision or replacing the
+    /// previous image.
     fn install_bundle(&mut self, bundle: &str, prefix: &str, version: &str) -> Step<()> {
         let image_dir = self.setting("EFI", "ImageDir")?.unwrap_or_default();
         let efi_prefix = format!("{image_dir}/{prefix}");
@@ -1119,7 +1144,8 @@ impl Generator<'_, '_, '_> {
                 return Err(Stop::Exit(1));
             }
             self.prune(&groups, version, versions);
-            // Each kernel has an initramfs of the same version and revision; prune those too.
+            // Each kernel has an initramfs of the same version and revision; prune those
+            // too.
             let initramfs_prefix = format!("{image_dir}/initramfs");
             for files in groups.values_mut() {
                 for file in files.iter_mut() {
@@ -1184,7 +1210,8 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// `versionedKernel`: a kernel in the boot directory for a version, exactly or by glob.
+/// `versionedKernel`: a kernel in the boot directory for a version, exactly or
+/// by glob.
 fn versioned_kernel(bootdir: &str, version: &str) -> Option<(String, bool)> {
     for prefix in ["vmlinuz", "linux", "vmlinux", "kernel"] {
         let pattern = format!("{bootdir}/{prefix}-{version}");
@@ -1200,7 +1227,8 @@ fn versioned_kernel(bootdir: &str, version: &str) -> Option<(String, bool)> {
     None
 }
 
-/// File::Path's `make_path`: creates a directory and its missing parents; failing to create one is fatal.
+/// File::Path's `make_path`: creates a directory and its missing parents;
+/// failing to create one is fatal.
 fn make_path(path: &str) -> Step<()> {
     if path.is_empty() || is_dir(path) {
         return Ok(());
@@ -1218,8 +1246,9 @@ fn make_path(path: &str) -> Step<()> {
     }
 }
 
-/// File::Copy's `copy`: copies the contents into `dest` (into a file of the same name when `dest` is a directory),
-/// creating it with the default permissions or truncating it.
+/// File::Copy's `copy`: copies the contents into `dest` (into a file of the
+/// same name when `dest` is a directory), creating it with the default
+/// permissions or truncating it.
 fn file_copy(source: &str, dest: &str) -> std::io::Result<()> {
     let mut dest = PathBuf::from(dest);
     if dest.is_dir() && !Path::new(source).is_dir() {
@@ -1238,7 +1267,8 @@ fn file_copy(source: &str, dest: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-/// File::Spec's `canonpath` on Unix: no repeated `/`, no `/.` components, no leading `./` and no trailing `/`.
+/// File::Spec's `canonpath` on Unix: no repeated `/`, no `/.` components, no
+/// leading `./` and no trailing `/`.
 fn canonical_path(path: &Path) -> PathBuf {
     let text = path.display().to_string();
     let mut parts: Vec<&str> = Vec::new();

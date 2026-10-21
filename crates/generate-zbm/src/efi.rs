@@ -1,11 +1,13 @@
-//! Laying out a unified EFI bundle, as `createUEFIBundle` in `generate-zbm` does: the stub's section alignment and
-//! the end of its last section, from `objdump`, decide where each added section goes.
+//! Laying out a unified EFI bundle, as `createUEFIBundle` in `generate-zbm`
+//! does: the stub's section alignment and the end of its last section, from
+//! `objdump`, decide where each added section goes.
 
 use crate::perl::split_whitespace;
 
-/// The section alignment in a line of `objdump -p` output: `m/SectionAlignment\s+(\d+)/`, whose decimal digits are
-/// then read as hex, as the Perl program does with `hex($1)`. objdump prints the value in hex with leading zeros, so
-/// the digits are hex digits in practice.
+/// The section alignment in a line of `objdump -p` output:
+/// `m/SectionAlignment\s+(\d+)/`, whose decimal digits are then read as hex, as
+/// the Perl program does with `hex($1)`. objdump prints the value in hex with
+/// leading zeros, so the digits are hex digits in practice.
 pub fn section_alignment(line: &[u8]) -> Option<u64> {
     const KEY: &[u8] = b"SectionAlignment";
     (0..line.len()).find_map(|at| {
@@ -26,8 +28,9 @@ pub fn section_alignment(line: &[u8]) -> Option<u64> {
     })
 }
 
-/// The end of the stub's last section, from the last line of `objdump -w -h`: its size plus its VMA, the fourth and
-/// fifth fields of `split /\s+/` (the line starts with white space, so the first field is empty).
+/// The end of the stub's last section, from the last line of `objdump -w -h`:
+/// its size plus its VMA, the fourth and fifth fields of `split /\s+/` (the
+/// line starts with white space, so the first field is empty).
 pub fn last_section_end(last_line: &[u8]) -> Option<u128> {
     let fields = split_whitespace(last_line);
     let hex = |field: &[u8]| -> Option<u128> {
@@ -41,7 +44,8 @@ pub fn last_section_end(last_line: &[u8]) -> Option<u128> {
     size.checked_add(vma)
 }
 
-/// `increaseBundleOffset`: the offset after a section of `size` bytes, rounded up to the alignment.
+/// `increaseBundleOffset`: the offset after a section of `size` bytes, rounded
+/// up to the alignment.
 pub fn next_offset(size: u128, offset: u128, alignment: u128) -> u128 {
     offset + size.div_ceil(alignment) * alignment
 }

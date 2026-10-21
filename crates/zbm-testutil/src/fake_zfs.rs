@@ -1,9 +1,11 @@
 //! A fake `zfs` command for parity tests.
 //!
-//! Parity tests run legacy scripts and Rust code against the same fake, so both see the same datasets and
-//! properties. The fake keeps datasets and user properties in a directory and follows the inheritance rules of ZFS
-//! user properties: a property not set on a dataset is inherited from the nearest ancestor that sets it, with the
-//! source `inherited from <ancestor>`, and is `-` when no ancestor sets it.
+//! Parity tests run legacy scripts and Rust code against the same fake, so both
+//! see the same datasets and properties. The fake keeps datasets and user
+//! properties in a directory and follows the inheritance rules of ZFS user
+//! properties: a property not set on a dataset is inherited from the nearest
+//! ancestor that sets it, with the source `inherited from <ancestor>`, and is
+//! `-` when no ancestor sets it.
 //!
 //! It supports the commands ZFSBootMenu's host tools run:
 //!

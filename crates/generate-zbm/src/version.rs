@@ -1,8 +1,10 @@
-//! Version comparison, the Rust counterpart of Perl's `Sort::Versions::versioncmp`.
+//! Version comparison, the Rust counterpart of Perl's
+//! `Sort::Versions::versioncmp`.
 //!
-//! `generate-zbm` orders kernels and image revisions with `versioncmp`, so the Rust port compares versions the same
-//! way. The algorithm splits each string into `-`, `.`, runs of digits and runs of other characters, and compares
-//! the pieces in turn.
+//! `generate-zbm` orders kernels and image revisions with `versioncmp`, so the
+//! Rust port compares versions the same way. The algorithm splits each string
+//! into `-`, `.`, runs of digits and runs of other characters, and compares the
+//! pieces in turn.
 
 use std::cmp::Ordering;
 
@@ -53,8 +55,9 @@ fn pieces(text: &str) -> Vec<Piece<'_>> {
     pieces
 }
 
-/// Compares two runs of digits numerically; both are known to have no leading zero, so the longer run is the larger
-/// number and equal lengths compare byte by byte.
+/// Compares two runs of digits numerically; both are known to have no leading
+/// zero, so the longer run is the larger number and equal lengths compare byte
+/// by byte.
 fn compare_numeric(a: &str, b: &str) -> Ordering {
     a.len().cmp(&b.len()).then_with(|| a.cmp(b))
 }
@@ -82,8 +85,9 @@ pub fn versioncmp(left: &str, right: &str) -> Ordering {
                     compare_numeric(a, b)
                 }
             }
-            // Any pair involving an "other" run is compared as upper-case strings; digit runs are unchanged by
-            // upper-casing, so this also covers a digit run against an "other" run.
+            // Any pair involving an "other" run is compared as upper-case strings; digit
+            // runs are unchanged by upper-casing, so this also covers a digit run against
+            // an "other" run.
             (a, b) => upper(a).cmp(&upper(b)),
         };
         if order != Ordering::Equal {
@@ -92,7 +96,8 @@ pub fn versioncmp(left: &str, right: &str) -> Ordering {
     }
 }
 
-/// The ASCII upper-case of a piece's text, as Perl's `uc` leaves version strings.
+/// The ASCII upper-case of a piece's text, as Perl's `uc` leaves version
+/// strings.
 fn upper(piece: &Piece) -> String {
     match piece {
         Piece::Digits(text) | Piece::Other(text) => text.to_ascii_uppercase(),
@@ -101,7 +106,8 @@ fn upper(piece: &Piece) -> String {
     }
 }
 
-/// Sorts version strings with [`versioncmp`], keeping equal ones in their original order, like Perl's `sort`.
+/// Sorts version strings with [`versioncmp`], keeping equal ones in their
+/// original order, like Perl's `sort`.
 pub fn sort_versions(versions: &mut [String]) {
     versions.sort_by(|a, b| versioncmp(a, b));
 }

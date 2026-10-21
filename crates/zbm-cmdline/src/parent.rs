@@ -1,9 +1,10 @@
 //! Expanding `%{parent}` in boot environment command lines.
 //!
-//! A boot environment's `org.zfsbootmenu:commandline` may contain `%{parent}`, which stands for the command line of
-//! its parent dataset, expanded in turn. [`read_kcl_prop`] and [`read_kcl_value`] do what the legacy functions of
-//! the same names do, with the property values coming from a [`CommandLineSource`] (normally the `zfs` command; see
-//! the `zbm-zfs` crate).
+//! A boot environment's `org.zfsbootmenu:commandline` may contain `%{parent}`,
+//! which stands for the command line of its parent dataset, expanded in turn.
+//! [`read_kcl_prop`] and [`read_kcl_value`] do what the legacy functions of the
+//! same names do, with the property values coming from a [`CommandLineSource`]
+//! (normally the `zfs` command; see the `zbm-zfs` crate).
 
 use zbm_core::shell::{command_substitution, echo, read_first_line};
 use zbm_log::Message;
@@ -13,19 +14,21 @@ pub const COMMANDLINE_PROPERTY: &str = "org.zfsbootmenu:commandline";
 
 /// Where command line properties come from.
 pub trait CommandLineSource {
-    /// The value of `org.zfsbootmenu:commandline` on `filesystem` (`-` when it is not set), or `None` when it cannot
-    /// be read.
+    /// The value of `org.zfsbootmenu:commandline` on `filesystem` (`-` when it is
+    /// not set), or `None` when it cannot be read.
     fn commandline(&self, filesystem: &str) -> Option<String>;
 
-    /// The source of the property when it is inherited (`inherited from <ancestor>`): empty when it is set locally
-    /// or not at all, `None` when it cannot be read.
+    /// The source of the property when it is inherited (`inherited from
+    /// <ancestor>`): empty when it is set locally or not at all, `None` when it
+    /// cannot be read.
     fn inherited_source(&self, filesystem: &str) -> Option<String>;
 }
 
-/// The command line of `filesystem`, with `%{parent}` expanded recursively, or `None` when it cannot be read.
+/// The command line of `filesystem`, with `%{parent}` expanded recursively, or
+/// `None` when it cannot be read.
 ///
-/// An inherited property expands to the expansion at the ancestor that sets it, so `%{parent}` is not applied
-/// twice.
+/// An inherited property expands to the expansion at the ancestor that sets it,
+/// so `%{parent}` is not applied twice.
 pub fn read_kcl_prop(
     source: &dyn CommandLineSource,
     filesystem: &str,
@@ -71,7 +74,8 @@ pub fn read_kcl_prop(
             .is_some_and(|inherited| !inherited.is_empty())
         {
             log.push(Message::debug(format!(
-                "{COMMANDLINE_PROPERTY} on {filesystem} is inherited, using parent expansion verbatim"
+                "{COMMANDLINE_PROPERTY} on {filesystem} is inherited, \
+                 using parent expansion verbatim"
             )));
             return Some(printed(&parent_args));
         }
@@ -80,8 +84,9 @@ pub fn read_kcl_prop(
     Some(printed(&args.replace("%{parent}", &parent_args)))
 }
 
-/// The command line in `kclfile`, with `%{parent}` expanded from the property of `filesystem`; when the file cannot
-/// be read, the property itself, as [`read_kcl_prop`] reads it.
+/// The command line in `kclfile`, with `%{parent}` expanded from the property
+/// of `filesystem`; when the file cannot be read, the property itself, as
+/// [`read_kcl_prop`] reads it.
 pub fn read_kcl_value(
     source: &dyn CommandLineSource,
     filesystem: &str,
@@ -179,7 +184,8 @@ mod tests {
             Some("spl_hostid=1 a&b quiet")
         );
         assert!(log.contains(&Message::debug(
-            "org.zfsbootmenu:commandline on pool/ROOT/be is inherited, using parent expansion verbatim"
+            "org.zfsbootmenu:commandline on pool/ROOT/be is inherited, \
+             using parent expansion verbatim"
         )));
     }
 

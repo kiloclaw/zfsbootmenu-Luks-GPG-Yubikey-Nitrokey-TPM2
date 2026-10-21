@@ -1,10 +1,14 @@
 //! Test helpers of the Rust port of ZFSBootMenu.
 //!
-//! Only tests use this crate (as a dev-dependency), so nothing here reaches a binary or the boot image.
+//! Only tests use this crate (as a dev-dependency), so nothing here reaches a
+//! binary or the boot image.
 //!
-//! - [`FakeRunner`] replaces the system's programs: it records every command and answers it.
-//! - [`legacy`] runs the Bash and Perl code in `legacy/`, so parity tests can compare it with the Rust code.
-//! - [`Rng`] generates test inputs from a seed, so a failing generated case can be reproduced.
+//! - [`FakeRunner`] replaces the system's programs: it records every command
+//!   and answers it.
+//! - [`legacy`] runs the Bash and Perl code in `legacy/`, so parity tests can
+//!   compare it with the Rust code.
+//! - [`Rng`] generates test inputs from a seed, so a failing generated case can
+//!   be reproduced.
 //! - [`TempDir`] is a scratch directory that is removed afterwards.
 
 use std::cell::RefCell;
@@ -17,12 +21,15 @@ use zbm_core::exec::{Command, Output, Runner, Status};
 pub mod fake_zfs;
 pub mod legacy;
 
-/// A response function: returns the output for commands it handles and `None` for the others.
+/// A response function: returns the output for commands it handles and `None`
+/// for the others.
 type Responder = Box<dyn Fn(&Command) -> Option<io::Result<Output>>>;
 
-/// A [`Runner`] that records commands and answers them without running anything.
+/// A [`Runner`] that records commands and answers them without running
+/// anything.
 ///
-/// Responders are tried in the order they were added; a command no responder handles succeeds with no output.
+/// Responders are tried in the order they were added; a command no responder
+/// handles succeeds with no output.
 #[derive(Default)]
 pub struct FakeRunner {
     calls: RefCell<Vec<Command>>,
@@ -40,7 +47,8 @@ impl FakeRunner {
         self.responders.borrow_mut().push(Box::new(responder));
     }
 
-    /// Answers commands whose program and arguments, joined by spaces, equal `line`.
+    /// Answers commands whose program and arguments, joined by spaces, equal
+    /// `line`.
     pub fn respond(&self, line: &str, status: u8, stdout: &str) {
         let line = line.to_owned();
         let output = Output::new(Status::exited(status), stdout.as_bytes());
@@ -84,7 +92,8 @@ pub fn repo_root() -> PathBuf {
         .expect("the repository root exists")
 }
 
-/// Whether `program` can be found in `PATH`, so tests that need it can skip otherwise.
+/// Whether `program` can be found in `PATH`, so tests that need it can skip
+/// otherwise.
 pub fn have_program(program: &str) -> bool {
     std::env::var_os("PATH").is_some_and(|path| {
         std::env::split_paths(&path).any(|dir| {
@@ -93,10 +102,12 @@ pub fn have_program(program: &str) -> bool {
     })
 }
 
-/// Writes an executable file through a child process (`cat`), so that this process never has it open for writing.
+/// Writes an executable file through a child process (`cat`), so that this
+/// process never has it open for writing.
 ///
-/// A test that writes a program and then runs it can otherwise fail with "Text file busy": another test thread may
-/// fork a child at the moment the file is open, and the child holds it open until it executes its own program.
+/// A test that writes a program and then runs it can otherwise fail with "Text
+/// file busy": another test thread may fork a child at the moment the file is
+/// open, and the child holds it open until it executes its own program.
 pub fn write_executable(path: &Path, contents: impl AsRef<[u8]>) {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("the parent directory can be created");
@@ -142,14 +153,16 @@ impl TempDir {
         self.path.join(name)
     }
 
-    /// Writes an executable file inside the directory (see [`write_executable`]) and returns its path.
+    /// Writes an executable file inside the directory (see [`write_executable`])
+    /// and returns its path.
     pub fn write_executable(&self, name: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> PathBuf {
         let path = self.path.join(name);
         write_executable(&path, contents);
         path
     }
 
-    /// Writes a file inside the directory, creating parent directories, and returns its path.
+    /// Writes a file inside the directory, creating parent directories, and returns
+    /// its path.
     pub fn write(&self, name: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> PathBuf {
         let path = self.path.join(name);
         if let Some(parent) = path.parent() {
@@ -168,8 +181,8 @@ impl Drop for TempDir {
 
 /// A small random number generator for generated test inputs (xorshift64*).
 ///
-/// The seed comes from `ZBM_TEST_SEED` when set, so a failing case can be run again; generated-input tests print the
-/// seed they used.
+/// The seed comes from `ZBM_TEST_SEED` when set, so a failing case can be run
+/// again; generated-input tests print the seed they used.
 #[derive(Clone, Debug)]
 pub struct Rng {
     state: u64,
@@ -181,7 +194,8 @@ impl Rng {
         Rng { state: seed.max(1) }
     }
 
-    /// A generator seeded from `ZBM_TEST_SEED`, or with `default` when it is not set.
+    /// A generator seeded from `ZBM_TEST_SEED`, or with `default` when it is not
+    /// set.
     pub fn from_env(default: u64) -> Rng {
         let seed = std::env::var("ZBM_TEST_SEED")
             .ok()

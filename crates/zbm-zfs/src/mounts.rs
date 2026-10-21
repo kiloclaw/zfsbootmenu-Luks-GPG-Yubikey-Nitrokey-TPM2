@@ -1,4 +1,5 @@
-//! The mount table, and the mount and unmount commands of `zfsbootmenu-core.sh`.
+//! The mount table, and the mount and unmount commands of
+//! `zfsbootmenu-core.sh`.
 
 use std::path::Path;
 
@@ -36,8 +37,8 @@ pub enum RootFilesystem {
 }
 
 impl MountTable {
-    /// Parses the mount table. Fields are not unescaped (a space in a mount point stays `\040`), as the legacy code
-    /// does not unescape them either.
+    /// Parses the mount table. Fields are not unescaped (a space in a mount point
+    /// stays `\040`), as the legacy code does not unescape them either.
     pub fn parse(text: &str) -> MountTable {
         let entries = zbm_core::shell::read_lines(text)
             .iter()
@@ -74,7 +75,8 @@ impl MountTable {
         }
     }
 
-    /// Where `source` is mounted, as `is_mounted` finds it: the first entry for the source.
+    /// Where `source` is mounted, as `is_mounted` finds it: the first entry for the
+    /// source.
     pub fn mountpoint_of(&self, source: &str) -> Option<&str> {
         self.entries
             .iter()
@@ -82,12 +84,15 @@ impl MountTable {
             .map(|entry| entry.target.as_str())
     }
 
-    /// The mount points `recursive_umount` unmounts one by one when `umount -R` fails, in its order.
+    /// The mount points `recursive_umount` unmounts one by one when `umount -R`
+    /// fails, in its order.
     ///
-    /// These are the mount points that start with `mountpoint`, which the legacy code tests with the regular
-    /// expression `^mountpoint`, so a `.` in it matches any character. They are ordered as `sort -n -k1 -r` orders
-    /// `depth,mountpoint`: deepest first, and in reverse byte order among equals. When there are none, the list holds
-    /// a single empty name, as `printf '%s\n'` of an empty array prints one empty line.
+    /// These are the mount points that start with `mountpoint`, which the legacy
+    /// code tests with the regular expression `^mountpoint`, so a `.` in it matches
+    /// any character. They are ordered as `sort -n -k1 -r` orders
+    /// `depth,mountpoint`: deepest first, and in reverse byte order among equals.
+    /// When there are none, the list holds a single empty name, as `printf '%s\n'`
+    /// of an empty array prints one empty line.
     pub fn unmount_order(&self, mountpoint: &str) -> Vec<String> {
         let mut lines: Vec<(usize, String)> = self
             .entries
@@ -115,7 +120,8 @@ impl MountTable {
     }
 }
 
-/// Whether `text` starts with `prefix` read as a regular expression without special characters but `.`.
+/// Whether `text` starts with `prefix` read as a regular expression without
+/// special characters but `.`.
 fn regex_prefix(prefix: &str, text: &str) -> bool {
     let mut text = text.chars();
     prefix.chars().all(|expected| match text.next() {
@@ -124,10 +130,11 @@ fn regex_prefix(prefix: &str, text: &str) -> bool {
     })
 }
 
-/// The command `mount_zfs` runs: `mount -o [zfsutil,]ro|rw -t zfs <dataset> <target>`.
+/// The command `mount_zfs` runs: `mount -o [zfsutil,]ro|rw -t zfs <dataset>
+/// <target>`.
 ///
-/// `zfsutil` is needed for datasets with a non-legacy mount point, and must be left out for legacy mount points and
-/// for snapshots.
+/// `zfsutil` is needed for datasets with a non-legacy mount point, and must be
+/// left out for legacy mount points and for snapshots.
 pub fn zfs_mount_command(dataset: &str, target: &str, read_write: bool, zfsutil: bool) -> Command {
     let mode = if read_write { "rw" } else { "ro" };
     let options = if zfsutil {
@@ -138,8 +145,9 @@ pub fn zfs_mount_command(dataset: &str, target: &str, read_write: bool, zfsutil:
     Command::new("mount").args(["-o", &options, "-t", "zfs", dataset, target])
 }
 
-/// The command `mount_efivarfs` runs to mount `efivarfs` read-only (`ro`) or read-write (`rw`) at `location`, or to
-/// remount it when it is already mounted there.
+/// The command `mount_efivarfs` runs to mount `efivarfs` read-only (`ro`) or
+/// read-write (`rw`) at `location`, or to remount it when it is already mounted
+/// there.
 pub fn efivarfs_mount_command(state: &str, location: &str, remount: bool) -> Command {
     let options = if remount {
         format!("remount,{state}")
@@ -149,8 +157,9 @@ pub fn efivarfs_mount_command(state: &str, location: &str, remount: bool) -> Com
     Command::new("mount").args(["-t", "efivarfs", "efivarfs", location, "-o", &options])
 }
 
-/// Unmounts `mountpoint` and everything below it, as `recursive_umount` does: `umount -R` first, then each mount
-/// point in [`MountTable::unmount_order`]. Returns whether everything was unmounted; failures are added to `log`.
+/// Unmounts `mountpoint` and everything below it, as `recursive_umount` does:
+/// `umount -R` first, then each mount point in [`MountTable::unmount_order`].
+/// Returns whether everything was unmounted; failures are added to `log`.
 pub fn recursive_umount(
     runner: &dyn Runner,
     table: &MountTable,
@@ -228,7 +237,8 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
             ]
         );
         assert_eq!(table.unmount_order("/nothing"), [""]);
-        // A dot in the mount point matches any character, as in the legacy regular expression.
+        // A dot in the mount point matches any character, as in the legacy regular
+        // expression.
         assert_eq!(
             MountTable::parse("x /a/bxc ext4 rw\n").unmount_order("/a/b.c"),
             ["/a/bxc"]

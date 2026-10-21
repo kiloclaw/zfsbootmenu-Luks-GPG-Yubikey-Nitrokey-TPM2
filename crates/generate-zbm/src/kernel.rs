@@ -1,7 +1,8 @@
-//! Recognising kernel versions, as `kernelVersion` in `generate-zbm` does: from the file name and from the
-//! printable strings in the kernel.
+//! Recognising kernel versions, as `kernelVersion` in `generate-zbm` does: from
+//! the file name and from the printable strings in the kernel.
 
-/// The end of the run of ASCII digits that starts at `start`, if there is at least one digit.
+/// The end of the run of ASCII digits that starts at `start`, if there is at
+/// least one digit.
 fn digits_end(text: &[u8], start: usize) -> Option<usize> {
     let count = text
         .get(start..)?
@@ -11,7 +12,8 @@ fn digits_end(text: &[u8], start: usize) -> Option<usize> {
     (count > 0).then_some(start + count)
 }
 
-/// Where the third digit run of `[0-9]+\.[0-9]+\.[0-9]+` starts when the pattern matches at `start`.
+/// Where the third digit run of `[0-9]+\.[0-9]+\.[0-9]+` starts when the
+/// pattern matches at `start`.
 fn third_number(text: &[u8], start: usize) -> Option<usize> {
     let first = digits_end(text, start)?;
     if text.get(first) != Some(&b'.') {
@@ -24,8 +26,9 @@ fn third_number(text: &[u8], start: usize) -> Option<usize> {
     digits_end(text, second + 1).map(|_| second + 1)
 }
 
-/// The version in a kernel's file name: `m/-([0-9]+\.[0-9]+\.[0-9]+.*)/` on its base name, which is everything from
-/// the first `-` followed by three dotted numbers up to the end of the line.
+/// The version in a kernel's file name: `m/-([0-9]+\.[0-9]+\.[0-9]+.*)/` on its
+/// base name, which is everything from the first `-` followed by three dotted
+/// numbers up to the end of the line.
 pub fn version_from_name(name: &str) -> Option<String> {
     let bytes = name.as_bytes();
     (0..bytes.len())
@@ -37,12 +40,14 @@ pub fn version_from_name(name: &str) -> Option<String> {
         })
 }
 
-/// The first version-like string in a line of `strings` output: `/([0-9]+\.[0-9]+\.[0-9]+\S+)/`, three dotted numbers
-/// followed by at least one more character that is not white space.
+/// The first version-like string in a line of `strings` output:
+/// `/([0-9]+\.[0-9]+\.[0-9]+\S+)/`, three dotted numbers followed by at least
+/// one more character that is not white space.
 pub fn version_in_line(line: &[u8]) -> Option<String> {
     (0..line.len()).find_map(|start| {
         let third = third_number(line, start)?;
-        // `[0-9]+\S+` needs two characters that are not white space; it extends to the next white space.
+        // `[0-9]+\S+` needs two characters that are not white space; it extends to the
+        // next white space.
         let end = line[third..]
             .iter()
             .position(|byte| crate::perl::is_space(*byte))
@@ -51,7 +56,8 @@ pub fn version_in_line(line: &[u8]) -> Option<String> {
     })
 }
 
-/// How the versions from the file name and from the kernel's strings combine, as `kernelVersion` decides.
+/// How the versions from the file name and from the kernel's strings combine,
+/// as `kernelVersion` decides.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Decision {
     /// Neither gives a version: the kernel is unusable.
@@ -71,8 +77,9 @@ pub enum Decision {
     },
 }
 
-/// Picks the version from the strings: the first version-like string, unless a later one equals the version in the
-/// file name; the search stops at the first match when the name gives no version.
+/// Picks the version from the strings: the first version-like string, unless a
+/// later one equals the version in the file name; the search stops at the first
+/// match when the name gives no version.
 pub fn decide<'a>(name: Option<&str>, lines: impl IntoIterator<Item = &'a [u8]>) -> Decision {
     let mut from_strings: Option<String> = None;
     for line in lines {
@@ -160,8 +167,10 @@ mod tests {
             "1", "12", "0", ".", "-", " ", "\t", "a", "x86", "_", "linux", "vmlinuz", "+", "rc1",
         ];
         let mut rng = Rng::from_env(13);
-        let program = "for my $t (@ARGV) { my $n = $t =~ m/-([0-9]+\\.[0-9]+\\.[0-9]+.*)/ ? $1 : '<none>'; \
-                       my $s = $t =~ /([0-9]+\\.[0-9]+\\.[0-9]+\\S+)/ ? $1 : '<none>'; print \"$n|$s\\n\"; }";
+        let program = "for my $t (@ARGV) { \
+                       my $n = $t =~ m/-([0-9]+\\.[0-9]+\\.[0-9]+.*)/ ? $1 : '<none>'; \
+                       my $s = $t =~ /([0-9]+\\.[0-9]+\\.[0-9]+\\S+)/ ? $1 : '<none>'; \
+                       print \"$n|$s\\n\"; }";
         let texts: Vec<String> = (0..300).map(|_| rng.join(&pieces, 8)).collect();
         let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
         let output = perl(program, &refs, b"").stdout_text();

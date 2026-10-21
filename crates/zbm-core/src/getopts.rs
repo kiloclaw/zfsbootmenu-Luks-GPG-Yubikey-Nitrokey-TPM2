@@ -1,9 +1,11 @@
 //! Command-line options as Bash's `getopts` reads them.
 //!
-//! The legacy shell tools parse options with `getopts`: options may be grouped (`-ed`), an option's value may follow
-//! it directly (`-afoo`) or as the next argument (`-a foo`, even when that starts with `-`), `--` ends the options,
-//! and the first argument that is not an option ends them too. [`parse`] reads arguments the same way, so the Rust
-//! tools accept exactly the same command lines.
+//! The legacy shell tools parse options with `getopts`: options may be grouped
+//! (`-ed`), an option's value may follow it directly (`-afoo`) or as the next
+//! argument (`-a foo`, even when that starts with `-`), `--` ends the options,
+//! and the first argument that is not an option ends them too. [`parse`] reads
+//! arguments the same way, so the Rust tools accept exactly the same command
+//! lines.
 
 /// An option that was read.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,7 +26,8 @@ pub enum Error {
 }
 
 impl Error {
-    /// The message Bash prints for the error, with `program` being the script's `$0`.
+    /// The message Bash prints for the error, with `program` being the script's
+    /// `$0`.
     pub fn message(self, program: &str) -> String {
         match self {
             Error::Illegal(option) => format!("{program}: illegal option -- {option}"),
@@ -46,8 +49,8 @@ pub struct Parsed {
     pub operands: Vec<String>,
 }
 
-/// Reads options from `args` as `while getopts "<optstring>" opt` does; a letter followed by `:` in `optstring` takes
-/// a value.
+/// Reads options from `args` as `while getopts "<optstring>" opt` does; a
+/// letter followed by `:` in `optstring` takes a value.
 pub fn parse(optstring: &str, args: &[String]) -> Parsed {
     let takes_value = |option: char| -> Option<bool> {
         let mut chars = optstring.chars().peekable();

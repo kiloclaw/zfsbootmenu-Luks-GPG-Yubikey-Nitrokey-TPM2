@@ -1,5 +1,6 @@
-//! Small pieces of Perl's behaviour that `generate-zbm` relies on: path names, splitting, `%current`
-//! substitutions, number formatting and `Data::Dumper` output.
+//! Small pieces of Perl's behaviour that `generate-zbm` relies on: path names,
+//! splitting, `%current` substitutions, number formatting and `Data::Dumper`
+//! output.
 
 use std::collections::BTreeMap;
 
@@ -13,7 +14,8 @@ fn strip_trailing_slashes(path: &str) -> &str {
     }
 }
 
-/// File::Basename's `fileparse` without suffixes: the directory part, ending with `/` (or `./`), and the rest.
+/// File::Basename's `fileparse` without suffixes: the directory part, ending
+/// with `/` (or `./`), and the rest.
 fn fileparse(path: &str) -> (&str, &str) {
     match path.rfind('/') {
         Some(slash) => (&path[..=slash], &path[slash + 1..]),
@@ -49,8 +51,9 @@ pub fn is_space(byte: u8) -> bool {
     matches!(byte, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r')
 }
 
-/// `split /\s+/, $text`: fields between runs of white space, with an empty first field when the text starts with
-/// white space and without empty fields at the end.
+/// `split /\s+/, $text`: fields between runs of white space, with an empty
+/// first field when the text starts with white space and without empty fields
+/// at the end.
 pub fn split_whitespace(text: &[u8]) -> Vec<&[u8]> {
     let mut fields = Vec::new();
     let mut start = 0;
@@ -83,7 +86,8 @@ fn is_word(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// The byte positions where `needle` occurs in `text`, ignoring the case of ASCII letters.
+/// The byte positions where `needle` occurs in `text`, ignoring the case of
+/// ASCII letters.
 fn find_ignoring_case(text: &str, needle: &str) -> impl Iterator<Item = usize> {
     let haystack = text.as_bytes().to_vec();
     let needle = needle.as_bytes().to_vec();
@@ -117,7 +121,8 @@ pub fn replace_current(text: &str, replacement: &str) -> String {
     }
 }
 
-/// `s/-\Q$version\E$//`: removes `-<version>` from the end, or from before a final newline.
+/// `s/-\Q$version\E$//`: removes `-<version>` from the end, or from before a
+/// final newline.
 pub fn strip_version_suffix(name: &str, version: &str) -> String {
     let suffix = format!("-{version}");
     if let Some(body) = name.strip_suffix(&format!("{suffix}\n")) {
@@ -126,8 +131,8 @@ pub fn strip_version_suffix(name: &str, version: &str) -> String {
     name.strip_suffix(&suffix).unwrap_or(name).to_owned()
 }
 
-/// `sprintf("%08x", $text)`: the number at the start of the text in hex, as Perl converts a string to an unsigned
-/// integer for `%x`.
+/// `sprintf("%08x", $text)`: the number at the start of the text in hex, as
+/// Perl converts a string to an unsigned integer for `%x`.
 pub fn hex_of_numeric_text(text: &str) -> String {
     let number = crate::config::numeric_prefix(text);
     let value = if number < 0.0 {
@@ -144,7 +149,8 @@ fn dumper_quote(text: &str) -> String {
     format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'"))
 }
 
-/// `Dumper($groups)` with `Indent = 1` and `Sortkeys = 1`, for a hash of arrays of file names.
+/// `Dumper($groups)` with `Indent = 1` and `Sortkeys = 1`, for a hash of arrays
+/// of file names.
 pub fn dump_groups(groups: &BTreeMap<String, Vec<String>>) -> String {
     if groups.is_empty() {
         return "$VAR1 = {};\n".to_owned();
@@ -166,7 +172,8 @@ pub fn dump_groups(groups: &BTreeMap<String, Vec<String>>) -> String {
     format!("$VAR1 = {{\n{}\n}};\n", entries.join(",\n"))
 }
 
-/// Decodes text as Perl's `:encoding(UTF-8)` layer does by default: bytes that are not valid UTF-8 become `\xHH`.
+/// Decodes text as Perl's `:encoding(UTF-8)` layer does by default: bytes that
+/// are not valid UTF-8 become `\xHH`.
 pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
     let mut text = String::new();
     let mut rest = bytes;
@@ -246,8 +253,9 @@ mod tests {
                 args.extend(files.iter().cloned());
             }
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let program = "use Data::Dumper; $Data::Dumper::Indent = 1; $Data::Dumper::Sortkeys = 1; \
-                           $Data::Dumper::Purity = 1; my %g; while (@ARGV) { my $k = shift; my $n = shift; \
+            let program = "use Data::Dumper; $Data::Dumper::Indent = 1; \
+                           $Data::Dumper::Sortkeys = 1; $Data::Dumper::Purity = 1; my %g; \
+                           while (@ARGV) { my $k = shift; my $n = shift; \
                            $g{$k} = [splice(@ARGV, 0, $n)]; } print Dumper(\\%g);";
             let output = perl(program, &arg_refs, b"");
             assert_eq!(

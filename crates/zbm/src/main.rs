@@ -1,4 +1,5 @@
-//! `zbm`: the ZFSBootMenu runtime, one program for all of its commands. See the [`zbm`] library.
+//! `zbm`: the ZFSBootMenu runtime, one program for all of its commands. See the
+//! [`zbm`] library.
 
 use std::io::Write;
 

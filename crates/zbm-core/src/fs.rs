@@ -1,8 +1,10 @@
 //! File tests as Perl and the shell perform them.
 //!
-//! Perl's `-f`, `-d`, `-r` and `-x` and the shell's `[ -f ]`, `[ -r ]` and `[ -x ]` follow symbolic links and judge
-//! access by the effective user: root may read any file, and may execute any file with an execute bit set, and any
-//! directory. The functions here do the same, so the Rust tools accept and reject the same files.
+//! Perl's `-f`, `-d`, `-r` and `-x` and the shell's `[ -f ]`, `[ -r ]` and `[
+//! -x ]` follow symbolic links and judge access by the effective user: root may
+//! read any file, and may execute any file with an execute bit set, and any
+//! directory. The functions here do the same, so the Rust tools accept and
+//! reject the same files.
 
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
@@ -36,7 +38,8 @@ pub enum Access {
 }
 
 impl Access {
-    /// The owner permission bit of the access; the group and other bits are 3 and 6 bits lower.
+    /// The owner permission bit of the access; the group and other bits are 3 and 6
+    /// bits lower.
     fn owner_bit(self) -> u32 {
         match self {
             Access::Read => 0o400,
@@ -51,7 +54,8 @@ pub fn can_access(path: impl AsRef<Path>, access: Access) -> bool {
     can_access_as(path, access, &zbm_sys::credentials())
 }
 
-/// Whether a process with the given credentials may access `path` the given way.
+/// Whether a process with the given credentials may access `path` the given
+/// way.
 pub fn can_access_as(path: impl AsRef<Path>, access: Access, credentials: &Credentials) -> bool {
     let Ok(metadata) = std::fs::metadata(path) else {
         return false;
@@ -79,10 +83,12 @@ pub struct FileAccess {
 }
 
 impl FileAccess {
-    /// Whether a process with the given credentials may access the file the given way.
+    /// Whether a process with the given credentials may access the file the given
+    /// way.
     ///
-    /// This is Perl's `cando`: root reads and writes anything and executes anything with an execute bit, or any
-    /// directory; other users get the owner, group or other bits, whichever class they belong to first.
+    /// This is Perl's `cando`: root reads and writes anything and executes anything
+    /// with an execute bit, or any directory; other users get the owner, group or
+    /// other bits, whichever class they belong to first.
     pub fn permits(self, access: Access, credentials: &Credentials) -> bool {
         let bit = access.owner_bit();
         if credentials.uid == 0 {
@@ -116,8 +122,9 @@ pub fn is_executable(path: impl AsRef<Path>) -> bool {
     can_access(path, Access::Execute)
 }
 
-/// Creates a new, empty file readable and writable only by its owner, named after `template` in `dir`, as
-/// `mktemp` does: the trailing `X` characters of the template are replaced by random letters and digits.
+/// Creates a new, empty file readable and writable only by its owner, named
+/// after `template` in `dir`, as `mktemp` does: the trailing `X` characters of
+/// the template are replaced by random letters and digits.
 pub fn create_temp_file(dir: &Path, template: &str) -> std::io::Result<std::path::PathBuf> {
     create_temp(dir, template, |path| {
         std::fs::OpenOptions::new()
@@ -129,7 +136,8 @@ pub fn create_temp_file(dir: &Path, template: &str) -> std::io::Result<std::path
     })
 }
 
-/// Creates a new directory accessible only by its owner, named after `template` in `dir`, as `mktemp -d` does.
+/// Creates a new directory accessible only by its owner, named after `template`
+/// in `dir`, as `mktemp -d` does.
 pub fn create_temp_dir(dir: &Path, template: &str) -> std::io::Result<std::path::PathBuf> {
     create_temp(dir, template, |path| {
         std::fs::DirBuilder::new().mode(0o700).create(path)
@@ -169,7 +177,8 @@ fn create_temp(
     ))
 }
 
-/// A seed for temporary names, from the kernel's random source when it can be read.
+/// A seed for temporary names, from the kernel's random source when it can be
+/// read.
 fn random_seed() -> u64 {
     use std::io::Read;
     let mut bytes = [0_u8; 8];
@@ -219,7 +228,8 @@ impl CopyError {
     }
 }
 
-/// The C library's description of an error, without the `(os error N)` that Rust adds.
+/// The C library's description of an error, without the `(os error N)` that
+/// Rust adds.
 pub fn strerror(error: &std::io::Error) -> String {
     let text = error.to_string();
     match text.rfind(" (os error ") {
@@ -228,9 +238,10 @@ pub fn strerror(error: &std::io::Error) -> String {
     }
 }
 
-/// Copies a file as `cp source target` (without `-p`) does: an existing target keeps its permissions and is
-/// overwritten, a new one gets the permissions of the source less the umask, and a target that is a directory
-/// receives a file with the source's name.
+/// Copies a file as `cp source target` (without `-p`) does: an existing target
+/// keeps its permissions and is overwritten, a new one gets the permissions of
+/// the source less the umask, and a target that is a directory receives a file
+/// with the source's name.
 pub fn copy_like_cp(source: &Path, target: &Path) -> Result<(), CopyError> {
     let target = if is_dir(target) {
         target.join(source.file_name().unwrap_or_default())
@@ -337,7 +348,8 @@ mod tests {
 
     #[test]
     fn other_users_get_the_first_matching_class() {
-        // The owner class decides for the owner, even though the group and others may read.
+        // The owner class decides for the owner, even though the group and others may
+        // read.
         assert!(!file(0o077).permits(Access::Read, &user(1000, 100, &[])));
         assert!(file(0o500).permits(Access::Execute, &user(1000, 5, &[])));
         // Members of the group, by primary or supplementary ID, get the group bits.

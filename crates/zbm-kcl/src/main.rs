@@ -1,12 +1,14 @@
-//! `zbm-kcl`: review or change the kernel command line of a ZFS boot environment or a ZFSBootMenu EFI image.
+//! `zbm-kcl`: review or change the kernel command line of a ZFS boot
+//! environment or a ZFSBootMenu EFI image.
 //!
 //! See `zbm-kcl(8)` and the [`zbm_kcl`] library, which holds the program.
 
 use std::io::Write;
 
 fn main() {
-    // Like the Bash script, end quietly on a closed pipe, and keep running on SIGINT and SIGTERM (the script's trap
-    // runs its clean-up and carries on; child programs still receive the signals).
+    // Like the Bash script, end quietly on a closed pipe, and keep running on
+    // SIGINT and SIGTERM (the script's trap runs its clean-up and carries on; child
+    // programs still receive the signals).
     let _ = zbm_sys::restore_default_sigpipe();
     let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
 

@@ -1,9 +1,10 @@
 //! Running external programs.
 //!
-//! Every program ZFSBootMenu runs (`zfs`, `zpool`, `objcopy`, `dracut` and the rest) is described by a [`Command`]
-//! and run through a [`Runner`]. Production code uses [`SystemRunner`]; unit tests use a fake runner that records the
-//! commands and answers them, so tests can check exactly what would run, including that no secret appears in an
-//! argument or the environment.
+//! Every program ZFSBootMenu runs (`zfs`, `zpool`, `objcopy`, `dracut` and the
+//! rest) is described by a [`Command`] and run through a [`Runner`]. Production
+//! code uses [`SystemRunner`]; unit tests use a fake runner that records the
+//! commands and answers them, so tests can check exactly what would run,
+//! including that no secret appears in an argument or the environment.
 
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Write};
@@ -45,8 +46,9 @@ pub struct Command {
 }
 
 impl Command {
-    /// A command that runs `program`, inheriting standard input and standard error and capturing standard output,
-    /// as a shell command substitution `$(program)` does.
+    /// A command that runs `program`, inheriting standard input and standard error
+    /// and capturing standard output, as a shell command substitution `$(program)`
+    /// does.
     pub fn new(program: impl Into<OsString>) -> Command {
         Command {
             program: program.into(),
@@ -59,7 +61,8 @@ impl Command {
         }
     }
 
-    /// A command that runs `script` with `sh -c`, as Perl's `qx{}` and `system` do with a single string.
+    /// A command that runs `script` with `sh -c`, as Perl's `qx{}` and `system` do
+    /// with a single string.
     pub fn shell(script: impl Into<OsString>) -> Command {
         Command::new("sh").arg("-c").arg(script)
     }
@@ -98,7 +101,8 @@ impl Command {
         self
     }
 
-    /// Sends standard error to the same place as standard output, as `2>&1` does, keeping the order of the two.
+    /// Sends standard error to the same place as standard output, as `2>&1` does,
+    /// keeping the order of the two.
     pub fn merge_stderr(mut self) -> Command {
         self.merge_stderr = true;
         self
@@ -151,7 +155,8 @@ impl Command {
         &self.env
     }
 
-    /// The program and its arguments joined by spaces, for messages and test assertions.
+    /// The program and its arguments joined by spaces, for messages and test
+    /// assertions.
     pub fn display(&self) -> String {
         std::iter::once(&self.program)
             .chain(&self.args)
@@ -201,7 +206,8 @@ impl Status {
         self.0 >> 8
     }
 
-    /// The status a shell reports in `$?`: the exit code, or 128 plus the signal number.
+    /// The status a shell reports in `$?`: the exit code, or 128 plus the signal
+    /// number.
     pub fn shell_code(self) -> i32 {
         self.code()
             .or_else(|| self.signal().map(|signal| 128 + signal))
@@ -245,8 +251,9 @@ impl Output {
 pub trait Runner {
     /// Runs `command` and waits for it to end.
     ///
-    /// A program that cannot be found is reported as a shell would: exit status 127 and a "command not found" message
-    /// on the command's standard error. Other failures to start the program are errors.
+    /// A program that cannot be found is reported as a shell would: exit status 127
+    /// and a "command not found" message on the command's standard error. Other
+    /// failures to start the program are errors.
     fn run(&self, command: &Command) -> io::Result<Output>;
 }
 
@@ -286,8 +293,9 @@ fn not_found(command: &Command) -> io::Result<Output> {
 /// `ETXTBSY`: the program is open for writing somewhere.
 const TEXT_FILE_BUSY: i32 = 26;
 
-/// Starts a process, retrying for a moment when the program is busy: a program written just before it runs can still
-/// be open in a child that another thread is starting.
+/// Starts a process, retrying for a moment when the program is busy: a program
+/// written just before it runs can still be open in a child that another thread
+/// is starting.
 fn spawn(process: &mut std::process::Command) -> io::Result<std::process::Child> {
     let mut attempts = 0;
     loop {
@@ -304,8 +312,9 @@ fn spawn(process: &mut std::process::Command) -> io::Result<std::process::Child>
 impl Runner for SystemRunner {
     fn run(&self, command: &Command) -> io::Result<Output> {
         let mut process = if command.merge_stderr {
-            // `exec "$0" "$@" 2>&1` gives the program a single pipe for both streams, so their order is kept. Only
-            // messages of the shell itself go to the stderr setting.
+            // `exec "$0" "$@" 2>&1` gives the program a single pipe for both streams, so
+            // their order is kept. Only messages of the shell itself go to the stderr
+            // setting.
             let mut process = std::process::Command::new("sh");
             process
                 .arg("-c")
@@ -338,13 +347,14 @@ impl Runner for SystemRunner {
             Err(error) => return Err(error),
         };
 
-        // Write standard input from another thread, so that a command that writes a lot of output before reading
-        // all of its input cannot block on a full pipe.
+        // Write standard input from another thread, so that a command that writes a lot
+        // of output before reading all of its input cannot block on a full pipe.
         let writer = match (&command.stdin, child.stdin.take()) {
             (Input::Bytes(bytes), Some(mut stdin)) => {
                 let bytes = bytes.clone();
                 Some(std::thread::spawn(move || {
-                    // A command may exit without reading all of its input; that is not an error here.
+                    // A command may exit without reading all of its input; that is not an error
+                    // here.
                     let _ = stdin.write_all(&bytes);
                 }))
             }

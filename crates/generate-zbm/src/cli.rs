@@ -1,13 +1,17 @@
-//! The command line, parsed as Perl's Getopt::Long 2.54 parses it with the option table of `generate-zbm`.
+//! The command line, parsed as Perl's Getopt::Long 2.54 parses it with the
+//! option table of `generate-zbm`.
 //!
-//! The Perl program configures Getopt::Long with `no_ignore_case` and `auto_version` and otherwise keeps its
-//! defaults: options may start with `--`, `-` or `+`, long names may be shortened to any unique prefix, `--opt=value`
-//! and `-opt=value` both work, a string option takes the next argument whatever it looks like, and arguments that
-//! are not options may appear anywhere. When `POSIXLY_CORRECT` is set, Getopt::Long instead accepts only `--` and
-//! `-`, does not shorten names, splits `=value` only after `--`, and stops at the first argument that is not an
-//! option.
+//! The Perl program configures Getopt::Long with `no_ignore_case` and
+//! `auto_version` and otherwise keeps its defaults: options may start with
+//! `--`, `-` or `+`, long names may be shortened to any unique prefix,
+//! `--opt=value` and `-opt=value` both work, a string option takes the next
+//! argument whatever it looks like, and arguments that are not options may
+//! appear anywhere. When `POSIXLY_CORRECT` is set, Getopt::Long instead accepts
+//! only `--` and `-`, does not shorten names, splits `=value` only after `--`,
+//! and stops at the first argument that is not an option.
 
-/// The help text: the manual page embedded in the Perl program, as Pod::Usage renders it.
+/// The help text: the manual page embedded in the Perl program, as Pod::Usage
+/// renders it.
 pub const HELP: &str = include_str!("help.txt");
 
 /// The options, with the defaults of the Perl program.
@@ -23,7 +27,8 @@ pub struct Options {
     pub kernel_prefix: Option<String>,
     /// `--bootdir`: where kernels are looked for.
     pub bootdir: String,
-    /// `--confd`: the dracut configuration directory or the mkinitcpio configuration file.
+    /// `--confd`: the dracut configuration directory or the mkinitcpio
+    /// configuration file.
     pub confd: Option<String>,
     /// `--cmdline`: the kernel command line.
     pub cmdline: Option<String>,
@@ -69,13 +74,15 @@ impl Default for Options {
 pub enum Outcome {
     /// Run with these options.
     Run(Box<Options>),
-    /// `--help` was given: print the help and exit with status 1, as `pod2usage(-verbose => 2)` does.
+    /// `--help` was given: print the help and exit with status 1, as
+    /// `pod2usage(-verbose => 2)` does.
     Help,
     /// An option was wrong: exit with status 1.
     Invalid,
 }
 
-/// The parsed command line and Getopt::Long's warnings, in order, each ending with a newline.
+/// The parsed command line and Getopt::Long's warnings, in order, each ending
+/// with a newline.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parsed {
     /// What to do.
@@ -117,7 +124,8 @@ enum Kind {
     TextList,
 }
 
-/// The option table of `generate-zbm`: names (the first is the canonical one), kind and field.
+/// The option table of `generate-zbm`: names (the first is the canonical one),
+/// kind and field.
 const TABLE: &[(&[&str], Kind, Field)] = &[
     (&["version", "v"], Kind::Text, Field::Version),
     (&["kernel", "k"], Kind::Text, Field::Kernel),
@@ -196,7 +204,8 @@ struct Parser {
 
 impl Parser {
     fn find(&mut self, arg: &str, rest: &mut std::collections::VecDeque<String>) -> Found {
-        // The prefix: `--`, `-`, or (without POSIXLY_CORRECT) `+`. A lone `-` is an operand.
+        // The prefix: `--`, `-`, or (without POSIXLY_CORRECT) `+`. A lone `-` is an
+        // operand.
         let starter = if arg.starts_with("--") {
             "--"
         } else if arg.starts_with('-') {
@@ -211,8 +220,8 @@ impl Parser {
         }
         let mut opt = &arg[starter.len()..];
 
-        // `name=value`, where the name has at least one character; Getopt::Long splits it after any prefix unless
-        // POSIXLY_CORRECT limits that to `--`.
+        // `name=value`, where the name has at least one character; Getopt::Long splits
+        // it after any prefix unless POSIXLY_CORRECT limits that to `--`.
         let mut optarg = None;
         if starter == "--" || !self.posix {
             if let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=') {
@@ -301,7 +310,8 @@ impl Parser {
     }
 }
 
-/// Parses the arguments; `posixly_correct` tells whether `POSIXLY_CORRECT` is set in the environment.
+/// Parses the arguments; `posixly_correct` tells whether `POSIXLY_CORRECT` is
+/// set in the environment.
 pub fn parse(args: &[String], posixly_correct: bool) -> Parsed {
     let mut parser = Parser {
         names: names(),
@@ -424,14 +434,16 @@ mod tests {
         assert_eq!(parsed.outcome, Outcome::Run(Box::default()));
     }
 
-    /// The `GetOptions` call of the Perl program, run on `list`, reporting the options, warnings and status.
+    /// The `GetOptions` call of the Perl program, run on `list`, reporting the
+    /// options, warnings and status.
     fn perl_parse(source: &str, list: &[String], posix: bool) -> String {
         let start = source.find("GetOptions(").unwrap();
         let end = source[start..].find(") or exit 1;").unwrap() + start;
         let call = &source[start..end + 1];
         let program = format!(
             "use strict; use warnings; use Getopt::Long qw(:config no_ignore_case auto_version);\n\
-             my %runConf; $runConf{{config}} = '/etc/zfsbootmenu/config.yaml'; $runConf{{bootdir}} = '/boot';\n\
+             my %runConf; $runConf{{config}} = '/etc/zfsbootmenu/config.yaml';\n\
+             $runConf{{bootdir}} = '/boot';\n\
              sub pod2usage {{ print \"HELP\\n\"; exit 1; }}\n\
              my $ok = {call};\n\
              for my $k (sort keys %runConf) {{ my $v = $runConf{{$k}}; next unless defined $v;\n\
@@ -462,7 +474,8 @@ mod tests {
                     Outcome::Run(options) => (**options).clone(),
                     _ => Options::default(),
                 };
-                // After an error Perl still holds the values it stored; only valid runs are compared in full.
+                // After an error Perl still holds the values it stored; only valid runs are
+                // compared in full.
                 if matches!(parsed.outcome, Outcome::Run(_)) {
                     let mut fields: Vec<(&str, String)> = vec![
                         ("bootdir", options.bootdir.clone()),
@@ -510,7 +523,8 @@ mod tests {
         text
     }
 
-    /// Perl's output without the option values of invalid runs, which the Rust parser does not report.
+    /// Perl's output without the option values of invalid runs, which the Rust
+    /// parser does not report.
     fn comparable(perl: &str) -> String {
         if perl.ends_with("invalid\n") {
             perl.lines()

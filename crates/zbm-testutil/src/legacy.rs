@@ -1,7 +1,9 @@
 //! Running the legacy Bash and Perl code, for parity tests.
 //!
-//! A parity test gives the same input to a legacy function and to its Rust counterpart, and compares the results.
-//! The legacy code is the reference: when the two disagree, the Rust code is wrong unless the legacy code has a bug.
+//! A parity test gives the same input to a legacy function and to its Rust
+//! counterpart, and compares the results. The legacy code is the reference:
+//! when the two disagree, the Rust code is wrong unless the legacy code has a
+//! bug.
 
 use std::path::PathBuf;
 
@@ -12,8 +14,9 @@ pub fn path(relative: &str) -> PathBuf {
     crate::repo_root().join("legacy").join(relative)
 }
 
-/// Stubs for the logging functions of `kmsg-log-lib.sh`, which write to `/dev/kmsg`: each message goes to standard
-/// error as `LEVEL: message`, the format of `echo-log-lib.sh`.
+/// Stubs for the logging functions of `kmsg-log-lib.sh`, which write to
+/// `/dev/kmsg`: each message goes to standard error as `LEVEL: message`, the
+/// format of `echo-log-lib.sh`.
 pub const LOG_STUBS: &str = r#"
 zdebug() { echo "DEBUG: $*" >&2; }
 zinfo() { echo "INFO: $*" >&2; }
@@ -22,7 +25,8 @@ zwarn() { echo "WARN: $*" >&2; }
 zerror() { echo "ERROR: $*" >&2; }
 "#;
 
-/// The lines of `stderr` that the [`LOG_STUBS`] wrote, without the shell's own error messages.
+/// The lines of `stderr` that the [`LOG_STUBS`] wrote, without the shell's own
+/// error messages.
 pub fn log_lines(stderr: &str) -> String {
     stderr
         .lines()
@@ -54,7 +58,8 @@ impl Bash {
         self
     }
 
-    /// Sources a library from `legacy/`, for example `zfsbootmenu/lib/zfsbootmenu-kcl.sh`.
+    /// Sources a library from `legacy/`, for example
+    /// `zfsbootmenu/lib/zfsbootmenu-kcl.sh`.
     pub fn source(mut self, library: &str) -> Bash {
         let library = path(library);
         self.lines.push(format!(

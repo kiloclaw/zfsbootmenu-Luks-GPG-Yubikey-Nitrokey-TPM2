@@ -1,15 +1,17 @@
-//! Naming and pruning image files, the counterparts of `maxRevision`, `groupKernels`, `pruneVersions` and
-//! `purgeFiles` in `generate-zbm`.
+//! Naming and pruning image files, the counterparts of `maxRevision`,
+//! `groupKernels`, `pruneVersions` and `purgeFiles` in `generate-zbm`.
 //!
-//! Images are named `<prefix>-<version>_<revision>` (with a suffix such as `.EFI` for EFI bundles). When
-//! `Versions` is set, each build adds a revision and old ones are pruned; the logic here decides which files to
-//! remove, in order, and the caller removes them.
+//! Images are named `<prefix>-<version>_<revision>` (with a suffix such as
+//! `.EFI` for EFI bundles). When `Versions` is set, each build adds a revision
+//! and old ones are pruned; the logic here decides which files to remove, in
+//! order, and the caller removes them.
 
 use std::collections::BTreeMap;
 
 use crate::version::{sort_versions, versioncmp};
 
-/// The highest revision among `files` that match `_<digits><suffix>` at the end, or 0 when none do.
+/// The highest revision among `files` that match `_<digits><suffix>` at the
+/// end, or 0 when none do.
 pub fn max_revision(files: &[String], suffix: &str) -> u64 {
     files
         .iter()
@@ -25,14 +27,16 @@ fn revision_of(file: &str, suffix: &str) -> Option<u64> {
     if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    // Perl compares the captured digits numerically; an overflowing value cannot occur for real revisions.
+    // Perl compares the captured digits numerically; an overflowing value cannot
+    // occur for real revisions.
     digits.parse().ok()
 }
 
-/// Groups `files` matching `<prefix>-<version>_<digits><suffix>` by their version, as `groupKernels` does.
+/// Groups `files` matching `<prefix>-<version>_<digits><suffix>` by their
+/// version, as `groupKernels` does.
 ///
-/// The version is the greedy match of `.+` between the prefix and the final `_<digits>`, so a version may itself
-/// contain `_<digits>`.
+/// The version is the greedy match of `.+` between the prefix and the final
+/// `_<digits>`, so a version may itself contain `_<digits>`.
 pub fn group_versions(
     files: &[String],
     prefix: &str,
@@ -51,7 +55,8 @@ pub fn group_versions(
 fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
     let body = file.strip_prefix(prefix)?.strip_suffix(suffix)?;
     let after_dash = body.strip_prefix('-')?;
-    // Greedy `(.+)_\d+`: the last `_` that is followed only by digits, with at least one character before it.
+    // Greedy `(.+)_\d+`: the last `_` that is followed only by digits, with at
+    // least one character before it.
     let mut split = None;
     let bytes = after_dash.as_bytes();
     for (index, &byte) in bytes.iter().enumerate() {
@@ -66,14 +71,16 @@ fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
     split.map(|index| after_dash[..index].to_owned())
 }
 
-/// Perl's `$keep gt 0`: a string comparison, so any non-empty keep that is not `"0"` and does not sort before `"0"`
-/// counts as "keep some". For the non-negative integers used here, this is "keep is at least 1".
+/// Perl's `$keep gt 0`: a string comparison, so any non-empty keep that is not
+/// `"0"` and does not sort before `"0"` counts as "keep some". For the
+/// non-negative integers used here, this is "keep is at least 1".
 fn keep_some(keep: u64) -> bool {
     keep > 0
 }
 
-/// The files `purgeFiles(files, keep)` removes, in order: when keeping some, the oldest by version until `keep`
-/// remain; otherwise all of them, in their given order.
+/// The files `purgeFiles(files, keep)` removes, in order: when keeping some,
+/// the oldest by version until `keep` remain; otherwise all of them, in their
+/// given order.
 fn purge(files: &[String], keep: u64) -> Vec<String> {
     if keep_some(keep) {
         let mut sorted = files.to_vec();
@@ -88,10 +95,12 @@ fn purge(files: &[String], keep: u64) -> Vec<String> {
     }
 }
 
-/// The files `pruneVersions(groups, current, keep)` removes, in the order it removes them.
+/// The files `pruneVersions(groups, current, keep)` removes, in the order it
+/// removes them.
 ///
-/// The current version keeps its newest `keep` revisions. Older versions are removed whole while more than `keep`
-/// versions remain, then the rest keep their single newest revision.
+/// The current version keeps its newest `keep` revisions. Older versions are
+/// removed whole while more than `keep` versions remain, then the rest keep
+/// their single newest revision.
 pub fn prune_versions(
     groups: &BTreeMap<String, Vec<String>>,
     current: &str,
@@ -160,8 +169,9 @@ mod tests {
             "p",
             "",
         );
-        // The current version 3 has 2 revisions and keeps 2, so none of it goes. Of the other versions (1, 2, 4),
-        // the oldest are removed whole while more than 2 remain, so all of 1 goes; 2 and 4 keep their one revision.
+        // The current version 3 has 2 revisions and keeps 2, so none of it goes. Of the
+        // other versions (1, 2, 4), the oldest are removed whole while more than 2
+        // remain, so all of 1 goes; 2 and 4 keep their one revision.
         let removed = prune_versions(&groups, "3", 2);
         assert_eq!(removed, ["p-1_1", "p-1_2", "p-1_3"]);
         // With keep 1, the current version keeps its newest revision only.
@@ -169,8 +179,9 @@ mod tests {
         assert_eq!(removed[0], "p-3_1");
     }
 
-    /// A Perl harness with the real `maxRevision`, `groupKernels`, `pruneVersions` and `purgeFiles` subs, which
-    /// reports the files `pruneVersions` would remove, one per line.
+    /// A Perl harness with the real `maxRevision`, `groupKernels`, `pruneVersions`
+    /// and `purgeFiles` subs, which reports the files `pruneVersions` would remove,
+    /// one per line.
     fn perl_harness() -> String {
         let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
         let extract = |name: &str| {

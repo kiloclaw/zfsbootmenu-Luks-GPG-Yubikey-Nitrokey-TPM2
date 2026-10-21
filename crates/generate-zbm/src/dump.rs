@@ -1,10 +1,12 @@
-//! Writing the configuration back, as YAML::PP's `dump_file` does when `--enable` or `--disable` changes
-//! `Global.ManageImages`.
+//! Writing the configuration back, as YAML::PP's `dump_file` does when
+//! `--enable` or `--disable` changes `Global.ManageImages`.
 //!
-//! The Perl program loads the whole file, changes one key and dumps the result, so the file is rewritten in
-//! YAML::PP's style: block collections, keys sorted, sequences not indented under their key, anchors for shared
-//! collections, and each scalar quoted only when it must be. This module reproduces YAML::PP 0.38's representer
-//! (core schema, `boolean` objects) and emitter for the block style it uses.
+//! The Perl program loads the whole file, changes one key and dumps the result,
+//! so the file is rewritten in YAML::PP's style: block collections, keys
+//! sorted, sequences not indented under their key, anchors for shared
+//! collections, and each scalar quoted only when it must be. This module
+//! reproduces YAML::PP 0.38's representer (core schema, `boolean` objects) and
+//! emitter for the block style it uses.
 
 use std::collections::HashMap;
 
@@ -47,8 +49,8 @@ struct Dumper {
 }
 
 impl Dumper {
-    /// Counts how often each collection is reached, as `_check_references` does; a collection reached twice gets an
-    /// anchor.
+    /// Counts how often each collection is reached, as `_check_references` does; a
+    /// collection reached twice gets an anchor.
     fn count_references(&mut self, value: &Value) {
         let Some(address) = address(value) else {
             return;
@@ -116,21 +118,24 @@ impl Dumper {
         }
     }
 
-    /// A string: quoted when the core schema would read it as something else, otherwise styled by the emitter.
+    /// A string: quoted when the core schema would read it as something else,
+    /// otherwise styled by the emitter.
     fn string(&mut self, text: &str) {
         let style = reads_as_other_type(text).then_some(Style::Single);
         self.emitter.scalar(text, style);
     }
 }
 
-/// The strings YAML::PP quotes because, unquoted, they would be read as null, a boolean or a special number.
+/// The strings YAML::PP quotes because, unquoted, they would be read as null, a
+/// boolean or a special number.
 const SPECIAL_WORDS: &[&str] = &[
     "", "true", "TRUE", "True", "false", "FALSE", "False", "null", "NULL", "Null", "~", ".inf",
     ".Inf", ".INF", "+.inf", "+.Inf", "+.INF", "-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN",
 ];
 
-/// Whether the core schema would read `text` as something other than a string: a special word, or a match of its
-/// integer, float, octal or hex patterns. The patterns end with Perl's `$`, which also matches before a final newline.
+/// Whether the core schema would read `text` as something other than a string:
+/// a special word, or a match of its integer, float, octal or hex patterns. The
+/// patterns end with Perl's `$`, which also matches before a final newline.
 fn reads_as_other_type(text: &str) -> bool {
     if SPECIAL_WORDS.contains(&text) {
         return true;
@@ -187,12 +192,14 @@ const IV_MIN: f64 = i64::MIN as f64;
 /// 2^64, just above the largest Perl integer.
 const UV_LIMIT: f64 = u64::MAX as f64;
 
-/// YAML::PP's `represent_float`: the text of a number written plainly, or `None` when YAML::PP leaves the number to
-/// be written as a quoted string.
+/// YAML::PP's `represent_float`: the text of a number written plainly, or
+/// `None` when YAML::PP leaves the number to be written as a quoted string.
 ///
-/// Perl compares `0.0 + $n` with `$n` as strings. For an integral number that fits Perl's integer types the sum is
-/// an integer and prints with all its digits, so a number that prints in exponent form, such as `1e+15`, does not
-/// compare equal and ends up quoted. An integral number that prints without a `.` gets `.0` added.
+/// Perl compares `0.0 + $n` with `$n` as strings. For an integral number that
+/// fits Perl's integer types the sum is an integer and prints with all its
+/// digits, so a number that prints in exponent form, such as `1e+15`, does not
+/// compare equal and ends up quoted. An integral number that prints without a
+/// `.` gets `.0` added.
 fn represent_float(number: f64) -> Option<String> {
     if number.is_nan() {
         return Some(".nan".to_owned());
@@ -210,7 +217,8 @@ fn represent_float(number: f64) -> Option<String> {
     if sum != text {
         return None;
     }
-    // Perl's `int`: an integer while the number is above -2^63 and below 2^64, the number itself beyond.
+    // Perl's `int`: an integer while the number is above -2^63 and below 2^64, the
+    // number itself beyond.
     let int = if number > IV_MIN && number < UV_LIMIT {
         integer_digits(number.trunc())
     } else {
@@ -223,8 +231,8 @@ fn represent_float(number: f64) -> Option<String> {
     }
 }
 
-/// The digits of an integral number that fits 64 bits, as Perl prints an integer; 2^64 itself saturates, as Perl's
-/// conversion does.
+/// The digits of an integral number that fits 64 bits, as Perl prints an
+/// integer; 2^64 itself saturates, as Perl's conversion does.
 fn integer_digits(number: f64) -> String {
     if number >= UV_LIMIT {
         return u64::MAX.to_string();
@@ -254,7 +262,8 @@ struct Frame {
     zero_indent: bool,
 }
 
-/// The block-style part of YAML::PP's emitter, with its indentation of two spaces.
+/// The block-style part of YAML::PP's emitter, with its indentation of two
+/// spaces.
 #[derive(Default)]
 struct Emitter {
     output: String,
@@ -309,9 +318,10 @@ impl Emitter {
         }
     }
 
-    /// The common start of a block mapping or sequence: the `-`, `?` or `:` that introduces it, and its anchor.
-    /// Returns the new level's indentation, whether its first entry starts on a new line, and whether a sequence is
-    /// not indented.
+    /// The common start of a block mapping or sequence: the `-`, `?` or `:` that
+    /// introduces it, and its anchor. Returns the new level's indentation, whether
+    /// its first entry starts on a new line, and whether a sequence is not
+    /// indented.
     fn collection_start(&mut self, anchor: Option<usize>, sequence: bool) -> (String, bool, bool) {
         let mut yaml = String::new();
         let last = self
@@ -533,16 +543,34 @@ impl Emitter {
 
 /// Characters YAML::PP writes only in double quotes.
 fn is_control(c: char) -> bool {
-    matches!(c,
-        '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{7f}'..='\u{84}' | '\u{86}'..='\u{9f}'
-        | '\u{fffe}' | '\u{ffff}' | '\u{2028}' | '\u{2029}' | '\u{85}' | '\u{a0}')
+    matches!(
+        c,
+        '\u{0}'..='\u{8}'
+            | '\u{b}'
+            | '\u{c}'
+            | '\u{e}'..='\u{1f}'
+            | '\u{7f}'..='\u{84}'
+            | '\u{86}'..='\u{9f}'
+            | '\u{fffe}'
+            | '\u{ffff}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{85}'
+            | '\u{a0}'
+    )
 }
 
 /// Characters that YAML allows in a plain scalar.
 fn is_printable(c: char) -> bool {
-    matches!(c,
-        '\u{20}'..='\u{7e}' | '\u{85}' | '\u{a0}'..='\u{d7ff}' | '\u{e000}'..='\u{fefe}' | '\u{ff00}'..='\u{fffd}'
-        | '\u{10000}'..='\u{10ffff}')
+    matches!(
+        c,
+        '\u{20}'..='\u{7e}'
+            | '\u{85}'
+            | '\u{a0}'..='\u{d7ff}'
+            | '\u{e000}'..='\u{fefe}'
+            | '\u{ff00}'..='\u{fffd}'
+            | '\u{10000}'..='\u{10ffff}'
+    )
 }
 
 /// `_find_best_scalar_style` for block context.
@@ -628,7 +656,8 @@ fn single_quoted(value: &str, continuation: &str) -> String {
     format!("'{}'", lines.join("\n").replace('\'', "''"))
 }
 
-/// A literal block scalar and whether it leaves the document open-ended (kept trailing line breaks).
+/// A literal block scalar and whether it leaves the document open-ended (kept
+/// trailing line breaks).
 fn literal(value: &str, indent: &str) -> (String, bool) {
     let mut indicators = String::new();
     if value.trim_start_matches('\n').starts_with(' ') {
@@ -695,8 +724,9 @@ mod tests {
     #[test]
     fn the_default_configuration() {
         let config = load(
-            "Global:\n  ManageImages: false\n  BootMountPoint: /boot/efi\nComponents:\n  Versions: 3\n  \
-             Enabled: true\nEFI:\n  Versions: false\nKernel:\n  CommandLine: ro quiet loglevel=0\n",
+            "Global:\n  ManageImages: false\n  BootMountPoint: /boot/efi\n\
+             Components:\n  Versions: 3\n  Enabled: true\nEFI:\n  Versions: false\n\
+             Kernel:\n  CommandLine: ro quiet loglevel=0\n",
         )
         .unwrap();
         config
@@ -704,8 +734,9 @@ mod tests {
             .unwrap();
         assert_eq!(
             dump(&config),
-            "Components:\n  Enabled: true\n  Versions: 3\nEFI:\n  Versions: false\nGlobal:\n  \
-             BootMountPoint: /boot/efi\n  ManageImages: true\nKernel:\n  CommandLine: ro quiet loglevel=0\n"
+            "Components:\n  Enabled: true\n  Versions: 3\nEFI:\n  Versions: false\n\
+             Global:\n  BootMountPoint: /boot/efi\n  ManageImages: true\n\
+             Kernel:\n  CommandLine: ro quiet loglevel=0\n"
         );
     }
 

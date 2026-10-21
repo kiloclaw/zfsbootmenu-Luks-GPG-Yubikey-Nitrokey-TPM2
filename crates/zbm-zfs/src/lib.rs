@@ -1,9 +1,12 @@
 //! ZFS in the Rust port of ZFSBootMenu.
 //!
-//! - [`Zfs`] and [`Zpool`] run the `zfs` and `zpool` commands, as the legacy code does, and parse their `-H` output.
-//! - [`mounts`] reads the mount table and builds the mount and unmount commands of `zfsbootmenu-core.sh`.
+//! - [`Zfs`] and [`Zpool`] run the `zfs` and `zpool` commands, as the legacy
+//!   code does, and parse their `-H` output.
+//! - [`mounts`] reads the mount table and builds the mount and unmount commands
+//!   of `zfsbootmenu-core.sh`.
 //!
-//! The commands go through a [`Runner`], so tests can check what would run without a pool.
+//! The commands go through a [`Runner`], so tests can check what would run
+//! without a pool.
 
 use std::ffi::OsString;
 use std::io;
@@ -58,7 +61,8 @@ impl<'a> Zfs<'a> {
             .is_ok_and(|output| output.status.success())
     }
 
-    /// Whether `dataset` is a filesystem (`zfs list -H -o name -t filesystem <dataset>`, quietly).
+    /// Whether `dataset` is a filesystem (`zfs list -H -o name -t filesystem
+    /// <dataset>`, quietly).
     pub fn is_filesystem(&self, dataset: &str) -> bool {
         if dataset.is_empty() {
             return false;
@@ -73,8 +77,9 @@ impl<'a> Zfs<'a> {
             .is_ok_and(|output| output.status.success())
     }
 
-    /// The value of a property (`zfs get -H -o value <property> <dataset>`), with the trailing newline removed, or
-    /// `None` when the command fails. Error messages of `zfs` go to standard error, as in the legacy code.
+    /// The value of a property (`zfs get -H -o value <property> <dataset>`), with
+    /// the trailing newline removed, or `None` when the command fails. Error
+    /// messages of `zfs` go to standard error, as in the legacy code.
     pub fn get_value(&self, property: &str, dataset: &str) -> Option<String> {
         let command = self
             .command()
@@ -82,8 +87,9 @@ impl<'a> Zfs<'a> {
         self.captured(&command)
     }
 
-    /// The source of an inherited property (`zfs get -H -o source -s inherited ...`, errors hidden): `inherited from
-    /// <ancestor>`, or empty when the property is not inherited; `None` when the command fails.
+    /// The source of an inherited property (`zfs get -H -o source -s inherited
+    /// ...`, errors hidden): `inherited from <ancestor>`, or empty when the
+    /// property is not inherited; `None` when the command fails.
     pub fn inherited_source(&self, property: &str, dataset: &str) -> Option<String> {
         let command = self
             .command()
@@ -109,7 +115,8 @@ impl<'a> Zfs<'a> {
             .then(|| command_substitution(&output.stdout_text()).to_owned())
     }
 
-    /// Sets a property (`zfs set <property>=<value> <dataset>`); returns whether `zfs` succeeded.
+    /// Sets a property (`zfs set <property>=<value> <dataset>`); returns whether
+    /// `zfs` succeeded.
     pub fn set(&self, property: &str, value: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
@@ -120,7 +127,8 @@ impl<'a> Zfs<'a> {
         Ok(self.runner.run(&command)?.status.success())
     }
 
-    /// Removes a local property value (`zfs inherit <property> <dataset>`); returns whether `zfs` succeeded.
+    /// Removes a local property value (`zfs inherit <property> <dataset>`); returns
+    /// whether `zfs` succeeded.
     pub fn inherit(&self, property: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
@@ -176,7 +184,8 @@ impl<'a> Zpool<'a> {
             .unwrap_or_default()
     }
 
-    /// The value of a pool property (`zpool get -H -o value <property> <pool>`), or `None` when it fails.
+    /// The value of a pool property (`zpool get -H -o value <property> <pool>`), or
+    /// `None` when it fails.
     pub fn get_value(&self, property: &str, pool: &str) -> Option<String> {
         let command =
             Command::new(&self.program).args(["get", "-H", "-o", "value", property, pool]);

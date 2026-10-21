@@ -1,10 +1,12 @@
-//! `generate-zbm`: build ZFSBootMenu images. See `generate-zbm(8)` and the [`generate_zbm`] library.
+//! `generate-zbm`: build ZFSBootMenu images. See `generate-zbm(8)` and the
+//! [`generate_zbm`] library.
 
 use std::io::Write;
 
 fn main() {
-    // Like the Perl program, end quietly on a closed pipe, and handle SIGINT and SIGTERM by unmounting the boot
-    // partition and exiting with status 1 (child programs still receive the signals).
+    // Like the Perl program, end quietly on a closed pipe, and handle SIGINT and
+    // SIGTERM by unmounting the boot partition and exiting with status 1 (child
+    // programs still receive the signals).
     let _ = zbm_sys::restore_default_sigpipe();
     let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
 

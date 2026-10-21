@@ -1,17 +1,22 @@
-//! File name globbing, as Perl's `glob` works in `generate-zbm`, which imports `File::Glob qw(:globally :nocase)`.
+//! File name globbing, as Perl's `glob` works in `generate-zbm`, which imports
+//! `File::Glob qw(:globally :nocase)`.
 //!
-//! That makes every `glob` a call of File::Glob's `csh_glob` with the flags `GLOB_BRACE`, `GLOB_NOMAGIC`,
-//! `GLOB_QUOTE`, `GLOB_TILDE`, `GLOB_ALPHASORT` and `GLOB_NOCASE`:
+//! That makes every `glob` a call of File::Glob's `csh_glob` with the flags
+//! `GLOB_BRACE`, `GLOB_NOMAGIC`, `GLOB_QUOTE`, `GLOB_TILDE`, `GLOB_ALPHASORT`
+//! and `GLOB_NOCASE`:
 //!
-//! - the pattern is split into words at white space, except inside quotes or after a backslash;
-//! - each word is expanded with braces (`{a,b}`), a leading `~`, backslash escapes, and `*`, `?` and `[...]`, which
-//!   match letters in either case;
-//! - a word without wildcards is returned as it is, whether or not the file exists;
+//! - the pattern is split into words at white space, except inside quotes or
+//!   after a backslash;
+//! - each word is expanded with braces (`{a,b}`), a leading `~`, backslash
+//!   escapes, and `*`, `?` and `[...]`, which match letters in either case;
+//! - a word without wildcards is returned as it is, whether or not the file
+//!   exists;
 //! - the matches of each word are sorted by name, ignoring case.
 //!
-//! The port follows Perl's `bsd_glob.c` and `Glob.xs` closely, including their quirks: an unbalanced `{` globs only
-//! the part of the word before it, and an unmatched quote makes the whole pattern one word. Names that are not
-//! valid UTF-8 are skipped.
+//! The port follows Perl's `bsd_glob.c` and `Glob.xs` closely, including their
+//! quirks: an unbalanced `{` globs only the part of the word before it, and an
+//! unmatched quote makes the whole pattern one word. Names that are not valid
+//! UTF-8 are skipped.
 
 use std::ffi::{OsStr, c_char};
 use std::os::unix::ffi::OsStrExt;
@@ -22,8 +27,9 @@ pub fn glob(pattern: &str) -> Vec<String> {
     glob_at(pattern, Path::new(""))
 }
 
-/// Expands `pattern` with relative paths looked up from `base` instead of the working directory; the results are
-/// the same strings `glob` would give when run from `base`.
+/// Expands `pattern` with relative paths looked up from `base` instead of the
+/// working directory; the results are the same strings `glob` would give when
+/// run from `base`.
 fn glob_at(pattern: &str, base: &Path) -> Vec<String> {
     let mut results = Vec::new();
     for word in split_words(pattern.as_bytes()) {
@@ -43,8 +49,9 @@ fn is_space(byte: u8) -> bool {
     matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c')
 }
 
-/// Splits a pattern into words as `csh_glob` does: at white space outside quotes; quotes are removed, and a
-/// backslash before a quote is removed while other backslashes are kept for the escapes of `bsd_glob`.
+/// Splits a pattern into words as `csh_glob` does: at white space outside
+/// quotes; quotes are removed, and a backslash before a quote is removed while
+/// other backslashes are kept for the escapes of `bsd_glob`.
 fn split_words(pattern: &[u8]) -> Vec<Vec<u8>> {
     let end = pattern.len();
     let mut words = Vec::new();
@@ -77,7 +84,8 @@ fn split_words(pattern: &[u8]) -> Vec<Vec<u8>> {
                     }
                 }
                 if !found {
-                    // An unmatched quote: the whole pattern, without surrounding white space, is the last word.
+                    // An unmatched quote: the whole pattern, without surrounding white space, is
+                    // the last word.
                     let first = pattern
                         .iter()
                         .position(|byte| !is_space(*byte))
@@ -139,7 +147,8 @@ impl Char {
     }
 }
 
-/// `GLOB_QUOTE`: a backslash protects the next character; a final backslash stands for itself.
+/// `GLOB_QUOTE`: a backslash protects the next character; a final backslash
+/// stands for itself.
 fn protect(word: &[u8]) -> Vec<Char> {
     let mut chars = Vec::with_capacity(word.len());
     let mut bytes = word.iter().copied().peekable();
@@ -165,7 +174,8 @@ fn protect(word: &[u8]) -> Vec<Char> {
     chars
 }
 
-/// `globexp1`: expands the first brace group, recursively, and globs each result.
+/// `globexp1`: expands the first brace group, recursively, and globs each
+/// result.
 fn expand_braces(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
     // A lone `{}` is kept, for find(1), as csh does.
     if pattern.len() == 2 && pattern[0].is(b'{') && pattern[1].is(b'}') {
@@ -178,7 +188,8 @@ fn expand_braces(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
     }
 }
 
-/// The index of the `]` that closes a bracket opened at `open`, if there is one.
+/// The index of the `]` that closes a bracket opened at `open`, if there is
+/// one.
 fn closing_bracket(pattern: &[Char], open: usize) -> Option<usize> {
     (open + 1..pattern.len()).find(|&index| pattern[index].is(b']'))
 }
@@ -261,8 +272,9 @@ impl Token {
     }
 }
 
-/// `glob0`: expands a leading `~`, compiles the pattern and globs it. A pattern without wildcards that matches
-/// nothing is returned as it is; matches are sorted.
+/// `glob0`: expands a leading `~`, compiles the pattern and globs it. A pattern
+/// without wildcards that matches nothing is returned as it is; matches are
+/// sorted.
 fn glob0(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
     let pattern = expand_tilde(pattern);
     let mut tokens = Vec::new();
@@ -386,7 +398,8 @@ fn home_of(wanted: impl Fn(&PasswdEntry) -> bool) -> Option<Vec<u8>> {
     })
 }
 
-/// `glob2`: walks the pattern one path segment at a time; segments without wildcards are appended as they are.
+/// `glob2`: walks the pattern one path segment at a time; segments without
+/// wildcards are appended as they are.
 fn glob2(path: &mut Vec<u8>, pattern: &[Token], base: &Path, matches: &mut Vec<Vec<u8>>) {
     let mut rest = pattern;
     loop {
@@ -418,7 +431,8 @@ fn glob2(path: &mut Vec<u8>, pattern: &[Token], base: &Path, matches: &mut Vec<V
     }
 }
 
-/// `glob3`: matches one segment with wildcards against the entries of the directory reached so far.
+/// `glob3`: matches one segment with wildcards against the entries of the
+/// directory reached so far.
 fn glob3(path: &[u8], segment: &[Token], rest: &[Token], base: &Path, matches: &mut Vec<Vec<u8>>) {
     let dir = if path.is_empty() {
         b".".as_slice()
@@ -449,7 +463,8 @@ fn glob3(path: &[u8], segment: &[Token], rest: &[Token], base: &Path, matches: &
     }
 }
 
-/// `match` with `GLOB_NOCASE`: whether `name` matches the segment, ignoring the case of ASCII letters.
+/// `match` with `GLOB_NOCASE`: whether `name` matches the segment, ignoring the
+/// case of ASCII letters.
 fn matches_segment(name: &[u8], pattern: &[Token]) -> bool {
     let lower = |byte: u8| byte.to_ascii_lowercase();
     let Some((&token, rest)) = pattern.split_first() else {
@@ -502,7 +517,8 @@ fn matches_segment(name: &[u8], pattern: &[Token]) -> bool {
     }
 }
 
-/// `ci_compare`: compares names by their lower-case letters, as C `char`s, and then exactly.
+/// `ci_compare`: compares names by their lower-case letters, as C `char`s, and
+/// then exactly.
 fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
     // The bytes are compared as C `char`s, which are signed on some machines.
     let fold = |byte: Option<&u8>| -> i32 {

@@ -1,16 +1,20 @@
 //! Reading the kernel log back, as `print_kmsg_logs` does for `zlogtail`.
 //!
-//! util-linux `dmesg` filters by level and time itself; its timestamps are removed from the output. When that fails
-//! (BusyBox `dmesg` has no such options), the raw log is filtered by the level prefixes of its lines instead.
+//! util-linux `dmesg` filters by level and time itself; its timestamps are
+//! removed from the output. When that fails (BusyBox `dmesg` has no such
+//! options), the raw log is filtered by the level prefixes of its lines
+//! instead.
 
 use zbm_core::exec::{Command, Runner, Stream};
 use zbm_core::shell::command_substitution;
 
 use crate::Message;
 
-/// The `dmesg` command that filters by `levels` (comma-separated, such as `err,warn`) and, optionally, by time.
+/// The `dmesg` command that filters by `levels` (comma-separated, such as
+/// `err,warn`) and, optionally, by time.
 ///
-/// `since` is split into words, as the unquoted `${since}` of the legacy code is.
+/// `since` is split into words, as the unquoted `${since}` of the legacy code
+/// is.
 pub fn filtered_command(levels: &str, since: Option<&str>) -> Command {
     let mut command = Command::new("dmesg")
         .args(["-f", "user", "--color=never", "-l", levels])
@@ -25,8 +29,9 @@ pub fn filtered_command(levels: &str, since: Option<&str>) -> Command {
     command
 }
 
-/// Removes the timestamp `dmesg` prints at the start of each line, as `sed 's/^\[.*\]\ //'` does: everything up to
-/// the last `] ` of a line that starts with `[`.
+/// Removes the timestamp `dmesg` prints at the start of each line, as `sed
+/// 's/^\[.*\]\ //'` does: everything up to the last `] ` of a line that starts
+/// with `[`.
 pub fn strip_timestamps(text: &str) -> String {
     text.split_inclusive('\n')
         .map(|line| {
@@ -40,8 +45,9 @@ pub fn strip_timestamps(text: &str) -> String {
         .collect()
 }
 
-/// The line prefixes that select each level in the raw log: BusyBox reports user messages 8 levels higher than
-/// util-linux does, so both numbers are accepted. An unknown level selects every line.
+/// The line prefixes that select each level in the raw log: BusyBox reports
+/// user messages 8 levels higher than util-linux does, so both numbers are
+/// accepted. An unknown level selects every line.
 pub fn raw_prefixes(levels: &str) -> Vec<&'static str> {
     let mut names: Vec<&str> = levels.split(',').collect();
     // `read -a` with IFS=, does not create an empty field after a trailing comma.
@@ -61,8 +67,10 @@ pub fn raw_prefixes(levels: &str) -> Vec<&'static str> {
         .collect()
 }
 
-/// Filters the raw log (`dmesg -r`) by level, and prints the third and later fields of ZFSBootMenu's lines, as the
-/// `grep | awk` pipeline of the legacy code does. A line that holds both `ZFSBootMenu:` and `ZBM:` is printed twice.
+/// Filters the raw log (`dmesg -r`) by level, and prints the third and later
+/// fields of ZFSBootMenu's lines, as the `grep | awk` pipeline of the legacy
+/// code does. A line that holds both `ZFSBootMenu:` and `ZBM:` is printed
+/// twice.
 pub fn filter_raw(raw: &str, levels: &str) -> String {
     let prefixes = raw_prefixes(levels);
     let mut text = String::new();
@@ -149,7 +157,8 @@ mod tests {
     #[test]
     fn raw_log_is_filtered_by_level_prefix() {
         let raw = "<3>[    1.0] ZFSBootMenu: broken\n<11>[ 2.0] ZFSBootMenu: busybox\n\
-                   <6>[ 3.0] ZFSBootMenu: info\n<7>[ 4.0] ZBM:[1]||debug\n<3>[ 5.0] kernel: other\n";
+                   <6>[ 3.0] ZFSBootMenu: info\n<7>[ 4.0] ZBM:[1]||debug\n\
+                   <3>[ 5.0] kernel: other\n";
         assert_eq!(
             filter_raw(raw, "err"),
             "ZFSBootMenu: broken \nZFSBootMenu: busybox \n"
@@ -197,14 +206,15 @@ mod tests {
         );
     }
 
-    /// Runs `print_kmsg_logs` with a fake `dmesg` that prints `raw` for `dmesg -r` and `filtered` (or fails when it
-    /// is `None`) for the filtering call.
+    /// Runs `print_kmsg_logs` with a fake `dmesg` that prints `raw` for `dmesg -r`
+    /// and `filtered` (or fails when it is `None`) for the filtering call.
     fn legacy_read(levels: &str, since: &str, filtered: Option<&str>, raw: &str) -> String {
         let dir = TempDir::new("zbm-log-parity");
         dir.write("filtered", filtered.unwrap_or_default());
         dir.write("raw", raw);
         let script = format!(
-            "#!/bin/sh\necho \"$*\" >> {calls}\nif [ \"$1\" = -r ]; then cat {raw}; exit 0; fi\n{filtered}\n",
+            "#!/bin/sh\necho \"$*\" >> {calls}\n\
+             if [ \"$1\" = -r ]; then cat {raw}; exit 0; fi\n{filtered}\n",
             calls = dir.join("calls").display(),
             raw = dir.join("raw").display(),
             filtered = if filtered.is_some() {

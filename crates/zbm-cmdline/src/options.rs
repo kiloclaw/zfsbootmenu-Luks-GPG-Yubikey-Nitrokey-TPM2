@@ -1,9 +1,12 @@
-//! The `zbm.*` options and their defaults, as the boot image reads them at start-up.
+//! The `zbm.*` options and their defaults, as the boot image reads them at
+//! start-up.
 //!
-//! [`ZbmOptions::parse`] does what `zfsbootmenu-parse-commandline.sh` does: it reads the options from the command
-//! line, falls back to defaults for missing and invalid values, and records the same log messages. The values keep
-//! the text the legacy script exports to `/etc/zfsbootmenu.conf` (see [`ZbmOptions::conf`]): a valid timeout of
-//! `+5` stays `+5`, as the shell keeps it.
+//! [`ZbmOptions::parse`] does what `zfsbootmenu-parse-commandline.sh` does: it
+//! reads the options from the command line, falls back to defaults for missing
+//! and invalid values, and records the same log messages. The values keep the
+//! text the legacy script exports to `/etc/zfsbootmenu.conf` (see
+//! [`ZbmOptions::conf`]): a valid timeout of `+5` stays `+5`, as the shell
+//! keeps it.
 
 use zbm_core::shell::test_integer;
 use zbm_log::Message;
@@ -16,34 +19,40 @@ use crate::kcl;
 pub struct ZbmOptions {
     /// `loglevel`: the kernel log level of ZFSBootMenu's messages; at least 4.
     pub loglevel: String,
-    /// `spl.spl_hostid` or `spl_hostid`: the host ID as eight or more hex digits, `0`, or empty.
+    /// `spl.spl_hostid` or `spl_hostid`: the host ID as eight or more hex digits,
+    /// `0`, or empty.
     pub spl_hostid: String,
     /// `console`: the device the menu runs on.
     pub control_term: String,
     /// `zbm.import_policy` (or `zbm.force_import`): `hostid`, `force` or `strict`.
     pub import_policy: String,
-    /// `zbm.timeout`, `zbm.show` or `zbm.skip`: seconds before booting the default, `-1` to always show the menu.
+    /// `zbm.timeout`, `zbm.show` or `zbm.skip`: seconds before booting the default,
+    /// `-1` to always show the menu.
     pub menu_timeout: String,
-    /// `zbm.retry_delay` or `zbm.import_delay`: seconds between import and device retries.
+    /// `zbm.retry_delay` or `zbm.import_delay`: seconds between import and device
+    /// retries.
     pub retry_delay: String,
     /// `zbm.lines`: the number of terminal lines, when given.
     pub lines: Option<String>,
     /// `zbm.columns`: the number of terminal columns, when given.
     pub columns: Option<String>,
-    /// `zbm.sort_key`: the sort keys of the boot environment list, separated by `;`.
+    /// `zbm.sort_key`: the sort keys of the boot environment list, separated by
+    /// `;`.
     pub sort: String,
     /// `zbm.hookroot`: a filesystem holding user hooks, or empty.
     pub hook_root: String,
-    /// `zbm.set_hostid`: whether ZFSBootMenu replaces `spl_hostid` in boot environment command lines.
+    /// `zbm.set_hostid`: whether ZFSBootMenu replaces `spl_hostid` in boot
+    /// environment command lines.
     pub set_hostid: bool,
-    /// `zbm.kcl_override`: the tokenized command line that replaces those of all boot environments, as written to
-    /// `${BASE}/cmdline`.
+    /// `zbm.kcl_override`: the tokenized command line that replaces those of all
+    /// boot environments, as written to `${BASE}/cmdline`.
     pub kcl_override: Option<String>,
     /// `zbm.wait_for`: devices to wait for, or empty.
     pub wait_for_devices: String,
     /// `zbm.prefer`: the preferred pool, or empty.
     pub prefer_pool: String,
-    /// `zbm.prefer` with `!` (`yes`) or `!!` (`only`): whether the preferred pool is required, or empty.
+    /// `zbm.prefer` with `!` (`yes`) or `!!` (`only`): whether the preferred pool
+    /// is required, or empty.
     pub require_pool: String,
     /// `zbm.prefer` naming a dataset: the boot environment to prefer, or empty.
     pub prefer_bootfs: String,
@@ -56,7 +65,8 @@ const MIN_LOGLEVEL: i64 = 4;
 const SORT_KEYS: [&str; 3] = ["name", "creation", "used"];
 
 impl ZbmOptions {
-    /// Reads the options from the command line and returns them with the messages the legacy script logs, in order.
+    /// Reads the options from the command line and returns them with the messages
+    /// the legacy script logs, in order.
     pub fn parse(args: &ZbmArgs) -> (ZbmOptions, Vec<Message>) {
         let mut log = Vec::new();
 
@@ -204,7 +214,8 @@ impl ZbmOptions {
         }));
 
         let kcl_override = args.lookup(&["zbm.kcl_override"], &mut log).map(|value| {
-            // Remove one leading and one trailing quote, then up-convert single quotes to double quotes.
+            // Remove one leading and one trailing quote, then up-convert single quotes to
+            // double quotes.
             let value = value.strip_prefix('"').unwrap_or(&value);
             let value = value.strip_suffix('"').unwrap_or(value).replace('\'', "\"");
             let mut removals = vec!["root"];
@@ -271,8 +282,9 @@ impl ZbmOptions {
         (options, log)
     }
 
-    /// The lines `zfsbootmenu-preinit.sh` appends to `/etc/zfsbootmenu.conf`. Values are written between single
-    /// quotes without escaping, as the legacy heredoc writes them.
+    /// The lines `zfsbootmenu-preinit.sh` appends to `/etc/zfsbootmenu.conf`.
+    /// Values are written between single quotes without escaping, as the legacy
+    /// heredoc writes them.
     pub fn conf(&self, base: &str) -> String {
         let set_hostid = if self.set_hostid { "1" } else { "0" };
         let mut conf = String::from("# BEGIN additions by zfsbootmenu-preinit.sh\n");
@@ -309,7 +321,8 @@ fn pool_of(name: &str) -> &str {
     name.split_once('/').map_or(name, |(pool, _)| pool)
 }
 
-/// `zbm.lines` and `zbm.columns`: a positive integer, or `default` with a warning when the value is not one.
+/// `zbm.lines` and `zbm.columns`: a positive integer, or `default` with a
+/// warning when the value is not one.
 fn positive_or_default(
     args: &ZbmArgs,
     name: &str,
@@ -329,12 +342,15 @@ fn positive_or_default(
     })
 }
 
-/// The host ID the legacy script derives from `spl_hostid`, or `None` when the value is invalid.
+/// The host ID the legacy script derives from `spl_hostid`, or `None` when the
+/// value is invalid.
 ///
-/// A value that is a non-zero decimal number (`(( 10#value ))`) is printed with `printf "%08x"`, which reads a
-/// leading 0 as octal; otherwise a non-zero hex number, with or without `0x`, keeps its first eight digits; a zero
-/// in either form becomes `0`. Anything else is invalid; the legacy script checks for plain digits before it uses
-/// Bash arithmetic, which would evaluate expressions such as `5-3`.
+/// A value that is a non-zero decimal number (`(( 10#value ))`) is printed with
+/// `printf "%08x"`, which reads a leading 0 as octal; otherwise a non-zero hex
+/// number, with or without `0x`, keeps its first eight digits; a zero in either
+/// form becomes `0`. Anything else is invalid; the legacy script checks for
+/// plain digits before it uses Bash arithmetic, which would evaluate
+/// expressions such as `5-3`.
 pub fn parse_spl_hostid(value: &str) -> Option<String> {
     if base_constant(value, 10).is_some_and(|number| number != 0) {
         return Some(printf_hex(value));
@@ -350,8 +366,9 @@ pub fn parse_spl_hostid(value: &str) -> Option<String> {
     None
 }
 
-/// The value of the Bash constant `base#digits`, with the wrap-around of Bash arithmetic, or `None` when a digit is
-/// not valid in the base or there are none.
+/// The value of the Bash constant `base#digits`, with the wrap-around of Bash
+/// arithmetic, or `None` when a digit is not valid in the base or there are
+/// none.
 fn base_constant(digits: &str, base: u32) -> Option<u64> {
     if digits.is_empty() {
         return None;
@@ -366,8 +383,9 @@ fn base_constant(digits: &str, base: u32) -> Option<u64> {
     })
 }
 
-/// What Bash's `printf "%08x" "$value"` prints for a number in C syntax (`0x` hex, leading `0` octal, otherwise
-/// decimal), using the valid prefix of an invalid number and the largest value on overflow, as `strtoumax` does.
+/// What Bash's `printf "%08x" "$value"` prints for a number in C syntax (`0x`
+/// hex, leading `0` octal, otherwise decimal), using the valid prefix of an
+/// invalid number and the largest value on overflow, as `strtoumax` does.
 fn printf_hex(value: &str) -> String {
     let text = value.trim_start_matches([' ', '\t', '\n', '\x0b', '\x0c', '\r']);
     let (negative, text) = match text.as_bytes().first() {
@@ -437,8 +455,9 @@ mod tests {
     fn explicit_values() {
         let (options, _) = parse(
             "loglevel=7 console=ttyS0,115200n8 zbm.import_policy=strict zbm.timeout=+3 \
-             zbm.retry_delay=2 zbm.lines=40 zbm.columns=0 zbm.sort_key=used zbm.hookroot=pool/hooks \
-             zbm.set_hostid=0 zbm.wait_for=/dev/sda zbm.prefer=pool/ROOT/be!",
+             zbm.retry_delay=2 zbm.lines=40 zbm.columns=0 zbm.sort_key=used \
+             zbm.hookroot=pool/hooks zbm.set_hostid=0 zbm.wait_for=/dev/sda \
+             zbm.prefer=pool/ROOT/be!",
         );
         assert_eq!(options.loglevel, "7");
         assert_eq!(options.control_term, "/dev/ttyS0");
@@ -502,7 +521,8 @@ mod tests {
         assert_eq!(conf.lines().count(), 17);
     }
 
-    /// The parsing part of `zfsbootmenu-parse-commandline.sh`, without its sources and the final dracut set-up.
+    /// The parsing part of `zfsbootmenu-parse-commandline.sh`, without its sources
+    /// and the final dracut set-up.
     fn legacy_parser() -> String {
         let script = std::fs::read_to_string(path(
             "zfsbootmenu/pre-init/zfsbootmenu-parse-commandline.sh",
@@ -636,7 +656,8 @@ mod tests {
         let report: String = VARIABLES
             .iter()
             .map(|name| {
-                // An unset variable and an empty one are the same to the legacy code, which exports both as ''.
+                // An unset variable and an empty one are the same to the legacy code, which
+                // exports both as ''.
                 format!("printf '{name}=%s\\n' \"${{{name}}}\"\n")
             })
             .collect();
@@ -648,15 +669,22 @@ mod tests {
                 .env("BASE", &base.path().to_string_lossy())
                 .code(LOG_STUBS)
                 .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
-                .code(&format!("_build_zbm_kcl() {{ kcl_tokenize < {}; }}", file.display()))
+                .code(&format!(
+                    "_build_zbm_kcl() {{ kcl_tokenize < {}; }}",
+                    file.display()
+                ))
                 .code(&parser)
                 .code(&report)
-                .code("if [ -f \"$BASE/cmdline\" ]; then printf 'override<<%s>>\\n' \"$(cat \"$BASE/cmdline\"; echo .)\"; fi")
+                .code(
+                    "if [ -f \"$BASE/cmdline\" ]; then \
+                     printf 'override<<%s>>\\n' \"$(cat \"$BASE/cmdline\"; echo .)\"; fi",
+                )
                 .call("true", &[], b"");
             assert!(legacy.status.success(), "{}", legacy.stderr_text());
             let (options, log) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&cmdline));
             let mut expected = legacy.stdout_text();
-            // `$(cat file; echo .)` keeps the trailing newline of the override; drop the dot again.
+            // `$(cat file; echo .)` keeps the trailing newline of the override; drop the
+            // dot again.
             expected = expected.replace(".>>\n", ">>\n");
             assert_eq!(rust_report(&options), expected, "cmdline {cmdline:?}");
             let messages: String = log

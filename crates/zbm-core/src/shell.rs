@@ -1,14 +1,18 @@
 //! Bash semantics that the legacy code relies on.
 //!
-//! The legacy code passes values through `test`, `echo` and `read -r`, each of which changes some values in ways
-//! that are easy to miss: `[ x -gt 0 ]` accepts `+5` but not `5x`, `echo "$arg"` prints nothing when the argument is
-//! `-n`, and `read -r` drops surrounding blanks. The ports call these functions where the legacy code uses the
-//! builtins, so they treat every value the same way.
+//! The legacy code passes values through `test`, `echo` and `read -r`, each of
+//! which changes some values in ways that are easy to miss: `[ x -gt 0 ]`
+//! accepts `+5` but not `5x`, `echo "$arg"` prints nothing when the argument is
+//! `-n`, and `read -r` drops surrounding blanks. The ports call these functions
+//! where the legacy code uses the builtins, so they treat every value the same
+//! way.
 
-/// The value of `text` as an integer operand of `test` (`[ text -eq 0 ]`), or `None` when `test` rejects it.
+/// The value of `text` as an integer operand of `test` (`[ text -eq 0 ]`), or
+/// `None` when `test` rejects it.
 ///
-/// Like Bash, this accepts leading white space, a sign and decimal digits followed by blanks; anything else, an
-/// empty string and values outside the 64-bit range are rejected.
+/// Like Bash, this accepts leading white space, a sign and decimal digits
+/// followed by blanks; anything else, an empty string and values outside the
+/// 64-bit range are rejected.
 pub fn test_integer(text: &str) -> Option<i64> {
     let number = text.trim_start_matches([' ', '\t', '\n', '\x0b', '\x0c', '\r']);
     let digits_start = usize::from(number.starts_with(['+', '-']));
@@ -28,8 +32,9 @@ pub fn test_integer(text: &str) -> Option<i64> {
 
 /// What Bash's builtin `echo "$arg"` prints for a single argument.
 ///
-/// An argument made only of `-` and the option letters `n`, `e` and `E` is taken as options: `-n` prints nothing,
-/// and `-e` or `-E` print just a newline. Any other argument is printed followed by a newline.
+/// An argument made only of `-` and the option letters `n`, `e` and `E` is
+/// taken as options: `-n` prints nothing, and `-e` or `-E` print just a
+/// newline. Any other argument is printed followed by a newline.
 pub fn echo(arg: &str) -> String {
     match arg.strip_prefix('-') {
         Some(options) if !options.is_empty() && options.chars().all(|c| "neE".contains(c)) => {
@@ -45,19 +50,22 @@ pub fn echo(arg: &str) -> String {
 
 /// The lines `while read -r line` reads from `text`, with the default `IFS`.
 ///
-/// Each line loses its leading and trailing spaces and tabs, and any NUL bytes, which `read` drops. A last line
-/// without a newline is not read: `read` stores it but fails, so the loop ends before it.
+/// Each line loses its leading and trailing spaces and tabs, and any NUL bytes,
+/// which `read` drops. A last line without a newline is not read: `read` stores
+/// it but fails, so the loop ends before it.
 pub fn read_lines(text: &str) -> Vec<String> {
     let mut lines: Vec<String> = text
         .split('\n')
         .map(|line| trim_ifs(&line.replace('\0', "")).to_owned())
         .collect();
-    // The part after the last newline is either empty or a line that `read` does not deliver.
+    // The part after the last newline is either empty or a line that `read` does
+    // not deliver.
     lines.pop();
     lines
 }
 
-/// The first line `read -r value < file` stores, with the default `IFS`; an empty file gives an empty value.
+/// The first line `read -r value < file` stores, with the default `IFS`; an
+/// empty file gives an empty value.
 pub fn read_first_line(text: &str) -> String {
     let line = text
         .split('\n')
@@ -67,17 +75,20 @@ pub fn read_first_line(text: &str) -> String {
     trim_ifs(&line).to_owned()
 }
 
-/// Removes the characters of the default `IFS` (space, tab, newline) from both ends.
+/// Removes the characters of the default `IFS` (space, tab, newline) from both
+/// ends.
 pub fn trim_ifs(text: &str) -> &str {
     text.trim_matches([' ', '\t', '\n'])
 }
 
-/// The text a command substitution `$(...)` produces from `output`: trailing newlines are removed.
+/// The text a command substitution `$(...)` produces from `output`: trailing
+/// newlines are removed.
 pub fn command_substitution(output: &str) -> &str {
     output.trim_end_matches('\n')
 }
 
-/// Quotes `text` as one shell word, in single quotes, with each `'` written as `'\''`.
+/// Quotes `text` as one shell word, in single quotes, with each `'` written as
+/// `'\''`.
 pub fn quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }

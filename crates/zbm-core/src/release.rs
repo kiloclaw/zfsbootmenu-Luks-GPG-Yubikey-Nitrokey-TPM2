@@ -1,7 +1,8 @@
 //! The release information in `/etc/zbm-release`.
 //!
-//! The file uses the `os-release` format: `KEY=value` lines whose values may be quoted as in the shell. The legacy
-//! code sources it with Bash; [`Release::parse`] reads the same assignments without running anything.
+//! The file uses the `os-release` format: `KEY=value` lines whose values may be
+//! quoted as in the shell. The legacy code sources it with Bash;
+//! [`Release::parse`] reads the same assignments without running anything.
 
 /// The assignments of a release file, in file order.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -10,7 +11,8 @@ pub struct Release {
 }
 
 impl Release {
-    /// Parses a release file. Lines that are not assignments, and comments, are ignored.
+    /// Parses a release file. Lines that are not assignments, and comments, are
+    /// ignored.
     pub fn parse(text: &str) -> Release {
         let fields = text
             .lines()
@@ -48,15 +50,16 @@ impl Release {
         self.get("PRETTY_NAME")
     }
 
-    /// Whether the version is a development version: one that ends with `dev`, which the menu shows in red.
+    /// Whether the version is a development version: one that ends with `dev`,
+    /// which the menu shows in red.
     pub fn is_development(&self) -> bool {
         self.version()
             .is_some_and(|version| version.ends_with("dev"))
     }
 }
 
-/// Removes shell quoting from a value: double quotes with backslash escapes, single quotes, and unquoted text up to
-/// the first unquoted blank.
+/// Removes shell quoting from a value: double quotes with backslash escapes,
+/// single quotes, and unquoted text up to the first unquoted blank.
 fn unquote(value: &str) -> String {
     let mut result = String::new();
     let mut chars = value.chars();

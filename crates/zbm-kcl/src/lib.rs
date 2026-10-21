@@ -1,10 +1,14 @@
-//! `zbm-kcl`: review or change the kernel command line of a ZFS boot environment or a ZFSBootMenu EFI image.
+//! `zbm-kcl`: review or change the kernel command line of a ZFS boot
+//! environment or a ZFSBootMenu EFI image.
 //!
-//! This is the Rust version of `legacy/bin/zbm-kcl`, with the same options, messages and exit codes. The command
-//! line of a boot environment is its `org.zfsbootmenu:commandline` property; that of an EFI image is its `.cmdline`
-//! section, which `objcopy` reads and replaces. Each step does what the step of the same name in the Bash script
-//! does, including its quirks: a failure to read the command line is reported but does not end the program, and a
-//! new `.cmdline` section holds the command line and a NUL byte, without the leading space the script meant to add.
+//! This is the Rust version of `legacy/bin/zbm-kcl`, with the same options,
+//! messages and exit codes. The command line of a boot environment is its
+//! `org.zfsbootmenu:commandline` property; that of an EFI image is its
+//! `.cmdline` section, which `objcopy` reads and replaces. Each step does what
+//! the step of the same name in the Bash script does, including its quirks: a
+//! failure to read the command line is reported but does not end the program,
+//! and a new `.cmdline` section holds the command line and a NUL byte, without
+//! the leading space the script meant to add.
 
 use std::ffi::OsString;
 use std::io::{Read, Write};
@@ -57,14 +61,15 @@ impl Context<'static> {
 pub struct Io<'a> {
     /// Standard input: an EFI image when the input is `-`.
     pub stdin: &'a mut dyn Read,
-    /// Standard output: the command line, the usage text, or an EFI image when the output is `-`.
+    /// Standard output: the command line, the usage text, or an EFI image when the
+    /// output is `-`.
     pub stdout: &'a mut dyn Write,
     /// Standard error: error messages.
     pub stderr: &'a mut dyn Write,
 }
 
-/// The name Bash gives a script in `$0`: the path the program was run by, which is the `PATH` entry when the
-/// program was run by name.
+/// The name Bash gives a script in `$0`: the path the program was run by, which
+/// is the `PATH` entry when the program was run by name.
 pub fn script_name(argv0: &str, path: Option<&std::ffi::OsStr>) -> String {
     if argv0.contains('/') {
         return argv0.to_owned();
@@ -89,7 +94,8 @@ fn find_in_path(name: &str, path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
         .find(|candidate| is_file(candidate) && zbm_core::fs::is_executable(candidate))
 }
 
-/// Whether `command -v name` finds `name`: an executable file at a path, or one found in `path`.
+/// Whether `command -v name` finds `name`: an executable file at a path, or one
+/// found in `path`.
 fn command_exists(name: &str, path: Option<&std::ffi::OsStr>) -> bool {
     if name.contains('/') {
         is_file(name) && zbm_core::fs::is_executable(name)
@@ -157,7 +163,8 @@ impl Workspace {
     }
 }
 
-/// Removes a temporary file when it goes out of scope, as the script's `trap ... RETURN` does.
+/// Removes a temporary file when it goes out of scope, as the script's `trap
+/// ... RETURN` does.
 struct TempFile(PathBuf);
 
 impl Drop for TempFile {
@@ -174,7 +181,8 @@ enum Target {
     Efi(PathBuf),
 }
 
-/// Runs `zbm-kcl` with `args` (without the program name) and returns its exit code.
+/// Runs `zbm-kcl` with `args` (without the program name) and returns its exit
+/// code.
 pub fn run(context: &Context, args: &[String], io: &mut Io) -> i32 {
     let mut workspace = Workspace::default();
     let code = run_in(context, args, io, &mut workspace);
@@ -219,7 +227,8 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
                 error(io, "root does not appear to be ZFS");
                 return 1;
             }
-            // The script's loop ends without output and with status 0, so the input stays empty.
+            // The script's loop ends without output and with status 0, so the input stays
+            // empty.
             RootFilesystem::Missing => {}
         }
     }
@@ -276,8 +285,8 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
     };
     workspace.kcl = Some(temp_kcl.clone());
 
-    // Read, tokenize and modify the input KCL. As in the script's pipeline, a failure to read is reported by the
-    // reader and the command line is then empty.
+    // Read, tokenize and modify the input KCL. As in the script's pipeline, a
+    // failure to read is reported by the reader and the command line is then empty.
     let raw = if delete {
         String::new()
     } else {
@@ -339,7 +348,8 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
     0
 }
 
-/// `raw_kcl_zfs`: the property's value, empty when it is not set or cannot be read.
+/// `raw_kcl_zfs`: the property's value, empty when it is not set or cannot be
+/// read.
 fn raw_kcl_zfs(zfs: &Zfs, dataset: &str) -> String {
     match zfs.get_value(COMMANDLINE_PROPERTY, dataset) {
         Some(value) if value != "-" => echo(&value),
@@ -347,7 +357,8 @@ fn raw_kcl_zfs(zfs: &Zfs, dataset: &str) -> String {
     }
 }
 
-/// `raw_kcl_efi`: the contents of the `.cmdline` section, empty when it cannot be read.
+/// `raw_kcl_efi`: the contents of the `.cmdline` section, empty when it cannot
+/// be read.
 fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
     if !is_readable(image) {
         error(io, "the EFI file cannot be read");
@@ -380,7 +391,8 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
     }
 }
 
-/// `save_kcl_zfs`: sets the property, or removes it when the command line is empty.
+/// `save_kcl_zfs`: sets the property, or removes it when the command line is
+/// empty.
 fn save_kcl_zfs(zfs: &Zfs, io: &mut Io, assembled: &str, dataset: &str) -> bool {
     // `kcl="$(cat)"` drops trailing newlines and NUL bytes.
     let kcl = command_substitution(assembled).replace('\0', "");
@@ -399,8 +411,9 @@ fn save_kcl_zfs(zfs: &Zfs, io: &mut Io, assembled: &str, dataset: &str) -> bool 
     true
 }
 
-/// `save_kcl_efi`: replaces the `.cmdline` section of the image with the command line and a NUL byte, at the same
-/// address, if it fits in the space before the next section.
+/// `save_kcl_efi`: replaces the `.cmdline` section of the image with the
+/// command line and a NUL byte, at the same address, if it fits in the space
+/// before the next section.
 fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -> bool {
     let image_name = image.display().to_string();
     let gap = if !is_readable(image) {
@@ -477,7 +490,8 @@ fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -
     true
 }
 
-/// `edit`: opens the command line in `$EDITOR` (default `vi`) and saves what the editor leaves, tokenized again.
+/// `edit`: opens the command line in `$EDITOR` (default `vi`) and saves what
+/// the editor leaves, tokenized again.
 fn edit_kcl(context: &Context, io: &mut Io, temp_kcl: &Path) -> bool {
     let editor = context
         .editor
@@ -532,8 +546,9 @@ fn edit_kcl(context: &Context, io: &mut Io, temp_kcl: &Path) -> bool {
     true
 }
 
-/// `strip_kcl`: joins the lines before the first empty line with spaces, without comments (from the first `#` and
-/// the blanks before it) and without lines left empty.
+/// `strip_kcl`: joins the lines before the first empty line with spaces,
+/// without comments (from the first `#` and the blanks before it) and without
+/// lines left empty.
 pub fn strip_kcl(text: &str) -> String {
     let mut lines = Vec::new();
     for line in kcl::lines(text) {
@@ -551,7 +566,8 @@ pub fn strip_kcl(text: &str) -> String {
     lines.join(" ")
 }
 
-/// The arguments `while read -r` would read from a tokenized command line; for tests.
+/// The arguments `while read -r` would read from a tokenized command line; for
+/// tests.
 pub fn read_arguments(tokens: &str) -> Vec<String> {
     read_lines(tokens)
 }

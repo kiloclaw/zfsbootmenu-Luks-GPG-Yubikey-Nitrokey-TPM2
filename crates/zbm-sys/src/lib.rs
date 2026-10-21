@@ -1,9 +1,12 @@
 //! The few C library calls that the Rust standard library does not offer.
 //!
-//! The legacy tools are Bash and Perl programs, and both react to signals and to the effective user in ways that the
-//! Rust standard library cannot reproduce: Rust ignores `SIGPIPE` at start-up, has no signal handlers, and cannot
-//! tell the effective user and groups of the process. This crate wraps the C functions that provide them. It is the
-//! only crate in the workspace that may contain `unsafe` code, and each `unsafe` block states why it is sound.
+//! The legacy tools are Bash and Perl programs, and both react to signals and
+//! to the effective user in ways that the Rust standard library cannot
+//! reproduce: Rust ignores `SIGPIPE` at start-up, has no signal handlers, and
+//! cannot tell the effective user and groups of the process. This crate wraps
+//! the C functions that provide them. It is the only crate in the workspace
+//! that may contain `unsafe` code, and each `unsafe` block states why it is
+//! sound.
 
 #![allow(unsafe_code)]
 
@@ -11,8 +14,9 @@ use std::ffi::c_int;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 unsafe extern "C" {
-    // `sighandler_t signal(int signum, sighandler_t handler)`; the handler is passed as an address, so that the
-    // default action (`SIG_DFL`, address 0) and real handlers can share one declaration.
+    // `sighandler_t signal(int signum, sighandler_t handler)`; the handler is
+    // passed as an address, so that the default action (`SIG_DFL`, address 0) and
+    // real handlers can share one declaration.
     fn signal(signum: c_int, handler: usize) -> usize;
     fn geteuid() -> u32;
     fn getegid() -> u32;
@@ -37,7 +41,8 @@ pub enum Signal {
 }
 
 impl Signal {
-    /// The signal number on Linux, which is the same on every supported architecture.
+    /// The signal number on Linux, which is the same on every supported
+    /// architecture.
     pub fn number(self) -> i32 {
         match self {
             Signal::Interrupt => 2,
@@ -71,8 +76,9 @@ extern "C" fn record(signum: c_int) {
 }
 
 fn set_handler(signal: Signal, handler: usize) -> std::io::Result<()> {
-    // SAFETY: `signal` only changes the disposition of the given signal. The handler is either `SIG_DFL` or
-    // `record`, which has the C ABI and only performs an async-signal-safe atomic store.
+    // SAFETY: `signal` only changes the disposition of the given signal. The
+    // handler is either `SIG_DFL` or `record`, which has the C ABI and only
+    // performs an async-signal-safe atomic store.
     let previous = unsafe { signal_ffi(signal.number(), handler) };
     if previous == SIG_ERR {
         Err(std::io::Error::last_os_error())
@@ -81,28 +87,33 @@ fn set_handler(signal: Signal, handler: usize) -> std::io::Result<()> {
     }
 }
 
-/// Calls the C `signal` function; kept separate so the name does not clash with [`Signal`].
+/// Calls the C `signal` function; kept separate so the name does not clash with
+/// [`Signal`].
 ///
 /// # Safety
 ///
-/// `handler` must be `SIG_DFL` or the address of an `extern "C" fn(c_int)` that is async-signal-safe.
+/// `handler` must be `SIG_DFL` or the address of an `extern "C" fn(c_int)` that
+/// is async-signal-safe.
 unsafe fn signal_ffi(signum: c_int, handler: usize) -> usize {
-    // SAFETY: the caller guarantees that `handler` is valid; `signal` has no other requirements.
+    // SAFETY: the caller guarantees that `handler` is valid; `signal` has no other
+    // requirements.
     unsafe { signal(signum, handler) }
 }
 
 /// Restores the default action of `SIGPIPE`, which the Rust runtime ignores.
 ///
-/// Bash and Perl programs end silently when they write to a closed pipe (for example in `zbm-kcl | head -n1`); with
-/// the default action restored, the Rust tools do too.
+/// Bash and Perl programs end silently when they write to a closed pipe (for
+/// example in `zbm-kcl | head -n1`); with the default action restored, the Rust
+/// tools do too.
 pub fn restore_default_sigpipe() -> std::io::Result<()> {
     set_handler(Signal::Pipe, SIG_DFL)
 }
 
 /// Catches the given signals and records them instead of ending the process.
 ///
-/// A caught signal does not interrupt the program: system calls are restarted, and child processes still receive the
-/// default action, because handlers are reset when a program is executed. Call [`received_signal`] to find out
+/// A caught signal does not interrupt the program: system calls are restarted,
+/// and child processes still receive the default action, because handlers are
+/// reset when a program is executed. Call [`received_signal`] to find out
 /// whether one arrived.
 pub fn record_signals(signals: &[Signal]) -> std::io::Result<()> {
     signals
@@ -126,7 +137,8 @@ pub struct Credentials {
     pub groups: Vec<u32>,
 }
 
-/// Returns the effective credentials of the process, which decide file access as Perl's `-r` and `-x` tests do.
+/// Returns the effective credentials of the process, which decide file access
+/// as Perl's `-r` and `-x` tests do.
 pub fn credentials() -> Credentials {
     // SAFETY: `geteuid` and `getegid` take no arguments and cannot fail.
     let (uid, gid) = unsafe { (geteuid(), getegid()) };
@@ -138,13 +150,15 @@ pub fn credentials() -> Credentials {
 }
 
 fn supplementary_groups() -> Vec<u32> {
-    // SAFETY: with a size of 0, `getgroups` only returns the number of groups and does not write to the list.
+    // SAFETY: with a size of 0, `getgroups` only returns the number of groups and
+    // does not write to the list.
     let count = unsafe { getgroups(0, std::ptr::null_mut()) };
     let Ok(capacity) = usize::try_from(count) else {
         return Vec::new();
     };
     let mut groups = vec![0_u32; capacity];
-    // SAFETY: `groups` holds `count` elements, so `getgroups` writes at most `count` IDs into valid memory.
+    // SAFETY: `groups` holds `count` elements, so `getgroups` writes at most
+    // `count` IDs into valid memory.
     let written = unsafe { getgroups(count, groups.as_mut_ptr()) };
     match usize::try_from(written) {
         Ok(written) => {

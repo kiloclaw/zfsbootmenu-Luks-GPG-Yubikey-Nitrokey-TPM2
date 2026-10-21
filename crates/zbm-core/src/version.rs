@@ -1,6 +1,7 @@
 //! The ZFSBootMenu version.
 
-/// The ZFSBootMenu version, the same as `VERSION` in `legacy/zfsbootmenu/zbm-release`.
+/// The ZFSBootMenu version, the same as `VERSION` in
+/// `legacy/zfsbootmenu/zbm-release`.
 ///
 /// `scripts/version.sh -u` rewrites this line, as it does for the legacy files.
 pub const ZBM_VERSION: &str = "3.1.0+dev";

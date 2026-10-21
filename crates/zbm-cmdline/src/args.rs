@@ -1,9 +1,10 @@
 //! Looking up arguments of ZFSBootMenu's own command line.
 //!
-//! The legacy code stores every argument as a file `${BASE}/cmdline.d/<key>` holding its value (`1` for an
-//! argument without `=`), so the last occurrence of a key wins, and reads them back with `get_zbm_arg` and
-//! `get_zbm_bool`. [`ZbmArgs`] keeps the same key-value pairs in memory, with the values exactly as reading the
-//! files back produces them.
+//! The legacy code stores every argument as a file `${BASE}/cmdline.d/<key>`
+//! holding its value (`1` for an argument without `=`), so the last occurrence
+//! of a key wins, and reads them back with `get_zbm_arg` and `get_zbm_bool`.
+//! [`ZbmArgs`] keeps the same key-value pairs in memory, with the values
+//! exactly as reading the files back produces them.
 
 use std::collections::BTreeMap;
 
@@ -17,11 +18,12 @@ pub struct ZbmArgs {
 }
 
 impl ZbmArgs {
-    /// The arguments of a tokenized command line (see [`crate::kcl::build_zbm_kcl`]), as `make_cmdline_dir` stores
-    /// them.
+    /// The arguments of a tokenized command line (see
+    /// [`crate::kcl::build_zbm_kcl`]), as `make_cmdline_dir` stores them.
     pub fn from_kcl(text: &str) -> ZbmArgs {
-        // `while read -r karg ... done <<< "$( _build_zbm_kcl )"`: the command substitution and the here-string end
-        // the text with a single newline, so every argument is read.
+        // `while read -r karg ... done <<< "$( _build_zbm_kcl )"`: the command
+        // substitution and the here-string end the text with a single newline, so every
+        // argument is read.
         let input = format!("{}\n", command_substitution(text));
         let mut values = BTreeMap::new();
         for arg in read_lines(&input) {
@@ -40,7 +42,8 @@ impl ZbmArgs {
         ZbmArgs { values }
     }
 
-    /// The arguments of a command line given as text, such as the contents of `/proc/cmdline`.
+    /// The arguments of a command line given as text, such as the contents of
+    /// `/proc/cmdline`.
     pub fn from_cmdline(cmdline: &str) -> ZbmArgs {
         ZbmArgs::from_kcl(&crate::kcl::tokenize(cmdline))
     }
@@ -50,10 +53,12 @@ impl ZbmArgs {
         self.values.get(key).map(String::as_str)
     }
 
-    /// The value of the first of `names` the command line has, as `get_zbm_arg` returns it.
+    /// The value of the first of `names` the command line has, as `get_zbm_arg`
+    /// returns it.
     ///
-    /// `names` lists a preferred name followed by deprecated alternatives; using an alternative adds a warning to
-    /// `messages`. An argument without `=` has the value `1`.
+    /// `names` lists a preferred name followed by deprecated alternatives; using an
+    /// alternative adds a warning to `messages`. An argument without `=` has the
+    /// value `1`.
     pub fn lookup(&self, names: &[&str], messages: &mut Vec<Message>) -> Option<String> {
         let preferred = names.first().filter(|name| !name.is_empty())?;
         names.iter().find_map(|&name| {
@@ -67,8 +72,9 @@ impl ZbmArgs {
         })
     }
 
-    /// Whether a boolean option is on, as `get_zbm_bool` decides: when none of `names` is given, `default` decides.
-    /// An empty value and `no`, `off` and `0` in any case mean off; everything else means on.
+    /// Whether a boolean option is on, as `get_zbm_bool` decides: when none of
+    /// `names` is given, `default` decides. An empty value and `no`, `off` and `0`
+    /// in any case mean off; everything else means on.
     pub fn flag(&self, default: &str, names: &[&str], messages: &mut Vec<Message>) -> bool {
         let value = self
             .lookup(names, messages)
@@ -77,8 +83,9 @@ impl ZbmArgs {
     }
 }
 
-/// Whether the legacy code can store `key` as a file in `cmdline.d`: names with `/`, the names `.` and `..`, and
-/// names longer than a file name may be cannot be written, so those arguments are ignored.
+/// Whether the legacy code can store `key` as a file in `cmdline.d`: names with
+/// `/`, the names `.` and `..`, and names longer than a file name may be cannot
+/// be written, so those arguments are ignored.
 fn can_be_file_name(key: &str) -> bool {
     !key.contains('/') && key != "." && key != ".." && key.len() <= 255
 }
@@ -175,7 +182,8 @@ mod tests {
     #[test]
     fn lookups_match_get_zbm_arg_and_get_zbm_bool() {
         let mut rng = Rng::from_env(3);
-        // Callers only look up fixed names, never "." (which the legacy code finds as the directory itself).
+        // Callers only look up fixed names, never "." (which the legacy code finds as
+        // the directory itself).
         let names = [
             "a",
             "b",
