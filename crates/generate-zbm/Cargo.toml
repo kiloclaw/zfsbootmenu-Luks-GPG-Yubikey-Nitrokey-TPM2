@@ -1,0 +1,20 @@
+[package]
+name = "generate-zbm"
+description = "Build ZFSBootMenu images: an initramfs, a kernel and an EFI bundle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+yaml-rust2.workspace = true
+zbm-core.workspace = true
+zbm-sys.workspace = true
+
+[dev-dependencies]
+zbm-testutil.workspace = true
+
+[lints]
+workspace = true

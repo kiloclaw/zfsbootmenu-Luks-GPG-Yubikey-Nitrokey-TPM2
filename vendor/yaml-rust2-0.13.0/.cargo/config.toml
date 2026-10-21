@@ -1,0 +1,2 @@
+[alias]
+bench_compare = "run --package bench_compare --bin bench_compare --manifest-path tools/bench_compare/Cargo.toml --"

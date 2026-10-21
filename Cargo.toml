@@ -26,7 +26,7 @@ zbm-log = { path = "crates/zbm-log" }
 zbm-sys = { path = "crates/zbm-sys" }
 zbm-testutil = { path = "crates/zbm-testutil" }
 zbm-zfs = { path = "crates/zbm-zfs" }
-# yaml-rust2 = { version = "0.13", default-features = false }
+yaml-rust2 = { version = "0.13", default-features = false }
 
 [workspace.lints.rust]
 # Crates that need FFI (signals, ioctl, kexec_file_load) allow it locally with #![allow(unsafe_code)] and document
