@@ -179,8 +179,10 @@ The runtime keeps the legacy process structure, for three reasons:
 
 `zfsbootmenu-init` keeps the three modes of the legacy script:
 
-- **On the console** (`ZFSBOOTMENU_CONSOLE` set, as the start-up hook sets it): run the stages that have not run, then
-  the countdown, the automatic boot, and the loop of menu and recovery shell.
+- **On the console** (`--console`, which the supervisor passes, or `ZFSBOOTMENU_CONSOLE` set, as the legacy start-up
+  hook sets it): run the stages that have not run, then the countdown, the automatic boot, and the loop of menu and
+  recovery shell. The legacy program unsets the variable after the stages; an argument leaves nothing for the programs
+  it starts to inherit.
 - **Stages only** (`ZFSBOOTMENU_CONSOLE` not set): run the stages that have not run and exit. `zfsbootmenu` starts it
   this way when it finds no `initialized` marker.
 - **Forced** (`ZFSBOOTMENU_FORCE_INIT` set to yes, y, true, t or 1, in any case): run every stage again.
@@ -203,10 +205,15 @@ The dracut and mkinitcpio hooks stay shell scripts, as the roadmap requires, bec
   `/dev/root` to `/dev/null` itself, as the legacy script does, because dracut reads those variables from its own
   shell and a child process cannot set them.
 - **dracut `pre-mount` hook:** `exec /libexec/zbm zfsbootmenu-preinit`. The applet sets the console size, turns kernel
-  messages off, sets the host name and execs `setsid /libexec/zbm zfsbootmenu-init --supervise` with the control
-  terminal as its standard streams (the standard library's `exec`, with no FFI), so process 1 becomes the supervisor.
+  messages off, sets the host name and execs (the standard library's `exec`, with no FFI) `setsid bash -c '...'`, whose
+  script sources `/etc/zfsbootmenu.conf` and `/etc/profile` and execs `/libexec/zbm zfsbootmenu-init --supervise` with
+  the control terminal as its standard streams, so process 1 becomes the supervisor. The shell opens the terminal
+  after `setsid`, so it becomes the controlling terminal, as in the legacy hook; and the variables the legacy start-up
+  program exports by sourcing the two files reach every program the runtime starts, hooks included.
 - **mkinitcpio:** `/libexec/zfsbootmenu-initcpio` runs the two applets the same way.
 - The dracut `initqueue` checks (`zfsbootmenu-ready-set.sh`, `zfsbootmenu-ready-chk.sh`) stay as they are.
+- `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio entry
+  point) and leaves the legacy start-up program and `init.d` out of the image.
 
 The start-up stages run in this order, as functions of `zbm-boot`:
 
@@ -344,9 +351,11 @@ with the same rules as `zfsbootmenu-run-hooks`:
   `Disabling hook after execution: <hook>` is logged.
 - `zbm.hookroot` imports hooks from another file system first, and `zbm.skip_hooks` then removes the permissions of the
   named hooks, before the `early-setup.d` stage.
-- The environment is that of the process that runs the stage (the variables of `/etc/zfsbootmenu.conf`, which the
-  stage runner also reads, as `zfsbootmenu-run-hooks` sources it, and `BOOTFS` once it is known), plus the variables
-  of the stage: `ZBM_LOCKED_FS` and `ZBM_ENCRYPTION_ROOT` for `load-key.d`; `ZBM_SELECTED_BE`,
+- The environment is that of the process that runs the stage (the variables of `/etc/zfsbootmenu.conf`, and `BOOTFS`
+  once it is known), plus the variables of the stage. The start-up program has the configuration's variables because
+  the supervisor starts with them exported (see "Start-up hooks"); an applet that does not descend from it, such as a
+  menu started over SSH, adds them to the hooks it runs, as `zfsbootmenu-run-hooks` sources the file. The stage
+  variables are `ZBM_LOCKED_FS` and `ZBM_ENCRYPTION_ROOT` for `load-key.d`; `ZBM_SELECTED_BE`,
   `ZBM_SELECTED_KERNEL`, `ZBM_SELECTED_INITRAMFS` for `boot-sel.d` and `teardown.d`, and `ZBM_SELECTED_MOUNTPOINT`
   for `boot-sel.d`.
 
@@ -545,7 +554,16 @@ with an environment is small, and leaving it out would leave the console unset a
 
 If the list is not empty, the runtime logs each item as an error and opens the recovery shell with the message
 `not supported by this build of ZFSBootMenu yet`, from which the user can boot by hand or switch to the legacy image.
-Phase 6 removes items from the list as the packages arrive.
+The options are checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import would unlock
+them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opens the recovery
+shell with the same message, and keeps doing so, importing pools again between shells as the legacy loop does. Phase 6
+removes items from the list as the packages arrive.
+
+Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
+recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and
+`init.d` are left out. The code for the options on the list (every import policy, `zbm.prefer`, `zbm.wait_for`,
+`zbm.hookroot`) is ported with parity tests, but stays refused until the VM tests of package A pass against the Rust
+image.
 
 ## Freezing the legacy runtime
 

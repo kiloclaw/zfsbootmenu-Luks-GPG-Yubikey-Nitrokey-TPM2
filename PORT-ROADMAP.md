@@ -172,7 +172,7 @@ packages, the port takes about 6 to 9 months.
 | 2. Shared libraries and `zbm-kcl` | Done |
 | 3. `generate-zbm` | Done |
 | 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
-| 5. Minimal bootable runtime | In progress: the start-up stages, kernels and `kexec` commands are ported; the applets, the supervisor and the Rust image are next |
+| 5. Minimal bootable runtime | The Rust image boots the default boot environment of an unencrypted pool (VM test passes); left: CI runs only that test against the Rust image, not every suite yet, and the new CI job has not run on GitHub yet |
 | 6 to 8 | Not started |
 
 **Delivered by phases 1 to 3:**
@@ -238,6 +238,16 @@ packages, the port takes about 6 to 9 months.
   `zpool` shared by both, comparing the commands, the log and the state they leave. Options beyond the default boot
   stay on the list of unsupported set-ups until the VM tests of package A pass against the Rust image; the system
   report (`zreport`) that debugging output adds after import comes with package F.
+- The boot: `zbm_boot::boot` mounts the default boot environment, finds and selects its kernel, runs the `boot-sel.d`
+  and `teardown.d` hooks, exports the pools and runs `kexec`, with parity tests that run the legacy functions and the
+  Rust ones against the same fake programs and hook scripts and compare every command, hook environment and log line.
+- The start-up program (`zbm_boot::startup`, the applet `zfsbootmenu-init`) with its modes, the `.stages` file, the
+  countdown and the recovery loop; the start-up hooks (`zfsbootmenu-parse-commandline`, `zfsbootmenu-preinit`); and the
+  supervisor, process 1, which collects every child with `waitpid(-1)` and restarts the start-up program after a
+  recovery shell.
+- `zfsbootmenu_runtime=rust` builds images that start the Rust runtime, with dracut and mkinitcpio. A new VM test
+  (`tests/luks/vm/runtime.py`) boots an unencrypted pool's default boot environment with each runtime, and CI runs it:
+  the legacy result decides, the Rust result is reported.
 
 **Deviations from the plan:**
 
@@ -255,7 +265,7 @@ packages, the port takes about 6 to 9 months.
 - The changes to the frozen legacy runtime are tracked in `legacy/RUNTIME-CHANGES.md` instead of a GitHub issue,
   because the repository has issues turned off; the file also lets a fix record its entry in the same commit.
 - Until the Rust runtime can boot (Phase 5), there is no Rust image to build: CI builds images with both generators
-  and compares them, and every image includes `zbm`. The Rust image joins CI when `zfsbootmenu_runtime=rust` works.
+  and compares them, and every image includes `zbm`. The Rust image joined CI in Phase 5 (the `runtime` job).
 - Fixtures are recorded in a QEMU virtual machine booted from an image the build container builds, because creating
   pools needs the OpenZFS 2.4.4 kernel module, which the container cannot load on most hosts.
 - The coverage job reports coverage (94% of lines when phases 1 to 3 were finished); the 80% target and the rule

@@ -22,6 +22,7 @@ ALL=(
   keys-setup keys-plugin keys-native keys-lockout keys-notpm
   firmware-setup firmware-boot firmware-usbkey firmware-usblate firmware-nostick
   procedures
+  runtime-setup runtime-legacy runtime-rust
 )
 
 tests=( "$@" )

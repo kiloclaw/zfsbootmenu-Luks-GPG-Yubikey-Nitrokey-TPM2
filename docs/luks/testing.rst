@@ -58,11 +58,11 @@ Running the Tests
   # tests/luks/vm/run-all.sh layouts-main complex-hotplug
 
 ``vm/run-all.sh`` runs every VM test, or the named ones, one virtual machine at a time, and prints a summary. Setups
-must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a
-setup recreates its disks. The groups (``layouts``, ``complex``, ``keys``, ``firmware`` and ``procedures``) use
-separate disks, so several ``run-all.sh`` processes can run different groups at the same time, given the memory
-(4 GB per virtual machine) and processors. Set ``ZBMTEST_REUSE=1`` for parallel runs, so that they do not rebuild the
-shared ZFSBootMenu images at the same time.
+must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a setup
+recreates its disks. The groups (``layouts``, ``complex``, ``keys``, ``firmware`` and ``procedures``) use separate
+disks, as does ``runtime``, so several ``run-all.sh`` processes can run different groups at the same time, given the
+memory (4 GB per virtual machine) and processors. Set ``ZBMTEST_REUSE=1`` for parallel runs, so that they do not
+rebuild the shared ZFSBootMenu images at the same time.
 
 Environment variables of the VM tests:
 
@@ -226,6 +226,17 @@ Following a boot
   the 2.4 set and with the property ``off``) and making the pool bootable, then reboots and checks the verification
   step.
 
+``runtime.py``: the default boot with each runtime, without LUKS
+  One unencrypted pool on one disk holds the test boot environment as its ``bootfs``. Both boots import the pool
+  read-only, run the bundled and test hooks and boot the boot environment after the countdown. The test runs
+  outside the LUKS groups because it checks the runtime itself (Phase 5 of ``PORT-ROADMAP.md``); the legacy boot is
+  the reference.
+
+  * ``runtime-setup``: creates the pool in the recovery shell of the legacy image.
+  * ``runtime-legacy``: boots it with the legacy runtime.
+  * ``runtime-rust``: boots it with an image built with ``zfsbootmenu_runtime="rust"``; process 1 must be the Rust
+    supervisor, and hooks must see ``BOOTFS``.
+
 Results
 -------
 
@@ -283,7 +294,10 @@ Test                       Passed  Failed  Duration
 ``firmware-usblate``       14      0       4 min
 ``firmware-nostick``       14      0       4 min
 ``procedures``             78      0       47 min
-Total                      537     0
+``runtime-setup``          1       0       3 min
+``runtime-legacy``         15      0       4 min
+``runtime-rust``           15      0       4 min
+Total                      568     0
 =========================  ======  ======  ========
 
 Problems found and fixed
