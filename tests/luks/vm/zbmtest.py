@@ -636,9 +636,17 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400, menu=False):
             b.prompts.append("keyload-failed")
             return b
         if kind == "refused":
+            # The Rust runtime opened the recovery shell instead of booting.
+            # Run the teardown hooks there, as ZFSBootMenu runs them before
+            # booting, so that the imported pools and the LUKS mappings are
+            # still checked; the boot environment is not.
             b.prompts.append("refused")
             vm.t.step(f"the Rust runtime cannot handle this yet: {clean(vm.match.group(1)).strip()}")
-            return b
+            vm.shell_ready()
+            vm.t.step("running the teardown hooks in the recovery shell")
+            vm.sendline('for h in /libexec/hooks/teardown.d/*; do [ -x "$h" ] && "$h"; done')
+            vm.expect(BOOT_PROMPTS["status"], timeout=600)
+            break
         if kind == "menu":
             b.prompts.append("menu")
             vm.t.step("boot menu -> Enter")
@@ -669,7 +677,7 @@ def follow_boot(vm, answers=None, on=None, be=True, timeout=2400, menu=False):
     b.zluks = "\n".join(l.split("ZL| ", 1)[1] for l in vm.before.splitlines() if "ZL| " in l)
     vm.expect(r"ZBMTEST-TEARDOWN dm=\[(.*?)\] pools=\[(.*?)\] state=\[(.*?)\]", timeout=600)
     b.teardown = tuple(g.strip() for g in vm.match.groups())
-    if not be:
+    if not be or "refused" in b.prompts:
         return b
     i = vm.expect([r"BE-INIT-START", BOOT_PROMPTS["be_ask"], BOOT_PROMPTS["be_zfskey"],
                    r"Kernel panic", r"emergency"], timeout=timeout)
