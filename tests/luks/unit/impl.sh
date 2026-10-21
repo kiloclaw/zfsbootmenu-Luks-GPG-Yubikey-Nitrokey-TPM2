@@ -3,9 +3,9 @@
 # ZBMTEST_IMPL:
 #
 #   legacy  the Bash libraries in legacy/zfsbootmenu/lib (the default)
-#   rust    the zbm program of the Rust runtime, which does not exist yet: it
-#           is ported in Phases 5 and 6 of PORT-ROADMAP.md, and the suites skip
-#           until then
+#   rust    the test build of the Rust runtime's zbm program (the Cargo feature
+#           test-seams), at ZBMTEST_ZBM or target/test-seams/debug/zbm, which
+#           zbm_impl_check builds with cargo when it is missing
 #
 # Suites source this file, call zbm_impl_check before setting anything up, and
 # call zbm_impl_load in each case. Everything a suite observes or controls in
@@ -38,13 +38,19 @@
 #
 # What the suites call:
 #
-#   luks_unlock_all, luks_close_all [name...], luks_resolve_device <spec>,
-#   luks_list_tokens <device>, luks_record_mapping <name> <device> <auto>
+#   luks_unlock_all, luks_close_all [name], luks_resolve_device <spec>,
+#   luks_list_tokens <device>, luks_record_mapping <name> <device> <auto>,
+#   luks_token_wait
 #
 # Two cases in edge.sh reach inside the legacy code and run only against it
 # (zbm_impl_is_legacy): the retry without cryptsetup replaces luks_available,
 # and the import-loop case runs init.d/50-import-pools with its functions
 # replaced. The Rust runtime covers both with unit tests.
+
+_zbm_impl_repo="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../.." && pwd )"
+
+# The test build of zbm.
+ZBMTEST_ZBM="${ZBMTEST_ZBM:-${_zbm_impl_repo}/target/test-seams/debug/zbm}"
 
 # Reports whether the selected implementation can be tested; exits with 77,
 # which run-all.sh reports as skipped, when it cannot.
@@ -54,8 +60,16 @@ zbm_impl_check() {
       return 0
       ;;
     rust)
-      echo "the Rust runtime is not available yet (ZBMTEST_IMPL=rust)"
-      exit 77
+      if [ ! -x "${ZBMTEST_ZBM}" ] && command -v cargo >/dev/null 2>&1; then
+        ( cd "${_zbm_impl_repo}" && CARGO_TARGET_DIR=target/test-seams \
+            cargo build -q -p zbm --features test-seams ) || exit 2
+      fi
+      if ! "${ZBMTEST_ZBM}" --list 2>/dev/null | grep -q '^zbm-luks-test '; then
+        echo "no test build of zbm at ${ZBMTEST_ZBM}; build it with:"
+        echo "  CARGO_TARGET_DIR=target/test-seams cargo build -p zbm --features test-seams"
+        exit 77
+      fi
+      return 0
       ;;
     *)
       echo "unknown implementation ZBMTEST_IMPL=${ZBMTEST_IMPL}; use legacy or rust"
@@ -107,9 +121,38 @@ zbm_impl_load() {
       # sysfs holders cannot be faked; consult the stub's record instead
       luks_is_open() { [ -e "${FAKE:?}/holders/$(basename "$(readlink -f "$1")")" ]; }
       ;;
+    rust)
+      # The variables the legacy library sets when it is sourced; they reach
+      # zbm through _zbm_impl_rust
+      # shellcheck disable=SC2034
+      ZBM_CRYPTTAB="${2?a crypttab is required}"
+      : "${LUKS_STATE:=${BASE}/luks-mappings}"
+      : "${LUKS_SKIPPED:=${BASE}/luks-skipped}"
+      luks_unlock_all() { _zbm_impl_rust unlock_all; }
+      luks_close_all() { _zbm_impl_rust close_all "$@"; }
+      luks_resolve_device() { _zbm_impl_rust resolve_device "$@"; }
+      luks_list_tokens() { _zbm_impl_rust list_tokens "$@"; }
+      luks_record_mapping() { _zbm_impl_rust record_mapping "$@"; }
+      luks_token_wait() { _zbm_impl_rust token_wait; }
+      ;;
     *)
       echo "zbm_impl_load: no implementation '${ZBMTEST_IMPL}' to load" >&2
       return 1
       ;;
   esac
+}
+
+# args: an operation of the test build and its arguments
+# Runs the operation with the seams and the configuration variables, which the
+# suites set without exporting them, as the legacy library reads them.
+_zbm_impl_rust() {
+  local -a vars=()
+  local var
+  for var in BASE ZBM_CRYPTTAB LUKS_STATE LUKS_SKIPPED LUKS_GNUPG_DIR LUKS_TPM2_TCTI \
+      LUKS_NO_TOKEN_PLUGINS LUKS_DEFAULT_TRIES LUKS_RETRY zbm_retry_delay; do
+    [ -n "${!var+x}" ] && vars+=( "${var}=${!var}" )
+  done
+  env "${vars[@]}" ZBMTEST_LOG="${FAKE:?}/log" ZBMTEST_PROMPTS="${FAKE}/prompts" \
+    ZBMTEST_ANSWERS="${ANSWERS:-${FAKE}/answers}" ZBMTEST_HOLDERS="${FAKE}/holders" \
+    "${ZBMTEST_ZBM}" zbm-luks-test "$@"
 }

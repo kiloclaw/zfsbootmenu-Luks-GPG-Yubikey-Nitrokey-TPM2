@@ -61,7 +61,10 @@ noleft(){ ! ls /run/zbm-key.* /run/zbm-gpg.* /run/zbm-tpm2.* /tmp/zbm-key.* /tmp
 echo "### key management"
 t(){ LUKS_NO_TOKEN_PLUGINS=1; tab "v $STALE none"; luks_unlock_all; }
 run "TPM2 token whose key slot was removed -> passphrase fallback" t <<< $'pw'
-check "mapped via passphrase" mapped v; check "TPM unseal attempted first" grep -q "key-file=/run/zbm-key" "$FAKE/calls"; check "no leftovers" noleft
+# The unsealed key opens nothing (its slot is gone), then the passphrase does: two
+# attempts. The legacy code passes the key as a file in /run, the Rust runtime on
+# standard input.
+check "mapped via passphrase" mapped v; check "TPM unseal attempted first" [ "$(grep -c '^cryptsetup open ' "$FAKE/calls")" -ge 2 ]; check "no leftovers" noleft
 
 t(){ LUKS_NO_TOKEN_PLUGINS=1; LUKS_TPM2_TCTI="device:/dev/no-such-tpm"; tab "v $MULTI none"; luks_unlock_all; }
 run "TPM2 + FIDO2 tokens on one volume, no TPM present -> FIDO2 unlocks" t < /dev/null

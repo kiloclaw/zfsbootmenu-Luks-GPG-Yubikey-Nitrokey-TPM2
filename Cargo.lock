@@ -59,6 +59,7 @@ dependencies = [
  "zbm-boot",
  "zbm-cmdline",
  "zbm-core",
+ "zbm-luks",
  "zbm-sys",
  "zbm-system",
  "zbm-testutil",

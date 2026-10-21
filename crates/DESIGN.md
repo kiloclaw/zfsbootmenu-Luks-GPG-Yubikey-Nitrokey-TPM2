@@ -521,14 +521,16 @@ in phases 2 and 3.
 - **LUKS unit suites.** They load the code under test through `tests/luks/unit/impl.sh`, which also provides every
   seam through which they observe and control it, and documents them: messages as `LEVEL: text` lines in a log file,
   timed prompts recorded in a file and answered from another, a directory of stand-ins for open volumes, which the
-  stub `cryptsetup` keeps, and the five operations the suites call (`luks_unlock_all`, `luks_close_all`,
-  `luks_resolve_device`, `luks_list_tokens`, `luks_record_mapping`). With `ZBMTEST_IMPL=rust`, the adapter provides
-  the same seams with a test build of `zbm` (the Cargo feature `test-seams`): environment variables send its messages,
-  prompts and the check for open volumes to those files, and a hidden applet runs the five operations. Images never
-  contain that build; CI checks that the release `zbm` has no such applet. Two cases in `edge.sh` reach inside the
-  legacy code (one replaces `luks_available`, one runs the import stage with its functions replaced); they run only
-  against the legacy code, and unit tests of `zbm-luks` and `zbm-boot` cover them for Rust. Until package B exists,
-  `rust` reports the suites as skipped (exit status 77).
+  stub `cryptsetup` keeps, and the six operations the suites call (`luks_unlock_all`, `luks_close_all`,
+  `luks_resolve_device`, `luks_list_tokens`, `luks_record_mapping`, `luks_token_wait`). With `ZBMTEST_IMPL=rust`,
+  the adapter provides the same seams with a test build of `zbm` (the Cargo feature `test-seams`): the environment
+  variables `ZBMTEST_LOG`, `ZBMTEST_PROMPTS`, `ZBMTEST_ANSWERS` and `ZBMTEST_HOLDERS` send its messages, prompts
+  and the check for open volumes to those files, and the hidden command `zbm-luks-test` runs the six operations.
+  Images never contain that build; CI checks that the release `zbm` has no such command, and runs the suites
+  against both implementations. Two cases in `edge.sh` reach inside the legacy code (one replaces
+  `luks_available`, one runs the import stage with its functions replaced); they run only against the legacy code,
+  and unit tests of `zbm-luks` and `zbm-boot` cover them for Rust. One check accepts either way of passing an
+  unsealed TPM2 key to `cryptsetup` (a file in `/run` for the legacy code, standard input for Rust).
 - **VM tests and upstream test VMs.** They boot an image. CI builds a legacy and a Rust image
   (`zfsbootmenu_runtime=rust`) and runs every suite against both; from Phase 5 on, the results against the Rust image
   are the measure of progress.

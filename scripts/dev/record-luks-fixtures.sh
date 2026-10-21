@@ -21,7 +21,6 @@ repo="$( cd "$( dirname "$0" )/../.." && pwd )"
 out="${repo}/crates/zbm-luks/tests/fixtures"
 work="$( mktemp -d /tmp/zbm-luks-fixtures.XXXXXX )"
 tcti="swtpm:host=127.0.0.1,port=2621"
-loops=()
 
 if [ "$( id -u )" -ne 0 ]; then
   echo "record-luks-fixtures.sh needs root (loop devices)" >&2
@@ -29,10 +28,11 @@ if [ "$( id -u )" -ne 0 ]; then
 fi
 
 cleanup() {
-  local loop
-  for loop in "${loops[@]}"; do
-    losetup -d "${loop}" 2>/dev/null
-  done
+  # Volumes are created in command substitutions, so the loop devices are
+  # found by their backing files
+  losetup -l -n -O NAME,BACK-FILE 2>/dev/null \
+    | awk -v dir="${work}/" 'index($2, dir) == 1 { print $1 }' \
+    | xargs -r -n1 losetup -d 2>/dev/null
   [ -f "${work}/swtpm.pid" ] && kill "$( cat "${work}/swtpm.pid" )" 2>/dev/null
   rm -rf "${work}"
 }
@@ -49,13 +49,10 @@ export SYSTEMD_TPM2_DEVICE="${tcti}" TPM2TOOLS_TCTI="${tcti}"
 # arg1: name, arg2: LUKS type
 # prints: the loop device of a new volume with the passphrase "pw"
 volume() {
-  local loop
   truncate -s 32M "${work}/${1}.img"
   printf 'pw' | cryptsetup luksFormat -q --type "${2}" --pbkdf pbkdf2 \
     --pbkdf-force-iterations 1000 --key-file=- "${work}/${1}.img"
-  loop="$( losetup -f --show "${work}/${1}.img" )"
-  loops+=( "${loop}" )
-  echo "${loop}"
+  losetup -f --show "${work}/${1}.img"
 }
 
 # arg1: device, arg2: file with the new passphrase

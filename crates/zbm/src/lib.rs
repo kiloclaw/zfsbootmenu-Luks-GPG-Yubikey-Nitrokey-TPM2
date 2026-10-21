@@ -5,11 +5,12 @@
 //! /libexec/zbm`) or by its first argument (`zbm zfsbootmenu`). One binary
 //! keeps the boot image small. The commands arrive with the runtime port: Phase
 //! 5 of `PORT-ROADMAP.md` brings the start-up hooks, the start-up program and
-//! the supervisor.
+//! the supervisor, and package B of Phase 6 brings `zluks`.
 
 use std::io::Write;
 
 pub mod applets;
+pub mod luks;
 pub mod supervisor;
 
 /// The program's output streams.
@@ -30,22 +31,46 @@ pub struct Applet {
     pub run: fn(&[String], &mut Io) -> i32,
 }
 
+const INIT: Applet = Applet {
+    name: "zfsbootmenu-init",
+    summary: "the start-up program, and with --supervise process 1",
+    run: applets::init,
+};
+
+const PARSE_COMMANDLINE: Applet = Applet {
+    name: "zfsbootmenu-parse-commandline",
+    summary: "read the command line into /etc/zfsbootmenu.conf (dracut cmdline hook)",
+    run: applets::parse_commandline,
+};
+
+const PREINIT: Applet = Applet {
+    name: "zfsbootmenu-preinit",
+    summary: "set up the console and start the supervisor (dracut pre-mount hook)",
+    run: applets::preinit,
+};
+
+const ZLUKS: Applet = Applet {
+    name: "zluks",
+    summary: "unlock, close and list LUKS volumes",
+    run: luks::zluks,
+};
+
 /// The commands `zbm` provides.
+#[cfg(not(feature = "test-seams"))]
+pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS];
+
+/// The commands `zbm` provides, with the operations of the LUKS unit suites
+/// in the test build.
+#[cfg(feature = "test-seams")]
 pub const APPLETS: &[Applet] = &[
+    INIT,
+    PARSE_COMMANDLINE,
+    PREINIT,
+    ZLUKS,
     Applet {
-        name: "zfsbootmenu-init",
-        summary: "the start-up program, and with --supervise process 1",
-        run: applets::init,
-    },
-    Applet {
-        name: "zfsbootmenu-parse-commandline",
-        summary: "read the command line into /etc/zfsbootmenu.conf (dracut cmdline hook)",
-        run: applets::parse_commandline,
-    },
-    Applet {
-        name: "zfsbootmenu-preinit",
-        summary: "set up the console and start the supervisor (dracut pre-mount hook)",
-        run: applets::preinit,
+        name: "zbm-luks-test",
+        summary: "the LUKS operations of the unit suites (test build only)",
+        run: luks::seams::run,
     },
 ];
 
@@ -222,14 +247,16 @@ mod tests {
             .lines()
             .filter_map(|line| line.split_whitespace().next())
             .collect();
-        assert_eq!(
-            names,
-            [
-                "zfsbootmenu-init",
-                "zfsbootmenu-parse-commandline",
-                "zfsbootmenu-preinit"
-            ]
-        );
+        let mut expected = vec![
+            "zfsbootmenu-init",
+            "zfsbootmenu-parse-commandline",
+            "zfsbootmenu-preinit",
+            "zluks",
+        ];
+        if cfg!(feature = "test-seams") {
+            expected.push("zbm-luks-test");
+        }
+        assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
         assert_eq!(code, USAGE);
         assert_eq!(stderr, "zfsbootmenu-init: unknown option --bogus\n");

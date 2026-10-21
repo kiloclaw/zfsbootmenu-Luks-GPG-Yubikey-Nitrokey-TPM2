@@ -22,6 +22,7 @@ pub struct KernelLog<'a> {
     base: PathBuf,
     loglevel: Option<i64>,
     pid: u32,
+    labelled: bool,
 }
 
 impl<'a> KernelLog<'a> {
@@ -35,7 +36,16 @@ impl<'a> KernelLog<'a> {
             base: base.to_owned(),
             loglevel: parse_level(loglevel),
             pid,
+            labelled: false,
         }
+    }
+
+    /// The same log, writing each message of any level as one `LEVEL: text`
+    /// line, as the logging stand-ins of the LUKS unit suites do; empty
+    /// debugging output is left out.
+    pub fn labelled(mut self) -> KernelLog<'a> {
+        self.labelled = true;
+        self
     }
 
     /// The same log, writing to another device.
@@ -55,7 +65,7 @@ impl<'a> KernelLog<'a> {
     /// to write are ignored, as `echo ... > /dev/kmsg` ignores them.
     #[track_caller]
     pub fn log(&self, message: &Message) -> bool {
-        if !self.enabled(message.level) {
+        if !self.labelled && !self.enabled(message.level) {
             return false;
         }
         let marker = match message.level {
@@ -65,6 +75,13 @@ impl<'a> KernelLog<'a> {
         };
         if let Some(marker) = marker {
             let _ = self.files.write(&self.base.join(marker), b"");
+        }
+        if self.labelled {
+            if message.level != Level::Debug || !message.text.is_empty() {
+                let line = format!("{}\n", message.stderr_line());
+                let _ = self.files.append(&self.device, line.as_bytes());
+            }
+            return true;
         }
         let caller = Location::caller();
         let trace = format!("{},{}", caller.file(), caller.line());
@@ -134,6 +151,25 @@ mod tests {
         assert!(dir.join("have_warnings").exists());
         assert!(dir.join("have_errors").exists());
         assert!(log.enabled(Level::Info) && !log.enabled(Level::Debug));
+    }
+
+    #[test]
+    fn labelled_lines_are_written_as_the_suites_expect() {
+        let dir = TempDir::new("zbm-log");
+        let log_file = dir.join("log");
+        let log = KernelLog::new(&RealFiles, "0", dir.path(), 42)
+            .with_device(&log_file)
+            .labelled();
+        log.info("one");
+        log.warning("two\nlines");
+        log.debug("");
+        log.debug("three");
+        assert_eq!(
+            std::fs::read_to_string(&log_file).unwrap(),
+            "INFO: one\nWARN: two\nlines\nDEBUG: three\n"
+        );
+        // Every level is written, whatever the log level says.
+        assert!(dir.join("have_warnings").exists());
     }
 
     #[test]

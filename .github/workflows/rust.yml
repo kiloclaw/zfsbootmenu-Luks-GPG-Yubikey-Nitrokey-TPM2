@@ -14,6 +14,7 @@ on:
       - 'scripts/dev/check-rust-width.sh'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
+      - 'tests/luks/unit/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -27,6 +28,7 @@ on:
       - 'scripts/dev/check-rust-width.sh'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
+      - 'tests/luks/unit/**'
       - '.github/workflows/rust.yml'
 
 concurrency:
@@ -69,13 +71,66 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      # The test build for the LUKS unit suites (tests/luks/unit/impl.sh)
+      - name: Clippy (test build of zbm)
+        run: cargo clippy -p zbm --all-targets --features test-seams --locked -- -D warnings
+
       - name: Test
         run: cargo test --workspace --locked
+
+      - name: Test (test build of zbm)
+        run: cargo test -p zbm --features test-seams --locked
+
+      # Images never contain the test build: the release zbm must not have the
+      # command that runs the unit suites' operations
+      - name: The release zbm has no test command
+        run: |
+          cargo build --release -p zbm --locked
+          if target/release/zbm --list | grep '^zbm-luks-test '; then
+            echo "the release zbm contains the test command zbm-luks-test" >&2
+            exit 1
+          fi
 
       - name: Documentation
         run: cargo doc --workspace --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
+
+  luks-unit:
+    name: LUKS unit suites with each implementation
+    # The suites need root, loop devices and the tools of the boot images; see
+    # docs/luks/testing.rst
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: rustup toolchain install
+
+      - name: Install the tools of the suites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cryptsetup-bin swtpm swtpm-tools tpm2-tools clevis clevis-luks clevis-tpm2 \
+            jose gnupg fido2-tools fdisk e2fsprogs openssl
+
+      - name: Build the test build of zbm
+        run: CARGO_TARGET_DIR=target/test-seams cargo build -p zbm --features test-seams --locked
+
+      - name: Legacy
+        run: sudo env ZBMTEST_UNIT_WORK=/var/tmp/zbm-luks-unit-legacy tests/luks/unit/run-all.sh
+
+      - name: Rust
+        run: |
+          sudo env ZBMTEST_IMPL=rust ZBMTEST_UNIT_WORK=/var/tmp/zbm-luks-unit-rust \
+            tests/luks/unit/run-all.sh
+
+      - name: Archive the suite output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: LUKS-Unit-Output
+          path: /var/tmp/zbm-luks-unit-*
 
   msrv:
     name: Minimum supported Rust version

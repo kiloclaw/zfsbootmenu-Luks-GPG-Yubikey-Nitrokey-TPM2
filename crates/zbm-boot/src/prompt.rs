@@ -166,6 +166,39 @@ pub(crate) fn tput(system: &System<'_>, args: &[&str]) {
     }
 }
 
+/// The timed prompts of the LUKS code, drawn as `timed_prompt` draws them.
+pub struct ConsolePrompter<'a> {
+    system: System<'a>,
+}
+
+impl<'a> ConsolePrompter<'a> {
+    /// Prompts on `system`'s console.
+    pub fn new(system: System<'a>) -> ConsolePrompter<'a> {
+        ConsolePrompter { system }
+    }
+}
+
+impl zbm_luks::session::Prompter for ConsolePrompter<'_> {
+    fn timed_prompt(&self, request: &zbm_luks::session::PromptRequest) -> bool {
+        let mut prompt = TimedPrompt::new();
+        if let Some(delay) = &request.delay {
+            prompt = prompt.delay(retry_delay(delay));
+        }
+        let answer = prompt
+            .message(colorize("red", &request.message))
+            .on_return(&request.on_return)
+            .on_escape(&request.on_escape)
+            .prompt(|seconds| {
+                format!(
+                    "Retrying in {} seconds",
+                    colorize("yellow", &format!("{seconds:02}"))
+                )
+            })
+            .run(&self.system);
+        answer == Answer::Continue
+    }
+}
+
 /// `$( tput <capability> )` as a number, 0 when it cannot be read.
 fn tput_number(system: &System<'_>, capability: &str) -> i64 {
     let command = Command::new("tput").arg(capability).stderr(Stream::Null);
@@ -296,6 +329,25 @@ mod tests {
             TimedPrompt::new().delay(0).run(&fake.system()),
             Answer::Continue
         );
+    }
+
+    #[test]
+    fn luks_prompts_count_down_from_their_delay() {
+        use zbm_luks::session::{PromptRequest, Prompter};
+        let fake = setup();
+        fake.console.timeout().keys(&[0x1b]);
+        let request = PromptRequest {
+            delay: Some("5".to_owned()),
+            message: "LUKS device LABEL=x is missing".to_owned(),
+            on_return: "retry now".to_owned(),
+            on_escape: "skip this device".to_owned(),
+        };
+        assert!(!ConsolePrompter::new(fake.system()).timed_prompt(&request));
+        let output = fake.console.output_text();
+        assert!(output.contains("\x1b[0;31mLUKS device LABEL=x is missing\x1b[0m"));
+        assert!(output.contains("Retrying in \x1b[1;33m05\x1b[0m seconds"));
+        assert!(output.contains("Retrying in \x1b[1;33m04\x1b[0m seconds"));
+        assert!(output.contains("[ESCAPE]\x1b[0m skip this device"));
     }
 
     #[test]
