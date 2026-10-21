@@ -24,6 +24,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   work, because tpm2-tools reads the input as a string. The token suite checks `tpm2_unseal`'s arguments.
   **Rust (package B):** pass the value as `hex:<value>` with `Input::Secret`, and check with
   `FakeSystem::assert_no_leak` that it appears in no argument.
+- [x] `48f9d4d`: `zfsbootmenu-preinit.sh` wrote command line values to `/etc/zfsbootmenu.conf` between single quotes
+  without escaping, so a value with a single quote in it (`zbm.prefer`, `zbm.wait_for`, `zbm.hookroot`, `console`)
+  broke the file. `zbm_conf_quote` now writes each quote as `'\''`.
+  **Rust:** done; `ZbmOptions::conf` quotes the same way, `zbm_cmdline::conf` reads the file back, and parity tests
+  compare both writers and check the values against Bash sourcing the file.
 
 ## Legacy limitations the Rust runtime must not copy
 
