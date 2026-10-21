@@ -5,13 +5,26 @@
 //! typed it: `Versions: 3` is the number 3, `Version: 3.10` is the number 3.1 (so it prints as `3.1`), `Enabled:
 //! false` is a false boolean that prints as `0`, and an empty value is undefined. [`Value`] keeps those types, and
 //! its methods apply Perl's rules to them.
+//!
+//! Sequences and mappings are shared, as Perl references are: an alias to an anchored mapping is the same mapping,
+//! so a change made through one name is seen through the other, and writing the configuration back marks the
+//! sharing with anchors.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use yaml_rust2::parser::{Event, MarkedEventReceiver, Parser, Tag};
 use yaml_rust2::scanner::{Marker, TScalarStyle};
 
-/// A configuration value, typed as YAML::PP's core schema types it.
+/// A sequence, shared like a Perl array reference.
+pub type Seq = Rc<RefCell<Vec<Value>>>;
+
+/// A mapping in file order, shared like a Perl hash reference.
+pub type Map = Rc<RefCell<Vec<(String, Value)>>>;
+
+/// A configuration value, typed as YAML::PP's core schema types it. Cloning a sequence or a mapping shares it, as
+/// copying a Perl reference does.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     /// An undefined value: `null`, `~` or nothing.
@@ -25,9 +38,9 @@ pub enum Value {
     /// A string.
     Str(String),
     /// A sequence.
-    Seq(Vec<Value>),
+    Seq(Seq),
     /// A mapping, in file order.
-    Map(Vec<(String, Value)>),
+    Map(Map),
 }
 
 /// An error that ends `generate-zbm` the way a Perl `die` outside an `eval` does: with the message on standard error
@@ -36,6 +49,16 @@ pub enum Value {
 pub struct Fatal(pub String);
 
 impl Value {
+    /// A new sequence.
+    pub fn seq(items: Vec<Value>) -> Value {
+        Value::Seq(Rc::new(RefCell::new(items)))
+    }
+
+    /// A new mapping.
+    pub fn map(entries: Vec<(String, Value)>) -> Value {
+        Value::Map(Rc::new(RefCell::new(entries)))
+    }
+
     /// Whether the value is defined (Perl's `defined`).
     pub fn is_defined(&self) -> bool {
         !matches!(self, Value::Null)
@@ -50,10 +73,10 @@ impl Value {
             Value::Int(number) => number.to_string(),
             Value::Float(number) => format_g15(*number),
             Value::Str(text) => text.clone(),
-            // References print as their type and address; the address is not reproducible, and no configuration
-            // value of `generate-zbm` is meant to be printed this way.
-            Value::Seq(_) => "ARRAY(0x0)".to_owned(),
-            Value::Map(_) => "HASH(0x0)".to_owned(),
+            // References print as their type and address, which differs from run to run. No configuration value of
+            // `generate-zbm` is meant to be printed this way.
+            Value::Seq(seq) => format!("ARRAY(0x{:x})", address(seq)),
+            Value::Map(map) => format!("HASH(0x{:x})", address(map)),
         })
     }
 
@@ -91,52 +114,63 @@ impl Value {
     }
 
     /// The value of a mapping's key, if this is a mapping that has it.
-    pub fn get(&self, key: &str) -> Option<&Value> {
+    pub fn get(&self, key: &str) -> Option<Value> {
         match self {
-            Value::Map(entries) => entries
+            Value::Map(map) => map
+                .borrow()
                 .iter()
                 .find(|(name, _)| name == key)
-                .map(|(_, value)| value),
+                .map(|(_, value)| value.clone()),
             _ => None,
         }
     }
 
     /// `$config{section}{key}` in Perl: the value, or `None` when the section or the key is missing. A section that
     /// is defined but not a mapping makes Perl die.
-    pub fn lookup(&self, section: &str, key: &str) -> Result<Option<&Value>, Fatal> {
+    pub fn lookup(&self, section: &str, key: &str) -> Result<Option<Value>, Fatal> {
         match self.get(section) {
             None | Some(Value::Null) => Ok(None),
-            Some(map @ Value::Map(_)) => Ok(map.get(key).filter(|value| value.is_defined())),
-            Some(other) => Err(not_a_hash(section, other)),
+            Some(map @ Value::Map(_)) => Ok(map.get(key).filter(Value::is_defined)),
+            Some(other) => Err(not_a_hash(section, &other)),
         }
     }
 
-    /// Sets `$config{section}{key}`, creating the section when it is missing, as Perl's autovivification does.
-    pub fn set(&mut self, section: &str, key: &str, value: Value) -> Result<(), Fatal> {
-        let Value::Map(entries) = self else {
+    /// Sets `$config{section}{key}`, creating the section when it is missing or undefined, as Perl's
+    /// autovivification does. A shared section changes wherever it is used.
+    pub fn set(&self, section: &str, key: &str, value: Value) -> Result<(), Fatal> {
+        let Value::Map(top) = self else {
             return Err(Fatal("Not a HASH reference".to_owned()));
         };
-        if !entries.iter().any(|(name, _)| name == section) {
-            entries.push((section.to_owned(), Value::Map(Vec::new())));
-        }
-        let (_, slot) = entries
-            .iter_mut()
-            .find(|(name, _)| name == section)
-            .expect("the section was just added");
-        if matches!(slot, Value::Null) {
-            *slot = Value::Map(Vec::new());
-        }
-        match slot {
-            Value::Map(fields) => {
-                match fields.iter_mut().find(|(name, _)| name == key) {
-                    Some((_, old)) => *old = value,
-                    None => fields.push((key.to_owned(), value)),
+        let section_map = {
+            let mut entries = top.borrow_mut();
+            let index = match entries.iter().position(|(name, _)| name == section) {
+                Some(index) => index,
+                None => {
+                    entries.push((section.to_owned(), Value::Null));
+                    entries.len() - 1
                 }
-                Ok(())
+            };
+            let slot = &mut entries[index].1;
+            if matches!(slot, Value::Null) {
+                *slot = Value::map(Vec::new());
             }
-            other => Err(not_a_hash(section, other)),
+            match slot {
+                Value::Map(map) => Rc::clone(map),
+                other => return Err(not_a_hash(section, other)),
+            }
+        };
+        let mut fields = section_map.borrow_mut();
+        match fields.iter_mut().find(|(name, _)| name == key) {
+            Some((_, old)) => *old = value,
+            None => fields.push((key.to_owned(), value)),
         }
+        Ok(())
     }
+}
+
+/// The address of a shared value, which Perl prints for references.
+fn address<T>(shared: &Rc<T>) -> usize {
+    Rc::as_ptr(shared).cast::<()>() as usize
 }
 
 fn not_a_hash(section: &str, value: &Value) -> Fatal {
@@ -215,7 +249,8 @@ pub fn format_g15(number: f64) -> String {
         return if number > 0.0 { "Inf" } else { "-Inf" }.to_owned();
     }
     if number == 0.0 {
-        return if number.is_sign_negative() { "-0" } else { "0" }.to_owned();
+        // Perl prints a negative zero as `0`.
+        return "0".to_owned();
     }
     let scientific = format!("{number:.14e}");
     let (mantissa, exponent) = scientific
@@ -413,11 +448,13 @@ impl Builder {
         let (value, anchor) = match event {
             Event::Scalar(text, style, anchor, tag) => (scalar(&text, style, tag.as_ref()), anchor),
             Event::Alias(anchor) => {
+                // An anchor is registered once its node is complete, so an alias inside its own anchor is unknown
+                // here; YAML::PP also refuses such cyclic aliases.
                 return self
                     .anchors
                     .get(&anchor)
                     .cloned()
-                    .ok_or_else(|| LoadError(format!("unknown alias {anchor}")));
+                    .ok_or_else(|| LoadError(format!("unknown or cyclic alias {anchor}")));
             }
             Event::SequenceStart(anchor, _) => {
                 let mut items = Vec::new();
@@ -428,7 +465,7 @@ impl Builder {
                         None => return Err(LoadError("unterminated sequence".to_owned())),
                     }
                 }
-                (Value::Seq(items), anchor)
+                (Value::seq(items), anchor)
             }
             Event::MappingStart(anchor, _) => {
                 let mut entries: Vec<(String, Value)> = Vec::new();
@@ -454,7 +491,7 @@ impl Builder {
                     }
                     entries.push((key, value));
                 }
-                (Value::Map(entries), anchor)
+                (Value::map(entries), anchor)
             }
             other => return Err(LoadError(format!("unexpected YAML event {other:?}"))),
         };
@@ -550,24 +587,24 @@ mod tests {
         assert!(load("just text\n").is_err());
         assert!(load("a: 1\na: 2\n").is_err());
         let config = load("a: &x 1\nb: *x\n---\nc: 2\n").unwrap();
-        assert_eq!(config.get("b"), Some(&Value::Int(1)));
+        assert_eq!(config.get("b"), Some(Value::Int(1)));
         assert_eq!(config.get("c"), None);
         let config =
             load("a: !!str 3\nb: !!int \"4\"\nc: !foo bar\nd: 'q'\ne: >-\n  folded\n  text\n")
                 .unwrap();
-        assert_eq!(config.get("a"), Some(&Value::Str("3".to_owned())));
-        assert_eq!(config.get("b"), Some(&Value::Int(4)));
-        assert_eq!(config.get("c"), Some(&Value::Str("bar".to_owned())));
-        assert_eq!(config.get("d"), Some(&Value::Str("q".to_owned())));
-        assert_eq!(config.get("e"), Some(&Value::Str("folded text".to_owned())));
+        assert_eq!(config.get("a"), Some(Value::Str("3".to_owned())));
+        assert_eq!(config.get("b"), Some(Value::Int(4)));
+        assert_eq!(config.get("c"), Some(Value::Str("bar".to_owned())));
+        assert_eq!(config.get("d"), Some(Value::Str("q".to_owned())));
+        assert_eq!(config.get("e"), Some(Value::Str("folded text".to_owned())));
     }
 
     #[test]
     fn sections() {
-        let mut config = load("Global:\n  ManageImages: true\nEFI: text\n").unwrap();
+        let config = load("Global:\n  ManageImages: true\nEFI: text\n").unwrap();
         assert_eq!(
             config.lookup("Global", "ManageImages").unwrap(),
-            Some(&Value::Bool(true))
+            Some(Value::Bool(true))
         );
         assert_eq!(config.lookup("Kernel", "Path").unwrap(), None);
         assert!(config.lookup("EFI", "Enabled").is_err());
@@ -576,7 +613,30 @@ mod tests {
             .unwrap();
         assert_eq!(
             config.lookup("Components", "Enabled").unwrap(),
-            Some(&Value::Bool(false))
+            Some(Value::Bool(false))
+        );
+    }
+
+    #[test]
+    fn aliases_share_collections() {
+        let config =
+            load("Other: &g\n  BootMountPoint: /boot\nGlobal: *g\nList: &l [1]\nCopy: *l\n")
+                .unwrap();
+        config
+            .set("Global", "ManageImages", Value::Bool(true))
+            .unwrap();
+        assert_eq!(
+            config.lookup("Other", "ManageImages").unwrap(),
+            Some(Value::Bool(true))
+        );
+        assert!(load("a: &x [1, *x]\n").is_err());
+        let config = load("Global:\n").unwrap();
+        config
+            .set("Global", "ManageImages", Value::Bool(false))
+            .unwrap();
+        assert_eq!(
+            config.lookup("Global", "ManageImages").unwrap(),
+            Some(Value::Bool(false))
         );
     }
 
@@ -600,10 +660,10 @@ mod tests {
     }
 
     fn rust_view(yaml: &str) -> Option<String> {
-        let Ok(Value::Map(entries)) = load(yaml) else {
+        let Ok(Value::Map(map)) = load(yaml) else {
             return None;
         };
-        let mut entries = entries;
+        let mut entries = map.borrow().clone();
         entries.sort_by(|a, b| a.0.cmp(&b.0));
         Some(
             entries
