@@ -1,0 +1,14 @@
+luksdump-tpm2.json	0	cryptsetup luksDump --dump-json-metadata tpm2
+luksdump-tpm2.txt	0	cryptsetup luksDump tpm2
+token-tpm2.json	0	cryptsetup token export --token-id 0 tpm2
+token-tpm2-pin.json	0	cryptsetup token export --token-id 0 pin
+luksdump-three.json	0	cryptsetup luksDump --dump-json-metadata three
+luksdump-three.txt	0	cryptsetup luksDump three
+token-fido2.json	0	cryptsetup token export --token-id 1 three
+token-clevis.json	0	cryptsetup token export --token-id 2 three
+luksdump-gap.json	0	cryptsetup luksDump --dump-json-metadata three
+luksdump-gap.txt	0	cryptsetup luksDump three
+luksdump-plain.json	0	cryptsetup luksDump --dump-json-metadata plain
+luksdump-plain.txt	0	cryptsetup luksDump plain
+luksdump-luks1.json	1	cryptsetup luksDump --dump-json-metadata luks1
+luksdump-luks1.txt	0	cryptsetup luksDump luks1

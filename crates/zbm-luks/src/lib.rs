@@ -17,6 +17,7 @@
 
 pub mod config;
 pub mod device;
+pub mod tokens;
 
 #[cfg(test)]
 mod testing;
