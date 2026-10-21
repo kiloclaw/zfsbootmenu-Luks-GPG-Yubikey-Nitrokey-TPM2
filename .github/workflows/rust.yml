@@ -5,16 +5,28 @@ on:
       - master
     paths:
       - 'crates/**'
+      - 'vendor/**'
+      - '.cargo/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'scripts/dev/check-rust-width.sh'
+      # Parity tests run the legacy code they are compared with
+      - 'legacy/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
       - 'crates/**'
+      - 'vendor/**'
+      - '.cargo/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'scripts/dev/check-rust-width.sh'
+      # Parity tests run the legacy code they are compared with
+      - 'legacy/**'
       - '.github/workflows/rust.yml'
 
 concurrency:
@@ -38,8 +50,21 @@ jobs:
       - name: Install toolchain
         run: rustup toolchain install
 
+      # The parity tests run the Perl generate-zbm, which needs these modules,
+      # and build EFI bundles from the systemd stub
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libyaml-pp-perl libsort-versions-perl libboolean-perl \
+            systemd-boot-efi binutils
+
       - name: Check formatting
         run: cargo fmt --all --check
+
+      # The line widths of the Rust Style Guide that rustfmt leaves alone
+      - name: Check line widths
+        run: scripts/dev/check-rust-width.sh
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -64,3 +89,67 @@ jobs:
 
       - name: Check
         run: cargo +1.85 check --workspace --all-targets --locked
+
+  targets:
+    name: Other targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # musl systems (Alpine, Void musl) and aarch64, which ZFSBootMenu supports
+        target:
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+
+      - name: Check
+        run: cargo check --workspace --all-targets --locked --target ${{ matrix.target }}
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          rustup toolchain install
+          rustup component add llvm-tools
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libyaml-pp-perl libsort-versions-perl libboolean-perl \
+            systemd-boot-efi binutils
+
+      - name: Measure line coverage
+        run: |
+          cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
+          cargo llvm-cov report --summary-only | tee coverage.txt
+          {
+            echo '## Line coverage'
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Archive the coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            lcov.info
+            coverage.txt
