@@ -11,3 +11,7 @@ zpool.cache
 
 # Rust build output
 /target/
+
+# Vendored crates are kept whole: none of the patterns above applies to them
+!/vendor/**/build/
+!/vendor/**/.vscode/

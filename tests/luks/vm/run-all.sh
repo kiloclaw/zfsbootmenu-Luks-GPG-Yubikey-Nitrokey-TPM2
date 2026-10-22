@@ -17,6 +17,9 @@
 here="$( cd "$( dirname "$0" )" && pwd )"
 work="${ZBMTEST_WORK:-/var/tmp/zbm-luks-test}"
 mkdir -p "${work}"
+# Results older than this run are not reported: a test that failed before it
+# wrote one would otherwise show the last run's result
+started="$( date +%s )"
 
 ALL=(
   layouts-main layouts-parity layouts-parity-oldzfs
@@ -60,18 +63,20 @@ done
 
 echo
 echo "Summary (${work}/tests/*/result.json):"
-python3 - "${work}" "${ZBMTEST_ZBM_RUNTIME:-legacy}" "${tests[@]}" <<'EOF'
+python3 - "${work}" "${ZBMTEST_ZBM_RUNTIME:-legacy}" "${started}" "${tests[@]}" <<'EOF'
 import json, sys
 from pathlib import Path
 work = Path(sys.argv[1])
 rust = sys.argv[2] == "rust"
+started = int(sys.argv[3])
 total_p = total_f = 0
-for name in sys.argv[3:]:
+for name in sys.argv[4:]:
     if rust and not name.startswith("runtime-"):
         name += "-rust"
     p = work / "tests" / name / "result.json"
-    if not p.exists():
+    if not p.exists() or p.stat().st_mtime < started:
         print(f"  {name:22} no result")
+        total_f += 1
         continue
     r = json.loads(p.read_text())
     total_p += r["passed"]; total_f += r["failed"]
