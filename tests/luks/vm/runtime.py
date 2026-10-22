@@ -46,7 +46,10 @@ Every scenario must pass with the legacy image first (rule 2 of the roadmap).
 """
 
 import json
+import os
+import pwd
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -265,6 +268,21 @@ echo "ZBMTEST-CRASH-JOURNAL $(grep -c '"crash report"' /zfsbootmenu/journal.json
 """
 
 
+def host_user_command(args):
+    """
+    args as a command for the user who started the tests with sudo, so that
+    their Rust toolchain (~/.cargo/bin) is found and the build files in the
+    checkout stay theirs; as root, with root's PATH, otherwise. Returns the
+    command and the PATH it runs with.
+    """
+    user = os.environ.get("SUDO_USER")
+    if os.geteuid() != 0 or not user or user == "root":
+        return args, os.environ.get("PATH", "")
+    home = pwd.getpwnam(user).pw_dir
+    path = f"{home}/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    return ["runuser", "-u", user, "--", "env", f"HOME={home}", f"PATH={path}", *args], path
+
+
 def crash():
     """
     A panic in the Rust image leaves a crash report that the image's debug
@@ -293,11 +311,18 @@ def crash():
     t.check("crash_test{reason=zbm debug panic}" in report, "the report names the open span")
     t.check(kmsg >= 1, "the kernel log names the crash")
     t.check(journal >= 1, "the journal holds the report")
-    r = subprocess.run(["cargo", "xtask", "symbolize", str(path), "--debug-dir", str(img["debug"])],
-                       cwd=REPO, capture_output=True, text=True)
+    command, path_var = host_user_command(["cargo", "xtask", "symbolize", str(path),
+                                           "--debug-dir", str(img["debug"])])
+    missing = [tool for tool in ("cargo", "addr2line") if not shutil.which(tool, path=path_var)]
+    if missing:
+        output = f"not found on this host: {', '.join(missing)} (cargo: Rust; addr2line: binutils)\n"
+        r = subprocess.CompletedProcess(command, 127, "", output)
+    else:
+        r = subprocess.run(command, cwd=REPO, capture_output=True, text=True)
     (t.dir / "symbolized.txt").write_text(r.stdout + r.stderr)
     t.note(r.stdout + r.stderr)
-    t.check(r.returncode == 0, "cargo xtask symbolize ran")
+    t.check(r.returncode == 0,
+            "cargo xtask symbolize ran" + (f" (missing: {', '.join(missing)})" if missing else ""))
     t.check(re.search(r"zbm::debug::panic_for_test at \S*crates/zbm/src/debug\.rs:\d+", r.stdout)
             is not None, "the symbolized report names the function and its line")
     t.finish()

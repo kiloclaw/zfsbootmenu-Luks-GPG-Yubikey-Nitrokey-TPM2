@@ -35,7 +35,7 @@ ends up in Rust.
 | --- | --- |
 | R0 | Done on branch `claude/zbm-refactor` |
 | R1 | Done on branch `claude/zbm-refactor` |
-| R2 | In progress on branch `claude/zbm-refactor` |
+| R2 | Done on branch `claude/zbm-refactor` |
 | R3 to R9 | Not started |
 
 Done in R0:
@@ -199,8 +199,15 @@ Done in R2:
   set, a suite that cannot run fails rather than skips. The Bash suites and `test-seams` stay while the legacy
   runtime does: they are the only suites that run against it.
 
-Open in R2: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services), and fixtures of
-OpenZFS 2.2 and 2.3 (they need images with those versions).
+- Exit: every LUKS VM test passes on `aaef3a9`, 44 tests and 764 checks with KVM in about 20 minutes over three
+  parallel lanes, with zero shadow differences (every legacy image runs shadow mode, and a difference fails its
+  test). The two `oldzfs` tests need an image with an older ZFS and were skipped. The run found the uutils symbolic
+  link refusal above, and two gaps in the documented host requirements (`systemd-cryptenroll` is its own package
+  on newer Ubuntu and Debian; the crash test needs `addr2line` and the Rust toolchain), now in
+  `docs/luks/testing.rst`; the crash test runs `cargo xtask symbolize` as the user who started the tests.
+
+R2 is complete. Carried over: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services),
+and fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions).
 
 ## What the pilots taught
 

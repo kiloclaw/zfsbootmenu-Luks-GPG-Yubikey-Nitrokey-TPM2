@@ -39,10 +39,13 @@ Unit suites
   ``/dev``.
 
 Virtual-machine tests
-  QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll``, clevis and
-  GnuPG (for the key-management setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, Python 3 with
-  ``pexpect``, and Docker or Podman with the build container image (``localhost/zbm-builder``, see
-  :doc:`/general/container-building`). They use about 8 GB in the work directory. With KVM, the whole run takes about
+  QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll`` (in the
+  ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later), clevis and GnuPG (for the key-management
+  setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, Python 3 with ``pexpect``, and Docker or
+  Podman with the build container image (``localhost/zbm-builder``, see :doc:`/general/container-building`).
+  ``runtime-rust-crash`` also runs ``cargo xtask symbolize`` on the host, which needs the Rust toolchain and
+  ``addr2line`` (binutils); started with ``sudo``, it runs as the user who started it, with their
+  *~/.cargo/bin*. They use about 8 GB in the work directory. With KVM, the whole run takes about
   an hour; with software emulation (TCG), several hours. The harness writes partition tables for 4 KiB sectors itself
   and maps partitions of disk images to loop devices by offset, so it needs neither util-linux 2.40 nor a kernel that
   scans partitions on loop devices.
