@@ -7,14 +7,14 @@ use std::str::FromStr;
 use crate::error::{ParseError, Reason};
 
 /// The longest dataset name, in bytes (`ZFS_MAX_DATASET_NAME_LEN` without the
-/// NUL); it limits pool names too.
-const MAX_LEN: usize = 255;
+/// NUL); it limits pool names and snapshot names too.
+pub(crate) const MAX_LEN: usize = 255;
 
 /// Pool names OpenZFS reserves: the vdev types, as whole names or prefixes.
 const RESERVED_PREFIXES: &[&str] = &["mirror", "raidz", "draid", "spare"];
 
 /// Whether `c` may appear in a pool name or a dataset name component.
-fn is_name_char(c: char) -> bool {
+pub(crate) fn is_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | ' ')
 }
 

@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"late\", \"id=9\\nappear=3\\nbootfs=late/ROOT/x\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"late\", \"id=9\\nappear=3\\nbootfs=late/ROOT/x\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "late/ROOT/x",
         "bootfs_file": "late/ROOT/x\n",

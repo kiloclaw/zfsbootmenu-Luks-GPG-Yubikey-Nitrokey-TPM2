@@ -58,7 +58,7 @@
         ],
         [
           "import_policy",
-          "`a';'`*Z\\"
+          "hostid"
         ],
         [
           "loglevel",
@@ -159,7 +159,7 @@
         ],
         [
           "import_policy",
-          "0;\\Z\\ $"
+          "force"
         ],
         [
           "loglevel",
@@ -260,7 +260,7 @@
         ],
         [
           "import_policy",
-          "'0"
+          "strict"
         ],
         [
           "loglevel",
@@ -361,7 +361,7 @@
         ],
         [
           "import_policy",
-          ""
+          "hostid"
         ],
         [
           "loglevel",
@@ -462,7 +462,7 @@
         ],
         [
           "import_policy",
-          "'$**aa!=!"
+          "hostid"
         ],
         [
           "loglevel",
@@ -563,7 +563,7 @@
         ],
         [
           "import_policy",
-          "' a$"
+          "force"
         ],
         [
           "loglevel",
@@ -664,7 +664,7 @@
         ],
         [
           "import_policy",
-          "!"
+          "force"
         ],
         [
           "loglevel",
@@ -765,7 +765,7 @@
         ],
         [
           "import_policy",
-          "\"';"
+          "hostid"
         ],
         [
           "loglevel",
@@ -866,7 +866,7 @@
         ],
         [
           "import_policy",
-          ""
+          "hostid"
         ],
         [
           "loglevel",
@@ -967,7 +967,7 @@
         ],
         [
           "import_policy",
-          "`*"
+          "strict"
         ],
         [
           "loglevel",
@@ -1068,7 +1068,7 @@
         ],
         [
           "import_policy",
-          "'\"/\""
+          "force"
         ],
         [
           "loglevel",
@@ -1169,7 +1169,7 @@
         ],
         [
           "import_policy",
-          ";;\"`!`0=  "
+          "force"
         ],
         [
           "loglevel",
@@ -1270,7 +1270,7 @@
         ],
         [
           "import_policy",
-          "a"
+          "force"
         ],
         [
           "loglevel",
@@ -1371,7 +1371,7 @@
         ],
         [
           "import_policy",
-          ";! 0=$ "
+          "force"
         ],
         [
           "loglevel",
@@ -1472,7 +1472,7 @@
         ],
         [
           "import_policy",
-          ";a'"
+          "hostid"
         ],
         [
           "loglevel",
@@ -1573,7 +1573,7 @@
         ],
         [
           "import_policy",
-          "=\\ *a"
+          "strict"
         ],
         [
           "loglevel",
@@ -1674,7 +1674,7 @@
         ],
         [
           "import_policy",
-          "= a\\$ a'`"
+          "hostid"
         ],
         [
           "loglevel",
@@ -1775,7 +1775,7 @@
         ],
         [
           "import_policy",
-          "0Z!=/$*"
+          "force"
         ],
         [
           "loglevel",
@@ -1876,7 +1876,7 @@
         ],
         [
           "import_policy",
-          " 0`\\' "
+          "hostid"
         ],
         [
           "loglevel",
@@ -1977,7 +1977,7 @@
         ],
         [
           "import_policy",
-          " !;'=="
+          "hostid"
         ],
         [
           "loglevel",
@@ -2078,7 +2078,7 @@
         ],
         [
           "import_policy",
-          " \\*\"\\="
+          "hostid"
         ],
         [
           "loglevel",
@@ -2179,7 +2179,7 @@
         ],
         [
           "import_policy",
-          "\""
+          "force"
         ],
         [
           "loglevel",
@@ -2280,7 +2280,7 @@
         ],
         [
           "import_policy",
-          "/"
+          "force"
         ],
         [
           "loglevel",
@@ -2381,7 +2381,7 @@
         ],
         [
           "import_policy",
-          "= \\'Z;'!'="
+          "force"
         ],
         [
           "loglevel",
@@ -2482,7 +2482,7 @@
         ],
         [
           "import_policy",
-          "';/Z$"
+          "strict"
         ],
         [
           "loglevel",
@@ -2583,7 +2583,7 @@
         ],
         [
           "import_policy",
-          ""
+          "hostid"
         ],
         [
           "loglevel",
@@ -2684,7 +2684,7 @@
         ],
         [
           "import_policy",
-          "/`!\"`/!\"0 "
+          "force"
         ],
         [
           "loglevel",
@@ -2785,7 +2785,7 @@
         ],
         [
           "import_policy",
-          ""
+          "hostid"
         ],
         [
           "loglevel",
@@ -2886,7 +2886,7 @@
         ],
         [
           "import_policy",
-          "$\\*'/*0!`"
+          "hostid"
         ],
         [
           "loglevel",
@@ -2987,7 +2987,7 @@
         ],
         [
           "import_policy",
-          "!'"
+          "strict"
         ],
         [
           "loglevel",
@@ -3088,7 +3088,7 @@
         ],
         [
           "import_policy",
-          ";"
+          "force"
         ],
         [
           "loglevel",
@@ -3189,7 +3189,7 @@
         ],
         [
           "import_policy",
-          "' $Z!;$* ;"
+          "force"
         ],
         [
           "loglevel",
@@ -3290,7 +3290,7 @@
         ],
         [
           "import_policy",
-          " "
+          "force"
         ],
         [
           "loglevel",
@@ -3391,7 +3391,7 @@
         ],
         [
           "import_policy",
-          " \"'\\!a="
+          "force"
         ],
         [
           "loglevel",
@@ -3492,7 +3492,7 @@
         ],
         [
           "import_policy",
-          "\\0Z!$Z;"
+          "force"
         ],
         [
           "loglevel",
@@ -3593,7 +3593,7 @@
         ],
         [
           "import_policy",
-          "Za'!'/"
+          "hostid"
         ],
         [
           "loglevel",
@@ -3694,7 +3694,7 @@
         ],
         [
           "import_policy",
-          "!Za!"
+          "force"
         ],
         [
           "loglevel",
@@ -3795,7 +3795,7 @@
         ],
         [
           "import_policy",
-          "aa0'!\"Z!!Z"
+          "force"
         ],
         [
           "loglevel",
@@ -3896,7 +3896,7 @@
         ],
         [
           "import_policy",
-          " `\\"
+          "hostid"
         ],
         [
           "loglevel",
@@ -3997,7 +3997,7 @@
         ],
         [
           "import_policy",
-          "'  !'= "
+          "force"
         ],
         [
           "loglevel",

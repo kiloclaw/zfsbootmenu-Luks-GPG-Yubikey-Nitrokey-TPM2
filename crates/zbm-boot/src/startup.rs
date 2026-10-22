@@ -26,16 +26,7 @@ use crate::prompt::{Answer, TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
 use crate::support::{self, Facts, Unsupported};
 use crate::{devices, hooks, hostid, modules};
-
-/// The start-up stages, in order, with the names of the legacy scripts.
-pub const STAGES: [&str; 6] = [
-    "10-kmods",
-    "20-hostid",
-    "30-device-wait",
-    "40-early-hooks",
-    "45-luks-unlock",
-    "50-import-pools",
-];
+use zbm_types::{ImportPolicy, Stage};
 
 /// Whether a variable such as `ZFSBOOTMENU_FORCE_INIT` is on: `yes`, `y`,
 /// `true`, `t` or `1`, in any case.
@@ -230,7 +221,7 @@ impl<'a> Startup<'a> {
 
     fn import_settings(&self) -> Settings {
         Settings {
-            import_policy: self.options.import_policy.clone(),
+            import_policy: self.options.import_policy,
             prefer_pool: self.options.prefer_pool.clone(),
             require_pool: self.options.require_pool.clone(),
             prefer_bootfs: self.options.prefer_bootfs.clone(),
@@ -275,28 +266,28 @@ impl<'a> Startup<'a> {
         let system = &self.system;
         let log = &self.log;
         let mut bootfs = None;
-        for stage in STAGES {
+        for &stage in Stage::ALL {
             if !force
                 && self
                     .state
                     .finished_stages()
                     .iter()
-                    .any(|done| done == stage)
+                    .any(|done| done == stage.as_str())
             {
                 continue;
             }
             log.info(format!("running init stage {stage}"));
             let mut shell = self.shell();
             match stage {
-                "10-kmods" => modules::stage(system.runner, log, &mut shell),
-                "20-hostid" => hostid::stage(system.files, log, &self.options.spl_hostid),
-                "30-device-wait" => devices::stage(
+                Stage::Modules => modules::stage(system.runner, log, &mut shell),
+                Stage::HostId => hostid::stage(system.files, log, &self.options.spl_hostid),
+                Stage::DeviceWait => devices::stage(
                     system,
                     log,
                     &self.options.wait_for_devices,
                     &self.options.retry_delay,
                 ),
-                "40-early-hooks" => {
+                Stage::EarlyHooks => {
                     let mut messages = Vec::new();
                     let skip = self.args.lookup(&["zbm.skip_hooks"], &mut messages);
                     hooks::early_stage_in(
@@ -308,7 +299,7 @@ impl<'a> Startup<'a> {
                         skip.as_deref(),
                     );
                 }
-                "45-luks-unlock" => {
+                Stage::LuksUnlock => {
                     // A hook may have provided key files or unlocked volumes
                     // itself.
                     if system.command_exists("cryptsetup") {
@@ -316,13 +307,13 @@ impl<'a> Startup<'a> {
                         tput(system, &["clear"]);
                     }
                 }
-                _ => {
+                Stage::ImportPools => {
                     let settings = self.import_settings();
                     let imported = import::stage(system, &self.state, log, &settings, &mut shell);
                     bootfs = imported.bootfs;
                 }
             }
-            if let Err(error) = self.state.finish_stage(stage) {
+            if let Err(error) = self.state.finish_stage(stage.as_str()) {
                 log.error(error.to_string());
             }
         }
@@ -409,7 +400,7 @@ impl<'a> Startup<'a> {
             };
             let reimport = Import {
                 pool,
-                force: self.options.import_policy == "force",
+                force: self.options.import_policy == ImportPolicy::Force,
                 ..Import::default()
             };
             import::import_pool(&self.system, &self.state, &self.log, reimport);
@@ -537,7 +528,13 @@ mod tests {
         let program = startup(&fake, "loglevel=7");
         assert_eq!(program.run(Modes::default(), Some(0)), 0);
         let state = State::new(&fake.files, "/zfsbootmenu");
-        assert_eq!(state.finished_stages(), STAGES);
+        assert_eq!(
+            state.finished_stages(),
+            Stage::ALL
+                .iter()
+                .map(|stage| stage.as_str())
+                .collect::<Vec<_>>()
+        );
         assert!(state.is_initialized());
         assert_eq!(state.bootfs().as_deref(), Some("tank/ROOT/void"));
         for line in [
@@ -550,7 +547,7 @@ mod tests {
             assert!(has(&fake, line), "{line}");
         }
         let kmsg = fake.kmsg();
-        let order: Vec<usize> = STAGES
+        let order: Vec<usize> = Stage::ALL
             .iter()
             .map(|stage| kmsg.find(&format!("running init stage {stage}")).unwrap())
             .collect();
@@ -679,7 +676,13 @@ mod tests {
         );
         startup(&fake, cmdline).run(Modes::default(), Some(0));
         let state = State::new(&fake.files, "/zfsbootmenu");
-        assert_eq!(state.finished_stages(), STAGES);
+        assert_eq!(
+            state.finished_stages(),
+            Stage::ALL
+                .iter()
+                .map(|stage| stage.as_str())
+                .collect::<Vec<_>>()
+        );
         assert_eq!(state.bootfs().as_deref(), Some("tank/ROOT/void"));
         for line in [
             "zpool import -N -f -o readonly=on tank",
@@ -696,8 +699,8 @@ mod tests {
         let fake = machine_with_health("tank\tDEGRADED\nnew\tONLINE\n");
         let state = State::new(&fake.files, "/zfsbootmenu");
         fake.files.dir("/zfsbootmenu");
-        for stage in STAGES {
-            state.finish_stage(stage).unwrap();
+        for stage in Stage::ALL {
+            state.finish_stage(stage.as_str()).unwrap();
         }
         state.set_active(77).unwrap();
         let resume = Modes {

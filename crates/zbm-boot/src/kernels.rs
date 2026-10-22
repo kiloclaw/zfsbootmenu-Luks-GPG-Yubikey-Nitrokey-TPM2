@@ -8,15 +8,16 @@
 //! kernel is the last one, or the last one whose path matches the regular
 //! expression in `org.zfsbootmenu:kernel`.
 //!
-//! `sort -V` is GNU coreutils' `filevercmp` ([`filevercmp`]). Images built in
+//! `sort -V` is GNU coreutils' `filevercmp` ([`filevercmp`], in
+//! `zbm_types::version`). Images built in
 //! the build container get uutils' `sort` and mkinitcpio images BusyBox's; see
 //! "Version order" in `crates/DESIGN.md` for how they differ.
 
-use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 use zbm_core::exec::{Command, Input, Runner, Stream};
 use zbm_system::files::Files;
+pub use zbm_types::version::{filevercmp, version_sort};
 
 /// The kernel file names `find_be_kernels` looks for in `/boot`, each also
 /// followed by `-` and anything.
@@ -52,119 +53,6 @@ impl Kernel {
             initramfs: next(),
         }
     }
-}
-
-/// The length of the prefix of `s` without its file suffix: the longest
-/// suffix matching `(\.[A-Za-z~][A-Za-z0-9~]*)*$`.
-fn prefix_len(s: &[u8]) -> usize {
-    let n = s.len();
-    let mut prefix = 0;
-    let mut i = 0;
-    while i < n {
-        i += 1;
-        prefix = i;
-        while i + 1 < n && s[i] == b'.' && (s[i + 1].is_ascii_alphabetic() || s[i + 1] == b'~') {
-            i += 2;
-            while i < n && (s[i].is_ascii_alphanumeric() || s[i] == b'~') {
-                i += 1;
-            }
-        }
-    }
-    prefix
-}
-
-/// The weight of the byte at `pos` for version sorting: the end sorts before
-/// everything but `~`, letters before other characters.
-fn order(s: &[u8], pos: usize) -> i32 {
-    match s.get(pos) {
-        None => -1,
-        Some(c) if c.is_ascii_digit() => 0,
-        Some(c) if c.is_ascii_alphabetic() => i32::from(*c),
-        Some(b'~') => -2,
-        Some(c) => i32::from(*c) + 256,
-    }
-}
-
-/// GNU's `verrevcmp`: compares runs of non-digits by [`order`] and runs of
-/// digits by value.
-fn verrevcmp(s1: &[u8], s2: &[u8]) -> i32 {
-    let digit = |s: &[u8], pos: usize| s.get(pos).is_some_and(u8::is_ascii_digit);
-    let (mut p1, mut p2) = (0, 0);
-    while p1 < s1.len() || p2 < s2.len() {
-        let mut first_diff = 0;
-        while (p1 < s1.len() && !digit(s1, p1)) || (p2 < s2.len() && !digit(s2, p2)) {
-            let (c1, c2) = (order(s1, p1), order(s2, p2));
-            if c1 != c2 {
-                return c1 - c2;
-            }
-            p1 += 1;
-            p2 += 1;
-        }
-        while s1.get(p1) == Some(&b'0') {
-            p1 += 1;
-        }
-        while s2.get(p2) == Some(&b'0') {
-            p2 += 1;
-        }
-        while digit(s1, p1) && digit(s2, p2) {
-            if first_diff == 0 {
-                first_diff = i32::from(s1[p1]) - i32::from(s2[p2]);
-            }
-            p1 += 1;
-            p2 += 1;
-        }
-        if digit(s1, p1) {
-            return 1;
-        }
-        if digit(s2, p2) {
-            return -1;
-        }
-        if first_diff != 0 {
-            return first_diff;
-        }
-    }
-    0
-}
-
-/// GNU coreutils' `filevercmp`, which `sort -V` uses.
-pub fn filevercmp(a: &[u8], b: &[u8]) -> Ordering {
-    match (a.is_empty(), b.is_empty()) {
-        (true, true) => return Ordering::Equal,
-        (true, false) => return Ordering::Less,
-        (false, true) => return Ordering::Greater,
-        _ => {}
-    }
-    // "." sorts first, then "..", then other names that start with ".", then
-    // the rest.
-    match (a[0] == b'.', b[0] == b'.') {
-        (true, false) => return Ordering::Less,
-        (false, true) => return Ordering::Greater,
-        (true, true) => {
-            for special in [&b"."[..], b".."] {
-                match (a == special, b == special) {
-                    (true, true) => return Ordering::Equal,
-                    (true, false) => return Ordering::Less,
-                    (false, true) => return Ordering::Greater,
-                    _ => {}
-                }
-            }
-        }
-        (false, false) => {}
-    }
-    let (a_prefix, b_prefix) = (prefix_len(a), prefix_len(b));
-    let one_pass = a_prefix == a.len() && b_prefix == b.len();
-    let mut result = verrevcmp(&a[..a_prefix], &b[..b_prefix]);
-    if result == 0 && !one_pass {
-        result = verrevcmp(a, b);
-    }
-    result.cmp(&0)
-}
-
-/// Sorts as `LC_ALL=C sort -V` does: by [`filevercmp`], then by bytes.
-pub fn version_sort(items: &mut [String]) {
-    items.sort_by(|a, b| {
-        filevercmp(a.as_bytes(), b.as_bytes()).then_with(|| a.as_bytes().cmp(b.as_bytes()))
-    });
 }
 
 /// The kernel files of a boot environment mounted at `mnt`, as full paths in
@@ -317,43 +205,6 @@ mod tests {
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
     use zbm_testkit::{Rng, TempDir, parity};
-
-    fn sorted(items: &[&str]) -> Vec<String> {
-        let mut items: Vec<String> = items.iter().map(|item| (*item).to_owned()).collect();
-        version_sort(&mut items);
-        items
-    }
-
-    #[test]
-    fn versions_sort_by_their_numbers() {
-        assert_eq!(
-            sorted(&[
-                "vmlinuz-6.10.1",
-                "vmlinuz-6.9",
-                "vmlinuz-6.1.0-13-amd64",
-                "vmlinuz"
-            ]),
-            [
-                "vmlinuz",
-                "vmlinuz-6.1.0-13-amd64",
-                "vmlinuz-6.9",
-                "vmlinuz-6.10.1"
-            ]
-        );
-        assert_eq!(
-            sorted(&["linux-6.1.0", "linux-6.1.0~rc3", "linux-6.1.0-rc3"]),
-            ["linux-6.1.0~rc3", "linux-6.1.0", "linux-6.1.0-rc3"]
-        );
-        assert_eq!(
-            sorted(&["a", "", ".b", ".", ".."]),
-            ["", ".", "..", ".b", "a"]
-        );
-        assert_eq!(sorted(&["x-01", "x-1"]), ["x-01", "x-1"]);
-        assert_eq!(filevercmp(b"a.tar.gz", b"a.tar.gz"), Ordering::Equal);
-        assert_eq!(filevercmp(b"a-1.gz", b"a-2"), Ordering::Less);
-        assert_eq!(prefix_len(b"name.tar.gz"), 4);
-        assert_eq!(prefix_len(b"6.1"), 3);
-    }
 
     fn have_gnu_sort() -> bool {
         let output = SystemRunner.run(&Command::new("sort").arg("--version").stderr(Stream::Null));

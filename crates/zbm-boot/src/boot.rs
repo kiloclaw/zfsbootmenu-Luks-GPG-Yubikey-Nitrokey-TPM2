@@ -21,6 +21,7 @@ use crate::kernels::{self, Kernel};
 use crate::prompt::{TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
 use crate::support::{self, Unsupported};
+use zbm_types::HookStage;
 
 /// The lines `while read -r line ... done <<< "$( command )"` reads.
 fn here_lines(output: &str) -> Vec<String> {
@@ -500,7 +501,7 @@ pub fn kexec_kernel(
         system,
         log,
         &settings.hooks,
-        "boot-sel.d",
+        HookStage::BootSel,
         false,
         &boot_sel_env,
     );
@@ -601,7 +602,14 @@ pub fn kexec_kernel(
         }
     }
 
-    hooks::run_stage(system, log, &settings.hooks, "teardown.d", false, &hook_env);
+    hooks::run_stage(
+        system,
+        log,
+        &settings.hooks,
+        HookStage::Teardown,
+        false,
+        &hook_env,
+    );
 
     let booting = format!(
         "\nBooting {} for {} ...\n\n",

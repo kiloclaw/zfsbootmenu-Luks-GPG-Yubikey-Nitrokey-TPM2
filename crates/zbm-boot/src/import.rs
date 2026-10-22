@@ -17,12 +17,13 @@ use crate::commandline;
 use crate::hostid;
 use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 use crate::recovery::Recovery;
+use zbm_types::ImportPolicy;
 
 /// The settings of the stage, from `/etc/zfsbootmenu.conf`.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Settings {
-    /// `import_policy`: `hostid`, `force` or `strict`.
-    pub import_policy: String,
+    /// `import_policy`.
+    pub import_policy: ImportPolicy,
     /// `zbm_prefer_pool`: the pool to import first, or empty.
     pub prefer_pool: String,
     /// `zbm_require_pool`: `yes` or `only` when the preferred pool is required,
@@ -41,7 +42,9 @@ impl Settings {
     pub fn from_conf(conf: &Conf) -> Settings {
         let get = |name: &str| conf.get(name).unwrap_or_default().to_owned();
         Settings {
-            import_policy: get("import_policy"),
+            // The legacy stage tests for `force` and `hostid`; any other value,
+            // or none, imports as `strict` does.
+            import_policy: get("import_policy").parse().unwrap_or(ImportPolicy::Strict),
             prefer_pool: get("zbm_prefer_pool"),
             require_pool: get("zbm_require_pool"),
             prefer_bootfs: get("zbm_prefer_bootfs"),
@@ -222,7 +225,7 @@ pub fn match_hostid(
 
         let import = Import {
             pool: &pool,
-            force: settings.import_policy == "force",
+            force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
         if import_pool(system, state, log, import) {
@@ -316,7 +319,7 @@ pub fn stage(
         }
         let import = Import {
             pool: &try_pool,
-            force: settings.import_policy == "force",
+            force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
         import_pool(system, state, log, import);
@@ -331,7 +334,7 @@ pub fn stage(
                 continue;
             }
             break;
-        } else if settings.import_policy == "hostid"
+        } else if settings.import_policy == ImportPolicy::Hostid
             && let Some((pool, hostid)) = match_hostid(system, state, log, settings, &try_pool)
         {
             log.debug(format!("match_hostid returned: {pool};{hostid}"));
@@ -520,7 +523,7 @@ mod tests {
         )
         .unwrap();
         let settings = Settings::from_conf(&conf);
-        assert_eq!(settings.import_policy, "hostid");
+        assert_eq!(settings.import_policy, ImportPolicy::Hostid);
         assert_eq!(settings.prefer_pool, "tank");
         assert_eq!(settings.require_pool, "only");
         assert_eq!(settings.prefer_bootfs, "");
@@ -870,7 +873,7 @@ exit 0
                     "PATH",
                     &format!("{z}/bin:{}", std::env::var("PATH").unwrap()),
                 )
-                .env("import_policy", &settings.import_policy)
+                .env("import_policy", settings.import_policy.as_str())
                 .env("zbm_prefer_pool", &settings.prefer_pool)
                 .env("zbm_require_pool", &settings.require_pool)
                 .env("zbm_prefer_bootfs", &settings.prefer_bootfs)
@@ -994,7 +997,7 @@ exit 0
 
     fn hostid_settings() -> Settings {
         Settings {
-            import_policy: "hostid".to_owned(),
+            import_policy: ImportPolicy::Hostid,
             ..Settings::default()
         }
     }
@@ -1100,7 +1103,7 @@ exit 0
             Some(Ok(Output::new(Status::exited(0), pools)))
         });
         let settings = Settings {
-            import_policy: "strict".to_owned(),
+            import_policy: ImportPolicy::Strict,
             ..Settings::default()
         };
         let state = State::new(&fake.files, "/zfsbootmenu");
@@ -1178,9 +1181,9 @@ exit 0
     #[test]
     fn a_required_pool_that_never_appears() {
         let mut parity = parity!("a_required_pool_that_never_appears");
-        for policy in ["strict", "hostid"] {
+        for policy in [ImportPolicy::Strict, ImportPolicy::Hostid] {
             let mut settings = hostid_settings();
-            settings.import_policy = policy.to_owned();
+            settings.import_policy = policy;
             settings.prefer_pool = "missing".to_owned();
             settings.require_pool = "only".to_owned();
             let outcome = Scenario {
@@ -1200,7 +1203,7 @@ exit 0
     fn strict_and_forced_policies() {
         let mut parity = parity!("strict_and_forced_policies");
         let mut settings = hostid_settings();
-        settings.import_policy = "force".to_owned();
+        settings.import_policy = ImportPolicy::Force;
         let outcome = Scenario {
             pools: vec![("tank", "id=7\nhostid=deadbeef")],
             settings,
@@ -1213,7 +1216,7 @@ exit 0
         // Strict: no host ID matching; ESCAPE opens the recovery shell, which
         // fixes the pool.
         let mut settings = hostid_settings();
-        settings.import_policy = "strict".to_owned();
+        settings.import_policy = ImportPolicy::Strict;
         let outcome = Scenario {
             pools: vec![("tank", "id=7\nhostid=deadbeef")],
             hostid: Some([0x0c, 0xb1, 0xba, 0x00]),

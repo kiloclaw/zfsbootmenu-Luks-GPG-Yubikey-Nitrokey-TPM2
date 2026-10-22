@@ -1183,6 +1183,7 @@ dependencies = [
  "zbm-state",
  "zbm-system",
  "zbm-testkit",
+ "zbm-types",
  "zbm-zfs",
 ]
 
@@ -1193,6 +1194,7 @@ dependencies = [
  "zbm-core",
  "zbm-log",
  "zbm-testkit",
+ "zbm-types",
 ]
 
 [[package]]

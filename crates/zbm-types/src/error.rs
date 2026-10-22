@@ -77,6 +77,10 @@ pub enum Reason {
     FirstNotLetter,
     /// A dataset name has an empty component, as in `pool//data` or `pool/`.
     EmptyComponent,
+    /// The text is not one of the names a choice has.
+    NotOneOf(&'static [&'static str]),
+    /// A snapshot name has no `@`, or more than one.
+    NotOneAt,
 }
 
 impl fmt::Display for Reason {
@@ -90,6 +94,8 @@ impl fmt::Display for Reason {
             Reason::Reserved => write!(formatter, "the name is reserved"),
             Reason::FirstNotLetter => write!(formatter, "it does not start with a letter"),
             Reason::EmptyComponent => write!(formatter, "it has an empty component"),
+            Reason::NotOneOf(names) => write!(formatter, "it is not one of {}", names.join(", ")),
+            Reason::NotOneAt => write!(formatter, "it does not have exactly one '@'"),
         }
     }
 }

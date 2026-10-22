@@ -9,7 +9,9 @@ cargo vendor --versioned-dirs --sync fuzz/Cargo.toml vendor
 cargo deny check
 ```
 
-`cargo vendor` owns `vendor/` and deletes any other file in it, which is why this page lives here.
+`cargo vendor` owns `vendor/` and deletes any other file in it, which is why this page lives here. The fuzz targets
+have a lock file of their own: after changing the dependencies of a crate they use, refresh it with
+`cargo check --manifest-path fuzz/Cargo.toml --offline` (`cargo xtask lint` fails until then).
 
 Each crate a workspace crate depends on directly is listed below with the reason it is used, and allowed for that
 crate in `xtask/src/deps.rs` (`THIRD_PARTY`), which `cargo xtask check-deps` enforces; `cargo deny check` checks their

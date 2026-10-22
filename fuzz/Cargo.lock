@@ -200,6 +200,7 @@ dependencies = [
  "zbm-luks",
  "zbm-state",
  "zbm-system",
+ "zbm-types",
  "zbm-zfs",
 ]
 
@@ -209,6 +210,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-core",
  "zbm-log",
+ "zbm-types",
 ]
 
 [[package]]

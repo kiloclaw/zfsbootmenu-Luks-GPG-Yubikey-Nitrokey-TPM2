@@ -80,8 +80,14 @@ Done in R1:
   (`cargo xtask fuzz`, nightly in CI); `cargo xtask lint` checks that they build. Their first run found a panic on
   `zpool import` output that is not ASCII, now fixed.
 
-Open in R1: `FakeMachine` builders and assertion macros; `zbm-types` and `zbm-trace` everywhere; error enums; crash
-reports; shadow mode.
+- `zbm-types` gains `SnapshotName`, `KernelVersion` with the `sort -V` order (moved from `zbm-boot`), `ImportPolicy`,
+  `Stage` and `HookStage`, each with property tests and in the `domain_names` fuzz target. The start-up stages, the
+  hook stages and the import policy are typed where `zbm-boot` and `zbm-cmdline` use them. Two concepts stay text for
+  now: the menu timeout, which `/etc/zfsbootmenu.conf` keeps as written (`+5`) and which R5's menu counts down, and
+  the LUKS mode, `zbm_luks::config::Mode`, which moves with the LUKS domain crate in R3.
+
+Open in R1: `FakeMachine` builders and assertion macros; `zbm-trace` everywhere; error enums; crash reports; shadow
+mode.
 
 ## What the pilots taught
 

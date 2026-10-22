@@ -13,6 +13,7 @@ use zbm_core::exec::{Command, Input, Stream};
 use zbm_state::State;
 use zbm_system::files::{FileKind, Files};
 use zbm_system::{KernelLog, Runner, System};
+use zbm_types::HookStage;
 
 /// `ENOEXEC`: a file the kernel cannot run, such as a script without `#!`.
 const ENOEXEC: i32 = 8;
@@ -20,19 +21,10 @@ const ENOEXEC: i32 = 8;
 /// Where the hook directories are in the image.
 pub const HOOKS: &str = "/libexec/hooks";
 
-/// The hook stages, in the order a boot runs them.
-pub const STAGES: [&str; 5] = [
-    "early-setup.d",
-    "setup.d",
-    "load-key.d",
-    "boot-sel.d",
-    "teardown.d",
-];
-
 /// The hooks of `stage` below `root` that would run, in order. A missing
 /// directory has none.
-pub fn executable_hooks(files: &dyn Files, root: &Path, stage: &str) -> Vec<PathBuf> {
-    let dir = root.join(stage);
+pub fn executable_hooks(files: &dyn Files, root: &Path, stage: HookStage) -> Vec<PathBuf> {
+    let dir = root.join(stage.as_str());
     let Ok(names) = files.read_dir(&dir) else {
         return Vec::new();
     };
@@ -56,11 +48,11 @@ pub fn run_stage(
     system: &System<'_>,
     log: &KernelLog<'_>,
     root: &Path,
-    stage: &str,
+    stage: HookStage,
     once: bool,
     env: &[(&str, &str)],
 ) -> bool {
-    if !system.files.is_dir(&root.join(stage)) {
+    if !system.files.is_dir(&root.join(stage.as_str())) {
         log.debug(format!("no hook directory for {stage}"));
         return false;
     }
@@ -260,7 +252,7 @@ pub fn early_stage_in(
         skip_hooks(system.files, log, root, skip);
     }
     crate::prompt::tput(system, &["clear"]);
-    run_stage(system, log, root, "early-setup.d", true, &[]);
+    run_stage(system, log, root, HookStage::EarlySetup, true, &[]);
 }
 
 #[cfg(test)]
@@ -288,7 +280,7 @@ mod tests {
             &fake.system(),
             &log(&fake),
             Path::new(HOOKS),
-            "boot-sel.d",
+            HookStage::BootSel,
             false,
             &env,
         );
@@ -319,7 +311,7 @@ mod tests {
             &fake.system(),
             &log(&fake),
             Path::new(HOOKS),
-            "load-key.d",
+            HookStage::LoadKey,
             false,
             &[],
         ));
@@ -329,7 +321,7 @@ mod tests {
             &fake.system(),
             &log(&fake),
             Path::new(HOOKS),
-            "setup.d",
+            HookStage::Setup,
             false,
             &[],
         ));
@@ -346,7 +338,7 @@ mod tests {
                 &fake.system(),
                 &log(&fake),
                 Path::new(HOOKS),
-                "early-setup.d",
+                HookStage::EarlySetup,
                 true,
                 &[],
             )
@@ -395,7 +387,7 @@ mod tests {
             &fake.system(),
             &log(&fake),
             Path::new(HOOKS),
-            "setup.d",
+            HookStage::Setup,
             false,
             &env,
         ));
@@ -624,7 +616,7 @@ mod tests {
         files.dir("/libexec/hooks/early-setup.d/50-dir");
         files.symlink("/libexec/hooks/early-setup.d/60-link", "20-b.sh");
         files.symlink("/libexec/hooks/early-setup.d/70-dangling", "missing");
-        let names: Vec<String> = executable_hooks(&files, root, "early-setup.d")
+        let names: Vec<String> = executable_hooks(&files, root, HookStage::EarlySetup)
             .iter()
             .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
@@ -632,8 +624,7 @@ mod tests {
             names,
             ["10-a.sh", "20-b.sh", "50-dir", "60-link", "Z-upper"]
         );
-        assert!(executable_hooks(&files, root, "load-key.d").is_empty());
-        assert_eq!(STAGES.len(), 5);
+        assert!(executable_hooks(&files, root, HookStage::LoadKey).is_empty());
     }
 
     /// Whether the tests run as root, as the legacy code always does; `[ -x ]`
@@ -697,7 +688,7 @@ mod tests {
             output.stdout_text().lines().map(str::to_owned).collect()
         });
         let dir = stage_dir();
-        let rust: Vec<String> = executable_hooks(&RealFiles, dir.path(), "teardown.d")
+        let rust: Vec<String> = executable_hooks(&RealFiles, dir.path(), HookStage::Teardown)
             .iter()
             .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
             .collect();

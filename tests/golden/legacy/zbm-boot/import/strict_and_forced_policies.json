@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"force\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Force, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,
@@ -17,7 +17,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"strict\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [false, true], on_shell: \"sed -i '/^hostid=/d' pools/tank\\n\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: Strict, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [false, true], on_shell: \"sed -i '/^hostid=/d' pools/tank\\n\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,

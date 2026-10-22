@@ -433,6 +433,40 @@ mod tests {
     }
 
     #[test]
+    fn check_returns_what_the_legacy_code_gives_when_it_matches() {
+        let mut parity = parity(Mode::Check, vec![case("a", Value::from(7))]);
+
+        let result: u32 = parity.legacy("a", || 7);
+
+        assert_eq!(result, 7);
+    }
+
+    #[test]
+    fn live_runs_the_legacy_code_and_reads_nothing() {
+        let mut parity = Parity {
+            path: PathBuf::from("/nonexistent/t.json"),
+            mode: Mode::Live,
+            recorded: None,
+            met: Vec::new(),
+        };
+
+        let result: String = parity.legacy("a", || "ran".to_owned());
+
+        assert_eq!(result, "ran");
+        assert_eq!(parity.mode(), Mode::Live);
+    }
+
+    #[test]
+    fn the_mode_comes_from_the_environment() {
+        let mode = Mode::current();
+
+        assert!(matches!(
+            mode,
+            Mode::Replay | Mode::Record | Mode::Check | Mode::Live
+        ));
+    }
+
+    #[test]
     #[should_panic(expected = "2 cases were recorded but the test met only 1")]
     fn a_case_left_out_fails() {
         let mut parity = parity(

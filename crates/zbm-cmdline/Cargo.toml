@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 zbm-core.workspace = true
 zbm-log.workspace = true
+zbm-types.workspace = true
 
 [dev-dependencies]
 zbm-testkit.workspace = true

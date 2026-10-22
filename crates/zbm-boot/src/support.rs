@@ -16,6 +16,7 @@ use zbm_core::shell::test_integer;
 use zbm_system::files::Files;
 
 use crate::hooks;
+use zbm_types::HookStage;
 
 /// The message of the recovery shell when something is not supported yet.
 pub const MESSAGE: &str = "not supported by this build of ZFSBootMenu yet";
@@ -37,7 +38,7 @@ impl Facts {
     /// Fills in what the files tell: the hooks below `hooks_root`.
     pub fn from_files(files: &dyn Files, hooks_root: &Path) -> Facts {
         Facts {
-            load_key_hooks: hooks::executable_hooks(files, hooks_root, "load-key.d"),
+            load_key_hooks: hooks::executable_hooks(files, hooks_root, HookStage::LoadKey),
             ..Facts::default()
         }
     }

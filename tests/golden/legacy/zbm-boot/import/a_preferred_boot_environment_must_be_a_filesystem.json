@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=1\\nbootfs=tank/ROOT/b\")], datasets: \"tank/ROOT/a\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"tank/ROOT/a\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=1\\nbootfs=tank/ROOT/b\")], datasets: \"tank/ROOT/a\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"tank/ROOT/a\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "tank/ROOT/a",
         "bootfs_file": "tank/ROOT/a\n",
@@ -17,7 +17,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=1\\nbootfs=tank/ROOT/b\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"tank/ROOT/none\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=1\\nbootfs=tank/ROOT/b\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"tank/ROOT/none\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,

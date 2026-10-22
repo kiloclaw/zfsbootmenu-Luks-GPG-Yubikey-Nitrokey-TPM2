@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,
@@ -17,7 +17,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"yes\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"yes\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,
@@ -32,7 +32,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,
@@ -47,7 +47,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"missing\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"missing\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,

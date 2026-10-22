@@ -132,6 +132,7 @@ mod tests {
     use crate::options::ZbmOptions;
     use zbm_testkit::legacy::{Bash, path, shell_quote};
     use zbm_testkit::{Rng, TempDir, parity};
+    use zbm_types::ImportPolicy;
 
     fn parse(text: &str) -> Conf {
         Conf::parse(text).unwrap()
@@ -226,7 +227,12 @@ mod tests {
             loglevel: values[0].clone(),
             spl_hostid: values[1].clone(),
             control_term: values[2].clone(),
-            import_policy: values[3].clone(),
+            // A policy is one of three names; the others take any text.
+            import_policy: [
+                ImportPolicy::Hostid,
+                ImportPolicy::Force,
+                ImportPolicy::Strict,
+            ][values[3].len() % 3],
             menu_timeout: values[4].clone(),
             retry_delay: values[5].clone(),
             lines: None,
@@ -276,7 +282,7 @@ mod tests {
                     .env("CONF", &conf.to_string_lossy())
                     .env("BASE", base)
                     .env("spl_hostid", &options.spl_hostid)
-                    .env("import_policy", &options.import_policy)
+                    .env("import_policy", options.import_policy.as_str())
                     .env("menu_timeout", &options.menu_timeout)
                     .env("loglevel", &options.loglevel)
                     .env("zbm_prefer_pool", &options.prefer_pool)

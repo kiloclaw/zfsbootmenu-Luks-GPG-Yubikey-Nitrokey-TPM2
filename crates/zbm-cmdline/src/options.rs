@@ -10,6 +10,7 @@
 
 use zbm_core::shell::{quote, test_integer};
 use zbm_log::Message;
+use zbm_types::ImportPolicy;
 
 use crate::args::ZbmArgs;
 use crate::kcl;
@@ -24,8 +25,8 @@ pub struct ZbmOptions {
     pub spl_hostid: String,
     /// `console`: the device the menu runs on.
     pub control_term: String,
-    /// `zbm.import_policy` (or `zbm.force_import`): `hostid`, `force` or `strict`.
-    pub import_policy: String,
+    /// `zbm.import_policy` (or `zbm.force_import`).
+    pub import_policy: ImportPolicy,
     /// `zbm.timeout`, `zbm.show` or `zbm.skip`: seconds before booting the default,
     /// `-1` to always show the menu.
     pub menu_timeout: String,
@@ -111,28 +112,28 @@ impl ZbmOptions {
         };
 
         let import_policy = if let Some(policy) = args.lookup(&["zbm.import_policy"], &mut log) {
-            match policy.as_str() {
-                "hostid" => {
+            match policy.parse() {
+                Ok(ImportPolicy::Hostid) => {
                     log.push(Message::info("setting import_policy to hostid matching"));
-                    policy
+                    ImportPolicy::Hostid
                 }
-                "force" | "strict" => {
+                Ok(policy) => {
                     log.push(Message::info(format!("setting import_policy to {policy}")));
                     policy
                 }
-                _ => {
+                Err(_) => {
                     log.push(Message::warning(format!(
                         "unknown import policy '{policy}', defaulting to hostid"
                     )));
-                    "hostid".to_owned()
+                    ImportPolicy::Hostid
                 }
             }
         } else if args.flag("0", &["zbm.force_import", "force_import"], &mut log) {
             log.push(Message::info("setting import_policy to force"));
-            "force".to_owned()
+            ImportPolicy::Force
         } else {
             log.push(Message::info("defaulting import_policy to hostid"));
-            "hostid".to_owned()
+            ImportPolicy::Hostid
         };
 
         let menu_timeout = if let Some(timeout) = args.lookup(&["zbm.timeout", "timeout"], &mut log)
@@ -292,7 +293,9 @@ impl ZbmOptions {
             loglevel: get("loglevel"),
             spl_hostid: get("spl_hostid"),
             control_term: get("control_term"),
-            import_policy: get("import_policy"),
+            // The start-up writes one of the three names; anything else
+            // imports as `strict` does, as the legacy stage reads it.
+            import_policy: get("import_policy").parse().unwrap_or(ImportPolicy::Strict),
             menu_timeout: get("menu_timeout"),
             retry_delay: get("zbm_retry_delay"),
             lines: None,
@@ -319,7 +322,7 @@ impl ZbmOptions {
         for (name, value) in [
             ("BASE", base),
             ("spl_hostid", &self.spl_hostid),
-            ("import_policy", &self.import_policy),
+            ("import_policy", self.import_policy.as_str()),
             ("menu_timeout", &self.menu_timeout),
             ("loglevel", &self.loglevel),
             ("zbm_prefer_pool", &self.prefer_pool),
@@ -468,7 +471,7 @@ mod tests {
         assert_eq!(options.loglevel, "4");
         assert_eq!(options.spl_hostid, "");
         assert_eq!(options.control_term, "/dev/tty1");
-        assert_eq!(options.import_policy, "hostid");
+        assert_eq!(options.import_policy, ImportPolicy::Hostid);
         assert_eq!(options.menu_timeout, "10");
         assert_eq!(options.retry_delay, "5");
         assert_eq!(options.lines, None);
@@ -489,7 +492,7 @@ mod tests {
         );
         assert_eq!(options.loglevel, "7");
         assert_eq!(options.control_term, "/dev/ttyS0");
-        assert_eq!(options.import_policy, "strict");
+        assert_eq!(options.import_policy, ImportPolicy::Strict);
         assert_eq!(options.menu_timeout, "+3");
         assert_eq!(options.retry_delay, "2");
         assert_eq!(options.lines.as_deref(), Some("40"));
@@ -585,7 +588,7 @@ mod tests {
             options.loglevel.as_str(),
             &options.spl_hostid,
             &options.control_term,
-            &options.import_policy,
+            options.import_policy.as_str(),
             &options.menu_timeout,
             &options.retry_delay,
             options.lines.as_deref().unwrap_or_default(),

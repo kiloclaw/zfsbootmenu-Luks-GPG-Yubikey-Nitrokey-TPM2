@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"data\", \"id=1\\nhealth=DEGRADED\"), (\"data2\", \"id=2\\nunsupported=com.example:new\"), (\"tank\", \"id=3\\nhealth=DEGRADED\\nunsupported=org.x:y\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"data\", \"id=1\\nhealth=DEGRADED\"), (\"data2\", \"id=2\\nunsupported=com.example:new\"), (\"tank\", \"id=3\\nhealth=DEGRADED\\nunsupported=org.x:y\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,
@@ -17,7 +17,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"data\", \"id=1\\nhealth=DEGRADED\"), (\"data2\", \"id=2\\nunsupported=com.example:new\"), (\"tank\", \"id=3\\nhealth=DEGRADED\\nunsupported=org.x:y\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: true }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"data\", \"id=1\\nhealth=DEGRADED\"), (\"data2\", \"id=2\\nunsupported=com.example:new\"), (\"tank\", \"id=3\\nhealth=DEGRADED\\nunsupported=org.x:y\")], datasets: \"\", hostid: None, settings: Settings { import_policy: Hostid, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: true }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "",
         "bootfs_file": null,

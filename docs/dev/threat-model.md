@@ -103,7 +103,7 @@ night.
 | Target | Parsers | Inputs | Threat |
 | --- | --- | --- | --- |
 | `kernel_cmdline` | `zbm_cmdline::kcl::tokenize`, `ZbmArgs::from_cmdline`, `ZbmOptions::parse`, `Conf::parse` | I1, I2 | A1 |
-| `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName` | I1, I3, I7 | A1, A2, A3 |
+| `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion`, `ImportPolicy`, `Stage`, `HookStage`, and the version order | I1, I3, I5, I7 | A1, A2, A3 |
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |
 | `program_output` | `zbm_zfs::parse_table`, `zbm_boot::import::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |

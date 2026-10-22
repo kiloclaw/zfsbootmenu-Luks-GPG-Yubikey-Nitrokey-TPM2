@@ -2,7 +2,7 @@
   "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
   "cases": [
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: Hostid, prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "tank/ROOT/a",
         "bootfs_file": "tank/ROOT/a\n",
@@ -22,7 +22,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: true }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: true }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "tank/ROOT/a",
         "bootfs_file": "tank/ROOT/a\n",
@@ -42,7 +42,7 @@
       }
     },
     {
-      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: Hostid, prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
       "result": {
         "bootfs": "tank/ROOT/a",
         "bootfs_file": "tank/ROOT/a\n",
