@@ -1,0 +1,68 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "None \"\" false",
+      "result": [
+        true,
+        false,
+        "",
+        "DEBUG: pool set to tank\n"
+      ]
+    },
+    {
+      "input": "Some(\"suspend\") \"NORESUME\\n\" false",
+      "result": [
+        true,
+        true,
+        "WARNING!!!\n\nThis system appears to have an active suspend partition.\n\nThe action you are requesting requires the ZFS pool\n\n    \u001b[0;31mtank\u001b[0m\n\nbe imported read-write. Importing read-write and then resuming\nfrom an active suspend partition may DESTROY YOUR POOL.\n\nIf you choose to proceed, ZFSBootMenu can attempt to remove any\n\"resume=\" arguments from your kernel command line and append a\n\"noresume\" argument to prevent your system from attempting to\nrestore from the active suspend partition.\n\nType \u001b[0;32mNORESUME\u001b[0m to proceed with the import, allowing ZFSBootMenu\nto add a \"noresume\" argument to your kernel command line.\n\nType \u001b[0;31mDANGEROUS\u001b[0m to proceed with the import without allowing\nZFSBootMenu to modify your kernel command line. Make sure to\nadd the \"noresume\" argument yourself if necessary.\n\nType any other text, or just press enter, to abort.\n\nProceed \u001b[0;31m[No]\u001b[0m ?\n",
+        "DEBUG: pool set to tank\nDEBUG: resume device: suspend\n"
+      ]
+    },
+    {
+      "input": "Some(\"swsupend\") \"  DANGEROUS \\n\" false",
+      "result": [
+        true,
+        false,
+        "WARNING!!!\n\nThis system appears to have an active suspend partition.\n\nThe action you are requesting requires the ZFS pool\n\n    \u001b[0;31mtank\u001b[0m\n\nbe imported read-write. Importing read-write and then resuming\nfrom an active suspend partition may DESTROY YOUR POOL.\n\nIf you choose to proceed, ZFSBootMenu can attempt to remove any\n\"resume=\" arguments from your kernel command line and append a\n\"noresume\" argument to prevent your system from attempting to\nrestore from the active suspend partition.\n\nType \u001b[0;32mNORESUME\u001b[0m to proceed with the import, allowing ZFSBootMenu\nto add a \"noresume\" argument to your kernel command line.\n\nType \u001b[0;31mDANGEROUS\u001b[0m to proceed with the import without allowing\nZFSBootMenu to modify your kernel command line. Make sure to\nadd the \"noresume\" argument yourself if necessary.\n\nType any other text, or just press enter, to abort.\n\nProceed \u001b[0;31m[No]\u001b[0m ?\n",
+        "DEBUG: pool set to tank\nDEBUG: resume device: swsupend\n"
+      ]
+    },
+    {
+      "input": "Some(\"suspend\") \"no\\n\" false",
+      "result": [
+        false,
+        false,
+        "WARNING!!!\n\nThis system appears to have an active suspend partition.\n\nThe action you are requesting requires the ZFS pool\n\n    \u001b[0;31mtank\u001b[0m\n\nbe imported read-write. Importing read-write and then resuming\nfrom an active suspend partition may DESTROY YOUR POOL.\n\nIf you choose to proceed, ZFSBootMenu can attempt to remove any\n\"resume=\" arguments from your kernel command line and append a\n\"noresume\" argument to prevent your system from attempting to\nrestore from the active suspend partition.\n\nType \u001b[0;32mNORESUME\u001b[0m to proceed with the import, allowing ZFSBootMenu\nto add a \"noresume\" argument to your kernel command line.\n\nType \u001b[0;31mDANGEROUS\u001b[0m to proceed with the import without allowing\nZFSBootMenu to modify your kernel command line. Make sure to\nadd the \"noresume\" argument yourself if necessary.\n\nType any other text, or just press enter, to abort.\n\nProceed \u001b[0;31m[No]\u001b[0m ?\n",
+        "DEBUG: pool set to tank\nDEBUG: resume device: suspend\n"
+      ]
+    },
+    {
+      "input": "Some(\"suspend\") \"\" false",
+      "result": [
+        false,
+        false,
+        "WARNING!!!\n\nThis system appears to have an active suspend partition.\n\nThe action you are requesting requires the ZFS pool\n\n    \u001b[0;31mtank\u001b[0m\n\nbe imported read-write. Importing read-write and then resuming\nfrom an active suspend partition may DESTROY YOUR POOL.\n\nIf you choose to proceed, ZFSBootMenu can attempt to remove any\n\"resume=\" arguments from your kernel command line and append a\n\"noresume\" argument to prevent your system from attempting to\nrestore from the active suspend partition.\n\nType \u001b[0;32mNORESUME\u001b[0m to proceed with the import, allowing ZFSBootMenu\nto add a \"noresume\" argument to your kernel command line.\n\nType \u001b[0;31mDANGEROUS\u001b[0m to proceed with the import without allowing\nZFSBootMenu to modify your kernel command line. Make sure to\nadd the \"noresume\" argument yourself if necessary.\n\nType any other text, or just press enter, to abort.\n\nProceed \u001b[0;31m[No]\u001b[0m ?\n",
+        "DEBUG: pool set to tank\nDEBUG: resume device: suspend\n"
+      ]
+    },
+    {
+      "input": "Some(\"suspend\") \"NORESUME\\n\" true",
+      "result": [
+        true,
+        true,
+        "",
+        "DEBUG: pool set to tank\nDEBUG: resume device: suspend\n"
+      ]
+    },
+    {
+      "input": "Some(\"suspend\") \"noresume\\n\" false",
+      "result": [
+        false,
+        false,
+        "WARNING!!!\n\nThis system appears to have an active suspend partition.\n\nThe action you are requesting requires the ZFS pool\n\n    \u001b[0;31mtank\u001b[0m\n\nbe imported read-write. Importing read-write and then resuming\nfrom an active suspend partition may DESTROY YOUR POOL.\n\nIf you choose to proceed, ZFSBootMenu can attempt to remove any\n\"resume=\" arguments from your kernel command line and append a\n\"noresume\" argument to prevent your system from attempting to\nrestore from the active suspend partition.\n\nType \u001b[0;32mNORESUME\u001b[0m to proceed with the import, allowing ZFSBootMenu\nto add a \"noresume\" argument to your kernel command line.\n\nType \u001b[0;31mDANGEROUS\u001b[0m to proceed with the import without allowing\nZFSBootMenu to modify your kernel command line. Make sure to\nadd the \"noresume\" argument yourself if necessary.\n\nType any other text, or just press enter, to abort.\n\nProceed \u001b[0;31m[No]\u001b[0m ?\n",
+        "DEBUG: pool set to tank\nDEBUG: resume device: suspend\n"
+      ]
+    }
+  ]
+}

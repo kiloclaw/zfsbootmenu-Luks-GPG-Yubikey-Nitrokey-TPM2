@@ -1,0 +1,47 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "",
+      "result": [
+        false,
+        "ERROR: hook root is not defined\n"
+      ]
+    },
+    {
+      "input": "tank",
+      "result": [
+        false,
+        "ERROR: unable to find hook device: 'tank' is malformed\n"
+      ]
+    },
+    {
+      "input": "tank//",
+      "result": [
+        false,
+        "ERROR: unable to find hook path: 'tank//' is malformed\n"
+      ]
+    },
+    {
+      "input": "//hooks",
+      "result": [
+        false,
+        "ERROR: unable to find hook device: '//hooks' is malformed\n"
+      ]
+    },
+    {
+      "input": "a//b//",
+      "result": [
+        false,
+        "ERROR: unable to find hook path: 'a//b//' is malformed\n"
+      ]
+    },
+    {
+      "input": "tank/hooks//zbm",
+      "result": [
+        false,
+        "ERROR: failed to mount hook filesystem tank/hooks\n"
+      ]
+    }
+  ]
+}

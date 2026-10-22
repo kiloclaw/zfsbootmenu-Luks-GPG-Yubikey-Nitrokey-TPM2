@@ -1,0 +1,35 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"other\", \"id=1\\nbootfs=other/ROOT/a\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"strict\", prefer_pool: \"missing\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [false, true], on_shell: \"printf 'id=9\\\\n' > pools/missing\\n\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool import\nzpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs missing\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "missing\n",
+        "log": "DEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'missing': no such pool available\nINFO: unable to import a pool on attempt 1\nDEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'missing': no such pool available\nINFO: unable to import a pool on attempt 2\nDEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: successful pool import\nDEBUG: only importing missing\nDEBUG: \n",
+        "prompts": 2,
+        "shells": "unable to successfully import a pool\n",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"other\", \"id=1\\nbootfs=other/ROOT/a\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"missing\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [false, true], on_shell: \"printf 'id=9\\\\n' > pools/missing\\n\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool import -o readonly=on -N missing\nzpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool import -o readonly=on -N missing\nzpool import\nzpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs missing\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "missing\n",
+        "log": "DEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'missing': no such pool available\nDEBUG: importable pools: missing\nDEBUG: trying to import: missing\nDEBUG: unable to scrape hostid for missing, skipping\nINFO: unable to import a pool on attempt 1\nDEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'missing': no such pool available\nDEBUG: importable pools: missing\nDEBUG: trying to import: missing\nDEBUG: unable to scrape hostid for missing, skipping\nINFO: unable to import a pool on attempt 2\nDEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: successful pool import\nDEBUG: only importing missing\nDEBUG: \n",
+        "prompts": 2,
+        "shells": "unable to successfully import a pool\n",
+        "spl_hostid_file": null
+      }
+    }
+  ]
+}

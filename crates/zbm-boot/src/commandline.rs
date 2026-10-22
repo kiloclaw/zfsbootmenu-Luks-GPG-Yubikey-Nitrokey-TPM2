@@ -397,7 +397,7 @@ mod tests {
     use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
     use zbm_zfs::Zfs;
 
     #[test]
@@ -677,13 +677,17 @@ mod tests {
     fn the_separator_is_the_legacy_one() {
         // The legacy argument continues after "\" and a newline on a line
         // indented by ten spaces.
-        let output = Bash::new()
-            .code(&format!(
-                "{}\nshow() {{ root_prefix=root=zfs: fs=tank cli_args=ro; printf '%s' {}; }}",
-                "set -u", "\"${root_prefix}${fs} \\\n          ${cli_args}\""
-            ))
-            .call("show", &[], b"");
-        assert_eq!(output.stdout_text(), format!("root=zfs:tank{SEPARATOR}ro"));
+        let mut parity = parity!("the_separator_is_the_legacy_one");
+        let output: String = parity.legacy("root=zfs:tank ro", || {
+            Bash::new()
+                .code(&format!(
+                    "{}\nshow() {{ root_prefix=root=zfs: fs=tank cli_args=ro; printf '%s' {}; }}",
+                    "set -u", "\"${root_prefix}${fs} \\\n          ${cli_args}\""
+                ))
+                .call("show", &[], b"")
+                .stdout_text()
+        });
+        assert_eq!(output, format!("root=zfs:tank{SEPARATOR}ro"));
     }
 
     /// The legacy library, with the shim that finds `/lib/zfsbootmenu-kcl.sh`.
@@ -701,89 +705,126 @@ mod tests {
             .source("zfsbootmenu/lib/zfsbootmenu-core.sh")
     }
 
-    #[test]
-    fn command_lines_match_the_legacy_function() {
-        let mut rng = Rng::from_env(31);
-        let words = [
-            "ro",
-            "quiet",
-            "root=x",
-            "resume=/dev/y",
-            "a=\"b c\"",
-            "%{parent}",
-            "spl_hostid=1",
-        ];
-        for case in 0..30 {
-            let dir = TempDir::new("zbm-cmdline");
-            let base = dir.path().to_string_lossy().into_owned();
+    /// A starting point of `load_be_cmdline`: properties, files under the
+    /// base directory, and the host ID setting.
+    #[derive(Debug)]
+    struct Scenario {
+        /// `org.zfsbootmenu:commandline` of `tank/ROOT`.
+        parent: Option<String>,
+        /// `org.zfsbootmenu:commandline` of `tank/ROOT/be`.
+        own: Option<String>,
+        /// The command line cached for the kernel.
+        kernel_kcl: Option<String>,
+        /// Whether the user edited the command line.
+        edited: bool,
+        /// Whether `noresume` exists.
+        noresume: bool,
+        /// Whether a stale `default.kcl` exists.
+        stale_default: bool,
+        /// `zbm_set_hostid`.
+        set_hostid: bool,
+    }
+
+    /// The kernel of every scenario.
+    const KERNEL: &str = "/boot/vmlinuz-6.1";
+
+    /// The cache of the default command line.
+    const DEFAULT_KCL: &str = "environments/tank/ROOT/be/kcl/default.kcl";
+
+    impl Scenario {
+        fn generate(rng: &mut Rng) -> Scenario {
+            let words = [
+                "ro",
+                "quiet",
+                "root=x",
+                "resume=/dev/y",
+                "a=\"b c\"",
+                "%{parent}",
+                "spl_hostid=1",
+            ];
+            Scenario {
+                parent: (rng.below(3) > 0).then(|| rng.join(&words[..5], 3)),
+                own: (rng.below(3) > 0).then(|| rng.join(&words, 4)),
+                kernel_kcl: (rng.below(3) == 0).then(|| format!("{}\n", rng.join(&words, 3))),
+                edited: rng.below(4) == 0,
+                noresume: rng.below(3) == 0,
+                stale_default: rng.below(3) == 0,
+                set_hostid: rng.below(2) == 0,
+            }
+        }
+
+        /// The pool, with the properties.
+        fn zfs(&self) -> FakeZfs {
             let zfs = FakeZfs::new(&["tank", "tank/ROOT", "tank/ROOT/be"]);
-            if rng.below(3) > 0 {
-                zfs.set(
-                    "tank/ROOT",
-                    "org.zfsbootmenu:commandline",
-                    &rng.join(&words[..5], 3),
-                );
+            let property = "org.zfsbootmenu:commandline";
+            if let Some(value) = &self.parent {
+                zfs.set("tank/ROOT", property, value);
             }
-            if rng.below(3) > 0 {
-                zfs.set(
-                    "tank/ROOT/be",
-                    "org.zfsbootmenu:commandline",
-                    &rng.join(&words, 4),
-                );
+            if let Some(value) = &self.own {
+                zfs.set("tank/ROOT/be", property, value);
             }
-            let kernel = "/boot/vmlinuz-6.1";
-            let kcl_dir = dir.join("environments/tank/ROOT/be/kcl");
-            std::fs::create_dir_all(&kcl_dir).unwrap();
-            if rng.below(3) == 0 {
-                dir.write(
-                    "environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl",
-                    format!("{}\n", rng.join(&words, 3)),
-                );
+            zfs
+        }
+
+        /// A base directory with the files.
+        fn base(&self) -> TempDir {
+            let dir = TempDir::new("zbm-cmdline");
+            std::fs::create_dir_all(dir.join("environments/tank/ROOT/be/kcl")).unwrap();
+            if let Some(text) = &self.kernel_kcl {
+                dir.write("environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl", text);
             }
-            if rng.below(4) == 0 {
+            if self.edited {
                 dir.write("cmdline", "edited\nline\n");
             }
-            if rng.below(3) == 0 {
+            if self.noresume {
                 dir.write("noresume", "");
             }
-            if rng.below(3) == 0 {
-                dir.write("environments/tank/ROOT/be/kcl/default.kcl", "stale\n");
+            if self.stale_default {
+                dir.write(DEFAULT_KCL, "stale\n");
                 let old = SystemTime::now() - Duration::from_secs(3600);
                 let file = std::fs::File::options()
                     .write(true)
-                    .open(dir.join("environments/tank/ROOT/be/kcl/default.kcl"))
+                    .open(dir.join(DEFAULT_KCL))
                     .unwrap();
                 file.set_modified(old).unwrap();
             }
-            let set_hostid = rng.below(2) == 0;
-            let snapshot = |dir: &TempDir| {
-                std::fs::read_to_string(dir.join("environments/tank/ROOT/be/kcl/default.kcl")).ok()
-            };
-            let before = snapshot(&dir);
+            dir
+        }
+    }
 
-            let legacy = legacy_core()
-                .env("BASE", &base)
-                .env("PATH", &zfs.path_env())
-                .env("zbm_set_hostid", if set_hostid { "1" } else { "0" })
-                .call("load_be_cmdline", &["tank/ROOT/be", kernel], b"");
-            let legacy_cache = snapshot(&dir);
+    /// `text` with the base directory written as `$BASE`, so that it does not
+    /// depend on where the test ran.
+    fn without_base(text: &str, dir: &TempDir) -> String {
+        text.replace(&*dir.path().to_string_lossy(), "$BASE")
+    }
 
-            // Run the Rust code on the same starting point
-            match &before {
-                Some(text) => {
-                    dir.write("environments/tank/ROOT/be/kcl/default.kcl", text);
-                    let old = SystemTime::now() - Duration::from_secs(3600);
-                    let file = std::fs::File::options()
-                        .write(true)
-                        .open(dir.join("environments/tank/ROOT/be/kcl/default.kcl"))
-                        .unwrap();
-                    file.set_modified(old).unwrap();
-                }
-                None => {
-                    let _ =
-                        std::fs::remove_file(dir.join("environments/tank/ROOT/be/kcl/default.kcl"));
-                }
-            }
+    #[test]
+    fn command_lines_match_the_legacy_function() {
+        let mut parity = parity!("command_lines_match_the_legacy_function");
+        let mut rng = Rng::from_env(31);
+        for case in 0..30 {
+            let scenario = Scenario::generate(&mut rng);
+            let zfs = scenario.zfs();
+            let (stdout, logged, cache): (String, String, Option<String>) =
+                parity.legacy(format!("{scenario:?}"), || {
+                    let dir = scenario.base();
+                    let legacy = legacy_core()
+                        .env("BASE", &dir.path().to_string_lossy())
+                        .env("PATH", &zfs.path_env())
+                        .env(
+                            "zbm_set_hostid",
+                            if scenario.set_hostid { "1" } else { "0" },
+                        )
+                        .call("load_be_cmdline", &["tank/ROOT/be", KERNEL], b"");
+                    (
+                        without_base(&legacy.stdout_text(), &dir),
+                        without_base(&log_lines(&legacy.stderr_text()), &dir),
+                        std::fs::read_to_string(dir.join(DEFAULT_KCL)).ok(),
+                    )
+                });
+
+            let dir = scenario.base();
+            let base = dir.path().to_string_lossy().into_owned();
             let state = State::new(&RealFiles, base.as_str());
             let runner = SystemRunner;
             let source = Zfs::with_program(&runner, zfs.program());
@@ -793,32 +834,38 @@ mod tests {
                 &source,
                 &state,
                 "tank/ROOT/be",
-                kernel,
-                set_hostid,
+                KERNEL,
+                scenario.set_hostid,
                 &mut log,
             );
             // kexec_kernel reads it with $( ... ), which drops final newlines
             assert_eq!(
-                rust,
-                command_substitution(&legacy.stdout_text()),
-                "case {case}: {}",
-                legacy.stderr_text()
+                without_base(&rust, &dir),
+                command_substitution(&stdout),
+                "case {case}: {logged}"
             );
-            assert_eq!(snapshot(&dir), legacy_cache, "case {case}: cache");
+            let rust_cache = std::fs::read_to_string(dir.join(DEFAULT_KCL)).ok();
+            assert_eq!(rust_cache, cache, "case {case}: cache");
             let messages: String = log
                 .iter()
                 .map(|message| format!("{}\n", message.stderr_line()))
                 .collect();
-            assert_eq!(
-                messages,
-                log_lines(&legacy.stderr_text()),
-                "case {case}: log"
-            );
+            assert_eq!(without_base(&messages, &dir), logged, "case {case}: log");
         }
+    }
+
+    /// The os-release files under `dir`, and the property, for the
+    /// description of a case.
+    fn os_releases(dir: &TempDir) -> Vec<Option<String>> {
+        ["usr/lib/os-release", "etc/os-release"]
+            .iter()
+            .map(|file| std::fs::read_to_string(dir.join(file)).ok())
+            .collect()
     }
 
     #[test]
     fn root_prefixes_match_the_legacy_function() {
+        let mut parity = parity!("root_prefixes_match_the_legacy_function");
         let mut rng = Rng::from_env(32);
         let ids = [
             "void",
@@ -851,17 +898,19 @@ mod tests {
                 zfs.set("tank/be", "org.zfsbootmenu:rootprefix", "root=custom:");
             }
             let mnt = dir.path().to_string_lossy().into_owned();
-            let legacy = legacy_core().env("PATH", &zfs.path_env()).call(
-                "find_root_prefix",
-                &["tank/be", &mnt],
-                b"",
-            );
+            let input = format!("os-release {:?}, property {property}", os_releases(&dir));
+            let legacy: String = parity.legacy(input, || {
+                legacy_core()
+                    .env("PATH", &zfs.path_env())
+                    .call("find_root_prefix", &["tank/be", &mnt], b"")
+                    .stdout_text()
+            });
             let rust = root_prefix(
                 &RealFiles,
                 Some(if property { "root=custom:" } else { "-" }),
                 dir.path(),
             );
-            assert_eq!(format!("{rust}\n"), legacy.stdout_text(), "case {case}");
+            assert_eq!(format!("{rust}\n"), legacy, "case {case}");
         }
     }
 }

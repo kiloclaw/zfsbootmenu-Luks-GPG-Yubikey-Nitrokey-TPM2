@@ -1,0 +1,40 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"force\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -f -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: import_policy set: force\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -f -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"strict\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [false, true], on_shell: \"sed -i '/^hostid=/d' pools/tank\\n\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": [
+          12,
+          177,
+          186,
+          0
+        ],
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nINFO: unable to import a pool on attempt 1\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nINFO: unable to import a pool on attempt 2\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 2,
+        "shells": "unable to successfully import a pool\n",
+        "spl_hostid_file": null
+      }
+    }
+  ]
+}

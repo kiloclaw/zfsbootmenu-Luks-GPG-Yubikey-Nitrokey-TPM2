@@ -316,7 +316,7 @@ mod tests {
     use zbm_system::files::RealFiles;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn sorted(items: &[&str]) -> Vec<String> {
         let mut items: Vec<String> = items.iter().map(|item| (*item).to_owned()).collect();
@@ -522,6 +522,12 @@ mod tests {
         core[start..end].to_owned()
     }
 
+    /// `path` with the directory written as `$DIR`, so that it does not
+    /// depend on where the test ran.
+    fn without_dir(path: &str, dir: &TempDir) -> String {
+        path.replace(&*dir.path().to_string_lossy(), "$DIR")
+    }
+
     #[test]
     fn initramfs_search_matches_the_legacy_function() {
         let mut rng = Rng::from_env(22);
@@ -533,11 +539,11 @@ mod tests {
         ];
         let decorations = ["initramfs", "initrd", "initrd.img", "initramfs-"];
         let extensions = ["", ".img", ".gz", ".img.zstd", ".xz", ".lz4"];
+        let mut parity = parity!("initramfs_search_matches_the_legacy_function");
         for case in 0..60 {
-            let dir = TempDir::new("zbm-initramfs");
             let kern = *rng.choose(&kernels);
             let kver = kern.find('-').map_or("", |hyphen| &kern[hyphen..]);
-            dir.write(format!("boot/{kern}"), "");
+            let mut names = vec![kern.to_owned()];
             for _ in 0..rng.below(4) {
                 let label = if rng.below(2) == 0 { kern } else { kver };
                 let name = if rng.below(2) == 0 {
@@ -553,16 +559,25 @@ mod tests {
                         rng.choose(&extensions)
                     )
                 };
-                dir.write(format!("boot/{name}"), "");
+                names.push(name);
             }
-            let kernel = dir.join(format!("boot/{kern}"));
-            let rust =
-                find_initramfs(&RealFiles, &kernel).map(|path| path.to_string_lossy().into_owned());
-            let listing: Vec<String> = std::fs::read_dir(dir.join("boot"))
-                .unwrap()
-                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-                .collect();
-            assert_eq!(rust, legacy_initramfs(&kernel), "case {case}: {listing:?}");
+            // The directory with the names, and the kernel in it.
+            let boot = || {
+                let dir = TempDir::new("zbm-initramfs");
+                for name in &names {
+                    dir.write(format!("boot/{name}"), "");
+                }
+                let kernel = dir.join(format!("boot/{kern}"));
+                (dir, kernel)
+            };
+            let legacy: Option<String> = parity.legacy(format!("{names:?}"), || {
+                let (dir, kernel) = boot();
+                legacy_initramfs(&kernel).map(|path| without_dir(&path, &dir))
+            });
+            let (dir, kernel) = boot();
+            let rust = find_initramfs(&RealFiles, &kernel)
+                .map(|path| without_dir(&path.to_string_lossy(), &dir));
+            assert_eq!(rust, legacy, "case {case}: {names:?}");
         }
         assert_eq!(
             find_initramfs(&RealFiles, Path::new("/nonexistent/vmlinuz")),
@@ -576,25 +591,46 @@ mod tests {
         let suffixes = [
             "", "-6.1", "-6.10", "-6.9.1", "-lts", "-6.1~rc1", ".old", "-0", "-x-2",
         ];
+        let mut parity = parity!("kernel_listing_matches_the_legacy_pipeline");
         for case in 0..30 {
-            let dir = TempDir::new("zbm-kernels");
-            std::fs::create_dir(dir.join("boot")).unwrap();
-            for _ in 0..rng.below(8) {
-                let name = format!("{}{}", rng.choose(&KERNEL_NAMES), rng.choose(&suffixes));
-                dir.write(format!("boot/{name}"), "");
-            }
-            if rng.below(3) == 0 {
-                std::os::unix::fs::symlink("missing", dir.join("boot/vmlinuz-dangling")).unwrap();
-            }
-            // The loop of find_be_kernels
-            let script = format!(
-                r#"mnt={}; for k in "${{mnt}}/boot"/{{{{vm,}}linu{{x,z}},kernel}}{{,-*}}; do
-                     [ -e "${{k}}" ] && echo "${{k}}"; done | LC_ALL=C sort -V"#,
-                shell_quote(&dir.path().to_string_lossy())
-            );
-            let output = Bash::new().code(&script).call("true", &[], b"");
-            let legacy: Vec<String> = output.stdout_text().lines().map(str::to_owned).collect();
-            assert_eq!(kernel_files(&RealFiles, dir.path()), legacy, "case {case}");
+            let names: Vec<String> = (0..rng.below(8))
+                .map(|_| format!("{}{}", rng.choose(&KERNEL_NAMES), rng.choose(&suffixes)))
+                .collect();
+            let dangling = rng.below(3) == 0;
+            let boot = || {
+                let dir = TempDir::new("zbm-kernels");
+                std::fs::create_dir(dir.join("boot")).unwrap();
+                for name in &names {
+                    dir.write(format!("boot/{name}"), "");
+                }
+                if dangling {
+                    std::os::unix::fs::symlink("missing", dir.join("boot/vmlinuz-dangling"))
+                        .unwrap();
+                }
+                dir
+            };
+            let input = format!("{names:?}, dangling link {dangling}");
+            let legacy: Vec<String> = parity.legacy(input, || {
+                let dir = boot();
+                // The loop of find_be_kernels
+                let script = format!(
+                    r#"mnt={}; for k in "${{mnt}}/boot"/{{{{vm,}}linu{{x,z}},kernel}}{{,-*}}; do
+                         [ -e "${{k}}" ] && echo "${{k}}"; done | LC_ALL=C sort -V"#,
+                    shell_quote(&dir.path().to_string_lossy())
+                );
+                let output = Bash::new().code(&script).call("true", &[], b"");
+                output
+                    .stdout_text()
+                    .lines()
+                    .map(|line| without_dir(line, &dir))
+                    .collect()
+            });
+            let dir = boot();
+            let rust: Vec<String> = kernel_files(&RealFiles, dir.path())
+                .iter()
+                .map(|path| without_dir(path, &dir))
+                .collect();
+            assert_eq!(rust, legacy, "case {case}");
         }
     }
 

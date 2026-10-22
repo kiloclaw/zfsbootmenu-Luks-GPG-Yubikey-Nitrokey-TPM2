@@ -74,6 +74,7 @@ mod tests {
     use super::*;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
+    use zbm_testkit::parity;
 
     use crate::testing::{LINE_LOG_STUBS, stub_lines};
 
@@ -140,24 +141,31 @@ mod tests {
 
     #[test]
     fn matches_the_legacy_stage() {
-        let script = std::fs::read_to_string(path("zfsbootmenu/init.d/30-device-wait")).unwrap();
+        let mut parity = parity!("matches_the_legacy_stage");
         for wait_for in [
             "/dev/null",
             "/dev/null,/dev/zbm-missing,UUID=zbm-missing",
             "bad,,/dev/zero,",
             "Label=x=y,/dev/zbm-missing",
         ] {
-            let legacy = Bash::new()
-                .code(LINE_LOG_STUBS)
-                .code(&format!(
-                    "timed_prompt() {{ echo PROMPT >&2; return 1; }}\n\
-                     colorize() {{ printf '%s' \"$2\"; }}\n\
-                     run() {{\nZFSBOOTMENU_INITIALIZATION=yes\n{script}\n}}"
-                ))
-                .env("zbm_wait_for_devices", wait_for)
-                .call("run", &[], b"");
-            assert!(legacy.status.success(), "{}", legacy.stderr_text());
-            let legacy_prompts = legacy.stderr_text().matches("PROMPT").count();
+            let (legacy_prompts, logged): (usize, String) = parity.legacy(wait_for, || {
+                let script =
+                    std::fs::read_to_string(path("zfsbootmenu/init.d/30-device-wait")).unwrap();
+                let legacy = Bash::new()
+                    .code(LINE_LOG_STUBS)
+                    .code(&format!(
+                        "timed_prompt() {{ echo PROMPT >&2; return 1; }}\n\
+                         colorize() {{ printf '%s' \"$2\"; }}\n\
+                         run() {{\nZFSBOOTMENU_INITIALIZATION=yes\n{script}\n}}"
+                    ))
+                    .env("zbm_wait_for_devices", wait_for)
+                    .call("run", &[], b"");
+                assert!(legacy.status.success(), "{}", legacy.stderr_text());
+                (
+                    legacy.stderr_text().matches("PROMPT").count(),
+                    log_lines(&legacy.stderr_text()),
+                )
+            });
 
             let fake = setup();
             fake.files.device("/dev/null").device("/dev/zero");
@@ -171,11 +179,7 @@ mod tests {
                 .filter(|line| *line == "tput civis")
                 .count();
             assert_eq!(prompts, legacy_prompts, "{wait_for}");
-            assert_eq!(
-                stub_lines(&fake.kmsg()),
-                log_lines(&legacy.stderr_text()),
-                "{wait_for}"
-            );
+            assert_eq!(stub_lines(&fake.kmsg()), logged, "{wait_for}");
         }
     }
 }

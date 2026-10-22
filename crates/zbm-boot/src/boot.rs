@@ -625,10 +625,12 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
 
+    use serde::{Deserialize, Serialize};
     use zbm_core::exec::{Output, Status, SystemRunner};
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
+    use zbm_testkit::parity::Parity;
+    use zbm_testkit::{TempDir, parity};
 
     use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
     use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
@@ -661,7 +663,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
     const PROGRAMS: [&str; 6] = ["zfs", "zpool", "mount", "umount", "kexec", "mountpoint"];
 
     /// A machine with one boot environment.
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     struct Machine {
         /// Answers of the fake programs: status, glob, output.
         answers: Vec<(u8, &'static str, &'static str)>,
@@ -674,7 +676,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
     const FS: &str = "tank/ROOT/void";
 
     /// What a run left behind, with the machine's directory written as `$Z`.
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
     struct Outcome {
         log: String,
         calls: String,
@@ -744,7 +746,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
 
         /// Runs `call` (shell code using the legacy functions) and returns what
         /// it printed on standard output as the result.
-        fn legacy(&self, call: &str) -> Outcome {
+        fn run_legacy(&self, call: &str) -> Outcome {
             let dir = self.dir();
             let z = dir.path().to_string_lossy().into_owned();
             dir.write("stubs.sh", LINE_LOG_STUBS);
@@ -932,8 +934,11 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
         unmountable.answers.push((32, "mount *", "mount failed\\n"));
         machines.push(unmountable);
 
+        let mut parity = parity!("kernels_are_found_as_the_legacy_function_finds_them");
         for machine in machines {
-            let legacy = machine.legacy(&format!("find_be_kernels {FS} && select_kernel {FS}"));
+            let legacy: Outcome = parity.legacy(format!("{machine:?}"), || {
+                machine.run_legacy(&format!("find_be_kernels {FS} && select_kernel {FS}"))
+            });
             let rust = machine.rust(|system, state, log, _, _| {
                 if !find_kernels(system, state, log, FS) {
                     return String::new();
@@ -979,16 +984,18 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
         }
     }
 
-    fn boot(machine: &Machine) {
+    fn boot(machine: &Machine, parity: &mut Parity) {
         let selected = Kernel {
             dataset: FS.to_owned(),
             kernel: "/boot/vmlinuz-6.1.10".to_owned(),
             initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
         };
-        let legacy = machine.legacy(&format!(
-            "kexec_kernel \"$(printf '%s\\t%s\\t%s' {FS} /boot/vmlinuz-6.1.10 \
-             /boot/initramfs-6.1.10.img)\" >/dev/null"
-        ));
+        let legacy: Outcome = parity.legacy(format!("{machine:?}"), || {
+            machine.run_legacy(&format!(
+                "kexec_kernel \"$(printf '%s\\t%s\\t%s' {FS} /boot/vmlinuz-6.1.10 \
+                 /boot/initramfs-6.1.10.img)\" >/dev/null"
+            ))
+        });
         let rust = machine.rust(|system, state, log, shells, hooks| {
             let settings = BootSettings {
                 set_hostid: true,
@@ -1003,8 +1010,9 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
 
     #[test]
     fn boots_as_the_legacy_function_boots() {
+        let mut parity = parity!("boots_as_the_legacy_function_boots");
         let machine = boot_machine();
-        boot(&machine);
+        boot(&machine, &mut parity);
 
         // A device tree, and a kernel that cannot be loaded.
         let mut machine = boot_machine();
@@ -1020,14 +1028,14 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             .answers
             .insert(0, (1, "kexec -a -l *", "kexec: bad image\\n"));
         machine.files.push(("boot/dtbs/dtbs-6.1.10/board.dtb", ""));
-        boot(&machine);
+        boot(&machine, &mut parity);
 
         // A boot environment that cannot be mounted.
         let mut machine = boot_machine();
         machine
             .answers
             .insert(0, (32, "mount *", "mount: failed\\n"));
-        boot(&machine);
+        boot(&machine, &mut parity);
     }
 
     fn fake_log(fake: &FakeSystem) -> KernelLog<'_> {

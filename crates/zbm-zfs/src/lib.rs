@@ -204,7 +204,7 @@ mod tests {
     use zbm_core::exec::SystemRunner;
     use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testkit::{FakeRunner, Rng, TempDir};
+    use zbm_testkit::{FakeRunner, Rng, TempDir, parity};
 
     #[test]
     fn commands_match_the_legacy_ones() {
@@ -272,54 +272,60 @@ mod tests {
             "pool/ROOT/a/b",
             "pool/other",
         ];
+        let mut parity = parity!("parent_expansion_matches_read_kcl_prop");
         for _ in 0..40 {
             let fake = FakeZfs::new(&datasets);
+            let mut properties = Vec::new();
             for dataset in datasets {
                 if rng.below(3) > 0 {
                     let value = *rng.choose(VALUES);
                     fake.set(dataset, COMMANDLINE_PROPERTY, value);
+                    properties.push((dataset, value));
                 }
             }
             let dataset = *rng.choose(&datasets[..]);
+            let kcl = *rng.choose(VALUES);
             let dir = TempDir::new("zbm-zfs-kclfile");
-            let kclfile = dir.write("kcl", format!("{}\n", *rng.choose(VALUES)));
+            let kclfile = dir.write("kcl", format!("{kcl}\n"));
             let missing = dir.join("missing");
-            let lib = Bash::new()
-                .env("PATH", &fake.path_env())
-                .code(LOG_STUBS)
-                .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh");
-            let zfs = Zfs::with_program(&SystemRunner, fake.program());
+            let input = format!("properties {properties:?}, dataset {dataset}, kcl file {kcl:?}");
+            let (prop, logged, values): (Option<String>, String, Vec<String>) =
+                parity.legacy(input, || {
+                    let lib = Bash::new()
+                        .env("PATH", &fake.path_env())
+                        .code(LOG_STUBS)
+                        .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh");
+                    let legacy = lib.call("read_kcl_prop", &[dataset], b"");
+                    let values = [&kclfile, &missing]
+                        .iter()
+                        .map(|file| {
+                            let file = file.to_string_lossy();
+                            let output = lib.call("read_kcl_value", &[dataset, &file], b"");
+                            output.stdout_text().trim_end_matches('\n').to_owned()
+                        })
+                        .collect();
+                    (
+                        legacy
+                            .status
+                            .success()
+                            .then(|| legacy.stdout_text().trim_end_matches('\n').to_owned()),
+                        log_lines(&legacy.stderr_text()),
+                        values,
+                    )
+                });
 
-            let legacy = lib.call("read_kcl_prop", &[dataset], b"");
+            let zfs = Zfs::with_program(&SystemRunner, fake.program());
             let mut log = Vec::new();
             let rust = read_kcl_prop(&zfs, dataset, &mut log);
-            assert_eq!(
-                rust,
-                legacy
-                    .status
-                    .success()
-                    .then(|| legacy.stdout_text().trim_end_matches('\n').to_owned()),
-                "dataset {dataset}"
-            );
+            assert_eq!(rust, prop, "dataset {dataset}");
             let messages: String = log
                 .iter()
                 .map(|m| format!("{}\n", m.stderr_line()))
                 .collect();
-            assert_eq!(
-                messages,
-                log_lines(&legacy.stderr_text()),
-                "dataset {dataset}"
-            );
-
-            for file in [&kclfile, &missing] {
-                let file_arg = file.to_string_lossy();
-                let legacy = lib.call("read_kcl_value", &[dataset, &file_arg], b"");
+            assert_eq!(messages, logged, "dataset {dataset}");
+            for (file, legacy) in [&kclfile, &missing].into_iter().zip(values) {
                 let rust = read_kcl_value(&zfs, dataset, file, &mut Vec::new());
-                assert_eq!(
-                    rust.as_deref(),
-                    Some(legacy.stdout_text().trim_end_matches('\n')),
-                    "dataset {dataset}, file {file_arg}"
-                );
+                assert_eq!(rust, Some(legacy), "dataset {dataset}, file {file:?}");
             }
         }
     }

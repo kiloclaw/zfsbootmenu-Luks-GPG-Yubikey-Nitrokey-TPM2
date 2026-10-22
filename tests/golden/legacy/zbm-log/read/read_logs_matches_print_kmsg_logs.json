@@ -1,0 +1,33 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "levels \"err\", since \"\", filtered Some(\"[    1.0] ZFSBootMenu: broken\\n[ 3.0] ZFSBootMenu: info\\n\")",
+      "result": "ZFSBootMenu: broken\nZFSBootMenu: info\n"
+    },
+    {
+      "input": "levels \"err,warn\", since \"2024-01-02 10:00\", filtered Some(\"[    1.0] ZFSBootMenu: broken\\n[ 3.0] ZFSBootMenu: info\\n\")",
+      "result": "ZFSBootMenu: broken\nZFSBootMenu: info\n"
+    },
+    {
+      "input": "levels \"info\", since \"\", filtered Some(\"\")",
+      "result": "\n"
+    },
+    {
+      "input": "levels \"err\", since \"\", filtered None",
+      "result": "ZFSBootMenu: broken \nZFSBootMenu: busybox \n"
+    },
+    {
+      "input": "levels \"err,warn,notice,info,debug\", since \"\", filtered None",
+      "result": "ZFSBootMenu: broken \nZFSBootMenu: busybox \nZFSBootMenu: info here \nZBM:[1]|t|debug \n\n"
+    },
+    {
+      "input": "levels \"debug,\", since \"\", filtered None",
+      "result": "ZBM:[1]|t|debug \n"
+    },
+    {
+      "input": "levels \"unknown\", since \"\", filtered None",
+      "result": "ZFSBootMenu: broken \nZFSBootMenu: busybox \nZFSBootMenu: info here \nZBM:[1]|t|debug \n\n"
+    }
+  ]
+}

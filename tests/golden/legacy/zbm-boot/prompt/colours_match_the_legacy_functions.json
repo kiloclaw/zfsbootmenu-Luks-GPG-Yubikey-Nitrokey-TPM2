@@ -1,0 +1,70 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "colorize red",
+      "result": [
+        "\u001b[0;31mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize lightcyan",
+      "result": [
+        "\u001b[1;36mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize white",
+      "result": [
+        "\u001b[1;37mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize yellow",
+      "result": [
+        "\u001b[1;33mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize nothing",
+      "result": [
+        "\u001b[0mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize black",
+      "result": [
+        "\u001b[0;30mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "colorize darkgray",
+      "result": [
+        "\u001b[1;30mtank/ROOT/void\u001b[0m",
+        "tank/ROOT/void\n"
+      ]
+    },
+    {
+      "input": "decolorize \"\\\\033[1;31mred\\\\033[0m\"",
+      "result": "red\n"
+    },
+    {
+      "input": "decolorize \"a\\u{1}[0;35mb\"",
+      "result": "ab\n"
+    },
+    {
+      "input": "decolorize \"\\u{1b}[2;31mkept\"",
+      "result": "\u001b[2;31mkept\n"
+    },
+    {
+      "input": "decolorize \"[0m\"",
+      "result": "[0m\n"
+    }
+  ]
+}

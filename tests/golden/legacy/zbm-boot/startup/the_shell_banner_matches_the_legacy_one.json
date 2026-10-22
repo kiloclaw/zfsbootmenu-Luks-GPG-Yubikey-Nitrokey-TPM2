@@ -1,0 +1,13 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"\"",
+      "result": "\u001b[0;32memergency shell\u001b[0m\n\ntype '\u001b[0;31mhelp\u001b[0m' for online documentation\ntype '\u001b[0;31mexit\u001b[0m' to return to ZFSBootMenu\n\n"
+    },
+    {
+      "input": "\"unable to mount \\u{1b}[0;36mtank\\u{1b}[0m\"",
+      "result": "\u001b[0;32memergency shell\u001b[0m: unable to mount \u001b[0;36mtank\u001b[0m\n\ntype '\u001b[0;31mhelp\u001b[0m' for online documentation\ntype '\u001b[0;31mexit\u001b[0m' to return to ZFSBootMenu\n\n"
+    }
+  ]
+}

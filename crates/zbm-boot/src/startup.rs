@@ -494,30 +494,30 @@ mod tests {
     #[test]
     fn the_shell_banner_matches_the_legacy_one() {
         use zbm_testkit::legacy::{Bash, LOG_STUBS};
+        let mut parity = zbm_testkit::parity!("the_shell_banner_matches_the_legacy_one");
         for message in ["", "unable to mount \x1b[0;36mtank\x1b[0m"] {
-            let legacy = Bash::new()
-                .code(LOG_STUBS)
-                .code(
-                    r#"source() {
+            let legacy: String = parity.legacy(format!("{message:?}"), || {
+                Bash::new()
+                    .code(LOG_STUBS)
+                    .code(
+                        r#"source() {
                         case "$1" in
                           /lib/*) builtin source "$LEGACY/zfsbootmenu/lib/${1#/lib/}" ;;
                           *) builtin source "$@" ;;
                         esac
                       }"#,
-                )
-                .source("zfsbootmenu/lib/zfsbootmenu-core.sh")
-                .code("tput() { :; }; stty() { :; }; mount_efivarfs() { :; }")
-                .env("BASE", "/nonexistent")
-                .call("emergency_shell", &[message], b"exit\n");
+                    )
+                    .source("zfsbootmenu/lib/zfsbootmenu-core.sh")
+                    .code("tput() { :; }; stty() { :; }; mount_efivarfs() { :; }")
+                    .env("BASE", "/nonexistent")
+                    .call("emergency_shell", &[message], b"exit\n")
+                    .stdout_text()
+            });
             let fake = machine();
             let state = State::new(&fake.files, "/zfsbootmenu");
             let log = KernelLog::new(&fake.files, "4", Path::new("/zfsbootmenu"), 1);
             Shell::new(fake.system(), &state, &log).emergency_shell(message);
-            assert_eq!(
-                fake.console.output_text(),
-                legacy.stdout_text(),
-                "{message:?}"
-            );
+            assert_eq!(fake.console.output_text(), legacy, "{message:?}");
         }
     }
 

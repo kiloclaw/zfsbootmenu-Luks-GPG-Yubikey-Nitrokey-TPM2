@@ -1,0 +1,320 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"/boot/vmlinuz-6.1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/boot:vmlinuz-6.1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"boot/vmlinuz\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/boot:vmlinuz.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/a:b/c::d\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/a::b:c::::d.kcl\n"
+      ]
+    },
+    {
+      "input": "\"//x\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/:x.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/11b1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/11b1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/..-b1/a.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/..-b1:a..kcl\n"
+      ]
+    },
+    {
+      "input": "\"/-1/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/-1:.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1:1a--:b\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1::1a--::b.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1a/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1a:.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/11b\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/11b.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1b::-/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1b::::-:.kcl\n"
+      ]
+    },
+    {
+      "input": "\"//1.-/1-1:1/.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/:1.-:1-1::1:..kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/./:.ab1:..a\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.:::.ab1::..a.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/:b..-./\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/::b..-.:.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1b:\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1b::.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/:.b/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/::.b:.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/..kcl\n"
+      ]
+    },
+    {
+      "input": "\"///1:ba1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/::1::ba1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/1b:b1abb.1//\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/1b::b1abb.1::.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/ba-\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/ba-.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/--:--a-\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/--::--a-.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/aa/b1a.bb-.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/aa:b1a.bb-..kcl\n"
+      ]
+    },
+    {
+      "input": "\"/.1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/bb1:.bb:1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/bb1::.bb::1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/bb-a./a\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/bb-a.:a.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/-b.:a:b\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/-b.::a::b.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/b1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/b1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/:abb.:\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/::abb.::.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/aa-1.1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/aa-1.1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/a/-b1ab1-.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/a:-b1ab1-..kcl\n"
+      ]
+    },
+    {
+      "input": "\"/-b-b--/-a1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/-b-b--:-a1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/.11.1a:/\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.11.1a:::.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/-:1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/-::1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/.-:.1\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.-::.1.kcl\n"
+      ]
+    },
+    {
+      "input": "\"//1.a1:.\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/:1.a1::..kcl\n"
+      ]
+    },
+    {
+      "input": "\"/.:....:1.--\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.::....::1.--.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/://-1-/.1.:\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/::::-1-:.1.::.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/-b:1.1-/b--a\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/-b::1.1-:b--a.kcl\n"
+      ]
+    },
+    {
+      "input": "\"/./-//:bb:.a\"",
+      "result": [
+        true,
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/.:-::::bb::.a.kcl\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        false,
+        ""
+      ]
+    }
+  ]
+}

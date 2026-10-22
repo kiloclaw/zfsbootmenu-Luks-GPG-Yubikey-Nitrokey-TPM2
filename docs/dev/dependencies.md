@@ -48,6 +48,7 @@ These are development dependencies only, allowed for every crate (`TEST_THIRD_PA
 | `insta` | Snapshot tests: the menu's screens (`crates/zbm-tui/src/snapshots/`) |
 | `proptest` | Property tests: parsing never panics, valid values round-trip (`zbm-types`) |
 | `pretty_assertions` | Readable diffs when an assertion of equality fails |
+| `serde`, `serde_json` | The golden files of the legacy results (`zbm_testkit::parity`, in `tests/golden/legacy/`); `serde`'s `derive` describes a test's recorded result |
 
 ## Developer tooling
 

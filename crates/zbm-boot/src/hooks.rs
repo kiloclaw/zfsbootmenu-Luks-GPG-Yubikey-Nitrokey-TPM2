@@ -267,9 +267,9 @@ pub fn early_stage_in(
 mod tests {
     use super::*;
     use crate::testing::stub_lines;
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::{FakeFiles, FakeSystem, FileOperation};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
+    use zbm_testkit::{TempDir, parity};
 
     fn log(fake: &FakeSystem) -> KernelLog<'_> {
         fake.files.dir("/zfsbootmenu");
@@ -409,11 +409,48 @@ mod tests {
         assert_eq!(fake.runner.calls()[1].get_env().len(), 1);
     }
 
+    /// A hook root with executable hooks in several stages.
+    fn skip_root() -> TempDir {
+        let dir = TempDir::new("zbm-skip");
+        for name in [
+            "early-setup.d/10-a",
+            "early-setup.d/20-b.sh",
+            "setup.d/10-a",
+            "setup.d/.10-a",
+            "teardown.d/30-c",
+            "other/10-a",
+        ] {
+            let file = dir.write(name, "");
+            let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
+            std::fs::set_permissions(&file, mode).unwrap();
+        }
+        dir
+    }
+
+    /// The modes of the hooks under `dir`, by path relative to it.
+    fn skip_modes(dir: &TempDir) -> Vec<(String, u32)> {
+        let mut modes = Vec::new();
+        for stage in ["early-setup.d", "setup.d", "teardown.d", "other"] {
+            for entry in std::fs::read_dir(dir.join(stage)).unwrap() {
+                let entry = entry.unwrap();
+                let mode = entry.metadata().unwrap().permissions();
+                let mode = std::os::unix::fs::PermissionsExt::mode(&mode) & 0o7777;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                modes.push((format!("{stage}/{name}"), mode));
+            }
+        }
+        modes.sort();
+        modes
+    }
+
+    /// `text` with the directory written as `$DIR`.
+    fn without_dir(text: &str, dir: &TempDir) -> String {
+        text.replace(&*dir.path().to_string_lossy(), "$DIR")
+    }
+
     #[test]
     fn skipped_hooks_match_the_legacy_loop() {
-        let early = std::fs::read_to_string(path("zfsbootmenu/init.d/40-early-hooks")).unwrap();
-        let start = early.find("# Remove the executable bit").unwrap();
-        let end = early.find("# Run early setup hooks").unwrap();
+        let mut parity = parity!("skipped_hooks_match_the_legacy_loop");
         for skip in [
             "",
             "10-a",
@@ -421,70 +458,61 @@ mod tests {
             ",missing,30-c",
             "early-setup.d",
         ] {
-            let dir = TempDir::new("zbm-skip");
-            for name in [
-                "early-setup.d/10-a",
-                "early-setup.d/20-b.sh",
-                "setup.d/10-a",
-                "setup.d/.10-a",
-                "teardown.d/30-c",
-                "other/10-a",
-            ] {
-                let file = dir.write(name, "");
-                let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
-                std::fs::set_permissions(&file, mode).unwrap();
-            }
-            let root = dir.path().to_string_lossy().into_owned();
-            let snippet = early[start..end].replace("/libexec/hooks", &root);
-            let legacy = Bash::new()
-                .code(LOG_STUBS)
-                .code(&format!(
-                    "get_zbm_arg() {{ echo \"$SKIP\"; }}\nrun() {{\n{snippet}\n}}"
-                ))
-                .env("SKIP", skip)
-                .call("run", &[], b"");
-            let modes = || {
-                let mut modes = Vec::new();
-                for stage in ["early-setup.d", "setup.d", "teardown.d", "other"] {
-                    for entry in std::fs::read_dir(dir.join(stage)).unwrap() {
-                        let entry = entry.unwrap();
-                        let mode = entry.metadata().unwrap().permissions();
-                        let mode = std::os::unix::fs::PermissionsExt::mode(&mode) & 0o7777;
-                        modes.push((entry.path(), mode));
-                    }
-                }
-                modes.sort();
-                modes
-            };
-            let legacy_modes = modes();
-            for (file, _) in &legacy_modes {
-                let mode = std::os::unix::fs::PermissionsExt::from_mode(0o755);
-                std::fs::set_permissions(file, mode).unwrap();
-            }
+            let (legacy_modes, legacy_log): (Vec<(String, u32)>, String) =
+                parity.legacy(skip, || {
+                    let early =
+                        std::fs::read_to_string(path("zfsbootmenu/init.d/40-early-hooks")).unwrap();
+                    let start = early.find("# Remove the executable bit").unwrap();
+                    let end = early.find("# Run early setup hooks").unwrap();
+                    let dir = skip_root();
+                    let root = dir.path().to_string_lossy().into_owned();
+                    let snippet = early[start..end].replace("/libexec/hooks", &root);
+                    let legacy = Bash::new()
+                        .code(LOG_STUBS)
+                        .code(&format!(
+                            "get_zbm_arg() {{ echo \"$SKIP\"; }}\nrun() {{\n{snippet}\n}}"
+                        ))
+                        .env("SKIP", skip)
+                        .call("run", &[], b"");
+                    (
+                        skip_modes(&dir),
+                        without_dir(&log_lines(&legacy.stderr_text()), &dir),
+                    )
+                });
 
+            let dir = skip_root();
             let files = zbm_system::files::RealFiles;
             let kmsg = dir.join("kmsg");
             let log = KernelLog::new(&files, "7", dir.path(), 1).with_device(&kmsg);
             skip_hooks(&files, &log, dir.path(), skip);
-            assert_eq!(modes(), legacy_modes, "{skip}");
+            assert_eq!(skip_modes(&dir), legacy_modes, "{skip}");
             let rust_log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
-            assert_eq!(rust_log, log_lines(&legacy.stderr_text()), "{skip}");
+            assert_eq!(without_dir(&rust_log, &dir), legacy_log, "{skip}");
         }
     }
 
     #[test]
     fn malformed_hook_roots_match_the_legacy_checks() {
-        let core = std::fs::read_to_string(path("zfsbootmenu/lib/zfsbootmenu-core.sh")).unwrap();
-        let start = core.find("\nimport_zbm_hooks() {\n").unwrap() + 1;
-        let end = start + core[start..].find("\n}\n").unwrap() + 3;
+        let mut parity = parity!("malformed_hook_roots_match_the_legacy_checks");
         for hook_root in ["", "tank", "tank//", "//hooks", "a//b//", "tank/hooks//zbm"] {
-            let dir = TempDir::new("zbm-hookroot");
-            let legacy = Bash::new()
-                .code(LOG_STUBS)
-                .code(&core[start..end])
-                .code("mount() { return 1; }")
-                .env("BASE", &dir.path().to_string_lossy())
-                .call("import_zbm_hooks", &[hook_root], b"");
+            let (success, logged): (bool, String) = parity.legacy(hook_root, || {
+                let core =
+                    std::fs::read_to_string(path("zfsbootmenu/lib/zfsbootmenu-core.sh")).unwrap();
+                let start = core.find("\nimport_zbm_hooks() {\n").unwrap() + 1;
+                let end = start + core[start..].find("\n}\n").unwrap() + 3;
+                let dir = TempDir::new("zbm-hookroot");
+                let legacy = Bash::new()
+                    .code(LOG_STUBS)
+                    .code(&core[start..end])
+                    .code("mount() { return 1; }")
+                    .env("BASE", &dir.path().to_string_lossy())
+                    .call("import_zbm_hooks", &[hook_root], b"");
+                (
+                    legacy.status.success(),
+                    log_lines(&legacy.stderr_text())
+                        .replace(&*dir.path().to_string_lossy(), "/zfsbootmenu"),
+                )
+            });
 
             let fake = FakeSystem::new();
             fake.runner.respond_program("mount", 1, "");
@@ -496,12 +524,8 @@ mod tests {
                 Path::new(HOOKS),
                 hook_root,
             );
-            assert_eq!(imported, legacy.status.success(), "{hook_root}");
-            assert_eq!(
-                stub_lines(&fake.kmsg()),
-                log_lines(&legacy.stderr_text()),
-                "{hook_root}"
-            );
+            assert_eq!(imported, success, "{hook_root}");
+            assert_eq!(stub_lines(&fake.kmsg()), logged, "{hook_root}");
         }
     }
 
@@ -628,40 +652,45 @@ mod tests {
     fn matches_the_legacy_glob_on_real_files() {
         use std::os::unix::fs::PermissionsExt;
         use zbm_system::files::RealFiles;
-        use zbm_testkit::TempDir;
-        use zbm_testkit::legacy::Bash;
 
         if !running_as_root() {
             eprintln!("skipped: the legacy code runs as root");
             return;
         }
-        let dir = TempDir::new("zbm-hooks");
-        let stage = dir.join("teardown.d");
-        std::fs::create_dir(&stage).unwrap();
-        for (name, mode) in [
-            ("90-xhci", 0o755),
-            ("80-luks", 0o700),
-            ("85-off", 0o644),
-            ("10 space", 0o100),
-            (".hidden", 0o755),
-            ("x.completed", 0o000),
-            ("B", 0o010),
-        ] {
-            let path = dir.write(format!("teardown.d/{name}"), "");
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
-        }
-        std::fs::create_dir(stage.join("sub")).unwrap();
-        std::os::unix::fs::symlink("missing", stage.join("dangling")).unwrap();
-
-        // The loop of zfsbootmenu-run-hooks
-        let output = Bash::new()
-            .code(
-                r#"list_hooks() {
-                  for _hook in "$1"/*; do [ -x "${_hook}" ] || continue; echo "${_hook##*/}"; done
-                }"#,
-            )
-            .call("list_hooks", &[&stage.to_string_lossy()], b"");
-        let legacy: Vec<String> = output.stdout_text().lines().map(str::to_owned).collect();
+        let stage_dir = || {
+            let dir = TempDir::new("zbm-hooks");
+            let stage = dir.join("teardown.d");
+            std::fs::create_dir(&stage).unwrap();
+            for (name, mode) in [
+                ("90-xhci", 0o755),
+                ("80-luks", 0o700),
+                ("85-off", 0o644),
+                ("10 space", 0o100),
+                (".hidden", 0o755),
+                ("x.completed", 0o000),
+                ("B", 0o010),
+            ] {
+                let path = dir.write(format!("teardown.d/{name}"), "");
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            }
+            std::fs::create_dir(stage.join("sub")).unwrap();
+            std::os::unix::fs::symlink("missing", stage.join("dangling")).unwrap();
+            dir
+        };
+        let mut parity = parity!("matches_the_legacy_glob_on_real_files");
+        let legacy: Vec<String> = parity.legacy("teardown.d", || {
+            let dir = stage_dir();
+            // The loop of zfsbootmenu-run-hooks
+            let output = Bash::new()
+                .code(
+                    r#"list_hooks() {
+                      for _hook in "$1"/*; do [ -x "${_hook}" ] || continue; echo "${_hook##*/}"; done
+                    }"#,
+                )
+                .call("list_hooks", &[&dir.join("teardown.d").to_string_lossy()], b"");
+            output.stdout_text().lines().map(str::to_owned).collect()
+        });
+        let dir = stage_dir();
         let rust: Vec<String> = executable_hooks(&RealFiles, dir.path(), "teardown.d")
             .iter()
             .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())

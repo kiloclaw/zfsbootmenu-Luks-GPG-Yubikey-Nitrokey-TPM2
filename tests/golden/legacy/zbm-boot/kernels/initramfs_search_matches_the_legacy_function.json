@@ -1,0 +1,245 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd-6.1.0-13-amd64\", \"initramfsvmlinuz-6.1.0-13-amd64.img.zstd\"]",
+      "result": "$DIR/boot/initramfsvmlinuz-6.1.0-13-amd64.img.zstd"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd.img.img.zstdvmlinuz-6.1.0-13-amd64\", \"initramfs-.img-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz\", \"initrdvmlinuz.img\"]",
+      "result": "$DIR/boot/initrdvmlinuz.img"
+    },
+    {
+      "input": "[\"linux-lts\", \"initrd.gzlinux-lts\", \"initramfs.img-lts\"]",
+      "result": "$DIR/boot/initramfs.img-lts"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrd.imgvmlinuz-6.12.9_1\", \"initramfs--6.12.9_1.img\", \"initrd.imgvmlinuz-6.12.9_1.img.zstd\"]",
+      "result": "$DIR/boot/initrd.imgvmlinuz-6.12.9_1"
+    },
+    {
+      "input": "[\"vmlinuz\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrdvmlinuz-6.12.9_1.lz4\"]",
+      "result": "$DIR/boot/initrdvmlinuz-6.12.9_1.lz4"
+    },
+    {
+      "input": "[\"vmlinuz\", \"initramfs.img\"]",
+      "result": "$DIR/boot/initramfs.img"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz\", \"initrd.imgvmlinuz\", \"initramfs.xzvmlinuz\", \"initramfs-\"]",
+      "result": "$DIR/boot/initrd.imgvmlinuz"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfs--lts\", \"initramfs.img.zstdlinux-lts\", \"initramfs.img.zstdlinux-lts\"]",
+      "result": "$DIR/boot/initramfs.img.zstdlinux-lts"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\", \"initrd.img.imglinux-lts\", \"initramfs-.imglinux-lts\", \"initrd.imglinux-lts\"]",
+      "result": "$DIR/boot/initrd.imglinux-lts"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz\", \"initramfsvmlinuz.lz4\"]",
+      "result": "$DIR/boot/initramfsvmlinuz.lz4"
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfs-lts.gz\", \"initrd.imglinux-lts\", \"initramfs-lts.gz\"]",
+      "result": "$DIR/boot/initrd.imglinux-lts"
+    },
+    {
+      "input": "[\"vmlinuz\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initramfs.imgvmlinuz-6.1.0-13-amd64\", \"initrd-6.1.0-13-amd64.gz\", \"initramfs-.gz-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initramfs.imgvmlinuz-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd-6.1.0-13-amd64.gz\", \"initramfs-.imgvmlinuz-6.1.0-13-amd64\", \"initramfs-6.1.0-13-amd64.img\"]",
+      "result": "$DIR/boot/initramfs-6.1.0-13-amd64.img"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initramfs--6.1.0-13-amd64.lz4\", \"initramfs-.lz4-6.1.0-13-amd64\", \"initrd.xzvmlinuz-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initrd.xzvmlinuz-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd.img.zstd-6.1.0-13-amd64\", \"initrd-6.1.0-13-amd64.lz4\"]",
+      "result": "$DIR/boot/initrd.img.zstd-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initramfs.xzvmlinuz-6.12.9_1\", \"initramfs-.imgvmlinuz-6.12.9_1\", \"initrdvmlinuz-6.12.9_1.lz4\"]",
+      "result": "$DIR/boot/initramfs.xzvmlinuz-6.12.9_1"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initramfs.gz-6.1.0-13-amd64\", \"initramfs.lz4-6.1.0-13-amd64\", \"initramfs-.xzvmlinuz-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initramfs.gz-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrd.img.gz-6.12.9_1\"]",
+      "result": "$DIR/boot/initrd.img.gz-6.12.9_1"
+    },
+    {
+      "input": "[\"vmlinuz\", \"initrd\", \"initramfsvmlinuz.lz4\", \"initramfs.img.zstd\"]",
+      "result": "$DIR/boot/initramfs.img.zstd"
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initramfs-vmlinuz-6.12.9_1\"]",
+      "result": "$DIR/boot/initramfs-vmlinuz-6.12.9_1"
+    },
+    {
+      "input": "[\"vmlinuz\", \"initramfs-.img\", \"initramfs-.xz\", \"initramfs\"]",
+      "result": "$DIR/boot/initramfs"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd.img-6.1.0-13-amd64.img.zstd\", \"initrd.img-6.1.0-13-amd64\", \"initramfs-.xz-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initrd.img-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initramfsvmlinuz-6.1.0-13-amd64.lz4\"]",
+      "result": "$DIR/boot/initramfsvmlinuz-6.1.0-13-amd64.lz4"
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfs-lts.img\", \"initrd.gz-lts\"]",
+      "result": "$DIR/boot/initramfs-lts.img"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initramfs-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initramfs-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfslinux-lts.img\"]",
+      "result": "$DIR/boot/initramfslinux-lts.img"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd.imgvmlinuz-6.1.0-13-amd64.img\", \"initrd-6.1.0-13-amd64.lz4\", \"initrd-6.1.0-13-amd64.xz\"]",
+      "result": "$DIR/boot/initrd-6.1.0-13-amd64.xz"
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfs-lts.img\"]",
+      "result": "$DIR/boot/initramfs-lts.img"
+    },
+    {
+      "input": "[\"vmlinuz\", \"initramfs.xz\", \"initramfs\", \"initrd.img.gzvmlinuz\"]",
+      "result": "$DIR/boot/initramfs"
+    },
+    {
+      "input": "[\"vmlinuz\", \"initramfs-.lz4\", \"initramfs-vmlinuz\"]",
+      "result": "$DIR/boot/initramfs-vmlinuz"
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfs-linux-lts.xz\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrdvmlinuz-6.1.0-13-amd64.xz\", \"initrd.img-6.1.0-13-amd64\", \"initrd-6.1.0-13-amd64.lz4\"]",
+      "result": "$DIR/boot/initrd.img-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"linux-lts\", \"initrd-lts.xz\"]",
+      "result": "$DIR/boot/initrd-lts.xz"
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\", \"initrd.img-6.1.0-13-amd64\", \"initrd.img.imgvmlinuz-6.1.0-13-amd64\"]",
+      "result": "$DIR/boot/initrd.img-6.1.0-13-amd64"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrd.img.gz-6.12.9_1\"]",
+      "result": "$DIR/boot/initrd.img.gz-6.12.9_1"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrd.xzvmlinuz-6.12.9_1\"]",
+      "result": "$DIR/boot/initrd.xzvmlinuz-6.12.9_1"
+    },
+    {
+      "input": "[\"linux-lts\", \"initramfslinux-lts.img.zstd\"]",
+      "result": "$DIR/boot/initramfslinux-lts.img.zstd"
+    },
+    {
+      "input": "[\"linux-lts\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.1.0-13-amd64\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\", \"initrd.img-6.12.9_1.lz4\", \"initrd.img.img-6.12.9_1\", \"initrd-6.12.9_1.xz\"]",
+      "result": "$DIR/boot/initrd-6.12.9_1.xz"
+    },
+    {
+      "input": "[\"vmlinuz-6.12.9_1\"]",
+      "result": null
+    },
+    {
+      "input": "[\"vmlinuz\", \"initrd.img.gz\", \"initrd.img.gzvmlinuz\"]",
+      "result": "$DIR/boot/initrd.img.gzvmlinuz"
+    },
+    {
+      "input": "[\"linux-lts\", \"initrd-lts.img\"]",
+      "result": "$DIR/boot/initrd-lts.img"
+    },
+    {
+      "input": "[\"linux-lts\", \"initrd-lts.img\", \"initramfs-.lz4-lts\", \"initramfs--lts.img\"]",
+      "result": "$DIR/boot/initrd-lts.img"
+    }
+  ]
+}

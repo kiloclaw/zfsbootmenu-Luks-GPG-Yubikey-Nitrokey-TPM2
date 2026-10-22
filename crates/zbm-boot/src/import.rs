@@ -495,10 +495,12 @@ mod tests {
     use std::cell::Cell;
     use std::path::{Path, PathBuf};
 
+    use serde::{Deserialize, Serialize};
     use zbm_core::exec::{Output, Status, SystemRunner};
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
+    use zbm_testkit::parity::Parity;
+    use zbm_testkit::{TempDir, parity};
 
     use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
     use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
@@ -602,19 +604,23 @@ mod tests {
         assert_eq!(scrape_hostid("hostid=x hostid=A1"), Some("A1"));
         assert_eq!(scrape_hostid("hostid="), None);
         assert_eq!(scrape_hostid("myhostid=0b"), Some("0b"));
+        let mut parity = parity!("host_ids_are_scraped_as_the_legacy_pattern_matches");
         for text in [
             "hostid=12345678",
             "(hostid=a) x",
             "hostid=hostid=7",
             "hostid=g1",
         ] {
-            let legacy = Bash::new()
-                .code(concat!(
-                    r#"m() { [[ $1 =~ hostid=([A-Fa-f0-9]{1,8}) ]] "#,
-                    r#"&& echo "${BASH_REMATCH[1]}"; }"#
-                ))
-                .call("m", &[text], b"");
-            let expected = command_substitution(&legacy.stdout_text()).to_owned();
+            let legacy: String = parity.legacy(text, || {
+                Bash::new()
+                    .code(concat!(
+                        r#"m() { [[ $1 =~ hostid=([A-Fa-f0-9]{1,8}) ]] "#,
+                        r#"&& echo "${BASH_REMATCH[1]}"; }"#
+                    ))
+                    .call("m", &[text], b"")
+                    .stdout_text()
+            });
+            let expected = command_substitution(&legacy).to_owned();
             assert_eq!(scrape_hostid(text).unwrap_or_default(), expected, "{text}");
         }
     }
@@ -726,7 +732,7 @@ exit 0
 "#;
 
     /// A machine for the import stage, and what the user does.
-    #[derive(Clone, Default)]
+    #[derive(Clone, Debug, Default)]
     struct Scenario {
         /// Pools and their `key=value` lines.
         pools: Vec<(&'static str, &'static str)>,
@@ -744,7 +750,7 @@ exit 0
     }
 
     /// What a run of the stage left behind.
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, Deserialize, PartialEq, Eq, Serialize)]
     struct Outcome {
         log: String,
         calls: String,
@@ -793,7 +799,7 @@ exit 0
         }
 
         /// Runs `init.d/50-import-pools` with the legacy functions.
-        fn legacy(&self) -> Outcome {
+        fn run_legacy(&self) -> Outcome {
             let dir = self.machine();
             let z = dir.path().to_string_lossy().into_owned();
             let core =
@@ -948,8 +954,8 @@ exit 0
             Scenario::outcome(&dir, log, bootfs, prompts.get())
         }
 
-        fn check(&self) -> Outcome {
-            let legacy = self.legacy();
+        fn check(&self, parity: &mut Parity) -> Outcome {
+            let legacy: Outcome = parity.legacy(format!("{self:?}"), || self.run_legacy());
             let rust = self.rust();
             assert_eq!(rust, legacy);
             rust
@@ -992,6 +998,7 @@ exit 0
 
     #[test]
     fn imports_every_pool_and_finds_bootfs() {
+        let mut parity = parity!("imports_every_pool_and_finds_bootfs");
         let outcome = Scenario {
             pools: vec![
                 ("boot", "id=1\nbootfs=-"),
@@ -1000,7 +1007,7 @@ exit 0
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "boot\ntank\n");
         assert_eq!(outcome.bootfs, "tank/ROOT/void");
         assert_eq!(outcome.bootfs_file.as_deref(), Some("tank/ROOT/void\n"));
@@ -1009,13 +1016,14 @@ exit 0
 
     #[test]
     fn matches_the_host_id_of_a_foreign_pool() {
+        let mut parity = parity!("matches_the_host_id_of_a_foreign_pool");
         let outcome = Scenario {
             pools: vec![("tank", "id=7\nhostid=deadbeef\nbootfs=tank/ROOT/a")],
             hostid: Some([0x0c, 0xb1, 0xba, 0x00]),
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "tank\n");
         assert_eq!(outcome.spl_hostid_file.as_deref(), Some("deadbeef"));
         assert_eq!(outcome.etc_hostid, Some(vec![0xef, 0xbe, 0xad, 0xde]));
@@ -1038,7 +1046,7 @@ exit 0
             settings,
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "tank\nother\n");
         assert!(!outcome.log.contains("WARN:"));
 
@@ -1055,7 +1063,7 @@ exit 0
             settings,
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "tank\n");
     }
 
@@ -1127,6 +1135,7 @@ exit 0
 
     #[test]
     fn host_id_cases() {
+        let mut parity = parity!("host_id_cases");
         // Two pools of different foreign hosts: the first match decides the host
         // ID, and only pools of that host follow.
         let outcome = Scenario {
@@ -1139,7 +1148,7 @@ exit 0
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "alpha\ngamma\n");
         assert_eq!(outcome.spl_hostid_file.as_deref(), Some("0000abcd"));
 
@@ -1150,7 +1159,7 @@ exit 0
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.spl_hostid_file, None);
 
         // Without /etc/hostid, a pool with a host ID is matched too.
@@ -1159,12 +1168,13 @@ exit 0
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.etc_hostid, Some(vec![0x0c, 0xb1, 0xba, 0x00]));
     }
 
     #[test]
     fn a_required_pool_that_never_appears() {
+        let mut parity = parity!("a_required_pool_that_never_appears");
         for policy in ["strict", "hostid"] {
             let mut settings = hostid_settings();
             settings.import_policy = policy.to_owned();
@@ -1177,7 +1187,7 @@ exit 0
                 on_shell: "printf 'id=9\\n' > pools/missing\n",
                 ..Scenario::default()
             }
-            .check();
+            .check(&mut parity);
             assert_eq!(outcome.prompts, 2, "{policy}");
             assert_eq!(outcome.imported, "missing\n", "{policy}");
         }
@@ -1185,6 +1195,7 @@ exit 0
 
     #[test]
     fn strict_and_forced_policies() {
+        let mut parity = parity!("strict_and_forced_policies");
         let mut settings = hostid_settings();
         settings.import_policy = "force".to_owned();
         let outcome = Scenario {
@@ -1192,7 +1203,7 @@ exit 0
             settings,
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "tank\n");
         assert_eq!(outcome.spl_hostid_file, None);
 
@@ -1208,7 +1219,7 @@ exit 0
             on_shell: "sed -i '/^hostid=/d' pools/tank\n",
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.prompts, 2);
         assert_eq!(outcome.shells, "unable to successfully import a pool\n");
         assert_eq!(outcome.imported, "tank\n");
@@ -1216,12 +1227,13 @@ exit 0
 
     #[test]
     fn retries_until_late_pools_appear() {
+        let mut parity = parity!("retries_until_late_pools_appear");
         let outcome = Scenario {
             pools: vec![("late", "id=9\nappear=3\nbootfs=late/ROOT/x")],
             settings: hostid_settings(),
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert_eq!(outcome.imported, "late\n");
         assert!(outcome.prompts >= 1);
         assert_eq!(outcome.bootfs, "late/ROOT/x");
@@ -1229,6 +1241,7 @@ exit 0
 
     #[test]
     fn preferred_and_required_pools() {
+        let mut parity = parity!("preferred_and_required_pools");
         for require in ["", "yes", "only"] {
             let mut settings = hostid_settings();
             settings.prefer_pool = "tank".to_owned();
@@ -1242,7 +1255,7 @@ exit 0
                 settings,
                 ..Scenario::default()
             }
-            .check();
+            .check(&mut parity);
         }
         // A missing preferred pool that is not required.
         let mut settings = hostid_settings();
@@ -1252,11 +1265,12 @@ exit 0
             settings,
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
     }
 
     #[test]
     fn restricts_unhealthy_and_unsupported_pools() {
+        let mut parity = parity!("restricts_unhealthy_and_unsupported_pools");
         for release_build in [false, true] {
             let mut settings = hostid_settings();
             settings.release_build = release_build;
@@ -1269,7 +1283,7 @@ exit 0
                 settings,
                 ..Scenario::default()
             }
-            .check();
+            .check(&mut parity);
             assert_eq!(outcome.degraded.as_deref(), Some("data\ntank\ndata2\n"));
             assert_eq!(outcome.prompts, 1);
         }
@@ -1277,6 +1291,7 @@ exit 0
 
     #[test]
     fn unavailable_pools_are_logged_before_the_recovery_shell() {
+        let mut parity = parity!("unavailable_pools_are_logged_before_the_recovery_shell");
         let outcome = Scenario {
             pools: vec![("broken", "id=42\nstate=UNAVAIL")],
             settings: hostid_settings(),
@@ -1284,7 +1299,7 @@ exit 0
             on_shell: "printf 'id=43\\nbootfs=-\\n' > pools/fixed\n",
             ..Scenario::default()
         }
-        .check();
+        .check(&mut parity);
         assert!(outcome.log.contains(
             "ERROR: cannot import 'broken': one or more devices is currently unavailable"
         ));
@@ -1294,6 +1309,7 @@ exit 0
 
     #[test]
     fn a_preferred_boot_environment_must_be_a_filesystem() {
+        let mut parity = parity!("a_preferred_boot_environment_must_be_a_filesystem");
         for (datasets, prefer) in [("tank/ROOT/a", "tank/ROOT/a"), ("", "tank/ROOT/none")] {
             let mut settings = hostid_settings();
             settings.prefer_pool = "tank".to_owned();
@@ -1304,7 +1320,7 @@ exit 0
                 settings,
                 ..Scenario::default()
             }
-            .check();
+            .check(&mut parity);
         }
     }
 }

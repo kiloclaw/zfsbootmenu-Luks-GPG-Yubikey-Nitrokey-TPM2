@@ -131,7 +131,7 @@ pub fn read_logs(
 mod tests {
     use super::*;
     use zbm_testkit::legacy::{Bash, LOG_STUBS};
-    use zbm_testkit::{FakeRunner, TempDir};
+    use zbm_testkit::{FakeRunner, TempDir, parity};
 
     #[test]
     fn filtered_command_splits_the_time() {
@@ -255,6 +255,7 @@ mod tests {
             ("debug,", "", None),
             ("unknown", "", None),
         ];
+        let mut parity = parity!("read_logs_matches_print_kmsg_logs");
         for (levels, since, filtered) in cases {
             let runner = FakeRunner::new();
             let since_arg = (!since.is_empty()).then_some(since);
@@ -265,7 +266,8 @@ mod tests {
             }
             runner.respond("dmesg -r", 0, raw);
             let rust = read_logs(&runner, levels, since_arg).unwrap();
-            let legacy = legacy_read(levels, since, filtered, raw);
+            let input = format!("levels {levels:?}, since {since:?}, filtered {filtered:?}");
+            let legacy: String = parity.legacy(input, || legacy_read(levels, since, filtered, raw));
             assert_eq!(rust, legacy, "levels {levels:?}, since {since:?}");
         }
     }

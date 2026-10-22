@@ -1,0 +1,165 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "",
+      "result": [
+        [
+          [
+            "early-setup.d/10-a",
+            493
+          ],
+          [
+            "early-setup.d/20-b.sh",
+            493
+          ],
+          [
+            "other/10-a",
+            493
+          ],
+          [
+            "setup.d/.10-a",
+            493
+          ],
+          [
+            "setup.d/10-a",
+            493
+          ],
+          [
+            "teardown.d/30-c",
+            493
+          ]
+        ],
+        ""
+      ]
+    },
+    {
+      "input": "10-a",
+      "result": [
+        [
+          [
+            "early-setup.d/10-a",
+            0
+          ],
+          [
+            "early-setup.d/20-b.sh",
+            493
+          ],
+          [
+            "other/10-a",
+            493
+          ],
+          [
+            "setup.d/.10-a",
+            493
+          ],
+          [
+            "setup.d/10-a",
+            0
+          ],
+          [
+            "teardown.d/30-c",
+            493
+          ]
+        ],
+        "DEBUG: processing hook skip directives: 10-a\nINFO: Disabling hook: $DIR/early-setup.d/10-a\nINFO: Disabling hook: $DIR/setup.d/10-a\n"
+      ]
+    },
+    {
+      "input": "10-a,,20-b.sh",
+      "result": [
+        [
+          [
+            "early-setup.d/10-a",
+            0
+          ],
+          [
+            "early-setup.d/20-b.sh",
+            0
+          ],
+          [
+            "other/10-a",
+            493
+          ],
+          [
+            "setup.d/.10-a",
+            493
+          ],
+          [
+            "setup.d/10-a",
+            0
+          ],
+          [
+            "teardown.d/30-c",
+            493
+          ]
+        ],
+        "DEBUG: processing hook skip directives: 10-a,,20-b.sh\nINFO: Disabling hook: $DIR/early-setup.d/10-a\nINFO: Disabling hook: $DIR/setup.d/10-a\nINFO: Disabling hook: $DIR/early-setup.d/20-b.sh\n"
+      ]
+    },
+    {
+      "input": ",missing,30-c",
+      "result": [
+        [
+          [
+            "early-setup.d/10-a",
+            493
+          ],
+          [
+            "early-setup.d/20-b.sh",
+            493
+          ],
+          [
+            "other/10-a",
+            493
+          ],
+          [
+            "setup.d/.10-a",
+            493
+          ],
+          [
+            "setup.d/10-a",
+            493
+          ],
+          [
+            "teardown.d/30-c",
+            0
+          ]
+        ],
+        "DEBUG: processing hook skip directives: ,missing,30-c\nINFO: Disabling hook: $DIR/teardown.d/30-c\n"
+      ]
+    },
+    {
+      "input": "early-setup.d",
+      "result": [
+        [
+          [
+            "early-setup.d/10-a",
+            493
+          ],
+          [
+            "early-setup.d/20-b.sh",
+            493
+          ],
+          [
+            "other/10-a",
+            493
+          ],
+          [
+            "setup.d/.10-a",
+            493
+          ],
+          [
+            "setup.d/10-a",
+            493
+          ],
+          [
+            "teardown.d/30-c",
+            493
+          ]
+        ],
+        "DEBUG: processing hook skip directives: early-setup.d\n"
+      ]
+    }
+  ]
+}

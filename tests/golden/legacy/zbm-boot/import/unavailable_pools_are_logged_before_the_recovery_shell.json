@@ -1,0 +1,20 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"broken\", \"id=42\\nstate=UNAVAIL\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [true], on_shell: \"printf 'id=43\\\\nbootfs=-\\\\n' > pools/fixed\\n\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import\nzpool import\nzpool import -N 42\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "fixed\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'broken': one or more devices is currently unavailable\nDEBUG: importable pools: \nINFO: unable to import a pool on attempt 1\nERROR: cannot import 'broken': one or more devices is currently unavailable\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'broken': one or more devices is currently unavailable\nDEBUG: \n",
+        "prompts": 1,
+        "shells": "unable to successfully import a pool\n",
+        "spl_hostid_file": null
+      }
+    }
+  ]
+}

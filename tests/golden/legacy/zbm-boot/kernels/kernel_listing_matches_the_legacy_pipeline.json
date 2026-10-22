@@ -1,0 +1,235 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "[\"linux-x-2\", \"linuz.old\"], dangling link false",
+      "result": [
+        "$DIR/boot/linux-x-2"
+      ]
+    },
+    {
+      "input": "[\"kernel-6.10\", \"vmlinuz-x-2\", \"vmlinux\"], dangling link true",
+      "result": [
+        "$DIR/boot/kernel-6.10",
+        "$DIR/boot/vmlinux",
+        "$DIR/boot/vmlinuz-x-2"
+      ]
+    },
+    {
+      "input": "[\"linuz-0\", \"vmlinux-6.1~rc1\", \"linuz-6.9.1\", \"vmlinuz-lts\", \"linuz-6.1~rc1\", \"vmlinuz-6.1~rc1\", \"linuz\"], dangling link false",
+      "result": [
+        "$DIR/boot/linuz",
+        "$DIR/boot/linuz-0",
+        "$DIR/boot/linuz-6.1~rc1",
+        "$DIR/boot/linuz-6.9.1",
+        "$DIR/boot/vmlinux-6.1~rc1",
+        "$DIR/boot/vmlinuz-6.1~rc1",
+        "$DIR/boot/vmlinuz-lts"
+      ]
+    },
+    {
+      "input": "[\"linuz-6.1~rc1\"], dangling link true",
+      "result": [
+        "$DIR/boot/linuz-6.1~rc1"
+      ]
+    },
+    {
+      "input": "[\"kernel-6.9.1\", \"linuz-6.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.9.1",
+        "$DIR/boot/linuz-6.1"
+      ]
+    },
+    {
+      "input": "[\"vmlinux\"], dangling link false",
+      "result": [
+        "$DIR/boot/vmlinux"
+      ]
+    },
+    {
+      "input": "[\"vmlinuz-lts\", \"vmlinuz.old\", \"linux-6.9.1\", \"kernel-x-2\", \"kernel-6.1\", \"vmlinux-6.9.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.1",
+        "$DIR/boot/kernel-x-2",
+        "$DIR/boot/linux-6.9.1",
+        "$DIR/boot/vmlinux-6.9.1",
+        "$DIR/boot/vmlinuz-lts"
+      ]
+    },
+    {
+      "input": "[\"linuz-lts\", \"vmlinuz-0\", \"vmlinux-6.1\", \"kernel.old\", \"vmlinux-6.1\", \"linuz\", \"linuz-6.9.1\"], dangling link true",
+      "result": [
+        "$DIR/boot/linuz",
+        "$DIR/boot/linuz-6.9.1",
+        "$DIR/boot/linuz-lts",
+        "$DIR/boot/vmlinux-6.1",
+        "$DIR/boot/vmlinuz-0"
+      ]
+    },
+    {
+      "input": "[\"kernel-x-2\", \"linux-6.9.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-x-2",
+        "$DIR/boot/linux-6.9.1"
+      ]
+    },
+    {
+      "input": "[\"kernel-6.1\", \"vmlinux-x-2\", \"linux.old\", \"linux-x-2\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.1",
+        "$DIR/boot/linux-x-2",
+        "$DIR/boot/vmlinux-x-2"
+      ]
+    },
+    {
+      "input": "[\"vmlinuz-x-2\", \"kernel-6.9.1\", \"kernel-x-2\", \"kernel-6.10\", \"vmlinuz-6.1~rc1\", \"vmlinux\", \"vmlinuz-lts\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.9.1",
+        "$DIR/boot/kernel-6.10",
+        "$DIR/boot/kernel-x-2",
+        "$DIR/boot/vmlinux",
+        "$DIR/boot/vmlinuz-6.1~rc1",
+        "$DIR/boot/vmlinuz-lts",
+        "$DIR/boot/vmlinuz-x-2"
+      ]
+    },
+    {
+      "input": "[\"linux-6.1\", \"kernel-x-2\", \"linux-0\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-x-2",
+        "$DIR/boot/linux-0",
+        "$DIR/boot/linux-6.1"
+      ]
+    },
+    {
+      "input": "[\"kernel-lts\", \"linuz-0\", \"vmlinux-x-2\", \"linuz-6.9.1\", \"vmlinuz-x-2\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-lts",
+        "$DIR/boot/linuz-0",
+        "$DIR/boot/linuz-6.9.1",
+        "$DIR/boot/vmlinux-x-2",
+        "$DIR/boot/vmlinuz-x-2"
+      ]
+    },
+    {
+      "input": "[\"kernel-6.9.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.9.1"
+      ]
+    },
+    {
+      "input": "[\"kernel.old\", \"kernel-0\", \"vmlinuz-6.1~rc1\"], dangling link true",
+      "result": [
+        "$DIR/boot/kernel-0",
+        "$DIR/boot/vmlinuz-6.1~rc1"
+      ]
+    },
+    {
+      "input": "[\"linuz-6.9.1\", \"vmlinux-0\", \"linux.old\", \"linux\", \"linuz-6.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/linux",
+        "$DIR/boot/linuz-6.1",
+        "$DIR/boot/linuz-6.9.1",
+        "$DIR/boot/vmlinux-0"
+      ]
+    },
+    {
+      "input": "[\"vmlinuz-6.9.1\", \"vmlinux-6.9.1\", \"linux.old\", \"vmlinux-0\", \"linux.old\", \"kernel.old\", \"vmlinuz-6.1~rc1\"], dangling link true",
+      "result": [
+        "$DIR/boot/vmlinux-0",
+        "$DIR/boot/vmlinux-6.9.1",
+        "$DIR/boot/vmlinuz-6.1~rc1",
+        "$DIR/boot/vmlinuz-6.9.1"
+      ]
+    },
+    {
+      "input": "[\"kernel-x-2\", \"vmlinuz\", \"linuz-x-2\", \"vmlinux-lts\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-x-2",
+        "$DIR/boot/linuz-x-2",
+        "$DIR/boot/vmlinux-lts",
+        "$DIR/boot/vmlinuz"
+      ]
+    },
+    {
+      "input": "[\"kernel-6.1~rc1\", \"kernel-lts\", \"linux-6.9.1\", \"kernel-6.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.1~rc1",
+        "$DIR/boot/kernel-6.1",
+        "$DIR/boot/kernel-lts",
+        "$DIR/boot/linux-6.9.1"
+      ]
+    },
+    {
+      "input": "[\"linux-6.1\", \"linux-0\"], dangling link false",
+      "result": [
+        "$DIR/boot/linux-0",
+        "$DIR/boot/linux-6.1"
+      ]
+    },
+    {
+      "input": "[], dangling link false",
+      "result": []
+    },
+    {
+      "input": "[], dangling link false",
+      "result": []
+    },
+    {
+      "input": "[\"vmlinuz\"], dangling link false",
+      "result": [
+        "$DIR/boot/vmlinuz"
+      ]
+    },
+    {
+      "input": "[], dangling link true",
+      "result": []
+    },
+    {
+      "input": "[\"kernel\", \"vmlinux-6.10\", \"vmlinux-6.9.1\", \"kernel-0\", \"linux-x-2\", \"kernel-6.10\", \"kernel-lts\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel",
+        "$DIR/boot/kernel-0",
+        "$DIR/boot/kernel-6.10",
+        "$DIR/boot/kernel-lts",
+        "$DIR/boot/linux-x-2",
+        "$DIR/boot/vmlinux-6.9.1",
+        "$DIR/boot/vmlinux-6.10"
+      ]
+    },
+    {
+      "input": "[\"kernel-x-2\", \"kernel-6.1\", \"kernel-6.1\", \"kernel-6.9.1\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.1",
+        "$DIR/boot/kernel-6.9.1",
+        "$DIR/boot/kernel-x-2"
+      ]
+    },
+    {
+      "input": "[\"vmlinuz-6.9.1\", \"kernel-6.1~rc1\", \"kernel\"], dangling link true",
+      "result": [
+        "$DIR/boot/kernel",
+        "$DIR/boot/kernel-6.1~rc1",
+        "$DIR/boot/vmlinuz-6.9.1"
+      ]
+    },
+    {
+      "input": "[\"linux.old\", \"vmlinux-6.1\", \"kernel-6.10\"], dangling link false",
+      "result": [
+        "$DIR/boot/kernel-6.10",
+        "$DIR/boot/vmlinux-6.1"
+      ]
+    },
+    {
+      "input": "[], dangling link false",
+      "result": []
+    },
+    {
+      "input": "[\"vmlinuz-x-2\", \"linuz-lts\"], dangling link false",
+      "result": [
+        "$DIR/boot/linuz-lts",
+        "$DIR/boot/vmlinuz-x-2"
+      ]
+    }
+  ]
+}

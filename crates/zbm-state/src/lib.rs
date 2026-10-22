@@ -352,7 +352,7 @@ mod tests {
     use std::io;
     use zbm_testkit::fakes::{FakeFiles, FileOperation};
     use zbm_testkit::legacy::{Bash, LOG_STUBS};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn path(text: &str) -> PathBuf {
         PathBuf::from(text)
@@ -564,11 +564,11 @@ mod tests {
 
     #[test]
     fn kcl_cache_names_match_the_legacy_function() {
-        let dir = TempDir::new("zbm-state");
-        let base = dir.path().to_string_lossy().into_owned();
+        // Neither implementation touches files here, so the base needs not exist.
+        let base = "/zfsbootmenu";
         let files = FakeFiles::new();
-        let state = State::new(&files, base.as_str());
-        let bash = legacy_core().env("BASE", &base);
+        let state = State::new(&files, base);
+        let mut parity = parity!("kcl_cache_names_match_the_legacy_function");
         let mut rng = Rng::from_env(4);
         let alphabet = ['a', 'b', '/', ':', '.', '-', '1'];
         let mut kernels = vec![
@@ -580,39 +580,38 @@ mod tests {
         for _ in 0..40 {
             kernels.push(format!("/{}", rng.string(&alphabet, 12)));
         }
+        kernels.push(String::new());
         for kernel in &kernels {
-            let output = bash.call("kernel_kcl_cache", &["tank/ROOT/void", kernel], b"");
+            let (success, stdout): (bool, String) = parity.legacy(format!("{kernel:?}"), || {
+                let output = legacy_core().env("BASE", base).call(
+                    "kernel_kcl_cache",
+                    &["tank/ROOT/void", kernel],
+                    b"",
+                );
+                (output.status.success(), output.stdout_text())
+            });
             let expected = state
                 .kcl_cache("tank/ROOT/void", kernel)
                 .map(|path| format!("{}\n", path.display()));
-            assert_eq!(
-                output.status.success(),
-                expected.is_some(),
-                "status for {kernel:?}"
-            );
-            assert_eq!(Some(output.stdout_text()), expected, "kernel {kernel:?}");
+            assert_eq!(success, expected.is_some(), "status for {kernel:?}");
+            if success {
+                assert_eq!(Some(stdout), expected, "kernel {kernel:?}");
+            }
         }
-        let output = bash.call("kernel_kcl_cache", &["tank/ROOT/void", ""], b"");
-        assert!(!output.status.success());
         assert_eq!(state.kcl_cache("tank/ROOT/void", ""), None);
     }
 
     #[test]
     fn degraded_checks_match_the_legacy_function() {
-        let dir = TempDir::new("zbm-state");
-        let base = dir.path().to_string_lossy().into_owned();
+        let base = "/zfsbootmenu";
         let files = FakeFiles::new();
-        let state = State::new(&files, base.as_str());
-        files.dir(&base);
+        let state = State::new(&files, base);
+        files.dir(base);
         let recorded = ["data2", "a.b", "rpool", "tank-1"];
         for pool in recorded {
             state.add_degraded(pool).unwrap();
         }
-        dir.write(
-            "degraded",
-            files.contents(state.base().join("degraded")).unwrap(),
-        );
-        let bash = legacy_core().env("BASE", &base);
+        let degraded = files.contents(state.base().join("degraded")).unwrap();
         let mut pools = vec![
             "data", "data2", "ata2", "a.b", "axb", "rpool", "pool", "tank", "",
         ];
@@ -621,8 +620,18 @@ mod tests {
             .map(|_| rng.string(&['a', 'b', '.', '2', 'd', 't'], 6))
             .collect();
         pools.extend(generated.iter().map(String::as_str));
-        for pool in pools {
-            let legacy = bash.call("is_degraded", &[pool], b"").status.success();
+        let mut parity = parity!("degraded_checks_match_the_legacy_function");
+        let input = format!("degraded {degraded:?}, pools {pools:?}");
+        let legacy: Vec<bool> = parity.legacy(input, || {
+            let dir = TempDir::new("zbm-state");
+            dir.write("degraded", &degraded);
+            let bash = legacy_core().env("BASE", &dir.path().to_string_lossy());
+            pools
+                .iter()
+                .map(|pool| bash.call("is_degraded", &[pool], b"").status.success())
+                .collect()
+        });
+        for (pool, legacy) in pools.iter().zip(legacy) {
             assert_eq!(state.is_degraded(pool), legacy, "pool {pool:?}");
         }
     }

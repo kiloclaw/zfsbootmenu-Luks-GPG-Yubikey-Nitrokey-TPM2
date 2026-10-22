@@ -1,0 +1,49 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "degraded [100, 97, 116, 97, 50, 10, 97, 46, 98, 10, 114, 112, 111, 111, 108, 10, 116, 97, 110, 107, 45, 49, 10], pools [\"data\", \"data2\", \"ata2\", \"a.b\", \"axb\", \"rpool\", \"pool\", \"tank\", \"\", \".\", \"2dt2a2\", \"\", \"dbt.\", \"b\", \"\", \"b2ta\", \"td.t.b\", \"b2t\", \"d.a2\", \"bdat\", \"b\", \"\", \"..abt2\", \"a2..\", \"\", \"t\", \"\", \"tdaad\", \".b\", \"at2\", \"22at\", \"aa..\", \"td\", \"ba\", \"ababb.\", \"2.t\", \"2.abat\", \"\", \"d2\"]",
+      "result": [
+        false,
+        true,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ]
+}

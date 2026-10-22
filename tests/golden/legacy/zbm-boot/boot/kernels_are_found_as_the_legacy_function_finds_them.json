@@ -1,0 +1,71 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Machine { answers: [(0, \"zfs get -H -o value org.zfsbootmenu:kernel *\", \"-\\\\n\")], files: [(\"boot/vmlinuz-6.1.10\", \"\"), (\"boot/initramfs-6.1.10.img\", \"\"), (\"boot/vmlinuz-6.1.9\", \"\"), (\"boot/initrd.img-6.1.9\", \"\"), (\"boot/vmlinuz-6.1.9.kcl\", \"quiet\\n\"), (\"boot/vmlinuz-5.0\", \"\"), (\"boot/vmlinuz-5.0.kcl\", \"single\\n\"), (\"boot/config-6.1.9\", \"\")], hooks: false }",
+      "result": {
+        "calls": "zpool list -H -o feature@encryption tank\nzfs get -H -o value mountpoint tank/ROOT/void\nmount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\numount $Z/base/environments/tank/ROOT/void/mnt\nzfs get -H -o value org.zfsbootmenu:kernel tank/ROOT/void\nzfs get -H -o value org.zfsbootmenu:kernel tank/ROOT/void\n",
+        "kcl": [
+          [
+            "boot:vmlinuz-5.0.kcl",
+            "single\n"
+          ],
+          [
+            "boot:vmlinuz-6.1.9.kcl",
+            "quiet\n"
+          ]
+        ],
+        "kernels": "tank/ROOT/void\t/boot/vmlinuz-6.1.9\t/boot/initrd.img-6.1.9\ntank/ROOT/void\t/boot/vmlinuz-6.1.10\t/boot/initramfs-6.1.10.img\n",
+        "log": "DEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: feature@encryption not active on tank\nDEBUG: fs set to tank/ROOT/void\nDEBUG: mounting tank/ROOT/void at $Z/base/environments/tank/ROOT/void/mnt (ro) with zfsutil\nDEBUG: mount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\nDEBUG: mount return code: 0\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-5.0'\nDEBUG: kernel version: '-5.0'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0 has no initramfs\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0.kcl', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-5.0.kcl'\nDEBUG: kernel version: '-5.0.kcl'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0.kcl has no initramfs\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.9'\nDEBUG: kernel version: '-6.1.9'\nDEBUG: short-matching 'initrd.img-6.1.9' to 'vmlinuz-6.1.9'\nDEBUG: found kernel: $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9, initramfs $Z/base/environments/tank/ROOT/void/mnt$Z/base/environments/tank/ROOT/void/mnt/boot/initrd.img-6.1.9\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9.kcl', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.9.kcl'\nDEBUG: kernel version: '-6.1.9.kcl'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9.kcl has no initramfs\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.10', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.10'\nDEBUG: kernel version: '-6.1.10'\nDEBUG: short-matching 'initramfs-6.1.10.img' to 'vmlinuz-6.1.10'\nDEBUG: found kernel: $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.10, initramfs $Z/base/environments/tank/ROOT/void/mnt$Z/base/environments/tank/ROOT/void/mnt/boot/initramfs-6.1.10.img\nDEBUG: zfsbe set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: using kexec args: tank/ROOT/void\t/boot/vmlinuz-6.1.10\t/boot/initramfs-6.1.10.img\nDEBUG: zfsbe set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: using kexec args: tank/ROOT/void\t/boot/vmlinuz-6.1.10\t/boot/initramfs-6.1.10.img\n",
+        "prompts": 0,
+        "result": "tank/ROOT/void\t/boot/vmlinuz-6.1.10\t/boot/initramfs-6.1.10.img\n",
+        "shells": ""
+      }
+    },
+    {
+      "input": "Machine { answers: [(0, \"zfs get -H -o value org.zfsbootmenu:kernel *\", \"6\\\\.1\\\\.9\\\\n\")], files: [(\"boot/vmlinuz-6.1.10\", \"\"), (\"boot/initramfs-6.1.10.img\", \"\"), (\"boot/vmlinuz-6.1.9\", \"\"), (\"boot/initrd.img-6.1.9\", \"\"), (\"boot/vmlinuz-6.1.9.kcl\", \"quiet\\n\"), (\"boot/vmlinuz-5.0\", \"\"), (\"boot/vmlinuz-5.0.kcl\", \"single\\n\"), (\"boot/config-6.1.9\", \"\")], hooks: false }",
+      "result": {
+        "calls": "zpool list -H -o feature@encryption tank\nzfs get -H -o value mountpoint tank/ROOT/void\nmount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\numount $Z/base/environments/tank/ROOT/void/mnt\nzfs get -H -o value org.zfsbootmenu:kernel tank/ROOT/void\nzfs get -H -o value org.zfsbootmenu:kernel tank/ROOT/void\n",
+        "kcl": [
+          [
+            "boot:vmlinuz-5.0.kcl",
+            "single\n"
+          ],
+          [
+            "boot:vmlinuz-6.1.9.kcl",
+            "quiet\n"
+          ]
+        ],
+        "kernels": "tank/ROOT/void\t/boot/vmlinuz-6.1.9\t/boot/initrd.img-6.1.9\ntank/ROOT/void\t/boot/vmlinuz-6.1.10\t/boot/initramfs-6.1.10.img\n",
+        "log": "DEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: feature@encryption not active on tank\nDEBUG: fs set to tank/ROOT/void\nDEBUG: mounting tank/ROOT/void at $Z/base/environments/tank/ROOT/void/mnt (ro) with zfsutil\nDEBUG: mount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\nDEBUG: mount return code: 0\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-5.0'\nDEBUG: kernel version: '-5.0'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0 has no initramfs\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0.kcl', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-5.0.kcl'\nDEBUG: kernel version: '-5.0.kcl'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-5.0.kcl has no initramfs\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.9'\nDEBUG: kernel version: '-6.1.9'\nDEBUG: short-matching 'initrd.img-6.1.9' to 'vmlinuz-6.1.9'\nDEBUG: found kernel: $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9, initramfs $Z/base/environments/tank/ROOT/void/mnt$Z/base/environments/tank/ROOT/void/mnt/boot/initrd.img-6.1.9\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9.kcl', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.9.kcl'\nDEBUG: kernel version: '-6.1.9.kcl'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.9.kcl has no initramfs\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.10', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-6.1.10'\nDEBUG: kernel version: '-6.1.10'\nDEBUG: short-matching 'initramfs-6.1.10.img' to 'vmlinuz-6.1.10'\nDEBUG: found kernel: $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-6.1.10, initramfs $Z/base/environments/tank/ROOT/void/mnt$Z/base/environments/tank/ROOT/void/mnt/boot/initramfs-6.1.10.img\nDEBUG: zfsbe set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: org.zfsbootmenu:kernel set to 6\\.1\\.9\nDEBUG: matched /boot/vmlinuz-6.1.9 to 6\\.1\\.9\nDEBUG: using kexec args: tank/ROOT/void\t/boot/vmlinuz-6.1.9\t/boot/initrd.img-6.1.9\nDEBUG: zfsbe set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: org.zfsbootmenu:kernel set to 6\\.1\\.9\nDEBUG: matched /boot/vmlinuz-6.1.9 to 6\\.1\\.9\nDEBUG: using kexec args: tank/ROOT/void\t/boot/vmlinuz-6.1.9\t/boot/initrd.img-6.1.9\n",
+        "prompts": 0,
+        "result": "tank/ROOT/void\t/boot/vmlinuz-6.1.9\t/boot/initrd.img-6.1.9\n",
+        "shells": ""
+      }
+    },
+    {
+      "input": "Machine { answers: [(0, \"zfs get -H -o value org.zfsbootmenu:kernel *\", \"-\\\\n\")], files: [(\"boot/vmlinuz-1\", \"\")], hooks: false }",
+      "result": {
+        "calls": "zpool list -H -o feature@encryption tank\nzfs get -H -o value mountpoint tank/ROOT/void\nmount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\numount $Z/base/environments/tank/ROOT/void/mnt\n",
+        "kcl": [],
+        "kernels": null,
+        "log": "DEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: feature@encryption not active on tank\nDEBUG: fs set to tank/ROOT/void\nDEBUG: mounting tank/ROOT/void at $Z/base/environments/tank/ROOT/void/mnt (ro) with zfsutil\nDEBUG: mount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\nDEBUG: mount return code: 0\nDEBUG: fs set to tank/ROOT/void\nDEBUG: kernel path: '$Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-1', directory: '$Z/base/environments/tank/ROOT/void/mnt/boot', file: 'vmlinuz-1'\nDEBUG: kernel version: '-1'\nDEBUG: kernel $Z/base/environments/tank/ROOT/void/mnt/boot/vmlinuz-1 has no initramfs\nERROR: failed to find kernels on tank/ROOT/void\n",
+        "prompts": 0,
+        "result": "",
+        "shells": ""
+      }
+    },
+    {
+      "input": "Machine { answers: [(0, \"zfs get -H -o value org.zfsbootmenu:kernel *\", \"-\\\\n\"), (32, \"mount *\", \"mount failed\\\\n\")], files: [(\"boot/vmlinuz-6.1.10\", \"\"), (\"boot/initramfs-6.1.10.img\", \"\"), (\"boot/vmlinuz-6.1.9\", \"\"), (\"boot/initrd.img-6.1.9\", \"\"), (\"boot/vmlinuz-6.1.9.kcl\", \"quiet\\n\"), (\"boot/vmlinuz-5.0\", \"\"), (\"boot/vmlinuz-5.0.kcl\", \"single\\n\"), (\"boot/config-6.1.9\", \"\")], hooks: false }",
+      "result": {
+        "calls": "zpool list -H -o feature@encryption tank\nzfs get -H -o value mountpoint tank/ROOT/void\nmount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\n",
+        "kcl": [],
+        "kernels": null,
+        "log": "DEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: fs set to tank/ROOT/void\nDEBUG: feature@encryption not active on tank\nDEBUG: fs set to tank/ROOT/void\nDEBUG: mounting tank/ROOT/void at $Z/base/environments/tank/ROOT/void/mnt (ro) with zfsutil\nDEBUG: mount -o zfsutil,ro -t zfs tank/ROOT/void $Z/base/environments/tank/ROOT/void/mnt\nDEBUG: mount return code: 32\nERROR: unable to mount tank/ROOT/void\n",
+        "prompts": 0,
+        "result": "",
+        "shells": ""
+      }
+    }
+  ]
+}

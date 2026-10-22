@@ -1,0 +1,65 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs tank\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "tank\nboot\n",
+        "log": "DEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': no such pool available\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: unable to scrape hostid for tank, skipping\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"yes\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs tank\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "tank\nboot\n",
+        "log": "DEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': no such pool available\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: unable to scrape hostid for tank, skipping\nINFO: unable to import a pool on attempt 1\nDEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': no such pool available\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 1,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\"), (\"tank\", \"id=2\\nappear=2\\nbootfs=-\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"2\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs tank\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': no such pool available\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: unable to scrape hostid for tank, skipping\nINFO: unable to import a pool on attempt 1\nDEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': no such pool available\nDEBUG: only importing tank\nDEBUG: \n",
+        "prompts": 1,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"boot\", \"id=1\\nbootfs=boot/ROOT/b\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"missing\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on missing\nzpool list -H -o name\nzpool import -o readonly=on -N missing\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs missing\n",
+        "degraded": null,
+        "etc_hostid": null,
+        "imported": "boot\n",
+        "log": "DEBUG: attempting to import preferred pool missing\nDEBUG: pool set to missing\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on missing\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'missing': no such pool available\nDEBUG: importable pools: missing\nDEBUG: trying to import: missing\nDEBUG: unable to scrape hostid for missing, skipping\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    }
+  ]
+}

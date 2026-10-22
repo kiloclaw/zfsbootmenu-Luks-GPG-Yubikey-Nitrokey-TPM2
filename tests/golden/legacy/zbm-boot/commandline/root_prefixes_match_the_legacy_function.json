@@ -1,0 +1,125 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=void\\nID_LIKE=arch\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID=arch\\nID_LIKE=alpine\\n\")], property false",
+      "result": "zfs=\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=gentoo\\n\"), None], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [None, None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID=arch\\nID_LIKE='artix'\\n\")], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID=chimera\\nID_LIKE=\\\"ubuntu debian\\\"\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID=\\\"ubuntu debian\\\"\\n\")], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID=\\n\")], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=\\\"ubuntu debian\\\"\\n\"), None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=fedora\\n\")], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=gentoo\\nID_LIKE=\\\"ubuntu debian\\\"\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE='artix'\\n\")], property false",
+      "result": "root=ZFS=\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=gentoo\\nID_LIKE='artix'\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=fedora\\n\")], property false",
+      "result": "root=ZFS=\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=chimera\\nID_LIKE=fedora\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=void\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=gentoo\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID=\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=fedora\\n\"), None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=\\\"ubuntu debian\\\"\\n\"), None], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\n\"), None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=fedora\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID=void\\nID_LIKE=void\\n\")], property true",
+      "result": "root=custom:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=alpine\\nID_LIKE=alpine\\n\"), None], property false",
+      "result": "root=ZFS=\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=chimera\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID=alpine\\nID_LIKE=alpine\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID=alpine\\n\")], property false",
+      "result": "root=ZFS=\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=\\\"ubuntu debian\\\"\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=void\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\nID='artix'\\nID_LIKE=alpine\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID=\\\"ubuntu debian\\\"\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [Some(\"NAME=\\\"Some Linux\\\"\\n\"), Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=\\n\")], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, None], property false",
+      "result": "root=zfs:\n"
+    },
+    {
+      "input": "os-release [None, Some(\"NAME=\\\"Some Linux\\\"\\nID_LIKE=void\\n\")], property false",
+      "result": "root=zfs:\n"
+    }
+  ]
+}

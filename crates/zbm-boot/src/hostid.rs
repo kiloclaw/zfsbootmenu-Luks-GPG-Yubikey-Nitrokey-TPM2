@@ -70,7 +70,7 @@ mod tests {
     use crate::testing::Redirect;
     use zbm_testkit::fakes::{FakeFiles, FakeSystem};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, path};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn log(fake: &FakeSystem) -> KernelLog<'_> {
         KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
@@ -149,40 +149,45 @@ mod tests {
 
     #[test]
     fn writes_what_the_legacy_function_writes() {
-        let core = std::fs::read_to_string(path("zfsbootmenu/lib/zfsbootmenu-core.sh")).unwrap();
-        let start = core.find("\nwrite_hostid() {\n").unwrap() + 1;
-        let end = start + core[start..].find("\n}\n").unwrap() + 3;
+        let mut parity = parity!("writes_what_the_legacy_function_writes");
         let mut rng = Rng::from_env(41);
         for case in 0..40 {
+            let value = rng.string(&['0', '1', '9', 'a', 'f', 'B', 'x', 'g'], 10);
+            let (success, legacy_bytes, legacy_spl): (bool, Option<Vec<u8>>, String) = parity
+                .legacy(format!("{value:?}"), || {
+                    let core = std::fs::read_to_string(path("zfsbootmenu/lib/zfsbootmenu-core.sh"))
+                        .unwrap();
+                    let start = core.find("\nwrite_hostid() {\n").unwrap() + 1;
+                    let end = start + core[start..].find("\n}\n").unwrap() + 3;
+                    let dir = TempDir::new("zbm-hostid");
+                    let etc = dir.join("hostid");
+                    let spl = dir.write("spl_hostid", "5\n");
+                    let function = core[start..end]
+                        .replace(
+                            "/sys/module/spl/parameters/spl_hostid",
+                            &spl.to_string_lossy(),
+                        )
+                        .replace("\"/etc/hostid\"", &format!("\"{}\"", etc.display()));
+                    let legacy = Bash::new().code(LOG_STUBS).code(&function).call(
+                        "write_hostid",
+                        &[&value],
+                        b"",
+                    );
+                    (
+                        legacy.status.success(),
+                        std::fs::read(&etc).ok(),
+                        std::fs::read_to_string(&spl).unwrap(),
+                    )
+                });
             let dir = TempDir::new("zbm-hostid");
             let etc = dir.join("hostid");
             let spl = dir.write("spl_hostid", "5\n");
-            let function = core[start..end]
-                .replace(
-                    "/sys/module/spl/parameters/spl_hostid",
-                    &spl.to_string_lossy(),
-                )
-                .replace("\"/etc/hostid\"", &format!("\"{}\"", etc.display()));
-            let value = rng.string(&['0', '1', '9', 'a', 'f', 'B', 'x', 'g'], 10);
-            let legacy =
-                Bash::new()
-                    .code(LOG_STUBS)
-                    .code(&function)
-                    .call("write_hostid", &[&value], b"");
-            let legacy_bytes = std::fs::read(&etc).ok();
-            let legacy_spl = std::fs::read_to_string(&spl).unwrap();
-            let _ = std::fs::remove_file(&etc);
-            std::fs::write(&spl, "5\n").unwrap();
 
             // The Rust code writes the same files through a view of the directory.
             let files = Redirect::new(&[(ETC_HOSTID, &etc), (SPL_HOSTID, &spl)]);
             let log = KernelLog::new(&files, "7", dir.path(), 1).with_device(&dir.join("kmsg"));
             let rust = write_hostid(&files, &log, &value);
-            assert_eq!(
-                rust.is_some(),
-                legacy.status.success(),
-                "case {case}: {value}"
-            );
+            assert_eq!(rust.is_some(), success, "case {case}: {value}");
             assert_eq!(
                 std::fs::read(&etc).ok(),
                 legacy_bytes,

@@ -127,9 +127,9 @@ mod tests {
     use std::path::Path;
     use zbm_core::exec::{Output, Status};
     use zbm_system::files::Files;
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::{TempDir, parity};
 
     fn legacy_core() -> Bash {
         Bash::new()
@@ -183,30 +183,41 @@ mod tests {
             (Some("suspend"), "NORESUME\n", true),
             (Some("suspend"), "noresume\n", false),
         ];
+        let mut parity = parity!("matches_the_legacy_prompt");
         for (suspend, input, already) in cases {
-            let dir = TempDir::new("zbm-resume");
-            if already {
-                dir.write("noresume", "");
-            }
-            let blkid = format!(
-                "blkid() {{ [ \"$2\" = \"TYPE={}\" ]; }}",
-                suspend.unwrap_or("none")
-            );
-            let core = std::fs::read_to_string(zbm_testkit::legacy::path(
-                "zfsbootmenu/lib/zfsbootmenu-core.sh",
-            ))
-            .unwrap();
-            let start = core.find("\nresume_prompt() {\n").unwrap() + 1;
-            let end = start + core[start..].find("\n}\n").unwrap() + 3;
-            let function = core[start..end].replace("/libexec/zfsbootmenu-input", "zbm_input");
-            let legacy = legacy_core()
-                .code(&blkid)
-                .code("tput() { :; }")
-                .code(r#"zbm_input() { read -r input; printf '> ' >&2; echo "${input}"; }"#)
-                .code(&function)
-                .env("BASE", &dir.path().to_string_lossy())
-                .call("resume_prompt", &["tank"], input.as_bytes());
-            let legacy_noresume = dir.join("noresume").exists();
+            let case = format!("{suspend:?} {input:?} {already}");
+            let (success, legacy_noresume, stdout, logged): (bool, bool, String, String) = parity
+                .legacy(case.clone(), || {
+                    let dir = TempDir::new("zbm-resume");
+                    if already {
+                        dir.write("noresume", "");
+                    }
+                    let blkid = format!(
+                        "blkid() {{ [ \"$2\" = \"TYPE={}\" ]; }}",
+                        suspend.unwrap_or("none")
+                    );
+                    let core = std::fs::read_to_string(zbm_testkit::legacy::path(
+                        "zfsbootmenu/lib/zfsbootmenu-core.sh",
+                    ))
+                    .unwrap();
+                    let start = core.find("\nresume_prompt() {\n").unwrap() + 1;
+                    let end = start + core[start..].find("\n}\n").unwrap() + 3;
+                    let function =
+                        core[start..end].replace("/libexec/zfsbootmenu-input", "zbm_input");
+                    let legacy = legacy_core()
+                        .code(&blkid)
+                        .code("tput() { :; }")
+                        .code(r#"zbm_input() { read -r input; printf '> ' >&2; echo "${input}"; }"#)
+                        .code(&function)
+                        .env("BASE", &dir.path().to_string_lossy())
+                        .call("resume_prompt", &["tank"], input.as_bytes());
+                    (
+                        legacy.status.success(),
+                        dir.join("noresume").exists(),
+                        legacy.stdout_text(),
+                        log_lines(&legacy.stderr_text()),
+                    )
+                });
 
             let fake = machine(suspend);
             if already {
@@ -220,8 +231,7 @@ mod tests {
             let state = State::new(&fake.files, "/zfsbootmenu");
             let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
             let rust = resume_prompt(&fake.system(), &state, &log, "tank");
-            let case = format!("{suspend:?} {input:?} {already}");
-            assert_eq!(rust, legacy.status.success(), "{case}");
+            assert_eq!(rust, success, "{case}");
             assert_eq!(
                 fake.files.exists(Path::new("/zfsbootmenu/noresume")),
                 legacy_noresume,
@@ -230,12 +240,8 @@ mod tests {
             // `read -p` writes its prompt to standard error.
             let shown = fake.console.output_text();
             let shown = shown.strip_suffix("> ").unwrap_or(&shown);
-            assert_eq!(shown, legacy.stdout_text(), "{case}");
-            assert_eq!(
-                crate::testing::stub_lines(&fake.kmsg()),
-                log_lines(&legacy.stderr_text()),
-                "{case}"
-            );
+            assert_eq!(shown, stdout, "{case}");
+            assert_eq!(crate::testing::stub_lines(&fake.kmsg()), logged, "{case}");
         }
     }
 }

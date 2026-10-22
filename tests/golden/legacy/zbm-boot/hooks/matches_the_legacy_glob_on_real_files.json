@@ -1,0 +1,15 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "teardown.d",
+      "result": [
+        "10 space",
+        "80-luks",
+        "90-xhci",
+        "B",
+        "sub"
+      ]
+    }
+  ]
+}

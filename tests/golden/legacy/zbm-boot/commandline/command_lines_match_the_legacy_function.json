@@ -1,0 +1,245 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { parent: Some(\"root=x\"), own: None, kernel_kcl: None, edited: false, noresume: true, stale_default: true, set_hostid: false }",
+      "result": [
+        "noresume\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: $BASE/noresume set, expunging from tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'noresume'\n",
+        "noresume\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"roresume=/dev/y\"), own: None, kernel_kcl: Some(\"%{parent}spl_hostid=1quiet\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: false }",
+      "result": [
+        "roresume=/dev/yspl_hostid=1quiet\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: assembled commandline: 'roresume=/dev/yspl_hostid=1quiet'\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"root=xa=\\\"b c\\\"ro\"), own: Some(\"spl_hostid=1root=xroresume=/dev/y\"), kernel_kcl: None, edited: true, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"ro\"), own: None, kernel_kcl: Some(\"a=\\\"b c\\\"quiet\\n\"), edited: false, noresume: true, stale_default: false, set_hostid: false }",
+      "result": [
+        "a=\"b c\"quiet noresume\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: $BASE/noresume set, expunging from tank/ROOT/be\nDEBUG: assembled commandline: 'a=\"b c\"quiet noresume'\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"quieta=\\\"b c\\\"quiet\"), own: None, kernel_kcl: Some(\"\\n\"), edited: true, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"a=\\\"b c\\\"resume=/dev/ya=\\\"b c\\\"\"), own: None, kernel_kcl: Some(\"%{parent}root=x\\n\"), edited: true, noresume: false, stale_default: true, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"root=x\"), own: Some(\"resume=/dev/yresume=/dev/yroresume=/dev/y\"), kernel_kcl: Some(\"root=x%{parent}\\n\"), edited: false, noresume: false, stale_default: true, set_hostid: false }",
+      "result": [
+        "\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: assembled commandline: ''\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: Some(\"%{parent}%{parent}quietro\"), kernel_kcl: None, edited: false, noresume: false, stale_default: false, set_hostid: false }",
+      "result": [
+        "quietro\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: org.zfsbootmenu:commandline on tank/ROOT has no value\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quietro'\n",
+        "quietro\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"quieta=\\\"b c\\\"\"), own: None, kernel_kcl: Some(\"quiet%{parent}\\n\"), edited: true, noresume: false, stale_default: true, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"resume=/dev/y\"), own: None, kernel_kcl: None, edited: true, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: None, kernel_kcl: None, edited: true, noresume: false, stale_default: true, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"roa=\\\"b c\\\"\"), own: Some(\"root=x\"), kernel_kcl: None, edited: false, noresume: true, stale_default: false, set_hostid: false }",
+      "result": [
+        "noresume\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: $BASE/noresume set, expunging from tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'noresume'\n",
+        "noresume\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"\"), own: Some(\"a=\\\"b c\\\"quiet\"), kernel_kcl: None, edited: false, noresume: false, stale_default: true, set_hostid: true }",
+      "result": [
+        "stale",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using cached KCL from $BASE/environments/tank/ROOT/be/kcl/default.kcl as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"a=\\\"b c\\\"roa=\\\"b c\\\"\"), own: Some(\"spl_hostid=1\"), kernel_kcl: None, edited: true, noresume: false, stale_default: true, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"quiet\"), own: Some(\"\"), kernel_kcl: None, edited: false, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        "quiet loglevel=4\nspl.spl_hostid=0x30728216\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"ro\"), own: Some(\"\"), kernel_kcl: None, edited: true, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"a=\\\"b c\\\"roa=\\\"b c\\\"\"), own: Some(\"spl_hostid=1\"), kernel_kcl: Some(\"quietresume=/dev/y\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "quietresume=/dev/y spl.spl_hostid=0x30728216\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quietresume=/dev/y spl.spl_hostid=0x30728216'\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"a=\\\"b c\\\"\"), own: Some(\"%{parent}\"), kernel_kcl: Some(\"\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"\"), own: Some(\"a=\\\"b c\\\"\"), kernel_kcl: None, edited: true, noresume: false, stale_default: false, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: Some(\"%{parent}\"), kernel_kcl: Some(\"a=\\\"b c\\\"spl_hostid=1\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: false }",
+      "result": [
+        "a=\"b c\"spl_hostid=1\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: assembled commandline: 'a=\"b c\"spl_hostid=1'\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"resume=/dev/yresume=/dev/yroot=x\"), own: None, kernel_kcl: Some(\"resume=/dev/yro\\n\"), edited: true, noresume: true, stale_default: true, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"\"), own: None, kernel_kcl: Some(\"root=x\\n\"), edited: true, noresume: false, stale_default: true, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: None, kernel_kcl: None, edited: true, noresume: false, stale_default: true, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"root=xro\"), own: Some(\"quiet%{parent}ro\"), kernel_kcl: Some(\"spl_hostid=1ro\\n\"), edited: true, noresume: true, stale_default: true, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"root=x\"), own: Some(\"\"), kernel_kcl: Some(\"resume=/dev/y%{parent}\\n\"), edited: true, noresume: false, stale_default: false, set_hostid: false }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: None, kernel_kcl: None, edited: false, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: org.zfsbootmenu:commandline on tank/ROOT/be has no value\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        "quiet loglevel=4\nspl.spl_hostid=0x30728216\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"quieta=\\\"b c\\\"quiet\"), own: Some(\"ro\"), kernel_kcl: Some(\"quiet\\n\"), edited: true, noresume: false, stale_default: false, set_hostid: true }",
+      "result": [
+        "edited line",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: using $BASE/cmdline as command line for tank/ROOT/be\n",
+        null
+      ]
+    },
+    {
+      "input": "Scenario { parent: None, own: None, kernel_kcl: None, edited: false, noresume: false, stale_default: true, set_hostid: true }",
+      "result": [
+        "stale",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: using cached KCL from $BASE/environments/tank/ROOT/be/kcl/default.kcl as command line for tank/ROOT/be\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"root=x\"), own: Some(\"%{parent}\"), kernel_kcl: Some(\"\\n\"), edited: false, noresume: false, stale_default: true, set_hostid: true }",
+      "result": [
+        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        "stale\n"
+      ]
+    },
+    {
+      "input": "Scenario { parent: Some(\"\"), own: None, kernel_kcl: None, edited: false, noresume: true, stale_default: true, set_hostid: false }",
+      "result": [
+        "quiet loglevel=4 noresume\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: $BASE/noresume set, expunging from tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 noresume'\n",
+        "quiet loglevel=4\nnoresume\n"
+      ]
+    }
+  ]
+}

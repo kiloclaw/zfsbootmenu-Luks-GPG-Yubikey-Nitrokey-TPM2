@@ -50,13 +50,14 @@ Third-party crates:
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
 - `zbm-app`: `thiserror`, `tracing`
 - `zbm-crypt`: `thiserror`, `tracing`
+- `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-platform`: `serde_json`, `tracing`, `tracing-subscriber`
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `nucleo-matcher`, `ratatui`
 - `zbm-types`: `thiserror`
 
-Every crate may use `insta`, `pretty_assertions`, `proptest` as development dependencies.
+Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as development dependencies.
 
 <!-- END generated -->
 

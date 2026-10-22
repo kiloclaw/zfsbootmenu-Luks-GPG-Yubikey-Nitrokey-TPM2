@@ -1,0 +1,33 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "/dev/null",
+      "result": [
+        0,
+        ""
+      ]
+    },
+    {
+      "input": "/dev/null,/dev/zbm-missing,UUID=zbm-missing",
+      "result": [
+        1,
+        "ERROR: required device '/dev/zbm-missing' not found\nERROR: required device 'UUID=zbm-missing' not found\n"
+      ]
+    },
+    {
+      "input": "bad,,/dev/zero,",
+      "result": [
+        0,
+        "ERROR: malformed device: 'bad'\nERROR: malformed device: ''\n"
+      ]
+    },
+    {
+      "input": "Label=x=y,/dev/zbm-missing",
+      "result": [
+        1,
+        "ERROR: required device 'Label=x=y' not found\nERROR: required device '/dev/zbm-missing' not found\n"
+      ]
+    }
+  ]
+}

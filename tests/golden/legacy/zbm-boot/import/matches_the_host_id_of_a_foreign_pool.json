@@ -1,0 +1,65 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "tank/ROOT/a",
+        "bootfs_file": "tank/ROOT/a\n",
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": [
+          239,
+          190,
+          173,
+          222
+        ],
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: discovered pool owner hostid: deadbeef\nDEBUG: wrote hostid deadbeef to /etc/hostid\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: successful pool import\nDEBUG: successfully imported tank\nWARN: imported tank with assumed hostid deadbeef\nWARN: set spl_hostid=deadbeef on ZBM KCL or regenerate with corrected /etc/hostid\nDEBUG: match_hostid returned: tank;deadbeef\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": "deadbeef"
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\\nhostid=deadbeef\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: true }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "tank/ROOT/a",
+        "bootfs_file": "tank/ROOT/a\n",
+        "calls": "zpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs tank\n",
+        "degraded": null,
+        "etc_hostid": [
+          239,
+          190,
+          173,
+          222
+        ],
+        "imported": "tank\nother\n",
+        "log": "DEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: discovered pool owner hostid: deadbeef\nDEBUG: wrote hostid deadbeef to /etc/hostid\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: successful pool import\nDEBUG: successfully imported tank\nDEBUG: match_hostid returned: tank;deadbeef\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": "deadbeef"
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=deadbeef\\nbootfs=tank/ROOT/a\"), (\"other\", \"id=8\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"tank\", require_pool: \"only\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "tank/ROOT/a",
+        "bootfs_file": "tank/ROOT/a\n",
+        "calls": "zpool import -N -o readonly=on tank\nzpool list -H -o name\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs tank\n",
+        "degraded": null,
+        "etc_hostid": [
+          239,
+          190,
+          173,
+          222
+        ],
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import preferred pool tank\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: discovered pool owner hostid: deadbeef\nDEBUG: wrote hostid deadbeef to /etc/hostid\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: successful pool import\nDEBUG: successfully imported tank\nWARN: imported tank with assumed hostid deadbeef\nWARN: set spl_hostid=deadbeef on ZBM KCL or regenerate with corrected /etc/hostid\nDEBUG: match_hostid returned: tank;deadbeef\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": "deadbeef"
+      }
+    }
+  ]
+}

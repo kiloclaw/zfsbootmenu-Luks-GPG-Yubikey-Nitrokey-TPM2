@@ -216,6 +216,7 @@ mod tests {
     use zbm_system::clock::Clock;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS};
+    use zbm_testkit::parity;
 
     fn legacy_core() -> Bash {
         Bash::new()
@@ -233,6 +234,7 @@ mod tests {
 
     #[test]
     fn colours_match_the_legacy_functions() {
+        let mut parity = parity!("colours_match_the_legacy_functions");
         for color in [
             "red",
             "lightcyan",
@@ -242,17 +244,18 @@ mod tests {
             "black",
             "darkgray",
         ] {
-            let legacy = legacy_core().call("colorize", &[color, "tank/ROOT/void"], b"");
-            assert_eq!(
-                colorize(color, "tank/ROOT/void"),
-                legacy.stdout_text(),
-                "{color}"
-            );
-            let decolorized = legacy_core().call("decolorize", &[&legacy.stdout_text()], b"");
-            assert_eq!(
-                format!("{}\n", decolorize(&legacy.stdout_text())),
-                decolorized.stdout_text()
-            );
+            let (colorized, decolorized): (String, String) =
+                parity.legacy(format!("colorize {color}"), || {
+                    let colorized = legacy_core()
+                        .call("colorize", &[color, "tank/ROOT/void"], b"")
+                        .stdout_text();
+                    let decolorized = legacy_core()
+                        .call("decolorize", &[&colorized], b"")
+                        .stdout_text();
+                    (colorized, decolorized)
+                });
+            assert_eq!(colorize(color, "tank/ROOT/void"), colorized, "{color}");
+            assert_eq!(format!("{}\n", decolorize(&colorized)), decolorized);
         }
         for text in [
             "\\033[1;31mred\\033[0m",
@@ -260,12 +263,10 @@ mod tests {
             "\x1b[2;31mkept",
             "[0m",
         ] {
-            let legacy = legacy_core().call("decolorize", &[text], b"");
-            assert_eq!(
-                format!("{}\n", decolorize(text)),
-                legacy.stdout_text(),
-                "{text:?}"
-            );
+            let legacy: String = parity.legacy(format!("decolorize {text:?}"), || {
+                legacy_core().call("decolorize", &[text], b"").stdout_text()
+            });
+            assert_eq!(format!("{}\n", decolorize(text)), legacy, "{text:?}");
         }
     }
 

@@ -1,0 +1,65 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Scenario { pools: [(\"alpha\", \"id=1\\nhostid=0000abcd\\nbootfs=alpha/ROOT/a\"), (\"beta\", \"id=2\\nhostid=deadbeef\"), (\"gamma\", \"id=3\\nhostid=0000abcd\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "alpha/ROOT/a",
+        "bootfs_file": "alpha/ROOT/a\n",
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import\nzpool import -o readonly=on -N alpha\nzpool import -N -o readonly=on alpha\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": [
+          205,
+          171,
+          0,
+          0
+        ],
+        "imported": "alpha\ngamma\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: import process failed with code 1, apparent hostid 0x00bab10c\nDEBUG: cannot import 'alpha': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=0000abcd) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: cannot import 'beta': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: cannot import 'gamma': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=0000abcd) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: importable pools: alpha beta gamma\nDEBUG: trying to import: alpha\nDEBUG: discovered pool owner hostid: 0000abcd\nDEBUG: wrote hostid 0000abcd to /etc/hostid\nDEBUG: pool set to alpha\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on alpha\nDEBUG: successful pool import\nDEBUG: successfully imported alpha\nWARN: imported alpha with assumed hostid 0000abcd\nWARN: set spl_hostid=0000abcd on ZBM KCL or regenerate with corrected /etc/hostid\nDEBUG: match_hostid returned: alpha;0000abcd\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: hostid from /etc/hostid: 0000abcd\nDEBUG: import process failed with code 1, apparent hostid 0x0000abcd\nDEBUG: cannot import 'beta': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=deadbeef) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": "0000abcd"
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=00bab10c\")], datasets: \"\", hostid: Some([12, 177, 186, 0]), settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": [
+          12,
+          177,
+          186,
+          0
+        ],
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": null
+      }
+    },
+    {
+      "input": "Scenario { pools: [(\"tank\", \"id=7\\nhostid=00bab10c\")], datasets: \"\", hostid: None, settings: Settings { import_policy: \"hostid\", prefer_pool: \"\", require_pool: \"\", prefer_bootfs: \"\", retry_delay: \"\", release_build: false }, escapes: [], on_shell: \"\" }",
+      "result": {
+        "bootfs": "",
+        "bootfs_file": null,
+        "calls": "zpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool import\nzpool import -o readonly=on -N tank\nzpool import -N -o readonly=on tank\nzpool import -N -o readonly=on -a\nzpool list -H -o name\nzpool list -H -o name,health\nzpool get all -H -o name,property\nzpool list -H -o bootfs --\n",
+        "degraded": null,
+        "etc_hostid": [
+          12,
+          177,
+          186,
+          0
+        ],
+        "imported": "tank\n",
+        "log": "DEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: import process failed with code 1, apparent hostid unknown\nDEBUG: cannot import 'tank': pool was previously in use from another system.\nDEBUG: Last accessed by host (hostid=00bab10c) at Thu Jan  1 00:00:00 1970\nDEBUG: The pool can be imported, use 'zpool import -f' to import the pool.\nDEBUG: importable pools: tank\nDEBUG: trying to import: tank\nDEBUG: discovered pool owner hostid: 00bab10c\nDEBUG: wrote hostid 00bab10c to /etc/hostid\nDEBUG: pool set to tank\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on tank\nDEBUG: successful pool import\nDEBUG: successfully imported tank\nWARN: imported tank with assumed hostid 00bab10c\nWARN: set spl_hostid=00bab10c on ZBM KCL or regenerate with corrected /etc/hostid\nDEBUG: match_hostid returned: tank;00bab10c\nDEBUG: attempting to import all pools\nDEBUG: read_write unset\nDEBUG: zpool import arguments: -N -o readonly=on -a\nDEBUG: successful pool import\nDEBUG: \n",
+        "prompts": 0,
+        "shells": "",
+        "spl_hostid_file": "00bab10c"
+      }
+    }
+  ]
+}
