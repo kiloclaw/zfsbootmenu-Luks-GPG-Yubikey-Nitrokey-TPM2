@@ -182,8 +182,13 @@ Done in R2:
   and test builds allow them with `cfg_attr(test, ...)`. The process supervision of `zbm` (`std::process`, which
   replaces or supervises whole processes) is the one place outside them that starts programs.
 
+- The shell helpers (`command_substitution`, `read_lines`, `test_integer`, `echo`) are gone from all code but the
+  parsing of configuration: `zbm-cmdline` and the LUKS configuration and crypttab parser of `zbm-luks`. Program
+  output is read with `str::lines` and `trim_end_matches('\n')`, numbers with `parse`; the golden files of the
+  legacy results did not change. `ZbmOptions::menu_timeout_seconds` gives the timeout as a number.
+
 Open in R2: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services), fixtures of OpenZFS
-2.2 and 2.3 (they need images with those versions), removing the shell helpers, and the Rust LUKS device suites.
+2.2 and 2.3 (they need images with those versions), and the Rust LUKS device suites.
 
 ## What the pilots taught
 

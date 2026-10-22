@@ -12,7 +12,6 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use zbm_cmdline::options::ZbmOptions;
-use zbm_core::shell::test_integer;
 use zbm_platform::files::Files;
 
 use crate::hooks;
@@ -81,7 +80,10 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     let mut list = Vec::new();
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
-    if !test_integer(&options.menu_timeout).is_some_and(|timeout| timeout >= 0) {
+    if !options
+        .menu_timeout_seconds()
+        .is_some_and(|timeout| timeout >= 0)
+    {
         list.push(Unsupported::Menu("zbm.show"));
     } else if facts.bootfs.is_none() {
         list.push(Unsupported::Menu("no default boot environment"));

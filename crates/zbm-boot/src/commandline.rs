@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 use zbm_cmdline::kcl;
 use zbm_cmdline::parent::{CommandLineSource, read_kcl_contents};
-use zbm_core::shell::{command_substitution, read_first_line, test_integer};
 use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
 use zbm_state::State;
@@ -28,7 +27,7 @@ const DEFAULT_ARGS: &str = "quiet loglevel=4";
 /// (`<<< "${var}"`), so text moves between the `kcl` functions as it does
 /// between the legacy ones.
 fn here(text: &str) -> String {
-    format!("{}\n", command_substitution(text))
+    format!("{}\n", text.trim_end_matches('\n'))
 }
 
 /// The host ID as `get_spl_hostid` reports it (`0x` and eight or more hex
@@ -36,8 +35,8 @@ fn here(text: &str) -> String {
 /// or from the host ID that pool import matched.
 pub fn spl_hostid(files: &dyn Files, state: &State, log: &mut Vec<Message>) -> Option<String> {
     if let Ok(text) = files.read_to_string(Path::new(SPL_HOSTID)) {
-        let value = read_first_line(&text);
-        if let Some(number) = test_integer(&value).filter(|number| *number != 0) {
+        let value = text.lines().next().unwrap_or_default().trim();
+        if let Some(number) = value.parse::<i64>().ok().filter(|number| *number != 0) {
             log.push(Message::debug(format!(
                 "hostid from spl.spl_hostid: {value}"
             )));
@@ -149,7 +148,9 @@ pub fn be_cmdline(
     let contents = kernel_kcl.as_deref().and_then(|path| files.read(path).ok());
     let value =
         read_kcl_contents(source, dataset, &kcl_path, contents.as_deref(), log).unwrap_or_default();
-    let mut args = command_substitution(&kcl::tokenize(&here(&value))).to_owned();
+    let mut args = kcl::tokenize(&here(&value))
+        .trim_end_matches('\n')
+        .to_owned();
     if args.is_empty() {
         args = DEFAULT_ARGS.to_owned();
     }
@@ -178,7 +179,9 @@ pub fn be_cmdline(
     let removals: Vec<&str> = removals.iter().map(String::as_str).collect();
     let additions: Vec<&str> = additions.iter().map(String::as_str).collect();
     let suppressed = kcl::suppress(&here(&args), &removals);
-    let args = command_substitution(&kcl::append(&suppressed, &additions)).to_owned();
+    let args = kcl::append(&suppressed, &additions)
+        .trim_end_matches('\n')
+        .to_owned();
 
     if let Some(cache) = &cache {
         log.push(Message::debug(format!(
@@ -850,7 +853,7 @@ mod tests {
             // kexec_kernel reads it with $( ... ), which drops final newlines
             assert_eq!(
                 without_base(&rust, &dir),
-                command_substitution(&stdout),
+                stdout.trim_end_matches('\n'),
                 "case {case}: {logged}"
             );
             let rust_cache = std::fs::read_to_string(dir.join(DEFAULT_KCL)).ok();

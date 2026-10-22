@@ -40,8 +40,8 @@ impl MountTable {
     /// Parses the mount table. Fields are not unescaped (a space in a mount point
     /// stays `\040`), as the legacy code does not unescape them either.
     pub fn parse(text: &str) -> MountTable {
-        let entries = zbm_core::shell::read_lines(text)
-            .iter()
+        let entries = text
+            .lines()
             .map(|line| {
                 let mut fields = line.splitn(4, [' ', '\t']).map(str::trim);
                 let mut next = || fields.next().unwrap_or_default().to_owned();

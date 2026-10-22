@@ -7,7 +7,6 @@
 
 use std::time::Duration;
 
-use zbm_core::shell::test_integer;
 use zbm_platform::System;
 use zbm_platform::exec::Input;
 use zbm_tools::terminal;
@@ -20,7 +19,7 @@ pub use zbm_core::color::{colorize, decolorize};
 pub fn retry_delay(value: &str) -> i64 {
     match value {
         "" => 5,
-        delay => test_integer(delay).unwrap_or(0),
+        delay => delay.trim().parse().unwrap_or(0),
     }
 }
 

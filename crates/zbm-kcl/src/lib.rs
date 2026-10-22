@@ -26,7 +26,6 @@ use zbm_cmdline::kcl;
 use zbm_cmdline::parent::COMMANDLINE_PROPERTY;
 use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_core::getopts::{self, Opt};
-use zbm_core::shell::{command_substitution, echo, read_lines};
 use zbm_platform::exec::{Output, Runner, SystemRunner};
 use zbm_tools::efi as efi_tools;
 use zbm_tools::programs;
@@ -362,7 +361,7 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
 /// read.
 fn raw_kcl_zfs(zfs: &ZfsCommand, dataset: &str) -> String {
     match zfs.get_value(COMMANDLINE_PROPERTY, dataset) {
-        Some(value) if value != "-" => echo(&value),
+        Some(value) if value != "-" => format!("{value}\n"),
         _ => String::new(),
     }
 }
@@ -384,7 +383,7 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
             .unwrap_or_default(),
         Ok(output) => {
-            let message = command_substitution(&output.stdout_text()).to_owned();
+            let message = output.stdout_text().trim_end_matches('\n').to_owned();
             error(io, &format!("failed to dump EFI cmdline: {message}"));
             String::new()
         }
@@ -399,7 +398,7 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
 /// empty.
 fn save_kcl_zfs(zfs: &ZfsCommand, io: &mut Io, assembled: &str, dataset: &str) -> bool {
     // `kcl="$(cat)"` drops trailing newlines and NUL bytes.
-    let kcl = command_substitution(assembled).replace('\0', "");
+    let kcl = assembled.trim_end_matches('\n').replace('\0', "");
     if kcl.is_empty() {
         if !zfs.inherit(COMMANDLINE_PROPERTY, dataset).unwrap_or(false) {
             error(io, &format!("failed to clear KCL property on {dataset}"));
@@ -551,7 +550,7 @@ pub fn strip_kcl(text: &str) -> String {
 /// The arguments `while read -r` would read from a tokenized command line; for
 /// tests.
 pub fn read_arguments(tokens: &str) -> Vec<String> {
-    read_lines(tokens)
+    tokens.lines().map(|line| line.trim().to_owned()).collect()
 }
 
 #[cfg(test)]
@@ -699,7 +698,7 @@ mod tests {
         );
         assert_eq!(strip_kcl("a#b"), "a");
         assert_eq!(strip_kcl(""), "");
-        assert_eq!(read_arguments("a\nb"), ["a"]);
+        assert_eq!(read_arguments("a\n b \n"), ["a", "b"]);
     }
 
     #[test]

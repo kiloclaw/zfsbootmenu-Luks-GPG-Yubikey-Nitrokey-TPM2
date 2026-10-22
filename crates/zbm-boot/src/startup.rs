@@ -13,7 +13,6 @@ use std::path::{Path, PathBuf};
 use zbm_cmdline::args::ZbmArgs;
 use zbm_cmdline::conf::Conf;
 use zbm_cmdline::options::ZbmOptions;
-use zbm_core::shell::{read_lines, test_integer};
 use zbm_platform::dmesg::read_logs;
 use zbm_platform::{Installed, System};
 use zbm_state::State;
@@ -160,7 +159,7 @@ impl Recovery for Shell<'_, '_> {
             .files
             .read_to_string(Path::new("/proc/self/mounts"))
             .unwrap_or_default();
-        for line in read_lines(&mounts) {
+        for line in mounts.lines() {
             let mut fields = line.split_whitespace();
             let (Some(mountpoint), Some("zfs")) = (fields.nth(1), fields.next()) else {
                 continue;
@@ -321,7 +320,7 @@ impl<'a> Startup<'a> {
         let system = &self.system;
         let mut facts = self.facts();
         facts.bootfs = bootfs.map(str::to_owned);
-        let timeout = test_integer(&self.options.menu_timeout);
+        let timeout = self.options.menu_timeout_seconds();
         let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
             let _ = self
                 .shell()

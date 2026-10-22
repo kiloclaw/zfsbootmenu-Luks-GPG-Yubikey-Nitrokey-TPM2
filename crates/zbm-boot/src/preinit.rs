@@ -16,7 +16,6 @@ use zbm_cmdline::args::{ZbmArgs, cmdline_files};
 use zbm_cmdline::conf::{self, Conf};
 use zbm_cmdline::kcl;
 use zbm_cmdline::options::ZbmOptions;
-use zbm_core::shell::{command_substitution, echo};
 use zbm_platform::error::{Error, Result};
 use zbm_platform::{KernelLog, System};
 use zbm_tools::terminal;
@@ -79,7 +78,7 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
         if let Some(dir) = path.parent() {
             let _ = files.create_dir_all(dir);
         }
-        let _ = files.write(&path, echo(embedded).as_bytes());
+        let _ = files.write(&path, format!("{embedded}\n").as_bytes());
     }
     let base = base(&conf);
     let base_in_root = root.join(base.strip_prefix("/").unwrap_or(&base));
@@ -100,7 +99,7 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     }
 
     // get_zbm_kcl and make_cmdline_dir
-    let zbm_cmdline = format!("{}\n", command_substitution(&kcl));
+    let zbm_cmdline = format!("{}\n", kcl.trim_end_matches('\n'));
     let _ = files.write(&base_in_root.join("zbm.cmdline"), zbm_cmdline.as_bytes());
     let dir = base_in_root.join("cmdline.d");
     let _ = files.create_dir_all(&dir);

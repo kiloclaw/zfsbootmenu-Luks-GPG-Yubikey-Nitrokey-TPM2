@@ -6,7 +6,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_core::shell::read_lines;
 use zbm_platform::console::Timed;
 use zbm_tools::devices::Devices;
 use zbm_tools::programs;
@@ -425,7 +424,10 @@ impl Session<'_> {
     pub fn discover_devices(&self) -> Vec<String> {
         let system = self.system();
         let output = Devices::new(system.runner).luks_devices();
-        let devices: BTreeSet<String> = read_lines(&format!("{output}\n"))
+        let devices: BTreeSet<String> = output
+            .lines()
+            .map(|line| line.trim().to_owned())
+            .collect::<Vec<_>>()
             .into_iter()
             .filter(|device| is_block_device(system.files, device))
             .map(|device| canonical(system.files, &device))

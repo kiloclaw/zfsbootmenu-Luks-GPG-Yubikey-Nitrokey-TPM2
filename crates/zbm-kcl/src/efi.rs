@@ -1,8 +1,6 @@
 //! Finding where a new `.cmdline` section of an EFI image can go, as
 //! `find_cmdline_gap` does.
 
-use zbm_core::shell::{read_lines, test_integer};
-
 /// The address of the `.cmdline` section, as upper-case hex digits, and the
 /// space up to the next section, from the section table that `objdump -h -w
 /// <file>` prints.
@@ -13,7 +11,7 @@ pub fn cmdline_gap(objdump: &str, file: &str) -> Result<(String, i64), Vec<Strin
     let mut header_seen = false;
     let mut cmdline = None;
     let mut others = Vec::new();
-    for line in read_lines(objdump) {
+    for line in objdump.lines() {
         // `read -r idx name size vma rem`
         let mut fields = line.split([' ', '\t']).filter(|field| !field.is_empty());
         let idx = fields.next().unwrap_or_default();
@@ -24,7 +22,7 @@ pub fn cmdline_gap(objdump: &str, file: &str) -> Result<(String, i64), Vec<Strin
             header_seen = true;
             continue;
         }
-        if !header_seen || test_integer(idx).is_none() {
+        if !header_seen || idx.parse::<i64>().is_err() {
             continue;
         }
         let vma = vma.to_ascii_lowercase();

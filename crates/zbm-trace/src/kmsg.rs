@@ -199,7 +199,7 @@ pub fn enabled(level: Level) -> bool {
 /// The log level as the legacy code reads it: an integer operand of `test`, or
 /// `None` when it is not one, in which case nothing is logged.
 pub fn parse_level(loglevel: &str) -> Option<i64> {
-    zbm_core::shell::test_integer(loglevel)
+    loglevel.trim().parse().ok()
 }
 
 /// The kernel log lines of a message, as `kmsg-log-lib.sh` writes them.

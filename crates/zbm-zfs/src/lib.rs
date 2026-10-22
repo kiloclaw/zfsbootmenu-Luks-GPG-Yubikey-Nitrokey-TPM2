@@ -17,7 +17,6 @@ use std::ffi::OsString;
 use std::io;
 
 use zbm_cmdline::parent::{COMMANDLINE_PROPERTY, CommandLineSource};
-use zbm_core::shell::command_substitution;
 use zbm_platform::exec::{Command, Output, Runner, Stream};
 
 mod cli;
@@ -160,7 +159,7 @@ impl<'a> ZfsCommand<'a> {
         output
             .status
             .is_success()
-            .then(|| command_substitution(&output.stdout_text()).to_owned())
+            .then(|| output.stdout_text().trim_end_matches('\n').to_owned())
     }
 
     /// Sets a property (`zfs set <property>=<value> <dataset>`); returns whether
@@ -257,7 +256,7 @@ impl<'a> ZpoolCommand<'a> {
         output
             .status
             .is_success()
-            .then(|| command_substitution(&output.stdout_text()).to_owned())
+            .then(|| output.stdout_text().trim_end_matches('\n').to_owned())
     }
 }
 

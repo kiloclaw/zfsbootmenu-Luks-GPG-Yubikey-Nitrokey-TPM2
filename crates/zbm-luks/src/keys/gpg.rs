@@ -12,7 +12,6 @@
 
 use std::path::Path;
 
-use zbm_core::shell::command_substitution;
 use zbm_crypt::gpg::{Decrypted, GnupgHome, start_pcscd};
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
@@ -178,7 +177,7 @@ impl Session<'_> {
                 Decrypted::Failed(status) => {
                     zbm_trace::debug!(
                         "gpg failed to decrypt {file}: {}",
-                        command_substitution(&status)
+                        status.trim_end_matches('\n')
                     );
                 }
             }

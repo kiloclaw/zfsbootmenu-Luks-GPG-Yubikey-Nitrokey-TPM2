@@ -6,7 +6,6 @@
 //! finds one, asks the user whether to go on and whether to add `noresume`
 //! to the boot environment's command line.
 
-use zbm_core::shell::trim_ifs;
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::devices::Devices;
@@ -119,7 +118,7 @@ pub fn resume_prompt(
         .ok()
         .flatten()
         .unwrap_or_default();
-    match trim_ifs(&line) {
+    match line.trim_matches([' ', '\t', '\n']) {
         "DANGEROUS" => Ok(ResumeChoice::Dangerous),
         "NORESUME" => {
             if let Err(error) = state.set_noresume() {

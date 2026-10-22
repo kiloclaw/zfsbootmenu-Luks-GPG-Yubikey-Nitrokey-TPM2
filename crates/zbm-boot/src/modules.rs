@@ -1,6 +1,5 @@
 //! The kernel modules: the start-up stage `init.d/10-kmods`.
 
-use zbm_core::shell::command_substitution;
 use zbm_platform::Runner;
 use zbm_platform::error::{Error, Result};
 use zbm_tools::modules::Modules;
@@ -15,7 +14,7 @@ fn merged(run: std::io::Result<zbm_platform::Output>) -> (bool, String) {
     match run {
         Ok(output) => (
             output.status.is_success(),
-            command_substitution(&output.stdout_text()).to_owned(),
+            output.stdout_text().trim_end_matches('\n').to_owned(),
         ),
         Err(error) => (false, error.to_string()),
     }
@@ -41,7 +40,7 @@ fn load(runner: &dyn Runner) -> Result<()> {
         zbm_trace::debug!("{}", output);
         let filename = modules
             .filename("spl")
-            .map(|output| command_substitution(&output.stdout_text()).to_owned())
+            .map(|output| output.stdout_text().trim_end_matches('\n').to_owned())
             .unwrap_or_default();
         if !filename.is_empty() {
             zbm_trace::info!("loading {filename}");

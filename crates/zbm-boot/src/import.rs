@@ -6,7 +6,6 @@
 //! the check for unsupported features and the choice of `bootfs`.
 
 use zbm_cmdline::conf::Conf;
-use zbm_core::shell::{command_substitution, read_lines};
 use zbm_platform::exec::Output;
 use zbm_platform::{Runner, System};
 use zbm_state::State;
@@ -70,7 +69,11 @@ pub struct Import<'a> {
 
 /// The lines `while read -r line ... done <<< "$( command )"` reads.
 fn here_lines(output: &str) -> Vec<String> {
-    read_lines(&format!("{}\n", command_substitution(output)))
+    output
+        .trim_end_matches('\n')
+        .split('\n')
+        .map(|line| line.trim_matches([' ', '\t']).to_owned())
+        .collect()
 }
 
 /// The standard output of a run, empty when the program could not start.
@@ -145,7 +148,7 @@ pub fn import_pool(
         "import process failed with code {code}, apparent hostid {}",
         hostid.as_deref().unwrap_or("unknown")
     );
-    zbm_trace::debug!("{}", command_substitution(&output));
+    zbm_trace::debug!("{}", output.trim_end_matches('\n'));
     Err(BootError::Import {
         target: pool.to_owned(),
         status: code,
@@ -217,7 +220,7 @@ pub fn match_hostid(
             Stderr::Merged,
         );
         let output = stdout(probe);
-        let Some(hostid) = scrape_hostid(command_substitution(&output)).and_then(hostid::normalize)
+        let Some(hostid) = scrape_hostid(output.trim_end_matches('\n')).and_then(hostid::normalize)
         else {
             zbm_trace::debug!("unable to scrape hostid for {pool}, skipping");
             continue;
@@ -283,7 +286,7 @@ pub(crate) fn tab_fields(line: &str) -> (&str, &str) {
 /// The lines `while IFS=$'\t' read -r ...; done <<< "$( command )"` reads:
 /// only tabs are trimmed.
 pub(crate) fn tab_lines(output: &str) -> Vec<String> {
-    let text = format!("{}\n", command_substitution(output));
+    let text = format!("{}\n", output.trim_end_matches('\n'));
     let mut lines: Vec<String> = text
         .split('\n')
         .map(|line| line.replace('\0', ""))
@@ -636,7 +639,7 @@ mod tests {
                     .call("m", &[text], b"")
                     .stdout_text()
             });
-            let expected = command_substitution(&legacy).to_owned();
+            let expected = legacy.trim_end_matches('\n').to_owned();
             assert_eq!(scrape_hostid(text).unwrap_or_default(), expected, "{text}");
         }
     }

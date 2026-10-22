@@ -8,7 +8,6 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::shell::{command_substitution, read_lines};
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_tools::mount::Mount;
@@ -27,7 +26,11 @@ use zbm_types::HookStage;
 
 /// The lines `while read -r line ... done <<< "$( command )"` reads.
 fn here_lines(output: &str) -> Vec<String> {
-    read_lines(&format!("{}\n", command_substitution(output)))
+    output
+        .trim_end_matches('\n')
+        .split('\n')
+        .map(|line| line.trim_matches([' ', '\t']).to_owned())
+        .collect()
 }
 
 /// What `$( command )` gives for the run `result`, and whether it succeeded.
@@ -35,7 +38,7 @@ fn substituted(result: std::io::Result<zbm_platform::exec::Output>) -> (bool, St
     match result {
         Ok(output) => (
             output.status.is_success(),
-            command_substitution(&output.stdout_text()).to_owned(),
+            output.stdout_text().trim_end_matches('\n').to_owned(),
         ),
         Err(error) => (false, error.to_string()),
     }
@@ -331,11 +334,11 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
     let property = zfs_value(system.runner, "org.zfsbootmenu:kernel", fs).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("org.zfsbootmenu:kernel set to {property}");
-        for line in read_lines(&text) {
-            let kernel = Kernel::parse(&line);
+        for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
+            let kernel = Kernel::parse(line);
             if kernels::bash_regex_match(system.runner, &kernel.kernel, &property) == Some(true) {
                 zbm_trace::debug!("matched {} to {property}", kernel.kernel);
-                chosen = line;
+                line.clone_into(&mut chosen);
             }
         }
     }
@@ -366,8 +369,8 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
         .files
         .read_to_string(Path::new("/proc/self/mounts"))
         .unwrap_or_default();
-    let mut mounts: Vec<(usize, String)> = read_lines(&table)
-        .iter()
+    let mut mounts: Vec<(usize, String)> = table
+        .lines()
         .filter_map(|line| line.split_whitespace().nth(1).map(str::to_owned))
         .filter(|mp| kernels::bash_regex_match(system.runner, mp, &pattern) == Some(true))
         .map(|mp| (mp.matches('/').count(), mp))

@@ -111,7 +111,10 @@ impl Settings {
         }
         settings.token_plugins = var("LUKS_NO_TOKEN_PLUGINS").is_none();
         if let Some(tries) = var("LUKS_DEFAULT_TRIES") {
-            settings.default_tries = zbm_core::shell::test_integer(&tries)
+            settings.default_tries = tries
+                .trim()
+                .parse::<i64>()
+                .ok()
                 .and_then(|tries| u64::try_from(tries).ok())
                 .unwrap_or(DEFAULT_TRIES);
         }

@@ -66,6 +66,11 @@ const MIN_LOGLEVEL: i64 = 4;
 const SORT_KEYS: [&str; 3] = ["name", "creation", "used"];
 
 impl ZbmOptions {
+    /// The menu timeout in seconds: `None` when it is not an integer.
+    pub fn menu_timeout_seconds(&self) -> Option<i64> {
+        self.menu_timeout.trim().parse().ok()
+    }
+
     /// Reads the options from the command line and returns them with the messages
     /// the legacy script logs, in order.
     pub fn parse(args: &ZbmArgs) -> (ZbmOptions, Vec<Message>) {
