@@ -11,6 +11,7 @@ use std::io::Write;
 
 pub mod applets;
 pub mod luks;
+pub mod pilot;
 pub mod supervisor;
 
 /// The program's output streams.
@@ -55,9 +56,15 @@ const ZLUKS: Applet = Applet {
     run: luks::zluks,
 };
 
+const MENU_PILOT: Applet = Applet {
+    name: "zbm-menu-pilot",
+    summary: "the boot environment list of the refactored menu (pilot)",
+    run: pilot::menu::run,
+};
+
 /// The commands `zbm` provides.
 #[cfg(not(feature = "test-seams"))]
-pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS];
+pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS, MENU_PILOT];
 
 /// The commands `zbm` provides, with the operations of the LUKS unit suites
 /// in the test build.
@@ -67,6 +74,7 @@ pub const APPLETS: &[Applet] = &[
     PARSE_COMMANDLINE,
     PREINIT,
     ZLUKS,
+    MENU_PILOT,
     Applet {
         name: "zbm-luks-test",
         summary: "the LUKS operations of the unit suites (test build only)",
@@ -252,6 +260,7 @@ mod tests {
             "zfsbootmenu-parse-commandline",
             "zfsbootmenu-preinit",
             "zluks",
+            "zbm-menu-pilot",
         ];
         if cfg!(feature = "test-seams") {
             expected.push("zbm-luks-test");

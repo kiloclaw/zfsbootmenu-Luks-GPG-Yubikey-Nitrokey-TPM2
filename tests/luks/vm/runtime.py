@@ -39,6 +39,8 @@ import re
 import sys
 import time
 
+import pexpect
+
 from zbmtest import (Test, VM, check_be, clean, check_teardown, disk, follow_boot, payload_disk,
                      vfat_disk, WORK, zbm_image)
 
@@ -133,6 +135,112 @@ def signals(runtime):
 
 def d(i):
     return (disk("runtime", i), f"d{i}")
+
+
+PILOT_KEY = "zbm-pilot-key-1234"
+STATS = r"(\d+) frames, mean ([\d.]+) ms, slowest ([\d.]+) ms\r*\n"
+
+
+def serial_bytes(vm):
+    """The size of the serial log so far, in bytes, after reading what the VM
+    sent in the last second (the log grows only as output is read)."""
+    vm.c.expect([pexpect.TIMEOUT], timeout=1)
+    vm.c.logfile_read.flush()
+    return (vm.t.dir / f"serial-{vm.label}.log").stat().st_size
+
+
+def pilot_menu(vm, t, term, size):
+    """The menu pilot on the serial console with TERM=term; types 'be' and
+    chooses the match. Returns the frame statistics and the serial bytes the
+    filter's frames took."""
+    option = f" --size {size}" if size else ""
+    vm.sendline(f"TERM={term} /libexec/zbm zbm-menu-pilot --stats{option}")
+    # Ratatui moves the cursor over blank cells instead of writing spaces, so
+    # the screen is matched word by word, and compared without spaces.
+    i = vm.expect([r"environments", r"zbm-menu-pilot: [^\r\n]*"], timeout=120)
+    if i == 1:
+        t.check(False, f"TERM={term}: the menu starts ({vm.match.group(0)})")
+        return None, 0
+    vm.expect(r"\[Ctrl-U\]", timeout=60)
+    screen = vm.before.replace(" ", "")
+    t.check("tplain/ROOT/be" in screen, f"TERM={term}: the boot environment is listed")
+    drawn_ascii = "+Bootenvironments" in screen
+    t.check(drawn_ascii == (term == "vt100"),
+            f"TERM={term}: {'ASCII' if term == 'vt100' else 'line-drawing'} borders")
+    time.sleep(1)
+    before = serial_bytes(vm)
+    for key in "be":
+        vm.send(key)
+        time.sleep(1)
+    typed = serial_bytes(vm) - before
+    start = time.time()
+    vm.send("\r")
+    vm.expect(r"chosen: (\S+)\r*\n", timeout=60)
+    chosen = vm.match.group(1)
+    vm.expect(STATS, timeout=60)
+    stats = tuple(float(x) for x in vm.match.groups())
+    t.check(chosen == "tplain/ROOT/be", f"TERM={term}: Enter chooses tplain/ROOT/be ({chosen})")
+    t.note(f"TERM={term}: {int(stats[0])} frames, mean {stats[1]} ms, slowest {stats[2]} ms; "
+           f"two filter keys took {typed} serial bytes; Enter to answer {time.time() - start:.2f} s")
+    vm.sh("true", quiet=True)
+    return stats, typed
+
+
+def pilot_unlock(vm, t):
+    """zluks --pilot open on a LUKS volume formatted in the VM."""
+    rc, out = vm.sh("command -v losetup && command -v cryptsetup", show=True)
+    if rc != 0:
+        t.note(f"pilot 1 skipped: the image lacks losetup or cryptsetup ({out})")
+        return
+    # The image has no dd; make the 32 MiB file with whichever tool it has.
+    rc, out = vm.sh(
+        "if command -v truncate >/dev/null; then truncate -s 32M /tmp/pilot.img; "
+        "elif command -v fallocate >/dev/null; then fallocate -l 32M /tmp/pilot.img; "
+        "else head -c 33554432 /dev/zero > /tmp/pilot.img; fi && "
+        "dev=$(losetup -f --show /tmp/pilot.img) && "
+        f"printf %s {PILOT_KEY} | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf pbkdf2 "
+        "--pbkdf-force-iterations 1000 --key-file=- \"$dev\" && "
+        f"printf %s {PILOT_KEY} > /tmp/pilot.key && printf wrong > /tmp/wrong.key && echo DEV=$dev",
+        show=True)
+    t.check(rc == 0, "a LUKS volume was formatted on a loop device")
+    if rc != 0:
+        return
+    rc, out = vm.sh('zluks --pilot open "$dev" zbm-pilot --key-file /tmp/wrong.key '
+                    "--journal /tmp/pilot.jsonl", show=True)
+    t.check(rc == 1 and "no key slot of" in out, "a wrong key file is refused, with the reason")
+    rc, out = vm.sh('zluks --pilot open "$dev" zbm-pilot --key-file /tmp/pilot.key '
+                    "--journal /tmp/pilot.jsonl", show=True)
+    t.check(rc == 0 and "as /dev/mapper/zbm-pilot (key file)" in out,
+            "zluks --pilot open opens the volume with the key file")
+    rc, _ = vm.sh("test -b /dev/mapper/zbm-pilot")
+    t.check(rc == 0, "/dev/mapper/zbm-pilot exists")
+    rc, out = vm.sh("cat /tmp/pilot.jsonl", show=True)
+    t.check('"stdin":"secret"' in out, "the journal records that the key went to standard input")
+    t.check(PILOT_KEY not in out, "the journal does not contain the key")
+    t.check('"message":"refused"' in out and '"message":"opened"' in out,
+            "the journal records the refused and the successful attempt")
+    vm.sh("cryptsetup close zbm-pilot; losetup -d \"$dev\"")
+
+
+def pilot():
+    """
+    The pilots of REFACTOR-ROADMAP.md (R0) in the Rust image, on the serial
+    console of the recovery shell: the menu with TERM=vt100 and TERM=linux,
+    and zluks --pilot open on a LUKS volume formatted in the VM.
+    """
+    t = Test("runtime-rust-pilot")
+    img = image("rust")
+    vm = VM(t, "boot", disks=[d(0)], kernel=img["kernel"], initrd=img["initrd"],
+            append="console=ttyS0 zbm.timeout=30 loglevel=7").start()
+    vm.expect(r"Booting \S*tplain/ROOT/be\S* in", timeout=1200)
+    time.sleep(2)
+    vm.send("\x1b")
+    vm.shell_ready()
+    pilot_menu(vm, t, "vt100", "80x24")
+    pilot_menu(vm, t, "linux", None)
+    pilot_unlock(vm, t)
+    vm.kill()
+    t.finish()
 
 
 def setup():
@@ -267,6 +375,8 @@ def main():
     runtime, _, scenario = which.partition("-")
     if scenario == "signals":
         signals(runtime)
+    if which == "rust-pilot":
+        pilot()
     boot(runtime, scenario)
 
 

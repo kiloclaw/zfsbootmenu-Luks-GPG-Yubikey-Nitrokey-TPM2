@@ -9,12 +9,17 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+zbm-app.workspace = true
 zbm-boot.workspace = true
 zbm-cmdline.workspace = true
 zbm-core.workspace = true
 zbm-luks.workspace = true
+zbm-platform.workspace = true
 zbm-sys.workspace = true
 zbm-system.workspace = true
+zbm-trace.workspace = true
+zbm-tui.workspace = true
+zbm-types.workspace = true
 
 [features]
 # A test build for the LUKS unit suites (tests/luks/unit/impl.sh): the hidden
@@ -24,6 +29,7 @@ zbm-system.workspace = true
 test-seams = []
 
 [dev-dependencies]
+pretty_assertions.workspace = true
 zbm-testutil.workspace = true
 
 [lints]

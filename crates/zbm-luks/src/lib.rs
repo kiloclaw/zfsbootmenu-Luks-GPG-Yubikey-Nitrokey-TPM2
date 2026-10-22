@@ -14,6 +14,10 @@
 //!
 //! Every secret is a `zbm_core::secret::Secret` and reaches programs only on
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
+//!
+//! [`unlocker`] is the pilot of REFACTOR-ROADMAP.md (R0): key methods as
+//! strategies over the typed `cryptsetup` of `zbm-crypt`, which R3 grows into
+//! the replacement of [`session`].
 
 pub mod close;
 pub mod config;
@@ -25,6 +29,7 @@ pub mod mappings;
 pub mod session;
 pub mod tokens;
 pub mod unlock;
+pub mod unlocker;
 
 #[cfg(test)]
 mod testing;

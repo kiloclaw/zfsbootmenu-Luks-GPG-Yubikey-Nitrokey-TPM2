@@ -1,0 +1,22 @@
+[package]
+name = "zbm-tui"
+description = "The menu of ZFSBootMenu on Ratatui and nucleo-matcher, written in the Elm architecture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+nucleo-matcher.workspace = true
+ratatui.workspace = true
+zbm-app.workspace = true
+zbm-types.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true

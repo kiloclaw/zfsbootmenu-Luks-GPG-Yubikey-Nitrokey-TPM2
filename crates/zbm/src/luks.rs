@@ -24,6 +24,8 @@ Commands:
   status               List mappings opened by ZFSBootMenu
   list                 List all LUKS volumes on the system and their
                        LUKS2 tokens (TPM2, FIDO2, clevis)
+  --pilot open ...     Open one volume with a key file through the code of
+                       the refactoring (zluks --pilot open --help)
 
 After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
 run 'zpool import' manually.
@@ -33,6 +35,9 @@ run 'zpool import' manually.
 /// `/etc/zfsbootmenu.conf` (the state directory, the log level and the retry
 /// delay) and the LUKS variables of the environment.
 pub fn zluks(args: &[String], io: &mut Io) -> i32 {
+    if args.first().is_some_and(|arg| arg == "--pilot") {
+        return crate::pilot::zluks::zluks(args.get(1..).unwrap_or_default(), io);
+    }
     let real = RealSystem::new();
     let terminal = match real.terminal() {
         Ok(terminal) => terminal,

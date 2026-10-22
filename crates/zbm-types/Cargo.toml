@@ -1,0 +1,19 @@
+[package]
+name = "zbm-types"
+description = "Domain types of ZFSBootMenu: names and paths checked once, when they are parsed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true
