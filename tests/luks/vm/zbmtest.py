@@ -25,6 +25,7 @@ Environment:
                     when it reports differences
 """
 
+import hashlib
 import json
 import os
 import re
@@ -353,7 +354,14 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
            "initrd": bdir / "build" / "initramfs-bootmenu.img",
            "efi": bdir / "build" / "vmlinuz.EFI",
            "debug": bdir / "build" / "debug"}
-    if REUSE and out["initrd"].exists() and (not efi or out["efi"].exists()):
+    # An image is reused only when it was built from the same inputs: a setup
+    # test can change a file the image embeds, such as the GnuPG key file of
+    # the keys tests, which keys-setup makes anew on every run.
+    inputs = hashlib.sha256(repr((crypttab, sorted((files or {}).items()), conf, cmdline, efi,
+                                  rc, features)).encode()).hexdigest()
+    stamp = bdir / "inputs.sha256"
+    if (REUSE and out["initrd"].exists() and (not efi or out["efi"].exists())
+            and stamp.exists() and stamp.read_text() == inputs):
         return out
     if bdir.exists():
         shutil.rmtree(bdir)
@@ -389,6 +397,7 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
     (bdir / "build.log").write_text(r.stdout + r.stderr)
     if r.returncode != 0 or not out["initrd"].exists():
         raise RuntimeError(f"ZFSBootMenu image {variant} failed to build; see {bdir / 'build.log'}")
+    stamp.write_text(inputs)
     return out
 
 
