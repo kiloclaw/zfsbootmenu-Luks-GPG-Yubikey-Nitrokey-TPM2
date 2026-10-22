@@ -1,0 +1,9 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "a, b, a, axb, a.b, a*",
+      "result": "a\t/dev/sda\t1\nb\t/dev/sdb\t0\naxb\t/dev/sdd\t0\na.b\t/dev/sde\t0\na*\t/dev/sdf\t0\n"
+    }
+  ]
+}

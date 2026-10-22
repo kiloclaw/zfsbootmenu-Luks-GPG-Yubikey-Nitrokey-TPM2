@@ -222,9 +222,9 @@ mod tests {
     use super::*;
     use crate::testing::{legacy_function, legacy_luks, log};
     use zbm_core::exec::{Output, Status};
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{log_lines, stub_lines};
+    use zbm_testkit::{TempDir, parity};
 
     const UUID: &str = "0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b";
     const UPPER: &str = "0F2C8BB6-2D5E-4F87-9A6B-9A7C1FEF8D1B";
@@ -328,8 +328,9 @@ mod tests {
             .replace("[ ! -b ", "[ ! -e ")
     }
 
-    #[test]
-    fn specifications_match_the_legacy_resolver() {
+    /// What the legacy resolver prints for `spec`, without the directory that
+    /// stands in for `/`, whether it succeeds, and its messages.
+    fn legacy_resolution(spec: &str) -> (String, bool, String) {
         let root = TempDir::new("zbm-luks-resolve");
         let root_text = root.path().to_string_lossy().into_owned();
         // The same tree for Bash, with `blkid` answering as above.
@@ -352,7 +353,21 @@ mod tests {
                  esac
                }}"#
         );
-        let bash = legacy_luks().code(&blkid).code(&legacy_resolve());
+        let legacy = legacy_luks()
+            .code(&blkid)
+            .code(&legacy_resolve())
+            .env("ROOT", &root_text)
+            .call("luks_resolve_device", &[spec], b"");
+        (
+            legacy.stdout_text().replace(&root_text, ""),
+            legacy.status.success(),
+            log_lines(&legacy.stderr_text()).replace(&root_text, ""),
+        )
+    }
+
+    #[test]
+    fn specifications_match_the_legacy_resolver() {
+        let mut parity = parity!("specifications_match_the_legacy_resolver");
         // `/dev/...` stays outside `$ROOT`: the unit test above covers it.
         for spec in [
             format!("UUID={UUID}"),
@@ -372,24 +387,17 @@ mod tests {
             "=x".to_owned(),
             String::new(),
         ] {
-            let legacy =
-                bash.clone()
-                    .env("ROOT", &root_text)
-                    .call("luks_resolve_device", &[&spec], b"");
+            let (expected, success, logged): (String, bool, String) =
+                parity.legacy(format!("{spec:?}"), || legacy_resolution(&spec));
             let fake = machine();
             let rust = resolve_device(&fake.system(), &log(&fake), &spec);
-            let expected = legacy.stdout_text().replace(&root_text, "");
             assert_eq!(
                 rust.map(|device| format!("{device}\n")).unwrap_or_default(),
                 expected,
                 "{spec:?}"
             );
-            assert_eq!(legacy.status.success(), !expected.is_empty(), "{spec:?}");
-            assert_eq!(
-                stub_lines(&fake.kmsg()),
-                log_lines(&legacy.stderr_text()),
-                "{spec:?}"
-            );
+            assert_eq!(success, !expected.is_empty(), "{spec:?}");
+            assert_eq!(stub_lines(&fake.kmsg()), logged, "{spec:?}");
         }
     }
 
@@ -466,7 +474,7 @@ mod tests {
 
     #[test]
     fn names_and_descriptions_match_the_legacy_code() {
-        let bash = legacy_luks().code(DESCRIBE_STUBS);
+        let mut parity = parity!("names_and_descriptions_match_the_legacy_code");
         for device in ["/dev/sda1", "/dev/sdb", "/dev/mapper/x", "/dev/dir/"] {
             let fake = describe_machine();
             let system = fake.system();
@@ -474,12 +482,13 @@ mod tests {
                 ("luks_default_name", default_name(&system, device)),
                 ("luks_describe_device", describe_device(&system, device)),
             ] {
-                let legacy = bash.call(function, &[device], b"");
-                assert_eq!(
-                    format!("{rust}\n"),
-                    legacy.stdout_text(),
-                    "{function} {device}"
-                );
+                let legacy: String = parity.legacy(format!("{function} {device}"), || {
+                    legacy_luks()
+                        .code(DESCRIBE_STUBS)
+                        .call(function, &[device], b"")
+                        .stdout_text()
+                });
+                assert_eq!(format!("{rust}\n"), legacy, "{function} {device}");
             }
         }
         let fake = describe_machine();

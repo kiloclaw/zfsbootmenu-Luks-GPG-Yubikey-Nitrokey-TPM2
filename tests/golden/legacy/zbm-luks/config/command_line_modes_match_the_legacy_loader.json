@@ -1,0 +1,201 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "Some(\"off\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"OFF\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"No\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"none\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"0\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"false\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"disable\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"disabled\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=1 mode=\n",
+        "INFO: LUKS unlocking disabled on the command line\n"
+      ]
+    },
+    {
+      "input": "Some(\"\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"auto\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"On\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"yes\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"1\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"TRUE\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"  auto  \\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "Some(\"UUID=a,PARTLABEL=b\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [UUID=a] [] []\n[] [PARTLABEL=b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"UUID=a,PARTLABEL=b\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [UUID=a] [] []\n[] [PARTLABEL=b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\",,/dev/sda,,LABEL=x,\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [/dev/sda] [] []\n[] [LABEL=x] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\",,/dev/sda,,LABEL=x,\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [/dev/sda] [] []\n[] [LABEL=x] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"luks-0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [luks-0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"luks-0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [luks-0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"UUID=a b\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [UUID=a b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"UUID=a b\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [UUID=a b] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"first\\nsecond\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [first] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"first\\nsecond\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [first] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"offline\\n\") Some(\"v /dev/sda none\\n\")",
+      "result": [
+        "rc=0 mode=cmdline\n[] [offline] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    },
+    {
+      "input": "Some(\"offline\\n\") None",
+      "result": [
+        "rc=0 mode=cmdline\n[] [offline] [] []\n",
+        "DEBUG: LUKS configuration mode: cmdline\n"
+      ]
+    }
+  ]
+}

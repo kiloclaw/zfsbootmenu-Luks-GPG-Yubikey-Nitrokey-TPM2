@@ -1,0 +1,37 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "luks_default_name /dev/sda1",
+      "result": "luks-0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b\n"
+    },
+    {
+      "input": "luks_describe_device /dev/sda1",
+      "result": "/dev/sda1 \"rpool\" (1.8T)\n"
+    },
+    {
+      "input": "luks_default_name /dev/sdb",
+      "result": "luks-sdb\n"
+    },
+    {
+      "input": "luks_describe_device /dev/sdb",
+      "result": "/dev/sdb \"data disk\" (5G)\n"
+    },
+    {
+      "input": "luks_default_name /dev/mapper/x",
+      "result": "luks-x\n"
+    },
+    {
+      "input": "luks_describe_device /dev/mapper/x",
+      "result": "/dev/mapper/x\n"
+    },
+    {
+      "input": "luks_default_name /dev/dir/",
+      "result": "luks-\n"
+    },
+    {
+      "input": "luks_describe_device /dev/dir/",
+      "result": "/dev/dir/\n"
+    }
+  ]
+}

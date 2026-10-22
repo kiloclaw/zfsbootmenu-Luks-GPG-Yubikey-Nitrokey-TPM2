@@ -1,0 +1,425 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"header=/h\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"tries=x,=,x, ,keyscript=k\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/k\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\nDEBUG: ignoring unsupported LUKS option '='\nDEBUG: ignoring unsupported LUKS option 'x'\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"keyfile-size=,=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\nDEBUG: ignoring unsupported LUKS option '='\n"
+      ]
+    },
+    {
+      "input": "\"luks,keyslot=, ,key-slot=1\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyslot='\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"tries=,header=/h\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries='\n"
+      ]
+    },
+    {
+      "input": "\"tries=2,keyfile-size=,keyslot=\"",
+      "result": [
+        "args=\ntries=2\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\nWARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp, ,ykchalresp,ykchalresp=, \"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\nWARN: ignoring invalid YubiKey slot in 'ykchalresp='\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"key-slot=1,ykchalresp-concat\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"x,nofail,keyslot=,ykchalresp-concat\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nWARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-hash\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"keyslot=,ykchalresp,keyfile-size=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyslot='\nWARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"keyfile-size=,ykchalresp=1,discard,gpg,ykchalresp-concat\"",
+      "result": [
+        "args=--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=1\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=1\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp=1,header=/h,tries=x,noauto,=\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=1\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\nDEBUG: ignoring unsupported LUKS option '='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-concat,, ,ykchalresp=1,keyfile-size=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=1\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\nWARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\" ,noauto,tries=x,ykchalresp-hash\"",
+      "result": [
+        "args=\ntries=3\nnoauto=1\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\nWARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-concat\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"ykchalresp=1,x,tries=x\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nWARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"keyfile-size=9,luks\"",
+      "result": [
+        "args=--keyfile-size|9\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"no-tokens\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"noauto,keyfile-size=9, \"",
+      "result": [
+        "args=--keyfile-size|9\ntries=3\nnoauto=1\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"x, \"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"tries=2,noauto\"",
+      "result": [
+        "args=\ntries=2\nnoauto=1\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"key-slot=1,discard\"",
+      "result": [
+        "args=--key-slot|1|--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"tries=2,ykchalresp-hash,ykchalresp,tries=x,no-tokens\"",
+      "result": [
+        "args=\ntries=2\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-concat,keyscript=k\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/k\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        ""
+      ]
+    },
+    {
+      "input": "\" , ,ykchalresp=1,no-tokens,key-slot=1\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\" ,header=/h,discard\"",
+      "result": [
+        "args=--header|/h|--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"keyfile-size=,header=/h\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-concat,no-tokens,tries=x,noauto, \"",
+      "result": [
+        "args=\ntries=3\nnoauto=1\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"no-tokens,ykchalresp,keyfile-size=9,nofail,keyfile-size=9\"",
+      "result": [
+        "args=--keyfile-size|9|--keyfile-size|9\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"tries=x,ykchalresp=1\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"keyfile-size=,no-tokens,nofail,no-tokens,keyfile-size=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\nWARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp=1,discard,keyscript=,ykchalresp\"",
+      "result": [
+        "args=--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"tries=,discard,ykchalresp=,keyslot=,=\"",
+      "result": [
+        "args=--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries='\nWARN: ignoring invalid YubiKey slot in 'ykchalresp='\nWARN: ignoring invalid LUKS option 'keyslot='\nDEBUG: ignoring unsupported LUKS option '='\n"
+      ]
+    },
+    {
+      "input": "\"keyscript=,keyscript=k,keyfile-size=,ykchalresp=,ykchalresp\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/k\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\nWARN: ignoring invalid YubiKey slot in 'ykchalresp='\n"
+      ]
+    },
+    {
+      "input": "\"key-slot=1\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"gpg,keyslot=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=1\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"key-slot=1,keyscript=\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"keyslot=,keyslot=,keyfile-size=9,ykchalresp=1\"",
+      "result": [
+        "args=--keyfile-size|9\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyslot='\nWARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"keyslot=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"keyscript=,x,tries=x,keyscript=, \"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nWARN: ignoring invalid LUKS option 'tries=x'\nDEBUG: ignoring unsupported LUKS option ' '\n"
+      ]
+    },
+    {
+      "input": "\"header=/h,-\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option '-'\n"
+      ]
+    },
+    {
+      "input": "\"x,ykchalresp=,gpg,ykchalresp=1,keyslot=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=1\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nWARN: ignoring invalid YubiKey slot in 'ykchalresp='\nWARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp,,gpg,keyscript=,-\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/\nheader=\ngpg=1\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option '-'\n"
+      ]
+    },
+    {
+      "input": "\"tries=x,discard\"",
+      "result": [
+        "args=--allow-discards\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"discard,tries=2\"",
+      "result": [
+        "args=--allow-discards\ntries=2\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"nofail,keyfile-size=,ykchalresp-hash\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"tries=x,-,keyscript=k,=,header=/h\"",
+      "result": [
+        "args=--header|/h\ntries=3\nnoauto=\nnofail=\nkeyscript=/lib/cryptsetup/scripts/k\nheader=/h\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\nDEBUG: ignoring unsupported LUKS option '-'\nDEBUG: ignoring unsupported LUKS option '='\n"
+      ]
+    },
+    {
+      "input": "\"nofail\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"tries=x\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"nofail,ykchalresp-hash,luks\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"ykchalresp=1,keyfile-size=,\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=1\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"x,gpg,x\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=1\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option 'x'\nDEBUG: ignoring unsupported LUKS option 'x'\n"
+      ]
+    },
+    {
+      "input": "\"noauto,keyfile-size=9,keyscript=k,discard\"",
+      "result": [
+        "args=--keyfile-size|9|--allow-discards\ntries=3\nnoauto=1\nnofail=\nkeyscript=/lib/cryptsetup/scripts/k\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"ykchalresp,-,keyslot=,nofail\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "DEBUG: ignoring unsupported LUKS option '-'\nWARN: ignoring invalid LUKS option 'keyslot='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-concat,-,tries=x,no-tokens\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=1\nyk=1\nyk_slot=2\nyk_hash=\nyk_concat=1\n",
+        "DEBUG: ignoring unsupported LUKS option '-'\nWARN: ignoring invalid LUKS option 'tries=x'\n"
+      ]
+    },
+    {
+      "input": "\"nofail,noauto,keyscript=k\"",
+      "result": [
+        "args=\ntries=3\nnoauto=1\nnofail=1\nkeyscript=/lib/cryptsetup/scripts/k\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        ""
+      ]
+    },
+    {
+      "input": "\"nofail,keyfile-size=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=1\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'keyfile-size='\n"
+      ]
+    },
+    {
+      "input": "\"gpg,tries=,key-slot=1\"",
+      "result": [
+        "args=--key-slot|1\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=1\nnotoken=\nyk=\nyk_slot=2\nyk_hash=\nyk_concat=\n",
+        "WARN: ignoring invalid LUKS option 'tries='\n"
+      ]
+    },
+    {
+      "input": "\"ykchalresp-hash,ykchalresp=\"",
+      "result": [
+        "args=\ntries=3\nnoauto=\nnofail=\nkeyscript=\nheader=\ngpg=\nnotoken=\nyk=1\nyk_slot=2\nyk_hash=1\nyk_concat=\n",
+        "WARN: ignoring invalid YubiKey slot in 'ykchalresp='\n"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "None Some(\"\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "None Some(\"\\n\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "None Some(\"# only a comment\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "None Some(\"v /dev/sda none\")",
+      "result": [
+        "rc=0 mode=crypttab\n[v] [/dev/sda] [] []\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"v /dev/sda none discard\\r\\nw /dev/sdb - noauto\\r\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[v] [/dev/sda] [] [discard]\n[w] [/dev/sdb] [] [noauto]\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"\\n# comment\\n   \\n\\tv\\t\\t/dev/sda   none\\t discard  \\n# trailing\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[v] [/dev/sda] [] [discard]\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"lonely\\nv /dev/sda\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[v] [/dev/sda] [] []\n",
+        "WARN: ignoring malformed entry 'lonely' in $CRYPTTAB\nDEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"a UUID=1 /key:LABEL=K tries=2 extra fields\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[a] [UUID=1] [/key:LABEL=K] [tries=2]\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"  #indented comment\\n#x y z\\n\")",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    },
+    {
+      "input": "None Some(\"a b c d\\r\\r\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[a] [b] [c] [d\r]\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"a\\rb c\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[a\rb] [c] [] []\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"a b \\\\ d\\\\e\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[a] [b] [\\] [d\\e]\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None Some(\"�� /dev/x\\n\")",
+      "result": [
+        "rc=0 mode=crypttab\n[��] [/dev/x] [] []\n",
+        "DEBUG: LUKS configuration mode: crypttab\n"
+      ]
+    },
+    {
+      "input": "None None",
+      "result": [
+        "rc=0 mode=auto\n",
+        "DEBUG: LUKS configuration mode: auto\n"
+      ]
+    }
+  ]
+}

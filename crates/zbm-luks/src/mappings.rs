@@ -171,9 +171,9 @@ mod tests {
     use crate::testing::{NoPrompts, legacy_luks, log};
     use zbm_system::clock::Clock;
     use zbm_system::files::Files;
-    use zbm_testkit::TempDir;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
+    use zbm_testkit::{TempDir, parity};
 
     fn with_session<T>(fake: &FakeSystem, body: impl FnOnce(&Session<'_>) -> T) -> T {
         let mut settings = Settings::new("/zfsbootmenu");
@@ -275,20 +275,26 @@ mod tests {
             "a b\t/dev/s d\t1\n",
             "a\\b\t/d\\x\t1\n",
         ];
+        let mut parity = parity!("mapping_files_read_as_the_legacy_loop_reads_them");
         for text in texts {
-            let dir = TempDir::new("zbm-luks-mappings");
-            let path = dir.write("luks-mappings", text);
-            let show = format!(
-                r#"show() {{
-                     local name dev disc
-                     while IFS=$'\t' read -r name dev disc; do
-                       [ -n "${{name}}" ] || continue
-                       printf '[%s] [%s] [%s]\n' "${{name}}" "${{dev}}" "${{disc}}"
-                     done < {}
-                   }}"#,
-                shell_quote(&path.to_string_lossy())
-            );
-            let legacy = legacy_luks().code(&show).call("show", &[], b"");
+            let legacy: String = parity.legacy(format!("{text:?}"), || {
+                let dir = TempDir::new("zbm-luks-mappings");
+                let path = dir.write("luks-mappings", text);
+                let show = format!(
+                    r#"show() {{
+                         local name dev disc
+                         while IFS=$'\t' read -r name dev disc; do
+                           [ -n "${{name}}" ] || continue
+                           printf '[%s] [%s] [%s]\n' "${{name}}" "${{dev}}" "${{disc}}"
+                         done < {}
+                       }}"#,
+                    shell_quote(&path.to_string_lossy())
+                );
+                legacy_luks()
+                    .code(&show)
+                    .call("show", &[], b"")
+                    .stdout_text()
+            });
             let rust: String = parse_mappings(text)
                 .iter()
                 .map(|mapping| {
@@ -298,7 +304,7 @@ mod tests {
                     )
                 })
                 .collect();
-            assert_eq!(rust, legacy.stdout_text(), "{text:?}");
+            assert_eq!(rust, legacy, "{text:?}");
         }
         assert_eq!(format_mappings(&[]), "");
         assert_eq!(format_mappings(&parse_mappings("a\tb\tc\n")), "a\tb\tc\n");
@@ -306,17 +312,21 @@ mod tests {
 
     #[test]
     fn records_match_the_legacy_function() {
-        let dir = TempDir::new("zbm-luks-record");
-        let state = dir.join("base/luks-mappings");
-        let legacy = legacy_luks()
-            .env("LUKS_STATE", &state.to_string_lossy())
-            .code(
-                "record() { luks_record_mapping a /dev/sda 1; luks_record_mapping b /dev/sdb; \
-                 luks_record_mapping a /dev/sdc; luks_record_mapping axb /dev/sdd; \
-                 luks_record_mapping a.b /dev/sde; luks_record_mapping 'a*' /dev/sdf; }",
-            )
-            .call("record", &[], b"");
-        assert!(legacy.status.success());
+        let mut parity = parity!("records_match_the_legacy_function");
+        let recorded: String = parity.legacy("a, b, a, axb, a.b, a*", || {
+            let dir = TempDir::new("zbm-luks-record");
+            let state = dir.join("base/luks-mappings");
+            let legacy = legacy_luks()
+                .env("LUKS_STATE", &state.to_string_lossy())
+                .code(
+                    "record() { luks_record_mapping a /dev/sda 1; luks_record_mapping b /dev/sdb; \
+                     luks_record_mapping a /dev/sdc; luks_record_mapping axb /dev/sdd; \
+                     luks_record_mapping a.b /dev/sde; luks_record_mapping 'a*' /dev/sdf; }",
+                )
+                .call("record", &[], b"");
+            assert!(legacy.status.success());
+            std::fs::read_to_string(state).unwrap()
+        });
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
             session.record_mapping("a", "/dev/sda", true);
@@ -329,7 +339,7 @@ mod tests {
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
-            std::fs::read_to_string(state).unwrap()
+            recorded
         );
     }
 }

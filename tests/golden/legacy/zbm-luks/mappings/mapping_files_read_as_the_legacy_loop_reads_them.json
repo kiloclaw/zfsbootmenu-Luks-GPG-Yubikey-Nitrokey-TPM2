@@ -1,0 +1,37 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"a\\t/dev/sda\\t1\\n\"",
+      "result": "[a] [/dev/sda] [1]\n"
+    },
+    {
+      "input": "\"a\\t/dev/sda\\t1\\nb\\t/dev/sdb\\t0\"",
+      "result": "[a] [/dev/sda] [1]\n"
+    },
+    {
+      "input": "\"\\t\\ta\\t\\t/dev/x\\t\\t1\\t\\n\"",
+      "result": "[a] [/dev/x] [1]\n"
+    },
+    {
+      "input": "\"a\\n\\nb\\t/dev/b\\n\\t\\n\"",
+      "result": "[a] [] []\n[b] [/dev/b] []\n"
+    },
+    {
+      "input": "\"a\\t/d\\t1\\textra\\tfields\\n\"",
+      "result": "[a] [/d] [1\textra\tfields]\n"
+    },
+    {
+      "input": "\"a b\\t/dev/s d\\t1\\n\"",
+      "result": "[a b] [/dev/s d] [1]\n"
+    },
+    {
+      "input": "\"a\\\\b\\t/d\\\\x\\t1\\n\"",
+      "result": "[a\\b] [/d\\x] [1]\n"
+    }
+  ]
+}

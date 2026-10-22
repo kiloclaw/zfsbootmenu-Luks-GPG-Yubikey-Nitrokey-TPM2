@@ -324,7 +324,8 @@ mod tests {
     use super::*;
     use crate::testing::legacy_luks;
     use zbm_testkit::legacy::log_lines;
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::parity::Parity;
+    use zbm_testkit::{Rng, TempDir, parity};
 
     /// What the legacy variables hold after `luks_parse_options`, one line per
     /// variable, with the arguments separated by `|`.
@@ -377,21 +378,24 @@ mod tests {
             .collect()
     }
 
-    fn assert_same_options(inputs: &[String]) {
-        let bash = legacy_luks().code(SHOW_OPTIONS);
+    fn assert_same_options(parity: &mut Parity, inputs: &[String]) {
         for input in inputs {
-            let legacy = bash.call("show_options", &[input], b"");
+            let (shown, logged): (String, String) = parity.legacy(format!("{input:?}"), || {
+                let legacy = legacy_luks()
+                    .code(SHOW_OPTIONS)
+                    .call("show_options", &[input], b"");
+                (
+                    normalize(&legacy.stdout_text()),
+                    log_lines(&legacy.stderr_text()),
+                )
+            });
             let (options, messages) = Options::parse(input, DEFAULT_TRIES);
-            assert_eq!(
-                show(&options),
-                normalize(&legacy.stdout_text()),
-                "{input:?}"
-            );
+            assert_eq!(show(&options), shown, "{input:?}");
             let rust: String = messages
                 .iter()
                 .map(|message| format!("{}\n", message.stderr_line()))
                 .collect();
-            assert_eq!(rust, log_lines(&legacy.stderr_text()), "{input:?}");
+            assert_eq!(rust, logged, "{input:?}");
         }
     }
 
@@ -433,7 +437,8 @@ mod tests {
             "keyscript=a=b,header=c=d",
             "\\,discard",
         ];
-        assert_same_options(&inputs.map(str::to_owned));
+        let mut parity = parity!("options_match_the_legacy_parser");
+        assert_same_options(&mut parity, &inputs.map(str::to_owned));
     }
 
     #[test]
@@ -476,7 +481,8 @@ mod tests {
                     .join(",")
             })
             .collect();
-        assert_same_options(&inputs);
+        let mut parity = parity!("random_options_match_the_legacy_parser");
+        assert_same_options(&mut parity, &inputs);
     }
 
     #[test]
@@ -536,39 +542,56 @@ mod tests {
 
     /// Compares the two for a `zbm.luks` file (its contents as written) and a
     /// crypttab (`None` when there is none).
-    fn assert_same_config(zbm_luks: Option<&str>, crypttab: Option<&[u8]>) {
-        let dir = TempDir::new("zbm-luks-config");
-        dir.write("base/cmdline.d/.keep", "");
-        if let Some(value) = zbm_luks {
-            dir.write("base/cmdline.d/zbm.luks", value);
-        }
-        let path = dir.join("crypttab");
-        if let Some(text) = crypttab {
-            std::fs::write(&path, text).unwrap();
-        }
-        let path_text = path.to_string_lossy().into_owned();
-        let legacy = legacy_luks()
-            .code(SHOW_CONFIG)
-            .env("BASE", &dir.join("base").to_string_lossy())
-            .env("ZBM_CRYPTTAB", &path_text)
-            .call("show_config", &[], b"");
+    fn assert_same_config(parity: &mut Parity, zbm_luks: Option<&str>, crypttab: Option<&[u8]>) {
+        // A base directory with the zbm.luks file, and the crypttab.
+        let machine = || {
+            let dir = TempDir::new("zbm-luks-config");
+            dir.write("base/cmdline.d/.keep", "");
+            if let Some(value) = zbm_luks {
+                dir.write("base/cmdline.d/zbm.luks", value);
+            }
+            let path = dir.join("crypttab");
+            if let Some(text) = crypttab {
+                std::fs::write(&path, text).unwrap();
+            }
+            let path = path.to_string_lossy().into_owned();
+            (dir, path)
+        };
+        let text = crypttab.map(String::from_utf8_lossy);
+        let case = format!("{zbm_luks:?} {:?}", text.as_deref());
+        let (shown, logged): (String, String) = parity.legacy(case.clone(), || {
+            let (dir, path) = machine();
+            let legacy = legacy_luks()
+                .code(SHOW_CONFIG)
+                .env("BASE", &dir.join("base").to_string_lossy())
+                .env("ZBM_CRYPTTAB", &path)
+                .call("show_config", &[], b"");
+            (
+                legacy.stdout_text().replace(&path, "$CRYPTTAB"),
+                log_lines(&legacy.stderr_text()).replace(&path, "$CRYPTTAB"),
+            )
+        });
 
+        let (dir, path) = machine();
         let files = zbm_system::files::RealFiles;
         let state = zbm_state::State::new(&files, dir.join("base"));
         let arg = state.zbm_arg("zbm.luks");
-        let text = crypttab.map(String::from_utf8_lossy);
-        let (mode, messages) = load_config(arg.as_deref(), text.as_deref(), &path_text);
-        let case = format!("{zbm_luks:?} {:?}", text.as_deref());
-        assert_eq!(show_mode(&mode), legacy.stdout_text(), "{case}");
+        let (mode, messages) = load_config(arg.as_deref(), text.as_deref(), &path);
+        assert_eq!(
+            show_mode(&mode).replace(&path, "$CRYPTTAB"),
+            shown,
+            "{case}"
+        );
         let rust: String = messages
             .iter()
             .map(|message| format!("{}\n", message.stderr_line()))
             .collect();
-        assert_eq!(rust, log_lines(&legacy.stderr_text()), "{case}");
+        assert_eq!(rust.replace(&path, "$CRYPTTAB"), logged, "{case}");
     }
 
     #[test]
     fn command_line_modes_match_the_legacy_loader() {
+        let mut parity = parity!("command_line_modes_match_the_legacy_loader");
         let tab: &[u8] = b"v /dev/sda none\n";
         for value in [
             "off\n",
@@ -588,7 +611,7 @@ mod tests {
             "TRUE\n",
             "  auto  \n",
         ] {
-            assert_same_config(Some(value), Some(tab));
+            assert_same_config(&mut parity, Some(value), Some(tab));
         }
         for value in [
             "UUID=a,PARTLABEL=b\n",
@@ -598,8 +621,8 @@ mod tests {
             "first\nsecond\n",
             "offline\n",
         ] {
-            assert_same_config(Some(value), Some(tab));
-            assert_same_config(Some(value), None);
+            assert_same_config(&mut parity, Some(value), Some(tab));
+            assert_same_config(&mut parity, Some(value), None);
         }
     }
 
@@ -620,10 +643,11 @@ mod tests {
             b"a b \\ d\\e\n",
             b"\xff\xfe /dev/x\n",
         ];
+        let mut parity = parity!("crypttabs_match_the_legacy_loader");
         for tab in tabs {
-            assert_same_config(None, Some(tab));
+            assert_same_config(&mut parity, None, Some(tab));
         }
-        assert_same_config(None, None);
+        assert_same_config(&mut parity, None, None);
     }
 
     #[test]

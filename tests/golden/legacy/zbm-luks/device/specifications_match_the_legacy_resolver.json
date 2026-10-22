@@ -1,0 +1,133 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"UUID=0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"uuid=0F2C8BB6-2D5E-4F87-9A6B-9A7C1FEF8D1B\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"luks-0F2C8BB6-2D5E-4F87-9A6B-9A7C1FEF8D1B\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"Label=root\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"PARTUUID=ABC\"",
+      "result": [
+        "/dev/sda1\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"ID=ata-disk\"",
+      "result": [
+        "/dev/sdb\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"LABEL=blk\"",
+      "result": [
+        "/dev/sdb\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"PARTUUID=DEF\"",
+      "result": [
+        "/dev/sdb\n",
+        true,
+        ""
+      ]
+    },
+    {
+      "input": "\"partlabel=none\"",
+      "result": [
+        "",
+        false,
+        ""
+      ]
+    },
+    {
+      "input": "\"ID=missing\"",
+      "result": [
+        "",
+        false,
+        ""
+      ]
+    },
+    {
+      "input": "\"BOGUS=1\"",
+      "result": [
+        "",
+        false,
+        "ERROR: unrecognized LUKS device specification 'BOGUS=1'\n"
+      ]
+    },
+    {
+      "input": "\"notauuid\"",
+      "result": [
+        "",
+        false,
+        "ERROR: unrecognized LUKS device specification 'notauuid'\n"
+      ]
+    },
+    {
+      "input": "\"0f2c8bb6-2d5e-4f87-9a6b\"",
+      "result": [
+        "",
+        false,
+        "ERROR: unrecognized LUKS device specification '0f2c8bb6-2d5e-4f87-9a6b'\n"
+      ]
+    },
+    {
+      "input": "\"=x\"",
+      "result": [
+        "",
+        false,
+        "ERROR: unrecognized LUKS device specification '=x'\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "",
+        false,
+        ""
+      ]
+    }
+  ]
+}

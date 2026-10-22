@@ -399,7 +399,7 @@ mod tests {
     use crate::testing::{legacy_function, legacy_luks};
     use zbm_core::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
-    use zbm_testkit::{have_program, repo_root};
+    use zbm_testkit::{have_program, parity, repo_root};
 
     fn fixture(name: &str) -> String {
         let path = repo_root()
@@ -428,20 +428,21 @@ mod tests {
 
     #[test]
     fn authorization_values_match_the_legacy_derivation() {
-        if !have_program("sha256sum") || !have_program("openssl") {
+        let mut parity = parity!("authorization_values_match_the_legacy_derivation");
+        if parity.mode().needs_legacy() && (!have_program("sha256sum") || !have_program("openssl"))
+        {
+            eprintln!("skipped: the legacy derivation needs sha256sum and openssl");
             return;
         }
         let salted = fixture("token-tpm2-pin.json");
         let plain = fixture("token-tpm2.json");
         for pin in ["1234", "0000", "pïn with spaces", "-x", "a\\b"] {
-            for json in [&salted, &plain] {
+            for (token, json) in [("salted", &salted), ("plain", &plain)] {
                 let salt = json_str(json, "tpm2_salt").map(|salt| base64_decode(&salt).unwrap());
                 let rust = auth_value(pin.as_bytes(), salt.as_deref());
-                assert_eq!(
-                    String::from_utf8_lossy(rust.expose()),
-                    legacy_auth(json, pin),
-                    "{pin:?}"
-                );
+                let legacy: String =
+                    parity.legacy(format!("{pin:?} {token}"), || legacy_auth(json, pin));
+                assert_eq!(String::from_utf8_lossy(rust.expose()), legacy, "{pin:?}");
             }
         }
     }

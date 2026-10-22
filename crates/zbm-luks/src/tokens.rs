@@ -232,7 +232,8 @@ mod tests {
     use zbm_core::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
-    use zbm_testkit::{Rng, repo_root};
+    use zbm_testkit::parity::Parity;
+    use zbm_testkit::{Rng, parity, repo_root};
 
     fn fixture(name: &str) -> String {
         let path = repo_root()
@@ -297,10 +298,13 @@ mod tests {
 
     #[test]
     fn recorded_tokens_match_the_legacy_listing() {
+        let mut parity = parity!("recorded_tokens_match_the_legacy_listing");
         let dir = repo_root().join("crates/zbm-luks/tests/fixtures");
         for (volume, status) in VOLUMES {
             let text_file = dir.join(format!("luksdump-{volume}.txt"));
-            let legacy = legacy_list(volume, status, &text_file.to_string_lossy());
+            let legacy: String = parity.legacy(format!("{volume} {status}"), || {
+                legacy_list(volume, status, &text_file.to_string_lossy())
+            });
             let fake = dump_machine(volume, status, None);
             let rust = list_tokens(&fake.system(), "/dev/x");
             assert_eq!(show(&rust), legacy, "{volume}");
@@ -366,18 +370,21 @@ mod tests {
             ]
             .map(str::to_owned),
         );
+        let mut parity = parity!("texts_match_the_legacy_parser");
         for text in texts {
-            let file = zbm_testkit::TempDir::new("zbm-luks-text");
-            let path = file.write("dump.txt", &text);
-            // Empty JSON output: the legacy code falls back to the text.
-            let stub = format!(
-                r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && return 1; cat {}; }}"#,
-                shell_quote(&path.to_string_lossy())
-            );
-            let legacy = legacy_luks()
-                .code(&stub)
-                .call("luks_list_tokens", &["/dev/x"], b"")
-                .stdout_text();
+            let legacy: String = parity.legacy(format!("{text:?}"), || {
+                let file = zbm_testkit::TempDir::new("zbm-luks-text");
+                let path = file.write("dump.txt", &text);
+                // Empty JSON output: the legacy code falls back to the text.
+                let stub = format!(
+                    r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && return 1; cat {}; }}"#,
+                    shell_quote(&path.to_string_lossy())
+                );
+                legacy_luks()
+                    .code(&stub)
+                    .call("luks_list_tokens", &["/dev/x"], b"")
+                    .stdout_text()
+            });
             assert_eq!(show(&parse_dump_text(&text)), legacy, "{text:?}");
         }
     }
@@ -397,17 +404,20 @@ mod tests {
             "\n",
             "x",
         ];
+        let mut parity = parity!("json_variants_match_the_legacy_parser");
         for json in jsons {
-            let dir = zbm_testkit::TempDir::new("zbm-luks-json");
-            let path = dir.write("dump.json", json);
-            let stub = format!(
-                r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && cat {}; }}"#,
-                shell_quote(&path.to_string_lossy())
-            );
-            let legacy = legacy_luks()
-                .code(&stub)
-                .call("luks_list_tokens", &["/dev/x"], b"")
-                .stdout_text();
+            let legacy: String = parity.legacy(format!("{json:?}"), || {
+                let dir = zbm_testkit::TempDir::new("zbm-luks-json");
+                let path = dir.write("dump.json", json);
+                let stub = format!(
+                    r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && cat {}; }}"#,
+                    shell_quote(&path.to_string_lossy())
+                );
+                legacy_luks()
+                    .code(&stub)
+                    .call("luks_list_tokens", &["/dev/x"], b"")
+                    .stdout_text()
+            });
             let rust = parse_json_metadata(json).unwrap_or_default();
             assert_eq!(show(&rust), legacy, "{json:?}");
         }
@@ -425,18 +435,17 @@ mod tests {
             .then(|| text.strip_suffix('\n').unwrap_or(&text).to_owned())
     }
 
-    fn assert_same_extracts(json: &str, keys: &[&str]) {
+    fn assert_same_extracts(parity: &mut Parity, json: &str, keys: &[&str]) {
         for key in keys {
             for (function, rust) in [
                 ("luks_json_str", json_str(json, key)),
                 ("luks_json_arr", json_arr(json, key)),
                 ("luks_json_bool", json_bool(json, key)),
             ] {
-                assert_eq!(
-                    rust,
-                    legacy_extract(function, json, key),
-                    "{function} {key} {json:?}"
-                );
+                let case = format!("{function} {key} {json:?}");
+                let legacy: Option<String> =
+                    parity.legacy(case.clone(), || legacy_extract(function, json, key));
+                assert_eq!(rust, legacy, "{case}");
             }
         }
     }
@@ -464,13 +473,14 @@ mod tests {
             "protected",
             "missing",
         ];
+        let mut parity = parity!("recorded_token_values_match_the_legacy_extractors");
         for name in [
             "token-tpm2.json",
             "token-tpm2-pin.json",
             "token-fido2.json",
             "token-clevis.json",
         ] {
-            assert_same_extracts(&fixture(name), &keys);
+            assert_same_extracts(&mut parity, &fixture(name), &keys);
         }
         let pin = fixture("token-tpm2-pin.json");
         assert_eq!(json_str(&pin, "type").as_deref(), Some("systemd-tpm2"));
@@ -491,6 +501,7 @@ mod tests {
 
     #[test]
     fn random_json_matches_the_legacy_extractors() {
+        let mut parity = parity!("random_json_matches_the_legacy_extractors");
         let mut rng = Rng::from_env(0x7015);
         let pieces = [
             "\"k\":",
@@ -515,9 +526,10 @@ mod tests {
         ];
         for _ in 0..80 {
             let json = rng.join(&pieces, 10);
-            assert_same_extracts(&json, &["k", "k2"]);
+            assert_same_extracts(&mut parity, &json, &["k", "k2"]);
         }
         assert_same_extracts(
+            &mut parity,
             "{\"k\":\"first\",\"k\":\"last\"}\n{\"k\": [ \"1\" , \"2\" ]}\n\"k\":true \"k\":false",
             &["k"],
         );

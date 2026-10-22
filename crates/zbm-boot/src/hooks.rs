@@ -684,7 +684,9 @@ mod tests {
             let output = Bash::new()
                 .code(
                     r#"list_hooks() {
-                      for _hook in "$1"/*; do [ -x "${_hook}" ] || continue; echo "${_hook##*/}"; done
+                      for _hook in "$1"/*; do
+                        [ -x "${_hook}" ] || continue; echo "${_hook##*/}"
+                      done
                     }"#,
                 )
                 .call("list_hooks", &[&dir.join("teardown.d").to_string_lossy()], b"");
