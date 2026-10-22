@@ -4,7 +4,8 @@
 # Usage: run-all.sh [ZFSBootMenu source tree]
 #
 # Output of each suite goes to ${ZBMTEST_UNIT_WORK:-/var/tmp/zbm-luks-unit}.
-# The suites need root; see docs/luks/testing.rst.
+# The suites need root; see docs/luks/testing.rst. Run one at a time: runs share
+# the work directory and the ports of their software TPMs.
 
 here="$( cd "$( dirname "$0" )" && pwd )"
 repo="${1:-$( cd "${here}/../../.." && pwd )}"
@@ -30,7 +31,7 @@ for suite in unlock tokens edge config; do
     continue
   fi
   printf '%-8s %s\n' "${suite}" "$( tail -n1 "${out}/${suite}.out" )"
-  grep -h "^  FAIL" "${out}/${suite}.out"
+  grep -a -h "^  FAIL" "${out}/${suite}.out"
   [ "${r}" -eq 0 ] || rc=1
 done
 exit "${rc}"

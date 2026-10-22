@@ -96,7 +96,8 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 * ``result.json``: the number of passed and failed checks and the failures.
 
 The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
-each case to */tmp/z?/cases*.
+each case to */tmp/z?/cases*. Run one ``run-all.sh`` at a time: two runs share that directory, the loop devices
+backed by its images, and the ports and pid files of their software TPMs, so they break each other.
 
 The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
 for the Bash libraries, ``rust`` for the Rust runtime of the port. ``impl.sh`` also provides, and documents, every seam
