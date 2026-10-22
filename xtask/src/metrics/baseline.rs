@@ -1,4 +1,4 @@
-//! The committed baseline of the debt metrics: a plain text table.
+//! The committed baselines of the metrics: plain text tables.
 //!
 //! ```text
 //! # comment
@@ -18,8 +18,8 @@ use crate::error::{Error, Result};
 /// The baseline: per crate, per metric key, the highest allowed value.
 pub type Baseline = BTreeMap<String, BTreeMap<String, usize>>;
 
-/// The header comment written above the table.
-const HEADER: &str = "\
+/// The header comment written above the table of the debt metrics.
+pub const DEBT_HEADER: &str = "\
 # The debt metrics of each crate at their last improvement, written by
 # `cargo xtask metrics --bless`. `cargo xtask metrics --check` fails when a
 # crate goes above them; a crate that is not listed must stay at zero.
@@ -65,15 +65,16 @@ pub fn parse(text: &str) -> Result<Baseline> {
     Ok(baseline)
 }
 
-/// Formats `baseline` with the columns `keys`, aligned.
-pub fn format(baseline: &Baseline, keys: &[&str]) -> String {
+/// Formats `baseline` with the columns `keys`, aligned, below the comment
+/// `header`.
+pub fn format(baseline: &Baseline, header: &str, keys: &[&str]) -> String {
     let name_width = baseline
         .keys()
         .map(String::len)
         .chain(["crate".len()])
         .max()
         .unwrap_or_default();
-    let mut text = String::from(HEADER);
+    let mut text = String::from(header);
     let _ = write!(text, "{:name_width$}", "crate");
     for key in keys {
         let _ = write!(text, "  {key}");
@@ -106,7 +107,8 @@ mod tests {
             .into(),
         );
 
-        let text = format(&baseline, &["long_functions", "unsafe_blocks"]);
+        let keys = ["long_functions", "unsafe_blocks"];
+        let text = format(&baseline, DEBT_HEADER, &keys);
 
         assert!(text.contains("zbm-core               2              0\n"));
         assert_eq!(parse(&text).unwrap(), baseline);

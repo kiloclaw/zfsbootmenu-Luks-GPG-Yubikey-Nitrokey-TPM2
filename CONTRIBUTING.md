@@ -54,13 +54,15 @@ Build and check the Rust workspace. `rust-toolchain.toml` selects the compiler; 
 what they cannot run.
 
 ```sh
-cargo xtask lint      # rustfmt, line widths, clippy, rustdoc, dependency layers, code metrics
-cargo xtask test      # every test that needs neither root nor a VM
+cargo xtask lint      # rustfmt, line widths, clippy, strict lints, rustdoc, dependency layers, code metrics
+cargo xtask test      # every test that needs neither root nor a VM (cargo nextest when installed)
+cargo xtask bless     # after a deliberate change to a screen: accept the new snapshots, then review them
 cargo +1.88 check --workspace --all-targets --locked
 cargo deny check      # after changing a dependency: licences, advisories, banned crates (deny.toml)
 ```
 
-`cargo xtask help` lists the other commands, and [docs/dev/tooling.md](docs/dev/tooling.md) explains each check.
+`cargo xtask help` lists the other commands, among them `coverage`, and [docs/dev/tooling.md](docs/dev/tooling.md)
+explains each check.
 
 Generated inputs of the parity tests come from a seeded generator; set `ZBM_TEST_SEED` to try other inputs, and
 quote the seed a failing test prints to reproduce it.

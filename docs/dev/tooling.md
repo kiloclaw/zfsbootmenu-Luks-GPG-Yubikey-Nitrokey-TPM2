@@ -7,9 +7,11 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 
 | Command | What it does |
 | --- | --- |
-| `cargo xtask lint` | Every check a pull request must pass: `rustfmt`, line widths, clippy with warnings as errors (also on the test build of `zbm`), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
-| `cargo xtask lint --strict` | Reports the stricter lints that refactored crates must pass (below). Never fails |
-| `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm` |
+| `cargo xtask lint` | Every check a pull request must pass: `rustfmt`, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
+| `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
+| `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
+| `cargo xtask bless` | Accepts every changed snapshot (`INSTA_UPDATE=always` over the crates that use `insta`) and lists the `.snap` files that changed, for review with `git diff` |
+| `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |
 | `cargo xtask check-deps [--bless]` | Checks the dependencies between crates against the layers ([architecture.md](architecture.md)); `--bless` regenerates the tables on that page |
 | `cargo xtask metrics [--check \| --bless]` | Prints code metrics per crate (below) |
@@ -62,5 +64,26 @@ which forbids running programs, touching files, reading the environment or the c
 implementations of the system interfaces. It builds in `target/strict` so the normal build stays cached, prints the
 findings per crate and per lint, and writes them to `target/strict/strict-lints.txt`.
 
-Today these findings are only reported. As each phase of REFACTOR-ROADMAP.md finishes a crate, that crate denies the
-lints itself, and the normal `cargo xtask lint` enforces them. `xtask` already passes them.
+A crate that has reached the strict lints stays there: `xtask/strict/crates.txt` lists those crates (`xtask`, the
+crates of the R0 pilots and the empty `zbm-menu`), `cargo xtask lint` runs the strict lints over them alone and fails
+on any finding, and `cargo xtask lint --strict`, which reports every crate, fails on them too. Each phase of
+REFACTOR-ROADMAP.md adds the crates it finishes; a crate never leaves the list. The other crates' findings are only
+reported. Silence a finding that is right in context with `#[allow(lint, reason = "...")]` on the item, never for a
+whole crate.
+
+## Line coverage
+
+`cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm` under
+[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) (`cargo install cargo-llvm-cov --locked` and
+`rustup component add llvm-tools`), adds up the lines of each source file per crate, test code included, and prints
+the line coverage of each crate with what it must reach. The report is in `target/coverage.json`, and the profiles
+stay, so `cargo llvm-cov report --html` shows the uncovered lines afterwards.
+
+Coverage may only go up, to the whole percent: `xtask/coverage-baseline.txt` holds each crate's coverage, and
+`--check` fails when a crate drops below it. A crate that is not listed, such as a new one, must reach 80%. After
+adding tests, run `cargo xtask coverage --bless` to raise the baseline in the same pull request; never lower a number
+by hand. CI's coverage job runs `--check`.
+
+The baseline is measured as root, as CI measures it: a parity test of `zbm-boot` compares with the legacy code only
+as root, the user that code runs as. Run the command as root (`sudo env "PATH=$PATH" cargo xtask coverage --check`)
+to compare with it; as another user `zbm-boot` reads below its baseline.

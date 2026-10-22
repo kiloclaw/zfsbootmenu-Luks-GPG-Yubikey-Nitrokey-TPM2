@@ -13,6 +13,7 @@
 )]
 
 mod cargo;
+mod coverage;
 mod deps;
 mod error;
 mod lint;
@@ -34,11 +35,15 @@ Usage: cargo xtask <command> [options]
 
 Commands:
   lint                   Every check a pull request must pass: format, line
-                         widths, clippy, documentation, check-deps and
-                         metrics --check
+                         widths, clippy, the strict lints of the crates in
+                         xtask/strict/crates.txt, documentation, check-deps
+                         and metrics --check
   lint --strict          Report the stricter lints that refactored crates
-                         must pass (never fails)
-  test                   Every test that needs no root and no virtual machine
+                         must pass, for every crate; fails only on a finding
+                         in a crate of xtask/strict/crates.txt
+  test                   Every test that needs no root and no virtual
+                         machine, under cargo nextest when it is installed
+  bless                  Accept every changed snapshot and list the files
   doc [--open]           Build the documentation, warnings as errors
   check-deps [--bless]   Check the dependencies between crates against the
                          layers in xtask/src/deps.rs; --bless rewrites the
@@ -46,6 +51,11 @@ Commands:
   metrics [--check | --bless]
                          Print code metrics per crate; --check fails when a
                          debt metric rose above xtask/metrics-baseline.txt,
+                         --bless writes the current numbers there
+  coverage [--check | --bless]
+                         Print line coverage per crate (cargo llvm-cov);
+                         --check fails when a crate dropped below
+                         xtask/coverage-baseline.txt (new crates: 80%),
                          --bless writes the current numbers there
   widths                 Check the line widths of The Rust Style Guide
   help                   Show this text
@@ -58,12 +68,16 @@ enum Command {
     Lint { strict: bool },
     /// `test`.
     Test,
+    /// `bless`.
+    Bless,
     /// `doc`.
     Doc { open: bool },
     /// `check-deps`.
     CheckDeps { bless: bool },
     /// `metrics`.
     Metrics(Mode),
+    /// `coverage`.
+    Coverage(Mode),
     /// `widths`.
     Widths,
     /// `help`.
@@ -79,6 +93,7 @@ impl Command {
             ["lint"] => Command::Lint { strict: false },
             ["lint", "--strict"] => Command::Lint { strict: true },
             ["test"] => Command::Test,
+            ["bless"] => Command::Bless,
             ["doc"] => Command::Doc { open: false },
             ["doc", "--open"] => Command::Doc { open: true },
             ["check-deps"] => Command::CheckDeps { bless: false },
@@ -86,6 +101,9 @@ impl Command {
             ["metrics"] => Command::Metrics(Mode::Report),
             ["metrics", "--check"] => Command::Metrics(Mode::Check),
             ["metrics", "--bless"] => Command::Metrics(Mode::Bless),
+            ["coverage"] => Command::Coverage(Mode::Report),
+            ["coverage", "--check"] => Command::Coverage(Mode::Check),
+            ["coverage", "--bless"] => Command::Coverage(Mode::Bless),
             ["widths"] => Command::Widths,
             _ => {
                 return Err(Error::Usage(format!(
@@ -125,9 +143,11 @@ fn run(command: Command) -> Result<()> {
         Command::Lint { strict: false } => lint::run(&Workspace::load(&root)?),
         Command::Lint { strict: true } => lint::strict(&Workspace::load(&root)?),
         Command::Test => cargo::test(&root),
+        Command::Bless => cargo::bless(&Workspace::load(&root)?),
         Command::Doc { open } => cargo::doc(&root, open),
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
+        Command::Coverage(mode) => coverage::run(&Workspace::load(&root)?, mode),
         Command::Widths => lint::check_widths(&root),
     }
 }
@@ -163,6 +183,11 @@ mod tests {
         assert_eq!(
             parse("check-deps --bless").unwrap(),
             Command::CheckDeps { bless: true }
+        );
+        assert_eq!(parse("bless").unwrap(), Command::Bless);
+        assert_eq!(
+            parse("coverage --check").unwrap(),
+            Command::Coverage(Mode::Check)
         );
     }
 

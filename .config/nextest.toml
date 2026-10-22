@@ -1,0 +1,11 @@
+# Profiles of cargo-nextest, which `cargo xtask test` uses when it is installed (docs/dev/testing.md).
+
+[profile.default]
+# A unit test that takes longer than this is reported as slow: the default suite should stay under a minute.
+slow-timeout = { period = "20s", terminate-after = 6 }
+
+# CI runs with NEXTEST_PROFILE=ci: every failure is reported, not only the first, and a hung test is stopped.
+[profile.ci]
+fail-fast = false
+failure-output = "immediate-final"
+slow-timeout = { period = "30s", terminate-after = 10 }

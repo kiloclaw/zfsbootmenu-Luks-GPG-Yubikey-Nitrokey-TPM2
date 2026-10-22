@@ -1,5 +1,10 @@
 //! `cargo xtask lint`: every check that a pull request must pass, and the
 //! report of the stricter lints that refactored code will have to pass.
+//!
+//! The crates listed in `xtask/strict/crates.txt` have reached the strict
+//! lints and must stay there: `lint` runs the strict lints over them and
+//! fails on any finding, and so does `lint --strict`, which also reports
+//! every other crate.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -41,6 +46,12 @@ pub const STRICT_ALLOWED: &[&str] = &["clippy::must_use_candidate"];
 /// The directory of the strict `clippy.toml`, relative to the root.
 pub const STRICT_CONFIG: &str = "xtask/strict";
 
+/// The crates that must have no strict finding, relative to the root.
+pub const STRICT_CRATES: &str = "xtask/strict/crates.txt";
+
+/// Findings per (crate, lint).
+pub type Findings = BTreeMap<(String, String), usize>;
+
 /// Runs every check and reports all failures together.
 ///
 /// # Errors
@@ -52,6 +63,7 @@ pub fn run(workspace: &Workspace) -> Result<()> {
     step(&mut failed, "format", || cargo::fmt_check(root));
     step(&mut failed, "line widths", || check_widths(root));
     step(&mut failed, "clippy", || cargo::clippy(root));
+    step(&mut failed, "strict crates", || strict_crates(workspace));
     step(&mut failed, "documentation", || cargo::doc(root, false));
     step(&mut failed, "check-deps", || deps::run(workspace, false));
     step(&mut failed, "metrics", || {
@@ -95,30 +107,68 @@ pub fn check_widths(root: &Path) -> Result<()> {
     }
 }
 
-/// Reports the [`STRICT_LINTS`] and the disallowed methods of
-/// `xtask/strict/clippy.toml`, per crate and per lint.
-///
-/// This never fails on findings: it shows how much work the refactor has
-/// left. It builds in `target/strict` so that it does not invalidate the
-/// normal build.
+/// Runs the strict lints over the crates of [`STRICT_CRATES`] alone.
 ///
 /// # Errors
 ///
-/// When clippy cannot run.
+/// [`Error::Check`] naming every finding in those crates, or a name in the
+/// list that is not a crate of the workspace.
+pub fn strict_crates(workspace: &Workspace) -> Result<()> {
+    let listed = listed_crates(workspace)?;
+    let mut selection = Vec::new();
+    for name in &listed {
+        selection.push("-p".to_owned());
+        selection.push(name.clone());
+    }
+    let findings = strict_clippy(workspace, &selection)?;
+    check_listed(&findings, &listed)?;
+    println!("strict crates: {} crates without a finding", listed.len());
+    Ok(())
+}
+
+/// Reports the [`STRICT_LINTS`] and the disallowed methods of
+/// `xtask/strict/clippy.toml`, per crate and per lint.
+///
+/// The report shows how much work the refactor has left; it fails only when
+/// a crate of [`STRICT_CRATES`] has a finding. It builds in `target/strict`
+/// so that it does not invalidate the normal build.
+///
+/// # Errors
+///
+/// When clippy cannot run, and as [`strict_crates`].
 pub fn strict(workspace: &Workspace) -> Result<()> {
+    let listed = listed_crates(workspace)?;
+    let findings = strict_clippy(workspace, &["--workspace".to_owned()])?;
+    let report = report(&findings);
+    print!("{report}");
+    let path = workspace.root.join("target/strict/strict-lints.txt");
+    std::fs::write(path, &report)
+        .map_err(|error| Error::io("writing target/strict/strict-lints.txt", error))?;
+    if process::is_github_actions() {
+        process::job_summary(&format!("## Strict lints\n\n```text\n{report}```\n"))?;
+    }
+    check_listed(&findings, &listed)
+}
+
+/// Runs clippy with the strict lints over `selection` (`--workspace` or
+/// `-p` options) and counts its findings.
+fn strict_clippy(workspace: &Workspace, selection: &[String]) -> Result<Findings> {
     let root = &workspace.root;
     let config = root.join(STRICT_CONFIG);
     let target = root.join("target/strict");
-    let mut args = vec![
-        "clippy".to_owned(),
-        "--workspace".to_owned(),
-        "--all-targets".to_owned(),
-        "--locked".to_owned(),
-        "--message-format=json".to_owned(),
-        "--target-dir".to_owned(),
-        target.display().to_string(),
-        "--".to_owned(),
-    ];
+    let mut args = vec!["clippy".to_owned()];
+    args.extend_from_slice(selection);
+    args.extend(
+        [
+            "--all-targets",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+        ]
+        .map(str::to_owned),
+    );
+    args.push(target.display().to_string());
+    args.push("--".to_owned());
     for lint in STRICT_LINTS {
         args.push("-W".to_owned());
         args.push((*lint).to_owned());
@@ -131,22 +181,69 @@ pub fn strict(workspace: &Workspace) -> Result<()> {
         .env("CLIPPY_CONF_DIR", &config.display().to_string())
         .args(args)
         .output()?;
-    let findings = findings(&output, workspace);
-    let report = report(&findings);
-    print!("{report}");
-    std::fs::write(target.join("strict-lints.txt"), &report)
-        .map_err(|error| Error::io("writing target/strict/strict-lints.txt", error))?;
-    if process::is_github_actions() {
-        process::job_summary(&format!("## Strict lints\n\n```text\n{report}```\n"))?;
+    Ok(findings(&output, workspace))
+}
+
+/// The crates of [`STRICT_CRATES`], checked against the workspace.
+///
+/// # Errors
+///
+/// [`Error::Check`] for a name that is not a crate of the workspace.
+fn listed_crates(workspace: &Workspace) -> Result<Vec<String>> {
+    let path = workspace.root.join(STRICT_CRATES);
+    let text = std::fs::read_to_string(&path)
+        .map_err(|error| Error::io(format!("reading {STRICT_CRATES}"), error))?;
+    let listed = parse_crates(&text);
+    let unknown: Vec<String> = listed
+        .iter()
+        .filter(|name| !workspace.packages.iter().any(|p| &p.name == *name))
+        .map(|name| format!("{STRICT_CRATES} names {name}, which is not a crate"))
+        .collect();
+    if unknown.is_empty() {
+        Ok(listed)
+    } else {
+        Err(Error::Check {
+            check: "strict crates",
+            problems: unknown,
+        })
     }
-    Ok(())
+}
+
+/// The crate names of a crate list: one per line, `#` starts a comment.
+pub fn parse_crates(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|line| line.split('#').next().unwrap_or_default().trim())
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Fails when a crate of `listed` has a finding.
+///
+/// # Errors
+///
+/// [`Error::Check`] with one line per crate and lint.
+pub fn check_listed(findings: &Findings, listed: &[String]) -> Result<()> {
+    let problems: Vec<String> = findings
+        .iter()
+        .filter(|((package, _), _)| listed.contains(package))
+        .map(|((package, lint), count)| format!("{package}: {count} x {lint}"))
+        .collect();
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(Error::Check {
+            check: "strict crates",
+            problems,
+        })
+    }
 }
 
 /// Counts clippy's warnings per (crate, lint) from its JSON messages.
 ///
 /// A warning in a library shows up twice, once for the library and once for
 /// its unit tests; each place is counted once.
-pub fn findings(json: &str, workspace: &Workspace) -> BTreeMap<(String, String), usize> {
+pub fn findings(json: &str, workspace: &Workspace) -> Findings {
     let places: BTreeSet<_> = json
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
@@ -206,7 +303,7 @@ fn package_of(value: &Value, workspace: &Workspace) -> Option<String> {
 }
 
 /// The findings as text: totals per crate, then per lint.
-pub fn report(findings: &BTreeMap<(String, String), usize>) -> String {
+pub fn report(findings: &Findings) -> String {
     let mut per_crate: BTreeMap<&str, usize> = BTreeMap::new();
     let mut per_lint: BTreeMap<&str, usize> = BTreeMap::new();
     for ((package, lint), count) in findings {
@@ -279,8 +376,44 @@ mod tests {
     }
 
     #[test]
+    fn a_crate_list_has_one_name_per_line_and_comments() {
+        let text = "# Crates without a finding\nxtask\n\nzbm-types  # R0\n";
+
+        assert_eq!(parse_crates(text), ["xtask", "zbm-types"]);
+    }
+
+    #[test]
+    fn only_findings_in_listed_crates_fail() {
+        let mut findings = Findings::new();
+        findings.insert(("old".to_owned(), "clippy::panic".to_owned()), 3);
+        assert!(check_listed(&findings, &["new".to_owned()]).is_ok());
+
+        findings.insert(("new".to_owned(), "clippy::todo".to_owned()), 1);
+        let error = check_listed(&findings, &["new".to_owned()]).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "strict crates found 1 problem(s)\n  new: 1 x clippy::todo"
+        );
+    }
+
+    #[test]
+    fn the_listed_crates_are_crates_of_the_workspace() {
+        let root = crate::workspace_root();
+        let text = std::fs::read_to_string(root.join(STRICT_CRATES)).unwrap();
+        let workspace = Workspace::load(&root).unwrap();
+
+        for name in parse_crates(&text) {
+            assert!(
+                workspace.packages.iter().any(|p| p.name == name),
+                "{name} is not a crate"
+            );
+        }
+    }
+
+    #[test]
     fn the_report_lists_the_most_frequent_lint_first() {
-        let mut findings = BTreeMap::new();
+        let mut findings = Findings::new();
         findings.insert(("a".to_owned(), "clippy::panic".to_owned()), 1);
         findings.insert(("a".to_owned(), "clippy::todo".to_owned()), 4);
 

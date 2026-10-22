@@ -1,9 +1,12 @@
-//! The `cargo` runs that `xtask` is made of: tests, documentation, clippy.
+//! The `cargo` runs that `xtask` is made of: tests, snapshots,
+//! documentation, clippy.
 
 use std::path::Path;
+use std::process::Stdio;
 
 use crate::error::Result;
 use crate::process::Program;
+use crate::workspace::Workspace;
 
 /// `cargo` in the workspace root `root`.
 pub fn cargo(root: &Path) -> Program {
@@ -13,16 +16,83 @@ pub fn cargo(root: &Path) -> Program {
 /// Runs every test that needs no root and no virtual machine: the
 /// workspace, then the test build of `zbm` (feature `test-seams`).
 ///
+/// With `cargo-nextest` installed the tests run under `cargo nextest run`
+/// (profiles in `.config/nextest.toml`; CI sets `NEXTEST_PROFILE=ci`) and
+/// the documentation tests, which nextest cannot run, under `cargo test
+/// --doc`. Without it everything runs under `cargo test`.
+///
 /// # Errors
 ///
 /// When a test fails.
 pub fn test(root: &Path) -> Result<()> {
+    let runner = if has_nextest(root) {
+        ["nextest", "run"].as_slice()
+    } else {
+        println!("test: cargo-nextest is not installed; using cargo test");
+        ["test"].as_slice()
+    };
     cargo(root)
-        .args(["test", "--workspace", "--locked"])
+        .args(runner)
+        .args(["--workspace", "--locked"])
         .run()?;
+    if runner != ["test"] {
+        cargo(root)
+            .args(["test", "--workspace", "--doc", "--locked"])
+            .run()?;
+    }
     cargo(root)
-        .args(["test", "-p", "zbm", "--features", "test-seams", "--locked"])
+        .args(runner)
+        .args(["-p", "zbm", "--features", "test-seams", "--locked"])
         .run()
+}
+
+/// Whether `cargo nextest` runs.
+fn has_nextest(root: &Path) -> bool {
+    std::process::Command::new("cargo")
+        .args(["nextest", "--version"])
+        .current_dir(root)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+/// Accepts every changed snapshot: runs the tests of the crates that use
+/// `insta` with `INSTA_UPDATE=always`, which writes each new snapshot over
+/// the old one, then lists the snapshot files that changed so that they can
+/// be reviewed with `git diff` before they are committed.
+///
+/// # Errors
+///
+/// When a test fails for another reason than a snapshot.
+pub fn bless(workspace: &Workspace) -> Result<()> {
+    let root = &workspace.root;
+    let mut args = vec!["test".to_owned(), "--locked".to_owned()];
+    for package in snapshot_packages(workspace) {
+        args.push("-p".to_owned());
+        args.push(package.to_owned());
+    }
+    cargo(root).args(args).env("INSTA_UPDATE", "always").run()?;
+    let changed = Program::new("git", root)
+        .args(["status", "--short", "--", "*.snap"])
+        .output()?;
+    if changed.is_empty() {
+        println!("bless: no snapshot changed");
+    } else {
+        println!("bless: these snapshots changed; review them with `git diff`:");
+        print!("{changed}");
+    }
+    Ok(())
+}
+
+/// The crates with snapshot tests: those that depend on `insta`.
+fn snapshot_packages(workspace: &Workspace) -> Vec<&str> {
+    workspace
+        .packages
+        .iter()
+        .filter(|package| package.dependencies.iter().any(|d| d.name == "insta"))
+        .map(|package| package.name.as_str())
+        .collect()
 }
 
 /// Builds the documentation of the workspace, with warnings as errors.

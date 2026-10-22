@@ -13,6 +13,7 @@ on:
       - 'rustfmt.toml'
       - 'xtask/**'
       - 'deny.toml'
+      - '.config/nextest.toml'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -28,6 +29,7 @@ on:
       - 'rustfmt.toml'
       - 'xtask/**'
       - 'deny.toml'
+      - '.config/nextest.toml'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -63,14 +65,22 @@ jobs:
             libyaml-pp-perl libsort-versions-perl libboolean-perl \
             systemd-boot-efi binutils
 
-      # rustfmt, line widths, clippy (also on the test build of zbm), rustdoc, dependency layers and code metrics;
-      # see docs/dev/tooling.md
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # rustfmt, line widths, clippy (also on the test build of zbm), the strict lints of the crates in
+      # xtask/strict/crates.txt, rustdoc, dependency layers and code metrics; see docs/dev/tooling.md
       - name: Lint
         run: cargo xtask lint
 
-      # The workspace and the test build of zbm, used by the LUKS unit suites (tests/luks/unit/impl.sh)
+      # The workspace and the test build of zbm, used by the LUKS unit suites (tests/luks/unit/impl.sh), under
+      # cargo nextest with the ci profile of .config/nextest.toml
       - name: Test
         run: cargo xtask test
+        env:
+          NEXTEST_PROFILE: ci
 
       # Images never contain the test build: the release zbm must not have the
       # command that runs the unit suites' operations
@@ -83,8 +93,9 @@ jobs:
           fi
 
   strict:
-    name: Strict lints (report only)
-    # The lints that crates must pass once REFACTOR-ROADMAP.md has refactored them; the counts go to the job summary
+    name: Strict lints
+    # The lints that crates must pass once REFACTOR-ROADMAP.md has refactored them, for every crate; the counts go to
+    # the job summary. It fails only on a finding in a crate of xtask/strict/crates.txt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -207,18 +218,27 @@ jobs:
             libyaml-pp-perl libsort-versions-perl libboolean-perl \
             systemd-boot-efi binutils
 
-      - name: Measure line coverage
+      # Line coverage per crate may only go up: xtask/coverage-baseline.txt, and 80% for a new crate. The table
+      # goes to the job summary. It runs as root, as the baseline was measured: some parity tests compare with the
+      # legacy code only as root, which is how that code runs
+      - name: Check line coverage
         run: |
-          cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
-          cargo llvm-cov report --summary-only | tee coverage.txt
-          {
-            echo '## Line coverage'
-            echo '```'
-            cat coverage.txt
-            echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
+            "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" "GITHUB_ACTIONS=${GITHUB_ACTIONS}" \
+            "GITHUB_STEP_SUMMARY=${GITHUB_STEP_SUMMARY}" CARGO_TERM_COLOR=always \
+            cargo xtask coverage --check
+
+      - name: Write the coverage report
+        if: ${{ !cancelled() }}
+        run: |
+          sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
+            "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" sh -c '
+              cargo llvm-cov report --lcov --output-path lcov.info &&
+              cargo llvm-cov report --summary-only > coverage.txt'
+          cat coverage.txt
 
       - name: Archive the coverage report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage

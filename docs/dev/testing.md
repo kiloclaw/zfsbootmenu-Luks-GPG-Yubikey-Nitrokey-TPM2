@@ -13,6 +13,12 @@
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS | `tests/README.md` |
 | Same images from the Perl and Rust `generate-zbm` | `scripts/dev/compare-generators.sh` | podman or docker | |
 
+`cargo xtask test` runs the Rust tests under [cargo-nextest](https://nexte.st) when it is installed
+(`cargo install cargo-nextest --locked`), which runs each test in its own process and reports slow ones, and the
+documentation tests, which nextest cannot run, under `cargo test --doc`; without it everything runs under
+`cargo test`. The profiles are in `.config/nextest.toml`; CI uses `NEXTEST_PROFILE=ci`, which reports every failure
+instead of stopping at the first. `cargo xtask coverage` measures line coverage per crate ([tooling.md](tooling.md)).
+
 `runtime-rust-pilot` (`tests/luks/vm/run-all.sh runtime-rust-pilot`) runs the pilots of REFACTOR-ROADMAP.md in the
 Rust image: the menu on the serial console with `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS
 volume formatted inside the VM.
@@ -39,8 +45,8 @@ people and for AI tools alike:
   arguments, the environment, files, logs or the screen.
 - **Snapshot tests for screens:** the menu's `view` is drawn into Ratatui's `TestBackend` at 80×25, 120×40 and 52×20
   and compared with `insta` snapshots in `crates/zbm-tui/src/snapshots/`. After a deliberate change, review the new
-  screens with `cargo insta review`, or accept them with `INSTA_UPDATE=always cargo test -p zbm-tui`, and read the
-  diff of the `.snap` files in the pull request.
+  screens with `cargo insta review`, or accept them all with `cargo xtask bless`, which lists the `.snap` files that
+  changed, and read their diff in the pull request.
 - **Property tests for parsers:** `proptest` checks that parsing any text never panics and that valid values
   round-trip (`zbm-types`).
 - **Recorded output over hand-written output:** parsers are tested against output recorded from the real programs
@@ -54,7 +60,7 @@ code in phase R1, so do not add new ones unless a port needs them; prefer record
 ## When a test fails
 
 - Rust tests print the seed and, for parity tests, both outputs; rerun one test with
-  `cargo test -p <crate> <test name>`.
+  `cargo nextest run -p <crate> <test name>` or `cargo test -p <crate> <test name>`.
 - The LUKS unit suites keep their output in `ZBMTEST_UNIT_WORK` (default `/var/tmp/zbm-luks-unit`).
 - The LUKS VM tests keep the serial console log and a step log per test below `ZBMTEST_WORK`
   (default `/var/tmp/zbm-luks-test/tests/<test>/`).

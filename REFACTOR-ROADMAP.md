@@ -33,7 +33,7 @@ ends up in Rust.
 
 | Phase | State |
 | --- | --- |
-| R0 | In progress on branch `claude/zbm-refactor` |
+| R0 | Done on branch `claude/zbm-refactor` |
 | R1 to R9 | Not started |
 
 Done in R0:
@@ -41,11 +41,18 @@ Done in R0:
 - `cargo xtask` (`xtask/`, documented in `docs/dev/tooling.md`): `lint` runs every check a pull request must pass
   (rustfmt, line widths, clippy, rustdoc, `check-deps`, `metrics --check`); `lint --strict` reports the lints of
   [How the rules are enforced](#how-the-rules-are-enforced) with the configuration in `xtask/strict/clippy.toml`;
-  `test`, `doc`, `check-deps`, `metrics` and `widths`. `xtask` itself passes the strict lints.
+  `test` (under `cargo nextest` when it is installed, profiles in `.config/nextest.toml`), `bless`, `doc`,
+  `check-deps`, `metrics`, `coverage` and `widths`.
+- The strict-lint list `xtask/strict/crates.txt`: `xtask`, the pilot crates (`zbm-types`, `zbm-trace`,
+  `zbm-platform`, `zbm-crypt`, `zbm-app`, `zbm-tui`) and the empty `zbm-menu` have no strict finding, and
+  `cargo xtask lint` fails if one appears.
 - The dependency layers of today's crates in `xtask/src/deps.rs`, and the tables of `docs/dev/architecture.md`
   generated from them.
 - The starting metrics in `xtask/metrics-baseline.txt`; CI fails when a crate's debt rises.
-- CI runs `cargo xtask lint` and `cargo xtask test`, and the strict report in a job of its own.
+- The starting line coverage in `xtask/coverage-baseline.txt` (92% over the workspace; every crate but `zbm`, 68%,
+  and `xtask`, 74%, at 80% or more); CI fails when a crate's coverage drops.
+- CI runs `cargo xtask lint` and `cargo xtask test` (with nextest), the strict report and `cargo xtask coverage
+  --check` in jobs of their own.
 - `docs/dev/` (architecture, testing, tooling, dependencies). The shell width check is replaced by
   `cargo xtask widths`.
 - [Decisions](#decisions) 1, 2, 3 and 5. The agreed crates are pinned, with their features, in
@@ -56,12 +63,7 @@ Done in R0:
   runs them in the Rust image on a serial console. [What the pilots taught](#what-the-pilots-taught) lists what they
   changed.
 
-Open in R0:
-
-- `cargo nextest`; `xtask bless` (snapshots are accepted with `cargo insta review` meanwhile).
-- The strict-lint list (`xtask/strict/crates.txt`, starting with `xtask`) and coverage in the metrics baseline
-  ([How the rules are enforced](#how-the-rules-are-enforced)).
-- Decisions 4 and 6 belong to later phases (R2 and R9).
+Decisions 4 and 6 belong to later phases (R2 and R9). R1 starts from here.
 
 ## What the pilots taught
 
@@ -399,8 +401,8 @@ CI, so that developers and AI tools learn the rules from the build instead of fr
 | Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts, per crate: functions over 60 lines, modules over 600 lines, public functions returning `bool`, `Result`-returning functions, doc comments that name a legacy function, calls to the shell-semantics helpers, tests that run Bash. It writes `target/metrics.json` and a table in the CI summary, and fails when a crate that a finished phase has refactored goes above its limits |
 | Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs `rustfmt` and the width check (`cargo xtask widths`) |
 | Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for G2) |
-| Strict lints stay clean once reached | `xtask lint` with `xtask/strict/crates.txt` | The crates listed there (from R0: `xtask`) must have no finding of `cargo xtask lint --strict`, and `lint` fails otherwise. Each phase adds the crates it finishes, so a refactored crate cannot slip back while the others are still being worked on |
-| Test coverage only goes up | `xtask metrics` with `cargo llvm-cov` | Line coverage per crate becomes a metric of the baseline, with the opposite direction: `--check` fails when a crate's coverage drops below its baseline (to the whole percent), and `--bless` raises it. A new crate starts at 80% |
+| Strict lints stay clean once reached | `xtask lint` with `xtask/strict/crates.txt` | The crates listed there (from R0: `xtask` and the pilot crates) must have no finding of `cargo xtask lint --strict`, and `lint` fails otherwise. Each phase adds the crates it finishes, so a refactored crate cannot slip back while the others are still being worked on |
+| Test coverage only goes up | `xtask coverage` with `cargo llvm-cov` | Line coverage per crate has a baseline of its own (`xtask/coverage-baseline.txt`), with the opposite direction to the debt metrics: `--check` fails when a crate's coverage drops below its baseline (to the whole percent), and `--bless` raises it. A new crate must reach 80%. It is a command of its own, run by CI's coverage job, because it runs every test in an instrumented build |
 | Documentation matches behaviour | `xtask gen-docs --check` | Fails when a man page fragment generated from the option or key binding tables is out of date ([Options defined once](#options-defined-once)) |
 
 `xtask metrics` recorded the starting point in `xtask/metrics-baseline.txt` at the start of R0. Over the crates of

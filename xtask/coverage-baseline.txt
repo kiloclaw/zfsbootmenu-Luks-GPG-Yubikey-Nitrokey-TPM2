@@ -1,0 +1,26 @@
+# The line coverage of each crate in whole percent, written by
+# `cargo xtask coverage --bless`. `cargo xtask coverage --check` fails when a
+# crate drops below its number; a crate that is not listed must reach 80.
+# Raise a number by testing more and running the command again; never lower
+# one by hand.
+crate         line_coverage
+generate-zbm             92
+xtask                    74
+zbm                      68
+zbm-app                  93
+zbm-boot                 97
+zbm-cmdline              99
+zbm-core                 96
+zbm-crypt               100
+zbm-kcl                  90
+zbm-log                  93
+zbm-luks                 94
+zbm-platform             83
+zbm-state               100
+zbm-sys                  92
+zbm-system               98
+zbm-testutil             97
+zbm-trace                91
+zbm-tui                  85
+zbm-types                94
+zbm-zfs                  99

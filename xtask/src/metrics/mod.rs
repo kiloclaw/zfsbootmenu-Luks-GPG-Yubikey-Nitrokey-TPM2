@@ -273,7 +273,7 @@ pub fn run(workspace: &Workspace, mode: Mode) -> Result<()> {
     match mode {
         Mode::Report => Ok(()),
         Mode::Bless => {
-            let text = baseline::format(&as_baseline(&all), &debt_keys());
+            let text = baseline::format(&as_baseline(&all), baseline::DEBT_HEADER, &debt_keys());
             std::fs::write(&path, text)
                 .map_err(|error| Error::io(format!("writing {BASELINE}"), error))?;
             println!("metrics: wrote {BASELINE}");

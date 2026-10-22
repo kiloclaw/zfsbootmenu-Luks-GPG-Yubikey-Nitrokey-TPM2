@@ -1,0 +1,11 @@
+# The crates that have no finding of `cargo xtask lint --strict` and must keep it that way: `cargo xtask lint`
+# runs the strict lints over them and fails on any finding. A phase of REFACTOR-ROADMAP.md adds each crate it
+# finishes; a crate is never taken off the list.
+xtask
+zbm-app
+zbm-crypt
+zbm-menu
+zbm-platform
+zbm-trace
+zbm-tui
+zbm-types
