@@ -11,7 +11,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'rustfmt.toml'
-      - 'scripts/dev/check-rust-width.sh'
+      - 'xtask/**'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -25,7 +25,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'rustfmt.toml'
-      - 'scripts/dev/check-rust-width.sh'
+      - 'xtask/**'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -61,25 +61,14 @@ jobs:
             libyaml-pp-perl libsort-versions-perl libboolean-perl \
             systemd-boot-efi binutils
 
-      - name: Check formatting
-        run: cargo fmt --all --check
+      # rustfmt, line widths, clippy (also on the test build of zbm), rustdoc, dependency layers and code metrics;
+      # see docs/dev/tooling.md
+      - name: Lint
+        run: cargo xtask lint
 
-      # The line widths of the Rust Style Guide that rustfmt leaves alone
-      - name: Check line widths
-        run: scripts/dev/check-rust-width.sh
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
-
-      # The test build for the LUKS unit suites (tests/luks/unit/impl.sh)
-      - name: Clippy (test build of zbm)
-        run: cargo clippy -p zbm --all-targets --features test-seams --locked -- -D warnings
-
+      # The workspace and the test build of zbm, used by the LUKS unit suites (tests/luks/unit/impl.sh)
       - name: Test
-        run: cargo test --workspace --locked
-
-      - name: Test (test build of zbm)
-        run: cargo test -p zbm --features test-seams --locked
+        run: cargo xtask test
 
       # Images never contain the test build: the release zbm must not have the
       # command that runs the unit suites' operations
@@ -91,10 +80,18 @@ jobs:
             exit 1
           fi
 
-      - name: Documentation
-        run: cargo doc --workspace --no-deps --locked
-        env:
-          RUSTDOCFLAGS: -D warnings
+  strict:
+    name: Strict lints (report only)
+    # The lints that crates must pass once REFACTOR-ROADMAP.md has refactored them; the counts go to the job summary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: rustup toolchain install
+
+      - name: Report
+        run: cargo xtask lint --strict
 
   luks-unit:
     name: LUKS unit suites with each implementation

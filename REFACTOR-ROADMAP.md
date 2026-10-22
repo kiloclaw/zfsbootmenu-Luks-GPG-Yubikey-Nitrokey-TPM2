@@ -11,6 +11,7 @@ ends up in Rust.
 
 ## Contents
 
+- [Status](#status)
 - [Goals](#goals)
 - [Where the code stands](#where-the-code-stands)
 - [Findings](#findings)
@@ -25,6 +26,34 @@ ends up in Rust.
 - [Risks](#risks)
 - [Decisions for review](#decisions-for-review)
 - [Proposals for later](#proposals-for-later)
+
+## Status
+
+| Phase | State |
+| --- | --- |
+| R0 | In progress on branch `claude/zbm-refactor` |
+| R1 to R9 | Not started |
+
+Done in R0:
+
+- `cargo xtask` (`xtask/`, documented in `docs/dev/tooling.md`): `lint` runs every check a pull request must pass
+  (rustfmt, line widths, clippy, rustdoc, `check-deps`, `metrics --check`); `lint --strict` reports the lints of
+  [How the rules are enforced](#how-the-rules-are-enforced) with the configuration in `xtask/strict/clippy.toml`;
+  `test`, `doc`, `check-deps`, `metrics` and `widths`. `xtask` itself passes the strict lints.
+- The dependency layers of today's crates in `xtask/src/deps.rs`, and the tables of `docs/dev/architecture.md`
+  generated from them.
+- The starting metrics in `xtask/metrics-baseline.txt`; CI fails when a crate's debt rises.
+- CI runs `cargo xtask lint` and `cargo xtask test`, and the strict report in a job of its own.
+- `docs/dev/` (architecture, testing, tooling) and `vendor/README.md`. The shell width check is replaced by
+  `cargo xtask widths`.
+
+Open in R0:
+
+- The [decisions for review](#decisions-for-review); then vendoring the agreed crates.
+- `cargo deny` and `cargo nextest`; `xtask bless`, which waits for the choice of snapshot test crate (decision 1).
+- The two pilot slices.
+- Package B of PORT-ROADMAP.md is finishing on `claude/zfsbootmenu-rust-port` (its VM results); merge it into this
+  branch before R1 starts.
 
 ## Goals
 
@@ -63,7 +92,7 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | Packaging and scripts (`packaging/`, `scripts/`) | Bash, Python | 2,400 lines | partly | Container build, release, dev tools |
 
 The Rust code is in good health by most measures: formatted, clippy-clean with `-D warnings`, documented, `unsafe`
-confined to `zbm-sys` (14 blocks), every system call behind a trait with a fake. It was, however, written to *be* the
+confined to `zbm-sys` (13 blocks), every system call behind a trait with a fake. It was, however, written to *be* the
 legacy code in another language, and that shows.
 
 ## Findings
@@ -72,10 +101,11 @@ Each finding names the goals it touches and an example; the phases below fix the
 
 ### F1. The code is shaped like the Bash it replaced (G1, G3)
 
-- Functions are named and documented after the shell functions they port: 104 doc comments explain a function as "as
-  `luks_xxx` does". A developer must read the Bash to understand the Rust.
+- Functions are named and documented after the shell functions they port: 229 doc comment lines name the legacy
+  function they replace, as in "as `luks_xxx` does". A developer must read the Bash to understand the Rust.
 - Shell semantics are emulated rather than replaced: `command_substitution`, `read_lines`, `test_integer`,
-  `read_first_line` and `echo` are called 131 times. They exist so that output matches the legacy code byte for byte.
+  `read_first_line`, `trim_ifs` and `echo` are used 71 times outside tests. They exist so that output matches the
+  legacy code byte for byte.
 - Parsers reproduce the quirks of `sed` and `awk` instead of parsing the format: `zbm_luks::tokens::last_match`
   imitates a greedy `sed` expression over JSON, and `parse_json_metadata` tracks brace depth like the legacy `awk`
   program.
@@ -85,8 +115,9 @@ Each finding names the goals it touches and an example; the phases below fix the
 
 ### F2. Errors and outcomes are invisible (G5)
 
-- 135 functions return `bool` and only 26 return `Result`; `zbm_core::error::Error` is constructed 14 times. A failed
-  unlock, import or mount says "no" and logs a line; the cause is gone by the time a caller decides what to do.
+- 50 functions outside tests return a `bool` that only says whether they succeeded (`unlock_all`, `export_pool`,
+  `cryptsetup_open`, the `try_*` key methods). A failed unlock, import or mount says "no" and logs a line; the cause
+  is gone by the time a caller decides what to do.
 - Outcomes that are not errors (the user skipped a volume, a device is absent, a token is unsupported) are encoded as
   `false`, `None` or ad-hoc enums, differently in each module.
 
@@ -115,7 +146,7 @@ their durations and statuses, and no way to dump the runtime's state. `ztrace` a
 
 ### F6. The tests depend on Bash and are hard to scan (G7, G8, G10)
 
-- 55 Rust tests run the legacy Bash or Perl code to compare results. They need `bash`, the legacy tree and Perl
+- 71 Rust tests run the legacy Bash or Perl code to compare results. They need `bash`, the legacy tree and Perl
   modules, take seconds each, and stop working when the legacy code is deleted.
 - Fake programs are written as closures that match command lines; a reader must simulate the closure to know what
   the machine looks like. Several tests check five or more behaviours at once.
@@ -259,10 +290,10 @@ nobody can read. After the refactor:
 
 ## Rules for refactored code
 
-1. **Formatting and lints:** `rustfmt` style edition 2024 with no options; the width rules of
-   `scripts/dev/check-rust-width.sh` move into `xtask lint`; `clippy::all` and `clippy::pedantic` denied, each allow
-   carrying a `reason`; `unsafe_code` denied outside `zbm-sys`; `missing_docs`, `rustdoc::broken_intra_doc_links` and
-   `rustdoc::missing_crate_level_docs` denied.
+1. **Formatting and lints:** `rustfmt` style edition 2024 with no options; the width rules (`cargo xtask widths`) are
+   part of `xtask lint`; `clippy::all` and `clippy::pedantic` denied, each allow carrying a `reason`; `unsafe_code`
+   denied outside `zbm-sys`; `missing_docs`, `rustdoc::broken_intra_doc_links` and `rustdoc::missing_crate_level_docs`
+   denied.
 2. **Documentation:** every crate starts with what it is for, how it fits the architecture diagram and a short
    example; every public item says what it does, its errors (`# Errors`), panics (`# Panics`, ideally none) and has a
    doctest when it can run without a system. Docs explain intent and behaviour, not which legacy function it was.
@@ -296,14 +327,16 @@ CI, so that developers and AI tools learn the rules from the build instead of fr
 | No hidden IO (7), adapters only (R2 exit) | `disallowed-methods` and `disallowed-types` in `clippy.toml` | `std::process::Command`, `std::fs::*`, `std::env::var*`, `std::thread::sleep`, `std::time::SystemTime::now`, `Instant::now`, `println!` and `eprintln!` are disallowed everywhere. The real implementations in `zbm-platform` and `zbm-sys`, and `xtask`, allow them in one module each with `#[expect(clippy::disallowed_methods, reason = "...")]` |
 | Layering (front ends never import adapters) | `xtask check-deps` | Reads `cargo metadata` and fails on any dependency edge that the architecture diagram does not allow (for example `zbm-tui` → `zbm-zfs`, or any domain crate → `zbm-platform`'s real implementations). The allowed edges are a table in `xtask` that `docs/dev/architecture.md` is generated from, so the picture and the check cannot drift |
 | Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts, per crate: functions over 60 lines, modules over 600 lines, public functions returning `bool`, `Result`-returning functions, doc comments that name a legacy function, calls to the shell-semantics helpers, tests that run Bash. It writes `target/metrics.json` and a table in the CI summary, and fails when a crate that a finished phase has refactored goes above its limits |
-| Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs the width check that is `scripts/dev/check-rust-width.sh` today |
+| Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs `rustfmt` and the width check (`cargo xtask widths`) |
 | Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for G2) |
 | Documentation matches behaviour | `xtask gen-docs --check` | Fails when a man page fragment generated from the option or key binding tables is out of date ([Options defined once](#options-defined-once)) |
 
-`xtask metrics` starts from the numbers in [Findings](#findings): 135 public and private functions returning `bool`,
-26 returning `Result`, 104 doc comments naming legacy functions, 131 calls to shell-semantics helpers and 55 tests
-that run Bash. Each phase's exit names the crates whose numbers must reach the limits, so progress is visible in every
-CI run rather than claimed at the end.
+`xtask metrics` recorded the starting point in `xtask/metrics-baseline.txt` at the start of R0. Over the crates of
+the port (without `xtask`): 29 functions over 60 lines, 19 files over 600 lines, 50 functions returning a `bool`
+success flag, 229 doc comment lines naming legacy functions, 71 uses of the shell-semantics helpers, 71 tests that
+run legacy code and 13 `unsafe` blocks. `docs/dev/tooling.md` defines each number. The numbers may only go down, and
+each phase's exit names the crates whose numbers must reach the limits, so progress is visible in every CI run rather
+than claimed at the end.
 
 ## Testing strategy
 
@@ -456,7 +489,7 @@ tests are the proof); behaviour changes start with R5.
 - Introduce per-crate error enums and convert `bool`-returning functions to `Result` or outcome enums, crate by
   crate, starting with `zbm-luks` and `zbm-boot`.
 - Turn `zbm-testutil` into `zbm-testkit`: `FakeMachine` builders, assertion macros, golden helpers; record the legacy
-  parity results (`xtask record-parity`) and switch the 55 Bash-running tests to golden files.
+  parity results (`xtask record-parity`) and switch the 71 Bash-running tests to golden files.
 - [Crash reports](#crash-reports): the panic hook in `zbm-trace`, the supervisor's record of children killed by a
   signal, split debug files with build IDs in `xtask build-image` (replacing `strip = true` in the release profile),
   and `xtask symbolize`.

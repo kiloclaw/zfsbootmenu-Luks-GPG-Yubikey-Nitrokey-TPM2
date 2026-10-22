@@ -12,6 +12,7 @@ fork are better sent upstream.
 | `legacy/bin/` | The legacy `generate-zbm` (Perl) and `zbm-kcl` (Bash), which the Rust ones replace; `make install TOOLS=legacy` still installs them. |
 | `legacy/cpanfile` | Perl modules that the legacy `generate-zbm` needs; builds no longer need them. |
 | `crates/` | Rust crates of the port, one Cargo workspace (`Cargo.toml` at the root): `generate-zbm` and `zbm-kcl` (host tools), `zbm` (the runtime program, still without commands) and the libraries they share. |
+| `xtask/` | Developer automation in Rust, run as `cargo xtask` (lints, tests, dependency checks, code metrics); see `docs/dev/tooling.md`. |
 | `vendor/` | The crates the workspace depends on, vendored so that builds need no network (`.cargo/config.toml`). |
 | `packaging/dracut/`, `packaging/initcpio/` | The dracut module and the mkinitcpio hooks. |
 | `packaging/container/` | The build container and its helpers (`build-init.sh`, `image-build.sh`, `zbm-builder.sh`). |
@@ -20,7 +21,7 @@ fork are better sent upstream.
 | `contrib/`, `examples/` | Hooks, helper scripts and example configuration files. |
 | `scripts/` | Development tools; `scripts/dev/` holds the checks and comparisons described below, and `scripts/release/` the release tools and signing keys. |
 | `tests/` | Test suites (see [Testing](#testing)). |
-| `docs/` | Sphinx documentation, manual pages and the Gentoo guides (`docs/guides/gentoo/`). |
+| `docs/` | Sphinx documentation, manual pages, the Gentoo guides (`docs/guides/gentoo/`) and the developer documentation (`docs/dev/`). |
 | `assets/` | Logos, screenshots and the splash image. |
 
 Run every command below from the root of the repository unless it says otherwise.
@@ -53,12 +54,12 @@ Build and check the Rust workspace. `rust-toolchain.toml` selects the compiler; 
 what they cannot run.
 
 ```sh
-cargo fmt --all --check
-scripts/dev/check-rust-width.sh
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
+cargo xtask lint      # rustfmt, line widths, clippy, rustdoc, dependency layers, code metrics
+cargo xtask test      # every test that needs neither root nor a VM
 cargo +1.85 check --workspace --all-targets --locked
 ```
+
+`cargo xtask help` lists the other commands, and [docs/dev/tooling.md](docs/dev/tooling.md) explains each check.
 
 Generated inputs of the parity tests come from a seeded generator; set `ZBM_TEST_SEED` to try other inputs, and
 quote the seed a failing test prints to reproduce it.
@@ -71,7 +72,7 @@ quote the seed a failing test prints to reproduce it.
 | LUKS unit tests in the build container | `tests/luks/unit/run-in-container.sh` | podman or docker |
 | LUKS VM tests | `tests/luks/vm/run-all.sh [test ...]` | root, QEMU (KVM if available), the build container image |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS; see `tests/README.md` |
-| Rust | `cargo test --workspace` | the Rust toolchain; Perl and binutils for the parity tests |
+| Rust | `cargo xtask test` | the Rust toolchain; Perl and binutils for the parity tests |
 | Perl and Rust `generate-zbm` give the same images | `scripts/dev/compare-generators.sh [release recovery builder]` | podman or docker, the build container image |
 
 `docs/luks/testing.rst` describes every LUKS test. Run the suites that cover the code you changed, and say in the pull
@@ -114,8 +115,8 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
 - Perl: `perltidy` with `.perltidyrc`.
 - Rust: follow [The Rust Style Guide](https://doc.rust-lang.org/stable/style-guide/) strictly. `rustfmt` with its
   default settings applies it (`rustfmt.toml` only selects the 2024 style edition); the line widths it leaves to
-  you are checked by `scripts/dev/check-rust-width.sh`: at most 100 characters, and comment lines at most 80
-  without their indentation. Code must also be `clippy` clean.
+  you are checked by `cargo xtask widths`: at most 100 characters, and comment lines at most 80 without their
+  indentation. Code must also be `clippy` clean; `cargo xtask lint` runs every check.
 - Documentation: reStructuredText, lines of at most 120 characters. `docs/README.md` explains how to build it; it must
   build without warnings (`make -C docs html SPHINXOPTS=-W`).
 - `.editorconfig` sets indentation and line endings for editors that support it.
