@@ -57,6 +57,7 @@ what they cannot run.
 cargo xtask lint      # rustfmt, line widths, clippy, strict lints, rustdoc, dependency layers, code metrics
 cargo xtask test      # every test that needs neither root nor a VM (cargo nextest when installed)
 cargo xtask bless     # after a deliberate change to a screen: accept the new snapshots, then review them
+cargo xtask record-parity   # after changing a parity test's cases: record the legacy results again
 cargo +1.88 check --workspace --all-targets --locked
 cargo deny check      # after changing a dependency: licences, advisories, banned crates (deny.toml)
 ```

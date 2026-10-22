@@ -28,7 +28,7 @@ pub fn test(root: &Path) -> Result<()> {
     test_with(root, &[])
 }
 
-/// Runs the tests as [`test`] does, with the environment variables `env`.
+/// Runs the tests as [`test()`] does, with the environment variables `env`.
 fn test_with(root: &Path, env: &[(&str, &str)]) -> Result<()> {
     let with_env = |mut program: Program| {
         for (key, value) in env {

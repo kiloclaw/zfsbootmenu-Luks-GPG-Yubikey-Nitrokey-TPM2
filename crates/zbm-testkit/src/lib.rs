@@ -7,7 +7,7 @@
 //!   and answers it.
 //! - [`fakes`] replaces the other system interfaces of `zbm-system` (files, the
 //!   clock, the console, processes) and bundles them as a `FakeSystem`.
-//! - [`legacy`] runs the Bash and Perl code in `legacy/`, and [`parity`]
+//! - [`legacy`] runs the Bash and Perl code in `legacy/`, and [`mod@parity`]
 //!   records its results as golden files, so parity tests compare the Rust code
 //!   with the legacy code without running it.
 //! - [`efi`] describes EFI images without what comes from the host's stub.

@@ -1,0 +1,21 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "dracut [(\"zfsbootmenu_runtime\", \"rust\"), (\"zfsbootmenu_zbm\", \"/nonexistent/zbm\")]",
+      "result": [
+        1,
+        "runtime=rust\n",
+        "derror: zfsbootmenu_runtime=rust: zbm not found at /nonexistent/zbm\n"
+      ]
+    },
+    {
+      "input": "mkinitcpio [(\"zfsbootmenu_runtime\", \"Rust\"), (\"zfsbootmenu_zbm\", \"$ZBM\")]",
+      "result": [
+        0,
+        "add_binary $ZBM /libexec/zbm\nruntime=rust\n",
+        ""
+      ]
+    }
+  ]
+}

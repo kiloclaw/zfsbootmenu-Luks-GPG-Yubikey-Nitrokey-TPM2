@@ -184,8 +184,12 @@ mod tests {
                 }
                 edited
             };
-            let perl: i8 = parity.legacy(format!("{a:?} {b:?}"), || perl_cmp(&a, &b));
-            assert_eq!(versioncmp(&a, &b), perl.cmp(&0), "versioncmp({a:?}, {b:?})");
+            let legacy: i8 = parity.legacy(format!("{a:?} {b:?}"), || perl_cmp(&a, &b));
+            assert_eq!(
+                versioncmp(&a, &b),
+                legacy.cmp(&0),
+                "versioncmp({a:?}, {b:?})"
+            );
         }
     }
 }

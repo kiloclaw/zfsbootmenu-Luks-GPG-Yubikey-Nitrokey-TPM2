@@ -1142,6 +1142,7 @@ name = "zbm"
 version = "0.1.0"
 dependencies = [
  "pretty_assertions",
+ "serde",
  "zbm-app",
  "zbm-boot",
  "zbm-cmdline",

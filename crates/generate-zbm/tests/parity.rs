@@ -346,13 +346,15 @@ struct Outcome {
 fn run_perl(case: &Case) -> Outcome {
     let script = legacy::path("bin/generate-zbm").display().to_string();
     let perl_box = Sandbox::new(case);
-    let perl = perl_box.run(&["perl".to_owned(), script.clone()], case);
+    let output = perl_box.run(&["perl".to_owned(), script.clone()], case);
     // Perl dies over a configuration section that is not a mapping with whatever
     // error number an earlier call left; the Rust port exits with 255.
-    let perl_code = perl.status.shell_code();
-    let type_error = (perl.stderr_text().contains("as a HASH ref")
-        || perl.stderr_text().contains("Not a HASH reference"))
-        && !perl.stdout_text().contains("Unable to parse configuration");
+    let perl_code = output.status.shell_code();
+    let type_error = (output.stderr_text().contains("as a HASH ref")
+        || output.stderr_text().contains("Not a HASH reference"))
+        && !output
+            .stdout_text()
+            .contains("Unable to parse configuration");
     let code = if type_error && perl_code != 0 {
         255
     } else {
@@ -360,10 +362,10 @@ fn run_perl(case: &Case) -> Outcome {
     };
     Outcome {
         code,
-        stdout: perl_box.normalize(&perl.stdout_text(), &script),
-        log: debug_log(&perl_box.normalize(&perl.stderr_text(), &script)),
+        stdout: perl_box.normalize(&output.stdout_text(), &script),
+        log: debug_log(&perl_box.normalize(&output.stderr_text(), &script)),
         state: perl_box.state(&script),
-        stderr: perl_box.normalize(&perl.stderr_text(), &script),
+        stderr: perl_box.normalize(&output.stderr_text(), &script),
     }
 }
 
@@ -374,29 +376,29 @@ fn compare(parity: &mut Parity, case: &Case) -> Outcome {
         "args {:?}, env {:?}, config:\n{}",
         case.args, case.env, case.config
     );
-    let perl: Outcome = parity.legacy(describe.clone(), || run_perl(case));
+    let legacy: Outcome = parity.legacy(describe.clone(), || run_perl(case));
     let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
     let rust_box = Sandbox::new(case);
     let rust = rust_box.run(std::slice::from_ref(&binary), case);
     let rust_stdout = rust_box.normalize(&rust.stdout_text(), &binary);
     assert_eq!(
         rust.status.shell_code(),
-        perl.code,
-        "exit status, {describe}\nperl stdout:\n{}\nperl stderr:\n{}\n\
+        legacy.code,
+        "exit status, {describe}\nlegacy stdout:\n{}\nlegacy stderr:\n{}\n\
          rust stdout:\n{rust_stdout}\nrust stderr:\n{}",
-        perl.stdout,
-        perl.stderr,
+        legacy.stdout,
+        legacy.stderr,
         rust.stderr_text()
     );
-    assert_eq!(rust_stdout, perl.stdout, "stdout, {describe}");
+    assert_eq!(rust_stdout, legacy.stdout, "stdout, {describe}");
     assert_eq!(
         debug_log(&rust_box.normalize(&rust.stderr_text(), &binary)),
-        perl.log,
-        "debug log, {describe}\nperl stderr:\n{}",
-        perl.stderr
+        legacy.log,
+        "debug log, {describe}\nlegacy stderr:\n{}",
+        legacy.stderr
     );
-    assert_eq!(rust_box.state(&binary), perl.state, "files, {describe}");
-    perl
+    assert_eq!(rust_box.state(&binary), legacy.state, "files, {describe}");
+    legacy
 }
 
 const BASIC: &str = "Global:

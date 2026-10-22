@@ -773,8 +773,8 @@ mod tests {
             let yaml: String = (0..count)
                 .map(|index| format!("k{index}: {}\n", rng.choose(&scalars)))
                 .collect();
-            let perl: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_view(&yaml));
-            assert_eq!(rust_view(&yaml), perl, "yaml {yaml:?}");
+            let legacy: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_view(&yaml));
+            assert_eq!(rust_view(&yaml), legacy, "yaml {yaml:?}");
         }
     }
 }

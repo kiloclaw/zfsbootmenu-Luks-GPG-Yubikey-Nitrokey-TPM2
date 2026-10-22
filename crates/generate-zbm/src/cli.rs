@@ -618,13 +618,13 @@ mod tests {
                 .map(|_| (*rng.choose(&pieces)).to_owned())
                 .collect();
             let posix = rng.below(5) == 0;
-            let perl: String = parity.legacy(format!("args {list:?}, posix {posix}"), || {
+            let legacy: String = parity.legacy(format!("args {list:?}, posix {posix}"), || {
                 let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
                 comparable(&perl_parse(&source, &list, posix))
             });
             assert_eq!(
                 rust_parse(&list, posix),
-                perl,
+                legacy,
                 "args {list:?}, posix {posix}"
             );
         }

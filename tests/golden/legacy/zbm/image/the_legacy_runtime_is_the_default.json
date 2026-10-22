@@ -1,0 +1,13 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "dracut [(\"zfsbootmenu_zbm\", \"/nonexistent/zbm\")]",
+      "result": [
+        0,
+        "runtime=legacy\n",
+        "dinfo: zbm not found at /nonexistent/zbm; the legacy runtime does not need it\n"
+      ]
+    }
+  ]
+}

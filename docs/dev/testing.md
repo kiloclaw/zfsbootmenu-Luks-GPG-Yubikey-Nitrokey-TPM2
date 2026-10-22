@@ -53,9 +53,33 @@ people and for AI tools alike:
   (`crates/*/tests/fixtures/`, recorded by `scripts/dev/record-fixtures.py` and
   `scripts/dev/record-luks-fixtures.sh`).
 
-Parity tests that run the legacy Bash or Perl code (through `zbm_testkit::legacy`) are counted by
-`cargo xtask metrics` as "legacy tests". REFACTOR-ROADMAP.md replaces them with golden files recorded from the legacy
-code in phase R1, so do not add new ones unless a port needs them; prefer recorded expectations.
+### Parity tests and recorded legacy results
+
+A parity test gives the same input to a legacy function and to its Rust counterpart and compares the results. The
+legacy half runs inside `parity.legacy(case, || ...)` (`zbm_testkit::parity`), and its result is recorded in
+`tests/golden/legacy/<crate>/<module>/<test>.json`. A normal test run reads the recording and never runs Bash, Perl or
+`legacy/`; the helpers of `zbm_testkit::legacy` panic outside a recording. `ZBM_PARITY` chooses:
+
+| `ZBM_PARITY` | What happens |
+| --- | --- |
+| `replay` (default) | The recorded results are used; a case that was not recorded, or whose input changed, fails |
+| `record` | The legacy code runs and the files are written: `cargo xtask record-parity` |
+| `check` | The legacy code runs and must give the recorded results: `cargo xtask record-parity --check`, and `cargo xtask coverage` |
+| `live` | The legacy code runs and the files are left alone; the default when `ZBM_TEST_SEED` is set, since other seeds generate inputs that were never recorded |
+
+Rules for a parity test:
+
+- Build the inputs (generated values, directories, fake pools) outside the closure, so that both modes see the same
+  ones, and describe the case with them: the description is checked against the recording.
+- Return only what the comparison needs, and nothing that depends on the machine: write temporary directories as
+  `$DIR` or `$BASE`, describe EFI images with `zbm_testkit::efi::describe`, and leave out the environment.
+- Skip a test for a missing tool only when `parity.mode().needs_legacy()`, unless the Rust code needs the tool too.
+- Never name a helper or a variable `perl`, or a helper `legacy`: `cargo xtask metrics` counts tests that mention
+  the legacy helpers outside a recording as "legacy tests", which must stay at zero.
+
+Recording needs what the legacy code needs (Bash, Perl with its modules, binutils, the systemd EFI stub) and root for
+the cases that compare with it as root. REFACTOR-ROADMAP.md lists behaviour changes that update a recording on
+purpose.
 
 ## When a test fails
 

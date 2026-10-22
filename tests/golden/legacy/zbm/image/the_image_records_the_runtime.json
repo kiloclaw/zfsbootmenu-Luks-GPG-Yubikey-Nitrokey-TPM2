@@ -1,0 +1,9 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "create_zbm_conf, dracut, legacy",
+      "result": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"\"\nexport ZBM_RUNTIME=\"legacy\"\n"
+    }
+  ]
+}

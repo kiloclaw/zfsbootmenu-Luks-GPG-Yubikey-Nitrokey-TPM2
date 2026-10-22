@@ -34,7 +34,8 @@ ends up in Rust.
 | Phase | State |
 | --- | --- |
 | R0 | Done on branch `claude/zbm-refactor` |
-| R1 to R9 | Not started |
+| R1 | In progress on branch `claude/zbm-refactor` |
+| R2 to R9 | Not started |
 
 Done in R0:
 
@@ -63,7 +64,19 @@ Done in R0:
   runs them in the Rust image on a serial console. [What the pilots taught](#what-the-pilots-taught) lists what they
   changed.
 
-Decisions 4 and 6 belong to later phases (R2 and R9). R1 starts from here.
+Decisions 4 and 6 belong to later phases (R2 and R9).
+
+Done in R1:
+
+- `zbm-testutil` is `zbm-testkit`. No Rust test runs Bash, Perl or `legacy/` any more: the 71 tests that did record
+  the legacy results in `tests/golden/legacy/` (`zbm_testkit::parity`), `cargo xtask record-parity` records them, and
+  CI's coverage job checks them against the legacy code (`ZBM_PARITY=check`). The legacy helpers panic outside a
+  recording. `cargo xtask test` takes 8 s instead of 27 s.
+- `zbm_testkit::efi` describes EFI images by their payload sections, so recordings made with one systemd stub hold on
+  machines with another.
+
+Open in R1: `FakeMachine` builders and assertion macros; the threat model and fuzz targets; `zbm-types` and
+`zbm-trace` everywhere; error enums; crash reports; shadow mode.
 
 ## What the pilots taught
 
@@ -483,7 +496,8 @@ mode checks the refactored code on them without letting it act:
 Parity with the legacy code stays the safety net until the cutover, but without running Bash at test time:
 
 1. `xtask record-parity` runs each legacy function on the inputs of today's parity tests and on generated inputs, and
-   writes the results as golden files (`tests/golden/legacy/<function>/<case>.json`).
+   writes the results as golden files (`tests/golden/legacy/<crate>/<module>/<test>.json`, one per test with its
+   cases in order, each with a description of its input).
 2. The Rust tests compare against those files; they run without `bash`, Perl or the legacy tree.
 3. Where a refactor changes behaviour on purpose, the golden file is updated and the change listed in
    `CHANGES-FROM-LEGACY.md`.

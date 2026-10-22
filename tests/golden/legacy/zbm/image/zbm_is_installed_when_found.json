@@ -1,0 +1,29 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "dracut [(\"zfsbootmenu_runtime\", \"Legacy\"), (\"zfsbootmenu_zbm\", \"$ZBM\")]",
+      "result": [
+        0,
+        "inst_binary $ZBM /libexec/zbm\nruntime=legacy\n",
+        ""
+      ]
+    },
+    {
+      "input": "mkinitcpio [(\"zfsbootmenu_zbm\", \"$ZBM\")]",
+      "result": [
+        0,
+        "add_binary $ZBM /libexec/zbm\nruntime=legacy\n",
+        ""
+      ]
+    },
+    {
+      "input": "mkinitcpio [(\"zfsbootmenu_zbm\", \"$ZBM\"), (\"FAIL_INSTALL\", \"1\")]",
+      "result": [
+        1,
+        "add_binary $ZBM /libexec/zbm\nruntime=legacy\n",
+        "error: failed to install $ZBM\n"
+      ]
+    }
+  ]
+}

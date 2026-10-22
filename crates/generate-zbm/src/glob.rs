@@ -634,10 +634,10 @@ mod tests {
                 .iter()
                 .map(|path| format!("<{path}>"))
                 .collect();
-            let perl: String = parity.legacy(format!("{pattern:?}"), || {
+            let legacy: String = parity.legacy(format!("{pattern:?}"), || {
                 without_home(perl_glob(&pattern, dir.path()))
             });
-            assert_eq!(without_home(rust), perl, "pattern {pattern:?}");
+            assert_eq!(without_home(rust), legacy, "pattern {pattern:?}");
         }
     }
 }

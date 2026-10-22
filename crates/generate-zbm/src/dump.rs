@@ -900,8 +900,8 @@ mod tests {
                 };
                 yaml.push_str(&format!("{key}: {value}\n"));
             }
-            let perl: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_dump(&yaml));
-            assert_eq!(rust_dump(&yaml), perl, "yaml {yaml:?}");
+            let legacy: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_dump(&yaml));
+            assert_eq!(rust_dump(&yaml), legacy, "yaml {yaml:?}");
         }
     }
 }

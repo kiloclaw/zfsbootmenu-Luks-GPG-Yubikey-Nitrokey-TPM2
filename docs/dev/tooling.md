@@ -10,6 +10,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask lint` | Every check a pull request must pass: `rustfmt`, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
 | `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
 | `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
+| `cargo xtask record-parity [--check]` | Runs the legacy code of the parity tests and records its results in `tests/golden/legacy/`; `--check` fails where a recording no longer matches ([testing.md](testing.md)) |
 | `cargo xtask bless` | Accepts every changed snapshot (`INSTA_UPDATE=always` over the crates that use `insta`) and lists the `.snap` files that changed, for review with `git diff` |
 | `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |
@@ -73,7 +74,8 @@ whole crate.
 
 ## Line coverage
 
-`cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm` under
+`cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm`, with `ZBM_PARITY=check` so that
+the recordings of the legacy results are checked too, under
 [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) (`cargo install cargo-llvm-cov --locked` and
 `rustup component add llvm-tools`), adds up the lines of each source file per crate, test code included, and prints
 the line coverage of each crate with what it must reach. The report is in `target/coverage.json`, and the profiles

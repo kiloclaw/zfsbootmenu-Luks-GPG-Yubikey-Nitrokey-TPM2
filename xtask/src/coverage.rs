@@ -8,7 +8,10 @@
 //! [`NEW_CRATE`]. `--bless` writes the current numbers as the new baseline.
 //!
 //! This is a command of its own, not part of `metrics`, because it runs
-//! every test in an instrumented build.
+//! every test in an instrumented build. The tests run with `ZBM_PARITY=check`,
+//! so the parity tests also run the legacy code they were recorded from and
+//! fail when a recording is out of date (`zbm_testkit::parity`); that needs
+//! what `cargo xtask record-parity` needs.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -97,7 +100,8 @@ pub fn run(workspace: &Workspace, mode: Mode) -> Result<()> {
     }
 }
 
-/// Runs the tests under `cargo llvm-cov` and writes [`REPORT`].
+/// Runs the tests under `cargo llvm-cov`, checking the recordings of the
+/// legacy results, and writes [`REPORT`].
 ///
 /// The runs keep their profiles, so `cargo llvm-cov report` can write other
 /// formats afterwards (CI writes `lcov.info` for the coverage artifact).
@@ -106,9 +110,11 @@ fn measure(root: &Path) -> Result<()> {
         .args(["llvm-cov", "clean", "--workspace"])
         .run()?;
     cargo::cargo(root)
+        .env("ZBM_PARITY", "check")
         .args(["llvm-cov", "--no-report", "--workspace", "--locked"])
         .run()?;
     cargo::cargo(root)
+        .env("ZBM_PARITY", "check")
         .args(["llvm-cov", "--no-report", "-p", "zbm"])
         .args(["--features", "test-seams", "--locked"])
         .run()?;
