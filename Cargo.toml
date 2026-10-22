@@ -7,7 +7,7 @@
 
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -33,6 +33,10 @@ zbm-system = { path = "crates/zbm-system" }
 zbm-testutil = { path = "crates/zbm-testutil" }
 zbm-zfs = { path = "crates/zbm-zfs" }
 yaml-rust2 = { version = "0.13", default-features = false }
+# Used only by xtask, the developer tooling; never part of an image.
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+serde_json = "1"
+syn = { version = "2", default-features = false, features = ["full", "parsing", "visit"] }
 
 [workspace.lints.rust]
 # Crates that need FFI (signals, ioctl, kexec_file_load) allow it locally with #![allow(unsafe_code)] and document

@@ -1,0 +1,48 @@
+# The clippy configuration that `cargo xtask lint --strict` uses: the rules of REFACTOR-ROADMAP.md ("How the rules are
+# enforced") for code that a phase has refactored. Until a crate is refactored, its findings are only reported.
+#
+# The normal build does not read this file; it is selected with CLIPPY_CONF_DIR.
+
+# Names that are not code, for clippy::doc_markdown; ".." keeps clippy's own list.
+doc-valid-idents = ["ZFSBootMenu", "OpenZFS", "GnuPG", "YubiKey", "Nitrokey", "BusyBox", ".."]
+
+# Tests may unwrap, expect, panic and index: a failing test is meant to panic.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
+# No hidden IO: only the real implementations of the system interfaces (zbm-system, zbm-sys) run programs, touch
+# files, read the environment or the clock, and they allow these lints in one module each. Everything else goes
+# through the Runner, Files, Environment and Clock interfaces, which tests replace with fakes.
+disallowed-methods = [
+    { path = "std::process::Command::new", reason = "run programs through the Runner interface" },
+    { path = "std::fs::read", reason = "read files through the Files interface" },
+    { path = "std::fs::read_to_string", reason = "read files through the Files interface" },
+    { path = "std::fs::read_dir", reason = "read directories through the Files interface" },
+    { path = "std::fs::write", reason = "write files through the Files interface" },
+    { path = "std::fs::create_dir_all", reason = "create directories through the Files interface" },
+    { path = "std::fs::remove_file", reason = "remove files through the Files interface" },
+    { path = "std::fs::remove_dir_all", reason = "remove directories through the Files interface" },
+    { path = "std::fs::rename", reason = "rename files through the Files interface" },
+    { path = "std::fs::copy", reason = "copy files through the Files interface" },
+    { path = "std::fs::metadata", reason = "inspect files through the Files interface" },
+    { path = "std::fs::File::open", reason = "open files through the Files interface" },
+    { path = "std::fs::File::create", reason = "create files through the Files interface" },
+    { path = "std::fs::OpenOptions::open", reason = "open files through the Files interface" },
+    { path = "std::env::var", reason = "read the environment through the Environment interface" },
+    { path = "std::env::var_os", reason = "read the environment through the Environment interface" },
+    { path = "std::env::vars", reason = "read the environment through the Environment interface" },
+    { path = "std::thread::sleep", reason = "wait through the Clock interface, which tests control" },
+    { path = "std::time::Instant::now", reason = "read the time through the Clock interface" },
+    { path = "std::time::SystemTime::now", reason = "read the time through the Clock interface" },
+]
+
+# Libraries do not print: output goes through the Console interface or tracing.
+disallowed-macros = [
+    { path = "std::println", reason = "write through the Console interface or log with tracing" },
+    { path = "std::eprintln", reason = "write through the Console interface or log with tracing" },
+    { path = "std::print", reason = "write through the Console interface or log with tracing" },
+    { path = "std::eprint", reason = "write through the Console interface or log with tracing" },
+    { path = "std::dbg", reason = "remove debugging output before committing" },
+]

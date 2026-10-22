@@ -5,3 +5,7 @@ replace-with = "vendored-sources"
 
 [source.vendored-sources]
 directory = "vendor"
+
+# `cargo xtask <command>` runs the developer automation in xtask/; `cargo xtask help` lists the commands.
+[alias]
+xtask = "run --package xtask --locked --quiet --"
