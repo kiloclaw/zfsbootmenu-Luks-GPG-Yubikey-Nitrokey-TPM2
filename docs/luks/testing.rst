@@ -97,7 +97,10 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 
 The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
 each case to */tmp/z?/cases*. Run one ``run-all.sh`` at a time: two runs share that directory, the loop devices
-backed by its images, and the ports and pid files of their software TPMs, so they break each other.
+backed by its images, and the ports and pid files of their software TPMs. A suite waits for a lock
+(*/run/lock/zbm-luks-unit.lock*) while a suite of another run holds it, but the two runs still write the same output
+files. Each suite hides the host's */dev/hidraw\** devices, which the code would take for FIDO2 keys, and the
+``blkid`` stub's device searches find only loop devices, so that discovery leaves the host's own LUKS disks alone.
 
 The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
 for the Bash libraries, ``rust`` for the Rust runtime of the port. ``impl.sh`` also provides, and documents, every seam

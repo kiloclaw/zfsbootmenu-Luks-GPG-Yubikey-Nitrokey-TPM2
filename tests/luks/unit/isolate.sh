@@ -17,7 +17,10 @@ if [ -z "${ZBMTEST_UNIT_ISOLATED:-}" ]; then
   fi
   # /dev/mapper is created (and removed afterwards) only on hosts without
   # device-mapper; the tmpfs mount itself is private to the namespace
-  exec unshare --mount --propagation private \
+  # Suites share /dev/hidraw99, swtpm ports and work directories: one runs at
+  # a time, and another waits for the lock (held by flock, not by daemons the
+  # suite starts, which -o keeps from inheriting it)
+  exec flock -o /run/lock/zbm-luks-unit.lock unshare --mount --propagation private \
     env ZBMTEST_UNIT_ISOLATED=1 \
     bash -c 'made=; [ -d /dev/mapper ] || { mkdir /dev/mapper && made=1; }
              mount -t tmpfs -o mode=0755 zbmtest-mapper /dev/mapper || exit 1
