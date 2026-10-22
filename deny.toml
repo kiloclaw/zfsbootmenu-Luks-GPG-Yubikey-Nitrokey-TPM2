@@ -1,0 +1,57 @@
+# cargo-deny: what third-party code may enter the workspace (REFACTOR-ROADMAP.md, "How the rules are enforced").
+# CI runs `cargo deny check`; run it locally after changing a dependency. vendor/README.md says why each crate is
+# here, and xtask/src/deps.rs which crate may use it.
+
+[graph]
+# The targets images are built for; dependencies of other platforms (Windows, WebAssembly) are ignored.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-unknown-linux-musl",
+]
+# Includes the test build of zbm (feature test-seams).
+all-features = true
+
+[advisories]
+# Security advisories from the RustSec database fail the check, and so do yanked versions.
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Permissive licences only; the project itself is MIT.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+# The menu's fuzzy matcher is MPL-2.0, a file-level copyleft licence, accepted for these crates only
+# (REFACTOR-ROADMAP.md, "Decisions").
+exceptions = [
+    { crate = "nucleo", allow = ["MPL-2.0"] },
+    { crate = "nucleo-matcher", allow = ["MPL-2.0"] },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path dependencies between the workspace's own crates have no version.
+allow-wildcard-paths = true
+# ZFS is reached only through the zfs and zpool programs, never through its C libraries (REFACTOR-ROADMAP.md,
+# "The ZFS boundary").
+deny = [
+    { crate = "libzfs", reason = "binds libzfs; use the zfs and zpool programs (zbm-zfs)" },
+    { crate = "libzfs-sys", reason = "binds libzfs; use the zfs and zpool programs (zbm-zfs)" },
+    { crate = "zfs-core-sys", reason = "binds libzfs_core; use the zfs and zpool programs (zbm-zfs)" },
+    { crate = "nvpair-sys", reason = "binds libnvpair, which only libzfs needs" },
+]
+
+[sources]
+# Only crates.io; no git dependencies or other registries.
+unknown-registry = "deny"
+unknown-git = "deny"

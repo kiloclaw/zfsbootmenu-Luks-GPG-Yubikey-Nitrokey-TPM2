@@ -21,6 +21,21 @@ pull request; REFACTOR-ROADMAP.md ("Decisions for review") lists the crates prop
 
 The boot runtime (`zbm` and the crates it uses) has no third-party dependency.
 
+## Agreed, vendored on first use
+
+REFACTOR-ROADMAP.md ("Decisions") accepted these crates. `[workspace.dependencies]` in `Cargo.toml` pins their
+versions and features; each is vendored, and listed above or below, when a crate of the workspace first uses it.
+
+| Crate | For | Why |
+| --- | --- | --- |
+| `ratatui`, `crossterm` | the menu (`zbm-tui`) | Terminal user interface and terminal input |
+| `nucleo` | the menu | Fuzzy matching of the filter text, as in Helix; MPL-2.0 (see `deny.toml`) |
+| `serde`, `serde_json` | `zbm-zfs`, `zbm-crypt`, `zbm-trace` | `zfs -j`, `zpool -j` and `cryptsetup` JSON, the JSON journal |
+| `thiserror` | every library crate | Error enums with their causes |
+| `tracing`, `tracing-subscriber` | `zbm-trace` and every service | Spans and events for debugging |
+| `uucore` | `zbm-coreutils` | uutils coreutils behaviour in process, such as version order |
+| `insta`, `proptest`, `pretty_assertions` | tests | Snapshot tests, property tests, readable diffs |
+
 ## Developer tooling only
 
 These are used by `xtask` alone and never end up in an image or a host tool.

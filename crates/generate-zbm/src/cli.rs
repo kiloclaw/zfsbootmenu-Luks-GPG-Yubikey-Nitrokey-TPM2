@@ -223,12 +223,12 @@ impl Parser {
         // `name=value`, where the name has at least one character; Getopt::Long splits
         // it after any prefix unless POSIXLY_CORRECT limits that to `--`.
         let mut optarg = None;
-        if starter == "--" || !self.posix {
-            if let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=') {
-                let position = position + 1;
-                optarg = Some(opt[position + 1..].to_owned());
-                opt = &opt[..position];
-            }
+        if (starter == "--" || !self.posix)
+            && let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=')
+        {
+            let position = position + 1;
+            optarg = Some(opt[position + 1..].to_owned());
+            opt = &opt[..position];
         }
 
         // Unique prefixes stand for the full name.

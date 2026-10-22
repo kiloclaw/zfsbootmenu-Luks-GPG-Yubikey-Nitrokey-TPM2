@@ -35,10 +35,10 @@ pub fn filtered_command(levels: &str, since: Option<&str>) -> Command {
 pub fn strip_timestamps(text: &str) -> String {
     text.split_inclusive('\n')
         .map(|line| {
-            if line.starts_with('[') {
-                if let Some(end) = line.trim_end_matches('\n').rfind("] ") {
-                    return &line[end + 2..];
-                }
+            if line.starts_with('[')
+                && let Some(end) = line.trim_end_matches('\n').rfind("] ")
+            {
+                return &line[end + 2..];
             }
             line
         })
@@ -113,12 +113,12 @@ pub fn read_logs(
     if levels.is_empty() {
         return Err(Message::error("levels is undefined"));
     }
-    if let Ok(output) = runner.run(&filtered_command(levels, since)) {
-        if output.status.success() {
-            // `echo "${output}" | sed ...`
-            let text = format!("{}\n", command_substitution(&output.stdout_text()));
-            return Ok(strip_timestamps(&text));
-        }
+    if let Ok(output) = runner.run(&filtered_command(levels, since))
+        && output.status.success()
+    {
+        // `echo "${output}" | sed ...`
+        let text = format!("{}\n", command_substitution(&output.stdout_text()));
+        return Ok(strip_timestamps(&text));
     }
     let raw = runner
         .run(&Command::new("dmesg").arg("-r"))

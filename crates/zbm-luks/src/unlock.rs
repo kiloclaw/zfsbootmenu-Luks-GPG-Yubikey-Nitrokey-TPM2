@@ -106,10 +106,10 @@ impl Session<'_> {
         };
 
         // 1. A key script prints the key (Debian's crypttab semantics).
-        if let Some(script) = &options.keyscript {
-            if self.open_with_keyscript(target, script, keyspec, options_text) {
-                return self.opened(&name, device, auto);
-            }
+        if let Some(script) = &options.keyscript
+            && self.open_with_keyscript(target, script, keyspec, options_text)
+        {
+            return self.opened(&name, device, auto);
         }
 
         // 2. A key file, possibly on a key device. GnuPG-encrypted key files
@@ -197,10 +197,10 @@ impl Session<'_> {
         drop(cached);
 
         // 5. YubiKey challenge-response.
-        if let Some(yubikey) = &options.yubikey {
-            if self.try_ykchalresp(target, yubikey, options.tries) {
-                return self.opened(&name, device, auto);
-            }
+        if let Some(yubikey) = &options.yubikey
+            && self.try_ykchalresp(target, yubikey, options.tries)
+        {
+            return self.opened(&name, device, auto);
         }
 
         // 6. Ask the user.

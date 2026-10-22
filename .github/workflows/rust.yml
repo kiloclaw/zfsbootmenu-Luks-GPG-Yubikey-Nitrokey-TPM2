@@ -12,6 +12,7 @@ on:
       - 'rust-toolchain.toml'
       - 'rustfmt.toml'
       - 'xtask/**'
+      - 'deny.toml'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -26,6 +27,7 @@ on:
       - 'rust-toolchain.toml'
       - 'rustfmt.toml'
       - 'xtask/**'
+      - 'deny.toml'
       # Parity tests run the legacy code they are compared with
       - 'legacy/**'
       - 'tests/luks/unit/**'
@@ -93,6 +95,16 @@ jobs:
       - name: Report
         run: cargo xtask lint --strict
 
+  deny:
+    name: Licences, advisories and banned crates
+    # deny.toml; vendor/README.md says why each crate is there
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@v2
+
   luks-unit:
     name: LUKS unit suites with each implementation
     # The suites need root, loop devices and the tools of the boot images; see
@@ -137,10 +149,10 @@ jobs:
 
       # Keep in sync with rust-version in Cargo.toml
       - name: Install toolchain
-        run: rustup toolchain install 1.85 --profile minimal
+        run: rustup toolchain install 1.88 --profile minimal
 
       - name: Check
-        run: cargo +1.85 check --workspace --all-targets --locked
+        run: cargo +1.88 check --workspace --all-targets --locked
 
   targets:
     name: Other targets

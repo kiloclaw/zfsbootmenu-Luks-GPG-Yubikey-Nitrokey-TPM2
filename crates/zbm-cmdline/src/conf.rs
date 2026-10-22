@@ -233,7 +233,7 @@ mod tests {
             columns: None,
             sort: values[6].clone(),
             hook_root: values[7].clone(),
-            set_hostid: values[8].len() % 2 == 0,
+            set_hostid: values[8].len().is_multiple_of(2),
             kcl_override: None,
             wait_for_devices: values[9].clone(),
             prefer_pool: values[10].clone(),

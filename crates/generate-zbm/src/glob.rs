@@ -301,14 +301,13 @@ fn glob0(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
             index += 1;
             loop {
                 tokens.push(Token::Byte(c.byte));
-                if pattern.get(index).is_some_and(|next| next.is(b'-')) {
-                    if let Some(&high) = pattern.get(index + 1) {
-                        if !high.is(b']') {
-                            tokens.push(Token::Range);
-                            tokens.push(Token::Byte(high.byte));
-                            index += 2;
-                        }
-                    }
+                if pattern.get(index).is_some_and(|next| next.is(b'-'))
+                    && let Some(&high) = pattern.get(index + 1)
+                    && !high.is(b']')
+                {
+                    tokens.push(Token::Range);
+                    tokens.push(Token::Byte(high.byte));
+                    index += 2;
                 }
                 c = pattern[index];
                 index += 1;
@@ -498,10 +497,11 @@ fn matches_segment(name: &[u8], pattern: &[Token]) -> bool {
                     break;
                 };
                 if items.first() == Some(&Token::Range) {
-                    if let Some(Token::Byte(high)) = items.get(1) {
-                        if lower(low) <= lower(k) && lower(k) <= lower(*high) {
-                            ok = true;
-                        }
+                    if let Some(Token::Byte(high)) = items.get(1)
+                        && lower(low) <= lower(k)
+                        && lower(k) <= lower(*high)
+                    {
+                        ok = true;
                     }
                     items = &items[2..];
                 } else if lower(low) == lower(k) {

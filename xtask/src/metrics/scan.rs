@@ -267,10 +267,10 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
         if self.test_code {
             return;
         }
-        if let Some(text) = doc_text(attr) {
-            if names_legacy_function(&text, self.legacy_names) {
-                self.scan.legacy_docs += 1;
-            }
+        if let Some(text) = doc_text(attr)
+            && names_legacy_function(&text, self.legacy_names)
+        {
+            self.scan.legacy_docs += 1;
         }
     }
 

@@ -75,16 +75,16 @@ impl Dumper {
 
     fn node(&mut self, value: &Value) {
         let mut anchor = None;
-        if let Some(address) = address(value) {
-            if self.seen.get(&address).copied().unwrap_or(0) > 1 {
-                if let Some(number) = self.anchors.get(&address) {
-                    self.emitter.alias(*number);
-                    return;
-                }
-                self.anchor_count += 1;
-                self.anchors.insert(address, self.anchor_count);
-                anchor = Some(self.anchor_count);
+        if let Some(address) = address(value)
+            && self.seen.get(&address).copied().unwrap_or(0) > 1
+        {
+            if let Some(number) = self.anchors.get(&address) {
+                self.emitter.alias(*number);
+                return;
             }
+            self.anchor_count += 1;
+            self.anchors.insert(address, self.anchor_count);
+            anchor = Some(self.anchor_count);
         }
         match value {
             Value::Seq(seq) => {

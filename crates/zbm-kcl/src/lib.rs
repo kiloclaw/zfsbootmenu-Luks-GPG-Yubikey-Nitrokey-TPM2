@@ -142,23 +142,23 @@ struct Workspace {
 
 impl Workspace {
     fn cleanup(&mut self, stdout: &mut dyn Write) {
-        if let Some(efi) = self.efi.take() {
-            if is_file(&efi) {
-                if self.preserve_efi {
-                    let _ = writeln!(
-                        stdout,
-                        "NOTICE: saving temporary EFI output {}",
-                        efi.display()
-                    );
-                } else {
-                    let _ = std::fs::remove_file(&efi);
-                }
+        if let Some(efi) = self.efi.take()
+            && is_file(&efi)
+        {
+            if self.preserve_efi {
+                let _ = writeln!(
+                    stdout,
+                    "NOTICE: saving temporary EFI output {}",
+                    efi.display()
+                );
+            } else {
+                let _ = std::fs::remove_file(&efi);
             }
         }
-        if let Some(kcl) = self.kcl.take() {
-            if is_file(&kcl) {
-                let _ = std::fs::remove_file(&kcl);
-            }
+        if let Some(kcl) = self.kcl.take()
+            && is_file(&kcl)
+        {
+            let _ = std::fs::remove_file(&kcl);
         }
     }
 }

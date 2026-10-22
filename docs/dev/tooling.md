@@ -18,6 +18,14 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 The suites that need root or QEMU are described in [testing.md](testing.md); they are not part of `cargo xtask` yet
 (REFACTOR-ROADMAP.md moves them there in R2 and R3).
 
+## Third-party crates
+
+`cargo deny check` (with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny), installed with
+`cargo install cargo-deny --locked`) checks every third-party crate against `deny.toml`: permissive licences only
+(MPL-2.0 for the menu's matcher alone), no known security advisory or yanked version, crates.io as the only source,
+and no binding to the ZFS C libraries. CI runs it on every change to the dependencies. Which crate may use which
+third-party crate is `cargo xtask check-deps`'s business ([architecture.md](architecture.md)).
+
 ## Code metrics
 
 `cargo xtask metrics` reads every source file of every crate with `syn`, following the module tree like the compiler,

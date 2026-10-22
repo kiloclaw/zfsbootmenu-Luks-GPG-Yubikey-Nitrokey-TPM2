@@ -526,42 +526,37 @@ impl Generator<'_, '_, '_> {
         if let Some(path) = self
             .setting("Kernel", "Path")?
             .filter(|text| !text.is_empty())
+            && !has_value(kernel.as_ref())
         {
-            if !has_value(kernel.as_ref()) {
-                kernel = Some(path);
-            }
+            kernel = Some(path);
         }
         if let Some(value) = self
             .setting("Kernel", "Prefix")?
             .filter(|text| !text.is_empty())
+            && !has_value(prefix.as_ref())
         {
-            if !has_value(prefix.as_ref()) {
-                prefix = Some(value);
-            }
+            prefix = Some(value);
         }
         if let Some(value) = self
             .setting("Kernel", "Version")?
             .filter(|text| !text.is_empty())
+            && !has_value(kernel_version.as_ref())
         {
-            if !has_value(kernel_version.as_ref()) {
-                kernel_version = Some(perl::mark_current(&value));
-            }
+            kernel_version = Some(perl::mark_current(&value));
         }
         if let Some(value) = self
             .setting("Global", "Version")?
             .filter(|text| !text.is_empty())
+            && !has_value(version.as_ref())
         {
-            if !has_value(version.as_ref()) {
-                version = Some(value);
-            }
+            version = Some(value);
         }
         if let Some(value) = self
             .setting("Kernel", "CommandLine")?
             .filter(|text| !text.is_empty())
+            && !has_value(settings.cmdline.as_ref())
         {
-            if !has_value(settings.cmdline.as_ref()) {
-                settings.cmdline = Some(value);
-            }
+            settings.cmdline = Some(value);
         }
         settings.version = match version.filter(|text| !text.is_empty()) {
             Some(version) => perl::replace_current(&perl::mark_current(&version), VERSION),
@@ -946,10 +941,9 @@ impl Generator<'_, '_, '_> {
         if let Some(splash) = self
             .setting("EFI", "SplashImage")?
             .filter(|text| !text.is_empty())
+            && is_file(&splash)
         {
-            if is_file(&splash) {
-                offset = self.add_section(&mut words, ".splash", &splash, offset, alignment)?;
-            }
+            offset = self.add_section(&mut words, ".splash", &splash, offset, alignment)?;
         }
         if let Some(tree) = self
             .setting("EFI", "DeviceTree")?

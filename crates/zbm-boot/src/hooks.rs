@@ -93,10 +93,10 @@ fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
             .stderr(Stream::Inherit)
     };
     let direct = with_env(Command::new(hook));
-    if let Err(error) = runner.run(&direct) {
-        if error.raw_os_error() == Some(ENOEXEC) {
-            let _ = runner.run(&with_env(Command::new("bash").arg(hook)));
-        }
+    if let Err(error) = runner.run(&direct)
+        && error.raw_os_error() == Some(ENOEXEC)
+    {
+        let _ = runner.run(&with_env(Command::new("bash").arg(hook)));
     }
 }
 

@@ -223,15 +223,15 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>,
 
     // Start the command line cache afresh.
     be_location(state, log, fs);
-    if let Some(cache) = state.kcl_cache(fs, ".") {
-        if let Some(dir) = cache.parent() {
-            let _ = system.files.create_dir_all(dir);
-            for name in system.files.read_dir(dir).unwrap_or_default() {
-                if name.as_encoded_bytes().ends_with(b".kcl")
-                    && !name.as_encoded_bytes().starts_with(b".")
-                {
-                    let _ = system.files.remove_file(&dir.join(name));
-                }
+    if let Some(cache) = state.kcl_cache(fs, ".")
+        && let Some(dir) = cache.parent()
+    {
+        let _ = system.files.create_dir_all(dir);
+        for name in system.files.read_dir(dir).unwrap_or_default() {
+            if name.as_encoded_bytes().ends_with(b".kcl")
+                && !name.as_encoded_bytes().starts_with(b".")
+            {
+                let _ = system.files.remove_file(&dir.join(name));
             }
         }
     }
@@ -429,11 +429,11 @@ impl Default for BootSettings {
 fn find_root_prefix(system: &System<'_>, log: &KernelLog<'_>, fs: &str, mnt: &Path) -> String {
     log.debug(format!("zfsbe_fs set to {fs}"));
     log.debug(format!("zfsbe_mnt set to {}", mnt.display()));
-    if let Some(prefix) = zfs_value(system.runner, "org.zfsbootmenu:rootprefix", fs) {
-        if prefix != "-" {
-            log.debug(format!("using org.zfsbootmenu:rootprefix: {prefix}"));
-            return prefix;
-        }
+    if let Some(prefix) = zfs_value(system.runner, "org.zfsbootmenu:rootprefix", fs)
+        && prefix != "-"
+    {
+        log.debug(format!("using org.zfsbootmenu:rootprefix: {prefix}"));
+        return prefix;
     }
     if let Some(prefix) = commandline::os_release_prefix(system.files, mnt) {
         log.debug(format!("using os-release: {prefix}"));

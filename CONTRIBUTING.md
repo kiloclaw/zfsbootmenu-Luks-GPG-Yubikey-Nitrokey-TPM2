@@ -56,7 +56,8 @@ what they cannot run.
 ```sh
 cargo xtask lint      # rustfmt, line widths, clippy, rustdoc, dependency layers, code metrics
 cargo xtask test      # every test that needs neither root nor a VM
-cargo +1.85 check --workspace --all-targets --locked
+cargo +1.88 check --workspace --all-targets --locked
+cargo deny check      # after changing a dependency: licences, advisories, banned crates (deny.toml)
 ```
 
 `cargo xtask help` lists the other commands, and [docs/dev/tooling.md](docs/dev/tooling.md) explains each check.

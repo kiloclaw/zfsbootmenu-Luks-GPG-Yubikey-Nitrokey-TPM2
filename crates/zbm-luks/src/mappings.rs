@@ -148,11 +148,11 @@ impl Session<'_> {
         if let Some(parent) = path.parent() {
             let _ = files.create_dir_all(parent);
         }
-        if !self.is_skipped(device) {
-            if let Err(error) = files.append(path, format!("{device}\n").as_bytes()) {
-                self.log()
-                    .error(format!("unable to write {}: {error}", path.display()));
-            }
+        if !self.is_skipped(device)
+            && let Err(error) = files.append(path, format!("{device}\n").as_bytes())
+        {
+            self.log()
+                .error(format!("unable to write {}: {error}", path.display()));
         }
     }
 

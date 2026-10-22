@@ -141,11 +141,12 @@ pub fn parse_json_metadata(text: &str) -> Option<Vec<Token>> {
         if depth == 1 && awk_member(line, Some("tokens")).is_some() {
             in_tokens = true;
         }
-        if in_tokens && depth == 2 {
-            if let Some(found) = awk_member(line, None) {
-                id = found;
-                want = true;
-            }
+        if in_tokens
+            && depth == 2
+            && let Some(found) = awk_member(line, None)
+        {
+            id = found;
+            want = true;
         }
         if in_tokens && want && depth == 3 && awk_member(line, Some("type")).is_some() {
             tokens.push(Token {

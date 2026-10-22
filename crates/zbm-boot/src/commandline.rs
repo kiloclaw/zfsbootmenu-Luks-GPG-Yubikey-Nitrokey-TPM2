@@ -44,18 +44,18 @@ pub fn spl_hostid(files: &dyn Files, state: &State, log: &mut Vec<Message>) -> O
             return Some(format!("0x{:08x}", number as u64));
         }
     }
-    if let Ok(bytes) = files.read(Path::new(ETC_HOSTID)) {
-        if !bytes.is_empty() {
-            // od -tx4 -N4 reads the first four bytes as a native (little-endian)
-            // word, padding a short file with zeros
-            let mut word = [0_u8; 4];
-            for (target, byte) in word.iter_mut().zip(&bytes) {
-                *target = *byte;
-            }
-            let hostid = format!("{:08x}", u32::from_le_bytes(word));
-            log.push(Message::debug(format!("hostid from /etc/hostid: {hostid}")));
-            return Some(format!("0x{hostid}"));
+    if let Ok(bytes) = files.read(Path::new(ETC_HOSTID))
+        && !bytes.is_empty()
+    {
+        // od -tx4 -N4 reads the first four bytes as a native (little-endian)
+        // word, padding a short file with zeros
+        let mut word = [0_u8; 4];
+        for (target, byte) in word.iter_mut().zip(&bytes) {
+            *target = *byte;
         }
+        let hostid = format!("{:08x}", u32::from_le_bytes(word));
+        log.push(Message::debug(format!("hostid from /etc/hostid: {hostid}")));
+        return Some(format!("0x{hostid}"));
     }
     let matched = state.spl_hostid()?;
     log.push(Message::debug(format!(
@@ -161,19 +161,17 @@ pub fn be_cmdline(
         removals.push("resume".to_owned());
         additions.push("noresume".to_owned());
     }
-    if set_hostid {
-        if let Some(hostid) = spl_hostid(files, state, log) {
-            log.push(Message::debug(format!(
-                "overriding spl_hostid and spl.spl_hostid for {dataset}"
-            )));
-            removals.push("spl_hostid".to_owned());
-            removals.push("spl.spl_hostid".to_owned());
-            additions.push(if hostid == "0x00000000" {
-                "spl_hostid=00000000".to_owned()
-            } else {
-                format!("spl.spl_hostid={hostid}")
-            });
-        }
+    if set_hostid && let Some(hostid) = spl_hostid(files, state, log) {
+        log.push(Message::debug(format!(
+            "overriding spl_hostid and spl.spl_hostid for {dataset}"
+        )));
+        removals.push("spl_hostid".to_owned());
+        removals.push("spl.spl_hostid".to_owned());
+        additions.push(if hostid == "0x00000000" {
+            "spl_hostid=00000000".to_owned()
+        } else {
+            format!("spl.spl_hostid={hostid}")
+        });
     }
 
     let removals: Vec<&str> = removals.iter().map(String::as_str).collect();

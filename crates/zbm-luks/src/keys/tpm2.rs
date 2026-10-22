@@ -244,13 +244,11 @@ impl Session<'_> {
                 .stdout(Stream::CaptureSecret);
             if (pcrs.is_empty() || self.succeeds(&policy_pcr))
                 && (auth.is_none() || self.succeeds(&policy_auth))
+                && let Ok(output) = system.runner.run(&unseal)
+                && output.status.success()
             {
-                if let Ok(output) = system.runner.run(&unseal) {
-                    if output.status.success() {
-                        let secret = output.secret.unwrap_or_default();
-                        outcome = Outcome::Key(base64_encode(secret.expose()));
-                    }
-                }
+                let secret = output.secret.unwrap_or_default();
+                outcome = Outcome::Key(base64_encode(secret.expose()));
             }
             let flush = self
                 .tpm2_command("tpm2_flushcontext")
@@ -465,7 +463,7 @@ mod tests {
         }
         let pin = found.unwrap();
         let auth = auth_value(pin.as_bytes(), None);
-        assert!(auth.len() <= 62 && auth.len() % 2 == 0);
+        assert!(auth.len() <= 62 && auth.len().is_multiple_of(2));
         assert!(!auth.expose().ends_with(b"00"));
     }
 

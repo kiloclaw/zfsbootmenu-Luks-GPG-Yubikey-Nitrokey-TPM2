@@ -332,20 +332,20 @@ pub fn stage(
                 continue;
             }
             break;
-        } else if settings.import_policy == "hostid" {
-            if let Some((pool, hostid)) = match_hostid(system, state, log, settings, &try_pool) {
-                log.debug(format!("match_hostid returned: {pool};{hostid}"));
-                if let Err(error) = state.set_spl_hostid(&hostid) {
-                    log.error(error.to_string());
-                }
-                imported.spl_hostid = Some(hostid);
-                if !try_pool.is_empty() && settings.require_pool == "only" {
-                    break;
-                }
-                // Pick up the other pools of this host ID.
-                try_pool.clear();
-                continue;
+        } else if settings.import_policy == "hostid"
+            && let Some((pool, hostid)) = match_hostid(system, state, log, settings, &try_pool)
+        {
+            log.debug(format!("match_hostid returned: {pool};{hostid}"));
+            if let Err(error) = state.set_spl_hostid(&hostid) {
+                log.error(error.to_string());
             }
+            imported.spl_hostid = Some(hostid);
+            if !try_pool.is_empty() && settings.require_pool == "only" {
+                break;
+            }
+            // Pick up the other pools of this host ID.
+            try_pool.clear();
+            continue;
         }
         if !try_pool.is_empty() && settings.require_pool.is_empty() {
             // The preferred pool is not required: try any other pool.
@@ -423,10 +423,10 @@ fn check_unsupported(
             continue;
         }
         log.error(format!("unsupported property: {property}"));
-        if !state.is_degraded(pool) {
-            if let Err(error) = state.restrict(pool) {
-                log.error(error.to_string());
-            }
+        if !state.is_degraded(pool)
+            && let Err(error) = state.restrict(pool)
+        {
+            log.error(error.to_string());
         }
         unsupported = true;
     }

@@ -24,7 +24,7 @@ ends up in Rust.
 - [Phases](#phases)
 - [Relation to PORT-ROADMAP.md](#relation-to-port-roadmapmd)
 - [Risks](#risks)
-- [Decisions for review](#decisions-for-review)
+- [Decisions](#decisions)
 - [Proposals for later](#proposals-for-later)
 
 ## Status
@@ -46,14 +46,16 @@ Done in R0:
 - CI runs `cargo xtask lint` and `cargo xtask test`, and the strict report in a job of its own.
 - `docs/dev/` (architecture, testing, tooling) and `vendor/README.md`. The shell width check is replaced by
   `cargo xtask widths`.
+- [Decisions](#decisions) 1, 2, 3 and 5. The agreed crates are pinned, with their features, in
+  `[workspace.dependencies]`; they build together on Rust 1.88, the new minimum, which also brings let chains.
+- `cargo deny` checks licences, advisories, sources and banned crates (`deny.toml`), in CI.
+- Package B of PORT-ROADMAP.md is merged into this branch, with its VM results.
 
 Open in R0:
 
-- The [decisions for review](#decisions-for-review); then vendoring the agreed crates.
-- `cargo deny` and `cargo nextest`; `xtask bless`, which waits for the choice of snapshot test crate (decision 1).
-- The two pilot slices.
-- Package B of PORT-ROADMAP.md is finishing on `claude/zfsbootmenu-rust-port` (its VM results); merge it into this
-  branch before R1 starts.
+- The two pilot slices, which vendor the first agreed crates as they use them.
+- `xtask bless`, with the first `insta` snapshot test; `cargo nextest`.
+- Decisions 4 and 6 belong to later phases (R2 and R9).
 
 ## Goals
 
@@ -301,7 +303,7 @@ nobody can read. After the refactor:
    past that moves to `tests.rs` next to the module.
 4. **Types over strings:** no `String` or `bool` parameter that stands for a domain concept; `&str` only at the
    boundary (parsing input, printing output).
-5. **Errors:** one error enum per crate, written with `thiserror` (or by hand, see decisions), carrying context
+5. **Errors:** one error enum per crate, written with `thiserror`, carrying context
    (`#[source]`); `Result` for everything that can fail; non-error outcomes are enums (`Unlock::Opened`,
    `Unlock::Skipped(Reason)`, `Unlock::Unavailable(Reason)`). Binaries render the chain.
 6. **Observability:** every public operation in a service runs in a `tracing` span named after it, with the domain
@@ -433,7 +435,7 @@ coreutils of ZFSBootMenu everywhere and uses it from Rust:
 4. **In tests:** expectations for ordering, paths and formatting come from uutils behaviour, and the device and VM
    suites run with uutils in the image.
 
-Constraints: uutils crates follow a recent MSRV (the workspace MSRV moves with it, from 1.85 to the uutils MSRV),
+Constraints: uutils crates follow a recent MSRV (the workspace MSRV moves with it; it is 1.88 since R0),
 are vendored and pinned, and are upgraded deliberately with the golden files as the check.
 
 ## The ZFS boundary
@@ -457,7 +459,7 @@ tests are the proof); behaviour changes start with R5.
 
 ### R0. Decisions, scaffolding and pilot slices (3 to 5 weeks)
 
-- Decide the [open questions](#decisions-for-review): dependency set, MSRV, menu replacing `fzf` outright, when the
+- Decide the [open questions](#decisions): dependency set, MSRV, menu replacing `fzf` outright, when the
   legacy runtime goes.
 - Add `xtask` with `lint`, `test`, `doc`, `bless`, `check-deps` and `metrics`; add `cargo deny`, `cargo nextest`, and
   the lints of [How the rules are enforced](#how-the-rules-are-enforced) as warnings. Record the starting metrics.
@@ -618,7 +620,8 @@ running against the Rust image, are the regression check from R1 on.
 
 ## Relation to PORT-ROADMAP.md
 
-- Packages A and B are done (B's VM tests are being completed). They are refactored in R1 to R4, not ported again.
+- Packages A and B are done (B's complex-pool VM tests wait for the boot environment code of R5). They are
+  refactored in R1 to R4, not ported again.
 - Packages C, D, E and F are no longer ported in the current architecture: C and D land in R5 and E is replaced by
   the Ratatui menu in R5, F in R6. This avoids writing the menu twice (once around `fzf`, once natively).
 - PORT-ROADMAP's rule 6 ("no new features") applies until R4 ends; from R5 on, behaviour changes are allowed and
@@ -637,26 +640,34 @@ running against the Rust image, are the regression check from R1 on.
 | The new menu is slower or worse on small consoles than `fzf` | The R0 menu pilot on a serial console; snapshot tests at 52 columns; a performance test with 10,000 snapshots; keep `zbm.menu=fzf` available until R9 if users need it |
 | New dependencies grow the image and the attack surface | Measure image size per crate (`xtask size`), `cargo deny` advisories, minimal features, vendoring |
 | uutils behaviour differs from what users expect on GNU systems | Golden tests for every coreutils behaviour the runtime relies on; document differences |
-| MSRV rises with uutils and Ratatui | Decide the MSRV in R0; the build container pins the toolchain |
+| MSRV rises with uutils and Ratatui | Decided in R0: 1.88, raised only with the crates; the build container pins the toolchain |
 | JSON output is missing in older ZFS | Text fallback with the same types and fixtures from ZFS 2.2 |
 | The refactor stalls half way, with two architectures | The R0 pilots prove the architecture before migration; each phase is complete on its own; adapters can wrap old code during transition; crates move one at a time; `xtask metrics` shows how far each crate has come |
 | A refactor breaks the tests that should catch it | Test suites move to Rust before the code they protect changes (device suites in R2, VM harness in R3 and R4), and old and new suites run side by side until they agree |
 | Rules erode as more people contribute | Every rule is checked by a tool in CI ([How the rules are enforced](#how-the-rules-are-enforced)) |
 | Too many abstractions for the size of the code | Patterns only where the table above says; `docs/dev/architecture.md` explains each one where it is used |
 
-## Decisions for review
+## Decisions
 
-1. **Dependencies:** accept `ratatui`, `crossterm`, `nucleo`, `serde`, `serde_json`, `thiserror`, `tracing`,
-   `tracing-subscriber`, `uucore` (and possibly `uu_*`) for the runtime, and `insta`, `proptest`,
-   `pretty_assertions`, `rexpect` (or an own expect module) for tests. Today the runtime has none.
-2. **MSRV:** raise it from 1.85 to what uutils and Ratatui need, and keep one pinned toolchain in the container.
-3. **Menu:** replace `fzf` outright in R5 (recommended), or keep it selectable until the cutover.
+Decided on 22 October 2026:
+
+1. **Dependencies:** accepted for the runtime: `ratatui`, `crossterm`, `nucleo`, `serde`, `serde_json`, `thiserror`,
+   `tracing`, `tracing-subscriber` and `uucore`; for tests: `insta`, `proptest` and `pretty_assertions`. Their
+   versions and features are pinned in `[workspace.dependencies]`, with default features off where the crate allows
+   it, and each is vendored when a crate first uses it. `nucleo` (and `nucleo-matcher`) are under MPL-2.0, a
+   file-level copyleft licence; `deny.toml` allows it for these two crates only. `rexpect` is not taken: the VM
+   harness gets its own small expect module in R3. `uucore` needs its default `signals` feature.
+2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
+   rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
+3. **Menu:** the Nucleo and Ratatui menu replaces `fzf` outright in R5; `fzf` leaves the images then.
+5. **Errors:** `thiserror`, which only runs at build time and adds nothing to the binaries.
+
+Still open:
+
 4. **uutils in `zbm`:** link `uu_*` applets into `zbm` (one binary, BusyBox style) or ship the uutils multi-call
    binary next to it; decided by the R2 spike.
-5. **`thiserror` or hand-written errors:** `thiserror` is idiomatic and short; hand-written enums avoid a proc-macro
-   dependency in the boot image.
 6. **When the legacy runtime goes:** keep the PORT-ROADMAP beta (phase 7) with the legacy image as fallback, or cut
-   over directly after R6.
+   over directly after R6; decided before R9.
 
 ## Proposals for later
 

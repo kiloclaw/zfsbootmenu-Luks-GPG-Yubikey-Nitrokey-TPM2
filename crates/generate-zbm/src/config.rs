@@ -306,15 +306,17 @@ pub fn resolve_plain(text: &str) -> Value {
     if is_decimal_int(text) {
         return decimal_value(text);
     }
-    if let Some(digits) = text.strip_prefix("0o") {
-        if !digits.is_empty() && digits.bytes().all(|byte| (b'0'..=b'7').contains(&byte)) {
-            return radix_value(digits, 8);
-        }
+    if let Some(digits) = text.strip_prefix("0o")
+        && !digits.is_empty()
+        && digits.bytes().all(|byte| (b'0'..=b'7').contains(&byte))
+    {
+        return radix_value(digits, 8);
     }
-    if let Some(digits) = text.strip_prefix("0x") {
-        if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return radix_value(digits, 16);
-        }
+    if let Some(digits) = text.strip_prefix("0x")
+        && !digits.is_empty()
+        && digits.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return radix_value(digits, 16);
     }
     if is_core_float(text) {
         return Value::Float(text.parse().unwrap_or(0.0));
