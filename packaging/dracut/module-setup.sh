@@ -43,22 +43,24 @@ installkernel() {
 }
 
 # The uutils multi-call binary, when the host has one: images then get their
-# coreutils from it, one binary with a link per program, whatever the host's
-# own coreutils are (REFACTOR-ROADMAP.md, "Using uutils coreutils"). GNU
-# coreutils' optional multi-call binary has no --list, so it is not taken.
+# coreutils from it, one binary with a hard link per program, whatever the
+# host's own coreutils are (REFACTOR-ROADMAP.md, "Using uutils coreutils").
+# uutils refuses to run as a utility whose name is not the executable's, so
+# the links are hard links, not symbolic ones. GNU coreutils' optional
+# multi-call binary has no --list, so it is not taken.
 zbm_uutils=""
 if command -v coreutils >/dev/null 2>&1 && coreutils --list >/dev/null 2>&1; then
   zbm_uutils="$( command -v coreutils )"
 fi
 
-# Installs the program _exec: a link to the uutils multi-call binary if it
-# provides _exec, otherwise the host's program
+# Installs the program _exec: a hard link to the uutils multi-call binary if
+# it provides _exec, otherwise the host's program
 zbm_install_exec() {
   local _exec="${1}"
   if [ -n "${zbm_uutils}" ] && coreutils --list 2>/dev/null | grep -qxF "${_exec}"; then
     inst_simple "${zbm_uutils}" /usr/bin/coreutils || return 1
     # shellcheck disable=SC2154
-    ln -sf coreutils "${initdir}/usr/bin/${_exec}"
+    ln -f "${initdir}/usr/bin/coreutils" "${initdir}/usr/bin/${_exec}"
     return 0
   fi
   dracut_install "${_exec}"

@@ -167,12 +167,13 @@ Done in R2:
   suites pass (252 checks) with `ZBMTEST_IMPL=rust`. The ZFS port gained `pool_names`, `devices` and `export`, so
   closing volumes exports pools through it.
 
-- uutils: version order (`zbm_types::version`, so kernel order) is `uucore`'s `version_cmp`, the `sort -V` of
-  uutils, replacing the emulation of GNU's `filevercmp`; a recorded fixture of the build container's `sort -V` on
-  generated names checks it on every host. `zbm-coreutils` copies, restricts and removes file trees in process
-  through the `Files` port (`cp -a`, `chmod -R`, `rm -rf`), which the GnuPG home of `zbm-crypt` uses. The dracut and
-  mkinitcpio modules install the uutils multi-call binary and a link per program when the host has it. Decision 4
-  is recorded: images ship that binary next to `zbm` rather than linking `uu_*` applets into it.
+- uutils: version order (`zbm_types::version`, so kernel order) is `uucore`'s `version_cmp`, the `sort -V` of uutils,
+  replacing the emulation of GNU's `filevercmp`; a recorded fixture of the build container's `sort -V` on generated
+  names checks it on every host. `zbm-coreutils` copies, restricts and removes file trees in process through the
+  `Files` port (`cp -a`, `chmod -R`, `rm -rf`), which the GnuPG home of `zbm-crypt` uses. The dracut and mkinitcpio
+  modules install the uutils multi-call binary and a hard link per program when the host has it (uutils refuses to run
+  through a symbolic link whose name is not its own). Decision 4 is recorded: images ship that binary next to `zbm`
+  rather than linking `uu_*` applets into it.
 
 - Adapters only: `zbm-tools` (adapters) runs the system's programs (`mount`, `umount`, `mountpoint`, `modprobe`,
   `modinfo`, `insmod`, `udevadm`, `tput`, `stty`, `kexec`, `blkid`, `lsblk`, `objcopy`, `objdump`, hooks, key
