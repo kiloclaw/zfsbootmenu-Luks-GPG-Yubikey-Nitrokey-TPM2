@@ -4,7 +4,7 @@ use std::path::Path;
 
 use zbm_platform::System;
 
-use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
+use zbm_boot::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 
 /// The fields `IFS=',' read -r -a fields <<< "${text}"` reads: a trailing
 /// empty field is dropped, other empty fields are kept.
@@ -77,7 +77,7 @@ mod tests {
     use zbm_testkit::legacy::{Bash, log_lines, path};
     use zbm_testkit::parity;
 
-    use crate::testing::{LINE_LOG_STUBS, stub_lines};
+    use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
 
     #[test]
     fn device_names() {

@@ -154,7 +154,7 @@ impl TimedPrompt {
 }
 
 /// Runs `tput` with `args` and writes what it prints to the console.
-pub(crate) fn tput(system: &System<'_>, args: &[&str]) {
+pub fn tput(system: &System<'_>, args: &[&str]) {
     let output = terminal::tput(system.runner, args, Input::Inherit);
     let _ = system.console.write(&output);
 }
@@ -216,6 +216,12 @@ mod tests {
                   }"#,
             )
             .source("zfsbootmenu/lib/zfsbootmenu-core.sh")
+    }
+
+    #[test]
+    fn a_default_prompt_is_a_new_one() {
+        let fake = zbm_testkit::fakes::FakeSystem::new();
+        assert_eq!(TimedPrompt::default().run(&fake.system()), Answer::Continue);
     }
 
     #[test]

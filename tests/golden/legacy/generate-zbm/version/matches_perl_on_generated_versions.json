@@ -1,0 +1,2005 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"2\" \"12\"",
+      "result": -1
+    },
+    {
+      "input": "\"10\" \"110\"",
+      "result": -1
+    },
+    {
+      "input": "\"rc\" \"r1c\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"01\"",
+      "result": -1
+    },
+    {
+      "input": "\"100_007x869\" \"a\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"100x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"-\" \"10\"",
+      "result": -1
+    },
+    {
+      "input": "\"rc0\" \"r0c0\"",
+      "result": 1
+    },
+    {
+      "input": "\"0071generic0~2\" \"0x0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"b0071010x01\" \"b00710010x01\"",
+      "result": 1
+    },
+    {
+      "input": "\"rcgeneric21rc0x\" \"rcgeneric21.rc0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc0\" \"rca0\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"021\" \"02.1\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86-~\" \"b0x~\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"100\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \".0\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"1bgeneric09\"",
+      "result": -1
+    },
+    {
+      "input": "\"007\" \"29a2Ax86\"",
+      "result": -1
+    },
+    {
+      "input": "\"0xA0072\" \"00xA0072\"",
+      "result": -1
+    },
+    {
+      "input": "\"01100bgenericb\" \"01100bgenericab\"",
+      "result": 1
+    },
+    {
+      "input": "\"1000-\" \"-\"",
+      "result": 1
+    },
+    {
+      "input": "\"10022\" \"1~1\"",
+      "result": 1
+    },
+    {
+      "input": "\"a007b\" \"90x00720\"",
+      "result": 1
+    },
+    {
+      "input": "\"11aA0-\" \"11a-A0-\"",
+      "result": 1
+    },
+    {
+      "input": "\"2.\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"10\" \".10\"",
+      "result": 1
+    },
+    {
+      "input": "\"_9007A\" \"~1ageneric0\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"1101100\"",
+      "result": -1
+    },
+    {
+      "input": "\"101a2007bA\" \"-101a2007bA\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic1000101~\" \"generic11000101~\"",
+      "result": -1
+    },
+    {
+      "input": "\"1a1aA.\" \"1a1a-A.\"",
+      "result": 1
+    },
+    {
+      "input": "\"b-\" \"__arc10\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"100\"",
+      "result": -1
+    },
+    {
+      "input": "\"~10101\" \"~101001\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"01rc\" \"-01rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\".910\" \"1001a\"",
+      "result": -1
+    },
+    {
+      "input": "\"-29-\" \"rc1A~0\"",
+      "result": -1
+    },
+    {
+      "input": "\"01generic\" \".01generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"100rc\" \"1a00rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"_.~9.0x\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"100Ab\" \"100-Ab\"",
+      "result": 1
+    },
+    {
+      "input": "\"A\" \"aA\"",
+      "result": -1
+    },
+    {
+      "input": "\"x86rc-1x862\" \"x86rc-1x8062\"",
+      "result": -1
+    },
+    {
+      "input": "\"01b0x9\" \"0-1b0x9\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x_\" \"01rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"a1a91000\" \"a1a910.00\"",
+      "result": 1
+    },
+    {
+      "input": "\"10\" \"100\"",
+      "result": -1
+    },
+    {
+      "input": "\"rc007010b01\" \"a\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x_\" \"1000\"",
+      "result": -1
+    },
+    {
+      "input": "\"9\" \"09\"",
+      "result": 1
+    },
+    {
+      "input": "\"007007\" \"0a07007\"",
+      "result": 1
+    },
+    {
+      "input": "\"011011~0\" \"011.011~0\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc\" \"01a\"",
+      "result": 1
+    },
+    {
+      "input": "\"1aa012b\" \"arc\"",
+      "result": -1
+    },
+    {
+      "input": "\"-\" \"-10a\"",
+      "result": -1
+    },
+    {
+      "input": "\"2genericA.0a\" \"2genaericA.0a\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x100x86genericax86\" \"0x100x86gene0ricax86\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1ageneric\" \"1agener.ic\"",
+      "result": 1
+    },
+    {
+      "input": "\"1arc2100x0x\" \"_\"",
+      "result": -1
+    },
+    {
+      "input": "\"_rcb\" \"generica100a\"",
+      "result": 1
+    },
+    {
+      "input": "\"_91A\" \"bgeneric~x86100\"",
+      "result": 1
+    },
+    {
+      "input": "\"0.A\" \"0-.A\"",
+      "result": 1
+    },
+    {
+      "input": "\"brc\" \"br1c\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a\" \"a1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"x86\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86-generic~_\" \"x86-.generic~_\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc\" \"01x86x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"1-generic\" \"1-gaeneric\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc11001a2\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"007~generic\" \"007~gen1eric\"",
+      "result": 1
+    },
+    {
+      "input": "\"100-a007\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc91100\" \"r-c91100\"",
+      "result": 1
+    },
+    {
+      "input": "\"01\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x0xa01\" \"0x0xa.01\"",
+      "result": 1
+    },
+    {
+      "input": "\"010007generic10\" \"generica1201b\"",
+      "result": -1
+    },
+    {
+      "input": "\"010x1100~x86\" \"a010x1100~x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"A00701\" \"A.00701\"",
+      "result": 1
+    },
+    {
+      "input": "\"b_2007100\" \"b_-2007100\"",
+      "result": 1
+    },
+    {
+      "input": "\"x8600~_\" \"x86010~_\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"A0\"",
+      "result": -1
+    },
+    {
+      "input": "\"generic1a\" \"1generic1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"ax86b10Arc\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86rc007\" \"x86rcrc1\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"generic1aAx86\"",
+      "result": -1
+    },
+    {
+      "input": "\"generic1a0071a_\" \"generica1a0071a_\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"007~bx86\" \"007~bx086\"",
+      "result": 1
+    },
+    {
+      "input": "\"10101a\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1x86210\" \"1x86a210\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic2A\" \"1a-A101-\"",
+      "result": 1
+    },
+    {
+      "input": "\"0_x861\" \"10\"",
+      "result": -1
+    },
+    {
+      "input": "\"-11001aa\" \"-110011aa\"",
+      "result": -1
+    },
+    {
+      "input": "\"~\" \".~\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic007rc\" \"generic0.07rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"0.\" \"-0.\"",
+      "result": 1
+    },
+    {
+      "input": "\"0\" \".0\"",
+      "result": 1
+    },
+    {
+      "input": "\"-\" \"-10_x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"01A1a007-~\" \"01aA1a007-~\"",
+      "result": -1
+    },
+    {
+      "input": "\"generic007.\" \"ArcAgeneric-0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"10A~\" \"10A0~\"",
+      "result": 1
+    },
+    {
+      "input": "\"b1x869\" \"b1x.869\"",
+      "result": 1
+    },
+    {
+      "input": "\"Ax86genericx869\" \"Ax86gene-ricx869\"",
+      "result": 1
+    },
+    {
+      "input": "\"AA\" \"100.\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a90x0x0\" \"1a9.0x0x0\"",
+      "result": 1
+    },
+    {
+      "input": "\"102\" \"1a02\"",
+      "result": 1
+    },
+    {
+      "input": "\"x861000\" \"x861a000\"",
+      "result": 1
+    },
+    {
+      "input": "\"1agenericrc\" \"100x\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x0101\" \"0x010-1\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic\" \"gaeneric\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"Aa.x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"b.\" \"A1A007\"",
+      "result": 1
+    },
+    {
+      "input": "\"0007\" \"-0007\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a02100\" \"1aa02100\"",
+      "result": -1
+    },
+    {
+      "input": "\"generic01\" \"generi.c01\"",
+      "result": 1
+    },
+    {
+      "input": "\"aa2100\" \"0\"",
+      "result": 1
+    },
+    {
+      "input": "\"-\" \"0-\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"~A1a\" \"9\"",
+      "result": 1
+    },
+    {
+      "input": "\"100~a01\" \"a100~a01\"",
+      "result": -1
+    },
+    {
+      "input": "\"1010-~100\" \"-b1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"12Agenericrc\" \"12Age0nericrc\"",
+      "result": 1
+    },
+    {
+      "input": "\"01-~01rc~\" \"1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"9\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"0xrc9.generic0x\" \"_A\"",
+      "result": -1
+    },
+    {
+      "input": "\"1\" \".1\"",
+      "result": 1
+    },
+    {
+      "input": "\"~1x86a0071a\" \".11_\"",
+      "result": 1
+    },
+    {
+      "input": "\"A09\" \"A0-9\"",
+      "result": 1
+    },
+    {
+      "input": "\"1\" \"rc1002007\"",
+      "result": -1
+    },
+    {
+      "input": "\"10rc007\" \"_.01\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x\" \"0x\"",
+      "result": 0
+    },
+    {
+      "input": "\"_1100\" \"_-1100\"",
+      "result": 1
+    },
+    {
+      "input": "\".10b\" \"A007generic\"",
+      "result": -1
+    },
+    {
+      "input": "\"A91\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"A910\" \"-x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"-0\" \"a-0\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"a1x860x\"",
+      "result": -1
+    },
+    {
+      "input": "\".b\" \"-.b\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic21101\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"0x-\" \"0x--\"",
+      "result": -1
+    },
+    {
+      "input": "\"91\" \"091\"",
+      "result": 1
+    },
+    {
+      "input": "\".genericx86\" \".generic.x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"~\" \"1~\"",
+      "result": 1
+    },
+    {
+      "input": "\"910.\" \"00007_1\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"0a0_01\"",
+      "result": -1
+    },
+    {
+      "input": "\"_\" \"_100b\"",
+      "result": -1
+    },
+    {
+      "input": "\"10\" \"1a0\"",
+      "result": 1
+    },
+    {
+      "input": "\"~91arc\" \"0x10101aA\"",
+      "result": 1
+    },
+    {
+      "input": "\"2x86b~1\" \"2x86b~.1\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"x861aA1a~x86\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"2~0_\" \"2~0._\"",
+      "result": 1
+    },
+    {
+      "input": "\"10ab\" \"10x0x_\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"91\" \"9a1\"",
+      "result": 1
+    },
+    {
+      "input": "\"007~01x86\" \"007~01ax86\"",
+      "result": 1
+    },
+    {
+      "input": "\"007\" \"2rcgeneric1ab0\"",
+      "result": -1
+    },
+    {
+      "input": "\"0_b\" \"00_b\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x991000\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"2a\" \"generic\"",
+      "result": -1
+    },
+    {
+      "input": "\"A10x861~0x\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"1\" \"a1\"",
+      "result": -1
+    },
+    {
+      "input": "\"0\" \"b\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"0x100b\" \"01x100b\"",
+      "result": -1
+    },
+    {
+      "input": "\"A\" \"aA\"",
+      "result": -1
+    },
+    {
+      "input": "\"rc290x\" \"10generic2\"",
+      "result": 1
+    },
+    {
+      "input": "\"9~007x86\" \"9~0070x86\"",
+      "result": -1
+    },
+    {
+      "input": "\".genericgenericx86\" \"generic210001x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"9~100\"",
+      "result": -1
+    },
+    {
+      "input": "\"019-.a\" \"x861~1aa10\"",
+      "result": -1
+    },
+    {
+      "input": "\"1\" \"a1\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"0xgeneric01\" \"1a0x1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"01b\" \"011b\"",
+      "result": -1
+    },
+    {
+      "input": "\"100\" \"a100x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"generic01b0xA\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"a\" \"007\"",
+      "result": 1
+    },
+    {
+      "input": "\"9\" \".9\"",
+      "result": 1
+    },
+    {
+      "input": "\"100\" \"1000\"",
+      "result": -1
+    },
+    {
+      "input": "\"-_b0x\" \"a010101x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"~~a\" \"1a_\"",
+      "result": 1
+    },
+    {
+      "input": "\"~~b100\" \"~.~b100\"",
+      "result": 1
+    },
+    {
+      "input": "\"generica1a100210\" \"geanerica1a100210\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"b.x86\" \".b.x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"0xgenericx86100generic\" \"0xgener0icx86100generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x007007b\" \"0x0070070b\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x-01_a\" \"0x-01_.a\"",
+      "result": 1
+    },
+    {
+      "input": "\"007~__1a\" \"0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic100710\" \"1aa01A\"",
+      "result": 1
+    },
+    {
+      "input": "\"Arc_A\" \"Ar.c_A\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x20071007b\" \"~0x\"",
+      "result": -1
+    },
+    {
+      "input": "\"100~\" \"-100~\"",
+      "result": 1
+    },
+    {
+      "input": "\"_007generic~_\" \"generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"_~_\" \"10x860\"",
+      "result": 1
+    },
+    {
+      "input": "\"11001ab007\" \"0xx86100A10\"",
+      "result": 1
+    },
+    {
+      "input": "\"9-\" \"19-\"",
+      "result": -1
+    },
+    {
+      "input": "\"0070x\" \"91a011a10001\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1a.0007\" \"1a..0007\"",
+      "result": 1
+    },
+    {
+      "input": "\"x861~\" \"0a1009\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"-1a100__0\"",
+      "result": -1
+    },
+    {
+      "input": "\"ageneric910\" \"agene1ric910\"",
+      "result": 1
+    },
+    {
+      "input": "\"9--A\" \"-100\"",
+      "result": 1
+    },
+    {
+      "input": "\"21a101a\" \"21a.101a\"",
+      "result": 1
+    },
+    {
+      "input": "\"10\" \"A0x\"",
+      "result": -1
+    },
+    {
+      "input": "\"rc1a\" \"007_~1ax86\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"007A~~bgeneric\"",
+      "result": -1
+    },
+    {
+      "input": "\"001b\" \".-0007~0\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a100\" \"01a100\"",
+      "result": 1
+    },
+    {
+      "input": "\"~.10b.100\" \"~.10b.1-00\"",
+      "result": 1
+    },
+    {
+      "input": "\"Agenericrc_\" \"rcb\"",
+      "result": -1
+    },
+    {
+      "input": "\"1001a-\" \"10010a-\"",
+      "result": -1
+    },
+    {
+      "input": "\"_.\" \"a_.\"",
+      "result": 1
+    },
+    {
+      "input": "\"b100a\" \"-_\"",
+      "result": 1
+    },
+    {
+      "input": "\"9\" \".9\"",
+      "result": 1
+    },
+    {
+      "input": "\".1\" \"100x8609rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"_1abb\" \"_1a0bb\"",
+      "result": 1
+    },
+    {
+      "input": "\".rcarc~\" \"0.rcarc~\"",
+      "result": -1
+    },
+    {
+      "input": "\"1001ab2b100\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1\" \"0070b\"",
+      "result": 1
+    },
+    {
+      "input": "\"~ab01a\" \"10x861a\"",
+      "result": 1
+    },
+    {
+      "input": "\"10021100\" \"a.Ageneric9\"",
+      "result": -1
+    },
+    {
+      "input": "\"100~\" \"10.0~\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc007rc\" \"rc007r0c\"",
+      "result": 1
+    },
+    {
+      "input": "\".10rc007007\" \".10rc0017007\"",
+      "result": 1
+    },
+    {
+      "input": "\".1aA\" \".1a1A\"",
+      "result": 1
+    },
+    {
+      "input": "\".2\" \"1.2\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x1000110.\" \"0x10000110.\"",
+      "result": -1
+    },
+    {
+      "input": "\"1ageneric100\" \"1a.generic100\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"aa-\" \"aaa-\"",
+      "result": -1
+    },
+    {
+      "input": "\"-1001001a\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc1a007\" \"rc1a0017\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"2100rc\" \"21010rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"a-1generic\" \"generic._\"",
+      "result": -1
+    },
+    {
+      "input": "\"~1-10a\" \"rc.\"",
+      "result": 1
+    },
+    {
+      "input": "\"0210\" \"00210\"",
+      "result": 1
+    },
+    {
+      "input": "\"b1\" \"1\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86A\" \"A0x1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"-10\" \"abrc0\"",
+      "result": -1
+    },
+    {
+      "input": "\"_0071a007\" \"_00171a007\"",
+      "result": 1
+    },
+    {
+      "input": "\"100\" \"_10a10.\"",
+      "result": -1
+    },
+    {
+      "input": "\"9100\" \"1010b1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a9_\" \"1a9a_\"",
+      "result": 1
+    },
+    {
+      "input": "\"rcb101b.\" \"rcb10.1b.\"",
+      "result": 1
+    },
+    {
+      "input": "\"19_--9\" \"~~rcgeneric\"",
+      "result": -1
+    },
+    {
+      "input": "\"09\" \"210\"",
+      "result": -1
+    },
+    {
+      "input": "\".~9\" \"..~9\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a1\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"a1.1.\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"_b1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"_.\" \"1-1ax861\"",
+      "result": 1
+    },
+    {
+      "input": "\"b1.0101\" \"011_\"",
+      "result": 1
+    },
+    {
+      "input": "\".1a9-.\" \".1a.9-.\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x_\" \"a100-\"",
+      "result": -1
+    },
+    {
+      "input": "\"10100-100\" \"110100-100\"",
+      "result": -1
+    },
+    {
+      "input": "\"~00007-\" \"aa\"",
+      "result": 1
+    },
+    {
+      "input": "\"b\" \"1b\"",
+      "result": 1
+    },
+    {
+      "input": "\"genericgeneric-a\" \"geanericgeneric-a\"",
+      "result": 1
+    },
+    {
+      "input": "\"1001a1a1aa\" \"1001a1a.1aa\"",
+      "result": 1
+    },
+    {
+      "input": "\"A\" \"aA\"",
+      "result": -1
+    },
+    {
+      "input": "\"10a02\" \"~0b\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"x86100\"",
+      "result": -1
+    },
+    {
+      "input": "\"9\" \"09\"",
+      "result": 1
+    },
+    {
+      "input": "\"201\" \"rc0ageneric\"",
+      "result": -1
+    },
+    {
+      "input": "\"0x01rc0x\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"2x860xx86\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"_~1a\" \"_~.1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"00710020\" \"1\"",
+      "result": -1
+    },
+    {
+      "input": "\"-.\" \"-1.\"",
+      "result": -1
+    },
+    {
+      "input": "\"genericb-9\" \"g.enericb-9\"",
+      "result": 1
+    },
+    {
+      "input": "\"1_0\" \"10-a\"",
+      "result": -1
+    },
+    {
+      "input": "\"_9a_10\" \"rc007\"",
+      "result": 1
+    },
+    {
+      "input": "\"1\" \"01\"",
+      "result": 1
+    },
+    {
+      "input": "\"~0071arcbrc\" \"~00701arcbrc\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a100x\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"0~1a\" \"0-~1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"2\" \"02\"",
+      "result": 1
+    },
+    {
+      "input": "\"10007generic\" \"1000-7generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"a\" \"007\"",
+      "result": 1
+    },
+    {
+      "input": "\"007..0xrc\" \"007..0x-rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"bgeneric.generic100\" \"bgen1eric.generic100\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"00\"",
+      "result": -1
+    },
+    {
+      "input": "\"0xA100A\" \"0xA100.A\"",
+      "result": 1
+    },
+    {
+      "input": "\"bA9\" \"b.A9\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"1001a19a\"",
+      "result": -1
+    },
+    {
+      "input": "\"1a1001x86\" \"1a1-001x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"2\" \"29aa\"",
+      "result": -1
+    },
+    {
+      "input": "\"1010A\" \"A-\"",
+      "result": -1
+    },
+    {
+      "input": "\"0xb01\" \"0axb01\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"100A1000xx86rc\" \"1001A1000xx86rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"genericrc_generic09\" \"generic1rc_generic09\"",
+      "result": 1
+    },
+    {
+      "input": "\"Aa_\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"007\" \"1a..0x.\"",
+      "result": -1
+    },
+    {
+      "input": "\"a2\" \"aa2\"",
+      "result": -1
+    },
+    {
+      "input": "\"0A0\" \"1001.\"",
+      "result": -1
+    },
+    {
+      "input": "\"a.rc\" \"a.r1c\"",
+      "result": 1
+    },
+    {
+      "input": "\"0071ax861\" \"00a71ax861\"",
+      "result": 1
+    },
+    {
+      "input": "\"x860rcx86\" \"ba\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"~007\" \"109-_~\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"1\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"-generic0x_\"",
+      "result": -1
+    },
+    {
+      "input": "\"_0x\" \"A1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"~generic_90x\" \"_\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86\" \"ax86\"",
+      "result": 1
+    },
+    {
+      "input": "\"100-A\" \"-100-A\"",
+      "result": 1
+    },
+    {
+      "input": "\"b_\" \"b._\"",
+      "result": 1
+    },
+    {
+      "input": "\"__1aa\" \"__1a-a\"",
+      "result": 1
+    },
+    {
+      "input": "\"10~b.\" \"2a_-0\"",
+      "result": 1
+    },
+    {
+      "input": "\"1~01generic\" \"100\"",
+      "result": -1
+    },
+    {
+      "input": "\"100\" \"1.00\"",
+      "result": 1
+    },
+    {
+      "input": "\"2\" \"_ba012\"",
+      "result": -1
+    },
+    {
+      "input": "\"007_\" \"a1a0\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"0\" \"-0\"",
+      "result": 1
+    },
+    {
+      "input": "\".100901\" \".1000901\"",
+      "result": -1
+    },
+    {
+      "input": "\"10x01\" \"x860x01\"",
+      "result": -1
+    },
+    {
+      "input": "\"01x869genericb\" \".01x869genericb\"",
+      "result": 1
+    },
+    {
+      "input": "\"_10-100\" \"007aarca\"",
+      "result": 1
+    },
+    {
+      "input": "\"101001a.\" \"101-001a.\"",
+      "result": 1
+    },
+    {
+      "input": "\".\" \"9\"",
+      "result": -1
+    },
+    {
+      "input": "\"0xa00721-\" \"1000x\"",
+      "result": -1
+    },
+    {
+      "input": "\"~\" \"007.\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86.\" \"a-_-9rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"100x86..-rc\" \"10007x8601a9\"",
+      "result": -1
+    },
+    {
+      "input": "\"x86genericgeneric~generic\" \"x86agenericgeneric~generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"b011~\" \"b0a11~\"",
+      "result": 1
+    },
+    {
+      "input": "\"~x8610b9_\" \"~x8-610b9_\"",
+      "result": 1
+    },
+    {
+      "input": "\"_\" \"0_\"",
+      "result": 1
+    },
+    {
+      "input": "\"01.0071a10\" \"x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"_x861\" \"x86_1000070x\"",
+      "result": 1
+    },
+    {
+      "input": "\".\" \"1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"0_rc\" \"0_r0c\"",
+      "result": 1
+    },
+    {
+      "input": "\"1b100\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic~10\" \"gener0ic~10\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86ax8601\" \"x186ax8601\"",
+      "result": -1
+    },
+    {
+      "input": "\"011a10010generica\" \".0x0071\"",
+      "result": 1
+    },
+    {
+      "input": "\"007\" \"1007\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"01rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"9007b1bb\" \"9007b1.bb\"",
+      "result": 1
+    },
+    {
+      "input": "\".9generic\" \"..9generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x\" \"a0x\"",
+      "result": -1
+    },
+    {
+      "input": "\"10~-10\" \"110~-10\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"~01rc-x86a\" \"1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x_b9\" \"0x_b.9\"",
+      "result": 1
+    },
+    {
+      "input": "\"brc0x0x1a10\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc_01\" \"22007\"",
+      "result": 1
+    },
+    {
+      "input": "\"1arc1a01generic\" \"1001genericb\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"10\"",
+      "result": -1
+    },
+    {
+      "input": "\"_~a9b10\" \"_~aa9b10\"",
+      "result": -1
+    },
+    {
+      "input": "\".~007.a.\" \".~0071.a.\"",
+      "result": -1
+    },
+    {
+      "input": "\"100921ageneric\" \"1\"",
+      "result": 1
+    },
+    {
+      "input": "\"a2-\" \"2-\"",
+      "result": 1
+    },
+    {
+      "input": "\"110072\" \"201A\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a\" \"1.a\"",
+      "result": 1
+    },
+    {
+      "input": "\"0~\" \"0a~\"",
+      "result": 1
+    },
+    {
+      "input": "\"1ab01-100a\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"007\" \"00-7\"",
+      "result": 1
+    },
+    {
+      "input": "\"__10-.\" \"007~\"",
+      "result": 1
+    },
+    {
+      "input": "\"a\" \"0x010aA\"",
+      "result": 1
+    },
+    {
+      "input": "\"genericb\" \"x86A\"",
+      "result": -1
+    },
+    {
+      "input": "\"x86\" \"1arc011100b\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a100x86rc\" \"1a100x-86rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"007_007\" \"generic90x8610010\"",
+      "result": -1
+    },
+    {
+      "input": "\"b-1a01\" \"b-11a01\"",
+      "result": -1
+    },
+    {
+      "input": "\"1-\" \"1--\"",
+      "result": -1
+    },
+    {
+      "input": "\"90x01~0x\" \"90x01a~0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"A0071a\" \"A00711a\"",
+      "result": -1
+    },
+    {
+      "input": "\"genericx86007rc9\" \"genericx860a07rc9\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"_b\" \"9b0101\"",
+      "result": 1
+    },
+    {
+      "input": "\"x869rc\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"007\" \"A~2.1a\"",
+      "result": -1
+    },
+    {
+      "input": "\"9_rc.rc9\" \"a007x86.\"",
+      "result": -1
+    },
+    {
+      "input": "\"a.-29\" \".a.-29\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"A2AA10\"",
+      "result": -1
+    },
+    {
+      "input": "\"x860x010\" \".genericab1a\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"007~9\" \"1100-b29\"",
+      "result": -1
+    },
+    {
+      "input": "\"b\" \"ab\"",
+      "result": 1
+    },
+    {
+      "input": "\"-.rcA0\" \"..0~\"",
+      "result": -1
+    },
+    {
+      "input": "\"rca_1rc\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic0b007\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"_rcb01\" \"_rcb0.1\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc0A\" \"rc0-A\"",
+      "result": 1
+    },
+    {
+      "input": "\"rca\" \"r0ca\"",
+      "result": 1
+    },
+    {
+      "input": "\".-generic90\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\".b0x01\" \"2011.\"",
+      "result": -1
+    },
+    {
+      "input": "\"0__\" \"0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \".~~\"",
+      "result": -1
+    },
+    {
+      "input": "\".9b10\" \"generic\"",
+      "result": -1
+    },
+    {
+      "input": "\"100\" \"10-0\"",
+      "result": 1
+    },
+    {
+      "input": "\"Ax86a_\" \"2~rc.A\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x\" \"010071091a\"",
+      "result": -1
+    },
+    {
+      "input": "\"1a.rc\" \"10a.rc\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"0xrca_\"",
+      "result": -1
+    },
+    {
+      "input": "\"11b\" \".11b\"",
+      "result": 1
+    },
+    {
+      "input": "\"x86\" \".x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"generic10010x\" \"007\"",
+      "result": 1
+    },
+    {
+      "input": "\"a101\" \"a1.01\"",
+      "result": 1
+    },
+    {
+      "input": "\"0A~007~.\" \"0\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"1007\"",
+      "result": -1
+    },
+    {
+      "input": "\"genericAb100\" \"generic~01001x86\"",
+      "result": -1
+    },
+    {
+      "input": "\"1001ax86.\" \"1001ax860.\"",
+      "result": -1
+    },
+    {
+      "input": "\"0\" \"01a0109\"",
+      "result": -1
+    },
+    {
+      "input": "\".100\" \".1-00\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic\" \"1generic\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"a1ax86~10\" \"a1ax8a6~10\"",
+      "result": 1
+    },
+    {
+      "input": "\"1arc\" \"~generic0x\"",
+      "result": -1
+    },
+    {
+      "input": "\"1ageneric2rc1\" \"1agen1eric2rc1\"",
+      "result": 1
+    },
+    {
+      "input": "\"00701\" \"007101\"",
+      "result": -1
+    },
+    {
+      "input": "\"2A~A\" \"2aA~A\"",
+      "result": 1
+    },
+    {
+      "input": "\"2100\" \"-2100\"",
+      "result": 1
+    },
+    {
+      "input": "\"A\" \"1~_100100\"",
+      "result": 1
+    },
+    {
+      "input": "\"A\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"10007\" \"0x100_x8611\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"100ab007\" \"aa0bx86generic\"",
+      "result": -1
+    },
+    {
+      "input": "\"x86\" \".x86\"",
+      "result": 1
+    },
+    {
+      "input": "\"10A2\" \"1a2_99\"",
+      "result": 1
+    },
+    {
+      "input": "\"_01.0079rc\" \"x86010\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic2_.01\" \"10~A201\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"a2-\" \"0-\"",
+      "result": 1
+    },
+    {
+      "input": "\"b\" \".b\"",
+      "result": 1
+    },
+    {
+      "input": "\"109-~generic10\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"007b011a~01\" \"007b011.a~01\"",
+      "result": 1
+    },
+    {
+      "input": "\"101aAgeneric\" \"10a1aAgeneric\"",
+      "result": 1
+    },
+    {
+      "input": "\"A_\" \"1x86x86x869\"",
+      "result": 1
+    },
+    {
+      "input": "\"0\" \"_1011a\"",
+      "result": -1
+    },
+    {
+      "input": "\"aa\" \"\"",
+      "result": 1
+    },
+    {
+      "input": "\"1a\" \"0x1ax86~\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc01\" \"0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"b\" \"9x860xAgeneric\"",
+      "result": 1
+    },
+    {
+      "input": "\"2001.01\" \"2001..01\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc007\" \"rc00a7\"",
+      "result": 1
+    },
+    {
+      "input": "\"1000_\" \"100a0_\"",
+      "result": 1
+    },
+    {
+      "input": "\"~abgeneric007100\" \"~aabgeneric007100\"",
+      "result": 1
+    },
+    {
+      "input": "\"21a\" \".21a\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc_10001\" \"rc0_10001\"",
+      "result": 1
+    },
+    {
+      "input": "\"Ageneric_~01\" \"0101\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"20generic2\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1001.generica0x\" \"1001.generic1a0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x0xb0x\" \"10\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"~._20x\" \"~.-_20x\"",
+      "result": 1
+    },
+    {
+      "input": "\"generic9generic~rc\" \"generic9gen.eric~rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"1x86rcAb\" \"0rc\"",
+      "result": 1
+    },
+    {
+      "input": "\"rc\" \"-x861009a\"",
+      "result": 1
+    },
+    {
+      "input": "\"0xgenerica10\" \"1a.\"",
+      "result": -1
+    },
+    {
+      "input": "\"A-b\" \"007generic.100\"",
+      "result": 1
+    },
+    {
+      "input": "\"~9\" \"~-9\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x910x861a\" \"910-007\"",
+      "result": -1
+    },
+    {
+      "input": "\"0a0\" \".0a0\"",
+      "result": 1
+    },
+    {
+      "input": "\"-1aa0xrc0x\" \"-1aa0xrc.0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1ageneric007_1\" \"1ageneric007_-1\"",
+      "result": 1
+    },
+    {
+      "input": "\"01.-x86\" \"210\"",
+      "result": -1
+    },
+    {
+      "input": "\"9ax86aa\" \"9ax806aa\"",
+      "result": -1
+    },
+    {
+      "input": "\"100a1a01\" \"100a1a0a1\"",
+      "result": 1
+    },
+    {
+      "input": "\"-\" \"--\"",
+      "result": -1
+    },
+    {
+      "input": "\"100\" \"10a0\"",
+      "result": 1
+    },
+    {
+      "input": "\"0x10007-\" \"x86_.x861a0\"",
+      "result": -1
+    },
+    {
+      "input": "\"1ageneric10100\" \"00072b9\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"1a~a\" \"A\"",
+      "result": -1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"~x869rc.0x\" \".x860x0x\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"a1a~1009b\" \"a1a~1009-b\"",
+      "result": 1
+    },
+    {
+      "input": "\"\" \"\"",
+      "result": 0
+    },
+    {
+      "input": "\"\" \"1\"",
+      "result": -1
+    },
+    {
+      "input": "\"A\" \"0x-1a\"",
+      "result": 1
+    }
+  ]
+}

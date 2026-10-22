@@ -23,7 +23,7 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 
 | Crate | Used by | Why |
 | --- | --- | --- |
-| `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-zfs`, `zbm-luks`, `zbm-app`, `zbm-boot` | Error enums with their causes; runs at build time only |
+| `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-zfs`, `zbm-luks`, `zbm-pool`, `zbm-app`, `zbm-boot`, `zbm-startup` | Error enums with their causes; runs at build time only |
 | `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app`; `tracing` in `zbm` and `zbm-boot` | Spans and events; the stderr output and the JSON journal |
 | `serde_json` | `zbm-trace`, `zbm-zfs`, `zbm-crypt` | The JSON journal; the JSON output of `zfs` and `zpool`; LUKS2 metadata from `cryptsetup` |
 | `serde` | `zbm-zfs` | The shape of that output, derived (`derive`) |

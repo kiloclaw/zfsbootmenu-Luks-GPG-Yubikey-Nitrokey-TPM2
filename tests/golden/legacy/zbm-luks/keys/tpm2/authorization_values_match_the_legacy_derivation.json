@@ -1,0 +1,45 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"1234\" salted",
+      "result": "6bab9562a524011bd97fdf6795c25a9e0ddbd22a58136c533986548822cba316"
+    },
+    {
+      "input": "\"1234\" plain",
+      "result": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+    },
+    {
+      "input": "\"0000\" salted",
+      "result": "3788a6ea7631fc66b75f27648eff30981445416702f73384dec6ae8347a51477"
+    },
+    {
+      "input": "\"0000\" plain",
+      "result": "9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0"
+    },
+    {
+      "input": "\"pïn with spaces\" salted",
+      "result": "a8734a9ad8b8c2d0a45a2ec3e81bb26a8ca1c70f6a0862977098c3cb841f5ac5"
+    },
+    {
+      "input": "\"pïn with spaces\" plain",
+      "result": "dac9e533ec003017da5ddf0a8e726d751b75fcd855e9a5d339434232c775c953"
+    },
+    {
+      "input": "\"-x\" salted",
+      "result": "cb4b5e9cacdc1874ad420b76f74d4c6947a3f52bdc8915cb17d84f5777a5f4da"
+    },
+    {
+      "input": "\"-x\" plain",
+      "result": "a420962426d711880258b007d6767792992f6700fa93f127dafe1f7333e50466"
+    },
+    {
+      "input": "\"a\\\\b\" salted",
+      "result": "a611d88b588cadea3194ffc0922931627a1fe63dc4f48433409cb200417eef57"
+    },
+    {
+      "input": "\"a\\\\b\" plain",
+      "result": "c62016d0f8ee333350283fd879b50b692932e932794e5d686f7d37d67484e199"
+    }
+  ]
+}

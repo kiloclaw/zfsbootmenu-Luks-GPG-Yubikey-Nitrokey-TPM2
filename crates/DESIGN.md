@@ -218,7 +218,7 @@ The dracut and mkinitcpio hooks stay shell scripts, as the roadmap requires, bec
 - `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio entry
   point) and leaves the legacy start-up program and `init.d` out of the image.
 
-The start-up stages run in this order, as functions of `zbm-boot`:
+The start-up stages run in this order, as the steps of `zbm-startup` (one `Step` per stage, run by `run_steps`):
 
 | Stage | Legacy |
 | --- | --- |

@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 zbm-app.workspace = true
 zbm-boot.workspace = true
+zbm-startup.workspace = true
 zbm-cmdline.workspace = true
 zbm-core.workspace = true
 zbm-luks.workspace = true

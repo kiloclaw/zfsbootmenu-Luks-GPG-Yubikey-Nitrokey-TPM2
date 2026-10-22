@@ -5,7 +5,7 @@ use zbm_platform::error::{Error, Result};
 use zbm_tools::modules::Modules;
 use zbm_tools::{Shown, udev};
 
-use crate::recovery::Recovery;
+use zbm_boot::recovery::Recovery;
 
 /// What `$( <command> 2>&1 )` gives: whether the command succeeded, and its
 /// output without trailing newlines. A command that cannot start counts as a
@@ -73,8 +73,8 @@ mod tests {
     struct Shells(Vec<String>);
 
     impl Recovery for Shells {
-        fn unlock_late(&mut self) -> std::result::Result<(), crate::error::BootError> {
-            Err(crate::error::BootError::NoCryptsetup)
+        fn unlock_late(&mut self) -> std::result::Result<(), zbm_boot::error::BootError> {
+            Err(zbm_boot::error::BootError::NoCryptsetup)
         }
 
         fn emergency_shell(&mut self, message: &str) {

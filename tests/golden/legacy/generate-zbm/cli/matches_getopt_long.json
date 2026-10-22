@@ -1,0 +1,1205 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "args [\"--kernel=x\", \"--enable\", \"-l\", \"-dV\"], posix false",
+      "result": "bootdir=/boot\ncmdline=-dV\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nkernel=x\nok\n"
+    },
+    {
+      "input": "args [\"--e\", \"-\", \"--hookd=a\", \"--boot\"], posix false",
+      "result": "Option bootdir requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-x\", \"--disable\", \"+\", \"--no-initcpio\"], posix false",
+      "result": "Unknown option: x\nMissing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--kernel=x\", \"--initcpio=1\", \"--disable\", \"--pre\"], posix false",
+      "result": "Option initcpio does not take an argument\nOption prefix requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--hookd=a\", \"-C=c\", \"-H\", \"--Kver\", \"--noi\"], posix false",
+      "result": "bootdir=/boot\nconfd=c\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a|--Kver\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-v\", \"--enable\", \"-noinitcpio\", \"--ke\"], posix false",
+      "result": "Option kernel requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--n\", \"+d\", \"-c\"], posix false",
+      "result": "Option c requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-l\"], posix true",
+      "result": "Option l requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-c\", \"--cm\", \"--no-initcpio\", \"-c\", \"--kernel=x\"], posix false",
+      "result": "bootdir=/boot\nconfig=--kernel=x\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--debug\", \"-H\", \"-p\", \"-p\"], posix false",
+      "result": "Option p requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-p\", \"--version\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel_prefix=--version\nok\n"
+    },
+    {
+      "input": "args [\"--ver\"], posix false",
+      "result": "Option version requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--showver\", \"--n\", \"--debug=1\", \"--noinit\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"+d\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nok\n"
+    },
+    {
+      "input": "args [\"--no-initcpio\", \"-de\", \"\", \"--=x\", \"--x\"], posix false",
+      "result": "Unknown option: =x\nUnknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--e\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [\"-K\", \"-c\", \"-\", \"--x\", \"-b\"], posix false",
+      "result": "Unknown option: x\nOption b requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--debug=1\", \"-x\", \"--kv\", \"--config=\"], posix false",
+      "result": "Option debug does not take an argument\nUnknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--en\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [\"-de\", \"--showver\", \"-c\"], posix false",
+      "result": "Option c requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-noinitcpio\", \"-v\", \"--dis\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nversion=--dis\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-b\", \"-H\", \"--showver\", \"--con\", \"--con\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\nOption con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--k\"], posix true",
+      "result": "Option k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-i\", \"--kernel=x\", \"--initcpio=1\", \"--k\", \"-dV\"], posix true",
+      "result": "Option initcpio does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--cm\", \"--dis\", \"-V\", \"-H\", \"-K\"], posix false",
+      "result": "bootdir=/boot\ncmdline=--dis\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=-K\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"-k\"], posix false",
+      "result": "Option k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--hookd=a\", \"-d\", \"--pre\"], posix false",
+      "result": "Option prefix requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--init\", \"a=b\", \"-dV\", \"-i\", \"x\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [\"--help\", \"a\", \"--debug\", \"+d\", \"--ho\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"-d\", \"--help\", \"--pre\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"x\", \"-C=c\", \"--pre\"], posix false",
+      "result": "Option prefix requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--no\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--confi\", \"--e\", \"--version\", \"--ke\", \"--en\"], posix false",
+      "result": "bootdir=/boot\nconfig=--e\nenable=1\nversion=--ke\nok\n"
+    },
+    {
+      "input": "args [\"--di\", \"--sh\", \"+\", \"--con\"], posix false",
+      "result": "Missing option after +\nOption con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"+d\", \"--kernel=x\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel=x\nok\n"
+    },
+    {
+      "input": "args [\"--noi\", \"\", \"--\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--cm\"], posix true",
+      "result": "Unknown option: cm\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-dV\", \"--help\", \"--conf\", \"--x\"], posix true",
+      "result": "Unknown option: dV\nHELP\n"
+    },
+    {
+      "input": "args [\"--h\"], posix true",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"--e\", \"-noinitcpio\", \"--hookd=a\", \"--ver\"], posix true",
+      "result": "Unknown option: e\nUnknown option: ver\ninvalid\n"
+    },
+    {
+      "input": "args [\"--pre\"], posix false",
+      "result": "Option prefix requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--init\", \"--conf\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--kv\", \"--conf\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel_version=--conf\nok\n"
+    },
+    {
+      "input": "args [\"--n\", \"--Kver\", \"--config=\", \"--disable\", \"x\"], posix true",
+      "result": "Unknown option: n\nUnknown option: Kver\nOption config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--x\", \"--confi\"], posix false",
+      "result": "Unknown option: x\nOption config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-C=c\", \"+d\", \"-de\", \"-v\", \"-l\"], posix true",
+      "result": "Unknown option: C=c\ninvalid\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--debug=1\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--help\", \"--x\", \"--cm\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--di\", \"--ho\", \"--enable\", \"--ho\"], posix false",
+      "result": "Option hookd requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"+\"], posix false",
+      "result": "Missing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"-\", \"--di\", \"--con\", \"--n\", \"-d\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-v\", \"--help\", \"-i\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nversion=--help\nok\n"
+    },
+    {
+      "input": "args [\"--config=\", \"--k\"], posix false",
+      "result": "Option config requires an argument\nOption k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--e\", \"-v\", \"-dV\", \"--k\", \"-l\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nkernel=-l\nversion=-dV\nok\n"
+    },
+    {
+      "input": "args [\"-v\", \"-b\", \"--k\", \"-H\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=-H\nversion=-b\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--pre\", \"--con\", \"a\", \"--con\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"-H\", \"--ho\", \"--dis\", \"-l\", \"-H\"], posix false",
+      "result": "bootdir=/boot\ncmdline=-H\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=--ho\ndisable=1\nok\n"
+    },
+    {
+      "input": "args [\"-k\", \"--con\", \"--e\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nkernel=--con\nok\n"
+    },
+    {
+      "input": "args [\"--config=\", \"--noi\", \"--x\", \"--hookd=a\", \"--noinit\"], posix false",
+      "result": "Option config requires an argument\nUnknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--con\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--dis\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nok\n"
+    },
+    {
+      "input": "args [\"--boot\", \"--con\", \"--version\", \"-d\"], posix false",
+      "result": "bootdir=--con\nconfig=/etc/zfsbootmenu/config.yaml\nversion=-d\nok\n"
+    },
+    {
+      "input": "args [\"-C=c\", \"-i\"], posix true",
+      "result": "Unknown option: C=c\ninvalid\n"
+    },
+    {
+      "input": "args [\"-p\", \"--ver\", \"-de\", \"x\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel_prefix=--ver\nok\n"
+    },
+    {
+      "input": "args [\"--disable\", \"+\", \"-V\", \"--disable\"], posix false",
+      "result": "Missing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--k\"], posix false",
+      "result": "Option k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--pre\", \"--enable\"], posix true",
+      "result": "Unknown option: pre\ninvalid\n"
+    },
+    {
+      "input": "args [\"--hookd=a\", \"--no-initcpio\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-v\", \"--di\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nversion=--di\nok\n"
+    },
+    {
+      "input": "args [\"--di\", \"+d\", \"+\", \"--con\"], posix false",
+      "result": "Missing option after +\nOption con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--en\", \"-l\", \"--pre\"], posix false",
+      "result": "bootdir=/boot\ncmdline=--pre\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--boot\", \"--version\", \"-dV\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [\"--boot\", \"--enable\", \"-C=c\", \"--ke\"], posix false",
+      "result": "Option kernel requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-x\", \"--enable\", \"-v\", \"+d\", \"+\"], posix false",
+      "result": "Unknown option: x\nMissing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--\", \"--kv\", \"--dis\", \"--cm\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--debug=1\", \"+d\", \"--kv\", \"--h\", \"--con\"], posix false",
+      "result": "Option debug does not take an argument\nOption con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--\", \"--di\", \"--no\", \"-x\", \"--no\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"+\", \"--enable\"], posix false",
+      "result": "Missing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--no-initcpio\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--showver\", \"--debug=1\", \"-de\", \"--=x\", \"--en\"], posix false",
+      "result": "Option debug does not take an argument\nUnknown option: =x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--hookd=a\", \"--init\", \"--\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--Kver\", \"--showver\", \"-p\", \"-V\", \"---x\"], posix false",
+      "result": "Unknown option: Kver\nUnknown option: -x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--noinit\", \"--hookd=a\", \"x\", \"--hookd=a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a|a\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-x\", \"--Kver\"], posix false",
+      "result": "Unknown option: x\nUnknown option: Kver\ninvalid\n"
+    },
+    {
+      "input": "args [\"-i\", \"--initcpio=1\"], posix false",
+      "result": "Option initcpio does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-c\", \"--n\"], posix false",
+      "result": "bootdir=/boot\nconfig=--n\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--conf\", \"--noinit\", \"--init\", \"+d\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--en\", \"a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-K\", \"--di\", \"--kernel=x\", \"-v\"], posix false",
+      "result": "Option v requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"a=b\", \"--version\", \"+d\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nversion=+d\nok\n"
+    },
+    {
+      "input": "args [\"--no-initcpio\", \"-C=c\", \"--=x\", \"--sh\"], posix true",
+      "result": "Unknown option: C=c\nUnknown option: =x\nUnknown option: sh\ninvalid\n"
+    },
+    {
+      "input": "args [\"--disable\", \"--debug\", \"--sh\", \"--en\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\ndisable=1\nenable=1\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--init\", \"--ho\", \"--version\", \"--noinit\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=--version\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-c\", \"-p\", \"--no-initcpio\", \"--en\"], posix false",
+      "result": "bootdir=/boot\nconfig=-p\nenable=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"+d\", \"--no\", \"--enable\", \"--e\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nenable=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--conf\", \"+\", \"--dis\", \"-de\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\nMissing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--init\", \"-c\"], posix false",
+      "result": "Option c requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"a\", \"--disable\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nok\n"
+    },
+    {
+      "input": "args [\"--k\", \"--kv\", \"--h\", \"--\", \"-noinitcpio\"], posix true",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"-i\", \"--=x\", \"a\", \"--ho\", \"-H\"], posix false",
+      "result": "Unknown option: =x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--n\", \"--noinit\", \"-V\", \"--n\", \"--dis\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nshowver=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--noinit\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--debug\", \"x\", \"--conf\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"+\", \"-\", \"-H\", \"--conf\", \"--disable\"], posix false",
+      "result": "Missing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--cm\", \"--n\"], posix false",
+      "result": "bootdir=/boot\ncmdline=--n\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--e\", \"--noi\", \"--debug=1\"], posix true",
+      "result": "Unknown option: e\nOption debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--conf\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"x\", \"--e\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [\"--kv\", \"--config=\", \"-c\", \"--sh\"], posix false",
+      "result": "bootdir=/boot\nconfig=--sh\nkernel_version=--config=\nok\n"
+    },
+    {
+      "input": "args [\"-noinitcpio\", \"-noinitcpio\", \"-b\", \"-noinitcpio\"], posix false",
+      "result": "bootdir=-noinitcpio\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-H\"], posix false",
+      "result": "Option H requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ho\", \"--debug\", \"--kernel=x\", \"--x\"], posix true",
+      "result": "Unknown option: ho\nUnknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--config=\"], posix false",
+      "result": "Option config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-l\", \"--no-initcpio\", \"a=b\", \"\"], posix false",
+      "result": "bootdir=/boot\ncmdline=--no-initcpio\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-i\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--initcpio=1\"], posix false",
+      "result": "Option initcpio does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--en\", \"--pre\"], posix false",
+      "result": "Option prefix requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-H\", \"--showver\", \"--sh\", \"--no\", \"-dV\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [\"--\", \"--noinit\", \"--noinit\", \"--hookd=a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--showver\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--init\", \"\", \"+d\", \"--con\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ke\"], posix true",
+      "result": "Unknown option: ke\ninvalid\n"
+    },
+    {
+      "input": "args [\"--debug\", \"-i\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--noi\", \"-i\", \"-i\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--con\"], posix true",
+      "result": "Unknown option: con\ninvalid\n"
+    },
+    {
+      "input": "args [\"-b\", \"--kernel=x\", \"--noinit\"], posix true",
+      "result": "Unknown option: noinit\ninvalid\n"
+    },
+    {
+      "input": "args [\"--=x\", \"--showver\", \"--ver\"], posix false",
+      "result": "Unknown option: =x\nOption version requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ke\"], posix false",
+      "result": "Option kernel requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--pre\", \"-k\"], posix true",
+      "result": "Unknown option: pre\nOption k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-i\", \"--en\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--hookd=a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a\nok\n"
+    },
+    {
+      "input": "args [\"--debug=1\", \"--noinit\", \"--=x\", \"-C=c\", \"--initcpio=1\"], posix false",
+      "result": "Option debug does not take an argument\nUnknown option: =x\nOption initcpio does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-v\"], posix false",
+      "result": "Option v requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"a=b\", \"--conf\", \"--en\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--version\", \"-x\", \"a=b\", \"--Kver\", \"-i\"], posix false",
+      "result": "Unknown option: Kver\ninvalid\n"
+    },
+    {
+      "input": "args [\"-l\"], posix true",
+      "result": "Option l requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--hookd=a\", \"--x\", \"--kernel=x\"], posix false",
+      "result": "Unknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--conf\", \"---x\", \"--=x\", \"--noinit\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\nUnknown option: -x\nUnknown option: =x\ninvalid\n"
+    },
+    {
+      "input": "args [\"-K\", \"-de\", \"-k\", \"--en\", \"--con\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--=x\", \"--Kver\"], posix true",
+      "result": "Unknown option: =x\nUnknown option: Kver\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ke\", \"-x\", \"--boot\"], posix true",
+      "result": "Unknown option: ke\nUnknown option: x\nUnknown option: boot\ninvalid\n"
+    },
+    {
+      "input": "args [\"--no\", \"--ho\", \"-H\", \"-dV\", \"--debug=1\"], posix false",
+      "result": "Unknown option: dV\nOption debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"a=b\", \"--init\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--kernel=x\", \"-x\"], posix false",
+      "result": "Unknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"-k\", \"-dV\", \"a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=-dV\nok\n"
+    },
+    {
+      "input": "args [\"x\", \"--Kver\", \"--h\"], posix false",
+      "result": "Unknown option: Kver\nHELP\n"
+    },
+    {
+      "input": "args [\"--e\", \"-V\", \"--version\", \"--\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nshowver=1\nversion=--\nok\n"
+    },
+    {
+      "input": "args [\"--k\", \"-c\", \"-p\", \"-dV\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=-c\nkernel_prefix=-dV\nok\n"
+    },
+    {
+      "input": "args [\"--help\", \"-C=c\", \"--confi\", \"--disable\", \"--init\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"--disable\", \"--conf\", \"--debug=1\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\nOption debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--showver\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--sh\", \"--kv\", \"--noinit\", \"--conf\", \"-k\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\nOption k requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"a=b\", \"-c\", \"--Kver\", \"--debug\"], posix false",
+      "result": "bootdir=/boot\nconfig=--Kver\ndebug=1\nok\n"
+    },
+    {
+      "input": "args [\"---x\", \"--version\", \"--kv\", \"a=b\", \"-v\"], posix false",
+      "result": "Unknown option: -x\nOption v requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ke\", \"-c\", \"-v\", \"a\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=-c\nversion=a\nok\n"
+    },
+    {
+      "input": "args [\"--k\", \"-p\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=-p\nok\n"
+    },
+    {
+      "input": "args [\"--pre\", \"a=b\", \"--x\", \"-k\", \"--no-initcpio\"], posix false",
+      "result": "Unknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--init\", \"--enable\", \"--sh\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nshowver=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"\", \"a\", \"--di\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--cm\", \"-de\", \"--version\", \"-p\", \"--di\"], posix true",
+      "result": "Unknown option: cm\nUnknown option: de\nUnknown option: di\ninvalid\n"
+    },
+    {
+      "input": "args [\"-V\", \"-l\", \"-H\", \"--disable\", \"--showver\"], posix false",
+      "result": "bootdir=/boot\ncmdline=-H\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--ver\", \"-i\", \"--conf\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"-de\", \"--config=\", \"--en\", \"--n\", \"--initcpio=1\"], posix true",
+      "result": "Unknown option: de\nOption config requires an argument\nUnknown option: en\nUnknown option: n\nOption initcpio does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-l\", \"--kernel=x\", \"--config=\"], posix false",
+      "result": "Option config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-d\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nok\n"
+    },
+    {
+      "input": "args [\"-l\", \"--kernel=x\", \"--hookd=a\"], posix false",
+      "result": "bootdir=/boot\ncmdline=--kernel=x\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=a\nok\n"
+    },
+    {
+      "input": "args [\"--boot\", \"--ho\", \"--ver\", \"--e\", \"--version\"], posix false",
+      "result": "Option version requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-H\", \"-K\", \"--debug=1\", \"--noinit\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--init\", \"-C=c\", \"--di\", \"--config=\"], posix false",
+      "result": "Option config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"x\", \"--con\", \"--pre\", \"--ke\", \"--no-initcpio\"], posix false",
+      "result": "Option con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--en\", \"--dis\", \"--disable\", \"-p\"], posix false",
+      "result": "Option p requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-v\", \"a=b\", \"--version\", \"--init\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nversion=--init\nok\n"
+    },
+    {
+      "input": "args [\"\", \"--version\"], posix false",
+      "result": "Option version requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"a\", \"\", \"-i\", \"--no\", \"-C=c\"], posix false",
+      "result": "bootdir=/boot\nconfd=c\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--e\", \"--en\", \"-i\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"--k\", \"--ver\", \"--enable\", \"-b\"], posix true",
+      "result": "Option b requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--kernel=x\", \"-\", \"--kv\", \"--kv\", \"--noinit\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=x\nkernel_version=--kv\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--dis\", \"--debug\", \"--k\", \"--ver\"], posix true",
+      "result": "Unknown option: dis\ninvalid\n"
+    },
+    {
+      "input": "args [\"--sh\", \"-dV\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--=x\", \"---x\"], posix false",
+      "result": "Unknown option: =x\nUnknown option: -x\ninvalid\n"
+    },
+    {
+      "input": "args [\"-k\", \"--en\", \"--version\", \"--noinit\", \"--dis\"], posix true",
+      "result": "Unknown option: dis\ninvalid\n"
+    },
+    {
+      "input": "args [\"--debug=1\", \"-noinitcpio\", \"--\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--ho\", \"-x\", \"--n\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=-x\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--boot\"], posix true",
+      "result": "Unknown option: boot\ninvalid\n"
+    },
+    {
+      "input": "args [\"--kernel=x\", \"+\", \"-i\", \"--con\"], posix false",
+      "result": "Missing option after +\nOption con is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"--e\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nok\n"
+    },
+    {
+      "input": "args [\"--k\", \"--debug\", \"--debug\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel=--debug\nok\n"
+    },
+    {
+      "input": "args [\"--Kver\", \"--sh\", \"--ke\", \"--ver\", \"-d\"], posix true",
+      "result": "Unknown option: Kver\nUnknown option: sh\nUnknown option: ke\nUnknown option: ver\ninvalid\n"
+    },
+    {
+      "input": "args [\"+d\", \"-v\", \"--no\", \"--confi\", \"--sh\"], posix false",
+      "result": "bootdir=/boot\nconfig=--sh\ndebug=1\nversion=--no\nok\n"
+    },
+    {
+      "input": "args [\"--ver\", \"-noinitcpio\", \"--no-initcpio\", \"-p\"], posix false",
+      "result": "Option p requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--x\", \"---x\", \"--e\", \"+\", \"+d\"], posix false",
+      "result": "Unknown option: x\nUnknown option: -x\nMissing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [\"--enable\", \"--noi\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nenable=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-d\", \"-k\", \"-v\", \"-H\"], posix false",
+      "result": "Option H requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-V\", \"---x\", \"x\", \"+d\"], posix false",
+      "result": "Unknown option: -x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--debug=1\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-H\", \"--debug=1\", \"--disable\", \"-i\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=--debug=1\ndisable=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-H\"], posix true",
+      "result": "Option H requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--di\", \"-H\", \"--init\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ncpio_hookd=--init\ndisable=1\nok\n"
+    },
+    {
+      "input": "args [\"--no-initcpio\", \"--dis\", \"--dis\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--noinit\", \"--di\", \"--enable\", \"-de\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\ndisable=1\nenable=1\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--kernel=x\", \"-\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nkernel=x\nok\n"
+    },
+    {
+      "input": "args [\"--confi\", \"-V\", \"--sh\"], posix false",
+      "result": "bootdir=/boot\nconfig=-V\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"---x\", \"\", \"--version\", \"--config=\", \"--ho\"], posix false",
+      "result": "Unknown option: -x\nOption hookd requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"+\"], posix false",
+      "result": "Missing option after +\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-V\", \"--debug\", \"--cm\", \"-de\", \"--init\"], posix false",
+      "result": "bootdir=/boot\ncmdline=-de\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nshowver=1\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"-V\", \"-b\", \"--dis\"], posix false",
+      "result": "bootdir=--dis\nconfig=/etc/zfsbootmenu/config.yaml\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--sh\", \"--k\", \"--boot\", \"-x\"], posix false",
+      "result": "Unknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--conf\", \"-V\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [\"x\", \"--en\", \"--en\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--debug=1\"], posix false",
+      "result": "Option debug does not take an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--\", \"--Kver\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--init\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--no\", \"-i\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=1\nok\n"
+    },
+    {
+      "input": "args [\"-x\"], posix false",
+      "result": "Unknown option: x\ninvalid\n"
+    },
+    {
+      "input": "args [\"-dV\"], posix true",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [\"--disable\", \"-C=c\", \"-K\"], posix true",
+      "result": "Unknown option: C=c\nOption K requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"\", \"--kernel=x\", \"--debug\", \"a\", \"-V\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel=x\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--conf\", \"-v\", \"--initcpio=1\"], posix false",
+      "result": "Option conf is ambiguous (confd, config)\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-dV\", \"-p\", \"-K\", \"--kv\", \"a\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"a\", \"-H\"], posix false",
+      "result": "Option H requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--debug\", \"--version\", \"--debug\", \"-dV\"], posix false",
+      "result": "Unknown option: dV\ninvalid\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"-V\", \"-H\", \"-dV\", \"-x\", \"--help\"], posix false",
+      "result": "Unknown option: x\nHELP\n"
+    },
+    {
+      "input": "args [\"-V\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nshowver=1\nok\n"
+    },
+    {
+      "input": "args [\"--no\", \"--\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"--showver\", \"--dis\", \"-v\", \"--debug\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nshowver=1\nversion=--debug\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--kv\", \"--=x\", \"a\", \"-p\"], posix false",
+      "result": "Option p requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--di\", \"--n\", \"--ke\", \"--conf\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndisable=1\nkernel=--conf\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--ke\", \"+d\", \"--h\", \"--hookd=a\", \"-H\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"--initcpio=1\", \"--disable\", \"--initcpio=1\", \"--pre\"], posix true",
+      "result": "Option initcpio does not take an argument\nOption initcpio does not take an argument\nUnknown option: pre\ninvalid\n"
+    },
+    {
+      "input": "args [\"---x\", \"--disable\", \"--kernel=x\", \"--init\", \"--=x\"], posix false",
+      "result": "Unknown option: -x\nUnknown option: =x\ninvalid\n"
+    },
+    {
+      "input": "args [\"--help\"], posix false",
+      "result": "HELP\n"
+    },
+    {
+      "input": "args [\"--noi\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nusecpio=0\nok\n"
+    },
+    {
+      "input": "args [\"-i\", \"--config=\", \"\", \"--boot\", \"--initcpio=1\"], posix false",
+      "result": "Option config requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"-K\", \"a=b\", \"--debug\", \"--debug\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel_version=a=b\nok\n"
+    },
+    {
+      "input": "args [], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"+d\", \"--kv\", \"-C=c\"], posix true",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\nok\n"
+    },
+    {
+      "input": "args [\"--debug\", \"--enable\", \"--n\", \"-H\"], posix false",
+      "result": "Option H requires an argument\ninvalid\n"
+    },
+    {
+      "input": "args [\"--k\", \"--x\", \"--kernel=x\", \"+d\", \"-d\"], posix false",
+      "result": "bootdir=/boot\nconfig=/etc/zfsbootmenu/config.yaml\ndebug=1\nkernel=x\nok\n"
+    }
+  ]
+}

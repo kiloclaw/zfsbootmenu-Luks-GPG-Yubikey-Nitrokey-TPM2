@@ -8,6 +8,7 @@ zbm-crypt
 zbm-menu
 zbm-platform
 zbm-pool
+zbm-startup
 zbm-testkit
 zbm-tools
 zbm-trace

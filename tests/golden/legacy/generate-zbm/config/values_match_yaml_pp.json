@@ -1,0 +1,245 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"k0: /boot/efi\\nk1: 3.10\\nk2: '0'\\nk3: 1\\nk4: -0\\n\"",
+      "result": "k0|1|/boot/efi|1|0\nk1|1|3.1|1|3\nk2|1|0|0|0\nk3|1|1|1|1\nk4|1|0|0|0\n"
+    },
+    {
+      "input": "\"k0: NULL\\n\"",
+      "result": "k0|0||0|0\n"
+    },
+    {
+      "input": "\"k0: \\\"\\\"\\nk1: !!int \\\"9\\\"\\nk2: no\\nk3: [a, b]\\nk4: 99999999999999999999\\nk5: {x: 1}\\n\"",
+      "result": "k0|1||0|0\nk1|1|9|1|9\nk2|1|no|1|0\nk3|ref\nk4|1|1e+20|1|big\nk5|ref\n"
+    },
+    {
+      "input": "\"k0: {x: 1}\\nk1: 7.3.*\\nk2: no\\nk3: 3abc\\nk4: 1e20\\nk5: 007\\n\"",
+      "result": "k0|ref\nk1|1|7.3.*|1|7\nk2|1|no|1|0\nk3|1|3abc|1|3\nk4|1|1e+20|1|big\nk5|1|7|1|7\n"
+    },
+    {
+      "input": "\"k0: .nan\\nk1: 1e-6\\nk2: 1e20\\nk3: 3abc\\nk4: quiet loglevel=4\\nk5: 6.1\\n\"",
+      "result": "k0|1|NaN|1|big\nk1|1|1e-06|1|0\nk2|1|1e+20|1|big\nk3|1|3abc|1|3\nk4|1|quiet loglevel=4|1|0\nk5|1|6.1|1|6\n"
+    },
+    {
+      "input": "\"k0: \\\"\\\"\\nk1: \\nk2: 5.\\nk3: 0x1F\\nk4: '007'\\n\"",
+      "result": "k0|1||0|0\nk1|0||0|0\nk2|1|5|1|5\nk3|1|31|1|31\nk4|1|007|1|7\n"
+    },
+    {
+      "input": "\"k0: NULL\\nk1: 007\\nk2: !!str 12\\n\"",
+      "result": "k0|0||0|0\nk1|1|7|1|7\nk2|1|12|1|12\n"
+    },
+    {
+      "input": "\"k0: /boot/efi\\n\"",
+      "result": "k0|1|/boot/efi|1|0\n"
+    },
+    {
+      "input": "\"k0: \\\"1e3\\\"\\nk1: 1e3\\nk2: abc\\n\"",
+      "result": "k0|1|1e3|1|1000\nk1|1|1000|1|1000\nk2|1|abc|1|0\n"
+    },
+    {
+      "input": "\"k0: {x: 1}\\nk1: !!str 12\\nk2: !!int \\\"9\\\"\\n\"",
+      "result": "k0|ref\nk1|1|12|1|12\nk2|1|9|1|9\n"
+    },
+    {
+      "input": "\"k0: 12345678901234567890\\nk1: no\\nk2: 3\\n\"",
+      "result": "k0|1|12345678901234567890|1|big\nk1|1|no|1|0\nk2|1|3|1|3\n"
+    },
+    {
+      "input": "\"k0: !!int \\\"9\\\"\\n\"",
+      "result": "k0|1|9|1|9\n"
+    },
+    {
+      "input": "\"k0: 1.0\\n\"",
+      "result": "k0|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: no\\n\"",
+      "result": "k0|1|no|1|0\n"
+    },
+    {
+      "input": "\"k0: True\\nk1: 1e20\\n\"",
+      "result": "k0|1|1|1|1\nk1|1|1e+20|1|big\n"
+    },
+    {
+      "input": "\"k0: 1e3\\nk1: 12345678901234567890\\nk2: .inf\\nk3: !!str 12\\nk4: 0x\\n\"",
+      "result": "k0|1|1000|1|1000\nk1|1|12345678901234567890|1|big\nk2|1|Inf|1|big\nk3|1|12|1|12\nk4|1|0x|1|0\n"
+    },
+    {
+      "input": "\"k0: 007\\n\"",
+      "result": "k0|1|7|1|7\n"
+    },
+    {
+      "input": "\"k0: 1.0\\nk1: +5\\n\"",
+      "result": "k0|1|1|1|1\nk1|1|5|1|5\n"
+    },
+    {
+      "input": "\"k0: '0'\\nk1: 12345678901234567890\\n\"",
+      "result": "k0|1|0|0|0\nk1|1|12345678901234567890|1|big\n"
+    },
+    {
+      "input": "\"k0: /boot/efi\\nk1: 0\\nk2: 1e3\\nk3: ~\\n\"",
+      "result": "k0|1|/boot/efi|1|0\nk1|1|0|0|0\nk2|1|1000|1|1000\nk3|0||0|0\n"
+    },
+    {
+      "input": "\"k0: 7.3.*\\nk1: /boot/efi\\nk2: .nan\\nk3: no\\n\"",
+      "result": "k0|1|7.3.*|1|7\nk1|1|/boot/efi|1|0\nk2|1|NaN|1|big\nk3|1|no|1|0\n"
+    },
+    {
+      "input": "\"k0: .nan\\nk1: 1e-6\\nk2: FALSE\\n\"",
+      "result": "k0|1|NaN|1|big\nk1|1|1e-06|1|0\nk2|1|0|0|0\n"
+    },
+    {
+      "input": "\"k0: '007'\\nk1: {x: 1}\\nk2: 99999999999999999999\\nk3: 1e20\\nk4: .5\\n\"",
+      "result": "k0|1|007|1|7\nk1|ref\nk2|1|1e+20|1|big\nk3|1|1e+20|1|big\nk4|1|0.5|1|0\n"
+    },
+    {
+      "input": "\"k0: 3\\nk1: \\\"\\\"\\nk2: false\\nk3: 3\\nk4: -0\\nk5: +5\\n\"",
+      "result": "k0|1|3|1|3\nk1|1||0|0\nk2|1|0|0|0\nk3|1|3|1|3\nk4|1|0|0|0\nk5|1|5|1|5\n"
+    },
+    {
+      "input": "\"k0: 3\\nk1: 7.3.*\\nk2: .nan\\nk3: 1e20\\nk4: 3.10\\n\"",
+      "result": "k0|1|3|1|3\nk1|1|7.3.*|1|7\nk2|1|NaN|1|big\nk3|1|1e+20|1|big\nk4|1|3.1|1|3\n"
+    },
+    {
+      "input": "\"k0: '007'\\nk1: false\\nk2: yes\\nk3: -4.7\\nk4: \\\"1e3\\\"\\nk5: {x: 1}\\n\"",
+      "result": "k0|1|007|1|7\nk1|1|0|0|0\nk2|1|yes|1|0\nk3|1|-4.7|1|-4\nk4|1|1e3|1|1000\nk5|ref\n"
+    },
+    {
+      "input": "\"k0: 1.0\\nk1: 0\\nk2: \\nk3: true\\n\"",
+      "result": "k0|1|1|1|1\nk1|1|0|0|0\nk2|0||0|0\nk3|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: false\\nk1: true\\nk2: ~\\n\"",
+      "result": "k0|1|0|0|0\nk1|1|1|1|1\nk2|0||0|0\n"
+    },
+    {
+      "input": "\"k0: \\nk1: quiet loglevel=4\\nk2: 0x\\nk3: 1.0\\nk4: -4.7\\n\"",
+      "result": "k0|0||0|0\nk1|1|quiet loglevel=4|1|0\nk2|1|0x|1|0\nk3|1|1|1|1\nk4|1|-4.7|1|-4\n"
+    },
+    {
+      "input": "\"k0: {x: 1}\\nk1: 0o17\\nk2: \\\"\\\"\\nk3: -0\\nk4: .inf\\nk5: 0o17\\n\"",
+      "result": "k0|ref\nk1|1|15|1|15\nk2|1||0|0\nk3|1|0|0|0\nk4|1|Inf|1|big\nk5|1|15|1|15\n"
+    },
+    {
+      "input": "\"k0: 1\\n\"",
+      "result": "k0|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: .5\\nk1: no\\nk2: -4.7\\nk3: {x: 1}\\nk4: FALSE\\nk5: null\\n\"",
+      "result": "k0|1|0.5|1|0\nk1|1|no|1|0\nk2|1|-4.7|1|-4\nk3|ref\nk4|1|0|0|0\nk5|0||0|0\n"
+    },
+    {
+      "input": "\"k0: !!int \\\"9\\\"\\nk1: 7.3.*\\nk2: 0x\\n\"",
+      "result": "k0|1|9|1|9\nk1|1|7.3.*|1|7\nk2|1|0x|1|0\n"
+    },
+    {
+      "input": "\"k0: +5\\nk1: -.Inf\\nk2: -4.7\\nk3: ~\\n\"",
+      "result": "k0|1|5|1|5\nk1|1|-Inf|1|big\nk2|1|-4.7|1|-4\nk3|0||0|0\n"
+    },
+    {
+      "input": "\"k0: .nan\\nk1: \\\"\\\"\\nk2: -4.7\\nk3: 1e3\\nk4: NULL\\nk5: !!str 12\\n\"",
+      "result": "k0|1|NaN|1|big\nk1|1||0|0\nk2|1|-4.7|1|-4\nk3|1|1000|1|1000\nk4|0||0|0\nk5|1|12|1|12\n"
+    },
+    {
+      "input": "\"k0: !!int \\\"9\\\"\\nk1: '0'\\nk2: '007'\\nk3: true\\nk4: 3.10\\nk5: .inf\\n\"",
+      "result": "k0|1|9|1|9\nk1|1|0|0|0\nk2|1|007|1|7\nk3|1|1|1|1\nk4|1|3.1|1|3\nk5|1|Inf|1|big\n"
+    },
+    {
+      "input": "\"k0: 12345678901234567890\\nk1: +5\\nk2: !!str 12\\nk3: 3.10\\nk4: 12345678901234567890\\nk5: 007\\n\"",
+      "result": "k0|1|12345678901234567890|1|big\nk1|1|5|1|5\nk2|1|12|1|12\nk3|1|3.1|1|3\nk4|1|12345678901234567890|1|big\nk5|1|7|1|7\n"
+    },
+    {
+      "input": "\"k0: 1e3\\nk1: 7.3.*\\nk2: false\\nk3: 0x\\nk4: 1e-6\\nk5: true\\n\"",
+      "result": "k0|1|1000|1|1000\nk1|1|7.3.*|1|7\nk2|1|0|0|0\nk3|1|0x|1|0\nk4|1|1e-06|1|0\nk5|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: 7.3.*\\nk1: -0\\nk2: \\\"\\\"\\nk3: abc\\nk4: \\nk5: 0o17\\n\"",
+      "result": "k0|1|7.3.*|1|7\nk1|1|0|0|0\nk2|1||0|0\nk3|1|abc|1|0\nk4|0||0|0\nk5|1|15|1|15\n"
+    },
+    {
+      "input": "\"k0: \\\"\\\"\\nk1: {x: 1}\\n\"",
+      "result": "k0|1||0|0\nk1|ref\n"
+    },
+    {
+      "input": "\"k0: 5.\\n\"",
+      "result": "k0|1|5|1|5\n"
+    },
+    {
+      "input": "\"k0: 99999999999999999999\\nk1: 7.3.*\\nk2: 12345678901234567890\\nk3: '0'\\nk4: 007\\nk5: 6.1\\n\"",
+      "result": "k0|1|1e+20|1|big\nk1|1|7.3.*|1|7\nk2|1|12345678901234567890|1|big\nk3|1|0|0|0\nk4|1|7|1|7\nk5|1|6.1|1|6\n"
+    },
+    {
+      "input": "\"k0: 3.10\\nk1: 0x1F\\nk2: .inf\\nk3: FALSE\\nk4: \\\"1e3\\\"\\nk5: NULL\\n\"",
+      "result": "k0|1|3.1|1|3\nk1|1|31|1|31\nk2|1|Inf|1|big\nk3|1|0|0|0\nk4|1|1e3|1|1000\nk5|0||0|0\n"
+    },
+    {
+      "input": "\"k0: quiet loglevel=4\\nk1: abc\\nk2: 1.0\\n\"",
+      "result": "k0|1|quiet loglevel=4|1|0\nk1|1|abc|1|0\nk2|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: -0\\nk1: -.Inf\\n\"",
+      "result": "k0|1|0|0|0\nk1|1|-Inf|1|big\n"
+    },
+    {
+      "input": "\"k0: -0\\nk1: 1\\nk2: 6.1\\nk3: 1.0\\n\"",
+      "result": "k0|1|0|0|0\nk1|1|1|1|1\nk2|1|6.1|1|6\nk3|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: /boot/efi\\nk1: 3abc\\nk2: \\\"\\\"\\nk3: 0x1F\\nk4: -4.7\\nk5: 0\\n\"",
+      "result": "k0|1|/boot/efi|1|0\nk1|1|3abc|1|3\nk2|1||0|0\nk3|1|31|1|31\nk4|1|-4.7|1|-4\nk5|1|0|0|0\n"
+    },
+    {
+      "input": "\"k0: {x: 1}\\nk1: 0x1F\\nk2: FALSE\\n\"",
+      "result": "k0|ref\nk1|1|31|1|31\nk2|1|0|0|0\n"
+    },
+    {
+      "input": "\"k0: -.Inf\\nk1: 1e20\\nk2: FALSE\\n\"",
+      "result": "k0|1|-Inf|1|big\nk1|1|1e+20|1|big\nk2|1|0|0|0\n"
+    },
+    {
+      "input": "\"k0: .inf\\nk1: -.Inf\\n\"",
+      "result": "k0|1|Inf|1|big\nk1|1|-Inf|1|big\n"
+    },
+    {
+      "input": "\"k0: 1\\nk1: True\\nk2: true\\n\"",
+      "result": "k0|1|1|1|1\nk1|1|1|1|1\nk2|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: -.Inf\\nk1: quiet loglevel=4\\nk2: 1.0\\nk3: 3.10\\n\"",
+      "result": "k0|1|-Inf|1|big\nk1|1|quiet loglevel=4|1|0\nk2|1|1|1|1\nk3|1|3.1|1|3\n"
+    },
+    {
+      "input": "\"k0: '007'\\nk1: \\\"\\\"\\nk2: [a, b]\\nk3: 12345678901234567890\\nk4: 1.0\\n\"",
+      "result": "k0|1|007|1|7\nk1|1||0|0\nk2|ref\nk3|1|12345678901234567890|1|big\nk4|1|1|1|1\n"
+    },
+    {
+      "input": "\"k0: /boot/efi\\n\"",
+      "result": "k0|1|/boot/efi|1|0\n"
+    },
+    {
+      "input": "\"k0: 6.1\\n\"",
+      "result": "k0|1|6.1|1|6\n"
+    },
+    {
+      "input": "\"k0: /boot/efi\\nk1: 0x1F\\nk2: 5.\\n\"",
+      "result": "k0|1|/boot/efi|1|0\nk1|1|31|1|31\nk2|1|5|1|5\n"
+    },
+    {
+      "input": "\"k0: 1e-6\\n\"",
+      "result": "k0|1|1e-06|1|0\n"
+    },
+    {
+      "input": "\"k0: abc\\nk1: no\\nk2: 6.1\\n\"",
+      "result": "k0|1|abc|1|0\nk1|1|no|1|0\nk2|1|6.1|1|6\n"
+    },
+    {
+      "input": "\"k0: .inf\\nk1: !!int \\\"9\\\"\\nk2: -.Inf\\n\"",
+      "result": "k0|1|Inf|1|big\nk1|1|9|1|9\nk2|1|-Inf|1|big\n"
+    },
+    {
+      "input": "\"k0: \\nk1: NULL\\n\"",
+      "result": "k0|0||0|0\nk1|0||0|0\n"
+    }
+  ]
+}

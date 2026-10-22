@@ -1,0 +1,485 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"a: ' lead'\\nB: .nan\\n123: &n2 {k2: \\\"quote'\\\"}\\n'key: x': &n3 {k3: '%p'}\\nGlobal: -12\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: 1e3\\nB: .nan\\n123: &n2 {k2: 0o17}\\nGlobal: [[p, q], {r: s}]\\nz: *n2\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: ''\\n123: 'a:'\\n'key: x': \\\" sp\\\\nx\\\"\\nGlobal: \\\"tab\\\\there\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"'key: x': true\\n'': 1e3\\nGlobal: 'trail '\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: 1_000\\n'key: x': \\\"quote'\\\"\\n'': ro quiet loglevel=0\\n\"",
+      "result": "'': ro quiet loglevel=0\nB: 1_000\nGlobal:\n  ManageImages: true\n'key: x': quote'\n"
+    },
+    {
+      "input": "\"123: \\n  s: 'a\\\\b'\\n  t: '0x10'\\n'key: x': \\\"tab\\\\there\\\"\\nGlobal: 3.10\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: '...'\\n'': '*star'\\n\"",
+      "result": "'': '*star'\nGlobal:\n  ManageImages: true\na: '...'\n"
+    },
+    {
+      "input": "\"a: '#c'\\n'key: x': &n3 {k3: '0x10'}\\n'': /boot/efi\\n\"",
+      "result": "'': /boot/efi\nGlobal:\n  ManageImages: true\na: '#c'\n'key: x':\n  k3: '0x10'\n"
+    },
+    {
+      "input": "\"B: \\n  s: '@at'\\n  t: '1.0'\\n'': \\\"ünï\\\"\\nGlobal: \\n  s: 'true'\\n  t: no\\n\"",
+      "result": "'': ünï\nB:\n  s: '@at'\n  t: '1.0'\nGlobal:\n  ManageImages: true\n  s: 'true'\n  t: no\n"
+    },
+    {
+      "input": "\"B: \\\"quote'\\\"\\n'': 'a: b'\\nGlobal: 'true'\\nz: '#c'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: 1.5e-7\\n'key: x': .inf\\n'': '123'\\nGlobal: '1.0'\\nz: &n6 {k6: {}}\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: {}\\n  t: 'a: b'\\nB: &n1 {k1: []}\\n123: \\\" sp\\\\nx\\\"\\n'': *n1\\nGlobal: *n1\\n\"",
+      "result": "'': &1\n  ManageImages: true\n  k1: []\n'123': |2-\n   sp\n  x\nB: *1\nGlobal: *1\na:\n  s: {}\n  t: 'a: b'\n"
+    },
+    {
+      "input": "\"a: '...'\\nB: \\\"ünï\\\"\\n123: \\n  s: \\\"two\\\\n\\\\n\\\"\\n  t: -12\\n'': '-'\\nGlobal: \\n  s: '...'\\n  t: '~'\\nz: 1.5e-7\\n\"",
+      "result": "'': '-'\n'123':\n  s: |+\n    two\n\n  t: -12\nB: ünï\nGlobal:\n  ManageImages: true\n  s: '...'\n  t: '~'\na: '...'\nz: 1.5e-07\n"
+    },
+    {
+      "input": "\"a: \\n  s: \\\"two\\\\n\\\\n\\\"\\n  t: '-'\\n123: [[p, q], {r: s}]\\n'key: x': abc\\n'': '?'\\nGlobal: \\n  s: 'a: b'\\n  t: 0\\nz: 18446744073709551615\\n\"",
+      "result": "'': '?'\n'123':\n- - p\n  - q\n- r: s\nGlobal:\n  ManageImages: true\n  s: 'a: b'\n  t: 0\na:\n  s: |+\n    two\n\n  t: '-'\n'key: x': abc\nz: 18446744073709551615\n"
+    },
+    {
+      "input": "\"a: .inf\\n123: {x: 1, y: [2]}\\nz: \\n  s: ro quiet loglevel=0\\n  t: \\\"quote'\\\"\\n\"",
+      "result": "'123':\n  x: 1\n  y:\n  - 2\nGlobal:\n  ManageImages: true\na: .inf\nz:\n  s: ro quiet loglevel=0\n  t: quote'\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: '--- x'}\\n123: *n0\\n'key: x': \\\"quote'\\\"\\n'': .inf\\n\"",
+      "result": "'': .inf\n'123': &1\n  k0: '--- x'\nGlobal:\n  ManageImages: true\na: *1\n'key: x': quote'\n"
+    },
+    {
+      "input": "\"B: \\n  s: .nan\\n  t: 'a: b'\\n'key: x': /boot/efi\\n'': ro quiet loglevel=0\\nGlobal: ~\\n\"",
+      "result": "'': ro quiet loglevel=0\nB:\n  s: .nan\n  t: 'a: b'\nGlobal:\n  ManageImages: true\n'key: x': /boot/efi\n"
+    },
+    {
+      "input": "\"a: \\n  s: \\\"tab\\\\there\\\"\\n  t: [[p, q], {r: s}]\\nB: &n1 {k1: 0o17}\\n'key: x': 'dq\\\"'\\n'': '...'\\nz: [a, b]\\n\"",
+      "result": "'': '...'\nB:\n  k1: 15\nGlobal:\n  ManageImages: true\na:\n  s: \"tab\\there\"\n  t:\n  - - p\n    - q\n  - r: s\n'key: x': dq\"\nz:\n- a\n- b\n"
+    },
+    {
+      "input": "\"a: \\\"ünï\\\"\\nB: '[br'\\n123: \\n  s: 'true'\\n  t: \\\"bell\\\\a\\\"\\nGlobal: \\\"quote'\\\"\\nz: [[p, q], {r: s}]\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"'key: x': abc\\nGlobal: &n5 {k5: '[br'}\\nz: '123'\\n\"",
+      "result": "Global:\n  ManageImages: true\n  k5: '[br'\n'key: x': abc\nz: '123'\n"
+    },
+    {
+      "input": "\"B: 'true'\\n123: 'dq\\\"'\\n'key: x': \\n  s: '%p'\\n  t: 0x1F\\nGlobal: -12\\nz: -12\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"'': []\\nGlobal: \\n  s: '...'\\n  t: ro quiet loglevel=0\\n\"",
+      "result": "'': []\nGlobal:\n  ManageImages: true\n  s: '...'\n  t: ro quiet loglevel=0\n"
+    },
+    {
+      "input": "\"B: &n1 {k1: -0.0}\\n123: \\n  s: ro quiet loglevel=0\\n  t: []\\n'key: x': *n1\\n'': '1.0'\\nGlobal: \\n  s: .inf\\n  t: '[br'\\n\"",
+      "result": "'': '1.0'\n'123':\n  s: ro quiet loglevel=0\n  t: []\nB: &1\n  k1: 0.0\nGlobal:\n  ManageImages: true\n  s: .inf\n  t: '[br'\n'key: x': *1\n"
+    },
+    {
+      "input": "\"B: 'trail '\\n123: \\n  s: 007\\n  t: 1e20\\n'key: x': 0\\n'': \\\"\\\\u00a0x\\\"\\n\"",
+      "result": "'': \"\\_x\"\n'123':\n  s: 7\n  t: 1e+20.0\nB: 'trail '\nGlobal:\n  ManageImages: true\n'key: x': 0\n"
+    },
+    {
+      "input": "\"a: \\\"tab\\\\there\\\"\\nB: \\n  s: '...'\\n  t: 0\\nz: \\n  s: true\\n  t: []\\n\"",
+      "result": "B:\n  s: '...'\n  t: 0\nGlobal:\n  ManageImages: true\na: \"tab\\there\"\nz:\n  s: true\n  t: []\n"
+    },
+    {
+      "input": "\"'': [[p, q], {r: s}]\\nGlobal: \\n  s: {x: 1, y: [2]}\\n  t: Yes\\nz: Yes\\n\"",
+      "result": "'':\n- - p\n  - q\n- r: s\nGlobal:\n  ManageImages: true\n  s:\n    x: 1\n    y:\n    - 2\n  t: Yes\nz: Yes\n"
+    },
+    {
+      "input": "\"a: [a, b]\\n123: \\n  s: /boot/efi\\n  t: [[p, q], {r: s}]\\n'key: x': '%p'\\n'': '1.0'\\n\"",
+      "result": "'': '1.0'\n'123':\n  s: /boot/efi\n  t:\n  - - p\n    - q\n  - r: s\nGlobal:\n  ManageImages: true\na:\n- a\n- b\n'key: x': '%p'\n"
+    },
+    {
+      "input": "\"'': &n4 {k4: \\\"bell\\\\a\\\"}\\n\"",
+      "result": "'':\n  k4: \"bell\\a\"\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: '-'\\nGlobal: '123'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: \\\"two\\\\n\\\\n\\\"\\n123: 18446744073709551615\\n'key: x': 0\\nGlobal: &n5 {k5: /boot/efi}\\n\"",
+      "result": "'123': 18446744073709551615\nB: |+\n  two\n\nGlobal:\n  ManageImages: true\n  k5: /boot/efi\n'key: x': 0\n"
+    },
+    {
+      "input": "\"a: \\\"bell\\\\a\\\"\\nB: abc\\n123: &n2 {k2: '0x10'}\\n'key: x': &n3 {k3: 'a:'}\\nGlobal: \\n  s: -12\\n  t: 'trail '\\nz: &n6 {k6: -0.0}\\n\"",
+      "result": "'123':\n  k2: '0x10'\nB: abc\nGlobal:\n  ManageImages: true\n  s: -12\n  t: 'trail '\na: \"bell\\a\"\n'key: x':\n  k3: 'a:'\nz:\n  k6: 0.0\n"
+    },
+    {
+      "input": "\"B: &n1 {k1: '*star'}\\n123: *n1\\n'key: x': /boot/efi\\n'': 1e15\\nGlobal: '-'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: []\\n  t: true\\n123: \\n  s: 0o17\\n  t: -0.0\\n\"",
+      "result": "'123':\n  s: 15\n  t: 0.0\nGlobal:\n  ManageImages: true\na:\n  s: []\n  t: true\n"
+    },
+    {
+      "input": "\"B: &n1 {k1: 007}\\n'key: x': .nan\\n'': Yes\\nz: *n1\\n\"",
+      "result": "'': Yes\nB: &1\n  k1: 7\nGlobal:\n  ManageImages: true\n'key: x': .nan\nz: *1\n"
+    },
+    {
+      "input": "\"'key: x': abc\\nz: \\\"\\\\ufeffx\\\"\\n\"",
+      "result": "Global:\n  ManageImages: true\n'key: x': abc\nz: '﻿x'\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: 1e3}\\nB: ''\\n'': [a, b]\\n\"",
+      "result": "'':\n- a\n- b\nB: ''\nGlobal:\n  ManageImages: true\na:\n  k0: 1000.0\n"
+    },
+    {
+      "input": "\"'key: x': &n3 {k3: '- x'}\\n\"",
+      "result": "Global:\n  ManageImages: true\n'key: x':\n  k3: '- x'\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: 007}\\nB: \\n  s: {}\\n  t: 1e3\\n'': &n4 {k4: 1.5e-7}\\n\"",
+      "result": "'':\n  k4: 1.5e-07\nB:\n  s: {}\n  t: 1000.0\nGlobal:\n  ManageImages: true\na:\n  k0: 7\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: '@at'}\\n'': \\n  s: \\\"\\\\ufeffx\\\"\\n  t: [[p, q], {r: s}]\\nz: \\\"bell\\\\a\\\"\\n\"",
+      "result": "'':\n  s: '﻿x'\n  t:\n  - - p\n    - q\n  - r: s\nGlobal:\n  ManageImages: true\na:\n  k0: '@at'\nz: \"bell\\a\"\n"
+    },
+    {
+      "input": "\"a: \\n  s: '%p'\\n  t: []\\n123: \\n  s: -0.0\\n  t: \\\"quote'\\\"\\n'key: x': [a, b]\\n'': \\n  s: \\\"tab\\\\there\\\"\\n  t: \\\"multi\\\\nline\\\"\\nz: &n6 {k6: '%p'}\\n\"",
+      "result": "'':\n  s: \"tab\\there\"\n  t: |-\n    multi\n    line\n'123':\n  s: 0.0\n  t: quote'\nGlobal:\n  ManageImages: true\na:\n  s: '%p'\n  t: []\n'key: x':\n- a\n- b\nz:\n  k6: '%p'\n"
+    },
+    {
+      "input": "\"123: \\n  s: 99999999999999999999\\n  t: 'dq\\\"'\\n'': \\n  s: '[br'\\n  t: \\\"tab\\\\there\\\"\\nGlobal: \\\"\\\\u00a0x\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: '--- x'\\n123: '[br'\\nz: /boot/efi\\n\"",
+      "result": "'123': '[br'\nGlobal:\n  ManageImages: true\na: '--- x'\nz: /boot/efi\n"
+    },
+    {
+      "input": "\"a: 1e20\\n'key: x': 0x1F\\nz: 'a:'\\n\"",
+      "result": "Global:\n  ManageImages: true\na: 1e+20.0\n'key: x': 31\nz: 'a:'\n"
+    },
+    {
+      "input": "\"123: '@at'\\n'key: x': [a, b]\\nz: {}\\n\"",
+      "result": "'123': '@at'\nGlobal:\n  ManageImages: true\n'key: x':\n- a\n- b\nz: {}\n"
+    },
+    {
+      "input": "\"a: \\\"\\\\ufeffx\\\"\\n123: 'a:'\\n'key: x': true\\nz: \\\"multi\\\\nline\\\"\\n\"",
+      "result": "'123': 'a:'\nGlobal:\n  ManageImages: true\na: '﻿x'\n'key: x': true\nz: |-\n  multi\n  line\n"
+    },
+    {
+      "input": "\"B: \\\"\\\\u00a0x\\\"\\n'key: x': '?'\\n'': {x: 1, y: [2]}\\nGlobal: \\n  s: {x: 1, y: [2]}\\n  t: \\\"\\\\ufeffx\\\"\\n\"",
+      "result": "'':\n  x: 1\n  y:\n  - 2\nB: \"\\_x\"\nGlobal:\n  ManageImages: true\n  s:\n    x: 1\n    y:\n    - 2\n  t: '﻿x'\n'key: x': '?'\n"
+    },
+    {
+      "input": "\"B: 0x1F\\nGlobal: \\\"quote'\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: '#c'\\nB: \\\"ünï\\\"\\n123: {x: 1, y: [2]}\\nz: \\n  s: '#c'\\n  t: \\\"quote'\\\"\\n\"",
+      "result": "'123':\n  x: 1\n  y:\n  - 2\nB: ünï\nGlobal:\n  ManageImages: true\na: '#c'\nz:\n  s: '#c'\n  t: quote'\n"
+    },
+    {
+      "input": "\"a: 'a: b'\\nB: \\\"ünï\\\"\\nGlobal: &n5 {k5: ~}\\n\"",
+      "result": "B: ünï\nGlobal:\n  ManageImages: true\n  k5: null\na: 'a: b'\n"
+    },
+    {
+      "input": "\"'': '~'\\nz: &n6 {k6: -12}\\n\"",
+      "result": "'': '~'\nGlobal:\n  ManageImages: true\nz:\n  k6: -12\n"
+    },
+    {
+      "input": "\"a: \\n  s: ~\\n  t: 18446744073709551615\\n123: 007\\n'key: x': &n3 {k3: \\\"tab\\\\there\\\"}\\nGlobal: &n5 {k5: -12}\\nz: ro quiet loglevel=0\\n\"",
+      "result": "'123': 7\nGlobal:\n  ManageImages: true\n  k5: -12\na:\n  s: null\n  t: 18446744073709551615\n'key: x':\n  k3: \"tab\\there\"\nz: ro quiet loglevel=0\n"
+    },
+    {
+      "input": "\"a: '...'\\nB: [[p, q], {r: s}]\\n'key: x': 0x1F\\n'': \\n  s: \\\"two\\\\n\\\\n\\\"\\n  t: '-'\\n\"",
+      "result": "'':\n  s: |+\n    two\n\n  t: '-'\nB:\n- - p\n  - q\n- r: s\nGlobal:\n  ManageImages: true\na: '...'\n'key: x': 31\n"
+    },
+    {
+      "input": "\"B: [[p, q], {r: s}]\\n123: '1.0'\\n\"",
+      "result": "'123': '1.0'\nB:\n- - p\n  - q\n- r: s\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: 1e15\\nB: .inf\\n\"",
+      "result": "B: .inf\nGlobal:\n  ManageImages: true\na: '1e+15'\n"
+    },
+    {
+      "input": "\"'key: x': \\n  s: []\\n  t: 99999999999999999999\\n'': \\n  s: [a, b]\\n  t: 0x1F\\nGlobal: '~'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: 'a\\\\b'\\nB: \\n  s: 0x1F\\n  t: '1.0'\\n'key: x': \\\"\\\\ufeffx\\\"\\n'': 'dq\\\"'\\n\"",
+      "result": "'': dq\"\nB:\n  s: 31\n  t: '1.0'\nGlobal:\n  ManageImages: true\na: a\\b\n'key: x': '﻿x'\n"
+    },
+    {
+      "input": "\"B: \\n  s: -.inf\\n  t: 'dq\\\"'\\n123: [a, b]\\n'key: x': \\n  s: '- x'\\n  t: '...'\\n'': &n4 {k4: ~}\\n\"",
+      "result": "'':\n  k4: null\n'123':\n- a\n- b\nB:\n  s: -.inf\n  t: dq\"\nGlobal:\n  ManageImages: true\n'key: x':\n  s: '- x'\n  t: '...'\n"
+    },
+    {
+      "input": "\"a: \\\"ünï\\\"\\n'key: x': \\n  s: '...'\\n  t: ' lead'\\nGlobal: -.inf\\nz: \\n  s: 'x #y'\\n  t: '%p'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: '0x10'\\n  t: '-'\\nB: '[br'\\n\"",
+      "result": "B: '[br'\nGlobal:\n  ManageImages: true\na:\n  s: '0x10'\n  t: '-'\n"
+    },
+    {
+      "input": "\"'': &n4 {k4: '123'}\\n\"",
+      "result": "'':\n  k4: '123'\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: \\\"\\\\u00a0x\\\"\\nB: \\n  s: 007\\n  t: true\\n123: no\\n'': \\\"quote'\\\"\\nz: '@at'\\n\"",
+      "result": "'': quote'\n'123': no\nB:\n  s: 7\n  t: true\nGlobal:\n  ManageImages: true\na: \"\\_x\"\nz: '@at'\n"
+    },
+    {
+      "input": "\"123: \\n  s: 'trail '\\n  t: 3.10\\n'key: x': \\n  s: 1e20\\n  t: \\\"multi\\\\nline\\\"\\n'': &n4 {k4: '...'}\\n\"",
+      "result": "'':\n  k4: '...'\n'123':\n  s: 'trail '\n  t: 3.1\nGlobal:\n  ManageImages: true\n'key: x':\n  s: 1e+20.0\n  t: |-\n    multi\n    line\n"
+    },
+    {
+      "input": "\"B: 1.5e-7\\n123: 1e15\\n'key: x': ~\\n'': 'a\\\\b'\\nGlobal: \\\"two\\\\n\\\\n\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: &n1 {k1: Yes}\\n'': *n1\\nGlobal: *n1\\nz: true\\n\"",
+      "result": "'': &1\n  ManageImages: true\n  k1: Yes\nB: *1\nGlobal: *1\nz: true\n"
+    },
+    {
+      "input": "\"'key: x': '0x10'\\n\"",
+      "result": "Global:\n  ManageImages: true\n'key: x': '0x10'\n"
+    },
+    {
+      "input": "\"123: \\\"multi\\\\nline\\\"\\n'key: x': &n3 {k3: 'dq\\\"'}\\n\"",
+      "result": "'123': |-\n  multi\n  line\nGlobal:\n  ManageImages: true\n'key: x':\n  k3: dq\"\n"
+    },
+    {
+      "input": "\"B: 1_000\\n123: &n2 {k2: '--- x'}\\n'key: x': .nan\\nz: *n2\\n\"",
+      "result": "'123': &1\n  k2: '--- x'\nB: 1_000\nGlobal:\n  ManageImages: true\n'key: x': .nan\nz: *1\n"
+    },
+    {
+      "input": "\"B: &n1 {k1: [a, b]}\\n'key: x': &n3 {k3: '[br'}\\nz: *n1\\n\"",
+      "result": "B: &1\n  k1:\n  - a\n  - b\nGlobal:\n  ManageImages: true\n'key: x':\n  k3: '[br'\nz: *1\n"
+    },
+    {
+      "input": "\"'': 1e3\\n\"",
+      "result": "'': 1000.0\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: 'dq\\\"'\\n\"",
+      "result": "Global:\n  ManageImages: true\na: dq\"\n"
+    },
+    {
+      "input": "\"a: \\\"two\\\\n\\\\n\\\"\\n'key: x': {}\\nGlobal: '@at'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: no\\n  t: 1e3\\n'': {x: 1, y: [2]}\\nz: -0.0\\n\"",
+      "result": "'':\n  x: 1\n  y:\n  - 2\nGlobal:\n  ManageImages: true\na:\n  s: no\n  t: 1000.0\nz: 0.0\n"
+    },
+    {
+      "input": "\"B: 'a\\\\b'\\n123: \\n  s: 'true'\\n  t: '?'\\n'key: x': abc\\nz: '[br'\\n\"",
+      "result": "'123':\n  s: 'true'\n  t: '?'\nB: a\\b\nGlobal:\n  ManageImages: true\n'key: x': abc\nz: '[br'\n"
+    },
+    {
+      "input": "\"a: '?'\\nB: 'x #y'\\nGlobal: &n5 {k5: '...'}\\n\"",
+      "result": "B: 'x #y'\nGlobal:\n  ManageImages: true\n  k5: '...'\na: '?'\n"
+    },
+    {
+      "input": "\"'': \\\"two\\\\n\\\\n\\\"\\nz: \\n  s: ' lead'\\n  t: '%p'\\n\"",
+      "result": "'': |+\n  two\n\nGlobal:\n  ManageImages: true\nz:\n  s: ' lead'\n  t: '%p'\n"
+    },
+    {
+      "input": "\"a: \\n  s: \\\"ünï\\\"\\n  t: 'a:'\\n'key: x': '[br'\\n\"",
+      "result": "Global:\n  ManageImages: true\na:\n  s: ünï\n  t: 'a:'\n'key: x': '[br'\n"
+    },
+    {
+      "input": "\"'key: x': ro quiet loglevel=0\\n'': &n4 {k4: Yes}\\nz: ro quiet loglevel=0\\n\"",
+      "result": "'':\n  k4: Yes\nGlobal:\n  ManageImages: true\n'key: x': ro quiet loglevel=0\nz: ro quiet loglevel=0\n"
+    },
+    {
+      "input": "\"a: '#c'\\n123: '?'\\n'': \\n  s: 007\\n  t: -12\\n\"",
+      "result": "'':\n  s: 7\n  t: -12\n'123': '?'\nGlobal:\n  ManageImages: true\na: '#c'\n"
+    },
+    {
+      "input": "\"a: \\\"bell\\\\a\\\"\\nB: \\n  s: \\\"\\\\u00a0x\\\"\\n  t: {x: 1, y: [2]}\\nGlobal: \\n  s: no\\n  t: {x: 1, y: [2]}\\n\"",
+      "result": "B:\n  s: \"\\_x\"\n  t:\n    x: 1\n    y:\n    - 2\nGlobal:\n  ManageImages: true\n  s: no\n  t:\n    x: 1\n    y:\n    - 2\na: \"bell\\a\"\n"
+    },
+    {
+      "input": "\"a: \\\" sp\\\\nx\\\"\\n'': '*star'\\nGlobal: 'true'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: 1e3\\nB: \\n  s: 'dq\\\"'\\n  t: 0\\n123: &n2 {k2: 3.10}\\n'': *n2\\nGlobal: '#c'\\nz: *n2\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: '0x10'\\nB: '[br'\\n'': 'a\\\\b'\\nz: \\n  s: '?'\\n  t: 18446744073709551615\\n\"",
+      "result": "'': a\\b\nB: '[br'\nGlobal:\n  ManageImages: true\na: '0x10'\nz:\n  s: '?'\n  t: 18446744073709551615\n"
+    },
+    {
+      "input": "\"a: \\\"tab\\\\there\\\"\\nB: &n1 {k1: ''}\\n'key: x': &n3 {k3: \\\"ünï\\\"}\\n'': *n1\\nz: '1.0'\\n\"",
+      "result": "'': &1\n  k1: ''\nB: *1\nGlobal:\n  ManageImages: true\na: \"tab\\there\"\n'key: x':\n  k3: ünï\nz: '1.0'\n"
+    },
+    {
+      "input": "\"a: '0x10'\\n'key: x': {}\\nz: 1e15\\n\"",
+      "result": "Global:\n  ManageImages: true\na: '0x10'\n'key: x': {}\nz: '1e+15'\n"
+    },
+    {
+      "input": "\"a: -.inf\\n123: 'a: b'\\n'key: x': 'x #y'\\nGlobal: &n5 {k5: '0x10'}\\nz: *n5\\n\"",
+      "result": "'123': 'a: b'\nGlobal: &1\n  ManageImages: true\n  k5: '0x10'\na: -.inf\n'key: x': 'x #y'\nz: *1\n"
+    },
+    {
+      "input": "\"123: &n2 {k2: Yes}\\n'': *n2\\n\"",
+      "result": "'': &1\n  k2: Yes\n'123': *1\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"'key: x': {x: 1, y: [2]}\\n'': 1.5e-7\\nGlobal: \\\"quote'\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: 1e15\\n  t: 1e3\\nB: [[p, q], {r: s}]\\nz: 'dq\\\"'\\n\"",
+      "result": "B:\n- - p\n  - q\n- r: s\nGlobal:\n  ManageImages: true\na:\n  s: '1e+15'\n  t: 1000.0\nz: dq\"\n"
+    },
+    {
+      "input": "\"a: ' lead'\\nB: &n1 {k1: 007}\\n'key: x': '- x'\\nGlobal: *n1\\n\"",
+      "result": "B: &1\n  ManageImages: true\n  k1: 7\nGlobal: *1\na: ' lead'\n'key: x': '- x'\n"
+    },
+    {
+      "input": "\"a: ''\\n123: \\n  s: \\\"multi\\\\nline\\\"\\n  t: '?'\\n'': 99999999999999999999\\nGlobal: -0.0\\nz: {x: 1, y: [2]}\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: '-'\\n123: '--- x'\\nGlobal: -12\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: '*star'\\n'': &n4 {k4: abc}\\nGlobal: \\\"\\\\u00a0x\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: 1e15\\n'key: x': &n3 {k3: /boot/efi}\\n'': *n3\\nGlobal: 'trail '\\nz: &n6 {k6: '...'}\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"B: &n1 {k1: '-'}\\n123: '123'\\nGlobal: *n1\\n\"",
+      "result": "'123': '123'\nB: &1\n  ManageImages: true\n  k1: '-'\nGlobal: *1\n"
+    },
+    {
+      "input": "\"a: \\n  s: \\\"bell\\\\a\\\"\\n  t: '%p'\\nB: &n1 {k1: \\\"multi\\\\nline\\\"}\\n123: -.inf\\nGlobal: '-'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: &n0 {k0: '--- x'}\\nB: 0o17\\n'key: x': *n0\\n'': &n4 {k4: 1_000}\\nGlobal: *n0\\nz: &n6 {k6: '-'}\\n\"",
+      "result": "'':\n  k4: 1_000\nB: 15\nGlobal: &1\n  ManageImages: true\n  k0: '--- x'\na: *1\n'key: x': *1\nz:\n  k6: '-'\n"
+    },
+    {
+      "input": "\"B: [a, b]\\n'': 007\\n\"",
+      "result": "'': 7\nB:\n- a\n- b\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: ~}\\nz: *n0\\n\"",
+      "result": "Global:\n  ManageImages: true\na: &1\n  k0: null\nz: *1\n"
+    },
+    {
+      "input": "\"B: 'dq\\\"'\\n123: 1e20\\n'key: x': \\n  s: '?'\\n  t: 0o17\\n'': .nan\\nz: -.inf\\n\"",
+      "result": "'': .nan\n'123': 1e+20.0\nB: dq\"\nGlobal:\n  ManageImages: true\n'key: x':\n  s: '?'\n  t: 15\nz: -.inf\n"
+    },
+    {
+      "input": "\"123: &n2 {k2: '~'}\\n'key: x': \\\"\\\\u00a0x\\\"\\n\"",
+      "result": "'123':\n  k2: '~'\nGlobal:\n  ManageImages: true\n'key: x': \"\\_x\"\n"
+    },
+    {
+      "input": "\"B: \\n  s: \\\" sp\\\\nx\\\"\\n  t: 'trail '\\n123: &n2 {k2: \\\"quote'\\\"}\\n'key: x': *n2\\nGlobal: 'true'\\nz: -.inf\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\\"bell\\\\a\\\"\\nB: &n1 {k1: no}\\n123: *n1\\n'key: x': \\n  s: '1.0'\\n  t: 1.5e-7\\n\"",
+      "result": "'123': &1\n  k1: no\nB: *1\nGlobal:\n  ManageImages: true\na: \"bell\\a\"\n'key: x':\n  s: '1.0'\n  t: 1.5e-07\n"
+    },
+    {
+      "input": "\"a: \\n  s: \\\"\\\\ufeffx\\\"\\n  t: '0x10'\\nB: \\\" sp\\\\nx\\\"\\n'key: x': .inf\\n'': &n4 {k4: 'dq\\\"'}\\nz: 'a\\\\b'\\n\"",
+      "result": "'':\n  k4: dq\"\nB: |2-\n   sp\n  x\nGlobal:\n  ManageImages: true\na:\n  s: '﻿x'\n  t: '0x10'\n'key: x': .inf\nz: a\\b\n"
+    },
+    {
+      "input": "\"123: &n2 {k2: 0x1F}\\n'key: x': &n3 {k3: Yes}\\n'': &n4 {k4: 18446744073709551615}\\nz: 'dq\\\"'\\n\"",
+      "result": "'':\n  k4: 18446744073709551615\n'123':\n  k2: 31\nGlobal:\n  ManageImages: true\n'key: x':\n  k3: Yes\nz: dq\"\n"
+    },
+    {
+      "input": "\"'key: x': ro quiet loglevel=0\\n'': &n4 {k4: /boot/efi}\\n\"",
+      "result": "'':\n  k4: /boot/efi\nGlobal:\n  ManageImages: true\n'key: x': ro quiet loglevel=0\n"
+    },
+    {
+      "input": "\"B: -0.0\\n123: {}\\n'key: x': \\n  s: ro quiet loglevel=0\\n  t: true\\n\"",
+      "result": "'123': {}\nB: 0.0\nGlobal:\n  ManageImages: true\n'key: x':\n  s: ro quiet loglevel=0\n  t: true\n"
+    },
+    {
+      "input": "\"123: 1_000\\n'': -0.0\\n\"",
+      "result": "'': 0.0\n'123': 1_000\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"B: \\n  s: \\\" sp\\\\nx\\\"\\n  t: \\\"multi\\\\nline\\\"\\n123: []\\nGlobal: ro quiet loglevel=0\\nz: \\\"two\\\\n\\\\n\\\"\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: &n0 {k0: 0}\\n'': &n4 {k4: '#c'}\\nGlobal: .nan\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: '0x10'\\n  t: -.inf\\nB: '?'\\n123: 3.10\\n'': \\n  s: \\\" sp\\\\nx\\\"\\n  t: 007\\n\"",
+      "result": "'':\n  s: |2-\n     sp\n    x\n  t: 7\n'123': 3.1\nB: '?'\nGlobal:\n  ManageImages: true\na:\n  s: '0x10'\n  t: -.inf\n"
+    },
+    {
+      "input": "\"B: \\n  s: \\\"quote'\\\"\\n  t: '#c'\\n123: 'a\\\\b'\\n'': {}\\n\"",
+      "result": "'': {}\n'123': a\\b\nB:\n  s: quote'\n  t: '#c'\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"B: \\n  s: '--- x'\\n  t: \\\"tab\\\\there\\\"\\n123: \\n  s: 18446744073709551615\\n  t: 1e15\\n'': [[p, q], {r: s}]\\nz: &n6 {k6: \\\"two\\\\n\\\\n\\\"}\\n\"",
+      "result": "'':\n- - p\n  - q\n- r: s\n'123':\n  s: 18446744073709551615\n  t: '1e+15'\nB:\n  s: '--- x'\n  t: \"tab\\there\"\nGlobal:\n  ManageImages: true\nz:\n  k6: |+\n    two\n\n...\n"
+    },
+    {
+      "input": "\"'key: x': -0.0\\nGlobal: \\n  s: \\\"tab\\\\there\\\"\\n  t: 1_000\\nz: \\n  s: -12\\n  t: 'true'\\n\"",
+      "result": "Global:\n  ManageImages: true\n  s: \"tab\\there\"\n  t: 1_000\n'key: x': 0.0\nz:\n  s: -12\n  t: 'true'\n"
+    },
+    {
+      "input": "\"'': /boot/efi\\n\"",
+      "result": "'': /boot/efi\nGlobal:\n  ManageImages: true\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: Yes}\\nB: '--- x'\\n123: *n0\\n'key: x': '1.0'\\n\"",
+      "result": "'123': &1\n  k0: Yes\nB: '--- x'\nGlobal:\n  ManageImages: true\na: *1\n'key: x': '1.0'\n"
+    },
+    {
+      "input": "\"123: \\n  s: 'a: b'\\n  t: '[br'\\n'key: x': \\n  s: '1.0'\\n  t: '@at'\\n'': \\\" sp\\\\nx\\\"\\nGlobal: 'a: b'\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: ''\\n  t: ' lead'\\nB: '[br'\\n'key: x': \\n  s: 0o17\\n  t: /boot/efi\\n'': '~'\\nz: \\\"multi\\\\nline\\\"\\n\"",
+      "result": "'': '~'\nB: '[br'\nGlobal:\n  ManageImages: true\na:\n  s: ''\n  t: ' lead'\n'key: x':\n  s: 15\n  t: /boot/efi\nz: |-\n  multi\n  line\n"
+    },
+    {
+      "input": "\"a: Yes\\n'key: x': 1.5e-7\\nGlobal: true\\nz: [a, b]\\n\"",
+      "result": null
+    },
+    {
+      "input": "\"a: \\n  s: '@at'\\n  t: 'a: b'\\n'key: x': \\\"two\\\\n\\\\n\\\"\\n\"",
+      "result": "Global:\n  ManageImages: true\na:\n  s: '@at'\n  t: 'a: b'\n'key: x': |+\n  two\n\n...\n"
+    },
+    {
+      "input": "\"a: &n0 {k0: true}\\nGlobal: *n0\\n\"",
+      "result": "Global: &1\n  ManageImages: true\n  k0: true\na: *1\n"
+    }
+  ]
+}

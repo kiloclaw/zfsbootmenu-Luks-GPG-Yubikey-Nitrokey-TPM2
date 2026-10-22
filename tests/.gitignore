@@ -12,3 +12,6 @@ test.*
 keys
 cache
 environments
+
+# ...but every recording of the parity tests is kept
+!/golden/**

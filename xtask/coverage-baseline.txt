@@ -17,6 +17,7 @@ zbm-kcl                   90
 zbm-luks                  95
 zbm-platform              98
 zbm-pool                  98
+zbm-startup               97
 zbm-state                100
 zbm-sys                   93
 zbm-testkit               97

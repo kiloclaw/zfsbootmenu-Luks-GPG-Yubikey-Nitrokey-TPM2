@@ -27,6 +27,10 @@ pub const DEFAULT_BASE: &str = "/zfsbootmenu";
 const EMBEDDED_KCL: &str = "etc/cmdline.d/zfsbootmenu.conf";
 
 /// Reads `/etc/zfsbootmenu.conf` below `root`.
+///
+/// # Errors
+///
+/// When the file cannot be read or parsed.
 pub fn read_conf(system: &System<'_>, root: &Path) -> Result<Conf> {
     let path = root.join(conf::PATH.trim_start_matches('/'));
     let text = system
@@ -45,9 +49,9 @@ pub fn base(conf: &Conf) -> PathBuf {
     )
 }
 
-/// The texts `_build_zbm_kcl` reads below `root`: `etc/cmdline`, the
-/// `etc/cmdline.d/*.conf` files in name order and `proc/cmdline`, skipping
-/// those that cannot be read.
+/// The texts the kernel command line is built from, below `root`:
+/// `etc/cmdline`, the `etc/cmdline.d/*.conf` files in name order and
+/// `proc/cmdline`, skipping those that cannot be read.
 pub fn zbm_sources(system: &System<'_>, root: &Path) -> Vec<String> {
     let mut paths = vec![root.join("etc/cmdline")];
     let dir = root.join("etc/cmdline.d");
@@ -70,6 +74,10 @@ pub fn zbm_sources(system: &System<'_>, root: &Path) -> Vec<String> {
 /// state the later stages read: the embedded command line, `zbm.cmdline`,
 /// `cmdline.d`, the command line override and the options in
 /// `/etc/zfsbootmenu.conf`.
+///
+/// # Errors
+///
+/// When the configuration cannot be read or parsed.
 pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions> {
     let files = system.files;
     let conf = read_conf(system, root)?;

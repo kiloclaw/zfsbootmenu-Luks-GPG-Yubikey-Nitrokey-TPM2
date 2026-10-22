@@ -6,7 +6,7 @@ use std::path::Path;
 use zbm_platform::files::Files;
 pub use zbm_pool::hostid::{DEFAULT_HOSTID, write_hex};
 
-use crate::commandline::ETC_HOSTID;
+use zbm_pool::hostid::ETC_HOSTID;
 
 /// The stage `init.d/20-hostid`: writes the host ID from the command line
 /// (`spl_hostid`), or the default one when that is invalid or when neither the
@@ -29,11 +29,11 @@ pub fn stage(files: &dyn Files, spl_hostid: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commandline::SPL_HOSTID;
-    use crate::testing::Redirect;
     use zbm_platform::{Installed, KernelLog};
+    use zbm_pool::hostid::SPL_HOSTID;
     use zbm_testkit::fakes::{FakeFiles, FakeSystem};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, path};
+    use zbm_testkit::redirect::Redirect;
     use zbm_testkit::{Rng, TempDir, parity};
 
     fn log(fake: &FakeSystem) -> Installed {

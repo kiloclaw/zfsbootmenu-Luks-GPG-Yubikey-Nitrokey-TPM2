@@ -50,6 +50,7 @@ mod host;
 pub mod legacy;
 pub mod machine;
 pub mod parity;
+pub mod redirect;
 mod rng;
 pub mod zfs;
 pub mod zfs_script;

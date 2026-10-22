@@ -83,8 +83,8 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "front ends",
-        purpose: "The menus and the multi-call binary",
-        crates: &["zbm-menu", "zbm-tui", "zbm"],
+        purpose: "The menus, the start-up program and the multi-call binary",
+        crates: &["zbm-menu", "zbm-tui", "zbm-startup", "zbm"],
     },
 ];
 
@@ -93,6 +93,7 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm-trace", "zbm-core"),
     ("zbm-coreutils", "zbm-platform"),
     ("zbm", "zbm-tui"),
+    ("zbm", "zbm-startup"),
 ];
 
 /// Crates that only tests may use.
@@ -112,6 +113,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     ("zbm-pool", &["thiserror"]),
+    ("zbm-startup", &["thiserror"]),
     (
         "zbm-platform",
         &["serde_json", "tracing", "tracing-subscriber"],

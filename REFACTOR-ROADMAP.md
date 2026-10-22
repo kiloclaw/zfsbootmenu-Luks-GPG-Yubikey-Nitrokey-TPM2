@@ -224,6 +224,17 @@ Done in R3:
   lines of the legacy code, which those recordings compare, so moving it onto the typed ZFS port waits until the
   parity tests against the legacy runtime end (R9) or behaviour may change (R5).
 
+- `zbm-startup` (front end): the start-up program moved out of `zbm-boot`, with the stages of modules, host ID,
+  device wait and early hooks, the recovery shell and the start-up hooks (`preinit`). The program is a
+  `Vec<Box<dyn Step>>`, one step per `Stage`, in the order of `Stage::ALL` (a test checks it), run by `run_steps`
+  against a `StepContext`; `Rerun` replaces the `force` flag. The early-hooks stage is a step; running a hook
+  directory stays in `zbm-boot`, which also runs the boot-time hooks. `zbm-startup` has an error enum of its own
+  (`StartupError`), meets the strict lints and the size and type rules, and starts at 97% line coverage; `zbm-boot`
+  has two long files and six legacy-named doc lines fewer. Moving the parity tests moved their recordings with them,
+  unchanged, and showed that `.gitignore` patterns meant for the upstream test VMs (`hostid`, `generate-zbm`,
+  `keys`) had kept 18 recordings out of the repository: CI records live, so their absence went unnoticed. They are
+  committed now, and match the legacy code.
+
 ## What the pilots taught
 
 The two pilot slices of R0 ran through every layer of the target architecture: key-file unlock

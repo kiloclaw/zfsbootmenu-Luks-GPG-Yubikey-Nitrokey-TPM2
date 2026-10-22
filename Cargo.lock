@@ -1460,6 +1460,7 @@ dependencies = [
  "zbm-core",
  "zbm-luks",
  "zbm-platform",
+ "zbm-startup",
  "zbm-state",
  "zbm-sys",
  "zbm-testkit",
@@ -1612,6 +1613,24 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-testkit",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-startup"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "thiserror",
+ "zbm-boot",
+ "zbm-cmdline",
+ "zbm-platform",
+ "zbm-pool",
+ "zbm-state",
+ "zbm-testkit",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",

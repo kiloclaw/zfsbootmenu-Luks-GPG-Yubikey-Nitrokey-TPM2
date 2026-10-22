@@ -143,6 +143,16 @@ mod tests {
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::{TempDir, parity};
 
+    #[test]
+    fn a_pool_must_be_named() {
+        let fake = FakeSystem::new();
+        let state = zbm_state::State::new(&fake.files, "/zfsbootmenu");
+        assert_eq!(
+            resume_prompt(&fake.system(), &state, ""),
+            Err(BootError::NoPool)
+        );
+    }
+
     fn legacy_core() -> Bash {
         Bash::new()
             .code(LOG_STUBS)

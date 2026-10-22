@@ -1,0 +1,105 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-d\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 0,
+        "log": "## Identified version 6.1.0-test for kernel <root>/boot/vmlinuz-6.1.0-test\n## Identified version 6.2.5-test for kernel <root>/boot/vmlinuz-6.2.5-test\n## Latest kernel: 6.2.5-test\n## Executing: dracut -f --confdir '<root>/dracut.conf.d' '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'\n## dracut: building\n## dracut: a warning\n## maxRevision discovered: 0\n## safeCopy called with: <root>/tmp/<random>/zfsbootmenu.img, <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img, 0\n## safeCopy called with: <root>/boot/vmlinuz-6.2.5-test, <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1, 0\n## pruneVersions called with: 3.1.0+dev, 3\n$VAR1 = {};\n## pruneVersions called with: 3.1.0+dev, 3\n$VAR1 = {};\n",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [<root>/dracut.conf.d] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\nesp/EFI/\nesp/EFI/zbm/\nesp/EFI/zbm/initramfs-3.1.0+dev_1.img: 4121 bytes, 72d6767f690de5d5, mode 644\nesp/EFI/zbm/vmlinuz-3.1.0+dev_1: 6000 bytes, 0485edbf8210afee, mode 644\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "## Identified version 6.1.0-test for kernel <root>/boot/vmlinuz-6.1.0-test\n## Identified version 6.2.5-test for kernel <root>/boot/vmlinuz-6.2.5-test\n## Latest kernel: 6.2.5-test\n## Executing: dracut -f --confdir '<root>/dracut.conf.d' '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'\n## dracut: building\n## dracut: a warning\n## maxRevision discovered: 0\n## safeCopy called with: <root>/tmp/<random>/zfsbootmenu.img, <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img, 0\n## safeCopy called with: <root>/boot/vmlinuz-6.2.5-test, <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1, 0\n## pruneVersions called with: 3.1.0+dev, 3\n$VAR1 = {};\n## pruneVersions called with: 3.1.0+dev, 3\n$VAR1 = {};\n",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\nCreated initramfs image <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img\nCreated kernel image <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-K\", \"6.1*\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 0,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [<root>/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.1.0-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\nesp/EFI/\nesp/EFI/zbm/\nesp/EFI/zbm/initramfs-3.1.0+dev_1.img: 4121 bytes, 9a7cb016fb23bdb7, mode 644\nesp/EFI/zbm/vmlinuz-3.1.0+dev_1: 6000 bytes, cc7ccc20c8e94aed, mode 644\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.1.0-test\nCreated initramfs image <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img\nCreated kernel image <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-K\", \"7.0\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nUnable to find file for kernel version 7.0\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-K\", \"5.10.0\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 0,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [<root>/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [5.10.0]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\nesp/EFI/\nesp/EFI/zbm/\nesp/EFI/zbm/initramfs-3.1.0+dev_1.img: 4117 bytes, 1d8e4841cd9155d7, mode 644\nesp/EFI/zbm/vmlinuz-3.1.0+dev_1: 6000 bytes, 8a5f94758acfb73a, mode 644\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-5.10.0\nCreated initramfs image <root>/esp/EFI/zbm/initramfs-3.1.0+dev_1.img\nCreated kernel image <root>/esp/EFI/zbm/vmlinuz-3.1.0+dev_1\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-k\", \"{root}/boot/none\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nThe provided kernel <root>/boot/none was not found, unable to continue\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-k\", \"{root}/boot/vmlinuz-5.10.0\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nUnable to determine kernel version from <root>/boot/vmlinuz-5.10.0\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/empty\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nUnable to find latest kernel; specify version or path manually\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-K\", \"%current\"], env [], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nUnable to find file for kernel version %current\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\", \"-K\", \"%{CURRENT}\"], env [(\"FAKE_UNAME\", \"none\")], config:\nGlobal:\n  ManageImages: true\n  DracutConfDir: {root}/dracut.conf.d\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\n  DracutConfDir: <root>/dracut.conf.d\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Versions: 3\n  Enabled: true\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nCannot determine current kernel version\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-d\"], env [], config:\nGlobal:\n  ManageImages: true\nComponents:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\nKernel:\n  Path: {root}/boot/vmlinuz-6.1.0-test\n  Version: \"%current\"\n  Prefix: kernel\n",
+      "result": {
+        "code": 0,
+        "log": "## Executing: dracut -f --confdir '/etc/zfsbootmenu/dracut.conf.d' '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'\n## dracut: building\n## dracut: a warning\n## safeCopy called with: <root>/tmp/<random>/zfsbootmenu.img, <root>/esp/EFI/zbm/init.<random>, 0\n## safeCopy called with: <root>/boot/vmlinuz-6.1.0-test, <root>/esp/EFI/zbm/kern.<random>, 0\n",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nComponents:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\nKernel:\n  Path: <root>/boot/vmlinuz-6.1.0-test\n  Version: \"%current\"\n  Prefix: kernel\ndracut.conf.d/\nesp/\nesp/EFI/\nesp/EFI/zbm/\nesp/EFI/zbm/initramfs-bootmenu.img: 4121 bytes, 72d6767f690de5d5, mode 600\nesp/EFI/zbm/kernel-bootmenu: 6000 bytes, cc7ccc20c8e94aed, mode 600\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "## Executing: dracut -f --confdir '/etc/zfsbootmenu/dracut.conf.d' '<root>/tmp/<random>/zfsbootmenu.img' '6.2.5-test'\n## dracut: building\n## dracut: a warning\nUse of uninitialized value in int at <program> line 422.\n## safeCopy called with: <root>/tmp/<random>/zfsbootmenu.img, <root>/esp/EFI/zbm/init.<random>, 0\n## safeCopy called with: <root>/boot/vmlinuz-6.1.0-test, <root>/esp/EFI/zbm/kern.<random>, 0\n",
+        "stdout": "No initramfs generator specified; using dracut\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.1.0-test\nCreated initramfs image <root>/esp/EFI/zbm/initramfs-bootmenu.img\nCreated kernel image <root>/esp/EFI/zbm/kernel-bootmenu\n"
+      }
+    }
+  ]
+}

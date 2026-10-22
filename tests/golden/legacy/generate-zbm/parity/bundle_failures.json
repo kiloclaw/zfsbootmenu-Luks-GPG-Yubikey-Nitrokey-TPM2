@@ -1,0 +1,55 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\"], env [], config:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\n  Stub: {root}/stub.efi\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\n  Stub: <root>/stub.efi\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\nUEFI stub loader '<root>/stub.efi' does not exist\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\"], env [], config:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\n  Stub: {root}/stub.efi\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\n  Stub: <root>/stub.efi\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\nstub.efi: EFI image: mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\nUnable to determine stub alignment!\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\"], env [], config:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\n  Stub: {root}/stub.efi\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\n  Stub: <root>/stub.efi\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\nstub.efi: EFI image: mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\nUnable to determine initial stub offset!\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\"], env [], config:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\n  DeviceTree: board.dtb\n",
+      "result": {
+        "code": 1,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\n  DeviceTree: board.dtb\ndracut.conf.d/\nesp/\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\nEFI.DeviceTree key set to 'board.dtb', file not found at '/boot/dtbs/dtbs-6.2.5-test/board.dtb'\n"
+      }
+    },
+    {
+      "input": "args [\"-c\", \"{root}/config.yaml\", \"-b\", \"{root}/boot\"], env [], config:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: {root}/esp/EFI/zbm\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\n",
+      "result": {
+        "code": 17,
+        "log": "",
+        "state": "bin/\nboot/\nboot/linux-lts: 6000 bytes, e7745c424cfa6d95, mode 644\nboot/vmlinuz-5.10.0: 6000 bytes, 8a5f94758acfb73a, mode 644\nboot/vmlinuz-6.1.0-test: 6000 bytes, cc7ccc20c8e94aed, mode 644\nboot/vmlinuz-6.2.5-test: 6000 bytes, 0485edbf8210afee, mode 644\ncalls.log, mode 644:\ndracut [-f] [--confdir] [/etc/zfsbootmenu/dracut.conf.d] [-q] [<root>/tmp/<random>/zfsbootmenu.img] [6.2.5-test]\nconfig.yaml, mode 644:\nGlobal:\n  ManageImages: true\nEFI:\n  ImageDir: <root>/esp/EFI/zbm\n  Enabled: true\n  Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub\ndracut.conf.d/\nesp/\nesp/EFI: 6 bytes, 1cdcf958bf579592, mode 644\npost.d/\npost.d/10-hook: 44 bytes, 64c006ee2b003b0a, mode 755\npre.d/\npre.d/10-hook: 66 bytes, 8aa9ad00d4a5c5a1, mode 755\npre.d/20-not-executable: 17 bytes, 22853fff4578819e, mode 644\ntmp/\n",
+        "stderr": "Use of uninitialized value in int at <program> line 365.\nmkdir <root>/esp/EFI: File exists at <program> line 367.\n",
+        "stdout": "No initramfs generator specified; using dracut\nWARNING: ignoring inconsistent versions in kernel <root>/boot/vmlinuz-5.10.0:\n  Path suggests version 5.10.0.\n  Kernel strings suggest version 5.10.0-other.\n  To use this kernel, explicitly specify the path and version.\nCreating ZFSBootMenu 3.1.0+dev from kernel <root>/boot/vmlinuz-6.2.5-test\n"
+      }
+    }
+  ]
+}

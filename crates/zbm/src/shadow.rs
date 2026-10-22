@@ -50,8 +50,8 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
 /// Compares the decisions on `system`, with the state directory `base` or the
 /// one `zfsbootmenu.conf` names; always status 0.
 pub fn check(system: &System<'_>, base: Option<&Path>, io: &mut Io) -> i32 {
-    let conf = zbm_boot::preinit::read_conf(system, Path::new("/")).unwrap_or_default();
-    let base = base.map_or_else(|| zbm_boot::preinit::base(&conf), Path::to_path_buf);
+    let conf = zbm_startup::preinit::read_conf(system, Path::new("/")).unwrap_or_default();
+    let base = base.map_or_else(|| zbm_startup::preinit::base(&conf), Path::to_path_buf);
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
     let state = State::new(system.files, &base);
     let runner = ReadOnlyRunner::new(system.runner, system.clock, BUDGET);

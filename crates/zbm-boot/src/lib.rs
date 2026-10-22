@@ -26,19 +26,14 @@
 
 pub mod boot;
 pub mod commandline;
-pub mod devices;
 pub mod error;
 pub mod hooks;
-pub mod hostid;
 pub mod import;
 pub mod kernels;
-pub mod modules;
-pub mod preinit;
 pub mod prompt;
 pub mod recovery;
 pub mod resume;
 pub mod shadow;
-pub mod startup;
 pub mod support;
 
 #[cfg(test)]

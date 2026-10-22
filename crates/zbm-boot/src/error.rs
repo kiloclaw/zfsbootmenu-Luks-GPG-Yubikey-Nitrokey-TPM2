@@ -40,18 +40,6 @@ pub enum BootError {
         /// The mount points that stay mounted.
         mounts: Vec<String>,
     },
-    /// `zbm.hookroot` is empty or not `filesystem//path`.
-    #[error("the hook root '{hook_root}' is malformed")]
-    HookRoot {
-        /// The value of `zbm.hookroot`.
-        hook_root: String,
-    },
-    /// The file system of `zbm.hookroot` could not be mounted.
-    #[error("unable to mount the hook file system {filesystem}")]
-    HookMount {
-        /// The file system.
-        filesystem: String,
-    },
     /// The user did not allow a read-write import of a pool that a
     /// hibernated system may still use.
     #[error("a read-write import of {pool} was not allowed while a system may be resumed")]
@@ -67,13 +55,6 @@ pub enum BootError {
     Zluks {
         /// Its exit status (127 when it could not start).
         status: i32,
-    },
-    /// The start-up program met things the Rust runtime cannot do yet, and
-    /// opened the recovery shell.
-    #[error("not supported yet: {}", items.join("; "))]
-    Unsupported {
-        /// What it met.
-        items: Vec<String>,
     },
 }
 
@@ -96,12 +77,6 @@ mod tests {
                     mounts: vec!["/a".to_owned(), "/a/b".to_owned()],
                 },
                 "unable to unmount /a, /a/b",
-            ),
-            (
-                BootError::Unsupported {
-                    items: vec!["x".to_owned(), "y".to_owned()],
-                },
-                "not supported yet: x; y",
             ),
         ];
 

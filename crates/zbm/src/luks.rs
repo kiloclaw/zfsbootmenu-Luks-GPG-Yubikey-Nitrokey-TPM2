@@ -47,7 +47,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         }
     };
     let system = real.with_console(&terminal);
-    let Ok(conf) = zbm_boot::preinit::read_conf(&system, Path::new("/")) else {
+    let Ok(conf) = zbm_startup::preinit::read_conf(&system, Path::new("/")) else {
         let _ = writeln!(
             io.stderr,
             "ERROR: unable to source {}",
@@ -55,7 +55,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         );
         return 1;
     };
-    let base = zbm_boot::preinit::base(&conf);
+    let base = zbm_startup::preinit::base(&conf);
     let mut settings = Settings::from_environment(system.environment);
     settings.mappings = base.join("luks-mappings");
     settings.skipped = base.join("luks-skipped");

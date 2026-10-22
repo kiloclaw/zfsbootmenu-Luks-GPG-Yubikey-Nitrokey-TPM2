@@ -1,0 +1,360 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"B9B1g1fggf\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"f11g\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"99g91\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"afg1af0gf\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"xg\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"xBB\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"Ba110g\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"0\"",
+      "result": [
+        true,
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"gxagx\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"0BaffB\"",
+      "result": [
+        true,
+        [
+          251,
+          175,
+          11,
+          0
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"aaaB9B9a99\"",
+      "result": [
+        true,
+        [
+          154,
+          155,
+          171,
+          170
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"9afa0x\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"x1xg0xB\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"9gf\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"BggxB1a1B\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"f01019fg9\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"faBx\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        true,
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"f1g1gg1\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"91g9\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"ffaB0g\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"9x9gg\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"0g1gx9a1\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"91xg\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"a10g91g\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"g9x1fg0a1\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"Bx\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"1g0fa0g\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"f0gf99B1\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"Ba90a9a9x\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"1a990\"",
+      "result": [
+        true,
+        [
+          144,
+          169,
+          1,
+          0
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"xaa\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"0990x9aBf9\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"99fBB19\"",
+      "result": [
+        true,
+        [
+          25,
+          187,
+          159,
+          9
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"0f1B90fga\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"B9axf1xf9\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"BaaBa\"",
+      "result": [
+        true,
+        [
+          186,
+          170,
+          11,
+          0
+        ],
+        "0\n"
+      ]
+    },
+    {
+      "input": "\"BgfB1B19\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"x0ax0B\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    },
+    {
+      "input": "\"99a0fgBB00\"",
+      "result": [
+        false,
+        null,
+        "5\n"
+      ]
+    }
+  ]
+}

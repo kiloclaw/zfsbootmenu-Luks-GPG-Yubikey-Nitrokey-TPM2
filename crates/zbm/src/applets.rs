@@ -4,9 +4,10 @@
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 
-use zbm_boot::preinit;
-use zbm_boot::startup::{Modes, Startup, is_on};
 use zbm_platform::RealSystem;
+use zbm_startup::preinit;
+use zbm_startup::program::{Modes, Startup, is_on};
+use zbm_startup::step::Rerun;
 use zbm_sys::Signal;
 
 use crate::Io;
@@ -109,7 +110,9 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     }
     let var = |name: &str| std::env::var(name).unwrap_or_default();
     modes.console |= is_on(&var("ZFSBOOTMENU_CONSOLE"));
-    modes.force = is_on(&var("ZFSBOOTMENU_FORCE_INIT"));
+    if is_on(&var("ZFSBOOTMENU_FORCE_INIT")) {
+        modes.rerun = Rerun::All;
+    }
 
     // trap '' SIGINT
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);

@@ -1,0 +1,1605 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"\\\\/[A-Z]6,\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\*,{\\\\*,\"",
+      "result": "<*,>"
+    },
+    {
+      "input": "\"[a-{,},[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\",e{\\\"{}\"",
+      "result": "<,e>"
+    },
+    {
+      "input": "\"6\\\\\"",
+      "result": "<6\\>"
+    },
+    {
+      "input": "\"*{}[A-Z]\"",
+      "result": "<Ab><ab><a{b><d e><q'x><sub><vmlinuz-6.10_1.EFI>"
+    },
+    {
+      "input": "\"[!a]\"",
+      "result": "<-><]>"
+    },
+    {
+      "input": "\".{,}'-\"",
+      "result": "<.'-><.'->"
+    },
+    {
+      "input": "\"[!a]\"",
+      "result": "<-><]>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"].*d\"",
+      "result": ""
+    },
+    {
+      "input": "\"{\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"'6x[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"1}q\"",
+      "result": "<1}q>"
+    },
+    {
+      "input": "\"s**\"",
+      "result": "<s2><sub>"
+    },
+    {
+      "input": "\"11\"",
+      "result": "<11>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"*\"",
+      "result": "<-><]><Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\"\\\\*\\\"'\"",
+      "result": "<*\"'>"
+    },
+    {
+      "input": "\"eq\"",
+      "result": "<eq>"
+    },
+    {
+      "input": "\"sub]sub\"",
+      "result": "<sub]sub>"
+    },
+    {
+      "input": "\"EFI\"",
+      "result": "<EFI>"
+    },
+    {
+      "input": "\"',/[s*\"",
+      "result": ""
+    },
+    {
+      "input": "\"EFI{}s*\"",
+      "result": ""
+    },
+    {
+      "input": "\"6\\\\*{\"",
+      "result": "<6*>"
+    },
+    {
+      "input": "\"[vmlinuz1\"",
+      "result": "<[vmlinuz1>"
+    },
+    {
+      "input": "\".[a-z]1\"",
+      "result": ""
+    },
+    {
+      "input": "\"[{s*[A-Z]\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"./\"",
+      "result": "<./>"
+    },
+    {
+      "input": "\"6[\"",
+      "result": "<6[>"
+    },
+    {
+      "input": "\"\\\" \\\\/\"",
+      "result": "<\" />"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{}\"",
+      "result": "<{}>"
+    },
+    {
+      "input": "\"_sub*sub[!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[ab]{}x1\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\".[a-z]/\"",
+      "result": ""
+    },
+    {
+      "input": "\"'s* \\\\*\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz\"",
+      "result": "<vmlinuz>"
+    },
+    {
+      "input": "\"[{*]\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\"[!a]6,\"",
+      "result": ""
+    },
+    {
+      "input": "\"_][!a]/]\"",
+      "result": ""
+    },
+    {
+      "input": "\"x\"",
+      "result": "<x>"
+    },
+    {
+      "input": "\"  \"",
+      "result": ""
+    },
+    {
+      "input": "\"]\\\\*x\"",
+      "result": "<]*x>"
+    },
+    {
+      "input": "\"[!a]{,}vmlinuz[a-\\\\\"",
+      "result": ""
+    },
+    {
+      "input": "\"~1\\\"?\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"  s*\"",
+      "result": "<s2><sub>"
+    },
+    {
+      "input": "\"q  []a]-\"",
+      "result": "<q>"
+    },
+    {
+      "input": "\"[[!a]{}/?\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"'][!a].*\"",
+      "result": ""
+    },
+    {
+      "input": "\"_\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\"\\\"EFI  [6\"",
+      "result": "<\"EFI  [6>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"d/{\\\\*_\"",
+      "result": "<d/>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{\\\\\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"q_e\"",
+      "result": "<q_e>"
+    },
+    {
+      "input": "\"61/EFI6\"",
+      "result": "<61/EFI6>"
+    },
+    {
+      "input": "\"~_e\"",
+      "result": "<~_e>"
+    },
+    {
+      "input": "\" \"",
+      "result": ""
+    },
+    {
+      "input": "\"  '\\\\*{}~\"",
+      "result": "<'*~>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"*\\\\*{},[a-\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"6\\\"[]a]  \"",
+      "result": ""
+    },
+    {
+      "input": "\"{}\"",
+      "result": "<{}>"
+    },
+    {
+      "input": "\".\"",
+      "result": "<.>"
+    },
+    {
+      "input": "\"[ab]?.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz[a-e\"",
+      "result": "<vmlinuz[a-e>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"\"",
+      "result": "<\">"
+    },
+    {
+      "input": "\"'dsub's*\"",
+      "result": ""
+    },
+    {
+      "input": "\"[qEFI  \"",
+      "result": "<[qEFI>"
+    },
+    {
+      "input": "\"[!a][a-\\\\*  [\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\".*[ab]-\"",
+      "result": ""
+    },
+    {
+      "input": "\"1s*'sub'\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[{,}.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[[!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\".*}s*x \"",
+      "result": ""
+    },
+    {
+      "input": "\"d\"",
+      "result": "<d>"
+    },
+    {
+      "input": "\"[!a][]a]?1\"",
+      "result": ""
+    },
+    {
+      "input": "\"q_\"",
+      "result": "<q_>"
+    },
+    {
+      "input": "\"-sub_[a-z]  \"",
+      "result": ""
+    },
+    {
+      "input": "\"}sub\\\"6\"",
+      "result": "<}sub\"6>"
+    },
+    {
+      "input": "\"\\\\vmlinuz\"",
+      "result": "<vmlinuz>"
+    },
+    {
+      "input": "\".\\\\*\"",
+      "result": "<.*>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"*\"",
+      "result": "<-><]><Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\"?}?\"",
+      "result": ""
+    },
+    {
+      "input": "\"*\\\\*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"]\"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"e.}sub.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"s*\"",
+      "result": "<s2><sub>"
+    },
+    {
+      "input": "\"{d\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"1\\\\\"",
+      "result": "<1\\>"
+    },
+    {
+      "input": "\"_\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\"].d  \"",
+      "result": "<].d>"
+    },
+    {
+      "input": "\"'[]a]{a,b}s*sub\"",
+      "result": ""
+    },
+    {
+      "input": "\" 1 subd\"",
+      "result": "<1><subd>"
+    },
+    {
+      "input": "\"{{a,b}{a,b}\\\\\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"?\"",
+      "result": "<-><]>"
+    },
+    {
+      "input": "\"{}'{,}*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\".\"",
+      "result": "<.>"
+    },
+    {
+      "input": "\"}\\\"[1'\"",
+      "result": "<}\"[1'>"
+    },
+    {
+      "input": "\"[a-{{a,b}e\"",
+      "result": "<[a->"
+    },
+    {
+      "input": "\"sub[]?EFI\"",
+      "result": ""
+    },
+    {
+      "input": "\"[!a]\"",
+      "result": "<-><]>"
+    },
+    {
+      "input": "\"*?.sub\\\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"_EFI,[!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz{,}\"",
+      "result": "<vmlinuz><vmlinuz>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{{a,b}[]a]\\\\\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"}{}*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{\\\\/]\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"EFI\"",
+      "result": "<EFI>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"x}e-~\"",
+      "result": "<x}e-~>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"q\"",
+      "result": "<q>"
+    },
+    {
+      "input": "\"}\\\"][a-[a-z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"{a,b}.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"/{a,b}[A-Z]6.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"_\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"sub_-{\"",
+      "result": "<sub_->"
+    },
+    {
+      "input": "\"[]a]sub_,{}\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\",[\"",
+      "result": "<,[>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"/d  \"",
+      "result": "</d>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{a,b}.[[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"[ab]*{}[[a-\"",
+      "result": ""
+    },
+    {
+      "input": "\"{,}\"",
+      "result": "<><>"
+    },
+    {
+      "input": "\"[A-Z]-\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"  EFI\"",
+      "result": "<\"  EFI>"
+    },
+    {
+      "input": "\"\\\\*\"",
+      "result": "<*>"
+    },
+    {
+      "input": "\"?e{a,b}[A-Z]\\\\*\"",
+      "result": ""
+    },
+    {
+      "input": "\"1.*[]a][a-z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"]}_'-\"",
+      "result": "<]}_'->"
+    },
+    {
+      "input": "\"[ab]s*]\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"e\"",
+      "result": "<\"e>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"  {,\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"dq\"",
+      "result": "<dq>"
+    },
+    {
+      "input": "\"  []a]\"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"]\"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"xs*}\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\*\"",
+      "result": "<*>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"6.}\"",
+      "result": "<6.}>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"   [A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"-\"",
+      "result": "<->"
+    },
+    {
+      "input": "\"q}{}]\"",
+      "result": "<q}]>"
+    },
+    {
+      "input": "\"e\"",
+      "result": "<e>"
+    },
+    {
+      "input": "\"1?x\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"sub/\"",
+      "result": "<sub/>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"sub-\"",
+      "result": "<sub->"
+    },
+    {
+      "input": "\"~vmlinuz[A-Z]x\"",
+      "result": ""
+    },
+    {
+      "input": "\".**-\\\"\"",
+      "result": ""
+    },
+    {
+      "input": "\" -[]a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"x[\"",
+      "result": "<x[>"
+    },
+    {
+      "input": "\"q?\"",
+      "result": ""
+    },
+    {
+      "input": "\"*{a,b}\"",
+      "result": "<Ab><ab><a{b><sub>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"~/.*q\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[!a] ]-\\\\\"",
+      "result": "<-><]><]-\\>"
+    },
+    {
+      "input": "\"[A-Z][a-z]\"",
+      "result": "<Ab><ab>"
+    },
+    {
+      "input": "\"[a-z]'\"",
+      "result": ""
+    },
+    {
+      "input": "\"[]a]vmlinuz.*q\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\\"",
+      "result": "<\\>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz {}\"",
+      "result": "<vmlinuz><{}>"
+    },
+    {
+      "input": "\"vmlinuz?\\\\*]\"",
+      "result": ""
+    },
+    {
+      "input": "\"{,} es*\"",
+      "result": "<><>"
+    },
+    {
+      "input": "\"*][a-s*6\"",
+      "result": ""
+    },
+    {
+      "input": "\" '\"",
+      "result": "<'>"
+    },
+    {
+      "input": "\".EFI,\"",
+      "result": "<.EFI,>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"]/es*-\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"d\"",
+      "result": "<d>"
+    },
+    {
+      "input": "\"{\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"6{,},[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-z]*d~\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-6\\\"\"",
+      "result": "<[a-6\">"
+    },
+    {
+      "input": "\"[A-Z]q1vmlinuz\"",
+      "result": ""
+    },
+    {
+      "input": "\"x\"",
+      "result": "<x>"
+    },
+    {
+      "input": "\"sub\\\\[a-\"",
+      "result": "<sub[a->"
+    },
+    {
+      "input": "\"?[a-\\\\\"",
+      "result": ""
+    },
+    {
+      "input": "\"{,}, 6\"",
+      "result": "<,><,><6>"
+    },
+    {
+      "input": "\"{,}\"",
+      "result": "<><>"
+    },
+    {
+      "input": "\"vmlinuz{,},s*q\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-],{ \"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\[]a][A-Z]_\"",
+      "result": ""
+    },
+    {
+      "input": "\"e6\\\"\"",
+      "result": "<e6\">"
+    },
+    {
+      "input": "\"\\\\EFI\\\\*s*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"e\"",
+      "result": "<e>"
+    },
+    {
+      "input": "\"~\\\" \"",
+      "result": "<~\">"
+    },
+    {
+      "input": "\"1\\\\*\"",
+      "result": "<1*>"
+    },
+    {
+      "input": "\"[a-6[A-Z][A-Z]vmlinuz\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz{} -\"",
+      "result": "<vmlinuz><->"
+    },
+    {
+      "input": "\"e\"",
+      "result": "<e>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"EFI{}?[!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"/~sub,\\\\*\"",
+      "result": "</~sub,*>"
+    },
+    {
+      "input": "\".*[ab][A-Z]sub\"",
+      "result": ""
+    },
+    {
+      "input": "\"*?]\"",
+      "result": "<x[1]>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[]a]s*\"",
+      "result": ""
+    },
+    {
+      "input": "\"q/\"",
+      "result": "<q/>"
+    },
+    {
+      "input": "\"{,}[[a-z]_{a,b}\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\\"",
+      "result": "<\\>"
+    },
+    {
+      "input": "\"{,}1\"",
+      "result": "<1><1>"
+    },
+    {
+      "input": "\"  \"",
+      "result": ""
+    },
+    {
+      "input": "\"}}\"",
+      "result": "<}}>"
+    },
+    {
+      "input": "\"6 sub\\\"[!a]\"",
+      "result": "<6>"
+    },
+    {
+      "input": "\"x1[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"_[a-z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"6{a,b}sub \"",
+      "result": "<6asub><6bsub>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[!a]\"",
+      "result": "<-><]>"
+    },
+    {
+      "input": "\"{.*'6\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"EFId  \"",
+      "result": "<EFId>"
+    },
+    {
+      "input": "\"d\"",
+      "result": "<d>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"}{a,b}\"",
+      "result": "<}a><}b>"
+    },
+    {
+      "input": "\"'\"",
+      "result": "<'>"
+    },
+    {
+      "input": "\"vmlinuz\"",
+      "result": "<vmlinuz>"
+    },
+    {
+      "input": "\"_1[\"",
+      "result": "<_1[>"
+    },
+    {
+      "input": "\"6{a,b}.\"",
+      "result": "<6a.><6b.>"
+    },
+    {
+      "input": "\"[a-z]_\"",
+      "result": ""
+    },
+    {
+      "input": "\"e}[\"",
+      "result": "<e}[>"
+    },
+    {
+      "input": "\"[a-\"",
+      "result": "<[a->"
+    },
+    {
+      "input": "\"EFI\"",
+      "result": "<EFI>"
+    },
+    {
+      "input": "\".*ed-\"",
+      "result": ""
+    },
+    {
+      "input": "\"s*-\"",
+      "result": ""
+    },
+    {
+      "input": "\"qe\\\"{\"",
+      "result": "<qe\">"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{,}\"",
+      "result": "<><>"
+    },
+    {
+      "input": "\"s*\"",
+      "result": "<s2><sub>"
+    },
+    {
+      "input": "\",[}{}/\"",
+      "result": "<,[}/>"
+    },
+    {
+      "input": "\"q[[!a][a-z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-sub[A-Z]{,}*\"",
+      "result": "<Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]><Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\"[!a].*{}\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\\"",
+      "result": "<\\>"
+    },
+    {
+      "input": "\"evmlinuz\"",
+      "result": "<evmlinuz>"
+    },
+    {
+      "input": "\"6\"",
+      "result": "<6>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{}\"",
+      "result": "<{}>"
+    },
+    {
+      "input": "\"  EFIvmlinuz[A-Z]?\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"s*.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"\"",
+      "result": "<\">"
+    },
+    {
+      "input": "\"[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\",[ab]{,}EFI[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"1{\"",
+      "result": "<1>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z]{subs*\"",
+      "result": ""
+    },
+    {
+      "input": "\".*q\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[!a]{,}\"",
+      "result": "<-><]><-><]>"
+    },
+    {
+      "input": "\"'?{\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuz*_ \"",
+      "result": ""
+    },
+    {
+      "input": "\"s*[A-Z]\\\"_1\"",
+      "result": ""
+    },
+    {
+      "input": "\"?}*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\".*x{}{,}\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\" *EFI{a,b}\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"}  \\\\*._\"",
+      "result": "<}><*._>"
+    },
+    {
+      "input": "\",[a-z]\"",
+      "result": ""
+    },
+    {
+      "input": "\" [{a,b}/\\\"\"",
+      "result": "<[a/\"><[b/\">"
+    },
+    {
+      "input": "\"{.,_\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"{EFI{a,b}{,}\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{}'_\"",
+      "result": "<'_>"
+    },
+    {
+      "input": "\"[\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\",\"",
+      "result": "<,>"
+    },
+    {
+      "input": "\"_vmlinuz{a,b}\\\"\"",
+      "result": "<_vmlinuza\"><_vmlinuzb\">"
+    },
+    {
+      "input": "\"[ab]?\"",
+      "result": "<Ab><ab>"
+    },
+    {
+      "input": "\"-xesub\"",
+      "result": "<-xesub>"
+    },
+    {
+      "input": "\"  *  \"",
+      "result": "<-><]><Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\"[]a]\\\"{[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"61[A-Z]\\\\\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z][.e\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\_\\\\{}d\"",
+      "result": "<_{}d>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"{,}-[A-Z]~s*\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-\"",
+      "result": "<[a->"
+    },
+    {
+      "input": "\"{,}[A-Z]\\\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"-qs*{a,b}\"",
+      "result": ""
+    },
+    {
+      "input": "\"[{a,b}_\"",
+      "result": "<[a_><[b_>"
+    },
+    {
+      "input": "\"]][A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"6\"",
+      "result": "<6>"
+    },
+    {
+      "input": "\"[A-Z]\"",
+      "result": ""
+    },
+    {
+      "input": "\"[]a]{s*s*\"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"{}[]a]{a,b}{}[\"",
+      "result": ""
+    },
+    {
+      "input": "\"-\\\\-{,}.*\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-[a-z]-{}\"",
+      "result": ""
+    },
+    {
+      "input": "\"{}  \"",
+      "result": "<{}>"
+    },
+    {
+      "input": "\"]q[a-z]d\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"][ab]{a,b}\"",
+      "result": ""
+    },
+    {
+      "input": "\"e[a-z]-\"",
+      "result": ""
+    },
+    {
+      "input": "\".\\\\{\\\\vmlinuz\"",
+      "result": "<.{vmlinuz>"
+    },
+    {
+      "input": "\"\\\\*~q\"",
+      "result": "<*~q>"
+    },
+    {
+      "input": "\"[]a]]e\"",
+      "result": ""
+    },
+    {
+      "input": "\"s*\"",
+      "result": "<s2><sub>"
+    },
+    {
+      "input": "\"6[[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"?sub\"",
+      "result": ""
+    },
+    {
+      "input": "\"_ {a,b}\\\"[a-z]\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\".]\"",
+      "result": "<.]>"
+    },
+    {
+      "input": "\"\\\"EFI\"",
+      "result": "<\"EFI>"
+    },
+    {
+      "input": "\"[a-[!a]/\"",
+      "result": ""
+    },
+    {
+      "input": "\"[a-\"",
+      "result": "<[a->"
+    },
+    {
+      "input": "\"_\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\"[!a].\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\\d[ab]*\\\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"*q{*\"",
+      "result": ""
+    },
+    {
+      "input": "\"]\"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"'{a,b}\"",
+      "result": "<'a><'b>"
+    },
+    {
+      "input": "\"{[ab]]\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"vmlinuzs*'\"",
+      "result": ""
+    },
+    {
+      "input": "\"~\"",
+      "result": "<$HOME>"
+    },
+    {
+      "input": "\"[\"",
+      "result": "<[>"
+    },
+    {
+      "input": "\"{}{}6[EFI\"",
+      "result": "<6[EFI>"
+    },
+    {
+      "input": "\"sub,\"",
+      "result": "<sub,>"
+    },
+    {
+      "input": "\"]EFI  66\"",
+      "result": "<]EFI><66>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"6]{a,b}{EFI\"",
+      "result": "<6]a><6]b>"
+    },
+    {
+      "input": "\"{}  \"",
+      "result": "<{}>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z]subvmlinuz  {\"",
+      "result": "<>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"6[!a],\"",
+      "result": ""
+    },
+    {
+      "input": "\"vmlinuzxqq\"",
+      "result": "<vmlinuzxqq>"
+    },
+    {
+      "input": "\".'*[ab]\"",
+      "result": ""
+    },
+    {
+      "input": "\"1q{q\"",
+      "result": "<1q>"
+    },
+    {
+      "input": "\",\"",
+      "result": "<,>"
+    },
+    {
+      "input": "\"'?\"",
+      "result": ""
+    },
+    {
+      "input": "\"{a,b}sub*[[a-\"",
+      "result": ""
+    },
+    {
+      "input": "\"[A-Z],\"",
+      "result": ""
+    },
+    {
+      "input": "\"{a,b}\\\"{a,b}6\"",
+      "result": "<a\"a6><a\"b6><b\"a6><b\"b6>"
+    },
+    {
+      "input": "\"{}[]a]1e\"",
+      "result": ""
+    },
+    {
+      "input": "\"EFI*_?[!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"6\"",
+      "result": "<6>"
+    },
+    {
+      "input": "\"_{\"",
+      "result": "<_>"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"*\"",
+      "result": "<-><]><Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\",_\\\"\"",
+      "result": "<,_\">"
+    },
+    {
+      "input": "\"[a-z]*\"",
+      "result": "<Ab><ab><a{b><d e><q'x><s2><sub><vmlinuz-6.1.0><vmlinuz-6.10_1.EFI><VMLINUZ-6.2><x[1]>"
+    },
+    {
+      "input": "\"_][!a]\"",
+      "result": ""
+    },
+    {
+      "input": "\"]    \"",
+      "result": "<]>"
+    },
+    {
+      "input": "\"s*\"",
+      "result": "<s2><sub>"
+    }
+  ]
+}
