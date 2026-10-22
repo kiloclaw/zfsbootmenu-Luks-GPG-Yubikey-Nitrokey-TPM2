@@ -145,11 +145,13 @@ These are pure functions: they take text and values and return values, so unit t
 The legacy runtime orders kernels with the `sort -V` of the image, which is not the same program in every image:
 dracut images include the host's `sort`, which is GNU coreutils on most distributions but uutils (0.12.0) in the
 build container, whose Ubuntu 26.10 ships the Rust coreutils, and mkinitcpio images use BusyBox's where BusyBox
-provides one. The Rust runtime implements the order of GNU coreutils (`filevercmp`, in `zbm_boot::kernels`), tested
-against GNU `sort -V` on generated names. On 2,745 kernel-like names, uutils differed from GNU only where a version
-part is `0` and another name has a dot followed by a letter at that place (`kernel-0` against `kernel-.X`); no
-distribution names kernels that way. `legacy/RUNTIME-CHANGES.md` lists this as a known inconsistency of the legacy
-runtime, and package C compares BusyBox on recorded kernel names.
+provides one. The Rust runtime uses the order of uutils, the coreutils of its images (REFACTOR-ROADMAP.md, "Using
+uutils coreutils"): `zbm_types::version::version_cmp` is `uucore`'s `version_cmp` with bytes breaking ties, as
+`sort -V` does, and a test compares it with the build container's `sort -V` on generated names. On 2,745
+kernel-like names, uutils differed from GNU only where a version part is `0` and another name has a dot followed by
+a letter at that place (`kernel-0` against `kernel-.X`, which GNU puts first and uutils last); no distribution names
+kernels that way. `legacy/RUNTIME-CHANGES.md` lists this as a known inconsistency of the legacy runtime, and package C
+compares BusyBox on recorded kernel names.
 
 ## Process model
 

@@ -7,9 +7,13 @@
 //!
 //! Passphrases and card PINs reach `gpg` on standard input (loopback
 //! pinentry), and the decrypted key is captured from its output as a secret;
-//! nothing decrypted is written to a file.
+//! nothing decrypted is written to a file. The home's files are copied,
+//! made private and removed in process (`zbm-coreutils`).
 
 use std::path::{Path, PathBuf};
+
+use zbm_coreutils::{clear_mode_bits, copy_into, remove_tree};
+use zbm_platform::files::Files;
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
@@ -105,14 +109,21 @@ pub enum Decrypted {
 /// A private GnuPG home, cleaned up when dropped.
 pub struct GnupgHome<'a> {
     runner: &'a dyn Runner,
+    files: &'a dyn Files,
     path: PathBuf,
 }
 
 impl<'a> GnupgHome<'a> {
-    /// Takes charge of the existing directory `path` as a GnuPG home.
-    pub fn new(runner: &'a dyn Runner, path: impl Into<PathBuf>) -> GnupgHome<'a> {
+    /// Takes charge of the existing directory `path` as a GnuPG home, with
+    /// GnuPG's programs run through `runner` and its files in `files`.
+    pub fn new(
+        runner: &'a dyn Runner,
+        files: &'a dyn Files,
+        path: impl Into<PathBuf>,
+    ) -> GnupgHome<'a> {
         GnupgHome {
             runner,
+            files,
             path: path.into(),
         }
     }
@@ -137,18 +148,20 @@ impl<'a> GnupgHome<'a> {
     }
 
     /// Copies the contents of `source`, such as the image's public keys,
-    /// into the home (`cp -a <source>/. <home>/`).
+    /// into the home (`cp -a <source>/. <home>/`). Like the legacy code, a
+    /// failure is left for the steps that follow to notice.
     pub fn import(&self, source: &Path) {
-        let from = format!("{}/.", source.display());
-        let to = format!("{}/", self.text());
-        self.quietly(Command::new("cp").args(["-a", &from, &to]));
+        if let Err(error) = copy_into(self.files, source, &self.path) {
+            tracing::debug!(%error, "copying {} into the GnuPG home", source.display());
+        }
     }
 
     /// Makes everything in the home private to its owner
     /// (`chmod -R go-rwx`), as GnuPG requires.
     pub fn make_private(&self) {
-        let home = self.text();
-        self.quietly(Command::new("chmod").args(["-R", "go-rwx", &home]));
+        if let Err(error) = clear_mode_bits(self.files, &self.path, 0o077) {
+            tracing::debug!(%error, "making the GnuPG home private");
+        }
     }
 
     /// `gpg` with this home, in batch mode.
@@ -252,7 +265,9 @@ impl Drop for GnupgHome<'_> {
                 .env("GNUPGHOME", &home)
                 .args(["--kill", "all"]),
         );
-        self.quietly(Command::new("rm").args(["-rf", &home]));
+        if let Err(error) = remove_tree(self.files, &self.path) {
+            tracing::warn!(%error, "removing the GnuPG home {home}");
+        }
     }
 }
 
@@ -262,9 +277,14 @@ mod tests {
     use pretty_assertions::assert_eq;
     use zbm_platform::{Output, Status};
     use zbm_testkit::FakeRunner;
+    use zbm_testkit::fakes::FakeFiles;
 
     #[test]
     fn a_home_is_set_up_used_and_removed() {
+        let files = FakeFiles::new();
+        files
+            .file_with_mode("/etc/zfsbootmenu/gnupg/pubring.kbx", "keys", 0o644)
+            .dir("/run/zbm-gpg.1-0");
         let runner = FakeRunner::new();
         runner.on(|command| {
             (command.program() == "gpg" && command.get_args().iter().any(|arg| arg == "--decrypt"))
@@ -276,7 +296,7 @@ mod tests {
                 })
         });
         {
-            let home = GnupgHome::new(&runner, "/run/zbm-gpg.1-0");
+            let home = GnupgHome::new(&runner, &files, "/run/zbm-gpg.1-0");
             home.import(Path::new("/etc/zfsbootmenu/gnupg"));
             home.make_private();
             assert!(matches!(
@@ -284,24 +304,41 @@ mod tests {
                 Decrypted::Key(key) if key.expose() == b"key"
             ));
             assert_eq!(home.path(), Path::new("/run/zbm-gpg.1-0"));
+            let copied = Path::new("/run/zbm-gpg.1-0/pubring.kbx");
+            assert_eq!(files.text(copied).as_deref(), Some("keys"));
+            assert_eq!(files.metadata(copied).unwrap().mode, 0o600);
         }
+        assert!(!files.exists(Path::new("/run/zbm-gpg.1-0")));
 
         assert_eq!(
             runner.lines(),
             [
-                "cp -a /etc/zfsbootmenu/gnupg/. /run/zbm-gpg.1-0/",
-                "chmod -R go-rwx /run/zbm-gpg.1-0",
                 "gpg --batch --no-tty --yes --pinentry-mode loopback --passphrase-fd 0 \
                  --status-fd 2 --output - --decrypt /k.gpg",
                 "gpgconf --kill all",
-                "rm -rf /run/zbm-gpg.1-0",
             ]
         );
         let calls = runner.calls();
         assert_eq!(
-            *calls[2].get_stdin(),
+            *calls[0].get_stdin(),
             Input::Secret(Secret::copy_from(b"pass\n"))
         );
+    }
+
+    #[test]
+    fn file_failures_are_left_for_gpg_to_notice() {
+        let files = FakeFiles::new();
+        files
+            .dir("/h")
+            .fail("/h", std::io::ErrorKind::PermissionDenied);
+        let runner = FakeRunner::new();
+        {
+            let home = GnupgHome::new(&runner, &files, "/h");
+            home.import(Path::new("/missing"));
+            home.make_private();
+        }
+
+        assert_eq!(runner.lines(), ["gpgconf --kill all"]);
     }
 
     #[test]
@@ -309,7 +346,8 @@ mod tests {
         let runner = FakeRunner::new();
         runner.respond_program("gpg", 2, "");
         runner.respond_program("pcscd", 1, "");
-        let home = GnupgHome::new(&runner, "/h");
+        let files = FakeFiles::new();
+        let home = GnupgHome::new(&runner, &files, "/h");
 
         assert!(matches!(
             home.decrypt("/k.gpg", &Secret::copy_from(b"x")),
@@ -321,10 +359,10 @@ mod tests {
         assert_eq!(start_pcscd(&runner), Err(PcscdFailed));
         let missing = FakeRunner::new();
         missing.on(|_| Some(Err(std::io::Error::other("no gpg"))));
-        assert!(matches!(
-            GnupgHome::new(&missing, "/h").decrypt("/k.gpg", &Secret::copy_from(b"x")),
-            Decrypted::Failed(status) if status == "no gpg"
-        ));
+        let files = FakeFiles::new();
+        let decrypted =
+            GnupgHome::new(&missing, &files, "/h").decrypt("/k.gpg", &Secret::copy_from(b"x"));
+        assert!(matches!(decrypted, Decrypted::Failed(status) if status == "no gpg"));
     }
 
     #[test]
@@ -345,7 +383,8 @@ mod tests {
             0,
             "ssb:u:255:18:0123456789ABCDEF:1::::::e:::D2760001:::23:\n",
         );
-        let home = GnupgHome::new(&runner, "/h");
+        let files = FakeFiles::new();
+        let home = GnupgHome::new(&runner, &files, "/h");
 
         assert_eq!(
             home.card_status(),

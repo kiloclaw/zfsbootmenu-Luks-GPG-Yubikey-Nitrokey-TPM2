@@ -53,7 +53,7 @@ pub const LAYERS: &[Layer] = &[
         name: "platform",
         purpose: "The ports to the system (programs, files, clock, console, processes, \
                   environment), their real implementations, secrets and the Context",
-        crates: &["zbm-platform"],
+        crates: &["zbm-platform", "zbm-coreutils"],
     },
     Layer {
         name: "state",
@@ -88,7 +88,11 @@ pub const LAYERS: &[Layer] = &[
 ];
 
 /// Dependencies between crates of the same layer: (from, to).
-pub const SAME_LAYER: &[(&str, &str)] = &[("zbm-trace", "zbm-core"), ("zbm", "zbm-tui")];
+pub const SAME_LAYER: &[(&str, &str)] = &[
+    ("zbm-trace", "zbm-core"),
+    ("zbm-coreutils", "zbm-platform"),
+    ("zbm", "zbm-tui"),
+];
 
 /// Crates that only tests may use.
 pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
@@ -115,7 +119,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         &["serde_json", "thiserror", "tracing", "tracing-subscriber"],
     ),
     ("zbm-tui", &["nucleo-matcher", "ratatui"]),
-    ("zbm-types", &["thiserror"]),
+    ("zbm-types", &["thiserror", "uucore"]),
     ("zbm-zfs", &["serde", "serde_json", "thiserror"]),
 ];
 

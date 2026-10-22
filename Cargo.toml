@@ -24,6 +24,7 @@ zbm-app = { path = "crates/zbm-app" }
 zbm-boot = { path = "crates/zbm-boot" }
 zbm-cmdline = { path = "crates/zbm-cmdline" }
 zbm-core = { path = "crates/zbm-core" }
+zbm-coreutils = { path = "crates/zbm-coreutils" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-luks = { path = "crates/zbm-luks" }
@@ -50,7 +51,7 @@ serde_json = "1"
 thiserror = "2"
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "registry"] }
-uucore = { version = "0.12", features = ["version-cmp", "fs", "perms"] }
+uucore = { version = "0.12", features = ["version-cmp"] }
 
 # Used only by xtask, the developer tooling; never part of an image.
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }

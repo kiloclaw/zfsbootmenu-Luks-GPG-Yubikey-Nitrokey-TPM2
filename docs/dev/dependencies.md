@@ -25,10 +25,11 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | --- | --- | --- |
 | `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-zfs`, `zbm-luks`, `zbm-app`, `zbm-boot` | Error enums with their causes; runs at build time only |
 | `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app`; `tracing` in `zbm` and `zbm-boot` | Spans and events; the stderr output and the JSON journal |
-| `serde_json` | `zbm-trace`, `zbm-zfs` | The JSON journal; the JSON output of `zfs` and `zpool` |
+| `serde_json` | `zbm-trace`, `zbm-zfs`, `zbm-crypt` | The JSON journal; the JSON output of `zfs` and `zpool`; LUKS2 metadata from `cryptsetup` |
 | `serde` | `zbm-zfs` | The shape of that output, derived (`derive`) |
 | `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets, terminal output and key input |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
+| `uucore` (`version-cmp`) | `zbm-types` | Version order, the `sort -V` of uutils coreutils, the images' coreutils. Its required dependencies (`clap`, `fluent`, `nix` and others) are built, but link-time optimization leaves only `version_cmp` in `zbm`: 6.8 KB of a 2.2 MB stripped binary |
 
 Their own dependencies are vendored with them; `cargo tree -e normal -p zbm` lists everything that is compiled into
 `zbm`. Some vendored crates are never compiled for Linux: `windows-sys`, `winapi`, `wasi`, `redox_syscall` and the
@@ -73,8 +74,8 @@ Used by `xtask` alone, never by an image or a host tool.
 
 ## Agreed, not used yet
 
-Pinned in `[workspace.dependencies]` and vendored when a crate first uses them: `uucore` (`zbm-coreutils`, R2) and
-`serde` with `derive` (the JSON adapters of `zbm-zfs` and `zbm-crypt`, R2). `crossterm` is pinned for direct use but
+Pinned in `[workspace.dependencies]` and vendored when a crate first uses them: `serde` with `derive` for
+`zbm-crypt` (which reads JSON through `serde_json::Value` so far). `crossterm` is pinned for direct use but
 reached through `ratatui::crossterm` so far, which keeps one version.
 
 ## Vendored but never built

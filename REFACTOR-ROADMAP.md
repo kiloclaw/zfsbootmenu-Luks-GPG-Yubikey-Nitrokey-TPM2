@@ -167,10 +167,17 @@ Done in R2:
   suites pass (252 checks) with `ZBMTEST_IMPL=rust`. The ZFS port gained `pool_names`, `devices` and `export`, so
   closing volumes exports pools through it.
 
+- uutils: version order (`zbm_types::version`, so kernel order) is `uucore`'s `version_cmp`, the `sort -V` of
+  uutils, replacing the emulation of GNU's `filevercmp`; a recorded fixture of the build container's `sort -V` on
+  generated names checks it on every host. `zbm-coreutils` copies, restricts and removes file trees in process
+  through the `Files` port (`cp -a`, `chmod -R`, `rm -rf`), which the GnuPG home of `zbm-crypt` uses. The dracut and
+  mkinitcpio modules install the uutils multi-call binary and a link per program when the host has it. Decision 4
+  is recorded: images ship that binary next to `zbm` rather than linking `uu_*` applets into it.
+
 Open in R2: `zbm-boot`'s ZFS commands onto the port, `zbm-luks`' remaining platform commands (`mount`, `modprobe`,
-`tput`, `udevadm`, key scripts), fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions),
-`zbm-coreutils` and the uutils decision, removing the shell helpers, the Rust LUKS device suites, and the rule that
-only adapters build commands.
+`tput`, `udevadm`, key scripts), `cp` of user hooks in `zbm-boot`, fixtures of OpenZFS 2.2 and 2.3 (they need images
+with those versions), removing the shell helpers, the Rust LUKS device suites, and the rule that only adapters build
+commands.
 
 ## What the pilots taught
 
@@ -603,15 +610,20 @@ coreutils of ZFSBootMenu everywhere and uses it from Rust:
 
 1. **In images:** `generate-zbm` and the dracut and mkinitcpio modules install the uutils multi-call `coreutils`
    binary and its links as the only coreutils, instead of whatever the host has (GNU or BusyBox). One behaviour on
-   every distribution; the recovery shell gets the same tools.
-2. **In Rust code:** `zbm-coreutils` provides the operations the runtime needs (`copy_tree`, `remove_tree`,
-   `chmod_recursive`, `version_cmp`, `canonicalize`, `df`-style queries) in process, using `uucore` (for example
-   `uucore::version_cmp` for kernel ordering, replacing the GNU emulation in `zbm_boot::kernels`) and `std::fs`.
+   every distribution; the recovery shell gets the same tools. Since R2 the modules do this for the programs the
+   multi-call binary provides when the host has it (`coreutils --list` works), and take the host's programs
+   otherwise; dracut's own modules still install the host's.
+2. **In Rust code:** `zbm-coreutils` provides the operations the runtime needs in process, through the `Files` port
+   (`copy_into`, `clear_mode_bits`, `remove_tree` so far), and version order is `uucore::version_cmp` (in
+   `zbm_types::version`, beside the kernel versions it orders, replacing the GNU emulation of `zbm_boot::kernels`).
    Where a separate program is still needed, it calls the uutils multi-call binary explicitly (`coreutils sort ...`)
    through `Exec`, so tests and images agree on the implementation.
-3. **In `zbm` itself (option, decided in R2):** `zbm` can link selected `uu_*` crates and dispatch to their `uumain`
-   as applets, the way BusyBox does, which removes the separate coreutils from images. This is measured first:
-   binary size, MSRV and the stability of `uumain` across uutils releases.
+3. **Not in `zbm` itself (decided in R2, Decision 4):** `zbm` could link selected `uu_*` crates and dispatch to their
+   `uumain` as applets, the way BusyBox does. The spike did that for the 31 coreutils programs images carry: it works
+   (`uumain(args) -> i32`, messages and exit codes as the standalone programs), the MSRV is 1.88, but the applets
+   come to 9.5 MB stripped next to `zbm`'s 2.2 MB, against 11.5 MB for the full uutils multi-call binary, and bring
+   293 crates to vendor and a process-wide start-up hook (`.init_array`, for `SIGPIPE`) into the binary that runs as
+   process 1. Images therefore ship the uutils multi-call binary next to `zbm`.
 4. **In tests:** expectations for ordering, paths and formatting come from uutils behaviour, and the device and VM
    suites run with uutils in the image.
 
@@ -879,12 +891,12 @@ Decided on 22 October 2026:
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu replaces `fzf` outright in R5; `fzf` leaves the images then.
+4. **uutils in `zbm`** (decided by the R2 spike): images ship the uutils multi-call binary next to `zbm`, which does
+   not link `uu_*` applets (see [Using uutils coreutils](#using-uutils-coreutils), item 3).
 5. **Errors:** `thiserror`, which only runs at build time and adds nothing to the binaries.
 
 Still open:
 
-4. **uutils in `zbm`:** link `uu_*` applets into `zbm` (one binary, BusyBox style) or ship the uutils multi-call
-   binary next to it; decided by the R2 spike.
 6. **When the legacy runtime goes:** keep the PORT-ROADMAP beta (phase 7) with the legacy image as fallback, or cut
    over directly after R6; decided before R9.
 

@@ -80,7 +80,10 @@ people and for AI tools alike:
   into `crates/zbm-zfs/tests/fixtures/<major.minor>/`: it runs the commands of `xtask/src/record_zfs.rs` in a test VM
   (scenario `runtime-record-zfs`, root and QEMU). The older recordings in `crates/zbm-zfs/tests/fixtures/` (by
   `scripts/dev/record-fixtures.py`) serve the legacy-compatible `ZfsCommand` until it goes;
-  `scripts/dev/record-luks-fixtures.sh` records `cryptsetup` output.
+  `scripts/dev/record-luks-fixtures.sh` records `cryptsetup` output. `crates/zbm-boot/tests/fixtures/uutils-sort-v.txt`
+  is uutils' `sort -V` order of generated kernel names, which kernel ordering must match; where the host's `sort` is
+  uutils (the build container) the test checks the recording against it, and `ZBM_RECORD_UUTILS_ORDER=1` rewrites
+  it there.
 - **Fakes of the adapters:** code that asks ZFS questions takes a `&dyn zbm_zfs::Zfs` and is tested with
   `zbm_testkit::zfs::FakeZfs`, an in-memory model of pools, datasets and snapshots built with builders; it records each
   call (`FakeZfs::calls`).

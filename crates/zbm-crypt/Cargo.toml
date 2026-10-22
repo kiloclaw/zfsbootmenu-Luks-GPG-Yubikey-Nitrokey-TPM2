@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 serde_json.workspace = true
+zbm-coreutils.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 zbm-platform.workspace = true

@@ -8,16 +8,16 @@
 //! kernel is the last one, or the last one whose path matches the regular
 //! expression in `org.zfsbootmenu:kernel`.
 //!
-//! `sort -V` is GNU coreutils' `filevercmp` ([`filevercmp`], in
-//! `zbm_types::version`). Images built in
-//! the build container get uutils' `sort` and mkinitcpio images BusyBox's; see
-//! "Version order" in `crates/DESIGN.md` for how they differ.
+//! The order is that of uutils' `sort -V` ([`version_sort`], in
+//! `zbm_types::version`, from `uucore`), the coreutils of ZFSBootMenu's
+//! images; see "Version order" in `crates/DESIGN.md` for how GNU coreutils
+//! and BusyBox differ.
 
 use std::path::{Path, PathBuf};
 
 use zbm_platform::exec::{Command, Input, Runner, Stream};
 use zbm_platform::files::Files;
-pub use zbm_types::version::{filevercmp, version_sort};
+pub use zbm_types::version::version_sort;
 
 /// The kernel file names `find_be_kernels` looks for in `/boot`, each also
 /// followed by `-` and anything.
@@ -204,20 +204,15 @@ mod tests {
     use zbm_platform::files::RealFiles;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
-    use zbm_testkit::{Rng, TempDir, parity};
+    use zbm_testkit::{Rng, TempDir, parity, repo_root};
 
-    fn have_gnu_sort() -> bool {
-        let output = SystemRunner.run(&Command::new("sort").arg("--version").stderr(Stream::Null));
-        output.is_ok_and(|output| output.stdout_text().contains("GNU coreutils"))
-    }
+    /// The order of uutils' `LC_ALL=C sort -V` on [`generated_names`],
+    /// recorded in the build container (see [`uutils_sort`]).
+    const UUTILS_ORDER: &str = include_str!("../tests/fixtures/uutils-sort-v.txt");
 
-    #[test]
-    fn matches_gnu_sort_on_generated_names() {
-        if !have_gnu_sort() {
-            eprintln!("skipped: sort is not GNU coreutils");
-            return;
-        }
-        let mut rng = Rng::from_env(21);
+    /// Kernel-like paths, in byte order: random ones and real ones.
+    fn generated_names() -> Vec<String> {
+        let mut rng = Rng::new(21);
         let alphabet = ['0', '1', '9', '.', '-', '_', '~', 'a', 'z', 'X', '+', '/'];
         let mut names: Vec<String> = (0..2000)
             .map(|_| {
@@ -238,17 +233,51 @@ mod tests {
         );
         names.sort();
         names.dedup();
+        names
+    }
+
+    /// The order the host's `sort -V` gives `names`, if it is uutils'.
+    fn uutils_sort(names: &[String]) -> Option<Vec<String>> {
+        let version = SystemRunner
+            .run(&Command::new("sort").arg("--version").stderr(Stream::Null))
+            .ok()?;
+        if !version.stdout_text().contains("uutils coreutils") {
+            return None;
+        }
         let input = names.join("\n") + "\n";
-        let output = SystemRunner
-            .run(
-                &Command::new("sort")
-                    .arg("-V")
-                    .env("LC_ALL", "C")
-                    .stdin(Input::Bytes(input.into_bytes())),
-            )
-            .unwrap();
-        let expected: Vec<String> = output.stdout_text().lines().map(str::to_owned).collect();
+        let sort = Command::new("sort")
+            .arg("-V")
+            .env("LC_ALL", "C")
+            .stdin(Input::Bytes(input.into_bytes()));
+        let output = SystemRunner.run(&sort).ok()?;
+        Some(output.stdout_text().lines().map(str::to_owned).collect())
+    }
+
+    /// GNU `sort -V` puts `kernel-0` first; uutils, the images' coreutils,
+    /// puts it last. No distribution names kernels like this.
+    #[test]
+    fn the_order_is_that_of_uutils_where_gnu_differs() {
+        let mut names = vec!["kernel-0".to_owned(), "kernel-.X".to_owned()];
         version_sort(&mut names);
+        assert_eq!(names, ["kernel-.X", "kernel-0"]);
+    }
+
+    /// The order of the images' `sort -V`, as recorded. Where the host's
+    /// `sort` is uutils, as in the build container, the recording is checked
+    /// against it; `ZBM_RECORD_UUTILS_ORDER=1` rewrites it there.
+    #[test]
+    fn matches_uutils_sort_on_generated_names() {
+        let mut names = generated_names();
+        if let Some(live) = uutils_sort(&names) {
+            if std::env::var_os("ZBM_RECORD_UUTILS_ORDER").is_some() {
+                let path = repo_root().join("crates/zbm-boot/tests/fixtures/uutils-sort-v.txt");
+                std::fs::write(path, live.join("\n") + "\n").unwrap();
+                return;
+            }
+            assert_eq!(live.join("\n") + "\n", UUTILS_ORDER);
+        }
+        version_sort(&mut names);
+        let expected: Vec<&str> = UUTILS_ORDER.lines().collect();
         assert_eq!(names, expected);
     }
 

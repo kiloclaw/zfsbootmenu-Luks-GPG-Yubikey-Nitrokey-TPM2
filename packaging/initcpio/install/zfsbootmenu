@@ -30,7 +30,7 @@ add_optional_binary() {
         return 0
     fi
 
-    add_binary "${1}"
+    add_zbm_binary "${1}"
 }
 
 add_optional_module() {
@@ -59,6 +59,22 @@ add_optional_module() {
     esac
 }
 
+# Adds the program in ${1}: a link to the uutils multi-call binary when the
+# host has one that provides it, so images get the same coreutils whatever
+# the host's own are (REFACTOR-ROADMAP.md, "Using uutils coreutils"), and the
+# host's program otherwise. GNU coreutils' optional multi-call binary has no
+# --list, so it is not taken.
+add_zbm_binary() {
+    if command -v coreutils >/dev/null 2>&1 \
+        && coreutils --list 2>/dev/null | grep -qxF "${1}"; then
+        add_binary "$( command -v coreutils )" /usr/bin/coreutils
+        add_symlink "/usr/bin/${1}" coreutils
+        return 0
+    fi
+
+    add_binary "${1}"
+}
+
 add_zbm_binaries() {
     local mustcopy maycopy
 
@@ -70,7 +86,7 @@ add_zbm_binaries() {
             ;;
         *)
             # Don't be a miser, use system versions
-            map add_binary "${zfsbootmenu_essential_binaries[@]}"
+            map add_zbm_binary "${zfsbootmenu_essential_binaries[@]}"
             map add_optional_binary "${zfsbootmenu_optional_binaries[@]}"
             return
             ;;

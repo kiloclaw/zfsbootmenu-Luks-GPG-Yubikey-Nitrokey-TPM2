@@ -42,6 +42,28 @@ installkernel() {
   fi
 }
 
+# The uutils multi-call binary, when the host has one: images then get their
+# coreutils from it, one binary with a link per program, whatever the host's
+# own coreutils are (REFACTOR-ROADMAP.md, "Using uutils coreutils"). GNU
+# coreutils' optional multi-call binary has no --list, so it is not taken.
+zbm_uutils=""
+if command -v coreutils >/dev/null 2>&1 && coreutils --list >/dev/null 2>&1; then
+  zbm_uutils="$( command -v coreutils )"
+fi
+
+# Installs the program _exec: a link to the uutils multi-call binary if it
+# provides _exec, otherwise the host's program
+zbm_install_exec() {
+  local _exec="${1}"
+  if [ -n "${zbm_uutils}" ] && coreutils --list 2>/dev/null | grep -qxF "${_exec}"; then
+    inst_simple "${zbm_uutils}" /usr/bin/coreutils || return 1
+    # shellcheck disable=SC2154
+    ln -sf coreutils "${initdir}/usr/bin/${_exec}"
+    return 0
+  fi
+  dracut_install "${_exec}"
+}
+
 install() {
   : "${zfsbootmenu_module_root:=/usr/share/zfsbootmenu}"
   : "${zfsbootmenu_hook_root:=/etc/zfsbootmenu/hooks}"
@@ -77,7 +99,7 @@ install() {
 
   # shellcheck disable=SC2154
   for _exec in "${zfsbootmenu_essential_binaries[@]}"; do
-    if ! dracut_install "${_exec}"; then
+    if ! zbm_install_exec "${_exec}"; then
       dfatal "failed to install essential executable '${_exec}'"
       exit 1
     fi
@@ -85,7 +107,7 @@ install() {
 
   # shellcheck disable=SC2154
   for _exec in "${zfsbootmenu_optional_binaries[@]}"; do
-    if ! dracut_install "${_exec}"; then
+    if ! zbm_install_exec "${_exec}"; then
       dwarning "optional component '${_exec}' not found, omitting from image"
     fi
   done
@@ -94,7 +116,7 @@ install() {
   if zbm_luks_enabled && command -v cryptsetup >/dev/null 2>&1; then
     # shellcheck disable=SC2154
     for _exec in "${zfsbootmenu_luks_binaries[@]}"; do
-      if ! dracut_install "${_exec}"; then
+      if ! zbm_install_exec "${_exec}"; then
         dwarning "LUKS component '${_exec}' not found, omitting from image"
       fi
     done

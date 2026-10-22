@@ -41,7 +41,11 @@ impl Session<'_> {
             return None;
         }
         let _ = system.files.create_dir_all(Path::new("/run"));
-        let home = GnupgHome::new(system.runner, self.temporary_dir("/run/zbm-gpg")?);
+        let home = GnupgHome::new(
+            system.runner,
+            system.files,
+            self.temporary_dir("/run/zbm-gpg")?,
+        );
         let _ = system.files.set_mode(home.path(), 0o700);
         let source = &self.settings().gnupg_dir;
         if system.files.is_dir(source) {
@@ -312,7 +316,13 @@ mod tests {
         // The home is gone, with its agents.
         let lines = fake.runner.lines();
         assert!(lines.contains(&"gpgconf --kill all".to_owned()));
-        assert!(lines.contains(&"rm -rf /run/zbm-gpg.4242-0".to_owned()));
+        assert!(
+            !fake
+                .files
+                .paths()
+                .iter()
+                .any(|path| path.starts_with("/run/zbm-gpg.4242-0"))
+        );
         fake.assert_no_leak(b"gpgpass");
         fake.assert_no_leak(b"plain-key");
     }

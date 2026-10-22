@@ -53,8 +53,9 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] Kernels are ordered by the image's `sort -V`, which is GNU coreutils, uutils (images built in the build
   container, Ubuntu 26.10) or BusyBox (mkinitcpio). uutils 0.12.0 and GNU 9.4 differ only for names where a version
   part is `0` and another name has a dot followed by a letter at that place (`kernel-0`, `kernel-.X`).
-  **Rust:** done; `zbm_boot::kernels` orders like GNU coreutils, tested against GNU `sort -V`. BusyBox is still to be
-  compared (package C).
+  **Rust:** done; `zbm_boot::kernels` orders like uutils, the coreutils of the images (`uucore`'s `version_cmp`),
+  tested against the build container's `sort -V`; until R2 of the refactoring it ordered like GNU. BusyBox is still
+  to be compared (package C).
 
 - [x] A salted TPM2 PIN (systemd 252 and later) reaches `openssl kdf` as an argument (`-kdfopt pass:<pin>`), the only
   way `openssl kdf` accepts it, so the legacy code keeps this until it is removed.

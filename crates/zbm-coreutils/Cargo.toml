@@ -1,0 +1,19 @@
+[package]
+name = "zbm-coreutils"
+description = "The coreutils operations ZFSBootMenu needs, in process, with the behaviour of uutils coreutils"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbm-platform.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+zbm-testkit.workspace = true
+
+[lints]
+workspace = true

@@ -35,6 +35,6 @@ fuzz_target!(|data: &[u8]| {
     round_trip::<ImportPolicy>(text);
     round_trip::<Stage>(text);
     round_trip::<HookStage>(text);
-    let (a, b) = text.split_at(text.len() / 2);
-    let _ = zbm_types::version::filevercmp(a.as_bytes(), b.as_bytes());
+    let (a, b) = text.split_at_checked(text.len() / 2).unwrap_or((text, ""));
+    let _ = zbm_types::version::version_cmp(a, b);
 });
