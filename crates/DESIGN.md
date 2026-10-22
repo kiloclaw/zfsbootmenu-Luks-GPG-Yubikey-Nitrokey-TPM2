@@ -433,6 +433,12 @@ through the files interface, so unit tests that install it on the fake files see
 events, such as the journal's, never reach the kernel log. The recovery commands read the log back with `dmesg`, as
 now.
 
+The same `KernelLog` appends every `tracing` event, whatever its level, to `/zfsbootmenu/journal.jsonl`: one line of
+JSON per event with the spans it happened in (stage, pool, volume) and the programs run through
+`zbm_platform::TracedRunner`, so a failed boot can be read back step by step. Each process writes at most 4 MiB.
+Secrets stay out by type (`Secret` prints as `Secret(..)`) and by name: fields named `passphrase`, `password`, `pin`,
+`secret`, `challenge` or `response` (or ending in `_` and one of them) are written as `"[redacted]"`.
+
 ## External programs
 
 ### Running programs

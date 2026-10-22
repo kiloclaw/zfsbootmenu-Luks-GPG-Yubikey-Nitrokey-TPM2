@@ -71,7 +71,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `PoolName`, `DatasetName`. Nothing else can hold an invalid one.
 - **foundation**: `zbm-core` describes programs to run (`Command`, `Input::Secret`, `Stream::CaptureSecret`), holds
   `Secret`, file tests and the error type. `zbm-trace` sends `tracing` events to standard error and to a JSON
-  journal, one line per event with its spans; its macros (`zbm_trace::info!` and the others) log to the kernel log,
+  journal (at boot, `/zfsbootmenu/journal.jsonl`), one line per event with its spans, fields named for secrets
+  redacted; its macros (`zbm_trace::info!` and the others) log to the kernel log,
   which its `KmsgLayer` writes in the formats of the legacy runtime, and it reads that log back.
 - **platform**: `zbm-system` defines the interfaces through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`) and their real implementations. `zbm-state` shares state between

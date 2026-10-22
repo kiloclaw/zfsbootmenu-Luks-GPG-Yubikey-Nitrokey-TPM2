@@ -29,7 +29,7 @@ pub use clock::{Clock, SystemClock};
 pub use console::{Console, Size, Terminal};
 pub use env::{Environment, ProcessEnvironment};
 pub use files::{FileKind, Files, Metadata, RealFiles};
-pub use log::{FilesSink, Installed, KernelLog};
+pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use zbm_core::exec::{Runner, SystemRunner};
 

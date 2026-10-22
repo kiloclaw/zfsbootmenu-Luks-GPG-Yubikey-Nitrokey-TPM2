@@ -4,19 +4,58 @@
 //! others); [`KernelLog`] decides where those messages go. Installed for a
 //! thread, it writes them as `kmsg-log-lib.sh` does: to `/dev/kmsg`, filtered
 //! by `loglevel`, with the marker files `have_warnings` and `have_errors` in
-//! the state directory. It writes through [`Files`], so tests see every
-//! message in their fake files.
+//! the state directory. It also writes every `tracing` event, whatever its
+//! level, to the journal `journal.jsonl` in the state directory. It writes
+//! through [`Files`], so tests see every message in their fake files.
 
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tracing_subscriber::layer::SubscriberExt as _;
-use zbm_trace::{KmsgLayer, KmsgSink};
+use zbm_trace::{JournalLayer, KmsgLayer, KmsgSink};
 
 use crate::files::Files;
 
 /// The kernel log device.
 pub const KMSG: &str = "/dev/kmsg";
+
+/// The journal's name in the state directory.
+pub const JOURNAL: &str = "journal.jsonl";
+
+/// The most a process writes to the journal, so that a menu left open for
+/// days cannot fill the memory file system.
+pub const JOURNAL_LIMIT: u64 = 4 << 20;
+
+/// Appends what is written to a file, through [`Files`]: each write is one
+/// append, so the lines of several processes do not mix.
+pub struct FilesAppender {
+    /// The files.
+    files: Arc<dyn Files + Send + Sync>,
+    /// The file appended to.
+    path: PathBuf,
+}
+
+impl FilesAppender {
+    /// Appends to `path` through `files`.
+    pub fn new(files: &dyn Files, path: &Path) -> FilesAppender {
+        FilesAppender {
+            files: files.shared(),
+            path: path.to_owned(),
+        }
+    }
+}
+
+impl io::Write for FilesAppender {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.files.append(&self.path, bytes)?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Where the kernel log of a [`KernelLog`] goes: a device and a state
 /// directory, through [`Files`].
@@ -69,14 +108,17 @@ pub struct KernelLog {
     pid: u32,
     /// Whether messages are written as `LEVEL: text` lines.
     labelled: bool,
+    /// The journal, if any.
+    journal: Option<PathBuf>,
 }
 
 impl KernelLog {
     /// A log with the given `loglevel` that writes to `/dev/kmsg` through
-    /// `files`, leaves marker files in `base`, and names process `pid` in
-    /// debugging output.
+    /// `files`, leaves marker files and the journal in `base`, and names
+    /// process `pid` in debugging output.
     pub fn new(files: &dyn Files, loglevel: &str, base: &Path, pid: u32) -> KernelLog {
         KernelLog {
+            journal: Some(base.join(JOURNAL)),
             sink: FilesSink {
                 files: files.shared(),
                 device: PathBuf::from(KMSG),
@@ -102,14 +144,24 @@ impl KernelLog {
         self
     }
 
+    /// The same log, without a journal.
+    pub fn without_journal(mut self) -> KernelLog {
+        self.journal = None;
+        self
+    }
+
     /// Sends this thread's messages to the log until the returned guard is
     /// dropped; then the log installed before, if any, takes them again.
     pub fn install(self) -> Installed {
+        let journal = self.journal.map(|path| {
+            JournalLayer::new(FilesAppender::new(&*self.sink.files, &path))
+                .with_limit(JOURNAL_LIMIT)
+        });
         let mut layer = KmsgLayer::new(self.sink, &self.loglevel, self.pid);
         if self.labelled {
             layer = layer.labelled();
         }
-        let subscriber = tracing_subscriber::registry().with(layer);
+        let subscriber = tracing_subscriber::registry().with(layer).with(journal);
         Installed {
             _guard: tracing::subscriber::set_default(subscriber),
         }
@@ -156,6 +208,43 @@ mod tests {
         );
         assert!(dir.join("have_warnings").exists());
         assert!(dir.join("have_errors").exists());
+    }
+
+    #[test]
+    fn the_journal_takes_every_event_the_kernel_log_leaves_out() {
+        let dir = TempDir::new("zbm-system-log");
+        let kmsg = dir.join("kmsg");
+        let log = KernelLog::new(&RealFiles, "3", dir.path(), 42).with_device(&kmsg);
+
+        {
+            let _installed = log.install();
+            let _span = tracing::info_span!("import", pool = "tank").entered();
+            zbm_trace::debug!("debugging output");
+            tracing::info!(passphrase = "hunter2", "a command ran");
+            assert!(!zbm_trace::enabled(Level::Debug));
+        }
+
+        assert_eq!(std::fs::read_to_string(&kmsg).unwrap_or_default(), "");
+        let journal = std::fs::read_to_string(dir.join(JOURNAL)).unwrap();
+        let lines: Vec<&str> = journal.lines().collect();
+        assert_eq!(lines.len(), 2, "{journal}");
+        assert!(lines[0].contains(r#""message":"debugging output""#));
+        assert!(lines[0].contains(r#""spans":[{"pool":"tank","span":"import"}]"#));
+        assert!(lines[1].contains(r#""passphrase":"[redacted]""#));
+        assert!(!journal.contains("hunter2"));
+    }
+
+    #[test]
+    fn a_log_without_a_journal_writes_none() {
+        let dir = TempDir::new("zbm-system-log");
+        let log = KernelLog::new(&RealFiles, "7", dir.path(), 1)
+            .with_device(&dir.join("kmsg"))
+            .without_journal();
+
+        let _installed = log.install();
+        zbm_trace::info!("only for the kernel log");
+
+        assert!(!dir.join(JOURNAL).exists());
     }
 
     #[test]

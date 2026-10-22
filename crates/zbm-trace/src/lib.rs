@@ -44,7 +44,7 @@ mod journal;
 pub mod kmsg;
 pub mod read;
 
-pub use journal::{JournalLayer, Lines};
+pub use journal::{JournalLayer, Lines, REDACTED, is_secret_field};
 pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};
 pub use tracing::level_filters::LevelFilter;
 

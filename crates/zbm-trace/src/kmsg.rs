@@ -52,6 +52,15 @@ pub const KMSG: &str = "zbm";
 /// so a notice is an `INFO` event with this target.
 pub const KMSG_NOTICE: &str = "zbm::notice";
 
+/// The target of the question whether a level is logged ([asked
+/// here](enabled)): [`KmsgLayer`] answers it by its level, while it lets the
+/// events of [`KMSG`] through to every layer, so that the journal records the
+/// messages the kernel log leaves out.
+const PROBE: &str = "zbm::probe";
+
+/// The target of the question whether notices are logged.
+const PROBE_NOTICE: &str = "zbm::probe::notice";
+
 /// The level of a message, with the numbers of the kernel log.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Level {
@@ -95,7 +104,9 @@ impl Level {
         match *metadata.level() {
             TracingLevel::ERROR => Level::Error,
             TracingLevel::WARN => Level::Warning,
-            TracingLevel::INFO if metadata.target() == KMSG_NOTICE => Level::Notice,
+            TracingLevel::INFO if matches!(metadata.target(), KMSG_NOTICE | PROBE_NOTICE) => {
+                Level::Notice
+            }
             TracingLevel::INFO => Level::Info,
             TracingLevel::DEBUG | TracingLevel::TRACE => Level::Debug,
         }
@@ -170,18 +181,18 @@ impl Message {
 /// Whether the kernel log takes messages of `level`, so that debugging output
 /// that is costly to gather can be left out.
 ///
-/// The question is asked as an event of the kernel log would be
-/// (`Kind::EVENT`), so that [`KmsgLayer`] judges it by its level.
+/// The question is asked of a target of its own, which [`KmsgLayer`] judges
+/// by its level; without a kernel log, nothing is taken.
 pub fn enabled(level: Level) -> bool {
     const EVENT: Kind = Kind::EVENT;
     match level {
-        Level::Error => tracing::enabled!(kind: EVENT, target: KMSG, TracingLevel::ERROR),
-        Level::Warning => tracing::enabled!(kind: EVENT, target: KMSG, TracingLevel::WARN),
+        Level::Error => tracing::enabled!(kind: EVENT, target: PROBE, TracingLevel::ERROR),
+        Level::Warning => tracing::enabled!(kind: EVENT, target: PROBE, TracingLevel::WARN),
         Level::Notice => {
-            tracing::enabled!(kind: EVENT, target: KMSG_NOTICE, TracingLevel::INFO)
+            tracing::enabled!(kind: EVENT, target: PROBE_NOTICE, TracingLevel::INFO)
         }
-        Level::Info => tracing::enabled!(kind: EVENT, target: KMSG, TracingLevel::INFO),
-        Level::Debug => tracing::enabled!(kind: EVENT, target: KMSG, TracingLevel::DEBUG),
+        Level::Info => tracing::enabled!(kind: EVENT, target: PROBE, TracingLevel::INFO),
+        Level::Debug => tracing::enabled!(kind: EVENT, target: PROBE, TracingLevel::DEBUG),
     }
 }
 
@@ -293,12 +304,17 @@ fn is_kmsg(metadata: &Metadata<'_>) -> bool {
     metadata.is_event() && matches!(metadata.target(), KMSG | KMSG_NOTICE)
 }
 
+/// Whether `metadata` is of the question whether a level is logged.
+fn is_probe(metadata: &Metadata<'_>) -> bool {
+    matches!(metadata.target(), PROBE | PROBE_NOTICE)
+}
+
 impl<S: KmsgSink, R: Subscriber> Layer<R> for KmsgLayer<S> {
     fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        // Each thread can have a log with its own level, so the answer for an
-        // event of the kernel log cannot be cached: `enabled` is asked each
-        // time. Other events are left to the other layers.
-        if is_kmsg(metadata) {
+        // Each thread can have a log with its own level, so the answer to
+        // `enabled` cannot be cached: it is asked each time. Everything else
+        // is left to the other layers.
+        if is_probe(metadata) {
             Interest::sometimes()
         } else {
             Interest::always()
@@ -306,9 +322,10 @@ impl<S: KmsgSink, R: Subscriber> Layer<R> for KmsgLayer<S> {
     }
 
     fn enabled(&self, metadata: &Metadata<'_>, _context: Context<'_, R>) -> bool {
-        // Disabling an event here would hide it from every layer, so only the
-        // kernel log's own events are judged; `on_event` skips the rest.
-        !is_kmsg(metadata) || self.allows(Level::of(metadata))
+        // Disabling an event here would hide it from every layer, the journal
+        // too, so only the question of `enabled` is judged; `on_event` leaves
+        // out the messages the level does not allow.
+        !is_probe(metadata) || self.allows(Level::of(metadata))
     }
 
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, R>) {
