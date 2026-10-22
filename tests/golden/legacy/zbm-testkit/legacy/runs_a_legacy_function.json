@@ -1,0 +1,13 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "kcl_tokenize a \"b c\" d",
+      "result": {
+        "status": 0,
+        "stderr": "",
+        "stdout": "a\n\"b c\"\nd\n"
+      }
+    }
+  ]
+}

@@ -125,6 +125,7 @@ pub fn scan_file(
         trait_impl: false,
         inline: Vec::new(),
         current: Vec::new(),
+        recording: 0,
         scan: FileScan {
             lines,
             ..FileScan::default()
@@ -146,6 +147,9 @@ struct Scanner<'n> {
     inline: Vec<String>,
     /// Indexes into `scan.functions` of the functions the walk is inside.
     current: Vec<usize>,
+    /// How many arguments of `parity.legacy(...)` the walk is inside: legacy
+    /// code there runs only when the golden files are recorded.
+    recording: usize,
     /// What was found so far.
     scan: FileScan,
 }
@@ -181,8 +185,12 @@ impl Scanner<'_> {
         self.test_code = saved;
     }
 
-    /// The function the walk is in, if any.
+    /// The function the walk is in, if any, unless the walk is inside a
+    /// recording of legacy results, which the function does not run.
     fn current_fn(&mut self) -> Option<&mut FnScan> {
+        if self.recording > 0 {
+            return None;
+        }
         let index = *self.current.last()?;
         self.scan.functions.get_mut(index)
     }
@@ -196,7 +204,7 @@ impl Scanner<'_> {
                 TokenTree::Ident(ident) => {
                     let name = ident.to_string();
                     if let Some(function) = self.current_fn() {
-                        function.runs_legacy |= name == "legacy" || name == "Bash";
+                        function.runs_legacy |= name == "Bash";
                         function.mentions.insert(name);
                     }
                 }
@@ -293,6 +301,19 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
         visit::visit_expr_path(self, expr);
     }
 
+    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        if call.method != "legacy" {
+            visit::visit_expr_method_call(self, call);
+            return;
+        }
+        self.visit_expr(&call.receiver);
+        self.recording += 1;
+        for arg in &call.args {
+            self.visit_expr(arg);
+        }
+        self.recording -= 1;
+    }
+
     fn visit_expr_unsafe(&mut self, expr: &'ast syn::ExprUnsafe) {
         self.scan.unsafe_blocks += 1;
         visit::visit_expr_unsafe(self, expr);
@@ -319,9 +340,10 @@ fn visit_owned_expr(scanner: &mut Scanner<'_>, expr: &Expr) {
 }
 
 /// Whether a path names the legacy test helpers of `zbm_testkit`: the
-/// `legacy` module, its `Bash` builder, or its `perl` function.
+/// `legacy` module, its `Bash` builder, or its `perl` function. A bare
+/// `legacy` is a variable, not the module.
 fn refers_to_legacy(segments: &[String]) -> bool {
-    segments.iter().any(|segment| segment == "legacy")
+    (segments.len() > 1 && segments.iter().any(|segment| segment == "legacy"))
         || segments.first().is_some_and(|first| first == "Bash")
         || segments == ["perl"]
 }
@@ -428,153 +450,4 @@ pub fn names_legacy_function(text: &str, names: &HashSet<String>) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scan(source: &str) -> FileScan {
-        scan_test(source, false)
-    }
-
-    fn scan_test(source: &str, test_code: bool) -> FileScan {
-        let names: HashSet<String> = ["luks_open".to_owned()].into();
-        let file = syn::parse_file(source).unwrap();
-        scan_file(&file, source.lines().count(), test_code, &names)
-    }
-
-    #[test]
-    fn functions_are_measured_from_fn_to_the_closing_brace() {
-        let file = scan("fn a() -> bool {\n    true\n}\n\nfn b() {}\n");
-
-        let lengths: Vec<usize> = file.functions.iter().map(|f| f.lines).collect();
-        assert_eq!(lengths, [3, 1]);
-        assert_eq!(file.functions[0].returns, Returns::Bool);
-        assert_eq!(file.lines, 5);
-    }
-
-    #[test]
-    fn result_types_are_recognised_by_their_last_segment() {
-        let file = scan("fn a() -> io::Result<()> { Ok(()) }\nfn b() -> Option<u8> { None }");
-
-        assert_eq!(file.functions[0].returns, Returns::Result);
-        assert_eq!(file.functions[1].returns, Returns::Other);
-    }
-
-    #[test]
-    fn functions_in_cfg_test_modules_are_test_code() {
-        let source = "fn run() {}\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn runs() {}\n}\n";
-
-        let file = scan(source);
-
-        assert_eq!(file.functions[0].role, Role::Code);
-        assert_eq!(file.functions[1].role, Role::Test);
-    }
-
-    #[test]
-    fn cfg_not_test_is_not_test_code() {
-        let file = scan("#[cfg(not(test))]\nmod real {\n    fn run() {}\n}\n");
-
-        assert_eq!(file.functions[0].role, Role::Code);
-    }
-
-    #[test]
-    fn cfg_all_with_test_is_test_code() {
-        let file = scan("#[cfg(all(test, unix))]\nmod tests {\n    fn helper() {}\n}\n");
-
-        assert_eq!(file.functions[0].role, Role::TestCode);
-    }
-
-    #[test]
-    fn trait_methods_are_marked() {
-        let source = "impl PartialEq for X {\n    fn eq(&self, _: &X) -> bool { true }\n}\n";
-
-        let file = scan(source);
-
-        assert!(file.functions[0].trait_impl);
-    }
-
-    #[test]
-    fn out_of_line_modules_are_recorded_with_their_inline_parents() {
-        let source = "mod a;\nmod outer {\n    #[cfg(test)]\n    mod b;\n}\n";
-
-        let file = scan(source);
-
-        assert_eq!(
-            file.modules,
-            [
-                ModDecl {
-                    inline: Vec::new(),
-                    name: "a".to_owned(),
-                    test_code: false,
-                },
-                ModDecl {
-                    inline: vec!["outer".to_owned()],
-                    name: "b".to_owned(),
-                    test_code: true,
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn doc_comments_that_name_legacy_functions_are_counted_outside_tests() {
-        let source = "/// Opens a volume as `luks_open` does.\nfn open() {}\n\
-                      /// Not code: luks_open.\nfn other() {}\n";
-
-        assert_eq!(scan(source).legacy_docs, 1);
-        assert_eq!(scan_test(source, true).legacy_docs, 0);
-    }
-
-    #[test]
-    fn shell_helpers_are_counted_outside_tests_including_in_macros() {
-        let source = "fn a(x: &str) {\n    let n = test_integer(x);\n    \
-                      println!(\"{}\", shell::echo(x));\n}\n";
-
-        assert_eq!(scan(source).shell_helpers, 2);
-        assert_eq!(scan_test(source, true).shell_helpers, 0);
-    }
-
-    #[test]
-    fn unsafe_blocks_are_counted() {
-        let file = scan("fn a() { unsafe { f() }; unsafe { g() } }");
-
-        assert_eq!(file.unsafe_blocks, 2);
-    }
-
-    #[test]
-    fn calls_to_the_legacy_helpers_are_noticed_also_in_assertions() {
-        let source = "#[test]\nfn parity() {\n    \
-                      assert_eq!(Bash::new().call(\"f\", &[], b\"\"), rust());\n}\n\
-                      #[test]\nfn plain() {\n    assert_eq!(rust(), 1);\n}\n";
-
-        let file = scan_test(source, true);
-
-        assert!(file.functions[0].runs_legacy);
-        assert!(!file.functions[1].runs_legacy);
-        assert!(file.functions[1].mentions.contains("rust"));
-    }
-
-    #[test]
-    fn perl_counts_only_as_the_bare_helper() {
-        let source = "fn a() { perl(\"x\", &[], b\"\"); }\nfn b() { crate::perl::quote(); }\n";
-
-        let file = scan_test(source, true);
-
-        assert!(file.functions[0].runs_legacy);
-        assert!(!file.functions[1].runs_legacy);
-    }
-
-    #[test]
-    fn a_legacy_name_must_be_the_first_word_in_backticks() {
-        let names: HashSet<String> = ["luks_open".to_owned()].into();
-
-        assert!(names_legacy_function(
-            "as `luks_open \"$dev\"` does",
-            &names
-        ));
-        assert!(!names_legacy_function(
-            "as `cryptsetup luks_open` does",
-            &names
-        ));
-        assert!(!names_legacy_function("luks_open", &names));
-    }
-}
+mod tests;

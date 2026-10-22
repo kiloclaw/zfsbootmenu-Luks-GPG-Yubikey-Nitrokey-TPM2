@@ -7,8 +7,9 @@
 //!   and answers it.
 //! - [`fakes`] replaces the other system interfaces of `zbm-system` (files, the
 //!   clock, the console, processes) and bundles them as a `FakeSystem`.
-//! - [`legacy`] runs the Bash and Perl code in `legacy/`, so parity tests can
-//!   compare it with the Rust code.
+//! - [`legacy`] runs the Bash and Perl code in `legacy/`, and [`parity`]
+//!   records its results as golden files, so parity tests compare the Rust code
+//!   with the legacy code without running it.
 //! - [`Rng`] generates test inputs from a seed, so a failing generated case can
 //!   be reproduced.
 //! - [`TempDir`] is a scratch directory that is removed afterwards.
@@ -23,6 +24,7 @@ use zbm_core::exec::{Command, Output, Runner, Status};
 pub mod fake_zfs;
 pub mod fakes;
 pub mod legacy;
+pub mod parity;
 
 /// A response function: returns the output for commands it handles and `None`
 /// for the others.
@@ -287,8 +289,8 @@ mod tests {
     }
 
     #[test]
-    fn repo_root_holds_the_legacy_code() {
-        assert!(repo_root().join("legacy/zfsbootmenu/zbm-release").is_file());
+    fn repo_root_holds_the_workspace() {
+        assert!(repo_root().join("Cargo.lock").is_file());
         assert!(have_program("sh"));
         assert!(!have_program("zbm-no-such-program"));
     }

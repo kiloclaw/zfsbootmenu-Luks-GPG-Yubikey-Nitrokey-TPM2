@@ -118,7 +118,20 @@ mod tests {
     use super::*;
     use crate::kcl::tokenize;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
+
+    /// The library of `get_zbm_arg`, with `_build_zbm_kcl` reading `cmdline`.
+    fn kcl_lib(base: &TempDir, cmdline: &str) -> Bash {
+        let file = base.write("cmdline", cmdline);
+        Bash::new()
+            .code(LOG_STUBS)
+            .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
+            .code(&format!(
+                "BASE={}; _build_zbm_kcl() {{ kcl_tokenize < {}; }}",
+                base.path().display(),
+                file.display()
+            ))
+    }
 
     #[test]
     fn last_occurrence_wins_and_flags_are_one() {
@@ -204,29 +217,24 @@ mod tests {
 
     #[test]
     fn cmdline_files_match_make_cmdline_dir() {
+        let mut parity = parity!("cmdline_files_match_make_cmdline_dir");
         let mut rng = Rng::from_env(5);
         for _ in 0..40 {
             let cmdline = rng.join(PIECES, 10);
-            let base = TempDir::new("zbm-cmdline-dir");
-            let file = base.write("cmdline", &cmdline);
-            Bash::new()
-                .code(LOG_STUBS)
-                .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
-                .code(&format!(
-                    "BASE={}; _build_zbm_kcl() {{ kcl_tokenize < {}; }}",
-                    base.path().display(),
-                    file.display()
-                ))
-                .call("make_cmdline_dir", &[], b"");
-            let mut legacy: Vec<(String, String)> = std::fs::read_dir(base.join("cmdline.d"))
-                .unwrap()
-                .map(|entry| {
-                    let entry = entry.unwrap();
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    (name, std::fs::read_to_string(entry.path()).unwrap())
-                })
-                .collect();
-            legacy.sort();
+            let legacy: Vec<(String, String)> = parity.legacy(format!("{cmdline:?}"), || {
+                let base = TempDir::new("zbm-cmdline-dir");
+                kcl_lib(&base, &cmdline).call("make_cmdline_dir", &[], b"");
+                let mut files: Vec<(String, String)> = std::fs::read_dir(base.join("cmdline.d"))
+                    .unwrap()
+                    .map(|entry| {
+                        let entry = entry.unwrap();
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        (name, std::fs::read_to_string(entry.path()).unwrap())
+                    })
+                    .collect();
+                files.sort();
+                files
+            });
             let mut rust = std::collections::BTreeMap::new();
             for (key, contents) in cmdline_files(&tokenize(&cmdline)) {
                 rust.insert(key, contents);
@@ -257,49 +265,38 @@ mod tests {
             "z",
             "missing",
         ];
+        let mut parity = parity!("lookups_match_get_zbm_arg_and_get_zbm_bool");
         for _ in 0..60 {
             let cmdline = rng.join(PIECES, 10);
-            let base = TempDir::new("zbm-cmdline-args");
-            let file = base.write("cmdline", &cmdline);
-            let lib = Bash::new()
-                .code(LOG_STUBS)
-                .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
-                .code(&format!(
-                    "BASE={}; _build_zbm_kcl() {{ kcl_tokenize < {}; }}",
-                    base.path().display(),
-                    file.display()
-                ));
-            let args = ZbmArgs::from_kcl(&tokenize(&cmdline));
             let lookup: Vec<&str> = (0..1 + rng.below(2)).map(|_| *rng.choose(&names)).collect();
+            let default = *rng.choose(&["0", "1", "", "no", "On"]);
+            let mut bool_args = vec![default];
+            bool_args.extend(&lookup);
+            let input = format!("cmdline {cmdline:?}, lookup {lookup:?}, flag {bool_args:?}");
+            let (expected, logged, flag): (Option<String>, String, bool) =
+                parity.legacy(input, || {
+                    let base = TempDir::new("zbm-cmdline-args");
+                    let lib = kcl_lib(&base, &cmdline);
+                    let arg = lib.call("get_zbm_arg", &lookup, b"");
+                    let value = arg
+                        .status
+                        .success()
+                        .then(|| arg.stdout_text().trim_end_matches('\n').to_owned());
+                    let flag = lib.call("get_zbm_bool", &bool_args, b"");
+                    (value, log_lines(&arg.stderr_text()), flag.status.success())
+                });
 
-            let legacy = lib.call("get_zbm_arg", &lookup, b"");
+            let args = ZbmArgs::from_kcl(&tokenize(&cmdline));
             let mut messages = Vec::new();
             let rust = args.lookup(&lookup, &mut messages);
-            let expected = legacy
-                .status
-                .success()
-                .then(|| legacy.stdout_text().trim_end_matches('\n').to_owned());
             assert_eq!(rust, expected, "cmdline {cmdline:?}, lookup {lookup:?}");
             let warnings: String = messages
                 .iter()
                 .map(|message| format!("{}\n", message.stderr_line()))
                 .collect();
-            assert_eq!(
-                warnings,
-                log_lines(&legacy.stderr_text()),
-                "cmdline {cmdline:?}"
-            );
-
-            let default = *rng.choose(&["0", "1", "", "no", "On"]);
-            let mut bool_args = vec![default];
-            bool_args.extend(&lookup);
-            let legacy = lib.call("get_zbm_bool", &bool_args, b"");
+            assert_eq!(warnings, logged, "cmdline {cmdline:?}");
             let rust = args.flag(default, &lookup, &mut Vec::new());
-            assert_eq!(
-                rust,
-                legacy.status.success(),
-                "cmdline {cmdline:?}, flag {bool_args:?}"
-            );
+            assert_eq!(rust, flag, "cmdline {cmdline:?}, flag {bool_args:?}");
         }
     }
 }

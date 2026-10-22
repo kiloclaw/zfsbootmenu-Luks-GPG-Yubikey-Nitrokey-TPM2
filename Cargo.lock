@@ -1303,6 +1303,8 @@ dependencies = [
 name = "zbm-testkit"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "zbm-core",
  "zbm-system",
 ]

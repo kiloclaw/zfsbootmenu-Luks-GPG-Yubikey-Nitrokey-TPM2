@@ -131,7 +131,7 @@ mod tests {
     use super::*;
     use crate::options::ZbmOptions;
     use zbm_testkit::legacy::{Bash, path, shell_quote};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn parse(text: &str) -> Conf {
         Conf::parse(text).unwrap()
@@ -262,35 +262,37 @@ mod tests {
 
     #[test]
     fn the_writer_matches_the_legacy_writer() {
-        let dir = TempDir::new("zbm-conf");
-        let conf = dir.join("zfsbootmenu.conf");
+        let mut parity = parity!("the_writer_matches_the_legacy_writer");
         let mut rng = Rng::from_env(11);
         for case in 0..40 {
             let values = values(&mut rng);
             let options = options(&values);
             let set_hostid = if options.set_hostid { "1" } else { "0" };
             let base = &values[13];
-            let _ = std::fs::remove_file(&conf);
-            let output = Bash::new()
-                .env("CONF", &conf.to_string_lossy())
-                .env("BASE", base)
-                .env("spl_hostid", &options.spl_hostid)
-                .env("import_policy", &options.import_policy)
-                .env("menu_timeout", &options.menu_timeout)
-                .env("loglevel", &options.loglevel)
-                .env("zbm_prefer_pool", &options.prefer_pool)
-                .env("zbm_require_pool", &options.require_pool)
-                .env("zbm_prefer_bootfs", &options.prefer_bootfs)
-                .env("zbm_sort", &options.sort)
-                .env("zbm_set_hostid", set_hostid)
-                .env("zbm_retry_delay", &options.retry_delay)
-                .env("zbm_hook_root", &options.hook_root)
-                .env("zbm_wait_for_devices", &options.wait_for_devices)
-                .env("control_term", &options.control_term)
-                .code(&legacy_writer())
-                .call("true", &[], b"");
-            assert!(output.status.success(), "{}", output.stderr_text());
-            let legacy = std::fs::read_to_string(&conf).unwrap();
+            let legacy: String = parity.legacy(format!("{values:?}"), || {
+                let dir = TempDir::new("zbm-conf");
+                let conf = dir.join("zfsbootmenu.conf");
+                let output = Bash::new()
+                    .env("CONF", &conf.to_string_lossy())
+                    .env("BASE", base)
+                    .env("spl_hostid", &options.spl_hostid)
+                    .env("import_policy", &options.import_policy)
+                    .env("menu_timeout", &options.menu_timeout)
+                    .env("loglevel", &options.loglevel)
+                    .env("zbm_prefer_pool", &options.prefer_pool)
+                    .env("zbm_require_pool", &options.require_pool)
+                    .env("zbm_prefer_bootfs", &options.prefer_bootfs)
+                    .env("zbm_sort", &options.sort)
+                    .env("zbm_set_hostid", set_hostid)
+                    .env("zbm_retry_delay", &options.retry_delay)
+                    .env("zbm_hook_root", &options.hook_root)
+                    .env("zbm_wait_for_devices", &options.wait_for_devices)
+                    .env("control_term", &options.control_term)
+                    .code(&legacy_writer())
+                    .call("true", &[], b"");
+                assert!(output.status.success(), "{}", output.stderr_text());
+                std::fs::read_to_string(&conf).unwrap()
+            });
             assert_eq!(options.conf(base), legacy, "case {case}: {values:?}");
         }
     }
@@ -318,27 +320,35 @@ mod tests {
 
     #[test]
     fn reads_the_file_as_the_shell_sources_it() {
-        let dir = TempDir::new("zbm-conf");
+        let mut parity = parity!("reads_the_file_as_the_shell_sources_it");
         // The first part, as the image build writes it
-        std::fs::create_dir_all(dir.join("etc")).unwrap();
-        let build = Bash::new()
-            .source("zfsbootmenu/install-helpers.sh")
-            .env("BUILDROOT", &dir.path().to_string_lossy())
-            .env("ZBM_BUILDSTYLE", "dracut")
-            .env("zfsbootmenu_release_build", "yes")
-            .call("create_zbm_conf", &[], b"");
-        assert!(build.status.success(), "{}", build.stderr_text());
-        let file = dir.join("etc/zfsbootmenu.conf");
-        let header = std::fs::read_to_string(&file).unwrap();
+        let header: String = parity.legacy("create_zbm_conf", || {
+            let dir = TempDir::new("zbm-conf");
+            std::fs::create_dir_all(dir.join("etc")).unwrap();
+            let build = Bash::new()
+                .source("zfsbootmenu/install-helpers.sh")
+                .env("BUILDROOT", &dir.path().to_string_lossy())
+                .env("ZBM_BUILDSTYLE", "dracut")
+                .env("zfsbootmenu_release_build", "yes")
+                .call("create_zbm_conf", &[], b"");
+            assert!(build.status.success(), "{}", build.stderr_text());
+            std::fs::read_to_string(dir.join("etc/zfsbootmenu.conf")).unwrap()
+        });
         assert!(header.contains("export ZBM_RUNTIME=\"legacy\""));
 
         let mut rng = Rng::from_env(12);
         for case in 0..40 {
             let values = values(&mut rng);
             let text = format!("{header}{}", options(&values).conf(&values[13]));
-            std::fs::write(&file, &text).unwrap();
             let conf = Conf::parse(&text).unwrap();
-            let shell = sourced(&file);
+            let shell: Vec<(String, String)> = parity.legacy(format!("{values:?}"), || {
+                let dir = TempDir::new("zbm-conf");
+                // Only the variables of the file: the rest is this process's environment.
+                sourced(&dir.write("zfsbootmenu.conf", &text))
+                    .into_iter()
+                    .filter(|(name, _)| conf.vars().iter().any(|(own, _)| own == name))
+                    .collect()
+            });
             for (name, value) in conf.vars() {
                 let exported = shell.iter().find(|(shell_name, _)| shell_name == name);
                 assert_eq!(

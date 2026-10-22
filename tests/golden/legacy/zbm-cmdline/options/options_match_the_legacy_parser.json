@@ -1,0 +1,1055 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"timeout=7zbm.sort_key=used\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nWARN: invalid menu timeout: '7zbm.sort_key=used', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=30=xspl.spl_hostid=123zbm.retry_delay=3zbm.lines=0spl_hostid=0x00bab10c\\\"zbm.timeout=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: '30=xspl.spl_hostid=123zbm.retry_delay=3zbm.lines=0spl_hostid=0x00bab10c\"zbm.timeout=x', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=p!!!=xzbm.columns=100\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=p!!!=xzbm.columns=100\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=deadbeef12zbm.timeout=-1spl.spl_hostid=123zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"spl_hostid=zbm.lines=0-n\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value deadbeef12zbm.timeout=-1spl.spl_hostid=123zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"spl_hostid=zbm.lines=0-n, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=p!!!zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.lines=30zbm.wait_for=/dev/sda,/dev/sdb\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=p!!!zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"zbm.lines=30zbm.wait_for=\nzbm_require_pool=\nzbm_prefer_bootfs=p!!!zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"zbm.lines=30zbm.wait_for=/dev/sda,/dev/sdb\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x0zbm.lines=xloglevel=7zbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"zbm.lines=xzbm.prefer=p!!!spl_hostid=deadbeef12\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x0zbm.lines=xloglevel=7zbm.kcl_override=\"spl.spl_hostid=2 c\"zbm.lines=xzbm.prefer=p!!!spl_hostid=deadbeef12, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=usedzbm.set_hostid=yeszbm.import_policy=strictzbm.set_hostid=yes\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.skip\\\"zbm.columns=100\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.force_import=nozbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"console=a,b,c zbm.set_hostid=0timeout=7\\\"zbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=force\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: setting import_policy to force\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100 zbm.timeout=xforce_import=1zbm.lines=0zbm.lines=30zbm.timeout=xloglevel=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=100\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: 'xforce_import=1zbm.lines=0zbm.lines=30zbm.timeout=xloglevel=7', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=3zbm.import_policy=otherconsole=tty1zbm.prefer=pool!!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=offzbm.sort_key=namespl_hostid=0 zbm.hookroot=pool/hookszbm.retry_delay=xspl_hostid=deadbeef12zbm.kcl_override=plain\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=pool/hookszbm.retry_delay=xspl_hostid=deadbeef12zbm.kcl_override=plain\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: setting user hook root to pool/hookszbm.retry_delay=xspl_hostid=deadbeef12zbm.kcl_override=plain\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"loglevel=7\"",
+      "result": [
+        "loglevel=7\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting log level from command line: 7\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"timeout=7zbm.force_importloglevel=3\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nWARN: invalid menu timeout: '7zbm.force_importloglevel=3', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=forcezbm.retry_delay=zbm.prefer=p!!!spl_hostid=deadbeef12 \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'forcezbm.retry_delay=zbm.prefer=p!!!spl_hostid=deadbeef12', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"loglevel=xzbm.prefer=pool!zbm.lines=30force_import=1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl.spl_hostid=123zbm.sort_key=creation\\\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: invalid hostid value 123zbm.sort_key=creation\", ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=used-n\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.force_importspl_hostid=0123zbm.prefer=pool/ROOT/be!zbm.import_policy=otherzbm.prefer=poolspl_hostid=089spl_hostid=089\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=100\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=5zbm.sort_key=creationzbm.import_policy=strict\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '5zbm.sort_key=creationzbm.import_policy=strict', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"force_import=1zbm.set_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: ''\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=sizeloglevel=+6zbm.import_delay=9zbm.lines=xspl_hostid=0x0zbm.import_policy=strictzbm.sort_key=namezbm.prefer=pool/ROOT/be\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"timeout=7zbm.import_policy=strictzbm.prefer=poolloglevel=xconsole=ttyS0,115200n8spl_hostid=\\\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nWARN: invalid menu timeout: '7zbm.import_policy=strictzbm.prefer=poolloglevel=xconsole=ttyS0,115200n8spl_hostid=\"', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0123zbm.prefer=pool-nspl_hostid=0x00bab10czbm.sort_key=namespl_hostid=0x00bab10czbm.set_hostid=yes \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0123zbm.prefer=pool-nspl_hostid=0x00bab10czbm.sort_key=namespl_hostid=0x00bab10czbm.set_hostid=yes, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.wait_for=/dev/sda,/dev/sdbzbm.lines=30zbm.prefer=pool/ROOT/be!zbm.prefer=pool!zbm.hookroot=pool/hookszbm.sort_key=size\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=/dev/sda,/dev/sdbzbm.lines=30zbm.prefer=pool/ROOT/be!zbm.prefer=pool!zbm.hookroot=pool/hookszbm.sort_key=size\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: system will wait for /dev/sda,/dev/sdbzbm.lines=30zbm.prefer=pool/ROOT/be!zbm.prefer=pool!zbm.hookroot=pool/hookszbm.sort_key=size\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=poolzbm.import_policy=hostid\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=poolzbm.import_policy=hostid\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x00bab10czbm.set_hostid=offzbm.import_policy=forcespl_hostid=nopezbm.prefer=pool!!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x00bab10czbm.set_hostid=offzbm.import_policy=forcespl_hostid=nopezbm.prefer=pool!!, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.prefer=pool/ROOT/bezbm.timeout=xzbm.showzbm.timeout=5zbm.import_policy=forcezbm.prefer=pool/ROOT/be!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<quiet\n>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: 'quiet'\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=xconsole=a,b,czbm.prefer=poolzbm.columns=-5zbm.sort_key=usedspl_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: 'xconsole=a,b,czbm.prefer=poolzbm.columns=-5zbm.sort_key=usedspl_hostid=0', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=xzbm.timeout=xzbm.retry_delay=3force_import=1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: 'xzbm.timeout=xzbm.retry_delay=3force_import=1', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=xzbm.retry_delay= zbm.timeout=-1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=-1\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: setting menu timeout from command line: -1\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=ttyS0,115200n8zbm.skip=0zbm.columns=-5zbm.set_hostid=0zbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/ttyS0\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/ttyS0\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x0console=a,b,czbm.set_hostid=offzbm.prefer=pool zbm.sort_key=namezbm.sort_key=used\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x0console=a,b,czbm.set_hostid=offzbm.prefer=pool, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0123=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0123=x, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool/ROOT/be!zbm.import_delay=9\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\nzbm_require_pool=\nzbm_prefer_bootfs=pool/ROOT/be!zbm.import_delay=9\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=creationforce_import=1zbm.timeout=+3zbm.force_import=nozbm.timeout=xzbm.columns=-5zbm.prefer=pool!spl_hostid=\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\" zbm.lines=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: 'x', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=0spl_hostid=089zbm.prefer=poolspl_hostid=-nzbm.timeout=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: '0spl_hostid=089zbm.prefer=poolspl_hostid=-nzbm.timeout=x', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100zbm.sort_key=namezbm.import_delay=9loglevel=xzbm.kcl_override=\\\"spl.spl_hostid=2 c\\\" zbm.prefer=pool!!zbm.skip\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=80\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool!!zbm.skip\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.columns: '100zbm.sort_key=namezbm.import_delay=9loglevel=xzbm.kcl_override=\"spl.spl_hostid=2 c\"', defaulting to 80 columns\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x0zbm.sort_key=creation=xzbm.prefer=poolzbm.kcl_override=plainzbm.timeout=-1spl_hostid=nope\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x0zbm.sort_key=creation=xzbm.prefer=poolzbm.kcl_override=plainzbm.timeout=-1spl_hostid=nope, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\\\"=xspl_hostid=deadbeef12\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=xzbm.prefer=pool!!zbm.retry_delay=\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: 'xzbm.prefer=pool!!zbm.retry_delay=', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: '0', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool/ROOT/be! zbm.set_hostid=offzbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.skipspl_hostid=deadbeef12\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\nzbm_require_pool=yes\nzbm_prefer_bootfs=pool/ROOT/be\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: requiring pool pool\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=zbm.prefer=pool/ROOT/beforce_import=1spl_hostid=zbm.showspl_hostid=0x00bab10c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value zbm.prefer=pool/ROOT/beforce_import=1spl_hostid=zbm.showspl_hostid=0x00bab10c, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3zbm.wait_for=/dev/sda,/dev/sdbspl_hostid=nopetimeout=7zbm.columns=-5spl.spl_hostid=123\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '+3zbm.wait_for=/dev/sda,/dev/sdbspl_hostid=nopetimeout=7zbm.columns=-5spl.spl_hostid=123', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\\\"zbm.timeout=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=tty1zbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"zbm.force_importzbm.retry_delay=xzbm.timeout=xzbm.prefer=pool!loglevel=+6spl_hostid=0123\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1zbm.kcl_override=\"spl.spl_hostid=2 c\"zbm.force_importzbm.retry_delay=xzbm.timeout=xzbm.prefer=pool!loglevel=+6spl_hostid=0123\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/tty1zbm.kcl_override=\"spl.spl_hostid=2 c\"zbm.force_importzbm.retry_delay=xzbm.timeout=xzbm.prefer=pool!loglevel=+6spl_hostid=0123\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\" spl_hostid=089\"",
+      "result": [
+        "loglevel=4\nspl_hostid=00000000\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.force_import=no \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=yesspl_hostid=0x00bab10czbm.timeout=-1zbm.import_policy=otherzbm.retry_delay=3zbm.timeout=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.skipzbm.import_policy=strictzbm.skip\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=strictzbm.prefer=pool!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'strictzbm.prefer=pool!', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool/ROOT/bezbm.lines=0zbm.showspl_hostid=089zbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\nzbm_require_pool=\nzbm_prefer_bootfs=pool/ROOT/bezbm.lines=0zbm.showspl_hostid=089zbm.timeout=5\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.wait_for=/dev/sda,/dev/sdbzbm.import_policy=hostidzbm.retry_delay=3zbm.showspl_hostid=0123loglevel=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=/dev/sda,/dev/sdbzbm.import_policy=hostidzbm.retry_delay=3zbm.showspl_hostid=0123loglevel=7\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: system will wait for /dev/sda,/dev/sdbzbm.import_policy=hostidzbm.retry_delay=3zbm.showspl_hostid=0123loglevel=7\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=0zbm.import_policy=other\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=p!!!spl_hostid=0x0spl_hostid=0x0zbm.lines=0zbm.sort_key=usedzbm.force_importzbm.prefer=p!!!loglevel=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=p!!!spl_hostid=0x0spl_hostid=0x0zbm.lines=0zbm.sort_key=usedzbm.force_importzbm.prefer=p!!!loglevel=7\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=yes\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=sizezbm.import_policy=hostidzbm.lines=0spl_hostid=089zbm.prefer=p!!!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=strictspl_hostid=089spl_hostid=0123zbm.set_hostid=offzbm.prefer=pool!!spl_hostid=089zbm.kcl_override=plain\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'strictspl_hostid=089spl_hostid=0123zbm.set_hostid=offzbm.prefer=pool!!spl_hostid=089zbm.kcl_override=plain', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=089 console=tty1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=00000000\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nINFO: setting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=089zbm.prefer=pool/ROOT/be!zbm.retry_delay=xspl_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 089zbm.prefer=pool/ROOT/be!zbm.retry_delay=xspl_hostid=0, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100zbm.prefer=p!!!zbm.timeout=+3spl_hostid=nopespl_hostid=deadbeef12zbm.prefer=pool/ROOT/be\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=80\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.columns: '100zbm.prefer=p!!!zbm.timeout=+3spl_hostid=nopespl_hostid=deadbeef12zbm.prefer=pool/ROOT/be', defaulting to 80 columns\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3zbm.kcl_override=plainconsole=ttyS0,115200n8=xzbm.sort_key=sizezbm.sort_key=name\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '+3zbm.kcl_override=plainconsole=ttyS0,115200n8=xzbm.sort_key=sizezbm.sort_key=name', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=nopespl_hostid=0x00bab10cspl_hostid=0123loglevel=7zbm.import_delay=9zbm.skip=0spl_hostid=0123zbm.sort_key=size\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value nopespl_hostid=0x00bab10cspl_hostid=0123loglevel=7zbm.import_delay=9zbm.skip=0spl_hostid=0123zbm.sort_key=size, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=30\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=30\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=+3\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: setting menu timeout from command line: +3\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\" zbm.prefer=p!!!force_import=1zbm.retry_delay=3zbm.showloglevel=xzbm.lines=0spl.spl_hostid=123\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=p!!!force_import=1zbm.retry_delay=3zbm.showloglevel=xzbm.lines=0spl.spl_hostid=123\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=tty1zbm.import_policy=forcezbm.wait_for=/dev/sda,/dev/sdbzbm.sort_key=creationzbm.import_policy=other\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1zbm.import_policy=forcezbm.wait_for=/dev/sda\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/tty1zbm.import_policy=forcezbm.wait_for=/dev/sda\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.skip=0console=a,b,c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=0\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: skipping display of menu\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0zbm.prefer=pool/ROOT/be!zbm.timeout=xzbm.showzbm.set_hostid=offzbm.lines=0zbm.lines=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0zbm.prefer=pool/ROOT/be!zbm.timeout=xzbm.showzbm.set_hostid=offzbm.lines=0zbm.lines=0, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\" spl_hostid=0x0force_import=1zbm.prefer=pool/ROOT/be!spl_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x0force_import=1zbm.prefer=pool/ROOT/be!spl_hostid=0, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '+3zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=a,b,cspl_hostid=nope zbm.prefer=pool/ROOT/be!spl_hostid=0x00bab10c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/a,b\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\nzbm_require_pool=\nzbm_prefer_bootfs=pool/ROOT/be!spl_hostid=0x00bab10c\n",
+        "INFO: setting controlling terminal to: /dev/a,b\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=5\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: setting menu timeout from command line: 5\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"loglevel=xzbm.sort_key=creationzbm.import_policy=othertimeout=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=0zbm.retry_delay=zbm.import_policy=otherzbm.lines=30\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"=x-nzbm.hookroot=pool/hooksconsole=a,b,c=xzbm.timeout=-1zbm.prefer=pool/ROOT/bezbm.lines=30\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_delay=9zbm.retry_delay=xzbm.import_policy=hostidzbm.timeout=-1console=a,b,czbm.lines=30zbm.skip\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: using deprecated arg 'zbm.import_delay' when 'zbm.retry_delay' is preferred\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=089zbm.prefer=p!!!zbm.prefer=pool/ROOT/be!zbm.timeout=5zbm.force_import=nozbm.import_policy=force\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 089zbm.prefer=p!!!zbm.prefer=pool/ROOT/be!zbm.timeout=5zbm.force_import=nozbm.import_policy=force, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=offzbm.force_import=nozbm.import_policy=hostidzbm.set_hostid=yeszbm.retry_delay=spl_hostid=zbm.set_hostid=yeszbm.force_import=no\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=poolzbm.force_import=nozbm.timeout=-1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=poolzbm.force_import=nozbm.timeout=-1\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool\\\"console=ttyS0,115200n8\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\"console=ttyS0,115200n8\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=nopeconsole=a,b,czbm.prefer=pool/ROOT/be!zbm.set_hostid=offzbm.timeout=xzbm.import_policy=other \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value nopeconsole=a,b,czbm.prefer=pool/ROOT/be!zbm.set_hostid=offzbm.timeout=xzbm.import_policy=other, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=tty1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=namezbm.sort_key=nameforce_import=1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3zbm.set_hostid=off\\\"console=a,b,c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '+3zbm.set_hostid=off\"console=a,b,c', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=timeout=7zbm.sort_key=sizeconsole=a,b,c=x=xzbm.force_import=no\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_delay=9force_import=1zbm.timeout=-1zbm.kcl_override=plain timeout=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=7\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nINFO: setting menu timeout from command line: 7\nWARN: using deprecated arg 'zbm.import_delay' when 'zbm.retry_delay' is preferred\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=xspl_hostid=0x0zbm.retry_delay=zbm.prefer=pool!spl_hostid=0x0zbm.kcl_override=plainzbm.import_delay=9zbm.timeout=+3\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: 'xspl_hostid=0x0zbm.retry_delay=zbm.prefer=pool!spl_hostid=0x0zbm.kcl_override=plainzbm.import_delay=9zbm.timeout=+3', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=plainzbm.prefer=pool/ROOT/be!zbm.show\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<plainzbm.prefer=pool/ROOT/be!zbm.show\n>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: 'plainzbm.prefer=pool/ROOT/be!zbm.show'\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=nameconsole=ttyS0,115200n8\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=namezbm.lines=0console=ttyS0,115200n8zbm.prefer=pool!!zbm.wait_for=/dev/sda,/dev/sdbzbm.retry_delay=0zbm.lines=xzbm.lines=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x0zbm.retry_delay=xzbm.lines=30zbm.set_hostid=0force_import=1zbm.retry_delay=0 loglevel=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x0zbm.retry_delay=xzbm.lines=30zbm.set_hostid=0force_import=1zbm.retry_delay=0, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\" \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=offspl_hostid=deadbeef12spl.spl_hostid=123zbm.skip=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=0=x zbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"zbm.import_policy=other\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: '0=x', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: ''\n"
+      ]
+    },
+    {
+      "input": "\"\\\"zbm.retry_delay=0zbm.lines=0loglevel=7zbm.force_import=nospl_hostid=0123zbm.set_hostid=0zbm.sort_key=name\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=forceloglevel=7zbm.lines=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'forceloglevel=7zbm.lines=x', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0123force_import=1console=tty1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0123force_import=1console=tty1, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=forcezbm.import_policy=hostidzbm.set_hostid=yeszbm.retry_delay=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'forcezbm.import_policy=hostidzbm.set_hostid=yeszbm.retry_delay=0', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100zbm.sort_key=name\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=80\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.columns: '100zbm.sort_key=name', defaulting to 80 columns\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=offzbm.import_policy=strictzbm.showzbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=poolzbm.timeout=5timeout=7zbm.lines=x\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=poolzbm.timeout=5timeout=7zbm.lines=x\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=5loglevel=3console=tty1zbm.lines=30zbm.import_policy=force\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '5loglevel=3console=tty1zbm.lines=30zbm.import_policy=force', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=-5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=80\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.columns: '-5', defaulting to 80 columns\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"loglevel=+6\"",
+      "result": [
+        "loglevel=+6\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting log level from command line: +6\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"loglevel=7spl_hostid=nopespl.spl_hostid=123zbm.set_hostid=0zbm.prefer=pool!!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<quiet\n>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: 'quiet'\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=used console=tty1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=used;name;creation\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to used;name;creation\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=0\\\"zbm.timeout=+3=xzbm.import_policy=strict\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=zbm.skip=0zbm.import_delay=9zbm.wait_for=/dev/sda,/dev/sdbzbm.wait_for=/dev/sda,/dev/sdb\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value zbm.skip=0zbm.import_delay=9zbm.wait_for=/dev/sda,/dev/sdbzbm.wait_for=/dev/sda,/dev/sdb, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=forceloglevel=3spl_hostid=0x00bab10czbm.wait_for=/dev/sda,/dev/sdb\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'forceloglevel=3spl_hostid=0x00bab10czbm.wait_for=/dev/sda,/dev/sdb', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=sizespl_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.sort_key=creationzbm.timeout=xzbm.prefer=p!!!spl_hostid=deadbeef12\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: setting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"timeout=7zbm.prefer=pool/ROOT/be\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nWARN: invalid menu timeout: '7zbm.prefer=pool/ROOT/be', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=089\"",
+      "result": [
+        "loglevel=4\nspl_hostid=00000000\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=0spl.spl_hostid=123spl_hostid=0x00bab10c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=0x00bab10czbm.retry_delay=xzbm.columns=100spl.spl_hostid=123zbm.sort_key=sizezbm.sort_key=size \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value 0x00bab10czbm.retry_delay=xzbm.columns=100spl.spl_hostid=123zbm.sort_key=sizezbm.sort_key=size, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\" timeout=7\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=7\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: using deprecated arg 'timeout' when 'zbm.timeout' is preferred\nINFO: setting menu timeout from command line: 7\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=xzbm.import_policy=hostid\\\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"spl_hostid=0x0console=a,b,cforce_import=1zbm.sort_key=usedzbm.skip\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<quiet\n>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: 'quiet'\n"
+      ]
+    },
+    {
+      "input": "\" zbm.set_hostid=off\\\"zbm.prefer=p!!!zbm.columns=-5zbm.sort_key=sizezbm.import_delay=9console=ttyS0,115200n8\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=+3loglevel=xzbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.timeout=5spl_hostid=nopezbm.import_policy=hostidzbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"spl_hostid=0x00bab10c\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '+3loglevel=xzbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"zbm.timeout=5spl_hostid=nopezbm.import_policy=hostidzbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"spl_hostid=0x00bab10c', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"spl_hostid=nopeloglevel=+6\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "WARN: using deprecated arg 'spl_hostid' when 'spl.spl_hostid' is preferred\nWARN: invalid hostid value nopeloglevel=+6, ignoring\nINFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"\\\"\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.retry_delay=3zbm.hookroot=pool/hookszbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"zbm.columns=-5zbm.sort_key=usedzbm.kcl_override=\\\"quiet root=x spl_hostid=1 'a b'\\\"zbm.set_hostid=off\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=-1zbm.sort_key=creationzbm.prefer=p!!!spl_hostid=zbm.columns=-5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nWARN: invalid menu timeout: '-1zbm.sort_key=creationzbm.prefer=p!!!spl_hostid=zbm.columns=-5', defaulting to 10 seconds\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool!zbm.retry_delay=xzbm.force_import=no-n-nspl_hostid=0123\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool!zbm.retry_delay=xzbm.force_import=no-n-nspl_hostid=0123\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.prefer=pool/ROOT/be!\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=pool\nzbm_require_pool=yes\nzbm_prefer_bootfs=pool/ROOT/be\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: requiring pool pool\n"
+      ]
+    },
+    {
+      "input": "\"zbm.show\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=-1\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: forcing display of menu\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"force_import=1zbm.hookroot=pool/hookszbm.retry_delay=3\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=force\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: using deprecated arg 'force_import' when 'zbm.force_import' is preferred\nINFO: setting import_policy to force\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.import_policy=otherzbm.prefer=poolzbm.prefer=poolzbm.force_import\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nWARN: unknown import policy 'otherzbm.prefer=poolzbm.prefer=poolzbm.force_import', defaulting to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=\\\"spl.spl_hostid=2 c\\\"spl.spl_hostid=123\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: ''\n"
+      ]
+    },
+    {
+      "input": "\"zbm.kcl_override=plainzbm.prefer=poolconsole=tty1\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\noverride<<plainzbm.prefer=poolconsole=tty1\n>>\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\nINFO: overriding all BE KCLs with: 'plainzbm.prefer=poolconsole=tty1'\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=100\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=100\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"console=ttyS0,115200n8zbm.kcl_override=plain\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/ttyS0\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: setting controlling terminal to: /dev/ttyS0\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.timeout=5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=5\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: setting menu timeout from command line: 5\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.columns=-5zbm.force_importzbm.timeout=xzbm.sort_key=creationzbm.columns=-5\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=80\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.columns: '-5zbm.force_importzbm.timeout=xzbm.sort_key=creationzbm.columns=-5', defaulting to 80 columns\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.set_hostid=0\"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=0\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nINFO: defaulting sort key order to name;creation;used\nINFO: disabling automatic replacement of spl_hostid\n"
+      ]
+    },
+    {
+      "input": "\"zbm.lines=xzbm.show \"",
+      "result": [
+        "loglevel=4\nspl_hostid=\ncontrol_term=/dev/tty1\nimport_policy=hostid\nmenu_timeout=10\nzbm_retry_delay=5\nzbm_lines=25\nzbm_columns=\nzbm_sort=name;creation;used\nzbm_hook_root=\nzbm_set_hostid=1\nzbm_wait_for_devices=\nzbm_prefer_pool=\nzbm_require_pool=\nzbm_prefer_bootfs=\n",
+        "INFO: defaulting controlling terminal to: /dev/tty1\nINFO: defaulting import_policy to hostid\nINFO: defaulting menu timeout to 10\nWARN: invalid zbm.lines: 'xzbm.show', defaulting to 25 lines\nINFO: defaulting sort key order to name;creation;used\nINFO: enabling automatic replacement of spl_hostid\n"
+      ]
+    }
+  ]
+}

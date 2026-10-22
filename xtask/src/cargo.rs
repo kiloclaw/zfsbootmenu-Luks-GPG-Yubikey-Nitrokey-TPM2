@@ -25,25 +25,71 @@ pub fn cargo(root: &Path) -> Program {
 ///
 /// When a test fails.
 pub fn test(root: &Path) -> Result<()> {
+    test_with(root, &[])
+}
+
+/// Runs the tests as [`test`] does, with the environment variables `env`.
+fn test_with(root: &Path, env: &[(&str, &str)]) -> Result<()> {
+    let with_env = |mut program: Program| {
+        for (key, value) in env {
+            program = program.env(key, value);
+        }
+        program
+    };
     let runner = if has_nextest(root) {
         ["nextest", "run"].as_slice()
     } else {
         println!("test: cargo-nextest is not installed; using cargo test");
         ["test"].as_slice()
     };
-    cargo(root)
+    with_env(cargo(root))
         .args(runner)
         .args(["--workspace", "--locked"])
         .run()?;
     if runner != ["test"] {
-        cargo(root)
+        with_env(cargo(root))
             .args(["test", "--workspace", "--doc", "--locked"])
             .run()?;
     }
-    cargo(root)
+    with_env(cargo(root))
         .args(runner)
         .args(["-p", "zbm", "--features", "test-seams", "--locked"])
         .run()
+}
+
+/// The golden files of the legacy results, relative to the root.
+pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
+
+/// Records the results of the legacy code that parity tests compare with:
+/// runs the tests with `ZBM_PARITY=record`, which runs the legacy code and
+/// writes the golden files below [`GOLDEN_LEGACY`], then lists the files that
+/// changed. With `check`, runs them with `ZBM_PARITY=check` instead, which
+/// fails where the legacy code no longer gives the recorded result.
+///
+/// Recording needs what the legacy code needs: Bash, Perl with its modules,
+/// binutils and the systemd EFI stub (`docs/dev/testing.md`). Run it as root
+/// to record the cases that compare with the legacy code only as root.
+///
+/// # Errors
+///
+/// When a test fails.
+pub fn record_parity(root: &Path, check: bool) -> Result<()> {
+    let mode = if check { "check" } else { "record" };
+    test_with(root, &[("ZBM_PARITY", mode)])?;
+    if check {
+        println!("record-parity: every recording matches the legacy code");
+        return Ok(());
+    }
+    let changed = Program::new("git", root)
+        .args(["status", "--short", "--", GOLDEN_LEGACY])
+        .output()?;
+    if changed.is_empty() {
+        println!("record-parity: no recording changed");
+    } else {
+        println!("record-parity: these recordings changed; review them with `git diff`:");
+        print!("{changed}");
+    }
+    Ok(())
 }
 
 /// Whether `cargo nextest` runs.

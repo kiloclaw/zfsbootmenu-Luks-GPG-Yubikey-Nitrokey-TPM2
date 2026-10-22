@@ -456,7 +456,7 @@ fn printf_hex(value: &str) -> String {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
-    use zbm_testkit::{Rng, TempDir};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn parse(cmdline: &str) -> (ZbmOptions, Vec<Message>) {
         ZbmOptions::parse(&ZbmArgs::from_cmdline(cmdline))
@@ -697,8 +697,8 @@ mod tests {
 
     #[test]
     fn options_match_the_legacy_parser() {
+        let mut parity = parity!("options_match_the_legacy_parser");
         let mut rng = Rng::from_env(4);
-        let parser = legacy_parser();
         let report: String = VARIABLES
             .iter()
             .map(|name| {
@@ -709,39 +709,40 @@ mod tests {
             .collect();
         for _ in 0..150 {
             let cmdline = rng.join(PIECES, 8);
-            let base = TempDir::new("zbm-cmdline-options");
-            let file = base.write("proc-cmdline", &cmdline);
-            let legacy = Bash::new()
-                .env("BASE", &base.path().to_string_lossy())
-                .code(LOG_STUBS)
-                .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
-                .code(&format!(
-                    "_build_zbm_kcl() {{ kcl_tokenize < {}; }}",
-                    file.display()
-                ))
-                .code(&parser)
-                .code(&report)
-                .code(
-                    "if [ -f \"$BASE/cmdline\" ]; then \
-                     printf 'override<<%s>>\\n' \"$(cat \"$BASE/cmdline\"; echo .)\"; fi",
-                )
-                .call("true", &[], b"");
-            assert!(legacy.status.success(), "{}", legacy.stderr_text());
+            let (expected, logged): (String, String) =
+                parity.legacy(format!("{cmdline:?}"), || {
+                    let base = TempDir::new("zbm-cmdline-options");
+                    let file = base.write("proc-cmdline", &cmdline);
+                    let legacy = Bash::new()
+                        .env("BASE", &base.path().to_string_lossy())
+                        .code(LOG_STUBS)
+                        .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
+                        .code(&format!(
+                            "_build_zbm_kcl() {{ kcl_tokenize < {}; }}",
+                            file.display()
+                        ))
+                        .code(&legacy_parser())
+                        .code(&report)
+                        .code(
+                            "if [ -f \"$BASE/cmdline\" ]; then \
+                             printf 'override<<%s>>\\n' \"$(cat \"$BASE/cmdline\"; echo .)\"; fi",
+                        )
+                        .call("true", &[], b"");
+                    assert!(legacy.status.success(), "{}", legacy.stderr_text());
+                    // `$(cat file; echo .)` keeps the trailing newline of the override; drop
+                    // the dot again.
+                    (
+                        legacy.stdout_text().replace(".>>\n", ">>\n"),
+                        log_lines(&legacy.stderr_text()),
+                    )
+                });
             let (options, log) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&cmdline));
-            let mut expected = legacy.stdout_text();
-            // `$(cat file; echo .)` keeps the trailing newline of the override; drop the
-            // dot again.
-            expected = expected.replace(".>>\n", ">>\n");
             assert_eq!(rust_report(&options), expected, "cmdline {cmdline:?}");
             let messages: String = log
                 .iter()
                 .map(|message| format!("{}\n", message.stderr_line()))
                 .collect();
-            assert_eq!(
-                messages,
-                log_lines(&legacy.stderr_text()),
-                "cmdline {cmdline:?}"
-            );
+            assert_eq!(messages, logged, "cmdline {cmdline:?}");
         }
     }
 }

@@ -11,6 +11,8 @@ publish.workspace = true
 # Only other crates' tests depend on this crate; it never reaches a binary.
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
 zbm-core.workspace = true
 zbm-system.workspace = true
 

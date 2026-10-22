@@ -133,8 +133,8 @@ pub fn zbm_sources(root: &std::path::Path) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testkit::Rng;
     use zbm_testkit::legacy::{Bash, LOG_STUBS};
+    use zbm_testkit::{Rng, parity};
 
     fn kcl_lib() -> Bash {
         Bash::new()
@@ -216,36 +216,45 @@ mod tests {
 
     #[test]
     fn tokenize_matches_kcl_tokenize() {
+        let mut parity = parity!("tokenize_matches_kcl_tokenize");
         let mut rng = Rng::from_env(1);
-        let lib = kcl_lib();
         for _ in 0..200 {
             let input = rng.join(PIECES, 12);
-            let legacy = lib.call("kcl_tokenize", &[], input.as_bytes());
-            assert_eq!(tokenize(&input), legacy.stdout_text(), "input {input:?}");
+            let legacy: String = parity.legacy(format!("{input:?}"), || {
+                kcl_lib()
+                    .call("kcl_tokenize", &[], input.as_bytes())
+                    .stdout_text()
+            });
+            assert_eq!(tokenize(&input), legacy, "input {input:?}");
         }
     }
 
     #[test]
     fn suppress_append_assemble_match_the_library() {
+        let mut parity = parity!("suppress_append_assemble_match_the_library");
         let mut rng = Rng::from_env(2);
-        let lib = kcl_lib();
         let removals = ["root", "a", "key=v", "", "q", "-n"];
         for _ in 0..150 {
             let text = tokenize(&rng.join(PIECES, 10));
             let remove: Vec<&str> = (0..rng.below(3)).map(|_| *rng.choose(&removals)).collect();
-            let legacy = lib.call("kcl_suppress", &remove, text.as_bytes());
-            assert_eq!(
-                suppress(&text, &remove),
-                legacy.stdout_text(),
-                "text {text:?}"
-            );
-
             let add: Vec<&str> = (0..rng.below(3)).map(|_| *rng.choose(PIECES)).collect();
-            let legacy = lib.call("kcl_append", &add, text.as_bytes());
-            assert_eq!(append(&text, &add), legacy.stdout_text(), "text {text:?}");
+            let input = format!("text {text:?}, remove {remove:?}, add {add:?}");
+            let (suppressed, appended, assembled): (String, String, String) =
+                parity.legacy(input, || {
+                    let lib = kcl_lib();
+                    let run = |function, args: &[&str]| {
+                        lib.call(function, args, text.as_bytes()).stdout_text()
+                    };
+                    (
+                        run("kcl_suppress", &remove),
+                        run("kcl_append", &add),
+                        run("kcl_assemble", &[]),
+                    )
+                });
 
-            let legacy = lib.call("kcl_assemble", &[], text.as_bytes());
-            assert_eq!(assemble(&text), legacy.stdout_text(), "text {text:?}");
+            assert_eq!(suppress(&text, &remove), suppressed, "text {text:?}");
+            assert_eq!(append(&text, &add), appended, "text {text:?}");
+            assert_eq!(assemble(&text), assembled, "text {text:?}");
         }
     }
 }

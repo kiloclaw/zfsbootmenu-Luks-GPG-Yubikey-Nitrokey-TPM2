@@ -1,0 +1,1205 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "text \"%{parent}&key=vx\\\\y-e\\nroot=x\\n\", remove [\"key=v\"], add [\"key=v\"]",
+      "result": [
+        "%{parent}&key=vx\\y-e\nroot=x\n",
+        "%{parent}&key=vx\\y-e\nroot=x\nkey=v\n",
+        "%{parent}&key=vx\\y-e root=x"
+      ]
+    },
+    {
+      "input": "text \"x\\\\y%{parent}root=x\\nkey=v-e\\n\", remove [], add [\"\\n\"]",
+      "result": [
+        "x\\y%{parent}root=x\nkey=v-e\n",
+        "x\\y%{parent}root=x\nkey=v-e\n\n\n",
+        "x\\y%{parent}root=x key=v-e"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1a\\\"\\\"\\nkey=v'a-ekey=v\\n\", remove [], add [\"\\t\"]",
+      "result": [
+        "spl_hostid=1a\"\"\nkey=v'a-ekey=v\n",
+        "spl_hostid=1a\"\"\nkey=v'a-ekey=v\n\t\n",
+        "spl_hostid=1a\"\" key=v'a-ekey=v"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\"&\", \"root=x\"]",
+      "result": [
+        "",
+        "&\nroot=x\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"&b'#root=xkey=v\\n\", remove [\"\"], add []",
+      "result": [
+        "&b'#root=xkey=v\n",
+        "&b'#root=xkey=v\n",
+        "&b'#root=xkey=v"
+      ]
+    },
+    {
+      "input": "text \"x\\\\y=x\\\\yx\\\\yb'q=\\\"x y\\\"=q=\\\"x y\\\"\\n\", remove [], add []",
+      "result": [
+        "x\\y=x\\yx\\yb'q=\"x y\"=q=\"x y\"\n",
+        "x\\y=x\\yx\\yb'q=\"x y\"=q=\"x y\"\n",
+        "x\\y=x\\yx\\yb'q=\"x y\"=q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"-ex\\\\yq=\\\"x y\\\"\\\"\", remove [\"-n\", \"root\"], add [\"&\"]",
+      "result": [
+        "",
+        "-ex\\yq=\"x y\"\"&\n",
+        "-ex\\yq=\"x y\"\""
+      ]
+    },
+    {
+      "input": "text \"a\\n\", remove [], add []",
+      "result": [
+        "a\n",
+        "a\n",
+        "a"
+      ]
+    },
+    {
+      "input": "text \"&'a\\na\\\"\\\"bspl_hostid=1\\n\", remove [\"a\", \"root\"], add [\"-n\", \"spl_hostid=1\"]",
+      "result": [
+        "&'a\na\"\"bspl_hostid=1\n",
+        "&'a\na\"\"bspl_hostid=1\nspl_hostid=1\n",
+        "&'a a\"\"bspl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"key=v\\n\", remove [\"key=v\", \"a\"], add []",
+      "result": [
+        "",
+        "key=v\n",
+        "key=v"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\"'\", \"x\\\\y\"]",
+      "result": [
+        "",
+        "'\nx\\y\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"q\", \"key=v\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"#spl_hostid=1q=\\\"x y\\\"key=v\\n\", remove [\"key=v\"], add []",
+      "result": [
+        "#spl_hostid=1q=\"x y\"key=v\n",
+        "#spl_hostid=1q=\"x y\"key=v\n",
+        "#spl_hostid=1q=\"x y\"key=v"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"\\\"\\\"\\n&'q=\\\"x y\\\"\\n\", remove [\"root\"], add [\"\\n\"]",
+      "result": [
+        "q=\"x y\"\"\"\n&'q=\"x y\"\n",
+        "q=\"x y\"\"\"\n&'q=\"x y\"\n\n\n",
+        "q=\"x y\"\"\" &'q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"-nspl_hostid=1b\\\"'\", remove [\"a\", \"q\"], add []",
+      "result": [
+        "",
+        "-nspl_hostid=1b\"'",
+        "-nspl_hostid=1b\"'"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1a\\\"-n -n\", remove [], add [\"b\"]",
+      "result": [
+        "",
+        "spl_hostid=1a\"-n -nb\n",
+        "spl_hostid=1a\"-n -n"
+      ]
+    },
+    {
+      "input": "text \"=&spl_hostid=1\\n\", remove [\"\", \"-n\"], add [\"spl_hostid=1\", \" \"]",
+      "result": [
+        "",
+        "=&spl_hostid=1\nspl_hostid=1\n \n",
+        "=&spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"b%{parent}\\\"\\\"\\n\", remove [\"-n\"], add []",
+      "result": [
+        "b%{parent}\"\"\n",
+        "b%{parent}\"\"\n",
+        "b%{parent}\"\""
+      ]
+    },
+    {
+      "input": "text \"root=xq=\\\"x y\\\"aroot=x\\n-e\\n=\\n\", remove [], add [\"'\", \"root=x\"]",
+      "result": [
+        "root=xq=\"x y\"aroot=x\n\n=\n",
+        "root=xq=\"x y\"aroot=x\n-e\n=\n'\nroot=x\n",
+        "root=xq=\"x y\"aroot=x -e ="
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"#\\\"\\\"\\\"\\\"#\\\"\\\"\\n\", remove [\"root\"], add []",
+      "result": [
+        "\"\"#\"\"\"\"#\"\"\n",
+        "\"\"#\"\"\"\"#\"\"\n",
+        "\"\"#\"\"\"\"#\"\""
+      ]
+    },
+    {
+      "input": "text \"-eroot=x'\\n\", remove [\"root\"], add [\"root=x\"]",
+      "result": [
+        "-eroot=x'\n",
+        "-eroot=x'\nroot=x\n",
+        "-eroot=x'"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\"q=\\\"x y\\\"\"]",
+      "result": [
+        "",
+        "q=\"x y\"\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"=\\n\", remove [\"q\", \"a\"], add [\"q=\\\"x y\\\"\", \"%{parent}\"]",
+      "result": [
+        "=\n",
+        "=\nq=\"x y\"\n%{parent}\n",
+        "="
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"-n\"], add [\"\\t\"]",
+      "result": [
+        "",
+        "\t\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"#a\\\"\\\"=\\n=#root=x'\\n\", remove [\"q\", \"-n\"], add []",
+      "result": [
+        "#a\"\"=\n=#root=x'\n",
+        "#a\"\"=\n=#root=x'\n",
+        "#a\"\"= =#root=x'"
+      ]
+    },
+    {
+      "input": "text \"root=x#\\\"\", remove [\"a\"], add []",
+      "result": [
+        "",
+        "root=x#\"",
+        "root=x#\""
+      ]
+    },
+    {
+      "input": "text \"&root=x-nb\\\"\\\"\\nq=\\\"x y\\\"-eroot=x\\n\", remove [], add []",
+      "result": [
+        "&root=x-nb\"\"\nq=\"x y\"-eroot=x\n",
+        "&root=x-nb\"\"\nq=\"x y\"-eroot=x\n",
+        "&root=x-nb\"\" q=\"x y\"-eroot=x"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"\\\"\\\"#\\n=\\\"root=x\", remove [\"a\"], add [\"\\\"\", \"\\n\"]",
+      "result": [
+        "q=\"x y\"\"\"#\n",
+        "q=\"x y\"\"\"#\n=\"root=x\"\n\n\n",
+        "q=\"x y\"\"\"# =\"root=x"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"root\", \"\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"\\nspl_hostid=1\\n\", remove [], add [\"\\\"\", \"q=\\\"x y\\\"\"]",
+      "result": [
+        "q=\"x y\"\nspl_hostid=1\n",
+        "q=\"x y\"\nspl_hostid=1\n\"\nq=\"x y\"\n",
+        "q=\"x y\" spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"root\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"-e%{parent}x\\\\y-ea\\\"\", remove [\"q\"], add [\"%{parent}\"]",
+      "result": [
+        "",
+        "-e%{parent}x\\y-ea\"%{parent}\n",
+        "-e%{parent}x\\y-ea\""
+      ]
+    },
+    {
+      "input": "text \"&\\n-n\\n%{parent}\\nkey=vbbspl_hostid=1\\n\", remove [], add [\"'\", \"key=v\"]",
+      "result": [
+        "&\n%{parent}\nkey=vbbspl_hostid=1\n",
+        "&\n-n\n%{parent}\nkey=vbbspl_hostid=1\n'\nkey=v\n",
+        "& -n %{parent} key=vbbspl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"a\", \"-n\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"-e\\n\", remove [\"key=v\"], add [\"-n\", \"root=x\"]",
+      "result": [
+        "\n",
+        "-e\nroot=x\n",
+        "-e"
+      ]
+    },
+    {
+      "input": "text \"root=x\\n\", remove [\"a\"], add []",
+      "result": [
+        "root=x\n",
+        "root=x\n",
+        "root=x"
+      ]
+    },
+    {
+      "input": "text \"##\\n-nb\\n\", remove [\"\", \"a\"], add [\"'\", \"root=x\"]",
+      "result": [
+        "##\n-nb\n",
+        "##\n-nb\n'\nroot=x\n",
+        "## -nb"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1aa&\\n%{parent}\\n\", remove [\"-n\", \"key=v\"], add [\"root=x\"]",
+      "result": [
+        "spl_hostid=1aa&\n%{parent}\n",
+        "spl_hostid=1aa&\n%{parent}\nroot=x\n",
+        "spl_hostid=1aa& %{parent}"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"root=x\\n\", remove [], add [\"x\\\\y\"]",
+      "result": [
+        "q=\"x y\"root=x\n",
+        "q=\"x y\"root=x\nx\\y\n",
+        "q=\"x y\"root=x"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1\\n'\\nspl_hostid=1#\\\" -n&\", remove [], add [\"q=\\\"x y\\\"\"]",
+      "result": [
+        "spl_hostid=1\n'\n",
+        "spl_hostid=1\n'\nspl_hostid=1#\" -n&q=\"x y\"\n",
+        "spl_hostid=1 ' spl_hostid=1#\" -n&"
+      ]
+    },
+    {
+      "input": "text \"#'q=\\\"x y\\\"&\\\"\\\"\\n\", remove [\"-n\", \"key=v\"], add [\"spl_hostid=1\"]",
+      "result": [
+        "#'q=\"x y\"&\"\"\n",
+        "#'q=\"x y\"&\"\"\nspl_hostid=1\n",
+        "#'q=\"x y\"&\"\""
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"\\n\", remove [\"\"], add [\"  \"]",
+      "result": [
+        "q=\"x y\"\n",
+        "q=\"x y\"\n  \n",
+        "q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1'\\n&'q=\\\"x y\\\"spl_hostid=1\\n\", remove [\"a\", \"root\"], add [\"=\", \"\\t\"]",
+      "result": [
+        "spl_hostid=1'\n&'q=\"x y\"spl_hostid=1\n",
+        "spl_hostid=1'\n&'q=\"x y\"spl_hostid=1\n=\n\t\n",
+        "spl_hostid=1' &'q=\"x y\"spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"a\", \"\"], add [\"spl_hostid=1\", \"\\n\"]",
+      "result": [
+        "",
+        "spl_hostid=1\n\n\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"key=vroot=xb\\\"\\\"a&\\n\", remove [\"-n\", \"q\"], add [\"#\"]",
+      "result": [
+        "key=vroot=xb\"\"a&\n",
+        "key=vroot=xb\"\"a&\n#\n",
+        "key=vroot=xb\"\"a&"
+      ]
+    },
+    {
+      "input": "text \"#a-n&root=x'\\nspl_hostid=1\\n\", remove [], add [\"spl_hostid=1\"]",
+      "result": [
+        "#a-n&root=x'\nspl_hostid=1\n",
+        "#a-n&root=x'\nspl_hostid=1\nspl_hostid=1\n",
+        "#a-n&root=x' spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"q=\\\"x y\\\"q=\\\"x y\\\"x\\\\y&key=v=\\n-e\\n\", remove [], add []",
+      "result": [
+        "\"\"q=\"x y\"q=\"x y\"x\\y&key=v=\n\n",
+        "\"\"q=\"x y\"q=\"x y\"x\\y&key=v=\n-e\n",
+        "\"\"q=\"x y\"q=\"x y\"x\\y&key=v= -e"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"\\n\", remove [\"key=v\", \"a\"], add []",
+      "result": [
+        "q=\"x y\"\n",
+        "q=\"x y\"\n",
+        "q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1\\n\", remove [\"a\", \"q\"], add [\"spl_hostid=1\", \"\\\"\\\"\"]",
+      "result": [
+        "spl_hostid=1\n",
+        "spl_hostid=1\nspl_hostid=1\n\"\"\n",
+        "spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"a&key=v\\nq=\\\"x y\\\"spl_hostid=1\\n\", remove [\"\", \"root\"], add []",
+      "result": [
+        "a&key=v\nq=\"x y\"spl_hostid=1\n",
+        "a&key=v\nq=\"x y\"spl_hostid=1\n",
+        "a&key=v q=\"x y\"spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"key=v-e\\n\", remove [\"root\", \"q\"], add [\"#\", \"  \"]",
+      "result": [
+        "key=v-e\n",
+        "key=v-e\n#\n  \n",
+        "key=v-e"
+      ]
+    },
+    {
+      "input": "text \"x\\\\y\\n%{parent}spl_hostid=1spl_hostid=1q=\\\"x y\\\"q=\\\"x y\\\"-e\\n\", remove [\"\", \"\"], add []",
+      "result": [
+        "x\\y\n%{parent}spl_hostid=1spl_hostid=1q=\"x y\"q=\"x y\"-e\n",
+        "x\\y\n%{parent}spl_hostid=1spl_hostid=1q=\"x y\"q=\"x y\"-e\n",
+        "x\\y %{parent}spl_hostid=1spl_hostid=1q=\"x y\"q=\"x y\"-e"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"\\\"\", remove [\"a\", \"root\"], add [\"  \"]",
+      "result": [
+        "",
+        "\"\"\"  \n",
+        "\"\"\""
+      ]
+    },
+    {
+      "input": "text \"%{parent}#\\\"-n=a\", remove [\"-n\"], add [\"%{parent}\"]",
+      "result": [
+        "",
+        "%{parent}#\"-n=a%{parent}\n",
+        "%{parent}#\"-n=a"
+      ]
+    },
+    {
+      "input": "text \"&key=vspl_hostid=1=\\n\", remove [\"a\", \"root\"], add []",
+      "result": [
+        "&key=vspl_hostid=1=\n",
+        "&key=vspl_hostid=1=\n",
+        "&key=vspl_hostid=1="
+      ]
+    },
+    {
+      "input": "text \"-nbb\\n\", remove [], add [\"x\\\\y\"]",
+      "result": [
+        "-nbb\n",
+        "-nbb\nx\\y\n",
+        "-nbb"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"=key=v\\\"%{parent}\\\"\\\" bq=\\\"x\\ny\\\"\", remove [\"-n\"], add [\"&\"]",
+      "result": [
+        "\"\"=key=v\"%{parent}\"\" bq=\"x\n",
+        "\"\"=key=v\"%{parent}\"\" bq=\"x\ny\"&\n",
+        "\"\"=key=v\"%{parent}\"\" bq=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"-n&'\\nspl_hostid=1\\n\", remove [], add [\"-e\", \"\\\"\\\"\"]",
+      "result": [
+        "-n&'\nspl_hostid=1\n",
+        "-n&'\nspl_hostid=1\n\n\"\"\n",
+        "-n&' spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"x\\\\y'=&'\\n-e'spl_hostid=1\\n\", remove [], add [\"root=x\", \" \"]",
+      "result": [
+        "x\\y'=&'\n-e'spl_hostid=1\n",
+        "x\\y'=&'\n-e'spl_hostid=1\nroot=x\n \n",
+        "x\\y'=&' -e'spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"\\\"root=xspl_hostid=1spl_hostid=1\", remove [\"\", \"key=v\"], add [\"root=x\"]",
+      "result": [
+        "",
+        "\"root=xspl_hostid=1spl_hostid=1root=x\n",
+        "\"root=xspl_hostid=1spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"-nx\\\\y\\nspl_hostid=1%{parent}root=x\\n#x\\\\y\\\"\", remove [], add []",
+      "result": [
+        "-nx\\y\nspl_hostid=1%{parent}root=x\n",
+        "-nx\\y\nspl_hostid=1%{parent}root=x\n#x\\y\"",
+        "-nx\\y spl_hostid=1%{parent}root=x #x\\y\""
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"-n\"], add []",
+      "result": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "input": "text \"a\\nx\\\\y\\n%{parent}\\n\", remove [\"\", \"\"], add [\"q=\\\"x y\\\"\", \"  \"]",
+      "result": [
+        "a\nx\\y\n%{parent}\n",
+        "a\nx\\y\n%{parent}\nq=\"x y\"\n  \n",
+        "a x\\y %{parent}"
+      ]
+    },
+    {
+      "input": "text \"key=v\\nkey=vspl_hostid=1a\\\"%{parent}=%{parent}\", remove [\"q\", \"\"], add []",
+      "result": [
+        "key=v\n",
+        "key=v\nkey=vspl_hostid=1a\"%{parent}=%{parent}",
+        "key=v key=vspl_hostid=1a\"%{parent}=%{parent}"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"root=x\\n\", remove [\"-n\"], add [\"  \"]",
+      "result": [
+        "q=\"x y\"root=x\n",
+        "q=\"x y\"root=x\n  \n",
+        "q=\"x y\"root=x"
+      ]
+    },
+    {
+      "input": "text \"a\\n\", remove [\"a\"], add []",
+      "result": [
+        "",
+        "a\n",
+        "a"
+      ]
+    },
+    {
+      "input": "text \"&=-nb\\n%{parent}x\\\\y-e\\n\", remove [], add [\"key=v\"]",
+      "result": [
+        "&=-nb\n%{parent}x\\y-e\n",
+        "&=-nb\n%{parent}x\\y-e\nkey=v\n",
+        "&=-nb %{parent}x\\y-e"
+      ]
+    },
+    {
+      "input": "text \"key=v'=key=v\\\"\\\"-e'#akey=v\\n\", remove [\"\"], add [\"key=v\"]",
+      "result": [
+        "key=v'=key=v\"\"-e'#akey=v\n",
+        "key=v'=key=v\"\"-e'#akey=v\nkey=v\n",
+        "key=v'=key=v\"\"-e'#akey=v"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1#q=\\\"x y\\\"=\\n\", remove [\"-n\"], add []",
+      "result": [
+        "spl_hostid=1#q=\"x y\"=\n",
+        "spl_hostid=1#q=\"x y\"=\n",
+        "spl_hostid=1#q=\"x y\"="
+      ]
+    },
+    {
+      "input": "text \"broot=x\\naspl_hostid=1\\n\", remove [\"-n\"], add []",
+      "result": [
+        "broot=x\naspl_hostid=1\n",
+        "broot=x\naspl_hostid=1\n",
+        "broot=x aspl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"key=v=-n\\n\", remove [\"q\"], add []",
+      "result": [
+        "key=v=-n\n",
+        "key=v=-n\n",
+        "key=v=-n"
+      ]
+    },
+    {
+      "input": "text \"-ex\\\\y\\\"\\\"\\n\", remove [], add []",
+      "result": [
+        "-ex\\y\"\"\n",
+        "-ex\\y\"\"\n",
+        "-ex\\y\"\""
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"root\"], add [\"%{parent}\", \"  \"]",
+      "result": [
+        "",
+        "%{parent}\n  \n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"key=v#a\\n\", remove [\"q\"], add []",
+      "result": [
+        "key=v#a\n",
+        "key=v#a\n",
+        "key=v#a"
+      ]
+    },
+    {
+      "input": "text \"a=-n&&x\\\\y\\n\", remove [\"\", \"a\"], add [\"-n\"]",
+      "result": [
+        "",
+        "a=-n&&x\\y\n",
+        "a=-n&&x\\y"
+      ]
+    },
+    {
+      "input": "text \"#aa\\n\", remove [], add [\" \"]",
+      "result": [
+        "#aa\n",
+        "#aa\n \n",
+        "#aa"
+      ]
+    },
+    {
+      "input": "text \"\\\"q=\\\"x\\ny\\\" \\\"\\\"a-na\", remove [], add [\"q=\\\"x y\\\"\", \"\\\"\"]",
+      "result": [
+        "\"q=\"x\n",
+        "\"q=\"x\ny\" \"\"a-naq=\"x y\"\n\"\n",
+        "\"q=\"x y\" \"\"a-na"
+      ]
+    },
+    {
+      "input": "text \"key=v=\\naspl_hostid=1#\\n\", remove [\"-n\", \"a\"], add []",
+      "result": [
+        "key=v=\naspl_hostid=1#\n",
+        "key=v=\naspl_hostid=1#\n",
+        "key=v= aspl_hostid=1#"
+      ]
+    },
+    {
+      "input": "text \"%{parent}q=\\\"x y\\\"#\\n\\\" aroot=x\", remove [], add [\"root=x\", \"q=\\\"x y\\\"\"]",
+      "result": [
+        "%{parent}q=\"x y\"#\n",
+        "%{parent}q=\"x y\"#\n\" aroot=xroot=x\nq=\"x y\"\n",
+        "%{parent}q=\"x y\"# \" aroot=x"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\" \"]",
+      "result": [
+        "",
+        " \n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"-nq=\\\"x y\\\"\\\"\\\"\\\"x\\\\y-ex\\\\y\", remove [\"q\"], add [\"\\\"\\\"\"]",
+      "result": [
+        "",
+        "\"\"-nq=\"x y\"\"\"\"x\\y-ex\\y\"\"\n",
+        "\"\"-nq=\"x y\"\"\"\"x\\y-ex\\y"
+      ]
+    },
+    {
+      "input": "text \"key=vx\\\\y%{parent}q=\\\"x y\\\"key=v\\nroot=x\\\"%{parent}\", remove [\"root\"], add [\" \"]",
+      "result": [
+        "key=vx\\y%{parent}q=\"x y\"key=v\n",
+        "key=vx\\y%{parent}q=\"x y\"key=v\nroot=x\"%{parent} \n",
+        "key=vx\\y%{parent}q=\"x y\"key=v root=x\"%{parent}"
+      ]
+    },
+    {
+      "input": "text \"'spl_hostid=1\\\"\\\"==a\\n\", remove [\"q\"], add [\"key=v\"]",
+      "result": [
+        "'spl_hostid=1\"\"==a\n",
+        "'spl_hostid=1\"\"==a\nkey=v\n",
+        "'spl_hostid=1\"\"==a"
+      ]
+    },
+    {
+      "input": "text \"b\\\"=\", remove [], add [\"root=x\"]",
+      "result": [
+        "",
+        "b\"=root=x\n",
+        "b\"="
+      ]
+    },
+    {
+      "input": "text \"b\\n\", remove [\"root\", \"root\"], add [\"#\"]",
+      "result": [
+        "b\n",
+        "b\n#\n",
+        "b"
+      ]
+    },
+    {
+      "input": "text \"a&key=v-n\\nq=\\\"x y\\\"\\n\", remove [\"root\", \"q\"], add [\" \", \"\\\"\"]",
+      "result": [
+        "a&key=v-n\n",
+        "a&key=v-n\nq=\"x y\"\n \n\"\n",
+        "a&key=v-n q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"&\\\"x\\\\y-nx\\\\ykey=v -n\", remove [], add [\"a\"]",
+      "result": [
+        "",
+        "\"\"&\"x\\y-nx\\ykey=v -na\n",
+        "\"\"&\"x\\y-nx\\ykey=v -n"
+      ]
+    },
+    {
+      "input": "text \"x\\\\yroot=x-e\\\"\\\"\\n\\\"\\\"\\\"%{parent}#\", remove [\"-n\", \"key=v\"], add [\"  \", \"b\"]",
+      "result": [
+        "x\\yroot=x-e\"\"\n",
+        "x\\yroot=x-e\"\"\n\"\"\"%{parent}#  \nb\n",
+        "x\\yroot=x-e\"\" \"\"\"%{parent}#"
+      ]
+    },
+    {
+      "input": "text \"root=xkey=v\\n\", remove [\"key=v\", \"root\"], add []",
+      "result": [
+        "",
+        "root=xkey=v\n",
+        "root=xkey=v"
+      ]
+    },
+    {
+      "input": "text \"x\\\\ykey=v\\\"\\\"\\\"==x\\\\y key=vkey=v\", remove [\"key=v\", \"root\"], add []",
+      "result": [
+        "",
+        "x\\ykey=v\"\"\"==x\\y key=vkey=v",
+        "x\\ykey=v\"\"\"==x\\y key=vkey=v"
+      ]
+    },
+    {
+      "input": "text \"\\\"root=x\", remove [], add []",
+      "result": [
+        "",
+        "\"root=x",
+        "\"root=x"
+      ]
+    },
+    {
+      "input": "text \"'key=v\\n=a%{parent}#-n-ea\\n\", remove [\"-n\"], add [\"\\\"\", \"q=\\\"x y\\\"\"]",
+      "result": [
+        "'key=v\n=a%{parent}#-n-ea\n",
+        "'key=v\n=a%{parent}#-n-ea\n\"\nq=\"x y\"\n",
+        "'key=v =a%{parent}#-n-ea"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1#\\n#%{parent}%{parent}\\nq=\\\"x y\\\"q=\\\"x y\\\"=\\n\", remove [\"root\", \"\"], add [\"%{parent}\"]",
+      "result": [
+        "spl_hostid=1#\n#%{parent}%{parent}\nq=\"x y\"q=\"x y\"=\n",
+        "spl_hostid=1#\n#%{parent}%{parent}\nq=\"x y\"q=\"x y\"=\n%{parent}\n",
+        "spl_hostid=1# #%{parent}%{parent} q=\"x y\"q=\"x y\"="
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1broot=x-e\\n-n\\n\\\"\\\"\\n\", remove [\"root\", \"\"], add [\"\\n\", \"q=\\\"x y\\\"\"]",
+      "result": [
+        "spl_hostid=1broot=x-e\n\"\"\n",
+        "spl_hostid=1broot=x-e\n-n\n\"\"\n\n\nq=\"x y\"\n",
+        "spl_hostid=1broot=x-e -n \"\""
+      ]
+    },
+    {
+      "input": "text \"x\\\\y=%{parent}&\\n\", remove [\"root\"], add [\"x\\\\y\"]",
+      "result": [
+        "x\\y=%{parent}&\n",
+        "x\\y=%{parent}&\nx\\y\n",
+        "x\\y=%{parent}&"
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\"&\"]",
+      "result": [
+        "",
+        "&\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"%{parent}\\\"\\\"-nx\\\\y-nkey=v\\n\", remove [\"-n\"], add []",
+      "result": [
+        "%{parent}\"\"-nx\\y-nkey=v\n",
+        "%{parent}\"\"-nx\\y-nkey=v\n",
+        "%{parent}\"\"-nx\\y-nkey=v"
+      ]
+    },
+    {
+      "input": "text \"root=x=\\n\", remove [\"\"], add [\"=\"]",
+      "result": [
+        "root=x=\n",
+        "root=x=\n=\n",
+        "root=x="
+      ]
+    },
+    {
+      "input": "text \"x\\\\y-n\\n\", remove [\"q\", \"\"], add [\"\\\"\\\"\", \"b\"]",
+      "result": [
+        "x\\y-n\n",
+        "x\\y-n\n\"\"\nb\n",
+        "x\\y-n"
+      ]
+    },
+    {
+      "input": "text \"%{parent}\\nb\\\"'root=x\", remove [\"q\", \"root\"], add []",
+      "result": [
+        "%{parent}\n",
+        "%{parent}\nb\"'root=x",
+        "%{parent} b\"'root=x"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"q\", \"key=v\"], add [\" \"]",
+      "result": [
+        "",
+        " \n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"a'bb\\n\", remove [\"a\"], add []",
+      "result": [
+        "a'bb\n",
+        "a'bb\n",
+        "a'bb"
+      ]
+    },
+    {
+      "input": "text \"%{parent}\\n&q=\\\"x y\\\"spl_hostid=1a\\\"\", remove [], add [\"\\n\", \"key=v\"]",
+      "result": [
+        "%{parent}\n",
+        "%{parent}\n&q=\"x y\"spl_hostid=1a\"\n\nkey=v\n",
+        "%{parent} &q=\"x y\"spl_hostid=1a\""
+      ]
+    },
+    {
+      "input": "text \"b\\nb\\n%{parent}spl_hostid=1b\\n\", remove [\"-n\", \"-n\"], add []",
+      "result": [
+        "b\nb\n%{parent}spl_hostid=1b\n",
+        "b\nb\n%{parent}spl_hostid=1b\n",
+        "b b %{parent}spl_hostid=1b"
+      ]
+    },
+    {
+      "input": "text \"ax\\\\y\\n\\\"\\\"x\\\\y#spl_hostid=1\\n\", remove [\"\"], add [\"root=x\", \"&\"]",
+      "result": [
+        "ax\\y\n\"\"x\\y#spl_hostid=1\n",
+        "ax\\y\n\"\"x\\y#spl_hostid=1\nroot=x\n&\n",
+        "ax\\y \"\"x\\y#spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"%{parent}\\\"\\\"root=x-n\\\"\\\"\\n\", remove [\"key=v\", \"a\"], add [\"a\", \"%{parent}\"]",
+      "result": [
+        "%{parent}\"\"root=x-n\"\"\n",
+        "%{parent}\"\"root=x-n\"\"\na\n%{parent}\n",
+        "%{parent}\"\"root=x-n\"\""
+      ]
+    },
+    {
+      "input": "text \"'\\n\", remove [], add [\"\\\"\\\"\"]",
+      "result": [
+        "'\n",
+        "'\n\"\"\n",
+        "'"
+      ]
+    },
+    {
+      "input": "text \"b\\\"\\\"\\n\", remove [], add []",
+      "result": [
+        "b\"\"\n",
+        "b\"\"\n",
+        "b\"\""
+      ]
+    },
+    {
+      "input": "text \"\", remove [], add [\"key=v\"]",
+      "result": [
+        "",
+        "key=v\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"'%{parent}\\\"#bspl_hostid=1spl_hostid=1'\", remove [], add [\"\\n\", \"'\"]",
+      "result": [
+        "",
+        "'%{parent}\"#bspl_hostid=1spl_hostid=1'\n\n'\n",
+        "'%{parent}\"#bspl_hostid=1spl_hostid=1'"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"\\n\", remove [], add []",
+      "result": [
+        "\"\"\n",
+        "\"\"\n",
+        "\"\""
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"key=v\\\"\\\"root=x\\n\", remove [\"-n\"], add [\"=\", \"key=v\"]",
+      "result": [
+        "q=\"x y\"key=v\"\"root=x\n",
+        "q=\"x y\"key=v\"\"root=x\n=\nkey=v\n",
+        "q=\"x y\"key=v\"\"root=x"
+      ]
+    },
+    {
+      "input": "text \"bb\\n%{parent}'q=\\\"x y\\\"\\n#\\n\", remove [], add []",
+      "result": [
+        "bb\n%{parent}'q=\"x y\"\n#\n",
+        "bb\n%{parent}'q=\"x y\"\n#\n",
+        "bb %{parent}'q=\"x y\" #"
+      ]
+    },
+    {
+      "input": "text \"\\\"b\", remove [\"q\", \"key=v\"], add [\"spl_hostid=1\"]",
+      "result": [
+        "",
+        "\"bspl_hostid=1\n",
+        "\"b"
+      ]
+    },
+    {
+      "input": "text \"b-nbroot=x&\\n\", remove [], add [\"\\n\", \"=\"]",
+      "result": [
+        "b-nbroot=x&\n",
+        "b-nbroot=x&\n\n\n=\n",
+        "b-nbroot=x&"
+      ]
+    },
+    {
+      "input": "text \"\\\"-n '\\\"\\\"root=x&\", remove [], add []",
+      "result": [
+        "",
+        "\"-n '\"\"root=x&",
+        "\"-n '\"\"root=x&"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1\\n&&\\\"\\\"x\\\\y-n&b\\\"\", remove [], add []",
+      "result": [
+        "spl_hostid=1\n",
+        "spl_hostid=1\n&&\"\"x\\y-n&b\"",
+        "spl_hostid=1 &&\"\"x\\y-n&b\""
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"'bbkey=v#a\\n\", remove [], add []",
+      "result": [
+        "q=\"x y\"'bbkey=v#a\n",
+        "q=\"x y\"'bbkey=v#a\n",
+        "q=\"x y\"'bbkey=v#a"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"\\n\", remove [\"q\"], add [\"\\n\", \"spl_hostid=1\"]",
+      "result": [
+        "\"\"\n",
+        "\"\"\n\n\nspl_hostid=1\n",
+        "\"\""
+      ]
+    },
+    {
+      "input": "text \"a-n&-ekey=v\\n\", remove [\"q\", \"\"], add []",
+      "result": [
+        "a-n&-ekey=v\n",
+        "a-n&-ekey=v\n",
+        "a-n&-ekey=v"
+      ]
+    },
+    {
+      "input": "text \"#\\n\", remove [], add [\"x\\\\y\", \"x\\\\y\"]",
+      "result": [
+        "#\n",
+        "#\nx\\y\nx\\y\n",
+        "#"
+      ]
+    },
+    {
+      "input": "text \"&\\n\", remove [], add [\"%{parent}\"]",
+      "result": [
+        "&\n",
+        "&\n%{parent}\n",
+        "&"
+      ]
+    },
+    {
+      "input": "text \"'\\\"-e%{parent}\", remove [\"key=v\", \"root\"], add [\"b\", \"key=v\"]",
+      "result": [
+        "",
+        "'\"-e%{parent}b\nkey=v\n",
+        "'\"-e%{parent}"
+      ]
+    },
+    {
+      "input": "text \"#\\nroot=x\\n\", remove [\"key=v\", \"a\"], add [\"\\\"\\\"\"]",
+      "result": [
+        "#\nroot=x\n",
+        "#\nroot=x\n\"\"\n",
+        "# root=x"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"\", \"key=v\"], add [\"%{parent}\", \"&\"]",
+      "result": [
+        "",
+        "%{parent}\n&\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"root=xspl_hostid=1q=\\\"x y\\\"#x\\\\y\\\" %{parent}=\", remove [], add []",
+      "result": [
+        "",
+        "root=xspl_hostid=1q=\"x y\"#x\\y\" %{parent}=",
+        "root=xspl_hostid=1q=\"x y\"#x\\y\" %{parent}="
+      ]
+    },
+    {
+      "input": "text \"-na\\nkey=v\\n\", remove [\"a\"], add [\"spl_hostid=1\"]",
+      "result": [
+        "-na\nkey=v\n",
+        "-na\nkey=v\nspl_hostid=1\n",
+        "-na key=v"
+      ]
+    },
+    {
+      "input": "text \"a&\\na&\\n-e\\\"\\\"spl_hostid=1\\n\", remove [\"\"], add [\"  \"]",
+      "result": [
+        "a&\na&\n-e\"\"spl_hostid=1\n",
+        "a&\na&\n-e\"\"spl_hostid=1\n  \n",
+        "a& a& -e\"\"spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"x\\\\y-e=#-nroot=x\\n\", remove [], add [\" \", \"a\"]",
+      "result": [
+        "x\\y-e=#-nroot=x\n",
+        "x\\y-e=#-nroot=x\n \na\n",
+        "x\\y-e=#-nroot=x"
+      ]
+    },
+    {
+      "input": "text \"#b\\n\", remove [], add [\"spl_hostid=1\", \"\\\"\\\"\"]",
+      "result": [
+        "#b\n",
+        "#b\nspl_hostid=1\n\"\"\n",
+        "#b"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1\\n\", remove [\"root\"], add []",
+      "result": [
+        "spl_hostid=1\n",
+        "spl_hostid=1\n",
+        "spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"root=xx\\\\y\\n\", remove [\"key=v\", \"key=v\"], add [\"\\\"\\\"\", \"spl_hostid=1\"]",
+      "result": [
+        "root=xx\\y\n",
+        "root=xx\\y\n\"\"\nspl_hostid=1\n",
+        "root=xx\\y"
+      ]
+    },
+    {
+      "input": "text \"\\\"&key=v'root=x\", remove [\"a\", \"key=v\"], add [\"&\"]",
+      "result": [
+        "",
+        "\"&key=v'root=x&\n",
+        "\"&key=v'root=x"
+      ]
+    },
+    {
+      "input": "text \"\\\"\\\"spl_hostid=1q=\\\"x y\\\"\\\"\\\"x\\\\y\\\"&\\\"\\\"#\", remove [], add [\"\\\"\\\"\"]",
+      "result": [
+        "",
+        "\"\"spl_hostid=1q=\"x y\"\"\"x\\y\"&\"\"#\"\"\n",
+        "\"\"spl_hostid=1q=\"x y\"\"\"x\\y\"&\"\"#"
+      ]
+    },
+    {
+      "input": "text \"-e'a#&\\nspl_hostid=1\\n\", remove [\"key=v\", \"q\"], add []",
+      "result": [
+        "-e'a#&\nspl_hostid=1\n",
+        "-e'a#&\nspl_hostid=1\n",
+        "-e'a#& spl_hostid=1"
+      ]
+    },
+    {
+      "input": "text \"key=v\\nq=\\\"x y\\\"\\nb\\n-e&\\n\", remove [\"-n\", \"q\"], add []",
+      "result": [
+        "key=v\nb\n-e&\n",
+        "key=v\nq=\"x y\"\nb\n-e&\n",
+        "key=v q=\"x y\" b -e&"
+      ]
+    },
+    {
+      "input": "text \"root=x-e=x\\\\y%{parent}-n\\n\", remove [\"root\", \"a\"], add [\"\\\"\", \"b\"]",
+      "result": [
+        "",
+        "root=x-e=x\\y%{parent}-n\n\"\nb\n",
+        "root=x-e=x\\y%{parent}-n"
+      ]
+    },
+    {
+      "input": "text \"\", remove [\"root\", \"q\"], add [\"b\"]",
+      "result": [
+        "",
+        "b\n",
+        ""
+      ]
+    },
+    {
+      "input": "text \"-ebkey=v\\\"\\\"x\\\\yx\\\\y%{parent}a%{parent}%{parent}\\n\", remove [\"key=v\"], add []",
+      "result": [
+        "-ebkey=v\"\"x\\yx\\y%{parent}a%{parent}%{parent}\n",
+        "-ebkey=v\"\"x\\yx\\y%{parent}a%{parent}%{parent}\n",
+        "-ebkey=v\"\"x\\yx\\y%{parent}a%{parent}%{parent}"
+      ]
+    },
+    {
+      "input": "text \"q=\\\"x y\\\"%{parent}a\\n'a%{parent}\\n\", remove [], add [\"  \"]",
+      "result": [
+        "q=\"x y\"%{parent}a\n'a%{parent}\n",
+        "q=\"x y\"%{parent}a\n'a%{parent}\n  \n",
+        "q=\"x y\"%{parent}a 'a%{parent}"
+      ]
+    },
+    {
+      "input": "text \"aroot=xb\\n\", remove [\"\", \"a\"], add [\"#\"]",
+      "result": [
+        "aroot=xb\n",
+        "aroot=xb\n#\n",
+        "aroot=xb"
+      ]
+    },
+    {
+      "input": "text \"=\\nq=\\\"x y\\\"\\n\", remove [\"root\", \"key=v\"], add [\"-e\"]",
+      "result": [
+        "=\nq=\"x y\"\n",
+        "=\nq=\"x y\"\n\n",
+        "= q=\"x y\""
+      ]
+    },
+    {
+      "input": "text \"=key=v'\\nx\\\\ykey=vx\\\\y'a\\n\", remove [], add [\"key=v\", \"&\"]",
+      "result": [
+        "=key=v'\nx\\ykey=vx\\y'a\n",
+        "=key=v'\nx\\ykey=vx\\y'a\nkey=v\n&\n",
+        "=key=v' x\\ykey=vx\\y'a"
+      ]
+    },
+    {
+      "input": "text \"'&\\n\", remove [\"-n\"], add [\"-e\", \"b\"]",
+      "result": [
+        "'&\n",
+        "'&\n\nb\n",
+        "'&"
+      ]
+    },
+    {
+      "input": "text \"\\\"-e\\\"\\\"-e\", remove [\"q\"], add []",
+      "result": [
+        "",
+        "\"-e\"\"-e",
+        "\"-e\"\"-e"
+      ]
+    },
+    {
+      "input": "text \"spl_hostid=1bx\\\\y'#\\n\", remove [\"\"], add []",
+      "result": [
+        "spl_hostid=1bx\\y'#\n",
+        "spl_hostid=1bx\\y'#\n",
+        "spl_hostid=1bx\\y'#"
+      ]
+    },
+    {
+      "input": "text \"#\\nq=\\\"x y\\\"key=v%{parent}q=\\\"x y\\\"key=v\\n\", remove [\"a\"], add [\"\\\"\\\"\", \"  \"]",
+      "result": [
+        "#\nq=\"x y\"key=v%{parent}q=\"x y\"key=v\n",
+        "#\nq=\"x y\"key=v%{parent}q=\"x y\"key=v\n\"\"\n  \n",
+        "# q=\"x y\"key=v%{parent}q=\"x y\"key=v"
+      ]
+    }
+  ]
+}

@@ -44,6 +44,10 @@ Commands:
   test                   Every test that needs no root and no virtual
                          machine, under cargo nextest when it is installed
   bless                  Accept every changed snapshot and list the files
+  record-parity [--check]
+                         Run the legacy code of the parity tests and record
+                         its results in tests/golden/legacy; --check fails
+                         where a recording no longer matches
   doc [--open]           Build the documentation, warnings as errors
   check-deps [--bless]   Check the dependencies between crates against the
                          layers in xtask/src/deps.rs; --bless rewrites the
@@ -70,6 +74,8 @@ enum Command {
     Test,
     /// `bless`.
     Bless,
+    /// `record-parity`.
+    RecordParity { check: bool },
     /// `doc`.
     Doc { open: bool },
     /// `check-deps`.
@@ -94,6 +100,8 @@ impl Command {
             ["lint", "--strict"] => Command::Lint { strict: true },
             ["test"] => Command::Test,
             ["bless"] => Command::Bless,
+            ["record-parity"] => Command::RecordParity { check: false },
+            ["record-parity", "--check"] => Command::RecordParity { check: true },
             ["doc"] => Command::Doc { open: false },
             ["doc", "--open"] => Command::Doc { open: true },
             ["check-deps"] => Command::CheckDeps { bless: false },
@@ -144,6 +152,7 @@ fn run(command: Command) -> Result<()> {
         Command::Lint { strict: true } => lint::strict(&Workspace::load(&root)?),
         Command::Test => cargo::test(&root),
         Command::Bless => cargo::bless(&Workspace::load(&root)?),
+        Command::RecordParity { check } => cargo::record_parity(&root, check),
         Command::Doc { open } => cargo::doc(&root, open),
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
@@ -185,6 +194,10 @@ mod tests {
             Command::CheckDeps { bless: true }
         );
         assert_eq!(parse("bless").unwrap(), Command::Bless);
+        assert_eq!(
+            parse("record-parity --check").unwrap(),
+            Command::RecordParity { check: true }
+        );
         assert_eq!(
             parse("coverage --check").unwrap(),
             Command::Coverage(Mode::Check)

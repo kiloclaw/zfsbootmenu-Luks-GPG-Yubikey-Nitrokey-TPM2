@@ -1,0 +1,805 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "\"#key=v-e b-eb=\\\"%{parent}-n\"",
+      "result": "#key=v-e\nb-eb=\"%{parent}-n"
+    },
+    {
+      "input": "\"key=v-e-e\"",
+      "result": "key=v-e-e\n"
+    },
+    {
+      "input": "\"root=x   key=v-e%{parent}-n\\\"\\\"'\"",
+      "result": "root=x\nkey=v-e%{parent}-n\"\"'\n"
+    },
+    {
+      "input": "\"key=v\\t%{parent}\"",
+      "result": "key=v\n%{parent}\n"
+    },
+    {
+      "input": "\"\\\"\\\"&\\n\\\"\\\"-e&-e \"",
+      "result": "\"\"&\n\"\"-e&-e\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"-eakey=v  -e#root=x\"",
+      "result": "q=\"x y\"-eakey=v\n-e#root=x\n"
+    },
+    {
+      "input": "\"spl_hostid=1\\t\"",
+      "result": "spl_hostid=1\n"
+    },
+    {
+      "input": "\"\\\"q=\\\"x y\\\"key=v\\tkey=v\"",
+      "result": "\"q=\"x\ny\"key=v key=v"
+    },
+    {
+      "input": "\"root=xa&#root=x'\\\"\\\"=\"",
+      "result": "root=xa&#root=x'\"\"=\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"aa'&%{parent}root=x\\\"\\\" \"",
+      "result": "q=\"x y\"aa'&%{parent}root=x\"\"\n"
+    },
+    {
+      "input": "\"aab=\"",
+      "result": "aab=\n"
+    },
+    {
+      "input": "\"spl_hostid=1 =x\\\\y\\nx\\\\y  -e\\n\"",
+      "result": "spl_hostid=1\n=x\\y\nx\\y\n-e\n"
+    },
+    {
+      "input": "\"  x\\\\yx\\\\ykey=vroot=x=#\"",
+      "result": "x\\yx\\ykey=vroot=x=#\n"
+    },
+    {
+      "input": "\"#b%{parent}  q=\\\"x y\\\" -n''b'  \"",
+      "result": "#b%{parent}\nq=\"x y\"\n-n''b'\n"
+    },
+    {
+      "input": "\"b%{parent}&\\\"\\\"-e=&key=v \"",
+      "result": "b%{parent}&\"\"-e=&key=v\n"
+    },
+    {
+      "input": "\"=#-e\\n\"",
+      "result": "=#-e\n"
+    },
+    {
+      "input": "\"&#\"",
+      "result": "&#\n"
+    },
+    {
+      "input": "\"root=x\"",
+      "result": "root=x\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"%{parent}-n\\\"a#x\\\\y spl_hostid=1\"",
+      "result": "%{parent}-n\"a#x\\y spl_hostid=1"
+    },
+    {
+      "input": "\"\\nb'\\tspl_hostid=1'aq=\\\"x y\\\"\"",
+      "result": "b'\nspl_hostid=1'aq=\"x y\"\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"aspl_hostid=1\\nkey=v-ekey=v\"",
+      "result": "q=\"x y\"aspl_hostid=1\nkey=v-ekey=v\n"
+    },
+    {
+      "input": "\"root=x\\tx\\\\yq=\\\"x y\\\"\\nax\\\\yspl_hostid=1root=xroot=x\\n&\"",
+      "result": "root=x\nx\\yq=\"x y\"\nax\\yspl_hostid=1root=xroot=x\n&\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"q=\\\"x y\\\"&-e\\nx\\\\yx\\\\y-n\\\"\\\"key=vroot=x\"",
+      "result": "q=\"x y\"q=\"x y\"&-e\nx\\yx\\y-n\"\"key=vroot=x\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"=&x\\\\yx\\\\yroot=x%{parent}-n'q=\\\"x y\\\"-ex\\\\y\"",
+      "result": "=&x\\yx\\yroot=x%{parent}-n'q=\"x y\"-ex\\y\n"
+    },
+    {
+      "input": "\"#\\\"\\\"\\t\"",
+      "result": "#\"\"\n"
+    },
+    {
+      "input": "\"\\\"\\\"b#\\\"\\\"a=\"",
+      "result": "\"\"b#\"\"a=\n"
+    },
+    {
+      "input": "\"\\\"\\\"key=v\\\"key=v-eq=\\\"x y\\\"-n'' \"",
+      "result": "\"\"key=v\"key=v-eq=\"x\ny\"-n''"
+    },
+    {
+      "input": "\"\\\"\\nba\\tspl_hostid=1#\"",
+      "result": "\" ba spl_hostid=1#"
+    },
+    {
+      "input": "\"\\\"\\\"root=xroot=x-e&x\\\\y-nx\\\\y\\\"\\\"  root=x'\"",
+      "result": "\"\"root=xroot=x-e&x\\y-nx\\y\"\"\nroot=x'\n"
+    },
+    {
+      "input": "\"root=x=spl_hostid=1&\\t\\t&root=x \\\"\\\"  \"",
+      "result": "root=x=spl_hostid=1&\n&root=x\n\"\"\n"
+    },
+    {
+      "input": "\" q=\\\"x y\\\" q=\\\"x y\\\"=x\\\\y\"",
+      "result": "q=\"x y\"\nq=\"x y\"=x\\y\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\nq=\\\"x y\\\"x\\\\y%{parent}&%{parent}&key=vx\\\\yspl_hostid=1 -n\"",
+      "result": "q=\"x y\"x\\y%{parent}&%{parent}&key=vx\\yspl_hostid=1\n-n\n"
+    },
+    {
+      "input": "\"  \\\"a&\\\"\\\"\\\"=q=\\\"x y\\\"x\\\\y#\"",
+      "result": "\"a&\"\"\"=q=\"x y\"x\\y#\n"
+    },
+    {
+      "input": "\"&\\n\"",
+      "result": "&\n"
+    },
+    {
+      "input": "\"spl_hostid=1  \\tx\\\\ykey=v  \\t\"",
+      "result": "spl_hostid=1\nx\\ykey=v\n"
+    },
+    {
+      "input": "\"key=v\\t  &q=\\\"x y\\\"a&x\\\\yroot=x  -n\"",
+      "result": "key=v\n&q=\"x y\"a&x\\yroot=x\n-n\n"
+    },
+    {
+      "input": "\"x\\\\ybkey=vspl_hostid=1root=xroot=x\"",
+      "result": "x\\ybkey=vspl_hostid=1root=xroot=x\n"
+    },
+    {
+      "input": "\"b\"",
+      "result": "b\n"
+    },
+    {
+      "input": "\"\\n\\\"  =q=\\\"x y\\\"=\"",
+      "result": "\" =q=\"x\ny\"="
+    },
+    {
+      "input": "\"\\t-n-ekey=v\\\"\\\"\\\"\\\"\\n\"",
+      "result": "-n-ekey=v\"\"\"\"\n"
+    },
+    {
+      "input": "\"&\\n\\n\"",
+      "result": "&\n"
+    },
+    {
+      "input": "\"%{parent}#bq=\\\"x y\\\"a-e\\t#'bkey=v\"",
+      "result": "%{parent}#bq=\"x y\"a-e\n#'bkey=v\n"
+    },
+    {
+      "input": "\"%{parent}\\na  '&-e%{parent}%{parent}\"",
+      "result": "%{parent}\na\n'&-e%{parent}%{parent}\n"
+    },
+    {
+      "input": "\"spl_hostid=1b\"",
+      "result": "spl_hostid=1b\n"
+    },
+    {
+      "input": "\"key=vx\\\\ya#'q=\\\"x y\\\"spl_hostid=1-e  '\"",
+      "result": "key=vx\\ya#'q=\"x y\"spl_hostid=1-e\n'\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"\\\"-ea=-nkey=v#  -e%{parent}\\\"\\\"-n\"",
+      "result": "\"\"-ea=-nkey=v#\n-e%{parent}\"\"-n\n"
+    },
+    {
+      "input": "\"=#=root=x q=\\\"x y\\\"\\\"\\\"\"",
+      "result": "=#=root=x\nq=\"x y\"\"\"\n"
+    },
+    {
+      "input": "\"\\\"b%{parent}q=\\\"x y\\\"\"",
+      "result": "\"b%{parent}q=\"x\ny\""
+    },
+    {
+      "input": "\"\\\"\\\"\\\"%{parent}key=v\"",
+      "result": "\"\"\"%{parent}key=v"
+    },
+    {
+      "input": "\"%{parent}x\\\\yb  broot=x'x\\\\y  \"",
+      "result": "%{parent}x\\yb\nbroot=x'x\\y\n"
+    },
+    {
+      "input": "\"root=x%{parent}'\\\"root=x\\n\\n=x\\\\yspl_hostid=1x\\\\yspl_hostid=1\"",
+      "result": "root=x%{parent}'\"root=x =x\\yspl_hostid=1x\\yspl_hostid=1"
+    },
+    {
+      "input": "\"=\\t-e-n#  q=\\\"x y\\\"\\\"\\\"q=\\\"x y\\\"\"",
+      "result": "=\n-e-n#\nq=\"x y\"\"\"q=\"x y\"\n"
+    },
+    {
+      "input": "\"key=v#x\\\\yb-e\\n\"",
+      "result": "key=v#x\\yb-e\n"
+    },
+    {
+      "input": "\"root=x '%{parent}key=v\"",
+      "result": "root=x\n'%{parent}key=v\n"
+    },
+    {
+      "input": "\"-e-n'\\\"&b\\\"\"",
+      "result": "-e-n'\"&b\"\n"
+    },
+    {
+      "input": "\"%{parent} \\\"q=\\\"x y\\\"'\\t\\\"\\\"\\\"key=v  \"",
+      "result": "%{parent}\n\"q=\"x\ny\"' \"\"\"key=v\n"
+    },
+    {
+      "input": "\"\\\"\\\"-nx\\\\y\"",
+      "result": "\"\"-nx\\y\n"
+    },
+    {
+      "input": "\"\\t#'=q=\\\"x y\\\"=\"",
+      "result": "#'=q=\"x y\"=\n"
+    },
+    {
+      "input": "\"#&'spl_hostid=1\"",
+      "result": "#&'spl_hostid=1\n"
+    },
+    {
+      "input": "\"root=xspl_hostid=1spl_hostid=1x\\\\y'-nb\"",
+      "result": "root=xspl_hostid=1spl_hostid=1x\\y'-nb\n"
+    },
+    {
+      "input": "\"\\t\\\"=\\t%{parent}\"",
+      "result": "\"= %{parent}"
+    },
+    {
+      "input": "\"broot=x\\t\\\"#x\\\\y=%{parent}-n\\\"spl_hostid=1spl_hostid=1\"",
+      "result": "broot=x\n\"#x\\y=%{parent}-n\"spl_hostid=1spl_hostid=1\n"
+    },
+    {
+      "input": "\"spl_hostid=1\"",
+      "result": "spl_hostid=1\n"
+    },
+    {
+      "input": "\"# \\nkey=vkey=v-n'\\n\"",
+      "result": "#\nkey=vkey=v-n'\n"
+    },
+    {
+      "input": "\"a-n\\\"\\\"b  -e='-e-eq=\\\"x y\\\"\\t\"",
+      "result": "a-n\"\"b\n-e='-e-eq=\"x y\"\n"
+    },
+    {
+      "input": "\"\\n\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"\\\"\\\"=bx\\\\y\\\"x\\\\y-nkey=v\\\"\\\" \"",
+      "result": "\"\"\"=bx\\y\"x\\y-nkey=v\"\"\n"
+    },
+    {
+      "input": "\"\\\"&a\\\"-e\\\"\\\"-n#x\\\\yspl_hostid=1\\\"\"",
+      "result": "\"&a\"-e\"\"-n#x\\yspl_hostid=1\""
+    },
+    {
+      "input": "\"root=x=\\tq=\\\"x y\\\"\\\"\\\"\\\" \\\"%{parent}q=\\\"x y\\\"b\"",
+      "result": "root=x=\nq=\"x y\"\"\"\" \"%{parent}q=\"x y\"b\n"
+    },
+    {
+      "input": "\"\\\"\\\"spl_hostid=1&\"",
+      "result": "\"\"spl_hostid=1&\n"
+    },
+    {
+      "input": "\"key=vkey=v -e  #' \"",
+      "result": "key=vkey=v\n-e\n#'\n"
+    },
+    {
+      "input": "\"\\\"\\\"%{parent}\\\"\\\"-eroot=x-e-ebx\\\\y-na\"",
+      "result": "\"\"%{parent}\"\"-eroot=x-e-ebx\\y-na\n"
+    },
+    {
+      "input": "\"root=xx\\\\yspl_hostid=1spl_hostid=1\"",
+      "result": "root=xx\\yspl_hostid=1spl_hostid=1\n"
+    },
+    {
+      "input": "\"\\nx\\\\y\\n  \"",
+      "result": "x\\y\n"
+    },
+    {
+      "input": "\"\\\"-n\"",
+      "result": "\"-n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"spl_hostid=1b\\n\\tq=\\\"x y\\\"bkey=v'\"",
+      "result": "spl_hostid=1b\nq=\"x y\"bkey=v'\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"-e\"",
+      "result": "-e\n"
+    },
+    {
+      "input": "\"\\tb%{parent}%{parent}' ='\"",
+      "result": "b%{parent}%{parent}'\n='\n"
+    },
+    {
+      "input": "\"\\\"\\\"key=v-n&%{parent}#&&bspl_hostid=1x\\\\y  \"",
+      "result": "\"\"key=v-n&%{parent}#&&bspl_hostid=1x\\y\n"
+    },
+    {
+      "input": "\"root=x\\n%{parent}key=v  #\"",
+      "result": "root=x\n%{parent}key=v\n#\n"
+    },
+    {
+      "input": "\"# \"",
+      "result": "#\n"
+    },
+    {
+      "input": "\"a-eq=\\\"x y\\\"bq=\\\"x y\\\"&\"",
+      "result": "a-eq=\"x y\"bq=\"x y\"&\n"
+    },
+    {
+      "input": "\"=-na=&root=x'spl_hostid=1q=\\\"x y\\\"x\\\\y\"",
+      "result": "=-na=&root=x'spl_hostid=1q=\"x y\"x\\y\n"
+    },
+    {
+      "input": "\"b=\\ta   \\\"q=\\\"x y\\\"key=vkey=v\"",
+      "result": "b=\na\n\"q=\"x\ny\"key=vkey=v"
+    },
+    {
+      "input": "\"  '-n\\\"\\\"-n\\t'\"",
+      "result": "'-n\"\"-n\n'\n"
+    },
+    {
+      "input": "\"x\\\\ya\"",
+      "result": "x\\ya\n"
+    },
+    {
+      "input": "\"x\\\\yb\\\"\"",
+      "result": "x\\yb\""
+    },
+    {
+      "input": "\"'-nx\\\\y\\\"root=x\\\"\\\"\\\"\\\"%{parent}&#\\n\"",
+      "result": "'-nx\\y\"root=x\"\"\"\"%{parent}&#"
+    },
+    {
+      "input": "\"spl_hostid=1\"",
+      "result": "spl_hostid=1\n"
+    },
+    {
+      "input": "\"spl_hostid=1'#\\\"  key=vq=\\\"x y\\\"\\n'spl_hostid=1\\t-e\"",
+      "result": "spl_hostid=1'#\" key=vq=\"x\ny\" 'spl_hostid=1 -e"
+    },
+    {
+      "input": "\" b key=v=  b\"",
+      "result": "b\nkey=v=\nb\n"
+    },
+    {
+      "input": "\"\\\"\"",
+      "result": "\""
+    },
+    {
+      "input": "\"spl_hostid=1\\t#&'spl_hostid=1spl_hostid=1 #q=\\\"x y\\\"-n\"",
+      "result": "spl_hostid=1\n#&'spl_hostid=1spl_hostid=1\n#q=\"x y\"-n\n"
+    },
+    {
+      "input": "\"spl_hostid=1&\\n=\"",
+      "result": "spl_hostid=1&\n=\n"
+    },
+    {
+      "input": "\"'&\\nkey=v\"",
+      "result": "'&\nkey=v\n"
+    },
+    {
+      "input": "\"root=x  \"",
+      "result": "root=x\n"
+    },
+    {
+      "input": "\"&\\\"\\\"x\\\\y\"",
+      "result": "&\"\"x\\y\n"
+    },
+    {
+      "input": "\"&x\\\\y\\nspl_hostid=1spl_hostid=1\"",
+      "result": "&x\\y\nspl_hostid=1spl_hostid=1\n"
+    },
+    {
+      "input": "\"\\\"\\\"-ebq=\\\"x y\\\"=-eaa\"",
+      "result": "\"\"-ebq=\"x y\"=-eaa\n"
+    },
+    {
+      "input": "\"=\"",
+      "result": "=\n"
+    },
+    {
+      "input": "\"\\\"\\\"x\\\\y -na    x\\\\y%{parent}key=v\"",
+      "result": "\"\"x\\y\n-na\nx\\y%{parent}key=v\n"
+    },
+    {
+      "input": "\"'\\t\\\"\"",
+      "result": "'\n\""
+    },
+    {
+      "input": "\" \\n%{parent}-espl_hostid=1bq=\\\"x y\\\"\"",
+      "result": "%{parent}-espl_hostid=1bq=\"x y\"\n"
+    },
+    {
+      "input": "\"-e\\n-e  'spl_hostid=1spl_hostid=1-e \"",
+      "result": "-e\n-e\n'spl_hostid=1spl_hostid=1-e\n"
+    },
+    {
+      "input": "\"aspl_hostid=1\\\"\\\"root=xroot=xq=\\\"x y\\\"-n q=\\\"x y\\\"q=\\\"x y\\\"\\t%{parent}\"",
+      "result": "aspl_hostid=1\"\"root=xroot=xq=\"x y\"-n\nq=\"x y\"q=\"x y\"\n%{parent}\n"
+    },
+    {
+      "input": "\"root=x spl_hostid=1\"",
+      "result": "root=x\nspl_hostid=1\n"
+    },
+    {
+      "input": "\"=%{parent}a\\t\\nbspl_hostid=1#-nspl_hostid=1\"",
+      "result": "=%{parent}a\nbspl_hostid=1#-nspl_hostid=1\n"
+    },
+    {
+      "input": "\"\\\"'a\\\"\\\"q=\\\"x y\\\"x\\\\y\"",
+      "result": "\"'a\"\"q=\"x\ny\"x\\y"
+    },
+    {
+      "input": "\"\\n=key=v\"",
+      "result": "=key=v\n"
+    },
+    {
+      "input": "\"%{parent}root=x\"",
+      "result": "%{parent}root=x\n"
+    },
+    {
+      "input": "\"key=vroot=x\\t -e'\"",
+      "result": "key=vroot=x\n-e'\n"
+    },
+    {
+      "input": "\"#-e -e=-nq=\\\"x y\\\"aq=\\\"x y\\\"\\\"\"",
+      "result": "#-e\n-e=-nq=\"x y\"aq=\"x y\"\""
+    },
+    {
+      "input": "\"\\\"\\\"a'key=v\"",
+      "result": "\"\"a'key=v\n"
+    },
+    {
+      "input": "\"x\\\\y-ex\\\\y spl_hostid=1  =-n-e\\\"\\\"\"",
+      "result": "x\\y-ex\\y\nspl_hostid=1\n=-n-e\"\"\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"&&%{parent}\\t\\n\\\"\\\"\\t\"",
+      "result": "&&%{parent}\n\"\"\n"
+    },
+    {
+      "input": "\"&-nx\\\\y\\t\\\"\"",
+      "result": "&-nx\\y\n\""
+    },
+    {
+      "input": "\" %{parent}-n&\"",
+      "result": "%{parent}-n&\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"spl_hostid=1b-n%{parent}x\\\\y'-n'-eroot=x\"",
+      "result": "spl_hostid=1b-n%{parent}x\\y'-n'-eroot=x\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"-ekey=vax\\\\yx\\\\y#\"",
+      "result": "-ekey=vax\\yx\\y#\n"
+    },
+    {
+      "input": "\"\\n\\nq=\\\"x y\\\"&b\\t\"",
+      "result": "q=\"x y\"&b\n"
+    },
+    {
+      "input": "\"root=xkey=v%{parent}spl_hostid=1b  \"",
+      "result": "root=xkey=v%{parent}spl_hostid=1b\n"
+    },
+    {
+      "input": "\" a'root=x\\n\"",
+      "result": "a'root=x\n"
+    },
+    {
+      "input": "\"&\"",
+      "result": "&\n"
+    },
+    {
+      "input": "\"  %{parent}key=vb\\\"\\\" root=x-e=\"",
+      "result": "%{parent}key=vb\"\"\nroot=x-e=\n"
+    },
+    {
+      "input": "\"\\tbroot=x-n \"",
+      "result": "broot=x-n\n"
+    },
+    {
+      "input": "\"x\\\\y& \\\"\\\"x\\\\y\"",
+      "result": "x\\y&\n\"\"x\\y\n"
+    },
+    {
+      "input": "\"root=x-n&b\\t%{parent}\\tq=\\\"x y\\\"q=\\\"x y\\\"x\\\\y=%{parent}\"",
+      "result": "root=x-n&b\n%{parent}\nq=\"x y\"q=\"x y\"x\\y=%{parent}\n"
+    },
+    {
+      "input": "\"key=v\\n\"",
+      "result": "key=v\n"
+    },
+    {
+      "input": "\" \"",
+      "result": ""
+    },
+    {
+      "input": "\"-n'b\\t \\\"\\\"#aa x\\\\y\\n\"",
+      "result": "-n'b\n\"\"#aa\nx\\y\n"
+    },
+    {
+      "input": "\"    bb\\t\\\"q=\\\"x y\\\"=-n\"",
+      "result": "bb\n\"q=\"x\ny\"=-n"
+    },
+    {
+      "input": "\"\\t\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\\"\\\"a-nq=\\\"x y\\\"\\\"-nx\\\\y&  x\\\\ykey=v\"",
+      "result": "\"\"a-nq=\"x y\"\"-nx\\y& x\\ykey=v"
+    },
+    {
+      "input": "\"'&\\t-eb\\nbb#q=\\\"x y\\\"\"",
+      "result": "'&\n-eb\nbb#q=\"x y\"\n"
+    },
+    {
+      "input": "\"=ba\"",
+      "result": "=ba\n"
+    },
+    {
+      "input": "\"key=v  #%{parent}\\\"\\n  \"",
+      "result": "key=v\n#%{parent}\""
+    },
+    {
+      "input": "\"b\\tx\\\\y\\n'  '-e=-n\"",
+      "result": "b\nx\\y\n'\n'-e=-n\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"\"",
+      "result": "q=\"x y\"\n"
+    },
+    {
+      "input": "\"-e'ax\\\\yaa=''\\t%{parent}=\"",
+      "result": "-e'ax\\yaa=''\n%{parent}=\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\" -e\\t'key=v\"",
+      "result": "-e\n'key=v\n"
+    },
+    {
+      "input": "\"key=vroot=x=root=x%{parent}#key=v#&\\\"spl_hostid=1\\\"\\\"\"",
+      "result": "key=vroot=x=root=x%{parent}#key=v#&\"spl_hostid=1\"\""
+    },
+    {
+      "input": "\"\\n=q=\\\"x y\\\"broot=xabkey=v\\\"\\\"  \"",
+      "result": "=q=\"x y\"broot=xabkey=v\"\"\n"
+    },
+    {
+      "input": "\"key=vkey=v\"",
+      "result": "key=vkey=v\n"
+    },
+    {
+      "input": "\"#'\\\"'-nspl_hostid=1root=x\\\"  aq=\\\"x y\\\"#\"",
+      "result": "#'\"'-nspl_hostid=1root=x\"\naq=\"x y\"#\n"
+    },
+    {
+      "input": "\"key=vx\\\\y\"",
+      "result": "key=vx\\y\n"
+    },
+    {
+      "input": "\"x\\\\y#a\\t\"",
+      "result": "x\\y#a\n"
+    },
+    {
+      "input": "\"-eakey=v\\n\"",
+      "result": "-eakey=v\n"
+    },
+    {
+      "input": "\"q=\\\"x y\\\"-n=b\\\"\\\"\\\"x\\\\y'\"",
+      "result": "q=\"x y\"-n=b\"\"\"x\\y'"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"-nkey=vq=\\\"x y\\\"x\\\\yx\\\\yroot=x\\\"\\\"\\n%{parent}  \"",
+      "result": "-nkey=vq=\"x y\"x\\yx\\yroot=x\"\"\n%{parent}\n"
+    },
+    {
+      "input": "\"b\"",
+      "result": "b\n"
+    },
+    {
+      "input": "\" \\tb\"",
+      "result": "b\n"
+    },
+    {
+      "input": "\"key=v\\\"\\\"q=\\\"x y\\\"root=x\\\"  b='\"",
+      "result": "key=v\"\"q=\"x y\"root=x\" b='"
+    },
+    {
+      "input": "\"#aq=\\\"x y\\\"key=vaa x\\\\yq=\\\"x y\\\"\"",
+      "result": "#aq=\"x y\"key=vaa\nx\\yq=\"x y\"\n"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"root=xroot=x-e\\\"-nq=\\\"x y\\\"-eq=\\\"x y\\\"\"",
+      "result": "root=xroot=x-e\"-nq=\"x\ny\"-eq=\"x\ny\""
+    },
+    {
+      "input": "\"a'-espl_hostid=1x\\\\yspl_hostid=1\\\"bkey=vb\"",
+      "result": "a'-espl_hostid=1x\\yspl_hostid=1\"bkey=vb"
+    },
+    {
+      "input": "\"x\\\\y\\t\\\"%{parent}x\\\\y\\n#-e\\\"\\\"  \"",
+      "result": "x\\y\n\"%{parent}x\\y #-e\"\""
+    },
+    {
+      "input": "\"a-n%{parent}=a=root=x q=\\\"x y\\\"\"",
+      "result": "a-n%{parent}=a=root=x\nq=\"x y\"\n"
+    },
+    {
+      "input": "\"root=x-na x\\\\y\\tab\\n\\n\"",
+      "result": "root=x-na\nx\\y\nab\n"
+    },
+    {
+      "input": "\"  %{parent}key=v \\\"\"",
+      "result": "%{parent}key=v\n\""
+    },
+    {
+      "input": "\"\\t  '=spl_hostid=1     \\tkey=v\"",
+      "result": "'=spl_hostid=1\nkey=v\n"
+    },
+    {
+      "input": "\"\\\"spl_hostid=1\"",
+      "result": "\"spl_hostid=1"
+    },
+    {
+      "input": "\"'\\tq=\\\"x y\\\"%{parent}q=\\\"x y\\\"\"",
+      "result": "'\nq=\"x y\"%{parent}q=\"x y\"\n"
+    },
+    {
+      "input": "\"\\\"#%{parent}#x\\\\y\\\"&\\\"-n\"",
+      "result": "\"#%{parent}#x\\y\"&\"-n"
+    },
+    {
+      "input": "\"\\t#spl_hostid=1  key=v \"",
+      "result": "#spl_hostid=1\nkey=v\n"
+    },
+    {
+      "input": "\"=\"",
+      "result": "=\n"
+    },
+    {
+      "input": "\"\\\"\\\"  q=\\\"x y\\\"\"",
+      "result": "\"\"\nq=\"x y\"\n"
+    },
+    {
+      "input": "\"-e#= \\\"\"",
+      "result": "-e#=\n\""
+    },
+    {
+      "input": "\"\\\"\\\"\"",
+      "result": "\"\"\n"
+    },
+    {
+      "input": "\"root=xroot=x&%{parent}   \"",
+      "result": "root=xroot=x&%{parent}\n"
+    },
+    {
+      "input": "\"='#key=v-e'\\\"'\"",
+      "result": "='#key=v-e'\"'"
+    },
+    {
+      "input": "\"root=x\"",
+      "result": "root=x\n"
+    },
+    {
+      "input": "\"  x\\\\y#x\\\\y\\\"'\"",
+      "result": "x\\y#x\\y\"'"
+    },
+    {
+      "input": "\"\\\"\\\"'  #a   \\tx\\\\y=key=v\"",
+      "result": "\"\"'\n#a\nx\\y=key=v\n"
+    },
+    {
+      "input": "\"-n \"",
+      "result": "-n\n"
+    },
+    {
+      "input": "\"%{parent}-nq=\\\"x y\\\"  key=v  root=x\"",
+      "result": "%{parent}-nq=\"x y\"\nkey=v\nroot=x\n"
+    },
+    {
+      "input": "\" q=\\\"x y\\\"\\\"x\\\\y''-e\"",
+      "result": "q=\"x y\"\"x\\y''-e"
+    },
+    {
+      "input": "\" -n\"",
+      "result": "-n\n"
+    },
+    {
+      "input": "\"-eb  -nroot=x=\\n&\\n\"",
+      "result": "-eb\n-nroot=x=\n&\n"
+    },
+    {
+      "input": "\"'key=v\\\"\\\"\\t\\tx\\\\ya%{parent}\"",
+      "result": "'key=v\"\"\nx\\ya%{parent}\n"
+    },
+    {
+      "input": "\"=root=x\\\"q=\\\"x y\\\"babkey=v-e\"",
+      "result": "=root=x\"q=\"x\ny\"babkey=v-e"
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\"",
+      "result": ""
+    },
+    {
+      "input": "\"\\n-e\\\"\\n&'\\\"\\\"&\"",
+      "result": "-e\" &'\"\"&"
+    },
+    {
+      "input": "\"'q=\\\"x y\\\"\\\"\\\"\"",
+      "result": "'q=\"x y\"\"\"\n"
+    },
+    {
+      "input": "\"%{parent}x\\\\y'\\\"\\tspl_hostid=1=-nx\\\\yb\\\"q=\\\"x y\\\"\"",
+      "result": "%{parent}x\\y'\" spl_hostid=1=-nx\\yb\"q=\"x y\"\n"
+    },
+    {
+      "input": "\"'\\t\\t&'#spl_hostid=1%{parent}-eq=\\\"x y\\\"#x\\\\y\"",
+      "result": "'\n&'#spl_hostid=1%{parent}-eq=\"x y\"#x\\y\n"
+    },
+    {
+      "input": "\"  spl_hostid=1q=\\\"x y\\\"b\"",
+      "result": "spl_hostid=1q=\"x y\"b\n"
+    },
+    {
+      "input": "\"  -nspl_hostid=1\"",
+      "result": "-nspl_hostid=1\n"
+    }
+  ]
+}
