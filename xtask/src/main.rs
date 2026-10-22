@@ -21,6 +21,7 @@ mod fuzz;
 mod lint;
 mod metrics;
 mod process;
+mod record_zfs;
 mod widths;
 mod workspace;
 
@@ -50,6 +51,11 @@ Commands:
                          Run the legacy code of the parity tests and record
                          its results in tests/golden/legacy; --check fails
                          where a recording no longer matches
+  record-zfs [--manifest]
+                         Record what zfs and zpool print, in a virtual
+                         machine of the VM test harness (root, QEMU), as the
+                         fixtures of crates/zbm-zfs/tests/fixtures;
+                         --manifest prints the commands the harness runs
   doc [--open]           Build the documentation, warnings as errors
   check-deps [--bless]   Check the dependencies between crates against the
                          layers in xtask/src/deps.rs; --bless rewrites the
@@ -89,6 +95,8 @@ enum Command {
     Bless,
     /// `record-parity`.
     RecordParity { check: bool },
+    /// `record-zfs`, or only its manifest.
+    RecordZfs { manifest: bool },
     /// `doc`.
     Doc { open: bool },
     /// `check-deps`.
@@ -124,6 +132,8 @@ impl Command {
             ["bless"] => Command::Bless,
             ["record-parity"] => Command::RecordParity { check: false },
             ["record-parity", "--check"] => Command::RecordParity { check: true },
+            ["record-zfs"] => Command::RecordZfs { manifest: false },
+            ["record-zfs", "--manifest"] => Command::RecordZfs { manifest: true },
             ["doc"] => Command::Doc { open: false },
             ["doc", "--open"] => Command::Doc { open: true },
             ["check-deps"] => Command::CheckDeps { bless: false },
@@ -233,6 +243,15 @@ fn run(command: Command) -> Result<()> {
         Command::Test => cargo::test(&root),
         Command::Bless => cargo::bless(&Workspace::load(&root)?),
         Command::RecordParity { check } => cargo::record_parity(&root, check),
+        Command::RecordZfs { manifest: true } => {
+            println!("{}", record_zfs::manifest());
+            Ok(())
+        }
+        Command::RecordZfs { manifest: false } => {
+            process::Program::new("tests/luks/vm/run-all.sh", &root)
+                .args(["runtime-record-zfs"])
+                .run()
+        }
         Command::Doc { open } => cargo::doc(&root, open),
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
@@ -280,6 +299,10 @@ mod tests {
         assert_eq!(
             parse("record-parity --check").unwrap(),
             Command::RecordParity { check: true }
+        );
+        assert_eq!(
+            parse("record-zfs --manifest").unwrap(),
+            Command::RecordZfs { manifest: true }
         );
         assert_eq!(
             parse("fuzz crypttab --seconds 5").unwrap(),

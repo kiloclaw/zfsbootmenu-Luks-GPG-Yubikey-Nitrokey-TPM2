@@ -37,6 +37,11 @@ A of Phase 6 in PORT-ROADMAP.md).
                       "cargo xtask symbolize" must name the panicking
                       function and line from the image's debug file
 
+  runtime.py record-zfs
+                      not a test: records what zfs and zpool print as the
+                      fixtures of crates/zbm-zfs (cargo xtask record-zfs,
+                      which defines the commands)
+
 Every scenario must pass with the legacy image first (rule 2 of the roadmap).
 """
 
@@ -49,7 +54,7 @@ import time
 import pexpect
 
 from zbmtest import (Test, VM, check_be, clean, check_teardown, disk, follow_boot, payload_disk,
-                     vfat_disk, REPO, WORK, zbm_image)
+                     run, vfat_disk, REPO, WORK, zbm_image)
 
 OPTS = ("-o ashift=12 -o compatibility=openzfs-2.4-linux -O compression=lz4 "
         "-O acltype=posixacl -O xattr=sa -m none")
@@ -323,6 +328,37 @@ def setup():
     t.finish()
 
 
+def record_zfs():
+    """Run the commands of `cargo xtask record-zfs --manifest` on a fresh disk
+    and save their output as the fixtures of zbm-zfs."""
+    t = Test("runtime-record-zfs")
+    manifest = json.loads(run(["cargo", "xtask", "record-zfs", "--manifest"], cwd=REPO))
+    img = image("legacy")
+    vm = VM(t, "record", disks=[(disk("record-zfs", 0, fresh=True), "d0")],
+            kernel=img["kernel"], initrd=img["initrd"],
+            append="console=ttyS0 zbm.luks=off zbm.retry_delay=3").start()
+    vm.recovery_shell()
+    for command in manifest["setup"]:
+        vm.must(command)
+    outputs = {}
+    for record in manifest["records"]:
+        # Hexadecimal survives the serial console byte for byte.
+        _, out = vm.sh(f"( {record['command']} ) | od -An -v -tx1", quiet=True)
+        outputs[record["file"]] = bytes.fromhex("".join(out.split()))
+        t.check(bool(outputs[record["file"]]), f"recorded {record['file']}")
+    for command in manifest["teardown"]:
+        vm.sh(command)
+    vm.poweroff()
+    version = re.search(rb"zfs-(\d+\.\d+)", outputs.get("version.txt", b""))
+    if t.check(version is not None, "zfs version names the release"):
+        target = REPO / "crates/zbm-zfs/tests/fixtures" / version.group(1).decode()
+        target.mkdir(parents=True, exist_ok=True)
+        for name, data in outputs.items():
+            (target / name).write_bytes(data)
+        t.note(f"fixtures written to {target}")
+    t.finish()
+
+
 def report(t, log):
     """process 1, the runtime and BOOTFS from the runtime report hook."""
     m = re.search(r"ZBMTEST-RUNTIME pid1=\[(.*?)\] conf=\[(.*?)\] bootfs=\[(.*?)\]", log)
@@ -434,6 +470,8 @@ def main():
         pilot()
     if which == "rust-crash":
         crash()
+    if which == "record-zfs":
+        record_zfs()
     boot(runtime, scenario)
 
 
