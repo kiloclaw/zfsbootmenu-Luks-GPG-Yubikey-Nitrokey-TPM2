@@ -15,6 +15,11 @@
 //! - `zfs inherit <property> <dataset>`
 //!
 //! Every call is appended to the file `calls` in the fake's directory.
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the fake is a real program that legacy scripts run, \
+              keeping its datasets in real files"
+)]
 
 use std::path::{Path, PathBuf};
 
@@ -99,7 +104,7 @@ impl FakeZfs {
     /// A fake that knows the given datasets, with no properties set.
     pub fn new(datasets: &[&str]) -> FakeZfs {
         let dir = TempDir::new("zbm-fake-zfs");
-        let mut list: String = datasets.iter().map(|name| format!("{name}\n")).collect();
+        let mut list: String = datasets.iter().flat_map(|name| [*name, "\n"]).collect();
         if list.is_empty() {
             list.push('\n');
         }

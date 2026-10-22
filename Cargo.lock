@@ -1302,6 +1302,7 @@ dependencies = [
 name = "zbm-testkit"
 version = "0.1.0"
 dependencies = [
+ "pretty_assertions",
  "serde",
  "serde_json",
  "zbm-core",
@@ -1341,6 +1342,7 @@ dependencies = [
  "pretty_assertions",
  "proptest",
  "thiserror",
+ "zbm-testkit",
 ]
 
 [[package]]

@@ -64,6 +64,7 @@ impl FakeConsole {
 
     /// The same console, letting time pass on `clock` when a key press times
     /// out.
+    #[must_use]
     pub fn with_clock(mut self, clock: FakeClock) -> FakeConsole {
         self.clock = Some(clock);
         self

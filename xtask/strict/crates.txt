@@ -6,6 +6,7 @@ zbm-app
 zbm-crypt
 zbm-menu
 zbm-platform
+zbm-testkit
 zbm-trace
 zbm-tui
 zbm-types

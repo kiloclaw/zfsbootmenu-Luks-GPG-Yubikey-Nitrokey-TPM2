@@ -572,7 +572,7 @@ impl Files for FakeFiles {
         let resolved = self.resolve(path, true)?;
         match self.nodes().get_mut(&resolved) {
             Some(Node::File { mode, .. } | Node::Directory { mode, .. }) => {
-                *mode = new_mode & 0o7777
+                *mode = new_mode & 0o7777;
             }
             _ => return Err(error(io::ErrorKind::NotFound, path)),
         }

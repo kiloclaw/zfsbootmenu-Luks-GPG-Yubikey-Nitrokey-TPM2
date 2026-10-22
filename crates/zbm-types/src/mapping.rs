@@ -74,6 +74,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use proptest::prelude::*;
+    use zbm_testkit::cases;
 
     fn reason(text: &str) -> Reason {
         text.parse::<MappingName>().unwrap_err().reason().clone()
@@ -88,18 +89,18 @@ mod tests {
 
     #[test]
     fn invalid_names_say_why() {
-        let cases = [
-            ("empty", "", Reason::Empty),
-            ("slash", "a/b", Reason::InvalidCharacter('/')),
-            ("space", "a b", Reason::InvalidCharacter(' ')),
-            ("newline", "a\n", Reason::InvalidCharacter('\n')),
-            ("non-ascii", "é", Reason::InvalidCharacter('é')),
-            ("dot", ".", Reason::Reserved),
-            ("dot dot", "..", Reason::Reserved),
-        ];
-
-        for (name, text, expected) in cases {
-            assert_eq!(reason(text), expected, "case {name}");
+        cases! {
+            for (text, expected) in {
+                "empty" => ("", Reason::Empty),
+                "slash" => ("a/b", Reason::InvalidCharacter('/')),
+                "space" => ("a b", Reason::InvalidCharacter(' ')),
+                "newline" => ("a\n", Reason::InvalidCharacter('\n')),
+                "non-ascii" => ("é", Reason::InvalidCharacter('é')),
+                "dot" => (".", Reason::Reserved),
+                "dot dot" => ("..", Reason::Reserved),
+            } {
+                assert_eq!(reason(text), expected);
+            }
         }
     }
 

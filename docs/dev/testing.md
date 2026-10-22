@@ -36,13 +36,39 @@ people and for AI tools alike:
 
 - **One behaviour per test, named as a sentence:** `a_wrong_pin_counts_towards_the_lockout`, not `test_pin_2`.
 - **Arrange, act, assert,** separated by blank lines. Build the machine under test with the fakes of
-  `zbm-testkit` (`FakeSystem`, `FakeFiles`, `FakeRunner`, `FakeConsole`) rather than real programs and devices.
-- **Tables for variations,** with a name per case, so that a failure says which case failed.
+  `zbm-testkit` rather than real programs and devices. `FakeMachine` (`zbm_testkit::machine`) describes the disks in
+  one expression, and its `cryptsetup`, `blkid`, `lsblk` and `zpool` answer from them:
+
+  ```rust
+  let machine = FakeMachine::new()
+      .with_luks_volume("/dev/sda2", "pw")
+      .with_pool("tank", "/dev/mapper/cryptroot")
+      .typing("pw");
+  ```
+
+  It dereferences to a `FakeSystem` (`FakeFiles`, `FakeRunner`, `FakeConsole` and the others), so anything a
+  `FakeSystem` test does works on it too.
+- **Readable failures:** `assert_ran!(machine, "zpool import -N -a")` and `assert_not_ran!(machine, "zpool export")`
+  list every command that ran when they fail.
+- **Tables for variations,** with a name per case, so that a failure says which case failed. `cases!` runs every
+  case and names each one that fails, not only the first:
+
+  ```rust
+  cases! {
+      for (text, expected) in {
+          "empty" => ("", Reason::Empty),
+          "digit first" => ("1tank", Reason::FirstNotLetter),
+      } {
+          assert_eq!(pool_reason(text), expected);
+      }
+  }
+  ```
 - **Deterministic:** no wall clock, sleeping, network or unseeded randomness. Generated inputs come from a seeded
   generator; set `ZBM_TEST_SEED` to try other inputs, and quote the seed a failing test prints to reproduce it.
 - **Self-contained:** a test does not depend on another test, on the host's tools, or on the order tests run in.
-- **Secrets:** a test that handles a secret ends with `FakeSystem::assert_no_leak`, which fails if the secret reached
-  arguments, the environment, files, logs or the screen.
+- **Secrets:** a test that handles a secret ends with `assert_no_secret_leaked!(machine, b"pw")`
+  (`FakeSystem::assert_no_leak`), which fails if the secret reached arguments, the environment, plain standard input,
+  files (the kernel log and the journal among them) or the screen.
 - **Snapshot tests for screens:** the menu's `view` is drawn into Ratatui's `TestBackend` at 80×25, 120×40 and 52×20
   and compared with `insta` snapshots in `crates/zbm-tui/src/snapshots/`. After a deliberate change, review the new
   screens with `cargo insta review`, or accept them all with `cargo xtask bless`, which lists the `.snap` files that

@@ -17,9 +17,9 @@ zbm-luks                 95
 zbm-platform             83
 zbm-state               100
 zbm-sys                  92
-zbm-system               98
+zbm-system               99
 zbm-testkit              97
-zbm-trace                96
+zbm-trace                97
 zbm-tui                  85
 zbm-types                99
 zbm-zfs                  99

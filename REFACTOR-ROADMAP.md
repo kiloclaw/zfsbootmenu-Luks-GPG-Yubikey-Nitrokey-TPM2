@@ -92,8 +92,16 @@ Done in R1:
   only installs the layer for a process (`System::kernel_log`), so no function takes a log parameter any more.
   Reading the log back (`zbm_trace::read`) moved from `zbm-log`.
 
-Open in R1: `FakeMachine` builders and assertion macros; the journal file (`/zfsbootmenu/journal.jsonl`) and
-redaction in the runtime; error enums; crash reports; shadow mode.
+- The runtime journal: every process that sets up its kernel log also appends every `tracing` event, whatever its
+  level, to `/zfsbootmenu/journal.jsonl` (at most 4 MiB a process), and fields named for secrets are written as
+  `[redacted]`.
+- `zbm_testkit::machine::FakeMachine` builds a machine with LUKS volumes, pools, key files and a command line in one
+  expression, and its fake programs answer from them; the LUKS unlocking tests use it in place of their own model.
+  `assert_ran!`, `assert_not_ran!`, `assert_no_secret_leaked!` and the table macro `cases!` (used by the `zbm-types`
+  tests) make failures name the command or case. `zbm-testkit` passes the strict lints; as test code, its helpers may
+  panic (that is how a test fails) and its host helpers, golden files and fake `zfs` may use real files.
+
+Open in R1: error enums; crash reports; shadow mode.
 
 ## What the pilots taught
 

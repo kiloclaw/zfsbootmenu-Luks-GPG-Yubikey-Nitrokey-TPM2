@@ -88,6 +88,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use proptest::prelude::*;
+    use zbm_testkit::cases;
 
     fn reason(text: &str) -> Reason {
         text.parse::<DevicePath>().unwrap_err().reason().clone()
@@ -105,16 +106,16 @@ mod tests {
 
     #[test]
     fn invalid_paths_say_why() {
-        let cases = [
-            ("empty", "", Reason::Empty),
-            ("relative", "dev/sda", Reason::NotAbsolute),
-            ("parent", "/dev/../etc/shadow", Reason::RelativeComponent),
-            ("current", "/dev/./sda", Reason::RelativeComponent),
-            ("nul", "/dev/sd\0a", Reason::InvalidCharacter('\0')),
-        ];
-
-        for (name, text, expected) in cases {
-            assert_eq!(reason(text), expected, "case {name}");
+        cases! {
+            for (text, expected) in {
+                "empty" => ("", Reason::Empty),
+                "relative" => ("dev/sda", Reason::NotAbsolute),
+                "parent" => ("/dev/../etc/shadow", Reason::RelativeComponent),
+                "current" => ("/dev/./sda", Reason::RelativeComponent),
+                "nul" => ("/dev/sd\0a", Reason::InvalidCharacter('\0')),
+            } {
+                assert_eq!(reason(text), expected);
+            }
         }
     }
 

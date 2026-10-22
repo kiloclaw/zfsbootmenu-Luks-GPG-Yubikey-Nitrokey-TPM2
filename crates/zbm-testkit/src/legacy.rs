@@ -45,7 +45,7 @@ pub fn log_lines(stderr: &str) -> String {
                 .iter()
                 .any(|label| line.starts_with(label))
         })
-        .map(|line| format!("{line}\n"))
+        .flat_map(|line| [line, "\n"])
         .collect()
 }
 
@@ -102,6 +102,7 @@ impl Bash {
     }
 
     /// Adds Bash code, run before anything added later.
+    #[must_use]
     pub fn code(mut self, code: &str) -> Bash {
         self.lines.push(code.to_owned());
         self
@@ -109,6 +110,7 @@ impl Bash {
 
     /// Sources a library from `legacy/`, for example
     /// `zfsbootmenu/lib/zfsbootmenu-kcl.sh`.
+    #[must_use]
     pub fn source(mut self, library: &str) -> Bash {
         let library = path(library);
         self.lines.push(format!(
@@ -119,6 +121,7 @@ impl Bash {
     }
 
     /// Sets an environment variable.
+    #[must_use]
     pub fn env(mut self, key: &str, value: &str) -> Bash {
         self.env.push((key.to_owned(), value.to_owned()));
         self

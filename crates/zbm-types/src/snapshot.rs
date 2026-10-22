@@ -89,6 +89,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use proptest::prelude::*;
+    use zbm_testkit::cases;
 
     fn reason(text: &str) -> Reason {
         text.parse::<SnapshotName>().unwrap_err().reason().clone()
@@ -96,16 +97,16 @@ mod tests {
 
     #[test]
     fn invalid_snapshot_names_say_why() {
-        let cases = [
-            ("no at", "zroot/data", Reason::NotOneAt),
-            ("two ats", "zroot@a@b", Reason::NotOneAt),
-            ("empty name", "zroot@", Reason::Empty),
-            ("bad dataset", "zroot//x@a", Reason::EmptyComponent),
-            ("bad character", "zroot@a/b", Reason::InvalidCharacter('/')),
-        ];
-
-        for (name, text, expected) in cases {
-            assert_eq!(reason(text), expected, "case {name}");
+        cases! {
+            for (text, expected) in {
+                "no at" => ("zroot/data", Reason::NotOneAt),
+                "two ats" => ("zroot@a@b", Reason::NotOneAt),
+                "empty name" => ("zroot@", Reason::Empty),
+                "bad dataset" => ("zroot//x@a", Reason::EmptyComponent),
+                "bad character" => ("zroot@a/b", Reason::InvalidCharacter('/')),
+            } {
+                assert_eq!(reason(text), expected);
+            }
         }
     }
 

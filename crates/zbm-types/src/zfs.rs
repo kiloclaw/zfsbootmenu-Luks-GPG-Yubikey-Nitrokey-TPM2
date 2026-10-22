@@ -162,6 +162,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use proptest::prelude::*;
+    use zbm_testkit::cases;
 
     fn pool_reason(text: &str) -> Reason {
         text.parse::<PoolName>().unwrap_err().reason().clone()
@@ -173,17 +174,17 @@ mod tests {
 
     #[test]
     fn invalid_pool_names_say_why() {
-        let cases = [
-            ("empty", "", Reason::Empty),
-            ("digit first", "1tank", Reason::FirstNotLetter),
-            ("slash", "tank/a", Reason::InvalidCharacter('/')),
-            ("vdev type", "raidz1", Reason::Reserved),
-            ("log", "log", Reason::Reserved),
-            ("solaris device", "c0t0d0", Reason::Reserved),
-        ];
-
-        for (name, text, expected) in cases {
-            assert_eq!(pool_reason(text), expected, "case {name}");
+        cases! {
+            for (text, expected) in {
+                "empty" => ("", Reason::Empty),
+                "digit first" => ("1tank", Reason::FirstNotLetter),
+                "slash" => ("tank/a", Reason::InvalidCharacter('/')),
+                "vdev type" => ("raidz1", Reason::Reserved),
+                "log" => ("log", Reason::Reserved),
+                "solaris device" => ("c0t0d0", Reason::Reserved),
+            } {
+                assert_eq!(pool_reason(text), expected);
+            }
         }
     }
 
@@ -196,17 +197,17 @@ mod tests {
 
     #[test]
     fn invalid_dataset_names_say_why() {
-        let cases = [
-            ("trailing slash", "zroot/", Reason::EmptyComponent),
-            ("double slash", "zroot//a", Reason::EmptyComponent),
-            ("snapshot", "zroot/a@s", Reason::InvalidCharacter('@')),
-            ("bookmark", "zroot/a#b", Reason::InvalidCharacter('#')),
-            ("parent", "zroot/..", Reason::RelativeComponent),
-            ("bad pool", "9/a", Reason::FirstNotLetter),
-        ];
-
-        for (name, text, expected) in cases {
-            assert_eq!(dataset_reason(text), expected, "case {name}");
+        cases! {
+            for (text, expected) in {
+                "trailing slash" => ("zroot/", Reason::EmptyComponent),
+                "double slash" => ("zroot//a", Reason::EmptyComponent),
+                "snapshot" => ("zroot/a@s", Reason::InvalidCharacter('@')),
+                "bookmark" => ("zroot/a#b", Reason::InvalidCharacter('#')),
+                "parent" => ("zroot/..", Reason::RelativeComponent),
+                "bad pool" => ("9/a", Reason::FirstNotLetter),
+            } {
+                assert_eq!(dataset_reason(text), expected);
+            }
         }
     }
 

@@ -36,6 +36,11 @@
 //! Each case is recorded with a description of its input. When a test's
 //! inputs change, replaying fails and names the case, and the golden file must
 //! be recorded again.
+#![allow(
+    clippy::disallowed_methods,
+    reason = "golden files are real files in the repository, \
+              chosen by environment variables of the test run"
+)]
 
 use std::cell::Cell;
 use std::path::PathBuf;

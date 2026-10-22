@@ -4,7 +4,9 @@ use std::path::Path;
 
 use zbm_core::exec::{Command, Input, Output, Status};
 use zbm_system::files::Files;
-use zbm_testkit::fakes::{ConsoleInput, FakeFiles, FakeSystem};
+use zbm_testkit::assert_no_secret_leaked;
+use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
+use zbm_testkit::machine::{FakeMachine, HOLDERS, LuksVolume};
 
 use crate::device::OpenCheck;
 use crate::session::{Luks, Session, Settings};
@@ -47,148 +49,25 @@ fn args(command: &Command) -> Vec<String> {
         .collect()
 }
 
-fn base(path: &str) -> &str {
-    path.rsplit('/').next().unwrap_or_default()
-}
-
-/// The stand-in for `cryptsetup`, as the unit suites' stub: real headers,
-/// fake device-mapper nodes.
-fn cryptsetup(files: &FakeFiles, volumes: &[Volume], command: &Command) -> Output {
-    let args = args(command);
-    let volume = |device: &str| volumes.iter().find(|volume| volume.device == device);
-    let status = |code: u8| Output::new(Status::exited(code), "");
-    match args.first().map(String::as_str) {
-        Some("isLuks") => status(if volume(&args[1]).is_some() { 0 } else { 1 }),
-        Some("luksUUID") => match volume(&args[1]) {
-            Some(volume) => Output::new(Status::exited(0), format!("{}\n", volume.uuid)),
-            None => status(1),
-        },
-        Some("luksDump" | "token") => status(1),
-        Some("open") => {
-            let device = &args[args.len() - 2];
-            let name = &args[args.len() - 1];
-            let key = if args.iter().any(|arg| arg == "--key-file=-") {
-                match command.get_stdin() {
-                    Input::Secret(secret) => secret.expose().to_vec(),
-                    _ => Vec::new(),
-                }
-            } else {
-                let path = args
-                    .iter()
-                    .find_map(|arg| arg.strip_prefix("--key-file="))
-                    .unwrap_or_default();
-                files.read(Path::new(path)).unwrap_or_default()
-            };
-            let mapper = format!("/dev/mapper/{name}");
-            if files.exists(Path::new(&mapper)) {
-                return status(5);
-            }
-            match volume(device) {
-                Some(volume) if volume.passphrase == key.as_slice() => {
-                    files.block_device(&mapper);
-                    files.file(
-                        format!("/fake/holders/{}", base(device)),
-                        format!("{name}\n"),
-                    );
-                    files.file(format!("/fake/maps/{name}"), volume.content);
-                    status(0)
-                }
-                _ => Output::new(
-                    Status::exited(2),
-                    "No key available with this passphrase.\n",
-                ),
-            }
-        }
-        Some("close") => {
-            let name = &args[1];
-            let mapper = format!("/dev/mapper/{name}");
-            if files.exists(Path::new(&format!("/fake/busy/{name}"))) {
-                return status(5);
-            }
-            if !files.exists(Path::new(&mapper)) {
-                return status(4);
-            }
-            let _ = files.remove_file(Path::new(&mapper));
-            let _ = files.remove_file(Path::new(&format!("/fake/maps/{name}")));
-            for volume in volumes {
-                let marker = format!("/fake/holders/{}", base(volume.device));
-                if files.read_to_string(Path::new(&marker)).ok().as_deref()
-                    == Some(&format!("{name}\n"))
-                {
-                    let _ = files.remove_file(Path::new(&marker));
-                }
-            }
-            status(0)
-        }
-        _ => status(0),
-    }
-}
-
-/// A machine with `volumes` and `zpool` pools on mapping paths.
-fn machine(
-    volumes: &'static [Volume],
-    pools: &'static [(&'static str, &'static str)],
-) -> FakeSystem {
-    let fake = FakeSystem::new();
-    fake.environment.set("PATH", "/sbin");
-    fake.files
-        .file_with_mode("/sbin/cryptsetup", "", 0o755)
-        .file("/usr/lib/udev/rules.d/95-dm-notify.rules", "")
-        .dir("/dev/mapper")
-        .dir("/fake/holders")
-        .dir("/zfsbootmenu");
+/// A machine with `volumes` and pools on mapping paths.
+fn machine(volumes: &[Volume], pools: &[(&str, &str)]) -> FakeMachine {
+    let mut machine = FakeMachine::new().with_file("/usr/lib/udev/rules.d/95-dm-notify.rules", "");
     for volume in volumes {
-        fake.files.block_device(volume.device);
-        fake.files.symlink(
-            format!("/dev/disk/by-uuid/{}", volume.uuid),
-            format!("../../{}", base(volume.device)),
+        machine = machine.with_luks(
+            LuksVolume::new(volume.device, volume.passphrase)
+                .uuid(volume.uuid)
+                .content(volume.content),
         );
     }
-    let files = fake.files.clone();
-    fake.runner.on(move |command| {
-        let program = command.program().to_string_lossy().into_owned();
-        let args = args(command);
-        match program.as_str() {
-            "cryptsetup" => Some(Ok(cryptsetup(&files, volumes, command))),
-            "blkid" if args.contains(&"TYPE=crypto_LUKS".to_owned()) => {
-                let list: String = volumes
-                    .iter()
-                    .map(|volume| format!("{}\n", volume.device))
-                    .collect();
-                Some(Ok(Output::new(Status::exited(0), list)))
-            }
-            "blkid" if args.contains(&"-p".to_owned()) => {
-                let name = base(args.last()?).to_owned();
-                let content = files
-                    .read_to_string(Path::new(&format!("/fake/maps/{name}")))
-                    .ok()?;
-                Some(Ok(Output::new(Status::exited(0), format!("{content}\n"))))
-            }
-            "lsblk" => Some(Ok(Output::new(Status::exited(0), "1G\n"))),
-            "zpool" => match args.first().map(String::as_str) {
-                Some("list") => {
-                    let names: String = pools.iter().map(|(pool, _)| format!("{pool}\n")).collect();
-                    Some(Ok(Output::new(Status::exited(0), names)))
-                }
-                Some("status") => {
-                    let pool = args.last()?;
-                    let vdev = pools.iter().find(|(name, _)| name == pool)?.1;
-                    Some(Ok(Output::new(
-                        Status::exited(0),
-                        format!("  pool: {pool}\nconfig:\n\t  {vdev}  ONLINE 0 0 0\n"),
-                    )))
-                }
-                _ => None,
-            },
-            _ => None,
-        }
-    });
-    fake
+    for (pool, vdev) in pools {
+        machine = machine.with_pool(pool, vdev);
+    }
+    machine
 }
 
 fn settings() -> Settings {
     let mut settings = Settings::new("/zfsbootmenu");
-    settings.open_check = OpenCheck::Markers("/fake/holders".into());
+    settings.open_check = OpenCheck::Markers(HOLDERS.into());
     settings.colors = false;
     settings
 }
@@ -271,8 +150,7 @@ fn discovery_shares_passphrases_and_closes_volumes_without_zfs() {
         infos.last().map(String::as_str),
         Some("LUKS: 2 volume(s) available, 0 not unlocked")
     );
-    fake.assert_no_leak(b"secret1");
-    fake.assert_no_leak(b"other");
+    assert_no_secret_leaked!(fake, b"secret1", b"other");
 }
 
 #[test]
