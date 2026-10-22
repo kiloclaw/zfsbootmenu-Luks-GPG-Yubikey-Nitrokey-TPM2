@@ -6,7 +6,9 @@
 # /dev/mapper. To keep them away from the host's own mappings, each suite
 # re-executes itself in a private mount namespace with an empty tmpfs on
 # /dev/mapper. Loop devices are detached only if they are backed by files of
-# the suite (see detach_own_loops).
+# the suite (see detach_own_loops). The host's HID devices (keyboards, security
+# keys) are hidden behind empty files, since the code under test takes any
+# /dev/hidraw* for a FIDO2 key; the suites make their own, /dev/hidraw99.
 
 if [ -z "${ZBMTEST_UNIT_ISOLATED:-}" ]; then
   if [ "$(id -u)" -ne 0 ]; then
@@ -19,6 +21,11 @@ if [ -z "${ZBMTEST_UNIT_ISOLATED:-}" ]; then
     env ZBMTEST_UNIT_ISOLATED=1 \
     bash -c 'made=; [ -d /dev/mapper ] || { mkdir /dev/mapper && made=1; }
              mount -t tmpfs -o mode=0755 zbmtest-mapper /dev/mapper || exit 1
+             blank=$(mktemp)
+             for d in /dev/hidraw*; do
+               [ -c "$d" ] && [ "$d" != /dev/hidraw99 ] && mount --bind "$blank" "$d"
+             done
+             rm -f "$blank"
              "$@"; rc=$?
              umount /dev/mapper; [ -n "${made}" ] && rmdir /dev/mapper
              exit "${rc}"' bash "$0" "$@"
