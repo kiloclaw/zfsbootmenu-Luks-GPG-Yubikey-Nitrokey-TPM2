@@ -14,13 +14,11 @@ pub mod yubikey;
 
 use std::path::Path;
 
-use zbm_core::shell::command_substitution;
-use zbm_platform::exec::{Input, Stream};
+use zbm_crypt::{CryptError, Cryptsetup, Token};
 use zbm_platform::secret::Secret;
 
 use crate::error::{LuksError, TokenFailure};
 use crate::session::Session;
-use crate::tokens::{json_bool, list_tokens};
 
 /// The volume a key method opens.
 #[derive(Clone, Copy, Debug)]
@@ -109,6 +107,12 @@ impl Session<'_> {
             .any(|dir| files.exists(&Path::new(dir).join(&library)))
     }
 
+    /// `cryptsetup`, with device-mapper's udev synchronization off when
+    /// [`Session::available`] turned it off.
+    pub fn cryptsetup(&self) -> Cryptsetup<'_> {
+        Cryptsetup::new(self.system().runner).without_udev(self.dm_disable_udev)
+    }
+
     /// Opens a volume through cryptsetup's token plugin
     /// (`luks_open_token_plugin`); cryptsetup reads a PIN from standard
     /// input, followed by a newline.
@@ -122,46 +126,23 @@ impl Session<'_> {
         id: &str,
         pin: Option<&Secret>,
     ) -> Result<(), LuksError> {
-        let stdin = pin.map_or(Input::Null, |pin| Input::Secret(with_newline(pin)));
-        let command = self
-            .command("cryptsetup")
-            .args(["open", "--type", "luks", "--token-only", "--token-id", id])
-            .args(target.args)
-            .args([target.device, target.name])
-            .stdin(stdin)
-            .stdout(Stream::Capture)
-            .merge_stderr();
-        let (status, output) = match self.system().runner.run(&command) {
-            Ok(output) => (output.status.shell_code(), output.stdout_text()),
+        let result =
+            self.cryptsetup()
+                .open_with_token(target.device, target.name, id, target.args, pin);
+        let (status, output) = match result {
+            Ok(()) => return Ok(()),
+            Err(CryptError::Failed { status, output }) => (status, output),
             Err(error) => (127, error.to_string()),
         };
-        if status == 0 {
-            return Ok(());
-        }
         zbm_trace::debug!(
-            "token {id} on {} failed ({status}): {}",
-            target.device,
-            command_substitution(&output)
+            "token {id} on {} failed ({status}): {output}",
+            target.device
         );
         Err(LuksError::Open {
             device: target.device.to_owned(),
             name: target.name.to_owned(),
             status,
         })
-    }
-
-    /// The JSON of a token (`cryptsetup token export`), or `None` if it
-    /// cannot be read.
-    pub fn token_json(&self, header: &str, id: &str) -> Option<String> {
-        let command = self
-            .command("cryptsetup")
-            .args(["token", "export", "--token-id", id, header])
-            .stderr(Stream::Null);
-        let output = self.system().runner.run(&command).ok()?;
-        output
-            .status
-            .is_success()
-            .then(|| command_substitution(&output.stdout_text()).to_owned())
     }
 
     /// Tries the LUKS2 tokens of a volume whose header is `header`
@@ -177,22 +158,24 @@ impl Session<'_> {
         let none_opened = || LuksError::NoToken {
             device: target.device.to_owned(),
         };
-        let tokens = list_tokens(self.system(), header);
+        let tokens: Vec<Token> = self
+            .cryptsetup()
+            .tokens(header)
+            .into_iter()
+            .filter(Token::has_fields)
+            .collect();
         if tokens.is_empty() {
             return Err(none_opened());
         }
         for interactive in [false, true] {
             for token in &tokens {
-                let Some(json) = self.token_json(header, &token.id) else {
-                    continue;
-                };
                 let id = token.id.as_str();
-                let with_pin = json_bool(&json, "tpm2-pin").as_deref() == Some("true");
+                let with_pin = token.flag("tpm2-pin") == Some(true);
                 let result = match (interactive, token.kind.as_str()) {
-                    (false, "systemd-tpm2") if !with_pin => self.try_tpm2_token(target, id, &json),
-                    (false, "clevis") => self.try_clevis_token(target, id, &json),
-                    (true, "systemd-tpm2") if with_pin => self.try_tpm2_token(target, id, &json),
-                    (true, "systemd-fido2") => self.try_fido2_token(target, id, &json),
+                    (false, "systemd-tpm2") if !with_pin => self.try_tpm2_token(target, id, token),
+                    (false, "clevis") => self.try_clevis_token(target, id, token),
+                    (true, "systemd-tpm2") if with_pin => self.try_tpm2_token(target, id, token),
+                    (true, "systemd-fido2") => self.try_fido2_token(target, id, token),
                     // Tried in the other pass.
                     (true, "systemd-tpm2" | "clevis") | (false, _) => continue,
                     (true, kind) => {
@@ -221,8 +204,19 @@ mod tests {
     use super::*;
     use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
-    use zbm_platform::exec::{Output, Status};
+    use zbm_platform::exec::{Input, Output, Status};
     use zbm_testkit::fakes::FakeSystem;
+
+    /// A token from its JSON, typed `test` when the JSON has no type.
+    pub(crate) fn token(json: &str) -> Token {
+        let typed = if json.contains("\"type\"") {
+            json.to_owned()
+        } else {
+            let separator = if json.trim() == "{}" { "" } else { "," };
+            json.replacen('{', &format!("{{\"type\":\"test\"{separator}"), 1)
+        };
+        Token::from_export("0", &typed).unwrap()
+    }
 
     pub(crate) fn with_session<T>(
         fake: &FakeSystem,

@@ -38,9 +38,11 @@
 
 mod cryptsetup;
 mod mapping;
+pub mod token;
 
 pub use cryptsetup::{Cryptsetup, OpenOptions};
 pub use mapping::{Closed, Failed, Mapping, Open};
+pub use token::{Token, TokenError};
 
 use zbm_types::{DevicePath, MappingName};
 

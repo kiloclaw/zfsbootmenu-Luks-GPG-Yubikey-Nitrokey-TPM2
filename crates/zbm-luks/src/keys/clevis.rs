@@ -13,7 +13,7 @@ use super::Target;
 use crate::error::LuksError;
 use crate::error::TokenFailure;
 use crate::session::{Key, Session};
-use crate::tokens::json_arr;
+use zbm_crypt::Token;
 
 impl Session<'_> {
     /// Opens a volume with a clevis token (`luks_try_clevis_token`).
@@ -27,7 +27,7 @@ impl Session<'_> {
         &mut self,
         target: Target<'_>,
         id: &str,
-        json: &str,
+        token: &Token,
     ) -> Result<(), LuksError> {
         let device = target.device;
         let system = *self.system();
@@ -36,10 +36,9 @@ impl Session<'_> {
             zbm_trace::info!("clevis token {id} on {device} needs clevis and jose in the image");
             return Err(failed(TokenFailure::Unsupported));
         }
-        let Some(slots) = json_arr(json, "keyslots").filter(|slots| !slots.is_empty()) else {
+        let Some(slot) = token.keyslots().into_iter().next() else {
             return Err(failed(TokenFailure::Unsupported));
         };
-        let slot = slots.split(',').next().unwrap_or_default().to_owned();
 
         // The clevis policy may use the TPM.
         self.have_tpm2();
@@ -55,7 +54,7 @@ impl Session<'_> {
         let jwe = run(self
             .command("jose")
             .args(["fmt", "-j-", "-Og", "jwe", "-o-"])
-            .stdin(Input::Bytes(format!("{json}\n").into_bytes()))
+            .stdin(Input::Bytes(format!("{}\n", token.to_json()).into_bytes()))
             .stdout(Stream::Capture)
             .stderr(Stream::Null));
         let compact = run(self
@@ -133,10 +132,15 @@ mod tests {
         };
         with_session(&fake, settings, |session| {
             let json = r#"{"type":"clevis","keyslots":["3","4"],"jwe":{"protected":"x"}}"#;
-            assert_eq!(session.try_clevis_token(target, "2", json), Ok(()));
+            let token = Token::from_export("2", json).unwrap();
+            assert_eq!(session.try_clevis_token(target, "2", &token), Ok(()));
             assert!(
                 session
-                    .try_clevis_token(target, "2", r#"{"keyslots":[]}"#)
+                    .try_clevis_token(
+                        target,
+                        "2",
+                        &crate::keys::tests::token(r#"{"keyslots":[]}"#)
+                    )
                     .is_err()
             );
         });
@@ -165,7 +169,11 @@ mod tests {
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
-                    .try_clevis_token(target, "2", r#"{"keyslots":["3"]}"#)
+                    .try_clevis_token(
+                        target,
+                        "2",
+                        &crate::keys::tests::token(r#"{"keyslots":["3"]}"#)
+                    )
                     .is_err()
             );
         });
@@ -175,7 +183,11 @@ mod tests {
         );
         let fake = FakeSystem::new();
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.try_clevis_token(target, "2", "{}").is_err());
+            assert!(
+                session
+                    .try_clevis_token(target, "2", &crate::keys::tests::token("{}"))
+                    .is_err()
+            );
         });
         assert!(
             fake.kmsg()

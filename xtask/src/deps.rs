@@ -103,7 +103,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm", &["tracing"]),
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
-    ("zbm-crypt", &["thiserror", "tracing"]),
+    ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     (

@@ -1,10 +1,11 @@
-//! `cryptsetup open` and `cryptsetup close`.
+//! `cryptsetup`: opening and closing volumes, and reading their tokens.
 
 use tracing::{debug, info_span};
 use zbm_platform::{Command, Input, Output, Runner, Secret, Stream};
 
 use crate::CryptError;
 use crate::mapping::{Closed, Failed, Mapping, Open};
+use crate::token::{self, Token};
 
 /// How [`Cryptsetup::open`] opens a volume, beyond the key.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -20,12 +21,121 @@ pub struct OpenOptions {
 pub struct Cryptsetup<'a> {
     /// Where the program runs.
     runner: &'a dyn Runner,
+    /// Whether device-mapper skips udev synchronization
+    /// (`DM_DISABLE_UDEV=1`), for images without its udev rules.
+    without_udev: bool,
 }
 
 impl<'a> Cryptsetup<'a> {
     /// `cryptsetup`, run through `runner`.
     pub fn new(runner: &'a dyn Runner) -> Cryptsetup<'a> {
-        Cryptsetup { runner }
+        Cryptsetup {
+            runner,
+            without_udev: false,
+        }
+    }
+
+    /// The same, with device-mapper's udev synchronization off when
+    /// `without_udev` is set (`DM_DISABLE_UDEV=1`).
+    #[must_use]
+    pub fn without_udev(mut self, without_udev: bool) -> Cryptsetup<'a> {
+        self.without_udev = without_udev;
+        self
+    }
+
+    /// A `cryptsetup` command with `args`, standard input from `/dev/null`.
+    fn command<'s>(&self, args: impl IntoIterator<Item = &'s str>) -> Command {
+        let command = Command::new("cryptsetup").args(args).stdin(Input::Null);
+        if self.without_udev {
+            command.env("DM_DISABLE_UDEV", "1")
+        } else {
+            command
+        }
+    }
+
+    /// What `cryptsetup <args>` prints on standard output, if it succeeds;
+    /// its errors are discarded.
+    fn quietly<'s>(&self, args: impl IntoIterator<Item = &'s str>) -> Option<String> {
+        let command = self
+            .command(args)
+            .stdout(Stream::Capture)
+            .stderr(Stream::Null);
+        let output = self.runner.run(&command).ok()?;
+        output.status.is_success().then(|| output.stdout_text())
+    }
+
+    /// The LUKS2 tokens of a volume or detached header: from `cryptsetup
+    /// luksDump --dump-json-metadata`, with their fields, or, for cryptsetup
+    /// before 2.4, from the `luksDump` text, without them. A volume that
+    /// cannot be read has no tokens.
+    pub fn list_tokens(&self, header: &str) -> Vec<Token> {
+        let metadata = self.quietly(["luksDump", "--dump-json-metadata", header]);
+        if let Some(Ok(tokens)) = metadata.as_deref().map(token::from_metadata) {
+            return tokens;
+        }
+        let text = self.quietly(["luksDump", header]).unwrap_or_default();
+        token::from_dump_text(&text)
+    }
+
+    /// The LUKS2 tokens of a volume or detached header with their fields,
+    /// which `cryptsetup token export` reads for the tokens that
+    /// [`Cryptsetup::list_tokens`] found without them.
+    pub fn tokens(&self, header: &str) -> Vec<Token> {
+        self.list_tokens(header)
+            .into_iter()
+            .map(|listed| {
+                if listed.has_fields() {
+                    listed
+                } else {
+                    self.token(header, &listed.id).unwrap_or(listed)
+                }
+            })
+            .collect()
+    }
+
+    /// One token with its fields (`cryptsetup token export`), or `None` when
+    /// it cannot be read.
+    pub fn token(&self, header: &str, id: &str) -> Option<Token> {
+        let text = self.quietly(["token", "export", "--token-id", id, header])?;
+        Token::from_export(id, &text).ok()
+    }
+
+    /// Opens `device` as `name` with the token `id` through cryptsetup's
+    /// token plugin (`--token-only`), with `options` before the device; a
+    /// PIN goes to standard input, followed by a newline.
+    ///
+    /// # Errors
+    ///
+    /// [`CryptError::Failed`] with cryptsetup's exit status and output, and
+    /// [`CryptError::Start`] when it cannot be started.
+    pub fn open_with_token(
+        &self,
+        device: &str,
+        name: &str,
+        id: &str,
+        options: &[String],
+        pin: Option<&Secret>,
+    ) -> Result<(), CryptError> {
+        let stdin = pin.map_or(Input::Null, |pin| {
+            let mut line = pin.clone();
+            line.push(b'\n');
+            Input::Secret(line)
+        });
+        let command = self
+            .command(["open", "--type", "luks", "--token-only", "--token-id", id])
+            .args(options.iter().map(String::as_str))
+            .args([device, name])
+            .stdin(stdin)
+            .stdout(Stream::Capture)
+            .merge_stderr();
+        let output = self.runner.run(&command).map_err(CryptError::Start)?;
+        if output.status.is_success() {
+            return Ok(());
+        }
+        Err(CryptError::Failed {
+            status: output.status.shell_code(),
+            output: output.stdout_text().trim().to_owned(),
+        })
     }
 
     /// Opens `mapping` with `key`:
@@ -46,8 +156,7 @@ impl<'a> Cryptsetup<'a> {
         let _span =
             info_span!("cryptsetup_open", device = %mapping.device(), name = %mapping.name())
                 .entered();
-        let mut command =
-            Command::new("cryptsetup").args(["open", "--type", "luks", "--key-file=-"]);
+        let mut command = self.command(["open", "--type", "luks", "--key-file=-"]);
         if options.allow_discards {
             command = command.arg("--allow-discards");
         }
@@ -71,7 +180,7 @@ impl<'a> Cryptsetup<'a> {
     /// [`CryptError::Busy`] when something still uses it.
     pub fn close(&self, mapping: Mapping<Open>) -> Result<Mapping<Closed>, Failed<Open>> {
         let _span = info_span!("cryptsetup_close", name = %mapping.name()).entered();
-        let command = Command::new("cryptsetup").args(["close", mapping.name().as_str()]);
+        let command = self.command(["close", mapping.name().as_str()]);
         match self.run(command, &mapping) {
             Ok(()) => Ok(mapping.into_state()),
             Err(error) => Err(Failed { mapping, error }),

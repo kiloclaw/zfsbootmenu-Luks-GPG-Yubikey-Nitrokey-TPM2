@@ -1,228 +1,23 @@
-//! LUKS2 token metadata: `luks_list_tokens` and the JSON extractors
-//! `luks_json_str`, `luks_json_arr` and `luks_json_bool`.
+//! LUKS2 token listing: `luks_list_tokens`.
 //!
-//! The extractors read single values from the compact JSON of
-//! `cryptsetup token export`, whose keys are unique, exactly as the legacy
-//! `sed` expressions do: for each line, the last occurrence of the key wins.
+//! The tokens and their fields come from `zbm_crypt::Cryptsetup`, which reads
+//! the JSON metadata of `cryptsetup luksDump --dump-json-metadata` with
+//! `serde`, and the `luksDump` text for cryptsetup before 2.4. The `sed` and
+//! `awk` emulation of the legacy code is gone; the tests below check that the
+//! listing still matches the legacy listing on recorded volumes.
 
-use std::fmt;
-
-use zbm_core::shell::command_substitution;
+use zbm_crypt::Cryptsetup;
+pub use zbm_crypt::Token;
 use zbm_platform::System;
-use zbm_platform::exec::{Command, Input, Stream};
 
-/// A LUKS2 token: its ID and its type, such as `systemd-tpm2`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Token {
-    /// The token ID.
-    pub id: String,
-    /// The token type.
-    pub kind: String,
-}
-
-impl fmt::Display for Token {
-    /// The line `luks_list_tokens` prints: `<id> <type>`.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{} {}", self.id, self.kind)
-    }
-}
-
-/// The lines `sed` reads from a here-string: the text and a final newline.
-fn sed_lines(text: &str) -> std::str::Split<'_, char> {
-    text.split('\n')
-}
-
-/// The value a `sed -n 's/.*"<key>": *<open>\(...\)<close>.*/\1/p'` line
-/// yields: the last occurrence of `"<key>":` and spaces followed by `value`'s
-/// match.
-fn last_match<'a>(
-    line: &'a str,
-    key: &str,
-    value: impl Fn(&'a str) -> Option<&'a str>,
-) -> Option<&'a str> {
-    let pattern = format!("\"{key}\":");
-    let starts: Vec<usize> = line.match_indices(&pattern).map(|(at, _)| at).collect();
-    starts.iter().rev().find_map(|&at| {
-        let rest = line[at + pattern.len()..].trim_start_matches(' ');
-        value(rest)
-    })
-}
-
-/// The output of `sed -n` with substitution `matcher`, as `$(...)` captures
-/// it.
-fn sed(json: &str, key: &str, value: impl Fn(&str) -> Option<&str>) -> String {
-    let mut output = String::new();
-    for line in sed_lines(json) {
-        if let Some(found) = last_match(line, key, &value) {
-            output.push_str(found);
-            output.push('\n');
-        }
-    }
-    command_substitution(&output).to_owned()
-}
-
-/// The string value of `key` (`luks_json_str`), unless it is empty.
-pub fn json_str(json: &str, key: &str) -> Option<String> {
-    let value = sed(json, key, |rest| {
-        let rest = rest.strip_prefix('"')?;
-        rest.find('"').map(|end| &rest[..end])
-    });
-    (!value.is_empty()).then_some(value)
-}
-
-/// The contents of the array `key` (`luks_json_arr`), without quotes and
-/// spaces, such as `1,2`; `None` if the JSON has no such array.
-pub fn json_arr(json: &str, key: &str) -> Option<String> {
-    let value = sed(json, key, |rest| {
-        let rest = rest.strip_prefix('[')?;
-        rest.find(']').map(|end| &rest[..end])
-    });
-    // `grep -q "\"${2}\": *\["`
-    let present = sed_lines(json)
-        .any(|line| last_match(line, key, |rest| rest.strip_prefix('[').map(|_| "")).is_some());
-    present.then(|| value.replace(['"', ' '], ""))
-}
-
-/// The boolean value of `key` (`luks_json_bool`), `true` or `false`.
-pub fn json_bool(json: &str, key: &str) -> Option<String> {
-    let value = sed(json, key, |rest| {
-        ["true", "false"]
-            .into_iter()
-            .find(|word| rest.starts_with(word))
-    });
-    (!value.is_empty()).then_some(value)
-}
-
-/// Whether `c` is in awk's `[[:space:]]`.
-fn is_awk_space(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r')
-}
-
-/// Whether `line` matches `^[[:space:]]*"<name>"[[:space:]]*:`, where a
-/// `None` name stands for `[0-9]+`; returns the name.
-fn awk_member<'a>(line: &'a str, name: Option<&str>) -> Option<&'a str> {
-    let rest = line.trim_start_matches(is_awk_space).strip_prefix('"')?;
-    let end = rest.find('"')?;
-    let found = &rest[..end];
-    let matches = match name {
-        Some(name) => found == name,
-        None => !found.is_empty() && found.bytes().all(|byte| byte.is_ascii_digit()),
-    };
-    let after = rest[end + 1..].trim_start_matches(is_awk_space);
-    (matches && after.starts_with(':')).then_some(found)
-}
-
-/// The type in a `"type": "..."` line, as the two `sub` calls of the legacy
-/// awk program cut it out.
-fn awk_type(line: &str) -> &str {
-    let mut text = line;
-    if let Some(colon) = text.find(':') {
-        let rest = text[colon + 1..].trim_start_matches(is_awk_space);
-        if let Some(rest) = rest.strip_prefix('"') {
-            text = rest;
-        }
-    }
-    text.find('"').map_or(text, |quote| &text[..quote])
-}
-
-/// The tokens in the pretty-printed JSON of
-/// `cryptsetup luksDump --dump-json-metadata`, as the legacy awk program finds
-/// them by tracking the depth of braces; `None` for empty output, for which
-/// the program fails.
-pub fn parse_json_metadata(text: &str) -> Option<Vec<Token>> {
-    if text.is_empty() {
-        return None;
-    }
-    let records = text.strip_suffix('\n').unwrap_or(text);
-    let mut tokens = Vec::new();
-    let (mut depth, mut in_tokens, mut want) = (0_i64, false, false);
-    let mut id = "";
-    for line in records.split('\n') {
-        if depth == 1 && awk_member(line, Some("tokens")).is_some() {
-            in_tokens = true;
-        }
-        if in_tokens
-            && depth == 2
-            && let Some(found) = awk_member(line, None)
-        {
-            id = found;
-            want = true;
-        }
-        if in_tokens && want && depth == 3 && awk_member(line, Some("type")).is_some() {
-            tokens.push(Token {
-                id: id.to_owned(),
-                kind: awk_type(line).to_owned(),
-            });
-            want = false;
-        }
-        let opens = line.matches('{').count();
-        let closes = line.matches('}').count();
-        depth += i64::try_from(opens).unwrap_or(i64::MAX) - i64::try_from(closes).unwrap_or(0);
-        if in_tokens && depth <= 1 {
-            in_tokens = false;
-        }
-    }
-    Some(tokens)
-}
-
-/// The tokens in the text of `cryptsetup luksDump`, for cryptsetup before 2.4,
-/// which cannot print the JSON metadata.
-pub fn parse_dump_text(text: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut in_tokens = false;
-    let records = text.strip_suffix('\n').unwrap_or(text);
-    for line in records.split('\n') {
-        if line.starts_with("Tokens:") {
-            in_tokens = true;
-            continue;
-        }
-        if line.chars().next().is_some_and(|c| !is_awk_space(c)) {
-            in_tokens = false;
-        }
-        let Some(rest) = line.strip_prefix("  ") else {
-            continue;
-        };
-        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
-        if !in_tokens || digits == 0 || !rest[digits..].starts_with(": ") {
-            continue;
-        }
-        // `sub(":", "", $1); print $1, $2`
-        let mut fields = line.split(is_awk_space).filter(|field| !field.is_empty());
-        let first = fields.next().unwrap_or_default().replacen(':', "", 1);
-        tokens.push(Token {
-            id: first,
-            kind: fields.next().unwrap_or_default().to_owned(),
-        });
-    }
-    tokens
-}
-
-/// What `cryptsetup luksDump [options] <device>` prints, without its errors.
-fn luks_dump(system: &System<'_>, options: &[&str], device: &str) -> String {
-    let command = Command::new("cryptsetup")
-        .stdin(Input::Null)
-        .arg("luksDump")
-        .args(options)
-        .arg(device)
-        .stderr(Stream::Null);
-    system
-        .runner
-        .run(&command)
-        .map(|output| output.stdout_text())
-        .unwrap_or_default()
-}
-
-/// The LUKS2 tokens of a device or detached header (`luks_list_tokens`).
+/// The LUKS2 tokens of a device or detached header (`luks_list_tokens`): the
+/// ID and type of each, from the JSON metadata when cryptsetup can print it.
 ///
 /// The JSON metadata is the reliable source: with systemd's token plugins
 /// installed, cryptsetup 2.8 (systemd 261) prints the text of every token
 /// after the first to standard error, so the `luksDump` text misses them.
 pub fn list_tokens(system: &System<'_>, device: &str) -> Vec<Token> {
-    let json = luks_dump(system, &["--dump-json-metadata"], device);
-    if let Some(tokens) = parse_json_metadata(&json) {
-        return tokens;
-    }
-    parse_dump_text(&luks_dump(system, &[], device))
+    Cryptsetup::new(system.runner).list_tokens(device)
 }
 
 #[cfg(test)]
@@ -232,8 +27,7 @@ mod tests {
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
-    use zbm_testkit::parity::Parity;
-    use zbm_testkit::{Rng, parity, repo_root};
+    use zbm_testkit::{parity, repo_root};
 
     fn fixture(name: &str) -> String {
         let path = repo_root()
@@ -385,168 +179,16 @@ mod tests {
                     .call("luks_list_tokens", &["/dev/x"], b"")
                     .stdout_text()
             });
-            assert_eq!(show(&parse_dump_text(&text)), legacy, "{text:?}");
+            assert_eq!(
+                show(&zbm_crypt::token::from_dump_text(&text)),
+                legacy,
+                "{text:?}"
+            );
         }
-    }
-
-    #[test]
-    fn json_variants_match_the_legacy_parser() {
-        let jsons = [
-            "{\n  \"tokens\":{\n    \"0\":{\n      \"type\":\"a\"\n    }\n  }\n}\n",
-            // Compact JSON: one line, so nothing is found at the right depth.
-            "{\"tokens\":{\"0\":{\"type\":\"a\"}}}",
-            "{\n \"tokens\" : {\n  \"12\" : {\n   \"type\" : \"x y\"\n  },\n  \"13\":{\n   \
-             \"keyslots\":[],\n   \"type\": 5\n  },\n  \"14\":{\n   \"type\":\"{\"\n  }\n }\n}\n",
-            "{\n  \"keyslots\":{\n    \"0\":{\n      \"type\":\"luks2\"\n    }\n  },\n  \
-             \"tokens\":{\n  }\n}\n",
-            "{\n  \"tokens\":{\n    \"1\":{\n      \"jwe\":{\n        \"type\":\"no\"\n      \
-             },\n      \"type\":\"clevis\"\n    }\n  }\n}",
-            "\n",
-            "x",
-        ];
-        let mut parity = parity!("json_variants_match_the_legacy_parser");
-        for json in jsons {
-            let legacy: String = parity.legacy(format!("{json:?}"), || {
-                let dir = zbm_testkit::TempDir::new("zbm-luks-json");
-                let path = dir.write("dump.json", json);
-                let stub = format!(
-                    r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && cat {}; }}"#,
-                    shell_quote(&path.to_string_lossy())
-                );
-                legacy_luks()
-                    .code(&stub)
-                    .call("luks_list_tokens", &["/dev/x"], b"")
-                    .stdout_text()
-            });
-            let rust = parse_json_metadata(json).unwrap_or_default();
-            assert_eq!(show(&rust), legacy, "{json:?}");
-        }
-        assert_eq!(parse_json_metadata(""), None);
-    }
-
-    /// The legacy extractor `function` of `key` in `json`, as `Some` output
-    /// when it succeeds.
-    fn legacy_extract(function: &str, json: &str, key: &str) -> Option<String> {
-        let output = legacy_luks().call(function, &[json, key], b"");
-        let text = output.stdout_text();
-        output
-            .status
-            .is_success()
-            .then(|| text.strip_suffix('\n').unwrap_or(&text).to_owned())
-    }
-
-    fn assert_same_extracts(parity: &mut Parity, json: &str, keys: &[&str]) {
-        for key in keys {
-            for (function, rust) in [
-                ("luks_json_str", json_str(json, key)),
-                ("luks_json_arr", json_arr(json, key)),
-                ("luks_json_bool", json_bool(json, key)),
-            ] {
-                let case = format!("{function} {key} {json:?}");
-                let legacy: Option<String> =
-                    parity.legacy(case.clone(), || legacy_extract(function, json, key));
-                assert_eq!(rust, legacy, "{case}");
-            }
-        }
-    }
-
-    #[test]
-    fn recorded_token_values_match_the_legacy_extractors() {
-        let keys = [
-            "type",
-            "keyslots",
-            "tpm2-blob",
-            "tpm2-pcrs",
-            "tpm2-pcr-bank",
-            "tpm2-policy-hash",
-            "tpm2-pin",
-            "tpm2_salt",
-            "tpm2_srk",
-            "tpm2-primary-alg",
-            "fido2-credential",
-            "fido2-salt",
-            "fido2-rp",
-            "fido2-clientPin-required",
-            "fido2-up-required",
-            "fido2-uv-required",
-            "jwe",
-            "protected",
-            "missing",
-        ];
-        let mut parity = parity!("recorded_token_values_match_the_legacy_extractors");
-        for name in [
-            "token-tpm2.json",
-            "token-tpm2-pin.json",
-            "token-fido2.json",
-            "token-clevis.json",
-        ] {
-            assert_same_extracts(&mut parity, &fixture(name), &keys);
-        }
-        let pin = fixture("token-tpm2-pin.json");
-        assert_eq!(json_str(&pin, "type").as_deref(), Some("systemd-tpm2"));
-        assert_eq!(json_arr(&pin, "tpm2-pcrs").as_deref(), Some("7"));
-        assert_eq!(json_bool(&pin, "tpm2-pin").as_deref(), Some("true"));
-        assert_eq!(json_str(&pin, "tpm2-pcr-bank").as_deref(), Some("sha256"));
-        assert_eq!(json_arr(&pin, "keyslots").as_deref(), Some("1"));
-        let fido2 = fixture("token-fido2.json");
-        assert_eq!(
-            json_str(&fido2, "fido2-rp").as_deref(),
-            Some("io.systemd.cryptsetup")
-        );
-        assert_eq!(
-            json_bool(&fido2, "fido2-up-required").as_deref(),
-            Some("true")
-        );
-    }
-
-    #[test]
-    fn random_json_matches_the_legacy_extractors() {
-        let mut parity = parity!("random_json_matches_the_legacy_extractors");
-        let mut rng = Rng::from_env(0x7015);
-        let pieces = [
-            "\"k\":",
-            "\"k\": ",
-            "\"k\":  ",
-            "\"v\"",
-            "\"\"",
-            "[",
-            "]",
-            "\"a\", \"b\"",
-            "1, 2",
-            "true",
-            "false",
-            "truest",
-            " ",
-            ",",
-            "{",
-            "}",
-            "\n",
-            "\"k2\":",
-            "x",
-        ];
-        for _ in 0..80 {
-            let json = rng.join(&pieces, 10);
-            assert_same_extracts(&mut parity, &json, &["k", "k2"]);
-        }
-        assert_same_extracts(
-            &mut parity,
-            "{\"k\":\"first\",\"k\":\"last\"}\n{\"k\": [ \"1\" , \"2\" ]}\n\"k\":true \"k\":false",
-            &["k"],
-        );
-        assert_eq!(
-            json_arr("{\"k\": [ \"1\" , \"2\" ]}", "k").as_deref(),
-            Some("1,2")
-        );
-        assert_eq!(json_arr("{\"k\":[]}", "k").as_deref(), Some(""));
-        assert_eq!(json_arr("{\"k\":\"[]\"}", "k"), None);
     }
 
     #[test]
     fn tokens_print_as_the_legacy_lines() {
-        let token = Token {
-            id: "3".to_owned(),
-            kind: String::new(),
-        };
-        assert_eq!(token.to_string(), "3 ");
+        assert_eq!(Token::without_fields("3", "").to_string(), "3 ");
     }
 }

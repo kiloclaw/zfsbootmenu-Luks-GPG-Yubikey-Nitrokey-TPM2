@@ -17,7 +17,7 @@ use super::{Outcome, Target};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
 use crate::session::{Key, Session, Wait};
-use crate::tokens::{json_bool, json_str};
+use zbm_crypt::Token;
 
 /// The devices `fido2-token -L` lists, as
 /// `sed -n 's/^\(\/dev\/[^:]*\):.*/\1/p'` finds them.
@@ -58,26 +58,25 @@ impl Session<'_> {
 
     /// Computes the LUKS passphrase of a systemd-fido2 token with
     /// `fido2-assert` (`luks_fido2_native`).
-    pub fn fido2_native(&self, json: &str) -> Outcome {
+    pub fn fido2_native(&self, token: &Token) -> Outcome {
         let system = self.system();
         if !system.command_exists("fido2-assert") || !system.command_exists("fido2-token") {
             return Outcome::Unsupported;
         }
-        let (Some(credential), Some(salt)) = (
-            json_str(json, "fido2-credential"),
-            json_str(json, "fido2-salt"),
-        ) else {
+        let (Some(credential), Some(salt)) =
+            (token.text("fido2-credential"), token.text("fido2-salt"))
+        else {
             return Outcome::Unsupported;
         };
-        let rp = json_str(json, "fido2-rp").unwrap_or_else(|| "io.systemd.cryptsetup".to_owned());
-        let up = json_bool(json, "fido2-up-required").unwrap_or_else(|| "true".to_owned());
-        let uv = json_bool(json, "fido2-uv-required").unwrap_or_else(|| "false".to_owned());
+        let rp = token.text("fido2-rp").unwrap_or("io.systemd.cryptsetup");
+        let up = token.flag("fido2-up-required").unwrap_or(true);
+        let uv = token.flag("fido2-uv-required").unwrap_or(false);
         // Tokens enrolled by systemd 248 lack the PIN flag: try without, then
         // with.
-        let pin_modes: &[&str] = match json_bool(json, "fido2-clientPin-required").as_deref() {
-            Some("true") => &["true"],
-            Some("false") => &["false"],
-            _ => &["false", "true"],
+        let pin_modes: &[bool] = match token.flag("fido2-clientPin-required") {
+            Some(true) => &[true],
+            Some(false) => &[false],
+            None => &[false, true],
         };
 
         let list = self.command("fido2-token").arg("-L").stderr(Stream::Null);
@@ -101,10 +100,10 @@ impl Session<'_> {
                     "-t".to_owned(),
                     format!("uv={uv}"),
                 ];
-                if *pin == "true" {
+                if *pin {
                     args.extend(["-t".to_owned(), "pin=true".to_owned()]);
                 }
-                if up == "true" {
+                if up {
                     self.say(&self.paint(
                         "yellow",
                         &format!("Touch the security key {device} when it blinks.\n"),
@@ -152,7 +151,7 @@ impl Session<'_> {
         &mut self,
         target: Target<'_>,
         id: &str,
-        json: &str,
+        token: &Token,
     ) -> Result<(), LuksError> {
         let device = target.device;
         let failed = |failure| target.token_error("systemd-fido2", id, failure);
@@ -168,7 +167,7 @@ impl Session<'_> {
             zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
             return Err(failed(TokenFailure::NoDevice));
         }
-        let touch = json_bool(json, "fido2-up-required").as_deref() != Some("false");
+        let touch = token.flag("fido2-up-required") != Some(false);
         let heading = format!(
             "Unlock {} with a FIDO2 security key\n",
             self.paint("yellow", device)
@@ -177,7 +176,7 @@ impl Session<'_> {
         if self.have_token_plugin("systemd-fido2") {
             self.say("\n");
             self.say(&self.paint("cyan", &heading));
-            if json_bool(json, "fido2-clientPin-required").as_deref() == Some("true") {
+            if token.flag("fido2-clientPin-required") == Some(true) {
                 for _ in 0..3 {
                     let pin = match self
                         .read_secret("Security key PIN (leave empty to use another method): ")
@@ -208,7 +207,7 @@ impl Session<'_> {
         // Without the plugin, fido2-assert asks for the PIN itself.
         self.say("\n");
         self.say(&self.paint("cyan", &heading));
-        match self.fido2_native(json) {
+        match self.fido2_native(token) {
             Outcome::Key(key) => {
                 self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
             }
@@ -295,7 +294,8 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert_eq!(session.try_fido2_token(target, "0", &json), Ok(()));
+            let token = Token::from_export("0", &json).unwrap();
+            assert_eq!(session.try_fido2_token(target, "0", &token), Ok(()));
         });
         let lines = fake.runner.lines();
         assert_eq!(
@@ -344,7 +344,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.try_fido2_token(target, "3", "{}").is_err());
+            assert!(
+                session
+                    .try_fido2_token(target, "3", &crate::keys::tests::token("{}"))
+                    .is_err()
+            );
         });
         assert!(
             fake.console

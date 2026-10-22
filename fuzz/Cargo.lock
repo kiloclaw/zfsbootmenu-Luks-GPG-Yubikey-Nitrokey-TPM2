@@ -317,6 +317,7 @@ dependencies = [
 name = "zbm-crypt"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "thiserror",
  "tracing",
  "zbm-platform",
@@ -330,6 +331,7 @@ dependencies = [
  "libfuzzer-sys",
  "zbm-boot",
  "zbm-cmdline",
+ "zbm-crypt",
  "zbm-luks",
  "zbm-types",
  "zbm-zfs",

@@ -21,7 +21,7 @@ use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
 use crate::error::{LuksError, TokenFailure};
 use crate::session::{Key, Session};
-use crate::tokens::{json_arr, json_bool, json_str};
+use zbm_crypt::Token;
 
 /// The persistent handle of the storage root key of systemd 254 and later.
 pub const SRK_HANDLE: &str = "0x81000001";
@@ -156,7 +156,7 @@ impl Session<'_> {
 
     /// Unseals a systemd-tpm2 token with tpm2-tools
     /// (`luks_tpm2_native_unseal`).
-    pub fn tpm2_native_unseal(&self, json: &str, pin: Option<&Secret>) -> Outcome {
+    pub fn tpm2_native_unseal(&self, token: &Token, pin: Option<&Secret>) -> Outcome {
         let system = self.system();
         if let Some(tool) = TOOLS.iter().find(|tool| !system.command_exists(tool)) {
             zbm_trace::debug!("native TPM2 unlocking needs {tool}");
@@ -164,31 +164,30 @@ impl Session<'_> {
         }
         // Signed PCR policies, pcrlock and pre-254 primary keys need the
         // plugin.
-        if json_str(json, "tpm2-pubkey").is_some()
-            || json_bool(json, "tpm2_pcrlock").as_deref() == Some("true")
-        {
+        if token.text("tpm2-pubkey").is_some() || token.flag("tpm2_pcrlock") == Some(true) {
             zbm_trace::debug!("TPM2 token uses a signed or pcrlock policy");
             return Outcome::Unsupported;
         }
-        if json_str(json, "tpm2_srk").is_none() {
+        if token.text("tpm2_srk").is_none() {
             zbm_trace::debug!("TPM2 token predates systemd's persistent SRK");
             return Outcome::Unsupported;
         }
-        let Some(blob) = json_str(json, "tpm2-blob") else {
+        let Some(blob) = token.text("tpm2-blob") else {
             return Outcome::Unsupported;
         };
-        let pcrs = json_arr(json, "tpm2-pcrs").unwrap_or_default();
-        let bank = json_str(json, "tpm2-pcr-bank").unwrap_or_else(|| "sha256".to_owned());
+        let pcrs = token.list("tpm2-pcrs").unwrap_or_default().join(",");
+        let bank = token.text("tpm2-pcr-bank").unwrap_or("sha256");
 
-        let blob = base64_decode(&blob).unwrap_or_default();
+        let blob = base64_decode(blob).unwrap_or_default();
         let Some((private, public)) = split_blob(&blob) else {
             zbm_trace::debug!("TPM2 blob has an unsupported layout");
             return Outcome::Unsupported;
         };
 
         let auth = pin.map(|pin| {
-            let salt =
-                json_str(json, "tpm2_salt").map(|salt| base64_decode(&salt).unwrap_or_default());
+            let salt = token
+                .text("tpm2_salt")
+                .map(|salt| base64_decode(salt).unwrap_or_default());
             auth_value(pin.expose(), salt.as_deref())
         });
 
@@ -271,10 +270,10 @@ impl Session<'_> {
     fn tpm2_native_open(
         &self,
         target: Target<'_>,
-        json: &str,
+        token: &Token,
         pin: Option<&Secret>,
     ) -> Result<(), TokenFailure> {
-        match self.tpm2_native_unseal(json, pin) {
+        match self.tpm2_native_unseal(token, pin) {
             Outcome::Key(key) => self
                 .cryptsetup_open(target.name, target.device, Key::Stdin(&key), target.args)
                 .map_err(|_| TokenFailure::NotReleased),
@@ -297,7 +296,7 @@ impl Session<'_> {
         &mut self,
         target: Target<'_>,
         id: &str,
-        json: &str,
+        token: &Token,
     ) -> Result<(), LuksError> {
         let device = target.device;
         let failed = |failure| target.token_error("systemd-tpm2", id, failure);
@@ -306,14 +305,14 @@ impl Session<'_> {
             return Err(failed(TokenFailure::NoTpm));
         }
 
-        if json_bool(json, "tpm2-pin").as_deref() != Some("true") {
+        if token.flag("tpm2-pin") != Some(true) {
             // Without a PIN, unlocking needs no interaction.
             if self.have_token_plugin("systemd-tpm2")
                 && self.open_token_plugin(target, id, None).is_ok()
             {
                 return Ok(());
             }
-            let result = self.tpm2_native_open(target, json, None);
+            let result = self.tpm2_native_open(target, token, None);
             if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
                 zbm_trace::warn!(
                     "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
@@ -359,7 +358,7 @@ impl Session<'_> {
                 let opened = if self.have_token_plugin("systemd-tpm2") {
                     self.open_token_plugin(target, id, Some(&pin)).is_ok()
                 } else {
-                    match self.tpm2_native_open(target, json, Some(&pin)) {
+                    match self.tpm2_native_open(target, token, Some(&pin)) {
                         Ok(()) => true,
                         Err(TokenFailure::Unsupported) => {
                             zbm_trace::warn!(
@@ -416,6 +415,11 @@ mod tests {
         std::fs::read_to_string(path).unwrap()
     }
 
+    /// The token 0 of a fixture of `cryptsetup token export`.
+    fn token(name: &str) -> Token {
+        Token::from_export("0", &fixture(name)).unwrap()
+    }
+
     /// The PIN block of the legacy `luks_tpm2_native_unseal`, which turns the
     /// PIN into the authorization value.
     fn legacy_auth(json: &str, pin: &str) -> String {
@@ -446,7 +450,10 @@ mod tests {
         let plain = fixture("token-tpm2.json");
         for pin in ["1234", "0000", "pïn with spaces", "-x", "a\\b"] {
             for (token, json) in [("salted", &salted), ("plain", &plain)] {
-                let salt = json_str(json, "tpm2_salt").map(|salt| base64_decode(&salt).unwrap());
+                let salt = Token::from_export("0", json)
+                    .unwrap()
+                    .text("tpm2_salt")
+                    .map(|salt| base64_decode(salt).unwrap());
                 let rust = auth_value(pin.as_bytes(), salt.as_deref());
                 let legacy: String =
                     parity.legacy(format!("{pin:?} {token}"), || legacy_auth(json, pin));
@@ -478,8 +485,7 @@ mod tests {
 
     #[test]
     fn blobs_hold_a_private_and_a_public_part() {
-        let blob =
-            base64_decode(&json_str(&fixture("token-tpm2.json"), "tpm2-blob").unwrap()).unwrap();
+        let blob = base64_decode(token("token-tpm2.json").text("tpm2-blob").unwrap()).unwrap();
         let (private, public) = split_blob(&blob).unwrap();
         assert_eq!(private.len(), 0x9e + 2);
         assert_eq!(private.len() + public.len(), blob.len());
@@ -519,8 +525,8 @@ mod tests {
 
     #[test]
     fn unsealing_runs_the_policy_and_keeps_the_secret_off_files() {
-        let json = fixture("token-tpm2-pin.json");
-        let salt = base64_decode(&json_str(&json, "tpm2_salt").unwrap()).unwrap();
+        let json = token("token-tpm2-pin.json");
+        let salt = base64_decode(json.text("tpm2_salt").unwrap()).unwrap();
         let mut auth = b"hex:".to_vec();
         auth.extend_from_slice(auth_value(b"1234", Some(&salt)).expose());
         let fake = tpm_machine(Some(auth), b"\x01sealed\x00secret");
@@ -575,17 +581,17 @@ mod tests {
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
             let signed = r#"{"type":"systemd-tpm2","tpm2-pubkey":"AA==","tpm2_srk":"x"}"#;
             assert!(matches!(
-                session.tpm2_native_unseal(signed, None),
+                session.tpm2_native_unseal(&crate::keys::tests::token(signed), None),
                 Outcome::Unsupported
             ));
             let old = r#"{"type":"systemd-tpm2","tpm2-blob":"AAAAAA=="}"#;
             assert!(matches!(
-                session.tpm2_native_unseal(old, None),
+                session.tpm2_native_unseal(&crate::keys::tests::token(old), None),
                 Outcome::Unsupported
             ));
             let seeded = r#"{"tpm2_srk":"x","tpm2-blob":"AAAAAAA="}"#;
             assert!(matches!(
-                session.tpm2_native_unseal(seeded, None),
+                session.tpm2_native_unseal(&crate::keys::tests::token(seeded), None),
                 Outcome::Unsupported
             ));
         });
@@ -597,8 +603,8 @@ mod tests {
 
     #[test]
     fn pins_are_asked_for_and_kept_for_other_volumes() {
-        let json = fixture("token-tpm2-pin.json");
-        let salt = base64_decode(&json_str(&json, "tpm2_salt").unwrap()).unwrap();
+        let json = token("token-tpm2-pin.json");
+        let salt = base64_decode(json.text("tpm2_salt").unwrap()).unwrap();
         let mut auth = b"hex:".to_vec();
         auth.extend_from_slice(auth_value(b"1234", Some(&salt)).expose());
         let fake = tpm_machine(Some(auth), b"secret");
@@ -657,7 +663,7 @@ mod tests {
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
-                    .try_tpm2_token(target, "0", &fixture("token-tpm2-pin.json"))
+                    .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
                     .is_err()
             );
         });
@@ -683,8 +689,16 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.try_tpm2_token(target, "0", "{}").is_err());
-            assert!(session.try_tpm2_token(target, "0", "{}").is_err());
+            assert!(
+                session
+                    .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
+                    .is_err()
+            );
+            assert!(
+                session
+                    .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
+                    .is_err()
+            );
         });
         assert_eq!(
             fake.runner.lines(),

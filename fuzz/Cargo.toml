@@ -18,6 +18,7 @@ members = ["."]
 libfuzzer-sys = "0.4"
 zbm-boot = { path = "../crates/zbm-boot" }
 zbm-cmdline = { path = "../crates/zbm-cmdline" }
+zbm-crypt = { path = "../crates/zbm-crypt" }
 zbm-luks = { path = "../crates/zbm-luks" }
 zbm-types = { path = "../crates/zbm-types" }
 zbm-zfs = { path = "../crates/zbm-zfs" }
