@@ -162,6 +162,16 @@ mod tests {
     use crate::files::RealFiles;
     use zbm_testkit::TempDir;
 
+    /// Serializes the tests that replace the process's panic hook: `cargo
+    /// test` runs tests on threads of one process, which share the hook.
+    static PANIC_HOOK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn panic_hook_lock() -> std::sync::MutexGuard<'static, ()> {
+        PANIC_HOOK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     const MAPS_TEXT: &str = "\
 5600aa000000-5600aa040000 r--p 00000000 00:11 12 /usr/libexec/zfsbootmenu/zbm
 5600aa040000-5600aa200000 r-xp 00040000 00:11 12 /usr/libexec/zfsbootmenu/zbm
@@ -222,6 +232,7 @@ mod tests {
         let dir = TempDir::new("zbm-crash");
         let before = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let counter = std::sync::Arc::clone(&before);
+        let _hook = panic_hook_lock();
         let original = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |_| {
             counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -253,6 +264,7 @@ mod tests {
     #[test]
     fn a_report_that_cannot_be_saved_is_still_logged() {
         let reporter = CrashReporter::new(&RealFiles, Path::new("/nonexistent/zbm"), "zbm-test");
+        let _hook = panic_hook_lock();
         let previous = std::panic::take_hook();
         let recorded = std::sync::Arc::new(std::sync::Mutex::new(Some(PathBuf::new())));
         let sink = std::sync::Arc::clone(&recorded);
@@ -271,6 +283,7 @@ mod tests {
     fn a_panic_leaves_a_report_with_its_message_place_and_build_id() {
         let dir = TempDir::new("zbm-crash");
         let reporter = CrashReporter::new(&RealFiles, dir.path(), "zbm-test");
+        let _hook = panic_hook_lock();
         let previous = std::panic::take_hook();
         let recorded = std::sync::Arc::new(std::sync::Mutex::new(None));
         let sink = std::sync::Arc::clone(&recorded);

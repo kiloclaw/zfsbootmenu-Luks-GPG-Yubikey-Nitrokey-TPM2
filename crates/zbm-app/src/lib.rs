@@ -136,3 +136,26 @@ impl<'a> App<'a> {
         Ok(snapshot::read(self.context.runner())?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbm_testkit::fakes::FakeSystem;
+
+    #[test]
+    fn actions_name_their_kind_and_the_snapshot_reads_the_machine() {
+        let request = UnlockRequest {
+            device: "/dev/sda2".parse().unwrap(),
+            name: "cryptroot".parse().unwrap(),
+            key_file: "/keys/root.key".into(),
+            options: zbm_crypt::OpenOptions::default(),
+        };
+        assert_eq!(Action::Unlock(request).kind(), "unlock");
+
+        let fake = FakeSystem::new();
+        fake.runner.respond_program("zpool", 0, "");
+        fake.runner.respond_program("zfs", 0, "");
+        let snapshot = App::new(Context::new(fake.system())).snapshot().unwrap();
+        assert!(snapshot.boot_environments.is_empty());
+    }
+}

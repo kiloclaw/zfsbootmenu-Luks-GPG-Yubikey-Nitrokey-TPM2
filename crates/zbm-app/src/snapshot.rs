@@ -248,6 +248,20 @@ mod tests {
     }
 
     #[test]
+    fn failing_zfs_and_a_bad_zpool_line_are_errors() {
+        let runner = FakeRunner::new();
+        runner.respond_program("zpool", 0, "zroot\t-\n");
+        runner.respond_program("zfs", 2, "");
+        assert_eq!(
+            read(&runner).unwrap_err().to_string(),
+            "zfs failed with status 2"
+        );
+
+        let error = read(&machine("zroot\n", "")).unwrap_err();
+        assert!(error.to_string().contains("zroot"), "{error}");
+    }
+
+    #[test]
     fn an_unexpected_line_is_an_error_that_quotes_it() {
         let error = read(&machine("", "zroot/ROOT/void\t/\n")).unwrap_err();
 
