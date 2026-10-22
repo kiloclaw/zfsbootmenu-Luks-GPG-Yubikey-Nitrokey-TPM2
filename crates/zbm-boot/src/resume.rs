@@ -8,8 +8,8 @@
 
 use zbm_core::shell::trim_ifs;
 use zbm_platform::System;
-use zbm_platform::exec::{Command, Stream};
 use zbm_state::State;
+use zbm_tools::devices::Devices;
 
 use crate::error::BootError;
 use crate::prompt::{colorize, tput};
@@ -21,14 +21,7 @@ pub const SUSPEND_TYPES: [&str; 3] = ["suspend", "swsuspend", "swsupend"];
 /// Whether a block device holds a hibernation image (`has_resume_device`).
 pub fn has_resume_device(system: &System<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
-        let blkid = Command::new("blkid")
-            .args(["-t", &format!("TYPE={kind}")])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let found = system
-            .runner
-            .run(&blkid)
-            .is_ok_and(|output| output.status.is_success());
+        let found = Devices::new(system.runner).has_type(kind);
         if found {
             zbm_trace::debug!("resume device: {kind}");
         }

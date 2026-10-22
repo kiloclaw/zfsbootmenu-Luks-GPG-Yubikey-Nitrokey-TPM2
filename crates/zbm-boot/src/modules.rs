@@ -3,15 +3,16 @@
 use zbm_core::shell::command_substitution;
 use zbm_platform::Runner;
 use zbm_platform::error::{Error, Result};
-use zbm_platform::exec::{Command, Stream};
+use zbm_tools::modules::Modules;
+use zbm_tools::{Shown, udev};
 
 use crate::recovery::Recovery;
 
 /// What `$( <command> 2>&1 )` gives: whether the command succeeded, and its
 /// output without trailing newlines. A command that cannot start counts as a
 /// failure with the error as its output.
-fn run_merged(runner: &dyn Runner, command: Command) -> (bool, String) {
-    match runner.run(&command.merge_stderr()) {
+fn merged(run: std::io::Result<zbm_platform::Output>) -> (bool, String) {
+    match run {
         Ok(output) => (
             output.status.is_success(),
             command_substitution(&output.stdout_text()).to_owned(),
@@ -29,26 +30,22 @@ pub fn stage(runner: &dyn Runner, recovery: &mut dyn Recovery) {
     if let Err(error) = load(runner) {
         recovery.emergency_shell(&error.to_string());
     }
-    let settle = Command::new("udevadm")
-        .arg("settle")
-        .stdout(Stream::Inherit);
-    let _ = runner.run(&settle);
+    udev::settle(runner, Shown::Console);
 }
 
 /// Loads the modules; an error means ZFS could not be loaded.
 fn load(runner: &dyn Runner) -> Result<()> {
-    let (loaded, output) = run_merged(runner, Command::new("modprobe").arg("spl"));
+    let modules = Modules::new(runner);
+    let (loaded, output) = merged(modules.load("spl"));
     if !loaded {
         zbm_trace::debug!("{}", output);
-        let filename = Command::new("modinfo").args(["-F", "filename", "spl"]);
-        let filename = runner
-            .run(&filename)
+        let filename = modules
+            .filename("spl")
             .map(|output| command_substitution(&output.stdout_text()).to_owned())
             .unwrap_or_default();
         if !filename.is_empty() {
             zbm_trace::info!("loading {filename}");
-            let insmod = Command::new("insmod").arg(&filename).arg("spl_hostid=0");
-            let (loaded, output) = run_merged(runner, insmod);
+            let (loaded, output) = merged(modules.insert(&filename, &["spl_hostid=0"]));
             if !loaded {
                 zbm_trace::warn!("{}", output);
                 zbm_trace::warn!("unable to load SPL kernel module; attempting to load ZFS anyway");
@@ -56,7 +53,7 @@ fn load(runner: &dyn Runner) -> Result<()> {
         }
     }
 
-    let (loaded, output) = run_merged(runner, Command::new("modprobe").arg("zfs"));
+    let (loaded, output) = merged(modules.load("zfs"));
     if !loaded {
         zbm_trace::error!("{}", output);
         return Err(Error::invalid("unable to load ZFS kernel modules"));
@@ -68,6 +65,7 @@ fn load(runner: &dyn Runner) -> Result<()> {
 mod tests {
     use super::*;
     use std::path::Path;
+    use zbm_platform::exec::Stream;
     use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::FakeSystem;
 

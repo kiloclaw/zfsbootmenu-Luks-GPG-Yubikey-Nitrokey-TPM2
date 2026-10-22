@@ -9,6 +9,11 @@
 //! which records their results as golden files; anywhere else they panic, so
 //! that no test depends on the legacy tree at run time.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "runs the legacy code for parity recordings"
+)]
+
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};

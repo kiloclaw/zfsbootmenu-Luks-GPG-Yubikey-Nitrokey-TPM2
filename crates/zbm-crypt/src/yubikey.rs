@@ -3,6 +3,11 @@
 //! (`ykchalresp -<slot> -i-`). The challenge goes to standard input and the
 //! response is captured as a secret.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
 /// `ykinfo` and `ykchalresp`, run through a [`Runner`].

@@ -7,9 +7,10 @@ use std::path::Path;
 use zbm_cmdline::conf::{self, Conf};
 use zbm_luks::config::{CRYPTTAB, load_config};
 use zbm_luks::device::{default_name, resolve_device};
-use zbm_platform::exec::{Command, Runner, Stream};
+use zbm_platform::exec::Runner;
 use zbm_platform::{Files, System};
 use zbm_state::State;
+use zbm_zfs::{Stderr, ZpoolCommand};
 
 use super::{Comparison, Selected};
 use crate::boot::zfs_value;
@@ -65,11 +66,11 @@ fn readonly_list(runner: &dyn Runner, pools: &[String]) -> String {
     pools
         .iter()
         .map(|pool| {
-            let command = Command::new("zpool")
-                .args(["get", "-H", "-o", "value", "readonly", pool])
-                .stderr(Stream::Null);
-            let value = runner
-                .run(&command)
+            let value = ZpoolCommand::new(runner)
+                .text(
+                    &["get", "-H", "-o", "value", "readonly", pool],
+                    Stderr::Hidden,
+                )
                 .map(|output| output.stdout_text().trim().to_owned())
                 .unwrap_or_default();
             format!("{pool}={value}")

@@ -7,9 +7,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use zbm_core::shell::read_lines;
-use zbm_crypt::devices::Devices;
 use zbm_platform::console::Timed;
-use zbm_platform::exec::{Input, Stream};
+use zbm_tools::devices::Devices;
+use zbm_tools::programs;
 
 use crate::config::Options;
 use crate::device::{
@@ -266,20 +266,15 @@ impl Session<'_> {
         }
         zbm_trace::info!("unlocking {device} with key script {script}");
         let key = if keyspec.is_empty() { "none" } else { keyspec };
-        let command = self
-            .command(script)
-            .arg(key)
-            .env("CRYPTTAB_NAME", target.name)
-            .env("CRYPTTAB_SOURCE", device)
-            .env("CRYPTTAB_KEY", key)
-            .env("CRYPTTAB_OPTIONS", options)
-            .env("CRYPTTAB_TRIED", "0")
-            .stdin(Input::Inherit)
-            .stdout(Stream::CaptureSecret);
-        let printed = self
-            .system()
-            .runner
-            .run(&command)
+        let mut env = self.exported().to_vec();
+        env.extend([
+            ("CRYPTTAB_NAME", target.name),
+            ("CRYPTTAB_SOURCE", device),
+            ("CRYPTTAB_KEY", key),
+            ("CRYPTTAB_OPTIONS", options),
+            ("CRYPTTAB_TRIED", "0"),
+        ]);
+        let printed = programs::key_script(self.system().runner, script, key, &env)
             .ok()
             .and_then(|output| output.secret)
             .unwrap_or_default();

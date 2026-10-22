@@ -4,6 +4,11 @@
 //! with `clevis decrypt`, whose pins (`tpm2`, `tang`, `sss`) do the rest; the
 //! key is captured as a secret and never written to a file.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
 use crate::token::Token;

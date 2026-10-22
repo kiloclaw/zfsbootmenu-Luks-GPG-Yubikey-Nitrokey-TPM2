@@ -7,11 +7,11 @@
 
 use zbm_cmdline::conf::Conf;
 use zbm_core::shell::{command_substitution, read_lines};
-use zbm_platform::exec::{Command, Stream};
+use zbm_platform::exec::Output;
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_trace::Level;
-use zbm_zfs::ZfsCommand;
+use zbm_zfs::{Stderr, ZfsCommand, ZpoolCommand};
 
 use crate::commandline;
 use crate::error::BootError;
@@ -73,12 +73,9 @@ fn here_lines(output: &str) -> Vec<String> {
     read_lines(&format!("{}\n", command_substitution(output)))
 }
 
-/// The standard output of `command`, empty when it cannot start.
-fn stdout(runner: &dyn Runner, command: &Command) -> String {
-    runner
-        .run(command)
-        .map(|output| output.stdout_text())
-        .unwrap_or_default()
+/// The standard output of a run, empty when the program could not start.
+fn stdout(run: std::io::Result<Output>) -> String {
+    run.map(|output| output.stdout_text()).unwrap_or_default()
 }
 
 /// The options of `zpool import` for `import`, logged as `import_pool` logs
@@ -128,12 +125,10 @@ pub fn import_pool(
     let args = import_options(import);
     zbm_trace::debug!("zpool import arguments: {} {pool}", args.join(" "));
 
-    let command = Command::new("zpool")
-        .arg("import")
-        .args(&args)
-        .arg(pool)
-        .merge_stderr();
-    let (code, output) = match system.runner.run(&command) {
+    let mut import_args = vec!["import"];
+    import_args.extend(args.iter().copied());
+    import_args.push(pool);
+    let (code, output) = match ZpoolCommand::new(system.runner).text(&import_args, Stderr::Merged) {
         Ok(output) => (output.status.shell_code(), output.stdout_text()),
         Err(error) => (126, error.to_string()),
     };
@@ -159,10 +154,8 @@ pub fn import_pool(
 
 /// The pools that are imported, as `zpool list` names them.
 pub fn imported_pools(runner: &dyn Runner) -> Vec<String> {
-    let command = Command::new("zpool")
-        .args(["list", "-H", "-o", "name"])
-        .stderr(Stream::Null);
-    here_lines(&stdout(runner, &command))
+    let list = ZpoolCommand::new(runner).text(&["list", "-H", "-o", "name"], Stderr::Hidden);
+    here_lines(&stdout(list))
         .into_iter()
         .filter(|pool| !pool.is_empty())
         .collect()
@@ -210,8 +203,8 @@ pub fn match_hostid(
     single: &str,
 ) -> Option<(String, String)> {
     let importable = if single.is_empty() {
-        let list = Command::new("zpool").arg("import").stderr(Stream::Null);
-        online_pools(&stdout(system.runner, &list), &settings.prefer_pool)
+        let list = ZpoolCommand::new(system.runner).text(&["import"], Stderr::Hidden);
+        online_pools(&stdout(list), &settings.prefer_pool)
     } else {
         vec![single.to_owned()]
     };
@@ -219,10 +212,11 @@ pub fn match_hostid(
 
     for pool in importable {
         zbm_trace::debug!("trying to import: {pool}");
-        let probe = Command::new("zpool")
-            .args(["import", "-o", "readonly=on", "-N", &pool])
-            .merge_stderr();
-        let output = stdout(system.runner, &probe);
+        let probe = ZpoolCommand::new(system.runner).text(
+            &["import", "-o", "readonly=on", "-N", &pool],
+            Stderr::Merged,
+        );
+        let output = stdout(probe);
         let Some(hostid) = scrape_hostid(command_substitution(&output)).and_then(hostid::normalize)
         else {
             zbm_trace::debug!("unable to scrape hostid for {pool}, skipping");
@@ -257,19 +251,18 @@ pub fn match_hostid(
 /// Logs why each `UNAVAIL` pool cannot be imported, as `log_unimportable`
 /// does.
 pub fn log_unimportable(runner: &dyn Runner) {
-    let list = Command::new("zpool").arg("import").stderr(Stream::Null);
+    let zpool = ZpoolCommand::new(runner);
+    let list = zpool.text(&["import"], Stderr::Hidden);
     let mut id = String::new();
-    for line in here_lines(&stdout(runner, &list)) {
+    for line in here_lines(&stdout(list)) {
         if line.starts_with("pool") {
             continue;
         } else if line.starts_with("id") {
             id = line.strip_prefix("id: ").unwrap_or(&line).to_owned();
         } else if line.starts_with("state") {
             if line.strip_prefix("state: ").unwrap_or(&line) == "UNAVAIL" {
-                let import = Command::new("zpool")
-                    .args(["import", "-N", &id])
-                    .merge_stderr();
-                for error in here_lines(&stdout(runner, &import)) {
+                let import = zpool.text(&["import", "-N", &id], Stderr::Merged);
+                for error in here_lines(&stdout(import)) {
                     zbm_trace::error!("{}", error);
                 }
             }
@@ -409,8 +402,9 @@ pub fn stage(
 
 /// Restricts read-write access to every pool that is not `ONLINE`.
 fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>) {
-    let list = Command::new("zpool").args(["list", "-H", "-o", "name,health"]);
-    for line in tab_lines(&stdout(runner, &list)) {
+    let list =
+        ZpoolCommand::new(runner).text(&["list", "-H", "-o", "name,health"], Stderr::Console);
+    for line in tab_lines(&stdout(list)) {
         let (pool, health) = tab_fields(&line);
         if health != "ONLINE" {
             if let Err(error) = state.restrict(pool) {
@@ -424,9 +418,12 @@ fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>) {
 /// Restricts pools with features this build of ZFS does not support, and
 /// tells the user.
 fn check_unsupported(system: &System<'_>, state: &State<'_>, settings: &Settings) {
-    let get = Command::new("zpool").args(["get", "all", "-H", "-o", "name,property"]);
+    let get = ZpoolCommand::new(system.runner).text(
+        &["get", "all", "-H", "-o", "name,property"],
+        Stderr::Console,
+    );
     let mut unsupported = false;
-    for line in tab_lines(&stdout(system.runner, &get)) {
+    for line in tab_lines(&stdout(get)) {
         let (pool, property) = tab_fields(&line);
         if !property.contains("unsupported@") {
             continue;
@@ -483,8 +480,9 @@ pub fn choose_bootfs(runner: &dyn Runner, settings: &Settings) -> Option<String>
         } else {
             &settings.prefer_pool
         };
-        let list = Command::new("zpool").args(["list", "-H", "-o", "bootfs", pool]);
-        for line in here_lines(&stdout(runner, &list)) {
+        let list =
+            ZpoolCommand::new(runner).text(&["list", "-H", "-o", "bootfs", pool], Stderr::Console);
+        for line in here_lines(&stdout(list)) {
             if line == "-" {
                 bootfs.clear();
             } else {
@@ -501,6 +499,7 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use std::path::{Path, PathBuf};
+    use zbm_platform::exec::{Command, Stream};
     use zbm_platform::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};

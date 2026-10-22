@@ -15,8 +15,9 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::exec::{Command, Input, Runner, Stream};
+use zbm_platform::exec::Runner;
 use zbm_platform::files::Files;
+pub use zbm_tools::programs::bash_regex_match;
 pub use zbm_types::version::version_sort;
 
 /// The kernel file names `find_be_kernels` looks for in `/boot`, each also
@@ -157,27 +158,6 @@ pub fn discover(files: &dyn Files, dataset: &str, mnt: &Path) -> Discovery {
     discovery
 }
 
-/// Whether `text` matches the extended regular expression `pattern`, as
-/// Bash's `[[ text =~ pattern ]]` decides it. Bash runs the match, so the
-/// regular expressions mean exactly what they mean to the legacy code; `None`
-/// if Bash cannot be run.
-pub fn bash_regex_match(runner: &dyn Runner, text: &str, pattern: &str) -> Option<bool> {
-    let command = Command::new("bash")
-        .args(["-c", "[[ $1 =~ $2 ]]", "bash", text, pattern])
-        .stdin(Input::Null)
-        .stdout(Stream::Null)
-        .stderr(Stream::Null)
-        .env("LC_ALL", "C");
-    let output = runner.run(&command).ok()?;
-    match output.status.code() {
-        Some(0) => Some(true),
-        Some(1) => Some(false),
-        // 2: the pattern is not a valid regular expression, which matches nothing
-        Some(2) => Some(false),
-        _ => None,
-    }
-}
-
 /// The kernel `select_kernel` chooses: the last one, or the last one whose
 /// kernel path matches `property`, the value of `org.zfsbootmenu:kernel` (`-`
 /// when unset). `None` without kernels.
@@ -201,6 +181,7 @@ pub fn select<'a>(
 mod tests {
     use super::*;
     use zbm_platform::exec::SystemRunner;
+    use zbm_platform::exec::{Command, Input, Stream};
     use zbm_platform::files::RealFiles;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};

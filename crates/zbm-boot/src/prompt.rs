@@ -9,7 +9,8 @@ use std::time::Duration;
 
 use zbm_core::shell::test_integer;
 use zbm_platform::System;
-use zbm_platform::exec::{Command, Stream};
+use zbm_platform::exec::Input;
+use zbm_tools::terminal;
 
 pub use zbm_core::color::{colorize, decolorize};
 
@@ -155,10 +156,8 @@ impl TimedPrompt {
 
 /// Runs `tput` with `args` and writes what it prints to the console.
 pub(crate) fn tput(system: &System<'_>, args: &[&str]) {
-    let command = Command::new("tput").args(args).stderr(Stream::Null);
-    if let Ok(output) = system.runner.run(&command) {
-        let _ = system.console.write(&output.stdout);
-    }
+    let output = terminal::tput(system.runner, args, Input::Inherit);
+    let _ = system.console.write(&output);
 }
 
 /// The timed prompts of the LUKS code, drawn as `timed_prompt` draws them.
@@ -195,13 +194,7 @@ impl zbm_luks::session::Prompter for ConsolePrompter<'_> {
 
 /// `$( tput <capability> )` as a number, 0 when it cannot be read.
 fn tput_number(system: &System<'_>, capability: &str) -> i64 {
-    let command = Command::new("tput").arg(capability).stderr(Stream::Null);
-    system
-        .runner
-        .run(&command)
-        .ok()
-        .and_then(|output| output.stdout_text().trim().parse().ok())
-        .unwrap_or(0)
+    i64::try_from(terminal::tput_number(system.runner, capability)).unwrap_or(0)
 }
 
 #[cfg(test)]

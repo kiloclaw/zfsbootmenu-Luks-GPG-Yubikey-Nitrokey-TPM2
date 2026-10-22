@@ -22,6 +22,14 @@
 //! strategies over the typed `cryptsetup` of `zbm-crypt`, which R3 grows into
 //! the replacement of [`session`].
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
+
 pub mod close;
 pub mod config;
 pub mod crypto;

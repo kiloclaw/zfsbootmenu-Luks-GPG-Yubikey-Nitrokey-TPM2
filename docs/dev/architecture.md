@@ -29,7 +29,7 @@ dependencies that exist.
 | orchestration | `zbm-boot`, `generate-zbm` | Start-up and boot; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl` | LUKS volumes and key methods, kernel command lines of boot environments |
-| adapters | `zbm-zfs`, `zbm-crypt` | External programs: ZFS, cryptsetup |
+| adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-cmdline` | State files and the kernel command line |
 | platform | `zbm-platform`, `zbm-coreutils` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context |
 | foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
@@ -83,7 +83,12 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   program it runs to the journal (the command journal). Refactored services take a `&Context`.
 - **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`
   (REFACTOR-ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
-  `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`.
+  `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
+  programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:
+  `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts. Adapters are the
+  only code that builds a `Command`: the workspace's `clippy.toml` disallows `Command::new` and `Command::shell`,
+  which the adapters' modules and test builds allow. `zbm-coreutils` (platform) copies, restricts and removes file
+  trees in process.
 - **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method; its `unlocker` module is the
   refactored shape, key methods as strategies tried in order. `zbm-kcl` handles the kernel command lines stored on
   boot environments.

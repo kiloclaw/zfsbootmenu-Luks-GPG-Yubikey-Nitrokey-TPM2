@@ -14,9 +14,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use zbm_crypt::tpm2::{TOOLS, Tpm2};
-use zbm_platform::exec::Stream;
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
+use zbm_tools::modules::Modules;
 
 use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
@@ -77,13 +77,9 @@ impl Session<'_> {
         }
         if !self.tpm2_probed {
             self.tpm2_probed = true;
+            let modules = Modules::new(self.system().runner);
             for module in ["tpm_crb", "tpm_tis"] {
-                let modprobe = self
-                    .command("modprobe")
-                    .args(["-q", module])
-                    .stdout(Stream::Null)
-                    .stderr(Stream::Null);
-                let _ = self.system().runner.run(&modprobe);
+                modules.probe_quietly(module);
             }
             for _ in 0..30 {
                 self.settle();

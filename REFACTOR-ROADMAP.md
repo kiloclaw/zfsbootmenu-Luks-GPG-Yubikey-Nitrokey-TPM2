@@ -174,10 +174,16 @@ Done in R2:
   mkinitcpio modules install the uutils multi-call binary and a link per program when the host has it. Decision 4
   is recorded: images ship that binary next to `zbm` rather than linking `uu_*` applets into it.
 
-Open in R2: `zbm-boot`'s ZFS commands onto the port, `zbm-luks`' remaining platform commands (`mount`, `modprobe`,
-`tput`, `udevadm`, key scripts), `cp` of user hooks in `zbm-boot`, fixtures of OpenZFS 2.2 and 2.3 (they need images
-with those versions), removing the shell helpers, the Rust LUKS device suites, and the rule that only adapters build
-commands.
+- Adapters only: `zbm-tools` (adapters) runs the system's programs (`mount`, `umount`, `mountpoint`, `modprobe`,
+  `modinfo`, `insmod`, `udevadm`, `tput`, `stty`, `kexec`, `blkid`, `lsblk`, `objcopy`, `objdump`, hooks, key
+  scripts, the recovery shell, editors, Bash's `=~` and `cp`), each with fake-runner tests; `zbm-boot`'s `zfs` and
+  `zpool` runs go through `ZfsCommand::text` and `ZpoolCommand::text` with the same command lines. The workspace's
+  `clippy.toml` (and the strict one) disallow `Command::new` and `Command::shell`; the adapter modules allow them,
+  and test builds allow them with `cfg_attr(test, ...)`. The process supervision of `zbm` (`std::process`, which
+  replaces or supervises whole processes) is the one place outside them that starts programs.
+
+Open in R2: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services), fixtures of OpenZFS
+2.2 and 2.3 (they need images with those versions), removing the shell helpers, and the Rust LUKS device suites.
 
 ## What the pilots taught
 

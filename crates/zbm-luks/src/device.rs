@@ -4,9 +4,9 @@
 use std::path::{Path, PathBuf};
 
 use zbm_crypt::Cryptsetup;
-use zbm_crypt::devices::Devices;
 use zbm_platform::System;
 use zbm_platform::files::{FileKind, Files};
+use zbm_tools::devices::Devices;
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
 const BY_KEY: [(&str, &str); 6] = [

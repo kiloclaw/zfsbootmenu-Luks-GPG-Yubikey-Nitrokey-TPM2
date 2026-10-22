@@ -8,12 +8,17 @@
 //! The commands go through a [`Runner`], so tests can check what would run
 //! without a pool.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: the zfs and zpool command lines are built here and nowhere else"
+)]
+
 use std::ffi::OsString;
 use std::io;
 
 use zbm_cmdline::parent::{COMMANDLINE_PROPERTY, CommandLineSource};
 use zbm_core::shell::command_substitution;
-use zbm_platform::exec::{Command, Runner, Stream};
+use zbm_platform::exec::{Command, Output, Runner, Stream};
 
 mod cli;
 pub mod json;
@@ -26,6 +31,26 @@ pub use cli::{Format, ZfsCli};
 
 pub use model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
 pub use port::{Zfs, ZfsError};
+
+/// Where the error messages of a text-mode `zfs` or `zpool` run go.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Stderr {
+    /// To the console.
+    Console,
+    /// Nowhere (`2>/dev/null`).
+    Hidden,
+    /// Into the output, after what the program printed (`2>&1`).
+    Merged,
+}
+
+/// `command` with its error messages going where `stderr` says.
+fn with_stderr(command: Command, stderr: Stderr) -> Command {
+    match stderr {
+        Stderr::Console => command,
+        Stderr::Hidden => command.stderr(Stream::Null),
+        Stderr::Merged => command.merge_stderr(),
+    }
+}
 
 /// Splits `-H` output into rows of tab-separated fields.
 pub fn parse_table(output: &str) -> Vec<Vec<String>> {
@@ -57,6 +82,19 @@ impl<'a> ZfsCommand<'a> {
 
     fn command(&self) -> Command {
         Command::new(&self.program)
+    }
+
+    /// Runs `zfs ARGS` in text mode, as the legacy shell code runs it, with
+    /// the output captured and the error messages where `stderr` says. The
+    /// boot code's runs go through here until the typed port ([`Zfs`])
+    /// replaces them.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `zfs` from starting.
+    pub fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
+        let command = with_stderr(self.command().args(args.iter().copied()), stderr);
+        self.runner.run(&command)
     }
 
     /// Whether `dataset` exists (`zfs list -o name -H <dataset>`, quietly).
@@ -176,6 +214,22 @@ impl<'a> ZpoolCommand<'a> {
             runner,
             program: program.into(),
         }
+    }
+
+    /// Runs `zpool ARGS` in text mode, as the legacy shell code runs it, with
+    /// the output captured and the error messages where `stderr` says. The
+    /// boot code's runs go through here until the typed port ([`Zfs`])
+    /// replaces them.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `zpool` from starting.
+    pub fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
+        let command = with_stderr(
+            Command::new(&self.program).args(args.iter().copied()),
+            stderr,
+        );
+        self.runner.run(&command)
     }
 
     /// The names of the imported pools (`zpool list -H -o name`).

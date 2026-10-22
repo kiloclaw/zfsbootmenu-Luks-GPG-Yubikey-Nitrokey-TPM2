@@ -16,6 +16,14 @@
 //! Every function reaches the system through `zbm_platform::System` and shares
 //! state only through `zbm_state::State`. The code arrives in phases 5 and 6.
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
+
 pub mod boot;
 pub mod commandline;
 pub mod devices;

@@ -4,6 +4,11 @@
 //! Each probe returns what the program printed without its final newlines,
 //! as the shell's `$(...)` does, and an empty answer when the program fails.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use zbm_platform::{Command, Input, Runner, Stream};
 
 /// `blkid` and `lsblk`, run through a [`Runner`].
@@ -82,6 +87,18 @@ impl<'a> Devices<'a> {
         )
     }
 
+    /// Whether a block device holds a file system or signature of type
+    /// `kind` (`blkid -t TYPE=KIND`), such as `swsuspend`.
+    pub fn has_type(&self, kind: &str) -> bool {
+        let command = Command::new("blkid")
+            .args(["-t", &format!("TYPE={kind}")])
+            .stdout(Stream::Null)
+            .stderr(Stream::Null);
+        self.runner
+            .run(&command)
+            .is_ok_and(|output| output.status.is_success())
+    }
+
     /// The size of `device` as `lsblk -dno SIZE` prints it, without spaces,
     /// such as `512M`; empty when it cannot be read.
     pub fn size(&self, device: &str) -> String {
@@ -130,5 +147,8 @@ mod tests {
         let failing = FakeRunner::new();
         failing.on(|_| Some(Err(std::io::Error::other("no blkid"))));
         assert_eq!(Devices::new(&failing).find("UUID", "x"), "");
+        runner.respond("blkid -t TYPE=suspend", 2, "");
+        assert!(devices.has_type("swsuspend"));
+        assert!(!devices.has_type("suspend"));
     }
 }

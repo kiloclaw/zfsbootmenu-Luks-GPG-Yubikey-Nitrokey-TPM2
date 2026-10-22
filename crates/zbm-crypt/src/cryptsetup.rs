@@ -1,5 +1,10 @@
 //! `cryptsetup`: opening and closing volumes, and reading their tokens.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use tracing::{debug, info_span};
 use zbm_platform::{Command, Input, Output, Runner, Secret, Stream};
 use zbm_types::{DevicePath, MappingName};

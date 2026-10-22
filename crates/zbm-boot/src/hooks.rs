@@ -9,16 +9,14 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::System;
 use zbm_platform::files::{FileKind, Files};
-use zbm_platform::{Runner, System};
 use zbm_state::State;
+use zbm_tools::mount::Mount;
+use zbm_tools::{Shown, programs};
 use zbm_types::HookStage;
 
 use crate::error::BootError;
-
-/// `ENOEXEC`: a file the kernel cannot run, such as a script without `#!`.
-const ENOEXEC: i32 = 8;
 
 /// Where the hook directories are in the image.
 pub const HOOKS: &str = "/libexec/hooks";
@@ -60,7 +58,7 @@ pub fn run_stage(
     let hooks = executable_hooks(system.files, root, stage);
     for hook in &hooks {
         zbm_trace::info!("processing {}", hook.display());
-        run_hook(system.runner, hook, env);
+        programs::run_hook(system.runner, hook, env);
         if once {
             zbm_trace::info!("Disabling hook after execution: {}", hook.display());
             let _ = system.files.set_mode(hook, 0);
@@ -70,24 +68,6 @@ pub fn run_stage(
         }
     }
     hooks.len()
-}
-
-/// Runs one hook as Bash runs `"${_hook}"`: its exit status is ignored, and a
-/// script the kernel cannot run (no `#!` line) runs with Bash.
-fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
-    let with_env = |command: Command| {
-        env.iter()
-            .fold(command, |command, (key, value)| command.env(key, value))
-            .stdin(Input::Inherit)
-            .stdout(Stream::Inherit)
-            .stderr(Stream::Inherit)
-    };
-    let direct = with_env(Command::new(hook));
-    if let Err(error) = runner.run(&direct)
-        && error.raw_os_error() == Some(ENOEXEC)
-    {
-        let _ = runner.run(&with_env(Command::new("bash").arg(hook)));
-    }
 }
 
 /// `zbm.hookroot`: copies the hooks of each stage directory of
@@ -128,14 +108,8 @@ pub fn import_hooks(
 
     let mount_point = state.external_hooks();
     let _ = system.files.create_dir_all(&mount_point);
-    let mount = Command::new("mount")
-        .arg("-r")
-        .arg(filesystem)
-        .arg(&mount_point)
-        .stdout(Stream::Inherit);
-    if !system
-        .runner
-        .run(&mount)
+    if !Mount::new(system.runner)
+        .read_only_shown(filesystem, &mount_point)
         .is_ok_and(|output| output.status.is_success())
     {
         zbm_trace::error!("failed to mount hook filesystem {filesystem}");
@@ -164,14 +138,7 @@ pub fn import_hooks(
                 continue;
             }
             // `cp` itself, so that the copy gets the mode `cp` gives it.
-            let copy = Command::new("cp")
-                .arg(&file)
-                .arg(&target)
-                .stdout(Stream::Null)
-                .stderr(Stream::Null);
-            if !system
-                .runner
-                .run(&copy)
+            if !programs::copy_file(system.runner, &file, &target)
                 .is_ok_and(|output| output.status.is_success())
             {
                 zbm_trace::warn!("failed to copy user hook {}", file.display());
@@ -179,10 +146,7 @@ pub fn import_hooks(
         }
     }
 
-    let umount = Command::new("umount")
-        .arg(&mount_point)
-        .stdout(Stream::Inherit);
-    let _ = system.runner.run(&umount);
+    let _ = Mount::new(system.runner).unmount(&mount_point, Shown::Console);
     Ok(())
 }
 
@@ -253,6 +217,7 @@ pub fn early_stage_in(
 mod tests {
     use super::*;
     use crate::testing::stub_lines;
+    use zbm_platform::exec::{Input, Stream};
     use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::{FakeFiles, FakeSystem, FileOperation};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
@@ -380,7 +345,7 @@ mod tests {
             .file_with_mode("/libexec/hooks/setup.d/10-plain", "", 0o755);
         fake.runner.on(|command| {
             (command.program() == "/libexec/hooks/setup.d/10-plain")
-                .then(|| Err(std::io::Error::from_raw_os_error(ENOEXEC)))
+                .then(|| Err(std::io::Error::from_raw_os_error(8)))
         });
         let env = [("BOOTFS", "tank/ROOT/void")];
         assert!(

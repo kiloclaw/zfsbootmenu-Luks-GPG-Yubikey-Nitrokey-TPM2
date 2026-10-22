@@ -6,7 +6,8 @@
 
 use std::path::Path;
 
-use zbm_platform::exec::Stream;
+use zbm_tools::Shown;
+use zbm_tools::mount::Mount;
 
 use crate::device::{device_present, resolve_device};
 use crate::session::{Session, Wait};
@@ -80,15 +81,8 @@ impl Session<'_> {
             zbm_trace::error!("unable to create a mount point for key device {device}");
             return found;
         };
-        let mount = self
-            .command("mount")
-            .args(["-o", "ro", &device, &dir])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let mounted = self
-            .system()
-            .runner
-            .run(&mount)
+        let mounted = Mount::new(self.system().runner)
+            .read_only(&device, &dir)
             .is_ok_and(|output| output.status.is_success());
         if !mounted {
             zbm_trace::warn!("unable to mount LUKS key device {device}");
@@ -111,12 +105,7 @@ impl Session<'_> {
         let Some(mount) = &found.mount else {
             return;
         };
-        let umount = self
-            .command("umount")
-            .arg(mount)
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let _ = self.system().runner.run(&umount);
+        let _ = Mount::new(self.system().runner).unmount(Path::new(mount), Shown::Hidden);
         let _ = self.system().files.remove_dir(Path::new(mount));
     }
 
@@ -160,6 +149,31 @@ mod tests {
             prompter: &NoPrompts,
         };
         body(&mut Session::new(luks))
+    }
+
+    #[test]
+    fn temporary_directories_are_never_reused() {
+        let fake = FakeSystem::new();
+        let pid = fake.system().processes.id();
+        for attempt in 0..100 {
+            fake.files.dir(format!("/tmp/x.{pid}-{attempt}"));
+        }
+        assert_eq!(
+            with_session(&fake, false, |s| s.temporary_dir("/tmp/x")),
+            None
+        );
+        fake.files.fail(
+            format!("/tmp/y.{pid}-0"),
+            std::io::ErrorKind::PermissionDenied,
+        );
+        assert_eq!(
+            with_session(&fake, false, |s| s.temporary_dir("/tmp/y")),
+            None
+        );
+        assert_eq!(
+            with_session(&fake, false, |s| s.temporary_dir("/tmp/z")),
+            Some(format!("/tmp/z.{pid}-0"))
+        );
     }
 
     #[test]

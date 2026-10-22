@@ -3,6 +3,11 @@
 //! images, and must produce the same exit code, output, `zfs` calls, properties
 //! and files.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the parity tests run the legacy programs"
+)]
+
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};

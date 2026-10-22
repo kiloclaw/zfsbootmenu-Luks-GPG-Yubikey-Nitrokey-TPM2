@@ -36,9 +36,16 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
+
 pub mod clevis;
 mod cryptsetup;
-pub mod devices;
 pub mod fido2;
 pub mod gpg;
 mod mapping;

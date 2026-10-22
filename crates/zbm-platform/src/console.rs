@@ -8,6 +8,11 @@
 //! with [`Console::write`]; `fzf` and other interactive programs use the
 //! terminal directly.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the real implementation runs this program"
+)]
+
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;

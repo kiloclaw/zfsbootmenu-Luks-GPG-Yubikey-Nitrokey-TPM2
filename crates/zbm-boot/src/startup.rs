@@ -15,9 +15,11 @@ use zbm_cmdline::conf::Conf;
 use zbm_cmdline::options::ZbmOptions;
 use zbm_core::shell::{read_lines, test_integer};
 use zbm_platform::dmesg::read_logs;
-use zbm_platform::exec::{Command, Input, Signal, Stream};
 use zbm_platform::{Installed, System};
 use zbm_state::State;
+use zbm_tools::mount::Mount;
+use zbm_tools::{Shown, programs, terminal};
+use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::boot::{self, BootSettings};
 use crate::error::BootError;
@@ -66,17 +68,8 @@ pub fn command_exists(system: &System<'_>, name: &str) -> bool {
 ///
 /// [`BootError::Zluks`] with its exit status when it fails.
 pub fn zluks_unlock(system: &System<'_>, retry: bool) -> Result<(), BootError> {
-    let mut command = Command::new("zluks")
-        .arg("unlock")
-        .stdin(Input::Inherit)
-        .stdout(Stream::Inherit)
-        .stderr(Stream::Inherit);
-    if retry {
-        command = command.env("LUKS_RETRY", "1");
-    }
-    let status = system
-        .runner
-        .run(&command)
+    let env: &[(&str, &str)] = if retry { &[("LUKS_RETRY", "1")] } else { &[] };
+    let status = programs::applet(system.runner, "zluks", &["unlock"], env)
         .map_or(127, |output| output.status.shell_code());
     if status == 0 {
         Ok(())
@@ -135,11 +128,7 @@ impl Recovery for Shell<'_, '_> {
         let system = &self.system;
         tput(system, &["clear"]);
         tput(system, &["cnorm"]);
-        let stty = Command::new("stty")
-            .arg("echo")
-            .stdin(Input::Inherit)
-            .stdout(Stream::Inherit);
-        let _ = system.runner.run(&stty);
+        terminal::stty(system.runner, &["echo"]);
 
         let suffix = if message.is_empty() {
             String::new()
@@ -165,13 +154,7 @@ impl Recovery for Shell<'_, '_> {
             boot::mount_efivarfs(system, "rw");
         }
 
-        let shell = Command::new("/bin/bash")
-            .arg("-i")
-            .stdin(Input::Inherit)
-            .stdout(Stream::Inherit)
-            .stderr(Stream::Inherit)
-            .default_signal(Signal::Interrupt);
-        let _ = system.runner.run(&shell);
+        let _ = programs::interactive_shell(system.runner);
 
         let mounts = system
             .files
@@ -182,10 +165,7 @@ impl Recovery for Shell<'_, '_> {
             let (Some(mountpoint), Some("zfs")) = (fields.nth(1), fields.next()) else {
                 continue;
             };
-            let umount = Command::new("umount")
-                .arg(mountpoint)
-                .stdout(Stream::Inherit);
-            let _ = system.runner.run(&umount);
+            let _ = Mount::new(system.runner).unmount(Path::new(mountpoint), Shown::Console);
             zbm_trace::debug!("unmounting: {mountpoint}");
         }
         boot::mount_efivarfs(system, "ro");
@@ -416,13 +396,8 @@ impl<'a> Startup<'a> {
                 ..Import::default()
             };
             let _ = import::import_pool(&self.system, &self.state, reimport);
-            let list = Command::new("zpool")
-                .args(["list", "-H", "-o", "name,health"])
-                .stderr(Stream::Null);
-            let output = self
-                .system
-                .runner
-                .run(&list)
+            let output = ZpoolCommand::new(self.system.runner)
+                .text(&["list", "-H", "-o", "name,health"], Stderr::Hidden)
                 .map(|output| output.stdout_text())
                 .unwrap_or_default();
             for line in import::tab_lines(&output) {
@@ -439,6 +414,7 @@ impl<'a> Startup<'a> {
 mod tests {
     use super::*;
     use zbm_platform::KernelLog;
+    use zbm_platform::exec::{Input, Signal};
     use zbm_testkit::fakes::FakeSystem;
 
     /// The configuration the start-up would write for `cmdline`.

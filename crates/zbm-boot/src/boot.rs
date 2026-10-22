@@ -9,11 +9,12 @@
 use std::path::{Path, PathBuf};
 
 use zbm_core::shell::{command_substitution, read_lines};
-use zbm_platform::exec::{Command, Stream};
 use zbm_platform::{Runner, System};
 use zbm_state::State;
+use zbm_tools::mount::Mount;
+use zbm_tools::{Shown, kexec};
 use zbm_trace::Level;
-use zbm_zfs::ZfsCommand;
+use zbm_zfs::{Stderr, ZfsCommand, ZpoolCommand};
 
 use crate::commandline::{self, KexecLoad};
 use crate::error::BootError;
@@ -29,9 +30,9 @@ fn here_lines(output: &str) -> Vec<String> {
     read_lines(&format!("{}\n", command_substitution(output)))
 }
 
-/// What `$( command )` gives, and whether the command succeeded.
-fn substitution(runner: &dyn Runner, command: &Command) -> (bool, String) {
-    match runner.run(command) {
+/// What `$( command )` gives for the run `result`, and whether it succeeded.
+fn substituted(result: std::io::Result<zbm_platform::exec::Output>) -> (bool, String) {
+    match result {
         Ok(output) => (
             output.status.is_success(),
             command_substitution(&output.stdout_text()).to_owned(),
@@ -43,10 +44,10 @@ fn substitution(runner: &dyn Runner, command: &Command) -> (bool, String) {
 /// `zfs get -H -o value <property> <dataset> 2>/dev/null`, or `None` when it
 /// fails.
 pub(crate) fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> Option<String> {
-    let command = Command::new("zfs")
-        .args(["get", "-H", "-o", "value", property, dataset])
-        .stderr(Stream::Null);
-    let (ok, value) = substitution(runner, &command);
+    let (ok, value) = substituted(ZfsCommand::new(runner).text(
+        &["get", "-H", "-o", "value", property, dataset],
+        Stderr::Hidden,
+    ));
     ok.then_some(value)
 }
 
@@ -61,10 +62,11 @@ pub fn encryption_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     }
     zbm_trace::debug!("fs set to {fs}");
     let pool = fs.split('/').next().unwrap_or(fs);
-    let feature = Command::new("zpool")
-        .args(["list", "-H", "-o", "feature@encryption", pool])
-        .stderr(Stream::Null);
-    if substitution(runner, &feature).1 != "active" {
+    let feature = ZpoolCommand::new(runner).text(
+        &["list", "-H", "-o", "feature@encryption", pool],
+        Stderr::Hidden,
+    );
+    if substituted(feature).1 != "active" {
         zbm_trace::debug!("feature@encryption not active on {pool}");
         return None;
     }
@@ -83,10 +85,11 @@ pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     zbm_trace::debug!("fs set to {fs}");
     let encroot = encryption_root(runner, fs)?;
     zbm_trace::debug!("{encroot} discovered as encryption root for {fs}");
-    let keystatus = Command::new("zfs")
-        .args(["get", "-H", "-o", "value", "keystatus", &encroot])
-        .merge_stderr();
-    let keystatus = substitution(runner, &keystatus).1;
+    let keystatus = ZfsCommand::new(runner).text(
+        &["get", "-H", "-o", "value", "keystatus", &encroot],
+        Stderr::Merged,
+    );
+    let keystatus = substituted(keystatus).1;
     zbm_trace::debug!("{encroot} keystatus: {keystatus}");
     (keystatus == "unavailable").then_some(encroot)
 }
@@ -98,10 +101,10 @@ pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
         return false;
     }
     zbm_trace::debug!("pool set to {pool}");
-    let command = Command::new("zpool")
-        .args(["get", "-H", "-o", "value", "readonly", pool])
-        .stderr(Stream::Null);
-    let (ok, readonly) = substitution(runner, &command);
+    let (ok, readonly) = substituted(ZpoolCommand::new(runner).text(
+        &["get", "-H", "-o", "value", "readonly", pool],
+        Stderr::Hidden,
+    ));
     if !ok {
         return false;
     }
@@ -121,8 +124,7 @@ pub fn export_pool(runner: &dyn Runner, pool: &str) -> Result<(), BootError> {
         return Err(BootError::NoPool);
     }
     zbm_trace::debug!("pool set to {pool}");
-    let command = Command::new("zpool").args(["export", pool]);
-    let code = match runner.run(&command) {
+    let code = match ZpoolCommand::new(runner).text(&["export", pool], Stderr::Console) {
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };
@@ -161,6 +163,16 @@ pub enum Noise {
     Hidden,
 }
 
+impl Noise {
+    /// Where `mount`'s error messages go.
+    fn shown(self) -> Shown {
+        match self {
+            Noise::Shown => Shown::Console,
+            Noise::Hidden => Shown::Hidden,
+        }
+    }
+}
+
 /// Mounts `fs` read-only on its mount point in the state directory, as
 /// `mount_zfs` does, and returns the mount point.
 pub fn mount_zfs(
@@ -181,15 +193,14 @@ pub fn mount_zfs(
     let mnt = be_location(state, fs).join("mnt");
     let _ = system.files.create_dir_all(&mnt);
     let rwo = "ro";
-    let stderr = match noise {
-        Noise::Shown => Stream::Inherit,
-        Noise::Hidden => Stream::Null,
-    };
 
-    let mountpoint = Command::new("zfs")
-        .args(["get", "-H", "-o", "value", "mountpoint", fs])
-        .stderr(stderr);
-    let legacy = substitution(system.runner, &mountpoint).1 == "legacy";
+    let errors = match noise {
+        Noise::Shown => Stderr::Console,
+        Noise::Hidden => Stderr::Hidden,
+    };
+    let mountpoint = ZfsCommand::new(system.runner)
+        .text(&["get", "-H", "-o", "value", "mountpoint", fs], errors);
+    let legacy = substituted(mountpoint).1 == "legacy";
     let mnt_text = mnt.to_string_lossy();
     let options = if legacy || fs.contains('@') {
         zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");
@@ -199,11 +210,7 @@ pub fn mount_zfs(
         zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}");
         format!("zfsutil,{rwo}")
     };
-    let mount = Command::new("mount")
-        .args(["-o", &options, "-t", "zfs", fs])
-        .arg(&mnt)
-        .stderr(stderr);
-    let code = match system.runner.run(&mount) {
+    let code = match Mount::new(system.runner).zfs(fs, &mnt, &options, noise.shown()) {
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };
@@ -213,8 +220,7 @@ pub fn mount_zfs(
 
 /// Runs `umount <path>`.
 fn umount(runner: &dyn Runner, path: &Path) {
-    let command = Command::new("umount").arg(path).stdout(Stream::Inherit);
-    let _ = runner.run(&command);
+    let _ = Mount::new(runner).unmount(path, Shown::Console);
 }
 
 /// Finds the kernels of `fs` and records them in its kernel list, as
@@ -348,11 +354,9 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
 ///
 /// [`BootError::Unmount`] with the mount points that stay mounted.
 pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), BootError> {
-    let quiet = |command: Command| command.stdout(Stream::Null).stderr(Stream::Null);
-    let all = quiet(Command::new("umount").arg("-R").arg(mountpoint));
-    if system
-        .runner
-        .run(&all)
+    let mount = Mount::new(system.runner);
+    if mount
+        .unmount_recursive(mountpoint)
         .is_ok_and(|output| output.status.is_success())
     {
         return Ok(());
@@ -372,10 +376,8 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     mounts.sort_by(|a, b| b.cmp(a));
     let mut mounted = Vec::new();
     for (_, mp) in mounts {
-        let one = quiet(Command::new("umount").arg(&mp));
-        if !system
-            .runner
-            .run(&one)
+        if !mount
+            .unmount(Path::new(&mp), Shown::Hidden)
             .is_ok_and(|output| output.status.is_success())
         {
             zbm_trace::error!("unable to unmount {mp}");
@@ -402,14 +404,8 @@ pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
         zbm_trace::debug!("efivarfs unsupported");
         return;
     }
-    let check = Command::new("mountpoint")
-        .args(["-q", location])
-        .stdout(Stream::Null)
-        .stderr(Stream::Null);
-    let mounted = system
-        .runner
-        .run(&check)
-        .is_ok_and(|output| output.status.is_success());
+    let mount = Mount::new(system.runner);
+    let mounted = mount.is_mountpoint(location);
     let options = if mounted {
         zbm_trace::debug!("remounting '{location}' '{mode}'");
         format!("remount,{mode}")
@@ -417,10 +413,7 @@ pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
         zbm_trace::debug!("mounting '{location}' '{mode}'");
         mode.to_owned()
     };
-    let mount = Command::new("mount")
-        .args(["-t", "efivarfs", "efivarfs", location, "-o", &options])
-        .stdout(Stream::Inherit);
-    let _ = system.runner.run(&mount);
+    let _ = mount.efivarfs(location, &options);
 }
 
 /// What booting needs besides the kernel.
@@ -569,7 +562,7 @@ pub fn kexec_kernel(
     let mut loaded = None;
     let mut output = String::new();
     for _ in 0..2 {
-        let (ok, text) = substitution(system.runner, &load.command());
+        let (ok, text) = substituted(load.run(system.runner));
         output = text;
         if ok {
             loaded = Some(());
@@ -603,8 +596,9 @@ pub fn kexec_kernel(
 
     umount(system.runner, &mnt);
 
-    let pools = Command::new("zpool").args(["list", "-H", "-o", "name"]);
-    for pool in here_lines(&substitution(system.runner, &pools).1) {
+    let pools =
+        ZpoolCommand::new(system.runner).text(&["list", "-H", "-o", "name"], Stderr::Console);
+    for pool in here_lines(&substituted(pools).1) {
         if is_writable(system.runner, &pool) {
             zbm_trace::debug!("{pool} is read/write, exporting");
             let _ = export_pool(system.runner, &pool);
@@ -626,7 +620,7 @@ pub fn kexec_kernel(
     );
     let _ = system.console.write(booting.as_bytes());
 
-    let (_, output) = substitution(system.runner, &commandline::kexec_execute());
+    let (_, output) = substituted(kexec::execute(system.runner));
     // Only a failed kexec returns.
     zbm_trace::error!("kexec -e -i failed!");
     zbm_trace::error!("{}", output);
@@ -640,6 +634,7 @@ pub fn kexec_kernel(
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use zbm_platform::exec::{Command, Stream};
     use zbm_platform::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};

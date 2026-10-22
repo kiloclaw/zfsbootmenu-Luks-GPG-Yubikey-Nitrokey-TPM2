@@ -19,6 +19,13 @@
 //!   be reproduced.
 //! - [`TempDir`] is a scratch directory that is removed afterwards.
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
 #![allow(
     clippy::panic,
     clippy::expect_used,

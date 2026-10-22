@@ -5,6 +5,11 @@
 //! messages and debug log, run the same commands and leave the same files, byte
 //! for byte.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the parity tests run the legacy programs"
+)]
+
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};

@@ -6,6 +6,11 @@
 //! options), the raw log is filtered by the level prefixes of its lines
 //! instead.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the real implementation runs this program"
+)]
+
 use crate::exec::{Command, Runner, Stream};
 
 use zbm_trace::kmsg::Message;

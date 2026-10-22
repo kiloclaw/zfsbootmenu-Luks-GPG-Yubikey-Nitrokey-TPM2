@@ -8,6 +8,7 @@ zbm-crypt
 zbm-menu
 zbm-platform
 zbm-testkit
+zbm-tools
 zbm-trace
 zbm-tui
 zbm-types

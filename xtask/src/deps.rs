@@ -62,8 +62,8 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "adapters",
-        purpose: "External programs: ZFS, cryptsetup",
-        crates: &["zbm-zfs", "zbm-crypt"],
+        purpose: "External programs: ZFS, encryption, and the system's programs",
+        crates: &["zbm-zfs", "zbm-crypt", "zbm-tools"],
     },
     Layer {
         name: "domain",

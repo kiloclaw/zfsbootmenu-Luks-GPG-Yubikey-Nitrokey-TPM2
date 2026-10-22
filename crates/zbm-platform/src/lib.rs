@@ -44,6 +44,14 @@
 //! # Ok::<(), std::io::Error>(())
 //! ```
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
+
 pub mod clock;
 pub mod console;
 pub mod crash;

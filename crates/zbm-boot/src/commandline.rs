@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use zbm_cmdline::kcl;
 use zbm_cmdline::parent::{CommandLineSource, read_kcl_contents};
 use zbm_core::shell::{command_substitution, read_first_line, test_integer};
-use zbm_platform::exec::Command;
+use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
 use zbm_state::State;
+use zbm_tools::kexec;
 use zbm_trace::Message;
 
 /// The module parameter that holds the host ID SPL uses.
@@ -365,27 +366,33 @@ impl KexecLoad<'_> {
         )
     }
 
-    /// `kexec -a -l ...`, with its two output streams merged as `2>&1` merges
-    /// them.
-    pub fn command(&self) -> Command {
-        let mut command = Command::new("kexec").args([
-            "-a".to_owned(),
-            "-l".to_owned(),
-            format!("{}{}", self.mnt, self.kernel),
-            format!("--initrd={}{}", self.mnt, self.initramfs),
-        ]);
-        if let Some(dtb) = self.dtb {
-            command = command.arg(format!("--dtb={}", dtb.display()));
-        }
-        command
-            .arg(format!("--command-line={}", self.command_line()))
-            .merge_stderr()
+    /// Calls `with` with what `kexec -l` loads.
+    fn with_image<T>(&self, with: impl FnOnce(&kexec::Image<'_>) -> T) -> T {
+        let kernel = format!("{}{}", self.mnt, self.kernel);
+        let initrd = format!("{}{}", self.mnt, self.initramfs);
+        let command_line = self.command_line();
+        with(&kexec::Image {
+            kernel: &kernel,
+            initrd: &initrd,
+            dtb: self.dtb,
+            command_line: &command_line,
+        })
     }
-}
 
-/// `kexec -e -i`, which boots the loaded kernel.
-pub fn kexec_execute() -> Command {
-    Command::new("kexec").args(["-e", "-i"]).merge_stderr()
+    /// The `kexec -a -l ...` command line, for logs and tests.
+    pub fn line(&self) -> String {
+        self.with_image(kexec::load_line)
+    }
+
+    /// Runs `kexec -a -l ...`, with its two output streams merged as `2>&1`
+    /// merges them.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `kexec` from starting.
+    pub fn run(&self, runner: &dyn Runner) -> std::io::Result<Output> {
+        self.with_image(|image| kexec::load(runner, image))
+    }
 }
 
 #[cfg(test)]
@@ -651,7 +658,9 @@ mod tests {
             root_prefix: "root=zfs:",
             args: "ro quiet",
         };
-        let command = load.command();
+        let runner = zbm_testkit::FakeRunner::new();
+        load.run(&runner).unwrap();
+        let command = &runner.calls()[0];
         assert_eq!(command.program(), "kexec");
         let args: Vec<String> = command
             .get_args()
@@ -670,7 +679,7 @@ mod tests {
             ]
         );
         assert!(command.merges_stderr());
-        assert_eq!(kexec_execute().display(), "kexec -e -i");
+        assert_eq!(load.line(), command.display());
     }
 
     #[test]

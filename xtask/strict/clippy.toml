@@ -16,6 +16,9 @@ allow-indexing-slicing-in-tests = true
 # files, read the environment or the clock, and they allow these lints in one module each. Everything else goes
 # through the Runner, Files, Environment and Clock interfaces, which tests replace with fakes.
 disallowed-methods = [
+    # Only adapters build commands, as in the workspace's clippy.toml.
+    { path = "zbm_platform::exec::Command::new", reason = "build commands in an adapter (zbm-zfs, zbm-crypt, zbm-tools)" },
+    { path = "zbm_platform::exec::Command::shell", reason = "build commands in an adapter (zbm-zfs, zbm-crypt, zbm-tools)" },
     { path = "std::process::Command::new", reason = "run programs through the Runner interface" },
     { path = "std::fs::read", reason = "read files through the Files interface" },
     { path = "std::fs::read_to_string", reason = "read files through the Files interface" },

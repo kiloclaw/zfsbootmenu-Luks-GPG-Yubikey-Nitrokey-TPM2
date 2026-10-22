@@ -23,6 +23,11 @@
 //! # Ok::<(), zbm_crypt::tpm2::ToolFailed>(())
 //! ```
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use std::path::{Path, PathBuf};
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};

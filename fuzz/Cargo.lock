@@ -667,6 +667,7 @@ dependencies = [
  "zbm-luks",
  "zbm-platform",
  "zbm-state",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
@@ -732,6 +733,7 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-sys",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
@@ -758,6 +760,13 @@ dependencies = [
 [[package]]
 name = "zbm-sys"
 version = "0.1.0"
+
+[[package]]
+name = "zbm-tools"
+version = "0.1.0"
+dependencies = [
+ "zbm-platform",
+]
 
 [[package]]
 name = "zbm-trace"

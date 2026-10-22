@@ -10,6 +10,11 @@
 //! nothing decrypted is written to a file. The home's files are copied,
 //! made private and removed in process (`zbm-coreutils`).
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use std::path::{Path, PathBuf};
 
 use zbm_coreutils::{clear_mode_bits, copy_into, remove_tree};

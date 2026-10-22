@@ -10,6 +10,14 @@
 //! and a new `.cmdline` section holds the command line and a NUL byte, without
 //! the leading space the script meant to add.
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "tests describe the commands they expect"
+    )
+)]
+
 use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -19,7 +27,9 @@ use zbm_cmdline::parent::COMMANDLINE_PROPERTY;
 use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_core::getopts::{self, Opt};
 use zbm_core::shell::{command_substitution, echo, read_lines};
-use zbm_platform::exec::{Command, Input, Runner, Stream, SystemRunner};
+use zbm_platform::exec::{Output, Runner, SystemRunner};
+use zbm_tools::efi as efi_tools;
+use zbm_tools::programs;
 use zbm_zfs::ZfsCommand;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 
@@ -369,13 +379,7 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
         return String::new();
     };
     let section = TempFile(section);
-    let dump = Command::new("objcopy")
-        .arg("--dump-section")
-        .arg(format!(".cmdline={}", section.0.display()))
-        .arg(image)
-        .stdin(Input::Inherit)
-        .merge_stderr();
-    match context.runner.run(&dump) {
+    match efi_tools::dump_cmdline(context.runner, image, &section.0) {
         Ok(output) if output.status.is_success() => std::fs::read(&section.0)
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
             .unwrap_or_default(),
@@ -419,11 +423,7 @@ fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -
     let gap = if !is_readable(image) {
         Err(vec![format!("unable to read object file '{image_name}'")])
     } else {
-        let objdump = Command::new("objdump")
-            .args(["-h", "-w"])
-            .arg(image)
-            .stdin(Input::Inherit);
-        match context.runner.run(&objdump) {
+        match efi_tools::section_headers(context.runner, image) {
             Ok(output) if output.status.is_success() => {
                 efi::cmdline_gap(&output.stdout_text(), &image_name)
             }
@@ -462,28 +462,18 @@ fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -
         return false;
     }
 
-    let run_merged = |command: Command| {
-        context
-            .runner
-            .run(&command.stdin(Input::Inherit).merge_stderr())
-            .is_ok_and(|output| output.status.is_success())
-    };
-    if !run_merged(
-        Command::new("objcopy")
-            .args(["--remove-section", ".cmdline"])
-            .arg(image),
-    ) {
+    let succeeded =
+        |run: std::io::Result<Output>| run.is_ok_and(|output| output.status.is_success());
+    if !succeeded(efi_tools::remove_cmdline(context.runner, image)) {
         error(io, "failed to clear existing KCL from EFI executable");
         return false;
     }
-    if !run_merged(
-        Command::new("objcopy")
-            .arg("--add-section")
-            .arg(format!(".cmdline={}", section.0.display()))
-            .arg("--change-section-vma")
-            .arg(format!(".cmdline=0x{offset}"))
-            .arg(image),
-    ) {
+    if !succeeded(efi_tools::add_cmdline(
+        context.runner,
+        image,
+        &section.0,
+        &offset,
+    )) {
         error(io, "failed to write new KCL to EFI executable");
         return false;
     }
@@ -521,15 +511,7 @@ fn edit_kcl(context: &Context, io: &mut Io, temp_kcl: &Path) -> bool {
         return false;
     }
 
-    let edited = context
-        .runner
-        .run(
-            &Command::new(&editor)
-                .arg(&file.0)
-                .stdin(Input::Inherit)
-                .stdout(Stream::Inherit)
-                .stderr(Stream::Inherit),
-        )
+    let edited = programs::edit(context.runner, &editor, &file.0)
         .is_ok_and(|output| output.status.is_success());
     if !edited {
         error(io, "failed to edit KCL");
@@ -693,6 +675,20 @@ mod tests {
         let result = run_with(&runner, &mounts, &["-e", "-"], b"MZ");
         assert_eq!(result.code, 1);
         assert_eq!(result.stderr, "ERROR: cannot edit KCL in streaming mode\n");
+    }
+
+    #[test]
+    fn editors_are_found_as_command_v_finds_them() {
+        let dir = TempDir::new("zbm-kcl-editor");
+        let editor = dir.write("ed", "");
+        std::fs::set_permissions(&editor, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
+        assert!(command_exists(&editor.display().to_string(), None));
+        assert!(!command_exists(
+            "ed",
+            Some(std::ffi::OsStr::new(":/nonexistent"))
+        ));
+        assert!(!command_exists("ed", None));
     }
 
     #[test]

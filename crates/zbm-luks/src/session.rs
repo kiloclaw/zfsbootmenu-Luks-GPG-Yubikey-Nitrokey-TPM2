@@ -12,10 +12,11 @@ use std::time::Duration;
 
 use zbm_core::color::colorize;
 use zbm_crypt::{CryptError, Cryptsetup, KeySource};
-use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::exec::Input;
 use zbm_platform::secret::Secret;
 use zbm_platform::{Environment, System};
 use zbm_state::State;
+use zbm_tools::{Shown, terminal, udev};
 pub use zbm_types::Answer;
 
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
@@ -276,15 +277,13 @@ impl<'a> Session<'a> {
         true
     }
 
-    /// A command as the legacy code runs it: standard input from `/dev/null`
-    /// unless the caller changes it, and with `DM_DISABLE_UDEV` when
-    /// [`Session::available`] exported it.
-    pub fn command(&self, program: &str) -> Command {
-        let command = Command::new(program).stdin(Input::Null);
+    /// The environment the legacy code exported for the programs it runs:
+    /// `DM_DISABLE_UDEV=1` when [`Session::available`] exported it.
+    pub fn exported(&self) -> &'static [(&'static str, &'static str)] {
         if self.dm_disable_udev {
-            command.env("DM_DISABLE_UDEV", "1")
+            &[("DM_DISABLE_UDEV", "1")]
         } else {
-            command
+            &[]
         }
     }
 
@@ -309,20 +308,13 @@ impl<'a> Session<'a> {
 
     /// `tput <args>`, whose output goes to the console.
     pub fn tput(&self, args: &[&str]) {
-        let command = self.command("tput").args(args).stderr(Stream::Null);
-        if let Ok(output) = self.system().runner.run(&command) {
-            let _ = self.system().console.write(&output.stdout);
-        }
+        let output = terminal::tput(self.system().runner, args, Input::Null);
+        let _ = self.system().console.write(&output);
     }
 
     /// `udevadm settle`.
     pub fn settle(&self) {
-        let command = self
-            .command("udevadm")
-            .arg("settle")
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let _ = self.system().runner.run(&command);
+        udev::settle(self.system().runner, Shown::Hidden);
     }
 
     /// Shows a timed prompt.
@@ -645,14 +637,13 @@ mod tests {
         fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
         with_session(&fake, |session| {
             assert!(session.available());
-            let command = session.command("cryptsetup");
-            assert_eq!(command.get_env().len(), 1);
+            assert_eq!(session.exported(), [("DM_DISABLE_UDEV", "1")]);
         });
         fake.files
             .file("/usr/lib/udev/rules.d/95-dm-notify.rules", "");
         with_session(&fake, |session| {
             assert!(session.available());
-            assert!(session.command("cryptsetup").get_env().is_empty());
+            assert!(session.exported().is_empty());
         });
         assert_eq!(
             fake.kmsg()

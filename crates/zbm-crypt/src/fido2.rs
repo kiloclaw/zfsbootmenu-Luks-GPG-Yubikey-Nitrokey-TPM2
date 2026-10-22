@@ -5,6 +5,11 @@
 //! The secret is captured from `fido2-assert`'s output and never written to
 //! a file; it is the last line of the output.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "an adapter: these command lines are built here and nowhere else"
+)]
+
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
 /// What a systemd-fido2 token asks of the security key.

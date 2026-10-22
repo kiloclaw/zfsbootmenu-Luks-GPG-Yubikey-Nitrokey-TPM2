@@ -422,6 +422,7 @@ dependencies = [
  "zbm-platform",
  "zbm-sys",
  "zbm-testkit",
+ "zbm-tools",
 ]
 
 [[package]]
@@ -1495,6 +1496,7 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-testkit",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
@@ -1551,6 +1553,7 @@ dependencies = [
  "zbm-platform",
  "zbm-sys",
  "zbm-testkit",
+ "zbm-tools",
  "zbm-zfs",
 ]
 
@@ -1568,6 +1571,7 @@ dependencies = [
  "zbm-state",
  "zbm-sys",
  "zbm-testkit",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
@@ -1621,6 +1625,15 @@ dependencies = [
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-tools"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "zbm-platform",
+ "zbm-testkit",
 ]
 
 [[package]]

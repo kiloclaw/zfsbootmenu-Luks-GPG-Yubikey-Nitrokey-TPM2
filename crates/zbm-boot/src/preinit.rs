@@ -18,8 +18,8 @@ use zbm_cmdline::kcl;
 use zbm_cmdline::options::ZbmOptions;
 use zbm_core::shell::{command_substitution, echo};
 use zbm_platform::error::{Error, Result};
-use zbm_platform::exec::{Command, Input, Stream};
 use zbm_platform::{KernelLog, System};
+use zbm_tools::terminal;
 
 /// The state directory when the configuration names none.
 pub const DEFAULT_BASE: &str = "/zfsbootmenu";
@@ -144,11 +144,7 @@ pub fn prepare(system: &System<'_>, root: &Path, options: &ZbmOptions) {
         let lines = options.lines.as_deref().unwrap_or("25");
         let columns = options.columns.as_deref().unwrap_or("80");
         for (setting, value) in [("rows", lines), ("cols", columns)] {
-            let stty = Command::new("stty")
-                .args([setting, value])
-                .stdin(Input::Inherit)
-                .stdout(Stream::Inherit);
-            let _ = system.runner.run(&stty);
+            terminal::stty(system.runner, &[setting, value]);
         }
     }
     let _ = files.write(&root.join("proc/sys/kernel/hostname"), b"ZFSBootMenu\n");

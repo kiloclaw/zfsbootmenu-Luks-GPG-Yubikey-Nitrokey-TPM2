@@ -18,6 +18,7 @@ zbm-platform.workspace = true
 zbm-state.workspace = true
 zbm-sys.workspace = true
 zbm-types.workspace = true
+zbm-tools.workspace = true
 zbm-zfs.workspace = true
 
 [dev-dependencies]

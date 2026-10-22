@@ -14,7 +14,8 @@ use std::path::{Path, PathBuf};
 
 use zbm_core::fs::{is_dir, is_executable, is_file, is_readable, is_writable, strerror};
 use zbm_core::shell::quote;
-use zbm_platform::exec::{Command, Input, Runner, Stream};
+use zbm_platform::exec::Runner;
+use zbm_tools::programs;
 
 use crate::cli::{self, Options, Outcome};
 use crate::config::{Fatal, Value};
@@ -239,13 +240,7 @@ impl Generator<'_, '_, '_> {
     /// and returns the output lines and the exit status (128 plus the signal number
     /// for a command killed by a signal).
     fn run_shell(&self, command: &str) -> (Vec<Vec<u8>>, i32) {
-        let command = Command::new("/bin/sh")
-            .arg("-c")
-            .arg(format!("{command} 2>&1"))
-            .stdin(Input::Inherit)
-            .stdout(Stream::Capture)
-            .stderr(Stream::Inherit);
-        match self.context.runner.run(&command) {
+        match programs::shell(self.context.runner, command) {
             Ok(output) => (output_lines(&output.stdout), output.status.shell_code()),
             // Perl reports a shell that cannot be started as status -1, which the fixed
             // `execute` turns into 255.
