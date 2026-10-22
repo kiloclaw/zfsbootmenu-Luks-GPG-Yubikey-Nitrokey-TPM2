@@ -111,6 +111,18 @@ command ``zbm-luks-test`` runs the operations with the seams. ``impl.sh`` uses `
 
 Images never contain the test build; CI checks that the release ``zbm`` has no ``zbm-luks-test`` command.
 
+The suites are also ported to Rust, case for case and check for check, in *crates/zbm-luks/tests/devices*. The Rust
+suites call the LUKS code directly instead of through the seams, with the same real volumes, software TPM, clevis and
+GnuPG, and the same stand-ins for device-mapper and security keys. They run the 252 checks of
+``ZBMTEST_IMPL=rust``; the three legacy-only checks are unit tests. As root, in the build container or on a host with
+the tools above:
+
+.. code-block:: bash
+
+  # cargo xtask test devices
+
+The Bash suites stay until the legacy runtime is removed: they are the only suites that run against it.
+
 Unit Suites
 -----------
 

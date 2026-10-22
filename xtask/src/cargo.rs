@@ -63,6 +63,33 @@ fn test_programs(root: &Path, nextest: bool, env: &[(&str, &str)]) -> Vec<Progra
     programs
 }
 
+/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`, which
+/// replace the Bash suites of `tests/luks/unit`: as root, with real LUKS
+/// volumes on loop devices, a software TPM, clevis and GnuPG. The suites
+/// run one after another and print every case and check.
+///
+/// # Errors
+///
+/// When a check fails, or the suites cannot run here.
+pub fn test_devices(root: &Path) -> Result<()> {
+    test_devices_program(root).run()
+}
+
+/// The test run of [`test_devices`].
+fn test_devices_program(root: &Path) -> Program {
+    cargo(root).env("ZBM_DEVICE_TESTS", "1").args([
+        "test",
+        "-p",
+        "zbm-luks",
+        "--test",
+        "devices",
+        "--locked",
+        "--",
+        "--nocapture",
+        "--test-threads=1",
+    ])
+}
+
 /// The golden files of the legacy results, relative to the root.
 pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
 
@@ -242,6 +269,15 @@ mod tests {
                 "cargo test --workspace --locked",
                 "cargo test -p zbm --features test-seams --locked",
             ]
+        );
+    }
+
+    #[test]
+    fn the_device_suites_run_one_after_another() {
+        assert_eq!(
+            test_devices_program(Path::new("/w")).shown(),
+            "ZBM_DEVICE_TESTS=1 cargo test -p zbm-luks --test devices --locked -- \
+             --nocapture --test-threads=1"
         );
     }
 

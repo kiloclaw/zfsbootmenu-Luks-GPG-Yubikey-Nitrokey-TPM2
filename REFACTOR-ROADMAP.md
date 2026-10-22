@@ -188,8 +188,19 @@ Done in R2:
   output is read with `str::lines` and `trim_end_matches('\n')`, numbers with `parse`; the golden files of the
   legacy results did not change. `ZbmOptions::menu_timeout_seconds` gives the timeout as a number.
 
-Open in R2: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services), fixtures of OpenZFS
-2.2 and 2.3 (they need images with those versions), and the Rust LUKS device suites.
+- The LUKS device suites in Rust: `crates/zbm-luks/tests/devices/` (`unlock`, `tokens`, `edge`, `config`) ports the
+  Bash suites case for case and check for check, 52 + 55 + 81 + 64 = 252 checks, all passing; `cargo xtask test
+  devices` runs them as root and CI runs them next to the Bash suites. They call `Session` directly, with real LUKS
+  volumes on loop devices, swtpm, `systemd-cryptenroll`, clevis and GnuPG; a device runner stands in for
+  device-mapper (`cryptsetup open` checks the key with `--test-passphrase` and creates a node in the case's own
+  mapper directory), so they need no mount namespace. The Bash stand-ins become Rust: the timed prompts, the console
+  input that arrives late (`< <(sleep N; echo ...)`), the background jobs of the race cases (threads), and the
+  `luksDump` of systemd 261's token plugins. The three legacy-only checks are unit tests. With `ZBM_DEVICE_TESTS=1`
+  set, a suite that cannot run fails rather than skips. The Bash suites and `test-seams` stay while the legacy
+  runtime does: they are the only suites that run against it.
+
+Open in R2: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services), and fixtures of
+OpenZFS 2.2 and 2.3 (they need images with those versions).
 
 ## What the pilots taught
 
@@ -281,7 +292,7 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | `zbm-testutil` | Rust | 2,200 lines | 22 | Fakes and Bash parity harness |
 | Legacy runtime (`legacy/zfsbootmenu`) | Bash | 9,200 lines | via suites | Frozen; menu, boot environments, snapshots, recovery tools not yet ported |
 | Legacy host tools (`legacy/bin`) | Perl, Bash | 1,800 lines | — | Replaced, kept for parity tests |
-| LUKS unit suites (`tests/luks/unit`) | Bash | 1,100 lines | 255 checks | Run against both runtimes |
+| LUKS unit suites (`tests/luks/unit`) | Bash | 1,100 lines | 255 checks | Run against both runtimes; ported to Rust in R2 (`crates/zbm-luks/tests/devices`) |
 | LUKS VM tests (`tests/luks/vm`) | Python | 2,700 lines | ~700 checks | Run against both runtimes |
 | Upstream test VMs (`tests/*.sh`, `tests/helpers`) | Bash, Perl | 2,800 lines | manual | Interactive |
 | Packaging and scripts (`packaging/`, `scripts/`) | Bash, Python | 2,400 lines | partly | Container build, release, dev tools |

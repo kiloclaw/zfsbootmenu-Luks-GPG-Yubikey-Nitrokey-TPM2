@@ -4,7 +4,8 @@
 
 | Suite | Command | Needs | Where |
 | --- | --- | --- | --- |
-| Rust device tests (real LUKS volumes on loop devices) | `sudo env ZBM_DEVICE_TESTS=1 cargo test -p zbm-crypt --test devices` | root, `losetup`, `cryptsetup`, a kernel with device-mapper; they skip and say why otherwise | `crates/*/tests/devices.rs` |
+| LUKS device suites (the LUKS code against real LUKS volumes on loop devices) | `cargo xtask test devices` (as root) | root, `losetup`, `cryptsetup`, `swtpm`, `systemd-cryptenroll`, clevis, GnuPG, `sfdisk`, `mkfs.ext4`; the build container has them | `crates/zbm-luks/tests/devices/` |
+| `zbm-crypt` device tests (its adapters against real LUKS volumes) | `sudo env ZBM_DEVICE_TESTS=1 cargo test -p zbm-crypt --test devices` | root, `losetup`, `cryptsetup`, a kernel with device-mapper; they skip and say why otherwise | `crates/zbm-crypt/tests/devices.rs` |
 | Rust unit, parity and recorded-output tests | `cargo xtask test` | the Rust toolchain; Bash, Perl with `YAML::PP`, `Sort::Versions` and `boolean`, binutils and `systemd-boot-efi` for the parity tests, which skip what they cannot run | next to the code, `crates/*/tests/` |
 | LUKS unit suites, legacy runtime | `tests/luks/unit/run-all.sh` | root, cryptsetup, swtpm, clevis, GnuPG, FIDO2 tools | `tests/luks/unit/` |
 | LUKS unit suites, Rust runtime | `ZBMTEST_IMPL=rust tests/luks/unit/run-all.sh` | as above, and the test build of `zbm` (`cargo build -p zbm --features test-seams`) | `tests/luks/unit/` |

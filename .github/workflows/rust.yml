@@ -155,6 +155,13 @@ jobs:
             "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" ZBM_DEVICE_TESTS=1 \
             cargo test -p zbm-crypt --test devices --locked
 
+      # The Rust port of the suites above (crates/zbm-luks/tests/devices)
+      - name: LUKS device suites
+        run: |
+          cargo test -p zbm-luks --test devices --locked --no-run
+          sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
+            "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" cargo xtask test devices
+
       - name: Archive the suite output
         if: always()
         uses: actions/upload-artifact@v7

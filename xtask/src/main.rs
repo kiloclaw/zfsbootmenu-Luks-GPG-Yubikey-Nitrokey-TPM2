@@ -46,6 +46,9 @@ Commands:
                          in a crate of xtask/strict/crates.txt
   test                   Every test that needs no root and no virtual
                          machine, under cargo nextest when it is installed
+  test devices           The LUKS device suites: the LUKS code against real
+                         LUKS volumes on loop devices (root, cryptsetup,
+                         swtpm, clevis, GnuPG; the build container has them)
   bless                  Accept every changed snapshot and list the files
   record-parity [--check]
                          Run the legacy code of the parity tests and record
@@ -91,6 +94,8 @@ enum Command {
     Lint { strict: bool },
     /// `test`.
     Test,
+    /// `test devices`.
+    TestDevices,
     /// `bless`.
     Bless,
     /// `record-parity`.
@@ -129,6 +134,7 @@ impl Command {
             ["lint"] => Command::Lint { strict: false },
             ["lint", "--strict"] => Command::Lint { strict: true },
             ["test"] => Command::Test,
+            ["test", "devices"] => Command::TestDevices,
             ["bless"] => Command::Bless,
             ["record-parity"] => Command::RecordParity { check: false },
             ["record-parity", "--check"] => Command::RecordParity { check: true },
@@ -241,6 +247,7 @@ fn run(command: Command) -> Result<()> {
         Command::Lint { strict: false } => lint::run(&Workspace::load(&root)?),
         Command::Lint { strict: true } => lint::strict(&Workspace::load(&root)?),
         Command::Test => cargo::test(&root),
+        Command::TestDevices => cargo::test_devices(&root),
         Command::Bless => cargo::bless(&Workspace::load(&root)?),
         Command::RecordParity { check } => cargo::record_parity(&root, check),
         Command::RecordZfs { manifest: true } => {
@@ -296,6 +303,7 @@ mod tests {
             Command::CheckDeps { bless: true }
         );
         assert_eq!(parse("bless").unwrap(), Command::Bless);
+        assert_eq!(parse("test devices").unwrap(), Command::TestDevices);
         assert_eq!(
             parse("record-parity --check").unwrap(),
             Command::RecordParity { check: true }
