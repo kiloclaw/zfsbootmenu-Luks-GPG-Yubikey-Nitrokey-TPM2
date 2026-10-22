@@ -1217,6 +1217,7 @@ dependencies = [
 name = "zbm-kcl"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "zbm-cmdline",
  "zbm-core",
  "zbm-sys",

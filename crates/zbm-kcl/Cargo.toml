@@ -15,6 +15,7 @@ zbm-sys.workspace = true
 zbm-zfs.workspace = true
 
 [dev-dependencies]
+serde.workspace = true
 zbm-testkit.workspace = true
 
 [lints]

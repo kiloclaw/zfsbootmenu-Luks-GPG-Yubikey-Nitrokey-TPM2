@@ -1,0 +1,86 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "root=zfs:AUTO quiet \"a b\"\n"
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-a\", \"zbm.timeout=5\", \"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 40 bytes, 7570e74cb852001f \"root=zfs:AUTO quiet \\\"a b\\\" zbm.timeout=5\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-r\", \"quiet\", \"-o\", \"out.efi\", \"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nout.efi: EFI image: .cmdline at +0x0, 20 bytes, 7e328d586b5a03df \"root=zfs:AUTO \\\"a b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-d\", \"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 1 bytes, af63bd4c8601b7df \"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-a\", \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "ERROR: new KCL size exceeds space available in EFI file '<tmp>'; aborting\nERROR: failed to save KCL changes\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"plain.efi\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "\n"
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-a\", \"x\", \"plain.efi\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "ERROR: file '<tmp>' contains no .cmdline section\nERROR: failed to determine offset data for KCL\nERROR: failed to save KCL changes\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-a\", \"x\", \"-o\", \"missing-dir/out.efi\", \"image.efi\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 28 bytes, 5cdc828307f870b9 \"root=zfs:AUTO quiet  \\\"a  b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 1\n",
+        "stderr": "cp: cannot create regular file 'missing-dir/out.efi': No such file or directory\nERROR: failed to write EFI executable 'missing-dir/out.efi'; saved as '<tmp>'\n",
+        "stdout": "NOTICE: saving temporary EFI output <tmp>\n"
+      }
+    },
+    {
+      "input": "properties [], images [(\"image.efi\", Some(\"root=zfs:AUTO quiet  \\\"a  b\\\"\\0\")), (\"plain.efi\", None)], args [\"-e\", \"image.efi\"], editor Some(\"edit-ok\"), input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\nimage.efi: EFI image: .cmdline at +0x0, 25 bytes, a611b3e99d7d3e0f \"root=zfs:AUTO loud \\\"a b\\\"\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;\nimage.efi.cmdline: 28 bytes, 5cdc828307f870b9\nimage.efi.linux: 12288 bytes, 08f8cdc5fda52325\nplain.efi: EFI image: .linux at +0x0, 12288 bytes, 08f8cdc5fda52325;\nplain.efi.linux: 12288 bytes, 08f8cdc5fda52325\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    }
+  ]
+}

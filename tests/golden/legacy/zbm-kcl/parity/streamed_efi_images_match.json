@@ -1,0 +1,32 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "properties [], images [], args [\"-\"], editor None, input an EFI image",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "quiet rw\n"
+      }
+    },
+    {
+      "input": "properties [], images [], args [\"-a\", \"loglevel=7\", \"-o\", \"-\", \"-\"], editor None, input an EFI image",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "EFI image: .cmdline at +0x0, 20 bytes, 35e0ea395cd8891e \"quiet rw loglevel=7\"; .linux at +0x1000, 12288 bytes, 08f8cdc5fda52325;"
+      }
+    },
+    {
+      "input": "properties [], images [], args [\"-e\", \"-\"], editor Some(\"edit-ok\"), input an EFI image",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: None\npool/other: None\npool/unset: None\npool/flag: None\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: cannot edit KCL in streaming mode\n",
+        "stdout": ""
+      }
+    }
+  ]
+}

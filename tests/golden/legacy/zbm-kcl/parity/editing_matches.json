@@ -1,0 +1,41 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "properties [(\"pool/be\", \"quiet loglevel=4\")], images [], args [\"-e\", \"pool/be\"], editor Some(\"edit-ok\"), input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: Some(\"loud loglevel=4\")\npool/other: None\npool/unset: None\npool/flag: None\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=loud loglevel=4 pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet loglevel=4\")], images [], args [\"-e\", \"pool/be\"], editor Some(\"edit-fail\"), input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: Some(\"quiet loglevel=4\")\npool/other: None\npool/unset: None\npool/flag: None\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: failed to edit KCL\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet loglevel=4\")], images [], args [\"-e\", \"pool/be\"], editor Some(\"missing-editor\"), input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: None\npool/be: Some(\"quiet loglevel=4\")\npool/other: None\npool/unset: None\npool/flag: None\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: define $EDITOR to edit\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet loglevel=4\")], images [], args [\"-e\", \"-a\", \"x\", \"pool/be\"], editor Some(\"edit-ok\"), input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: None\npool/be: Some(\"loud loglevel=4 x\")\npool/other: None\npool/unset: None\npool/flag: None\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=loud loglevel=4 x pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    }
+  ]
+}

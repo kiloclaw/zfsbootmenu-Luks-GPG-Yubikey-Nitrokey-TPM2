@@ -1,0 +1,194 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "quiet loglevel=4 \"a b\" rw\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"pool/unset\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/unset\nget -H -o value org.zfsbootmenu:commandline pool/unset\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "%{parent} spl_hostid=1\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"pool/flag\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/flag\nget -H -o value org.zfsbootmenu:commandline pool/flag\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"pool\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool\nget -H -o value org.zfsbootmenu:commandline pool\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "%{parent} spl_hostid=1\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\", \"nomodeset\", \"-r\", \"quiet\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"loglevel=4 \\\"a b\\\" rw nomodeset\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=loglevel=4 \"a b\" rw nomodeset pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\", \"a b\", \"-a\", \"x=\\\"1 2\\\"\", \"-a\", \"\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet loglevel=4 \\\"a b\\\" rw a b x=\\\"1 2\\\"\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=quiet loglevel=4 \"a b\" rw a b x=\"1 2\" pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-r\", \"loglevel\", \"-a\", \"loglevel=7\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet \\\"a b\\\" rw loglevel=7\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=quiet \"a b\" rw loglevel=7 pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-d\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: None\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\ninherit org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-d\", \"-a\", \"only\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"only\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nset org.zfsbootmenu:commandline=only pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-r\", \"quiet\", \"-r\", \"loglevel\", \"-r\", \"\\\"a b\\\"\", \"-r\", \"rw\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: None\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\ninherit org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\", \"x\", \"-o\", \"pool/other\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: Some(\"quiet loglevel=4 \\\"a b\\\" rw x\")\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nlist -o name -H pool/other\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=quiet loglevel=4 \"a b\" rw x pool/other\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\", \"x\", \"-o\", \"missing\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nlist -o name -H missing\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: KCL destination is not a ZFS filesystem\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\", \"x\", \"-o\", \"\", \"pool/be\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet loglevel=4 \\\"a b\\\" rw x\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nset org.zfsbootmenu:commandline=quiet loglevel=4 \"a b\" rw x pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"missing\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H missing\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: KCL source is not a ZFS filesystem or EFI executable\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-x\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "zbm-kcl: illegal option -- x\n",
+        "stdout": "USAGE: zbm-kcl [-a <arg>] [-r <arg>] [-o <out>] [-e] [-d] [bootenv|zbm-efi]\n\nReview or update kernel command line (KCL) associated with the ZFS boot\nenvironment or <bootenv> or the ZFSBootMenu EFI executable <zbm-efi>.\n\nWhen the boot environment or EFI executable is unspecified, the current\nroot filesystem will be used by default. If \"-\" is passed, stdin will\nbe read as an EFI executable.\n\nARGUMENTS\n-a <arg>: Append an argument\n-r <arg>: Remove an argument\n-o <out>: Write output to <out> filesystem or executable\n-e: Open the KCL for editing in $EDITOR\n-d: Remove entire command line\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-a\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "zbm-kcl: option requires an argument -- a\n",
+        "stdout": "USAGE: zbm-kcl [-a <arg>] [-r <arg>] [-o <out>] [-e] [-d] [bootenv|zbm-efi]\n\nReview or update kernel command line (KCL) associated with the ZFS boot\nenvironment or <bootenv> or the ZFSBootMenu EFI executable <zbm-efi>.\n\nWhen the boot environment or EFI executable is unspecified, the current\nroot filesystem will be used by default. If \"-\" is passed, stdin will\nbe read as an EFI executable.\n\nARGUMENTS\n-a <arg>: Append an argument\n-r <arg>: Remove an argument\n-o <out>: Write output to <out> filesystem or executable\n-e: Open the KCL for editing in $EDITOR\n-d: Remove entire command line\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-h\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "USAGE: zbm-kcl [-a <arg>] [-r <arg>] [-o <out>] [-e] [-d] [bootenv|zbm-efi]\n\nReview or update kernel command line (KCL) associated with the ZFS boot\nenvironment or <bootenv> or the ZFSBootMenu EFI executable <zbm-efi>.\n\nWhen the boot environment or EFI executable is unspecified, the current\nroot filesystem will be used by default. If \"-\" is passed, stdin will\nbe read as an EFI executable.\n\nARGUMENTS\n-a <arg>: Append an argument\n-r <arg>: Remove an argument\n-o <out>: Write output to <out> filesystem or executable\n-e: Open the KCL for editing in $EDITOR\n-d: Remove entire command line\n"
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"-ed\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: root does not appear to be ZFS\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"--\", \"-a\"], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H -a\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: KCL source is not a ZFS filesystem or EFI executable\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [], editor None, input nothing",
+      "result": {
+        "code": 1,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "ERROR: root does not appear to be ZFS\n",
+        "stdout": ""
+      }
+    },
+    {
+      "input": "properties [(\"pool/be\", \"quiet  loglevel=4 \\\"a  b\\\" rw\"), (\"pool/flag\", \"-n\"), (\"pool\", \"%{parent} spl_hostid=1\")], images [], args [\"pool/be\", \"extra\", \"operands\"], editor None, input nothing",
+      "result": {
+        "code": 0,
+        "state": "pool: Some(\"%{parent} spl_hostid=1\")\npool/be: Some(\"quiet  loglevel=4 \\\"a  b\\\" rw\")\npool/other: None\npool/unset: None\npool/flag: Some(\"-n\")\nlist -o name -H pool/be\nget -H -o value org.zfsbootmenu:commandline pool/be\nedit-fail: 17 bytes, 228c07ff457e4124\nedit-ok: 75 bytes, 9ace76657fb64668\ntemporary files left: 0\n",
+        "stderr": "",
+        "stdout": "quiet loglevel=4 \"a b\" rw\n"
+      }
+    }
+  ]
+}

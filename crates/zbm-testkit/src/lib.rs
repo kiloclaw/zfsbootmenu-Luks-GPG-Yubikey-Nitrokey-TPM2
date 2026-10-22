@@ -10,6 +10,7 @@
 //! - [`legacy`] runs the Bash and Perl code in `legacy/`, and [`parity`]
 //!   records its results as golden files, so parity tests compare the Rust code
 //!   with the legacy code without running it.
+//! - [`efi`] describes EFI images without what comes from the host's stub.
 //! - [`Rng`] generates test inputs from a seed, so a failing generated case can
 //!   be reproduced.
 //! - [`TempDir`] is a scratch directory that is removed afterwards.
@@ -21,6 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use zbm_core::exec::{Command, Output, Runner, Status};
 
+pub mod efi;
 pub mod fake_zfs;
 pub mod fakes;
 pub mod legacy;

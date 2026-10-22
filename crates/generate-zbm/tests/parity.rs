@@ -277,13 +277,17 @@ impl Sandbox {
                 ));
                 continue;
             }
-            let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
-                (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
-            });
+            let mode = std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o7777;
+            // An EFI bundle holds the host's stub: only what was added to it is
+            // compared, so that recordings hold on other machines.
+            if let Some(payload) = zbm_testkit::efi::describe(&bytes) {
+                state.push_str(&format!("{name}: {payload} mode {mode:o}\n"));
+                continue;
+            }
+            let hash = zbm_testkit::efi::fnv1a(&bytes);
             state.push_str(&format!(
-                "{name}: {} bytes, {hash:016x}, mode {:o}\n",
-                bytes.len(),
-                std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o7777
+                "{name}: {} bytes, {hash:016x}, mode {mode:o}\n",
+                bytes.len()
             ));
         }
         state
