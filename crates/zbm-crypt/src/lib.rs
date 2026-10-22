@@ -39,6 +39,7 @@
 mod cryptsetup;
 mod mapping;
 pub mod token;
+pub mod tpm2;
 
 pub use cryptsetup::{Cryptsetup, OpenOptions};
 pub use mapping::{Closed, Failed, Mapping, Open};

@@ -13,7 +13,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_platform::exec::{Command, Input, Stream};
+use zbm_crypt::tpm2::{TOOLS, Tpm2};
+use zbm_platform::exec::Stream;
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
 
@@ -22,19 +23,6 @@ use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha25
 use crate::error::{LuksError, TokenFailure};
 use crate::session::{Key, Session};
 use zbm_crypt::Token;
-
-/// The persistent handle of the storage root key of systemd 254 and later.
-pub const SRK_HANDLE: &str = "0x81000001";
-
-/// The tools of the native unsealing.
-const TOOLS: [&str; 6] = [
-    "tpm2_load",
-    "tpm2_startauthsession",
-    "tpm2_policypcr",
-    "tpm2_policyauthvalue",
-    "tpm2_unseal",
-    "tpm2_flushcontext",
-];
 
 /// The authorization value of a TPM2 PIN, in hexadecimal: the SHA-256 of the
 /// PIN without trailing zero bytes. systemd 255 and later salt the PIN first:
@@ -64,20 +52,9 @@ pub fn split_blob(blob: &[u8]) -> Option<(&[u8], &[u8])> {
 }
 
 impl Session<'_> {
-    /// A tpm2-tools command for the TPM of the settings.
-    fn tpm2_command(&self, program: &str) -> Command {
-        self.command(program)
-            .env("TPM2TOOLS_TCTI", &self.settings().tpm2_tcti)
-            .stdout(Stream::Null)
-            .stderr(Stream::Null)
-    }
-
-    /// Whether `command` runs and exits with status 0.
-    fn is_successful(&self, command: &Command) -> bool {
-        self.system()
-            .runner
-            .run(command)
-            .is_ok_and(|output| output.status.is_success())
+    /// tpm2-tools for the TPM of the settings.
+    fn tpm2(&self) -> Tpm2<'_> {
+        Tpm2::new(self.system().runner, &self.settings().tpm2_tcti)
     }
 
     /// Whether the TPM device is there, as `[ -c ]` finds it.
@@ -127,20 +104,7 @@ impl Session<'_> {
     /// Whether the TPM refuses PIN-protected objects after too many wrong PINs
     /// (`luks_tpm2_in_lockout`).
     pub fn tpm2_in_lockout(&self) -> bool {
-        if !self.system().command_exists("tpm2_getcap") {
-            return false;
-        }
-        let getcap = self
-            .tpm2_command("tpm2_getcap")
-            .arg("properties-variable")
-            .stdout(Stream::Capture);
-        let Ok(output) = self.system().runner.run(&getcap) else {
-            return false;
-        };
-        output.stdout_text().lines().any(|line| {
-            line.find("inLockout:")
-                .is_some_and(|at| line[at + 10..].trim_start_matches(' ').starts_with('1'))
-        })
+        self.system().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
     }
 
     fn tpm2_lockout_message(&self) {
@@ -204,59 +168,24 @@ impl Session<'_> {
             && files.write(Path::new(&path("pub")), public).is_ok();
 
         let mut outcome = Outcome::Failed;
-        let load = self.tpm2_command("tpm2_load").args([
-            "-C",
-            SRK_HANDLE,
-            "-u",
-            &path("pub"),
-            "-r",
-            &path("priv"),
-            "-c",
-            &path("obj.ctx"),
-        ]);
-        let session = self.tpm2_command("tpm2_startauthsession").args([
-            "--policy-session",
-            "-S",
-            &path("session.ctx"),
-        ]);
-        if written && self.is_successful(&load) && self.is_successful(&session) {
-            let policy_pcr = self.tpm2_command("tpm2_policypcr").args([
-                "-S",
-                &path("session.ctx"),
-                "-l",
-                &format!("{bank}:{pcrs}"),
-            ]);
-            let policy_auth = self
-                .tpm2_command("tpm2_policyauthvalue")
-                .args(["-S", &path("session.ctx")]);
-            let mut policy = format!("session:{}", path("session.ctx"));
-            let mut stdin = Input::Null;
-            if let Some(auth) = &auth {
-                policy.push_str("+file:-");
-                let mut text = Secret::copy_from(b"hex:");
-                text.push_bytes(auth.expose());
-                stdin = Input::Secret(text);
-            }
-            let unseal = self
-                .tpm2_command("tpm2_unseal")
-                .args(["-c", &path("obj.ctx"), "-p", &policy])
-                .stdin(stdin)
-                .stdout(Stream::CaptureSecret);
-            if (pcrs.is_empty() || self.is_successful(&policy_pcr))
-                && (auth.is_none() || self.is_successful(&policy_auth))
-                && let Ok(output) = system.runner.run(&unseal)
-                && output.status.is_success()
+        let tpm = self.tpm2();
+        let (object, context) = (path("obj.ctx"), path("session.ctx"));
+        let (object, context) = (Path::new(&object), Path::new(&context));
+        let loaded = written
+            && tpm
+                .load(Path::new(&path("pub")), Path::new(&path("priv")), object)
+                .is_ok();
+        if loaded {
+            // The session is flushed when it goes out of scope.
+            if let Ok(session) = tpm.policy_session(context)
+                && (pcrs.is_empty() || session.pcrs(&format!("{bank}:{pcrs}")).is_ok())
+                && (auth.is_none() || session.auth_value().is_ok())
+                && let Some(secret) = session.unseal(object, auth.as_ref())
             {
-                let secret = output.secret.unwrap_or_default();
                 outcome = Outcome::Key(base64_encode(secret.expose()));
             }
-            let flush = self
-                .tpm2_command("tpm2_flushcontext")
-                .arg(path("session.ctx"));
-            let _ = system.runner.run(&flush);
         }
-        let flush = self.tpm2_command("tpm2_flushcontext").arg("-t");
-        let _ = system.runner.run(&flush);
+        tpm.flush_transient();
 
         for name in ["priv", "pub", "obj.ctx", "session.ctx"] {
             let _ = files.remove_file(Path::new(&path(name)));
@@ -404,7 +333,7 @@ mod tests {
     use crate::keys::tests::with_session;
     use crate::session::Settings;
     use crate::testing::{legacy_function, legacy_luks};
-    use zbm_platform::exec::{Output, Status};
+    use zbm_platform::exec::{Input, Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::{have_program, parity, repo_root};
 
