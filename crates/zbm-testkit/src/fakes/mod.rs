@@ -150,6 +150,25 @@ mod tests {
     }
 
     #[test]
+    fn prefixes_special_files_and_defaults() {
+        let files = FakeFiles::default();
+        files.file("/boot/vmlinuz", "MZ and more");
+        files.socket("/run/socket").block_device("/dev/sda");
+
+        assert_eq!(files.read_prefix(&path("/boot/vmlinuz"), 2).unwrap(), b"MZ");
+        assert!(files.read_prefix(&path("/boot/missing"), 2).is_err());
+        assert_eq!(
+            files.metadata(&path("/run/socket")).unwrap().kind,
+            FileKind::Socket
+        );
+        assert_eq!(
+            files.metadata(&path("/dev/sda")).unwrap().kind,
+            FileKind::BlockDevice
+        );
+        assert!(FakeSystem::default().kmsg().is_empty());
+    }
+
+    #[test]
     fn files_behave_like_a_file_system() {
         let files = FakeFiles::new();
         files.file("/zfsbootmenu/bootfs", "tank/ROOT/one\n");
