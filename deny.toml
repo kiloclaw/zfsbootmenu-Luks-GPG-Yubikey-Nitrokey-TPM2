@@ -30,10 +30,9 @@ allow = [
     "Unlicense",
     "Zlib",
 ]
-# The menu's fuzzy matcher is MPL-2.0, a file-level copyleft licence, accepted for these crates only
+# The menu's fuzzy matcher is MPL-2.0, a file-level copyleft licence, accepted for this crate only
 # (REFACTOR-ROADMAP.md, "Decisions").
 exceptions = [
-    { crate = "nucleo", allow = ["MPL-2.0"] },
     { crate = "nucleo-matcher", allow = ["MPL-2.0"] },
 ]
 

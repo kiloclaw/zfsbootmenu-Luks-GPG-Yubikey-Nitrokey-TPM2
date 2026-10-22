@@ -37,7 +37,7 @@ yaml-rust2 = { version = "0.13", default-features = false }
 # vendored when the first workspace crate uses it; until then these lines only fix the versions and features.
 crossterm = { version = "0.29", default-features = false, features = ["events"] }
 insta = "1"
-nucleo = "0.5"
+nucleo-matcher = "0.3"
 pretty_assertions = "1"
 proptest = { version = "1", default-features = false, features = ["std"] }
 ratatui = { version = "0.30", default-features = false, features = ["std", "crossterm", "layout-cache"] }

@@ -29,7 +29,7 @@ versions and features; each is vendored, and listed above or below, when a crate
 | Crate | For | Why |
 | --- | --- | --- |
 | `ratatui`, `crossterm` | the menu (`zbm-tui`) | Terminal user interface and terminal input |
-| `nucleo` | the menu | Fuzzy matching of the filter text, as in Helix; MPL-2.0 (see `deny.toml`) |
+| `nucleo-matcher` | the menu | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
 | `serde`, `serde_json` | `zbm-zfs`, `zbm-crypt`, `zbm-trace` | `zfs -j`, `zpool -j` and `cryptsetup` JSON, the JSON journal |
 | `thiserror` | every library crate | Error enums with their causes |
 | `tracing`, `tracing-subscriber` | `zbm-trace` and every service | Spans and events for debugging |

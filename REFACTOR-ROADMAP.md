@@ -21,6 +21,7 @@ ends up in Rust.
 - [Testing strategy](#testing-strategy)
 - [Using uutils coreutils](#using-uutils-coreutils)
 - [The ZFS boundary](#the-zfs-boundary)
+- [Threat model](#threat-model)
 - [Phases](#phases)
 - [Relation to PORT-ROADMAP.md](#relation-to-port-roadmapmd)
 - [Risks](#risks)
@@ -55,6 +56,8 @@ Open in R0:
 
 - The two pilot slices, which vendor the first agreed crates as they use them.
 - `xtask bless`, with the first `insta` snapshot test; `cargo nextest`.
+- The strict-lint list (`xtask/strict/crates.txt`, starting with `xtask`) and coverage in the metrics baseline
+  ([How the rules are enforced](#how-the-rules-are-enforced)).
 - Decisions 4 and 6 belong to later phases (R2 and R9).
 
 ## Goals
@@ -215,7 +218,7 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
 | `zbm-bootenv` | `zbm-boot::{kernels, commandline}`, port package C | Boot environments, kernels and their order, command lines and caches, native encryption keys and key sources |
 | `zbm-kexec` | `zbm-boot::boot` | Loading kernels, teardown, exporting pools |
 | `zbm-app` | — (new) | Use cases (`boot`, `unlock`, `snapshot`, `rollback`, `clone`, `set_default`, `edit_cmdline`, `chroot`, `diff`), an `Action` enum, an event stream, the shared state store |
-| `zbm-tui` | `zbm-menu`, `lib/zfsbootmenu-ui.sh`, `fzf` | The menu: Elm architecture over `zbm-app`, Nucleo for matching, Ratatui widgets per screen |
+| `zbm-tui` | `zbm-menu`, `lib/zfsbootmenu-ui.sh`, `fzf` | The menu: Elm architecture over `zbm-app`, `nucleo-matcher` for matching, Ratatui widgets per screen |
 | `zbm-startup` | `zbm-boot::{startup, modules, devices, hooks, preinit}` | The start-up pipeline as a list of `Step` values; hook running |
 | `zbm` | `zbm` | The multi-call binary: thin applets that build a context and call `zbm-app` |
 | `zbm-generate`, `zbm-kcl` | `generate-zbm`, `zbm-kcl` | Host tools, split into library and binary like the runtime |
@@ -246,8 +249,11 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
   `Message`s, and has one pure `update(model, message) -> (Model, Vec<Action>)`. Each screen (boot environments,
   kernels, snapshots, diff, pool status, help, command line editor, LUKS volumes) is a module with a `view` function
   and its own messages.
-- Nucleo matches the filter text against the list of each screen in a background thread and reports matches as
-  messages; the list widget renders the highlighted positions.
+- `nucleo-matcher`, the matcher of Nucleo without its thread pool, scores the filter text against the list of the
+  current screen inside `update`, so matching is as pure and testable as the rest of `update`; the list widget
+  renders the highlighted positions. The lists of a boot menu hold tens to hundreds of entries, which this matches in
+  well under a frame. `nucleo` itself adds `rayon` and `parking_lot` to run matching on a thread pool, built for
+  editors that search millions of files; the menu does not take it unless the R0 pilot measures a need.
 - Key bindings are a table (`keymap.rs`) that the help screen renders, so documentation and behaviour cannot drift.
 - Tests: `update` with table-driven cases; `view` with `TestBackend` and `insta` snapshots at 80×25, 120×40 and
   52×20; one end-to-end test per screen through `zbm-app` with fakes.
@@ -331,6 +337,8 @@ CI, so that developers and AI tools learn the rules from the build instead of fr
 | Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts, per crate: functions over 60 lines, modules over 600 lines, public functions returning `bool`, `Result`-returning functions, doc comments that name a legacy function, calls to the shell-semantics helpers, tests that run Bash. It writes `target/metrics.json` and a table in the CI summary, and fails when a crate that a finished phase has refactored goes above its limits |
 | Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs `rustfmt` and the width check (`cargo xtask widths`) |
 | Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for G2) |
+| Strict lints stay clean once reached | `xtask lint` with `xtask/strict/crates.txt` | The crates listed there (from R0: `xtask`) must have no finding of `cargo xtask lint --strict`, and `lint` fails otherwise. Each phase adds the crates it finishes, so a refactored crate cannot slip back while the others are still being worked on |
+| Test coverage only goes up | `xtask metrics` with `cargo llvm-cov` | Line coverage per crate becomes a metric of the baseline, with the opposite direction: `--check` fails when a crate's coverage drops below its baseline (to the whole percent), and `--bless` raises it. A new crate starts at 80% |
 | Documentation matches behaviour | `xtask gen-docs --check` | Fails when a man page fragment generated from the option or key binding tables is out of date ([Options defined once](#options-defined-once)) |
 
 `xtask metrics` recorded the starting point in `xtask/metrics-baseline.txt` at the start of R0. Over the crates of
@@ -451,6 +459,35 @@ are vendored and pinned, and are upgraded deliberately with the golden files as 
   configure with builders); every command `ZfsCli` runs is recorded in the command journal.
 - **Recorded output:** fixtures for each command and ZFS version (2.2, 2.3, 2.4), refreshed by `xtask record-zfs`.
 
+## Threat model
+
+ZFSBootMenu runs before the operating system, holds the keys of encrypted volumes, and reads data that someone other
+than its user may control. The rules about secrets say how keys are handled; a threat model says against whom, which
+inputs are hostile, and therefore what must be fuzzed, reviewed and tested. It is written in R1 as
+`docs/dev/threat-model.md` and kept current by every phase.
+
+It covers at least:
+
+- **Attackers:** someone with physical access to a powered-off machine (a tampered ESP or boot image, the "evil
+  maid"); a malicious USB device that claims to be a key or a keyboard; someone who controls the contents of a pool
+  the user imports, such as a disk from another machine; and a process in the booted system that reads what
+  ZFSBootMenu left behind.
+- **Untrusted input:** pool and dataset properties (`org.zfsbootmenu:commandline` and the other
+  `org.zfsbootmenu:*` properties, `keylocation`, `bootfs`), names of pools, datasets, snapshots and files in `/boot`,
+  hooks found through `zbm.hookroot`, LUKS headers and token JSON, crypttab and key files on removable devices, and
+  the output of the programs the runtime runs.
+- **Assets:** passphrases, key files, unsealed TPM2 and FIDO2 secrets, the decryption keys in the kernel, and the
+  integrity of the kernel, initramfs and command line that `kexec` starts.
+- **What must hold:** for each pair of attacker and asset, the property the code keeps (for example: no secret
+  outlives `kexec` in ZFSBootMenu's memory or files; a pool property cannot add an unquoted argument to the kernel
+  command line except the one documented property; parsing hostile input fails with an error, never a panic or a
+  hang) and the test, fuzz target or review that shows it.
+- **Out of scope,** stated as such: for example, a compromised firmware, or an attacker who can already run code as
+  root before ZFSBootMenu starts.
+
+Each fuzz target of the [testing strategy](#testing-strategy) names the threat it covers. Before R9 removes the
+legacy runtime, an independent security review of the Rust runtime against this model is an exit condition.
+
 ## Phases
 
 Each phase ends with every suite green on its own branch merge, the measures of its goals met for the code it
@@ -490,6 +527,8 @@ tests are the proof); behaviour changes start with R5.
   JSON journal (`/zfsbootmenu/journal.jsonl`), the command journal and redaction; replace `KernelLog` and `zbm-log`.
 - Introduce per-crate error enums and convert `bool`-returning functions to `Result` or outcome enums, crate by
   crate, starting with `zbm-luks` and `zbm-boot`.
+- Write the [threat model](#threat-model) (`docs/dev/threat-model.md`), and add a fuzz target for each parser of
+  untrusted input it lists that R1 touches.
 - Turn `zbm-testutil` into `zbm-testkit`: `FakeMachine` builders, assertion macros, golden helpers; record the legacy
   parity results (`xtask record-parity`) and switch the 71 Bash-running tests to golden files.
 - [Crash reports](#crash-reports): the panic hook in `zbm-trace`, the supervisor's record of children killed by a
@@ -600,7 +639,10 @@ tests are the proof); behaviour changes start with R5.
 
 - The Rust runtime becomes the default after a beta in which the legacy image is the fallback.
 - Delete `legacy/`, the golden files recorded from it that no longer guard anything, and the compatibility shims.
-- **Exit:** the tree contains Rust, the packaging shims, documentation and user hook examples only.
+- An independent security review of the Rust runtime against the [threat model](#threat-model); its findings are
+  fixed or accepted in writing before the legacy runtime is removed.
+- **Exit:** the tree contains Rust, the packaging shims, documentation and user hook examples only; the security
+  review is done.
 
 ### Order and overlap
 
@@ -644,6 +686,7 @@ running against the Rust image, are the regression check from R1 on.
 | JSON output is missing in older ZFS | Text fallback with the same types and fixtures from ZFS 2.2 |
 | The refactor stalls half way, with two architectures | The R0 pilots prove the architecture before migration; each phase is complete on its own; adapters can wrap old code during transition; crates move one at a time; `xtask metrics` shows how far each crate has come |
 | A refactor breaks the tests that should catch it | Test suites move to Rust before the code they protect changes (device suites in R2, VM harness in R3 and R4), and old and new suites run side by side until they agree |
+| A hostile disk, pool or USB device attacks the boot | The [threat model](#threat-model), a fuzz target per untrusted input, an independent security review before R9 |
 | Rules erode as more people contribute | Every rule is checked by a tool in CI ([How the rules are enforced](#how-the-rules-are-enforced)) |
 | Too many abstractions for the size of the code | Patterns only where the table above says; `docs/dev/architecture.md` explains each one where it is used |
 
@@ -651,12 +694,14 @@ running against the Rust image, are the regression check from R1 on.
 
 Decided on 22 October 2026:
 
-1. **Dependencies:** accepted for the runtime: `ratatui`, `crossterm`, `nucleo`, `serde`, `serde_json`, `thiserror`,
-   `tracing`, `tracing-subscriber` and `uucore`; for tests: `insta`, `proptest` and `pretty_assertions`. Their
-   versions and features are pinned in `[workspace.dependencies]`, with default features off where the crate allows
-   it, and each is vendored when a crate first uses it. `nucleo` (and `nucleo-matcher`) are under MPL-2.0, a
-   file-level copyleft licence; `deny.toml` allows it for these two crates only. `rexpect` is not taken: the VM
-   harness gets its own small expect module in R3. `uucore` needs its default `signals` feature.
+1. **Dependencies:** accepted for the runtime: `ratatui`, `crossterm`, `nucleo-matcher`, `serde`, `serde_json`,
+   `thiserror`, `tracing`, `tracing-subscriber` and `uucore`; for tests: `insta`, `proptest` and
+   `pretty_assertions`. Their versions and features are pinned in `[workspace.dependencies]`, with default features
+   off where the crate allows it, and each is vendored when a crate first uses it. The menu takes `nucleo-matcher`,
+   the matcher of Nucleo, rather than `nucleo`, whose thread pool (`rayon`) a boot menu's short lists do not need
+   (see [The menu on Nucleo and Ratatui](#the-menu-on-nucleo-and-ratatui)). `nucleo-matcher` is under MPL-2.0, a
+   file-level copyleft licence; `deny.toml` allows it for this crate only. `rexpect` is not taken: the VM harness
+   gets its own small expect module in R3. `uucore` needs its default `signals` feature.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu replaces `fzf` outright in R5; `fzf` leaves the images then.
@@ -693,7 +738,7 @@ the plan yet; each would be added to a phase when it is adopted.
    warning for one release and `zbm debug config` lists them; possibly a typed TOML configuration with
    `zbm config check`.
 7. **One concurrency model:** threads and channels with a single event loop, no async runtime, documented once for
-   Nucleo's matcher, the countdown, and USB key hot-plug.
+   the countdown, USB key hot-plug, and matching should a list ever need a worker thread.
 8. **Fewer crates, with a rule for splitting:** split a crate only when it has its own dependencies or a second user,
    otherwise use a module; track build time in CI (`cargo build --timings`) against a budget.
 9. **The Rust API Guidelines as the review checklist** for G1: naming, conversions, `#[must_use]` on outcome types,
@@ -710,3 +755,12 @@ the plan yet; each would be added to a phase when it is adopted.
     is missing and how to fix it.
 14. **More static checks:** `cargo machete` for unused dependencies, and address and undefined behaviour sanitizers on
     the `zbm-sys` tests.
+15. **Measurable pilot criteria:** R0's pilots pass or fail on numbers: binary size (a minimal build with all the
+    agreed crates measured 0.43 MB against 1.09 MB for today's `zbm`, a lower bound), added boot time, memory, and
+    redraw time over a 115200-baud serial console.
+16. **An upstream sync policy:** watch upstream ZFSBootMenu releases; for each relevant fix, write a test first, port
+    it, and log it as `legacy/RUNTIME-CHANGES.md` does today.
+17. **A reproducibility check:** build the images twice in different directories and compare them, with build paths
+    removed from the binaries (`--remap-path-prefix`), keeping the identical-image guarantee of PORT-ROADMAP phase 3.
+18. **Metrics for rules 2 and 4:** debt columns for public functions of domain crates that take a raw string, and for
+    public items without a doc example, ratcheted like the others.
