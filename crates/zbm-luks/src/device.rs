@@ -222,9 +222,9 @@ mod tests {
     use super::*;
     use crate::testing::{legacy_function, legacy_luks, log};
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::TempDir;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::{log_lines, stub_lines};
+    use zbm_testkit::TempDir;
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::{log_lines, stub_lines};
 
     const UUID: &str = "0f2c8bb6-2d5e-4f87-9a6b-9a7c1fef8d1b";
     const UPPER: &str = "0F2C8BB6-2D5E-4F87-9A6B-9A7C1FEF8D1B";

@@ -11,7 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_testutil::FakeRunner;
+use zbm_testkit::FakeRunner;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 use zbm_zfs::{Zfs, Zpool, parse_table};
 

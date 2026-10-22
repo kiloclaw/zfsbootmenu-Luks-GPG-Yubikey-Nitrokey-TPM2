@@ -496,9 +496,9 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use zbm_core::exec::{Output, Status, SystemRunner};
-    use zbm_testutil::TempDir;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::{Bash, log_lines, path};
+    use zbm_testkit::TempDir;
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::{Bash, log_lines, path};
 
     use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
     use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};

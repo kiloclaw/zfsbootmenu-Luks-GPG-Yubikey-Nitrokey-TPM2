@@ -182,7 +182,7 @@ fn boot_environments(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use zbm_testutil::FakeRunner;
+    use zbm_testkit::FakeRunner;
 
     /// A machine with the pools and datasets of `zpool` and `zfs` output.
     fn machine(zpool: &str, zfs: &str) -> FakeRunner {

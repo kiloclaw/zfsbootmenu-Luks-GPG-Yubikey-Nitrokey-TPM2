@@ -130,8 +130,8 @@ fn word(text: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::options::ZbmOptions;
-    use zbm_testutil::legacy::{Bash, path, shell_quote};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::legacy::{Bash, path, shell_quote};
+    use zbm_testkit::{Rng, TempDir};
 
     fn parse(text: &str) -> Conf {
         Conf::parse(text).unwrap()

@@ -230,9 +230,9 @@ mod tests {
     use super::*;
     use crate::testing::legacy_luks;
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::shell_quote;
-    use zbm_testutil::{Rng, repo_root};
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::shell_quote;
+    use zbm_testkit::{Rng, repo_root};
 
     fn fixture(name: &str) -> String {
         let path = repo_root()
@@ -367,7 +367,7 @@ mod tests {
             .map(str::to_owned),
         );
         for text in texts {
-            let file = zbm_testutil::TempDir::new("zbm-luks-text");
+            let file = zbm_testkit::TempDir::new("zbm-luks-text");
             let path = file.write("dump.txt", &text);
             // Empty JSON output: the legacy code falls back to the text.
             let stub = format!(
@@ -398,7 +398,7 @@ mod tests {
             "x",
         ];
         for json in jsons {
-            let dir = zbm_testutil::TempDir::new("zbm-luks-json");
+            let dir = zbm_testkit::TempDir::new("zbm-luks-json");
             let path = dir.write("dump.json", json);
             let stub = format!(
                 r#"cryptsetup() {{ [ "$2" = --dump-json-metadata ] && cat {}; }}"#,

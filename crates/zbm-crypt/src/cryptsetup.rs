@@ -117,7 +117,7 @@ fn classify<S>(output: &Output, mapping: &Mapping<S>) -> CryptError {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use zbm_testutil::FakeRunner;
+    use zbm_testkit::FakeRunner;
 
     fn volume() -> Mapping<Closed> {
         Mapping::new("/dev/sda2".parse().unwrap(), "cryptroot".parse().unwrap())

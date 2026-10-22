@@ -100,7 +100,7 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
 mod tests {
     use super::*;
     use zbm_cmdline::args::ZbmArgs;
-    use zbm_testutil::fakes::FakeFiles;
+    use zbm_testkit::fakes::FakeFiles;
 
     fn options(cmdline: &str) -> ZbmOptions {
         ZbmOptions::parse(&ZbmArgs::from_cmdline(cmdline)).0

@@ -202,9 +202,9 @@ mod tests {
     use super::*;
     use zbm_cmdline::parent::{read_kcl_prop, read_kcl_value};
     use zbm_core::exec::SystemRunner;
-    use zbm_testutil::fake_zfs::FakeZfs;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testutil::{FakeRunner, Rng, TempDir};
+    use zbm_testkit::fake_zfs::FakeZfs;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::{FakeRunner, Rng, TempDir};
 
     #[test]
     fn commands_match_the_legacy_ones() {

@@ -115,8 +115,8 @@ pub fn sort_versions(versions: &mut [String]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, have_program};
 
     fn perl_cmp(a: &str, b: &str) -> Ordering {
         let output = perl(

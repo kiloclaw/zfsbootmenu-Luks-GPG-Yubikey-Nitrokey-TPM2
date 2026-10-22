@@ -81,7 +81,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-boot` | Packages A, C and D: the start-up sequence, hooks, pool import, boot environments, kernels, ZFS encryption keys, `kexec`, snapshots and pool management. | `init.d/*`, `zfsbootmenu-core.sh` |
 | `zbm-menu` | Package E: the screens, `fzf`, previews, help, the command line editor and the power menu. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `libexec/*` |
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
-| `zbm-testutil` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
+| `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 
 The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-cmdline`, `zbm-log` and
 `zbm-zfs` with the runtime.
@@ -486,7 +486,7 @@ The legacy code is close to this but not the same, and the Rust runtime is stric
 All code that reaches the system does so through these interfaces, which `zbm-system` defines (except `Runner`, which
 is in `zbm-core`) and which a `System` value bundles, so a function needs only one parameter for all of them.
 
-| Interface | Covers | Real implementation | Fake (`zbm-testutil`) records |
+| Interface | Covers | Real implementation | Fake (`zbm-testkit`) records |
 | --- | --- | --- | --- |
 | `Runner` | every external program | `SystemRunner` | each command with its input; answers from responders |
 | `Files` | the state directory, `/proc`, `/sys`, `/dev/kmsg`, `/etc/zfsbootmenu.conf`, mount points, hook directories, waiting for device nodes | `RealFiles` (the standard library) | an in-memory tree with modes, times and symbolic links; every write |
@@ -513,7 +513,7 @@ secret's bytes appear in any argument, environment variable, written file or con
 | E: menu | the screen that follows each key; snapshot tests of each screen's text | the VM tests that drive the menu |
 | F: recovery tools | the programs `zbm` needs, the recovery commands' logic, the compatibility library's function list and implicit outputs | the `contrib/` hooks unchanged; image sizes compared |
 
-Pure functions with a Bash counterpart get parity tests that run both on the same inputs (`zbm-testutil::legacy`), as
+Pure functions with a Bash counterpart get parity tests that run both on the same inputs (`zbm-testkit::legacy`), as
 in phases 2 and 3.
 
 ### Driving the existing suites

@@ -214,8 +214,8 @@ fn tput_number(system: &System<'_>, capability: &str) -> i64 {
 mod tests {
     use super::*;
     use zbm_system::clock::Clock;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS};
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS};
 
     fn legacy_core() -> Bash {
         Bash::new()

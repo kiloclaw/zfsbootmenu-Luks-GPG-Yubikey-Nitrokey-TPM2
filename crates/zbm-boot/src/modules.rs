@@ -68,7 +68,7 @@ fn load(runner: &dyn Runner, log: &KernelLog<'_>) -> Result<()> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     /// Records the recovery shells.
     #[derive(Default)]

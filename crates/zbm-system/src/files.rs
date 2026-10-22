@@ -3,7 +3,7 @@
 //! The runtime reaches the state directory, `/proc`, `/sys`, `/dev/kmsg`,
 //! device nodes, mount points and hook directories through [`Files`]. The real
 //! implementation is [`RealFiles`]; tests use the in-memory fake of
-//! `zbm-testutil`, which records every write.
+//! `zbm-testkit`, which records every write.
 
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -236,7 +236,7 @@ impl Files for RealFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::TempDir;
+    use zbm_testkit::TempDir;
 
     #[test]
     fn real_files_follow_the_shell_commands() {

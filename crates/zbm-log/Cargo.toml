@@ -12,7 +12,7 @@ publish.workspace = true
 zbm-core.workspace = true
 
 [dev-dependencies]
-zbm-testutil.workspace = true
+zbm-testkit.workspace = true
 
 [lints]
 workspace = true

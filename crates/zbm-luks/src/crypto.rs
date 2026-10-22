@@ -355,7 +355,7 @@ pub fn hex(data: &[u8]) -> Secret {
 mod tests {
     use super::*;
     use zbm_core::exec::{Command, Input, Runner, Stream, SystemRunner};
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program};
 
     fn hex_text(data: &[u8]) -> String {
         String::from_utf8(hex(data).expose().to_vec()).unwrap()

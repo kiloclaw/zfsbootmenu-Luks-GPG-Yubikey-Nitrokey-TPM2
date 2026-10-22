@@ -7,8 +7,8 @@ use std::path::Path;
 use zbm_system::KernelLog;
 
 use crate::session::{PromptRequest, Prompter};
-use zbm_testutil::fakes::FakeSystem;
-use zbm_testutil::legacy::{Bash, LOG_STUBS};
+use zbm_testkit::fakes::FakeSystem;
+use zbm_testkit::legacy::{Bash, LOG_STUBS};
 
 /// The legacy LUKS library, loaded as the unit suites load it, with messages
 /// on standard error as `LEVEL: text`.
@@ -29,7 +29,7 @@ pub fn log(fake: &FakeSystem) -> KernelLog<'_> {
 /// The text of a legacy function from a library in `legacy/`, to run it with
 /// changes.
 pub fn legacy_function(library: &str, name: &str) -> String {
-    let text = std::fs::read_to_string(zbm_testutil::legacy::path(library)).unwrap();
+    let text = std::fs::read_to_string(zbm_testkit::legacy::path(library)).unwrap();
     let start = text.find(&format!("\n{name}() {{\n")).unwrap() + 1;
     let end = start + text[start..].find("\n}\n").unwrap() + 3;
     text[start..end].to_owned()

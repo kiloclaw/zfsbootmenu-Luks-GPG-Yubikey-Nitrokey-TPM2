@@ -133,8 +133,8 @@ pub fn prune_versions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::{path, perl};
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::legacy::{path, perl};
+    use zbm_testkit::{Rng, have_program};
 
     fn files(list: &[&str]) -> Vec<String> {
         list.iter().map(|f| (*f).to_owned()).collect()

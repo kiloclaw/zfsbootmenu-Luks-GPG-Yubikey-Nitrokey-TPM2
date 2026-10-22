@@ -19,7 +19,7 @@ zbm-platform             83
 zbm-state               100
 zbm-sys                  92
 zbm-system               98
-zbm-testutil             97
+zbm-testkit             97
 zbm-trace                91
 zbm-tui                  85
 zbm-types                94

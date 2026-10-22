@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use crate::TempDir;
 
 const SCRIPT: &str = r#"#!/bin/sh
-# Fake zfs for parity tests; see zbm-testutil/src/fake_zfs.rs
+# Fake zfs for parity tests; see zbm-testkit/src/fake_zfs.rs
 data="$(dirname "$0")/.."
 printf '%s\n' "$*" >> "${data}/calls"
 

@@ -120,7 +120,7 @@ mod tests {
     use crate::keys::tests::with_session;
     use crate::session::Settings;
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     /// A machine whose YubiKey answers `challenge` with `response`, and whose
     /// volume opens with `key`.

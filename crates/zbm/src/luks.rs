@@ -324,7 +324,7 @@ mod tests {
     use super::*;
     use zbm_luks::device::OpenCheck;
     use zbm_system::KernelLog;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     struct NoPrompts;
 

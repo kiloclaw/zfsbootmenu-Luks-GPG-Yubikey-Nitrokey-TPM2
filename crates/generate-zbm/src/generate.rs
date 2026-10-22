@@ -1298,7 +1298,7 @@ mod tests {
     #[test]
     fn the_version_matches_the_perl_program() {
         let source =
-            std::fs::read_to_string(zbm_testutil::legacy::path("bin/generate-zbm")).unwrap();
+            std::fs::read_to_string(zbm_testkit::legacy::path("bin/generate-zbm")).unwrap();
         assert!(source.contains(&format!("our $VERSION = '{VERSION}';")));
     }
 }

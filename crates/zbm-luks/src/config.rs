@@ -323,8 +323,8 @@ pub fn load_config(
 mod tests {
     use super::*;
     use crate::testing::legacy_luks;
-    use zbm_testutil::legacy::log_lines;
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::legacy::log_lines;
+    use zbm_testkit::{Rng, TempDir};
 
     /// What the legacy variables hold after `luks_parse_options`, one line per
     /// variable, with the arguments separated by `|`.

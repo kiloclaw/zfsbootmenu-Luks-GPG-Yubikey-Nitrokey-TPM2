@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn temp_dir_is_removed() {
         let path = {
-            let dir = TempDir::new("zbm-testutil");
+            let dir = TempDir::new("zbm-testkit");
             let file = dir.write("a/b", "x");
             assert!(file.is_file());
             dir.path().to_owned()

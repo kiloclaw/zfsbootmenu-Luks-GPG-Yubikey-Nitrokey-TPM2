@@ -16,7 +16,7 @@ zbm-state.workspace = true
 zbm-system.workspace = true
 
 [dev-dependencies]
-zbm-testutil.workspace = true
+zbm-testkit.workspace = true
 
 [lints]
 workspace = true

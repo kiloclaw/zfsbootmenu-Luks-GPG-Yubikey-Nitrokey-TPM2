@@ -54,7 +54,7 @@ pub fn next_offset(size: u128, offset: u128, alignment: u128) -> u128 {
 mod tests {
     use super::*;
     use zbm_core::exec::{Command, Runner, SystemRunner};
-    use zbm_testutil::have_program;
+    use zbm_testkit::have_program;
 
     const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 

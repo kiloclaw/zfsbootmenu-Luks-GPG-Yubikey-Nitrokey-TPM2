@@ -2,7 +2,7 @@
 //!
 //! Code that runs programs, reads or writes files, waits, talks to the user or
 //! signals processes does so through these traits, so that unit tests can
-//! replace the system with the fakes of `zbm-testutil`, which record what the
+//! replace the system with the fakes of `zbm-testkit`, which record what the
 //! code did (see "Testing" in `crates/DESIGN.md`):
 //!
 //! - [`Runner`] (from `zbm-core`): external programs; [`SystemRunner`].

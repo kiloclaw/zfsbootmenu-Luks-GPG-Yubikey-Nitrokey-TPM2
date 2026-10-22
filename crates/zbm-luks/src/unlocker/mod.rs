@@ -16,7 +16,7 @@
 //! use zbm_crypt::{Closed, Mapping, OpenOptions};
 //! use zbm_luks::unlocker::{KeyFile, Unlocker};
 //! use zbm_platform::Context;
-//! use zbm_testutil::fakes::FakeSystem;
+//! use zbm_testkit::fakes::FakeSystem;
 //!
 //! let fake = FakeSystem::new();
 //! fake.files.file("/etc/keys/root.key", "secret");

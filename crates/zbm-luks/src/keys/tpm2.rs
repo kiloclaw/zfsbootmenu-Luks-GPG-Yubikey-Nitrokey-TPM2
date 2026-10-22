@@ -398,8 +398,8 @@ mod tests {
     use crate::session::Settings;
     use crate::testing::{legacy_function, legacy_luks};
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::{have_program, repo_root};
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::{have_program, repo_root};
 
     fn fixture(name: &str) -> String {
         let path = repo_root()

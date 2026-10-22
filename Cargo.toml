@@ -33,7 +33,7 @@ zbm-platform = { path = "crates/zbm-platform" }
 zbm-state = { path = "crates/zbm-state" }
 zbm-sys = { path = "crates/zbm-sys" }
 zbm-system = { path = "crates/zbm-system" }
-zbm-testutil = { path = "crates/zbm-testutil" }
+zbm-testkit = { path = "crates/zbm-testkit" }
 zbm-trace = { path = "crates/zbm-trace" }
 zbm-tui = { path = "crates/zbm-tui" }
 zbm-types = { path = "crates/zbm-types" }

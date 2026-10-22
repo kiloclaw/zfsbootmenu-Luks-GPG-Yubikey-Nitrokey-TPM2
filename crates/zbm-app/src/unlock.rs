@@ -45,7 +45,7 @@ mod tests {
     use super::*;
     use crate::App;
     use pretty_assertions::assert_eq;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     fn request() -> UnlockRequest {
         UnlockRequest {

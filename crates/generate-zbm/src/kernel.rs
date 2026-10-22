@@ -113,8 +113,8 @@ pub fn decide<'a>(name: Option<&str>, lines: impl IntoIterator<Item = &'a [u8]>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, have_program};
 
     #[test]
     fn names() {

@@ -79,8 +79,8 @@ mod tests {
     use tracing_subscriber::layer::SubscriberExt;
     use zbm_core::exec::Status;
     use zbm_core::secret::Secret;
-    use zbm_testutil::FakeRunner;
-    use zbm_testutil::fakes::FakeClock;
+    use zbm_testkit::FakeRunner;
+    use zbm_testkit::fakes::FakeClock;
     use zbm_trace::JournalLayer;
 
     /// Runs `command` through a traced fake runner whose commands take

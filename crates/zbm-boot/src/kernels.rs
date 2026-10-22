@@ -314,9 +314,9 @@ mod tests {
     use super::*;
     use zbm_core::exec::SystemRunner;
     use zbm_system::files::RealFiles;
-    use zbm_testutil::fakes::FakeFiles;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, shell_quote};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::fakes::FakeFiles;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
+    use zbm_testkit::{Rng, TempDir};
 
     fn sorted(items: &[&str]) -> Vec<String> {
         let mut items: Vec<String> = items.iter().map(|item| (*item).to_owned()).collect();
@@ -513,7 +513,7 @@ mod tests {
 
     /// The source of one function of `zfsbootmenu-core.sh`.
     fn legacy_function(name: &str) -> String {
-        let core = std::fs::read_to_string(zbm_testutil::legacy::path(
+        let core = std::fs::read_to_string(zbm_testkit::legacy::path(
             "zfsbootmenu/lib/zfsbootmenu-core.sh",
         ))
         .unwrap();
@@ -614,7 +614,7 @@ mod tests {
             Some(true)
         );
         assert_eq!(bash_regex_match(&runner, "x", "("), Some(false));
-        let missing = zbm_testutil::FakeRunner::new();
+        let missing = zbm_testkit::FakeRunner::new();
         missing.respond_program("bash", 127, "");
         assert_eq!(bash_regex_match(&missing, "x", "x"), None);
     }

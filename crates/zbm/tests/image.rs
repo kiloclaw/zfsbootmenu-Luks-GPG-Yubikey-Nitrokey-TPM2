@@ -3,8 +3,8 @@
 //! `legacy/zfsbootmenu/install-helpers.sh`, run with stubs for the dracut and
 //! mkinitcpio functions they call.
 
-use zbm_testutil::TempDir;
-use zbm_testutil::legacy::Bash;
+use zbm_testkit::TempDir;
+use zbm_testkit::legacy::Bash;
 
 /// Stubs for the dracut and mkinitcpio functions the helpers use; each records
 /// its call on standard output.
@@ -154,7 +154,7 @@ derror() { echo "derror: $*" >&2; }
 fn dracut_install(settings: &[(&str, &str)]) -> TempDir {
     let initdir = TempDir::new("zbm-dracut");
     std::fs::create_dir_all(initdir.join("etc/cmdline.d")).unwrap();
-    let root = zbm_testutil::repo_root();
+    let root = zbm_testkit::repo_root();
     let mut bash = Bash::new()
         .code(DRACUT_STUBS)
         .code(&format!(

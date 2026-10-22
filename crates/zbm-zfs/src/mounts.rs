@@ -192,7 +192,7 @@ pub fn recursive_umount(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::FakeRunner;
+    use zbm_testkit::FakeRunner;
 
     const MOUNTS: &str = "\
 pool/ROOT/be / zfs rw,relatime,xattr 0 0

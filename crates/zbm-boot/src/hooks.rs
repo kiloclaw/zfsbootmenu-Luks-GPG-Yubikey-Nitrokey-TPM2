@@ -267,9 +267,9 @@ pub fn early_stage_in(
 mod tests {
     use super::*;
     use crate::testing::stub_lines;
-    use zbm_testutil::TempDir;
-    use zbm_testutil::fakes::{FakeFiles, FakeSystem, FileOperation};
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines, path};
+    use zbm_testkit::TempDir;
+    use zbm_testkit::fakes::{FakeFiles, FakeSystem, FileOperation};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
 
     fn log(fake: &FakeSystem) -> KernelLog<'_> {
         fake.files.dir("/zfsbootmenu");
@@ -628,8 +628,8 @@ mod tests {
     fn matches_the_legacy_glob_on_real_files() {
         use std::os::unix::fs::PermissionsExt;
         use zbm_system::files::RealFiles;
-        use zbm_testutil::TempDir;
-        use zbm_testutil::legacy::Bash;
+        use zbm_testkit::TempDir;
+        use zbm_testkit::legacy::Bash;
 
         if !running_as_root() {
             eprintln!("skipped: the legacy code runs as root");

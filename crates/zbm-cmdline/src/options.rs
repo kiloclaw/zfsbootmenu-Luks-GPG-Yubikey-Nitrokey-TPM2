@@ -455,8 +455,8 @@ fn printf_hex(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines, path};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
+    use zbm_testkit::{Rng, TempDir};
 
     fn parse(cmdline: &str) -> (ZbmOptions, Vec<Message>) {
         ZbmOptions::parse(&ZbmArgs::from_cmdline(cmdline))

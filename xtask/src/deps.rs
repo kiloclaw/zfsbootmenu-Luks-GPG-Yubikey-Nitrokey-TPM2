@@ -95,7 +95,7 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
 ];
 
 /// Crates that only tests may use.
-pub const TEST_SUPPORT: &[&str] = &["zbm-testutil"];
+pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
 
 /// Developer tools, which no crate may use.
 pub const TOOLS: &[&str] = &["xtask"];
@@ -415,16 +415,13 @@ mod tests {
 
     #[test]
     fn test_support_is_only_a_development_dependency() {
-        let dev = package("zbm-luks", &[("zbm-testutil", DependencyKind::Dev, true)]);
-        let normal = package(
-            "zbm-luks",
-            &[("zbm-testutil", DependencyKind::Normal, true)],
-        );
+        let dev = package("zbm-luks", &[("zbm-testkit", DependencyKind::Dev, true)]);
+        let normal = package("zbm-luks", &[("zbm-testkit", DependencyKind::Normal, true)]);
 
         assert_eq!(problems_of(&dev), Vec::<String>::new());
         assert_eq!(
             problems_of(&normal),
-            ["zbm-luks -> zbm-testutil: test support crates may only be development dependencies"]
+            ["zbm-luks -> zbm-testkit: test support crates may only be development dependencies"]
         );
     }
 

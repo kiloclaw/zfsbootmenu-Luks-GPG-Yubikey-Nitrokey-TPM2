@@ -90,7 +90,7 @@ mod tests {
     use crate::session::Settings;
     use zbm_core::exec::{Output, Status};
     use zbm_core::secret::Secret;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     fn clevis_machine(key: &'static [u8]) -> FakeSystem {
         let fake = FakeSystem::new();

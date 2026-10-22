@@ -156,7 +156,7 @@ fn describe_error(error: &AppError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     fn args(line: &str) -> Vec<String> {
         line.split_whitespace().map(str::to_owned).collect()

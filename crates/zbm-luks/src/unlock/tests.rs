@@ -4,7 +4,7 @@ use std::path::Path;
 
 use zbm_core::exec::{Command, Input, Output, Status};
 use zbm_system::files::Files;
-use zbm_testutil::fakes::{ConsoleInput, FakeFiles, FakeSystem};
+use zbm_testkit::fakes::{ConsoleInput, FakeFiles, FakeSystem};
 
 use crate::device::OpenCheck;
 use crate::session::{Luks, Session, Settings};

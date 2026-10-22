@@ -266,7 +266,7 @@ impl Logger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::TempDir;
+    use zbm_testkit::TempDir;
 
     #[test]
     fn levels_match_the_kernel_log() {

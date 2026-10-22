@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 use tracing_subscriber::layer::SubscriberExt;
 use zbm_crypt::{Closed, CryptError, Mapping, OpenOptions};
 use zbm_platform::{Context, Input, Secret};
-use zbm_testutil::fakes::FakeSystem;
+use zbm_testkit::fakes::FakeSystem;
 use zbm_trace::JournalLayer;
 
 use super::*;

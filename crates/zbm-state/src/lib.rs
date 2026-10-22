@@ -350,9 +350,9 @@ impl<'a> State<'a> {
 mod tests {
     use super::*;
     use std::io;
-    use zbm_testutil::fakes::{FakeFiles, FileOperation};
-    use zbm_testutil::legacy::{Bash, LOG_STUBS};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::fakes::{FakeFiles, FileOperation};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS};
+    use zbm_testkit::{Rng, TempDir};
 
     fn path(text: &str) -> PathBuf {
         PathBuf::from(text)

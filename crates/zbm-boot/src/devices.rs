@@ -72,8 +72,8 @@ pub fn stage(system: &System<'_>, log: &KernelLog<'_>, wait_for: &str, delay: &s
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::{Bash, log_lines, path};
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::{Bash, log_lines, path};
 
     use crate::testing::{LINE_LOG_STUBS, stub_lines};
 

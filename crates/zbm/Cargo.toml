@@ -30,7 +30,7 @@ test-seams = []
 
 [dev-dependencies]
 pretty_assertions.workspace = true
-zbm-testutil.workspace = true
+zbm-testkit.workspace = true
 
 [lints]
 workspace = true

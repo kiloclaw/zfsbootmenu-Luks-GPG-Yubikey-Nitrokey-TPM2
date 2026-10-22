@@ -13,7 +13,7 @@
 //! ```
 //! use zbm_app::{Action, App, Event, UnlockRequest};
 //! use zbm_platform::Context;
-//! use zbm_testutil::fakes::FakeSystem;
+//! use zbm_testkit::fakes::FakeSystem;
 //!
 //! let fake = FakeSystem::new();
 //! fake.files.file("/keys/root.key", "secret");

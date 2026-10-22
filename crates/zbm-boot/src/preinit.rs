@@ -172,7 +172,7 @@ pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOption
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     const IMAGE_CONF: &str = "\
 [ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return

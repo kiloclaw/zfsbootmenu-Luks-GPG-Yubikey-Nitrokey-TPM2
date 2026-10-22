@@ -545,8 +545,8 @@ fn scalar(text: &str, style: TScalarStyle, tag: Option<&Tag>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, TempDir, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, TempDir, have_program};
 
     #[test]
     fn plain_scalars_follow_the_core_schema() {

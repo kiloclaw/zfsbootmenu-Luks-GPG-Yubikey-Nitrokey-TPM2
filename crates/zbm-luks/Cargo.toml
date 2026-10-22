@@ -23,7 +23,7 @@ zbm-types.workspace = true
 [dev-dependencies]
 pretty_assertions.workspace = true
 tracing-subscriber.workspace = true
-zbm-testutil.workspace = true
+zbm-testkit.workspace = true
 zbm-trace.workspace = true
 
 [lints]

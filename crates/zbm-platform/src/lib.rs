@@ -4,7 +4,7 @@
 //! A service (unlocking a volume, importing a pool) never runs a program or
 //! reads a file itself: it asks the ports in the [`Context`] it is given.
 //! Programs and tests choose what is behind them, the real system or the
-//! fakes of `zbm-testutil`, which is what makes every service testable
+//! fakes of `zbm-testkit`, which is what makes every service testable
 //! without root, devices or ZFS.
 //!
 //! The ports are the interfaces of `zbm-core` and `zbm-system`, re-exported
@@ -17,7 +17,7 @@
 //!
 //! ```
 //! use zbm_platform::{Command, Context};
-//! use zbm_testutil::fakes::FakeSystem;
+//! use zbm_testkit::fakes::FakeSystem;
 //!
 //! let fake = FakeSystem::new();
 //! fake.runner.respond("cryptsetup --version", 0, "cryptsetup 2.8.7\n");

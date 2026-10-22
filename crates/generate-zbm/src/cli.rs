@@ -372,8 +372,8 @@ pub fn parse(args: &[String], posixly_correct: bool) -> Parsed {
 mod tests {
     use super::*;
     use zbm_core::exec::{Command, Runner, Stream, SystemRunner};
-    use zbm_testutil::legacy::path;
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::legacy::path;
+    use zbm_testkit::{Rng, have_program};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|arg| (*arg).to_owned()).collect()

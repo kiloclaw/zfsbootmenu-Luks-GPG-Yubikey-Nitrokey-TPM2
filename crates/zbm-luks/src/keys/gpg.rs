@@ -343,7 +343,7 @@ mod tests {
     use crate::keys::tests::with_session;
     use crate::session::Settings;
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     #[test]
     fn gpg_key_files_are_known_by_name_or_option() {

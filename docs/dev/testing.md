@@ -36,7 +36,7 @@ people and for AI tools alike:
 
 - **One behaviour per test, named as a sentence:** `a_wrong_pin_counts_towards_the_lockout`, not `test_pin_2`.
 - **Arrange, act, assert,** separated by blank lines. Build the machine under test with the fakes of
-  `zbm-testutil` (`FakeSystem`, `FakeFiles`, `FakeRunner`, `FakeConsole`) rather than real programs and devices.
+  `zbm-testkit` (`FakeSystem`, `FakeFiles`, `FakeRunner`, `FakeConsole`) rather than real programs and devices.
 - **Tables for variations,** with a name per case, so that a failure says which case failed.
 - **Deterministic:** no wall clock, sleeping, network or unseeded randomness. Generated inputs come from a seeded
   generator; set `ZBM_TEST_SEED` to try other inputs, and quote the seed a failing test prints to reproduce it.
@@ -53,7 +53,7 @@ people and for AI tools alike:
   (`crates/*/tests/fixtures/`, recorded by `scripts/dev/record-fixtures.py` and
   `scripts/dev/record-luks-fixtures.sh`).
 
-Parity tests that run the legacy Bash or Perl code (through `zbm_testutil::legacy`) are counted by
+Parity tests that run the legacy Bash or Perl code (through `zbm_testkit::legacy`) are counted by
 `cargo xtask metrics` as "legacy tests". REFACTOR-ROADMAP.md replaces them with golden files recorded from the legacy
 code in phase R1, so do not add new ones unless a port needs them; prefer recorded expectations.
 

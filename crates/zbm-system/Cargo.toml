@@ -14,7 +14,7 @@ zbm-log.workspace = true
 zbm-sys.workspace = true
 
 [dev-dependencies]
-zbm-testutil.workspace = true
+zbm-testkit.workspace = true
 
 [lints]
 workspace = true

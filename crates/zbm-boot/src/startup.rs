@@ -435,7 +435,7 @@ impl<'a> Startup<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     /// The configuration the start-up would write for `cmdline`.
     fn conf(cmdline: &str) -> Conf {
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn the_shell_banner_matches_the_legacy_one() {
-        use zbm_testutil::legacy::{Bash, LOG_STUBS};
+        use zbm_testkit::legacy::{Bash, LOG_STUBS};
         for message in ["", "unable to mount \x1b[0;36mtank\x1b[0m"] {
             let legacy = Bash::new()
                 .code(LOG_STUBS)

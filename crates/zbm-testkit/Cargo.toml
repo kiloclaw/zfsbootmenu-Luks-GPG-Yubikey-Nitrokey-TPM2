@@ -1,5 +1,5 @@
 [package]
-name = "zbm-testutil"
+name = "zbm-testkit"
 description = "Test helpers of the Rust port of ZFSBootMenu: fakes of the system, parity tests, generated inputs"
 version.workspace = true
 edition.workspace = true

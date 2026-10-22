@@ -6,8 +6,8 @@
 use std::path::{Path, PathBuf};
 
 use zbm_core::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
-use zbm_testutil::fake_zfs::FakeZfs;
-use zbm_testutil::{TempDir, have_program, legacy, repo_root};
+use zbm_testkit::fake_zfs::FakeZfs;
+use zbm_testkit::{TempDir, have_program, legacy, repo_root};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 const PROPERTY: &str = "org.zfsbootmenu:commandline";

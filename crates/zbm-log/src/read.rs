@@ -130,8 +130,8 @@ pub fn read_logs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS};
-    use zbm_testutil::{FakeRunner, TempDir};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS};
+    use zbm_testkit::{FakeRunner, TempDir};
 
     #[test]
     fn filtered_command_splits_the_time() {

@@ -185,7 +185,7 @@ mod tests {
     use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
+    use zbm_testkit::fakes::FakeSystem;
 
     pub(crate) fn with_session<T>(
         fake: &FakeSystem,

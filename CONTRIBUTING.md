@@ -102,7 +102,7 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
   "Rust unit tests" section of [PORT-ROADMAP.md](PORT-ROADMAP.md) describes what they cover.
 - Runtime code follows [crates/DESIGN.md](crates/DESIGN.md): it reaches the system only through the interfaces of
   `zbm-system` and `Runner`, shares state between processes only through `zbm-state`, and is tested with the fakes in
-  `zbm-testutil::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
+  `zbm-testkit::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
   to depart from the design, change the design document in the same pull request.
 - The legacy runtime (`legacy/zfsbootmenu/` and the dracut and mkinitcpio files in `packaging/`) is frozen: it gets
   bug fixes only, each with a test. Record every change in `legacy/RUNTIME-CHANGES.md`, so the Rust runtime ports it;

@@ -117,8 +117,8 @@ fn can_be_file_name(key: &str) -> bool {
 mod tests {
     use super::*;
     use crate::kcl::tokenize;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::{Rng, TempDir};
 
     #[test]
     fn last_occurrence_wins_and_flags_are_one() {

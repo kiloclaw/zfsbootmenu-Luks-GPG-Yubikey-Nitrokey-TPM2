@@ -129,7 +129,7 @@ impl<'a> KernelLog<'a> {
 mod tests {
     use super::*;
     use crate::files::RealFiles;
-    use zbm_testutil::TempDir;
+    use zbm_testkit::TempDir;
 
     #[test]
     fn writes_records_and_markers() {

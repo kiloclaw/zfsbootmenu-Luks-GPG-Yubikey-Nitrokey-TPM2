@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_core::exec::{Command, Output, Runner, Stream, SystemRunner};
-use zbm_testutil::{TempDir, have_program, legacy};
+use zbm_testkit::{TempDir, have_program, legacy};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 

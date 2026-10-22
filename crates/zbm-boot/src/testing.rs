@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_system::files::{Files, Metadata, RealFiles};
 
-pub use zbm_testutil::legacy::{LINE_LOG_STUBS, stub_lines};
+pub use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
 
 /// Real files, with some absolute paths moved elsewhere.
 pub struct Redirect {

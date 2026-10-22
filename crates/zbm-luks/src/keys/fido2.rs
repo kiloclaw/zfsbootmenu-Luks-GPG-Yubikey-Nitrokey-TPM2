@@ -225,8 +225,8 @@ mod tests {
     use crate::keys::tests::with_session;
     use crate::session::Settings;
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::repo_root;
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::repo_root;
 
     #[test]
     fn devices_and_secrets_are_read_as_the_legacy_pipelines_read_them() {

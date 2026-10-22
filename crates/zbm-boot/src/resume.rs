@@ -127,9 +127,9 @@ mod tests {
     use std::path::Path;
     use zbm_core::exec::{Output, Status};
     use zbm_system::files::Files;
-    use zbm_testutil::TempDir;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::TempDir;
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
 
     fn legacy_core() -> Bash {
         Bash::new()
@@ -192,7 +192,7 @@ mod tests {
                 "blkid() {{ [ \"$2\" = \"TYPE={}\" ]; }}",
                 suspend.unwrap_or("none")
             );
-            let core = std::fs::read_to_string(zbm_testutil::legacy::path(
+            let core = std::fs::read_to_string(zbm_testkit::legacy::path(
                 "zfsbootmenu/lib/zfsbootmenu-core.sh",
             ))
             .unwrap();
@@ -215,7 +215,7 @@ mod tests {
             fake.console.line(input.trim_end_matches('\n'));
             if input.is_empty() {
                 // The input ends: nothing to read.
-                fake.console.push(zbm_testutil::fakes::ConsoleInput::End);
+                fake.console.push(zbm_testkit::fakes::ConsoleInput::End);
             }
             let state = State::new(&fake.files, "/zfsbootmenu");
             let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);

@@ -394,10 +394,10 @@ mod tests {
     use std::time::{Duration, SystemTime};
     use zbm_core::exec::SystemRunner;
     use zbm_system::files::RealFiles;
-    use zbm_testutil::fake_zfs::FakeZfs;
-    use zbm_testutil::fakes::FakeFiles;
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::fake_zfs::FakeZfs;
+    use zbm_testkit::fakes::FakeFiles;
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::{Rng, TempDir};
     use zbm_zfs::Zfs;
 
     #[test]

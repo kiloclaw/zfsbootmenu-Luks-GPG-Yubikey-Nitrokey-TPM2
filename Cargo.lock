@@ -273,7 +273,7 @@ dependencies = [
  "yaml-rust2",
  "zbm-core",
  "zbm-sys",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
@@ -1149,7 +1149,7 @@ dependencies = [
  "zbm-platform",
  "zbm-sys",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-trace",
  "zbm-tui",
  "zbm-types",
@@ -1165,7 +1165,7 @@ dependencies = [
  "zbm-crypt",
  "zbm-luks",
  "zbm-platform",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-types",
 ]
 
@@ -1179,7 +1179,7 @@ dependencies = [
  "zbm-luks",
  "zbm-state",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-zfs",
 ]
 
@@ -1189,7 +1189,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-core",
  "zbm-log",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
@@ -1207,7 +1207,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "zbm-platform",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-types",
 ]
 
@@ -1218,7 +1218,7 @@ dependencies = [
  "zbm-cmdline",
  "zbm-core",
  "zbm-sys",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-zfs",
 ]
 
@@ -1227,7 +1227,7 @@ name = "zbm-log"
 version = "0.1.0"
 dependencies = [
  "zbm-core",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
@@ -1245,7 +1245,7 @@ dependencies = [
  "zbm-state",
  "zbm-sys",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-trace",
  "zbm-types",
 ]
@@ -1259,7 +1259,7 @@ dependencies = [
  "zbm-core",
  "zbm-state",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
@@ -1272,7 +1272,7 @@ dependencies = [
  "tracing-subscriber",
  "zbm-core",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
  "zbm-trace",
 ]
 
@@ -1282,7 +1282,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-core",
  "zbm-system",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
@@ -1296,11 +1296,11 @@ dependencies = [
  "zbm-core",
  "zbm-log",
  "zbm-sys",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]
-name = "zbm-testutil"
+name = "zbm-testkit"
 version = "0.1.0"
 dependencies = [
  "zbm-core",
@@ -1346,7 +1346,7 @@ dependencies = [
  "zbm-cmdline",
  "zbm-core",
  "zbm-log",
- "zbm-testutil",
+ "zbm-testkit",
 ]
 
 [[package]]

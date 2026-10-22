@@ -537,8 +537,8 @@ fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, TempDir, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, TempDir, have_program};
 
     #[test]
     fn words() {

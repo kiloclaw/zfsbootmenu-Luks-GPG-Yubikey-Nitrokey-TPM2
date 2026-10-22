@@ -199,8 +199,8 @@ pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, have_program};
 
     #[test]
     fn paths() {

@@ -227,7 +227,7 @@ impl<T: std::os::fd::AsFd> AsFdClone for T {
 mod tests {
     use super::*;
     use zbm_core::exec::{Output, Status};
-    use zbm_testutil::{FakeRunner, TempDir};
+    use zbm_testkit::{FakeRunner, TempDir};
 
     struct Setup {
         _dir: TempDir,

@@ -575,7 +575,7 @@ pub fn read_arguments(tokens: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testutil::{FakeRunner, TempDir};
+    use zbm_testkit::{FakeRunner, TempDir};
 
     struct Run {
         code: i32,

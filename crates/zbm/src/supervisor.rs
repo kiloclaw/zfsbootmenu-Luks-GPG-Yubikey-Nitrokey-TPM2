@@ -172,7 +172,7 @@ impl Supervisor {
 )]
 mod tests {
     use super::*;
-    use zbm_testutil::TempDir;
+    use zbm_testkit::TempDir;
 
     /// `waitpid(-1)` collects any child, so tests that start processes take
     /// turns.

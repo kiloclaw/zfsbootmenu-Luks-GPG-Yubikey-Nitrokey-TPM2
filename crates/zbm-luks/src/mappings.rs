@@ -171,9 +171,9 @@ mod tests {
     use crate::testing::{NoPrompts, legacy_luks, log};
     use zbm_system::clock::Clock;
     use zbm_system::files::Files;
-    use zbm_testutil::TempDir;
-    use zbm_testutil::fakes::FakeSystem;
-    use zbm_testutil::legacy::shell_quote;
+    use zbm_testkit::TempDir;
+    use zbm_testkit::fakes::FakeSystem;
+    use zbm_testkit::legacy::shell_quote;
 
     fn with_session<T>(fake: &FakeSystem, body: impl FnOnce(&Session<'_>) -> T) -> T {
         let mut settings = Settings::new("/zfsbootmenu");

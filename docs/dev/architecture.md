@@ -42,7 +42,7 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm-state` → `zbm-system`
 - `zbm` → `zbm-tui`
 
-Test support (`zbm-testutil`) is only a development dependency. Tools (`xtask`) use no crate of the workspace.
+Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`) use no crate of the workspace.
 
 Third-party crates:
 
@@ -88,7 +88,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest` as development depe
 - **front ends**: `zbm` dispatches applets by the name it was called with. `zbm-tui` is the new menu in the Elm
   architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
   placeholder it replaces.
-- **test support**: `zbm-testutil` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,
+- **test support**: `zbm-testkit` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,
   `FakeConsole`) and the helpers that run legacy code for parity tests. Crates use it only as a development
   dependency.
 

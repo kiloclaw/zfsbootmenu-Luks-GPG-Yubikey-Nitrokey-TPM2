@@ -17,5 +17,5 @@ zbm-menu                   0           0               0            0           
 zbm-state                  0           1               0            5              1             2              0
 zbm-sys                    0           0               0            0              0             0             13
 zbm-system                 0           0               6            7              0             0              0
-zbm-testutil               0           0               0            0              0             3              0
+zbm-testkit               0           0               0            0              0             3              0
 zbm-zfs                    0           0               2            5              3             1              0

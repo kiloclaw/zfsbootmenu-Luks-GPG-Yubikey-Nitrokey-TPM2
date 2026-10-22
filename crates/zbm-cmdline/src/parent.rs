@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn command_line_files_take_precedence() {
-        let dir = zbm_testutil::TempDir::new("zbm-cmdline-parent");
+        let dir = zbm_testkit::TempDir::new("zbm-cmdline-parent");
         let file = dir.write("cmdline", "  root=x %{parent} \nignored\n");
         let mut log = Vec::new();
         assert_eq!(

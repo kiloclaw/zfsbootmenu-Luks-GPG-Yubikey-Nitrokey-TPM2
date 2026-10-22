@@ -318,7 +318,7 @@ fn visit_owned_expr(scanner: &mut Scanner<'_>, expr: &Expr) {
     scanner.visit_expr(expr);
 }
 
-/// Whether a path names the legacy test helpers of `zbm_testutil`: the
+/// Whether a path names the legacy test helpers of `zbm_testkit`: the
 /// `legacy` module, its `Bash` builder, or its `perl` function.
 fn refers_to_legacy(segments: &[String]) -> bool {
     segments.iter().any(|segment| segment == "legacy")

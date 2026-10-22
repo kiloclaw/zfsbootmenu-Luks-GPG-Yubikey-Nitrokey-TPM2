@@ -68,9 +68,9 @@ pub fn stage(files: &dyn Files, log: &KernelLog<'_>, spl_hostid: &str) {
 mod tests {
     use super::*;
     use crate::testing::Redirect;
-    use zbm_testutil::fakes::{FakeFiles, FakeSystem};
-    use zbm_testutil::legacy::{Bash, LOG_STUBS, path};
-    use zbm_testutil::{Rng, TempDir};
+    use zbm_testkit::fakes::{FakeFiles, FakeSystem};
+    use zbm_testkit::legacy::{Bash, LOG_STUBS, path};
+    use zbm_testkit::{Rng, TempDir};
 
     fn log(fake: &FakeSystem) -> KernelLog<'_> {
         KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)

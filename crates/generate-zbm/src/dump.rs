@@ -718,8 +718,8 @@ fn double_quoted(value: &str) -> String {
 mod tests {
     use super::*;
     use crate::config::load;
-    use zbm_testutil::legacy::perl;
-    use zbm_testutil::{Rng, TempDir, have_program};
+    use zbm_testkit::legacy::perl;
+    use zbm_testkit::{Rng, TempDir, have_program};
 
     #[test]
     fn the_default_configuration() {

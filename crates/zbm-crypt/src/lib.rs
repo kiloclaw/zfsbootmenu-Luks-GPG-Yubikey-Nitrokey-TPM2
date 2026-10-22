@@ -18,7 +18,7 @@
 //! ```
 //! use zbm_crypt::{Closed, Cryptsetup, CryptError, Mapping, OpenOptions};
 //! use zbm_platform::Secret;
-//! use zbm_testutil::FakeRunner;
+//! use zbm_testkit::FakeRunner;
 //!
 //! let runner = FakeRunner::new();
 //! let cryptsetup = Cryptsetup::new(&runner);
