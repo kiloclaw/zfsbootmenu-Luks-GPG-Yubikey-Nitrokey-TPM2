@@ -38,13 +38,14 @@ use zbm_platform::exec::{Command, Output, Runner, Status};
 
 pub mod assert;
 pub mod efi;
-pub mod fake_zfs;
 pub mod fakes;
 mod host;
 pub mod legacy;
 pub mod machine;
 pub mod parity;
 mod rng;
+pub mod zfs;
+pub mod zfs_script;
 
 pub use host::{TempDir, have_program, repo_root, write_executable};
 pub use rng::Rng;

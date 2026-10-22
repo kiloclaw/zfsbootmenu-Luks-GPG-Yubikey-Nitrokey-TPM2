@@ -5,7 +5,7 @@
 # one by hand.
 crate         line_coverage
 generate-zbm             92
-xtask                    77
+xtask                    78
 zbm                      75
 zbm-app                  98
 zbm-boot                 97

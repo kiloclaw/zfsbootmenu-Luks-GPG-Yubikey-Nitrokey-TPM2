@@ -1,13 +1,13 @@
 //! A snapshot of the machine: what the menu shows.
 //!
-//! The pilot reads the boot environments with `zpool list` and `zfs list`
-//! in `-H` form; R2 replaces this with the JSON adapter of `zbm-zfs`
-//! (REFACTOR-ROADMAP.md, "The ZFS boundary").
+//! It is read through the ZFS port of `zbm-zfs` (REFACTOR-ROADMAP.md, "The
+//! ZFS boundary"): the pools for their `bootfs`, and the filesystems with
+//! their mount point and key status.
 
 use std::collections::BTreeSet;
 
-use zbm_platform::{Command, Runner, Stream};
 use zbm_types::DatasetName;
+use zbm_zfs::{Zfs, ZfsError};
 
 /// The machine, as far as a front end needs to know it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -66,209 +66,115 @@ impl Snapshot {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SnapshotError {
-    /// A program could not be started.
-    #[error("{program} could not be started")]
-    Start {
-        /// The program.
-        program: &'static str,
-        /// Why.
-        #[source]
-        source: std::io::Error,
-    },
-    /// A program failed.
-    #[error("{program} failed with status {status}")]
-    Failed {
-        /// The program.
-        program: &'static str,
-        /// Its exit status, as a shell reports it.
-        status: i32,
-    },
-    /// A program printed a line this code does not understand.
-    #[error("{program} printed an unexpected line: {line:?}")]
-    Parse {
-        /// The program.
-        program: &'static str,
-        /// The line.
-        line: String,
-    },
+    /// ZFS could not answer.
+    #[error(transparent)]
+    Zfs(#[from] ZfsError),
 }
 
-/// Reads the boot environments of the imported pools.
-pub(crate) fn read(runner: &dyn Runner) -> Result<Snapshot, SnapshotError> {
-    let pools = run(runner, "zpool", &["list", "-H", "-o", "name,bootfs"])?;
-    let defaults = default_environments(&pools)?;
-    let datasets = run(
-        runner,
-        "zfs",
-        &[
-            "list",
-            "-H",
-            "-t",
-            "filesystem",
-            "-o",
-            "name,mountpoint,canmount,keystatus",
-        ],
-    )?;
-    let boot_environments = boot_environments(&datasets, &defaults)?;
+/// The properties a boot environment is recognized by.
+const PROPERTIES: &[&str] = &["mountpoint", "canmount", "keystatus"];
+
+/// Reads the boot environments of the imported pools: the filesystems
+/// mounted at `/` whose `canmount` is not `off`.
+pub(crate) fn read(zfs: &dyn Zfs) -> Result<Snapshot, SnapshotError> {
+    let defaults: BTreeSet<DatasetName> = zfs
+        .pools()?
+        .into_iter()
+        .filter_map(|pool| pool.bootfs)
+        .collect();
+    let boot_environments = zfs
+        .filesystems(None, PROPERTIES)?
+        .into_iter()
+        .filter(|dataset| {
+            dataset.value("mountpoint") == Some("/") && dataset.value("canmount") != Some("off")
+        })
+        .map(|dataset| {
+            let encryption = match dataset.value("keystatus") {
+                None => Encryption::None,
+                Some("available") => Encryption::Unlocked,
+                Some(_) => Encryption::Locked,
+            };
+            BootEnvironment {
+                is_default: defaults.contains(&dataset.name),
+                name: dataset.name,
+                encryption,
+            }
+        })
+        .collect();
     Ok(Snapshot { boot_environments })
-}
-
-/// Runs `program` with `args` and returns its standard output.
-fn run(runner: &dyn Runner, program: &'static str, args: &[&str]) -> Result<String, SnapshotError> {
-    let command = Command::new(program).args(args).stdout(Stream::Capture);
-    let output = runner
-        .run(&command)
-        .map_err(|source| SnapshotError::Start { program, source })?;
-    if !output.status.is_success() {
-        return Err(SnapshotError::Failed {
-            program,
-            status: output.status.shell_code(),
-        });
-    }
-    Ok(output.stdout_text())
-}
-
-/// The `bootfs` of each pool in `zpool list -H -o name,bootfs` output.
-fn default_environments(text: &str) -> Result<BTreeSet<DatasetName>, SnapshotError> {
-    let mut defaults = BTreeSet::new();
-    for line in text.lines() {
-        let parse = || SnapshotError::Parse {
-            program: "zpool",
-            line: line.to_owned(),
-        };
-        let (_pool, bootfs) = line.split_once('\t').ok_or_else(parse)?;
-        if bootfs != "-" {
-            defaults.insert(bootfs.parse().map_err(|_| parse())?);
-        }
-    }
-    Ok(defaults)
-}
-
-/// The boot environments in
-/// `zfs list -H -o name,mountpoint,canmount,keystatus` output.
-fn boot_environments(
-    text: &str,
-    defaults: &BTreeSet<DatasetName>,
-) -> Result<Vec<BootEnvironment>, SnapshotError> {
-    let mut environments = Vec::new();
-    for line in text.lines() {
-        let parse = || SnapshotError::Parse {
-            program: "zfs",
-            line: line.to_owned(),
-        };
-        let fields: Vec<&str> = line.split('\t').collect();
-        let [name, mountpoint, canmount, keystatus] = fields.as_slice() else {
-            return Err(parse());
-        };
-        if *mountpoint != "/" || *canmount == "off" {
-            continue;
-        }
-        let name: DatasetName = name.parse().map_err(|_| parse())?;
-        let encryption = match *keystatus {
-            "-" => Encryption::None,
-            "available" => Encryption::Unlocked,
-            _ => Encryption::Locked,
-        };
-        environments.push(BootEnvironment {
-            is_default: defaults.contains(&name),
-            name,
-            encryption,
-        });
-    }
-    Ok(environments)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use zbm_testkit::FakeRunner;
-
-    /// A machine with the pools and datasets of `zpool` and `zfs` output.
-    fn machine(zpool: &str, zfs: &str) -> FakeRunner {
-        let runner = FakeRunner::new();
-        runner.respond_program("zpool", 0, zpool);
-        runner.respond_program("zfs", 0, zfs);
-        runner
-    }
+    use zbm_testkit::zfs::FakeZfs;
 
     #[test]
     fn filesystems_mounted_at_root_are_boot_environments() {
-        let runner = machine(
-            "zroot\tzroot/ROOT/void\ntank\t-\n",
-            "zroot\tnone\ton\t-\n\
-             zroot/ROOT\tnone\toff\t-\n\
-             zroot/ROOT/void\t/\tnoauto\tavailable\n\
-             zroot/ROOT/old\t/\toff\t-\n\
-             zroot/home\t/home\ton\t-\n\
-             tank/ROOT/arch\t/\tnoauto\tunavailable\n",
-        );
+        let zfs = FakeZfs::new()
+            .pool("tank")
+            .pool("zroot")
+            .filesystem("zroot", &[("mountpoint", "none")])
+            .filesystem("zroot/ROOT", &[("mountpoint", "none"), ("canmount", "off")])
+            .filesystem(
+                "zroot/ROOT/void",
+                &[
+                    ("mountpoint", "/"),
+                    ("canmount", "noauto"),
+                    ("keystatus", "available"),
+                ],
+            )
+            .filesystem(
+                "zroot/ROOT/old",
+                &[("mountpoint", "/"), ("canmount", "off")],
+            )
+            .filesystem("zroot/home", &[("mountpoint", "/home")])
+            .filesystem(
+                "tank/ROOT/arch",
+                &[
+                    ("mountpoint", "/"),
+                    ("canmount", "noauto"),
+                    ("keystatus", "unavailable"),
+                ],
+            )
+            .bootfs("zroot", "zroot/ROOT/void");
 
-        let snapshot = read(&runner).unwrap();
+        let snapshot = read(&zfs).unwrap();
 
         assert_eq!(
             snapshot.boot_environments,
             [
                 BootEnvironment {
-                    name: "zroot/ROOT/void".parse().unwrap(),
-                    is_default: true,
-                    encryption: Encryption::Unlocked,
-                },
-                BootEnvironment {
                     name: "tank/ROOT/arch".parse().unwrap(),
                     is_default: false,
                     encryption: Encryption::Locked,
                 },
+                BootEnvironment {
+                    name: "zroot/ROOT/void".parse().unwrap(),
+                    is_default: true,
+                    encryption: Encryption::Unlocked,
+                },
             ]
         );
         assert_eq!(
-            runner.lines(),
-            [
-                "zpool list -H -o name,bootfs",
-                "zfs list -H -t filesystem -o name,mountpoint,canmount,keystatus",
-            ]
+            zfs.calls(),
+            ["pools", "filesystems - mountpoint,canmount,keystatus"]
         );
     }
 
     #[test]
     fn no_pools_means_no_boot_environments() {
-        let snapshot = read(&machine("", "")).unwrap();
+        let snapshot = read(&FakeZfs::new()).unwrap();
 
         assert_eq!(snapshot, Snapshot::default());
     }
 
     #[test]
-    fn a_failing_program_is_an_error_that_names_it() {
-        let runner = FakeRunner::new();
-        runner.respond_program("zpool", 1, "");
+    fn a_failure_of_zfs_is_an_error_that_says_what_failed() {
+        let error = SnapshotError::from(ZfsError::Missing("zroot".to_owned()));
 
-        let error = read(&runner).unwrap_err();
-
-        assert_eq!(error.to_string(), "zpool failed with status 1");
-    }
-
-    #[test]
-    fn failing_zfs_and_a_bad_zpool_line_are_errors() {
-        let runner = FakeRunner::new();
-        runner.respond_program("zpool", 0, "zroot\t-\n");
-        runner.respond_program("zfs", 2, "");
-        assert_eq!(
-            read(&runner).unwrap_err().to_string(),
-            "zfs failed with status 2"
-        );
-
-        let error = read(&machine("zroot\n", "")).unwrap_err();
-        assert!(error.to_string().contains("zroot"), "{error}");
-    }
-
-    #[test]
-    fn an_unexpected_line_is_an_error_that_quotes_it() {
-        let error = read(&machine("", "zroot/ROOT/void\t/\n")).unwrap_err();
-
-        assert_eq!(
-            error.to_string(),
-            "zfs printed an unexpected line: \"zroot/ROOT/void\\t/\""
-        );
+        assert_eq!(error.to_string(), "zroot does not exist");
     }
 
     #[test]

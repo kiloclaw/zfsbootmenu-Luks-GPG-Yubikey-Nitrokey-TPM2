@@ -21,6 +21,17 @@ use zbm_trace::JournalLayer;
 
 /// Runs `command` through a traced fake runner whose commands take
 /// `takes`, and returns the journal.
+/// Serializes the tests: `tracing` caches whether an event's call site is
+/// enabled, and a test running without a subscriber while another installs
+/// one can leave the other's events unrecorded.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn journal_of(command: &Command, status: u8, takes: Duration) -> Vec<Value> {
     let clock = FakeClock::new();
     let runner = FakeRunner::new();
@@ -40,6 +51,7 @@ fn journal_of(command: &Command, status: u8, takes: Duration) -> Vec<Value> {
 
 #[test]
 fn every_command_is_reported_with_status_and_duration() {
+    let _serial = serial();
     let command = Command::new("cryptsetup").args(["close", "cryptroot"]);
 
     let lines = journal_of(&command, 4, Duration::from_millis(250));
@@ -56,6 +68,7 @@ fn every_command_is_reported_with_status_and_duration() {
 
 #[test]
 fn a_secret_on_standard_input_is_reported_by_kind_only() {
+    let _serial = serial();
     let command = Command::new("cryptsetup")
         .args(["open", "--key-file=-", "/dev/sda2", "v"])
         .stdin(Input::Secret(Secret::copy_from(b"hunter2")));
@@ -68,6 +81,7 @@ fn a_secret_on_standard_input_is_reported_by_kind_only() {
 
 #[test]
 fn the_output_of_the_inner_runner_is_returned_unchanged() {
+    let _serial = serial();
     let clock = FakeClock::new();
     let runner = FakeRunner::new();
     runner.respond("echo hi", 0, "hi\n");

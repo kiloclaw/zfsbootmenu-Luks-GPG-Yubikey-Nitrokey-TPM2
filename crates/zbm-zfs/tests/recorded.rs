@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_testkit::FakeRunner;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
-use zbm_zfs::{Zfs, Zpool, parse_table};
+use zbm_zfs::{ZfsCommand, ZpoolCommand, parse_table};
 
 fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -42,7 +42,7 @@ fn recorded() -> FakeRunner {
 #[test]
 fn datasets_and_properties() {
     let runner = recorded();
-    let zfs = Zfs::new(&runner);
+    let zfs = ZfsCommand::new(&runner);
     assert!(zfs.exists("tfix/ROOT/be"));
     assert!(zfs.is_filesystem("tfix/ROOT/be"));
     assert!(!zfs.is_filesystem("tfix/ROOT/be@one"));
@@ -65,7 +65,7 @@ fn datasets_and_properties() {
         Some("")
     );
 
-    let zpool = Zpool::new(&runner);
+    let zpool = ZpoolCommand::new(&runner);
     assert_eq!(zpool.imported(), ["tfix"]);
     assert_eq!(
         zpool.get_value("bootfs", "tfix").as_deref(),
@@ -76,7 +76,7 @@ fn datasets_and_properties() {
 #[test]
 fn parent_references_expand_through_the_recorded_properties() {
     let runner = recorded();
-    let zfs = Zfs::new(&runner);
+    let zfs = ZfsCommand::new(&runner);
     let mut log = Vec::new();
     assert_eq!(
         zbm_cmdline::parent::read_kcl_prop(&zfs, "tfix/ROOT/other", &mut log).as_deref(),

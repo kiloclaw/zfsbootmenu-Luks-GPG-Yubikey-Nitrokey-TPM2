@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use crate::TempDir;
 
 const SCRIPT: &str = r#"#!/bin/sh
-# Fake zfs for parity tests; see zbm-testkit/src/fake_zfs.rs
+# Fake zfs for parity tests; see zbm-testkit/src/zfs_script.rs
 data="$(dirname "$0")/.."
 printf '%s\n' "$*" >> "${data}/calls"
 
@@ -96,13 +96,13 @@ esac
 
 /// A fake `zfs` with its datasets and properties.
 #[derive(Debug)]
-pub struct FakeZfs {
+pub struct ZfsScript {
     dir: TempDir,
 }
 
-impl FakeZfs {
+impl ZfsScript {
     /// A fake that knows the given datasets, with no properties set.
-    pub fn new(datasets: &[&str]) -> FakeZfs {
+    pub fn new(datasets: &[&str]) -> ZfsScript {
         let dir = TempDir::new("zbm-fake-zfs");
         let mut list: String = datasets.iter().flat_map(|name| [*name, "\n"]).collect();
         if list.is_empty() {
@@ -111,7 +111,7 @@ impl FakeZfs {
         dir.write("datasets", list);
         dir.write("calls", "");
         dir.write_executable("bin/zfs", SCRIPT);
-        FakeZfs { dir }
+        ZfsScript { dir }
     }
 
     /// The fake `zfs` program.
@@ -169,7 +169,7 @@ mod tests {
     use super::*;
     use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
 
-    fn run(fake: &FakeZfs, args: &[&str]) -> (i32, String) {
+    fn run(fake: &ZfsScript, args: &[&str]) -> (i32, String) {
         let output = SystemRunner
             .run(&Command::new(fake.program()).args(args).stderr(Stream::Null))
             .unwrap();
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn properties_are_inherited() {
-        let fake = FakeZfs::new(&["pool", "pool/ROOT", "pool/ROOT/be"]);
+        let fake = ZfsScript::new(&["pool", "pool/ROOT", "pool/ROOT/be"]);
         fake.set("pool/ROOT", "org.zfsbootmenu:commandline", "quiet");
         let get = |field: &str, ds: &str| {
             run(
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn set_and_inherit_change_local_values() {
-        let fake = FakeZfs::new(&["pool", "pool/be"]);
+        let fake = ZfsScript::new(&["pool", "pool/be"]);
         run(
             &fake,
             &["set", "org.zfsbootmenu:commandline=a b=c", "pool/be"],

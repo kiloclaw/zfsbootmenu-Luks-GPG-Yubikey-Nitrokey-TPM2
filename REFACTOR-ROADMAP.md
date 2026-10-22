@@ -146,7 +146,19 @@ Done in R2:
   traits as other crates see them. The last Rust test that ran Bash, `getopts`' comparison with Bash's `getopts`, now
   checks answers recorded from Bash.
 
-Open in R2: `zbm-zfs` on JSON, the `zbm-crypt` adapters, `zbm-coreutils` and the uutils decision, removing the shell
+- The ZFS port: `zbm_zfs::Zfs` (version, pools, pool properties, filesystems, snapshots, properties with their
+  source, `set`, `inherit`) with `ZfsError`, answered by `ZfsCli`, which reads `-j -p` JSON through `serde` when `zfs
+  version -j` works (OpenZFS 2.3 and later) and the `-H -p` text otherwise, into the same types (`Pool`, `Dataset`,
+  `Snapshot`, `Property` with `Source`, `Health`, `Version`). Without `-p`, JSON values such as `creation` are written
+  for people, which the first recording showed. `zbm_testkit::zfs::FakeZfs` is the in-memory model that tests build
+  with builders (the old fake `zfs` program for parity tests is now `ZfsScript`). `cargo xtask record-zfs` defines a
+  pool and the commands to record and runs them in a test VM through the harness scenario `runtime-record-zfs`; the
+  fixtures of OpenZFS 2.4 are in `crates/zbm-zfs/tests/fixtures/2.4/`, and the fixture tests check that JSON and text
+  give the same answers. The menu's snapshot (`zbm-app`) reads through the port. The legacy-compatible command
+  wrappers are now `ZfsCommand` and `ZpoolCommand`.
+
+Open in R2: `zbm-boot`'s ZFS commands onto the port (with the rule that only adapters build commands), fixtures of
+OpenZFS 2.2 and 2.3 (they need images with those versions), the `zbm-crypt` adapters, `zbm-coreutils` and the uutils decision, removing the shell
 helpers, the Rust LUKS device suites, and the rule that only adapters build commands.
 
 ## What the pilots taught

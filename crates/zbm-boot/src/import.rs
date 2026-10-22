@@ -11,7 +11,7 @@ use zbm_platform::exec::{Command, Stream};
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_trace::Level;
-use zbm_zfs::Zfs;
+use zbm_zfs::ZfsCommand;
 
 use crate::commandline;
 use crate::error::BootError;
@@ -469,7 +469,7 @@ fn find_bootfs(runner: &dyn Runner, state: &State<'_>, settings: &Settings) -> O
 pub fn choose_bootfs(runner: &dyn Runner, settings: &Settings) -> Option<String> {
     let mut bootfs = String::new();
     if !settings.prefer_bootfs.is_empty() {
-        if Zfs::new(runner).is_filesystem(&settings.prefer_bootfs) {
+        if ZfsCommand::new(runner).is_filesystem(&settings.prefer_bootfs) {
             bootfs = settings.prefer_bootfs.clone();
         } else {
             zbm_trace::error!(

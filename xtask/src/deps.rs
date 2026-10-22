@@ -116,6 +116,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ),
     ("zbm-tui", &["nucleo-matcher", "ratatui"]),
     ("zbm-types", &["thiserror"]),
+    ("zbm-zfs", &["serde", "serde_json", "thiserror"]),
 ];
 
 /// Third-party crates that only tests use, which every crate may have as

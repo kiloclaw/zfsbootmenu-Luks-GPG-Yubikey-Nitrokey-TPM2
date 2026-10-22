@@ -1,0 +1,6 @@
+fixture	none	off	-	-	none	none	-	-
+fixture/ROOT	none	on	-	-	none	none	-	quiet loglevel=4
+fixture/ROOT/arch	/	noauto	-	-	none	none	6.1	quiet loglevel=4
+fixture/ROOT/secret	/	noauto	fixture/ROOT/secret	unavailable	prompt	passphrase	-	quiet loglevel=4
+fixture/ROOT/void	/	noauto	-	-	none	none	-	quiet loglevel=4
+fixture/home	/home	on	-	-	none	none	-	-

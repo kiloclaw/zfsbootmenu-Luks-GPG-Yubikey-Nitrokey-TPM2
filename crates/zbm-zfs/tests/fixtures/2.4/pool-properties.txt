@@ -1,0 +1,3 @@
+fixture	readonly	off	-
+fixture	bootfs	fixture/ROOT/void	local
+fixture	guid	4438165986505091419	-

@@ -16,6 +16,8 @@ serde_json.workspace = true
 zbm-core.workspace = true
 zbm-platform.workspace = true
 zbm-trace.workspace = true
+zbm-types.workspace = true
+zbm-zfs.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

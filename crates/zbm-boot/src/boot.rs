@@ -13,7 +13,7 @@ use zbm_platform::exec::{Command, Stream};
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_trace::Level;
-use zbm_zfs::Zfs;
+use zbm_zfs::ZfsCommand;
 
 use crate::commandline::{self, KexecLoad};
 use crate::error::BootError;
@@ -523,7 +523,7 @@ pub fn kexec_kernel(
     );
 
     let mut messages = Vec::new();
-    let zfs = Zfs::new(system.runner);
+    let zfs = ZfsCommand::new(system.runner);
     let cli_args = commandline::be_cmdline(
         system.files,
         &zfs,

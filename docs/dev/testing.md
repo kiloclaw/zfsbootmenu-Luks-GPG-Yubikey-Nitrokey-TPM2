@@ -76,8 +76,14 @@ people and for AI tools alike:
 - **Property tests for parsers:** `proptest` checks that parsing any text never panics and that valid values
   round-trip (`zbm-types`).
 - **Recorded output over hand-written output:** parsers are tested against output recorded from the real programs
-  (`crates/*/tests/fixtures/`, recorded by `scripts/dev/record-fixtures.py` and
-  `scripts/dev/record-luks-fixtures.sh`).
+  (`crates/*/tests/fixtures/`). `cargo xtask record-zfs` records what `zfs` and `zpool` print, in JSON and in text,
+  into `crates/zbm-zfs/tests/fixtures/<major.minor>/`: it runs the commands of `xtask/src/record_zfs.rs` in a test VM
+  (scenario `runtime-record-zfs`, root and QEMU). The older recordings in `crates/zbm-zfs/tests/fixtures/` (by
+  `scripts/dev/record-fixtures.py`) serve the legacy-compatible `ZfsCommand` until it goes;
+  `scripts/dev/record-luks-fixtures.sh` records `cryptsetup` output.
+- **Fakes of the adapters:** code that asks ZFS questions takes a `&dyn zbm_zfs::Zfs` and is tested with
+  `zbm_testkit::zfs::FakeZfs`, an in-memory model of pools, datasets and snapshots built with builders; it records each
+  call (`FakeZfs::calls`).
 
 ### Parity tests and recorded legacy results
 

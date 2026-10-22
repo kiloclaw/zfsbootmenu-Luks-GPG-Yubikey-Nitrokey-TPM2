@@ -57,6 +57,7 @@ Third-party crates:
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `nucleo-matcher`, `ratatui`
 - `zbm-types`: `thiserror`
+- `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 
 Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as development dependencies.
 

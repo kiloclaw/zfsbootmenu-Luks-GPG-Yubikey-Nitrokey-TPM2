@@ -133,7 +133,8 @@ impl<'a> App<'a> {
     /// [`AppError::Snapshot`] when `zfs` or `zpool` fails or prints something
     /// unexpected.
     pub fn snapshot(&self) -> Result<Snapshot, AppError> {
-        Ok(snapshot::read(self.context.runner())?)
+        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
+        Ok(snapshot::read(&zfs)?)
     }
 }
 

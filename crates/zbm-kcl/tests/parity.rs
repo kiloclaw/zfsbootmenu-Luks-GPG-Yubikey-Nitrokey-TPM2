@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
-use zbm_testkit::fake_zfs::FakeZfs;
 use zbm_testkit::parity::Parity;
+use zbm_testkit::zfs_script::ZfsScript;
 use zbm_testkit::{TempDir, have_program, legacy, parity};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
@@ -76,7 +76,7 @@ fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
 struct Sandbox {
     work: TempDir,
     tmp: TempDir,
-    zfs: FakeZfs,
+    zfs: ZfsScript,
 }
 
 impl Sandbox {
@@ -84,7 +84,7 @@ impl Sandbox {
         let sandbox = Sandbox {
             work: TempDir::new("zbm-kcl-parity-work"),
             tmp: TempDir::new("zbm-kcl-parity-tmp"),
-            zfs: FakeZfs::new(DATASETS),
+            zfs: ZfsScript::new(DATASETS),
         };
         for (dataset, value) in properties {
             sandbox.zfs.set(dataset, PROPERTY, value);

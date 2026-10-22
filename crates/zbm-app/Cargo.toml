@@ -15,6 +15,7 @@ zbm-crypt.workspace = true
 zbm-luks.workspace = true
 zbm-platform.workspace = true
 zbm-types.workspace = true
+zbm-zfs.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

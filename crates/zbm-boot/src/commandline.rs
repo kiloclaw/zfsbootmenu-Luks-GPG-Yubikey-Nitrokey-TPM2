@@ -394,11 +394,11 @@ mod tests {
     use std::time::{Duration, SystemTime};
     use zbm_platform::exec::SystemRunner;
     use zbm_platform::files::RealFiles;
-    use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::zfs_script::ZfsScript;
     use zbm_testkit::{Rng, TempDir, parity};
-    use zbm_zfs::Zfs;
+    use zbm_zfs::ZfsCommand;
 
     #[test]
     fn host_ids_come_from_spl_then_etc_then_the_match() {
@@ -754,8 +754,8 @@ mod tests {
         }
 
         /// The pool, with the properties.
-        fn zfs(&self) -> FakeZfs {
-            let zfs = FakeZfs::new(&["tank", "tank/ROOT", "tank/ROOT/be"]);
+        fn zfs(&self) -> ZfsScript {
+            let zfs = ZfsScript::new(&["tank", "tank/ROOT", "tank/ROOT/be"]);
             let property = "org.zfsbootmenu:commandline";
             if let Some(value) = &self.parent {
                 zfs.set("tank/ROOT", property, value);
@@ -827,7 +827,7 @@ mod tests {
             let base = dir.path().to_string_lossy().into_owned();
             let state = State::new(&RealFiles, base.as_str());
             let runner = SystemRunner;
-            let source = Zfs::with_program(&runner, zfs.program());
+            let source = ZfsCommand::with_program(&runner, zfs.program());
             let mut log = Vec::new();
             let rust = be_cmdline(
                 &RealFiles,
@@ -892,7 +892,7 @@ mod tests {
                     dir.write(file, text);
                 }
             }
-            let zfs = FakeZfs::new(&["tank", "tank/be"]);
+            let zfs = ZfsScript::new(&["tank", "tank/be"]);
             let property = rng.below(4) == 0;
             if property {
                 zfs.set("tank/be", "org.zfsbootmenu:rootprefix", "root=custom:");

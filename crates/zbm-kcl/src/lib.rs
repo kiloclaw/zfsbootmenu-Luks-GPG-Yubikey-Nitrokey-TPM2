@@ -20,7 +20,7 @@ use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_core::getopts::{self, Opt};
 use zbm_core::shell::{command_substitution, echo, read_lines};
 use zbm_platform::exec::{Command, Input, Runner, Stream, SystemRunner};
-use zbm_zfs::Zfs;
+use zbm_zfs::ZfsCommand;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 
 pub mod efi;
@@ -237,7 +237,7 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
     }
     let modify = !removes.is_empty() || !appends.is_empty() || edit || delete;
 
-    let zfs = Zfs::new(context.runner);
+    let zfs = ZfsCommand::new(context.runner);
     let efi_mode = input == "-" || is_file(&input);
     let target = if efi_mode {
         let Ok(temp_efi) = create_temp_file(&context.temp_dir, "tmp.XXXXXXXXXX") else {
@@ -350,7 +350,7 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
 
 /// `raw_kcl_zfs`: the property's value, empty when it is not set or cannot be
 /// read.
-fn raw_kcl_zfs(zfs: &Zfs, dataset: &str) -> String {
+fn raw_kcl_zfs(zfs: &ZfsCommand, dataset: &str) -> String {
     match zfs.get_value(COMMANDLINE_PROPERTY, dataset) {
         Some(value) if value != "-" => echo(&value),
         _ => String::new(),
@@ -393,7 +393,7 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
 
 /// `save_kcl_zfs`: sets the property, or removes it when the command line is
 /// empty.
-fn save_kcl_zfs(zfs: &Zfs, io: &mut Io, assembled: &str, dataset: &str) -> bool {
+fn save_kcl_zfs(zfs: &ZfsCommand, io: &mut Io, assembled: &str, dataset: &str) -> bool {
     // `kcl="$(cat)"` drops trailing newlines and NUL bytes.
     let kcl = command_substitution(assembled).replace('\0', "");
     if kcl.is_empty() {

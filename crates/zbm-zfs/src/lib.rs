@@ -1,7 +1,7 @@
 //! ZFS in the Rust port of ZFSBootMenu.
 //!
-//! - [`Zfs`] and [`Zpool`] run the `zfs` and `zpool` commands, as the legacy
-//!   code does, and parse their `-H` output.
+//! - [`ZfsCommand`] and [`ZpoolCommand`] run the `zfs` and `zpool` commands, as
+//!   the legacy code does, and parse their `-H` output.
 //! - [`mounts`] reads the mount table and builds the mount and unmount commands
 //!   of `zfsbootmenu-core.sh`.
 //!
@@ -15,7 +15,17 @@ use zbm_cmdline::parent::{COMMANDLINE_PROPERTY, CommandLineSource};
 use zbm_core::shell::command_substitution;
 use zbm_platform::exec::{Command, Runner, Stream};
 
+mod cli;
+pub mod json;
+mod model;
 pub mod mounts;
+mod port;
+pub mod text;
+
+pub use cli::{Format, ZfsCli};
+
+pub use model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
+pub use port::{Zfs, ZfsError};
 
 /// Splits `-H` output into rows of tab-separated fields.
 pub fn parse_table(output: &str) -> Vec<Vec<String>> {
@@ -26,20 +36,20 @@ pub fn parse_table(output: &str) -> Vec<Vec<String>> {
 }
 
 /// Runs the `zfs` command.
-pub struct Zfs<'a> {
+pub struct ZfsCommand<'a> {
     runner: &'a dyn Runner,
     program: OsString,
 }
 
-impl<'a> Zfs<'a> {
+impl<'a> ZfsCommand<'a> {
     /// Runs `zfs` from `PATH`.
-    pub fn new(runner: &'a dyn Runner) -> Zfs<'a> {
-        Zfs::with_program(runner, "zfs")
+    pub fn new(runner: &'a dyn Runner) -> ZfsCommand<'a> {
+        ZfsCommand::with_program(runner, "zfs")
     }
 
     /// Runs the given program instead of `zfs`, for example a fake in tests.
-    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> Zfs<'a> {
-        Zfs {
+    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> ZfsCommand<'a> {
+        ZfsCommand {
             runner,
             program: program.into(),
         }
@@ -138,31 +148,31 @@ impl<'a> Zfs<'a> {
     }
 }
 
-impl CommandLineSource for Zfs<'_> {
+impl CommandLineSource for ZfsCommand<'_> {
     fn commandline(&self, filesystem: &str) -> Option<String> {
         self.get_value(COMMANDLINE_PROPERTY, filesystem)
     }
 
     fn inherited_source(&self, filesystem: &str) -> Option<String> {
-        Zfs::inherited_source(self, COMMANDLINE_PROPERTY, filesystem)
+        ZfsCommand::inherited_source(self, COMMANDLINE_PROPERTY, filesystem)
     }
 }
 
 /// Runs the `zpool` command.
-pub struct Zpool<'a> {
+pub struct ZpoolCommand<'a> {
     runner: &'a dyn Runner,
     program: OsString,
 }
 
-impl<'a> Zpool<'a> {
+impl<'a> ZpoolCommand<'a> {
     /// Runs `zpool` from `PATH`.
-    pub fn new(runner: &'a dyn Runner) -> Zpool<'a> {
-        Zpool::with_program(runner, "zpool")
+    pub fn new(runner: &'a dyn Runner) -> ZpoolCommand<'a> {
+        ZpoolCommand::with_program(runner, "zpool")
     }
 
     /// Runs the given program instead of `zpool`.
-    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> Zpool<'a> {
-        Zpool {
+    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> ZpoolCommand<'a> {
+        ZpoolCommand {
             runner,
             program: program.into(),
         }
@@ -202,8 +212,8 @@ mod tests {
     use super::*;
     use zbm_cmdline::parent::{read_kcl_prop, read_kcl_value};
     use zbm_platform::exec::SystemRunner;
-    use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
+    use zbm_testkit::zfs_script::ZfsScript;
     use zbm_testkit::{FakeRunner, Rng, TempDir, parity};
 
     #[test]
@@ -215,7 +225,7 @@ mod tests {
             "quiet\n",
         );
         runner.respond("zfs list -o name -H missing", 1, "");
-        let zfs = Zfs::new(&runner);
+        let zfs = ZfsCommand::new(&runner);
         assert_eq!(
             zfs.get_value(COMMANDLINE_PROPERTY, "pool/be").as_deref(),
             Some("quiet")
@@ -242,7 +252,7 @@ mod tests {
         let runner = FakeRunner::new();
         runner.respond("zpool list -H -o name", 0, "rpool\ntank\n");
         runner.respond("zpool get -H -o value readonly tank", 0, "off\n");
-        let zpool = Zpool::new(&runner);
+        let zpool = ZpoolCommand::new(&runner);
         assert_eq!(zpool.imported(), ["rpool", "tank"]);
         assert_eq!(zpool.get_value("readonly", "tank").as_deref(), Some("off"));
         assert_eq!(
@@ -274,7 +284,7 @@ mod tests {
         ];
         let mut parity = parity!("parent_expansion_matches_read_kcl_prop");
         for _ in 0..40 {
-            let fake = FakeZfs::new(&datasets);
+            let fake = ZfsScript::new(&datasets);
             let mut properties = Vec::new();
             for dataset in datasets {
                 if rng.below(3) > 0 {
@@ -314,7 +324,7 @@ mod tests {
                     )
                 });
 
-            let zfs = Zfs::with_program(&SystemRunner, fake.program());
+            let zfs = ZfsCommand::with_program(&SystemRunner, fake.program());
             let mut log = Vec::new();
             let rust = read_kcl_prop(&zfs, dataset, &mut log);
             assert_eq!(rust, prop, "dataset {dataset}");

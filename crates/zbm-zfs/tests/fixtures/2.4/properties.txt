@@ -1,0 +1,3 @@
+fixture/ROOT/void	mountpoint	/	local
+fixture/ROOT/void	canmount	noauto	local
+fixture/ROOT/void	org.zfsbootmenu:commandline	quiet loglevel=4	inherited from fixture/ROOT

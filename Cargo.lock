@@ -1171,6 +1171,7 @@ dependencies = [
  "zbm-platform",
  "zbm-testkit",
  "zbm-types",
+ "zbm-zfs",
 ]
 
 [[package]]
@@ -1298,6 +1299,8 @@ dependencies = [
  "zbm-core",
  "zbm-platform",
  "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
 ]
 
 [[package]]
@@ -1339,11 +1342,16 @@ dependencies = [
 name = "zbm-zfs"
 version = "0.1.0"
 dependencies = [
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "thiserror",
  "zbm-cmdline",
  "zbm-core",
  "zbm-platform",
  "zbm-testkit",
  "zbm-trace",
+ "zbm-types",
 ]
 
 [[package]]
