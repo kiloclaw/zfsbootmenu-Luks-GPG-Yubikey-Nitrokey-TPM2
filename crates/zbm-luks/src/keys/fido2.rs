@@ -9,39 +9,16 @@
 
 use std::path::Path;
 
-use zbm_platform::exec::{Input, Stream};
 use zbm_platform::files::FileKind;
-use zbm_platform::secret::Secret;
 
 use super::{Outcome, Target};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
 use crate::session::{Key, Session, Wait};
 use zbm_crypt::Token;
+use zbm_crypt::fido2::{Assertion, Fido2};
 
-/// The devices `fido2-token -L` lists, as
-/// `sed -n 's/^\(\/dev\/[^:]*\):.*/\1/p'` finds them.
-pub fn listed_devices(text: &str) -> Vec<String> {
-    text.lines()
-        .filter_map(|line| {
-            let (device, _) = line.split_once(':')?;
-            device.starts_with("/dev/").then(|| device.to_owned())
-        })
-        .collect()
-}
-
-/// The last line of `fido2-assert`'s output, as `tail -n 1` and `$(...)` leave
-/// it.
-pub fn last_line(output: &[u8]) -> Secret {
-    let body = output.strip_suffix(b"\n").unwrap_or(output);
-    let start = body
-        .iter()
-        .rposition(|byte| *byte == b'\n')
-        .map_or(0, |at| at + 1);
-    let mut line = Secret::copy_from(&body[start..]);
-    super::strip_newlines(&mut line);
-    line
-}
+pub use zbm_crypt::fido2::{last_line, listed_devices};
 
 impl Session<'_> {
     /// Whether a FIDO2 (HID) device is connected (`luks_have_fido2_device`).
@@ -79,30 +56,22 @@ impl Session<'_> {
             None => &[false, true],
         };
 
-        let list = self.command("fido2-token").arg("-L").stderr(Stream::Null);
-        let listing = system
-            .runner
-            .run(&list)
-            .map(|output| output.stdout_text())
-            .unwrap_or_default();
-        let devices = listed_devices(&listing);
+        let fido2 = Fido2::new(system.runner);
+        let devices = fido2.devices();
         if devices.is_empty() {
             return Outcome::Failed;
         }
 
         for device in &devices {
             for pin in pin_modes {
-                let mut args = vec![
-                    "-G".to_owned(),
-                    "-h".to_owned(),
-                    "-t".to_owned(),
-                    format!("up={up}"),
-                    "-t".to_owned(),
-                    format!("uv={uv}"),
-                ];
-                if *pin {
-                    args.extend(["-t".to_owned(), "pin=true".to_owned()]);
-                }
+                let assertion = Assertion {
+                    rp,
+                    credential,
+                    salt,
+                    presence: up,
+                    verification: uv,
+                    pin: *pin,
+                };
                 if up {
                     self.say(&self.paint(
                         "yellow",
@@ -114,23 +83,8 @@ impl Session<'_> {
                     .read_prefix(Path::new("/dev/urandom"), 32)
                     .unwrap_or_default();
                 let challenge = base64_encode(&random);
-                let input = format!(
-                    "{}\n{rp}\n{credential}\n{salt}\n",
-                    String::from_utf8_lossy(challenge.expose())
-                );
-                let assert = self
-                    .command("fido2-assert")
-                    .args(&args)
-                    .arg(device)
-                    .stdin(Input::Bytes(input.into_bytes()))
-                    .stdout(Stream::CaptureSecret)
-                    .stderr(Stream::Null);
-                if let Ok(output) = system.runner.run(&assert) {
-                    let secret = output.secret.unwrap_or_default();
-                    let hmac = last_line(secret.expose());
-                    if !hmac.is_empty() {
-                        return Outcome::Key(hmac);
-                    }
+                if let Some(hmac) = fido2.hmac_secret(device, assertion, &challenge) {
+                    return Outcome::Key(hmac);
                 }
                 zbm_trace::debug!("fido2-assert on {device} (pin={pin}) did not produce a secret");
             }
@@ -229,7 +183,9 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
+    use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
+    use zbm_platform::secret::Secret;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::repo_root;
 

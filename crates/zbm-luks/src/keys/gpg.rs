@@ -13,11 +13,10 @@
 use std::path::Path;
 
 use zbm_core::shell::command_substitution;
-use zbm_platform::exec::{Command, Input, Stream};
+use zbm_crypt::gpg::{Decrypted, GnupgHome, start_pcscd};
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
 
-use super::with_newline;
 use crate::session::{Session, Wait};
 
 /// Whether a key file is GnuPG-encrypted (`luks_is_gpg_keyfile`): the `gpg`
@@ -29,91 +28,25 @@ pub fn is_gpg_keyfile(path: &str, options: &str) -> bool {
             .any(|suffix| path.ends_with(suffix))
 }
 
-/// The serial number and the PIN attempts left of the card in
-/// `gpg --with-colons --card-status` output, `unknown` and `?` when missing.
-pub fn parse_card_status(text: &str) -> (String, String) {
-    let field = |record: &str, index: usize| {
-        text.lines()
-            .map(|line| line.split(':').collect::<Vec<_>>())
-            .find(|fields| fields.first() == Some(&record))
-            .map(|fields| fields.get(index).copied().unwrap_or_default().to_owned())
-            .filter(|value| !value.is_empty())
-    };
-    // chvstatus:<once>:<max PIN len>:<max reset len>:<max admin len>:<tries>
-    (
-        field("serial", 1).unwrap_or_else(|| "unknown".to_owned()),
-        field("chvstatus", 5).unwrap_or_else(|| "?".to_owned()),
-    )
-}
-
-/// The long key IDs a file is encrypted to, from `gpg --list-packets` output
-/// (none if it is symmetric).
-pub fn parse_recipients(text: &str) -> Vec<String> {
-    text.lines()
-        .filter(|line| line.starts_with(":pubkey enc packet:"))
-        .filter_map(|line| {
-            let at = line.rfind(" keyid ")?;
-            let id: String = line[at + 7..]
-                .chars()
-                .take_while(char::is_ascii_hexdigit)
-                .collect();
-            (!id.is_empty()).then_some(id)
-        })
-        .collect()
-}
-
-/// Where the secret key for `id` is, from `gpg --with-colons
-/// --list-secret-keys` output: `card` or `soft` (a key stored locally), or
-/// `None` without a usable key. Field 15 of `sec` and `ssb` records is `+`
-/// for a local key, `#` for a stub whose card is not there, and otherwise the
-/// card's serial number.
-pub fn parse_secret_key(text: &str, id: &str) -> Option<&'static str> {
-    let token = text.lines().find_map(|line| {
-        let fields: Vec<&str> = line.split(':').collect();
-        let kind = fields.first().copied().unwrap_or_default();
-        let key = fields.get(4).copied().unwrap_or_default();
-        ((kind == "sec" || kind == "ssb") && key.eq_ignore_ascii_case(id))
-            .then(|| fields.get(14).copied().unwrap_or_default())
-    })?;
-    match token {
-        "+" => Some("soft"),
-        "" | "#" => None,
-        _ => Some("card"),
-    }
-}
+pub use zbm_crypt::gpg::{SecretKey, parse_card_status, parse_recipients, parse_secret_key};
 
 impl Session<'_> {
-    /// `gpg` with the private home.
-    fn gpg(&self, home: &str) -> Command {
-        self.command("gpg")
-            .env("GNUPGHOME", home)
-            .args(["--batch", "--no-tty"])
-    }
-
     /// Creates a private GnuPG home with the image's public keys
-    /// (`luks_gpg_setup`). The home is in `/run`, with a short path, because
-    /// the agent's sockets must fit in a `sockaddr_un`.
-    pub fn gpg_setup(&self) -> Option<String> {
+    /// (`luks_gpg_setup`); it is cleaned up when dropped (`luks_gpg_cleanup`).
+    /// The home is in `/run`, with a short path, because the agent's sockets
+    /// must fit in a `sockaddr_un`.
+    pub fn gpg_setup(&self) -> Option<GnupgHome<'_>> {
         let system = self.system();
         if !system.command_exists("gpg") {
             return None;
         }
         let _ = system.files.create_dir_all(Path::new("/run"));
-        let home = self.temporary_dir("/run/zbm-gpg")?;
-        let _ = system.files.set_mode(Path::new(&home), 0o700);
-        let quiet = |command: Command| {
-            let command = command.stdout(Stream::Null).stderr(Stream::Null);
-            system
-                .runner
-                .run(&command)
-                .is_ok_and(|output| output.status.is_success())
-        };
+        let home = GnupgHome::new(system.runner, self.temporary_dir("/run/zbm-gpg")?);
+        let _ = system.files.set_mode(home.path(), 0o700);
         let source = &self.settings().gnupg_dir;
         if system.files.is_dir(source) {
-            let from = format!("{}/.", source.display());
-            quiet(self.command("cp").args(["-a", &from, &format!("{home}/")]));
+            home.import(source);
         }
-
         // Start pcscd if the image has it, and prefer it over GnuPG's
         // internal CCID driver once it runs.
         let socket = Path::new("/run/pcscd/pcscd.comm");
@@ -125,89 +58,23 @@ impl Session<'_> {
         };
         if system.command_exists("pcscd") && !is_socket(socket) {
             let _ = system.files.create_dir_all(Path::new("/run/pcscd"));
-            if quiet(self.command("pcscd")) {
+            if start_pcscd(system.runner).is_ok() {
                 system.clock.sleep(std::time::Duration::from_secs(1));
             }
         }
         if is_socket(socket) {
-            let conf = format!("{home}/scdaemon.conf");
-            let _ = system
-                .files
-                .append(Path::new(&conf), b"disable-ccid\npcsc-shared\n");
+            let conf = home.path().join("scdaemon.conf");
+            let _ = system.files.append(&conf, b"disable-ccid\npcsc-shared\n");
         }
-        quiet(self.command("chmod").args(["-R", "go-rwx", &home]));
+        home.make_private();
         Some(home)
-    }
-
-    /// Stops the agents of a GnuPG home and removes it (`luks_gpg_cleanup`).
-    pub fn gpg_cleanup(&self, home: &str) {
-        let quiet = |command: Command| {
-            let command = command.stdout(Stream::Null).stderr(Stream::Null);
-            let _ = self.system().runner.run(&command);
-        };
-        quiet(
-            self.command("gpgconf")
-                .env("GNUPGHOME", home)
-                .args(["--kill", "all"]),
-        );
-        quiet(self.command("rm").args(["-rf", home]));
-    }
-
-    /// The serial number and PIN attempts left of the OpenPGP card that is
-    /// plugged in (`luks_gpg_card_status`); `gpg --card-status` also creates
-    /// stubs for the card's keys whose public keys are known.
-    pub fn gpg_card_status(&self, home: &str) -> Option<(String, String)> {
-        let command = self
-            .gpg(home)
-            .args(["--with-colons", "--card-status"])
-            .stdout(Stream::Capture)
-            .stderr(Stream::Null);
-        let output = self.system().runner.run(&command).ok()?;
-        output
-            .status
-            .is_success()
-            .then(|| parse_card_status(&output.stdout_text()))
-    }
-
-    /// The long key IDs `file` is encrypted to (`luks_gpg_recipients`).
-    pub fn gpg_recipients(&self, home: &str, file: &str) -> Vec<String> {
-        let command = self
-            .gpg(home)
-            .args(["--list-only", "--list-packets", file])
-            .stdout(Stream::Capture)
-            .stderr(Stream::Null);
-        let text = self
-            .system()
-            .runner
-            .run(&command)
-            .map(|output| output.stdout_text())
-            .unwrap_or_default();
-        parse_recipients(&text)
-    }
-
-    /// Where the secret key for `id` is (`luks_gpg_secret_key`).
-    pub fn gpg_secret_key(&self, home: &str, id: &str) -> Option<&'static str> {
-        let command = self
-            .gpg(home)
-            .args(["--with-colons", "--list-secret-keys"])
-            .stdout(Stream::Capture)
-            .stderr(Stream::Null);
-        let text = self
-            .system()
-            .runner
-            .run(&command)
-            .map(|output| output.stdout_text())
-            .unwrap_or_default();
-        parse_secret_key(&text, id)
     }
 
     /// Whether a secret key for any of `recipients` is available, after
     /// reading any card that is plugged in (`luks_gpg_have_key`).
-    pub fn gpg_have_key(&self, home: &str, recipients: &[String]) -> bool {
-        let _ = self.gpg_card_status(home);
-        recipients
-            .iter()
-            .any(|id| self.gpg_secret_key(home, id).is_some())
+    pub fn gpg_have_key(&self, home: &GnupgHome<'_>, recipients: &[String]) -> bool {
+        let _ = home.card_status();
+        recipients.iter().any(|id| home.secret_key(id).is_some())
     }
 
     /// Decrypts a GnuPG-encrypted key file for the volume `description`
@@ -219,15 +86,18 @@ impl Session<'_> {
             zbm_trace::warn!("GnuPG is not available to decrypt {file}");
             return None;
         };
-        let key = self.gpg_decrypt_in(&home, file, description);
-        self.gpg_cleanup(&home);
-        key
+        self.gpg_decrypt_in(&home, file, description)
     }
 
-    fn gpg_decrypt_in(&self, home: &str, file: &str, description: &str) -> Option<Secret> {
-        let recipients = self.gpg_recipients(home, file);
+    fn gpg_decrypt_in(
+        &self,
+        home: &GnupgHome<'_>,
+        file: &str,
+        description: &str,
+    ) -> Option<Secret> {
+        let recipients = home.recipients(file);
         let kind = if recipients.is_empty() {
-            "symmetric"
+            None
         } else {
             // Encrypted to a public key: find the card (or key) that can
             // decrypt it.
@@ -248,18 +118,20 @@ impl Session<'_> {
                 );
                 return None;
             }
-            recipients
-                .iter()
-                .find_map(|id| self.gpg_secret_key(home, id))
-                .unwrap_or("soft")
+            Some(
+                recipients
+                    .iter()
+                    .find_map(|id| home.secret_key(id))
+                    .unwrap_or(SecretKey::Soft),
+            )
         };
 
         for _ in 0..3 {
             self.say("\n");
             let secret = match kind {
-                "card" => {
-                    let (serial, left) = self
-                        .gpg_card_status(home)
+                Some(SecretKey::Card) => {
+                    let (serial, left) = home
+                        .card_status()
                         .unwrap_or_else(|| ("unknown".to_owned(), "?".to_owned()));
                     let line = format!(
                         "Unlock {} with OpenPGP card {serial}\n",
@@ -284,7 +156,7 @@ impl Session<'_> {
                         self.paint("yellow", description)
                     );
                     self.say(&self.paint("cyan", &line));
-                    self.read_secret(if kind == "soft" {
+                    self.read_secret(if kind == Some(SecretKey::Soft) {
                         "Secret key passphrase (leave empty to use another method): "
                     } else {
                         "Key file passphrase (leave empty to use another method): "
@@ -294,43 +166,18 @@ impl Session<'_> {
             let Some(secret) = secret.filter(|secret| !secret.is_empty()) else {
                 break;
             };
-            if kind == "card" {
+            if kind == Some(SecretKey::Card) {
                 self.say(&self.paint("yellow", "Touch the security key if it blinks.\n"));
             }
-
-            let decrypt = self
-                .gpg(home)
-                .args([
-                    "--yes",
-                    "--pinentry-mode",
-                    "loopback",
-                    "--passphrase-fd",
-                    "0",
-                    "--status-fd",
-                    "2",
-                    "--output",
-                    "-",
-                    "--decrypt",
-                    file,
-                ])
-                .stdin(Input::Secret(with_newline(&secret)))
-                .stdout(Stream::CaptureSecret)
-                .stderr(Stream::Capture);
-            drop(secret);
-            let (status, key) = match self.system().runner.run(&decrypt) {
-                Ok(output) => (output.stderr_text(), output.secret),
-                Err(error) => (error.to_string(), None),
-            };
-            let okay = status
-                .lines()
-                .any(|line| line.starts_with("[GNUPG:] DECRYPTION_OKAY"));
-            if let Some(key) = key.filter(|key| okay && !key.is_empty()) {
-                return Some(key);
+            match home.decrypt(file, &secret) {
+                Decrypted::Key(key) => return Some(key),
+                Decrypted::Failed(status) => {
+                    zbm_trace::debug!(
+                        "gpg failed to decrypt {file}: {}",
+                        command_substitution(&status)
+                    );
+                }
             }
-            zbm_trace::debug!(
-                "gpg failed to decrypt {file}: {}",
-                command_substitution(&status)
-            );
             self.say(&self.paint("red", "Decryption failed.\n"));
         }
         None
@@ -342,6 +189,7 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
+    use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
 
@@ -382,8 +230,14 @@ mod tests {
                     ssb:u:255:18:2222222222222222:1::::::e:::D27600012401030400:::23:\n\
                     ssb:u:255:18:3333333333333333:1::::::e:::+:::23:\n\
                     ssb:u:255:18:4444444444444444:1::::::e:::#:::23:\n";
-        assert_eq!(parse_secret_key(keys, "2222222222222222"), Some("card"));
-        assert_eq!(parse_secret_key(keys, "3333333333333333"), Some("soft"));
+        assert_eq!(
+            parse_secret_key(keys, "2222222222222222"),
+            Some(SecretKey::Card)
+        );
+        assert_eq!(
+            parse_secret_key(keys, "3333333333333333"),
+            Some(SecretKey::Soft)
+        );
         assert_eq!(parse_secret_key(keys, "4444444444444444"), None);
         assert_eq!(parse_secret_key(keys, "1111111111111111"), None);
         assert_eq!(parse_secret_key(keys, "5555555555555555"), None);

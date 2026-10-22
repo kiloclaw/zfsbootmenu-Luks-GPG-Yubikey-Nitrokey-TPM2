@@ -7,13 +7,12 @@
 //! key `clevis decrypt` prints is captured as a secret and reaches
 //! `cryptsetup` on standard input.
 
-use zbm_platform::exec::{Input, Stream};
-
 use super::Target;
 use crate::error::LuksError;
 use crate::error::TokenFailure;
 use crate::session::{Key, Session};
 use zbm_crypt::Token;
+use zbm_crypt::clevis::Clevis;
 
 impl Session<'_> {
     /// Opens a volume with a clevis token (`luks_try_clevis_token`).
@@ -43,40 +42,7 @@ impl Session<'_> {
         // The clevis policy may use the TPM.
         self.have_tpm2();
 
-        // jose fmt -j- -Og jwe -o- <<< json | jose jwe fmt -i- -c | clevis decrypt
-        let run = |command: zbm_platform::exec::Command| {
-            system
-                .runner
-                .run(&command)
-                .map(|output| output.stdout)
-                .unwrap_or_default()
-        };
-        let jwe = run(self
-            .command("jose")
-            .args(["fmt", "-j-", "-Og", "jwe", "-o-"])
-            .stdin(Input::Bytes(format!("{}\n", token.to_json()).into_bytes()))
-            .stdout(Stream::Capture)
-            .stderr(Stream::Null));
-        let compact = run(self
-            .command("jose")
-            .args(["jwe", "fmt", "-i-", "-c"])
-            .stdin(Input::Bytes(jwe))
-            .stdout(Stream::Capture)
-            .stderr(Stream::Null));
-        let decrypt = self
-            .command("clevis")
-            .arg("decrypt")
-            .env("TPM2TOOLS_TCTI", &self.settings().tpm2_tcti)
-            .stdin(Input::Bytes(compact))
-            .stdout(Stream::CaptureSecret)
-            .stderr(Stream::Null);
-        let key = system
-            .runner
-            .run(&decrypt)
-            .ok()
-            .filter(|output| output.status.is_success())
-            .and_then(|output| output.secret)
-            .filter(|key| !key.is_empty());
+        let key = Clevis::new(system.runner, &self.settings().tpm2_tcti).decrypt(token);
 
         let Some(key) = key else {
             zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");
@@ -93,6 +59,7 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
+    use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_platform::secret::Secret;
     use zbm_testkit::fakes::FakeSystem;

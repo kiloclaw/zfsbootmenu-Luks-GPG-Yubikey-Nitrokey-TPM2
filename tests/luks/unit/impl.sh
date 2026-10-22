@@ -62,8 +62,10 @@ zbm_impl_check() {
       ;;
     rust)
       # The default build is brought up to date first (cargo does nothing
-      # when it is), so the suites never test code older than the tree
-      if [ "${ZBMTEST_ZBM}" = "${_zbm_impl_default}" ] && command -v cargo >/dev/null 2>&1; then
+      # when it is), so the suites never test code older than the tree; a
+      # read-only tree (run-in-container.sh) uses the build made on the host
+      if [ "${ZBMTEST_ZBM}" = "${_zbm_impl_default}" ] && [ -w "${_zbm_impl_repo}" ] \
+          && command -v cargo >/dev/null 2>&1; then
         ( cd "${_zbm_impl_repo}" && CARGO_TARGET_DIR=target/test-seams \
             cargo build -q -p zbm --features test-seams ) || exit 2
       fi

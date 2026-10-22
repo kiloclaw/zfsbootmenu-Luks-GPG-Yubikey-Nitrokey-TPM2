@@ -62,21 +62,6 @@ impl Target<'_> {
     }
 }
 
-/// Removes all final newlines, as `$(...)` does.
-pub(crate) fn strip_newlines(secret: &mut Secret) {
-    while secret.expose().last() == Some(&b'\n') {
-        secret.pop();
-    }
-}
-
-/// A secret followed by a newline, as `printf '%s\n'` or a here-string
-/// writes it.
-pub(crate) fn with_newline(secret: &Secret) -> Secret {
-    let mut line = secret.clone();
-    line.push(b'\n');
-    line
-}
-
 impl Session<'_> {
     /// Whether cryptsetup's token plugin for `kind` is installed
     /// (`luks_have_token_plugin`); never when the settings force ZFSBootMenu's
