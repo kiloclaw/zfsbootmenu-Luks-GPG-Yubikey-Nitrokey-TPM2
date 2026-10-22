@@ -17,6 +17,7 @@ zbm-luks.workspace = true
 zbm-platform.workspace = true
 zbm-sys.workspace = true
 zbm-system.workspace = true
+tracing.workspace = true
 zbm-trace.workspace = true
 zbm-tui.workspace = true
 zbm-types.workspace = true
@@ -27,6 +28,8 @@ zbm-types.workspace = true
 # prompts and the check for open volumes going to their files. Images never
 # contain this build.
 test-seams = []
+# A test build for the crash report VM test: `zbm debug panic` panics.
+crash-test = []
 
 [dev-dependencies]
 pretty_assertions.workspace = true

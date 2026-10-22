@@ -17,9 +17,12 @@
 //! all of them. [`KernelLog`] writes the kernel log through [`Files`].
 //! Code logs with `zbm_trace`'s macros, and a program installs the log once
 //! it knows the log level ([`System::kernel_log`]).
+//! [`CrashReporter`] is the panic hook that leaves crash reports in the state
+//! directory.
 
 pub mod clock;
 pub mod console;
+pub mod crash;
 pub mod env;
 pub mod files;
 pub mod log;
@@ -27,6 +30,7 @@ pub mod process;
 
 pub use clock::{Clock, SystemClock};
 pub use console::{Console, Size, Terminal};
+pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
 pub use files::{FileKind, Files, Metadata, RealFiles};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};

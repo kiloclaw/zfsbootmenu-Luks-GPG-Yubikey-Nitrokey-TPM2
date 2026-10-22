@@ -132,3 +132,6 @@ build, so a parser that moves takes its target along.
 - The LUKS unit suites keep their output in `ZBMTEST_UNIT_WORK` (default `/var/tmp/zbm-luks-unit`).
 - The LUKS VM tests keep the serial console log and a step log per test below `ZBMTEST_WORK`
   (default `/var/tmp/zbm-luks-test/tests/<test>/`).
+- A Rust runtime program that panicked left a crash report: `zbm debug crash` in the recovery shell prints it, and
+  `cargo xtask symbolize <report> --debug-dir <image build>/build/debug` names the functions and lines
+  ([tooling.md](tooling.md), "Crash reports"). The VM test `runtime-rust-crash` checks that whole way.

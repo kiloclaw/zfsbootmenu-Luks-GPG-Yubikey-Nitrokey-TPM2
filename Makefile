@@ -16,6 +16,9 @@ CARGO=cargo
 CARGO_TARGET_DIR=target
 CARGO_FLAGS=--release --locked
 RUST_PROGRAMS=zbm generate-zbm zbm-kcl
+# Release builds keep line tables for crash reports; installed programs are
+# stripped unless INSTALL_STRIP is empty (for packages that split debug files)
+INSTALL_STRIP=-s
 
 # Which host tools "make install" installs: "rust" (the default) or "legacy",
 # the Perl generate-zbm and Bash zbm-kcl in legacy/bin, which need no Rust
@@ -35,9 +38,9 @@ zbm-release:
 install: core tools-$(TOOLS) dracut initcpio zbm-release
 
 tools-rust: zbm-release rust
-	install -m 0755 -D "$(CARGO_TARGET_DIR)/release/generate-zbm" "$(DESTDIR)/$(BINDIR)/generate-zbm"
-	install -m 0755 -D "$(CARGO_TARGET_DIR)/release/zbm-kcl" "$(DESTDIR)/$(BINDIR)/zbm-kcl"
-	install -m 0755 -D "$(CARGO_TARGET_DIR)/release/zbm" "$(DESTDIR)/$(LIBEXECDIR)/zbm"
+	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/generate-zbm" "$(DESTDIR)/$(BINDIR)/generate-zbm"
+	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm-kcl" "$(DESTDIR)/$(BINDIR)/zbm-kcl"
+	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm" "$(DESTDIR)/$(LIBEXECDIR)/zbm"
 
 tools-legacy: zbm-release
 	install -m 0755 -t "$(DESTDIR)/$(BINDIR)" -D legacy/bin/*

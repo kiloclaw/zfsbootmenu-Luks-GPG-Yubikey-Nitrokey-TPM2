@@ -418,9 +418,13 @@ The caller decides, at the same points as the legacy code:
    loop in `zfsbootmenu-init`. The shell prints the errors logged since the last time
    (`recovery-error-printer`, `have_errors`).
 
-Panics are bugs. In the start-up program and the menu, a panic hook writes the panic message to the kernel log as an
-error before the process ends, and the supervisor opens the recovery shell, which shows it. The supervisor cannot
-panic (see "The supervisor").
+Panics are bugs. In every runtime program a panic hook (`zbm_system::CrashReporter`) writes a crash report to
+`/zfsbootmenu/crash-<time>-<pid>.txt` (the message and place, the build ID, the open `tracing` spans and the stack as
+offsets from the binary's load address), logs an error naming it, and writes it to the journal, before the process
+ends. When the start-up program ends, the supervisor names its report, or writes one when a signal killed it, and
+opens the recovery shell, which says where the report is; `zbm debug crash` prints it. The supervisor cannot panic
+(see "The supervisor"). `cargo xtask symbolize` resolves a report with the debug file of its build ID
+(`docs/dev/tooling.md`, "Crash reports").
 
 ### Logging
 

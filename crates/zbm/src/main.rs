@@ -12,6 +12,15 @@ fn main() {
     let mut args = std::env::args();
     let argv0 = args.next().unwrap_or_else(|| "zbm".to_owned());
     let args: Vec<String> = args.collect();
+    // A panic leaves a crash report in the state directory (see
+    // `zbm_system::crash`); where that does not exist, as on a booted system,
+    // only the standard message on standard error remains.
+    zbm_system::CrashReporter::new(
+        &zbm_system::RealFiles,
+        std::path::Path::new(zbm::debug::BASE),
+        &zbm::applet_name(&argv0, &args),
+    )
+    .install();
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
     let code = zbm::run(

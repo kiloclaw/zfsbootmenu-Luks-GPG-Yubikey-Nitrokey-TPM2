@@ -17,10 +17,45 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |
 | `cargo xtask check-deps [--bless]` | Checks the dependencies between crates against the layers ([architecture.md](architecture.md)); `--bless` regenerates the tables on that page |
 | `cargo xtask metrics [--check \| --bless]` | Prints code metrics per crate (below) |
+| `cargo xtask split-debug <binary> [<dir>]` | Moves the debug information of a release binary to `<dir>/<build-id>.debug` (default `target/debug-files`) with `objcopy` and strips the binary; image builds do this to `zbm` (below) |
+| `cargo xtask symbolize <report> [--debug-dir <dir>]...` | Prints a crash report of the runtime with the function, file and line of each frame of the crashed binary, from the debug file with the report's build ID, with `addr2line` (below) |
 | `cargo xtask widths` | Checks the line widths of The Rust Style Guide that `rustfmt` leaves alone: at most 100 characters, comment lines at most 80 without their indentation |
 
 The suites that need root or QEMU are described in [testing.md](testing.md); they are not part of `cargo xtask` yet
 (REFACTOR-ROADMAP.md moves them there in R2 and R3).
+
+## Crash reports
+
+When a runtime program panics, its panic hook (`zbm_system::CrashReporter`) writes
+`/zfsbootmenu/crash-<time>-<pid>.txt`, logs an error naming it and writes it to the journal; when the supervisor's
+start-up program is killed by a signal, the supervisor writes one. The recovery shell names the report, and
+`zbm debug crash` prints the latest (`--list` lists them). A report holds the panic message and place, the build ID
+of the binary, the `tracing` spans that were open, and the stack as offsets from the binary's load address, which
+address space randomisation does not change:
+
+```text
+ZFSBootMenu crash report
+program: zfsbootmenu-init
+binary: /libexec/zbm
+...
+build-id: 875eff95d23b38bc184fe3a40d875ee1f296b335
+spans: startup > import{pool=tank}
+frames:
+  #0 0x000000000010c436 /libexec/zbm
+```
+
+The image's `zbm` is stripped, so the offsets are all a machine can tell. Release builds keep line tables and
+function names (`debug = "line-tables-only"`), and the image build (`packaging/container/build-init.sh`) moves them
+with `cargo xtask split-debug` to `debug/<build-id>.debug` next to the images. With that file,
+
+```sh
+cargo xtask symbolize crash-report.txt --debug-dir build/debug
+```
+
+prints each frame of the binary as its function, file and line, with the calls inlined into it. The commands use
+`objcopy` and `addr2line` from GNU binutils (or the programs named by `OBJCOPY` and `ADDR2LINE`).
+`make install` strips the programs it installs unless `INSTALL_STRIP` is empty, for packages that keep debug files
+of their own.
 
 ## Third-party crates
 

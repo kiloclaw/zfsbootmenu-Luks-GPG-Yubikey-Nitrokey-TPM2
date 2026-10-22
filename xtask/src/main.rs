@@ -14,6 +14,7 @@
 
 mod cargo;
 mod coverage;
+mod debuginfo;
 mod deps;
 mod error;
 mod fuzz;
@@ -65,12 +66,20 @@ Commands:
                          --check fails when a crate dropped below
                          xtask/coverage-baseline.txt (new crates: 80%),
                          --bless writes the current numbers there
+  split-debug <binary> [<dir>]
+                         Move the debug information of a release binary to
+                         <dir>/<build-id>.debug (target/debug-files) and
+                         strip the binary, as images are built
+  symbolize <report> [--debug-dir <dir>]...
+                         Print a crash report of the runtime with function
+                         names, files and lines, from the debug files of its
+                         build ID (target/debug-files)
   widths                 Check the line widths of The Rust Style Guide
   help                   Show this text
 ";
 
 /// One command of the command line.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum Command {
     /// `lint`, strict or not.
     Lint { strict: bool },
@@ -93,6 +102,10 @@ enum Command {
         target: Option<&'static str>,
         seconds: u64,
     },
+    /// `split-debug`: the binary and the directory of debug files.
+    SplitDebug { binary: PathBuf, dir: PathBuf },
+    /// `symbolize`: the report and the directories of debug files.
+    Symbolize { report: PathBuf, dirs: Vec<PathBuf> },
     /// `widths`.
     Widths,
     /// `help`.
@@ -122,6 +135,15 @@ impl Command {
             ["coverage"] => Command::Coverage(Mode::Report),
             ["coverage", "--check"] => Command::Coverage(Mode::Check),
             ["coverage", "--bless"] => Command::Coverage(Mode::Bless),
+            ["split-debug", binary] => Command::SplitDebug {
+                binary: PathBuf::from(binary),
+                dir: PathBuf::from(debuginfo::DEFAULT_DIR),
+            },
+            ["split-debug", binary, dir] => Command::SplitDebug {
+                binary: PathBuf::from(binary),
+                dir: PathBuf::from(dir),
+            },
+            ["symbolize", report, rest @ ..] => parse_symbolize(report, rest)?,
             ["widths"] => Command::Widths,
             _ => {
                 return Err(Error::Usage(format!(
@@ -158,6 +180,30 @@ fn parse_fuzz(words: &[&str]) -> Result<Command> {
     Ok(Command::Fuzz { target, seconds })
 }
 
+/// Parses the options of `symbolize`: `--debug-dir <dir>`, any number of
+/// times; without one, the default directory.
+fn parse_symbolize(report: &str, words: &[&str]) -> Result<Command> {
+    let mut dirs = Vec::new();
+    let mut words = words.iter();
+    while let Some(word) = words.next() {
+        match (*word, words.next()) {
+            ("--debug-dir", Some(dir)) => dirs.push(PathBuf::from(dir)),
+            _ => {
+                return Err(Error::Usage(
+                    "symbolize: the options are --debug-dir <dir>".to_owned(),
+                ));
+            }
+        }
+    }
+    if dirs.is_empty() {
+        dirs.push(PathBuf::from(debuginfo::DEFAULT_DIR));
+    }
+    Ok(Command::Symbolize {
+        report: PathBuf::from(report),
+        dirs,
+    })
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match Command::parse(&args).and_then(run) {
@@ -192,6 +238,8 @@ fn run(command: Command) -> Result<()> {
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
         Command::Coverage(mode) => coverage::run(&Workspace::load(&root)?, mode),
         Command::Fuzz { target, seconds } => fuzz::run(&root, target, seconds),
+        Command::SplitDebug { binary, dir } => debuginfo::split(&root, &binary, &dir),
+        Command::Symbolize { report, dirs } => debuginfo::symbolize(&root, &report, &dirs),
         Command::Widths => lint::check_widths(&root),
     }
 }

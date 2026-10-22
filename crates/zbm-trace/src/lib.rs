@@ -15,6 +15,8 @@
 //! - [`install`] sets up a program: messages of a chosen level on standard
 //!   error, and the journal if one is given.
 //! - [`read`] reads ZFSBootMenu's messages back from the kernel log.
+//! - [`crash`] writes and reads crash reports, with the spans that were open
+//!   ([`crash::SpanStack`]).
 //!
 //! The command journal, one event per program run with its duration and
 //! status, comes from `zbm-platform`, whose runner reports each command.
@@ -40,6 +42,7 @@
 //! assert_eq!(line["spans"][0]["device"], "/dev/sda2");
 //! ```
 
+pub mod crash;
 mod journal;
 pub mod kmsg;
 pub mod read;

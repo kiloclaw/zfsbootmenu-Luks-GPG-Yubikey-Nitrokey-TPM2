@@ -4,12 +4,17 @@
 //! to the effective user in ways that the Rust standard library cannot
 //! reproduce: Rust ignores `SIGPIPE` at start-up, has no signal handlers, and
 //! cannot tell the effective user and groups of the process. The runtime also
-//! sends signals to other processes and wipes secrets from memory. This crate
+//! sends signals to other processes, wipes secrets from memory and reads the
+//! stack for crash reports ([`return_addresses`]). This crate
 //! wraps the C functions that provide them. It is the only crate in the
 //! workspace that may contain `unsafe` code, and each `unsafe` block states
 //! why it is sound.
 
 #![allow(unsafe_code)]
+
+mod stack;
+
+pub use stack::{MAX_FRAMES, return_addresses};
 
 use std::ffi::{c_int, c_ulong, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};

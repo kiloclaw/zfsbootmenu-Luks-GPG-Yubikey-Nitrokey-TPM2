@@ -161,7 +161,10 @@ impl KernelLog {
         if self.labelled {
             layer = layer.labelled();
         }
-        let subscriber = tracing_subscriber::registry().with(layer).with(journal);
+        let subscriber = tracing_subscriber::registry()
+            .with(layer)
+            .with(journal)
+            .with(zbm_trace::crash::SpanStack);
         Installed {
             _guard: tracing::subscriber::set_default(subscriber),
         }
@@ -196,6 +199,8 @@ mod tests {
             zbm_trace::error!("unable to import a pool");
             zbm_trace::notice!("note");
             assert!(zbm_trace::enabled(Level::Info) && !zbm_trace::enabled(Level::Debug));
+            assert!(zbm_trace::enabled(Level::Error) && zbm_trace::enabled(Level::Warning));
+            assert!(zbm_trace::enabled(Level::Notice));
         }
         zbm_trace::error!("not written: the log is uninstalled");
 

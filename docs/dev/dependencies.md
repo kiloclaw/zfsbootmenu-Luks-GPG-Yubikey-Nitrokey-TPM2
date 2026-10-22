@@ -24,7 +24,7 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | Crate | Used by | Why |
 | --- | --- | --- |
 | `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-luks`, `zbm-app` | Error enums with their causes; runs at build time only |
-| `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app` | Spans and events; the stderr output and the JSON journal |
+| `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app`; `tracing` in `zbm` | Spans and events; the stderr output and the JSON journal |
 | `serde_json` | `zbm-trace` | The JSON journal |
 | `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets, terminal output and key input |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |

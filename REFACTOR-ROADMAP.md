@@ -101,7 +101,20 @@ Done in R1:
   tests) make failures name the command or case. `zbm-testkit` passes the strict lints; as test code, its helpers may
   panic (that is how a test fails) and its host helpers, golden files and fake `zfs` may use real files.
 
-Open in R1: error enums; crash reports; shadow mode.
+- Crash reports. Every runtime program's panic hook (`zbm_system::CrashReporter`) writes
+  `/zfsbootmenu/crash-<time>-<pid>.txt` with the message and place, the build ID, the open spans
+  (`zbm_trace::crash::SpanStack`) and the stack as offsets from the load address (`zbm_sys::return_addresses`,
+  through the unwinder's `_Unwind_Backtrace`), logs an error naming it and writes it to the journal. The supervisor
+  names the report of the start-up program, or writes one when a signal killed it, and the recovery shell says
+  where it is; `zbm debug crash` prints it. Release builds keep line tables (`debug = "line-tables-only"`, no
+  `strip`), `zbm` links with a build ID, and image builds move the debug information to
+  `debug/<build-id>.debug` with `cargo xtask split-debug`; `cargo xtask symbolize` resolves a report with it. The
+  VM test `runtime-rust-crash` panics a test-only command (`zbm debug panic`, feature `crash-test`) and checks that
+  the symbolized report names the function and line. `xtask` uses `objcopy` and `addr2line` from binutils rather
+  than the `addr2line` crate, which is not among the agreed dependencies; the VM test harness runs the tree's own
+  `build-init.sh`, so changes to it need no new build container.
+
+Open in R1: error enums; shadow mode.
 
 ## What the pilots taught
 

@@ -423,9 +423,25 @@ if [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ] && ! command -v cargo >/dev/null
   echo "WARNING: (the legacy runtime does not need it; rebuild the build container to get cargo)" >&2
 elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   : "${CARGO_TARGET_DIR:=${ZBMWORKDIR}/target}"
-  ( cd /zbm && cargo build --release --locked --offline --target-dir "${CARGO_TARGET_DIR}" \
+  export CARGO_TARGET_DIR
+  # ZBM_CARGO_FEATURES selects features of test builds, such as
+  # "zbm/crash-test" for the crash report VM test
+  FEATURES=()
+  if [ -n "${ZBM_CARGO_FEATURES}" ]; then
+    FEATURES=( --features "${ZBM_CARGO_FEATURES}" )
+  fi
+  ( cd /zbm && cargo build --release --locked --offline "${FEATURES[@]}" \
       --bin zbm --bin generate-zbm ) || error "failed to build the Rust programs"
-  install -m 0755 -D "${CARGO_TARGET_DIR}/release/zbm" /usr/libexec/zfsbootmenu/zbm \
+
+  # Images carry zbm without its debug information, which goes to
+  # ${ZBMOUTPUT}/debug/<build ID>.debug, where "cargo xtask symbolize" finds it
+  # to read crash reports
+  cp "${CARGO_TARGET_DIR}/release/zbm" "${ZBMWORKDIR}/zbm" || error "unable to copy zbm"
+  if ! ( cd /zbm && cargo xtask split-debug "${ZBMWORKDIR}/zbm" "${ZBMOUTPUT}/debug" ); then
+    echo "WARNING: unable to keep the debug information of zbm; crash reports cannot be resolved" >&2
+    strip "${ZBMWORKDIR}/zbm" || error "unable to strip zbm"
+  fi
+  install -m 0755 -D "${ZBMWORKDIR}/zbm" /usr/libexec/zfsbootmenu/zbm \
     || error "unable to install zbm"
 
   if [ "${GENERATOR:-rust}" = rust ]; then

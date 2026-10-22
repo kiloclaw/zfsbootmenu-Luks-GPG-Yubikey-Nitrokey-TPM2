@@ -5,9 +5,9 @@
 # one by hand.
 crate         line_coverage
 generate-zbm             92
-xtask                    76
-zbm                      68
-zbm-app                  93
+xtask                    77
+zbm                      74
+zbm-app                  95
 zbm-boot                 97
 zbm-cmdline              99
 zbm-core                 97
@@ -16,10 +16,10 @@ zbm-kcl                  90
 zbm-luks                 95
 zbm-platform             83
 zbm-state               100
-zbm-sys                  92
+zbm-sys                  93
 zbm-system               99
 zbm-testkit              97
-zbm-trace                97
+zbm-trace                98
 zbm-tui                  85
 zbm-types                99
 zbm-zfs                  99

@@ -31,18 +31,25 @@ A of Phase 6 in PORT-ROADMAP.md).
               menu) and the recovery shell; the Rust run compares with the
               legacy run's
 
+  runtime.py rust-crash
+                      a hook runs "zbm debug panic" in an image built with
+                      the crash-test feature and prints the crash report;
+                      "cargo xtask symbolize" must name the panicking
+                      function and line from the image's debug file
+
 Every scenario must pass with the legacy image first (rule 2 of the roadmap).
 """
 
 import json
 import re
+import subprocess
 import sys
 import time
 
 import pexpect
 
 from zbmtest import (Test, VM, check_be, clean, check_teardown, disk, follow_boot, payload_disk,
-                     vfat_disk, WORK, zbm_image)
+                     vfat_disk, REPO, WORK, zbm_image)
 
 OPTS = ("-o ashift=12 -o compatibility=openzfs-2.4-linux -O compression=lz4 "
         "-O acltype=posixacl -O xattr=sa -m none")
@@ -243,6 +250,54 @@ def pilot():
     t.finish()
 
 
+CRASH_HOOK = b"""#!/bin/bash
+/libexec/zbm debug panic >/dev/null 2>&1
+echo "ZBMTEST-CRASH-BEGIN"
+/libexec/zbm debug crash
+echo "ZBMTEST-CRASH-END"
+echo "ZBMTEST-CRASH-KMSG $(dmesg | grep -c 'debug crashed: zbm debug panic')"
+echo "ZBMTEST-CRASH-JOURNAL $(grep -c '"crash report"' /zfsbootmenu/journal.jsonl)"
+"""
+
+
+def crash():
+    """
+    A panic in the Rust image leaves a crash report that the image's debug
+    file resolves: the frame of the panicking function names its file and
+    line (REFACTOR-ROADMAP.md, "Crash reports").
+    """
+    t = Test("runtime-rust-crash")
+    img = zbm_image("auto-crash", runtime="rust", features="zbm/crash-test",
+                    files={"hooks/early-setup.d/95-zbmtest-crash": CRASH_HOOK})
+    vm = VM(t, "boot", disks=[d(0)], kernel=img["kernel"], initrd=img["initrd"],
+            append="console=ttyS0 zbm.timeout=30 loglevel=7").start()
+    vm.expect(r"ZBMTEST-CRASH-BEGIN", timeout=1200)
+    vm.expect(r"ZBMTEST-CRASH-END", timeout=60)
+    report = vm.before.replace("\r", "").strip("\n") + "\n"
+    vm.expect(r"ZBMTEST-CRASH-KMSG (\d+)", timeout=60)
+    kmsg = int(vm.match.group(1))
+    vm.expect(r"ZBMTEST-CRASH-JOURNAL (\d+)", timeout=60)
+    journal = int(vm.match.group(1))
+    vm.kill()
+    path = t.dir / "crash-report.txt"
+    path.write_text(report)
+    t.note(report)
+    t.check(report.startswith("ZFSBootMenu crash report\n"), "zbm debug crash printed the report")
+    t.check("reason: panicked at crates/zbm/src/debug.rs:" in report,
+            "the report says where the panic was")
+    t.check("crash_test{reason=zbm debug panic}" in report, "the report names the open span")
+    t.check(kmsg >= 1, "the kernel log names the crash")
+    t.check(journal >= 1, "the journal holds the report")
+    r = subprocess.run(["cargo", "xtask", "symbolize", str(path), "--debug-dir", str(img["debug"])],
+                       cwd=REPO, capture_output=True, text=True)
+    (t.dir / "symbolized.txt").write_text(r.stdout + r.stderr)
+    t.note(r.stdout + r.stderr)
+    t.check(r.returncode == 0, "cargo xtask symbolize ran")
+    t.check(re.search(r"zbm::debug::panic_for_test at \S*crates/zbm/src/debug\.rs:\d+", r.stdout)
+            is not None, "the symbolized report names the function and its line")
+    t.finish()
+
+
 def setup():
     t = Test("runtime-setup")
     payload = (payload_disk(), "payload")
@@ -377,6 +432,8 @@ def main():
         signals(runtime)
     if which == "rust-pilot":
         pilot()
+    if which == "rust-crash":
+        crash()
     boot(runtime, scenario)
 
 

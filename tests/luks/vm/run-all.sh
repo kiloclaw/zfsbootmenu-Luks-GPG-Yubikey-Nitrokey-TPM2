@@ -35,6 +35,7 @@ ALL=(
   runtime-legacy-hooks runtime-rust-hooks
   runtime-legacy-signals runtime-rust-signals
   runtime-rust-pilot
+  runtime-rust-crash
 )
 
 tests=( "$@" )

@@ -10,6 +10,7 @@
 use std::io::Write;
 
 pub mod applets;
+pub mod debug;
 pub mod luks;
 pub mod pilot;
 pub mod supervisor;
@@ -56,6 +57,12 @@ const ZLUKS: Applet = Applet {
     run: luks::zluks,
 };
 
+const DEBUG: Applet = Applet {
+    name: "debug",
+    summary: "show crash reports (zbm debug crash)",
+    run: debug::run,
+};
+
 const MENU_PILOT: Applet = Applet {
     name: "zbm-menu-pilot",
     summary: "the boot environment list of the refactored menu (pilot)",
@@ -64,7 +71,7 @@ const MENU_PILOT: Applet = Applet {
 
 /// The commands `zbm` provides.
 #[cfg(not(feature = "test-seams"))]
-pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS, MENU_PILOT];
+pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS, MENU_PILOT, DEBUG];
 
 /// The commands `zbm` provides, with the operations of the LUKS unit suites
 /// in the test build.
@@ -75,6 +82,7 @@ pub const APPLETS: &[Applet] = &[
     PREINIT,
     ZLUKS,
     MENU_PILOT,
+    DEBUG,
     Applet {
         name: "zbm-luks-test",
         summary: "the LUKS operations of the unit suites (test build only)",
@@ -162,6 +170,15 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
                 NOT_FOUND
             }
         },
+    }
+}
+
+/// The name of the command `zbm` runs for `argv0` and `args`, which crash
+/// reports name: the name it was started under, else its first argument.
+pub fn applet_name(argv0: &str, args: &[String]) -> String {
+    match command_name(argv0) {
+        "zbm" => args.first().map_or("zbm", String::as_str).to_owned(),
+        name => name.to_owned(),
     }
 }
 
@@ -261,6 +278,7 @@ mod tests {
             "zfsbootmenu-preinit",
             "zluks",
             "zbm-menu-pilot",
+            "debug",
         ];
         if cfg!(feature = "test-seams") {
             expected.push("zbm-luks-test");
@@ -270,5 +288,12 @@ mod tests {
         assert_eq!(code, USAGE);
         assert_eq!(stderr, "zfsbootmenu-init: unknown option --bogus\n");
         assert_eq!(command_name("/a/b/"), "b");
+        let args = |list: &[&str]| list.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+        assert_eq!(applet_name("/bin/zluks", &args(&["open"])), "zluks");
+        assert_eq!(
+            applet_name("/libexec/zbm", &args(&["debug", "crash"])),
+            "debug"
+        );
+        assert_eq!(applet_name("zbm", &[]), "zbm");
     }
 }

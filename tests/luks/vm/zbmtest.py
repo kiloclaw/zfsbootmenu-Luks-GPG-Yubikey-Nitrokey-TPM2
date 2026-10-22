@@ -243,10 +243,12 @@ def vfat_disk(path, label, files, size="64M", sector=512):
 
 # -------------------------------------------------------------------- images
 
-def container(args, mounts=(), entrypoint=None):
+def container(args, mounts=(), entrypoint=None, env=None):
     cmd = [RUNTIME, "run", "--rm"]
     for host, guest in mounts:
         cmd += ["-v", f"{host}:{guest}"]
+    for key, value in (env or {}).items():
+        cmd += ["-e", f"{key}={value}"]
     if entrypoint:
         cmd += ["--entrypoint", entrypoint]
     cmd += [IMAGE] + list(args)
@@ -289,7 +291,7 @@ def be_kver():
 
 
 def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=False, rc=None,
-              runtime=None):
+              runtime=None, features=None):
     """
     Build a ZFSBootMenu test image with the build container from this source
     tree. Returns a dict with paths of kernel, initrd and (if efi) EFI image.
@@ -301,6 +303,11 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
       cmdline   Kernel.CommandLine of the EFI image
       rc        shell script run in the container before the build (rc.d)
       runtime   legacy or rust (default: ZBMTEST_ZBM_RUNTIME)
+      features  Cargo features of the build, such as "zbm/crash-test"
+
+    The build runs this tree's packaging/container/build-init.sh, so changes
+    to it need no new build container. zbm's debug file is left in
+    build/debug/<build ID>.debug (cargo xtask symbolize).
     """
     if (runtime or ZBM_RUNTIME) == "rust":
         variant += "-rust"
@@ -308,7 +315,8 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
     bdir = WORK / "zbm" / variant
     out = {"kernel": bdir / "build" / "vmlinuz-bootmenu",
            "initrd": bdir / "build" / "initramfs-bootmenu.img",
-           "efi": bdir / "build" / "vmlinuz.EFI"}
+           "efi": bdir / "build" / "vmlinuz.EFI",
+           "debug": bdir / "build" / "debug"}
     if REUSE and out["initrd"].exists() and (not efi or out["efi"].exists()):
         return out
     if bdir.exists():
@@ -339,7 +347,9 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
     if cmdline:
         cfg.append(f'  CommandLine: "{cmdline}"')
     (bdir / "config.yaml").write_text("\n".join(cfg) + "\n")
-    r = container(["-V"], mounts=[(REPO, "/zbm:ro"), (bdir, "/build")])
+    env = {"ZBM_CARGO_FEATURES": features} if features else None
+    r = container(["-V"], mounts=[(REPO, "/zbm:ro"), (bdir, "/build")],
+                  entrypoint="/zbm/packaging/container/build-init.sh", env=env)
     (bdir / "build.log").write_text(r.stdout + r.stderr)
     if r.returncode != 0 or not out["initrd"].exists():
         raise RuntimeError(f"ZFSBootMenu image {variant} failed to build; see {bdir / 'build.log'}")

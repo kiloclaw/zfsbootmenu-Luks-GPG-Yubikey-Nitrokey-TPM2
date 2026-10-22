@@ -104,6 +104,7 @@ pub const TOOLS: &[&str] = &["xtask"];
 pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("generate-zbm", &["yaml-rust2"]),
     ("xtask", &["proc-macro2", "serde_json", "syn"]),
+    ("zbm", &["tracing"]),
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-crypt", &["thiserror", "tracing"]),
     ("zbm-system", &["tracing", "tracing-subscriber"]),
