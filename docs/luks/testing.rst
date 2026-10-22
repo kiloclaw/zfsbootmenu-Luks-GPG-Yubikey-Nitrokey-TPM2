@@ -357,8 +357,8 @@ Virtual-machine tests with the Rust runtime
 The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), on
 22 October 2026, and ``runtime-rust-pilot``, which exists only for the Rust image. The ``complex`` tests fail because their boot pool's root is a locked ZFS encryption root, which the
 Rust runtime does not handle yet: it refuses to boot and opens the recovery shell. In ``complex-degraded`` and the two
-hot-plug tests, every LUKS, import and teardown check passes and only the boot environment's checks fail.
-``complex-healthy`` and ``complex-crypttab`` did not import the pools in this run, and ``complex-badkey`` and
+hot-plug tests, every LUKS, import and teardown check passes and only the boot environment's checks fail; the same
+holds for ``complex-healthy`` and ``complex-crypttab``, rerun later that day. ``complex-badkey`` and
 ``complex-skip-recover`` ended without a result; they need a rerun. The ``oldzfs`` tests were skipped, as no
 OpenZFS 2.2 image was given.
 
@@ -368,8 +368,8 @@ Test                            Passed  Failed  Duration
 ``layouts-main-rust``           44      0       11 min
 ``layouts-parity-rust``         37      0       11 min
 ``complex-setup-rust``          19      0       6 min
-``complex-healthy-rust``        1       26      3 min
-``complex-crypttab-rust``       1       25      4 min
+``complex-healthy-rust``        13      14      6 min
+``complex-crypttab-rust``       13      13      8 min
 ``complex-degraded-rust``       9       13      4 min
 ``complex-hotplug-rust``        13      13      4 min
 ``complex-hotplug-auto-rust``   13      13      5 min
