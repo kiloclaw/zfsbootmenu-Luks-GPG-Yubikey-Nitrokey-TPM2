@@ -9,6 +9,7 @@
 pub mod clevis;
 pub mod fido2;
 pub mod gpg;
+pub mod handlers;
 pub mod tpm2;
 pub mod yubikey;
 
@@ -18,7 +19,8 @@ use zbm_crypt::{CryptError, Cryptsetup, Token};
 use zbm_platform::secret::Secret;
 
 use crate::error::{LuksError, TokenFailure};
-use crate::session::Session;
+use crate::unlocker::Unlocker;
+use handlers::Pass;
 
 /// The volume a key method opens.
 #[derive(Clone, Copy, Debug)]
@@ -62,7 +64,7 @@ impl Target<'_> {
     }
 }
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Whether cryptsetup's token plugin for `kind` is installed
     /// (`luks_have_token_plugin`); never when the settings force ZFSBootMenu's
     /// own implementations.
@@ -93,7 +95,7 @@ impl Session<'_> {
     }
 
     /// `cryptsetup`, with device-mapper's udev synchronization off when
-    /// [`Session::available`] turned it off.
+    /// [`Unlocker::available`] turned it off.
     pub fn cryptsetup(&self) -> Cryptsetup<'_> {
         Cryptsetup::new(self.system().runner).without_udev(self.dm_disable_udev)
     }
@@ -130,10 +132,11 @@ impl Session<'_> {
         })
     }
 
-    /// Tries the LUKS2 tokens of a volume whose header is `header`
-    /// (`luks_try_tokens`): first those that need no interaction (TPM2
-    /// without a PIN, clevis), then those that do (TPM2 with a PIN, FIDO2,
-    /// and any other type that has a plugin in the image).
+    /// Tries the LUKS2 tokens of a volume whose header is `header`, with the
+    /// handlers of [`handlers::token_handlers`]: first those that need no
+    /// interaction (TPM2 without a PIN, clevis), then those that do (TPM2
+    /// with a PIN, FIDO2, and any other type that has a plugin in the
+    /// image).
     ///
     /// # Errors
     ///
@@ -152,28 +155,29 @@ impl Session<'_> {
         if tokens.is_empty() {
             return Err(none_opened());
         }
-        for interactive in [false, true] {
+        let handlers = handlers::token_handlers();
+        for pass in Pass::ALL {
             for token in &tokens {
-                let id = token.id.as_str();
-                let with_pin = token.flag("tpm2-pin") == Some(true);
-                let result = match (interactive, token.kind.as_str()) {
-                    (false, "systemd-tpm2") if !with_pin => self.try_tpm2_token(target, id, token),
-                    (false, "clevis") => self.try_clevis_token(target, id, token),
-                    (true, "systemd-tpm2") if with_pin => self.try_tpm2_token(target, id, token),
-                    (true, "systemd-fido2") => self.try_fido2_token(target, id, token),
-                    // Tried in the other pass.
-                    (true, "systemd-tpm2" | "clevis") | (false, _) => continue,
-                    (true, kind) => {
-                        if self.have_token_plugin(kind) {
-                            self.open_token_plugin(target, id, None)
-                        } else {
-                            zbm_trace::debug!(
-                                "no support for {kind} token {id} on {}",
-                                target.device
-                            );
-                            continue;
-                        }
+                let handler = handlers.iter().find(|handler| handler.kind() == token.kind);
+                let result = match handler {
+                    Some(handler) if handler.pass(token) == pass => {
+                        handler.try_open(self, target, token)
                     }
+                    // Tried in the other pass.
+                    Some(_) => continue,
+                    None if pass == Pass::Interactive && self.have_token_plugin(&token.kind) => {
+                        self.open_token_plugin(target, &token.id, None)
+                    }
+                    None if pass == Pass::Interactive => {
+                        zbm_trace::debug!(
+                            "no support for {} token {} on {}",
+                            token.kind,
+                            token.id,
+                            target.device
+                        );
+                        continue;
+                    }
+                    None => continue,
                 };
                 if result.is_ok() {
                     return Ok(());
@@ -185,10 +189,10 @@ impl Session<'_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
+    use crate::unlocker::{Luks, Settings};
     use zbm_platform::exec::{Input, Output, Status};
     use zbm_testkit::fakes::FakeSystem;
 
@@ -206,7 +210,7 @@ mod tests {
     pub(crate) fn with_session<T>(
         fake: &FakeSystem,
         settings: Settings,
-        body: impl FnOnce(&mut Session<'_>) -> T,
+        body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
         let _log = log(fake);
         let luks = Luks {
@@ -214,7 +218,7 @@ mod tests {
             settings: &settings,
             prompter: &NoPrompts,
         };
-        body(&mut Session::new(luks))
+        body(&mut Unlocker::new(luks))
     }
 
     #[test]

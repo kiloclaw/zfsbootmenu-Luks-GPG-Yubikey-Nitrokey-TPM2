@@ -191,7 +191,7 @@ Done in R2:
 
 - The LUKS device suites in Rust: `crates/zbm-luks/tests/devices/` (`unlock`, `tokens`, `edge`, `config`) ports the
   Bash suites case for case and check for check, 52 + 55 + 81 + 64 = 252 checks, all passing; `cargo xtask test
-  devices` runs them as root and CI runs them next to the Bash suites. They call `Session` directly, with real LUKS
+  devices` runs them as root and CI runs them next to the Bash suites. They call the LUKS code directly, with real LUKS
   volumes on loop devices, swtpm, `systemd-cryptenroll`, clevis and GnuPG; a device runner stands in for
   device-mapper (`cryptsetup open` checks the key with `--test-passphrase` and creates a node in the case's own
   mapper directory), so they need no mount namespace. The Bash stand-ins become Rust: the timed prompts, the console
@@ -234,11 +234,20 @@ Done in R3:
   unchanged, and showed that `.gitignore` patterns meant for the upstream test VMs (`hostid`, `generate-zbm`,
   `keys`) had kept 18 recordings out of the repository: CI records live, so their absence went unnoticed. They are
   committed now, and match the legacy code.
+- `zbm-luks` (domain): the unlock session is `Unlocker` (it was `Session`; the pilot's key chain is now
+  `pilot::KeyChain`). The key methods tried before the prompt are strategies (`KeyMethod`: key script, key file,
+  tokens, passphrases of other volumes, YubiKey), listed by `key_methods` in the legacy order, which a test checks;
+  each answers a `Tried` instead of a flag. LUKS2 tokens go through a registry of `TokenHandler`s (TPM2, clevis,
+  FIDO2), each saying whether it needs the user (`Pass`); unknown types still go to cryptsetup's plugins in the
+  interactive pass. The passphrase prompt is `PassphrasePrompt`, a state machine whose transitions do no I/O, and
+  the mapping state file and skip list are a repository, `MappingStore`, which records where each mapping came from
+  (`Origin`). `zbm-luks` has two long functions and seven legacy-named doc lines fewer, and keeps its 95% line
+  coverage.
 
 ## What the pilots taught
 
 The two pilot slices of R0 ran through every layer of the target architecture: key-file unlock
-(`zluks --pilot open`: `zbm-types`, `zbm-trace`, `zbm-platform`, `zbm-crypt`, the `unlocker` of `zbm-luks`,
+(`zluks --pilot open`: `zbm-types`, `zbm-trace`, `zbm-platform`, `zbm-crypt`, the `pilot` of `zbm-luks`,
 `zbm-app`) and the boot environment list of the new menu (`zbm-menu-pilot`: `zbm-app`'s `Snapshot`, `zbm-tui`). Both
 work in the Rust image on a serial console (`runtime-rust-pilot`). The architecture holds; these are the changes and
 measurements they brought, which R1 to R5 follow.

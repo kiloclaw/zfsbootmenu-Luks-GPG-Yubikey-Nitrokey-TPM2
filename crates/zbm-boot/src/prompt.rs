@@ -171,8 +171,8 @@ impl<'a> ConsolePrompter<'a> {
     }
 }
 
-impl zbm_luks::session::Prompter for ConsolePrompter<'_> {
-    fn timed_prompt(&self, request: &zbm_luks::session::PromptRequest) -> Answer {
+impl zbm_luks::unlocker::Prompter for ConsolePrompter<'_> {
+    fn timed_prompt(&self, request: &zbm_luks::unlocker::PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
         if let Some(delay) = &request.delay {
             prompt = prompt.delay(retry_delay(delay));
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn luks_prompts_count_down_from_their_delay() {
-        use zbm_luks::session::{PromptRequest, Prompter};
+        use zbm_luks::unlocker::{PromptRequest, Prompter};
         let fake = setup();
         fake.console.timeout().keys(&[0x1b]);
         let request = PromptRequest {

@@ -1,17 +1,18 @@
 //! Unlocking every volume of the configuration, or every one discovery
 //! finds.
 
+use crate::mappings::Origin;
 use std::collections::BTreeSet;
 
 use crate::config::{Mode, Options, load_config};
 use crate::device::{is_block_device, resolve_device};
 use crate::error::LuksError;
 use crate::mappings::Mapping;
-use crate::session::Session;
+use crate::unlocker::Unlocker;
 
 use super::UnlockSummary;
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Unlocks every configured or discovered LUKS volume
     /// (`luks_unlock_all`), and says how many were unlocked and how many
     /// were not.
@@ -74,7 +75,10 @@ impl Session<'_> {
             }
             zbm_trace::info!("discovered LUKS volumes: {}", devices.join(" "));
             for device in &devices {
-                if self.open_device("", device, &global_key, "", true).is_ok() {
+                if self
+                    .open_device("", device, &global_key, "", Origin::Discovered)
+                    .is_ok()
+                {
                     unlocked += 1;
                 } else {
                     failed += 1;
@@ -121,7 +125,13 @@ impl Session<'_> {
                     continue;
                 }
                 if self
-                    .open_device(&entry.name, &device, key, &entry.options, false)
+                    .open_device(
+                        &entry.name,
+                        &device,
+                        key,
+                        &entry.options,
+                        Origin::Configured,
+                    )
                     .is_ok()
                 {
                     unlocked += 1;
@@ -136,7 +146,7 @@ impl Session<'_> {
         self.settle();
 
         // Discovered volumes that clearly do not hold ZFS are closed again.
-        if let Some(mappings) = self.read_mappings() {
+        if let Some(mappings) = self.mappings().read() {
             let mut keep: Vec<Mapping> = Vec::new();
             for mapping in mappings {
                 let name = mapping.name.as_str();
@@ -156,7 +166,7 @@ impl Session<'_> {
                 }
                 keep.push(mapping);
             }
-            self.write_mappings(&keep);
+            self.mappings().write(&keep);
         }
 
         zbm_trace::info!("LUKS: {unlocked} volume(s) available, {failed} not unlocked");

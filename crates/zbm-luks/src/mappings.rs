@@ -1,6 +1,5 @@
 //! The mappings ZFSBootMenu opened (`luks-mappings`) and the volumes the user
-//! skipped (`luks-skipped`): `luks_record_mapping`, `luks_mark_skipped` and
-//! `luks_retry_ignores`.
+//! skipped (`luks-skipped`), kept by a [`MappingStore`].
 //!
 //! `luks-mappings` has a line `name<TAB>device<TAB>auto` for each mapping,
 //! where `auto` is `1` for a volume found by discovery; the teardown hook and
@@ -9,8 +8,11 @@
 use std::path::Path;
 use std::time::Duration;
 
+use zbm_platform::clock::Clock;
+use zbm_platform::files::Files;
+
 use crate::device::is_open;
-use crate::session::Session;
+use crate::unlocker::Unlocker;
 
 /// A line of `luks-mappings`.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -65,98 +67,144 @@ pub fn format_mappings(mappings: &[Mapping]) -> String {
         .collect()
 }
 
-impl Session<'_> {
-    /// The recorded mappings.
-    pub fn read_mappings(&self) -> Option<Vec<Mapping>> {
-        let text = self.system().files.read(&self.settings().mappings).ok()?;
+/// How a volume came to be unlocked, recorded with its mapping.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Origin {
+    /// The configuration named it (crypttab or `zbm.luks`).
+    Configured,
+    /// Discovery found it (no crypttab and no `zbm.luks`).
+    Discovered,
+}
+
+impl Origin {
+    /// The value of the `auto` field.
+    fn field(self) -> &'static str {
+        match self {
+            Origin::Configured => "0",
+            Origin::Discovered => "1",
+        }
+    }
+}
+
+/// The state files of the mappings ZFSBootMenu opened and of the volumes the
+/// user skipped: the repository the unlocking, closing and `zluks` code keeps
+/// its records in.
+#[derive(Clone, Copy)]
+pub struct MappingStore<'a> {
+    files: &'a dyn Files,
+    clock: &'a dyn Clock,
+    mappings: &'a Path,
+    skipped: &'a Path,
+}
+
+impl<'a> MappingStore<'a> {
+    /// The store of the files `mappings` and `skipped`.
+    pub fn new(
+        files: &'a dyn Files,
+        clock: &'a dyn Clock,
+        mappings: &'a Path,
+        skipped: &'a Path,
+    ) -> MappingStore<'a> {
+        MappingStore {
+            files,
+            clock,
+            mappings,
+            skipped,
+        }
+    }
+
+    /// The recorded mappings, or `None` when there is no record.
+    pub fn read(&self) -> Option<Vec<Mapping>> {
+        let text = self.files.read(self.mappings).ok()?;
         Some(parse_mappings(&String::from_utf8_lossy(&text)))
     }
 
     /// Replaces the recorded mappings.
-    pub fn write_mappings(&self, mappings: &[Mapping]) {
-        let path = &self.settings().mappings;
-        if let Err(error) = self
-            .system()
-            .files
-            .write(path, format_mappings(mappings).as_bytes())
-        {
+    pub fn write(&self, mappings: &[Mapping]) {
+        let path = self.mappings;
+        if let Err(error) = self.files.write(path, format_mappings(mappings).as_bytes()) {
             zbm_trace::error!("unable to write {}: {error}", path.display());
         }
     }
 
-    /// Records a mapping ZFSBootMenu opened, once (`luks_record_mapping`).
-    /// Concurrent sessions (console and SSH) may record the same mapping at
-    /// the same time, so a lock (an atomic `mkdir`) is held across the check
-    /// and the append; after five seconds the lock counts as stale.
-    pub fn record_mapping(&self, name: &str, device: &str, auto: bool) {
-        let system = self.system();
-        let path = &self.settings().mappings;
+    /// Records a mapping ZFSBootMenu opened, once. Concurrent sessions
+    /// (console and SSH) may record the same mapping at the same time, so a
+    /// lock (an atomic `mkdir`) is held across the check and the append;
+    /// after five seconds the lock counts as stale.
+    pub fn record(&self, name: &str, device: &str, origin: Origin) {
+        let path = self.mappings;
         if let Some(parent) = path.parent() {
-            let _ = system.files.create_dir_all(parent);
+            let _ = self.files.create_dir_all(parent);
         }
-        let mut lock = path.clone().into_os_string();
+        let mut lock = path.as_os_str().to_owned();
         lock.push(".lock");
         let lock = Path::new(&lock);
         let mut tries = 0;
-        while system.files.create_dir(lock).is_err() {
+        while self.files.create_dir(lock).is_err() {
             tries += 1;
             if tries >= 50 {
                 break;
             }
-            system.clock.sleep(Duration::from_millis(100));
+            self.clock.sleep(Duration::from_millis(100));
         }
 
-        let recorded = self.read_mappings_raw().is_some_and(|text| {
-            text.split('\n')
+        let recorded = self.files.read(path).is_ok_and(|text| {
+            String::from_utf8_lossy(&text)
+                .split('\n')
                 .any(|line| line.starts_with(&format!("{name}\t")))
         });
         if !recorded {
             let mapping = Mapping {
                 name: name.to_owned(),
                 device: device.to_owned(),
-                auto: if auto { "1" } else { "0" }.to_owned(),
+                auto: origin.field().to_owned(),
             };
             let line = format!("{}\n", mapping.line());
-            if let Err(error) = system.files.append(path, line.as_bytes()) {
+            if let Err(error) = self.files.append(path, line.as_bytes()) {
                 zbm_trace::error!("unable to write {}: {error}", path.display());
             }
         }
-        let _ = system.files.remove_dir(lock);
-    }
-
-    fn read_mappings_raw(&self) -> Option<String> {
-        let bytes = self.system().files.read(&self.settings().mappings).ok()?;
-        Some(String::from_utf8_lossy(&bytes).into_owned())
+        let _ = self.files.remove_dir(lock);
     }
 
     /// Whether the user skipped `device` in this boot.
     pub fn is_skipped(&self, device: &str) -> bool {
-        let files = self.system().files;
-        files.read(&self.settings().skipped).is_ok_and(|text| {
+        self.files.read(self.skipped).is_ok_and(|text| {
             text.split(|byte| *byte == b'\n')
                 .any(|line| line == device.as_bytes())
         })
     }
 
-    /// Records that the user skipped `device`, so that retries leave it alone
-    /// (`luks_mark_skipped`).
+    /// Records that the user skipped `device`, so that retries leave it alone.
     pub fn mark_skipped(&self, device: &str) {
-        let files = self.system().files;
-        let path = &self.settings().skipped;
+        let path = self.skipped;
         if let Some(parent) = path.parent() {
-            let _ = files.create_dir_all(parent);
+            let _ = self.files.create_dir_all(parent);
         }
         if !self.is_skipped(device)
-            && let Err(error) = files.append(path, format!("{device}\n").as_bytes())
+            && let Err(error) = self.files.append(path, format!("{device}\n").as_bytes())
         {
             zbm_trace::error!("unable to write {}: {error}", path.display());
         }
     }
+}
 
-    /// Whether a retry leaves `device` alone because it is open or skipped
-    /// (`luks_retry_ignores`).
+impl Unlocker<'_> {
+    /// The store of the mappings and skipped volumes of the settings.
+    pub fn mappings(&self) -> MappingStore<'_> {
+        let settings = self.settings();
+        MappingStore::new(
+            self.system().files,
+            self.system().clock,
+            &settings.mappings,
+            &settings.skipped,
+        )
+    }
+
+    /// Whether a retry leaves `device` alone because it is open or skipped.
     pub fn retry_ignores(&self, device: &str) -> bool {
-        is_open(self.system().files, device, &self.settings().open_check) || self.is_skipped(device)
+        is_open(self.system().files, device, &self.settings().open_check)
+            || self.mappings().is_skipped(device)
     }
 }
 
@@ -164,15 +212,15 @@ impl Session<'_> {
 mod tests {
     use super::*;
     use crate::device::OpenCheck;
-    use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, legacy_luks, log};
+    use crate::unlocker::{Luks, Settings};
     use zbm_platform::clock::Clock;
     use zbm_platform::files::Files;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
     use zbm_testkit::{TempDir, parity};
 
-    fn with_session<T>(fake: &FakeSystem, body: impl FnOnce(&Session<'_>) -> T) -> T {
+    fn with_session<T>(fake: &FakeSystem, body: impl FnOnce(&Unlocker<'_>) -> T) -> T {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
         let _log = log(fake);
@@ -181,19 +229,25 @@ mod tests {
             settings: &settings,
             prompter: &NoPrompts,
         };
-        body(&Session::new(luks))
+        body(&Unlocker::new(luks))
     }
 
     #[test]
     fn mappings_are_recorded_once() {
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
-            assert_eq!(session.read_mappings(), None);
-            session.record_mapping("a", "/dev/sda", true);
-            session.record_mapping("ab", "/dev/sdb", false);
-            session.record_mapping("a", "/dev/sdc", false);
+            assert_eq!(session.mappings().read(), None);
+            session
+                .mappings()
+                .record("a", "/dev/sda", Origin::Discovered);
+            session
+                .mappings()
+                .record("ab", "/dev/sdb", Origin::Configured);
+            session
+                .mappings()
+                .record("a", "/dev/sdc", Origin::Configured);
             assert_eq!(
-                session.read_mappings().unwrap(),
+                session.mappings().read().unwrap(),
                 [
                     Mapping {
                         name: "a".to_owned(),
@@ -224,7 +278,9 @@ mod tests {
         let fake = FakeSystem::new();
         fake.files.dir("/zfsbootmenu/luks-mappings.lock");
         with_session(&fake, |session| {
-            session.record_mapping("a", "/dev/sda", false)
+            session
+                .mappings()
+                .record("a", "/dev/sda", Origin::Configured)
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
@@ -245,10 +301,10 @@ mod tests {
         fake.files.block_device("/dev/sda").block_device("/dev/sdb");
         with_session(&fake, |session| {
             assert!(!session.retry_ignores("/dev/sda"));
-            session.mark_skipped("/dev/sda");
-            session.mark_skipped("/dev/sda");
+            session.mappings().mark_skipped("/dev/sda");
+            session.mappings().mark_skipped("/dev/sda");
             assert!(session.retry_ignores("/dev/sda"));
-            assert!(!session.is_skipped("/dev/sd"));
+            assert!(!session.mappings().is_skipped("/dev/sd"));
             assert!(!session.retry_ignores("/dev/sdb"));
             fake.files.file("/fake/holders/sdb", "v\n");
             assert!(session.retry_ignores("/dev/sdb"));
@@ -325,13 +381,25 @@ mod tests {
         });
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
-            session.record_mapping("a", "/dev/sda", true);
-            session.record_mapping("b", "/dev/sdb", false);
-            session.record_mapping("a", "/dev/sdc", false);
+            session
+                .mappings()
+                .record("a", "/dev/sda", Origin::Discovered);
+            session
+                .mappings()
+                .record("b", "/dev/sdb", Origin::Configured);
+            session
+                .mappings()
+                .record("a", "/dev/sdc", Origin::Configured);
             // Names are text, not patterns (fixed in the legacy code too).
-            session.record_mapping("axb", "/dev/sdd", false);
-            session.record_mapping("a.b", "/dev/sde", false);
-            session.record_mapping("a*", "/dev/sdf", false);
+            session
+                .mappings()
+                .record("axb", "/dev/sdd", Origin::Configured);
+            session
+                .mappings()
+                .record("a.b", "/dev/sde", Origin::Configured);
+            session
+                .mappings()
+                .record("a*", "/dev/sdf", Origin::Configured);
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),

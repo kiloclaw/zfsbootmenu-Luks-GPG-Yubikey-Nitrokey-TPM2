@@ -1,5 +1,6 @@
 //! Tests of unlocking and closing, on a fake machine with LUKS volumes.
 
+use crate::mappings::Origin;
 use std::path::Path;
 
 use zbm_platform::exec::{Command, Input, Output, Status};
@@ -10,10 +11,10 @@ use zbm_testkit::machine::{FakeMachine, HOLDERS, LuksVolume};
 
 use crate::device::OpenCheck;
 use crate::error::LuksError;
-use crate::session::Answer;
-use crate::session::{Luks, Session, Settings};
 use crate::testing::{Prompts, log, warnings};
 use crate::unlock::{Method, Opened, UnlockSummary};
+use crate::unlocker::Answer;
+use crate::unlocker::{Luks, Settings, Unlocker};
 
 /// A LUKS volume of the fake machine.
 #[derive(Clone, Copy)]
@@ -79,7 +80,7 @@ fn with_session<T>(
     fake: &FakeSystem,
     settings: Settings,
     prompts: &Prompts,
-    body: impl FnOnce(&mut Session<'_>) -> T,
+    body: impl FnOnce(&mut Unlocker<'_>) -> T,
 ) -> T {
     let _log = log(fake);
     let luks = Luks {
@@ -87,7 +88,7 @@ fn with_session<T>(
         settings: &settings,
         prompter: prompts,
     };
-    body(&mut Session::new(luks))
+    body(&mut Unlocker::new(luks))
 }
 
 fn mappings(fake: &FakeSystem) -> String {
@@ -272,7 +273,7 @@ fn volumes_unlocked_elsewhere_end_the_prompt() {
     settings.mappings = "/zfsbootmenu/luks-mappings".into();
     assert_eq!(
         with_session(&fake, settings, &prompts, |session| {
-            session.open_device("v", "/dev/loop1", "", "", false)
+            session.open_device("v", "/dev/loop1", "", "", Origin::Configured)
         }),
         Ok(Opened::Elsewhere)
     );
@@ -363,7 +364,13 @@ fn key_scripts_come_first() {
     let prompts = Prompts::default();
     assert_eq!(
         with_session(&fake, settings(), &prompts, |session| {
-            session.open_device("ks-a", "/dev/loop1", "", "keyscript=/etc/ks", false)
+            session.open_device(
+                "ks-a",
+                "/dev/loop1",
+                "",
+                "keyscript=/etc/ks",
+                Origin::Configured,
+            )
         }),
         Ok(Opened::Unlocked(Method::KeyScript))
     );
@@ -408,17 +415,17 @@ fn volumes_in_use_and_taken_names_are_left_alone() {
     let prompts = Prompts::default();
     with_session(&fake, settings(), &prompts, |session| {
         assert_eq!(
-            session.open_device("", "/dev/loop1", "", "", false),
+            session.open_device("", "/dev/loop1", "", "", Origin::Configured),
             Ok(Opened::AlreadyOpen)
         );
         assert_eq!(
-            session.open_device("taken", "/dev/loop3", "", "", false),
+            session.open_device("taken", "/dev/loop3", "", "", Origin::Configured),
             Err(LuksError::MappingExists {
                 name: "taken".to_owned()
             })
         );
         assert_eq!(
-            session.open_device("", "/dev/sdz", "", "", false),
+            session.open_device("", "/dev/sdz", "", "", Origin::Configured),
             Err(LuksError::NotLuks {
                 header: "/dev/sdz".to_owned()
             })

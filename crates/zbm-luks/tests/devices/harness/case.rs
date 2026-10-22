@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicU32;
 use std::time::{Duration, Instant};
 
 use zbm_luks::device::OpenCheck;
-use zbm_luks::session::{Answer, Luks, PromptRequest, Prompter, Session, Settings};
+use zbm_luks::unlocker::{Answer, Luks, PromptRequest, Prompter, Settings, Unlocker};
 use zbm_platform::console::{Console, Size, Timed};
 use zbm_platform::env::Environment;
 use zbm_platform::files::{Files, RealFiles};
@@ -281,7 +281,7 @@ impl<'l> Case<'l> {
     pub fn with_session<T>(
         &self,
         console: &LinesConsole,
-        body: impl FnOnce(&mut Session<'_>, &System<'_>) -> T,
+        body: impl FnOnce(&mut Unlocker<'_>, &System<'_>) -> T,
     ) -> T {
         let files = RealFiles;
         let clock = SystemClock::new();
@@ -307,7 +307,7 @@ impl<'l> Case<'l> {
             answers: self.fake.join("answers"),
             delay: self.prompt_delay,
         };
-        let mut session = Session::new(Luks {
+        let mut session = Unlocker::new(Luks {
             system,
             settings: &settings,
             prompter: &prompter,

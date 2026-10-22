@@ -14,7 +14,7 @@ zbm-core                    0           0               0            3          
 zbm-coreutils               0           0               0            0              0             0              0
 zbm-crypt                   0           0               0            0              0             0              0
 zbm-kcl                     2           1               3            7              0             0              0
-zbm-luks                   10           3               0           73              1             0              0
+zbm-luks                    8           3               0           66              1             0              0
 zbm-menu                    0           0               0            0              0             0              0
 zbm-platform                0           0               0            0              0             0              0
 zbm-pool                    0           0               0            0              0             0              0

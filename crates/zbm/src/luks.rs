@@ -5,8 +5,9 @@ use std::path::Path;
 
 use zbm_boot::prompt::{ConsolePrompter, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open, resolve_device};
-use zbm_luks::session::{Luks, Session, Settings};
+use zbm_luks::mappings::Origin;
 use zbm_luks::tokens::list_tokens;
+use zbm_luks::unlocker::{Luks, Settings, Unlocker};
 use zbm_platform::RealSystem;
 
 use crate::Io;
@@ -69,7 +70,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
     let prompter = ConsolePrompter::new(system);
-    let mut session = Session::new(Luks {
+    let mut session = Unlocker::new(Luks {
         system,
         settings: &settings,
         prompter: &prompter,
@@ -78,7 +79,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
 }
 
 /// The commands of `zluks` in a session.
-pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32 {
+pub fn run_zluks(session: &mut Unlocker<'_>, args: &[String], io: &mut Io) -> i32 {
     if !session.available() {
         let _ = writeln!(
             io.stderr,
@@ -103,7 +104,7 @@ pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32
             };
             let name = rest.get(1).map_or("", String::as_str);
             let key = session.zbm_arg("zbm.luks_key").unwrap_or_default();
-            let opened = session.open_device(name, &device, &key, "", false);
+            let opened = session.open_device(name, &device, &key, "", Origin::Configured);
             session.forget_secrets();
             session.settle();
             status(opened.is_ok())
@@ -129,7 +130,7 @@ pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32
 }
 
 /// `zluks status`: the mappings ZFSBootMenu opened, and the pools on them.
-fn print_status(session: &Session<'_>, io: &mut Io) {
+fn print_status(session: &Unlocker<'_>, io: &mut Io) {
     let system = *session.system();
     let settings = session.settings();
     let empty = system
@@ -140,7 +141,7 @@ fn print_status(session: &Session<'_>, io: &mut Io) {
         let _ = writeln!(io.stdout, "No LUKS mappings opened by ZFSBootMenu");
         return;
     }
-    for mapping in session.read_mappings().unwrap_or_default() {
+    for mapping in session.mappings().read().unwrap_or_default() {
         let path = settings.mapper.join(&mapping.name);
         let path = path.to_string_lossy();
         let (state, pools) = if is_block_device(system.files, &path) {
@@ -168,7 +169,7 @@ fn print_status(session: &Session<'_>, io: &mut Io) {
 
 /// `zluks list`: every LUKS volume, whether it is in use, and its token
 /// types.
-fn print_list(session: &Session<'_>, io: &mut Io) {
+fn print_list(session: &Unlocker<'_>, io: &mut Io) {
     let system = *session.system();
     for device in session.discover_devices() {
         let state = if is_open(system.files, &device, &session.settings().open_check) {
@@ -203,7 +204,7 @@ pub mod seams {
     use std::time::Duration;
 
     use zbm_luks::device::OpenCheck;
-    use zbm_luks::session::{Answer, PromptRequest, Prompter};
+    use zbm_luks::unlocker::{Answer, PromptRequest, Prompter};
     use zbm_platform::files::Files;
     use zbm_platform::{KernelLog, System};
 
@@ -274,7 +275,7 @@ pub mod seams {
                 .and_then(|delay| delay.parse().ok())
                 .unwrap_or(0),
         };
-        let mut session = Session::new(Luks {
+        let mut session = Unlocker::new(Luks {
             system,
             settings: &settings,
             prompter: &prompter,
@@ -283,7 +284,7 @@ pub mod seams {
     }
 
     fn operation(
-        session: &mut Session<'_>,
+        session: &mut Unlocker<'_>,
         system: &System<'_>,
         args: &[String],
         io: &mut Io,
@@ -307,7 +308,12 @@ pub mod seams {
                 0
             }
             "record_mapping" => {
-                session.record_mapping(arg(1), arg(2), arg(3) == "1");
+                let origin = if arg(3) == "1" {
+                    Origin::Discovered
+                } else {
+                    Origin::Configured
+                };
+                session.mappings().record(arg(1), arg(2), origin);
                 0
             }
             "token_wait" => {
@@ -331,9 +337,12 @@ mod tests {
 
     struct NoPrompts;
 
-    impl zbm_luks::session::Prompter for NoPrompts {
-        fn timed_prompt(&self, _: &zbm_luks::session::PromptRequest) -> zbm_luks::session::Answer {
-            zbm_luks::session::Answer::Escape
+    impl zbm_luks::unlocker::Prompter for NoPrompts {
+        fn timed_prompt(
+            &self,
+            _: &zbm_luks::unlocker::PromptRequest,
+        ) -> zbm_luks::unlocker::Answer {
+            zbm_luks::unlocker::Answer::Escape
         }
     }
 
@@ -341,7 +350,7 @@ mod tests {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        let mut session = Session::new(Luks {
+        let mut session = Unlocker::new(Luks {
             system: fake.system(),
             settings: &settings,
             prompter: &NoPrompts,

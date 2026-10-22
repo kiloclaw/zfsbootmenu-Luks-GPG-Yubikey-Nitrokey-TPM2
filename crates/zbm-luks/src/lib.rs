@@ -18,9 +18,12 @@
 //! Every secret is a `zbm_platform::Secret` and reaches programs only on
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 //!
-//! [`unlocker`] is the pilot of REFACTOR-ROADMAP.md (R0): key methods as
-//! strategies over the typed `cryptsetup` of `zbm-crypt`, which R3 grows into
-//! the replacement of [`session`].
+//! An [`unlocker::Unlocker`] unlocks volumes: it tries the key methods of
+//! [`unlock::methods`] in order, LUKS2 tokens through the handlers of
+//! [`keys::handlers`], then the passphrase prompt of [`unlock::prompt`], and
+//! keeps its records in a [`mappings::MappingStore`]. [`pilot`] is the key
+//! file slice of R0 over the typed `cryptsetup` of `zbm-crypt`, which the
+//! application layer's unlock use case moves onto the unlocker in R4.
 
 #![cfg_attr(
     test,
@@ -38,7 +41,7 @@ pub mod error;
 pub mod keyfile;
 pub mod keys;
 pub mod mappings;
-pub mod session;
+pub mod pilot;
 pub mod tokens;
 pub mod unlock;
 pub mod unlocker;

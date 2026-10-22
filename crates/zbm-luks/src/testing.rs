@@ -6,7 +6,7 @@ use std::path::Path;
 
 use zbm_platform::{Installed, KernelLog};
 
-use crate::session::{Answer, PromptRequest, Prompter};
+use crate::unlocker::{Answer, PromptRequest, Prompter};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 

@@ -21,7 +21,7 @@ use zbm_tools::modules::Modules;
 use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
 use crate::error::{LuksError, TokenFailure};
-use crate::session::{Key, Session};
+use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
 
 /// The authorization value of a TPM2 PIN, in hexadecimal: the SHA-256 of the
@@ -51,7 +51,7 @@ pub fn split_blob(blob: &[u8]) -> Option<(&[u8], &[u8])> {
     (private + public == blob.len()).then(|| blob.split_at(private))
 }
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// tpm2-tools for the TPM of the settings.
     fn tpm2(&self) -> Tpm2<'_> {
         Tpm2::new(self.system().runner, &self.settings().tpm2_tcti)
@@ -327,8 +327,8 @@ impl Session<'_> {
 mod tests {
     use super::*;
     use crate::keys::tests::with_session;
-    use crate::session::Settings;
     use crate::testing::{legacy_function, legacy_luks};
+    use crate::unlocker::Settings;
     use zbm_platform::exec::{Input, Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::{have_program, parity, repo_root};

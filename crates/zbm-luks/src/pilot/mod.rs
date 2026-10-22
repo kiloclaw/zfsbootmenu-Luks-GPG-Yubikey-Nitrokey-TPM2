@@ -1,7 +1,7 @@
 //! Unlocking a volume by trying key methods in order.
 //!
 //! Each way of getting a key (a key file, a token, a prompt) is a
-//! [`KeyMethod`]. An [`Unlocker`] tries its methods in order until one opens
+//! [`KeyMethod`]. An [`KeyChain`] tries its methods in order until one opens
 //! the volume, the chain of responsibility of `docs/dev/architecture.md`; a
 //! new method is one new type, and the order is data.
 //!
@@ -14,14 +14,14 @@
 //! ```
 //! use std::path::PathBuf;
 //! use zbm_crypt::{Closed, Mapping, OpenOptions};
-//! use zbm_luks::unlocker::{KeyFile, Unlocker};
+//! use zbm_luks::pilot::{KeyFile, KeyChain};
 //! use zbm_platform::Context;
 //! use zbm_testkit::fakes::FakeSystem;
 //!
 //! let fake = FakeSystem::new();
 //! fake.files.file("/etc/keys/root.key", "secret");
 //! let key_file = KeyFile::new(PathBuf::from("/etc/keys/root.key"));
-//! let unlocker = Unlocker::new(vec![Box::new(key_file)]);
+//! let unlocker = KeyChain::new(vec![Box::new(key_file)]);
 //! let (device, name) = ("/dev/sda2".parse()?, "cryptroot".parse()?);
 //! let volume = Mapping::<Closed>::new(device, name);
 //! let context = Context::new(fake.system());
@@ -99,7 +99,7 @@ pub enum Unavailable {
     },
 }
 
-/// A volume opened by an [`Unlocker`].
+/// A volume opened by an [`KeyChain`].
 #[derive(Debug)]
 pub struct Unlocked {
     /// The open mapping.
@@ -138,15 +138,15 @@ pub struct UnlockFailed {
 }
 
 /// Key methods, tried in order until one opens a volume.
-pub struct Unlocker {
+pub struct KeyChain {
     /// The methods, in the order they are tried.
     methods: Vec<Box<dyn KeyMethod>>,
 }
 
-impl Unlocker {
+impl KeyChain {
     /// An unlocker that tries `methods` in this order.
-    pub fn new(methods: Vec<Box<dyn KeyMethod>>) -> Unlocker {
-        Unlocker { methods }
+    pub fn new(methods: Vec<Box<dyn KeyMethod>>) -> KeyChain {
+        KeyChain { methods }
     }
 
     /// Opens `mapping` with the first method that can, each method in a

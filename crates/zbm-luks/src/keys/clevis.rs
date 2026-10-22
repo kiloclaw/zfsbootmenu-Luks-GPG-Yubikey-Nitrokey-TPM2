@@ -10,11 +10,11 @@
 use super::Target;
 use crate::error::LuksError;
 use crate::error::TokenFailure;
-use crate::session::{Key, Session};
+use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
 use zbm_crypt::clevis::Clevis;
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Opens a volume with a clevis token (`luks_try_clevis_token`).
     ///
     /// # Errors
@@ -58,7 +58,7 @@ impl Session<'_> {
 mod tests {
     use super::*;
     use crate::keys::tests::with_session;
-    use crate::session::Settings;
+    use crate::unlocker::Settings;
     use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_platform::secret::Secret;

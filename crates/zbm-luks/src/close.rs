@@ -12,7 +12,7 @@ use zbm_zfs::{Zfs, ZfsCli};
 use crate::device::is_block_device;
 use crate::error::LuksError;
 use crate::mappings::Mapping;
-use crate::session::Session;
+use crate::unlocker::Unlocker;
 
 /// Whether the vdev `device` is `target` or a partition of it: `/dev/dm-3`
 /// or `/dev/dm-3p1` for `/dev/dm-3`.
@@ -25,7 +25,7 @@ pub fn is_on(device: &str, target: &str) -> bool {
         })
 }
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// The imported pools with a vdev on `device` or one of its partitions
     /// (`luks_pools_on_device`).
     pub fn pools_on_device(&self, device: &str) -> Vec<String> {
@@ -54,7 +54,7 @@ impl Session<'_> {
     ///
     /// [`LuksError::NotClosed`] with the mappings that stay open.
     pub fn close_all(&mut self, only: Option<&str>) -> Result<(), LuksError> {
-        let Some(mappings) = self.read_mappings() else {
+        let Some(mappings) = self.mappings().read() else {
             return Ok(());
         };
         if !self.available() {
@@ -93,7 +93,7 @@ impl Session<'_> {
                 open.push(name);
             }
         }
-        self.write_mappings(&keep);
+        self.mappings().write(&keep);
         if open.is_empty() {
             Ok(())
         } else {

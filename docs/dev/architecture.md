@@ -92,8 +92,11 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   only code that builds a `Command`: the workspace's `clippy.toml` disallows `Command::new` and `Command::shell`,
   which the adapters' modules and test builds allow. `zbm-coreutils` (platform) copies, restricts and removes file
   trees in process.
-- **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method; its `unlocker` module is the
-  refactored shape, key methods as strategies tried in order. `zbm-pool` imports pools: the import settings as types,
+- **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method. Its `Unlocker` tries the key methods
+  of `unlock::methods` (`KeyMethod` strategies, in the order `key_methods` lists them), LUKS2 tokens through the
+  `TokenHandler` registry of `keys::handlers` in two passes (silent, then interactive), and then the passphrase prompt,
+  whose `PassphrasePrompt` state machine decides between another try, the retry prompt and giving up; a
+  `MappingStore` keeps the mappings and skipped volumes. `pilot` is the key-file slice of R0 (`KeyChain`). `zbm-pool` imports pools: the import settings as types,
   `zpool import` with typed options, host IDs, and the retry loop of the start-up stage as a state machine
   (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its `Operator` port.
   `zbm-kcl` handles the kernel command lines stored on boot environments.
@@ -118,7 +121,7 @@ REFACTOR-ROADMAP.md (R0) built two thin features through every layer before any 
 template for the phases that follow.
 
 - **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::Unlock`) →
-  `zbm-luks::unlocker` (`Unlocker`, `KeyFile`) → `zbm-crypt` (`Cryptsetup::open`) → `zbm-platform`
+  `zbm-luks::pilot` (`KeyChain`, `KeyFile`) → `zbm-crypt` (`Cryptsetup::open`) → `zbm-platform`
   (`TracedRunner`) → `cryptsetup`. Every step is a span in the journal (`--journal FILE`).
 - **The menu:** `zbm-menu-pilot [--demo]` → `zbm-app` (`App::snapshot`) → `zbm-tui` (`terminal::run`, `update`,
   `view`). It prints the boot environment chosen and boots nothing.

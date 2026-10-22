@@ -16,7 +16,7 @@ use zbm_crypt::gpg::{Decrypted, GnupgHome, start_pcscd};
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
 
-use crate::session::{Session, Wait};
+use crate::unlocker::{Unlocker, Wait};
 
 /// Whether a key file is GnuPG-encrypted (`luks_is_gpg_keyfile`): the `gpg`
 /// option, or the name.
@@ -29,7 +29,7 @@ pub fn is_gpg_keyfile(path: &str, options: &str) -> bool {
 
 pub use zbm_crypt::gpg::{SecretKey, parse_card_status, parse_recipients, parse_secret_key};
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Creates a private GnuPG home with the image's public keys
     /// (`luks_gpg_setup`); it is cleaned up when dropped (`luks_gpg_cleanup`).
     /// The home is in `/run`, with a short path, because the agent's sockets
@@ -191,7 +191,7 @@ impl Session<'_> {
 mod tests {
     use super::*;
     use crate::keys::tests::with_session;
-    use crate::session::Settings;
+    use crate::unlocker::Settings;
     use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;

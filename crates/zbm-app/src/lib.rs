@@ -35,7 +35,7 @@ mod unlock;
 pub use snapshot::{BootEnvironment, Encryption, Snapshot, SnapshotError};
 pub use unlock::UnlockRequest;
 pub use zbm_crypt::OpenOptions;
-pub use zbm_luks::unlocker::UnlockFailed;
+pub use zbm_luks::pilot::UnlockFailed;
 
 use zbm_platform::Context;
 use zbm_types::{DevicePath, MappingName};

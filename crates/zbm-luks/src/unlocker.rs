@@ -1,10 +1,12 @@
-//! An unlocking run: its settings, the user interface, the secrets it keeps
-//! for its duration, and `cryptsetup open`.
+//! The [`Unlocker`]: one unlocking run, with its settings, the user
+//! interface, the secrets it keeps for its duration, and `cryptsetup open`.
 //!
-//! The legacy functions share global variables; here a [`Session`] holds them.
-//! Secrets that unlock several volumes (passphrases, TPM2 PINs, decrypted
-//! GnuPG key files) stay in the session until it ends or
-//! [`Session::forget_secrets`] drops them, which wipes them.
+//! It opens a volume with the key methods of [`crate::unlock::methods`], in
+//! order, and then the passphrase prompt of [`crate::unlock::prompt`]; it
+//! keeps its records in a [`crate::mappings::MappingStore`]. Secrets that
+//! unlock several volumes (passphrases, TPM2 PINs, decrypted GnuPG key files)
+//! stay in the unlocker until it ends or [`Unlocker::forget_secrets`] drops
+//! them, which wipes them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -168,7 +170,7 @@ pub trait Prompter {
     fn timed_prompt(&self, request: &PromptRequest) -> Answer;
 }
 
-/// How [`Session::wait_for`] ended.
+/// How [`Unlocker::wait_for`] ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[must_use]
 pub enum Wait {
@@ -200,7 +202,7 @@ pub enum Key<'a> {
 }
 
 /// An unlocking run, with the secrets it keeps until it ends.
-pub struct Session<'a> {
+pub struct Unlocker<'a> {
     /// What the run works with.
     pub luks: Luks<'a>,
     /// Passphrases (and YubiKey responses) that unlocked a volume.
@@ -218,10 +220,10 @@ pub struct Session<'a> {
     pub(crate) dm_disable_udev: bool,
 }
 
-impl<'a> Session<'a> {
+impl<'a> Unlocker<'a> {
     /// A run without secrets.
-    pub fn new(luks: Luks<'a>) -> Session<'a> {
-        Session {
+    pub fn new(luks: Luks<'a>) -> Unlocker<'a> {
+        Unlocker {
             luks,
             passphrases: Vec::new(),
             tpm2_pins: Vec::new(),
@@ -281,7 +283,7 @@ impl<'a> Session<'a> {
     }
 
     /// The environment the legacy code exported for the programs it runs:
-    /// `DM_DISABLE_UDEV=1` when [`Session::available`] exported it.
+    /// `DM_DISABLE_UDEV=1` when [`Unlocker::available`] exported it.
     pub fn exported(&self) -> &'static [(&'static str, &'static str)] {
         if self.dm_disable_udev {
             &[("DM_DISABLE_UDEV", "1")]
@@ -464,7 +466,7 @@ mod tests {
         assert_eq!(settings.retry_delay, "7");
     }
 
-    fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Session<'_>)) {
+    fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
         let settings = Settings::new("/zfsbootmenu");
         let _log = log(fake);
         let luks = Luks {
@@ -472,7 +474,7 @@ mod tests {
             settings: &settings,
             prompter: &NoPrompts,
         };
-        body(&mut Session::new(luks));
+        body(&mut Unlocker::new(luks));
     }
 
     #[test]
@@ -662,7 +664,7 @@ mod tests {
         let settings = Settings::new("/zfsbootmenu");
         let _log = log(&fake);
         let prompts = Prompts::answering(&[Answer::Continue]);
-        let session = Session::new(Luks {
+        let session = Unlocker::new(Luks {
             system: fake.system(),
             settings: &settings,
             prompter: &prompts,

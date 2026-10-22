@@ -10,7 +10,7 @@ use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 
 use crate::device::{device_present, resolve_device};
-use crate::session::{Session, Wait};
+use crate::unlocker::{Unlocker, Wait};
 
 /// What looking for a key file found.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -30,7 +30,7 @@ pub fn split_keyfile(spec: &str) -> (&str, Option<&str>) {
     }
 }
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Finds the key file of a key file specification (`luks_find_keyfile`).
     /// A missing key device is waited for once per run, as security keys are,
     /// but not when the import loop retries.
@@ -130,15 +130,15 @@ impl Session<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
+    use crate::unlocker::{Luks, Settings};
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
 
     fn with_session<T>(
         fake: &FakeSystem,
         retry: bool,
-        body: impl FnOnce(&mut Session<'_>) -> T,
+        body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.retry = retry;
@@ -148,7 +148,7 @@ mod tests {
             settings: &settings,
             prompter: &NoPrompts,
         };
-        body(&mut Session::new(luks))
+        body(&mut Unlocker::new(luks))
     }
 
     #[test]

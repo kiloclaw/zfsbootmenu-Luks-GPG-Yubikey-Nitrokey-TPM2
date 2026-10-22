@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use zbm_crypt::{Closed, Mapping, OpenOptions};
-use zbm_luks::unlocker::{KeyFile, Unlocker};
+use zbm_luks::pilot::{KeyChain, KeyFile};
 use zbm_platform::Context;
 use zbm_types::{DevicePath, MappingName};
 
@@ -30,7 +30,7 @@ pub(crate) fn perform(
     context: &Context<'_>,
     request: UnlockRequest,
 ) -> Result<Vec<Event>, AppError> {
-    let unlocker = Unlocker::new(vec![Box::new(KeyFile::new(request.key_file))]);
+    let unlocker = KeyChain::new(vec![Box::new(KeyFile::new(request.key_file))]);
     let mapping = Mapping::<Closed>::new(request.device, request.name);
     let opened = unlocker.unlock(context, mapping, request.options)?;
     Ok(vec![Event::Unlocked {

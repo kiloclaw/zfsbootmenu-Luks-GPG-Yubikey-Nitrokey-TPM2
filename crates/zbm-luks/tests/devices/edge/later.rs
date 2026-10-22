@@ -8,6 +8,7 @@ use zbm_platform::exec::{Command, Input, Runner};
 
 use super::{Volumes, new_case, no_plugins};
 use crate::harness::{Checks, Format, Lab, LinesConsole, has_line, no_leftovers, try_run};
+use zbm_luks::mappings::Origin;
 
 /// Runs the later sections with the volumes of the first.
 pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volumes) {
@@ -123,7 +124,9 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
                 scope.spawn(|| {
                     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
                     c.with_session(&console, |session, _| {
-                        session.record_mapping("v", "/dev/loop99", false)
+                        session
+                            .mappings()
+                            .record("v", "/dev/loop99", Origin::Configured)
                     });
                 });
             }
@@ -142,10 +145,18 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
     let c = case(zfs);
     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
     c.with_session(&console, |session, _| {
-        session.record_mapping("axb", "/dev/loop98", false);
-        session.record_mapping("a.b", "/dev/loop99", false);
-        session.record_mapping("a*", "/dev/loop97", false);
-        session.record_mapping("a.b", "/dev/loop96", false);
+        session
+            .mappings()
+            .record("axb", "/dev/loop98", Origin::Configured);
+        session
+            .mappings()
+            .record("a.b", "/dev/loop99", Origin::Configured);
+        session
+            .mappings()
+            .record("a*", "/dev/loop97", Origin::Configured);
+        session
+            .mappings()
+            .record("a.b", "/dev/loop96", Origin::Configured);
     });
     checks.check(
         "a.b recorded after axb",

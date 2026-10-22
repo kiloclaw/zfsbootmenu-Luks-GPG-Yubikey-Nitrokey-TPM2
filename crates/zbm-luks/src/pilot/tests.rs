@@ -75,7 +75,7 @@ impl KeyMethod for Scripted {
 fn a_key_file_reaches_cryptsetup_on_standard_input_only() {
     let fake = FakeSystem::new();
     fake.files.file(KEY_FILE, "correct horse battery staple");
-    let unlocker = Unlocker::new(vec![key_file()]);
+    let unlocker = KeyChain::new(vec![key_file()]);
 
     let opened = unlocker
         .unlock(
@@ -101,7 +101,7 @@ fn a_key_file_reaches_cryptsetup_on_standard_input_only() {
 #[test]
 fn a_missing_key_file_is_unavailable_and_runs_nothing() {
     let fake = FakeSystem::new();
-    let unlocker = Unlocker::new(vec![key_file()]);
+    let unlocker = KeyChain::new(vec![key_file()]);
 
     let failed = unlocker
         .unlock(
@@ -123,7 +123,7 @@ fn a_missing_key_file_is_unavailable_and_runs_nothing() {
 #[test]
 fn methods_are_tried_in_order_until_one_opens_the_volume() {
     let fake = FakeSystem::new();
-    let unlocker = Unlocker::new(vec![
+    let unlocker = KeyChain::new(vec![
         Scripted::boxed("first", false),
         Scripted::boxed("second", true),
         Scripted::boxed("third", true),
@@ -147,7 +147,7 @@ fn a_refused_key_file_leads_to_the_next_method() {
     fake.files.file(KEY_FILE, "wrong");
     fake.runner
         .respond_program("cryptsetup", 2, "No key available with this passphrase.\n");
-    let unlocker = Unlocker::new(vec![key_file(), Scripted::boxed("prompt", false)]);
+    let unlocker = KeyChain::new(vec![key_file(), Scripted::boxed("prompt", false)]);
 
     let failed = unlocker
         .unlock(
@@ -169,7 +169,7 @@ fn a_refused_key_file_leads_to_the_next_method() {
 #[test]
 fn each_attempt_is_traced_inside_the_unlock_span() {
     let fake = FakeSystem::new();
-    let unlocker = Unlocker::new(vec![key_file(), Scripted::boxed("prompt", true)]);
+    let unlocker = KeyChain::new(vec![key_file(), Scripted::boxed("prompt", true)]);
     let layer = JournalLayer::new(std::io::sink());
     let lines = layer.lines();
     let subscriber = tracing_subscriber::registry().with(layer);

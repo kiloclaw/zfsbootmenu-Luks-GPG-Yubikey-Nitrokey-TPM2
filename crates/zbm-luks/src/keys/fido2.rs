@@ -14,13 +14,13 @@ use zbm_platform::files::FileKind;
 use super::{Outcome, Target};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
-use crate::session::{Key, Session, Wait};
+use crate::unlocker::{Key, Unlocker, Wait};
 use zbm_crypt::Token;
 use zbm_crypt::fido2::{Assertion, Fido2};
 
 pub use zbm_crypt::fido2::{last_line, listed_devices};
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Whether a FIDO2 (HID) device is connected (`luks_have_fido2_device`).
     pub fn have_fido2_device(&self) -> bool {
         let files = self.system().files;
@@ -181,8 +181,9 @@ impl Session<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keys::handlers::TokenHandler;
     use crate::keys::tests::with_session;
-    use crate::session::Settings;
+    use crate::unlocker::Settings;
     use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_platform::secret::Secret;
@@ -292,7 +293,7 @@ mod tests {
         let fake = FakeSystem::new();
         fake.files
             .file("/zfsbootmenu/cmdline.d/zbm.luks_token_wait", "1");
-        fake.console.timeout();
+        fake.console.timeout().timeout();
         let args = [];
         let target = Target {
             name: "v",
@@ -300,11 +301,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(
-                session
-                    .try_fido2_token(target, "3", &crate::keys::tests::token("{}"))
-                    .is_err()
-            );
+            let token = crate::keys::tests::token("{}");
+            assert!(session.try_fido2_token(target, "3", &token).is_err());
+            // The registry's handler does the same.
+            let handler = crate::keys::handlers::Fido2;
+            assert!(handler.try_open(session, target, &token).is_err());
         });
         assert!(
             fake.console

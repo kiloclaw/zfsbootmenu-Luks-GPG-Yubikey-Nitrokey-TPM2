@@ -12,9 +12,9 @@ use super::Target;
 use crate::config::YubiKey;
 use crate::crypto::{hex, sha256};
 use crate::error::LuksError;
-use crate::session::{Key, Session, Wait};
+use crate::unlocker::{Key, Unlocker, Wait};
 
-impl Session<'_> {
+impl Unlocker<'_> {
     /// Whether a YubiKey is connected (`ykchalresp_present`); without `ykinfo`
     /// in the image, `ykchalresp` itself reports a missing key.
     pub fn ykchalresp_present(&self) -> bool {
@@ -109,7 +109,7 @@ impl Session<'_> {
 mod tests {
     use super::*;
     use crate::keys::tests::with_session;
-    use crate::session::Settings;
+    use crate::unlocker::Settings;
     use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
