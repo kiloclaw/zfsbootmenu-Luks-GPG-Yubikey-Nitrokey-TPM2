@@ -173,10 +173,8 @@ pub fn from_dump_text(text: &str) -> Vec<Token> {
         let Some(rest) = line.strip_prefix("  ") else {
             continue;
         };
-        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
-        let (Some(id), Some(after)) = (rest.get(..digits), rest.get(digits..)) else {
-            continue;
-        };
+        let after = rest.trim_start_matches(|c: char| c.is_ascii_digit());
+        let id = rest.strip_suffix(after).unwrap_or_default();
         let Some(after) = after.strip_prefix(": ") else {
             continue;
         };

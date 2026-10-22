@@ -157,9 +157,20 @@ Done in R2:
   give the same answers. The menu's snapshot (`zbm-app`) reads through the port. The legacy-compatible command
   wrappers are now `ZfsCommand` and `ZpoolCommand`.
 
-Open in R2: `zbm-boot`'s ZFS commands onto the port (with the rule that only adapters build commands), fixtures of
-OpenZFS 2.2 and 2.3 (they need images with those versions), the `zbm-crypt` adapters, `zbm-coreutils` and the uutils decision, removing the shell
-helpers, the Rust LUKS device suites, and the rule that only adapters build commands.
+- The `zbm-crypt` adapters: `Cryptsetup` reads tokens from `luksDump --dump-json-metadata` through `serde` (the text
+  of `luksDump` and `token export` for cryptsetup before 2.4), replacing the `sed`/`awk` emulation, and opens and
+  closes volumes, with a key file, a secret on standard input or a token plugin; `Devices` probes with `blkid` and
+  `lsblk`; `Tpm2` (`tpm2_*`, with a `PolicySession` flushed on drop), `Fido2` (`fido2-token`, `fido2-assert`),
+  `Clevis` (`jose`, `clevis decrypt`), `YubiKey` (`ykinfo`, `ykchalresp`) and `GnupgHome` (`gpg`, `pcscd`; the home
+  is killed with `gpgconf` and removed on drop) answer the key methods of `zbm-luks`, which no longer builds their
+  commands. Each adapter has fake-runner tests in `zbm-crypt`; the command lines are unchanged, and the LUKS unit
+  suites pass (252 checks) with `ZBMTEST_IMPL=rust`. The ZFS port gained `pool_names`, `devices` and `export`, so
+  closing volumes exports pools through it.
+
+Open in R2: `zbm-boot`'s ZFS commands onto the port, `zbm-luks`' remaining platform commands (`mount`, `modprobe`,
+`tput`, `udevadm`, key scripts), fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions),
+`zbm-coreutils` and the uutils decision, removing the shell helpers, the Rust LUKS device suites, and the rule that
+only adapters build commands.
 
 ## What the pilots taught
 

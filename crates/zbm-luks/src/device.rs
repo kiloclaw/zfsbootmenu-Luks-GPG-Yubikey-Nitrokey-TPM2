@@ -3,9 +3,9 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::shell::command_substitution;
+use zbm_crypt::Cryptsetup;
+use zbm_crypt::devices::Devices;
 use zbm_platform::System;
-use zbm_platform::exec::{Command, Input, Stream};
 use zbm_platform::files::{FileKind, Files};
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
@@ -48,17 +48,7 @@ fn is_uuid(text: &str) -> bool {
 /// What `blkid -c /dev/null -l -o device -t KEY=value` prints, without the
 /// final newlines.
 fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
-    let blkid = Command::new("blkid")
-        .stdin(Input::Null)
-        .args(["-c", "/dev/null", "-l", "-o", "device", "-t"])
-        .arg(format!("{key}={value}"))
-        .stderr(Stream::Null);
-    let output = system
-        .runner
-        .run(&blkid)
-        .map(|output| output.stdout_text())
-        .unwrap_or_default();
-    command_substitution(&output).to_owned()
+    Devices::new(system.runner).find(key, value)
 }
 
 /// The device node a device specification names, as `luks_resolve_device`
@@ -164,23 +154,10 @@ pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
     }
 }
 
-/// What `$(cmd)` captures from a command, or `None` if it fails.
-fn captured(system: &System<'_>, command: &Command) -> Option<String> {
-    let output = system.runner.run(command).ok()?;
-    output
-        .status
-        .is_success()
-        .then(|| command_substitution(&output.stdout_text()).to_owned())
-}
-
 /// The default mapping name of a LUKS device (`luks_default_name`):
 /// `luks-<UUID>`, or `luks-<device name>` when the UUID cannot be read.
 pub fn default_name(system: &System<'_>, device: &str) -> String {
-    let luks_uuid = Command::new("cryptsetup")
-        .stdin(Input::Null)
-        .args(["luksUUID", device])
-        .stderr(Stream::Null);
-    match captured(system, &luks_uuid) {
+    match Cryptsetup::new(system.runner).luks_uuid(device) {
         Some(uuid) if !uuid.is_empty() => format!("luks-{uuid}"),
         _ => format!("luks-{}", device.rsplit('/').next().unwrap_or_default()),
     }
@@ -189,22 +166,10 @@ pub fn default_name(system: &System<'_>, device: &str) -> String {
 /// A short description of a device for prompts (`luks_describe_device`): the
 /// device, its label or partition label in quotes, and its size.
 pub fn describe_device(system: &System<'_>, device: &str) -> String {
-    let lsblk = Command::new("lsblk")
-        .stdin(Input::Null)
-        .args(["-dno", "SIZE", device])
-        .stderr(Stream::Null);
-    let size = captured(system, &lsblk)
-        .unwrap_or_default()
-        .replace(' ', "");
-    let blkid = |tag: &str| {
-        let command = Command::new("blkid")
-            .stdin(Input::Null)
-            .args(["-c", "/dev/null", "-s", tag, "-o", "value", device])
-            .stderr(Stream::Null);
-        captured(system, &command).unwrap_or_default()
-    };
-    let label = blkid("LABEL");
-    let partlabel = blkid("PARTLABEL");
+    let devices = Devices::new(system.runner);
+    let size = devices.size(device);
+    let label = devices.tag(device, "LABEL");
+    let partlabel = devices.tag(device, "PARTLABEL");
     let mut description = device.to_owned();
     if !label.is_empty() {
         description.push_str(&format!(" \"{label}\""));

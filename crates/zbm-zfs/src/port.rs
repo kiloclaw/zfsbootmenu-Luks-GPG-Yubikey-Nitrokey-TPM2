@@ -59,6 +59,30 @@ pub trait Zfs {
     /// [`ZfsError`] when `zpool list` fails or prints something unexpected.
     fn pools(&self) -> Result<Vec<Pool>, ZfsError>;
 
+    /// The names of the imported pools, without their properties.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool list` fails or prints an invalid name.
+    fn pool_names(&self) -> Result<Vec<PoolName>, ZfsError>;
+
+    /// The paths of the devices in `pool`'s vdevs, resolved to the devices
+    /// below any symbolic links, such as `/dev/dm-3`.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError::Missing`] when the pool is not imported, and other
+    /// [`ZfsError`]s when `zpool status` fails.
+    fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError>;
+
+    /// Exports `pool`.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool export` fails, for example because the pool
+    /// is busy.
+    fn export(&self, pool: &PoolName) -> Result<(), ZfsError>;
+
     /// A property of `pool`, such as `readonly` or `feature@encryption`.
     ///
     /// # Errors

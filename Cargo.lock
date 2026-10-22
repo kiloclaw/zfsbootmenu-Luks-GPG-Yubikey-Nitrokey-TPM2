@@ -1252,6 +1252,7 @@ dependencies = [
  "zbm-testkit",
  "zbm-trace",
  "zbm-types",
+ "zbm-zfs",
 ]
 
 [[package]]

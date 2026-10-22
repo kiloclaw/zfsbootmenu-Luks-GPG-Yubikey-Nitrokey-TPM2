@@ -6,7 +6,8 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_core::shell::{command_substitution, read_lines};
+use zbm_core::shell::read_lines;
+use zbm_crypt::devices::Devices;
 use zbm_platform::console::Timed;
 use zbm_platform::exec::{Input, Stream};
 
@@ -114,17 +115,7 @@ impl Session<'_> {
         }
 
         let header = options.header.clone().unwrap_or_else(|| device.to_owned());
-        let is_luks = self
-            .command("cryptsetup")
-            .args(["isLuks", &header])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let luks = self
-            .system()
-            .runner
-            .run(&is_luks)
-            .is_ok_and(|output| output.status.is_success());
-        if !luks {
+        if !self.cryptsetup().is_luks(&header) {
             zbm_trace::warn!("{header} is not a LUKS volume (header), skipping {device}");
             return Err(LuksError::NotLuks { header });
         }
@@ -438,16 +429,8 @@ impl Session<'_> {
     /// Every LUKS block device on the machine (`luks_discover_devices`).
     pub fn discover_devices(&self) -> Vec<String> {
         let system = self.system();
-        let blkid = self
-            .command("blkid")
-            .args(["-c", "/dev/null", "-o", "device", "-t", "TYPE=crypto_LUKS"])
-            .stderr(Stream::Null);
-        let output = system
-            .runner
-            .run(&blkid)
-            .map(|output| output.stdout_text())
-            .unwrap_or_default();
-        let devices: BTreeSet<String> = read_lines(&format!("{}\n", command_substitution(&output)))
+        let output = Devices::new(system.runner).luks_devices();
+        let devices: BTreeSet<String> = read_lines(&format!("{output}\n"))
             .into_iter()
             .filter(|device| is_block_device(system.files, device))
             .map(|device| canonical(system.files, &device))
@@ -458,17 +441,7 @@ impl Session<'_> {
     /// Whether an open mapping might hold a ZFS vdev (`luks_may_hold_zfs`):
     /// unknown contents (or a partitioned device) count as maybe.
     pub fn may_hold_zfs(&self, name: &str) -> bool {
-        let blkid = self
-            .command("blkid")
-            .args(["-c", "/dev/null", "-p", "-s", "TYPE", "-o", "value"])
-            .arg(self.mapper(name))
-            .stderr(Stream::Null);
-        let kind = match self.system().runner.run(&blkid) {
-            Ok(output) if output.status.is_success() => {
-                command_substitution(&output.stdout_text()).to_owned()
-            }
-            _ => String::new(),
-        };
+        let kind = Devices::new(self.system().runner).content_type(&self.mapper(name));
         kind.is_empty() || kind == "zfs_member"
     }
 
@@ -479,23 +452,11 @@ impl Session<'_> {
     /// [`LuksError::Close`] when cryptsetup fails, for example because the
     /// mapping is in use.
     pub fn cryptsetup_close(&self, name: &str) -> Result<(), LuksError> {
-        let close = self
-            .command("cryptsetup")
-            .args(["close", name])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        let closed = self
-            .system()
-            .runner
-            .run(&close)
-            .is_ok_and(|output| output.status.is_success());
-        if closed {
-            Ok(())
-        } else {
-            Err(LuksError::Close {
+        self.cryptsetup()
+            .close_named(name)
+            .map_err(|_| LuksError::Close {
                 name: name.to_owned(),
             })
-        }
     }
 }
 

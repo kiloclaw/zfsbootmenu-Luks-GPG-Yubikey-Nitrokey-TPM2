@@ -50,6 +50,8 @@ struct FakePool {
     bootfs: Option<DatasetName>,
     guid: u64,
     properties: BTreeMap<String, String>,
+    devices: Vec<String>,
+    busy: bool,
 }
 
 /// The machine the fake describes.
@@ -116,6 +118,8 @@ impl FakeZfs {
                     bootfs: None,
                     guid,
                     properties: BTreeMap::new(),
+                    devices: Vec::new(),
+                    busy: false,
                 },
             );
             state.datasets.entry(name(pool)).or_default();
@@ -180,6 +184,18 @@ impl FakeZfs {
             fake.properties
                 .insert(property.to_owned(), value.to_owned());
         })
+    }
+
+    /// Adds `device`, such as `/dev/dm-3`, to the vdevs of `pool`.
+    #[must_use]
+    pub fn device(self, pool: &str, device: &str) -> FakeZfs {
+        self.with_pool(pool, |fake| fake.devices.push(device.to_owned()))
+    }
+
+    /// Makes `pool` busy, so that exporting it fails.
+    #[must_use]
+    pub fn busy(self, pool: &str) -> FakeZfs {
+        self.with_pool(pool, |fake| fake.busy = true)
     }
 
     fn with_pool(self, pool: &str, change: impl FnOnce(&mut FakePool)) -> FakeZfs {
@@ -257,6 +273,46 @@ impl Zfs for FakeZfs {
                 guid: fake.guid,
             })
             .collect())
+    }
+
+    fn pool_names(&self) -> Result<Vec<PoolName>, ZfsError> {
+        self.record("pool_names".to_owned());
+        Ok(self.state.borrow().pools.keys().cloned().collect())
+    }
+
+    fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError> {
+        self.record(format!("devices {pool}"));
+        let state = self.state.borrow();
+        let fake = state
+            .pools
+            .get(pool)
+            .ok_or_else(|| ZfsError::Missing(pool.to_string()))?;
+        Ok(fake.devices.clone())
+    }
+
+    fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
+        self.record(format!("export {pool}"));
+        let mut state = self.state.borrow_mut();
+        match state.pools.get(pool) {
+            None => return Err(ZfsError::Missing(pool.to_string())),
+            Some(fake) if fake.busy => {
+                return Err(ZfsError::Failed {
+                    command: format!("zpool export {pool}"),
+                    status: 1,
+                    message: format!("cannot export '{pool}': pool is busy"),
+                });
+            }
+            Some(_) => {}
+        }
+        state.pools.remove(pool);
+        let pool = pool.as_str();
+        state
+            .datasets
+            .retain(|dataset, _| dataset.pool().as_str() != pool);
+        state
+            .snapshots
+            .retain(|snapshot, _| snapshot.pool().as_str() != pool);
+        Ok(())
     }
 
     fn pool_property(&self, pool: &PoolName, property: &str) -> Result<Property, ZfsError> {
@@ -380,147 +436,4 @@ impl Zfs for FakeZfs {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    fn machine() -> FakeZfs {
-        FakeZfs::new()
-            .pool("zroot")
-            .filesystem("zroot/ROOT", &[("org.zfsbootmenu:commandline", "quiet")])
-            .filesystem(
-                "zroot/ROOT/void",
-                &[("mountpoint", "/"), ("canmount", "noauto")],
-            )
-            .filesystem("zroot/home", &[])
-            .snapshot("zroot/ROOT/void@first", 100)
-            .snapshot("zroot/home@x", 200)
-            .bootfs("zroot", "zroot/ROOT/void")
-    }
-
-    fn dataset(text: &str) -> DatasetName {
-        text.parse().unwrap()
-    }
-
-    #[test]
-    fn properties_are_local_inherited_default_or_unset() {
-        let zfs = machine();
-        let void = dataset("zroot/ROOT/void");
-
-        assert_eq!(
-            zfs.property(&void, "mountpoint").unwrap(),
-            Property::new("/", Source::Local)
-        );
-        assert_eq!(
-            zfs.property(&void, "org.zfsbootmenu:commandline").unwrap(),
-            Property::new("quiet", Source::Inherited("zroot/ROOT".to_owned()))
-        );
-        assert_eq!(
-            zfs.property(&dataset("zroot/home"), "mountpoint").unwrap(),
-            Property::new("/zroot/home", Source::Default)
-        );
-        assert_eq!(
-            zfs.property(&void, "org.zfsbootmenu:kernel")
-                .unwrap()
-                .value(),
-            None
-        );
-        assert_eq!(
-            zfs.property(&dataset("zroot/ROOT"), "canmount").unwrap(),
-            Property::new("on", Source::Default)
-        );
-        assert!(matches!(
-            zfs.property(&dataset("zroot/none"), "mountpoint"),
-            Err(ZfsError::Missing(_))
-        ));
-    }
-
-    #[test]
-    fn listings_cover_a_subtree() {
-        let zfs = machine();
-        let names = |root: Option<&DatasetName>| -> Vec<String> {
-            zfs.filesystems(root, &["mountpoint"])
-                .unwrap()
-                .into_iter()
-                .map(|dataset| dataset.name.to_string())
-                .collect()
-        };
-
-        assert_eq!(
-            names(Some(&dataset("zroot/ROOT"))),
-            ["zroot/ROOT", "zroot/ROOT/void"]
-        );
-        assert_eq!(names(None).len(), 4);
-        let snapshots = zfs.snapshots(&dataset("zroot/ROOT")).unwrap();
-        assert_eq!(snapshots.len(), 1);
-        assert_eq!(snapshots[0].creation, 100);
-        assert!(zfs.filesystems(Some(&dataset("tank")), &[]).is_err());
-    }
-
-    #[test]
-    fn missing_datasets_and_another_release() {
-        let zfs = FakeZfs::default().release("zfs-2.2.7", "").pool("zroot");
-        let none = dataset("zroot/none");
-
-        assert_eq!(zfs.version().unwrap().release(), Some((2, 2)));
-        assert!(zfs.snapshots(&none).is_err());
-        assert!(zfs.set(&none, "canmount", "on").is_err());
-        assert!(zfs.inherit(&none, "canmount").is_err());
-        assert!(
-            zfs.pool_property(&"tank".parse().unwrap(), "readonly")
-                .is_err()
-        );
-        let zroot: PoolName = "zroot".parse().unwrap();
-        assert_eq!(zfs.pool_property(&zroot, "bootfs").unwrap().value, "-");
-        assert_eq!(zfs.pool_property(&zroot, "health").unwrap().value, "ONLINE");
-        assert_eq!(zfs.pool_property(&zroot, "guid").unwrap().value, "1000");
-        assert_eq!(zfs.pool_property(&zroot, "feature@x").unwrap().value, "-");
-    }
-
-    #[test]
-    #[should_panic(expected = "FakeZfs has no pool tank")]
-    fn a_builder_for_a_missing_pool_is_a_mistake() {
-        let _ = FakeZfs::new().bootfs("tank", "tank/ROOT");
-    }
-
-    #[test]
-    fn pools_and_changes_are_recorded() {
-        let zfs = machine()
-            .pool("tank")
-            .read_only("tank")
-            .pool_setting("tank", "feature@encryption", "active")
-            .health("tank", Health::Degraded);
-        let pools = zfs.pools().unwrap();
-        let tank: PoolName = "tank".parse().unwrap();
-
-        assert_eq!(pools.len(), 2);
-        assert!(pools[0].read_only && pools[0].health == Health::Degraded);
-        assert_eq!(
-            zfs.pool_property(&tank, "feature@encryption")
-                .unwrap()
-                .value,
-            "active"
-        );
-        assert_eq!(zfs.pool_property(&tank, "readonly").unwrap().value, "on");
-        let void = dataset("zroot/ROOT/void");
-        zfs.set(&void, "org.zfsbootmenu:kernel", "6.1").unwrap();
-        assert_eq!(
-            zfs.property(&void, "org.zfsbootmenu:kernel").unwrap().value,
-            "6.1"
-        );
-        zfs.inherit(&void, "org.zfsbootmenu:kernel").unwrap();
-        assert_eq!(
-            zfs.property(&void, "org.zfsbootmenu:kernel").unwrap().value,
-            "-"
-        );
-        assert_eq!(zfs.version().unwrap().release(), Some((2, 4)));
-        assert_eq!(
-            zfs.calls()[..3],
-            [
-                "pools",
-                "pool_property tank feature@encryption",
-                "pool_property tank readonly"
-            ]
-        );
-    }
-}
+mod tests;

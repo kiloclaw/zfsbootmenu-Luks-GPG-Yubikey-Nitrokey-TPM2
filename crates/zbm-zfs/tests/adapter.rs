@@ -305,3 +305,48 @@ fn old_versions_answer_in_text() {
             .is_err()
     );
 }
+
+#[test]
+fn pool_names_devices_and_export_need_no_format() {
+    let runner = FakeRunner::new();
+    runner.respond("zpool list -H -o name", 0, "fixture\nrpool\n");
+    runner.respond(
+        "zpool status -L -P fixture",
+        0,
+        "  pool: fixture\n state: ONLINE\nconfig:\n\n\tNAME           STATE\n\
+         \tfixture        ONLINE\n\t  mirror-0     ONLINE\n\
+         \t    /dev/dm-3  ONLINE       0     0     0\n\
+         \t    /dev/vda2  ONLINE       0     0     0\n\nerrors: No known data errors\n",
+    );
+    runner.on(|command| {
+        let mut output = Output::new(Status::exited(1), "");
+        output.stderr = b"cannot open 'gone': no such pool\n".to_vec();
+        command.display().ends_with(" gone").then_some(Ok(output))
+    });
+    let zfs = ZfsCli::new(&runner);
+    let fixture: PoolName = "fixture".parse().unwrap();
+    let gone: PoolName = "gone".parse().unwrap();
+
+    let names = zfs.pool_names().unwrap();
+    assert_eq!(names, [fixture.clone(), "rpool".parse().unwrap()]);
+    assert_eq!(zfs.devices(&fixture).unwrap(), ["/dev/dm-3", "/dev/vda2"]);
+    assert!(matches!(zfs.devices(&gone), Err(ZfsError::Missing(name)) if name == "gone"));
+    zfs.export(&fixture).unwrap();
+    assert!(zfs.export(&gone).is_err());
+    assert_eq!(
+        runner.lines(),
+        [
+            "zpool list -H -o name",
+            "zpool status -L -P fixture",
+            "zpool status -L -P gone",
+            "zpool export fixture",
+            "zpool export gone"
+        ]
+    );
+    let bad = FakeRunner::new();
+    bad.respond("zpool list -H -o name", 0, "tank/ROOT\n");
+    assert!(matches!(
+        ZfsCli::new(&bad).pool_names(),
+        Err(ZfsError::Output { .. })
+    ));
+}

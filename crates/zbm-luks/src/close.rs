@@ -7,25 +7,22 @@
 
 use std::path::Path;
 
-use zbm_core::shell::{command_substitution, read_lines};
-use zbm_platform::exec::Stream;
+use zbm_zfs::{Zfs, ZfsCli};
 
 use crate::device::is_block_device;
 use crate::error::LuksError;
 use crate::mappings::Mapping;
 use crate::session::Session;
 
-/// Whether `zpool status -L -P` output names `target` or a partition of it
-/// (`/dev/dm-3` or `/dev/dm-3p1`) as a vdev.
-pub fn status_names(status: &str, target: &str) -> bool {
-    status.split_whitespace().any(|field| {
-        field == target
-            || field.strip_prefix(target).is_some_and(|rest| {
-                rest.strip_prefix('p').is_some_and(|digits| {
-                    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
-                })
+/// Whether the vdev `device` is `target` or a partition of it: `/dev/dm-3`
+/// or `/dev/dm-3p1` for `/dev/dm-3`.
+pub fn is_on(device: &str, target: &str) -> bool {
+    device == target
+        || device.strip_prefix(target).is_some_and(|rest| {
+            rest.strip_prefix('p').is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
             })
-    })
+        })
 }
 
 impl Session<'_> {
@@ -37,28 +34,15 @@ impl Session<'_> {
             return Vec::new();
         };
         let target = target.to_string_lossy().into_owned();
-        let list = self
-            .command("zpool")
-            .args(["list", "-H", "-o", "name"])
-            .stderr(Stream::Null);
-        let pools = system
-            .runner
-            .run(&list)
-            .map(|output| output.stdout_text())
-            .unwrap_or_default();
-        read_lines(&format!("{}\n", command_substitution(&pools)))
+        let zfs = ZfsCli::new(system.runner);
+        zfs.pool_names()
+            .unwrap_or_default()
             .into_iter()
-            .filter(|pool| !pool.is_empty())
             .filter(|pool| {
-                let status = self
-                    .command("zpool")
-                    .args(["status", "-L", "-P", pool])
-                    .stderr(Stream::Null);
-                system
-                    .runner
-                    .run(&status)
-                    .is_ok_and(|output| status_names(&output.stdout_text(), &target))
+                zfs.devices(pool)
+                    .is_ok_and(|devices| devices.iter().any(|device| is_on(device, &target)))
             })
+            .map(|pool| pool.to_string())
             .collect()
     }
 
@@ -93,18 +77,10 @@ impl Session<'_> {
             if !is_block_device(self.system().files, &path) {
                 continue;
             }
+            let zfs = ZfsCli::new(self.system().runner);
             for pool in self.pools_on_device(&path) {
                 zbm_trace::debug!("exporting {pool} before closing {name}");
-                let export = self
-                    .command("zpool")
-                    .args(["export", &pool])
-                    .stdout(Stream::Null)
-                    .stderr(Stream::Null);
-                let exported = self
-                    .system()
-                    .runner
-                    .run(&export)
-                    .is_ok_and(|output| output.status.is_success());
+                let exported = pool.parse().is_ok_and(|pool| zfs.export(&pool).is_ok());
                 if !exported {
                     zbm_trace::warn!("unable to export {pool}, which uses {name}");
                 }
@@ -132,14 +108,11 @@ mod tests {
 
     #[test]
     fn vdevs_on_mappings_and_their_partitions_are_found() {
-        let status = "  pool: tank\n state: ONLINE\nconfig:\n\n\tNAME          STATE\n\
-                      \ttank          ONLINE\n\t  mirror-0    ONLINE\n\
-                      \t    /dev/dm-3p1  ONLINE 0 0 0\n\t    /dev/vda2  ONLINE 0 0 0\n";
-        assert!(status_names(status, "/dev/dm-3"));
-        assert!(status_names(status, "/dev/vda2"));
-        assert!(!status_names(status, "/dev/dm-"));
-        assert!(!status_names(status, "/dev/vda"));
-        assert!(!status_names("\t/dev/dm-3p\n", "/dev/dm-3"));
-        assert!(!status_names("\t/dev/dm-3p1x\n", "/dev/dm-3"));
+        assert!(is_on("/dev/dm-3p1", "/dev/dm-3"));
+        assert!(is_on("/dev/vda2", "/dev/vda2"));
+        assert!(!is_on("/dev/dm-3p1", "/dev/dm-"));
+        assert!(!is_on("/dev/vda2", "/dev/vda"));
+        assert!(!is_on("/dev/dm-3p", "/dev/dm-3"));
+        assert!(!is_on("/dev/dm-3p1x", "/dev/dm-3"));
     }
 }

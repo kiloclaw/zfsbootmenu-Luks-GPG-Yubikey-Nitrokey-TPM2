@@ -14,7 +14,7 @@ zbm-core                 97
 zbm-crypt               100
 zbm-kcl                  90
 zbm-luks                 95
-zbm-platform             97
+zbm-platform             98
 zbm-state               100
 zbm-sys                  93
 zbm-testkit              97

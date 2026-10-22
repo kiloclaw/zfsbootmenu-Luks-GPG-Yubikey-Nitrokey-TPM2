@@ -227,4 +227,14 @@ mod tests {
         let _log = system.kernel_log("x", std::path::Path::new("/nonexistent"));
         assert!(!zbm_trace::enabled(zbm_trace::Level::Error));
     }
+
+    #[test]
+    fn a_context_hands_out_the_parts_it_was_given() {
+        let (runner, files, clock) = (SystemRunner, RealFiles, SystemClock::new());
+        let context = Context::from_parts(&runner, &files, &clock);
+        let _runner = context.runner();
+        assert!(context.files().exists(std::path::Path::new("/proc/self")));
+        let before = context.clock().now();
+        assert!(context.clock().now() >= before);
+    }
 }

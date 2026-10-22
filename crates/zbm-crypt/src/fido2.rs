@@ -43,11 +43,7 @@ pub fn last_line(output: &[u8]) -> Secret {
         .iter()
         .rposition(|byte| *byte == b'\n')
         .map_or(0, |at| at + 1);
-    let mut line = Secret::copy_from(body.get(start..).unwrap_or_default());
-    while line.expose().last() == Some(&b'\n') {
-        line.pop();
-    }
-    line
+    Secret::copy_from(body.get(start..).unwrap_or_default())
 }
 
 /// libfido2's tools, run through a [`Runner`].

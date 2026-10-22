@@ -162,6 +162,23 @@ impl Zfs for ZfsCli<'_> {
         }
     }
 
+    fn pool_names(&self) -> Result<Vec<PoolName>, ZfsError> {
+        let output = self.run("zpool", &["list", "-H", "-o", "name"])?;
+        text::pool_names(&output).map_err(|error| ZfsError::Output {
+            command: "zpool list -H -o name".to_owned(),
+            detail: error.to_string(),
+        })
+    }
+
+    fn devices(&self, pool: &PoolName) -> Result<Vec<String>, ZfsError> {
+        let output = self.run("zpool", &["status", "-L", "-P", pool.as_str()])?;
+        Ok(text::status_devices(&output))
+    }
+
+    fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
+        self.run("zpool", &["export", pool.as_str()]).map(drop)
+    }
+
     fn pool_property(&self, pool: &PoolName, property: &str) -> Result<Property, ZfsError> {
         self.one_property("zpool", pool.as_str(), property)
     }

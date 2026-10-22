@@ -254,11 +254,11 @@ mod tests {
         let runner = FakeRunner::new();
         runner.on(|command| {
             (command.program() == "tpm2_unseal").then(|| {
-                let given = match command.get_stdin() {
-                    Input::Secret(secret) => secret.expose().to_vec(),
-                    _ => Vec::new(),
-                };
-                Ok(if given == b"hex:abcd" {
+                let given = matches!(
+                    command.get_stdin(),
+                    Input::Secret(secret) if secret.expose() == b"hex:abcd"
+                );
+                Ok(if given {
                     Output::with_secret(Status::exited(0), Secret::copy_from(b"key"))
                 } else {
                     Output::new(Status::exited(1), "")

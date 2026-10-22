@@ -279,10 +279,10 @@ mod tests {
             let home = GnupgHome::new(&runner, "/run/zbm-gpg.1-0");
             home.import(Path::new("/etc/zfsbootmenu/gnupg"));
             home.make_private();
-            match home.decrypt("/k.gpg", &Secret::copy_from(b"pass")) {
-                Decrypted::Key(key) => assert_eq!(key.expose(), b"key"),
-                Decrypted::Failed(status) => panic!("{status}"),
-            }
+            assert!(matches!(
+                home.decrypt("/k.gpg", &Secret::copy_from(b"pass")),
+                Decrypted::Key(key) if key.expose() == b"key"
+            ));
             assert_eq!(home.path(), Path::new("/run/zbm-gpg.1-0"));
         }
 
@@ -319,6 +319,12 @@ mod tests {
         assert!(home.recipients("/k.gpg").is_empty());
         assert_eq!(home.secret_key("ABCD"), None);
         assert_eq!(start_pcscd(&runner), Err(PcscdFailed));
+        let missing = FakeRunner::new();
+        missing.on(|_| Some(Err(std::io::Error::other("no gpg"))));
+        assert!(matches!(
+            GnupgHome::new(&missing, "/h").decrypt("/k.gpg", &Secret::copy_from(b"x")),
+            Decrypted::Failed(status) if status == "no gpg"
+        ));
     }
 
     #[test]

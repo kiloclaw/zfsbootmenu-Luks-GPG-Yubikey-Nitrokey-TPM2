@@ -13,7 +13,7 @@ zbm-cmdline                1           1               1           17           
 zbm-core                   0           0               0            3              2             0              0
 zbm-crypt                  0           0               0            0              0             0              0
 zbm-kcl                    2           1               3            7              6             0              0
-zbm-luks                  12           3               0           82             14             0              0
+zbm-luks                  10           3               0           73              4             0              0
 zbm-menu                   0           0               0            0              0             0              0
 zbm-platform               0           0               0            0              0             0              0
 zbm-state                  0           1               0            5              1             0              0

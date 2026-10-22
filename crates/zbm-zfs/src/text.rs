@@ -4,6 +4,8 @@
 
 use std::collections::BTreeMap;
 
+use zbm_types::PoolName;
+
 use crate::model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
 
 /// What was wrong with a line of output.
@@ -48,6 +50,29 @@ pub fn version(text: &str) -> Result<Version, TextError> {
         userland: userland.to_owned(),
         kernel: lines.next().unwrap_or_default().to_owned(),
     })
+}
+
+/// `zpool list -H -o name`: one pool name per line.
+///
+/// # Errors
+///
+/// [`TextError`] for an invalid pool name.
+pub fn pool_names(text: &str) -> Result<Vec<PoolName>, TextError> {
+    rows(text)
+        .map(|(line, _)| {
+            line.parse()
+                .map_err(|_| TextError::new(line, "invalid pool name"))
+        })
+        .collect()
+}
+
+/// The device paths in `zpool status -L -P`: every field that starts with
+/// `/`, in the order printed.
+pub fn status_devices(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .filter(|field| field.starts_with('/'))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// `zpool list -H -p -o name,health,readonly,bootfs,guid`.
@@ -188,5 +213,14 @@ mod tests {
         assert!(snapshots("tank@a\n").is_err());
         assert!(snapshots("tank\t1\n").is_err());
         assert!(snapshots("tank@a\tsoon\n").is_err());
+        assert!(pool_names("tank\n\n").is_ok());
+        assert!(pool_names("-tank\n").is_err());
+    }
+
+    #[test]
+    fn status_devices_are_the_absolute_paths() {
+        let status = "  pool: tank\nconfig:\n\ttank  ONLINE\n\t  /dev/dm-3p1  ONLINE 0 0 0\n\
+                      \t  /dev/vda2  ONLINE 0 0 0\nerrors: No known data errors\n";
+        assert_eq!(status_devices(status), ["/dev/dm-3p1", "/dev/vda2"]);
     }
 }

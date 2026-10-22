@@ -68,16 +68,13 @@ mod tests {
     #[test]
     fn the_jwe_goes_through_jose_to_clevis() {
         let runner = FakeRunner::new();
-        runner.on(
-            |command| match command.program().to_string_lossy().as_ref() {
-                "jose" => Some(Ok(Output::new(Status::exited(0), "step\n"))),
-                "clevis" => Some(Ok(Output::with_secret(
-                    Status::exited(0),
-                    Secret::copy_from(b"key"),
-                ))),
-                _ => None,
-            },
-        );
+        runner.on(|command| {
+            Some(Ok(if command.program() == "clevis" {
+                Output::with_secret(Status::exited(0), Secret::copy_from(b"key"))
+            } else {
+                Output::new(Status::exited(0), "step\n")
+            }))
+        });
         let token =
             Token::from_export("2", r#"{"type":"clevis","keyslots":["3"],"jwe":{"p":"x"}}"#)
                 .unwrap();

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use zbm_core::color::colorize;
-use zbm_core::shell::command_substitution;
+use zbm_crypt::{CryptError, Cryptsetup, KeySource};
 use zbm_platform::exec::{Command, Input, Stream};
 use zbm_platform::secret::Secret;
 use zbm_platform::{Environment, System};
@@ -408,30 +408,19 @@ impl<'a> Session<'a> {
         key: Key<'_>,
         args: &[String],
     ) -> Result<(), LuksError> {
-        let (key_file, stdin) = match key {
-            Key::File(path) => (path, Input::Null),
-            Key::Stdin(secret) => ("-", Input::Secret(secret.clone())),
+        let key = match key {
+            Key::File(path) => KeySource::File(path),
+            Key::Stdin(secret) => KeySource::Secret(secret),
         };
-        let command = self
-            .command("cryptsetup")
-            .args(["open", "--type", "luks"])
-            .arg(format!("--key-file={key_file}"))
-            .args(args)
-            .args([device, name])
-            .stdin(stdin)
-            .stdout(Stream::Capture)
-            .merge_stderr();
-        let (status, output) = match self.system().runner.run(&command) {
-            Ok(output) => (output.status.shell_code(), output.stdout_text()),
+        let result = Cryptsetup::new(self.system().runner)
+            .without_udev(self.dm_disable_udev)
+            .open_described(device, name, key, args);
+        let (status, output) = match result {
+            Ok(()) => return Ok(()),
+            Err(CryptError::Failed { status, output }) => (status, output),
             Err(error) => (127, error.to_string()),
         };
-        if status == 0 {
-            return Ok(());
-        }
-        zbm_trace::debug!(
-            "cryptsetup open {device} {name} failed ({status}): {}",
-            command_substitution(&output)
-        );
+        zbm_trace::debug!("cryptsetup open {device} {name} failed ({status}): {output}");
         Err(LuksError::Open {
             device: device.to_owned(),
             name: name.to_owned(),
@@ -631,6 +620,16 @@ mod tests {
                 "cryptsetup open --type luks --key-file=/k /dev/sda v",
             ]
         );
+        let missing = FakeSystem::new();
+        missing
+            .runner
+            .on(|_| Some(Err(std::io::Error::other("no cryptsetup"))));
+        with_session(&missing, |session| {
+            assert!(matches!(
+                session.cryptsetup_open("v", "/dev/sda", Key::File("/k"), &[]),
+                Err(LuksError::Open { status: 127, .. })
+            ));
+        });
         assert!(fake.kmsg().contains(
             "|cryptsetup open /dev/sda v failed (2): No key available with this passphrase."
         ));

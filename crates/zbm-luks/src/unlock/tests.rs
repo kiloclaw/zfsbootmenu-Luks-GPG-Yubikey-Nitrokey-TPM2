@@ -468,6 +468,8 @@ fn closing_exports_pools_first_and_keeps_busy_mappings() {
     let prompts = Prompts::default();
     assert!(with_session(&fake, settings(), &prompts, |session| session.unlock_all()).is_ok());
     fake.files.file("/fake/busy/b1", "");
+    // A pool that cannot be exported does not keep its mapping open.
+    fake.runner.respond("zpool export zroot", 1, "");
     assert_eq!(
         with_session(&fake, settings(), &prompts, |session| session
             .close_all(None)),
@@ -489,6 +491,11 @@ fn closing_exports_pools_first_and_keeps_busy_mappings() {
     assert_eq!(mappings(&fake), "b1\t/dev/loop2\t0\n");
     assert!(infos(&fake).contains(&"closed LUKS mapping a1".to_owned()));
     assert!(warnings(&fake).contains(&"unable to close LUKS mapping b1".to_owned()));
+    assert!(warnings(&fake).contains(&"unable to export zroot, which uses a1".to_owned()));
+    let missing = with_session(&fake, settings(), &prompts, |session| {
+        session.pools_on_device("/dev/missing")
+    });
+    assert!(missing.is_empty());
 
     // Only the named mapping is closed.
     let _ = fake.files.remove_file(Path::new("/fake/busy/b1"));

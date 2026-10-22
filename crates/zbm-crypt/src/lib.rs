@@ -38,6 +38,7 @@
 
 pub mod clevis;
 mod cryptsetup;
+pub mod devices;
 pub mod fido2;
 pub mod gpg;
 mod mapping;
@@ -45,7 +46,7 @@ pub mod token;
 pub mod tpm2;
 pub mod yubikey;
 
-pub use cryptsetup::{Cryptsetup, OpenOptions};
+pub use cryptsetup::{Cryptsetup, KeySource, OpenOptions};
 pub use mapping::{Closed, Failed, Mapping, Open};
 pub use token::{Token, TokenError};
 
