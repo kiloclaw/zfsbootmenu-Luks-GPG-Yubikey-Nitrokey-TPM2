@@ -546,7 +546,7 @@ fn scalar(text: &str, style: TScalarStyle, tag: Option<&Tag>) -> Value {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, TempDir, have_program};
+    use zbm_testkit::{Rng, TempDir, have_program, parity};
 
     #[test]
     fn plain_scalars_follow_the_core_schema() {
@@ -714,7 +714,8 @@ mod tests {
 
     #[test]
     fn values_match_yaml_pp() {
-        if !have_program("perl") {
+        let mut parity = parity!("values_match_yaml_pp");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -772,7 +773,8 @@ mod tests {
             let yaml: String = (0..count)
                 .map(|index| format!("k{index}: {}\n", rng.choose(&scalars)))
                 .collect();
-            assert_eq!(rust_view(&yaml), perl_view(&yaml), "yaml {yaml:?}");
+            let perl: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_view(&yaml));
+            assert_eq!(rust_view(&yaml), perl, "yaml {yaml:?}");
         }
     }
 }

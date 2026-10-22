@@ -538,7 +538,7 @@ fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, TempDir, have_program};
+    use zbm_testkit::{Rng, TempDir, have_program, parity};
 
     #[test]
     fn words() {
@@ -587,7 +587,8 @@ mod tests {
 
     #[test]
     fn matches_file_glob() {
-        if !have_program("perl") {
+        let mut parity = parity!("matches_file_glob");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -620,11 +621,23 @@ mod tests {
         let mut rng = Rng::from_env(11);
         for _ in 0..400 {
             let pattern = rng.join(&pieces, 5);
+            // `~` is the home directory, which differs between machines.
+            let home = std::env::var("HOME").unwrap_or_default();
+            let without_home = |text: String| {
+                if home.is_empty() {
+                    text
+                } else {
+                    text.replace(&home, "$HOME")
+                }
+            };
             let rust: String = glob_at(&pattern, dir.path())
                 .iter()
                 .map(|path| format!("<{path}>"))
                 .collect();
-            assert_eq!(rust, perl_glob(&pattern, dir.path()), "pattern {pattern:?}");
+            let perl: String = parity.legacy(format!("{pattern:?}"), || {
+                without_home(perl_glob(&pattern, dir.path()))
+            });
+            assert_eq!(without_home(rust), perl, "pattern {pattern:?}");
         }
     }
 }

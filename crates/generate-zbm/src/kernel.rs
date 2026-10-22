@@ -114,7 +114,7 @@ pub fn decide<'a>(name: Option<&str>, lines: impl IntoIterator<Item = &'a [u8]>)
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program, parity};
 
     #[test]
     fn names() {
@@ -159,7 +159,8 @@ mod tests {
 
     #[test]
     fn matches_perl_regexes() {
-        if !have_program("perl") {
+        let mut parity = parity!("matches_perl_regexes");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -173,11 +174,15 @@ mod tests {
                        print \"$n|$s\\n\"; }";
         let texts: Vec<String> = (0..300).map(|_| rng.join(&pieces, 8)).collect();
         let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        let output = perl(program, &refs, b"").stdout_text();
-        for (text, expected) in texts.iter().zip(output.lines()) {
+        let output: Vec<String> = parity.legacy(format!("{texts:?}"), || {
+            let output = perl(program, &refs, b"").stdout_text();
+            output.lines().map(str::to_owned).collect()
+        });
+        assert_eq!(output.len(), texts.len());
+        for (text, expected) in texts.iter().zip(&output) {
             let name = version_from_name(text).unwrap_or_else(|| "<none>".to_owned());
             let strings = version_in_line(text.as_bytes()).unwrap_or_else(|| "<none>".to_owned());
-            assert_eq!(format!("{name}|{strings}"), expected, "text {text:?}");
+            assert_eq!(&format!("{name}|{strings}"), expected, "text {text:?}");
         }
     }
 }

@@ -719,7 +719,7 @@ mod tests {
     use super::*;
     use crate::config::load;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, TempDir, have_program};
+    use zbm_testkit::{Rng, TempDir, have_program, parity};
 
     #[test]
     fn the_default_configuration() {
@@ -807,7 +807,8 @@ mod tests {
 
     #[test]
     fn matches_yaml_pp() {
-        if !have_program("perl") {
+        let mut parity = parity!("matches_yaml_pp");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -899,7 +900,8 @@ mod tests {
                 };
                 yaml.push_str(&format!("{key}: {value}\n"));
             }
-            assert_eq!(rust_dump(&yaml), perl_dump(&yaml), "yaml {yaml:?}");
+            let perl: Option<String> = parity.legacy(format!("{yaml:?}"), || perl_dump(&yaml));
+            assert_eq!(rust_dump(&yaml), perl, "yaml {yaml:?}");
         }
     }
 }

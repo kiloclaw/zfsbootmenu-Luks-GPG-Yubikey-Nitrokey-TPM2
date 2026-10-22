@@ -116,9 +116,10 @@ pub fn sort_versions(versions: &mut [String]) {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program, parity};
 
-    fn perl_cmp(a: &str, b: &str) -> Ordering {
+    /// Perl's `versioncmp`: -1, 0 or 1.
+    fn perl_cmp(a: &str, b: &str) -> i8 {
         let output = perl(
             "use Sort::Versions; print versioncmp($ARGV[0], $ARGV[1])",
             &[a, b],
@@ -126,9 +127,9 @@ mod tests {
         );
         assert!(output.status.success(), "{}", output.stderr_text());
         match output.stdout_text().trim() {
-            "-1" => Ordering::Less,
-            "0" => Ordering::Equal,
-            "1" => Ordering::Greater,
+            "-1" => -1,
+            "0" => 0,
+            "1" => 1,
             other => panic!("unexpected versioncmp output {other:?}"),
         }
     }
@@ -160,7 +161,8 @@ mod tests {
 
     #[test]
     fn matches_perl_on_generated_versions() {
-        if !have_program("perl") {
+        let mut parity = parity!("matches_perl_on_generated_versions");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -182,11 +184,8 @@ mod tests {
                 }
                 edited
             };
-            assert_eq!(
-                versioncmp(&a, &b),
-                perl_cmp(&a, &b),
-                "versioncmp({a:?}, {b:?})"
-            );
+            let perl: i8 = parity.legacy(format!("{a:?} {b:?}"), || perl_cmp(&a, &b));
+            assert_eq!(versioncmp(&a, &b), perl.cmp(&0), "versioncmp({a:?}, {b:?})");
         }
     }
 }

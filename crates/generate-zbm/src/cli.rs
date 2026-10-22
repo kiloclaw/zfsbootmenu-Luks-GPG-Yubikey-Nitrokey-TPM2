@@ -373,7 +373,7 @@ mod tests {
     use super::*;
     use zbm_core::exec::{Command, Runner, Stream, SystemRunner};
     use zbm_testkit::legacy::path;
-    use zbm_testkit::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program, parity};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|arg| (*arg).to_owned()).collect()
@@ -542,11 +542,11 @@ mod tests {
 
     #[test]
     fn matches_getopt_long() {
-        if !have_program("perl") {
+        let mut parity = parity!("matches_getopt_long");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
-        let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
         let pieces = [
             "-v",
             "--version",
@@ -618,7 +618,10 @@ mod tests {
                 .map(|_| (*rng.choose(&pieces)).to_owned())
                 .collect();
             let posix = rng.below(5) == 0;
-            let perl = comparable(&perl_parse(&source, &list, posix));
+            let perl: String = parity.legacy(format!("args {list:?}, posix {posix}"), || {
+                let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
+                comparable(&perl_parse(&source, &list, posix))
+            });
             assert_eq!(
                 rust_parse(&list, posix),
                 perl,

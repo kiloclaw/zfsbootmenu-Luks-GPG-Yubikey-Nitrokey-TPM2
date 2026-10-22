@@ -7,8 +7,10 @@
 
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use zbm_core::exec::{Command, Output, Runner, Stream, SystemRunner};
-use zbm_testkit::{TempDir, have_program, legacy};
+use zbm_testkit::parity::Parity;
+use zbm_testkit::{TempDir, have_program, legacy, parity};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 
@@ -326,60 +328,71 @@ fn debug_log(stderr: &str) -> String {
 
 /// What a run did, after normalization: exit status, standard output, debug log
 /// and files.
+#[derive(Debug, Deserialize, Serialize)]
 struct Outcome {
     code: i32,
     stdout: String,
     log: String,
     state: String,
+    /// Perl's standard error, for the messages of failed comparisons.
+    stderr: String,
 }
 
-/// Runs a case with both implementations, checks they agree and returns what
-/// the Perl program did.
-fn compare(case: &Case) -> Outcome {
+/// Runs a case with the Perl program.
+fn run_perl(case: &Case) -> Outcome {
     let script = legacy::path("bin/generate-zbm").display().to_string();
-    let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
     let perl_box = Sandbox::new(case);
-    let rust_box = Sandbox::new(case);
     let perl = perl_box.run(&["perl".to_owned(), script.clone()], case);
-    let rust = rust_box.run(std::slice::from_ref(&binary), case);
-
-    let describe = format!("args {:?}, config:\n{}", case.args, case.config);
-    let perl_stdout = perl_box.normalize(&perl.stdout_text(), &script);
-    let rust_stdout = rust_box.normalize(&rust.stdout_text(), &binary);
     // Perl dies over a configuration section that is not a mapping with whatever
     // error number an earlier call left; the Rust port exits with 255.
     let perl_code = perl.status.shell_code();
     let type_error = (perl.stderr_text().contains("as a HASH ref")
         || perl.stderr_text().contains("Not a HASH reference"))
         && !perl.stdout_text().contains("Unable to parse configuration");
-    let perl_code = if type_error && perl_code != 0 {
+    let code = if type_error && perl_code != 0 {
         255
     } else {
         perl_code
     };
+    Outcome {
+        code,
+        stdout: perl_box.normalize(&perl.stdout_text(), &script),
+        log: debug_log(&perl_box.normalize(&perl.stderr_text(), &script)),
+        state: perl_box.state(&script),
+        stderr: perl_box.normalize(&perl.stderr_text(), &script),
+    }
+}
+
+/// Runs a case with the Rust program, checks that it does what the Perl
+/// program did (recorded in `parity`) and returns that.
+fn compare(parity: &mut Parity, case: &Case) -> Outcome {
+    let describe = format!(
+        "args {:?}, env {:?}, config:\n{}",
+        case.args, case.env, case.config
+    );
+    let perl: Outcome = parity.legacy(describe.clone(), || run_perl(case));
+    let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
+    let rust_box = Sandbox::new(case);
+    let rust = rust_box.run(std::slice::from_ref(&binary), case);
+    let rust_stdout = rust_box.normalize(&rust.stdout_text(), &binary);
     assert_eq!(
         rust.status.shell_code(),
-        perl_code,
-        "exit status, {describe}\nperl stdout:\n{perl_stdout}\nperl stderr:\n{}\n\
+        perl.code,
+        "exit status, {describe}\nperl stdout:\n{}\nperl stderr:\n{}\n\
          rust stdout:\n{rust_stdout}\nrust stderr:\n{}",
-        perl.stderr_text(),
+        perl.stdout,
+        perl.stderr,
         rust.stderr_text()
     );
-    assert_eq!(rust_stdout, perl_stdout, "stdout, {describe}");
+    assert_eq!(rust_stdout, perl.stdout, "stdout, {describe}");
     assert_eq!(
         debug_log(&rust_box.normalize(&rust.stderr_text(), &binary)),
-        debug_log(&perl_box.normalize(&perl.stderr_text(), &script)),
+        perl.log,
         "debug log, {describe}\nperl stderr:\n{}",
-        perl.stderr_text()
+        perl.stderr
     );
-    let state = perl_box.state(&script);
-    assert_eq!(rust_box.state(&binary), state, "files, {describe}");
-    Outcome {
-        code: perl_code,
-        stdout: perl_stdout,
-        log: debug_log(&perl_box.normalize(&perl.stderr_text(), &script)),
-        state,
-    }
+    assert_eq!(rust_box.state(&binary), perl.state, "files, {describe}");
+    perl
 }
 
 const BASIC: &str = "Global:
@@ -412,54 +425,68 @@ Components:
 
 #[test]
 fn builds_images() {
-    if !tools() || !efi_tools() {
+    let mut parity = parity!("builds_images");
+    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
         eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
         return;
     }
-    compare(&Case::new(
-        BASIC,
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
-    compare(&Case::new(
-        BASIC,
-        &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
-    compare(&Case::new(
-        BASIC,
-        &[
-            "-c",
-            "{root}/config.yaml",
-            "-b",
-            "{root}/boot",
-            "--kver",
-            "6.1.0-test",
-            "-l",
-            "rw",
-        ],
-    ));
-    compare(&Case::new(
-        BASIC,
-        &[
-            "-c",
-            "{root}/config.yaml",
-            "-k",
-            "{root}/boot/linux-lts",
-            "-p",
-            "zbm",
-            "-v",
-            "9.9",
-        ],
-    ));
+    compare(
+        &mut parity,
+        &Case::new(BASIC, &["-c", "{root}/config.yaml", "-b", "{root}/boot"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            BASIC,
+            &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            BASIC,
+            &[
+                "-c",
+                "{root}/config.yaml",
+                "-b",
+                "{root}/boot",
+                "--kver",
+                "6.1.0-test",
+                "-l",
+                "rw",
+            ],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            BASIC,
+            &[
+                "-c",
+                "{root}/config.yaml",
+                "-k",
+                "{root}/boot/linux-lts",
+                "-p",
+                "zbm",
+                "-v",
+                "9.9",
+            ],
+        ),
+    );
     // The boot partition is not mounted: it is mounted, and unmounted at the end.
-    compare(&Case {
-        env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
-        ..Case::new(BASIC, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-    });
+    compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
+            ..Case::new(BASIC, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
+        },
+    );
 }
 
 #[test]
 fn keeps_versions() {
-    if !tools() || !efi_tools() {
+    let mut parity = parity!("keeps_versions");
+    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
         eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
         return;
     }
@@ -503,13 +530,16 @@ EFI:
             sandbox.dir.write(format!("esp/EFI/zbm/{name}"), name);
         }
     };
-    compare(&Case {
-        setup,
-        ..Case::new(
-            versioned,
-            &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
-        )
-    });
+    compare(
+        &mut parity,
+        &Case {
+            setup,
+            ..Case::new(
+                versioned,
+                &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
+            )
+        },
+    );
     // Without versions, existing images become backups.
     let plain = "Global:
   ManageImages: true
@@ -523,17 +553,20 @@ EFI:
   SplashImage: {root}/splash.bmp
   DeviceTree: {root}/dtb-%{kernel}.dtb
 ";
-    compare(&Case {
-        setup: |sandbox| {
-            setup_backups(sandbox);
-            sandbox.dir.write("splash.bmp", "BM splash");
-            sandbox.dir.write("dtb-6.2.5-test.dtb", "device tree");
+    compare(
+        &mut parity,
+        &Case {
+            setup: |sandbox| {
+                setup_backups(sandbox);
+                sandbox.dir.write("splash.bmp", "BM splash");
+                sandbox.dir.write("dtb-6.2.5-test.dtb", "device tree");
+            },
+            ..Case::new(
+                plain,
+                &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
+            )
         },
-        ..Case::new(
-            plain,
-            &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
-        )
-    });
+    );
 }
 
 fn setup_backups(sandbox: &Sandbox) {
@@ -545,7 +578,8 @@ fn setup_backups(sandbox: &Sandbox) {
 
 #[test]
 fn chooses_kernels() {
-    if !tools() {
+    let mut parity = parity!("chooses_kernels");
+    if parity.mode().needs_legacy() && !tools() {
         eprintln!("skipped: perl or binutils is missing");
         return;
     }
@@ -586,24 +620,27 @@ fn chooses_kernels() {
         ],
     ];
     for list in args {
-        compare(&Case::new(COMPONENTS, list));
+        compare(&mut parity, &Case::new(COMPONENTS, list));
     }
     // `uname -r` printing nothing is an error; the Perl program used to exit with
     // status 0.
-    let outcome = compare(&Case {
-        env: &[("FAKE_UNAME", "none")],
-        ..Case::new(
-            COMPONENTS,
-            &[
-                "-c",
-                "{root}/config.yaml",
-                "-b",
-                "{root}/boot",
-                "-K",
-                "%{CURRENT}",
-            ],
-        )
-    });
+    let outcome = compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_UNAME", "none")],
+            ..Case::new(
+                COMPONENTS,
+                &[
+                    "-c",
+                    "{root}/config.yaml",
+                    "-b",
+                    "{root}/boot",
+                    "-K",
+                    "%{CURRENT}",
+                ],
+            )
+        },
+    );
     assert_eq!(outcome.code, 1);
     assert!(
         outcome
@@ -620,12 +657,16 @@ Kernel:
   Version: \"%current\"
   Prefix: kernel
 ";
-    compare(&Case::new(configured, &["-c", "{root}/config.yaml", "-d"]));
+    compare(
+        &mut parity,
+        &Case::new(configured, &["-c", "{root}/config.yaml", "-d"]),
+    );
 }
 
 #[test]
 fn initramfs_generators() {
-    if !tools() {
+    let mut parity = parity!("initramfs_generators");
+    if parity.mode().needs_legacy() && !tools() {
         eprintln!("skipped: perl or binutils is missing");
         return;
     }
@@ -641,32 +682,38 @@ Components:
   ImageDir: {root}/esp/EFI/zbm
   Enabled: true
 ";
-    compare(&Case::new(
-        cpio,
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
-    compare(&Case::new(
-        cpio,
-        &[
-            "-c",
-            "{root}/config.yaml",
-            "-b",
-            "{root}/boot",
-            "-H",
-            "{root}/h",
-            "-d",
-        ],
-    ));
-    compare(&Case::new(
-        cpio,
-        &[
-            "-c",
-            "{root}/config.yaml",
-            "-b",
-            "{root}/boot",
-            "--no-initcpio",
-        ],
-    ));
+    compare(
+        &mut parity,
+        &Case::new(cpio, &["-c", "{root}/config.yaml", "-b", "{root}/boot"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            cpio,
+            &[
+                "-c",
+                "{root}/config.yaml",
+                "-b",
+                "{root}/boot",
+                "-H",
+                "{root}/h",
+                "-d",
+            ],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            cpio,
+            &[
+                "-c",
+                "{root}/config.yaml",
+                "-b",
+                "{root}/boot",
+                "--no-initcpio",
+            ],
+        ),
+    );
     let flags = "Global:
   ManageImages: true
   DracutFlags:
@@ -676,63 +723,95 @@ Components:
   ImageDir: {root}/esp/EFI/zbm
   Enabled: true
 ";
-    compare(&Case::new(
-        flags,
-        &[
-            "-c",
-            "{root}/config.yaml",
-            "-b",
-            "{root}/boot",
-            "-C",
-            "{root}/conf d",
-        ],
-    ));
-    compare(&Case::new(
-        flags,
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot", "-i"],
-    ));
-    compare(&Case {
-        env: &[("FAKE_DRACUT_FAIL", "3")],
-        ..Case::new(flags, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-    });
+    compare(
+        &mut parity,
+        &Case::new(
+            flags,
+            &[
+                "-c",
+                "{root}/config.yaml",
+                "-b",
+                "{root}/boot",
+                "-C",
+                "{root}/conf d",
+            ],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            flags,
+            &["-c", "{root}/config.yaml", "-b", "{root}/boot", "-i"],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_DRACUT_FAIL", "3")],
+            ..Case::new(flags, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
+        },
+    );
 }
 
 #[test]
 fn configuration_states() {
-    if !tools() {
+    let mut parity = parity!("configuration_states");
+    if parity.mode().needs_legacy() && !tools() {
         eprintln!("skipped: perl or binutils is missing");
         return;
     }
     let disabled =
         "Global:\n  ManageImages: false\n  Other: &x {a: 1}\n  List: [1, 'two', 3.10]\nCopy: *x\n";
-    compare(&Case::new(disabled, &["-c", "{root}/config.yaml"]));
-    compare(&Case::new(
-        disabled,
-        &["-c", "{root}/config.yaml", "--enable"],
-    ));
-    compare(&Case::new(
-        BASIC,
-        &["-c", "{root}/config.yaml", "--disable"],
-    ));
-    compare(&Case::new(
-        BASIC,
-        &["-c", "{root}/config.yaml", "--enable", "--disable"],
-    ));
-    compare(&Case::new(BASIC, &["-c", "{root}/missing.yaml"]));
-    compare(&Case::new("a: [\n", &["-c", "{root}/config.yaml"]));
-    compare(&Case::new("- a\n", &["-c", "{root}/config.yaml"]));
-    compare(&Case::new(
-        "EFI: text\nGlobal:\n  ManageImages: 1\n",
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
-    compare(&Case::new("Global: [1]\n", &["-c", "{root}/config.yaml"]));
-    compare(&Case::new(BASIC, &["-V"]));
-    compare(&Case::new(BASIC, &["--bogus", "-c"]));
+    compare(
+        &mut parity,
+        &Case::new(disabled, &["-c", "{root}/config.yaml"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(disabled, &["-c", "{root}/config.yaml", "--enable"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(BASIC, &["-c", "{root}/config.yaml", "--disable"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            BASIC,
+            &["-c", "{root}/config.yaml", "--enable", "--disable"],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new(BASIC, &["-c", "{root}/missing.yaml"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new("a: [\n", &["-c", "{root}/config.yaml"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new("- a\n", &["-c", "{root}/config.yaml"]),
+    );
+    compare(
+        &mut parity,
+        &Case::new(
+            "EFI: text\nGlobal:\n  ManageImages: 1\n",
+            &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
+        ),
+    );
+    compare(
+        &mut parity,
+        &Case::new("Global: [1]\n", &["-c", "{root}/config.yaml"]),
+    );
+    compare(&mut parity, &Case::new(BASIC, &["-V"]));
+    compare(&mut parity, &Case::new(BASIC, &["--bogus", "-c"]));
 }
 
 #[test]
 fn mounts_and_hooks() {
-    if !tools() {
+    let mut parity = parity!("mounts_and_hooks");
+    if parity.mode().needs_legacy() && !tools() {
         eprintln!("skipped: perl or binutils is missing");
         return;
     }
@@ -745,27 +824,36 @@ Components:
   ImageDir: {root}/esp/zbm
   Enabled: true
 ";
-    compare(&Case {
-        env: &[("FAKE_MOUNTPOINT_STATUS", "1"), ("FAKE_MOUNT_FAIL", "1")],
-        ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-    });
-    compare(&Case {
-        env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
-        ..Case::new(
-            config,
-            &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
-        )
-    });
+    compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_MOUNTPOINT_STATUS", "1"), ("FAKE_MOUNT_FAIL", "1")],
+            ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
+        },
+    );
+    compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
+            ..Case::new(
+                config,
+                &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
+            )
+        },
+    );
     // A hook that sends SIGTERM to the generator: the partition is unmounted once
     // and the generator exits. The Perl program used to unmount twice, once in the
     // handler and again in its END block.
-    let outcome = compare(&Case {
-        env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
-        setup: |sandbox| {
-            sandbox.dir.write_executable("pre.d/05-signal", SIGNAL_HOOK);
+    let outcome = compare(
+        &mut parity,
+        &Case {
+            env: &[("FAKE_MOUNTPOINT_STATUS", "1")],
+            setup: |sandbox| {
+                sandbox.dir.write_executable("pre.d/05-signal", SIGNAL_HOOK);
+            },
+            ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
         },
-        ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-    });
+    );
     assert_eq!(outcome.code, 1);
     assert!(
         outcome
@@ -775,42 +863,48 @@ Components:
     assert_eq!(outcome.stdout.matches("Unmounting").count(), 1);
     assert_eq!(outcome.state.matches("umount [").count(), 1);
     // A hook killed by a signal reports 128 plus the signal number.
-    let outcome = compare(&Case {
-        setup: |sandbox| {
-            sandbox.dir.write_executable(
-                "pre.d/05-killed",
-                "#!/bin/sh
+    let outcome = compare(
+        &mut parity,
+        &Case {
+            setup: |sandbox| {
+                sandbox.dir.write_executable(
+                    "pre.d/05-killed",
+                    "#!/bin/sh
 kill -KILL $$
 ",
-            );
+                );
+            },
+            ..Case::new(
+                config,
+                &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
+            )
         },
-        ..Case::new(
-            config,
-            &["-d", "-c", "{root}/config.yaml", "-b", "{root}/boot"],
-        )
-    });
+    );
     assert!(outcome.log.contains("## 137\n"), "{}", outcome.log);
     // A boot directory and kernel names with spaces and quotes, which the Perl
     // program used to pass to the shell unquoted.
-    let outcome = compare(&Case {
-        setup: |sandbox| {
-            std::fs::create_dir_all(sandbox.path().join("my boot")).unwrap();
-            sandbox.dir.write(
-                "my boot/kernel it's",
-                kernel_image(&["Linux version 6.3.0-it's (zbm)"]),
-            );
+    let outcome = compare(
+        &mut parity,
+        &Case {
+            setup: |sandbox| {
+                std::fs::create_dir_all(sandbox.path().join("my boot")).unwrap();
+                sandbox.dir.write(
+                    "my boot/kernel it's",
+                    kernel_image(&["Linux version 6.3.0-it's (zbm)"]),
+                );
+            },
+            ..Case::new(
+                config,
+                &[
+                    "-c",
+                    "{root}/config.yaml",
+                    "-k",
+                    "{root}/my boot/kernel it's",
+                    "-d",
+                ],
+            )
         },
-        ..Case::new(
-            config,
-            &[
-                "-c",
-                "{root}/config.yaml",
-                "-k",
-                "{root}/my boot/kernel it's",
-                "-d",
-            ],
-        )
-    });
+    );
     assert_eq!(outcome.code, 0, "{}", outcome.stdout);
     assert!(
         outcome.log.contains("using 6.3.0-it's from kernel strings"),
@@ -851,7 +945,8 @@ fn fake_objdump(sandbox: &Sandbox, script: &str) {
 
 #[test]
 fn bundle_failures() {
-    if !tools() || !efi_tools() {
+    let mut parity = parity!("bundle_failures");
+    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
         eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
         return;
     }
@@ -862,10 +957,10 @@ EFI:
   Enabled: true
   Stub: {root}/stub.efi
 ";
-    compare(&Case::new(
-        config,
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
+    compare(
+        &mut parity,
+        &Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"]),
+    );
     // An objdump that reports no section alignment or sections: the Perl program
     // used to go on with offsets it could not compute.
     let cases: [(Setup, &str); 2] = [
@@ -879,10 +974,13 @@ EFI:
         ),
     ];
     for (setup, expected) in cases {
-        let outcome = compare(&Case {
-            setup,
-            ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
-        });
+        let outcome = compare(
+            &mut parity,
+            &Case {
+                setup,
+                ..Case::new(config, &["-c", "{root}/config.yaml", "-b", "{root}/boot"])
+            },
+        );
         assert_eq!(outcome.code, 1);
         assert!(outcome.stdout.ends_with(expected), "{}", outcome.stdout);
     }
@@ -894,18 +992,24 @@ EFI:
   Stub: /usr/lib/systemd/boot/efi/linuxx64.efi.stub
   DeviceTree: board.dtb
 ";
-    compare(&Case::new(
-        device_tree,
-        &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-    ));
-    // An image directory that cannot be created.
-    compare(&Case {
-        setup: |sandbox| {
-            sandbox.dir.write("esp/EFI", "a file");
-        },
-        ..Case::new(
-            &config.replace("{root}/stub.efi", STUB),
+    compare(
+        &mut parity,
+        &Case::new(
+            device_tree,
             &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
-        )
-    });
+        ),
+    );
+    // An image directory that cannot be created.
+    compare(
+        &mut parity,
+        &Case {
+            setup: |sandbox| {
+                sandbox.dir.write("esp/EFI", "a file");
+            },
+            ..Case::new(
+                &config.replace("{root}/stub.efi", STUB),
+                &["-c", "{root}/config.yaml", "-b", "{root}/boot"],
+            )
+        },
+    );
 }

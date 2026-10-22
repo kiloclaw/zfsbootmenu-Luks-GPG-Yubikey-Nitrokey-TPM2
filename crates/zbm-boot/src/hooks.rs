@@ -689,7 +689,11 @@ mod tests {
                       done
                     }"#,
                 )
-                .call("list_hooks", &[&dir.join("teardown.d").to_string_lossy()], b"");
+                .call(
+                    "list_hooks",
+                    &[&dir.join("teardown.d").to_string_lossy()],
+                    b"",
+                );
             output.stdout_text().lines().map(str::to_owned).collect()
         });
         let dir = stage_dir();

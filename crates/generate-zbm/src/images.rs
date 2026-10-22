@@ -134,7 +134,7 @@ pub fn prune_versions(
 mod tests {
     use super::*;
     use zbm_testkit::legacy::{path, perl};
-    use zbm_testkit::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program, parity};
 
     fn files(list: &[&str]) -> Vec<String> {
         list.iter().map(|f| (*f).to_owned()).collect()
@@ -207,11 +207,11 @@ mod tests {
 
     #[test]
     fn pruning_matches_generate_zbm() {
-        if !have_program("perl") {
+        let mut parity = parity!("pruning_matches_generate_zbm");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
-        let harness = perl_harness();
         let versions = ["1.0", "1.10", "2.0", "2.1", "3.0.0+dev", "3.0.0"];
         let mut rng = Rng::from_env(7);
         for _ in 0..200 {
@@ -240,10 +240,11 @@ mod tests {
             let mut args = vec![current.to_owned(), keep.to_string()];
             args.extend(spec);
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let output = perl(&harness, &arg_refs, b"");
-            assert!(output.status.success(), "{}", output.stderr_text());
-            let stdout = output.stdout_text();
-            let expected: Vec<&str> = stdout.lines().collect();
+            let expected: Vec<String> = parity.legacy(format!("{args:?}"), || {
+                let output = perl(&perl_harness(), &arg_refs, b"");
+                assert!(output.status.success(), "{}", output.stderr_text());
+                output.stdout_text().lines().map(str::to_owned).collect()
+            });
             let removed = prune_versions(&groups, current, keep);
             assert_eq!(
                 removed, expected,

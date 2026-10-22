@@ -1297,8 +1297,13 @@ mod tests {
 
     #[test]
     fn the_version_matches_the_perl_program() {
-        let source =
-            std::fs::read_to_string(zbm_testkit::legacy::path("bin/generate-zbm")).unwrap();
-        assert!(source.contains(&format!("our $VERSION = '{VERSION}';")));
+        let mut parity = zbm_testkit::parity!("the_version_matches_the_perl_program");
+        let line: String = parity.legacy("our $VERSION", || {
+            let source =
+                std::fs::read_to_string(zbm_testkit::legacy::path("bin/generate-zbm")).unwrap();
+            let line = source.lines().find(|line| line.starts_with("our $VERSION"));
+            line.unwrap().to_owned()
+        });
+        assert_eq!(line, format!("our $VERSION = '{VERSION}';"));
     }
 }

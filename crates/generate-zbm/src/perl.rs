@@ -200,7 +200,7 @@ pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program};
+    use zbm_testkit::{Rng, have_program, parity};
 
     #[test]
     fn paths() {
@@ -232,7 +232,8 @@ mod tests {
 
     #[test]
     fn dumper_matches_perl() {
-        if !have_program("perl") {
+        let mut parity = parity!("dumper_matches_perl");
+        if parity.mode().needs_legacy() && !have_program("perl") {
             eprintln!("skipped: perl is missing");
             return;
         }
@@ -257,12 +258,10 @@ mod tests {
                            $Data::Dumper::Sortkeys = 1; $Data::Dumper::Purity = 1; my %g; \
                            while (@ARGV) { my $k = shift; my $n = shift; \
                            $g{$k} = [splice(@ARGV, 0, $n)]; } print Dumper(\\%g);";
-            let output = perl(program, &arg_refs, b"");
-            assert_eq!(
-                dump_groups(&groups),
-                output.stdout_text(),
-                "groups {groups:?}"
-            );
+            let output: String = parity.legacy(format!("{groups:?}"), || {
+                perl(program, &arg_refs, b"").stdout_text()
+            });
+            assert_eq!(dump_groups(&groups), output, "groups {groups:?}");
         }
     }
 }

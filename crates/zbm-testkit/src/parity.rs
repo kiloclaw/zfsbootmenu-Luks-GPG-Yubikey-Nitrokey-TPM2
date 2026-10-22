@@ -153,11 +153,21 @@ pub struct Parity {
 impl Parity {
     /// The recordings of the test `test` in `module` of the crate
     /// `package`, in `tests/golden/legacy/<package>/<module path>/<test>.json`.
-    /// The module path leaves out the crate and `tests` modules.
+    /// The module path leaves out the library's name and `tests` modules; an
+    /// integration test keeps the name of its file.
     ///
     pub fn new(package: &str, module: &str, test: &str) -> Parity {
         let mut path = crate::repo_root().join("tests/golden/legacy").join(package);
-        for segment in module.split("::").skip(1).filter(|s| *s != "tests") {
+        // The library's own name repeats the package; an integration test's
+        // crate name says which test file it is.
+        let library = package.replace('-', "_");
+        for segment in module
+            .split("::")
+            .enumerate()
+            .filter(|(index, segment)| !(*index == 0 && *segment == library))
+            .map(|(_, segment)| segment)
+            .filter(|segment| *segment != "tests")
+        {
             path.push(segment);
         }
         path.push(format!("{test}.json"));
@@ -380,6 +390,12 @@ mod tests {
             parity
                 .path()
                 .ends_with("tests/golden/legacy/zbm-cmdline/args/lookups.json")
+        );
+        let integration = Parity::new("zbm-kcl", "parity", "edits");
+        assert!(
+            integration
+                .path()
+                .ends_with("tests/golden/legacy/zbm-kcl/parity/edits.json")
         );
     }
 }
