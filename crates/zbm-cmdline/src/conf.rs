@@ -13,7 +13,7 @@
 //! more of the shell (a command, an expansion, a glob) is an error rather than
 //! a guess.
 
-use zbm_core::error::{Error, Result};
+use zbm_platform::error::{Error, Result};
 
 /// Where the configuration is.
 pub const PATH: &str = "/etc/zfsbootmenu.conf";
@@ -296,7 +296,7 @@ mod tests {
                     .env("control_term", &options.control_term)
                     .code(&legacy_writer())
                     .call("true", &[], b"");
-                assert!(output.status.success(), "{}", output.stderr_text());
+                assert!(output.status.is_success(), "{}", output.stderr_text());
                 std::fs::read_to_string(&conf).unwrap()
             });
             assert_eq!(options.conf(base), legacy, "case {case}: {values:?}");
@@ -312,7 +312,7 @@ mod tests {
                 shell_quote(&file.to_string_lossy())
             ))
             .call("true", &[], b"");
-        assert!(output.status.success(), "{}", output.stderr_text());
+        assert!(output.status.is_success(), "{}", output.stderr_text());
         let mut fields = output.stdout.split(|byte| *byte == 0);
         let mut vars = Vec::new();
         while let (Some(name), Some(value)) = (fields.next(), fields.next()) {
@@ -337,7 +337,7 @@ mod tests {
                 .env("ZBM_BUILDSTYLE", "dracut")
                 .env("zfsbootmenu_release_build", "yes")
                 .call("create_zbm_conf", &[], b"");
-            assert!(build.status.success(), "{}", build.stderr_text());
+            assert!(build.status.is_success(), "{}", build.stderr_text());
             std::fs::read_to_string(dir.join("etc/zfsbootmenu.conf")).unwrap()
         });
         assert!(header.contains("export ZBM_RUNTIME=\"legacy\""));

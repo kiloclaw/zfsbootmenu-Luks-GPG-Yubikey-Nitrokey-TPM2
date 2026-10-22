@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use zbm_system::files::Files;
+use zbm_platform::files::Files;
 
 use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
 
@@ -65,7 +65,7 @@ pub fn stage(files: &dyn Files, spl_hostid: &str) {
 mod tests {
     use super::*;
     use crate::testing::Redirect;
-    use zbm_system::{Installed, KernelLog};
+    use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::{FakeFiles, FakeSystem};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, path};
     use zbm_testkit::{Rng, TempDir, parity};
@@ -168,7 +168,7 @@ mod tests {
                         b"",
                     );
                     (
-                        legacy.status.success(),
+                        legacy.status.is_success(),
                         std::fs::read(&etc).ok(),
                         std::fs::read_to_string(&spl).unwrap(),
                     )

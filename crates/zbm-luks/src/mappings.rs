@@ -166,8 +166,8 @@ mod tests {
     use crate::device::OpenCheck;
     use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, legacy_luks, log};
-    use zbm_system::clock::Clock;
-    use zbm_system::files::Files;
+    use zbm_platform::clock::Clock;
+    use zbm_platform::files::Files;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
     use zbm_testkit::{TempDir, parity};
@@ -320,7 +320,7 @@ mod tests {
                      luks_record_mapping a.b /dev/sde; luks_record_mapping 'a*' /dev/sdf; }",
                 )
                 .call("record", &[], b"");
-            assert!(legacy.status.success());
+            assert!(legacy.status.is_success());
             std::fs::read_to_string(state).unwrap()
         });
         let fake = FakeSystem::new();

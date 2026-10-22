@@ -119,7 +119,7 @@ fn run(runner: &dyn Runner, program: &'static str, args: &[&str]) -> Result<Stri
     let output = runner
         .run(&command)
         .map_err(|source| SnapshotError::Start { program, source })?;
-    if !output.status.success() {
+    if !output.status.is_success() {
         return Err(SnapshotError::Failed {
             program,
             status: output.status.shell_code(),

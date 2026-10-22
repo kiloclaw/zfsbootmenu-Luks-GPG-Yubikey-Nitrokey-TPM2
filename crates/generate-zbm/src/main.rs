@@ -13,7 +13,7 @@ fn main() {
     let mut args = std::env::args();
     let program = args.next().unwrap_or_else(|| "generate-zbm".to_owned());
     let args: Vec<String> = args.collect();
-    let runner = zbm_core::exec::SystemRunner;
+    let runner = zbm_platform::exec::SystemRunner;
     let context = generate_zbm::generate::Context::from_environment(&runner, program);
 
     let stdout = std::io::stdout();

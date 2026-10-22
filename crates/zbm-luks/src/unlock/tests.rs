@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use zbm_core::exec::{Command, Input, Output, Status};
-use zbm_system::files::Files;
+use zbm_platform::exec::{Command, Input, Output, Status};
+use zbm_platform::files::Files;
 use zbm_testkit::assert_no_secret_leaked;
 use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
 use zbm_testkit::machine::{FakeMachine, HOLDERS, LuksVolume};
@@ -356,7 +356,7 @@ fn key_scripts_come_first() {
         (command.program() == "/etc/ks").then(|| {
             Ok(Output::with_secret(
                 Status::exited(0),
-                zbm_core::secret::Secret::copy_from(b"secret1"),
+                zbm_platform::secret::Secret::copy_from(b"secret1"),
             ))
         })
     });

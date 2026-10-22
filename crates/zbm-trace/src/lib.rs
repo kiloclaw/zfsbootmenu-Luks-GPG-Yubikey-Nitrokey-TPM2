@@ -14,7 +14,6 @@
 //!   emit them ([`kmsg`]).
 //! - [`install`] sets up a program: messages of a chosen level on standard
 //!   error, and the journal if one is given.
-//! - [`read`] reads ZFSBootMenu's messages back from the kernel log.
 //! - [`crash`] writes and reads crash reports, with the spans that were open
 //!   ([`crash::SpanStack`]).
 //!
@@ -45,7 +44,6 @@
 pub mod crash;
 mod journal;
 pub mod kmsg;
-pub mod read;
 
 pub use journal::{JournalLayer, Lines, REDACTED, is_secret_field};
 pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};

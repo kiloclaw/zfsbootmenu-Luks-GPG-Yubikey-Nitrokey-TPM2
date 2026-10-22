@@ -3,10 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::shell::command_substitution;
-use zbm_system::System;
-use zbm_system::files::{FileKind, Files};
+use zbm_platform::System;
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::files::{FileKind, Files};
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
 const BY_KEY: [(&str, &str); 6] = [
@@ -169,7 +169,7 @@ fn captured(system: &System<'_>, command: &Command) -> Option<String> {
     let output = system.runner.run(command).ok()?;
     output
         .status
-        .success()
+        .is_success()
         .then(|| command_substitution(&output.stdout_text()).to_owned())
 }
 
@@ -221,7 +221,7 @@ pub fn describe_device(system: &System<'_>, device: &str) -> String {
 mod tests {
     use super::*;
     use crate::testing::{legacy_function, legacy_luks, log};
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{log_lines, stub_lines};
     use zbm_testkit::{TempDir, parity};
@@ -360,7 +360,7 @@ mod tests {
             .call("luks_resolve_device", &[spec], b"");
         (
             legacy.stdout_text().replace(&root_text, ""),
-            legacy.status.success(),
+            legacy.status.is_success(),
             log_lines(&legacy.stderr_text()).replace(&root_text, ""),
         )
     }

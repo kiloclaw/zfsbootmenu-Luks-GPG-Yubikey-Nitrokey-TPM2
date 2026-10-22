@@ -17,7 +17,6 @@ zbm-luks.workspace = true
 zbm-platform.workspace = true
 zbm-state.workspace = true
 zbm-sys.workspace = true
-zbm-system.workspace = true
 tracing.workspace = true
 zbm-trace.workspace = true
 zbm-tui.workspace = true

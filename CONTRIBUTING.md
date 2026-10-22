@@ -102,7 +102,7 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
   output, parity tests against the Bash functions they replace, and fakes instead of real programs and devices. The
   "Rust unit tests" section of [PORT-ROADMAP.md](PORT-ROADMAP.md) describes what they cover.
 - Runtime code follows [crates/DESIGN.md](crates/DESIGN.md): it reaches the system only through the interfaces of
-  `zbm-system` and `Runner`, shares state between processes only through `zbm-state`, and is tested with the fakes in
+  `zbm-platform`, shares state between processes only through `zbm-state`, and is tested with the fakes in
   `zbm-testkit::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
   to depart from the design, change the design document in the same pull request.
 - The legacy runtime (`legacy/zfsbootmenu/` and the dracut and mkinitcpio files in `packaging/`) is frozen: it gets

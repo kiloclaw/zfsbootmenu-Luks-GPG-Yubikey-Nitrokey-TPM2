@@ -1,9 +1,9 @@
 //! The kernel modules: the start-up stage `init.d/10-kmods`.
 
-use zbm_core::error::{Error, Result};
-use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::command_substitution;
-use zbm_system::Runner;
+use zbm_platform::Runner;
+use zbm_platform::error::{Error, Result};
+use zbm_platform::exec::{Command, Stream};
 
 use crate::recovery::Recovery;
 
@@ -13,7 +13,7 @@ use crate::recovery::Recovery;
 fn run_merged(runner: &dyn Runner, command: Command) -> (bool, String) {
     match runner.run(&command.merge_stderr()) {
         Ok(output) => (
-            output.status.success(),
+            output.status.is_success(),
             command_substitution(&output.stdout_text()).to_owned(),
         ),
         Err(error) => (false, error.to_string()),
@@ -68,7 +68,7 @@ fn load(runner: &dyn Runner) -> Result<()> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use zbm_system::{Installed, KernelLog};
+    use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::FakeSystem;
 
     /// Records the recovery shells.

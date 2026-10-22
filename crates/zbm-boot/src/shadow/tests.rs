@@ -4,10 +4,10 @@
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_core::exec::{Output, Status};
 use zbm_platform::ReadOnlyRunner;
+use zbm_platform::System;
+use zbm_platform::exec::{Output, Status};
 use zbm_state::State;
-use zbm_system::System;
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::machine::FakeMachine;
 

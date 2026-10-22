@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_cmdline::options::ZbmOptions;
 use zbm_core::shell::test_integer;
-use zbm_system::files::Files;
+use zbm_platform::files::Files;
 
 use crate::hooks;
 use zbm_types::HookStage;

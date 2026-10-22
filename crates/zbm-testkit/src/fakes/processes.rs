@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::io;
 
-use zbm_system::process::{Processes, Signal};
+use zbm_platform::process::{Processes, Signal};
 
 /// A [`Processes`] that records the signals sent instead of sending them.
 pub struct FakeProcesses {

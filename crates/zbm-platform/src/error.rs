@@ -1,8 +1,8 @@
 //! The error type of the runtime.
 //!
 //! Library code returns [`Result`]. An error's text is the message the legacy
-//! code logs with `zerror` at the same point; [`Error::detail`] is what it logs
-//! with `zdebug`, such as the output of a failed command. The caller decides
+//! code logs as an error at the same point; [`Error::detail`] is what it logs
+//! for debugging, such as the output of a failed command. The caller decides
 //! what happens next: log and continue, tell the user, or open the recovery
 //! shell (see `crates/DESIGN.md`).
 
@@ -10,7 +10,7 @@ use std::fmt;
 use std::io;
 
 use crate::exec::{Command, Output, Status};
-use crate::fs::strerror;
+use zbm_core::fs::strerror;
 
 /// A failure of the runtime.
 #[derive(Debug)]
@@ -101,8 +101,12 @@ impl std::error::Error for Error {
 }
 
 /// Checks that a command succeeded, turning its output into an error if not.
+///
+/// # Errors
+///
+/// [`Error::Failed`] when the command did not succeed.
 pub fn check(command: &Command, output: Output) -> Result<Output> {
-    if output.status.success() {
+    if output.status.is_success() {
         Ok(output)
     } else {
         Err(Error::failed(command, &output))

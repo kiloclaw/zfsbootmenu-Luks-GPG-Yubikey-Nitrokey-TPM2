@@ -7,9 +7,9 @@
 
 use std::fmt;
 
-use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::shell::command_substitution;
-use zbm_system::System;
+use zbm_platform::System;
+use zbm_platform::exec::{Command, Input, Stream};
 
 /// A LUKS2 token: its ID and its type, such as `systemd-tpm2`.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -229,7 +229,7 @@ pub fn list_tokens(system: &System<'_>, device: &str) -> Vec<Token> {
 mod tests {
     use super::*;
     use crate::testing::legacy_luks;
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
     use zbm_testkit::parity::Parity;
@@ -431,7 +431,7 @@ mod tests {
         let text = output.stdout_text();
         output
             .status
-            .success()
+            .is_success()
             .then(|| text.strip_suffix('\n').unwrap_or(&text).to_owned())
     }
 

@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use zbm_core::exec::Stream;
+use zbm_platform::exec::Stream;
 
 use crate::device::{device_present, resolve_device};
 use crate::session::{Session, Wait};
@@ -89,7 +89,7 @@ impl Session<'_> {
             .system()
             .runner
             .run(&mount)
-            .is_ok_and(|output| output.status.success());
+            .is_ok_and(|output| output.status.is_success());
         if !mounted {
             zbm_trace::warn!("unable to mount LUKS key device {device}");
             let _ = files.remove_dir(Path::new(&dir));
@@ -143,7 +143,7 @@ mod tests {
     use super::*;
     use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
 
     fn with_session<T>(

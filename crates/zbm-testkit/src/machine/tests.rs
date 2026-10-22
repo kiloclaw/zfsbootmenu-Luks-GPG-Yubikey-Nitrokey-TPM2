@@ -4,9 +4,9 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use zbm_core::exec::{Command, Input, Output, Runner};
-use zbm_core::secret::Secret;
-use zbm_system::files::Files as _;
+use zbm_platform::exec::{Command, Input, Output, Runner};
+use zbm_platform::files::Files as _;
+use zbm_platform::secret::Secret;
 
 use super::*;
 use crate::{assert_no_secret_leaked, assert_ran};
@@ -59,7 +59,7 @@ fn a_key_file_of_the_machine_opens_a_volume() {
         &cryptsetup(&["open", "--key-file=/etc/root.key", "/dev/sda2", "v"]),
     );
 
-    assert!(output.status.success());
+    assert!(output.status.is_success());
     assert!(machine.is_open("v"));
 }
 

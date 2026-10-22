@@ -14,8 +14,8 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use zbm_core::error::{Error, Result};
-use zbm_system::files::Files;
+use zbm_platform::error::{Error, Result};
+use zbm_platform::files::Files;
 
 /// The state directory of the boot image (`BASE`).
 pub const BASE: &str = "/zfsbootmenu";
@@ -588,7 +588,7 @@ mod tests {
                     &["tank/ROOT/void", kernel],
                     b"",
                 );
-                (output.status.success(), output.stdout_text())
+                (output.status.is_success(), output.stdout_text())
             });
             let expected = state
                 .kcl_cache("tank/ROOT/void", kernel)
@@ -628,7 +628,7 @@ mod tests {
             let bash = legacy_core().env("BASE", &dir.path().to_string_lossy());
             pools
                 .iter()
-                .map(|pool| bash.call("is_degraded", &[pool], b"").status.success())
+                .map(|pool| bash.call("is_degraded", &[pool], b"").status.is_success())
                 .collect()
         });
         for (pool, legacy) in pools.iter().zip(legacy) {

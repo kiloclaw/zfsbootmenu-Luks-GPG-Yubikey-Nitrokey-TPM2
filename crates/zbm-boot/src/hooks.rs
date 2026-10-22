@@ -9,10 +9,10 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::exec::{Command, Input, Stream};
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::files::{FileKind, Files};
+use zbm_platform::{Runner, System};
 use zbm_state::State;
-use zbm_system::files::{FileKind, Files};
-use zbm_system::{Runner, System};
 use zbm_types::HookStage;
 
 use crate::error::BootError;
@@ -136,7 +136,7 @@ pub fn import_hooks(
     if !system
         .runner
         .run(&mount)
-        .is_ok_and(|output| output.status.success())
+        .is_ok_and(|output| output.status.is_success())
     {
         zbm_trace::error!("failed to mount hook filesystem {filesystem}");
         return Err(BootError::HookMount {
@@ -172,7 +172,7 @@ pub fn import_hooks(
             if !system
                 .runner
                 .run(&copy)
-                .is_ok_and(|output| output.status.success())
+                .is_ok_and(|output| output.status.is_success())
             {
                 zbm_trace::warn!("failed to copy user hook {}", file.display());
             }
@@ -253,7 +253,7 @@ pub fn early_stage_in(
 mod tests {
     use super::*;
     use crate::testing::stub_lines;
-    use zbm_system::{Installed, KernelLog};
+    use zbm_platform::{Installed, KernelLog};
     use zbm_testkit::fakes::{FakeFiles, FakeSystem, FileOperation};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
     use zbm_testkit::{TempDir, parity};
@@ -474,7 +474,7 @@ mod tests {
                 });
 
             let dir = skip_root();
-            let files = zbm_system::files::RealFiles;
+            let files = zbm_platform::files::RealFiles;
             let kmsg = dir.join("kmsg");
             let _log = KernelLog::new(&files, "7", dir.path(), 1)
                 .with_device(&kmsg)
@@ -503,7 +503,7 @@ mod tests {
                     .env("BASE", &dir.path().to_string_lossy())
                     .call("import_zbm_hooks", &[hook_root], b"");
                 (
-                    legacy.status.success(),
+                    legacy.status.is_success(),
                     log_lines(&legacy.stderr_text())
                         .replace(&*dir.path().to_string_lossy(), "/zfsbootmenu"),
                 )
@@ -536,8 +536,8 @@ mod tests {
                 .display()
                 .ends_with("90-off /libexec/hooks/teardown.d")
                 .then(|| {
-                    Ok(zbm_core::exec::Output::new(
-                        zbm_core::exec::Status::exited(1),
+                    Ok(zbm_platform::exec::Output::new(
+                        zbm_platform::exec::Status::exited(1),
                         "",
                     ))
                 })
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn matches_the_legacy_glob_on_real_files() {
         use std::os::unix::fs::PermissionsExt;
-        use zbm_system::files::RealFiles;
+        use zbm_platform::files::RealFiles;
 
         if !running_as_root() {
             eprintln!("skipped: the legacy code runs as root");

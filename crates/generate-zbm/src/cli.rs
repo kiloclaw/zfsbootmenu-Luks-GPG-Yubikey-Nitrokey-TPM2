@@ -371,7 +371,7 @@ pub fn parse(args: &[String], posixly_correct: bool) -> Parsed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_core::exec::{Command, Runner, Stream, SystemRunner};
+    use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
     use zbm_testkit::legacy::path;
     use zbm_testkit::{Rng, have_program, parity};
 

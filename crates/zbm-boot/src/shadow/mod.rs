@@ -22,8 +22,8 @@ pub mod efivar;
 
 use std::fmt::Write as _;
 
+use zbm_platform::System;
 use zbm_state::State;
-use zbm_system::System;
 
 pub use decisions::{boot_environment, host_id, kernel, luks_mappings, pools};
 
@@ -42,7 +42,7 @@ pub struct Selected {
 
 impl Selected {
     /// The selection from the environment of a `boot-sel.d` hook.
-    pub fn from_environment(environment: &dyn zbm_system::Environment) -> Selected {
+    pub fn from_environment(environment: &dyn zbm_platform::Environment) -> Selected {
         let get = |name: &str| environment.non_empty(name).unwrap_or_default();
         Selected {
             be: get("ZBM_SELECTED_BE"),

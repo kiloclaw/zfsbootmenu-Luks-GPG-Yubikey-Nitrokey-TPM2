@@ -6,9 +6,9 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_core::exec::{Input, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
-use zbm_system::console::Timed;
+use zbm_platform::console::Timed;
+use zbm_platform::exec::{Input, Stream};
 
 use crate::config::Options;
 use crate::device::{
@@ -123,7 +123,7 @@ impl Session<'_> {
             .system()
             .runner
             .run(&is_luks)
-            .is_ok_and(|output| output.status.success());
+            .is_ok_and(|output| output.status.is_success());
         if !luks {
             zbm_trace::warn!("{header} is not a LUKS volume (header), skipping {device}");
             return Err(LuksError::NotLuks { header });
@@ -464,7 +464,7 @@ impl Session<'_> {
             .arg(self.mapper(name))
             .stderr(Stream::Null);
         let kind = match self.system().runner.run(&blkid) {
-            Ok(output) if output.status.success() => {
+            Ok(output) if output.status.is_success() => {
                 command_substitution(&output.stdout_text()).to_owned()
             }
             _ => String::new(),
@@ -488,7 +488,7 @@ impl Session<'_> {
             .system()
             .runner
             .run(&close)
-            .is_ok_and(|output| output.status.success());
+            .is_ok_and(|output| output.status.is_success());
         if closed {
             Ok(())
         } else {

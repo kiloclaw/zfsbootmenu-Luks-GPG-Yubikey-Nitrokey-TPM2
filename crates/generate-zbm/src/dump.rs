@@ -793,7 +793,7 @@ mod tests {
         );
         result
             .status
-            .success()
+            .is_success()
             .then(|| std::fs::read_to_string(&output).unwrap())
     }
 

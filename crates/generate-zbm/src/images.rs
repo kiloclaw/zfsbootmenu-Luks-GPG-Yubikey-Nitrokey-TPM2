@@ -242,7 +242,7 @@ mod tests {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             let expected: Vec<String> = parity.legacy(format!("{args:?}"), || {
                 let output = perl(&perl_harness(), &arg_refs, b"");
-                assert!(output.status.success(), "{}", output.stderr_text());
+                assert!(output.status.is_success(), "{}", output.stderr_text());
                 output.stdout_text().lines().map(str::to_owned).collect()
             });
             let removed = prune_versions(&groups, current, keep);

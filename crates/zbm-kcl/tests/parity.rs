@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use zbm_core::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
+use zbm_platform::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
 use zbm_testkit::fake_zfs::FakeZfs;
 use zbm_testkit::parity::Parity;
 use zbm_testkit::{TempDir, have_program, legacy, parity};
@@ -67,7 +67,7 @@ fn build_efi(dir: &Path, name: &str, cmdline: Option<&[u8]>) -> PathBuf {
         // makes the images of the two sandboxes identical.
         .env("SOURCE_DATE_EPOCH", "0");
     let output = run(command);
-    assert!(output.status.success(), "{}", output.stderr_text());
+    assert!(output.status.is_success(), "{}", output.stderr_text());
     image
 }
 

@@ -280,10 +280,14 @@ mod tests {
                     let arg = lib.call("get_zbm_arg", &lookup, b"");
                     let value = arg
                         .status
-                        .success()
+                        .is_success()
                         .then(|| arg.stdout_text().trim_end_matches('\n').to_owned());
                     let flag = lib.call("get_zbm_bool", &bool_args, b"");
-                    (value, log_lines(&arg.stderr_text()), flag.status.success())
+                    (
+                        value,
+                        log_lines(&arg.stderr_text()),
+                        flag.status.is_success(),
+                    )
                 });
 
             let args = ZbmArgs::from_kcl(&tokenize(&cmdline));

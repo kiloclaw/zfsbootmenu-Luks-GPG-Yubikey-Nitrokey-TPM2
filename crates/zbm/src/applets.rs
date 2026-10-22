@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use zbm_boot::preinit;
 use zbm_boot::startup::{Modes, Startup, is_on};
+use zbm_platform::RealSystem;
 use zbm_sys::Signal;
-use zbm_system::RealSystem;
 
 use crate::Io;
 use crate::supervisor::Supervisor;

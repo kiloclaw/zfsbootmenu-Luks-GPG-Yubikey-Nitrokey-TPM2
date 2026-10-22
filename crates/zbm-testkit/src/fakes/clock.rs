@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
-use zbm_system::clock::Clock;
+use zbm_platform::clock::Clock;
 
 /// The wall-clock time at which a fake clock starts: 2026-01-01 00:00:00 UTC.
 pub const START: Duration = Duration::from_secs(1_767_225_600);

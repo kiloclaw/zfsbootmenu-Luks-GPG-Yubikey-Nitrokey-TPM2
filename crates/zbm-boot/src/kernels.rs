@@ -15,8 +15,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::exec::{Command, Input, Runner, Stream};
-use zbm_system::files::Files;
+use zbm_platform::exec::{Command, Input, Runner, Stream};
+use zbm_platform::files::Files;
 pub use zbm_types::version::{filevercmp, version_sort};
 
 /// The kernel file names `find_be_kernels` looks for in `/boot`, each also
@@ -200,8 +200,8 @@ pub fn select<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_core::exec::SystemRunner;
-    use zbm_system::files::RealFiles;
+    use zbm_platform::exec::SystemRunner;
+    use zbm_platform::files::RealFiles;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
     use zbm_testkit::{Rng, TempDir, parity};
@@ -358,7 +358,7 @@ mod tests {
             .call("find_be_initramfs", &[&kernel.to_string_lossy()], b"");
         output
             .status
-            .success()
+            .is_success()
             .then(|| output.stdout_text().trim_end_matches('\n').to_owned())
     }
 

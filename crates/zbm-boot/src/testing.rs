@@ -4,7 +4,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use zbm_system::files::{Files, Metadata, RealFiles};
+use zbm_platform::files::{Files, Metadata, RealFiles};
 
 pub use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
 

@@ -6,10 +6,10 @@
 //! the check for unsupported features and the choice of `bootfs`.
 
 use zbm_cmdline::conf::Conf;
-use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
+use zbm_platform::exec::{Command, Stream};
+use zbm_platform::{Runner, System};
 use zbm_state::State;
-use zbm_system::{Runner, System};
 use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
@@ -501,10 +501,10 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use std::path::{Path, PathBuf};
-    use zbm_system::{Installed, KernelLog};
+    use zbm_platform::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};
-    use zbm_core::exec::{Output, Status, SystemRunner};
+    use zbm_platform::exec::{Output, Status, SystemRunner};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
     use zbm_testkit::parity::Parity;
@@ -894,7 +894,7 @@ exit 0
                     if settings.release_build { "yes" } else { "" },
                 )
                 .call("run", &[], b"");
-            assert!(output.status.success(), "{}", output.stderr_text());
+            assert!(output.status.is_success(), "{}", output.stderr_text());
             // zreport is not ported yet; it only adds debugging output. The
             // messages name the moved files by their real paths.
             let log = log_lines(&output.stderr_text())

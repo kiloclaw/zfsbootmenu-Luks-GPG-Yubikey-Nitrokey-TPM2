@@ -162,54 +162,54 @@ mod tests {
         );
     }
 
+    /// What Bash's `getopts "ha:r:o:ed"` loop prints for each case, recorded
+    /// from Bash 5.2 with this script:
+    ///
+    /// ```text
+    /// while getopts "ha:r:o:ed" opt 2>/dev/null; do
+    ///   case "$opt" in
+    ///     \?) echo "error"; break ;;
+    ///     *) echo "opt $opt ${OPTARG-}" ;;
+    ///   esac
+    /// done
+    /// shift $((OPTIND-1)); for a in "$@"; do echo "operand $a"; done
+    /// ```
     #[test]
     fn matches_bash_getopts() {
-        let script = r#"
-            while getopts "ha:r:o:ed" opt 2>/dev/null; do
-              case "$opt" in
-                \?) echo "error"; break ;;
-                *) echo "opt $opt ${OPTARG-}" ;;
-              esac
-            done
-            shift $((OPTIND-1)); for a in "$@"; do echo "operand $a"; done
-        "#;
-        let cases: &[&[&str]] = &[
-            &["-ed", "-afoo", "x"],
-            &["-a", "-r", "y"],
-            &["--", "-a"],
-            &["-", "-a", "v"],
-            &["-e", "-q", "z"],
-            &["-oout", "-d", "--", "w"],
-            &["-ea"],
-            &[],
+        let cases: &[(&[&str], &str)] = &[
+            (
+                &["-ed", "-afoo", "x"],
+                "opt e \nopt d \nopt a foo\noperand x\n",
+            ),
+            (&["-a", "-r", "y"], "opt a -r\noperand y\n"),
+            (&["--", "-a"], "operand -a\n"),
+            (&["-", "-a", "v"], "operand -\noperand -a\noperand v\n"),
+            (&["-e", "-q", "z"], "opt e \nerror\noperand z\n"),
+            (
+                &["-oout", "-d", "--", "w"],
+                "opt o out\nopt d \noperand w\n",
+            ),
+            (&["-ea"], "opt e \nerror\n"),
+            (&[], ""),
         ];
-        for case in cases {
-            let output = crate::exec::SystemRunner
-                .run(
-                    &crate::exec::Command::new("bash")
-                        .args(["-c", script, "zbm"])
-                        .args(case.iter().copied()),
-                )
-                .unwrap();
+        for (case, bash) in cases {
             let parsed = parse("ha:r:o:ed", &args(case));
-            let mut expected = String::new();
+            let mut printed = String::new();
             for option in &parsed.options {
                 match option {
-                    Opt::Flag(letter) => expected.push_str(&format!("opt {letter} \n")),
+                    Opt::Flag(letter) => printed.push_str(&format!("opt {letter} \n")),
                     Opt::Value(letter, value) => {
-                        expected.push_str(&format!("opt {letter} {value}\n"));
+                        printed.push_str(&format!("opt {letter} {value}\n"));
                     }
                 }
             }
             if parsed.error.is_some() {
-                expected.push_str("error\n");
+                printed.push_str("error\n");
             }
             for operand in &parsed.operands {
-                expected.push_str(&format!("operand {operand}\n"));
+                printed.push_str(&format!("operand {operand}\n"));
             }
-            assert_eq!(output.stdout_text(), expected, "args {case:?}");
+            assert_eq!(printed, *bash, "args {case:?}");
         }
     }
-
-    use crate::exec::Runner;
 }

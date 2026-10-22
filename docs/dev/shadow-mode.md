@@ -36,7 +36,7 @@ hand in the menu shows as a difference. Each phase of the refactoring adds the d
 `zbm shadow` runs every program through `zbm_platform::ReadOnlyRunner`, which allows only `zfs list`, `zfs get`,
 `zpool list`, `zpool get`, `zpool status`, `cryptsetup luksDump`, `cryptsetup status`, `cryptsetup luksUUID`,
 `cryptsetup isLuks` and `blkid`, refuses commands with secret input, and refuses everything after a budget of five
-seconds. It never prompts (`zbm_system::NoConsole`), and it always exits with status 0, so it can neither stop nor
+seconds. It never prompts (`zbm_platform::NoConsole`), and it always exits with status 0, so it can neither stop nor
 slow a boot by more than the budget.
 
 ## Where the result goes

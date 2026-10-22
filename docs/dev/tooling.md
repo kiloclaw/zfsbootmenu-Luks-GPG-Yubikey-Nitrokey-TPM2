@@ -26,7 +26,7 @@ The suites that need root or QEMU are described in [testing.md](testing.md); the
 
 ## Crash reports
 
-When a runtime program panics, its panic hook (`zbm_system::CrashReporter`) writes
+When a runtime program panics, its panic hook (`zbm_platform::CrashReporter`) writes
 `/zfsbootmenu/crash-<time>-<pid>.txt`, logs an error naming it and writes it to the journal; when the supervisor's
 start-up program is killed by a signal, the supervisor writes one. The recovery shell names the report, and
 `zbm debug crash` prints the latest (`--list` lists them). A report holds the panic message and place, the build ID

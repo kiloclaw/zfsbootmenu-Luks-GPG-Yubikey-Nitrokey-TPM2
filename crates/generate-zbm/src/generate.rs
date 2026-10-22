@@ -12,9 +12,9 @@ use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use zbm_core::exec::{Command, Input, Runner, Stream};
 use zbm_core::fs::{is_dir, is_executable, is_file, is_readable, is_writable, strerror};
 use zbm_core::shell::quote;
+use zbm_platform::exec::{Command, Input, Runner, Stream};
 
 use crate::cli::{self, Options, Outcome};
 use crate::config::{Fatal, Value};

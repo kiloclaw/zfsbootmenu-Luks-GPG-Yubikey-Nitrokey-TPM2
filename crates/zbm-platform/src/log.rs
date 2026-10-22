@@ -84,7 +84,7 @@ impl KmsgSink for FilesSink {
 ///
 /// ```
 /// use std::path::Path;
-/// use zbm_system::{KernelLog, RealFiles};
+/// use zbm_platform::{KernelLog, RealFiles};
 ///
 /// let id = std::process::id();
 /// let dir = std::env::temp_dir().join(format!("zbm-doc-{id}"));
@@ -133,18 +133,21 @@ impl KernelLog {
     /// The same log, writing each message of any level as one `LEVEL: text`
     /// line, as the logging stand-ins of the LUKS unit suites do; empty
     /// debugging output is left out.
+    #[must_use]
     pub fn labelled(mut self) -> KernelLog {
         self.labelled = true;
         self
     }
 
     /// The same log, writing to another device.
+    #[must_use]
     pub fn with_device(mut self, device: &Path) -> KernelLog {
-        self.sink.device = device.to_owned();
+        device.clone_into(&mut self.sink.device);
         self
     }
 
     /// The same log, without a journal.
+    #[must_use]
     pub fn without_journal(mut self) -> KernelLog {
         self.journal = None;
         self
@@ -179,6 +182,10 @@ pub struct Installed {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the tests check the real files and processes"
+)]
 mod tests {
     use super::*;
     use crate::files::RealFiles;
@@ -187,7 +194,7 @@ mod tests {
 
     #[test]
     fn writes_records_and_markers() {
-        let dir = TempDir::new("zbm-system-log");
+        let dir = TempDir::new("zbm-platform-log");
         let kmsg = dir.join("kmsg");
         let log = KernelLog::new(&RealFiles, "6", dir.path(), 42).with_device(&kmsg);
 
@@ -217,7 +224,7 @@ mod tests {
 
     #[test]
     fn the_journal_takes_every_event_the_kernel_log_leaves_out() {
-        let dir = TempDir::new("zbm-system-log");
+        let dir = TempDir::new("zbm-platform-log");
         let kmsg = dir.join("kmsg");
         let log = KernelLog::new(&RealFiles, "3", dir.path(), 42).with_device(&kmsg);
 
@@ -241,7 +248,7 @@ mod tests {
 
     #[test]
     fn a_log_without_a_journal_writes_none() {
-        let dir = TempDir::new("zbm-system-log");
+        let dir = TempDir::new("zbm-platform-log");
         let log = KernelLog::new(&RealFiles, "7", dir.path(), 1)
             .with_device(&dir.join("kmsg"))
             .without_journal();
@@ -254,7 +261,7 @@ mod tests {
 
     #[test]
     fn labelled_lines_are_written_as_the_suites_expect() {
-        let dir = TempDir::new("zbm-system-log");
+        let dir = TempDir::new("zbm-platform-log");
         let log_file = dir.join("log");
         let log = KernelLog::new(&RealFiles, "0", dir.path(), 42)
             .with_device(&log_file)
@@ -273,7 +280,7 @@ mod tests {
 
     #[test]
     fn an_unwritable_device_is_not_an_error() {
-        let dir = TempDir::new("zbm-system-log");
+        let dir = TempDir::new("zbm-platform-log");
         let log = KernelLog::new(&RealFiles, "7", dir.path(), 1)
             .with_device(Path::new("/nonexistent/kmsg"));
 

@@ -13,8 +13,8 @@ use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::time::Duration;
 
-use zbm_core::exec::{Command, Input, Runner, Stream};
-use zbm_core::secret::Secret;
+use crate::exec::{Command, Input, Runner, Stream};
+use crate::secret::Secret;
 
 /// The size of the screen.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -39,23 +39,43 @@ pub enum Timed<T> {
 /// Input from and output to the user.
 pub trait Console {
     /// Writes text (`echo -n`).
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn write(&self, bytes: &[u8]) -> io::Result<()>;
 
     /// The screen size (`stty size`).
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn size(&self) -> io::Result<Size>;
 
     /// Waits for one key press, without echo and without Enter, for at most
     /// `timeout` (`None`: without limit), as `read -s -N 1 -t` does. Returns the
     /// byte read, or `None` if the time passed or the input ended.
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn read_key(&self, timeout: Option<Duration>) -> io::Result<Option<u8>>;
 
-    /// Reads a line with echo off, as `luks_read_secret` does, without its
+    /// Reads a line with echo off, as the legacy LUKS prompt does, without its
     /// newline. Returns `None` if the input ends before a newline, where `read`
     /// fails.
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn read_secret(&self) -> io::Result<Option<Secret>>;
 
     /// Reads a line with echo on, without its newline. Returns `None` if the
     /// input ends before a newline.
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn read_line(&self) -> io::Result<Option<String>>;
 
     /// Switches echo on or off (`stty echo`, `stty -echo`), ignoring failures,
@@ -66,6 +86,10 @@ pub trait Console {
     /// `timeout`, as `IFS= read -r -t <seconds>` does on a terminal, where a
     /// line arrives whole. A line that the end of the input cuts short counts
     /// as the end.
+    ///
+    /// # Errors
+    ///
+    /// When the console cannot be read or written.
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>>;
 }
 
@@ -113,6 +137,10 @@ pub struct Terminal<'a> {
 impl<'a> Terminal<'a> {
     /// The terminal on the process's standard input and output; `runner` runs
     /// `stty`, which acts on the inherited standard input.
+    ///
+    /// # Errors
+    ///
+    /// When standard input or output cannot be duplicated.
     pub fn standard(runner: &'a dyn Runner) -> io::Result<Terminal<'a>> {
         let input = io::stdin().as_fd_clone()?;
         let output = io::stdout().as_fd_clone()?;
@@ -136,7 +164,7 @@ impl<'a> Terminal<'a> {
             .stdin(Input::Inherit)
             .stderr(Stream::Null);
         match self.runner.run(&command) {
-            Ok(output) if output.status.success() => Some(output.stdout_text()),
+            Ok(output) if output.status.is_success() => Some(output.stdout_text()),
             _ => None,
         }
     }
@@ -253,188 +281,5 @@ trait AsFdClone {
 impl<T: std::os::fd::AsFd> AsFdClone for T {
     fn as_fd_clone(&self) -> io::Result<File> {
         Ok(File::from(self.as_fd().try_clone_to_owned()?))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn no_console_reads_nothing_and_shows_nothing() {
-        let console = NoConsole;
-
-        assert!(console.write(b"x").is_ok());
-        assert!(console.size().is_err());
-        assert_eq!(console.read_key(None).unwrap(), None);
-        assert!(console.read_secret().unwrap().is_none());
-        assert_eq!(console.read_line().unwrap(), None);
-        console.set_echo(false);
-        assert!(matches!(
-            console.read_secret_within(Duration::from_secs(1)).unwrap(),
-            Timed::Ended
-        ));
-    }
-
-    use super::*;
-    use zbm_core::exec::{Output, Status};
-    use zbm_testkit::{FakeRunner, TempDir};
-
-    struct Setup {
-        _dir: TempDir,
-        runner: FakeRunner,
-        input: File,
-        output: File,
-        output_path: std::path::PathBuf,
-    }
-
-    fn setup(input: &[u8], tty: bool) -> Setup {
-        let dir = TempDir::new("zbm-console");
-        let input_path = dir.write("input", input);
-        let output_path = dir.write("output", "");
-        let runner = FakeRunner::new();
-        if tty {
-            runner.respond("stty -g", 0, "500:5:bf:8a3b\n");
-            runner.respond("stty size", 0, "25 80\n");
-        } else {
-            runner.respond_program("stty", 1, "");
-        }
-        Setup {
-            input: File::open(input_path).unwrap(),
-            output: std::fs::OpenOptions::new()
-                .write(true)
-                .open(&output_path)
-                .unwrap(),
-            output_path,
-            runner,
-            _dir: dir,
-        }
-    }
-
-    #[test]
-    fn keys_switch_the_terminal_and_restore_it() {
-        let setup = setup(b"\x1bx", true);
-        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
-        assert_eq!(
-            terminal.read_key(Some(Duration::from_secs(1))).unwrap(),
-            Some(0x1b)
-        );
-        assert_eq!(terminal.read_key(None).unwrap(), Some(b'x'));
-        // The end of the input ends the wait.
-        assert_eq!(
-            terminal.read_key(Some(Duration::from_secs(1))).unwrap(),
-            None
-        );
-        assert_eq!(
-            setup.runner.lines()[..3],
-            ["stty -g", "stty -icanon -echo", "stty 500:5:bf:8a3b"]
-        );
-        assert!(
-            setup
-                .runner
-                .calls()
-                .iter()
-                .all(|call| *call.get_stdin() == Input::Inherit)
-        );
-    }
-
-    #[test]
-    fn secrets_are_read_without_echo() {
-        let setup = setup(b"hunter2\nnext line\npartial", true);
-        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
-        let secret = terminal.read_secret().unwrap().unwrap();
-        assert_eq!(secret.expose(), b"hunter2");
-        assert_eq!(
-            setup.runner.lines(),
-            ["stty -g", "stty -echo", "stty 500:5:bf:8a3b"]
-        );
-        // The rest of the input stays for the next reader.
-        assert_eq!(terminal.read_line().unwrap().as_deref(), Some("next line"));
-        assert_eq!(terminal.read_line().unwrap(), None);
-    }
-
-    #[test]
-    fn timed_reads_wait_for_a_line() {
-        let setup = setup(b"pw\npartial", true);
-        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
-        terminal.set_echo(false);
-        let second = Duration::from_secs(1);
-        match terminal.read_secret_within(second).unwrap() {
-            Timed::Read(secret) => assert_eq!(secret.expose(), b"pw"),
-            other => panic!("unexpected {other:?}"),
-        }
-        assert_eq!(terminal.read_secret_within(second).unwrap(), Timed::Ended);
-        terminal.set_echo(true);
-        assert_eq!(setup.runner.lines(), ["stty -echo", "stty echo"]);
-
-        // A pipe that stays open without data times out.
-        let mut child = std::process::Command::new("sleep")
-            .arg("5")
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-        let pipe = File::from(std::os::fd::OwnedFd::from(child.stdout.take().unwrap()));
-        let output = null_output();
-        let terminal = Terminal::new(&setup.runner, pipe, output);
-        let short = Duration::from_millis(50);
-        assert_eq!(terminal.read_secret_within(short).unwrap(), Timed::TimedOut);
-        child.kill().unwrap();
-        child.wait().unwrap();
-    }
-
-    fn null_output() -> File {
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open("/dev/null")
-            .unwrap()
-    }
-
-    #[test]
-    fn without_a_terminal_input_is_read_as_it_comes() {
-        let setup = setup(b"pw\n", false);
-        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
-        assert_eq!(terminal.read_secret().unwrap().unwrap().expose(), b"pw");
-        // Only the attempt to save the settings ran.
-        assert_eq!(setup.runner.lines(), ["stty -g"]);
-        assert!(terminal.size().is_err());
-    }
-
-    #[test]
-    fn writes_and_sizes() {
-        let setup = setup(b"", true);
-        let terminal = Terminal::new(&setup.runner, setup.input, setup.output);
-        terminal.write(b"Booting ").unwrap();
-        terminal.write(b"tank/ROOT/void\n").unwrap();
-        assert_eq!(
-            std::fs::read(&setup.output_path).unwrap(),
-            b"Booting tank/ROOT/void\n"
-        );
-        assert_eq!(
-            terminal.size().unwrap(),
-            Size {
-                rows: 25,
-                columns: 80
-            }
-        );
-    }
-
-    #[test]
-    fn parses_stty_sizes() {
-        assert_eq!(
-            parse_size("50 132\n"),
-            Some(Size {
-                rows: 50,
-                columns: 132
-            })
-        );
-        assert_eq!(parse_size(""), None);
-        assert_eq!(parse_size("50"), None);
-        assert_eq!(parse_size("50 x"), None);
-        assert_eq!(parse_size("1 2 3"), None);
-    }
-
-    #[test]
-    fn the_standard_terminal_can_be_opened() {
-        let runner = FakeRunner::new();
-        runner.on(|_| Some(Ok(Output::new(Status::exited(1), ""))));
-        assert!(Terminal::standard(&runner).is_ok());
     }
 }

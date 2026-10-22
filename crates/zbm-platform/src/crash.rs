@@ -157,6 +157,10 @@ impl CrashReporter {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the tests check the real files and processes"
+)]
 mod tests {
     use super::*;
     use crate::files::RealFiles;
@@ -301,7 +305,7 @@ mod tests {
         let report = Report::parse(&text).unwrap();
         assert!(
             text.lines().any(|line| line
-                .starts_with("reason: panicked at crates/zbm-system/src/crash.rs:")
+                .starts_with("reason: panicked at crates/zbm-platform/src/crash.rs:")
                 && line.ends_with(": the pool is gone")),
             "{text}"
         );

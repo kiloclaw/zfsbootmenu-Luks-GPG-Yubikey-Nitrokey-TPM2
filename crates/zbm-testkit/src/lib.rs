@@ -5,8 +5,8 @@
 //!
 //! - [`FakeRunner`] replaces the system's programs: it records every command
 //!   and answers it.
-//! - [`fakes`] replaces the other system interfaces of `zbm-system` (files, the
-//!   clock, the console, processes) and bundles them as a `FakeSystem`.
+//! - [`fakes`] replaces the other ports of `zbm-platform` (files, the clock,
+//!   the console, processes) and bundles them as a `FakeSystem`.
 //! - [`machine`] builds a `FakeMachine`: a `FakeSystem` with LUKS volumes,
 //!   pools and key files that its fake programs answer for.
 //! - [`mod@assert`] holds the assertions: `assert_ran!`, `assert_not_ran!`,
@@ -34,7 +34,7 @@
 use std::cell::RefCell;
 use std::io;
 
-use zbm_core::exec::{Command, Output, Runner, Status};
+use zbm_platform::exec::{Command, Output, Runner, Status};
 
 pub mod assert;
 pub mod efi;
@@ -128,7 +128,7 @@ mod tests {
         let copied = runner.run(&Command::new("objcopy").arg("x")).unwrap();
         assert_eq!(copied.status.code(), Some(1));
         let other = runner.run(&Command::new("true")).unwrap();
-        assert!(other.status.success());
+        assert!(other.status.is_success());
         assert_eq!(
             runner.lines(),
             ["zfs list -H -o name pool", "objcopy x", "true"]

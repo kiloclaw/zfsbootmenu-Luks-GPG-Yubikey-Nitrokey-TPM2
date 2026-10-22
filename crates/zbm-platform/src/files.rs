@@ -5,6 +5,11 @@
 //! implementation is [`RealFiles`]; tests use the in-memory fake of
 //! `zbm-testkit`, which records every write.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "RealFiles is where files are read and written"
+)]
+
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
@@ -54,50 +59,106 @@ impl Metadata {
 /// code uses for them.
 pub trait Files {
     /// Reads a whole file (`cat`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
 
     /// Reads at most `len` bytes from the start of a file, as `head -c <len>`
     /// does; for devices such as `/dev/urandom`, which never end.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>>;
 
     /// Creates or truncates a file and writes `contents` (`> file`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
 
     /// Appends `contents` to a file, creating it if needed, with one write
     /// (`>> file`). Each write to `/dev/kmsg` becomes one log record.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
 
     /// Creates one directory, failing if it exists (`mkdir`), which makes it
     /// usable as a lock.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn create_dir(&self, path: &Path) -> io::Result<()>;
 
     /// Creates a directory and its parents (`mkdir -p`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn create_dir_all(&self, path: &Path) -> io::Result<()>;
 
     /// Removes a file (`rm`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn remove_file(&self, path: &Path) -> io::Result<()>;
 
     /// Removes an empty directory (`rmdir`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn remove_dir(&self, path: &Path) -> io::Result<()>;
 
     /// Renames a file, replacing the target (`mv`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
 
     /// The names in a directory, sorted by their bytes, as a glob sorts them in
     /// the C locale.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn read_dir(&self, path: &Path) -> io::Result<Vec<OsString>>;
 
     /// What a path names, following symbolic links.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn metadata(&self, path: &Path) -> io::Result<Metadata>;
 
     /// Sets the permission bits (`chmod`).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn set_mode(&self, path: &Path, mode: u32) -> io::Result<()>;
 
     /// The absolute path without symbolic links, `.` or `..` (`readlink -f` of
     /// an existing path).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
 
     /// Reads a whole file as text, replacing invalid UTF-8.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn read_to_string(&self, path: &Path) -> io::Result<String> {
         self.read(path)
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
@@ -123,6 +184,10 @@ pub trait Files {
     /// Replaces a file's contents so that a reader in another process sees the
     /// old or the new contents, never a partial file: the contents go to a
     /// temporary file in the same directory, which is renamed over the target.
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn replace(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         let name = path
             .file_name()
@@ -142,6 +207,10 @@ pub trait Files {
     fn shared(&self) -> Arc<dyn Files + Send + Sync>;
 
     /// Copies a file's contents (`cp` without options).
+    ///
+    /// # Errors
+    ///
+    /// The error of the operation, such as `NotFound` for a missing path.
     fn copy(&self, from: &Path, to: &Path) -> io::Result<()> {
         let contents = self.read(from)?;
         self.write(to, &contents)

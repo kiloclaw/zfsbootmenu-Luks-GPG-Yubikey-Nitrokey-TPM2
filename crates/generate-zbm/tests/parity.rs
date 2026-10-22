@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use zbm_core::exec::{Command, Output, Runner, Stream, SystemRunner};
+use zbm_platform::exec::{Command, Output, Runner, Stream, SystemRunner};
 use zbm_testkit::parity::Parity;
 use zbm_testkit::{TempDir, have_program, legacy, parity};
 

@@ -167,7 +167,7 @@ impl FakeZfs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_core::exec::{Command, Runner, Stream, SystemRunner};
+    use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
 
     fn run(fake: &FakeZfs, args: &[&str]) -> (i32, String) {
         let output = SystemRunner

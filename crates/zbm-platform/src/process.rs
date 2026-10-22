@@ -18,6 +18,10 @@ pub trait Processes {
     fn id(&self) -> u32;
 
     /// Sends `signal` to the process `pid` (`kill -SIG pid`).
+    ///
+    /// # Errors
+    ///
+    /// When the signal cannot be sent, as `kill` fails.
     fn signal(&self, pid: u32, signal: Signal) -> io::Result<()>;
 }
 
@@ -35,7 +39,7 @@ impl Processes for SystemProcesses {
     }
 }
 
-/// The first child of process `pid`, as `find_child_pid` reads it from
+/// The first child of process `pid`, as the legacy code reads it from
 /// `/proc/<pid>/task/<pid>/children`.
 pub fn first_child(files: &dyn Files, pid: u32) -> Option<u32> {
     let path = PathBuf::from(format!("/proc/{pid}/task/{pid}/children"));
@@ -60,6 +64,10 @@ pub fn deepest_child(files: &dyn Files, pid: u32) -> u32 {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the tests check the real files and processes"
+)]
 mod tests {
     use super::*;
     use crate::files::RealFiles;

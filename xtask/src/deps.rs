@@ -46,19 +46,19 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "foundation",
-        purpose: "Commands, secrets, errors, file tests, logging formats, tracing",
+        purpose: "File tests, option parsing, shell semantics, release information, tracing",
         crates: &["zbm-core", "zbm-trace"],
     },
     Layer {
         name: "platform",
-        purpose: "System interfaces and their real implementations, \
-                  state files, the kernel command line",
-        crates: &["zbm-system", "zbm-state", "zbm-cmdline"],
+        purpose: "The ports to the system (programs, files, clock, console, processes, \
+                  environment), their real implementations, secrets and the Context",
+        crates: &["zbm-platform"],
     },
     Layer {
-        name: "ports",
-        purpose: "The Context through which services reach the system; the command journal",
-        crates: &["zbm-platform"],
+        name: "state",
+        purpose: "State files and the kernel command line",
+        crates: &["zbm-state", "zbm-cmdline"],
     },
     Layer {
         name: "adapters",
@@ -88,11 +88,7 @@ pub const LAYERS: &[Layer] = &[
 ];
 
 /// Dependencies between crates of the same layer: (from, to).
-pub const SAME_LAYER: &[(&str, &str)] = &[
-    ("zbm-trace", "zbm-core"),
-    ("zbm-state", "zbm-system"),
-    ("zbm", "zbm-tui"),
-];
+pub const SAME_LAYER: &[(&str, &str)] = &[("zbm-trace", "zbm-core"), ("zbm", "zbm-tui")];
 
 /// Crates that only tests may use.
 pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
@@ -108,7 +104,6 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
     ("zbm-crypt", &["thiserror", "tracing"]),
-    ("zbm-system", &["tracing", "tracing-subscriber"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     (
@@ -408,13 +403,13 @@ mod tests {
 
     #[test]
     fn same_layer_edges_must_be_listed() {
-        let listed = package("zbm-state", &[("zbm-system", DependencyKind::Normal, true)]);
-        let unlisted = package("zbm-system", &[("zbm-state", DependencyKind::Normal, true)]);
+        let listed = package("zbm-trace", &[("zbm-core", DependencyKind::Normal, true)]);
+        let unlisted = package("zbm-core", &[("zbm-trace", DependencyKind::Normal, true)]);
 
         assert_eq!(problems_of(&listed), Vec::<String>::new());
         assert_eq!(
             problems_of(&unlisted),
-            ["zbm-system -> zbm-state: same layer, and not listed in SAME_LAYER"]
+            ["zbm-core -> zbm-trace: same layer, and not listed in SAME_LAYER"]
         );
     }
 

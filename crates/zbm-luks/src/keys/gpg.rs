@@ -12,10 +12,10 @@
 
 use std::path::Path;
 
-use zbm_core::exec::{Command, Input, Stream};
-use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
-use zbm_system::files::FileKind;
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::files::FileKind;
+use zbm_platform::secret::Secret;
 
 use super::with_newline;
 use crate::session::{Session, Wait};
@@ -106,7 +106,7 @@ impl Session<'_> {
             system
                 .runner
                 .run(&command)
-                .is_ok_and(|output| output.status.success())
+                .is_ok_and(|output| output.status.is_success())
         };
         let source = &self.settings().gnupg_dir;
         if system.files.is_dir(source) {
@@ -165,7 +165,7 @@ impl Session<'_> {
         let output = self.system().runner.run(&command).ok()?;
         output
             .status
-            .success()
+            .is_success()
             .then(|| parse_card_status(&output.stdout_text()))
     }
 
@@ -342,7 +342,7 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
 
     #[test]

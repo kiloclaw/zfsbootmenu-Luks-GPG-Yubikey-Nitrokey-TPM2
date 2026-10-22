@@ -9,9 +9,9 @@
 
 use std::path::Path;
 
-use zbm_core::exec::{Input, Stream};
-use zbm_core::secret::Secret;
-use zbm_system::files::FileKind;
+use zbm_platform::exec::{Input, Stream};
+use zbm_platform::files::FileKind;
+use zbm_platform::secret::Secret;
 
 use super::{Outcome, Target};
 use crate::crypto::base64_encode;
@@ -230,7 +230,7 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::repo_root;
 

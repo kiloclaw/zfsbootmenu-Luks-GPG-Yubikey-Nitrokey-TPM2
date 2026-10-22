@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use zbm_system::System;
+use zbm_platform::System;
 
 use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 
@@ -72,7 +72,7 @@ pub fn stage(system: &System<'_>, wait_for: &str, delay: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_system::KernelLog;
+    use zbm_platform::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
     use zbm_testkit::parity;
@@ -161,7 +161,7 @@ mod tests {
                     ))
                     .env("zbm_wait_for_devices", wait_for)
                     .call("run", &[], b"");
-                assert!(legacy.status.success(), "{}", legacy.stderr_text());
+                assert!(legacy.status.is_success(), "{}", legacy.stderr_text());
                 (
                     legacy.stderr_text().matches("PROMPT").count(),
                     log_lines(&legacy.stderr_text()),

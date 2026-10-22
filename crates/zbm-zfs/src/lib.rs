@@ -12,8 +12,8 @@ use std::ffi::OsString;
 use std::io;
 
 use zbm_cmdline::parent::{COMMANDLINE_PROPERTY, CommandLineSource};
-use zbm_core::exec::{Command, Runner, Stream};
 use zbm_core::shell::command_substitution;
+use zbm_platform::exec::{Command, Runner, Stream};
 
 pub mod mounts;
 
@@ -58,7 +58,7 @@ impl<'a> Zfs<'a> {
             .stderr(Stream::Null);
         self.runner
             .run(&command)
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     }
 
     /// Whether `dataset` is a filesystem (`zfs list -H -o name -t filesystem
@@ -74,7 +74,7 @@ impl<'a> Zfs<'a> {
             .stderr(Stream::Null);
         self.runner
             .run(&command)
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     }
 
     /// The value of a property (`zfs get -H -o value <property> <dataset>`), with
@@ -111,7 +111,7 @@ impl<'a> Zfs<'a> {
         let output = self.runner.run(command).ok()?;
         output
             .status
-            .success()
+            .is_success()
             .then(|| command_substitution(&output.stdout_text()).to_owned())
     }
 
@@ -124,7 +124,7 @@ impl<'a> Zfs<'a> {
             .arg(format!("{property}={value}"))
             .arg(dataset)
             .stdout(Stream::Inherit);
-        Ok(self.runner.run(&command)?.status.success())
+        Ok(self.runner.run(&command)?.status.is_success())
     }
 
     /// Removes a local property value (`zfs inherit <property> <dataset>`); returns
@@ -134,7 +134,7 @@ impl<'a> Zfs<'a> {
             .command()
             .args(["inherit", property, dataset])
             .stdout(Stream::Inherit);
-        Ok(self.runner.run(&command)?.status.success())
+        Ok(self.runner.run(&command)?.status.is_success())
     }
 }
 
@@ -174,7 +174,7 @@ impl<'a> Zpool<'a> {
         self.runner
             .run(&command)
             .ok()
-            .filter(|output| output.status.success())
+            .filter(|output| output.status.is_success())
             .map(|output| {
                 parse_table(&output.stdout_text())
                     .into_iter()
@@ -192,7 +192,7 @@ impl<'a> Zpool<'a> {
         let output = self.runner.run(&command).ok()?;
         output
             .status
-            .success()
+            .is_success()
             .then(|| command_substitution(&output.stdout_text()).to_owned())
     }
 }
@@ -201,7 +201,7 @@ impl<'a> Zpool<'a> {
 mod tests {
     use super::*;
     use zbm_cmdline::parent::{read_kcl_prop, read_kcl_value};
-    use zbm_core::exec::SystemRunner;
+    use zbm_platform::exec::SystemRunner;
     use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::{FakeRunner, Rng, TempDir, parity};
@@ -307,7 +307,7 @@ mod tests {
                     (
                         legacy
                             .status
-                            .success()
+                            .is_success()
                             .then(|| legacy.stdout_text().trim_end_matches('\n').to_owned()),
                         log_lines(&legacy.stderr_text()),
                         values,

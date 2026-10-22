@@ -5,8 +5,8 @@ use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 
-use zbm_core::exec::{Command, Input, Output, Status};
-use zbm_system::files::Files as _;
+use zbm_platform::exec::{Command, Input, Output, Status};
+use zbm_platform::files::Files as _;
 
 use super::{BUSY, HOLDERS, LuksVolume, MAPS, Model, base};
 use crate::FakeRunner;

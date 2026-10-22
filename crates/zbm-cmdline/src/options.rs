@@ -731,7 +731,7 @@ mod tests {
                              printf 'override<<%s>>\\n' \"$(cat \"$BASE/cmdline\"; echo .)\"; fi",
                         )
                         .call("true", &[], b"");
-                    assert!(legacy.status.success(), "{}", legacy.stderr_text());
+                    assert!(legacy.status.is_success(), "{}", legacy.stderr_text());
                     // `$(cat file; echo .)` keeps the trailing newline of the override; drop
                     // the dot again.
                     (

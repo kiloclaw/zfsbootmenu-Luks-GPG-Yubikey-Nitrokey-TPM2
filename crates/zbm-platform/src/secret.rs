@@ -107,13 +107,17 @@ impl Secret {
     }
 
     /// Reads `reader` to its end into a new secret.
+    ///
+    /// # Errors
+    ///
+    /// The error of the reader; what was read is wiped.
     pub fn read_from(reader: &mut impl Read) -> io::Result<Secret> {
         let mut secret = Secret::with_capacity(INITIAL_CAPACITY);
         let mut chunk = [0_u8; 512];
         let result = loop {
             match reader.read(&mut chunk) {
                 Ok(0) => break Ok(()),
-                Ok(count) => secret.push_bytes(&chunk[..count]),
+                Ok(count) => secret.push_bytes(chunk.get(..count).unwrap_or_default()),
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                 Err(error) => break Err(error),
             }
@@ -196,18 +200,21 @@ mod tests {
         assert!(secret.bytes.capacity() >= 8);
     }
 
+    /// A reader that always fails.
+    struct Failing;
+
+    impl Read for Failing {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::other("broken"))
+        }
+    }
+
     #[test]
     fn reads_everything_from_a_reader() {
         let long: Vec<u8> = (0..2000_u32).map(|i| (i % 251) as u8).collect();
         let secret = Secret::read_from(&mut long.as_slice()).unwrap();
         assert_eq!(secret.expose(), long.as_slice());
 
-        struct Failing;
-        impl Read for Failing {
-            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-                Err(io::Error::other("broken"))
-            }
-        }
         assert_eq!(
             Secret::read_from(&mut Failing).unwrap_err().to_string(),
             "broken"

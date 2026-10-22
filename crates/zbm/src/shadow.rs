@@ -17,8 +17,8 @@ use std::time::Duration;
 
 use zbm_boot::shadow::{Selected, compare, efivar};
 use zbm_platform::ReadOnlyRunner;
+use zbm_platform::{Files, NoConsole, RealFiles, RealSystem, System};
 use zbm_state::State;
-use zbm_system::{Files, NoConsole, RealFiles, RealSystem, System};
 
 use crate::{Io, USAGE};
 

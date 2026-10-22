@@ -7,7 +7,7 @@ use zbm_boot::prompt::{ConsolePrompter, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open, resolve_device};
 use zbm_luks::session::{Luks, Session, Settings};
 use zbm_luks::tokens::list_tokens;
-use zbm_system::RealSystem;
+use zbm_platform::RealSystem;
 
 use crate::Io;
 
@@ -204,8 +204,8 @@ pub mod seams {
 
     use zbm_luks::device::OpenCheck;
     use zbm_luks::session::{Answer, PromptRequest, Prompter};
-    use zbm_system::files::Files;
-    use zbm_system::{KernelLog, System};
+    use zbm_platform::files::Files;
+    use zbm_platform::{KernelLog, System};
 
     use super::*;
 
@@ -326,7 +326,7 @@ pub mod seams {
 mod tests {
     use super::*;
     use zbm_luks::device::OpenCheck;
-    use zbm_system::KernelLog;
+    use zbm_platform::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
 
     struct NoPrompts;

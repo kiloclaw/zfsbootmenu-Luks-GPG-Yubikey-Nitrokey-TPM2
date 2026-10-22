@@ -16,10 +16,10 @@ use std::path::{Path, PathBuf};
 
 use zbm_cmdline::kcl;
 use zbm_cmdline::parent::COMMANDLINE_PROPERTY;
-use zbm_core::exec::{Command, Input, Runner, Stream, SystemRunner};
 use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_core::getopts::{self, Opt};
 use zbm_core::shell::{command_substitution, echo, read_lines};
+use zbm_platform::exec::{Command, Input, Runner, Stream, SystemRunner};
 use zbm_zfs::Zfs;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 
@@ -376,7 +376,7 @@ fn raw_kcl_efi(context: &Context, io: &mut Io, image: &Path) -> String {
         .stdin(Input::Inherit)
         .merge_stderr();
     match context.runner.run(&dump) {
-        Ok(output) if output.status.success() => std::fs::read(&section.0)
+        Ok(output) if output.status.is_success() => std::fs::read(&section.0)
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
             .unwrap_or_default(),
         Ok(output) => {
@@ -424,7 +424,7 @@ fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -
             .arg(image)
             .stdin(Input::Inherit);
         match context.runner.run(&objdump) {
-            Ok(output) if output.status.success() => {
+            Ok(output) if output.status.is_success() => {
                 efi::cmdline_gap(&output.stdout_text(), &image_name)
             }
             _ => Err(vec![
@@ -466,7 +466,7 @@ fn save_kcl_efi(context: &Context, io: &mut Io, assembled: &str, image: &Path) -
         context
             .runner
             .run(&command.stdin(Input::Inherit).merge_stderr())
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     };
     if !run_merged(
         Command::new("objcopy")
@@ -530,7 +530,7 @@ fn edit_kcl(context: &Context, io: &mut Io, temp_kcl: &Path) -> bool {
                 .stdout(Stream::Inherit)
                 .stderr(Stream::Inherit),
         )
-        .is_ok_and(|output| output.status.success());
+        .is_ok_and(|output| output.status.is_success());
     if !edited {
         error(io, "failed to edit KCL");
         return false;

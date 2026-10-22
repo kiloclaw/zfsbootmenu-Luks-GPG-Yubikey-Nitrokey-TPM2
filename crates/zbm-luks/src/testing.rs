@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::Path;
 
-use zbm_system::{Installed, KernelLog};
+use zbm_platform::{Installed, KernelLog};
 
 use crate::session::{Answer, PromptRequest, Prompter};
 use zbm_testkit::fakes::FakeSystem;

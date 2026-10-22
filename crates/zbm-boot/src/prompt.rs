@@ -7,9 +7,9 @@
 
 use std::time::Duration;
 
-use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::test_integer;
-use zbm_system::System;
+use zbm_platform::System;
+use zbm_platform::exec::{Command, Stream};
 
 pub use zbm_core::color::{colorize, decolorize};
 
@@ -207,7 +207,7 @@ fn tput_number(system: &System<'_>, capability: &str) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_system::clock::Clock;
+    use zbm_platform::clock::Clock;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS};
     use zbm_testkit::parity;

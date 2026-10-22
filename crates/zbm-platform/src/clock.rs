@@ -4,6 +4,11 @@
 //! [`Clock`], so tests run them instantly with a fake clock that only moves
 //! when the code sleeps.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "SystemClock is where the time is read and waited for"
+)]
+
 use std::time::{Duration, Instant, SystemTime};
 
 /// The time, and waiting.

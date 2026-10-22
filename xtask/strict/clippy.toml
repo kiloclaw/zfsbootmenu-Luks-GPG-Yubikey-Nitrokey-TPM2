@@ -12,7 +12,7 @@ allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
 
-# No hidden IO: only the real implementations of the system interfaces (zbm-system, zbm-sys) run programs, touch
+# No hidden IO: only the real implementations of the system interfaces (zbm-platform, zbm-sys) run programs, touch
 # files, read the environment or the clock, and they allow these lints in one module each. Everything else goes
 # through the Runner, Files, Environment and Clock interfaces, which tests replace with fakes.
 disallowed-methods = [

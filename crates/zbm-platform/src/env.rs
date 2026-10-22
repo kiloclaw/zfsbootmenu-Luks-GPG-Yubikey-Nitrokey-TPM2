@@ -8,6 +8,11 @@
 //! read the environment at the same time. Variables for child processes are
 //! set on each `Command` instead.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "ProcessEnvironment is where the environment is read"
+)]
+
 use std::ffi::{OsStr, OsString};
 
 /// Reads environment variables.

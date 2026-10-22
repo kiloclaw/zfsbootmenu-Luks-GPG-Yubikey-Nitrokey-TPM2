@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use zbm_core::exec::{Command, Runner, Stream};
+use zbm_platform::exec::{Command, Runner, Stream};
 use zbm_trace::Message;
 
 /// One line of the mount table, split as `read -r dev path fs opts` splits it.
@@ -174,7 +174,7 @@ pub fn recursive_umount(
     let succeeded = |command: Command| {
         runner
             .run(&quiet(command))
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     };
     if succeeded(Command::new("umount").args(["-R", mountpoint])) {
         return true;
@@ -255,12 +255,12 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
             .filter(|entry| entry.target.starts_with(mountpoint))
             .map(|entry| format!("{},{}\n", entry.target.matches('/').count(), entry.target))
             .collect();
-        let sorted = zbm_core::exec::SystemRunner
+        let sorted = zbm_platform::exec::SystemRunner
             .run(
                 &Command::new("sort")
                     .args(["-n", "-k1", "-r"])
                     .env("LC_ALL", "C")
-                    .stdin(zbm_core::exec::Input::Bytes(entries.into_bytes())),
+                    .stdin(zbm_platform::exec::Input::Bytes(entries.into_bytes())),
             )
             .unwrap()
             .stdout_text();

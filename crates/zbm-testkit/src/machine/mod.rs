@@ -4,8 +4,8 @@
 //! ```
 //! use zbm_testkit::machine::FakeMachine;
 //! use zbm_testkit::{assert_no_secret_leaked, assert_ran};
-//! use zbm_core::exec::{Command, Input, Runner};
-//! use zbm_core::secret::Secret;
+//! use zbm_platform::exec::{Command, Input, Runner};
+//! use zbm_platform::secret::Secret;
 //!
 //! let machine = FakeMachine::new()
 //!     .with_luks_volume("/dev/sda2", "pw")
@@ -15,7 +15,7 @@
 //!     .args(["open", "--type", "luks", "--key-file=-"])
 //!     .args(["/dev/sda2", "cryptroot"])
 //!     .stdin(Input::Secret(Secret::copy_from(b"pw")));
-//! assert!(machine.runner.run(&open).unwrap().status.success());
+//! assert!(machine.runner.run(&open).unwrap().status.is_success());
 //!
 //! assert_ran!(
 //!     machine,
@@ -47,7 +47,7 @@ use std::ops::Deref;
 use std::path::Path;
 use std::rc::Rc;
 
-use zbm_system::files::Files as _;
+use zbm_platform::files::Files as _;
 
 use crate::FakeRunner;
 use crate::fakes::FakeSystem;

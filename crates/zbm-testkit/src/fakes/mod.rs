@@ -1,4 +1,4 @@
-//! Fakes of the system interfaces of `zbm-system`.
+//! Fakes of the system interfaces of `zbm-platform`.
 //!
 //! [`FakeSystem`] holds one fake of each interface and lends them out as a
 //! [`System`]. Each fake records what the code did: the commands it ran
@@ -23,8 +23,8 @@ pub use environment::FakeEnvironment;
 pub use files::{FakeFiles, FileOperation};
 pub use processes::FakeProcesses;
 
-use zbm_core::exec::Input;
-use zbm_system::System;
+use zbm_platform::System;
+use zbm_platform::exec::Input;
 
 use crate::FakeRunner;
 
@@ -141,9 +141,9 @@ mod tests {
     use std::io;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
-    use zbm_core::exec::{Command, Runner, Stream};
-    use zbm_core::secret::Secret;
-    use zbm_system::{Clock, Console, FileKind, Files, Processes, Signal};
+    use zbm_platform::exec::{Command, Runner, Stream};
+    use zbm_platform::secret::Secret;
+    use zbm_platform::{Clock, Console, FileKind, Files, Processes, Signal};
 
     fn path(text: &str) -> PathBuf {
         PathBuf::from(text)

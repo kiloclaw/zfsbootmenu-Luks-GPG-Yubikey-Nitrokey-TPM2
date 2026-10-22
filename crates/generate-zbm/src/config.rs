@@ -676,7 +676,7 @@ mod tests {
             }
         "#;
         let output = perl(program, &[&file.to_string_lossy()], b"");
-        output.status.success().then(|| output.stdout_text())
+        output.status.is_success().then(|| output.stdout_text())
     }
 
     fn rust_view(yaml: &str) -> Option<String> {

@@ -290,7 +290,6 @@ dependencies = [
  "zbm-luks",
  "zbm-platform",
  "zbm-state",
- "zbm-system",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
@@ -301,6 +300,7 @@ name = "zbm-cmdline"
 version = "0.1.0"
 dependencies = [
  "zbm-core",
+ "zbm-platform",
  "zbm-trace",
  "zbm-types",
 ]
@@ -345,7 +345,6 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-sys",
- "zbm-system",
  "zbm-trace",
  "zbm-types",
 ]
@@ -355,32 +354,22 @@ name = "zbm-platform"
 version = "0.1.0"
 dependencies = [
  "tracing",
+ "tracing-subscriber",
  "zbm-core",
- "zbm-system",
+ "zbm-sys",
+ "zbm-trace",
 ]
 
 [[package]]
 name = "zbm-state"
 version = "0.1.0"
 dependencies = [
- "zbm-core",
- "zbm-system",
+ "zbm-platform",
 ]
 
 [[package]]
 name = "zbm-sys"
 version = "0.1.0"
-
-[[package]]
-name = "zbm-system"
-version = "0.1.0"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "zbm-core",
- "zbm-sys",
- "zbm-trace",
-]
 
 [[package]]
 name = "zbm-trace"
@@ -406,6 +395,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-cmdline",
  "zbm-core",
+ "zbm-platform",
  "zbm-trace",
 ]
 

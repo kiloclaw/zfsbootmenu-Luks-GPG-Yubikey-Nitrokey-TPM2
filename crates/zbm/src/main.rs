@@ -13,10 +13,10 @@ fn main() {
     let argv0 = args.next().unwrap_or_else(|| "zbm".to_owned());
     let args: Vec<String> = args.collect();
     // A panic leaves a crash report in the state directory (see
-    // `zbm_system::crash`); where that does not exist, as on a booted system,
+    // `zbm_platform::crash`); where that does not exist, as on a booted system,
     // only the standard message on standard error remains.
-    zbm_system::CrashReporter::new(
-        &zbm_system::RealFiles,
+    zbm_platform::CrashReporter::new(
+        &zbm_platform::RealFiles,
         std::path::Path::new(zbm::debug::BASE),
         &zbm::applet_name(&argv0, &args),
     )

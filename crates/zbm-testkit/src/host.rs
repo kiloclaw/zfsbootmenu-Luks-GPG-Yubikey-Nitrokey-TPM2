@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use zbm_core::exec::{Command, Runner as _};
+use zbm_platform::exec::{Command, Runner as _};
 
 /// The root of the repository.
 pub fn repo_root() -> PathBuf {
@@ -42,12 +42,12 @@ pub fn write_executable(path: &Path, contents: impl AsRef<[u8]>) {
     let command = Command::new("sh")
         .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
         .arg(path)
-        .stdin(zbm_core::exec::Input::Bytes(contents.as_ref().to_vec()));
-    let output = zbm_core::exec::SystemRunner
+        .stdin(zbm_platform::exec::Input::Bytes(contents.as_ref().to_vec()));
+    let output = zbm_platform::exec::SystemRunner
         .run(&command)
         .expect("sh can be started");
     assert!(
-        output.status.success(),
+        output.status.is_success(),
         "{} could not be written",
         path.display()
     );

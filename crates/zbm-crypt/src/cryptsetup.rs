@@ -83,7 +83,7 @@ impl<'a> Cryptsetup<'a> {
     fn run<S>(&self, command: Command, mapping: &Mapping<S>) -> Result<(), CryptError> {
         let command = command.stdout(Stream::Capture).merge_stderr();
         let output = self.runner.run(&command).map_err(CryptError::Start)?;
-        if output.status.success() {
+        if output.status.is_success() {
             return Ok(());
         }
         let error = classify(&output, mapping);

@@ -5,8 +5,8 @@ use std::collections::VecDeque;
 use std::io;
 use std::time::Duration;
 
-use zbm_core::secret::Secret;
-use zbm_system::console::{Console, Size, Timed};
+use zbm_platform::console::{Console, Size, Timed};
+use zbm_platform::secret::Secret;
 
 use super::clock::FakeClock;
 

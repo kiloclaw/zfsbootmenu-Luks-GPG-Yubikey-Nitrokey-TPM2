@@ -6,8 +6,8 @@
 //! `ykchalresp-concat`) is the LUKS passphrase. The challenge reaches
 //! `ykchalresp` on standard input, and its response is captured as a secret.
 
-use zbm_core::exec::{Input, Stream};
-use zbm_core::secret::Secret;
+use zbm_platform::exec::{Input, Stream};
+use zbm_platform::secret::Secret;
 
 use super::{Target, strip_newlines};
 use crate::config::YubiKey;
@@ -30,7 +30,7 @@ impl Session<'_> {
         self.system()
             .runner
             .run(&command)
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     }
 
     /// Opens a volume with YubiKey challenge-response
@@ -96,7 +96,7 @@ impl Session<'_> {
                 .runner
                 .run(&command)
                 .ok()
-                .filter(|output| output.status.success())
+                .filter(|output| output.status.is_success())
                 .and_then(|output| output.secret)
                 .map(|mut response| {
                     strip_newlines(&mut response);
@@ -135,7 +135,7 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
 
     /// A machine whose YubiKey answers `challenge` with `response`, and whose

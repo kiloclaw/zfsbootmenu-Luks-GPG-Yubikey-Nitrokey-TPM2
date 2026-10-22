@@ -5,11 +5,11 @@
 use std::path::Path;
 
 use zbm_cmdline::conf::{self, Conf};
-use zbm_core::exec::{Command, Runner, Stream};
 use zbm_luks::config::{CRYPTTAB, load_config};
 use zbm_luks::device::{default_name, resolve_device};
+use zbm_platform::exec::{Command, Runner, Stream};
+use zbm_platform::{Files, System};
 use zbm_state::State;
-use zbm_system::{Files, System};
 
 use super::{Comparison, Selected};
 use crate::boot::zfs_value;

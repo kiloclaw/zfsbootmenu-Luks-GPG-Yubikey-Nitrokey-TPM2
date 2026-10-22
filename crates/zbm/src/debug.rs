@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use zbm_system::{Files, RealFiles};
+use zbm_platform::{Files, RealFiles};
 
 use crate::{Io, USAGE};
 
@@ -96,8 +96,8 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
 fn panic_for_test() -> i32 {
     // As every applet does, so that the report shows the open span and the
     // kernel log and the journal get the error.
-    let _log =
-        zbm_system::KernelLog::new(&RealFiles, "7", Path::new(BASE), std::process::id()).install();
+    let _log = zbm_platform::KernelLog::new(&RealFiles, "7", Path::new(BASE), std::process::id())
+        .install();
     let _span = tracing::info_span!("crash_test", reason = "zbm debug panic").entered();
     panic!("zbm debug panic: a crash for the crash report test");
 }

@@ -13,7 +13,7 @@
 //! ```
 //! use zbm_testkit::fakes::FakeSystem;
 //! use zbm_testkit::{assert_not_ran, assert_ran, cases};
-//! use zbm_core::exec::{Command, Runner};
+//! use zbm_platform::exec::{Command, Runner};
 //!
 //! let fake = FakeSystem::new();
 //! fake.runner.run(&Command::new("zpool").args(["import", "-a"])).unwrap();

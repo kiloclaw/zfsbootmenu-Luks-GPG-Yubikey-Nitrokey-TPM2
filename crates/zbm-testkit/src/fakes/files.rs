@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
 
-use zbm_system::files::{FileKind, Files, Metadata};
+use zbm_platform::files::{FileKind, Files, Metadata};
 
 /// A file system entry.
 #[derive(Clone, Debug)]

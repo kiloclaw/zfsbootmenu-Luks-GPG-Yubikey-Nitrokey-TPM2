@@ -8,10 +8,10 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
+use zbm_platform::exec::{Command, Stream};
+use zbm_platform::{Runner, System};
 use zbm_state::State;
-use zbm_system::{Runner, System};
 use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
@@ -33,7 +33,7 @@ fn here_lines(output: &str) -> Vec<String> {
 fn substitution(runner: &dyn Runner, command: &Command) -> (bool, String) {
     match runner.run(command) {
         Ok(output) => (
-            output.status.success(),
+            output.status.is_success(),
             command_substitution(&output.stdout_text()).to_owned(),
         ),
         Err(error) => (false, error.to_string()),
@@ -353,7 +353,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     if system
         .runner
         .run(&all)
-        .is_ok_and(|output| output.status.success())
+        .is_ok_and(|output| output.status.is_success())
     {
         return Ok(());
     }
@@ -376,7 +376,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
         if !system
             .runner
             .run(&one)
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
         {
             zbm_trace::error!("unable to unmount {mp}");
             mounted.push(mp);
@@ -409,7 +409,7 @@ pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
     let mounted = system
         .runner
         .run(&check)
-        .is_ok_and(|output| output.status.success());
+        .is_ok_and(|output| output.status.is_success());
     let options = if mounted {
         zbm_trace::debug!("remounting '{location}' '{mode}'");
         format!("remount,{mode}")
@@ -640,10 +640,10 @@ pub fn kexec_kernel(
 mod tests {
     use super::*;
     use std::cell::RefCell;
-    use zbm_system::{Installed, KernelLog};
+    use zbm_platform::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};
-    use zbm_core::exec::{Output, Status, SystemRunner};
+    use zbm_platform::exec::{Output, Status, SystemRunner};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
     use zbm_testkit::parity::Parity;

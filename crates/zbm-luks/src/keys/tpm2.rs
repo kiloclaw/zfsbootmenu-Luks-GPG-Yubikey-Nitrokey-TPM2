@@ -13,9 +13,9 @@
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_core::exec::{Command, Input, Stream};
-use zbm_core::secret::Secret;
-use zbm_system::files::FileKind;
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::files::FileKind;
+use zbm_platform::secret::Secret;
 
 use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
@@ -77,7 +77,7 @@ impl Session<'_> {
         self.system()
             .runner
             .run(command)
-            .is_ok_and(|output| output.status.success())
+            .is_ok_and(|output| output.status.is_success())
     }
 
     /// Whether the TPM device is there, as `[ -c ]` finds it.
@@ -246,7 +246,7 @@ impl Session<'_> {
             if (pcrs.is_empty() || self.is_successful(&policy_pcr))
                 && (auth.is_none() || self.is_successful(&policy_auth))
                 && let Ok(output) = system.runner.run(&unseal)
-                && output.status.success()
+                && output.status.is_success()
             {
                 let secret = output.secret.unwrap_or_default();
                 outcome = Outcome::Key(base64_encode(secret.expose()));
@@ -405,7 +405,7 @@ mod tests {
     use crate::keys::tests::with_session;
     use crate::session::Settings;
     use crate::testing::{legacy_function, legacy_luks};
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::{have_program, parity, repo_root};
 

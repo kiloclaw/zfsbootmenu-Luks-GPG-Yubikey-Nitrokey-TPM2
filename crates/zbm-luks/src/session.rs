@@ -11,11 +11,11 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use zbm_core::color::colorize;
-use zbm_core::exec::{Command, Input, Stream};
-use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::secret::Secret;
+use zbm_platform::{Environment, System};
 use zbm_state::State;
-use zbm_system::{Environment, System};
 pub use zbm_types::Answer;
 
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
@@ -444,8 +444,8 @@ impl<'a> Session<'a> {
 mod tests {
     use super::*;
     use crate::testing::{NoPrompts, Prompts, log};
-    use zbm_core::exec::{Output, Status};
-    use zbm_system::clock::Clock;
+    use zbm_platform::clock::Clock;
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
 
     #[test]

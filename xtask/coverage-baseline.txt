@@ -14,12 +14,11 @@ zbm-core                 97
 zbm-crypt               100
 zbm-kcl                  90
 zbm-luks                 95
-zbm-platform             90
+zbm-platform             97
 zbm-state               100
 zbm-sys                  93
-zbm-system               99
 zbm-testkit              97
-zbm-trace                98
+zbm-trace                99
 zbm-tui                  85
 zbm-types                99
 zbm-zfs                  99

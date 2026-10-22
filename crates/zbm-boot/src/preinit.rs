@@ -16,10 +16,10 @@ use zbm_cmdline::args::{ZbmArgs, cmdline_files};
 use zbm_cmdline::conf::{self, Conf};
 use zbm_cmdline::kcl;
 use zbm_cmdline::options::ZbmOptions;
-use zbm_core::error::{Error, Result};
-use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::shell::{command_substitution, echo};
-use zbm_system::{KernelLog, System};
+use zbm_platform::error::{Error, Result};
+use zbm_platform::exec::{Command, Input, Stream};
+use zbm_platform::{KernelLog, System};
 
 /// The state directory when the configuration names none.
 pub const DEFAULT_BASE: &str = "/zfsbootmenu";

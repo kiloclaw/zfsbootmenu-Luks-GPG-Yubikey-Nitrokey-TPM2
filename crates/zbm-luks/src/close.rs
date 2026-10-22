@@ -7,8 +7,8 @@
 
 use std::path::Path;
 
-use zbm_core::exec::Stream;
 use zbm_core::shell::{command_substitution, read_lines};
+use zbm_platform::exec::Stream;
 
 use crate::device::is_block_device;
 use crate::error::LuksError;
@@ -104,7 +104,7 @@ impl Session<'_> {
                     .system()
                     .runner
                     .run(&export)
-                    .is_ok_and(|output| output.status.success());
+                    .is_ok_and(|output| output.status.is_success());
                 if !exported {
                     zbm_trace::warn!("unable to export {pool}, which uses {name}");
                 }

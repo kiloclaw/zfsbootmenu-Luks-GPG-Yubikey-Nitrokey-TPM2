@@ -30,16 +30,15 @@ dependencies that exist.
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl` | LUKS volumes and key methods, kernel command lines of boot environments |
 | adapters | `zbm-zfs`, `zbm-crypt` | External programs: ZFS, cryptsetup |
-| ports | `zbm-platform` | The Context through which services reach the system; the command journal |
-| platform | `zbm-system`, `zbm-state`, `zbm-cmdline` | System interfaces and their real implementations, state files, the kernel command line |
-| foundation | `zbm-core`, `zbm-trace` | Commands, secrets, errors, file tests, logging formats, tracing |
+| state | `zbm-state`, `zbm-cmdline` | State files and the kernel command line |
+| platform | `zbm-platform` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context |
+| foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
 
 A crate depends only on crates of lower layers, with these exceptions in its own layer:
 
 - `zbm-trace` → `zbm-core`
-- `zbm-state` → `zbm-system`
 - `zbm` → `zbm-tui`
 
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`) use no crate of the workspace.
@@ -52,7 +51,6 @@ Third-party crates:
 - `zbm-app`: `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-crypt`: `thiserror`, `tracing`
-- `zbm-system`: `tracing`, `tracing-subscriber`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-platform`: `serde_json`, `tracing`, `tracing-subscriber`

@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 
 use zbm_cmdline::kcl;
 use zbm_cmdline::parent::{CommandLineSource, read_kcl_contents};
-use zbm_core::exec::Command;
 use zbm_core::shell::{command_substitution, read_first_line, test_integer};
+use zbm_platform::exec::Command;
+use zbm_platform::files::Files;
 use zbm_state::State;
-use zbm_system::files::Files;
 use zbm_trace::Message;
 
 /// The module parameter that holds the host ID SPL uses.
@@ -392,8 +392,8 @@ pub fn kexec_execute() -> Command {
 mod tests {
     use super::*;
     use std::time::{Duration, SystemTime};
-    use zbm_core::exec::SystemRunner;
-    use zbm_system::files::RealFiles;
+    use zbm_platform::exec::SystemRunner;
+    use zbm_platform::files::RealFiles;
     use zbm_testkit::fake_zfs::FakeZfs;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};

@@ -12,7 +12,7 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use zbm_core::exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner};
+use zbm_platform::exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner};
 
 /// The path of a file in `legacy/`.
 ///
@@ -265,7 +265,7 @@ mod tests {
                 .into()
         });
 
-        assert!(output.status.success(), "{}", output.stderr);
+        assert!(output.status.is_success(), "{}", output.stderr);
         assert_eq!(output.stdout, "a\n\"b c\"\nd\n");
     }
 

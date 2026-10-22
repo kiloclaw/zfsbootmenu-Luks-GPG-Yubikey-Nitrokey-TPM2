@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
-use zbm_system::env::Environment;
+use zbm_platform::env::Environment;
 
 /// An [`Environment`] holding only the variables the test sets.
 #[derive(Default)]

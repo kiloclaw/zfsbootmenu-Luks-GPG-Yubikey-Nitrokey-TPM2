@@ -71,10 +71,10 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | Crate | Responsibility | Legacy counterpart |
 | --- | --- | --- |
 | `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, credentials and wiping memory; waiting for any child, for the supervisor (Phase 5). | Bash built-ins |
-| `zbm-core` | Running programs (`Command`, `Runner`), the `Error` type, `Secret`, file tests, shell quoting, `getopts`, release information. | parts of `zfsbootmenu-core.sh` |
-| `zbm-system` | The interfaces to the system (files, clock, console, processes, environment), their real implementations, the `System` bundle, and the kernel log writer. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
+| `zbm-core` | File tests, shell quoting, `getopts`, release information, colours. | parts of `zfsbootmenu-core.sh` |
+| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and the read-only runner of shadow mode. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
-| `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, reading the log back. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
+| `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
 | `zbm-cmdline` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
@@ -83,18 +83,19 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 
-The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-cmdline`, `zbm-trace` and
-`zbm-zfs` with the runtime.
+The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-platform`, `zbm-cmdline`,
+`zbm-trace` and `zbm-zfs` with the runtime.
 
 Dependencies point from the program to the system and never back:
 
 - `zbm` uses `zbm-menu`, `zbm-boot` and `zbm-luks`; `zbm-menu` uses `zbm-boot`; `zbm-boot` uses `zbm-luks`, because
   pool import retries unlocking volumes that appear late.
-- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-system`, `zbm-zfs`, `zbm-cmdline` and `zbm-trace` as they
-  need them.
-- `zbm-state` and `zbm-system` use `zbm-core` (and `zbm-system` uses `zbm-trace` for its kernel log writer); `zbm-zfs`
-  and `zbm-cmdline` use `zbm-core` and `zbm-trace` and run programs through `Runner` alone, as the host tools need.
-- `zbm-core` uses `zbm-sys`.
+- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-platform`, `zbm-zfs`, `zbm-cmdline` and `zbm-trace` as
+  they need them.
+- `zbm-state`, `zbm-zfs` and `zbm-cmdline` use `zbm-platform`; `zbm-zfs` and `zbm-cmdline` run programs through
+  `Runner` alone, as the host tools need.
+- `zbm-platform` uses `zbm-core`, `zbm-trace` (for its kernel log writer and crash reports) and `zbm-sys`.
+- `docs/dev/architecture.md` lists the layers and every allowed dependency; `cargo xtask check-deps` enforces them.
 
 Third-party crates are vendored and need a reason; so far the runtime needs none.
 
@@ -394,7 +395,7 @@ needs no new applet. The rules:
 
 ### One error type
 
-Library code returns `zbm_core::error::Result<T>`, whose error is one enum:
+Library code returns `zbm_platform::error::Result<T>`, whose error is one enum:
 
 | Variant | Meaning | Example |
 | --- | --- | --- |
@@ -425,7 +426,7 @@ The caller decides, at the same points as the legacy code:
    loop in `zfsbootmenu-init`. The shell prints the errors logged since the last time
    (`recovery-error-printer`, `have_errors`).
 
-Panics are bugs. In every runtime program a panic hook (`zbm_system::CrashReporter`) writes a crash report to
+Panics are bugs. In every runtime program a panic hook (`zbm_platform::CrashReporter`) writes a crash report to
 `/zfsbootmenu/crash-<time>-<pid>.txt` (the message and place, the build ID, the open `tracing` spans and the stack as
 offsets from the binary's load address), logs an error naming it, and writes it to the journal, before the process
 ends. When the start-up program ends, the supervisor names its report, or writes one when a signal killed it, and
@@ -439,7 +440,7 @@ Messages go to `/dev/kmsg` in the legacy formats (`<N>ZFSBootMenu: message`, and
 debugging output, with the Rust caller as the trace), filtered by `loglevel`, and warnings and errors create
 `have_warnings` and `have_errors`. Code logs with the macros of `zbm-trace` (`zbm_trace::error!` and the others),
 which emit `tracing` events for the kernel log; no function takes a log as a parameter. `zbm-trace`'s `KmsgLayer`
-formats and filters them, and `zbm-system`'s `KernelLog` installs that layer for a process with a sink that writes
+formats and filters them, and `zbm-platform`'s `KernelLog` installs that layer for a process with a sink that writes
 through the files interface, so unit tests that install it on the fake files see every message. Other `tracing`
 events, such as the journal's, never reach the kernel log. The recovery commands read the log back with `dmesg`, as
 now.
@@ -472,7 +473,7 @@ terminal.
 
 Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and decrypted key files are secrets.
 
-- **In memory,** a secret is a `zbm_core::secret::Secret`: its bytes are wiped (with `explicit_bzero`, through
+- **In memory,** a secret is a `zbm_platform::Secret`: its bytes are wiped (with `explicit_bzero`, through
   `zbm-sys`) when it is dropped, it grows without leaving copies behind, and it prints as `Secret(..)`, so it cannot
   end up in a log message or an error by accident.
 - **Into a program,** a secret goes only on standard input (`Input::Secret`), for example
@@ -504,8 +505,8 @@ The legacy code is close to this but not the same, and the Rust runtime is stric
 
 ### System interfaces
 
-All code that reaches the system does so through these interfaces, which `zbm-system` defines (except `Runner`, which
-is in `zbm-core`) and which a `System` value bundles, so a function needs only one parameter for all of them.
+All code that reaches the system does so through these interfaces, which `zbm-platform` defines and which a `System`
+value bundles, so a function needs only one parameter for all of them.
 
 | Interface | Covers | Real implementation | Fake (`zbm-testkit`) records |
 | --- | --- | --- | --- |

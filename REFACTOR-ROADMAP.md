@@ -34,8 +34,9 @@ ends up in Rust.
 | Phase | State |
 | --- | --- |
 | R0 | Done on branch `claude/zbm-refactor` |
-| R1 | In progress on branch `claude/zbm-refactor` |
-| R2 to R9 | Not started |
+| R1 | Done on branch `claude/zbm-refactor` |
+| R2 | In progress on branch `claude/zbm-refactor` |
+| R3 to R9 | Not started |
 
 Done in R0:
 
@@ -88,9 +89,9 @@ Done in R1:
 
 - `zbm-trace` replaces `zbm-log` and the `KernelLog` that code passed around. Code logs with `zbm_trace::error!`,
   `warn!`, `notice!`, `info!` and `debug!`; `KmsgLayer` writes those events to the kernel log in the legacy formats,
-  with the legacy level filter and marker files, and other `tracing` events never reach it. `zbm_system::KernelLog`
+  with the legacy level filter and marker files, and other `tracing` events never reach it. `zbm_platform::KernelLog`
   only installs the layer for a process (`System::kernel_log`), so no function takes a log parameter any more.
-  Reading the log back (`zbm_trace::read`) moved from `zbm-log`.
+  Reading the log back (`zbm_platform::dmesg`, first `zbm_trace::read`) moved from `zbm-log`.
 
 - The runtime journal: every process that sets up its kernel log also appends every `tracing` event, whatever its
   level, to `/zfsbootmenu/journal.jsonl` (at most 4 MiB a process), and fields named for secrets are written as
@@ -101,7 +102,7 @@ Done in R1:
   tests) make failures name the command or case. `zbm-testkit` passes the strict lints; as test code, its helpers may
   panic (that is how a test fails) and its host helpers, golden files and fake `zfs` may use real files.
 
-- Crash reports. Every runtime program's panic hook (`zbm_system::CrashReporter`) writes
+- Crash reports. Every runtime program's panic hook (`zbm_platform::CrashReporter`) writes
   `/zfsbootmenu/crash-<time>-<pid>.txt` with the message and place, the build ID, the open spans
   (`zbm_trace::crash::SpanStack`) and the stack as offsets from the load address (`zbm_sys::return_addresses`,
   through the unwinder's `_Unwind_Backtrace`), logs an error naming it and writes it to the journal. The supervisor
@@ -123,13 +124,30 @@ Done in R1:
 - Shadow mode ([docs/dev/shadow-mode.md](docs/dev/shadow-mode.md)): `zbm shadow` compares the host ID, the pools
   imported, the LUKS mapping names, the default boot environment and the kernel with what the legacy runtime did,
   through `zbm_platform::ReadOnlyRunner` (an allowlist of read-only commands, no secret input, a five-second
-  budget) and without a console (`zbm_system::NoConsole`). Legacy images built with `zfsbootmenu_shadow=yes` run it
+  budget) and without a console (`zbm_platform::NoConsole`). Legacy images built with `zfsbootmenu_shadow=yes` run it
   from the `boot-sel.d` hook `99-zbm-shadow.sh`; `zbm.shadow=efivar` keeps a summary with differences in an EFI
   variable for `zbm shadow report`. The VM harness builds every legacy image with shadow mode and fails a test whose
   serial console reports differences. The key sources of encryption roots are not compared yet: the Rust code does
   not decide them until R4.
 
-R1 is complete.
+R1 is complete: every legacy VM scenario that boots reports zero shadow differences.
+
+Done in R2:
+
+- `zbm-platform` holds the ports and their real implementations: `zbm-core`'s `exec`, `secret` and `error` modules,
+  all of `zbm-system` (files, clock, console, processes, environment, the kernel log writer, crash reports) and
+  `zbm-trace`'s reader of the kernel log (now `zbm_platform::dmesg`, which runs `dmesg`) moved there, and
+  `zbm-system` is gone. `zbm-core` keeps only code that does no I/O through the ports (file tests, `getopts`, shell
+  semantics, release information, colours); `zbm-trace` no longer runs programs. The layers are `foundation`
+  (`zbm-core`, `zbm-trace`), `platform` (`zbm-platform`) and `state` (`zbm-state`, `zbm-cmdline`). The moved code meets
+  the strict lints of `zbm-platform`: the real implementations allow `clippy::disallowed_methods` once per module,
+  `SystemRunner::run` is split into steps, and `Status::success` became `Status::is_success`. The platform tests that
+  use the fakes of `zbm-testkit` are integration tests (`crates/zbm-platform/tests/`), because the fakes implement the
+  traits as other crates see them. The last Rust test that ran Bash, `getopts`' comparison with Bash's `getopts`, now
+  checks answers recorded from Bash.
+
+Open in R2: `zbm-zfs` on JSON, the `zbm-crypt` adapters, `zbm-coreutils` and the uutils decision, removing the shell
+helpers, the Rust LUKS device suites, and the rule that only adapters build commands.
 
 ## What the pilots taught
 

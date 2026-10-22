@@ -15,7 +15,7 @@
 //! Operations that can fail return [`error::LuksError`]; those that end in one
 //! of several good ways return an outcome, such as [`unlock::Opened`].
 //!
-//! Every secret is a `zbm_core::secret::Secret` and reaches programs only on
+//! Every secret is a `zbm_platform::Secret` and reaches programs only on
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 //!
 //! [`unlocker`] is the pilot of REFACTOR-ROADMAP.md (R0): key methods as

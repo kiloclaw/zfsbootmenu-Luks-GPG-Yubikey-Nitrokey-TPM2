@@ -125,7 +125,7 @@ mod tests {
             &[a, b],
             b"",
         );
-        assert!(output.status.success(), "{}", output.stderr_text());
+        assert!(output.status.is_success(), "{}", output.stderr_text());
         match output.stdout_text().trim() {
             "-1" => -1,
             "0" => 0,

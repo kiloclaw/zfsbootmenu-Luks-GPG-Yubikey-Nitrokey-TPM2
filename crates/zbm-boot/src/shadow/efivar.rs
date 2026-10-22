@@ -5,8 +5,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use zbm_platform::Files;
 use zbm_state::State;
-use zbm_system::Files;
 
 /// Where the kernel shows EFI variables.
 pub const EFIVARS: &str = "/sys/firmware/efi/efivars";

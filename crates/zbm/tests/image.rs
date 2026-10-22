@@ -164,7 +164,7 @@ fn the_image_records_the_runtime() {
             .env("PATH", "/usr/bin:/bin")
             .code("ZBM_BUILDSTYLE=dracut; ZBM_RUNTIME=legacy")
             .call("create_zbm_conf", &[], b"");
-        assert!(output.status.success(), "{}", output.stderr_text());
+        assert!(output.status.is_success(), "{}", output.stderr_text());
         std::fs::read_to_string(dir.join("etc/zfsbootmenu.conf")).unwrap()
     });
 
@@ -282,7 +282,7 @@ fn dracut_install(parity: &mut Parity, settings: &[(&str, &str)]) -> Image {
         let output = bash
             .code("find_libgcc_s() { echo; }")
             .call("install", &[], b"");
-        assert!(output.status.success(), "{}", output.stderr_text());
+        assert!(output.status.is_success(), "{}", output.stderr_text());
         assert!(
             !output.stderr_text().contains("dfatal"),
             "{}",

@@ -13,7 +13,7 @@
 //!   and key sources, and booting with `kexec`;
 //! - snapshots, clones, rollbacks, checkpoints, read-write imports and chroot.
 //!
-//! Every function reaches the system through `zbm_system::System` and shares
+//! Every function reaches the system through `zbm_platform::System` and shares
 //! state only through `zbm_state::State`. The code arrives in phases 5 and 6.
 
 pub mod boot;

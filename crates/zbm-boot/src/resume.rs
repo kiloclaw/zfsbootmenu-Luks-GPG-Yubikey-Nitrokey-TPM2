@@ -6,10 +6,10 @@
 //! finds one, asks the user whether to go on and whether to add `noresume`
 //! to the boot environment's command line.
 
-use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::trim_ifs;
+use zbm_platform::System;
+use zbm_platform::exec::{Command, Stream};
 use zbm_state::State;
-use zbm_system::System;
 
 use crate::error::BootError;
 use crate::prompt::{colorize, tput};
@@ -28,7 +28,7 @@ pub fn has_resume_device(system: &System<'_>) -> bool {
         let found = system
             .runner
             .run(&blkid)
-            .is_ok_and(|output| output.status.success());
+            .is_ok_and(|output| output.status.is_success());
         if found {
             zbm_trace::debug!("resume device: {kind}");
         }
@@ -144,9 +144,9 @@ pub fn resume_prompt(
 mod tests {
     use super::*;
     use std::path::Path;
-    use zbm_core::exec::{Output, Status};
-    use zbm_system::KernelLog;
-    use zbm_system::files::Files;
+    use zbm_platform::KernelLog;
+    use zbm_platform::exec::{Output, Status};
+    use zbm_platform::files::Files;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::{TempDir, parity};
@@ -232,7 +232,7 @@ mod tests {
                         .env("BASE", &dir.path().to_string_lossy())
                         .call("resume_prompt", &["tank"], input.as_bytes());
                     (
-                        legacy.status.success(),
+                        legacy.status.is_success(),
                         dir.join("noresume").exists(),
                         legacy.stdout_text(),
                         log_lines(&legacy.stderr_text()),

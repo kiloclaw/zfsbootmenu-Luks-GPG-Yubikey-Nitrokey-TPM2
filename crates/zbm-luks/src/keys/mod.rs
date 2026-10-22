@@ -14,9 +14,9 @@ pub mod yubikey;
 
 use std::path::Path;
 
-use zbm_core::exec::{Input, Stream};
-use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
+use zbm_platform::exec::{Input, Stream};
+use zbm_platform::secret::Secret;
 
 use crate::error::{LuksError, TokenFailure};
 use crate::session::Session;
@@ -160,7 +160,7 @@ impl Session<'_> {
         let output = self.system().runner.run(&command).ok()?;
         output
             .status
-            .success()
+            .is_success()
             .then(|| command_substitution(&output.stdout_text()).to_owned())
     }
 
@@ -221,7 +221,7 @@ mod tests {
     use super::*;
     use crate::session::{Luks, Settings};
     use crate::testing::{NoPrompts, log};
-    use zbm_core::exec::{Output, Status};
+    use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
 
     pub(crate) fn with_session<T>(

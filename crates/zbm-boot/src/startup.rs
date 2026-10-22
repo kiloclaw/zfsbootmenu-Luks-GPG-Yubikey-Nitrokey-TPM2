@@ -13,11 +13,11 @@ use std::path::{Path, PathBuf};
 use zbm_cmdline::args::ZbmArgs;
 use zbm_cmdline::conf::Conf;
 use zbm_cmdline::options::ZbmOptions;
-use zbm_core::exec::{Command, Input, Signal, Stream};
 use zbm_core::shell::{read_lines, test_integer};
+use zbm_platform::dmesg::read_logs;
+use zbm_platform::exec::{Command, Input, Signal, Stream};
+use zbm_platform::{Installed, System};
 use zbm_state::State;
-use zbm_system::{Installed, System};
-use zbm_trace::read::read_logs;
 
 use crate::boot::{self, BootSettings};
 use crate::error::BootError;
@@ -438,7 +438,7 @@ impl<'a> Startup<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_system::KernelLog;
+    use zbm_platform::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
 
     /// The configuration the start-up would write for `cmdline`.

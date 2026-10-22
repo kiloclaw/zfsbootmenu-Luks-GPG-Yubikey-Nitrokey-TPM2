@@ -273,6 +273,7 @@ dependencies = [
  "serde",
  "yaml-rust2",
  "zbm-core",
+ "zbm-platform",
  "zbm-sys",
  "zbm-testkit",
 ]
@@ -1152,7 +1153,6 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-sys",
- "zbm-system",
  "zbm-testkit",
  "zbm-trace",
  "zbm-tui",
@@ -1185,7 +1185,6 @@ dependencies = [
  "zbm-luks",
  "zbm-platform",
  "zbm-state",
- "zbm-system",
  "zbm-testkit",
  "zbm-trace",
  "zbm-types",
@@ -1197,6 +1196,7 @@ name = "zbm-cmdline"
 version = "0.1.0"
 dependencies = [
  "zbm-core",
+ "zbm-platform",
  "zbm-testkit",
  "zbm-trace",
  "zbm-types",
@@ -1228,6 +1228,7 @@ dependencies = [
  "serde",
  "zbm-cmdline",
  "zbm-core",
+ "zbm-platform",
  "zbm-sys",
  "zbm-testkit",
  "zbm-zfs",
@@ -1246,7 +1247,6 @@ dependencies = [
  "zbm-platform",
  "zbm-state",
  "zbm-sys",
- "zbm-system",
  "zbm-testkit",
  "zbm-trace",
  "zbm-types",
@@ -1258,9 +1258,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-boot",
  "zbm-cmdline",
- "zbm-core",
  "zbm-state",
- "zbm-system",
  "zbm-testkit",
 ]
 
@@ -1273,7 +1271,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zbm-core",
- "zbm-system",
+ "zbm-sys",
  "zbm-testkit",
  "zbm-trace",
 ]
@@ -1282,26 +1280,13 @@ dependencies = [
 name = "zbm-state"
 version = "0.1.0"
 dependencies = [
- "zbm-core",
- "zbm-system",
+ "zbm-platform",
  "zbm-testkit",
 ]
 
 [[package]]
 name = "zbm-sys"
 version = "0.1.0"
-
-[[package]]
-name = "zbm-system"
-version = "0.1.0"
-dependencies = [
- "tracing",
- "tracing-subscriber",
- "zbm-core",
- "zbm-sys",
- "zbm-testkit",
- "zbm-trace",
-]
 
 [[package]]
 name = "zbm-testkit"
@@ -1311,7 +1296,7 @@ dependencies = [
  "serde",
  "serde_json",
  "zbm-core",
- "zbm-system",
+ "zbm-platform",
  "zbm-trace",
 ]
 
@@ -1356,6 +1341,7 @@ version = "0.1.0"
 dependencies = [
  "zbm-cmdline",
  "zbm-core",
+ "zbm-platform",
  "zbm-testkit",
  "zbm-trace",
 ]

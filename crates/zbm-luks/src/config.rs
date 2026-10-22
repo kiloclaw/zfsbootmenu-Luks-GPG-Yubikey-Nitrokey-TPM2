@@ -573,7 +573,7 @@ mod tests {
         });
 
         let (dir, path) = machine();
-        let files = zbm_system::files::RealFiles;
+        let files = zbm_platform::files::RealFiles;
         let state = zbm_state::State::new(&files, dir.join("base"));
         let arg = state.zbm_arg("zbm.luks");
         let (mode, messages) = load_config(arg.as_deref(), text.as_deref(), &path);

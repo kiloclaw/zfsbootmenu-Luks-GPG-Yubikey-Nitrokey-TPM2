@@ -412,6 +412,12 @@ mod tests {
         );
         let error = copy_like_cp(&scratch.0.join("nothing"), &created).unwrap_err();
         assert!(error.cp_message().starts_with("cp: cannot stat '"));
+        let full = std::io::Error::from_raw_os_error(28);
+        assert_eq!(
+            CopyError::Write("/boot/x".into(), full).cp_message(),
+            "cp: error writing '/boot/x': No space left on device"
+        );
+        assert_eq!(strerror(&std::io::Error::other("plain")), "plain");
         // A directory receives a file of the same name.
         let dir = scratch.0.join("dir");
         fs::create_dir(&dir).unwrap();

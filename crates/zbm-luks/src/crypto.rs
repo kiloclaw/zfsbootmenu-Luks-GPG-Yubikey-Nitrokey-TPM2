@@ -12,7 +12,7 @@
 //!
 //! Buffers that held secret material are wiped before they are freed.
 
-use zbm_core::secret::Secret;
+use zbm_platform::secret::Secret;
 
 /// The initial hash value of SHA-256.
 const H0: [u32; 8] = [
@@ -354,7 +354,7 @@ pub fn hex(data: &[u8]) -> Secret {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_core::exec::{Command, Input, Runner, Stream, SystemRunner};
+    use zbm_platform::exec::{Command, Input, Runner, Stream, SystemRunner};
     use zbm_testkit::{Rng, have_program};
 
     fn hex_text(data: &[u8]) -> String {

@@ -7,7 +7,7 @@
 //! key `clevis decrypt` prints is captured as a secret and reaches
 //! `cryptsetup` on standard input.
 
-use zbm_core::exec::{Input, Stream};
+use zbm_platform::exec::{Input, Stream};
 
 use super::Target;
 use crate::error::LuksError;
@@ -45,7 +45,7 @@ impl Session<'_> {
         self.have_tpm2();
 
         // jose fmt -j- -Og jwe -o- <<< json | jose jwe fmt -i- -c | clevis decrypt
-        let run = |command: zbm_core::exec::Command| {
+        let run = |command: zbm_platform::exec::Command| {
             system
                 .runner
                 .run(&command)
@@ -75,7 +75,7 @@ impl Session<'_> {
             .runner
             .run(&decrypt)
             .ok()
-            .filter(|output| output.status.success())
+            .filter(|output| output.status.is_success())
             .and_then(|output| output.secret)
             .filter(|key| !key.is_empty());
 
@@ -94,8 +94,8 @@ mod tests {
     use super::*;
     use crate::keys::tests::with_session;
     use crate::session::Settings;
-    use zbm_core::exec::{Output, Status};
-    use zbm_core::secret::Secret;
+    use zbm_platform::exec::{Output, Status};
+    use zbm_platform::secret::Secret;
     use zbm_testkit::fakes::FakeSystem;
 
     fn clevis_machine(key: &'static [u8]) -> FakeSystem {
