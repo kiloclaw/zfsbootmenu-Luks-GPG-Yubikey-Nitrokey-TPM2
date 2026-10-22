@@ -1,0 +1,1 @@
+{"type":"systemd-fido2","keyslots":["2"],"fido2-credential":"Y3JlZGVudGlhbA==","fido2-salt":"c2FsdA==","fido2-rp":"io.systemd.cryptsetup","fido2-clientPin-required":false,"fido2-up-required":true,"fido2-uv-required":false}

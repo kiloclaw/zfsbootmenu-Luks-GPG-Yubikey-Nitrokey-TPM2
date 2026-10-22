@@ -1,0 +1,5 @@
+# What cargo fuzz writes: the build, the corpora it grows and the inputs that made a target fail.
+/target/
+/corpus/
+/artifacts/
+/coverage/

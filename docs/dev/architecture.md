@@ -111,5 +111,5 @@ template for the phases that follow.
    means that code is in the wrong crate; move the code instead of the rule.
 3. If the edge is right, change the tables in `xtask/src/deps.rs`, run `cargo xtask check-deps --bless` to regenerate
    the section above, and explain the change in the pull request.
-4. A third-party crate is also vendored (`cargo vendor --versioned-dirs vendor`) and listed with its reason in
+4. A third-party crate is also vendored (`cargo vendor --versioned-dirs --sync fuzz/Cargo.toml vendor`) and listed with its reason in
    [docs/dev/dependencies.md](dependencies.md).

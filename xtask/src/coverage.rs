@@ -106,22 +106,30 @@ pub fn run(workspace: &Workspace, mode: Mode) -> Result<()> {
 /// The runs keep their profiles, so `cargo llvm-cov report` can write other
 /// formats afterwards (CI writes `lcov.info` for the coverage artifact).
 fn measure(root: &Path) -> Result<()> {
-    cargo::cargo(root)
-        .args(["llvm-cov", "clean", "--workspace"])
-        .run()?;
-    cargo::cargo(root)
-        .env("ZBM_PARITY", "check")
-        .args(["llvm-cov", "--no-report", "--workspace", "--locked"])
-        .run()?;
-    cargo::cargo(root)
-        .env("ZBM_PARITY", "check")
-        .args(["llvm-cov", "--no-report", "-p", "zbm"])
-        .args(["--features", "test-seams", "--locked"])
-        .run()?;
-    cargo::cargo(root)
-        .args(["llvm-cov", "report", "--json", "--summary-only"])
-        .args(["--output-path", REPORT])
-        .run()
+    for program in measure_programs(root) {
+        program.run()?;
+    }
+    Ok(())
+}
+
+/// The programs [`measure`] runs.
+fn measure_programs(root: &Path) -> Vec<process::Program> {
+    vec![
+        cargo::cargo(root).args(["llvm-cov", "clean", "--workspace"]),
+        cargo::cargo(root).env("ZBM_PARITY", "check").args([
+            "llvm-cov",
+            "--no-report",
+            "--workspace",
+            "--locked",
+        ]),
+        cargo::cargo(root)
+            .env("ZBM_PARITY", "check")
+            .args(["llvm-cov", "--no-report", "-p", "zbm"])
+            .args(["--features", "test-seams", "--locked"]),
+        cargo::cargo(root)
+            .args(["llvm-cov", "report", "--json", "--summary-only"])
+            .args(["--output-path", REPORT]),
+    ]
 }
 
 /// Adds up the lines of each file of a `cargo llvm-cov --json` report per
@@ -324,6 +332,22 @@ mod tests {
             "coverage found 2 problem(s)\n  \
              new: line coverage 79% is below 80%\n  \
              old: line coverage 59% is below 60%"
+        );
+    }
+
+    #[test]
+    fn the_tests_run_instrumented_and_check_the_recordings() {
+        let programs = measure_programs(Path::new("/w"));
+        let shown: Vec<&str> = programs.iter().map(process::Program::shown).collect();
+
+        assert_eq!(
+            shown,
+            [
+                "cargo llvm-cov clean --workspace",
+                "ZBM_PARITY=check cargo llvm-cov --no-report --workspace --locked",
+                "ZBM_PARITY=check cargo llvm-cov --no-report -p zbm --features test-seams --locked",
+                "cargo llvm-cov report --json --summary-only --output-path target/coverage.json",
+            ]
         );
     }
 

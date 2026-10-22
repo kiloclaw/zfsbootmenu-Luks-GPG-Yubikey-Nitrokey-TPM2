@@ -7,10 +7,11 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 
 | Command | What it does |
 | --- | --- |
-| `cargo xtask lint` | Every check a pull request must pass: `rustfmt`, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
+| `cargo xtask lint` | Every check a pull request must pass: `rustfmt` (also of the fuzz targets), that the fuzz targets build, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
 | `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
 | `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
 | `cargo xtask record-parity [--check]` | Runs the legacy code of the parity tests and records its results in `tests/golden/legacy/`; `--check` fails where a recording no longer matches ([testing.md](testing.md)) |
+| `cargo xtask fuzz [<target>] [--seconds <n>]` | Runs the fuzz targets of `fuzz/` with nightly Rust and `cargo-fuzz` ([testing.md](testing.md)) |
 | `cargo xtask bless` | Accepts every changed snapshot (`INSTA_UPDATE=always` over the crates that use `insta`) and lists the `.snap` files that changed, for review with `git diff` |
 | `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |

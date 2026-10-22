@@ -75,8 +75,13 @@ Done in R1:
 - `zbm_testkit::efi` describes EFI images by their payload sections, so recordings made with one systemd stub hold on
   machines with another.
 
-Open in R1: `FakeMachine` builders and assertion macros; the threat model and fuzz targets; `zbm-types` and
-`zbm-trace` everywhere; error enums; crash reports; shadow mode.
+- The threat model, `docs/dev/threat-model.md`: attackers, assets, twelve untrusted inputs, eight properties with
+  their evidence and status, and the risks that stay. Fuzz targets in `fuzz/` for the parsers of untrusted input
+  (`cargo xtask fuzz`, nightly in CI); `cargo xtask lint` checks that they build. Their first run found a panic on
+  `zpool import` output that is not ASCII, now fixed.
+
+Open in R1: `FakeMachine` builders and assertion macros; `zbm-types` and `zbm-trace` everywhere; error enums; crash
+reports; shadow mode.
 
 ## What the pilots taught
 

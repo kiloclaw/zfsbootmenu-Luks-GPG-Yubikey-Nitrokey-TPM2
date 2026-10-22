@@ -119,6 +119,10 @@ images built with `zfsbootmenu_runtime="rust"`; nothing uses them unless asked:
 - `zbm-menu-pilot` (run as `/libexec/zbm zbm-menu-pilot`) shows the boot environments of the imported pools in the
   new menu and prints the one chosen; it boots nothing. `--demo` shows an example machine.
 
+Fixed in the Rust runtime: when a pool could not be imported because another host had used it, and `zpool import`
+printed text that was not ASCII before the host ID, the start-up program stopped instead of reading the host ID
+(found by fuzzing).
+
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
 ZFSBootMenu v3.1.0 includes fixes, additional platform tooling and feature enhancements. 

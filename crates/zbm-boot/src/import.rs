@@ -171,9 +171,8 @@ pub fn online_pools(output: &str, prefer_pool: &str) -> Vec<String> {
 /// The digits `hostid=([A-Fa-f0-9]{1,8})` captures in `text`: the first
 /// `hostid=` followed by a hex digit, and up to eight digits.
 pub fn scrape_hostid(text: &str) -> Option<&str> {
-    let bytes = text.as_bytes();
-    (0..bytes.len()).find_map(|start| {
-        let digits = text[start..].strip_prefix("hostid=")?;
+    text.match_indices("hostid=").find_map(|(start, needle)| {
+        let digits = &text[start + needle.len()..];
         let len = digits
             .bytes()
             .take(8)
@@ -604,6 +603,10 @@ mod tests {
         assert_eq!(scrape_hostid("hostid=x hostid=A1"), Some("A1"));
         assert_eq!(scrape_hostid("hostid="), None);
         assert_eq!(scrape_hostid("myhostid=0b"), Some("0b"));
+        // Found by the fuzz target program_output: text that is not ASCII
+        // before the match.
+        assert_eq!(scrape_hostid("tan\u{fffd}\tDEGRADED"), None);
+        assert_eq!(scrape_hostid("pool «tank» hostid=0c"), Some("0c"));
         let mut parity = parity!("host_ids_are_scraped_as_the_legacy_pattern_matches");
         for text in [
             "hostid=12345678",

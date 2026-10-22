@@ -16,6 +16,7 @@ mod cargo;
 mod coverage;
 mod deps;
 mod error;
+mod fuzz;
 mod lint;
 mod metrics;
 mod process;
@@ -56,6 +57,9 @@ Commands:
                          Print code metrics per crate; --check fails when a
                          debt metric rose above xtask/metrics-baseline.txt,
                          --bless writes the current numbers there
+  fuzz [<target>] [--seconds <n>]
+                         Run the fuzz targets of fuzz/ (nightly Rust and
+                         cargo-fuzz), each for n seconds (60)
   coverage [--check | --bless]
                          Print line coverage per crate (cargo llvm-cov);
                          --check fails when a crate dropped below
@@ -84,6 +88,11 @@ enum Command {
     Metrics(Mode),
     /// `coverage`.
     Coverage(Mode),
+    /// `fuzz`: one target or all, and the seconds each runs.
+    Fuzz {
+        target: Option<&'static str>,
+        seconds: u64,
+    },
     /// `widths`.
     Widths,
     /// `help`.
@@ -109,6 +118,7 @@ impl Command {
             ["metrics"] => Command::Metrics(Mode::Report),
             ["metrics", "--check"] => Command::Metrics(Mode::Check),
             ["metrics", "--bless"] => Command::Metrics(Mode::Bless),
+            ["fuzz", rest @ ..] => parse_fuzz(rest)?,
             ["coverage"] => Command::Coverage(Mode::Report),
             ["coverage", "--check"] => Command::Coverage(Mode::Check),
             ["coverage", "--bless"] => Command::Coverage(Mode::Bless),
@@ -122,6 +132,30 @@ impl Command {
         };
         Ok(command)
     }
+}
+
+/// Parses the options of `fuzz`: a target name and `--seconds <n>`, in any
+/// order.
+fn parse_fuzz(words: &[&str]) -> Result<Command> {
+    let mut target = None;
+    let mut seconds = fuzz::DEFAULT_SECONDS;
+    let mut words = words.iter();
+    while let Some(word) = words.next() {
+        if *word == "--seconds" {
+            seconds = words
+                .next()
+                .and_then(|value| value.parse().ok())
+                .ok_or_else(|| Error::Usage("fuzz: --seconds needs a number".to_owned()))?;
+        } else if let Some(name) = fuzz::TARGETS.iter().find(|name| *name == word) {
+            target = Some(*name);
+        } else {
+            return Err(Error::Usage(format!(
+                "fuzz: unknown target `{word}`; the targets are {}",
+                fuzz::TARGETS.join(", ")
+            )));
+        }
+    }
+    Ok(Command::Fuzz { target, seconds })
 }
 
 fn main() -> ExitCode {
@@ -157,6 +191,7 @@ fn run(command: Command) -> Result<()> {
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
         Command::Coverage(mode) => coverage::run(&Workspace::load(&root)?, mode),
+        Command::Fuzz { target, seconds } => fuzz::run(&root, target, seconds),
         Command::Widths => lint::check_widths(&root),
     }
 }
@@ -198,6 +233,22 @@ mod tests {
             parse("record-parity --check").unwrap(),
             Command::RecordParity { check: true }
         );
+        assert_eq!(
+            parse("fuzz crypttab --seconds 5").unwrap(),
+            Command::Fuzz {
+                target: Some("crypttab"),
+                seconds: 5
+            }
+        );
+        assert_eq!(
+            parse("fuzz").unwrap(),
+            Command::Fuzz {
+                target: None,
+                seconds: 60
+            }
+        );
+        assert!(parse("fuzz nothing").is_err());
+        assert!(parse("fuzz --seconds x").is_err());
         assert_eq!(
             parse("coverage --check").unwrap(),
             Command::Coverage(Mode::Check)

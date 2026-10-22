@@ -77,15 +77,28 @@ impl Mode {
     ///
     /// When `ZBM_PARITY` has another value.
     pub fn current() -> Mode {
-        let seeded = std::env::var_os("ZBM_TEST_SEED").is_some();
-        match std::env::var("ZBM_PARITY").as_deref() {
-            Ok("replay") => Mode::Replay,
-            Ok("record") => Mode::Record,
-            Ok("check") => Mode::Check,
-            Ok("live") => Mode::Live,
-            Ok(other) => panic!("ZBM_PARITY={other}: use replay, record, check or live"),
-            Err(_) if seeded => Mode::Live,
-            Err(_) => Mode::Replay,
+        let parity = std::env::var("ZBM_PARITY").ok();
+        Mode::select(
+            parity.as_deref(),
+            std::env::var_os("ZBM_TEST_SEED").is_some(),
+        )
+    }
+
+    /// The mode for the value of `ZBM_PARITY`, if set, and whether
+    /// `ZBM_TEST_SEED` is set.
+    ///
+    /// # Panics
+    ///
+    /// When `parity` is not the name of a mode.
+    pub fn select(parity: Option<&str>, seeded: bool) -> Mode {
+        match parity {
+            Some("replay") => Mode::Replay,
+            Some("record") => Mode::Record,
+            Some("check") => Mode::Check,
+            Some("live") => Mode::Live,
+            Some(other) => panic!("ZBM_PARITY={other}: use replay, record, check or live"),
+            None if seeded => Mode::Live,
+            None => Mode::Replay,
         }
     }
 
@@ -380,6 +393,54 @@ mod tests {
 
         assert!(inside);
         assert!(!outside);
+    }
+
+    #[test]
+    fn the_mode_follows_zbm_parity_and_a_seed_means_live() {
+        assert_eq!(Mode::select(None, false), Mode::Replay);
+        assert_eq!(Mode::select(None, true), Mode::Live);
+        assert_eq!(Mode::select(Some("record"), true), Mode::Record);
+        assert_eq!(Mode::select(Some("check"), false), Mode::Check);
+        assert_eq!(Mode::select(Some("live"), false), Mode::Live);
+        assert_eq!(Mode::select(Some("replay"), true), Mode::Replay);
+        assert!(std::panic::catch_unwind(|| Mode::select(Some("x"), false)).is_err());
+        assert!(!Mode::Replay.needs_legacy() && Mode::Check.needs_legacy());
+    }
+
+    #[test]
+    fn a_recording_is_written_and_replayed() {
+        let dir = crate::TempDir::new("zbm-parity");
+        let path = dir.join("a/t.json");
+        let mut recording = Parity {
+            path: path.clone(),
+            mode: Mode::Record,
+            recorded: None,
+            met: Vec::new(),
+        };
+        let recorded: Vec<u8> = recording.legacy("first", || vec![1, 2]);
+        drop(recording);
+        assert_eq!(recorded, [1, 2]);
+
+        let mut replay = Parity {
+            path,
+            mode: Mode::Replay,
+            recorded: None,
+            met: Vec::new(),
+        };
+        let replayed: Vec<u8> = replay.legacy("first", || unreachable!("the legacy code ran"));
+
+        assert_eq!(replayed, [1, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "2 cases were recorded but the test met only 1")]
+    fn a_case_left_out_fails() {
+        let mut parity = parity(
+            Mode::Replay,
+            vec![case("a", Value::from(1)), case("b", Value::from(2))],
+        );
+
+        let _: u32 = parity.legacy("a", || 1);
     }
 
     #[test]

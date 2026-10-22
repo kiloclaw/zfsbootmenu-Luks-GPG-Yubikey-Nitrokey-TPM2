@@ -5,7 +5,7 @@ need no network (`.cargo/config.toml` replaces crates.io with that directory). R
 in `Cargo.toml`:
 
 ```sh
-cargo vendor --versioned-dirs vendor
+cargo vendor --versioned-dirs --sync fuzz/Cargo.toml vendor
 cargo deny check
 ```
 
@@ -49,6 +49,15 @@ These are development dependencies only, allowed for every crate (`TEST_THIRD_PA
 | `proptest` | Property tests: parsing never panics, valid values round-trip (`zbm-types`) |
 | `pretty_assertions` | Readable diffs when an assertion of equality fails |
 | `serde`, `serde_json` | The golden files of the legacy results (`zbm_testkit::parity`, in `tests/golden/legacy/`); `serde`'s `derive` describes a test's recorded result |
+
+## Fuzzing
+
+`fuzz/` is a workspace of its own, so these are never built with the rest.
+
+| Crate | Why |
+| --- | --- |
+| `libfuzzer-sys` | Links libFuzzer and provides `fuzz_target!`, as `cargo fuzz` expects |
+| `arbitrary`, `cc`, `jobserver`, `shlex`, `find-msvc-tools` | Its dependencies: input types, and building libFuzzer's C++ |
 
 ## Developer tooling
 

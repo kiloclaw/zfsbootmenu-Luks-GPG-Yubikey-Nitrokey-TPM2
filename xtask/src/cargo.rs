@@ -30,31 +30,37 @@ pub fn test(root: &Path) -> Result<()> {
 
 /// Runs the tests as [`test()`] does, with the environment variables `env`.
 fn test_with(root: &Path, env: &[(&str, &str)]) -> Result<()> {
-    let with_env = |mut program: Program| {
+    let nextest = has_nextest(root);
+    if !nextest {
+        println!("test: cargo-nextest is not installed; using cargo test");
+    }
+    for program in test_programs(root, nextest, env) {
+        program.run()?;
+    }
+    Ok(())
+}
+
+/// The programs [`test()`] runs, with or without `cargo nextest`, with the
+/// environment variables `env`.
+fn test_programs(root: &Path, nextest: bool, env: &[(&str, &str)]) -> Vec<Program> {
+    let program = |args: &[&str]| {
+        let mut program = cargo(root);
         for (key, value) in env {
             program = program.env(key, value);
         }
-        program
+        program.args(args)
     };
-    let runner = if has_nextest(root) {
-        ["nextest", "run"].as_slice()
+    let runner: &[&str] = if nextest {
+        &["nextest", "run"]
     } else {
-        println!("test: cargo-nextest is not installed; using cargo test");
-        ["test"].as_slice()
+        &["test"]
     };
-    with_env(cargo(root))
-        .args(runner)
-        .args(["--workspace", "--locked"])
-        .run()?;
-    if runner != ["test"] {
-        with_env(cargo(root))
-            .args(["test", "--workspace", "--doc", "--locked"])
-            .run()?;
+    let mut programs = vec![program(runner).args(["--workspace", "--locked"])];
+    if nextest {
+        programs.push(program(&["test", "--workspace", "--doc", "--locked"]));
     }
-    with_env(cargo(root))
-        .args(runner)
-        .args(["-p", "zbm", "--features", "test-seams", "--locked"])
-        .run()
+    programs.push(program(runner).args(["-p", "zbm", "--features", "test-seams", "--locked"]));
+    programs
 }
 
 /// The golden files of the legacy results, relative to the root.
@@ -80,16 +86,25 @@ pub fn record_parity(root: &Path, check: bool) -> Result<()> {
         println!("record-parity: every recording matches the legacy code");
         return Ok(());
     }
-    let changed = Program::new("git", root)
-        .args(["status", "--short", "--", GOLDEN_LEGACY])
-        .output()?;
-    if changed.is_empty() {
-        println!("record-parity: no recording changed");
-    } else {
-        println!("record-parity: these recordings changed; review them with `git diff`:");
-        print!("{changed}");
-    }
+    let changed = git_changes(root, GOLDEN_LEGACY)?;
+    print!("{}", changes("record-parity", "recordings", &changed));
     Ok(())
+}
+
+/// What `git status --short` says about the files below `pathspec`.
+fn git_changes(root: &Path, pathspec: &str) -> Result<String> {
+    Program::new("git", root)
+        .args(["status", "--short", "--", pathspec])
+        .output()
+}
+
+/// The report of a command that rewrote `what`, from `git status` output.
+fn changes(command: &str, what: &str, changed: &str) -> String {
+    if changed.is_empty() {
+        format!("{command}: no {} changed\n", what.trim_end_matches('s'))
+    } else {
+        format!("{command}: these {what} changed; review them with `git diff`:\n{changed}")
+    }
 }
 
 /// Whether `cargo nextest` runs.
@@ -112,23 +127,22 @@ fn has_nextest(root: &Path) -> bool {
 ///
 /// When a test fails for another reason than a snapshot.
 pub fn bless(workspace: &Workspace) -> Result<()> {
-    let root = &workspace.root;
+    bless_program(workspace).run()?;
+    let changed = git_changes(&workspace.root, "*.snap")?;
+    print!("{}", changes("bless", "snapshots", &changed));
+    Ok(())
+}
+
+/// The test run of [`bless`]: the crates with snapshot tests.
+fn bless_program(workspace: &Workspace) -> Program {
     let mut args = vec!["test".to_owned(), "--locked".to_owned()];
     for package in snapshot_packages(workspace) {
         args.push("-p".to_owned());
         args.push(package.to_owned());
     }
-    cargo(root).args(args).env("INSTA_UPDATE", "always").run()?;
-    let changed = Program::new("git", root)
-        .args(["status", "--short", "--", "*.snap"])
-        .output()?;
-    if changed.is_empty() {
-        println!("bless: no snapshot changed");
-    } else {
-        println!("bless: these snapshots changed; review them with `git diff`:");
-        print!("{changed}");
-    }
-    Ok(())
+    cargo(&workspace.root)
+        .args(args)
+        .env("INSTA_UPDATE", "always")
 }
 
 /// The crates with snapshot tests: those that depend on `insta`.
@@ -181,11 +195,94 @@ pub fn clippy(root: &Path) -> Result<()> {
         .run()
 }
 
-/// Checks that `rustfmt` would change nothing.
+/// Checks that `rustfmt` would change nothing, in the workspace and in the
+/// fuzz targets.
 ///
 /// # Errors
 ///
 /// When a file is not formatted.
 pub fn fmt_check(root: &Path) -> Result<()> {
-    cargo(root).args(["fmt", "--all", "--check"]).run()
+    cargo(root).args(["fmt", "--all", "--check"]).run()?;
+    cargo(root)
+        .args(["fmt", "--manifest-path", "fuzz/Cargo.toml", "--check"])
+        .run()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workspace::{Dependency, DependencyKind, Package};
+    use std::path::PathBuf;
+
+    fn shown(programs: &[Program]) -> Vec<&str> {
+        programs.iter().map(Program::shown).collect()
+    }
+
+    #[test]
+    fn tests_run_under_nextest_with_the_doctests_apart() {
+        let programs = test_programs(Path::new("/w"), true, &[("ZBM_PARITY", "check")]);
+
+        assert_eq!(
+            shown(&programs),
+            [
+                "ZBM_PARITY=check cargo nextest run --workspace --locked",
+                "ZBM_PARITY=check cargo test --workspace --doc --locked",
+                "ZBM_PARITY=check cargo nextest run -p zbm --features test-seams --locked",
+            ]
+        );
+    }
+
+    #[test]
+    fn without_nextest_cargo_test_runs_everything() {
+        let programs = test_programs(Path::new("/w"), false, &[]);
+
+        assert_eq!(
+            shown(&programs),
+            [
+                "cargo test --workspace --locked",
+                "cargo test -p zbm --features test-seams --locked",
+            ]
+        );
+    }
+
+    #[test]
+    fn bless_runs_the_crates_with_snapshots() {
+        let package = |name: &str, dependencies: &[&str]| Package {
+            name: name.to_owned(),
+            dir: PathBuf::from(format!("/w/crates/{name}")),
+            targets: Vec::new(),
+            dependencies: dependencies
+                .iter()
+                .map(|name| Dependency {
+                    name: (*name).to_owned(),
+                    kind: DependencyKind::Dev,
+                    member: false,
+                })
+                .collect(),
+        };
+        let workspace = Workspace {
+            root: PathBuf::from("/w"),
+            packages: vec![
+                package("zbm-tui", &["insta"]),
+                package("zbm", &["proptest"]),
+            ],
+        };
+
+        assert_eq!(
+            bless_program(&workspace).shown(),
+            "INSTA_UPDATE=always cargo test --locked -p zbm-tui"
+        );
+    }
+
+    #[test]
+    fn changes_are_listed_for_review() {
+        assert_eq!(
+            changes("bless", "snapshots", ""),
+            "bless: no snapshot changed\n"
+        );
+        assert_eq!(
+            changes("record-parity", "recordings", " M a.json\n"),
+            "record-parity: these recordings changed; review them with `git diff`:\n M a.json\n"
+        );
+    }
 }

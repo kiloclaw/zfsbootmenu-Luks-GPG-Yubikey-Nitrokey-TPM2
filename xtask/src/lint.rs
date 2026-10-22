@@ -20,7 +20,7 @@ use crate::workspace::Workspace;
 use crate::{deps, widths};
 
 /// The directories whose line widths are checked.
-pub const WIDTH_ROOTS: &[&str] = &["crates", "xtask"];
+pub const WIDTH_ROOTS: &[&str] = &["crates", "xtask", "fuzz/fuzz_targets"];
 
 /// The lints that crates must pass once a phase of REFACTOR-ROADMAP.md has
 /// refactored them, on top of the workspace lints in `Cargo.toml`.
@@ -61,6 +61,7 @@ pub fn run(workspace: &Workspace) -> Result<()> {
     let root = &workspace.root;
     let mut failed = Vec::new();
     step(&mut failed, "format", || cargo::fmt_check(root));
+    step(&mut failed, "fuzz targets", || crate::fuzz::check(root));
     step(&mut failed, "line widths", || check_widths(root));
     step(&mut failed, "clippy", || cargo::clippy(root));
     step(&mut failed, "strict crates", || strict_crates(workspace));
@@ -155,7 +156,17 @@ pub fn strict(workspace: &Workspace) -> Result<()> {
 fn strict_clippy(workspace: &Workspace, selection: &[String]) -> Result<Findings> {
     let root = &workspace.root;
     let config = root.join(STRICT_CONFIG);
-    let target = root.join("target/strict");
+    let args = strict_args(selection, &root.join("target/strict"));
+    let output = cargo::cargo(root)
+        .env("CLIPPY_CONF_DIR", &config.display().to_string())
+        .args(args)
+        .output()?;
+    Ok(findings(&output, workspace))
+}
+
+/// The arguments of the strict clippy run over `selection`, building in
+/// `target`.
+fn strict_args(selection: &[String], target: &Path) -> Vec<String> {
     let mut args = vec!["clippy".to_owned()];
     args.extend_from_slice(selection);
     args.extend(
@@ -177,11 +188,7 @@ fn strict_clippy(workspace: &Workspace, selection: &[String]) -> Result<Findings
         args.push("-A".to_owned());
         args.push((*lint).to_owned());
     }
-    let output = cargo::cargo(root)
-        .env("CLIPPY_CONF_DIR", &config.display().to_string())
-        .args(args)
-        .output()?;
-    Ok(findings(&output, workspace))
+    args
 }
 
 /// The crates of [`STRICT_CRATES`], checked against the workspace.
@@ -373,6 +380,33 @@ mod tests {
 
         let key = ("zbm-core".to_owned(), "clippy::unwrap_used".to_owned());
         assert_eq!(findings.get(&key), Some(&2));
+    }
+
+    #[test]
+    fn the_strict_run_warns_on_the_strict_lints_in_its_own_target() {
+        let args = strict_args(&["-p".to_owned(), "xtask".to_owned()], Path::new("/t"));
+
+        assert_eq!(
+            args[..8],
+            [
+                "clippy",
+                "-p",
+                "xtask",
+                "--all-targets",
+                "--locked",
+                "--message-format=json",
+                "--target-dir",
+                "/t"
+            ]
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["-W", "clippy::pedantic"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["-A", "clippy::must_use_candidate"])
+        );
     }
 
     #[test]

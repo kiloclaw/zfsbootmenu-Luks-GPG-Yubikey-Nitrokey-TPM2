@@ -81,6 +81,24 @@ Recording needs what the legacy code needs (Bash, Perl with its modules, binutil
 the cases that compare with it as root. REFACTOR-ROADMAP.md lists behaviour changes that update a recording on
 purpose.
 
+### Fuzz targets
+
+`fuzz/` holds a fuzz target for each group of parsers of untrusted input in [threat-model.md](threat-model.md), which
+names the threat each one covers. A target feeds arbitrary bytes to the parsers and fails on a panic or a hang.
+
+```sh
+rustup toolchain install nightly --profile minimal
+cargo install cargo-fuzz --locked
+cargo xtask fuzz                          # every target, 60 seconds each
+cargo xtask fuzz crypttab --seconds 600   # one target
+```
+
+Each run starts from the seeds in `fuzz/seeds/<target>` (committed) and grows a corpus in `fuzz/corpus/<target>`
+(not committed). An input that makes a target fail is written to `fuzz/artifacts/<target>/`; replay it with
+`cargo +nightly fuzz run <target> <file>`, fix the parser, and add the input to a unit test of it. CI runs every
+target for five minutes each night (`.github/workflows/fuzz.yml`), and `cargo xtask lint` checks that the targets
+build, so a parser that moves takes its target along.
+
 ## When a test fails
 
 - Rust tests print the seed and, for parity tests, both outputs; rerun one test with

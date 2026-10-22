@@ -1,0 +1,58 @@
+# Fuzz targets for the parsers of untrusted input that docs/dev/threat-model.md lists. Run them with
+# `cargo xtask fuzz` (nightly Rust and cargo-fuzz). This crate is a workspace of its own, so the normal build
+# never compiles libFuzzer.
+[package]
+name = "zbm-fuzz"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+zbm-boot = { path = "../crates/zbm-boot" }
+zbm-cmdline = { path = "../crates/zbm-cmdline" }
+zbm-luks = { path = "../crates/zbm-luks" }
+zbm-types = { path = "../crates/zbm-types" }
+zbm-zfs = { path = "../crates/zbm-zfs" }
+
+[[bin]]
+name = "kernel_cmdline"
+path = "fuzz_targets/kernel_cmdline.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "domain_names"
+path = "fuzz_targets/domain_names.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crypttab"
+path = "fuzz_targets/crypttab.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "luks_metadata"
+path = "fuzz_targets/luks_metadata.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "program_output"
+path = "fuzz_targets/program_output.rs"
+test = false
+doc = false
+bench = false

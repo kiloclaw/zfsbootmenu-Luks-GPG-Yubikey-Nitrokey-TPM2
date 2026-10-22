@@ -1,0 +1,2 @@
+export BASE="/zfsbootmenu"
+export menu_timeout=10

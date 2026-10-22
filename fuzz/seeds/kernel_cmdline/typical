@@ -1,0 +1,1 @@
+root=zfs:AUTO quiet loglevel=4 zbm.timeout=5 zbm.prefer=rpool! zbm.import_policy=hostid

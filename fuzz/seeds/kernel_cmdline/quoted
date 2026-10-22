@@ -1,0 +1,1 @@
+ro "a  b" spl_hostid=0xdeadbeef zbm.skip_hooks=10-a,20-b zbm.hookroot=tank/hooks//zbm zbm.luks=UUID=1,LABEL=x

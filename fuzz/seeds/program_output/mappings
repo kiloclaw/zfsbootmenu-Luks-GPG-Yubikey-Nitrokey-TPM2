@@ -1,0 +1,2 @@
+cryptroot	/dev/sda2	1
+data	/dev/sdb	0

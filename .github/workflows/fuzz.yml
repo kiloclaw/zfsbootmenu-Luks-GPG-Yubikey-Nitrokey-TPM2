@@ -1,0 +1,46 @@
+name: Fuzz
+# The fuzz targets of fuzz/, which feed arbitrary input to the parsers that docs/dev/threat-model.md lists. Each
+# runs for a few minutes every night; an input that makes one fail is kept as an artifact.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds each target runs'
+        default: '300'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: Fuzz targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchains
+        run: |
+          rustup toolchain install
+          rustup toolchain install nightly --profile minimal
+
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      - name: Fuzz
+        run: cargo xtask fuzz --seconds "${SECONDS_EACH}"
+        env:
+          SECONDS_EACH: ${{ github.event.inputs.seconds || '300' }}
+
+      - name: Keep the inputs that made a target fail
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
