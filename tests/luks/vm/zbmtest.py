@@ -20,6 +20,9 @@ Environment:
                     (default legacy); with rust, image and result names end
                     in -rust (the runtime tests choose their runtime
                     themselves)
+  ZBMTEST_SHADOW    0 = build legacy images without shadow mode; by default
+                    they run `zbm shadow` before each boot and a test fails
+                    when it reports differences
 """
 
 import json
@@ -42,6 +45,9 @@ RUNTIME = os.environ.get("ZBMTEST_RUNTIME") or ("docker" if shutil.which("docker
 ACCEL = os.environ.get("ZBMTEST_ACCEL") or ("kvm" if os.access("/dev/kvm", os.W_OK) else "tcg")
 REUSE = os.environ.get("ZBMTEST_REUSE") == "1"
 ZBM_RUNTIME = os.environ.get("ZBMTEST_ZBM_RUNTIME") or "legacy"
+SHADOW = os.environ.get("ZBMTEST_SHADOW") != "0"
+SHADOW_SUMMARY = re.compile(r"ZBM-SHADOW: (\d+) differences in \d+ decisions(?: \(([^)\n]*)\))?")
+SHADOW_LINE = re.compile(r"ZBM-SHADOW: [^\n]*")
 
 OVMF_CODE = "/usr/share/OVMF/OVMF_CODE_4M.fd"
 OVMF_VARS = "/usr/share/OVMF/OVMF_VARS_4M.fd"
@@ -100,7 +106,35 @@ class Test:
             if line.strip():
                 self.step(prefix + line)
 
+    def shadow(self):
+        """
+        Checks the shadow mode summaries on the serial consoles of this test:
+        the Rust code decided as the legacy runtime did on every boot.
+        """
+        boots = differences = 0
+        lines = []
+        decisions = {}
+        for log in sorted(self.dir.glob("serial-*.log")):
+            text = clean(log.read_text(errors="replace"))
+            for match in SHADOW_SUMMARY.finditer(text):
+                boots += 1
+                differences += int(match.group(1))
+                for decision in (match.group(2) or "").split(", "):
+                    if decision:
+                        decisions[decision] = True
+            lines += [line for line in SHADOW_LINE.findall(text)
+                      if not SHADOW_SUMMARY.match(line.strip())]
+        if boots == 0:
+            return
+        if lines:
+            self.show("\n".join(dict.fromkeys(lines)))
+        compared = ", ".join(decisions) or "nothing"
+        self.check(differences == 0,
+                   f"shadow mode: {differences} differences in {boots} boots "
+                   f"(compared: {compared})")
+
     def finish(self):
+        self.shadow()
         result = {
             "test": self.name,
             "passed": self.passes,
@@ -312,6 +346,8 @@ def zbm_image(variant, crypttab=None, files=None, conf="", cmdline=None, efi=Fal
     if (runtime or ZBM_RUNTIME) == "rust":
         variant += "-rust"
         conf += '\nzfsbootmenu_runtime="rust"'
+    elif SHADOW:
+        conf += '\nzfsbootmenu_shadow="yes"'
     bdir = WORK / "zbm" / variant
     out = {"kernel": bdir / "build" / "vmlinuz-bootmenu",
            "initrd": bdir / "build" / "initramfs-bootmenu.img",

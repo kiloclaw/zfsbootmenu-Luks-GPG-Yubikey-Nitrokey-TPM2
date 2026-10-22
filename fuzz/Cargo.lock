@@ -284,9 +284,11 @@ name = "zbm-boot"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+ "tracing",
  "zbm-cmdline",
  "zbm-core",
  "zbm-luks",
+ "zbm-platform",
  "zbm-state",
  "zbm-system",
  "zbm-trace",

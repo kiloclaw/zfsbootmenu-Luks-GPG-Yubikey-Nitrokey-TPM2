@@ -69,6 +69,39 @@ pub trait Console {
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>>;
 }
 
+/// No console, for programs that must never interact, such as shadow mode:
+/// writes go nowhere and every read finds the end of the input.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoConsole;
+
+impl Console for NoConsole {
+    fn write(&self, _bytes: &[u8]) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn size(&self) -> io::Result<Size> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
+
+    fn read_key(&self, _timeout: Option<Duration>) -> io::Result<Option<u8>> {
+        Ok(None)
+    }
+
+    fn read_secret(&self) -> io::Result<Option<Secret>> {
+        Ok(None)
+    }
+
+    fn read_line(&self) -> io::Result<Option<String>> {
+        Ok(None)
+    }
+
+    fn set_echo(&self, _on: bool) {}
+
+    fn read_secret_within(&self, _timeout: Duration) -> io::Result<Timed<Secret>> {
+        Ok(Timed::Ended)
+    }
+}
+
 /// The console on standard input and standard output, as the legacy code
 /// uses it; the start-up sequence connects both to the control terminal.
 pub struct Terminal<'a> {
@@ -225,6 +258,22 @@ impl<T: std::os::fd::AsFd> AsFdClone for T {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn no_console_reads_nothing_and_shows_nothing() {
+        let console = NoConsole;
+
+        assert!(console.write(b"x").is_ok());
+        assert!(console.size().is_err());
+        assert_eq!(console.read_key(None).unwrap(), None);
+        assert!(console.read_secret().unwrap().is_none());
+        assert_eq!(console.read_line().unwrap(), None);
+        console.set_echo(false);
+        assert!(matches!(
+            console.read_secret_within(Duration::from_secs(1)).unwrap(),
+            Timed::Ended
+        ));
+    }
+
     use super::*;
     use zbm_core::exec::{Output, Status};
     use zbm_testkit::{FakeRunner, TempDir};

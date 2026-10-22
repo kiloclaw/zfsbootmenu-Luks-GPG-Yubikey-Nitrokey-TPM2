@@ -42,7 +42,7 @@ fn substitution(runner: &dyn Runner, command: &Command) -> (bool, String) {
 
 /// `zfs get -H -o value <property> <dataset> 2>/dev/null`, or `None` when it
 /// fails.
-fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> Option<String> {
+pub(crate) fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> Option<String> {
     let command = Command::new("zfs")
         .args(["get", "-H", "-o", "value", property, dataset])
         .stderr(Stream::Null);

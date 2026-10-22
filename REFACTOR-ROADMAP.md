@@ -120,7 +120,16 @@ Done in R1:
   went from 18 and 10 to 0); `bool` is left for questions. The unit tests check the specific outcome and error where
   they checked `true` or `false`.
 
-Open in R1: shadow mode.
+- Shadow mode ([docs/dev/shadow-mode.md](docs/dev/shadow-mode.md)): `zbm shadow` compares the host ID, the pools
+  imported, the LUKS mapping names, the default boot environment and the kernel with what the legacy runtime did,
+  through `zbm_platform::ReadOnlyRunner` (an allowlist of read-only commands, no secret input, a five-second
+  budget) and without a console (`zbm_system::NoConsole`). Legacy images built with `zfsbootmenu_shadow=yes` run it
+  from the `boot-sel.d` hook `99-zbm-shadow.sh`; `zbm.shadow=efivar` keeps a summary with differences in an EFI
+  variable for `zbm shadow report`. The VM harness builds every legacy image with shadow mode and fails a test whose
+  serial console reports differences. The key sources of encryption roots are not compared yet: the Rust code does
+  not decide them until R4.
+
+R1 is complete.
 
 ## What the pilots taught
 

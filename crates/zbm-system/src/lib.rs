@@ -29,7 +29,7 @@ pub mod log;
 pub mod process;
 
 pub use clock::{Clock, SystemClock};
-pub use console::{Console, Size, Terminal};
+pub use console::{Console, NoConsole, Size, Terminal};
 pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
 pub use files::{FileKind, Files, Metadata, RealFiles};

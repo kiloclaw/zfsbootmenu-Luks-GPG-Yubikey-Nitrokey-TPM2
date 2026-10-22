@@ -11,6 +11,8 @@
 //! here so that services depend on one crate. REFACTOR-ROADMAP.md (R2) moves
 //! them into this crate.
 //!
+//! [`ReadOnlyRunner`] runs only commands that read, for shadow mode.
+//!
 //! [`Context::new`] wraps the runner in a [`TracedRunner`], so every program
 //! a service runs appears in the journal of `zbm-trace` with its arguments,
 //! exit status and duration: the command journal.
@@ -29,8 +31,10 @@
 //! # Ok::<(), std::io::Error>(())
 //! ```
 
+mod read_only;
 mod traced;
 
+pub use read_only::{ALLOWED, BASH_MATCH, ReadOnlyRunner, is_read_only};
 pub use traced::TracedRunner;
 pub use zbm_core::exec::{Command, Input, Output, Runner, Status, Stream};
 pub use zbm_core::secret::Secret;

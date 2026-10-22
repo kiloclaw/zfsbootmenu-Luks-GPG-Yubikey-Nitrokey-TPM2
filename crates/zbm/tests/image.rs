@@ -194,6 +194,7 @@ const TEXTS: &[&str] = &[
     "bin/zluks",
     "etc/zfsbootmenu.conf",
     "libexec/hooks/teardown.d/80-luks-close.sh",
+    "libexec/hooks/boot-sel.d/99-zbm-shadow.sh",
 ];
 
 /// What the dracut module installed: every path, and the texts of [`TEXTS`].
@@ -349,4 +350,27 @@ fn dracut_images_start_the_selected_runtime() {
     assert!(hook.contains("\n/bin/zluks close\nexit 0\n"), "{hook}");
     assert!(!hook.contains("luks_close_all"), "{hook}");
     assert_eq!(rust.entries[teardown], "file 755");
+}
+
+#[test]
+fn shadow_mode_adds_a_boot_hook_to_legacy_images() {
+    let mut parity = parity!("shadow_mode_adds_a_boot_hook_to_legacy_images");
+    let hook = "libexec/hooks/boot-sel.d/99-zbm-shadow.sh";
+    let settings = [("zfsbootmenu_zbm", ZBM)];
+
+    let plain = dracut_install(&mut parity, &settings);
+    assert!(!plain.exists(hook));
+
+    let mut shadow_settings = settings.to_vec();
+    shadow_settings.push(("zfsbootmenu_shadow", "yes"));
+    let shadow = dracut_install(&mut parity, &shadow_settings);
+    assert_eq!(shadow.entries[hook], "file 755");
+    let text = shadow.text(hook);
+    assert!(text.starts_with("#!/bin/bash\n"), "{text}");
+    assert!(text.ends_with("\n/libexec/zbm shadow\nexit 0\n"), "{text}");
+
+    // The Rust runtime makes these decisions itself: nothing to compare.
+    shadow_settings.push(("zfsbootmenu_runtime", "rust"));
+    let rust = dracut_install(&mut parity, &shadow_settings);
+    assert!(!rust.exists(hook));
 }

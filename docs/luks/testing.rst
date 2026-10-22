@@ -79,6 +79,9 @@ Variable                 Meaning
 ``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
                          choose their runtime themselves
+``ZBMTEST_SHADOW``       ``0`` builds legacy images without shadow mode. By default they run ``zbm shadow`` before
+                         each boot, and a test fails when a summary on its serial consoles reports differences
+                         (*docs/dev/shadow-mode.md*)
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:

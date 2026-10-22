@@ -13,6 +13,7 @@ pub mod applets;
 pub mod debug;
 pub mod luks;
 pub mod pilot;
+pub mod shadow;
 pub mod supervisor;
 
 /// The program's output streams.
@@ -63,6 +64,12 @@ const DEBUG: Applet = Applet {
     run: debug::run,
 };
 
+const SHADOW: Applet = Applet {
+    name: "shadow",
+    summary: "compare the legacy runtime's decisions with the Rust code's",
+    run: shadow::run,
+};
+
 const MENU_PILOT: Applet = Applet {
     name: "zbm-menu-pilot",
     summary: "the boot environment list of the refactored menu (pilot)",
@@ -71,7 +78,15 @@ const MENU_PILOT: Applet = Applet {
 
 /// The commands `zbm` provides.
 #[cfg(not(feature = "test-seams"))]
-pub const APPLETS: &[Applet] = &[INIT, PARSE_COMMANDLINE, PREINIT, ZLUKS, MENU_PILOT, DEBUG];
+pub const APPLETS: &[Applet] = &[
+    INIT,
+    PARSE_COMMANDLINE,
+    PREINIT,
+    ZLUKS,
+    MENU_PILOT,
+    DEBUG,
+    SHADOW,
+];
 
 /// The commands `zbm` provides, with the operations of the LUKS unit suites
 /// in the test build.
@@ -83,6 +98,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     MENU_PILOT,
     DEBUG,
+    SHADOW,
     Applet {
         name: "zbm-luks-test",
         summary: "the LUKS operations of the unit suites (test build only)",
@@ -279,6 +295,7 @@ mod tests {
             "zluks",
             "zbm-menu-pilot",
             "debug",
+            "shadow",
         ];
         if cfg!(feature = "test-seams") {
             expected.push("zbm-luks-test");

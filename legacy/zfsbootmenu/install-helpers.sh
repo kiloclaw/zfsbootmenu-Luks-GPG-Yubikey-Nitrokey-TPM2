@@ -532,6 +532,32 @@ install_zbm_hooks() {
     chmod 755 "${BUILDROOT}/libexec/hooks/teardown.d/80-luks-close.sh" || ret=$?
   fi
 
+  # Shadow mode: zbm compares the legacy runtime's decisions with the Rust
+  # code's just before each boot (docs/dev/shadow-mode.md)
+  # shellcheck disable=SC2154
+  if zbm_opt_enabled "${zfsbootmenu_shadow}" no; then
+    if [ "${ZBM_RUNTIME}" != "legacy" ]; then
+      zbm_warn "zfsbootmenu_shadow: only legacy runtime images have a shadow mode"
+    elif [ ! -x "${BUILDROOT}/libexec/zbm" ]; then
+      zbm_error "zfsbootmenu_shadow: shadow mode needs zbm, set with zfsbootmenu_zbm"
+      ret=1
+    else
+      mkdir -p "${BUILDROOT}/libexec/hooks/boot-sel.d" || ret=$?
+      cat > "${BUILDROOT}/libexec/hooks/boot-sel.d/99-zbm-shadow.sh" <<-'EOF'
+	#!/bin/bash
+	## Shadow mode: compare the legacy runtime's decisions for this boot with
+	## the Rust code's and print the differences and a summary line. It only
+	## reads and never stops the boot.
+	##
+	## This hook may be disabled with zbm.skip_hooks=99-zbm-shadow.sh
+
+	/libexec/zbm shadow
+	exit 0
+	EOF
+      chmod 755 "${BUILDROOT}/libexec/hooks/boot-sel.d/99-zbm-shadow.sh" || ret=$?
+    fi
+  fi
+
   # Install user hooks via deprecated syntax first
 
   # shellcheck disable=SC2154

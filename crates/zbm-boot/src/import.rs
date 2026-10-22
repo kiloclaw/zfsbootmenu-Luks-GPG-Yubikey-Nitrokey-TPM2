@@ -454,10 +454,19 @@ fn check_unsupported(system: &System<'_>, state: &State<'_>, settings: &Settings
         .run(system);
 }
 
+/// The default boot environment, recorded in the state directory.
+fn find_bootfs(runner: &dyn Runner, state: &State<'_>, settings: &Settings) -> Option<String> {
+    let bootfs = choose_bootfs(runner, settings)?;
+    if let Err(error) = state.set_bootfs(&bootfs) {
+        zbm_trace::error!("{}", error.to_string());
+    }
+    Some(bootfs)
+}
+
 /// The default boot environment: `zbm.prefer` naming a filesystem, or else the
 /// `bootfs` property of the preferred pool or of the first imported pool that
-/// sets it. It is recorded in the state directory.
-fn find_bootfs(runner: &dyn Runner, state: &State<'_>, settings: &Settings) -> Option<String> {
+/// sets it. It only reads, so shadow mode can ask it too.
+pub fn choose_bootfs(runner: &dyn Runner, settings: &Settings) -> Option<String> {
     let mut bootfs = String::new();
     if !settings.prefer_bootfs.is_empty() {
         if Zfs::new(runner).is_filesystem(&settings.prefer_bootfs) {
@@ -484,13 +493,7 @@ fn find_bootfs(runner: &dyn Runner, state: &State<'_>, settings: &Settings) -> O
             }
         }
     }
-    if bootfs.is_empty() {
-        return None;
-    }
-    if let Err(error) = state.set_bootfs(&bootfs) {
-        zbm_trace::error!("{}", error.to_string());
-    }
-    Some(bootfs)
+    (!bootfs.is_empty()).then_some(bootfs)
 }
 
 #[cfg(test)]

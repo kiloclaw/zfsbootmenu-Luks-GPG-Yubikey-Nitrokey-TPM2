@@ -29,6 +29,7 @@ pub mod preinit;
 pub mod prompt;
 pub mod recovery;
 pub mod resume;
+pub mod shadow;
 pub mod startup;
 pub mod support;
 
