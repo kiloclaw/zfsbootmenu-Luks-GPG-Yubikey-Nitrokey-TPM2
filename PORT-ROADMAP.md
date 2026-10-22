@@ -176,7 +176,7 @@ packages, the port takes about 6 to 9 months.
 | 3. `generate-zbm` | Done |
 | 4. Runtime design | Done, except a maintainer's review of `crates/DESIGN.md` |
 | 5. Minimal bootable runtime | The Rust image boots the default boot environment of an unencrypted pool (VM test passes); left: CI runs only that test against the Rust image, not every suite yet, and the new CI job has not run on GitHub yet |
-| 6. Complete the runtime | In progress: package A (start-up and pool import) done, except the upstream test VMs and the LUKS VM tests, which need a host with the ZFS module and package B; packages B to F not started |
+| 6. Complete the runtime | Packages A (start-up and pool import) and B (LUKS) done, except the upstream test VMs, which need a host with the ZFS module, and the complex-pool VM tests, which need package C. Packages C to F are not ported in this architecture: REFACTOR-ROADMAP.md moves them to R5 and R6 |
 | 7 and 8 | Not started |
 
 **Delivered by phases 1 to 3:**
@@ -271,6 +271,40 @@ packages, the port takes about 6 to 9 months.
   interactive, so they could not run here; the LUKS VM tests that cover import policies, host IDs and late devices
   need LUKS, which arrives with package B. The signal dispositions over SSH and of the chroot shell come with
   packages D and F, which bring the chroot and remote access.
+
+**Phase 6, package B (LUKS and key handling):**
+
+- `zbm-luks` ports `zfsbootmenu-luks.sh` and `zfsbootmenu-luks-keys.sh`: the crypttab, `zbm.luks` and `zbm.luks_key`
+  (with parity tests against the Bash parser on fixed and random input), device specifications, discovery and
+  `luks_may_hold_zfs`, waiting for devices and key devices, key scripts, key files, LUKS2 tokens through cryptsetup's
+  plugins or tpm2-tools, `fido2-assert` and clevis, the TPM lockout check, GnuPG key files with a smart card or
+  passphrase, YubiKey challenge-response, the passphrase prompt, the mapping state, and closing volumes. Token metadata
+  is tested against `cryptsetup luksDump` output recorded from real volumes (`scripts/dev/record-luks-fixtures.sh`).
+- Secrets reach programs only on standard input and are captured as secrets: no decrypted key file, unsealed TPM2
+  secret or FIDO2 secret is written to a file, and the salted TPM2 PIN and its authorization value are computed in the
+  process (SHA-256, HMAC and PBKDF2 in `zbm_luks::crypto`, checked against the standard test vectors, `sha256sum` and
+  `openssl kdf`). Unit tests check with `FakeSystem::assert_no_leak` that no secret reaches an argument, the
+  environment, a file or the console.
+- `zbm` gains `zluks` (`unlock`, `open`, `close`, `status`, `list`). The start-up program runs `zluks unlock` in a
+  process of its own at stage 45 and, with `LUKS_RETRY=1`, in the import loop's retries; Rust images link
+  `/bin/zluks` to `zbm` and close the mappings with `zluks close` in the teardown hook. LUKS is no longer refused.
+- The LUKS unit suites pass with `ZBMTEST_IMPL=rust` through a test build of `zbm` (the Cargo feature `test-seams`,
+  with the hidden command `zbm-luks-test`), on the host and in the build container: 252 checks against Rust, 255
+  against the legacy code, three of which reach inside the legacy code and are covered by Rust unit tests for Rust.
+  CI runs the suites against both implementations and checks that the release `zbm` has no test command.
+- A legacy bug found while porting: a mapping whose name, read as a pattern, matched one recorded earlier (`a.b` after
+  `axb`) was not recorded, so the teardown hook left it open. Fixed in the legacy code, with a test.
+- The LUKS VM tests ran against the Rust image (`ZBMTEST_ZBM_RUNTIME=rust`, 22 October 2026): 26 of 31 tests pass,
+  with 441 checks: the vdev layouts, every key test (TPM2 with and without plugins, the lockout, no TPM), every firmware
+  and USB key test, the procedures, and every runtime test (host IDs, the strict and force policies, `zbm.prefer`,
+  late devices, `zbm.wait_for`, hooks and signal dispositions). The `oldzfs` tests were skipped, as no OpenZFS 2.2
+  image was given.
+- Not done: the complex-pool tests. Their boot pool's root is a locked ZFS encryption root, which the Rust runtime
+  refuses until package C. In `complex-degraded` and both hot-plug tests every LUKS, import and teardown check passes
+  and only the boot environment's checks fail; `complex-healthy` and `complex-crypttab` did not import the pools in
+  this run, and `complex-badkey` and `complex-skip-recover` ended without a result. These four need a rerun with the
+  harness changes made during the run; all complex tests run again when the boot environment code lands
+  (REFACTOR-ROADMAP.md, R5).
 
 **Deviations from the plan:**
 

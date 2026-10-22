@@ -281,6 +281,9 @@ Suite          Passed  Failed
 ``config.sh``  64      0
 =============  ======  ======
 
+With ``ZBMTEST_IMPL=rust``, the suites pass 252 checks against the Rust runtime; the other three reach inside the
+Bash code, and Rust unit tests cover them.
+
 Host tools: cryptsetup 2.7.0, systemd 255, GnuPG 2.4.4, tpm2-tools 5.6, clevis 20, swtpm 0.7.3. Container tools:
 cryptsetup 2.8.7, systemd 261, GnuPG 2.4.9, tpm2-tools 5.7, clevis 23, swtpm 0.10.1.
 
@@ -338,6 +341,52 @@ Test                        Passed  Failed  Duration
 ``runtime-rust-signals``    9       0       1 min
 Total                       740     0
 ==========================  ======  ======  ========
+
+Virtual-machine tests with the Rust runtime
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), on
+22 October 2026. The ``complex`` tests fail because their boot pool's root is a locked ZFS encryption root, which the
+Rust runtime does not handle yet: it refuses to boot and opens the recovery shell. In ``complex-degraded`` and the two
+hot-plug tests, every LUKS, import and teardown check passes and only the boot environment's checks fail.
+``complex-healthy`` and ``complex-crypttab`` did not import the pools in this run, and ``complex-badkey`` and
+``complex-skip-recover`` ended without a result; they need a rerun. The ``oldzfs`` tests were skipped, as no
+OpenZFS 2.2 image was given.
+
+==============================  ======  ======  ========
+Test                            Passed  Failed  Duration
+==============================  ======  ======  ========
+``layouts-main-rust``           44      0       11 min
+``layouts-parity-rust``         37      0       11 min
+``complex-setup-rust``          19      0       6 min
+``complex-healthy-rust``        1       26      3 min
+``complex-crypttab-rust``       1       25      4 min
+``complex-degraded-rust``       9       13      4 min
+``complex-hotplug-rust``        13      13      4 min
+``complex-hotplug-auto-rust``   13      13      5 min
+``keys-setup-rust``             9       0       3 min
+``keys-plugin-rust``            13      0       5 min
+``keys-native-rust``            13      0       6 min
+``keys-lockout-rust``           13      0       6 min
+``keys-notpm-rust``             13      0       5 min
+``firmware-setup-rust``         3       0       2 min
+``firmware-boot-rust``          14      0       5 min
+``firmware-usbkey-rust``        14      0       5 min
+``firmware-usblate-rust``       14      0       5 min
+``firmware-nostick-rust``       14      0       3 min
+``procedures-rust``             78      0       27 min
+``runtime-setup``               3       0       2 min
+``runtime-rust``                15      0       4 min
+``runtime-rust-hostid``         15      0       5 min
+``runtime-rust-strict``         2       0       2 min
+``runtime-rust-force``          3       0       2 min
+``runtime-rust-prefer``         16      0       5 min
+``runtime-rust-late``           15      0       6 min
+``runtime-rust-waitfor``        15      0       6 min
+``runtime-rust-hooks``          13      0       5 min
+``runtime-rust-signals``        9       0       2 min
+Total                           441     90
+==============================  ======  ======  ========
 
 Problems found and fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~
