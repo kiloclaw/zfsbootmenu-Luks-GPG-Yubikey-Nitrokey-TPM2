@@ -1,5 +1,5 @@
 # cargo-deny: what third-party code may enter the workspace (REFACTOR-ROADMAP.md, "How the rules are enforced").
-# CI runs `cargo deny check`; run it locally after changing a dependency. vendor/README.md says why each crate is
+# CI runs `cargo deny check`; run it locally after changing a dependency. docs/dev/dependencies.md says why each crate is
 # here, and xtask/src/deps.rs which crate may use it.
 
 [graph]

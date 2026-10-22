@@ -97,7 +97,7 @@ jobs:
 
   deny:
     name: Licences, advisories and banned crates
-    # deny.toml; vendor/README.md says why each crate is there
+    # deny.toml; docs/dev/dependencies.md says why each crate is there
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -133,6 +133,14 @@ jobs:
         run: |
           sudo env ZBMTEST_IMPL=rust ZBMTEST_UNIT_WORK=/var/tmp/zbm-luks-unit-rust \
             tests/luks/unit/run-all.sh
+
+      # zbm-crypt against real LUKS volumes on loop devices (crates/zbm-crypt/tests/devices.rs)
+      - name: Rust device tests
+        run: |
+          cargo test -p zbm-crypt --test devices --locked --no-run
+          sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
+            "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" ZBM_DEVICE_TESTS=1 \
+            cargo test -p zbm-crypt --test devices --locked
 
       - name: Archive the suite output
         if: always()

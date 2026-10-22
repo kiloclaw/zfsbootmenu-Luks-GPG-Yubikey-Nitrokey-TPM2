@@ -25,18 +25,22 @@ dependencies that exist.
 
 | Layer | Crates | Purpose |
 | --- | --- | --- |
-| front ends | `zbm-menu`, `zbm` | The menu and the multi-call binary |
+| front ends | `zbm-menu`, `zbm-tui`, `zbm` | The menus and the multi-call binary |
 | orchestration | `zbm-boot`, `generate-zbm` | Start-up and boot; image generation |
-| domain | `zbm-luks`, `zbm-kcl` | LUKS volumes, kernel command lines of boot environments |
-| adapters | `zbm-zfs` | External programs: ZFS |
+| application | `zbm-app` | Actions, events and the snapshot that front ends use |
+| domain | `zbm-luks`, `zbm-kcl` | LUKS volumes and key methods, kernel command lines of boot environments |
+| adapters | `zbm-zfs`, `zbm-crypt` | External programs: ZFS, cryptsetup |
+| ports | `zbm-platform` | The Context through which services reach the system; the command journal |
 | platform | `zbm-system`, `zbm-state`, `zbm-cmdline` | System interfaces and their real implementations, state files, the kernel command line |
-| foundation | `zbm-core`, `zbm-log` | Commands, errors, file tests, logging formats |
+| foundation | `zbm-core`, `zbm-log`, `zbm-trace` | Commands, secrets, errors, file tests, logging formats, tracing |
+| types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
 
 A crate depends only on crates of lower layers, with these exceptions in its own layer:
 
 - `zbm-log` → `zbm-core`
 - `zbm-state` → `zbm-system`
+- `zbm` → `zbm-tui`
 
 Test support (`zbm-testutil`) is only a development dependency. Tools (`xtask`) use no crate of the workspace.
 
@@ -44,6 +48,15 @@ Third-party crates:
 
 - `generate-zbm`: `yaml-rust2`
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
+- `zbm-app`: `thiserror`, `tracing`
+- `zbm-crypt`: `thiserror`, `tracing`
+- `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
+- `zbm-platform`: `serde_json`, `tracing`, `tracing-subscriber`
+- `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
+- `zbm-tui`: `nucleo-matcher`, `ratatui`
+- `zbm-types`: `thiserror`
+
+Every crate may use `insta`, `pretty_assertions`, `proptest` as development dependencies.
 
 <!-- END generated -->
 
@@ -52,21 +65,43 @@ Third-party crates:
 - **unsafe**: `zbm-sys` wraps the C library calls the standard library lacks (signals, `waitpid`, `poll`,
   `kexec_file_load`, wiping memory). It is the only crate that may contain `unsafe`; the workspace lints deny it
   everywhere else.
+- **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
+  `PoolName`, `DatasetName`. Nothing else can hold an invalid one.
 - **foundation**: `zbm-core` describes programs to run (`Command`, `Input::Secret`, `Stream::CaptureSecret`), holds
   `Secret`, file tests and the error type. `zbm-log` writes and reads the log formats of the legacy runtime.
+  `zbm-trace` sends `tracing` events to standard error and to a JSON journal, one line per event with its spans.
 - **platform**: `zbm-system` defines the interfaces through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`) and their real implementations. `zbm-state` shares state between
   processes through files. `zbm-cmdline` parses the kernel command line and the configuration file.
+- **ports**: `zbm-platform` gives services a `Context`: the ports they may use, with a runner that reports every
+  program it runs to the journal (the command journal). Refactored services take a `&Context`.
 - **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`
-  (REFACTOR-ROADMAP.md, "The ZFS boundary").
-- **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method. `zbm-kcl` handles the kernel command
-  lines stored on boot environments.
+  (REFACTOR-ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
+  `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`.
+- **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method; its `unlocker` module is the
+  refactored shape, key methods as strategies tried in order. `zbm-kcl` handles the kernel command lines stored on
+  boot environments.
+- **application**: `zbm-app` is what front ends talk to: they read a `Snapshot`, send an `Action` to
+  `App::perform`, and get `Event`s back or an `AppError` with the cause.
 - **orchestration**: `zbm-boot` is the start-up program: modules, host ID, hooks, LUKS, pool import, kernel selection
   and `kexec`. `generate-zbm` assembles images.
-- **front ends**: `zbm` dispatches applets by the name it was called with; `zbm-menu` will hold the menu.
+- **front ends**: `zbm` dispatches applets by the name it was called with. `zbm-tui` is the new menu in the Elm
+  architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
+  placeholder it replaces.
 - **test support**: `zbm-testutil` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,
   `FakeConsole`) and the helpers that run legacy code for parity tests. Crates use it only as a development
   dependency.
+
+## The pilots
+
+REFACTOR-ROADMAP.md (R0) built two thin features through every layer before any crate is migrated; they are the
+template for the phases that follow.
+
+- **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::Unlock`) →
+  `zbm-luks::unlocker` (`Unlocker`, `KeyFile`) → `zbm-crypt` (`Cryptsetup::open`) → `zbm-platform`
+  (`TracedRunner`) → `cryptsetup`. Every step is a span in the journal (`--journal FILE`).
+- **The menu:** `zbm-menu-pilot [--demo]` → `zbm-app` (`App::snapshot`) → `zbm-tui` (`terminal::run`, `update`,
+  `view`). It prints the boot environment chosen and boots nothing.
 
 ## Changing a dependency
 
@@ -76,4 +111,4 @@ Third-party crates:
 3. If the edge is right, change the tables in `xtask/src/deps.rs`, run `cargo xtask check-deps --bless` to regenerate
    the section above, and explain the change in the pull request.
 4. A third-party crate is also vendored (`cargo vendor --versioned-dirs vendor`) and listed with its reason in
-   [vendor/README.md](../../vendor/README.md).
+   [docs/dev/dependencies.md](dependencies.md).

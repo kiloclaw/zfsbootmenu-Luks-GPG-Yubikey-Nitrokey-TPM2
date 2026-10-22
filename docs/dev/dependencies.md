@@ -1,0 +1,71 @@
+# Dependencies
+
+Every third-party crate the workspace uses is vendored in `vendor/`, so that builds, including container builds,
+need no network (`.cargo/config.toml` replaces crates.io with that directory). Refresh it after changing a dependency
+in `Cargo.toml`:
+
+```sh
+cargo vendor --versioned-dirs vendor
+cargo deny check
+```
+
+`cargo vendor` owns `vendor/` and deletes any other file in it, which is why this page lives here.
+
+Each crate a workspace crate depends on directly is listed below with the reason it is used, and allowed for that
+crate in `xtask/src/deps.rs` (`THIRD_PARTY`), which `cargo xtask check-deps` enforces; `cargo deny check` checks their
+licences and advisories (`deny.toml`). Adding one is a decision for the pull request; REFACTOR-ROADMAP.md
+("Decisions") lists the crates agreed for the refactoring, with their versions and features pinned in
+`[workspace.dependencies]`.
+
+## The boot runtime (`zbm`)
+
+| Crate | Used by | Why |
+| --- | --- | --- |
+| `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-luks`, `zbm-app` | Error enums with their causes; runs at build time only |
+| `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app` | Spans and events; the stderr output and the JSON journal |
+| `serde_json` | `zbm-trace` | The JSON journal |
+| `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets, terminal output and key input |
+| `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
+
+Their own dependencies are vendored with them; `cargo tree -e normal -p zbm` lists everything that is compiled into
+`zbm`. Some vendored crates are never compiled for Linux: `windows-sys`, `winapi`, `wasi`, `redox_syscall` and the
+like, which `Cargo.lock` records for other platforms, and proc-macro helpers such as `darling` and `derive_more`,
+which run at build time only.
+
+## Host tools
+
+| Crate | Used by | Why |
+| --- | --- | --- |
+| `yaml-rust2` | `generate-zbm` | Reads `/etc/zfsbootmenu/config.yaml` as the Perl `YAML::PP` did |
+| `hashlink`, `hashbrown`, `foldhash`, `arraydeque` | (`yaml-rust2`) | Its dependencies |
+
+## Tests
+
+These are development dependencies only, allowed for every crate (`TEST_THIRD_PARTY` in `xtask/src/deps.rs`).
+
+| Crate | Why |
+| --- | --- |
+| `insta` | Snapshot tests: the menu's screens (`crates/zbm-tui/src/snapshots/`) |
+| `proptest` | Property tests: parsing never panics, valid values round-trip (`zbm-types`) |
+| `pretty_assertions` | Readable diffs when an assertion of equality fails |
+
+## Developer tooling
+
+Used by `xtask` alone, never by an image or a host tool.
+
+| Crate | Why |
+| --- | --- |
+| `syn`, `proc-macro2`, `unicode-ident` | Parse Rust source for `cargo xtask metrics` |
+| `serde_json` | Read `cargo metadata` and clippy's JSON messages, write `target/metrics.json` |
+
+## Agreed, not used yet
+
+Pinned in `[workspace.dependencies]` and vendored when a crate first uses them: `uucore` (`zbm-coreutils`, R2) and
+`serde` with `derive` (the JSON adapters of `zbm-zfs` and `zbm-crypt`, R2). `crossterm` is pinned for direct use but
+reached through `ratatui::crossterm` so far, which keeps one version.
+
+## Vendored but never built
+
+`serde_json` names `serde`, and `serde_core` names `serde_derive`, as dependencies for a target that never matches
+(`cfg(any())`), to keep the versions of the serde crates in step. Cargo records them in `Cargo.lock` and therefore
+vendors them, with what `serde_derive` needs: `quote` and `syn` 3. None of them is compiled.

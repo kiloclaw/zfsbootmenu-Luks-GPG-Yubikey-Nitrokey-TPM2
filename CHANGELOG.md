@@ -107,6 +107,18 @@ key to a file, and computes the salted TPM2 PIN in the process instead of passin
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 
+### Refactoring pilots
+
+`REFACTOR-ROADMAP.md` plans the refactoring of the Rust code into layers (domain types, ports, adapters, an
+application layer and front ends) and a new menu on Ratatui. Two pilots run the new layers beside today's code in
+images built with `zfsbootmenu_runtime="rust"`; nothing uses them unless asked:
+
+- `zluks --pilot open DEVICE NAME --key-file PATH` opens one LUKS volume with a key file, which goes to `cryptsetup`
+  on standard input; `--journal FILE` writes every step, and every program run, as JSON lines. Mappings it opens are
+  not closed by the teardown hook.
+- `zbm-menu-pilot` (run as `/libexec/zbm zbm-menu-pilot`) shows the boot environments of the imported pools in the
+  new menu and prints the one chosen; it boots nothing. `--demo` shows an example machine.
+
 ## ZFSBootMenu v3.1.0 (2026-01-01)
 
 ZFSBootMenu v3.1.0 includes fixes, additional platform tooling and feature enhancements. 

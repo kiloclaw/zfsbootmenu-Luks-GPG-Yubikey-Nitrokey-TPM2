@@ -30,6 +30,14 @@ pub const STRICT_LINTS: &[&str] = &[
     "clippy::dbg_macro",
 ];
 
+/// Lints of [`STRICT_LINTS`] that refactored code does not follow, each with
+/// the reason.
+///
+/// - `clippy::must_use_candidate` asks for `#[must_use]` on every getter. The
+///   refactoring puts it where ignoring a value is a mistake (outcomes and
+///   errors), as the Rust API Guidelines do, not on every method.
+pub const STRICT_ALLOWED: &[&str] = &["clippy::must_use_candidate"];
+
 /// The directory of the strict `clippy.toml`, relative to the root.
 pub const STRICT_CONFIG: &str = "xtask/strict";
 
@@ -113,6 +121,10 @@ pub fn strict(workspace: &Workspace) -> Result<()> {
     ];
     for lint in STRICT_LINTS {
         args.push("-W".to_owned());
+        args.push((*lint).to_owned());
+    }
+    for lint in STRICT_ALLOWED {
+        args.push("-A".to_owned());
         args.push((*lint).to_owned());
     }
     let output = cargo::cargo(root)

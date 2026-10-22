@@ -55,7 +55,9 @@ discussion in the pull request instead.
 ## Strict lints
 
 `cargo xtask lint --strict` runs clippy with `clippy::pedantic`, the no-panic lints (`unwrap_used`, `expect_used`,
-`panic`, `indexing_slicing`, `unreachable`, `todo`, `dbg_macro`) and the configuration in `xtask/strict/clippy.toml`,
+`panic`, `indexing_slicing`, `unreachable`, `todo`, `dbg_macro`), except `must_use_candidate` (`#[must_use]` belongs
+on outcomes and errors, not on every getter; `STRICT_ALLOWED` in `xtask/src/lint.rs`), and the configuration in
+`xtask/strict/clippy.toml`,
 which forbids running programs, touching files, reading the environment or the clock, and printing, outside the real
 implementations of the system interfaces. It builds in `target/strict` so the normal build stays cached, prints the
 findings per crate and per lint, and writes them to `target/strict/strict-lints.txt`.

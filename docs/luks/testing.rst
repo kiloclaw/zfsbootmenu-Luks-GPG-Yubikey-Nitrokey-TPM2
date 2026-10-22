@@ -260,6 +260,12 @@ Following a boot
     the menu and of the recovery shell, on the console. The legacy run records them; the Rust run must reproduce
     those of the hook and the shell (its menu arrives with package E).
 
+* ``runtime-rust-pilot`` runs the pilots of ``REFACTOR-ROADMAP.md`` in the Rust image, from the recovery shell on the
+  serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the
+  list and Enter chooses ``tplain/ROOT/be``, with the frame times and serial bytes it reports; and
+  ``zluks --pilot open`` on a LUKS volume formatted in the VM, refused with a wrong key file and opened with the
+  right one, with its JSON journal.
+
 Results
 -------
 
@@ -346,7 +352,7 @@ Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), on
-22 October 2026. The ``complex`` tests fail because their boot pool's root is a locked ZFS encryption root, which the
+22 October 2026, and ``runtime-rust-pilot``, which exists only for the Rust image. The ``complex`` tests fail because their boot pool's root is a locked ZFS encryption root, which the
 Rust runtime does not handle yet: it refuses to boot and opens the recovery shell. In ``complex-degraded`` and the two
 hot-plug tests, every LUKS, import and teardown check passes and only the boot environment's checks fail.
 ``complex-healthy`` and ``complex-crypttab`` did not import the pools in this run, and ``complex-badkey`` and
@@ -385,7 +391,8 @@ Test                            Passed  Failed  Duration
 ``runtime-rust-waitfor``        15      0       6 min
 ``runtime-rust-hooks``          13      0       5 min
 ``runtime-rust-signals``        9       0       2 min
-Total                           441     90
+``runtime-rust-pilot``          13      0       1 min
+Total                           454     90
 ==============================  ======  ======  ========
 
 Problems found and fixed

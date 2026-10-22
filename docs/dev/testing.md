@@ -4,6 +4,7 @@
 
 | Suite | Command | Needs | Where |
 | --- | --- | --- | --- |
+| Rust device tests (real LUKS volumes on loop devices) | `sudo env ZBM_DEVICE_TESTS=1 cargo test -p zbm-crypt --test devices` | root, `losetup`, `cryptsetup`, a kernel with device-mapper; they skip and say why otherwise | `crates/*/tests/devices.rs` |
 | Rust unit, parity and recorded-output tests | `cargo xtask test` | the Rust toolchain; Bash, Perl with `YAML::PP`, `Sort::Versions` and `boolean`, binutils and `systemd-boot-efi` for the parity tests, which skip what they cannot run | next to the code, `crates/*/tests/` |
 | LUKS unit suites, legacy runtime | `tests/luks/unit/run-all.sh` | root, cryptsetup, swtpm, clevis, GnuPG, FIDO2 tools | `tests/luks/unit/` |
 | LUKS unit suites, Rust runtime | `ZBMTEST_IMPL=rust tests/luks/unit/run-all.sh` | as above, and the test build of `zbm` (`cargo build -p zbm --features test-seams`) | `tests/luks/unit/` |
@@ -11,6 +12,10 @@
 | LUKS VM tests | `tests/luks/vm/run-all.sh [test ...]`; `ZBMTEST_ZBM_RUNTIME=rust` boots the Rust runtime | root, QEMU (KVM if available), the build container image | `tests/luks/vm/` |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS | `tests/README.md` |
 | Same images from the Perl and Rust `generate-zbm` | `scripts/dev/compare-generators.sh` | podman or docker | |
+
+`runtime-rust-pilot` (`tests/luks/vm/run-all.sh runtime-rust-pilot`) runs the pilots of REFACTOR-ROADMAP.md in the
+Rust image: the menu on the serial console with `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS
+volume formatted inside the VM.
 
 [docs/luks/testing.rst](../luks/testing.rst) describes every LUKS test and its latest results. CI runs the Rust tests
 and both LUKS unit suites on every pull request that touches the code they cover.
@@ -32,6 +37,12 @@ people and for AI tools alike:
 - **Self-contained:** a test does not depend on another test, on the host's tools, or on the order tests run in.
 - **Secrets:** a test that handles a secret ends with `FakeSystem::assert_no_leak`, which fails if the secret reached
   arguments, the environment, files, logs or the screen.
+- **Snapshot tests for screens:** the menu's `view` is drawn into Ratatui's `TestBackend` at 80×25, 120×40 and 52×20
+  and compared with `insta` snapshots in `crates/zbm-tui/src/snapshots/`. After a deliberate change, review the new
+  screens with `cargo insta review`, or accept them with `INSTA_UPDATE=always cargo test -p zbm-tui`, and read the
+  diff of the `.snap` files in the pull request.
+- **Property tests for parsers:** `proptest` checks that parsing any text never panics and that valid values
+  round-trip (`zbm-types`).
 - **Recorded output over hand-written output:** parsers are tested against output recorded from the real programs
   (`crates/*/tests/fixtures/`, recorded by `scripts/dev/record-fixtures.py` and
   `scripts/dev/record-luks-fixtures.sh`).

@@ -12,6 +12,7 @@ ends up in Rust.
 ## Contents
 
 - [Status](#status)
+- [What the pilots taught](#what-the-pilots-taught)
 - [Goals](#goals)
 - [Where the code stands](#where-the-code-stands)
 - [Findings](#findings)
@@ -45,20 +46,81 @@ Done in R0:
   generated from them.
 - The starting metrics in `xtask/metrics-baseline.txt`; CI fails when a crate's debt rises.
 - CI runs `cargo xtask lint` and `cargo xtask test`, and the strict report in a job of its own.
-- `docs/dev/` (architecture, testing, tooling) and `vendor/README.md`. The shell width check is replaced by
+- `docs/dev/` (architecture, testing, tooling, dependencies). The shell width check is replaced by
   `cargo xtask widths`.
 - [Decisions](#decisions) 1, 2, 3 and 5. The agreed crates are pinned, with their features, in
   `[workspace.dependencies]`; they build together on Rust 1.88, the new minimum, which also brings let chains.
 - `cargo deny` checks licences, advisories, sources and banned crates (`deny.toml`), in CI.
 - Package B of PORT-ROADMAP.md is merged into this branch, with its VM results.
+- Both pilot slices, with unit, snapshot, property and device tests, and the VM test `runtime-rust-pilot`, which
+  runs them in the Rust image on a serial console. [What the pilots taught](#what-the-pilots-taught) lists what they
+  changed.
 
 Open in R0:
 
-- The two pilot slices, which vendor the first agreed crates as they use them.
-- `xtask bless`, with the first `insta` snapshot test; `cargo nextest`.
+- `cargo nextest`; `xtask bless` (snapshots are accepted with `cargo insta review` meanwhile).
 - The strict-lint list (`xtask/strict/crates.txt`, starting with `xtask`) and coverage in the metrics baseline
   ([How the rules are enforced](#how-the-rules-are-enforced)).
 - Decisions 4 and 6 belong to later phases (R2 and R9).
+
+## What the pilots taught
+
+The two pilot slices of R0 ran through every layer of the target architecture: key-file unlock
+(`zluks --pilot open`: `zbm-types`, `zbm-trace`, `zbm-platform`, `zbm-crypt`, the `unlocker` of `zbm-luks`,
+`zbm-app`) and the boot environment list of the new menu (`zbm-menu-pilot`: `zbm-app`'s `Snapshot`, `zbm-tui`). Both
+work in the Rust image on a serial console (`runtime-rust-pilot`). The architecture holds; these are the changes and
+measurements they brought, which R1 to R5 follow.
+
+**Crate boundaries and layers.** Three layers were added to the table in `xtask/src/deps.rs`: `types` above `unsafe`
+(`zbm-types`), `ports` between platform and adapters (`zbm-platform`), and `application` between domain and
+orchestration (`zbm-app`). `zbm-tui` sits with `zbm` among the front ends. `check-deps` caught six new crates
+without a layer and four third-party crates nobody had allowed, at once; test-only crates (`insta`, `proptest`,
+`pretty_assertions`) are now allowed as development dependencies of every crate (`TEST_THIRD_PARTY`).
+
+**The shape of `Context`.** A `Context` is the runner (traced), the files and the clock. It must not require a
+console: the real `System` bundles one, which needs a terminal, and `zluks --pilot` run from a script has none.
+`Context::from_parts` builds one from the ports a program has; R2 makes that the only constructor, and the console a
+port of front ends.
+
+**Errors and outcomes.** Typestate with a hand-back works: `Mapping<Closed>` → `Mapping<Open>` through
+`Cryptsetup::open`, and a failure (`Failed<S>`) returns the mapping unchanged with a `CryptError`, so the chain of key
+methods passes it on without clones. `cryptsetup`'s exit statuses map onto typed errors (2 a wrong key, 4 no device, 5
+busy), as a real run in the VM confirmed. "One error enum per crate" bends where a struct reads better:
+`zbm_types::ParseError` is one struct with a `Reason` enum.
+
+**Events.** `Event` is `#[non_exhaustive]`, so every front end matching it needs a catch-all arm; instead, `Event`
+implements `Display` in `zbm-app` and front ends print it. `App::perform` returns `Vec<Event>` for now; the event
+stream waits for a use case that emits events over time (R4).
+
+**Tracing and the journal.** The traced runner, a decorator, gives the command journal for free. Spans carry domain
+fields only (`device`, `name`, the action's `kind`), never the debug text of a request. Journal lines need the
+process ID besides the sequence number, because several programs append to one journal.
+
+**The menu on a serial console.** Ratatui asks the terminal where the cursor is (`ESC [ 6 n`) when it starts; a
+serial console with nobody answering makes it fail. `zbm-tui`'s backend therefore never asks: it keeps the cursor
+position and the size itself (`QuietBackend`). Serial consoles report no size, or whatever `stty` set; the menu uses
+the reported size, else `--size`, else 80×24, in a fixed viewport. `TERM=vt100` gets ASCII borders. Typing filters and
+Enter chooses on both `TERM=vt100` and `TERM=linux`. `nucleo-matcher` inside `update` keeps it pure and fast for the
+short lists of a boot menu.
+
+**Measured.** In the VM, under software emulation (TCG): frames of 15 to 24 ms on average and 38 to 64 ms at most;
+about 76 serial bytes per key typed into the filter, because Ratatui redraws only the cells that change; 0.06 s from
+Enter to the answer. The release `zbm` grows from 1.09 MB to 1.78 MB with Ratatui, crossterm, `nucleo-matcher` and
+`tracing`, about 1% of a 62 MB initramfs.
+
+**Tests.** Snapshot tests paid off at once: the 52-column screen showed the help line cut mid-word, so the help line
+now shows whole key bindings in order of importance. The VM harness needs a terminal emulator: Ratatui moves the
+cursor over blank cells instead of writing spaces, so a serial transcript reads `Boot` + cursor move +
+`environments`. R3 adds one (the `vt100` crate) to `zbm-vmtest`, which can then take `insta` snapshots of real
+screens. Patterns must also wait for the end of a line, or they match half of it. Device tests need a kernel with
+device-mapper, which this development sandbox lacks: they skip and say so, and run in CI and in the VM.
+
+**Lints.** `clippy::must_use_candidate` made up 313 of the 1,105 strict findings, nearly all of them getters; the
+strict set allows it (`STRICT_ALLOWED`) and puts `#[must_use]` where ignoring a value is a mistake. The pilot crates
+have no strict finding.
+
+**Tooling.** `cargo vendor` deletes every other file in `vendor/`, so the list of dependencies moved to
+`docs/dev/dependencies.md`.
 
 ## Goals
 
@@ -319,8 +381,8 @@ nobody can read. After the refactor:
    `&Context`.
 8. **Secrets:** unchanged rule: secrets reach programs only on standard input, are captured as `Secret`, and never
    reach arguments, the environment, files, logs or the screen; `zbm-trace` redacts `Secret` fields by type.
-9. **Dependencies:** vendored, each with a written reason in `vendor/README.md`, checked with `cargo deny` (licences,
-   advisories, duplicates).
+9. **Dependencies:** vendored, each with a written reason in `docs/dev/dependencies.md`, checked with `cargo deny`
+   (licences, advisories, duplicates).
 10. **Everything new is Rust:** no new Bash, Perl or Python, including tests and tooling.
 
 ## How the rules are enforced
@@ -500,7 +562,7 @@ tests are the proof); behaviour changes start with R5.
   legacy runtime goes.
 - Add `xtask` with `lint`, `test`, `doc`, `bless`, `check-deps` and `metrics`; add `cargo deny`, `cargo nextest`, and
   the lints of [How the rules are enforced](#how-the-rules-are-enforced) as warnings. Record the starting metrics.
-- Vendor the agreed crates; write `vendor/README.md`.
+- Vendor the agreed crates; write `docs/dev/dependencies.md`.
 - Write `docs/dev/architecture.md` (the diagram above, crate by crate) and `docs/dev/testing.md`.
 - **Pilot slices.** Before any crate is migrated, build two thin features through every layer of the target
   architecture, so that the design is tested on real code while it is still cheap to change:
@@ -573,8 +635,10 @@ tests are the proof); behaviour changes start with R5.
   `zbm debug config`, built on the [option specification table](#options-defined-once); `xtask gen-docs` generates
   the option sections of `zfsbootmenu(7)`, `zfsbootmenu-crypttab(5)` and `generate-zbm(5)`, and CI checks them.
 - Split `import.rs`, `boot.rs`, `generate.rs` along these lines; no module over 600 lines.
-- **Port the VM test harness to Rust** (`zbm-vmtest`, alongside R3 and R4): the QEMU driver, a serial console with
-  `expect`-style matching, swtpm and USB hot-plug, disk builders, and the existing LUKS scenarios. This has to be done
+- **Port the VM test harness to Rust** (`zbm-vmtest`, alongside R3 and R4): the QEMU driver, a serial console read
+  through a terminal emulator (the `vt100` crate), so that screens are matched, and snapshotted with `insta`, as the
+  text a user sees, `expect`-style matching of whole lines, swtpm and USB hot-plug, disk builders, and the existing
+  LUKS scenarios. This has to be done
   before R5: the menu's VM tests are new, and written once, in Rust, instead of in Python and again in R7. Python and
   Rust harnesses run the same scenarios until their results match, then the Python harness is removed.
 - **Exit:** the size and type rules hold in these crates (checked by `xtask metrics`); golden files unchanged; the VM
