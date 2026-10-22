@@ -52,7 +52,7 @@ bytes into values; each one in this table must fail with an error on hostile inp
 | I6 | Hooks below `zbm.hookroot` | A1 (names the root), A3 (fills it) | `zbm_boot::hooks` (they are run, not parsed) |
 | I7 | crypttab and key files on removable devices | A2 | `zbm_luks::config::load_config`, `zbm_luks::keyfile` |
 | I8 | LUKS headers: `cryptsetup luksDump` text and JSON metadata, token JSON | A1, A2 | `zbm_luks::tokens` (`parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool`) |
-| I9 | Output of the programs the runtime runs (`zpool`, `zfs`, `blkid`, `cryptsetup`, `tpm2_*`, `fido2-*`, `gpg`, `ykchalresp`) | A2, A3 through the data they print | the adapters of each program; `zbm_boot::import::scrape_hostid` |
+| I9 | Output of the programs the runtime runs (`zpool`, `zfs`, `blkid`, `cryptsetup`, `tpm2_*`, `fido2-*`, `gpg`, `ykchalresp`) | A2, A3 through the data they print | the adapters of each program; `zbm_pool::hostid::scrape_hostid` |
 | I10 | Key presses on the console | A2 (a fake keyboard) | the menu (`zbm-tui`), prompts |
 | I11 | The state files of `/zfsbootmenu` (`luks-mappings`, `degraded`, command line caches) | Only ZFSBootMenu itself writes them; listed because hooks (I6) can | `zbm_luks::mappings::parse_mappings`, `zbm_state` |
 | I12 | EFI images that `zbm-kcl` edits, and `generate-zbm`'s configuration | The host's root user | `zbm-kcl`, `generate-zbm` (host tools: trusted input, but they must not crash on a broken file) |
@@ -106,12 +106,12 @@ night.
 | `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion`, `ImportPolicy`, `Stage`, `HookStage`, and the version order | I1, I3, I5, I7 | A1, A2, A3 |
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |
-| `program_output` | `zbm_zfs::parse_table`, `zbm_boot::import::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
+| `program_output` | `zbm_zfs::parse_table`, `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
 
 A parser that a phase adds or moves gets a target, or joins one, in the same pull request, and this table says which.
 
 Findings so far:
 
-- `program_output`, on its first run: `zbm_boot::import::scrape_hostid` sliced the output of `zpool import` at byte
+- `program_output`, on its first run: `zbm_pool::hostid::scrape_hostid` sliced the output of `zpool import` at byte
   positions, and panicked when text that is not ASCII came before `hostid=`. A pool someone else controls (A3) could
   stop the start-up program with it. Fixed, with the input as a unit test.

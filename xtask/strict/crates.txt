@@ -7,6 +7,7 @@ zbm-coreutils
 zbm-crypt
 zbm-menu
 zbm-platform
+zbm-pool
 zbm-testkit
 zbm-tools
 zbm-trace

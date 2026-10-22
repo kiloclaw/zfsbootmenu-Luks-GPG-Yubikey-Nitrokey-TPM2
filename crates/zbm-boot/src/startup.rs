@@ -22,13 +22,14 @@ use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::boot::{self, BootSettings};
 use crate::error::BootError;
-use crate::import::{self, Import, Settings};
+use crate::import::{self, Import, ImportSettings};
 use crate::kernels::Kernel;
 use crate::prompt::{Answer, TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
 use crate::support::{self, Facts, Unsupported};
 use crate::{devices, hooks, hostid, modules};
-use zbm_types::{ImportPolicy, Stage};
+use zbm_pool::{BootfsPreference, Build, PoolRef, Requirement, RetryDelay};
+use zbm_types::Stage;
 
 /// Whether a variable such as `ZFSBOOTMENU_FORCE_INIT` is on: `yes`, `y`,
 /// `true`, `t` or `1`, in any case.
@@ -179,7 +180,7 @@ pub struct Startup<'a> {
     _log: Installed,
     options: ZbmOptions,
     args: ZbmArgs,
-    release_build: bool,
+    build: Build,
     hooks: PathBuf,
 }
 
@@ -202,7 +203,11 @@ impl<'a> Startup<'a> {
             _log: log,
             options,
             args,
-            release_build: !conf.get("ZBM_RELEASE_BUILD").unwrap_or_default().is_empty(),
+            build: if conf.get("ZBM_RELEASE_BUILD").unwrap_or_default().is_empty() {
+                Build::Local
+            } else {
+                Build::Release
+            },
             hooks: PathBuf::from(hooks::HOOKS),
         }
     }
@@ -217,14 +222,14 @@ impl<'a> Startup<'a> {
         Shell::new(self.system, &self.state)
     }
 
-    fn import_settings(&self) -> Settings {
-        Settings {
-            import_policy: self.options.import_policy,
-            prefer_pool: self.options.prefer_pool.clone(),
-            require_pool: self.options.require_pool.clone(),
-            prefer_bootfs: self.options.prefer_bootfs.clone(),
-            retry_delay: self.options.retry_delay.clone(),
-            release_build: self.release_build,
+    fn import_settings(&self) -> ImportSettings {
+        ImportSettings {
+            policy: self.options.import_policy,
+            prefer_pool: PoolRef::new(&self.options.prefer_pool),
+            requirement: Requirement::from_conf(&self.options.require_pool),
+            prefer_bootfs: BootfsPreference::from_conf(&self.options.prefer_bootfs),
+            retry_delay: RetryDelay::from_conf(&self.options.retry_delay),
+            build: self.build,
         }
     }
 
@@ -305,7 +310,7 @@ impl<'a> Startup<'a> {
                 Stage::ImportPools => {
                     let settings = self.import_settings();
                     let imported = import::stage(system, &self.state, &settings, &mut shell);
-                    bootfs = imported.bootfs;
+                    bootfs = imported.bootfs.map(|dataset| dataset.to_string());
                 }
             }
             if let Err(error) = self.state.finish_stage(stage.as_str()) {
@@ -384,16 +389,12 @@ impl<'a> Startup<'a> {
             round += 1;
             self.shell().emergency_shell(support::MESSAGE);
 
-            let pool = if self.options.require_pool == "only" {
-                self.options.prefer_pool.as_str()
-            } else {
-                ""
-            };
-            let reimport = Import {
-                pool,
-                force: self.options.import_policy == ImportPolicy::Force,
-                ..Import::default()
-            };
+            let settings = self.import_settings();
+            let pool = settings
+                .prefer_pool
+                .as_ref()
+                .filter(|_| settings.requirement == Requirement::Only);
+            let reimport = Import::target(pool).policy(settings.policy);
             let _ = import::import_pool(&self.system, &self.state, reimport);
             let output = ZpoolCommand::new(self.system.runner)
                 .text(&["list", "-H", "-o", "name,health"], Stderr::Hidden)

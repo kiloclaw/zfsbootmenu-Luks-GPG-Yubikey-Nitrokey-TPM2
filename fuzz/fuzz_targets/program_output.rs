@@ -7,8 +7,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use zbm_boot::import::scrape_hostid;
 use zbm_luks::mappings::parse_mappings;
+use zbm_pool::hostid::scrape_hostid;
 use zbm_zfs::{json, parse_table, text};
 
 fuzz_target!(|data: &[u8]| {

@@ -78,3 +78,32 @@ impl Files for Redirect {
         RealFiles.canonicalize(self.map(path))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbm_testkit::TempDir;
+
+    #[test]
+    fn redirect_moves_only_the_listed_paths() {
+        let dir = TempDir::new("zbm-redirect");
+        let moved = dir.join("moved");
+        let files = Redirect::new(&[("/no/such/file", &moved)]);
+        let from = Path::new("/no/such/file");
+        files.write(from, b"a").unwrap();
+        files.append(from, b"b").unwrap();
+        assert_eq!(files.read_prefix(from, 1).unwrap(), b"a");
+        assert_eq!(std::fs::read(&moved).unwrap(), b"ab");
+        let renamed = dir.join("renamed");
+        files.rename(from, &renamed).unwrap();
+        assert_eq!(files.canonicalize(&renamed).unwrap(), renamed);
+        files.set_mode(&renamed, 0o600).unwrap();
+        files.remove_file(&renamed).unwrap();
+        let sub = dir.join("a/b");
+        files.create_dir_all(&sub).unwrap();
+        files.create_dir(&sub.join("c")).unwrap();
+        files.remove_dir(&sub.join("c")).unwrap();
+        assert_eq!(files.read_dir(&sub).unwrap().len(), 0);
+        assert!(files.shared().exists(&sub));
+    }
+}

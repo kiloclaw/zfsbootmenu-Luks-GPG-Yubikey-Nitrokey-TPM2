@@ -15,9 +15,9 @@ use zbm_zfs::{Stderr, ZpoolCommand};
 use super::{Comparison, Selected};
 use crate::boot::zfs_value;
 use crate::commandline::ETC_HOSTID;
-use crate::hostid::{DEFAULT_HOSTID, normalize};
-use crate::import::{Settings, choose_bootfs, imported_pools};
+use crate::import::{ImportSettings, choose_bootfs, imported_pools};
 use crate::kernels;
+use zbm_pool::{HostId, Requirement};
 
 /// `/etc/zfsbootmenu.conf`, or an empty one when it cannot be read.
 fn configuration(files: &dyn Files) -> Conf {
@@ -43,7 +43,7 @@ fn etc_hostid(files: &dyn Files) -> Option<String> {
 /// ID that pool import matched.
 pub fn host_id(files: &dyn Files, state: &State<'_>) -> Option<Comparison> {
     let rust = if let Some(matched) = state.spl_hostid() {
-        normalize(&matched)?
+        HostId::from_hex(&matched)?.to_string()
     } else {
         let given = configuration(files)
             .get("spl_hostid")
@@ -52,7 +52,9 @@ pub fn host_id(files: &dyn Files, state: &State<'_>) -> Option<Comparison> {
         if given.is_empty() {
             return None;
         }
-        normalize(&given).unwrap_or_else(|| DEFAULT_HOSTID.to_owned())
+        HostId::from_hex(&given)
+            .unwrap_or_else(HostId::default_id)
+            .to_string()
     };
     Some(Comparison {
         decision: "host ID",
@@ -87,13 +89,11 @@ pub fn pools(runner: &dyn Runner, files: &dyn Files) -> Option<Comparison> {
     if imported.is_empty() {
         return None;
     }
-    let settings = Settings::from_conf(&configuration(files));
-    let expected: Vec<String> =
-        if settings.require_pool == "only" && !settings.prefer_pool.is_empty() {
-            vec![settings.prefer_pool.clone()]
-        } else {
-            imported.clone()
-        };
+    let settings = ImportSettings::from_conf(&configuration(files));
+    let expected: Vec<String> = match &settings.prefer_pool {
+        Some(pool) if settings.requirement == Requirement::Only => vec![pool.to_string()],
+        _ => imported.clone(),
+    };
     Some(Comparison {
         decision: "pools",
         legacy: readonly_list(runner, &imported),
@@ -155,11 +155,12 @@ pub fn boot_environment(
     state: &State<'_>,
 ) -> Option<Comparison> {
     let legacy = state.bootfs()?;
-    let settings = Settings::from_conf(&configuration(files));
+    let settings = ImportSettings::from_conf(&configuration(files));
     Some(Comparison {
         decision: "default boot environment",
         legacy,
-        rust: choose_bootfs(runner, &settings).unwrap_or_else(|| "none".to_owned()),
+        rust: choose_bootfs(runner, &settings)
+            .map_or_else(|| "none".to_owned(), |dataset| dataset.to_string()),
     })
 }
 

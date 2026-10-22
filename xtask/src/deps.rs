@@ -67,8 +67,9 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "domain",
-        purpose: "LUKS volumes and key methods, kernel command lines of boot environments",
-        crates: &["zbm-luks", "zbm-kcl"],
+        purpose: "LUKS volumes and key methods, pool import, kernel command lines of boot \
+                  environments",
+        crates: &["zbm-luks", "zbm-kcl", "zbm-pool"],
     },
     Layer {
         name: "application",
@@ -110,6 +111,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
+    ("zbm-pool", &["thiserror"]),
     (
         "zbm-platform",
         &["serde_json", "tracing", "tracing-subscriber"],

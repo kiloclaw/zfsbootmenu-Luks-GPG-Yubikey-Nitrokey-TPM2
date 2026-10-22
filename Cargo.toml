@@ -28,6 +28,7 @@ zbm-coreutils = { path = "crates/zbm-coreutils" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-luks = { path = "crates/zbm-luks" }
+zbm-pool = { path = "crates/zbm-pool" }
 zbm-menu = { path = "crates/zbm-menu" }
 zbm-platform = { path = "crates/zbm-platform" }
 zbm-state = { path = "crates/zbm-state" }

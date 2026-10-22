@@ -11,17 +11,9 @@ pub enum BootError {
     /// No boot environment was named.
     #[error("the boot environment is undefined")]
     NoFilesystem,
-    /// `zpool import` failed.
-    #[error("zpool import {target} failed (status {status})")]
-    Import {
-        /// The pool, or `-a` for all.
-        target: String,
-        /// Its exit status (126 when it could not start).
-        status: i32,
-    },
-    /// A rewind to a checkpoint was asked for all pools at once.
-    #[error("rewind only works on a specific pool")]
-    RewindAll,
+    /// Pool import failed.
+    #[error(transparent)]
+    Pool(#[from] zbm_pool::PoolError),
     /// `zpool export` failed.
     #[error("zpool export {pool} failed (status {status})")]
     Export {
@@ -93,10 +85,10 @@ mod tests {
     fn errors_name_what_failed() {
         let cases = [
             (
-                BootError::Import {
+                BootError::Pool(zbm_pool::PoolError::Import {
                     target: "-a".to_owned(),
                     status: 1,
-                },
+                }),
                 "zpool import -a failed (status 1)",
             ),
             (
@@ -111,7 +103,6 @@ mod tests {
                 },
                 "not supported yet: x; y",
             ),
-            (BootError::RewindAll, "rewind only works on a specific pool"),
         ];
 
         for (error, text) in cases {

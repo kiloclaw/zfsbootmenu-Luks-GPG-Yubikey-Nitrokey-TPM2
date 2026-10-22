@@ -25,7 +25,7 @@ legacy runtime has chosen a boot environment and before it loads the kernel. Ima
 | host ID | `/etc/hostid`, as the start-up stage wrote it | the host ID chosen from `spl_hostid` |
 | pools | the pools imported, read-only or not | what the start-up program imports: the preferred pool alone when `zbm.prefer=pool!!`, every pool read-only |
 | LUKS mappings | the mappings in `luks-mappings` | the crypttab name, or `luks-<UUID>` for volumes discovery found |
-| default boot environment | the `bootfs` the start-up stage chose | `zbm_boot::import::choose_bootfs` |
+| default boot environment | the `bootfs` the start-up stage chose | `zbm_pool::choose_bootfs` |
 | kernel | `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS` | the kernel `org.zfsbootmenu:kernel` and the version order choose |
 
 A decision whose inputs are missing (no LUKS volume, no `bootfs`) is left out rather than counted. A kernel picked by

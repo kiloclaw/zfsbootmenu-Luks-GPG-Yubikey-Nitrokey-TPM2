@@ -36,7 +36,8 @@ ends up in Rust.
 | R0 | Done on branch `claude/zbm-refactor` |
 | R1 | Done on branch `claude/zbm-refactor` |
 | R2 | Done on branch `claude/zbm-refactor` |
-| R3 to R9 | Not started |
+| R3 | In progress on branch `claude/zbm-refactor` |
+| R4 to R9 | Not started |
 
 Done in R0:
 
@@ -208,6 +209,20 @@ Done in R2:
 
 R2 is complete. Carried over: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services),
 and fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions).
+
+Done in R3:
+
+- `zbm-pool` (domain): pool import moved out of `zbm-boot`. The settings are types (`ImportSettings` with
+  `PoolRef`, `Requirement`, `BootfsPreference`, `RetryDelay` and `Build`, instead of strings and a flag);
+  `Import` builds `zpool import` from `Target`, `ImportPolicy`, `Access` and `Rewind`; `HostId` is the host ID with
+  its `/etc/hostid` bytes. The retry loop of the start-up stage is `ImportLoop`, a state machine whose transitions
+  (`imported`, `matched`) do no I/O and are tested as a table of paths; `stage` drives it against the system and
+  reaches the console only through the `Operator` port, which `zbm-boot` implements with its countdown prompts and
+  recovery shell. The crate meets the size and type rules and the strict lints, and has no doc comment that names a
+  legacy function. The parity tests of the stage stay in `zbm-boot` and pass against the legacy stage with their
+  recordings unchanged; they caught a dropped debug message during the move. The stage keeps the `zpool` command
+  lines of the legacy code, which those recordings compare, so moving it onto the typed ZFS port waits until the
+  parity tests against the legacy runtime end (R9) or behaviour may change (R5).
 
 ## What the pilots taught
 

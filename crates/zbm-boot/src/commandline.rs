@@ -14,11 +14,7 @@ use zbm_state::State;
 use zbm_tools::kexec;
 use zbm_trace::Message;
 
-/// The module parameter that holds the host ID SPL uses.
-pub const SPL_HOSTID: &str = "/sys/module/spl/parameters/spl_hostid";
-
-/// The host ID file.
-pub const ETC_HOSTID: &str = "/etc/hostid";
+pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
 /// The command line of a boot environment that sets none.
 const DEFAULT_ARGS: &str = "quiet loglevel=4";
@@ -28,41 +24,6 @@ const DEFAULT_ARGS: &str = "quiet loglevel=4";
 /// between the legacy ones.
 fn here(text: &str) -> String {
     format!("{}\n", text.trim_end_matches('\n'))
-}
-
-/// The host ID as `get_spl_hostid` reports it (`0x` and eight or more hex
-/// digits): from the SPL module parameter if it is not 0, from `/etc/hostid`,
-/// or from the host ID that pool import matched.
-pub fn spl_hostid(files: &dyn Files, state: &State, log: &mut Vec<Message>) -> Option<String> {
-    if let Ok(text) = files.read_to_string(Path::new(SPL_HOSTID)) {
-        let value = text.lines().next().unwrap_or_default().trim();
-        if let Some(number) = value.parse::<i64>().ok().filter(|number| *number != 0) {
-            log.push(Message::debug(format!(
-                "hostid from spl.spl_hostid: {value}"
-            )));
-            // printf "0x%08x" of the decimal value
-            return Some(format!("0x{:08x}", number as u64));
-        }
-    }
-    if let Ok(bytes) = files.read(Path::new(ETC_HOSTID))
-        && !bytes.is_empty()
-    {
-        // od -tx4 -N4 reads the first four bytes as a native (little-endian)
-        // word, padding a short file with zeros
-        let mut word = [0_u8; 4];
-        for (target, byte) in word.iter_mut().zip(&bytes) {
-            *target = *byte;
-        }
-        let hostid = format!("{:08x}", u32::from_le_bytes(word));
-        log.push(Message::debug(format!("hostid from /etc/hostid: {hostid}")));
-        return Some(format!("0x{hostid}"));
-    }
-    let matched = state.spl_hostid()?;
-    log.push(Message::debug(format!(
-        "hostid from {}/spl_hostid: {matched}",
-        state.base().display()
-    )));
-    Some(format!("0x{matched}"))
 }
 
 /// Whether the command line cache `path` can be used, as

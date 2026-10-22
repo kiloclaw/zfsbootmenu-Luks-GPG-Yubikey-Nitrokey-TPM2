@@ -666,6 +666,7 @@ dependencies = [
  "zbm-core",
  "zbm-luks",
  "zbm-platform",
+ "zbm-pool",
  "zbm-state",
  "zbm-tools",
  "zbm-trace",
@@ -718,6 +719,7 @@ dependencies = [
  "zbm-cmdline",
  "zbm-crypt",
  "zbm-luks",
+ "zbm-pool",
  "zbm-types",
  "zbm-zfs",
 ]
@@ -748,6 +750,19 @@ dependencies = [
  "zbm-core",
  "zbm-sys",
  "zbm-trace",
+]
+
+[[package]]
+name = "zbm-pool"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "zbm-cmdline",
+ "zbm-platform",
+ "zbm-state",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
 ]
 
 [[package]]

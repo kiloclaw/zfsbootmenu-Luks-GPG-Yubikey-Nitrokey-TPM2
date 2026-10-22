@@ -1494,6 +1494,7 @@ dependencies = [
  "zbm-core",
  "zbm-luks",
  "zbm-platform",
+ "zbm-pool",
  "zbm-state",
  "zbm-testkit",
  "zbm-tools",
@@ -1599,6 +1600,21 @@ dependencies = [
  "zbm-sys",
  "zbm-testkit",
  "zbm-trace",
+]
+
+[[package]]
+name = "zbm-pool"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "thiserror",
+ "zbm-cmdline",
+ "zbm-platform",
+ "zbm-state",
+ "zbm-testkit",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
 ]
 
 [[package]]

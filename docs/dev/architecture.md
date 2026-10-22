@@ -28,7 +28,7 @@ dependencies that exist.
 | front ends | `zbm-menu`, `zbm-tui`, `zbm` | The menus and the multi-call binary |
 | orchestration | `zbm-boot`, `generate-zbm` | Start-up and boot; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
-| domain | `zbm-luks`, `zbm-kcl` | LUKS volumes and key methods, kernel command lines of boot environments |
+| domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-cmdline` | State files and the kernel command line |
 | platform | `zbm-platform`, `zbm-coreutils` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context |
@@ -54,6 +54,7 @@ Third-party crates:
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
+- `zbm-pool`: `thiserror`
 - `zbm-platform`: `serde_json`, `tracing`, `tracing-subscriber`
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `nucleo-matcher`, `ratatui`
@@ -90,12 +91,14 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   which the adapters' modules and test builds allow. `zbm-coreutils` (platform) copies, restricts and removes file
   trees in process.
 - **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method; its `unlocker` module is the
-  refactored shape, key methods as strategies tried in order. `zbm-kcl` handles the kernel command lines stored on
-  boot environments.
+  refactored shape, key methods as strategies tried in order. `zbm-pool` imports pools: the import settings as types,
+  `zpool import` with typed options, host IDs, and the retry loop of the start-up stage as a state machine
+  (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its `Operator` port.
+  `zbm-kcl` handles the kernel command lines stored on boot environments.
 - **application**: `zbm-app` is what front ends talk to: they read a `Snapshot`, send an `Action` to
   `App::perform`, and get `Event`s back or an `AppError` with the cause.
-- **orchestration**: `zbm-boot` is the start-up program: modules, host ID, hooks, LUKS, pool import, kernel selection
-  and `kexec`. `generate-zbm` assembles images.
+- **orchestration**: `zbm-boot` is the start-up program: modules, host ID, hooks, LUKS, pool import (through
+  `zbm-pool`, with its own prompts as the `Operator`), kernel selection and `kexec`. `generate-zbm` assembles images.
 - **front ends**: `zbm` dispatches applets by the name it was called with. `zbm-tui` is the new menu in the Elm
   architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
   placeholder it replaces.
