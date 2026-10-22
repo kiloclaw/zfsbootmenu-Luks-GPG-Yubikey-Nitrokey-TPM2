@@ -16,6 +16,7 @@ use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
 use crate::commandline::{self, KexecLoad};
+use crate::error::BootError;
 use crate::hooks;
 use crate::kernels::{self, Kernel};
 use crate::prompt::{TimedPrompt, colorize, tput};
@@ -108,11 +109,16 @@ pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
     readonly == "off"
 }
 
-/// Exports `pool` (`export_pool`) and returns whether that worked.
-pub fn export_pool(runner: &dyn Runner, pool: &str) -> bool {
+/// Exports `pool` (`export_pool`).
+///
+/// # Errors
+///
+/// [`BootError::NoPool`] without a pool, [`BootError::Export`] when
+/// `zpool export` fails.
+pub fn export_pool(runner: &dyn Runner, pool: &str) -> Result<(), BootError> {
     if pool.is_empty() {
         zbm_trace::error!("pool is undefined");
-        return false;
+        return Err(BootError::NoPool);
     }
     zbm_trace::debug!("pool set to {pool}");
     let command = Command::new("zpool").args(["export", pool]);
@@ -121,7 +127,14 @@ pub fn export_pool(runner: &dyn Runner, pool: &str) -> bool {
         Err(_) => 126,
     };
     zbm_trace::debug!("{pool} export process return: {code}");
-    code == 0
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(BootError::Export {
+            pool: pool.to_owned(),
+            status: code,
+        })
+    }
 }
 
 /// The state directory of a boot environment (`be_location`), created if
@@ -206,16 +219,22 @@ fn umount(runner: &dyn Runner, path: &Path) {
 
 /// Finds the kernels of `fs` and records them in its kernel list, as
 /// `find_be_kernels` does, with the command line files next to them in the
-/// command line cache. Returns whether a kernel can be selected.
-pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> bool {
+/// command line cache.
+///
+/// # Errors
+///
+/// [`BootError::NoFilesystem`] without a boot environment,
+/// [`BootError::Mount`] when it cannot be mounted, [`BootError::NoKernel`]
+/// when no kernel can be selected.
+pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> Result<(), BootError> {
     if fs.is_empty() {
         zbm_trace::error!("fs is undefined");
-        return false;
+        return Err(BootError::NoFilesystem);
     }
     zbm_trace::debug!("fs set to {fs}");
     let Some(mnt) = mount_zfs(system, state, fs, Noise::Hidden) else {
         zbm_trace::error!("unable to mount {fs}");
-        return false;
+        return Err(BootError::Mount { fs: fs.to_owned() });
     };
     let mnt_text = mnt.to_string_lossy().into_owned();
     let records = state.kernels(fs);
@@ -273,11 +292,11 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> bool {
     umount(system.runner, &mnt);
 
     if !list.is_empty() && select_kernel(system, state, fs).is_some() {
-        return true;
+        return Ok(());
     }
     zbm_trace::error!("failed to find kernels on {fs}");
     let _ = system.files.remove_file(&records);
-    false
+    Err(BootError::NoKernel { fs: fs.to_owned() })
 }
 
 /// The kernel to boot from the kernel list of `fs`, as `select_kernel`
@@ -323,9 +342,12 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
 }
 
 /// Unmounts everything below `mountpoint`, deepest first, as
-/// `recursive_umount` does when `umount -R` fails. Returns whether all of it
-/// was unmounted.
-pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> bool {
+/// `recursive_umount` does when `umount -R` fails.
+///
+/// # Errors
+///
+/// [`BootError::Unmount`] with the mount points that stay mounted.
+pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), BootError> {
     let quiet = |command: Command| command.stdout(Stream::Null).stderr(Stream::Null);
     let all = quiet(Command::new("umount").arg("-R").arg(mountpoint));
     if system
@@ -333,7 +355,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> bool {
         .run(&all)
         .is_ok_and(|output| output.status.success())
     {
-        return true;
+        return Ok(());
     }
     let pattern = format!("^{}", mountpoint.display());
     let table = system
@@ -348,7 +370,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> bool {
         .collect();
     // sort -n -k1 -r on "depth,path"
     mounts.sort_by(|a, b| b.cmp(a));
-    let mut ok = true;
+    let mut mounted = Vec::new();
     for (_, mp) in mounts {
         let one = quiet(Command::new("umount").arg(&mp));
         if !system
@@ -357,10 +379,14 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> bool {
             .is_ok_and(|output| output.status.success())
         {
             zbm_trace::error!("unable to unmount {mp}");
-            ok = false;
+            mounted.push(mp);
         }
     }
-    ok
+    if mounted.is_empty() {
+        Ok(())
+    } else {
+        Err(BootError::Unmount { mounts: mounted })
+    }
 }
 
 /// Whether the machine booted with UEFI (`is_efi_system`).
@@ -555,7 +581,7 @@ pub fn kexec_kernel(
             "unable to load {mnt_text}{kernel} and {mnt_text}{initramfs} into memory"
         );
         zbm_trace::error!("{}", output);
-        recursive_umount(system, &mnt);
+        let _ = recursive_umount(system, &mnt);
         TimedPrompt::new()
             .delay(10)
             .message(colorize(
@@ -581,7 +607,7 @@ pub fn kexec_kernel(
     for pool in here_lines(&substitution(system.runner, &pools).1) {
         if is_writable(system.runner, &pool) {
             zbm_trace::debug!("{pool} is read/write, exporting");
-            export_pool(system.runner, &pool);
+            let _ = export_pool(system.runner, &pool);
         }
     }
 
@@ -866,8 +892,8 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
     }
 
     impl Recovery for Shells {
-        fn unlock_late(&mut self) -> bool {
-            false
+        fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
+            Err(crate::error::BootError::NoCryptsetup)
         }
 
         fn emergency_shell(&mut self, message: &str) {
@@ -933,7 +959,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
                 machine.run_legacy(&format!("find_be_kernels {FS} && select_kernel {FS}"))
             });
             let rust = machine.rust(|system, state, _, _| {
-                if !find_kernels(system, state, FS) {
+                if find_kernels(system, state, FS).is_err() {
                     return String::new();
                 }
                 select_kernel(system, state, FS)
@@ -1056,7 +1082,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
                 .flatten()
         });
         let ok = recursive_umount(&fake.system(), Path::new("/mnt/be"));
-        assert!(!ok);
+        assert!(ok.is_err());
         let umounts: Vec<String> = fake
             .runner
             .lines()
@@ -1114,7 +1140,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
         assert!(is_writable(&fake.runner, "tank"));
         assert!(!is_writable(&fake.runner, "gone"));
         assert!(!is_writable(&fake.runner, ""));
-        assert!(export_pool(&fake.runner, "tank"));
+        assert_eq!(export_pool(&fake.runner, "tank"), Ok(()));
         assert!(fake.kmsg().contains("<3>ZFSBootMenu: pool is undefined"));
         assert!(fake.kmsg().contains("tank export process return: 0"));
     }

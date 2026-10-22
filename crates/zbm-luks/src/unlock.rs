@@ -1,5 +1,6 @@
 //! Unlocking volumes: `luks_open_device`, `luks_wait_device`,
-//! `luks_discover_devices`, `luks_may_hold_zfs` and `luks_unlock_all`.
+//! `luks_discover_devices` and `luks_may_hold_zfs`; unlocking them all is
+//! [`Session::unlock_all`].
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -9,14 +10,52 @@ use zbm_core::exec::{Input, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
 use zbm_system::console::Timed;
 
-use crate::config::{Mode, Options, load_config};
+use crate::config::Options;
 use crate::device::{
     canonical, default_name, describe_device, is_block_device, is_open, resolve_device,
 };
+use crate::error::LuksError;
 use crate::keys::Target;
 use crate::keys::gpg::is_gpg_keyfile;
-use crate::mappings::Mapping;
-use crate::session::{Key, PromptRequest, Session};
+use crate::session::{Answer, Key, PromptRequest, Session};
+
+/// The key method that opened a volume.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Method {
+    /// A key script of the crypttab.
+    KeyScript,
+    /// A key file, decrypted with GnuPG if it was encrypted.
+    KeyFile,
+    /// A LUKS2 token: TPM2, FIDO2 or clevis.
+    Token,
+    /// A passphrase (or YubiKey response) that opened another volume.
+    CachedPassphrase,
+    /// YubiKey challenge-response.
+    YubiKey,
+    /// The passphrase the user typed.
+    Passphrase,
+}
+
+/// How [`Session::open_device`] found a volume open.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum Opened {
+    /// It was in use before.
+    AlreadyOpen,
+    /// Another program opened it meanwhile, such as `zluks` over SSH.
+    Elsewhere,
+    /// This run opened it with this method, and recorded the mapping.
+    Unlocked(Method),
+}
+
+/// What [`Session::unlock_all`] did.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct UnlockSummary {
+    /// Volumes opened and kept open.
+    pub unlocked: i64,
+    /// Volumes that were not opened.
+    pub failed: i64,
+}
 
 impl Session<'_> {
     /// Logs the messages of a configuration step.
@@ -36,14 +75,14 @@ impl Session<'_> {
     }
 
     /// Whether `device` is open, as the settings tell.
-    fn device_open(&self, device: &str) -> bool {
+    fn is_device_open(&self, device: &str) -> bool {
         is_open(self.system().files, device, &self.settings().open_check)
     }
 
-    /// Records a mapping this run opened.
-    fn opened(&self, name: &str, device: &str, auto: bool) -> bool {
+    /// Records a mapping this run opened with `method`.
+    fn opened(&self, name: &str, device: &str, auto: bool, method: Method) -> Opened {
         self.record_mapping(name, device, auto);
-        true
+        Opened::Unlocked(method)
     }
 
     /// Unlocks one volume (`luks_open_device`), trying in order: a key script,
@@ -51,8 +90,13 @@ impl Session<'_> {
     /// unlocked other volumes, YubiKey challenge-response, and the passphrase
     /// prompt. `name` is the mapping name (empty for the default), `keyspec`
     /// the key file specification (may be empty), `options` the crypttab
-    /// options and `auto` whether discovery found the volume. Returns whether
-    /// the volume is open afterwards.
+    /// options and `auto` whether discovery found the volume.
+    ///
+    /// # Errors
+    ///
+    /// When the volume is not open afterwards: [`LuksError::NotLuks`],
+    /// [`LuksError::MappingExists`], or why the passphrase prompt ended
+    /// ([`LuksError::Skipped`], [`LuksError::NoConsole`]).
     pub fn open_device(
         &mut self,
         name: &str,
@@ -60,13 +104,13 @@ impl Session<'_> {
         keyspec: &str,
         options_text: &str,
         auto: bool,
-    ) -> bool {
+    ) -> Result<Opened, LuksError> {
         let (options, messages) = Options::parse(options_text, self.settings().default_tries);
         self.log_all(&messages);
 
-        if self.device_open(device) {
+        if self.is_device_open(device) {
             zbm_trace::info!("LUKS device {device} is already in use, skipping");
-            return true;
+            return Ok(Opened::AlreadyOpen);
         }
 
         let header = options.header.clone().unwrap_or_else(|| device.to_owned());
@@ -82,7 +126,7 @@ impl Session<'_> {
             .is_ok_and(|output| output.status.success());
         if !luks {
             zbm_trace::warn!("{header} is not a LUKS volume (header), skipping {device}");
-            return false;
+            return Err(LuksError::NotLuks { header });
         }
 
         let name = if name.is_empty() {
@@ -92,7 +136,7 @@ impl Session<'_> {
         };
         if self.system().files.exists(Path::new(&self.mapper(&name))) {
             zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
-            return false;
+            return Err(LuksError::MappingExists { name });
         }
         let target = Target {
             name: &name,
@@ -102,9 +146,11 @@ impl Session<'_> {
 
         // 1. A key script prints the key (Debian's crypttab semantics).
         if let Some(script) = &options.keyscript
-            && self.open_with_keyscript(target, script, keyspec, options_text)
+            && self
+                .open_with_keyscript(target, script, keyspec, options_text)
+                .is_ok()
         {
-            return self.opened(&name, device, auto);
+            return Ok(self.opened(&name, device, auto, Method::KeyScript));
         }
 
         // 2. A key file, possibly on a key device. GnuPG-encrypted key files
@@ -120,9 +166,12 @@ impl Session<'_> {
                 zbm_trace::info!(
                     "unlocking {device} with GnuPG key file {keyspec} (already decrypted)"
                 );
-                if self.cryptsetup_open(&name, device, Key::Stdin(&plain), &options.args) {
+                if self
+                    .cryptsetup_open(&name, device, Key::Stdin(&plain), &options.args)
+                    .is_ok()
+                {
                     zbm_trace::info!("unlocked {device} as {name} with key file");
-                    return self.opened(&name, device, auto);
+                    return Ok(self.opened(&name, device, auto, Method::KeyFile));
                 }
                 zbm_trace::warn!("key file {keyspec} failed to unlock {device}");
             } else {
@@ -134,12 +183,14 @@ impl Session<'_> {
                                 zbm_trace::info!(
                                     "unlocking {device} with GnuPG key file {keyspec}"
                                 );
-                                let opened = self.cryptsetup_open(
-                                    &name,
-                                    device,
-                                    Key::Stdin(&plain),
-                                    &options.args,
-                                );
+                                let opened = self
+                                    .cryptsetup_open(
+                                        &name,
+                                        device,
+                                        Key::Stdin(&plain),
+                                        &options.args,
+                                    )
+                                    .is_ok();
                                 // Kept for other volumes until the secrets are
                                 // forgotten.
                                 self.gpg_plain.insert(keyspec.to_owned(), plain);
@@ -150,11 +201,12 @@ impl Session<'_> {
                     } else {
                         zbm_trace::info!("unlocking {device} with key file {keyspec}");
                         self.cryptsetup_open(&name, device, Key::File(path), &options.args)
+                            .is_ok()
                     };
                     self.release_keyfile(&found);
                     if opened {
                         zbm_trace::info!("unlocked {device} as {name} with key file");
-                        return self.opened(&name, device, auto);
+                        return Ok(self.opened(&name, device, auto, Method::KeyFile));
                     }
                     zbm_trace::warn!("key file {keyspec} failed to unlock {device}");
                 } else {
@@ -165,32 +217,35 @@ impl Session<'_> {
 
         // 3. LUKS2 tokens: TPM2, FIDO2 security keys and clevis.
         if !options.notoken && self.tokens_enabled() {
-            if self.try_tokens(target, &header) {
-                return self.opened(&name, device, auto);
+            if self.try_tokens(target, &header).is_ok() {
+                return Ok(self.opened(&name, device, auto, Method::Token));
             }
             // Another tool may have unlocked the device meanwhile.
-            if self.device_open(device) {
-                return true;
+            if self.is_device_open(device) {
+                return Ok(Opened::Elsewhere);
             }
         }
 
         // 4. Passphrases (and YubiKey responses) that unlocked another volume.
         let cached = self.passphrases.clone();
         for passphrase in &cached {
-            if self.cryptsetup_open(&name, device, Key::Stdin(passphrase), &options.args) {
+            if self
+                .cryptsetup_open(&name, device, Key::Stdin(passphrase), &options.args)
+                .is_ok()
+            {
                 zbm_trace::info!(
                     "unlocked {device} as {name} with a previously entered passphrase"
                 );
-                return self.opened(&name, device, auto);
+                return Ok(self.opened(&name, device, auto, Method::CachedPassphrase));
             }
         }
         drop(cached);
 
         // 5. YubiKey challenge-response.
         if let Some(yubikey) = &options.yubikey
-            && self.try_ykchalresp(target, yubikey, options.tries)
+            && self.try_ykchalresp(target, yubikey, options.tries).is_ok()
         {
-            return self.opened(&name, device, auto);
+            return Ok(self.opened(&name, device, auto, Method::YubiKey));
         }
 
         // 6. Ask the user.
@@ -205,7 +260,7 @@ impl Session<'_> {
         script: &str,
         keyspec: &str,
         options: &str,
-    ) -> bool {
+    ) -> Result<(), LuksError> {
         let device = target.device;
         let executable = self
             .system()
@@ -214,7 +269,9 @@ impl Session<'_> {
             .is_ok_and(|metadata| metadata.is_executable());
         if !executable {
             zbm_trace::warn!("key script {script} is not executable");
-            return false;
+            return Err(LuksError::KeyScriptNotExecutable {
+                script: script.to_owned(),
+            });
         }
         zbm_trace::info!("unlocking {device} with key script {script}");
         let key = if keyspec.is_empty() { "none" } else { keyspec };
@@ -235,18 +292,24 @@ impl Session<'_> {
             .ok()
             .and_then(|output| output.secret)
             .unwrap_or_default();
-        if self.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args) {
-            zbm_trace::info!("unlocked {device} as {} with key script", target.name);
-            return true;
+        let opened = self.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args);
+        match &opened {
+            Ok(()) => zbm_trace::info!("unlocked {device} as {} with key script", target.name),
+            Err(_) => zbm_trace::warn!("key script {script} failed to unlock {device}"),
         }
-        zbm_trace::warn!("key script {script} failed to unlock {device}");
-        false
+        opened
     }
 
     /// The passphrase prompt of `luks_open_device`. Echo is off for the whole
     /// prompt, and input is polled, so that an unlock performed elsewhere
     /// (`zluks` over SSH) is noticed while the prompt waits.
-    fn ask_passphrase(&mut self, name: &str, device: &str, options: &Options, auto: bool) -> bool {
+    fn ask_passphrase(
+        &mut self,
+        name: &str,
+        device: &str,
+        options: &Options,
+        auto: bool,
+    ) -> Result<Opened, LuksError> {
         let description = describe_device(self.system(), device);
         let console = self.system().console;
         loop {
@@ -270,11 +333,11 @@ impl Session<'_> {
                     match console.read_secret_within(Duration::from_secs(2)) {
                         Ok(Timed::Read(passphrase)) => break passphrase,
                         Ok(Timed::TimedOut) => {
-                            if self.device_open(device) {
+                            if self.is_device_open(device) {
                                 console.set_echo(true);
                                 self.say("\n");
                                 zbm_trace::info!("{device} was unlocked elsewhere");
-                                return true;
+                                return Ok(Opened::Elsewhere);
                             }
                         }
                         Ok(Timed::Ended) | Err(_) => {
@@ -282,7 +345,9 @@ impl Session<'_> {
                             console.set_echo(true);
                             self.say("\n");
                             zbm_trace::warn!("no console available to unlock {device}");
-                            return false;
+                            return Err(LuksError::NoConsole {
+                                device: device.to_owned(),
+                            });
                         }
                     }
                 };
@@ -292,20 +357,25 @@ impl Session<'_> {
                 if passphrase.is_empty() {
                     zbm_trace::info!("skipping LUKS volume {device} at user request");
                     self.mark_skipped(device);
-                    return false;
+                    return Err(LuksError::Skipped {
+                        device: device.to_owned(),
+                    });
                 }
 
                 self.say(&format!("Unlocking {device} ...\n"));
-                if self.cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args) {
+                if self
+                    .cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args)
+                    .is_ok()
+                {
                     self.passphrases.push(passphrase);
                     zbm_trace::info!("unlocked {device} as {name}");
-                    return self.opened(name, device, auto);
+                    return Ok(self.opened(name, device, auto, Method::Passphrase));
                 }
                 drop(passphrase);
 
-                if self.device_open(device) {
+                if self.is_device_open(device) {
                     zbm_trace::info!("{device} was unlocked elsewhere");
-                    return true;
+                    return Ok(Opened::Elsewhere);
                 }
                 zbm_trace::warn!("failed to unlock {device} (attempt {attempt})");
             }
@@ -316,13 +386,15 @@ impl Session<'_> {
                 on_return: "try again".to_owned(),
                 on_escape: "skip this volume".to_owned(),
             };
-            let again = self.timed_prompt(&request);
+            let answer = self.timed_prompt(&request);
             self.tput(&["cnorm"]);
             self.tput(&["clear"]);
-            if !again {
+            if answer == Answer::Escape {
                 zbm_trace::warn!("giving up on LUKS volume {device}");
                 self.mark_skipped(device);
-                return false;
+                return Err(LuksError::Skipped {
+                    device: device.to_owned(),
+                });
             }
         }
     }
@@ -354,7 +426,7 @@ impl Session<'_> {
                 on_return: "retry now".to_owned(),
                 on_escape: "skip this device".to_owned(),
             };
-            if !self.timed_prompt(&request) {
+            if self.timed_prompt(&request) == Answer::Escape {
                 self.tput(&["cnorm"]);
                 self.tput(&["clear"]);
                 zbm_trace::error!("LUKS device {spec} not found");
@@ -401,157 +473,32 @@ impl Session<'_> {
     }
 
     /// `cryptsetup close <name>`.
-    pub fn cryptsetup_close(&self, name: &str) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::Close`] when cryptsetup fails, for example because the
+    /// mapping is in use.
+    pub fn cryptsetup_close(&self, name: &str) -> Result<(), LuksError> {
         let close = self
             .command("cryptsetup")
             .args(["close", name])
             .stdout(Stream::Null)
             .stderr(Stream::Null);
-        self.system()
+        let closed = self
+            .system()
             .runner
             .run(&close)
-            .is_ok_and(|output| output.status.success())
-    }
-
-    /// Unlocks every configured or discovered LUKS volume
-    /// (`luks_unlock_all`). Returns whether at least one volume was unlocked
-    /// or none needed unlocking; a retry of the import loop succeeds only if
-    /// it unlocked something new, or the loop would retry the import forever
-    /// without offering the recovery shell.
-    pub fn unlock_all(&mut self) -> bool {
-        let retry = self.settings().retry;
-        if !self.available() {
-            zbm_trace::debug!("cryptsetup is not available; LUKS support disabled");
-            return !retry;
-        }
-
-        let zbm_luks = self.zbm_arg("zbm.luks");
-        let crypttab_path = self.settings().crypttab.clone();
-        let crypttab = self
-            .system()
-            .files
-            .read(&crypttab_path)
-            .ok()
-            .map(|text| String::from_utf8_lossy(&text).into_owned());
-        let (mode, messages) = load_config(
-            zbm_luks.as_deref(),
-            crypttab.as_deref(),
-            &crypttab_path.to_string_lossy(),
-        );
-        self.log_all(&messages);
-        if mode == Mode::Disabled {
-            return !retry;
-        }
-
-        // The default key for volumes without one of their own.
-        let global_key = self.zbm_arg("zbm.luks_key").unwrap_or_default();
-        self.settle();
-        let mut unlocked: i64 = 0;
-        let mut failed: i64 = 0;
-        self.forget_secrets();
-
-        if mode == Mode::Auto {
-            let mut devices = self.discover_devices();
-            // On retries, only volumes that appeared since the last pass
-            // matter.
-            if retry {
-                devices.retain(|device| !self.retry_ignores(device));
-            }
-            if devices.is_empty() {
-                zbm_trace::debug!("no LUKS volumes found");
-                return !retry;
-            }
-            zbm_trace::info!("discovered LUKS volumes: {}", devices.join(" "));
-            for device in &devices {
-                if self.open_device("", device, &global_key, "", true) {
-                    unlocked += 1;
-                } else {
-                    failed += 1;
-                }
-            }
+            .is_ok_and(|output| output.status.success());
+        if closed {
+            Ok(())
         } else {
-            let mut seen = BTreeSet::new();
-            for entry in mode.entries() {
-                let key = if entry.keyfile.is_empty() {
-                    &global_key
-                } else {
-                    &entry.keyfile
-                };
-                let (options, messages) =
-                    Options::parse(&entry.options, self.settings().default_tries);
-                self.log_all(&messages);
-                if options.noauto {
-                    zbm_trace::debug!("not unlocking {} (noauto)", entry.spec);
-                    continue;
-                }
-
-                // Retries never wait: a device still missing is checked again
-                // next time.
-                let device = if retry {
-                    let system = *self.system();
-                    match resolve_device(&system, &entry.spec) {
-                        Some(device) if !self.retry_ignores(&device) => device,
-                        _ => continue,
-                    }
-                } else {
-                    match self.wait_device(&entry.spec, options.nofail) {
-                        Some(device) => device,
-                        None => {
-                            if !options.nofail {
-                                failed += 1;
-                            }
-                            continue;
-                        }
-                    }
-                };
-
-                if !seen.insert(device.clone()) {
-                    zbm_trace::warn!("LUKS device {device} is configured more than once");
-                    continue;
-                }
-                if self.open_device(&entry.name, &device, key, &entry.options, false) {
-                    unlocked += 1;
-                } else {
-                    failed += 1;
-                }
-            }
+            Err(LuksError::Close {
+                name: name.to_owned(),
+            })
         }
-
-        self.forget_secrets();
-        // udev creates the /dev/disk/by-* links of the new mappings.
-        self.settle();
-
-        // Discovered volumes that clearly do not hold ZFS are closed again.
-        if let Some(mappings) = self.read_mappings() {
-            let mut keep: Vec<Mapping> = Vec::new();
-            for mapping in mappings {
-                let name = mapping.name.as_str();
-                if mapping.auto == "1"
-                    && is_block_device(self.system().files, &self.mapper(name))
-                    && !self.may_hold_zfs(name)
-                {
-                    zbm_trace::info!(
-                        "closing {name}: {} does not contain a ZFS vdev",
-                        mapping.device
-                    );
-                    if self.cryptsetup_close(name) {
-                        unlocked -= 1;
-                        continue;
-                    }
-                    zbm_trace::warn!("unable to close {name}");
-                }
-                keep.push(mapping);
-            }
-            self.write_mappings(&keep);
-        }
-
-        zbm_trace::info!("LUKS: {unlocked} volume(s) available, {failed} not unlocked");
-        if retry {
-            return unlocked > 0;
-        }
-        failed == 0 || unlocked > 0
     }
 }
 
+mod all;
 #[cfg(test)]
 mod tests;

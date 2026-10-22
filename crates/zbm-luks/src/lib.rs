@@ -12,6 +12,9 @@
 //!   YubiKey challenge-response, and the passphrase prompt;
 //! - closing volumes and forgetting secrets before booting, and `zluks`.
 //!
+//! Operations that can fail return [`error::LuksError`]; those that end in one
+//! of several good ways return an outcome, such as [`unlock::Opened`].
+//!
 //! Every secret is a `zbm_core::secret::Secret` and reaches programs only on
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 //!
@@ -23,6 +26,7 @@ pub mod close;
 pub mod config;
 pub mod crypto;
 pub mod device;
+pub mod error;
 pub mod keyfile;
 pub mod keys;
 pub mod mappings;
@@ -33,3 +37,5 @@ pub mod unlocker;
 
 #[cfg(test)]
 mod testing;
+
+pub use error::{LuksError, TokenFailure};

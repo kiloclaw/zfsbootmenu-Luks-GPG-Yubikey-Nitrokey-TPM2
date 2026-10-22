@@ -76,8 +76,8 @@ mod tests {
     struct Shells(Vec<String>);
 
     impl Recovery for Shells {
-        fn unlock_late(&mut self) -> bool {
-            false
+        fn unlock_late(&mut self) -> std::result::Result<(), crate::error::BootError> {
+            Err(crate::error::BootError::NoCryptsetup)
         }
 
         fn emergency_shell(&mut self, message: &str) {

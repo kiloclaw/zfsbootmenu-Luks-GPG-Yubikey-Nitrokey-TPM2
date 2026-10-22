@@ -12,7 +12,8 @@ use zbm_core::secret::Secret;
 use super::{Target, strip_newlines};
 use crate::config::YubiKey;
 use crate::crypto::{hex, sha256};
-use crate::session::{Key, Session};
+use crate::error::LuksError;
+use crate::session::{Key, Session, Wait};
 
 impl Session<'_> {
     /// Whether a YubiKey is connected (`ykchalresp_present`); without `ykinfo`
@@ -34,11 +35,24 @@ impl Session<'_> {
 
     /// Opens a volume with YubiKey challenge-response
     /// (`luks_try_ykchalresp`), with `tries` attempts (0: without limit).
-    pub fn try_ykchalresp(&mut self, target: Target<'_>, yubikey: &YubiKey, tries: u64) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::YubiKey`] when `ykchalresp` is missing, no YubiKey comes,
+    /// the user leaves the passphrase empty, or no attempt opens the volume.
+    pub fn try_ykchalresp(
+        &mut self,
+        target: Target<'_>,
+        yubikey: &YubiKey,
+        tries: u64,
+    ) -> Result<(), LuksError> {
         let device = target.device;
+        let failed = || LuksError::YubiKey {
+            device: device.to_owned(),
+        };
         if !self.system().command_exists("ykchalresp") {
             zbm_trace::warn!("ykchalresp is not available to unlock {device}");
-            return false;
+            return Err(failed());
         }
         let mut attempt = 0;
         while attempt < tries || tries == 0 {
@@ -47,9 +61,10 @@ impl Session<'_> {
                 "cyan",
                 &format!("Insert the YubiKey for {}", self.paint("yellow", device)),
             );
-            if !self.wait_for(self.token_wait(), &message, || self.ykchalresp_present()) {
+            let waited = self.wait_for(self.token_wait(), &message, || self.ykchalresp_present());
+            if waited != Wait::Present {
                 zbm_trace::info!("no YubiKey present for {device}");
-                return false;
+                return Err(failed());
             }
 
             self.say("\n");
@@ -61,7 +76,7 @@ impl Session<'_> {
             self.say(&self.paint("cyan", &line));
             let pass = match self.read_secret("Passphrase (leave empty to use another method): ") {
                 Some(pass) if !pass.is_empty() => pass,
-                _ => return false,
+                _ => return Err(failed()),
             };
             let challenge = if yubikey.hash {
                 hex(&sha256(pass.expose()))
@@ -100,15 +115,18 @@ impl Session<'_> {
                 response
             };
 
-            if self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args) {
+            if self
+                .cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)
+                .is_ok()
+            {
                 // Other volumes enrolled with the same slot reuse the response.
                 self.passphrases.push(key);
                 zbm_trace::info!("unlocked {device} with YubiKey challenge-response");
-                return true;
+                return Ok(());
             }
             self.say(&self.paint("red", "No key available with this passphrase.\n"));
         }
-        false
+        Err(failed())
     }
 }
 
@@ -164,7 +182,7 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.try_ykchalresp(target, &yubikey, 3));
+            assert_eq!(session.try_ykchalresp(target, &yubikey, 3), Ok(()));
             assert_eq!(session.passphrases.len(), 1);
         });
         let output = fake.console.output_text();
@@ -198,7 +216,7 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.try_ykchalresp(target, &yubikey, 1));
+            assert_eq!(session.try_ykchalresp(target, &yubikey, 1), Ok(()));
         });
         assert!(
             fake.runner
@@ -223,11 +241,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_ykchalresp(target, &yubikey, 0));
+            assert!(session.try_ykchalresp(target, &yubikey, 0).is_err());
         });
         let fake = FakeSystem::new();
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_ykchalresp(target, &yubikey, 3));
+            assert!(session.try_ykchalresp(target, &yubikey, 3).is_err());
         });
         assert!(
             fake.kmsg()

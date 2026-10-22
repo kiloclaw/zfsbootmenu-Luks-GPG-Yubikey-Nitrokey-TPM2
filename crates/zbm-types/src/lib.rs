@@ -17,6 +17,7 @@
 //! | [`ImportPolicy`] | How pools another host used are imported |
 //! | [`Stage`] | A stage of the start-up program: `50-import-pools` |
 //! | [`HookStage`] | A stage that runs hooks: `teardown.d` |
+//! | [`Answer`] | What the user answered at a timed prompt |
 //!
 //! [`version`] holds the version order itself (`sort -V`).
 //!
@@ -32,6 +33,7 @@
 //! # Ok::<(), zbm_types::ParseError>(())
 //! ```
 
+mod answer;
 mod device;
 mod error;
 mod mapping;
@@ -41,6 +43,7 @@ mod stage;
 pub mod version;
 mod zfs;
 
+pub use answer::Answer;
 pub use device::DevicePath;
 pub use error::{ParseError, Reason};
 pub use mapping::MappingName;

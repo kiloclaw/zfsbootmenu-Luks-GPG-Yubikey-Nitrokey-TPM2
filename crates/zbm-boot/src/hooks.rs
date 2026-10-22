@@ -15,6 +15,8 @@ use zbm_system::files::{FileKind, Files};
 use zbm_system::{Runner, System};
 use zbm_types::HookStage;
 
+use crate::error::BootError;
+
 /// `ENOEXEC`: a file the kernel cannot run, such as a script without `#!`.
 const ENOEXEC: i32 = 8;
 
@@ -43,17 +45,17 @@ pub fn executable_hooks(files: &dyn Files, root: &Path, stage: HookStage) -> Vec
 /// Runs the hooks of `stage` below `root`, as `zfsbootmenu-run-hooks` does,
 /// with the standard streams of this process and its environment plus `env`.
 /// With `once`, each hook then loses its permissions and gets the suffix
-/// `.completed`. Returns whether any hook ran; a missing directory runs none.
+/// `.completed`. Returns how many hooks ran; a missing directory runs none.
 pub fn run_stage(
     system: &System<'_>,
     root: &Path,
     stage: HookStage,
     once: bool,
     env: &[(&str, &str)],
-) -> bool {
+) -> usize {
     if !system.files.is_dir(&root.join(stage.as_str())) {
         zbm_trace::debug!("no hook directory for {stage}");
-        return false;
+        return 0;
     }
     let hooks = executable_hooks(system.files, root, stage);
     for hook in &hooks {
@@ -67,7 +69,7 @@ pub fn run_stage(
             let _ = system.files.rename(hook, Path::new(&completed));
         }
     }
-    !hooks.is_empty()
+    hooks.len()
 }
 
 /// Runs one hook as Bash runs `"${_hook}"`: its exit status is ignored, and a
@@ -91,24 +93,37 @@ fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
 /// `zbm.hookroot`: copies the hooks of each stage directory of
 /// `<filesystem>//<path>` into `root`, as `import_zbm_hooks` does. The file
 /// system is mounted read-only on `.external_hooks` while they are copied.
-/// Returns whether the hooks were imported; failures are logged.
-pub fn import_hooks(system: &System<'_>, state: &State<'_>, root: &Path, hook_root: &str) -> bool {
+/// Failures to copy single hooks are logged, and the others still copied.
+///
+/// # Errors
+///
+/// [`BootError::HookRoot`] when `hook_root` is not `filesystem//path`,
+/// [`BootError::HookMount`] when the file system cannot be mounted.
+pub fn import_hooks(
+    system: &System<'_>,
+    state: &State<'_>,
+    root: &Path,
+    hook_root: &str,
+) -> Result<(), BootError> {
+    let malformed = || BootError::HookRoot {
+        hook_root: hook_root.to_owned(),
+    };
     if hook_root.is_empty() {
         zbm_trace::error!("hook root is not defined");
-        return false;
+        return Err(malformed());
     }
     // `${hook_root%//*}` and `${hook_root##*//}` split at the last `//`.
     let Some((filesystem, path)) = hook_root.rsplit_once("//") else {
         zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed");
-        return false;
+        return Err(malformed());
     };
     if filesystem.is_empty() {
         zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed");
-        return false;
+        return Err(malformed());
     }
     if path.is_empty() {
         zbm_trace::error!("unable to find hook path: '{hook_root}' is malformed");
-        return false;
+        return Err(malformed());
     }
 
     let mount_point = state.external_hooks();
@@ -124,7 +139,9 @@ pub fn import_hooks(system: &System<'_>, state: &State<'_>, root: &Path, hook_ro
         .is_ok_and(|output| output.status.success())
     {
         zbm_trace::error!("failed to mount hook filesystem {filesystem}");
-        return false;
+        return Err(BootError::HookMount {
+            filesystem: filesystem.to_owned(),
+        });
     }
 
     let source = mount_point.join(path);
@@ -166,7 +183,7 @@ pub fn import_hooks(system: &System<'_>, state: &State<'_>, root: &Path, hook_ro
         .arg(&mount_point)
         .stdout(Stream::Inherit);
     let _ = system.runner.run(&umount);
-    true
+    Ok(())
 }
 
 /// The names a shell glob `dir/*` gives: sorted, without names starting with a
@@ -223,7 +240,7 @@ pub fn early_stage_in(
     skip: Option<&str>,
 ) {
     if !hook_root.is_empty() {
-        import_hooks(system, state, root, hook_root);
+        let _ = import_hooks(system, state, root, hook_root);
     }
     if let Some(skip) = skip {
         skip_hooks(system.files, root, skip);
@@ -262,7 +279,7 @@ mod tests {
             false,
             &env,
         );
-        assert!(ran);
+        assert!(ran > 0);
         assert_eq!(
             fake.runner.lines(),
             [
@@ -285,22 +302,28 @@ mod tests {
              INFO: processing /libexec/hooks/boot-sel.d/20-b\n"
         );
         // Without a directory, or without executable hooks, none runs.
-        assert!(!run_stage(
-            &fake.system(),
-            Path::new(HOOKS),
-            HookStage::LoadKey,
-            false,
-            &[],
-        ));
+        assert_eq!(
+            run_stage(
+                &fake.system(),
+                Path::new(HOOKS),
+                HookStage::LoadKey,
+                false,
+                &[],
+            ),
+            0
+        );
         assert!(fake.kmsg().contains("no hook directory for load-key.d"));
         fake.files.dir("/libexec/hooks/setup.d");
-        assert!(!run_stage(
-            &fake.system(),
-            Path::new(HOOKS),
-            HookStage::Setup,
-            false,
-            &[],
-        ));
+        assert_eq!(
+            run_stage(
+                &fake.system(),
+                Path::new(HOOKS),
+                HookStage::Setup,
+                false,
+                &[],
+            ),
+            0
+        );
     }
 
     #[test]
@@ -319,7 +342,7 @@ mod tests {
                 &[],
             )
         };
-        assert!(run());
+        assert!(run() > 0);
         let operations: Vec<FileOperation> = fake
             .files
             .operations()
@@ -345,7 +368,7 @@ mod tests {
             "<6>ZFSBootMenu: Disabling hook after execution: /libexec/hooks/early-setup.d/20-b"
         ));
         // The second time, nothing is left to run.
-        assert!(!run());
+        assert_eq!(run(), 0);
         assert_eq!(fake.runner.lines().len(), 2);
     }
 
@@ -360,13 +383,15 @@ mod tests {
                 .then(|| Err(std::io::Error::from_raw_os_error(ENOEXEC)))
         });
         let env = [("BOOTFS", "tank/ROOT/void")];
-        assert!(run_stage(
-            &fake.system(),
-            Path::new(HOOKS),
-            HookStage::Setup,
-            false,
-            &env,
-        ));
+        assert!(
+            run_stage(
+                &fake.system(),
+                Path::new(HOOKS),
+                HookStage::Setup,
+                false,
+                &env,
+            ) > 0
+        );
         assert_eq!(
             fake.runner.lines(),
             [
@@ -490,7 +515,7 @@ mod tests {
             fake.runner.respond_program("mount", 1, "");
             let state = State::new(&fake.files, "/zfsbootmenu");
             let imported = import_hooks(&fake.system(), &state, Path::new(HOOKS), hook_root);
-            assert_eq!(imported, success, "{hook_root}");
+            assert_eq!(imported.is_ok(), success, "{hook_root}");
             assert_eq!(stub_lines(&fake.kmsg()), logged, "{hook_root}");
         }
     }
@@ -518,12 +543,7 @@ mod tests {
                 })
         });
         let state = State::new(&fake.files, "/zfsbootmenu");
-        assert!(import_hooks(
-            &fake.system(),
-            &state,
-            Path::new(HOOKS),
-            "tank/hooks//zbm",
-        ));
+        assert!(import_hooks(&fake.system(), &state, Path::new(HOOKS), "tank/hooks//zbm",).is_ok());
         assert_eq!(
             fake.runner.lines(),
             [
@@ -542,12 +562,9 @@ mod tests {
         let _log = log(&fake);
         fake.runner.respond_program("mount", 32, "");
         let state = State::new(&fake.files, "/zfsbootmenu");
-        assert!(!import_hooks(
-            &fake.system(),
-            &state,
-            Path::new(HOOKS),
-            "tank/hooks//zbm",
-        ));
+        assert!(
+            import_hooks(&fake.system(), &state, Path::new(HOOKS), "tank/hooks//zbm",).is_err()
+        );
         assert!(
             fake.kmsg()
                 .contains("failed to mount hook filesystem tank/hooks")

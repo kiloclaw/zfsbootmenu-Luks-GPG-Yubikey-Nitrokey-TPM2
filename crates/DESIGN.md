@@ -405,7 +405,14 @@ Library code returns `zbm_core::error::Result<T>`, whose error is one enum:
 
 An error's text is the message the legacy code logs with `zerror` at that point; a `Failed` error also carries the
 command's output, which is logged with `zdebug`, as the legacy code logs it. Functions that the legacy code lets fail
-silently return `Option` or `bool`, not an error, so the Rust code does not report more than the legacy code does.
+silently return `Option`, not an error, so the Rust code does not report more than the legacy code does.
+
+The domain crates refactored in R1 have an error enum each, with the reasons their callers decide on:
+`zbm_luks::LuksError` (with `TokenFailure` for the key methods) and `zbm_boot::BootError`. Their operations return
+`Result` instead of a success flag, and those that end in one of several good ways return an outcome:
+`unlock::Opened` (already open, opened elsewhere, or unlocked with a `Method`), `UnlockSummary`, `session::Wait`,
+`resume::ResumeChoice`, and `zbm_types::Answer` for timed prompts. The step still logs what the legacy code logs; the
+error is for the code that decides what happens next, and `bool` is left for questions (`is_open`).
 
 ### Where errors go
 

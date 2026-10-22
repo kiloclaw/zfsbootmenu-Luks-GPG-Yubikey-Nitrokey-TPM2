@@ -14,6 +14,7 @@ use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
 use crate::commandline;
+use crate::error::BootError;
 use crate::hostid;
 use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 use crate::recovery::Recovery;
@@ -80,20 +81,9 @@ fn stdout(runner: &dyn Runner, command: &Command) -> String {
         .unwrap_or_default()
 }
 
-/// Imports pools without mounting them, as `import_pool` does, and returns
-/// whether `zpool import` succeeded.
-pub fn import_pool(system: &System<'_>, state: &State<'_>, import: Import<'_>) -> bool {
-    let pool = if !import.pool.is_empty() {
-        zbm_trace::debug!("pool set to {}", import.pool);
-        import.pool
-    } else if import.rewind {
-        zbm_trace::error!("rewind only works on a specific pool");
-        return false;
-    } else {
-        zbm_trace::debug!("attempting to import all pools");
-        "-a"
-    };
-
+/// The options of `zpool import` for `import`, logged as `import_pool` logs
+/// them.
+fn import_options(import: Import<'_>) -> Vec<&'static str> {
     let mut args = vec!["-N"];
     if import.force {
         args.push("-f");
@@ -110,6 +100,32 @@ pub fn import_pool(system: &System<'_>, state: &State<'_>, import: Import<'_>) -
         args.push("--rewind-to-checkpoint");
         zbm_trace::debug!("rewind_to_checkpoint set: yes");
     }
+    args
+}
+
+/// Imports pools without mounting them, as `import_pool` does.
+///
+/// # Errors
+///
+/// [`BootError::RewindAll`] for a rewind without a pool,
+/// [`BootError::Import`] when `zpool import` fails.
+pub fn import_pool(
+    system: &System<'_>,
+    state: &State<'_>,
+    import: Import<'_>,
+) -> Result<(), BootError> {
+    let pool = if !import.pool.is_empty() {
+        zbm_trace::debug!("pool set to {}", import.pool);
+        import.pool
+    } else if import.rewind {
+        zbm_trace::error!("rewind only works on a specific pool");
+        return Err(BootError::RewindAll);
+    } else {
+        zbm_trace::debug!("attempting to import all pools");
+        "-a"
+    };
+
+    let args = import_options(import);
     zbm_trace::debug!("zpool import arguments: {} {pool}", args.join(" "));
 
     let command = Command::new("zpool")
@@ -123,7 +139,7 @@ pub fn import_pool(system: &System<'_>, state: &State<'_>, import: Import<'_>) -
     };
     if code == 0 {
         zbm_trace::debug!("successful pool import");
-        return true;
+        return Ok(());
     }
     let mut messages = Vec::new();
     let hostid = commandline::spl_hostid(system.files, state, &mut messages);
@@ -135,17 +151,21 @@ pub fn import_pool(system: &System<'_>, state: &State<'_>, import: Import<'_>) -
         hostid.as_deref().unwrap_or("unknown")
     );
     zbm_trace::debug!("{}", command_substitution(&output));
-    false
+    Err(BootError::Import {
+        target: pool.to_owned(),
+        status: code,
+    })
 }
 
-/// Whether any pool is imported (`check_for_pools`).
-pub fn check_for_pools(runner: &dyn Runner) -> bool {
+/// The pools that are imported, as `zpool list` names them.
+pub fn imported_pools(runner: &dyn Runner) -> Vec<String> {
     let command = Command::new("zpool")
         .args(["list", "-H", "-o", "name"])
         .stderr(Stream::Null);
     here_lines(&stdout(runner, &command))
-        .iter()
-        .any(|pool| !pool.is_empty())
+        .into_iter()
+        .filter(|pool| !pool.is_empty())
+        .collect()
 }
 
 /// The importable pools `zpool import` lists as `ONLINE`, leaving out the
@@ -220,7 +240,7 @@ pub fn match_hostid(
             force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
-        if import_pool(system, state, import) {
+        if import_pool(system, state, import).is_ok() {
             zbm_trace::debug!("successfully imported {pool}");
             if !settings.release_build {
                 zbm_trace::warn!("imported {pool} with assumed hostid {hostid}");
@@ -302,7 +322,7 @@ pub fn stage(
     loop {
         // On a retry, first unlock LUKS volumes on disks that appeared during the
         // delay, so that a pool is not imported without them.
-        if attempt > 0 && recovery.unlock_late() {
+        if attempt > 0 && recovery.unlock_late().is_ok() {
             zbm_trace::info!("unlocked LUKS volumes that appeared late");
         }
         if !try_pool.is_empty() {
@@ -313,9 +333,10 @@ pub fn stage(
             force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
-        import_pool(system, state, import);
+        // Whether anything was imported is what counts, not the status.
+        let _ = import_pool(system, state, import);
 
-        if check_for_pools(system.runner) {
+        if !imported_pools(system.runner).is_empty() {
             if settings.require_pool == "only" {
                 zbm_trace::debug!("only importing {try_pool}");
                 break;
@@ -348,7 +369,7 @@ pub fn stage(
 
         attempt += 1;
         zbm_trace::info!("unable to import a pool on attempt {attempt}");
-        if recovery.unlock_late() {
+        if recovery.unlock_late().is_ok() {
             zbm_trace::info!("unlocked LUKS volumes that appeared late, retrying import");
             continue;
         }
@@ -522,19 +543,22 @@ mod tests {
         let _log = log(&fake);
         let state = State::new(&fake.files, "/zfsbootmenu");
         let system = fake.system();
-        assert!(import_pool(&system, &state, Import::default()));
+        assert_eq!(import_pool(&system, &state, Import::default()), Ok(()));
         let import = Import {
             pool: "tank",
             force: true,
             read_write: true,
             rewind: true,
         };
-        assert!(import_pool(&system, &state, import));
+        assert_eq!(import_pool(&system, &state, import), Ok(()));
         let rewind_all = Import {
             rewind: true,
             ..Import::default()
         };
-        assert!(!import_pool(&system, &state, rewind_all));
+        assert_eq!(
+            import_pool(&system, &state, rewind_all),
+            Err(BootError::RewindAll)
+        );
         assert_eq!(
             fake.runner.lines(),
             [
@@ -574,7 +598,7 @@ mod tests {
             pool: "tank",
             ..Import::default()
         };
-        assert!(!import_pool(&fake.system(), &state, import));
+        assert!(import_pool(&fake.system(), &state, import).is_err());
         let lines = stub_lines(&fake.kmsg());
         assert!(lines.ends_with(
             "DEBUG: hostid from /etc/hostid: 00bab10c\n\
@@ -961,8 +985,8 @@ exit 0
     }
 
     impl Recovery for Shell {
-        fn unlock_late(&mut self) -> bool {
-            false
+        fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
+            Err(crate::error::BootError::NoCryptsetup)
         }
 
         fn emergency_shell(&mut self, message: &str) {
@@ -1066,9 +1090,13 @@ exit 0
     }
 
     impl Recovery for Late {
-        fn unlock_late(&mut self) -> bool {
+        fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
             self.calls += 1;
-            self.opens.contains(&self.calls)
+            if self.opens.contains(&self.calls) {
+                Ok(())
+            } else {
+                Err(crate::error::BootError::Zluks { status: 1 })
+            }
         }
 
         fn emergency_shell(&mut self, message: &str) {

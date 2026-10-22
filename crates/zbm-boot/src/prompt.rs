@@ -33,14 +33,9 @@ pub struct TimedPrompt {
     messages: Vec<String>,
 }
 
-/// What the user did.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Answer {
-    /// RETURN, or the time ran out (status 0).
-    Continue,
-    /// ESCAPE (status 1).
-    Escape,
-}
+/// What the user did: [`Answer::Continue`] for RETURN or when the time ran
+/// out (status 0), [`Answer::Escape`] for ESCAPE (status 1).
+pub use zbm_types::Answer;
 
 impl Default for TimedPrompt {
     fn default() -> TimedPrompt {
@@ -179,12 +174,12 @@ impl<'a> ConsolePrompter<'a> {
 }
 
 impl zbm_luks::session::Prompter for ConsolePrompter<'_> {
-    fn timed_prompt(&self, request: &zbm_luks::session::PromptRequest) -> bool {
+    fn timed_prompt(&self, request: &zbm_luks::session::PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
         if let Some(delay) = &request.delay {
             prompt = prompt.delay(retry_delay(delay));
         }
-        let answer = prompt
+        prompt
             .message(colorize("red", &request.message))
             .on_return(&request.on_return)
             .on_escape(&request.on_escape)
@@ -194,8 +189,7 @@ impl zbm_luks::session::Prompter for ConsolePrompter<'_> {
                     colorize("yellow", &format!("{seconds:02}"))
                 )
             })
-            .run(&self.system);
-        answer == Answer::Continue
+            .run(&self.system)
     }
 }
 
@@ -343,7 +337,10 @@ mod tests {
             on_return: "retry now".to_owned(),
             on_escape: "skip this device".to_owned(),
         };
-        assert!(!ConsolePrompter::new(fake.system()).timed_prompt(&request));
+        assert_eq!(
+            ConsolePrompter::new(fake.system()).timed_prompt(&request),
+            Answer::Escape
+        );
         let output = fake.console.output_text();
         assert!(output.contains("\x1b[0;31mLUKS device LABEL=x is missing\x1b[0m"));
         assert!(output.contains("Retrying in \x1b[1;33m05\x1b[0m seconds"));

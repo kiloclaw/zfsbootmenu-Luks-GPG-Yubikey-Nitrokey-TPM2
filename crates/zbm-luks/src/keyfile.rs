@@ -9,7 +9,7 @@ use std::path::Path;
 use zbm_core::exec::Stream;
 
 use crate::device::{device_present, resolve_device};
-use crate::session::Session;
+use crate::session::{Session, Wait};
 
 /// What looking for a key file found.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -62,7 +62,8 @@ impl Session<'_> {
                     ),
                 );
                 let wait = self.token_wait();
-                if self.wait_for(wait, &message, || device_present(&system, device_spec)) {
+                let waited = self.wait_for(wait, &message, || device_present(&system, device_spec));
+                if waited == Wait::Present {
                     device = resolve_device(&system, device_spec);
                 }
             }

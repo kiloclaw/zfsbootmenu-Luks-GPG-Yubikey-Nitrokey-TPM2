@@ -19,6 +19,7 @@
 pub mod boot;
 pub mod commandline;
 pub mod devices;
+pub mod error;
 pub mod hooks;
 pub mod hostid;
 pub mod import;
@@ -33,3 +34,4 @@ pub mod support;
 
 #[cfg(test)]
 mod testing;
+pub use error::BootError;

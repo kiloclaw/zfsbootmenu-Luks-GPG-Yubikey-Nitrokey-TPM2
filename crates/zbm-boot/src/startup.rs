@@ -20,6 +20,7 @@ use zbm_system::{Installed, System};
 use zbm_trace::read::read_logs;
 
 use crate::boot::{self, BootSettings};
+use crate::error::BootError;
 use crate::import::{self, Import, Settings};
 use crate::kernels::Kernel;
 use crate::prompt::{Answer, TimedPrompt, colorize, tput};
@@ -59,8 +60,12 @@ pub fn command_exists(system: &System<'_>, name: &str) -> bool {
 /// Runs `zluks unlock` in a process of its own, as the legacy stage runs
 /// `luks_unlock_all` in a subshell, so that passphrases entered at the console
 /// do not stay in this program's memory; `retry` marks a retry of the import
-/// loop (`LUKS_RETRY=1`). Returns whether it succeeded.
-pub fn zluks_unlock(system: &System<'_>, retry: bool) -> bool {
+/// loop (`LUKS_RETRY=1`).
+///
+/// # Errors
+///
+/// [`BootError::Zluks`] with its exit status when it fails.
+pub fn zluks_unlock(system: &System<'_>, retry: bool) -> Result<(), BootError> {
     let mut command = Command::new("zluks")
         .arg("unlock")
         .stdin(Input::Inherit)
@@ -69,10 +74,15 @@ pub fn zluks_unlock(system: &System<'_>, retry: bool) -> bool {
     if retry {
         command = command.env("LUKS_RETRY", "1");
     }
-    system
+    let status = system
         .runner
         .run(&command)
-        .is_ok_and(|output| output.status.success())
+        .map_or(127, |output| output.status.shell_code());
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(BootError::Zluks { status })
+    }
 }
 
 /// The recovery shell and late LUKS volumes of the start-up program.
@@ -88,16 +98,22 @@ impl<'s, 'a> Shell<'s, 'a> {
     }
 
     /// Logs each thing the runtime cannot handle yet as an error and opens
-    /// the recovery shell, if there is any. Returns whether there was.
-    pub fn refuse(&mut self, list: &[Unsupported]) -> bool {
+    /// the recovery shell, if there is any.
+    ///
+    /// # Errors
+    ///
+    /// [`BootError::Unsupported`] with what there was, after the shell.
+    pub fn refuse(&mut self, list: &[Unsupported]) -> Result<(), BootError> {
         if list.is_empty() {
-            return false;
+            return Ok(());
         }
         for item in list {
             zbm_trace::error!("{}: {item}", support::MESSAGE);
         }
         self.emergency_shell(support::MESSAGE);
-        true
+        Err(BootError::Unsupported {
+            items: list.iter().map(ToString::to_string).collect(),
+        })
     }
 }
 
@@ -105,8 +121,11 @@ impl Recovery for Shell<'_, '_> {
     /// Unlocks LUKS volumes on disks that appeared late
     /// (`zbm_luks_unlock_late`): `zluks unlock` as a retry, which succeeds only
     /// if it opened a volume.
-    fn unlock_late(&mut self) -> bool {
-        self.system.command_exists("cryptsetup") && zluks_unlock(&self.system, true)
+    fn unlock_late(&mut self) -> Result<(), BootError> {
+        if !self.system.command_exists("cryptsetup") {
+            return Err(BootError::NoCryptsetup);
+        }
+        zluks_unlock(&self.system, true)
     }
 
     /// `emergency_shell`: a banner with the message and the errors logged since
@@ -300,7 +319,7 @@ impl<'a> Startup<'a> {
                     // A hook may have provided key files or unlocked volumes
                     // itself.
                     if system.command_exists("cryptsetup") {
-                        zluks_unlock(system, false);
+                        let _ = zluks_unlock(system, false);
                         tput(system, &["clear"]);
                     }
                 }
@@ -324,7 +343,8 @@ impl<'a> Startup<'a> {
         facts.bootfs = bootfs.map(str::to_owned);
         let timeout = test_integer(&self.options.menu_timeout);
         let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
-            self.shell()
+            let _ = self
+                .shell()
                 .refuse(&support::unsupported(&self.options, &facts));
             return;
         };
@@ -342,7 +362,8 @@ impl<'a> Startup<'a> {
             .run(system);
         if answer == Answer::Escape {
             facts.countdown_interrupted = true;
-            self.shell()
+            let _ = self
+                .shell()
                 .refuse(&support::unsupported(&self.options, &facts));
             return;
         }
@@ -357,10 +378,11 @@ impl<'a> Startup<'a> {
         if self
             .shell()
             .refuse(&support::unsupported(&self.options, &facts))
+            .is_err()
         {
             return;
         }
-        if boot::find_kernels(system, &self.state, bootfs) && !self.state.is_active() {
+        if boot::find_kernels(system, &self.state, bootfs).is_ok() && !self.state.is_active() {
             let selected = boot::select_kernel(system, &self.state, bootfs)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
@@ -393,7 +415,7 @@ impl<'a> Startup<'a> {
                 force: self.options.import_policy == ImportPolicy::Force,
                 ..Import::default()
             };
-            import::import_pool(&self.system, &self.state, reimport);
+            let _ = import::import_pool(&self.system, &self.state, reimport);
             let list = Command::new("zpool")
                 .args(["list", "-H", "-o", "name,health"])
                 .stderr(Stream::Null);
@@ -770,13 +792,13 @@ mod tests {
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         fake.runner.respond("zluks unlock", 1, "");
         let mut shell = Shell::new(fake.system(), &state);
-        assert!(!shell.unlock_late());
+        assert_eq!(shell.unlock_late(), Err(BootError::Zluks { status: 1 }));
         let retry = fake.runner.calls().pop().unwrap();
         assert_eq!(retry.display(), "zluks unlock");
         assert_eq!(retry.get_env(), [("LUKS_RETRY".into(), Some("1".into()))]);
         let fake = machine();
         let mut shell = Shell::new(fake.system(), &state);
-        assert!(!shell.unlock_late());
+        assert_eq!(shell.unlock_late(), Err(BootError::NoCryptsetup));
         assert!(fake.runner.calls().is_empty());
     }
 }

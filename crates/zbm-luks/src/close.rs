@@ -11,6 +11,7 @@ use zbm_core::exec::Stream;
 use zbm_core::shell::{command_substitution, read_lines};
 
 use crate::device::is_block_device;
+use crate::error::LuksError;
 use crate::mappings::Mapping;
 use crate::session::Session;
 
@@ -63,16 +64,20 @@ impl Session<'_> {
 
     /// Exports the pools on, and closes, the mappings ZFSBootMenu opened: all
     /// of them, or only `only` (`luks_close_all`). Mappings that cannot be
-    /// closed stay recorded. Returns whether every mapping asked for closed.
-    pub fn close_all(&mut self, only: Option<&str>) -> bool {
+    /// closed stay recorded.
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::NotClosed`] with the mappings that stay open.
+    pub fn close_all(&mut self, only: Option<&str>) -> Result<(), LuksError> {
         let Some(mappings) = self.read_mappings() else {
-            return true;
+            return Ok(());
         };
         if !self.available() {
-            return true;
+            return Ok(());
         }
         let mut keep: Vec<Mapping> = Vec::new();
-        let mut closed_all = true;
+        let mut open: Vec<String> = Vec::new();
         for mapping in mappings {
             let name = mapping.name.clone();
             if only.is_some_and(|only| only != name) {
@@ -104,16 +109,20 @@ impl Session<'_> {
                     zbm_trace::warn!("unable to export {pool}, which uses {name}");
                 }
             }
-            if self.cryptsetup_close(&name) {
+            if self.cryptsetup_close(&name).is_ok() {
                 zbm_trace::info!("closed LUKS mapping {name}");
             } else {
                 zbm_trace::warn!("unable to close LUKS mapping {name}");
                 keep.push(mapping);
-                closed_all = false;
+                open.push(name);
             }
         }
         self.write_mappings(&keep);
-        closed_all
+        if open.is_empty() {
+            Ok(())
+        } else {
+            Err(LuksError::NotClosed { names: open })
+        }
     }
 }
 

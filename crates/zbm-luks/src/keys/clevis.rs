@@ -10,20 +10,34 @@
 use zbm_core::exec::{Input, Stream};
 
 use super::Target;
+use crate::error::LuksError;
+use crate::error::TokenFailure;
 use crate::session::{Key, Session};
 use crate::tokens::json_arr;
 
 impl Session<'_> {
     /// Opens a volume with a clevis token (`luks_try_clevis_token`).
-    pub fn try_clevis_token(&mut self, target: Target<'_>, id: &str, json: &str) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::Token`] when the image lacks clevis, the token names no
+    /// key slot or clevis does not recover the key; [`LuksError::Open`] when
+    /// the key it recovered does not open the volume.
+    pub fn try_clevis_token(
+        &mut self,
+        target: Target<'_>,
+        id: &str,
+        json: &str,
+    ) -> Result<(), LuksError> {
         let device = target.device;
         let system = *self.system();
+        let failed = |failure| target.token_error("clevis", id, failure);
         if !system.command_exists("clevis") || !system.command_exists("jose") {
             zbm_trace::info!("clevis token {id} on {device} needs clevis and jose in the image");
-            return false;
+            return Err(failed(TokenFailure::Unsupported));
         }
         let Some(slots) = json_arr(json, "keyslots").filter(|slots| !slots.is_empty()) else {
-            return false;
+            return Err(failed(TokenFailure::Unsupported));
         };
         let slot = slots.split(',').next().unwrap_or_default().to_owned();
 
@@ -65,17 +79,13 @@ impl Session<'_> {
             .and_then(|output| output.secret)
             .filter(|key| !key.is_empty());
 
-        let opened = match key {
-            Some(key) => self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args),
-            None => {
-                zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");
-                false
-            }
+        let Some(key) = key else {
+            zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");
+            return Err(failed(TokenFailure::NotReleased));
         };
-        if opened {
-            zbm_trace::info!("unlocked {device} with clevis");
-        }
-        opened
+        self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
+        zbm_trace::info!("unlocked {device} with clevis");
+        Ok(())
     }
 }
 
@@ -123,8 +133,12 @@ mod tests {
         };
         with_session(&fake, settings, |session| {
             let json = r#"{"type":"clevis","keyslots":["3","4"],"jwe":{"protected":"x"}}"#;
-            assert!(session.try_clevis_token(target, "2", json));
-            assert!(!session.try_clevis_token(target, "2", r#"{"keyslots":[]}"#));
+            assert_eq!(session.try_clevis_token(target, "2", json), Ok(()));
+            assert!(
+                session
+                    .try_clevis_token(target, "2", r#"{"keyslots":[]}"#)
+                    .is_err()
+            );
         });
         assert_eq!(
             fake.runner.lines()[..4],
@@ -149,7 +163,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_clevis_token(target, "2", r#"{"keyslots":["3"]}"#));
+            assert!(
+                session
+                    .try_clevis_token(target, "2", r#"{"keyslots":["3"]}"#)
+                    .is_err()
+            );
         });
         assert!(
             fake.kmsg()
@@ -157,7 +175,7 @@ mod tests {
         );
         let fake = FakeSystem::new();
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_clevis_token(target, "2", "{}"));
+            assert!(session.try_clevis_token(target, "2", "{}").is_err());
         });
         assert!(
             fake.kmsg()

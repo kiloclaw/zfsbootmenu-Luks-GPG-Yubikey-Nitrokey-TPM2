@@ -5,7 +5,7 @@
 #   legacy  the Bash libraries in legacy/zfsbootmenu/lib (the default)
 #   rust    the test build of the Rust runtime's zbm program (the Cargo feature
 #           test-seams), at ZBMTEST_ZBM or target/test-seams/debug/zbm, which
-#           zbm_impl_check builds with cargo when it is missing
+#           zbm_impl_check builds with cargo, or brings up to date
 #
 # Suites source this file, call zbm_impl_check before setting anything up, and
 # call zbm_impl_load in each case. Everything a suite observes or controls in
@@ -50,7 +50,8 @@
 _zbm_impl_repo="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../.." && pwd )"
 
 # The test build of zbm.
-ZBMTEST_ZBM="${ZBMTEST_ZBM:-${_zbm_impl_repo}/target/test-seams/debug/zbm}"
+_zbm_impl_default="${_zbm_impl_repo}/target/test-seams/debug/zbm"
+ZBMTEST_ZBM="${ZBMTEST_ZBM:-${_zbm_impl_default}}"
 
 # Reports whether the selected implementation can be tested; exits with 77,
 # which run-all.sh reports as skipped, when it cannot.
@@ -60,7 +61,9 @@ zbm_impl_check() {
       return 0
       ;;
     rust)
-      if [ ! -x "${ZBMTEST_ZBM}" ] && command -v cargo >/dev/null 2>&1; then
+      # The default build is brought up to date first (cargo does nothing
+      # when it is), so the suites never test code older than the tree
+      if [ "${ZBMTEST_ZBM}" = "${_zbm_impl_default}" ] && command -v cargo >/dev/null 2>&1; then
         ( cd "${_zbm_impl_repo}" && CARGO_TARGET_DIR=target/test-seams \
             cargo build -q -p zbm --features test-seams ) || exit 2
       fi

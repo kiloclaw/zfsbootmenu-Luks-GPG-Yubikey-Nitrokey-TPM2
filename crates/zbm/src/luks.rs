@@ -90,7 +90,7 @@ pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32
     let rest = args.get(1..).unwrap_or_default();
     let status = |ok: bool| if ok { 0 } else { 1 };
     match command {
-        "unlock" => status(session.unlock_all()),
+        "unlock" => status(session.unlock_all().is_ok()),
         "open" => {
             let Some(spec) = rest.first() else {
                 let _ = io.stderr.write_all(USAGE.as_bytes());
@@ -106,9 +106,9 @@ pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32
             let opened = session.open_device(name, &device, &key, "", false);
             session.forget_secrets();
             session.settle();
-            status(opened)
+            status(opened.is_ok())
         }
-        "close" => status(session.close_all(rest.first().map(String::as_str))),
+        "close" => status(session.close_all(rest.first().map(String::as_str)).is_ok()),
         "status" => {
             print_status(session, io);
             0
@@ -203,7 +203,7 @@ pub mod seams {
     use std::time::Duration;
 
     use zbm_luks::device::OpenCheck;
-    use zbm_luks::session::{PromptRequest, Prompter};
+    use zbm_luks::session::{Answer, PromptRequest, Prompter};
     use zbm_system::files::Files;
     use zbm_system::{KernelLog, System};
 
@@ -220,19 +220,23 @@ pub mod seams {
     }
 
     impl Prompter for Recorded<'_> {
-        fn timed_prompt(&self, request: &PromptRequest) -> bool {
+        fn timed_prompt(&self, request: &PromptRequest) -> Answer {
             if let Some(prompts) = &self.prompts {
                 let line = format!("timed_prompt {}\n", request.arguments().join(" "));
                 let _ = self.files.append(prompts, line.as_bytes());
             }
             std::thread::sleep(Duration::from_secs(self.delay));
             let Some(answers) = &self.answers else {
-                return false;
+                return Answer::Escape;
             };
             let text = self.files.read_to_string(answers).unwrap_or_default();
             let (first, rest) = text.split_once('\n').unwrap_or((&text, ""));
             let _ = self.files.write(answers, rest.as_bytes());
-            matches!(first, "0")
+            if first == "0" {
+                Answer::Continue
+            } else {
+                Answer::Escape
+            }
         }
     }
 
@@ -287,8 +291,8 @@ pub mod seams {
         let arg = |index: usize| args.get(index).map_or("", String::as_str);
         let status = |ok: bool| if ok { 0 } else { 1 };
         match arg(0) {
-            "unlock_all" => status(session.unlock_all()),
-            "close_all" => status(session.close_all(args.get(1).map(String::as_str))),
+            "unlock_all" => status(session.unlock_all().is_ok()),
+            "close_all" => status(session.close_all(args.get(1).map(String::as_str)).is_ok()),
             "resolve_device" => match resolve_device(system, arg(1)) {
                 Some(device) => {
                     let _ = writeln!(io.stdout, "{device}");
@@ -328,8 +332,8 @@ mod tests {
     struct NoPrompts;
 
     impl zbm_luks::session::Prompter for NoPrompts {
-        fn timed_prompt(&self, _: &zbm_luks::session::PromptRequest) -> bool {
-            false
+        fn timed_prompt(&self, _: &zbm_luks::session::PromptRequest) -> zbm_luks::session::Answer {
+            zbm_luks::session::Answer::Escape
         }
     }
 

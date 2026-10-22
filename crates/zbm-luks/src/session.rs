@@ -16,9 +16,11 @@ use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
 use zbm_state::State;
 use zbm_system::{Environment, System};
+pub use zbm_types::Answer;
 
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
+use crate::error::LuksError;
 
 /// Where the image keeps public keys and settings for GnuPG.
 pub const GNUPG_DIR: &str = "/etc/zfsbootmenu/gnupg";
@@ -157,9 +159,21 @@ impl PromptRequest {
 /// Shows timed prompts. The start-up program draws them as `timed_prompt`
 /// does; the unit suites record and answer them.
 pub trait Prompter {
-    /// Shows the prompt and returns whether the user pressed RETURN or let
-    /// the time pass (`true`) rather than pressing ESCAPE.
-    fn timed_prompt(&self, request: &PromptRequest) -> bool;
+    /// Shows the prompt and returns what the user did: RETURN or letting the
+    /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
+    fn timed_prompt(&self, request: &PromptRequest) -> Answer;
+}
+
+/// How [`Session::wait_for`] ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum Wait {
+    /// What was waited for is there.
+    Present,
+    /// The user pressed a key to stop waiting.
+    Skipped,
+    /// The time ran out, or there was no time to wait.
+    TimedOut,
 }
 
 /// What the LUKS code works with.
@@ -312,7 +326,7 @@ impl<'a> Session<'a> {
     }
 
     /// Shows a timed prompt.
-    pub fn timed_prompt(&self, request: &PromptRequest) -> bool {
+    pub fn timed_prompt(&self, request: &PromptRequest) -> Answer {
         self.luks.prompter.timed_prompt(request)
     }
 
@@ -350,12 +364,12 @@ impl<'a> Session<'a> {
 
     /// Waits up to `seconds` for `present` to hold, showing `message`, unless
     /// the user presses a key (`luks_wait_for`).
-    pub fn wait_for(&self, seconds: u64, message: &str, mut present: impl FnMut() -> bool) -> bool {
+    pub fn wait_for(&self, seconds: u64, message: &str, mut present: impl FnMut() -> bool) -> Wait {
         if present() {
-            return true;
+            return Wait::Present;
         }
         if seconds == 0 {
-            return false;
+            return Wait::TimedOut;
         }
         let system = self.system();
         self.say(&format!("{message}\n"));
@@ -366,7 +380,7 @@ impl<'a> Session<'a> {
         for _ in 0..seconds {
             let before = system.clock.now();
             match system.console.read_key(Some(second)) {
-                Ok(Some(_)) => return false,
+                Ok(Some(_)) => return Wait::Skipped,
                 // The end of the input returns at once, so wait here.
                 _ if system.clock.now().saturating_sub(before) < second => {
                     system.clock.sleep(second);
@@ -375,15 +389,25 @@ impl<'a> Session<'a> {
             }
             if present() {
                 self.settle();
-                return true;
+                return Wait::Present;
             }
         }
-        false
+        Wait::TimedOut
     }
 
     /// `cryptsetup open --type luks --key-file=<key> <args> <device> <name>`
     /// (`luks_cryptsetup_open`); logs the output when it fails.
-    pub fn cryptsetup_open(&self, name: &str, device: &str, key: Key<'_>, args: &[String]) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::Open`] with cryptsetup's exit status.
+    pub fn cryptsetup_open(
+        &self,
+        name: &str,
+        device: &str,
+        key: Key<'_>,
+        args: &[String],
+    ) -> Result<(), LuksError> {
         let (key_file, stdin) = match key {
             Key::File(path) => (path, Input::Null),
             Key::Stdin(secret) => ("-", Input::Secret(secret.clone())),
@@ -401,13 +425,18 @@ impl<'a> Session<'a> {
             Ok(output) => (output.status.shell_code(), output.stdout_text()),
             Err(error) => (127, error.to_string()),
         };
-        if status != 0 {
-            zbm_trace::debug!(
-                "cryptsetup open {device} {name} failed ({status}): {}",
-                command_substitution(&output)
-            );
+        if status == 0 {
+            return Ok(());
         }
-        status == 0
+        zbm_trace::debug!(
+            "cryptsetup open {device} {name} failed ({status}): {}",
+            command_substitution(&output)
+        );
+        Err(LuksError::Open {
+            device: device.to_owned(),
+            name: name.to_owned(),
+            status,
+        })
     }
 }
 
@@ -512,10 +541,11 @@ mod tests {
         fake.console.timeout().timeout();
         let mut checks = 0;
         with_session(&fake, |session| {
-            assert!(session.wait_for(5, "Insert it", || {
+            let waited = session.wait_for(5, "Insert it", || {
                 checks += 1;
                 checks == 3
-            }));
+            });
+            assert_eq!(waited, Wait::Present);
         });
         assert_eq!(checks, 3);
         assert_eq!(fake.clock.now(), Duration::from_secs(2));
@@ -529,18 +559,18 @@ mod tests {
         let fake = FakeSystem::new();
         fake.console.keys(b"x");
         with_session(&fake, |session| {
-            assert!(!session.wait_for(5, "m", || false))
+            assert_eq!(session.wait_for(5, "m", || false), Wait::Skipped);
         });
         let fake = FakeSystem::new();
         fake.console.push(ConsoleInput::End);
         with_session(&fake, |session| {
-            assert!(!session.wait_for(3, "m", || false))
+            assert_eq!(session.wait_for(3, "m", || false), Wait::TimedOut);
         });
         assert_eq!(fake.clock.now(), Duration::from_secs(3));
         // Without time to wait, only the first check counts.
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
-            assert!(!session.wait_for(0, "m", || false))
+            assert_eq!(session.wait_for(0, "m", || false), Wait::TimedOut);
         });
         assert_eq!(fake.console.output_text(), "");
     }
@@ -578,9 +608,20 @@ mod tests {
             let args = ["--allow-discards".to_owned()];
             let right = Secret::copy_from(b"pw");
             let wrong = Secret::copy_from(b"no");
-            assert!(session.cryptsetup_open("v", "/dev/sda", Key::Stdin(&right), &args));
-            assert!(!session.cryptsetup_open("v", "/dev/sda", Key::Stdin(&wrong), &[]));
-            assert!(!session.cryptsetup_open("v", "/dev/sda", Key::File("/k"), &[]));
+            let open = |key| session.cryptsetup_open("v", "/dev/sda", key, &[]);
+            assert_eq!(
+                session.cryptsetup_open("v", "/dev/sda", Key::Stdin(&right), &args),
+                Ok(())
+            );
+            assert_eq!(
+                open(Key::Stdin(&wrong)),
+                Err(LuksError::Open {
+                    device: "/dev/sda".to_owned(),
+                    name: "v".to_owned(),
+                    status: 2
+                })
+            );
+            assert!(open(Key::File("/k")).is_err());
         });
         assert_eq!(
             fake.runner.lines(),
@@ -627,7 +668,7 @@ mod tests {
         let fake = FakeSystem::new();
         let settings = Settings::new("/zfsbootmenu");
         let _log = log(&fake);
-        let prompts = Prompts::answering(&[true]);
+        let prompts = Prompts::answering(&[Answer::Continue]);
         let session = Session::new(Luks {
             system: fake.system(),
             settings: &settings,
@@ -639,8 +680,8 @@ mod tests {
             on_return: "try again".to_owned(),
             on_escape: "skip this volume".to_owned(),
         };
-        assert!(session.timed_prompt(&request));
-        assert!(!session.timed_prompt(&request));
+        assert_eq!(session.timed_prompt(&request), Answer::Continue);
+        assert_eq!(session.timed_prompt(&request), Answer::Escape);
         assert_eq!(prompts.messages().len(), 2);
     }
 

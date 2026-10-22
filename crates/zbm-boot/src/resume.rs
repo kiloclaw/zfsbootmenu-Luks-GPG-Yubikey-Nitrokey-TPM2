@@ -11,6 +11,7 @@ use zbm_core::shell::trim_ifs;
 use zbm_state::State;
 use zbm_system::System;
 
+use crate::error::BootError;
 use crate::prompt::{colorize, tput};
 
 /// The partition types of a hibernation image, from dracut's `95resume`
@@ -72,23 +73,44 @@ Proceed {no} ?
     )
 }
 
+/// Why a read-write import may go ahead as far as hibernation goes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum ResumeChoice {
+    /// The machine has no suspend partition.
+    NoResumeDevice,
+    /// The boot environment gets `noresume`, chosen now or before.
+    Noresume,
+    /// The user typed `DANGEROUS` and goes on without `noresume`.
+    Dangerous,
+}
+
 /// Whether `pool` may be imported read-write as far as hibernation goes, as
 /// `resume_prompt` decides: yes without a suspend partition, or when the user
 /// already chose `noresume`; otherwise the user decides. `NORESUME` records
 /// the choice in the state directory, so the boot environment's command line
 /// gets `noresume`; `DANGEROUS` goes on without it.
-pub fn resume_prompt(system: &System<'_>, state: &State<'_>, pool: &str) -> bool {
+///
+/// # Errors
+///
+/// [`BootError::NoPool`] without a pool, [`BootError::ResumeRefused`] when
+/// the user typed neither choice.
+pub fn resume_prompt(
+    system: &System<'_>,
+    state: &State<'_>,
+    pool: &str,
+) -> Result<ResumeChoice, BootError> {
     if pool.is_empty() {
         zbm_trace::error!("pool is undefined");
-        return false;
+        return Err(BootError::NoPool);
     }
     zbm_trace::debug!("pool set to {pool}");
     if !has_resume_device(system) {
-        return true;
+        return Ok(ResumeChoice::NoResumeDevice);
     }
     // A noresume already given is never taken back.
     if state.noresume().is_some() {
-        return true;
+        return Ok(ResumeChoice::Noresume);
     }
 
     tput(system, &["clear"]);
@@ -105,14 +127,16 @@ pub fn resume_prompt(system: &System<'_>, state: &State<'_>, pool: &str) -> bool
         .flatten()
         .unwrap_or_default();
     match trim_ifs(&line) {
-        "DANGEROUS" => true,
+        "DANGEROUS" => Ok(ResumeChoice::Dangerous),
         "NORESUME" => {
             if let Err(error) = state.set_noresume() {
                 zbm_trace::error!("{}", error.to_string());
             }
-            true
+            Ok(ResumeChoice::Noresume)
         }
-        _ => false,
+        _ => Err(BootError::ResumeRefused {
+            pool: pool.to_owned(),
+        }),
     }
 }
 
@@ -227,7 +251,7 @@ mod tests {
             let state = State::new(&fake.files, "/zfsbootmenu");
             let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
             let rust = resume_prompt(&fake.system(), &state, "tank");
-            assert_eq!(rust, success, "{case}");
+            assert_eq!(rust.is_ok(), success, "{case}");
             assert_eq!(
                 fake.files.exists(Path::new("/zfsbootmenu/noresume")),
                 legacy_noresume,

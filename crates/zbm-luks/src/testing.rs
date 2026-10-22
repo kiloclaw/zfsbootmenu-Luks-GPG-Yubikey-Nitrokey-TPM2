@@ -6,7 +6,7 @@ use std::path::Path;
 
 use zbm_system::{Installed, KernelLog};
 
-use crate::session::{PromptRequest, Prompter};
+use crate::session::{Answer, PromptRequest, Prompter};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 
@@ -40,7 +40,7 @@ pub fn legacy_function(library: &str, name: &str) -> String {
 pub struct NoPrompts;
 
 impl Prompter for NoPrompts {
-    fn timed_prompt(&self, request: &PromptRequest) -> bool {
+    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
         panic!("unexpected timed prompt {request:?}");
     }
 }
@@ -49,13 +49,13 @@ impl Prompter for NoPrompts {
 /// ESCAPE when the list is exhausted, as the unit suites answer them.
 #[derive(Default)]
 pub struct Prompts {
-    answers: RefCell<VecDeque<bool>>,
+    answers: RefCell<VecDeque<Answer>>,
     shown: RefCell<Vec<PromptRequest>>,
 }
 
 impl Prompts {
-    /// A prompter with these answers: `true` for RETURN, `false` for ESCAPE.
-    pub fn answering(answers: &[bool]) -> Prompts {
+    /// A prompter with these answers.
+    pub fn answering(answers: &[Answer]) -> Prompts {
         Prompts {
             answers: RefCell::new(answers.iter().copied().collect()),
             shown: RefCell::new(Vec::new()),
@@ -73,9 +73,12 @@ impl Prompts {
 }
 
 impl Prompter for Prompts {
-    fn timed_prompt(&self, request: &PromptRequest) -> bool {
+    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
         self.shown.borrow_mut().push(request.clone());
-        self.answers.borrow_mut().pop_front().unwrap_or(false)
+        self.answers
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or(Answer::Escape)
     }
 }
 

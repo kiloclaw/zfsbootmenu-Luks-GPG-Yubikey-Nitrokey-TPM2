@@ -50,6 +50,7 @@ Third-party crates:
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
 - `zbm`: `tracing`
 - `zbm-app`: `thiserror`, `tracing`
+- `zbm-boot`: `thiserror`
 - `zbm-crypt`: `thiserror`, `tracing`
 - `zbm-system`: `tracing`, `tracing-subscriber`
 - `zbm-testkit`: `serde`, `serde_json`

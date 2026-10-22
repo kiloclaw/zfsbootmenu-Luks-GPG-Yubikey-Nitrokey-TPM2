@@ -18,7 +18,7 @@ use zbm_core::shell::command_substitution;
 use zbm_system::files::FileKind;
 
 use super::with_newline;
-use crate::session::Session;
+use crate::session::{Session, Wait};
 
 /// Whether a key file is GnuPG-encrypted (`luks_is_gpg_keyfile`): the `gpg`
 /// option, or the name.
@@ -238,9 +238,10 @@ impl Session<'_> {
                     self.paint("yellow", description)
                 ),
             );
-            if !self.wait_for(self.token_wait(), &message, || {
+            let waited = self.wait_for(self.token_wait(), &message, || {
                 self.gpg_have_key(home, &recipients)
-            }) {
+            });
+            if waited != Wait::Present {
                 zbm_trace::info!(
                     "no secret key for {file} (encrypted to {} )",
                     recipients.join(" ")

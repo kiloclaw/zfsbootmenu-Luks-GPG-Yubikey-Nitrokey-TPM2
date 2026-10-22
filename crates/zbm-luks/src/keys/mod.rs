@@ -18,6 +18,7 @@ use zbm_core::exec::{Input, Stream};
 use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
 
+use crate::error::{LuksError, TokenFailure};
 use crate::session::Session;
 use crate::tokens::{json_bool, list_tokens};
 
@@ -49,6 +50,19 @@ const PLUGIN_DIRS: [&str; 4] = [
     "/lib/cryptsetup",
     "/lib64/cryptsetup",
 ];
+
+impl Target<'_> {
+    /// The error of the `kind` token `id` on this volume failing for
+    /// `failure`.
+    pub fn token_error(&self, kind: &str, id: &str, failure: TokenFailure) -> LuksError {
+        LuksError::Token {
+            kind: kind.to_owned(),
+            id: id.to_owned(),
+            device: self.device.to_owned(),
+            failure,
+        }
+    }
+}
 
 /// Removes all final newlines, as `$(...)` does.
 pub(crate) fn strip_newlines(secret: &mut Secret) {
@@ -98,7 +112,16 @@ impl Session<'_> {
     /// Opens a volume through cryptsetup's token plugin
     /// (`luks_open_token_plugin`); cryptsetup reads a PIN from standard
     /// input, followed by a newline.
-    pub fn open_token_plugin(&self, target: Target<'_>, id: &str, pin: Option<&Secret>) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::Open`] with cryptsetup's exit status.
+    pub fn open_token_plugin(
+        &self,
+        target: Target<'_>,
+        id: &str,
+        pin: Option<&Secret>,
+    ) -> Result<(), LuksError> {
         let stdin = pin.map_or(Input::Null, |pin| Input::Secret(with_newline(pin)));
         let command = self
             .command("cryptsetup")
@@ -112,14 +135,19 @@ impl Session<'_> {
             Ok(output) => (output.status.shell_code(), output.stdout_text()),
             Err(error) => (127, error.to_string()),
         };
-        if status != 0 {
-            zbm_trace::debug!(
-                "token {id} on {} failed ({status}): {}",
-                target.device,
-                command_substitution(&output)
-            );
+        if status == 0 {
+            return Ok(());
         }
-        status == 0
+        zbm_trace::debug!(
+            "token {id} on {} failed ({status}): {}",
+            target.device,
+            command_substitution(&output)
+        );
+        Err(LuksError::Open {
+            device: target.device.to_owned(),
+            name: target.name.to_owned(),
+            status,
+        })
     }
 
     /// The JSON of a token (`cryptsetup token export`), or `None` if it
@@ -140,10 +168,18 @@ impl Session<'_> {
     /// (`luks_try_tokens`): first those that need no interaction (TPM2
     /// without a PIN, clevis), then those that do (TPM2 with a PIN, FIDO2,
     /// and any other type that has a plugin in the image).
-    pub fn try_tokens(&mut self, target: Target<'_>, header: &str) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::NoToken`] when no token opened the volume; each token's
+    /// own failure is logged by its method.
+    pub fn try_tokens(&mut self, target: Target<'_>, header: &str) -> Result<(), LuksError> {
+        let none_opened = || LuksError::NoToken {
+            device: target.device.to_owned(),
+        };
         let tokens = list_tokens(self.system(), header);
         if tokens.is_empty() {
-            return false;
+            return Err(none_opened());
         }
         for interactive in [false, true] {
             for token in &tokens {
@@ -152,12 +188,13 @@ impl Session<'_> {
                 };
                 let id = token.id.as_str();
                 let with_pin = json_bool(&json, "tpm2-pin").as_deref() == Some("true");
-                let opened = match (interactive, token.kind.as_str()) {
+                let result = match (interactive, token.kind.as_str()) {
                     (false, "systemd-tpm2") if !with_pin => self.try_tpm2_token(target, id, &json),
                     (false, "clevis") => self.try_clevis_token(target, id, &json),
                     (true, "systemd-tpm2") if with_pin => self.try_tpm2_token(target, id, &json),
                     (true, "systemd-fido2") => self.try_fido2_token(target, id, &json),
-                    (true, "systemd-tpm2" | "clevis") | (false, _) => false,
+                    // Tried in the other pass.
+                    (true, "systemd-tpm2" | "clevis") | (false, _) => continue,
                     (true, kind) => {
                         if self.have_token_plugin(kind) {
                             self.open_token_plugin(target, id, None)
@@ -166,16 +203,16 @@ impl Session<'_> {
                                 "no support for {kind} token {id} on {}",
                                 target.device
                             );
-                            false
+                            continue;
                         }
                     }
                 };
-                if opened {
-                    return true;
+                if result.is_ok() {
+                    return Ok(());
                 }
             }
         }
-        false
+        Err(none_opened())
     }
 }
 
@@ -246,8 +283,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(session.open_token_plugin(target, "0", Some(&Secret::copy_from(b"1234"))));
-            assert!(!session.open_token_plugin(target, "1", None));
+            assert_eq!(
+                session.open_token_plugin(target, "0", Some(&Secret::copy_from(b"1234"))),
+                Ok(())
+            );
+            assert!(session.open_token_plugin(target, "1", None).is_err());
         });
         assert_eq!(
             fake.runner.lines(),
@@ -314,7 +354,7 @@ mod tests {
             args: &args,
         };
         with_session(&fake, settings, |session| {
-            assert!(!session.try_tokens(target, "/dev/sda"));
+            assert!(session.try_tokens(target, "/dev/sda").is_err());
         });
         let infos: Vec<String> = fake
             .kmsg()

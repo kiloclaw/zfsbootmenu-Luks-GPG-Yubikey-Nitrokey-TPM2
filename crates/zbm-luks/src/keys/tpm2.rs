@@ -19,6 +19,7 @@ use zbm_system::files::FileKind;
 
 use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
+use crate::error::{LuksError, TokenFailure};
 use crate::session::{Key, Session};
 use crate::tokens::{json_arr, json_bool, json_str};
 
@@ -71,7 +72,8 @@ impl Session<'_> {
             .stderr(Stream::Null)
     }
 
-    fn succeeds(&self, command: &Command) -> bool {
+    /// Whether `command` runs and exits with status 0.
+    fn is_successful(&self, command: &Command) -> bool {
         self.system()
             .runner
             .run(command)
@@ -218,7 +220,7 @@ impl Session<'_> {
             "-S",
             &path("session.ctx"),
         ]);
-        if written && self.succeeds(&load) && self.succeeds(&session) {
+        if written && self.is_successful(&load) && self.is_successful(&session) {
             let policy_pcr = self.tpm2_command("tpm2_policypcr").args([
                 "-S",
                 &path("session.ctx"),
@@ -241,8 +243,8 @@ impl Session<'_> {
                 .args(["-c", &path("obj.ctx"), "-p", &policy])
                 .stdin(stdin)
                 .stdout(Stream::CaptureSecret);
-            if (pcrs.is_empty() || self.succeeds(&policy_pcr))
-                && (auth.is_none() || self.succeeds(&policy_auth))
+            if (pcrs.is_empty() || self.is_successful(&policy_pcr))
+                && (auth.is_none() || self.is_successful(&policy_auth))
                 && let Ok(output) = system.runner.run(&unseal)
                 && output.status.success()
             {
@@ -271,17 +273,13 @@ impl Session<'_> {
         target: Target<'_>,
         json: &str,
         pin: Option<&Secret>,
-    ) -> Result<(), bool> {
+    ) -> Result<(), TokenFailure> {
         match self.tpm2_native_unseal(json, pin) {
-            Outcome::Key(key) => {
-                if self.cryptsetup_open(target.name, target.device, Key::Stdin(&key), target.args) {
-                    Ok(())
-                } else {
-                    Err(false)
-                }
-            }
-            Outcome::Failed => Err(false),
-            Outcome::Unsupported => Err(true),
+            Outcome::Key(key) => self
+                .cryptsetup_open(target.name, target.device, Key::Stdin(&key), target.args)
+                .map_err(|_| TokenFailure::NotReleased),
+            Outcome::Failed => Err(TokenFailure::NotReleased),
+            Outcome::Unsupported => Err(TokenFailure::Unsupported),
         }
     }
 
@@ -289,28 +287,41 @@ impl Session<'_> {
     /// that already worked is tried once, then the user is asked, up to three
     /// times: wrong PINs count towards the TPM's dictionary-attack lockout, so
     /// no PIN is asked for during a lockout.
-    pub fn try_tpm2_token(&mut self, target: Target<'_>, id: &str, json: &str) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`LuksError::Token`] with the reason: no TPM2, a lockout, no PIN
+    /// given, too many wrong PINs, a key not released, or a token the image
+    /// cannot open.
+    pub fn try_tpm2_token(
+        &mut self,
+        target: Target<'_>,
+        id: &str,
+        json: &str,
+    ) -> Result<(), LuksError> {
         let device = target.device;
+        let failed = |failure| target.token_error("systemd-tpm2", id, failure);
         if !self.have_tpm2() {
             zbm_trace::info!("no TPM2 available for token {id} on {device}");
-            return false;
+            return Err(failed(TokenFailure::NoTpm));
         }
 
         if json_bool(json, "tpm2-pin").as_deref() != Some("true") {
             // Without a PIN, unlocking needs no interaction.
-            if self.have_token_plugin("systemd-tpm2") && self.open_token_plugin(target, id, None) {
-                return true;
+            if self.have_token_plugin("systemd-tpm2")
+                && self.open_token_plugin(target, id, None).is_ok()
+            {
+                return Ok(());
             }
             let result = self.tpm2_native_open(target, json, None);
-            if result == Err(true) && !self.have_token_plugin("systemd-tpm2") {
+            if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
                 zbm_trace::warn!(
                     "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
                 );
             }
-            if result.is_ok() {
-                zbm_trace::info!("unlocked {device} with TPM2");
-            }
-            return result.is_ok();
+            result.map_err(failed)?;
+            zbm_trace::info!("unlocked {device} with TPM2");
+            return Ok(());
         }
 
         if self.tpm2_in_lockout() {
@@ -319,7 +330,7 @@ impl Session<'_> {
             zbm_trace::warn!(
                 "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}"
             );
-            return false;
+            return Err(failed(TokenFailure::Lockout));
         }
 
         let tries = 3;
@@ -332,7 +343,7 @@ impl Session<'_> {
                     None => {
                         attempt += 1;
                         if attempt > tries {
-                            return false;
+                            return Err(failed(TokenFailure::TooManyTries));
                         }
                         self.say("\n");
                         let line =
@@ -340,24 +351,24 @@ impl Session<'_> {
                         self.say(&self.paint("cyan", &line));
                         match self.read_secret("TPM2 PIN (leave empty to use another method): ") {
                             Some(pin) if !pin.is_empty() => pin,
-                            _ => return false,
+                            _ => return Err(failed(TokenFailure::NoPin)),
                         }
                     }
                 };
 
                 let opened = if self.have_token_plugin("systemd-tpm2") {
-                    self.open_token_plugin(target, id, Some(&pin))
+                    self.open_token_plugin(target, id, Some(&pin)).is_ok()
                 } else {
                     match self.tpm2_native_open(target, json, Some(&pin)) {
                         Ok(()) => true,
-                        Err(true) => {
+                        Err(TokenFailure::Unsupported) => {
                             zbm_trace::warn!(
                                 "TPM2 token {id} on {device} needs the systemd-tpm2 \
                                  cryptsetup plugin"
                             );
-                            return false;
+                            return Err(failed(TokenFailure::Unsupported));
                         }
-                        Err(false) => false,
+                        Err(_) => false,
                     }
                 };
 
@@ -366,13 +377,13 @@ impl Session<'_> {
                         self.tpm2_pins.push(pin);
                     }
                     zbm_trace::info!("unlocked {device} with TPM2 and PIN");
-                    return true;
+                    return Ok(());
                 }
                 drop(pin);
 
                 if self.tpm2_in_lockout() {
                     self.tpm2_lockout_message();
-                    return false;
+                    return Err(failed(TokenFailure::Lockout));
                 }
                 // A cached PIN is only ever tried once.
                 if cached.is_some() {
@@ -384,7 +395,7 @@ impl Session<'_> {
                 ));
             }
         }
-        false
+        Err(failed(TokenFailure::NotReleased))
     }
 }
 
@@ -600,14 +611,14 @@ mod tests {
                 device: "/dev/sda",
                 args: &args,
             };
-            assert!(session.try_tpm2_token(a, "0", &json));
+            assert_eq!(session.try_tpm2_token(a, "0", &json), Ok(()));
             // The second volume gets the PIN that worked, without asking.
             let b = Target {
                 name: "b",
                 device: "/dev/sdb",
                 args: &args,
             };
-            assert!(session.try_tpm2_token(b, "0", &json));
+            assert_eq!(session.try_tpm2_token(b, "0", &json), Ok(()));
         });
         let output = fake.console.output_text();
         assert_eq!(output.matches("TPM2 PIN (leave empty").count(), 2);
@@ -644,7 +655,11 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_tpm2_token(target, "0", &fixture("token-tpm2-pin.json")));
+            assert!(
+                session
+                    .try_tpm2_token(target, "0", &fixture("token-tpm2-pin.json"))
+                    .is_err()
+            );
         });
         assert!(
             fake.console
@@ -668,8 +683,8 @@ mod tests {
             args: &args,
         };
         with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(!session.try_tpm2_token(target, "0", "{}"));
-            assert!(!session.try_tpm2_token(target, "0", "{}"));
+            assert!(session.try_tpm2_token(target, "0", "{}").is_err());
+            assert!(session.try_tpm2_token(target, "0", "{}").is_err());
         });
         assert_eq!(
             fake.runner.lines(),

@@ -114,7 +114,13 @@ Done in R1:
   than the `addr2line` crate, which is not among the agreed dependencies; the VM test harness runs the tree's own
   `build-init.sh`, so changes to it need no new build container.
 
-Open in R1: error enums; shadow mode.
+- Error enums: `zbm_luks::LuksError` (with `TokenFailure`) and `zbm_boot::BootError`, and outcomes where an
+  operation ends in one of several good ways (`Opened`, `UnlockSummary`, `Wait`, `ResumeChoice`, and
+  `zbm_types::Answer` for timed prompts). No function of the two crates returns a success flag any more (the metric
+  went from 18 and 10 to 0); `bool` is left for questions. The unit tests check the specific outcome and error where
+  they checked `true` or `false`.
+
+Open in R1: shadow mode.
 
 ## What the pilots taught
 

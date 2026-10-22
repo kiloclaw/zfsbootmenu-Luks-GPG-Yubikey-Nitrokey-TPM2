@@ -94,21 +94,21 @@ pub fn json_bool(json: &str, key: &str) -> Option<String> {
 }
 
 /// Whether `c` is in awk's `[[:space:]]`.
-fn awk_space(c: char) -> bool {
+fn is_awk_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r')
 }
 
 /// Whether `line` matches `^[[:space:]]*"<name>"[[:space:]]*:`, where a
 /// `None` name stands for `[0-9]+`; returns the name.
 fn awk_member<'a>(line: &'a str, name: Option<&str>) -> Option<&'a str> {
-    let rest = line.trim_start_matches(awk_space).strip_prefix('"')?;
+    let rest = line.trim_start_matches(is_awk_space).strip_prefix('"')?;
     let end = rest.find('"')?;
     let found = &rest[..end];
     let matches = match name {
         Some(name) => found == name,
         None => !found.is_empty() && found.bytes().all(|byte| byte.is_ascii_digit()),
     };
-    let after = rest[end + 1..].trim_start_matches(awk_space);
+    let after = rest[end + 1..].trim_start_matches(is_awk_space);
     (matches && after.starts_with(':')).then_some(found)
 }
 
@@ -117,7 +117,7 @@ fn awk_member<'a>(line: &'a str, name: Option<&str>) -> Option<&'a str> {
 fn awk_type(line: &str) -> &str {
     let mut text = line;
     if let Some(colon) = text.find(':') {
-        let rest = text[colon + 1..].trim_start_matches(awk_space);
+        let rest = text[colon + 1..].trim_start_matches(is_awk_space);
         if let Some(rest) = rest.strip_prefix('"') {
             text = rest;
         }
@@ -176,7 +176,7 @@ pub fn parse_dump_text(text: &str) -> Vec<Token> {
             in_tokens = true;
             continue;
         }
-        if line.chars().next().is_some_and(|c| !awk_space(c)) {
+        if line.chars().next().is_some_and(|c| !is_awk_space(c)) {
             in_tokens = false;
         }
         let Some(rest) = line.strip_prefix("  ") else {
@@ -187,7 +187,7 @@ pub fn parse_dump_text(text: &str) -> Vec<Token> {
             continue;
         }
         // `sub(":", "", $1); print $1, $2`
-        let mut fields = line.split(awk_space).filter(|field| !field.is_empty());
+        let mut fields = line.split(is_awk_space).filter(|field| !field.is_empty());
         let first = fields.next().unwrap_or_default().replacen(':', "", 1);
         tokens.push(Token {
             id: first,

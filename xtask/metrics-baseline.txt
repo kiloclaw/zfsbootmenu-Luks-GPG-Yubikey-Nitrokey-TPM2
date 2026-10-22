@@ -8,12 +8,12 @@ generate-zbm               6           6               3           26           
 xtask                      0           0               0            0              0             0              0
 zbm                        0           0               0            4              0             0              0
 zbm-app                    0           0               0            0              0             0              0
-zbm-boot                   6           5              10           64             24             0              0
+zbm-boot                   6           5               0           64             24             0              0
 zbm-cmdline                1           1               1           17             19             0              0
 zbm-core                   1           1               1            5              2             0              0
 zbm-crypt                  0           0               0            0              0             0              0
 zbm-kcl                    2           1               3            7              6             0              0
-zbm-luks                  12           3              18           82             14             0              0
+zbm-luks                  12           3               0           82             14             0              0
 zbm-menu                   0           0               0            0              0             0              0
 zbm-platform               0           0               0            0              0             0              0
 zbm-state                  0           1               0            5              1             0              0
