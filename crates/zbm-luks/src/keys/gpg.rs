@@ -216,8 +216,7 @@ impl Session<'_> {
     /// wasted.
     pub fn gpg_decrypt(&self, file: &str, description: &str) -> Option<Secret> {
         let Some(home) = self.gpg_setup() else {
-            self.log()
-                .warning(format!("GnuPG is not available to decrypt {file}"));
+            zbm_trace::warn!("GnuPG is not available to decrypt {file}");
             return None;
         };
         let key = self.gpg_decrypt_in(&home, file, description);
@@ -242,10 +241,10 @@ impl Session<'_> {
             if !self.wait_for(self.token_wait(), &message, || {
                 self.gpg_have_key(home, &recipients)
             }) {
-                self.log().info(format!(
+                zbm_trace::info!(
                     "no secret key for {file} (encrypted to {} )",
                     recipients.join(" ")
-                ));
+                );
                 return None;
             }
             recipients
@@ -327,10 +326,10 @@ impl Session<'_> {
             if let Some(key) = key.filter(|key| okay && !key.is_empty()) {
                 return Some(key);
             }
-            self.log().debug(format!(
+            zbm_trace::debug!(
                 "gpg failed to decrypt {file}: {}",
                 command_substitution(&status)
-            ));
+            );
             self.say(&self.paint("red", "Decryption failed.\n"));
         }
         None

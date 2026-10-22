@@ -1,11 +1,11 @@
 //! An in-memory file system.
 
-use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use zbm_system::files::{FileKind, Files, Metadata};
@@ -76,13 +76,15 @@ const MAX_LINKS: usize = 40;
 /// one second with each change, so "newer than" comparisons are predictable.
 ///
 /// Clones share one file system, so a stand-in for a program (a responder of
-/// the fake runner) can change the files the code under test sees.
+/// the fake runner) can change the files the code under test sees, and a
+/// tracing layer of another thread can write the kernel log. The state is
+/// behind mutexes, which no method holds while it calls another.
 #[derive(Clone)]
 pub struct FakeFiles {
-    nodes: Rc<RefCell<BTreeMap<PathBuf, Node>>>,
-    operations: Rc<RefCell<Vec<FileOperation>>>,
-    failures: Rc<RefCell<Vec<(PathBuf, io::ErrorKind)>>>,
-    ticks: Rc<Cell<u64>>,
+    nodes: Arc<Mutex<BTreeMap<PathBuf, Node>>>,
+    operations: Arc<Mutex<Vec<FileOperation>>>,
+    failures: Arc<Mutex<Vec<(PathBuf, io::ErrorKind)>>>,
+    ticks: Arc<AtomicU64>,
 }
 
 impl Default for FakeFiles {
@@ -93,6 +95,11 @@ impl Default for FakeFiles {
 
 /// The error the kernel reports for `kind`, so that messages read as they do on
 /// a real system ("No such file or directory").
+/// The value behind `mutex`, also after a test panicked while holding it.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 fn error(kind: io::ErrorKind, path: &Path) -> io::Error {
     let errno = match kind {
         io::ErrorKind::NotFound => 2,
@@ -123,16 +130,27 @@ impl FakeFiles {
             },
         );
         FakeFiles {
-            nodes: Rc::new(RefCell::new(nodes)),
-            operations: Rc::new(RefCell::new(Vec::new())),
-            failures: Rc::new(RefCell::new(Vec::new())),
-            ticks: Rc::new(Cell::new(0)),
+            nodes: Arc::new(Mutex::new(nodes)),
+            operations: Arc::new(Mutex::new(Vec::new())),
+            failures: Arc::new(Mutex::new(Vec::new())),
+            ticks: Arc::new(AtomicU64::new(0)),
         }
     }
 
+    fn nodes(&self) -> MutexGuard<'_, BTreeMap<PathBuf, Node>> {
+        lock(&self.nodes)
+    }
+
+    fn recorded(&self) -> MutexGuard<'_, Vec<FileOperation>> {
+        lock(&self.operations)
+    }
+
+    fn failures(&self) -> MutexGuard<'_, Vec<(PathBuf, io::ErrorKind)>> {
+        lock(&self.failures)
+    }
+
     fn tick(&self) -> SystemTime {
-        let ticks = self.ticks.get() + 1;
-        self.ticks.set(ticks);
+        let ticks = self.ticks.fetch_add(1, Ordering::SeqCst) + 1;
         SystemTime::UNIX_EPOCH + EPOCH + Duration::from_secs(ticks)
     }
 
@@ -149,8 +167,7 @@ impl FakeFiles {
         let mut current = PathBuf::from("/");
         for component in path.components().skip(1) {
             current.push(component);
-            self.nodes
-                .borrow_mut()
+            self.nodes()
                 .entry(current.clone())
                 .or_insert(Node::Directory {
                     mode: 0o755,
@@ -174,7 +191,7 @@ impl FakeFiles {
     ) -> &FakeFiles {
         let path = path.as_ref();
         self.make_parents(path);
-        self.nodes.borrow_mut().insert(
+        self.nodes().insert(
             path.to_owned(),
             Node::File {
                 contents: contents.as_ref().to_vec(),
@@ -204,7 +221,7 @@ impl FakeFiles {
 
     fn special(&self, path: &Path, kind: FileKind) -> &FakeFiles {
         self.make_parents(path);
-        self.nodes.borrow_mut().insert(
+        self.nodes().insert(
             path.to_owned(),
             Node::File {
                 contents: Vec::new(),
@@ -221,24 +238,21 @@ impl FakeFiles {
     pub fn symlink(&self, path: impl AsRef<Path>, target: impl AsRef<Path>) -> &FakeFiles {
         let path = path.as_ref();
         self.make_parents(path);
-        self.nodes
-            .borrow_mut()
+        self.nodes()
             .insert(path.to_owned(), Node::Symlink(target.as_ref().to_owned()));
         self
     }
 
     /// Makes every later operation on `path` fail with `kind`.
     pub fn fail(&self, path: impl AsRef<Path>, kind: io::ErrorKind) -> &FakeFiles {
-        self.failures
-            .borrow_mut()
-            .push((path.as_ref().to_owned(), kind));
+        self.failures().push((path.as_ref().to_owned(), kind));
         self
     }
 
     /// Sets the modification time of an entry.
     pub fn set_modified(&self, path: impl AsRef<Path>, time: SystemTime) {
         let path = path.as_ref();
-        match self.nodes.borrow_mut().get_mut(path) {
+        match self.nodes().get_mut(path) {
             Some(Node::File { modified, .. } | Node::Directory { modified, .. }) => {
                 *modified = time;
             }
@@ -249,7 +263,7 @@ impl FakeFiles {
     /// The contents of a file, following links, if it exists.
     pub fn contents(&self, path: impl AsRef<Path>) -> Option<Vec<u8>> {
         let path = self.resolve(path.as_ref(), true).ok()?;
-        match self.nodes.borrow().get(&path)? {
+        match self.nodes().get(&path)? {
             Node::File { contents, .. } => Some(contents.clone()),
             _ => None,
         }
@@ -263,25 +277,20 @@ impl FakeFiles {
 
     /// The changes made so far, in order.
     pub fn operations(&self) -> Vec<FileOperation> {
-        self.operations.borrow().clone()
+        self.recorded().clone()
     }
 
     /// Every path that exists, sorted.
     pub fn paths(&self) -> Vec<PathBuf> {
-        self.nodes.borrow().keys().cloned().collect()
+        self.nodes().keys().cloned().collect()
     }
 
     fn record(&self, operation: FileOperation) {
-        self.operations.borrow_mut().push(operation);
+        self.recorded().push(operation);
     }
 
     fn check_failure(&self, path: &Path) -> io::Result<()> {
-        match self
-            .failures
-            .borrow()
-            .iter()
-            .find(|(failing, _)| failing == path)
-        {
+        match self.failures().iter().find(|(failing, _)| failing == path) {
             Some((_, kind)) => Err(error(*kind, path)),
             None => Ok(()),
         }
@@ -294,7 +303,7 @@ impl FakeFiles {
         if !path.is_absolute() {
             return Err(error(io::ErrorKind::InvalidInput, path));
         }
-        let nodes = self.nodes.borrow();
+        let nodes = self.nodes();
         let mut pending: VecDeque<Part> = parts(path).into();
         let mut resolved = PathBuf::from("/");
         let mut links = 0;
@@ -338,7 +347,7 @@ impl FakeFiles {
         self.check_failure(path)?;
         let resolved = self.resolve(path, follow_last)?;
         let parent = resolved.parent().unwrap_or(Path::new("/"));
-        match self.nodes.borrow().get(parent) {
+        match self.nodes().get(parent) {
             Some(Node::Directory { .. }) => Ok(resolved),
             Some(_) => Err(error(io::ErrorKind::NotADirectory, path)),
             None => Err(error(io::ErrorKind::NotFound, path)),
@@ -348,7 +357,7 @@ impl FakeFiles {
     fn write_file(&self, path: &Path, contents: &[u8], append: bool) -> io::Result<()> {
         let resolved = self.resolve_for_write(path, true)?;
         let modified = self.tick();
-        let mut nodes = self.nodes.borrow_mut();
+        let mut nodes = self.nodes();
         match nodes.get_mut(&resolved) {
             Some(Node::Directory { .. }) => return Err(error(io::ErrorKind::IsADirectory, path)),
             Some(Node::File {
@@ -386,6 +395,10 @@ impl FakeFiles {
 }
 
 impl Files for FakeFiles {
+    fn shared(&self) -> Arc<dyn Files + Send + Sync> {
+        Arc::new(self.clone())
+    }
+
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
         let mut data = self.read(path)?;
         data.truncate(len);
@@ -395,7 +408,7 @@ impl Files for FakeFiles {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;
-        match self.nodes.borrow().get(&resolved) {
+        match self.nodes().get(&resolved) {
             Some(Node::File { contents, .. }) => Ok(contents.clone()),
             Some(Node::Directory { .. }) => Err(error(io::ErrorKind::IsADirectory, path)),
             Some(Node::Symlink(_)) => unreachable!("links are resolved"),
@@ -413,11 +426,11 @@ impl Files for FakeFiles {
 
     fn create_dir(&self, path: &Path) -> io::Result<()> {
         let resolved = self.resolve_for_write(path, false)?;
-        if self.nodes.borrow().contains_key(&resolved) {
+        if self.nodes().contains_key(&resolved) {
             return Err(error(io::ErrorKind::AlreadyExists, path));
         }
         let modified = self.tick();
-        self.nodes.borrow_mut().insert(
+        self.nodes().insert(
             resolved.clone(),
             Node::Directory {
                 mode: 0o755,
@@ -444,7 +457,7 @@ impl Files for FakeFiles {
 
     fn remove_file(&self, path: &Path) -> io::Result<()> {
         let resolved = self.resolve_for_write(path, false)?;
-        let mut nodes = self.nodes.borrow_mut();
+        let mut nodes = self.nodes();
         match nodes.get(&resolved) {
             Some(Node::Directory { .. }) => Err(error(io::ErrorKind::IsADirectory, path)),
             Some(_) => {
@@ -459,7 +472,7 @@ impl Files for FakeFiles {
 
     fn remove_dir(&self, path: &Path) -> io::Result<()> {
         let resolved = self.resolve_for_write(path, false)?;
-        let mut nodes = self.nodes.borrow_mut();
+        let mut nodes = self.nodes();
         match nodes.get(&resolved) {
             Some(Node::Directory { .. }) => {
                 let has_children = nodes
@@ -481,7 +494,7 @@ impl Files for FakeFiles {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         let source = self.resolve_for_write(from, false)?;
         let target = self.resolve_for_write(to, false)?;
-        let mut nodes = self.nodes.borrow_mut();
+        let mut nodes = self.nodes();
         if !nodes.contains_key(&source) {
             return Err(error(io::ErrorKind::NotFound, from));
         }
@@ -513,7 +526,7 @@ impl Files for FakeFiles {
     fn read_dir(&self, path: &Path) -> io::Result<Vec<OsString>> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;
-        let nodes = self.nodes.borrow();
+        let nodes = self.nodes();
         match nodes.get(&resolved) {
             Some(Node::Directory { .. }) => {}
             Some(_) => return Err(error(io::ErrorKind::NotADirectory, path)),
@@ -531,7 +544,7 @@ impl Files for FakeFiles {
     fn metadata(&self, path: &Path) -> io::Result<Metadata> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;
-        match self.nodes.borrow().get(&resolved) {
+        match self.nodes().get(&resolved) {
             Some(Node::File {
                 contents,
                 kind,
@@ -557,7 +570,7 @@ impl Files for FakeFiles {
     fn set_mode(&self, path: &Path, new_mode: u32) -> io::Result<()> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;
-        match self.nodes.borrow_mut().get_mut(&resolved) {
+        match self.nodes().get_mut(&resolved) {
             Some(Node::File { mode, .. } | Node::Directory { mode, .. }) => {
                 *mode = new_mode & 0o7777
             }
@@ -570,7 +583,7 @@ impl Files for FakeFiles {
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         self.check_failure(path)?;
         let resolved = self.resolve(path, true)?;
-        if self.nodes.borrow().contains_key(&resolved) {
+        if self.nodes().contains_key(&resolved) {
             Ok(resolved)
         } else {
             Err(error(io::ErrorKind::NotFound, path))

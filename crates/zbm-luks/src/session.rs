@@ -15,7 +15,7 @@ use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::secret::Secret;
 use zbm_core::shell::command_substitution;
 use zbm_state::State;
-use zbm_system::{Environment, KernelLog, System};
+use zbm_system::{Environment, System};
 
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
@@ -167,8 +167,6 @@ pub trait Prompter {
 pub struct Luks<'a> {
     /// The system.
     pub system: System<'a>,
-    /// The kernel log.
-    pub log: &'a KernelLog<'a>,
     /// The settings.
     pub settings: &'a Settings,
     /// The timed prompts.
@@ -221,11 +219,6 @@ impl<'a> Session<'a> {
         &self.luks.system
     }
 
-    /// The kernel log.
-    pub fn log(&self) -> &'a KernelLog<'a> {
-        self.luks.log
-    }
-
     /// The settings.
     pub fn settings(&self) -> &'a Settings {
         self.luks.settings
@@ -260,7 +253,8 @@ impl<'a> Session<'a> {
                 .iter()
                 .any(|rule| system.files.exists(Path::new(rule)))
         {
-            self.log().debug(
+            zbm_trace::debug!(
+                "{}",
                 "95-dm-notify.rules missing, disabling udev synchronization for device-mapper",
             );
             self.dm_disable_udev = true;
@@ -408,10 +402,10 @@ impl<'a> Session<'a> {
             Err(error) => (127, error.to_string()),
         };
         if status != 0 {
-            self.log().debug(format!(
+            zbm_trace::debug!(
                 "cryptsetup open {device} {name} failed ({status}): {}",
                 command_substitution(&output)
-            ));
+            );
         }
         status == 0
     }
@@ -459,10 +453,9 @@ mod tests {
 
     fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Session<'_>)) {
         let settings = Settings::new("/zfsbootmenu");
-        let log = log(fake);
+        let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &NoPrompts,
         };
@@ -633,11 +626,10 @@ mod tests {
     fn prompts_go_to_the_prompter() {
         let fake = FakeSystem::new();
         let settings = Settings::new("/zfsbootmenu");
-        let log = log(&fake);
+        let _log = log(&fake);
         let prompts = Prompts::answering(&[true]);
         let session = Session::new(Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &prompts,
         });

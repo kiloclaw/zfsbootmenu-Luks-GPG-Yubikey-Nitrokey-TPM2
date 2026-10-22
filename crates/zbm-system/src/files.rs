@@ -9,6 +9,7 @@ use std::ffi::OsString;
 use std::io::{self, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 /// What kind of file a path names, after following symbolic links.
@@ -136,6 +137,10 @@ pub trait Files {
         })
     }
 
+    /// An owned handle to the same files that another thread may use: the
+    /// kernel log's `tracing` layer writes through it.
+    fn shared(&self) -> Arc<dyn Files + Send + Sync>;
+
     /// Copies a file's contents (`cp` without options).
     fn copy(&self, from: &Path, to: &Path) -> io::Result<()> {
         let contents = self.read(from)?;
@@ -148,6 +153,10 @@ pub trait Files {
 pub struct RealFiles;
 
 impl Files for RealFiles {
+    fn shared(&self) -> Arc<dyn Files + Send + Sync> {
+        Arc::new(RealFiles)
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         std::fs::read(path)
     }
@@ -307,6 +316,34 @@ mod tests {
         assert_eq!(RealFiles.read_dir(dir.path()).unwrap(), ["kernels"]);
         assert!(RealFiles.replace(Path::new("/"), b"").is_err());
         assert!(RealFiles.replace(&dir.join("missing/file"), b"").is_err());
+
+        // A rename that fails takes its temporary file with it.
+        dir.write("full/entry", "");
+        assert!(RealFiles.replace(&dir.join("full"), b"x").is_err());
+        assert_eq!(RealFiles.read_dir(dir.path()).unwrap(), ["full", "kernels"]);
+    }
+
+    #[test]
+    fn special_files_have_their_kinds() {
+        let dir = TempDir::new("zbm-files");
+        let kind = |path: &Path| RealFiles.metadata(path).unwrap().kind;
+        let _socket = std::os::unix::net::UnixListener::bind(dir.join("socket")).unwrap();
+        let fifo = std::process::Command::new("mkfifo")
+            .arg(dir.join("fifo"))
+            .status()
+            .unwrap();
+        assert!(fifo.success());
+
+        assert_eq!(kind(&dir.join("socket")), FileKind::Socket);
+        assert_eq!(kind(&dir.join("fifo")), FileKind::Other);
+        assert_eq!(kind(Path::new("/dev/null")), FileKind::CharDevice);
+        let block = std::fs::read_dir("/dev")
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|entry| entry.file_type().is_ok_and(|kind| kind.is_block_device()));
+        if let Some(block) = block {
+            assert_eq!(kind(&block.path()), FileKind::BlockDevice);
+        }
     }
 
     #[test]

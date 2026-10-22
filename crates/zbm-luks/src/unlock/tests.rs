@@ -199,10 +199,9 @@ fn with_session<T>(
     prompts: &Prompts,
     body: impl FnOnce(&mut Session<'_>) -> T,
 ) -> T {
-    let log = log(fake);
+    let _log = log(fake);
     let luks = Luks {
         system: fake.system(),
-        log: &log,
         settings: &settings,
         prompter: prompts,
     };

@@ -89,8 +89,7 @@ impl Session<'_> {
                 continue;
             }
             for pool in self.pools_on_device(&path) {
-                self.log()
-                    .debug(format!("exporting {pool} before closing {name}"));
+                zbm_trace::debug!("exporting {pool} before closing {name}");
                 let export = self
                     .command("zpool")
                     .args(["export", &pool])
@@ -102,15 +101,13 @@ impl Session<'_> {
                     .run(&export)
                     .is_ok_and(|output| output.status.success());
                 if !exported {
-                    self.log()
-                        .warning(format!("unable to export {pool}, which uses {name}"));
+                    zbm_trace::warn!("unable to export {pool}, which uses {name}");
                 }
             }
             if self.cryptsetup_close(&name) {
-                self.log().info(format!("closed LUKS mapping {name}"));
+                zbm_trace::info!("closed LUKS mapping {name}");
             } else {
-                self.log()
-                    .warning(format!("unable to close LUKS mapping {name}"));
+                zbm_trace::warn!("unable to close LUKS mapping {name}");
                 keep.push(mapping);
                 closed_all = false;
             }

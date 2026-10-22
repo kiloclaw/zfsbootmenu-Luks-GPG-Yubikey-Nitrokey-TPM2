@@ -19,9 +19,7 @@ impl Session<'_> {
         let device = target.device;
         let system = *self.system();
         if !system.command_exists("clevis") || !system.command_exists("jose") {
-            self.log().info(format!(
-                "clevis token {id} on {device} needs clevis and jose in the image"
-            ));
+            zbm_trace::info!("clevis token {id} on {device} needs clevis and jose in the image");
             return false;
         }
         let Some(slots) = json_arr(json, "keyslots").filter(|slots| !slots.is_empty()) else {
@@ -70,14 +68,12 @@ impl Session<'_> {
         let opened = match key {
             Some(key) => self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args),
             None => {
-                self.log().debug(format!(
-                    "clevis could not recover the key for slot {slot} on {device}"
-                ));
+                zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");
                 false
             }
         };
         if opened {
-            self.log().info(format!("unlocked {device} with clevis"));
+            zbm_trace::info!("unlocked {device} with clevis");
         }
         opened
     }

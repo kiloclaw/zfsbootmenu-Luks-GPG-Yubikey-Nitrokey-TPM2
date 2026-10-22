@@ -479,7 +479,8 @@ mod tests {
             .unwrap();
         assert_eq!(fake.kmsg(), "<6>ZFSBootMenu: hello\n");
         let log = system.kernel_log("7", Path::new("/"));
-        log.error("broken");
+        zbm_trace::error!("broken");
+        drop(log);
         assert!(fake.kmsg().ends_with("<3>ZFSBootMenu: broken\n"));
         assert!(fake.files.exists(&path("/have_errors")));
         assert_eq!(system.processes.id(), 4242);

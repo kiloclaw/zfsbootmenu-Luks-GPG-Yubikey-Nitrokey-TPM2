@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use zbm_system::{KernelLog, System};
+use zbm_system::System;
 
 use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 
@@ -31,7 +31,7 @@ pub fn device_path(device: &str) -> Option<String> {
 
 /// Waits for the devices of `zbm.wait_for` (`wait_for`, separated by commas),
 /// asking every `retry_delay` seconds, until all exist or the user cancels.
-pub fn stage(system: &System<'_>, log: &KernelLog<'_>, wait_for: &str, delay: &str) {
+pub fn stage(system: &System<'_>, wait_for: &str, delay: &str) {
     if wait_for.is_empty() {
         return;
     }
@@ -43,7 +43,7 @@ pub fn stage(system: &System<'_>, log: &KernelLog<'_>, wait_for: &str, delay: &s
                 Some(path) if system.files.exists(Path::new(&path)) => {}
                 Some(_) => missing.push(*device),
                 None => {
-                    log.error(format!("malformed device: '{device}'"));
+                    zbm_trace::error!("malformed device: '{device}'");
                 }
             }
         }
@@ -62,7 +62,7 @@ pub fn stage(system: &System<'_>, log: &KernelLog<'_>, wait_for: &str, delay: &s
             .run(system);
         if answer == Answer::Escape {
             for device in missing {
-                log.error(format!("required device '{device}' not found"));
+                zbm_trace::error!("required device '{device}' not found");
             }
             return;
         }
@@ -72,6 +72,7 @@ pub fn stage(system: &System<'_>, log: &KernelLog<'_>, wait_for: &str, delay: &s
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zbm_system::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, log_lines, path};
     use zbm_testkit::parity;
@@ -109,8 +110,8 @@ mod tests {
         fake.files
             .device("/dev/sda")
             .device("/dev/disk/by-uuid/abc");
-        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
-        stage(&fake.system(), &log, "/dev/sda,UUID=abc", "");
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+        stage(&fake.system(), "/dev/sda,UUID=abc", "");
         assert!(fake.runner.lines().is_empty());
     }
 
@@ -119,8 +120,8 @@ mod tests {
         let fake = setup();
         fake.files.device("/dev/sda");
         fake.console.keys(b"\n\x1b");
-        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
-        stage(&fake.system(), &log, "/dev/sda,LABEL=boot", "3");
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+        stage(&fake.system(), "/dev/sda,LABEL=boot", "3");
         let prompts = fake
             .runner
             .lines()
@@ -170,8 +171,8 @@ mod tests {
             let fake = setup();
             fake.files.device("/dev/null").device("/dev/zero");
             fake.console.keys(b"\x1b");
-            let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
-            stage(&fake.system(), &log, wait_for, "");
+            let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+            stage(&fake.system(), wait_for, "");
             let prompts = fake
                 .runner
                 .lines()

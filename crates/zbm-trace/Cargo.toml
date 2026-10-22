@@ -1,6 +1,6 @@
 [package]
 name = "zbm-trace"
-description = "Tracing for ZFSBootMenu: a JSON journal of events with their spans, and the subscriber the programs install"
+description = "Tracing for ZFSBootMenu: the kernel log in the legacy formats, a JSON journal of events with their spans, and reading the log back"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,12 +10,14 @@ publish.workspace = true
 
 [dependencies]
 serde_json.workspace = true
+zbm-core.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+zbm-testkit.workspace = true
 
 [lints]
 workspace = true

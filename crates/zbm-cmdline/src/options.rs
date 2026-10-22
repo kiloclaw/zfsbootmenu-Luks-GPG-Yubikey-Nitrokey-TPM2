@@ -9,7 +9,7 @@
 //! keeps it.
 
 use zbm_core::shell::{quote, test_integer};
-use zbm_log::Message;
+use zbm_trace::Message;
 use zbm_types::ImportPolicy;
 
 use crate::args::ZbmArgs;

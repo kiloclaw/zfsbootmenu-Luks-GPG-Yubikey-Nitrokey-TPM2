@@ -74,7 +74,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-core` | Running programs (`Command`, `Runner`), the `Error` type, `Secret`, file tests, shell quoting, `getopts`, release information. | parts of `zfsbootmenu-core.sh` |
 | `zbm-system` | The interfaces to the system (files, clock, console, processes, environment), their real implementations, the `System` bundle, and the kernel log writer. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
-| `zbm-log` | Message levels and the formats of the kernel log, reading the log back. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
+| `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, reading the log back. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
 | `zbm-cmdline` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
@@ -83,17 +83,17 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 
-The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-cmdline`, `zbm-log` and
+The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-cmdline`, `zbm-trace` and
 `zbm-zfs` with the runtime.
 
 Dependencies point from the program to the system and never back:
 
 - `zbm` uses `zbm-menu`, `zbm-boot` and `zbm-luks`; `zbm-menu` uses `zbm-boot`; `zbm-boot` uses `zbm-luks`, because
   pool import retries unlocking volumes that appear late.
-- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-system`, `zbm-zfs`, `zbm-cmdline` and `zbm-log` as they
+- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-system`, `zbm-zfs`, `zbm-cmdline` and `zbm-trace` as they
   need them.
-- `zbm-state` and `zbm-system` use `zbm-core` (and `zbm-system` uses `zbm-log` for its kernel log writer); `zbm-zfs`
-  and `zbm-cmdline` use `zbm-core` and `zbm-log` and run programs through `Runner` alone, as the host tools need.
+- `zbm-state` and `zbm-system` use `zbm-core` (and `zbm-system` uses `zbm-trace` for its kernel log writer); `zbm-zfs`
+  and `zbm-cmdline` use `zbm-core` and `zbm-trace` and run programs through `Runner` alone, as the host tools need.
 - `zbm-core` uses `zbm-sys`.
 
 Third-party crates are vendored and need a reason; so far the runtime needs none.
@@ -426,8 +426,12 @@ panic (see "The supervisor").
 
 Messages go to `/dev/kmsg` in the legacy formats (`<N>ZFSBootMenu: message`, and `<7>ZBM:[pid]|trace|message` for
 debugging output, with the Rust caller as the trace), filtered by `loglevel`, and warnings and errors create
-`have_warnings` and `have_errors`. `zbm-log` formats the messages and `zbm-system` writes them through the files
-interface, so unit tests see every message. The recovery commands read the log back with `dmesg`, as now.
+`have_warnings` and `have_errors`. Code logs with the macros of `zbm-trace` (`zbm_trace::error!` and the others),
+which emit `tracing` events for the kernel log; no function takes a log as a parameter. `zbm-trace`'s `KmsgLayer`
+formats and filters them, and `zbm-system`'s `KernelLog` installs that layer for a process with a sink that writes
+through the files interface, so unit tests that install it on the fake files see every message. Other `tracing`
+events, such as the journal's, never reach the kernel log. The recovery commands read the log back with `dmesg`, as
+now.
 
 ## External programs
 

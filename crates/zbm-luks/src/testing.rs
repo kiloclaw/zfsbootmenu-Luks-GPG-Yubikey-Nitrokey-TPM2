@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::Path;
 
-use zbm_system::KernelLog;
+use zbm_system::{Installed, KernelLog};
 
 use crate::session::{PromptRequest, Prompter};
 use zbm_testkit::fakes::FakeSystem;
@@ -21,9 +21,10 @@ pub fn legacy_luks() -> Bash {
         .source("zfsbootmenu/lib/zfsbootmenu-luks.sh")
 }
 
-/// A kernel log of the fake machine that writes every level.
-pub fn log(fake: &FakeSystem) -> KernelLog<'_> {
-    KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+/// Sends this thread's kernel log, at every level, to the fake machine's
+/// `/dev/kmsg` while the returned guard lives.
+pub fn log(fake: &FakeSystem) -> Installed {
+    KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
 }
 
 /// The text of a legacy function from a library in `legacy/`, to run it with

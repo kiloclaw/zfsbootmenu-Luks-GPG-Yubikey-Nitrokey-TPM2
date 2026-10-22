@@ -2,7 +2,6 @@
 
 use std::path::Path;
 
-use zbm_system::KernelLog;
 use zbm_system::files::Files;
 
 use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
@@ -25,21 +24,21 @@ pub fn normalize(value: &str) -> Option<String> {
 /// first eight hex digits, as four bytes in little-endian order; then sets the
 /// SPL module's own host ID to 0, so that `/etc/hostid` counts. Returns the
 /// normalized host ID, or `None` after logging the error.
-pub fn write_hostid(files: &dyn Files, log: &KernelLog<'_>, value: &str) -> Option<String> {
+pub fn write_hostid(files: &dyn Files, value: &str) -> Option<String> {
     let Some(hostid) = normalize(value) else {
-        log.error(format!("invalid hostid {value}"));
+        zbm_trace::error!("invalid hostid {value}");
         return None;
     };
     let byte = |start: usize| u8::from_str_radix(&hostid[start..start + 2], 16).unwrap_or(0);
     let bytes = [byte(6), byte(4), byte(2), byte(0)];
     if files.write(Path::new(ETC_HOSTID), &bytes).is_err() {
-        log.error(format!("unable to write {hostid} to /etc/hostid"));
+        zbm_trace::error!("unable to write {hostid} to /etc/hostid");
         return None;
     }
-    log.debug(format!("wrote hostid {hostid} to /etc/hostid"));
+    zbm_trace::debug!("wrote hostid {hostid} to /etc/hostid");
     let spl = Path::new(SPL_HOSTID);
     if files.exists(spl) && files.write(spl, b"0\n").is_err() {
-        log.warning("failed to force spl.spl_hostid=0 for host ID matching");
+        zbm_trace::warn!("failed to force spl.spl_hostid=0 for host ID matching");
     }
     Some(hostid)
 }
@@ -47,20 +46,18 @@ pub fn write_hostid(files: &dyn Files, log: &KernelLog<'_>, value: &str) -> Opti
 /// The stage `init.d/20-hostid`: writes the host ID from the command line
 /// (`spl_hostid`), or the default one when that is invalid or when neither the
 /// command line nor `/etc/hostid` has one.
-pub fn stage(files: &dyn Files, log: &KernelLog<'_>, spl_hostid: &str) {
+pub fn stage(files: &dyn Files, spl_hostid: &str) {
     if !spl_hostid.is_empty() {
-        if write_hostid(files, log, spl_hostid).is_some() {
-            log.info(format!(
-                "writing /etc/hostid from command line: {spl_hostid}"
-            ));
+        if write_hostid(files, spl_hostid).is_some() {
+            zbm_trace::info!("writing /etc/hostid from command line: {spl_hostid}");
         } else {
-            write_hostid(files, log, DEFAULT_HOSTID);
-            log.info(format!("defaulting hostid to {DEFAULT_HOSTID}"));
+            write_hostid(files, DEFAULT_HOSTID);
+            zbm_trace::info!("defaulting hostid to {DEFAULT_HOSTID}");
         }
     } else if !files.exists(Path::new(ETC_HOSTID)) {
-        log.info("no hostid found on kernel command line or /etc/hostid");
-        log.info(format!("defaulting hostid to {DEFAULT_HOSTID}"));
-        write_hostid(files, log, DEFAULT_HOSTID);
+        zbm_trace::info!("no hostid found on kernel command line or /etc/hostid");
+        zbm_trace::info!("defaulting hostid to {DEFAULT_HOSTID}");
+        write_hostid(files, DEFAULT_HOSTID);
     }
 }
 
@@ -68,21 +65,23 @@ pub fn stage(files: &dyn Files, log: &KernelLog<'_>, spl_hostid: &str) {
 mod tests {
     use super::*;
     use crate::testing::Redirect;
+    use zbm_system::{Installed, KernelLog};
     use zbm_testkit::fakes::{FakeFiles, FakeSystem};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, path};
     use zbm_testkit::{Rng, TempDir, parity};
 
-    fn log(fake: &FakeSystem) -> KernelLog<'_> {
-        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+    fn log(fake: &FakeSystem) -> Installed {
+        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
     #[test]
     fn host_ids_are_written_little_endian() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files.dir("/etc").dir("/zfsbootmenu");
         fake.files.file(SPL_HOSTID, "123\n");
         assert_eq!(
-            write_hostid(&fake.files, &log(&fake), "00bab10c").as_deref(),
+            write_hostid(&fake.files, "00bab10c").as_deref(),
             Some("00bab10c")
         );
         assert_eq!(
@@ -90,19 +89,13 @@ mod tests {
             [0x0c, 0xb1, 0xba, 0x00]
         );
         assert_eq!(fake.files.text(SPL_HOSTID).as_deref(), Some("0\n"));
-        assert_eq!(
-            write_hostid(&fake.files, &log(&fake), "a").as_deref(),
-            Some("0000000a")
-        );
-        assert_eq!(
-            write_hostid(&fake.files, &log(&fake), "").as_deref(),
-            Some("00000000")
-        );
-        assert_eq!(write_hostid(&fake.files, &log(&fake), "zz"), None);
+        assert_eq!(write_hostid(&fake.files, "a").as_deref(), Some("0000000a"));
+        assert_eq!(write_hostid(&fake.files, "").as_deref(), Some("00000000"));
+        assert_eq!(write_hostid(&fake.files, "zz"), None);
         assert!(fake.kmsg().contains("<3>ZFSBootMenu: invalid hostid zz"));
         // Longer values keep their first eight digits, as the legacy slices do.
         assert_eq!(normalize("1deadbeef").as_deref(), Some("1deadbeef"));
-        write_hostid(&fake.files, &log(&fake), "1deadbeef");
+        write_hostid(&fake.files, "1deadbeef");
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0xee, 0xdb, 0xea, 0x1d]
@@ -112,8 +105,9 @@ mod tests {
     #[test]
     fn the_stage_prefers_the_command_line() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files.dir("/etc").dir("/zfsbootmenu");
-        stage(&fake.files, &log(&fake), "");
+        stage(&fake.files, "");
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0x0c, 0xb1, 0xba, 0x00]
@@ -122,7 +116,7 @@ mod tests {
             fake.kmsg()
                 .contains("no hostid found on kernel command line or /etc/hostid")
         );
-        stage(&fake.files, &log(&fake), "deadbeef");
+        stage(&fake.files, "deadbeef");
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0xef, 0xbe, 0xad, 0xde]
@@ -131,7 +125,7 @@ mod tests {
             fake.kmsg()
                 .contains("writing /etc/hostid from command line: deadbeef")
         );
-        stage(&fake.files, &log(&fake), "nothex");
+        stage(&fake.files, "nothex");
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0x0c, 0xb1, 0xba, 0x00]
@@ -142,8 +136,8 @@ mod tests {
         let files = FakeFiles::new();
         files.file(ETC_HOSTID, [1_u8, 2, 3, 4]);
         files.dir("/zfsbootmenu");
-        let log = KernelLog::new(&files, "7", Path::new("/zfsbootmenu"), 1);
-        stage(&files, &log, "");
+        let _log = KernelLog::new(&files, "7", Path::new("/zfsbootmenu"), 1).install();
+        stage(&files, "");
         assert_eq!(files.contents(ETC_HOSTID).unwrap(), [1, 2, 3, 4]);
     }
 
@@ -185,8 +179,10 @@ mod tests {
 
             // The Rust code writes the same files through a view of the directory.
             let files = Redirect::new(&[(ETC_HOSTID, &etc), (SPL_HOSTID, &spl)]);
-            let log = KernelLog::new(&files, "7", dir.path(), 1).with_device(&dir.join("kmsg"));
-            let rust = write_hostid(&files, &log, &value);
+            let _log = KernelLog::new(&files, "7", dir.path(), 1)
+                .with_device(&dir.join("kmsg"))
+                .install();
+            let rust = write_hostid(&files, &value);
             assert_eq!(rust.is_some(), success, "case {case}: {value}");
             assert_eq!(
                 std::fs::read(&etc).ok(),

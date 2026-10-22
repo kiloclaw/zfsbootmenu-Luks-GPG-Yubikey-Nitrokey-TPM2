@@ -113,11 +113,11 @@ impl Session<'_> {
             Err(error) => (127, error.to_string()),
         };
         if status != 0 {
-            self.log().debug(format!(
+            zbm_trace::debug!(
                 "token {id} on {} failed ({status}): {}",
                 target.device,
                 command_substitution(&output)
-            ));
+            );
         }
         status == 0
     }
@@ -162,10 +162,10 @@ impl Session<'_> {
                         if self.have_token_plugin(kind) {
                             self.open_token_plugin(target, id, None)
                         } else {
-                            self.log().debug(format!(
+                            zbm_trace::debug!(
                                 "no support for {kind} token {id} on {}",
                                 target.device
-                            ));
+                            );
                             false
                         }
                     }
@@ -192,10 +192,9 @@ mod tests {
         settings: Settings,
         body: impl FnOnce(&mut Session<'_>) -> T,
     ) -> T {
-        let log = log(fake);
+        let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &NoPrompts,
         };

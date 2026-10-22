@@ -47,7 +47,7 @@ pub const LAYERS: &[Layer] = &[
     Layer {
         name: "foundation",
         purpose: "Commands, secrets, errors, file tests, logging formats, tracing",
-        crates: &["zbm-core", "zbm-log", "zbm-trace"],
+        crates: &["zbm-core", "zbm-trace"],
     },
     Layer {
         name: "platform",
@@ -89,7 +89,7 @@ pub const LAYERS: &[Layer] = &[
 
 /// Dependencies between crates of the same layer: (from, to).
 pub const SAME_LAYER: &[(&str, &str)] = &[
-    ("zbm-log", "zbm-core"),
+    ("zbm-trace", "zbm-core"),
     ("zbm-state", "zbm-system"),
     ("zbm", "zbm-tui"),
 ];
@@ -106,6 +106,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("xtask", &["proc-macro2", "serde_json", "syn"]),
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-crypt", &["thiserror", "tracing"]),
+    ("zbm-system", &["tracing", "tracing-subscriber"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     (

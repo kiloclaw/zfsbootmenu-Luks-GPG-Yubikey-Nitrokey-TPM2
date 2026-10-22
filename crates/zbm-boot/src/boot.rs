@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 
 use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
-use zbm_log::Level;
 use zbm_state::State;
-use zbm_system::{KernelLog, Runner, System};
+use zbm_system::{Runner, System};
+use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
 use crate::commandline::{self, KexecLoad};
@@ -51,52 +51,52 @@ fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> Option<Strin
 
 /// The encryption root of `fs` (a snapshot counts as its filesystem), as
 /// `be_has_encroot` finds it.
-pub fn encryption_root(runner: &dyn Runner, log: &KernelLog<'_>, fs: &str) -> Option<String> {
+pub fn encryption_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     // ${1%@*}
     let fs = fs.rsplit_once('@').map_or(fs, |(fs, _)| fs);
     if fs.is_empty() {
-        log.error("fs is undefined");
+        zbm_trace::error!("fs is undefined");
         return None;
     }
-    log.debug(format!("fs set to {fs}"));
+    zbm_trace::debug!("fs set to {fs}");
     let pool = fs.split('/').next().unwrap_or(fs);
     let feature = Command::new("zpool")
         .args(["list", "-H", "-o", "feature@encryption", pool])
         .stderr(Stream::Null);
     if substitution(runner, &feature).1 != "active" {
-        log.debug(format!("feature@encryption not active on {pool}"));
+        zbm_trace::debug!("feature@encryption not active on {pool}");
         return None;
     }
     let encroot = zfs_value(runner, "encryptionroot", fs)?;
-    log.debug(format!("{fs} encryptionroot property: {encroot}"));
+    zbm_trace::debug!("{fs} encryptionroot property: {encroot}");
     (encroot != "-").then_some(encroot)
 }
 
 /// The encryption root of `fs` if its key is not loaded, as `be_is_locked`
 /// decides.
-pub fn locked_root(runner: &dyn Runner, log: &KernelLog<'_>, fs: &str) -> Option<String> {
+pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     if fs.is_empty() {
-        log.error("fs is undefined");
+        zbm_trace::error!("fs is undefined");
         return None;
     }
-    log.debug(format!("fs set to {fs}"));
-    let encroot = encryption_root(runner, log, fs)?;
-    log.debug(format!("{encroot} discovered as encryption root for {fs}"));
+    zbm_trace::debug!("fs set to {fs}");
+    let encroot = encryption_root(runner, fs)?;
+    zbm_trace::debug!("{encroot} discovered as encryption root for {fs}");
     let keystatus = Command::new("zfs")
         .args(["get", "-H", "-o", "value", "keystatus", &encroot])
         .merge_stderr();
     let keystatus = substitution(runner, &keystatus).1;
-    log.debug(format!("{encroot} keystatus: {keystatus}"));
+    zbm_trace::debug!("{encroot} keystatus: {keystatus}");
     (keystatus == "unavailable").then_some(encroot)
 }
 
 /// Whether `pool` is imported read-write (`is_writable`).
-pub fn is_writable(runner: &dyn Runner, log: &KernelLog<'_>, pool: &str) -> bool {
+pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
     if pool.is_empty() {
-        log.error("pool is undefined");
+        zbm_trace::error!("pool is undefined");
         return false;
     }
-    log.debug(format!("pool set to {pool}"));
+    zbm_trace::debug!("pool set to {pool}");
     let command = Command::new("zpool")
         .args(["get", "-H", "-o", "value", "readonly", pool])
         .stderr(Stream::Null);
@@ -104,30 +104,30 @@ pub fn is_writable(runner: &dyn Runner, log: &KernelLog<'_>, pool: &str) -> bool
     if !ok {
         return false;
     }
-    log.debug(format!("{pool} readonly property: {readonly}"));
+    zbm_trace::debug!("{pool} readonly property: {readonly}");
     readonly == "off"
 }
 
 /// Exports `pool` (`export_pool`) and returns whether that worked.
-pub fn export_pool(runner: &dyn Runner, log: &KernelLog<'_>, pool: &str) -> bool {
+pub fn export_pool(runner: &dyn Runner, pool: &str) -> bool {
     if pool.is_empty() {
-        log.error("pool is undefined");
+        zbm_trace::error!("pool is undefined");
         return false;
     }
-    log.debug(format!("pool set to {pool}"));
+    zbm_trace::debug!("pool set to {pool}");
     let command = Command::new("zpool").args(["export", pool]);
     let code = match runner.run(&command) {
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };
-    log.debug(format!("{pool} export process return: {code}"));
+    zbm_trace::debug!("{pool} export process return: {code}");
     code == 0
 }
 
 /// The state directory of a boot environment (`be_location`), created if
 /// needed.
-fn be_location(state: &State<'_>, log: &KernelLog<'_>, fs: &str) -> PathBuf {
-    log.debug(format!("fs set to {fs}"));
+fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
+    zbm_trace::debug!("fs set to {fs}");
     match state.environment(fs) {
         Ok(location) => location,
         // `mkdir -p` failed; be_location gives the path all the same.
@@ -153,20 +153,19 @@ pub enum Noise {
 pub fn mount_zfs(
     system: &System<'_>,
     state: &State<'_>,
-    log: &KernelLog<'_>,
     fs: &str,
     noise: Noise,
 ) -> Option<PathBuf> {
     if fs.is_empty() {
-        log.error("fs is undefined");
+        zbm_trace::error!("fs is undefined");
         return None;
     }
-    if locked_root(system.runner, log, fs).is_some() {
-        log.error(format!("{fs} is locked, unable to mount filesystem"));
-        log.debug(format!("{fs} is locked, returning"));
+    if locked_root(system.runner, fs).is_some() {
+        zbm_trace::error!("{fs} is locked, unable to mount filesystem");
+        zbm_trace::debug!("{fs} is locked, returning");
         return None;
     }
-    let mnt = be_location(state, log, fs).join("mnt");
+    let mnt = be_location(state, fs).join("mnt");
     let _ = system.files.create_dir_all(&mnt);
     let rwo = "ro";
     let stderr = match noise {
@@ -180,11 +179,11 @@ pub fn mount_zfs(
     let legacy = substitution(system.runner, &mountpoint).1 == "legacy";
     let mnt_text = mnt.to_string_lossy();
     let options = if legacy || fs.contains('@') {
-        log.debug(format!("mounting {fs} at {mnt_text} ({rwo})"));
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");
         rwo.to_owned()
     } else {
-        log.debug(format!("mounting {fs} at {mnt_text} ({rwo}) with zfsutil"));
-        log.debug(format!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}"));
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo}) with zfsutil");
+        zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}");
         format!("zfsutil,{rwo}")
     };
     let mount = Command::new("mount")
@@ -195,7 +194,7 @@ pub fn mount_zfs(
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };
-    log.debug(format!("mount return code: {code}"));
+    zbm_trace::debug!("mount return code: {code}");
     (code == 0).then_some(mnt)
 }
 
@@ -208,14 +207,14 @@ fn umount(runner: &dyn Runner, path: &Path) {
 /// Finds the kernels of `fs` and records them in its kernel list, as
 /// `find_be_kernels` does, with the command line files next to them in the
 /// command line cache. Returns whether a kernel can be selected.
-pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>, fs: &str) -> bool {
+pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> bool {
     if fs.is_empty() {
-        log.error("fs is undefined");
+        zbm_trace::error!("fs is undefined");
         return false;
     }
-    log.debug(format!("fs set to {fs}"));
-    let Some(mnt) = mount_zfs(system, state, log, fs, Noise::Hidden) else {
-        log.error(format!("unable to mount {fs}"));
+    zbm_trace::debug!("fs set to {fs}");
+    let Some(mnt) = mount_zfs(system, state, fs, Noise::Hidden) else {
+        zbm_trace::error!("unable to mount {fs}");
         return false;
     };
     let mnt_text = mnt.to_string_lossy().into_owned();
@@ -223,7 +222,7 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>,
     let _ = system.files.write(&records, b"");
 
     // Start the command line cache afresh.
-    be_location(state, log, fs);
+    be_location(state, fs);
     if let Some(cache) = state.kcl_cache(fs, ".")
         && let Some(dir) = cache.parent()
     {
@@ -244,9 +243,9 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>,
         match kernels::find_initramfs(system.files, Path::new(&path)) {
             Some(initramfs) => {
                 let initramfs = initramfs.to_string_lossy();
-                log.debug(format!(
+                zbm_trace::debug!(
                     "found kernel: {mnt_text}{kpath}, initramfs {mnt_text}{initramfs}"
-                ));
+                );
                 let rest = initramfs
                     .strip_prefix(mnt_text.as_str())
                     .unwrap_or(&initramfs);
@@ -259,12 +258,12 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>,
                 list.extend_from_slice(kernel.line().as_bytes());
             }
             None => {
-                log.debug(format!("kernel {mnt_text}{kpath} has no initramfs"));
+                zbm_trace::debug!("kernel {mnt_text}{kpath} has no initramfs");
             }
         }
         let kcl = PathBuf::from(format!("{mnt_text}/{kpath}.kcl"));
         if system.files.exists(&kcl) {
-            be_location(state, log, fs);
+            be_location(state, fs);
             if let Some(cache) = state.kcl_cache(fs, &kpath) {
                 let _ = system.files.copy(&kcl, &cache);
             }
@@ -273,31 +272,26 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, log: &KernelLog<'_>,
     let _ = system.files.write(&records, &list);
     umount(system.runner, &mnt);
 
-    if !list.is_empty() && select_kernel(system, state, log, fs).is_some() {
+    if !list.is_empty() && select_kernel(system, state, fs).is_some() {
         return true;
     }
-    log.error(format!("failed to find kernels on {fs}"));
+    zbm_trace::error!("failed to find kernels on {fs}");
     let _ = system.files.remove_file(&records);
     false
 }
 
 /// The kernel to boot from the kernel list of `fs`, as `select_kernel`
 /// chooses it: the last one, or the last one `org.zfsbootmenu:kernel` matches.
-pub fn select_kernel(
-    system: &System<'_>,
-    state: &State<'_>,
-    log: &KernelLog<'_>,
-    fs: &str,
-) -> Option<Kernel> {
+pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option<Kernel> {
     if fs.is_empty() {
-        log.error("zfsbe is undefined");
+        zbm_trace::error!("zfsbe is undefined");
         return None;
     }
-    log.debug(format!("zfsbe set to {fs}"));
-    let list = be_location(state, log, fs).join("kernels");
+    zbm_trace::debug!("zfsbe set to {fs}");
+    let list = be_location(state, fs).join("kernels");
     let text = system.files.read_to_string(&list).unwrap_or_default();
     if text.is_empty() {
-        log.error(format!("kernel list '{}' missing or empty", list.display()));
+        zbm_trace::error!("kernel list '{}' missing or empty", list.display());
         return None;
     }
     // tail -1
@@ -311,27 +305,27 @@ pub fn select_kernel(
 
     let property = zfs_value(system.runner, "org.zfsbootmenu:kernel", fs).unwrap_or_default();
     if property != "-" {
-        log.debug(format!("org.zfsbootmenu:kernel set to {property}"));
+        zbm_trace::debug!("org.zfsbootmenu:kernel set to {property}");
         for line in read_lines(&text) {
             let kernel = Kernel::parse(&line);
             if kernels::bash_regex_match(system.runner, &kernel.kernel, &property) == Some(true) {
-                log.debug(format!("matched {} to {property}", kernel.kernel));
+                zbm_trace::debug!("matched {} to {property}", kernel.kernel);
                 chosen = line;
             }
         }
     }
     if chosen.is_empty() {
-        log.error(format!("failed to identify kexec arguments for {fs}"));
+        zbm_trace::error!("failed to identify kexec arguments for {fs}");
         return None;
     }
-    log.debug(format!("using kexec args: {chosen}"));
+    zbm_trace::debug!("using kexec args: {chosen}");
     Some(Kernel::parse(&chosen))
 }
 
 /// Unmounts everything below `mountpoint`, deepest first, as
 /// `recursive_umount` does when `umount -R` fails. Returns whether all of it
 /// was unmounted.
-pub fn recursive_umount(system: &System<'_>, log: &KernelLog<'_>, mountpoint: &Path) -> bool {
+pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> bool {
     let quiet = |command: Command| command.stdout(Stream::Null).stderr(Stream::Null);
     let all = quiet(Command::new("umount").arg("-R").arg(mountpoint));
     if system
@@ -362,7 +356,7 @@ pub fn recursive_umount(system: &System<'_>, log: &KernelLog<'_>, mountpoint: &P
             .run(&one)
             .is_ok_and(|output| output.status.success())
         {
-            log.error(format!("unable to unmount {mp}"));
+            zbm_trace::error!("unable to unmount {mp}");
             ok = false;
         }
     }
@@ -376,10 +370,10 @@ fn is_efi_system(system: &System<'_>) -> bool {
 
 /// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`), as
 /// `mount_efivarfs` does. Does nothing without UEFI.
-pub fn mount_efivarfs(system: &System<'_>, log: &KernelLog<'_>, mode: &str) {
+pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
     let location = "/sys/firmware/efi/efivars";
     if !is_efi_system(system) {
-        log.debug("efivarfs unsupported");
+        zbm_trace::debug!("efivarfs unsupported");
         return;
     }
     let check = Command::new("mountpoint")
@@ -391,10 +385,10 @@ pub fn mount_efivarfs(system: &System<'_>, log: &KernelLog<'_>, mode: &str) {
         .run(&check)
         .is_ok_and(|output| output.status.success());
     let options = if mounted {
-        log.debug(format!("remounting '{location}' '{mode}'"));
+        zbm_trace::debug!("remounting '{location}' '{mode}'");
         format!("remount,{mode}")
     } else {
-        log.debug(format!("mounting '{location}' '{mode}'"));
+        zbm_trace::debug!("mounting '{location}' '{mode}'");
         mode.to_owned()
     };
     let mount = Command::new("mount")
@@ -427,20 +421,20 @@ impl Default for BootSettings {
 
 /// The root prefix of `fs` mounted at `mnt`, with the messages of
 /// `find_root_prefix`.
-fn find_root_prefix(system: &System<'_>, log: &KernelLog<'_>, fs: &str, mnt: &Path) -> String {
-    log.debug(format!("zfsbe_fs set to {fs}"));
-    log.debug(format!("zfsbe_mnt set to {}", mnt.display()));
+fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
+    zbm_trace::debug!("zfsbe_fs set to {fs}");
+    zbm_trace::debug!("zfsbe_mnt set to {}", mnt.display());
     if let Some(prefix) = zfs_value(system.runner, "org.zfsbootmenu:rootprefix", fs)
         && prefix != "-"
     {
-        log.debug(format!("using org.zfsbootmenu:rootprefix: {prefix}"));
+        zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}");
         return prefix;
     }
     if let Some(prefix) = commandline::os_release_prefix(system.files, mnt) {
-        log.debug(format!("using os-release: {prefix}"));
+        zbm_trace::debug!("using os-release: {prefix}");
         return prefix;
     }
-    log.debug("using default");
+    zbm_trace::debug!("using default");
     "root=zfs:".to_owned()
 }
 
@@ -451,7 +445,6 @@ fn find_root_prefix(system: &System<'_>, log: &KernelLog<'_>, fs: &str, mnt: &Pa
 pub fn kexec_kernel(
     system: &System<'_>,
     state: &State<'_>,
-    log: &KernelLog<'_>,
     settings: &BootSettings,
     selected: &Kernel,
     recovery: &mut dyn Recovery,
@@ -462,17 +455,15 @@ pub fn kexec_kernel(
         initramfs,
     } = selected;
     if fs.is_empty() && kernel.is_empty() && initramfs.is_empty() {
-        log.error("fs, kernel, initramfs undefined");
+        zbm_trace::error!("fs, kernel, initramfs undefined");
         return;
     }
-    log.debug(format!(
-        "fs: {fs}, kernel: {kernel}, initramfs: {initramfs}"
-    ));
+    zbm_trace::debug!("fs: {fs}, kernel: {kernel}, initramfs: {initramfs}");
 
     // load_key: keys are not loaded yet, so a locked boot environment stops here.
-    log.debug(format!("fs set to {fs}"));
-    if let Some(root) = locked_root(system.runner, log, fs) {
-        log.error(Unsupported::LockedEncryptionRoot(root).to_string());
+    zbm_trace::debug!("fs set to {fs}");
+    if let Some(root) = locked_root(system.runner, fs) {
+        zbm_trace::error!("{}", Unsupported::LockedEncryptionRoot(root).to_string());
         recovery.emergency_shell(support::MESSAGE);
         return;
     }
@@ -480,7 +471,7 @@ pub fn kexec_kernel(
     tput(system, &["cnorm"]);
     tput(system, &["clear"]);
 
-    let Some(mnt) = mount_zfs(system, state, log, fs, Noise::Shown) else {
+    let Some(mnt) = mount_zfs(system, state, fs, Noise::Shown) else {
         recovery.emergency_shell(&format!("unable to mount {}", colorize("cyan", fs)));
         return;
     };
@@ -499,7 +490,6 @@ pub fn kexec_kernel(
     boot_sel_env.push(("ZBM_SELECTED_MOUNTPOINT", &mnt_text));
     hooks::run_stage(
         system,
-        log,
         &settings.hooks,
         HookStage::BootSel,
         false,
@@ -518,29 +508,26 @@ pub fn kexec_kernel(
         &mut messages,
     );
     for message in &messages {
-        log.log(message);
+        message.emit();
     }
-    let root_prefix = find_root_prefix(system, log, fs, &mnt);
+    let root_prefix = find_root_prefix(system, fs, &mnt);
 
     let dtb_property = zfs_value(system.runner, "org.zfsbootmenu:devicetree", fs);
     let mut dtb = None;
     match dtb_property.as_deref() {
         Some(property) if !property.is_empty() && property != "-" => {
-            log.debug(format!("devicetree property set to '{property}'"));
+            zbm_trace::debug!("devicetree property set to '{property}'");
             if let Some(candidate) = commandline::devicetree_candidate(property, kernel, &mnt) {
                 if system.files.is_file(&candidate) {
-                    log.debug(format!("devicetree file exists: '{}'", candidate.display()));
+                    zbm_trace::debug!("devicetree file exists: '{}'", candidate.display());
                     dtb = Some(candidate);
                 } else {
-                    log.debug(format!(
-                        "devicetree file missing: '{}'",
-                        candidate.display()
-                    ));
+                    zbm_trace::debug!("devicetree file missing: '{}'", candidate.display());
                 }
             }
         }
         _ => {
-            log.debug("no devicetree property set");
+            zbm_trace::debug!("no devicetree property set");
         }
     }
 
@@ -564,11 +551,11 @@ pub fn kexec_kernel(
         }
     }
     if loaded.is_none() {
-        log.error(format!(
+        zbm_trace::error!(
             "unable to load {mnt_text}{kernel} and {mnt_text}{initramfs} into memory"
-        ));
-        log.error(output);
-        recursive_umount(system, log, &mnt);
+        );
+        zbm_trace::error!("{}", output);
+        recursive_umount(system, &mnt);
         TimedPrompt::new()
             .delay(10)
             .message(colorize(
@@ -581,30 +568,25 @@ pub fn kexec_kernel(
         return;
     }
     // `if zdebug; then`: the test itself writes an empty line.
-    if log.enabled(Level::Debug) {
-        log.debug("");
-        log.debug(format!(
-            "loaded {mnt_text}{kernel} and {mnt_text}{initramfs} into memory"
-        ));
-        log.debug(format!(
-            "kernel command line: '{root_prefix}{fs} {cli_args}'"
-        ));
-        log.debug(output);
+    if zbm_trace::enabled(Level::Debug) {
+        zbm_trace::debug!("");
+        zbm_trace::debug!("loaded {mnt_text}{kernel} and {mnt_text}{initramfs} into memory");
+        zbm_trace::debug!("kernel command line: '{root_prefix}{fs} {cli_args}'");
+        zbm_trace::debug!("{}", output);
     }
 
     umount(system.runner, &mnt);
 
     let pools = Command::new("zpool").args(["list", "-H", "-o", "name"]);
     for pool in here_lines(&substitution(system.runner, &pools).1) {
-        if is_writable(system.runner, log, &pool) {
-            log.debug(format!("{pool} is read/write, exporting"));
-            export_pool(system.runner, log, &pool);
+        if is_writable(system.runner, &pool) {
+            zbm_trace::debug!("{pool} is read/write, exporting");
+            export_pool(system.runner, &pool);
         }
     }
 
     hooks::run_stage(
         system,
-        log,
         &settings.hooks,
         HookStage::Teardown,
         false,
@@ -620,8 +602,8 @@ pub fn kexec_kernel(
 
     let (_, output) = substitution(system.runner, &commandline::kexec_execute());
     // Only a failed kexec returns.
-    log.error("kexec -e -i failed!");
-    log.error(output);
+    zbm_trace::error!("kexec -e -i failed!");
+    zbm_trace::error!("{}", output);
     TimedPrompt::new()
         .delay(10)
         .message(colorize("red", &format!("kexec run of {kernel} failed!")))
@@ -632,6 +614,7 @@ pub fn kexec_kernel(
 mod tests {
     use super::*;
     use std::cell::RefCell;
+    use zbm_system::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};
     use zbm_core::exec::{Output, Status, SystemRunner};
@@ -817,7 +800,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
         /// Runs `call` with the Rust code; it returns the result.
         fn rust<F>(&self, call: F) -> Outcome
         where
-            F: FnOnce(&System<'_>, &State<'_>, &KernelLog<'_>, &mut Shells, &Path) -> String,
+            F: FnOnce(&System<'_>, &State<'_>, &mut Shells, &Path) -> String,
         {
             let dir = self.dir();
             let fake = FakeSystem::new();
@@ -859,9 +842,11 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             };
             let state = State::new(&files, dir.join("base"));
             let kmsg = dir.join("kmsg");
-            let log = KernelLog::new(&files, "7", &dir.join("base"), 1).with_device(&kmsg);
+            let _log = KernelLog::new(&files, "7", &dir.join("base"), 1)
+                .with_device(&kmsg)
+                .install();
             let mut shells = Shells::default();
-            let result = call(&system, &state, &log, &mut shells, &dir.join("hooks"));
+            let result = call(&system, &state, &mut shells, &dir.join("hooks"));
             let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
             let prompts = fake
                 .runner
@@ -947,11 +932,11 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             let legacy: Outcome = parity.legacy(format!("{machine:?}"), || {
                 machine.run_legacy(&format!("find_be_kernels {FS} && select_kernel {FS}"))
             });
-            let rust = machine.rust(|system, state, log, _, _| {
-                if !find_kernels(system, state, log, FS) {
+            let rust = machine.rust(|system, state, _, _| {
+                if !find_kernels(system, state, FS) {
                     return String::new();
                 }
-                select_kernel(system, state, log, FS)
+                select_kernel(system, state, FS)
                     .map(|kernel| kernel.line())
                     .unwrap_or_default()
             });
@@ -1004,13 +989,13 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
                  /boot/initramfs-6.1.10.img)\" >/dev/null"
             ))
         });
-        let rust = machine.rust(|system, state, log, shells, hooks| {
+        let rust = machine.rust(|system, state, shells, hooks| {
             let settings = BootSettings {
                 set_hostid: true,
                 hooks: hooks.to_path_buf(),
                 env: Vec::new(),
             };
-            kexec_kernel(system, state, log, &settings, &selected, shells);
+            kexec_kernel(system, state, &settings, &selected, shells);
             String::new()
         });
         assert_eq!(rust, legacy);
@@ -1046,14 +1031,15 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
         boot(&machine, &mut parity);
     }
 
-    fn fake_log(fake: &FakeSystem) -> KernelLog<'_> {
+    fn fake_log(fake: &FakeSystem) -> Installed {
         fake.files.dir("/zfsbootmenu");
-        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
     #[test]
     fn recursive_unmounts_go_deepest_first() {
         let fake = FakeSystem::new();
+        let _log = fake_log(&fake);
         fake.files.file(
             "/proc/self/mounts",
             "tank/a /mnt/be zfs ro 0 0\n\
@@ -1069,7 +1055,7 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
                 .then(|| Some(SystemRunner.run(command)))
                 .flatten()
         });
-        let ok = recursive_umount(&fake.system(), &fake_log(&fake), Path::new("/mnt/be"));
+        let ok = recursive_umount(&fake.system(), Path::new("/mnt/be"));
         assert!(!ok);
         let umounts: Vec<String> = fake
             .runner
@@ -1094,17 +1080,19 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
     #[test]
     fn efivarfs_is_mounted_or_remounted() {
         let fake = FakeSystem::new();
-        mount_efivarfs(&fake.system(), &fake_log(&fake), "ro");
+        let _log_fake = fake_log(&fake);
+        mount_efivarfs(&fake.system(), "ro");
         assert!(fake.runner.lines().is_empty());
         assert!(fake.kmsg().contains("efivarfs unsupported"));
 
         fake.files.dir("/sys/firmware/efi/efivars");
         fake.runner
             .respond("mountpoint -q /sys/firmware/efi/efivars", 1, "");
-        mount_efivarfs(&fake.system(), &fake_log(&fake), "ro");
+        mount_efivarfs(&fake.system(), "ro");
         let fake2 = FakeSystem::new();
+        let _log_fake2 = fake_log(&fake2);
         fake2.files.dir("/sys/firmware/efi/efivars");
-        mount_efivarfs(&fake2.system(), &fake_log(&fake2), "rw");
+        mount_efivarfs(&fake2.system(), "rw");
         assert_eq!(
             fake.runner.lines()[1],
             "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro"
@@ -1122,11 +1110,11 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             .respond("zpool get -H -o value readonly tank", 0, "off\n");
         fake.runner
             .respond("zpool get -H -o value readonly gone", 1, "");
-        let log = fake_log(&fake);
-        assert!(is_writable(&fake.runner, &log, "tank"));
-        assert!(!is_writable(&fake.runner, &log, "gone"));
-        assert!(!is_writable(&fake.runner, &log, ""));
-        assert!(export_pool(&fake.runner, &log, "tank"));
+        let _log = fake_log(&fake);
+        assert!(is_writable(&fake.runner, "tank"));
+        assert!(!is_writable(&fake.runner, "gone"));
+        assert!(!is_writable(&fake.runner, ""));
+        assert!(export_pool(&fake.runner, "tank"));
         assert!(fake.kmsg().contains("<3>ZFSBootMenu: pool is undefined"));
         assert!(fake.kmsg().contains("tank export process return: 0"));
     }
@@ -1142,14 +1130,14 @@ printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_B
             files: vec![],
             hooks: false,
         };
-        let outcome = machine.rust(|system, state, log, shells, hooks| {
+        let outcome = machine.rust(|system, state, shells, hooks| {
             let settings = BootSettings {
                 set_hostid: true,
                 hooks: hooks.to_path_buf(),
                 env: Vec::new(),
             };
             let selected = Kernel::parse("tank/ROOT/void\t/boot/vmlinuz\t/boot/initrd.img");
-            kexec_kernel(system, state, log, &settings, &selected, shells);
+            kexec_kernel(system, state, &settings, &selected, shells);
             String::new()
         });
         assert_eq!(outcome.shells, format!("{}\n", support::MESSAGE));

@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use zbm_core::exec::{Command, Input, Stream};
 use zbm_core::shell::command_substitution;
+use zbm_system::System;
 use zbm_system::files::{FileKind, Files};
-use zbm_system::{KernelLog, System};
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
 const BY_KEY: [(&str, &str); 6] = [
@@ -66,12 +66,12 @@ fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
 /// `PATH=` (the key in any case), a bare LUKS UUID or `luks-<UUID>`. Returns
 /// the canonical path of the block device, or `None` (after logging an error
 /// for a specification it does not understand).
-pub fn resolve_device(system: &System<'_>, log: &KernelLog<'_>, spec: &str) -> Option<String> {
+pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
     if spec.is_empty() {
         return None;
     }
     let unrecognized = || {
-        log.error(format!("unrecognized LUKS device specification '{spec}'"));
+        zbm_trace::error!("unrecognized LUKS device specification '{spec}'");
         None
     };
     let (key, value, mut device) = if spec.starts_with("/dev/") {
@@ -126,8 +126,8 @@ pub fn resolve_device(system: &System<'_>, log: &KernelLog<'_>, spec: &str) -> O
 }
 
 /// Whether the device a specification names exists (`luks_device_present`).
-pub fn device_present(system: &System<'_>, log: &KernelLog<'_>, spec: &str) -> bool {
-    resolve_device(system, log, spec).is_some()
+pub fn device_present(system: &System<'_>, spec: &str) -> bool {
+    resolve_device(system, spec).is_some()
 }
 
 /// How to tell whether a volume is open.
@@ -265,8 +265,8 @@ mod tests {
     fn specifications_name_devices() {
         let fake = machine();
         let system = fake.system();
-        let log = log(&fake);
-        let resolve = |spec: &str| resolve_device(&system, &log, spec);
+        let _log = log(&fake);
+        let resolve = |spec: &str| resolve_device(&system, spec);
         let sda = Some("/dev/sda1".to_owned());
         let sdb = Some("/dev/sdb".to_owned());
         assert_eq!(resolve("/dev/sda1"), sda);
@@ -315,8 +315,8 @@ mod tests {
                 "blkid -c /dev/null -l -o device -t LABEL=gone",
             ]
         );
-        assert!(device_present(&system, &log, "LABEL=root"));
-        assert!(!device_present(&system, &log, "LABEL=none"));
+        assert!(device_present(&system, "LABEL=root"));
+        assert!(!device_present(&system, "LABEL=none"));
     }
 
     /// The legacy function, with `/dev/disk` moved below `$ROOT` and `-b`
@@ -390,7 +390,8 @@ mod tests {
             let (expected, success, logged): (String, bool, String) =
                 parity.legacy(format!("{spec:?}"), || legacy_resolution(&spec));
             let fake = machine();
-            let rust = resolve_device(&fake.system(), &log(&fake), &spec);
+            let _log = log(&fake);
+            let rust = resolve_device(&fake.system(), &spec);
             assert_eq!(
                 rust.map(|device| format!("{device}\n")).unwrap_or_default(),
                 expected,

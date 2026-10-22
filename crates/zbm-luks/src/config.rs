@@ -7,7 +7,7 @@
 //! options in the crypttab syntax, which [`Options::parse`] reads.
 
 use zbm_core::shell::test_integer;
-use zbm_log::Message;
+use zbm_trace::Message;
 
 /// The number of passphrase attempts per round when the options name none
 /// (`LUKS_DEFAULT_TRIES`).

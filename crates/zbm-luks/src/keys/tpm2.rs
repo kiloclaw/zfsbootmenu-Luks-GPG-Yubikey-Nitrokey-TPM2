@@ -155,10 +155,9 @@ impl Session<'_> {
     /// Unseals a systemd-tpm2 token with tpm2-tools
     /// (`luks_tpm2_native_unseal`).
     pub fn tpm2_native_unseal(&self, json: &str, pin: Option<&Secret>) -> Outcome {
-        let log = self.log();
         let system = self.system();
         if let Some(tool) = TOOLS.iter().find(|tool| !system.command_exists(tool)) {
-            log.debug(format!("native TPM2 unlocking needs {tool}"));
+            zbm_trace::debug!("native TPM2 unlocking needs {tool}");
             return Outcome::Unsupported;
         }
         // Signed PCR policies, pcrlock and pre-254 primary keys need the
@@ -166,11 +165,11 @@ impl Session<'_> {
         if json_str(json, "tpm2-pubkey").is_some()
             || json_bool(json, "tpm2_pcrlock").as_deref() == Some("true")
         {
-            log.debug("TPM2 token uses a signed or pcrlock policy");
+            zbm_trace::debug!("TPM2 token uses a signed or pcrlock policy");
             return Outcome::Unsupported;
         }
         if json_str(json, "tpm2_srk").is_none() {
-            log.debug("TPM2 token predates systemd's persistent SRK");
+            zbm_trace::debug!("TPM2 token predates systemd's persistent SRK");
             return Outcome::Unsupported;
         }
         let Some(blob) = json_str(json, "tpm2-blob") else {
@@ -181,7 +180,7 @@ impl Session<'_> {
 
         let blob = base64_decode(&blob).unwrap_or_default();
         let Some((private, public)) = split_blob(&blob) else {
-            log.debug("TPM2 blob has an unsupported layout");
+            zbm_trace::debug!("TPM2 blob has an unsupported layout");
             return Outcome::Unsupported;
         };
 
@@ -293,8 +292,7 @@ impl Session<'_> {
     pub fn try_tpm2_token(&mut self, target: Target<'_>, id: &str, json: &str) -> bool {
         let device = target.device;
         if !self.have_tpm2() {
-            self.log()
-                .info(format!("no TPM2 available for token {id} on {device}"));
+            zbm_trace::info!("no TPM2 available for token {id} on {device}");
             return false;
         }
 
@@ -305,12 +303,12 @@ impl Session<'_> {
             }
             let result = self.tpm2_native_open(target, json, None);
             if result == Err(true) && !self.have_token_plugin("systemd-tpm2") {
-                self.log().warning(format!(
+                zbm_trace::warn!(
                     "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
-                ));
+                );
             }
             if result.is_ok() {
-                self.log().info(format!("unlocked {device} with TPM2"));
+                zbm_trace::info!("unlocked {device} with TPM2");
             }
             return result.is_ok();
         }
@@ -318,9 +316,9 @@ impl Session<'_> {
         if self.tpm2_in_lockout() {
             self.say("\n");
             self.tpm2_lockout_message();
-            self.log().warning(format!(
+            zbm_trace::warn!(
                 "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}"
-            ));
+            );
             return false;
         }
 
@@ -353,10 +351,10 @@ impl Session<'_> {
                     match self.tpm2_native_open(target, json, Some(&pin)) {
                         Ok(()) => true,
                         Err(true) => {
-                            self.log().warning(format!(
+                            zbm_trace::warn!(
                                 "TPM2 token {id} on {device} needs the systemd-tpm2 \
                                  cryptsetup plugin"
-                            ));
+                            );
                             return false;
                         }
                         Err(false) => false,
@@ -367,8 +365,7 @@ impl Session<'_> {
                     if cached.is_none() {
                         self.tpm2_pins.push(pin);
                     }
-                    self.log()
-                        .info(format!("unlocked {device} with TPM2 and PIN"));
+                    zbm_trace::info!("unlocked {device} with TPM2 and PIN");
                     return true;
                 }
                 drop(pin);

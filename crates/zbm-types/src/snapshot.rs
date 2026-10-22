@@ -114,7 +114,13 @@ mod tests {
         let snapshot: SnapshotName = "zroot@first".parse().unwrap();
 
         assert_eq!(snapshot.pool().as_str(), "zroot");
+        assert_eq!(snapshot.dataset().as_str(), "zroot");
+        assert_eq!(snapshot.name(), "first");
         assert_eq!(snapshot.to_string(), "zroot@first");
+        assert_eq!(
+            reason(&format!("zroot@{}", "a".repeat(256))),
+            Reason::TooLong { max: 255 }
+        );
     }
 
     proptest! {

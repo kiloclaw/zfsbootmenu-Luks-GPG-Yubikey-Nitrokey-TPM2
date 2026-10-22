@@ -115,4 +115,24 @@ mod tests {
         assert_eq!(error.what(), "pool name");
         assert_eq!(error.input(), "1tank");
     }
+
+    #[test]
+    fn every_reason_reads_as_a_clause() {
+        let cases = [
+            (Reason::Empty, "it is empty"),
+            (Reason::TooLong { max: 255 }, "it is longer than 255 bytes"),
+            (Reason::InvalidCharacter('/'), "it contains '/'"),
+            (Reason::NotAbsolute, "it does not start with '/'"),
+            (Reason::RelativeComponent, "it has a '.' or '..' component"),
+            (Reason::Reserved, "the name is reserved"),
+            (Reason::FirstNotLetter, "it does not start with a letter"),
+            (Reason::EmptyComponent, "it has an empty component"),
+            (Reason::NotOneOf(&["a", "b"]), "it is not one of a, b"),
+            (Reason::NotOneAt, "it does not have exactly one '@'"),
+        ];
+
+        for (reason, text) in cases {
+            assert_eq!(reason.to_string(), text);
+        }
+    }
 }

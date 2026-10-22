@@ -15,6 +15,8 @@
 //!
 //! [`System`] bundles one of each, so functions take a single parameter for
 //! all of them. [`KernelLog`] writes the kernel log through [`Files`].
+//! Code logs with `zbm_trace`'s macros, and a program installs the log once
+//! it knows the log level ([`System::kernel_log`]).
 
 pub mod clock;
 pub mod console;
@@ -27,7 +29,7 @@ pub use clock::{Clock, SystemClock};
 pub use console::{Console, Size, Terminal};
 pub use env::{Environment, ProcessEnvironment};
 pub use files::{FileKind, Files, Metadata, RealFiles};
-pub use log::KernelLog;
+pub use log::{FilesSink, Installed, KernelLog};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use zbm_core::exec::{Runner, SystemRunner};
 
@@ -49,9 +51,10 @@ pub struct System<'a> {
 }
 
 impl<'a> System<'a> {
-    /// A log on this system's files, for process `self.processes.id()`.
-    pub fn kernel_log(&self, loglevel: &str, base: &std::path::Path) -> KernelLog<'a> {
-        KernelLog::new(self.files, loglevel, base, self.processes.id())
+    /// Sends this thread's kernel log messages to this system's files, for
+    /// process `self.processes.id()`, until the returned guard is dropped.
+    pub fn kernel_log(&self, loglevel: &str, base: &std::path::Path) -> Installed {
+        KernelLog::new(self.files, loglevel, base, self.processes.id()).install()
     }
 
     /// Whether `name` is an executable file in a directory of `PATH`, as
@@ -124,7 +127,7 @@ mod tests {
         assert_eq!(system.processes.id(), std::process::id());
         assert!(system.environment.var("PATH").is_some());
         assert!(system.files.exists(std::path::Path::new("/proc/self")));
-        let log = system.kernel_log("x", std::path::Path::new("/nonexistent"));
-        assert!(!log.error("not written: the level is invalid"));
+        let _log = system.kernel_log("x", std::path::Path::new("/nonexistent"));
+        assert!(!zbm_trace::enabled(zbm_trace::Level::Error));
     }
 }

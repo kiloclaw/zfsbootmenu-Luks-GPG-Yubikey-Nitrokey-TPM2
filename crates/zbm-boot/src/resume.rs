@@ -9,7 +9,7 @@
 use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::trim_ifs;
 use zbm_state::State;
-use zbm_system::{KernelLog, System};
+use zbm_system::System;
 
 use crate::prompt::{colorize, tput};
 
@@ -18,7 +18,7 @@ use crate::prompt::{colorize, tput};
 pub const SUSPEND_TYPES: [&str; 3] = ["suspend", "swsuspend", "swsupend"];
 
 /// Whether a block device holds a hibernation image (`has_resume_device`).
-pub fn has_resume_device(system: &System<'_>, log: &KernelLog<'_>) -> bool {
+pub fn has_resume_device(system: &System<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
         let blkid = Command::new("blkid")
             .args(["-t", &format!("TYPE={kind}")])
@@ -29,7 +29,7 @@ pub fn has_resume_device(system: &System<'_>, log: &KernelLog<'_>) -> bool {
             .run(&blkid)
             .is_ok_and(|output| output.status.success());
         if found {
-            log.debug(format!("resume device: {kind}"));
+            zbm_trace::debug!("resume device: {kind}");
         }
         found
     })
@@ -77,18 +77,13 @@ Proceed {no} ?
 /// already chose `noresume`; otherwise the user decides. `NORESUME` records
 /// the choice in the state directory, so the boot environment's command line
 /// gets `noresume`; `DANGEROUS` goes on without it.
-pub fn resume_prompt(
-    system: &System<'_>,
-    state: &State<'_>,
-    log: &KernelLog<'_>,
-    pool: &str,
-) -> bool {
+pub fn resume_prompt(system: &System<'_>, state: &State<'_>, pool: &str) -> bool {
     if pool.is_empty() {
-        log.error("pool is undefined");
+        zbm_trace::error!("pool is undefined");
         return false;
     }
-    log.debug(format!("pool set to {pool}"));
-    if !has_resume_device(system, log) {
+    zbm_trace::debug!("pool set to {pool}");
+    if !has_resume_device(system) {
         return true;
     }
     // A noresume already given is never taken back.
@@ -113,7 +108,7 @@ pub fn resume_prompt(
         "DANGEROUS" => true,
         "NORESUME" => {
             if let Err(error) = state.set_noresume() {
-                log.error(error.to_string());
+                zbm_trace::error!("{}", error.to_string());
             }
             true
         }
@@ -126,6 +121,7 @@ mod tests {
     use super::*;
     use std::path::Path;
     use zbm_core::exec::{Output, Status};
+    use zbm_system::KernelLog;
     use zbm_system::files::Files;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
@@ -162,14 +158,14 @@ mod tests {
     #[test]
     fn suspend_partitions_are_found_by_type() {
         let fake = machine(Some("swsuspend"));
-        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
-        assert!(has_resume_device(&fake.system(), &log));
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+        assert!(has_resume_device(&fake.system()));
         assert_eq!(
             fake.runner.lines(),
             ["blkid -t TYPE=suspend", "blkid -t TYPE=swsuspend"]
         );
         assert!(fake.kmsg().contains("resume device: swsuspend"));
-        assert!(!has_resume_device(&machine(None).system(), &log));
+        assert!(!has_resume_device(&machine(None).system()));
     }
 
     #[test]
@@ -229,8 +225,8 @@ mod tests {
                 fake.console.push(zbm_testkit::fakes::ConsoleInput::End);
             }
             let state = State::new(&fake.files, "/zfsbootmenu");
-            let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
-            let rust = resume_prompt(&fake.system(), &state, &log, "tank");
+            let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
+            let rust = resume_prompt(&fake.system(), &state, "tank");
             assert_eq!(rust, success, "{case}");
             assert_eq!(
                 fake.files.exists(Path::new("/zfsbootmenu/noresume")),

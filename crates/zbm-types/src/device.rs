@@ -99,6 +99,8 @@ mod tests {
 
         assert_eq!(device.as_str(), "/dev/mapper/luks-1");
         assert_eq!(device.to_string(), "/dev/mapper/luks-1");
+        assert_eq!(device.as_path(), Path::new("/dev/mapper/luks-1"));
+        assert_eq!(device.as_ref(), Path::new("/dev/mapper/luks-1"));
     }
 
     #[test]

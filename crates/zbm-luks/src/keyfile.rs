@@ -44,15 +44,13 @@ impl Session<'_> {
             if files.exists(Path::new(file)) {
                 found.path = Some(file.to_owned());
             } else {
-                self.log()
-                    .warning(format!("LUKS key file {file} not found"));
+                zbm_trace::warn!("LUKS key file {file} not found");
             }
             return found;
         };
 
         let system = *self.system();
-        let log = self.log();
-        let mut device = resolve_device(&system, log, device_spec);
+        let mut device = resolve_device(&system, device_spec);
         if device.is_none() {
             // USB storage often appears a few seconds after boot.
             if !self.settings().retry && !self.keydev_absent.contains(device_spec) {
@@ -64,14 +62,13 @@ impl Session<'_> {
                     ),
                 );
                 let wait = self.token_wait();
-                if self.wait_for(wait, &message, || device_present(&system, log, device_spec)) {
-                    device = resolve_device(&system, log, device_spec);
+                if self.wait_for(wait, &message, || device_present(&system, device_spec)) {
+                    device = resolve_device(&system, device_spec);
                 }
             }
             if device.is_none() {
                 self.keydev_absent.insert(device_spec.to_owned());
-                self.log()
-                    .warning(format!("LUKS key device {device_spec} not found"));
+                zbm_trace::warn!("LUKS key device {device_spec} not found");
                 return found;
             }
         }
@@ -79,9 +76,7 @@ impl Session<'_> {
 
         let _ = files.create_dir_all(Path::new("/tmp"));
         let Some(dir) = self.temporary_dir("/tmp/luks-key") else {
-            self.log().error(format!(
-                "unable to create a mount point for key device {device}"
-            ));
+            zbm_trace::error!("unable to create a mount point for key device {device}");
             return found;
         };
         let mount = self
@@ -95,8 +90,7 @@ impl Session<'_> {
             .run(&mount)
             .is_ok_and(|output| output.status.success());
         if !mounted {
-            self.log()
-                .warning(format!("unable to mount LUKS key device {device}"));
+            zbm_trace::warn!("unable to mount LUKS key device {device}");
             let _ = files.remove_dir(Path::new(&dir));
             return found;
         }
@@ -105,8 +99,7 @@ impl Session<'_> {
         if files.exists(Path::new(&path)) {
             found.path = Some(path);
         } else {
-            self.log()
-                .warning(format!("LUKS key file {file} not found on {device}"));
+            zbm_trace::warn!("LUKS key file {file} not found on {device}");
         }
         found
     }
@@ -159,10 +152,9 @@ mod tests {
     ) -> T {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.retry = retry;
-        let log = log(fake);
+        let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &NoPrompts,
         };

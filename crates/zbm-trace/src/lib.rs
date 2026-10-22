@@ -8,8 +8,13 @@
 //! - [`JournalLayer`] writes every event as one line of JSON, with the fields
 //!   of the spans it happened in, so a failed boot can be read back step by
 //!   step (`docs/dev/testing.md`, "When a test fails").
+//! - [`KmsgLayer`] writes the events meant for the user's kernel log in the
+//!   formats of the legacy runtime (`<6>ZFSBootMenu: text`); this crate's
+//!   macros, [`error!`], [`warn!`], [`notice!`], [`info!`] and [`debug!`],
+//!   emit them ([`kmsg`]).
 //! - [`install`] sets up a program: messages of a chosen level on standard
 //!   error, and the journal if one is given.
+//! - [`read`] reads ZFSBootMenu's messages back from the kernel log.
 //!
 //! The command journal, one event per program run with its duration and
 //! status, comes from `zbm-platform`, whose runner reports each command.
@@ -36,9 +41,17 @@
 //! ```
 
 mod journal;
+pub mod kmsg;
+pub mod read;
 
 pub use journal::{JournalLayer, Lines};
+pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};
 pub use tracing::level_filters::LevelFilter;
+
+/// `tracing`, for the macros of [`kmsg`], so that their callers need not
+/// depend on it.
+#[doc(hidden)]
+pub use tracing as __tracing;
 
 use std::io::Write;
 

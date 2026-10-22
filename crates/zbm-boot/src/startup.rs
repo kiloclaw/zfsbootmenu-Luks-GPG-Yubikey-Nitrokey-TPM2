@@ -15,9 +15,9 @@ use zbm_cmdline::conf::Conf;
 use zbm_cmdline::options::ZbmOptions;
 use zbm_core::exec::{Command, Input, Signal, Stream};
 use zbm_core::shell::{read_lines, test_integer};
-use zbm_log::read::read_logs;
 use zbm_state::State;
-use zbm_system::{KernelLog, System};
+use zbm_system::{Installed, System};
+use zbm_trace::read::read_logs;
 
 use crate::boot::{self, BootSettings};
 use crate::import::{self, Import, Settings};
@@ -79,13 +79,12 @@ pub fn zluks_unlock(system: &System<'_>, retry: bool) -> bool {
 pub struct Shell<'s, 'a> {
     system: System<'a>,
     state: &'s State<'a>,
-    log: &'s KernelLog<'a>,
 }
 
 impl<'s, 'a> Shell<'s, 'a> {
     /// The recovery shell of `system`.
-    pub fn new(system: System<'a>, state: &'s State<'a>, log: &'s KernelLog<'a>) -> Shell<'s, 'a> {
-        Shell { system, state, log }
+    pub fn new(system: System<'a>, state: &'s State<'a>) -> Shell<'s, 'a> {
+        Shell { system, state }
     }
 
     /// Logs each thing the runtime cannot handle yet as an error and opens
@@ -95,7 +94,7 @@ impl<'s, 'a> Shell<'s, 'a> {
             return false;
         }
         for item in list {
-            self.log.error(format!("{}: {item}", support::MESSAGE));
+            zbm_trace::error!("{}: {item}", support::MESSAGE);
         }
         self.emergency_shell(support::MESSAGE);
         true
@@ -144,7 +143,7 @@ impl Recovery for Shell<'_, '_> {
             self.state.clear_errors();
         }
         if command_exists(system, "efibootmgr") {
-            boot::mount_efivarfs(system, self.log, "rw");
+            boot::mount_efivarfs(system, "rw");
         }
 
         let shell = Command::new("/bin/bash")
@@ -168,9 +167,9 @@ impl Recovery for Shell<'_, '_> {
                 .arg(mountpoint)
                 .stdout(Stream::Inherit);
             let _ = system.runner.run(&umount);
-            self.log.debug(format!("unmounting: {mountpoint}"));
+            zbm_trace::debug!("unmounting: {mountpoint}");
         }
-        boot::mount_efivarfs(system, self.log, "ro");
+        boot::mount_efivarfs(system, "ro");
     }
 }
 
@@ -178,7 +177,8 @@ impl Recovery for Shell<'_, '_> {
 pub struct Startup<'a> {
     system: System<'a>,
     state: State<'a>,
-    log: KernelLog<'a>,
+    /// Keeps this thread's messages going to the kernel log.
+    _log: Installed,
     options: ZbmOptions,
     args: ZbmArgs,
     release_build: bool,
@@ -201,7 +201,7 @@ impl<'a> Startup<'a> {
         Startup {
             system,
             state,
-            log,
+            _log: log,
             options,
             args,
             release_build: !conf.get("ZBM_RELEASE_BUILD").unwrap_or_default().is_empty(),
@@ -216,7 +216,7 @@ impl<'a> Startup<'a> {
     }
 
     fn shell(&self) -> Shell<'_, 'a> {
-        Shell::new(self.system, &self.state, &self.log)
+        Shell::new(self.system, &self.state)
     }
 
     fn import_settings(&self) -> Settings {
@@ -239,11 +239,11 @@ impl<'a> Startup<'a> {
     /// (never, with `None`).
     pub fn run(&self, modes: Modes, rounds: Option<usize>) -> i32 {
         let _ = self.state.create();
-        boot::mount_efivarfs(&self.system, &self.log, "ro");
+        boot::mount_efivarfs(&self.system, "ro");
 
         let bootfs = self.run_stages(modes.force);
         if let Err(error) = self.state.mark_initialized() {
-            self.log.error(error.to_string());
+            zbm_trace::error!("{}", error.to_string());
         }
         if !modes.console {
             return 0;
@@ -264,7 +264,6 @@ impl<'a> Startup<'a> {
     /// returns the default boot environment the import found.
     fn run_stages(&self, force: bool) -> Option<String> {
         let system = &self.system;
-        let log = &self.log;
         let mut bootfs = None;
         for &stage in Stage::ALL {
             if !force
@@ -276,14 +275,13 @@ impl<'a> Startup<'a> {
             {
                 continue;
             }
-            log.info(format!("running init stage {stage}"));
+            zbm_trace::info!("running init stage {stage}");
             let mut shell = self.shell();
             match stage {
-                Stage::Modules => modules::stage(system.runner, log, &mut shell),
-                Stage::HostId => hostid::stage(system.files, log, &self.options.spl_hostid),
+                Stage::Modules => modules::stage(system.runner, &mut shell),
+                Stage::HostId => hostid::stage(system.files, &self.options.spl_hostid),
                 Stage::DeviceWait => devices::stage(
                     system,
-                    log,
                     &self.options.wait_for_devices,
                     &self.options.retry_delay,
                 ),
@@ -292,7 +290,6 @@ impl<'a> Startup<'a> {
                     let skip = self.args.lookup(&["zbm.skip_hooks"], &mut messages);
                     hooks::early_stage_in(
                         system,
-                        log,
                         &self.state,
                         &self.hooks,
                         &self.options.hook_root,
@@ -309,12 +306,12 @@ impl<'a> Startup<'a> {
                 }
                 Stage::ImportPools => {
                     let settings = self.import_settings();
-                    let imported = import::stage(system, &self.state, log, &settings, &mut shell);
+                    let imported = import::stage(system, &self.state, &settings, &mut shell);
                     bootfs = imported.bootfs;
                 }
             }
             if let Err(error) = self.state.finish_stage(stage.as_str()) {
-                log.error(error.to_string());
+                zbm_trace::error!("{}", error.to_string());
             }
         }
         bootfs
@@ -355,16 +352,16 @@ impl<'a> Startup<'a> {
         }
         tput(system, &["clear"]);
         // load_key: keys are not loaded yet.
-        self.log.debug(format!("fs set to {bootfs}"));
-        facts.locked_encryption_root = boot::locked_root(system.runner, &self.log, bootfs);
+        zbm_trace::debug!("fs set to {bootfs}");
+        facts.locked_encryption_root = boot::locked_root(system.runner, bootfs);
         if self
             .shell()
             .refuse(&support::unsupported(&self.options, &facts))
         {
             return;
         }
-        if boot::find_kernels(system, &self.state, &self.log, bootfs) && !self.state.is_active() {
-            let selected = boot::select_kernel(system, &self.state, &self.log, bootfs)
+        if boot::find_kernels(system, &self.state, bootfs) && !self.state.is_active() {
+            let selected = boot::select_kernel(system, &self.state, bootfs)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
             let settings = BootSettings {
@@ -373,14 +370,7 @@ impl<'a> Startup<'a> {
                 env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
             };
             let mut shell = self.shell();
-            boot::kexec_kernel(
-                system,
-                &self.state,
-                &self.log,
-                &settings,
-                &selected,
-                &mut shell,
-            );
+            boot::kexec_kernel(system, &self.state, &settings, &selected, &mut shell);
         }
     }
 
@@ -403,7 +393,7 @@ impl<'a> Startup<'a> {
                 force: self.options.import_policy == ImportPolicy::Force,
                 ..Import::default()
             };
-            import::import_pool(&self.system, &self.state, &self.log, reimport);
+            import::import_pool(&self.system, &self.state, reimport);
             let list = Command::new("zpool")
                 .args(["list", "-H", "-o", "name,health"])
                 .stderr(Stream::Null);
@@ -426,6 +416,7 @@ impl<'a> Startup<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zbm_system::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
 
     /// The configuration the start-up would write for `cmdline`.
@@ -506,8 +497,8 @@ mod tests {
             });
             let fake = machine();
             let state = State::new(&fake.files, "/zfsbootmenu");
-            let log = KernelLog::new(&fake.files, "4", Path::new("/zfsbootmenu"), 1);
-            Shell::new(fake.system(), &state, &log).emergency_shell(message);
+            let _log = KernelLog::new(&fake.files, "4", Path::new("/zfsbootmenu"), 1).install();
+            Shell::new(fake.system(), &state).emergency_shell(message);
             assert_eq!(fake.console.output_text(), legacy, "{message:?}");
         }
     }
@@ -776,15 +767,15 @@ mod tests {
         fake.environment.set("PATH", "/sbin");
         fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
-        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         fake.runner.respond("zluks unlock", 1, "");
-        let mut shell = Shell::new(fake.system(), &state, &log);
+        let mut shell = Shell::new(fake.system(), &state);
         assert!(!shell.unlock_late());
         let retry = fake.runner.calls().pop().unwrap();
         assert_eq!(retry.display(), "zluks unlock");
         assert_eq!(retry.get_env(), [("LUKS_RETRY".into(), Some("1".into()))]);
         let fake = machine();
-        let mut shell = Shell::new(fake.system(), &state, &log);
+        let mut shell = Shell::new(fake.system(), &state);
         assert!(!shell.unlock_late());
         assert!(fake.runner.calls().is_empty());
     }

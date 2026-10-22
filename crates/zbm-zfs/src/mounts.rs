@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use zbm_core::exec::{Command, Runner, Stream};
-use zbm_log::Message;
+use zbm_trace::Message;
 
 /// One line of the mount table, split as `read -r dev path fs opts` splits it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

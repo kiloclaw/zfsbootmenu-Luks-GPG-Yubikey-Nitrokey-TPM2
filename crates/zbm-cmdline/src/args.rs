@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use zbm_core::shell::{command_substitution, echo, read_first_line, read_lines};
-use zbm_log::Message;
+use zbm_trace::Message;
 
 /// The arguments of ZFSBootMenu's command line, by key.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

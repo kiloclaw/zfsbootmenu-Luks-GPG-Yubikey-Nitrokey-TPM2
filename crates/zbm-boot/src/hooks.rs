@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use zbm_core::exec::{Command, Input, Stream};
 use zbm_state::State;
 use zbm_system::files::{FileKind, Files};
-use zbm_system::{KernelLog, Runner, System};
+use zbm_system::{Runner, System};
 use zbm_types::HookStage;
 
 /// `ENOEXEC`: a file the kernel cannot run, such as a script without `#!`.
@@ -46,25 +46,21 @@ pub fn executable_hooks(files: &dyn Files, root: &Path, stage: HookStage) -> Vec
 /// `.completed`. Returns whether any hook ran; a missing directory runs none.
 pub fn run_stage(
     system: &System<'_>,
-    log: &KernelLog<'_>,
     root: &Path,
     stage: HookStage,
     once: bool,
     env: &[(&str, &str)],
 ) -> bool {
     if !system.files.is_dir(&root.join(stage.as_str())) {
-        log.debug(format!("no hook directory for {stage}"));
+        zbm_trace::debug!("no hook directory for {stage}");
         return false;
     }
     let hooks = executable_hooks(system.files, root, stage);
     for hook in &hooks {
-        log.info(format!("processing {}", hook.display()));
+        zbm_trace::info!("processing {}", hook.display());
         run_hook(system.runner, hook, env);
         if once {
-            log.info(format!(
-                "Disabling hook after execution: {}",
-                hook.display()
-            ));
+            zbm_trace::info!("Disabling hook after execution: {}", hook.display());
             let _ = system.files.set_mode(hook, 0);
             let mut completed = hook.clone().into_os_string();
             completed.push(".completed");
@@ -96,34 +92,22 @@ fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
 /// `<filesystem>//<path>` into `root`, as `import_zbm_hooks` does. The file
 /// system is mounted read-only on `.external_hooks` while they are copied.
 /// Returns whether the hooks were imported; failures are logged.
-pub fn import_hooks(
-    system: &System<'_>,
-    log: &KernelLog<'_>,
-    state: &State<'_>,
-    root: &Path,
-    hook_root: &str,
-) -> bool {
+pub fn import_hooks(system: &System<'_>, state: &State<'_>, root: &Path, hook_root: &str) -> bool {
     if hook_root.is_empty() {
-        log.error("hook root is not defined");
+        zbm_trace::error!("hook root is not defined");
         return false;
     }
     // `${hook_root%//*}` and `${hook_root##*//}` split at the last `//`.
     let Some((filesystem, path)) = hook_root.rsplit_once("//") else {
-        log.error(format!(
-            "unable to find hook device: '{hook_root}' is malformed"
-        ));
+        zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed");
         return false;
     };
     if filesystem.is_empty() {
-        log.error(format!(
-            "unable to find hook device: '{hook_root}' is malformed"
-        ));
+        zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed");
         return false;
     }
     if path.is_empty() {
-        log.error(format!(
-            "unable to find hook path: '{hook_root}' is malformed"
-        ));
+        zbm_trace::error!("unable to find hook path: '{hook_root}' is malformed");
         return false;
     }
 
@@ -139,7 +123,7 @@ pub fn import_hooks(
         .run(&mount)
         .is_ok_and(|output| output.status.success())
     {
-        log.error(format!("failed to mount hook filesystem {filesystem}"));
+        zbm_trace::error!("failed to mount hook filesystem {filesystem}");
         return false;
     }
 
@@ -151,10 +135,10 @@ pub fn import_hooks(
         }
         let target = root.join(&stage);
         if system.files.create_dir_all(&target).is_err() {
-            log.warning(format!(
+            zbm_trace::warn!(
                 "failed to create hook directory {}",
                 stage.to_string_lossy()
-            ));
+            );
             continue;
         }
         for name in visible_entries(system.files, &source_dir) {
@@ -173,7 +157,7 @@ pub fn import_hooks(
                 .run(&copy)
                 .is_ok_and(|output| output.status.success())
             {
-                log.warning(format!("failed to copy user hook {}", file.display()));
+                zbm_trace::warn!("failed to copy user hook {}", file.display());
             }
         }
     }
@@ -198,11 +182,11 @@ fn visible_entries(files: &dyn Files, dir: &Path) -> Vec<std::ffi::OsString> {
 
 /// `zbm.skip_hooks`: removes the permissions of every hook, in any stage
 /// directory below `root`, whose name is in the comma-separated `skip` list.
-pub fn skip_hooks(files: &dyn Files, log: &KernelLog<'_>, root: &Path, skip: &str) {
+pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
     if skip.is_empty() {
         return;
     }
-    log.debug(format!("processing hook skip directives: {skip}"));
+    zbm_trace::debug!("processing hook skip directives: {skip}");
     let stages: Vec<_> = visible_entries(files, root)
         .into_iter()
         .filter(|name| name.as_encoded_bytes().ends_with(b".d"))
@@ -215,7 +199,7 @@ pub fn skip_hooks(files: &dyn Files, log: &KernelLog<'_>, root: &Path, skip: &st
                 }
                 let hook = root.join(stage).join(hook);
                 if files.exists(&hook) {
-                    log.info(format!("Disabling hook: {}", hook.display()));
+                    zbm_trace::info!("Disabling hook: {}", hook.display());
                     let _ = files.set_mode(&hook, 0);
                 }
             }
@@ -226,51 +210,46 @@ pub fn skip_hooks(files: &dyn Files, log: &KernelLog<'_>, root: &Path, skip: &st
 /// The start-up stage `init.d/40-early-hooks`: imports hooks from
 /// `zbm.hookroot`, applies `zbm.skip_hooks`, clears the screen and runs the
 /// `early-setup.d` hooks once.
-pub fn early_stage(
-    system: &System<'_>,
-    log: &KernelLog<'_>,
-    state: &State<'_>,
-    hook_root: &str,
-    skip: Option<&str>,
-) {
-    early_stage_in(system, log, state, Path::new(HOOKS), hook_root, skip);
+pub fn early_stage(system: &System<'_>, state: &State<'_>, hook_root: &str, skip: Option<&str>) {
+    early_stage_in(system, state, Path::new(HOOKS), hook_root, skip);
 }
 
 /// [`early_stage`] with the hook directories below `root`.
 pub fn early_stage_in(
     system: &System<'_>,
-    log: &KernelLog<'_>,
     state: &State<'_>,
     root: &Path,
     hook_root: &str,
     skip: Option<&str>,
 ) {
     if !hook_root.is_empty() {
-        import_hooks(system, log, state, root, hook_root);
+        import_hooks(system, state, root, hook_root);
     }
     if let Some(skip) = skip {
-        skip_hooks(system.files, log, root, skip);
+        skip_hooks(system.files, root, skip);
     }
     crate::prompt::tput(system, &["clear"]);
-    run_stage(system, log, root, HookStage::EarlySetup, true, &[]);
+    run_stage(system, root, HookStage::EarlySetup, true, &[]);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testing::stub_lines;
+    use zbm_system::{Installed, KernelLog};
     use zbm_testkit::fakes::{FakeFiles, FakeSystem, FileOperation};
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines, path};
     use zbm_testkit::{TempDir, parity};
 
-    fn log(fake: &FakeSystem) -> KernelLog<'_> {
+    fn log(fake: &FakeSystem) -> Installed {
         fake.files.dir("/zfsbootmenu");
-        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
     #[test]
     fn runs_each_hook_with_the_stage_environment() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files
             .file_with_mode("/libexec/hooks/boot-sel.d/20-b", "", 0o755)
             .file_with_mode("/libexec/hooks/boot-sel.d/10-a", "", 0o755)
@@ -278,7 +257,6 @@ mod tests {
         let env = [("ZBM_SELECTED_BE", "tank/ROOT/void")];
         let ran = run_stage(
             &fake.system(),
-            &log(&fake),
             Path::new(HOOKS),
             HookStage::BootSel,
             false,
@@ -309,7 +287,6 @@ mod tests {
         // Without a directory, or without executable hooks, none runs.
         assert!(!run_stage(
             &fake.system(),
-            &log(&fake),
             Path::new(HOOKS),
             HookStage::LoadKey,
             false,
@@ -319,7 +296,6 @@ mod tests {
         fake.files.dir("/libexec/hooks/setup.d");
         assert!(!run_stage(
             &fake.system(),
-            &log(&fake),
             Path::new(HOOKS),
             HookStage::Setup,
             false,
@@ -330,13 +306,13 @@ mod tests {
     #[test]
     fn early_hooks_run_once() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files
             .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755)
             .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o700);
         let run = || {
             run_stage(
                 &fake.system(),
-                &log(&fake),
                 Path::new(HOOKS),
                 HookStage::EarlySetup,
                 true,
@@ -376,6 +352,7 @@ mod tests {
     #[test]
     fn scripts_without_an_interpreter_line_run_with_bash() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files
             .file_with_mode("/libexec/hooks/setup.d/10-plain", "", 0o755);
         fake.runner.on(|command| {
@@ -385,7 +362,6 @@ mod tests {
         let env = [("BOOTFS", "tank/ROOT/void")];
         assert!(run_stage(
             &fake.system(),
-            &log(&fake),
             Path::new(HOOKS),
             HookStage::Setup,
             false,
@@ -475,8 +451,10 @@ mod tests {
             let dir = skip_root();
             let files = zbm_system::files::RealFiles;
             let kmsg = dir.join("kmsg");
-            let log = KernelLog::new(&files, "7", dir.path(), 1).with_device(&kmsg);
-            skip_hooks(&files, &log, dir.path(), skip);
+            let _log = KernelLog::new(&files, "7", dir.path(), 1)
+                .with_device(&kmsg)
+                .install();
+            skip_hooks(&files, dir.path(), skip);
             assert_eq!(skip_modes(&dir), legacy_modes, "{skip}");
             let rust_log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
             assert_eq!(without_dir(&rust_log, &dir), legacy_log, "{skip}");
@@ -507,15 +485,11 @@ mod tests {
             });
 
             let fake = FakeSystem::new();
+
+            let _log = log(&fake);
             fake.runner.respond_program("mount", 1, "");
             let state = State::new(&fake.files, "/zfsbootmenu");
-            let imported = import_hooks(
-                &fake.system(),
-                &log(&fake),
-                &state,
-                Path::new(HOOKS),
-                hook_root,
-            );
+            let imported = import_hooks(&fake.system(), &state, Path::new(HOOKS), hook_root);
             assert_eq!(imported, success, "{hook_root}");
             assert_eq!(stub_lines(&fake.kmsg()), logged, "{hook_root}");
         }
@@ -524,6 +498,7 @@ mod tests {
     #[test]
     fn imports_the_stage_directories_of_a_hook_root() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         let mnt = "/zfsbootmenu/.external_hooks";
         fake.files
             .file(format!("{mnt}/zbm/early-setup.d/10-net"), "")
@@ -545,7 +520,6 @@ mod tests {
         let state = State::new(&fake.files, "/zfsbootmenu");
         assert!(import_hooks(
             &fake.system(),
-            &log(&fake),
             &state,
             Path::new(HOOKS),
             "tank/hooks//zbm",
@@ -565,11 +539,11 @@ mod tests {
         )));
 
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.runner.respond_program("mount", 32, "");
         let state = State::new(&fake.files, "/zfsbootmenu");
         assert!(!import_hooks(
             &fake.system(),
-            &log(&fake),
             &state,
             Path::new(HOOKS),
             "tank/hooks//zbm",
@@ -584,11 +558,12 @@ mod tests {
     #[test]
     fn the_early_stage_imports_skips_and_runs_once() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files
             .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755)
             .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
-        early_stage(&fake.system(), &log(&fake), &state, "", Some("20-b"));
+        early_stage(&fake.system(), &state, "", Some("20-b"));
         assert_eq!(
             fake.runner.lines(),
             ["tput clear", "/libexec/hooks/early-setup.d/10-a"]

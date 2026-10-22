@@ -9,6 +9,7 @@ use zbm_system::files::{Files, Metadata, RealFiles};
 pub use zbm_testkit::legacy::{LINE_LOG_STUBS, stub_lines};
 
 /// Real files, with some absolute paths moved elsewhere.
+#[derive(Clone)]
 pub struct Redirect {
     moves: Vec<(PathBuf, PathBuf)>,
 }
@@ -33,6 +34,10 @@ impl Redirect {
 }
 
 impl Files for Redirect {
+    fn shared(&self) -> std::sync::Arc<dyn Files + Send + Sync> {
+        std::sync::Arc::new(self.clone())
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         RealFiles.read(self.map(path))
     }

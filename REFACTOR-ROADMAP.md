@@ -86,8 +86,14 @@ Done in R1:
   now: the menu timeout, which `/etc/zfsbootmenu.conf` keeps as written (`+5`) and which R5's menu counts down, and
   the LUKS mode, `zbm_luks::config::Mode`, which moves with the LUKS domain crate in R3.
 
-Open in R1: `FakeMachine` builders and assertion macros; `zbm-trace` everywhere; error enums; crash reports; shadow
-mode.
+- `zbm-trace` replaces `zbm-log` and the `KernelLog` that code passed around. Code logs with `zbm_trace::error!`,
+  `warn!`, `notice!`, `info!` and `debug!`; `KmsgLayer` writes those events to the kernel log in the legacy formats,
+  with the legacy level filter and marker files, and other `tracing` events never reach it. `zbm_system::KernelLog`
+  only installs the layer for a process (`System::kernel_log`), so no function takes a log parameter any more.
+  Reading the log back (`zbm_trace::read`) moved from `zbm-log`.
+
+Open in R1: `FakeMachine` builders and assertion macros; the journal file (`/zfsbootmenu/journal.jsonl`) and
+redaction in the runtime; error enums; crash reports; shadow mode.
 
 ## What the pilots taught
 

@@ -32,13 +32,13 @@ dependencies that exist.
 | adapters | `zbm-zfs`, `zbm-crypt` | External programs: ZFS, cryptsetup |
 | ports | `zbm-platform` | The Context through which services reach the system; the command journal |
 | platform | `zbm-system`, `zbm-state`, `zbm-cmdline` | System interfaces and their real implementations, state files, the kernel command line |
-| foundation | `zbm-core`, `zbm-log`, `zbm-trace` | Commands, secrets, errors, file tests, logging formats, tracing |
+| foundation | `zbm-core`, `zbm-trace` | Commands, secrets, errors, file tests, logging formats, tracing |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
 
 A crate depends only on crates of lower layers, with these exceptions in its own layer:
 
-- `zbm-log` → `zbm-core`
+- `zbm-trace` → `zbm-core`
 - `zbm-state` → `zbm-system`
 - `zbm` → `zbm-tui`
 
@@ -50,6 +50,7 @@ Third-party crates:
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
 - `zbm-app`: `thiserror`, `tracing`
 - `zbm-crypt`: `thiserror`, `tracing`
+- `zbm-system`: `tracing`, `tracing-subscriber`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-platform`: `serde_json`, `tracing`, `tracing-subscriber`
@@ -69,8 +70,9 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 - **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
   `PoolName`, `DatasetName`. Nothing else can hold an invalid one.
 - **foundation**: `zbm-core` describes programs to run (`Command`, `Input::Secret`, `Stream::CaptureSecret`), holds
-  `Secret`, file tests and the error type. `zbm-log` writes and reads the log formats of the legacy runtime.
-  `zbm-trace` sends `tracing` events to standard error and to a JSON journal, one line per event with its spans.
+  `Secret`, file tests and the error type. `zbm-trace` sends `tracing` events to standard error and to a JSON
+  journal, one line per event with its spans; its macros (`zbm_trace::info!` and the others) log to the kernel log,
+  which its `KmsgLayer` writes in the formats of the legacy runtime, and it reads that log back.
 - **platform**: `zbm-system` defines the interfaces through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`) and their real implementations. `zbm-state` shares state between
   processes through files. `zbm-cmdline` parses the kernel command line and the configuration file.

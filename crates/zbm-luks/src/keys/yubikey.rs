@@ -37,8 +37,7 @@ impl Session<'_> {
     pub fn try_ykchalresp(&mut self, target: Target<'_>, yubikey: &YubiKey, tries: u64) -> bool {
         let device = target.device;
         if !self.system().command_exists("ykchalresp") {
-            self.log()
-                .warning(format!("ykchalresp is not available to unlock {device}"));
+            zbm_trace::warn!("ykchalresp is not available to unlock {device}");
             return false;
         }
         let mut attempt = 0;
@@ -49,7 +48,7 @@ impl Session<'_> {
                 &format!("Insert the YubiKey for {}", self.paint("yellow", device)),
             );
             if !self.wait_for(self.token_wait(), &message, || self.ykchalresp_present()) {
-                self.log().info(format!("no YubiKey present for {device}"));
+                zbm_trace::info!("no YubiKey present for {device}");
                 return false;
             }
 
@@ -104,8 +103,7 @@ impl Session<'_> {
             if self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args) {
                 // Other volumes enrolled with the same slot reuse the response.
                 self.passphrases.push(key);
-                self.log()
-                    .info(format!("unlocked {device} with YubiKey challenge-response"));
+                zbm_trace::info!("unlocked {device} with YubiKey challenge-response");
                 return true;
             }
             self.say(&self.paint("red", "No key available with this passphrase.\n"));

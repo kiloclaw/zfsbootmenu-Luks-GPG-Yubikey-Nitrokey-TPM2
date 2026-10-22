@@ -80,8 +80,7 @@ impl Session<'_> {
             .files
             .write(path, format_mappings(mappings).as_bytes())
         {
-            self.log()
-                .error(format!("unable to write {}: {error}", path.display()));
+            zbm_trace::error!("unable to write {}: {error}", path.display());
         }
     }
 
@@ -119,8 +118,7 @@ impl Session<'_> {
             };
             let line = format!("{}\n", mapping.line());
             if let Err(error) = system.files.append(path, line.as_bytes()) {
-                self.log()
-                    .error(format!("unable to write {}: {error}", path.display()));
+                zbm_trace::error!("unable to write {}: {error}", path.display());
             }
         }
         let _ = system.files.remove_dir(lock);
@@ -151,8 +149,7 @@ impl Session<'_> {
         if !self.is_skipped(device)
             && let Err(error) = files.append(path, format!("{device}\n").as_bytes())
         {
-            self.log()
-                .error(format!("unable to write {}: {error}", path.display()));
+            zbm_trace::error!("unable to write {}: {error}", path.display());
         }
     }
 
@@ -178,10 +175,9 @@ mod tests {
     fn with_session<T>(fake: &FakeSystem, body: impl FnOnce(&Session<'_>) -> T) -> T {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
-        let log = log(fake);
+        let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &NoPrompts,
         };

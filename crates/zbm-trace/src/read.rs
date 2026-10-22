@@ -1,4 +1,5 @@
-//! Reading the kernel log back, as `print_kmsg_logs` does for `zlogtail`.
+//! Reading ZFSBootMenu's messages back from the kernel log, for the log
+//! viewer and the recovery shell.
 //!
 //! util-linux `dmesg` filters by level and time itself; its timestamps are
 //! removed from the output. When that fails (BusyBox `dmesg` has no such
@@ -6,9 +7,8 @@
 //! instead.
 
 use zbm_core::exec::{Command, Runner, Stream};
-use zbm_core::shell::command_substitution;
 
-use crate::Message;
+use crate::kmsg::Message;
 
 /// The `dmesg` command that filters by `levels` (comma-separated, such as
 /// `err,warn`) and, optionally, by time.
@@ -38,7 +38,7 @@ pub fn strip_timestamps(text: &str) -> String {
             if line.starts_with('[')
                 && let Some(end) = line.trim_end_matches('\n').rfind("] ")
             {
-                return &line[end + 2..];
+                return line.get(end + 2..).unwrap_or(line);
             }
             line
         })
@@ -87,11 +87,11 @@ pub fn filter_raw(raw: &str, levels: &str) -> String {
             continue;
         }
         let fields: Vec<&str> = line.split([' ', '\t']).filter(|f| !f.is_empty()).collect();
-        let printed: String = fields
-            .iter()
-            .skip(2)
-            .map(|field| format!("{field} "))
-            .collect();
+        let mut printed = String::new();
+        for field in fields.iter().skip(2) {
+            printed.push_str(field);
+            printed.push(' ');
+        }
         for marker in ["ZFSBootMenu:", "ZBM:"] {
             if line.contains(marker) {
                 text.push_str(&printed);
@@ -104,7 +104,9 @@ pub fn filter_raw(raw: &str, levels: &str) -> String {
 
 /// Reads ZFSBootMenu's messages of the given levels from the kernel log.
 ///
-/// Returns an error message, and reads nothing, when no level is given.
+/// # Errors
+///
+/// An error message, and nothing read, when no level is given.
 pub fn read_logs(
     runner: &dyn Runner,
     levels: &str,
@@ -116,8 +118,9 @@ pub fn read_logs(
     if let Ok(output) = runner.run(&filtered_command(levels, since))
         && output.status.success()
     {
-        // `echo "${output}" | sed ...`
-        let text = format!("{}\n", command_substitution(&output.stdout_text()));
+        // The output ends with one newline, however many `dmesg` printed.
+        let stdout = output.stdout_text();
+        let text = format!("{}\n", stdout.trim_end_matches('\n'));
         return Ok(strip_timestamps(&text));
     }
     let raw = runner
@@ -224,13 +227,9 @@ mod tests {
             },
         );
         dir.write_executable("bin/dmesg", script);
-        let path = format!(
-            "{}:{}",
-            dir.join("bin").display(),
-            std::env::var("PATH").unwrap_or_default()
-        );
+        let path = format!("PATH={}:\"$PATH\"", dir.join("bin").display());
         let output = Bash::new()
-            .env("PATH", &path)
+            .code(&path)
             .code(LOG_STUBS)
             .code("FORCE_RELOAD=1")
             .source("zfsbootmenu/lib/kmsg-log-lib.sh")

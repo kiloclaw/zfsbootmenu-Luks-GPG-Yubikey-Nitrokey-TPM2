@@ -13,7 +13,7 @@ thiserror.workspace = true
 tracing.workspace = true
 zbm-core.workspace = true
 zbm-crypt.workspace = true
-zbm-log.workspace = true
+zbm-trace.workspace = true
 zbm-platform.workspace = true
 zbm-state.workspace = true
 zbm-sys.workspace = true
@@ -24,7 +24,6 @@ zbm-types.workspace = true
 pretty_assertions.workspace = true
 tracing-subscriber.workspace = true
 zbm-testkit.workspace = true
-zbm-trace.workspace = true
 
 [lints]
 workspace = true

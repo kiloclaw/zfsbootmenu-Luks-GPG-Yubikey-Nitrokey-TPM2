@@ -10,9 +10,9 @@ use zbm_cmdline::kcl;
 use zbm_cmdline::parent::{CommandLineSource, read_kcl_contents};
 use zbm_core::exec::Command;
 use zbm_core::shell::{command_substitution, read_first_line, test_integer};
-use zbm_log::Message;
 use zbm_state::State;
 use zbm_system::files::Files;
+use zbm_trace::Message;
 
 /// The module parameter that holds the host ID SPL uses.
 pub const SPL_HOSTID: &str = "/sys/module/spl/parameters/spl_hostid";

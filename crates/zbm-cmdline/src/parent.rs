@@ -7,7 +7,7 @@
 //! (normally the `zfs` command; see the `zbm-zfs` crate).
 
 use zbm_core::shell::{command_substitution, echo, read_first_line};
-use zbm_log::Message;
+use zbm_trace::Message;
 
 /// The property that holds boot environment command lines.
 pub const COMMANDLINE_PROPERTY: &str = "org.zfsbootmenu:commandline";

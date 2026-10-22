@@ -87,15 +87,16 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
 
     let kcl = kcl::build_zbm_kcl(&zbm_sources(system, root));
     let (options, messages) = ZbmOptions::parse(&ZbmArgs::from_kcl(&kcl));
-    let log = KernelLog::new(
+    let _log = KernelLog::new(
         files,
         &options.loglevel,
         &base_in_root,
         system.processes.id(),
     )
-    .with_device(&root.join("dev/kmsg"));
+    .with_device(&root.join("dev/kmsg"))
+    .install();
     for message in &messages {
-        log.log(message);
+        message.emit();
     }
 
     // get_zbm_kcl and make_cmdline_dir

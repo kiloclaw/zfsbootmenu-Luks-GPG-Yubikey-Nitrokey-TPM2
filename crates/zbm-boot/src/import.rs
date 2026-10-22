@@ -8,9 +8,9 @@
 use zbm_cmdline::conf::Conf;
 use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::{command_substitution, read_lines};
-use zbm_log::Level;
 use zbm_state::State;
-use zbm_system::{KernelLog, Runner, System};
+use zbm_system::{Runner, System};
+use zbm_trace::Level;
 use zbm_zfs::Zfs;
 
 use crate::commandline;
@@ -82,40 +82,35 @@ fn stdout(runner: &dyn Runner, command: &Command) -> String {
 
 /// Imports pools without mounting them, as `import_pool` does, and returns
 /// whether `zpool import` succeeded.
-pub fn import_pool(
-    system: &System<'_>,
-    state: &State<'_>,
-    log: &KernelLog<'_>,
-    import: Import<'_>,
-) -> bool {
+pub fn import_pool(system: &System<'_>, state: &State<'_>, import: Import<'_>) -> bool {
     let pool = if !import.pool.is_empty() {
-        log.debug(format!("pool set to {}", import.pool));
+        zbm_trace::debug!("pool set to {}", import.pool);
         import.pool
     } else if import.rewind {
-        log.error("rewind only works on a specific pool");
+        zbm_trace::error!("rewind only works on a specific pool");
         return false;
     } else {
-        log.debug("attempting to import all pools");
+        zbm_trace::debug!("attempting to import all pools");
         "-a"
     };
 
     let mut args = vec!["-N"];
     if import.force {
         args.push("-f");
-        log.debug("import_policy set: force");
+        zbm_trace::debug!("import_policy set: force");
     }
     if import.read_write {
         args.extend(["-o", "readonly=off"]);
-        log.debug("read_write set: yes");
+        zbm_trace::debug!("read_write set: yes");
     } else {
         args.extend(["-o", "readonly=on"]);
-        log.debug("read_write unset");
+        zbm_trace::debug!("read_write unset");
     }
     if import.rewind {
         args.push("--rewind-to-checkpoint");
-        log.debug("rewind_to_checkpoint set: yes");
+        zbm_trace::debug!("rewind_to_checkpoint set: yes");
     }
-    log.debug(format!("zpool import arguments: {} {pool}", args.join(" ")));
+    zbm_trace::debug!("zpool import arguments: {} {pool}", args.join(" "));
 
     let command = Command::new("zpool")
         .arg("import")
@@ -127,19 +122,19 @@ pub fn import_pool(
         Err(error) => (126, error.to_string()),
     };
     if code == 0 {
-        log.debug("successful pool import");
+        zbm_trace::debug!("successful pool import");
         return true;
     }
     let mut messages = Vec::new();
     let hostid = commandline::spl_hostid(system.files, state, &mut messages);
     for message in &messages {
-        log.log(message);
+        message.emit();
     }
-    log.debug(format!(
+    zbm_trace::debug!(
         "import process failed with code {code}, apparent hostid {}",
         hostid.as_deref().unwrap_or("unknown")
-    ));
-    log.debug(command_substitution(&output));
+    );
+    zbm_trace::debug!("{}", command_substitution(&output));
     false
 }
 
@@ -191,7 +186,6 @@ pub fn scrape_hostid(text: &str) -> Option<&str> {
 pub fn match_hostid(
     system: &System<'_>,
     state: &State<'_>,
-    log: &KernelLog<'_>,
     settings: &Settings,
     single: &str,
 ) -> Option<(String, String)> {
@@ -201,25 +195,23 @@ pub fn match_hostid(
     } else {
         vec![single.to_owned()]
     };
-    log.debug(format!("importable pools: {}", importable.join(" ")));
+    zbm_trace::debug!("importable pools: {}", importable.join(" "));
 
     for pool in importable {
-        log.debug(format!("trying to import: {pool}"));
+        zbm_trace::debug!("trying to import: {pool}");
         let probe = Command::new("zpool")
             .args(["import", "-o", "readonly=on", "-N", &pool])
             .merge_stderr();
         let output = stdout(system.runner, &probe);
         let Some(hostid) = scrape_hostid(command_substitution(&output)).and_then(hostid::normalize)
         else {
-            log.debug(format!("unable to scrape hostid for {pool}, skipping"));
+            zbm_trace::debug!("unable to scrape hostid for {pool}, skipping");
             continue;
         };
-        log.debug(format!("discovered pool owner hostid: {hostid}"));
+        zbm_trace::debug!("discovered pool owner hostid: {hostid}");
 
-        if hostid::write_hostid(system.files, log, &hostid).is_none() {
-            log.debug(format!(
-                "failed to set hostid {hostid}, skipping import of pool {pool}"
-            ));
+        if hostid::write_hostid(system.files, &hostid).is_none() {
+            zbm_trace::debug!("failed to set hostid {hostid}, skipping import of pool {pool}");
             continue;
         }
 
@@ -228,13 +220,13 @@ pub fn match_hostid(
             force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
-        if import_pool(system, state, log, import) {
-            log.debug(format!("successfully imported {pool}"));
+        if import_pool(system, state, import) {
+            zbm_trace::debug!("successfully imported {pool}");
             if !settings.release_build {
-                log.warning(format!("imported {pool} with assumed hostid {hostid}"));
-                log.warning(format!(
+                zbm_trace::warn!("imported {pool} with assumed hostid {hostid}");
+                zbm_trace::warn!(
                     "set spl_hostid={hostid} on ZBM KCL or regenerate with corrected /etc/hostid"
-                ));
+                );
             }
             return Some((pool, hostid));
         }
@@ -244,7 +236,7 @@ pub fn match_hostid(
 
 /// Logs why each `UNAVAIL` pool cannot be imported, as `log_unimportable`
 /// does.
-pub fn log_unimportable(runner: &dyn Runner, log: &KernelLog<'_>) {
+pub fn log_unimportable(runner: &dyn Runner) {
     let list = Command::new("zpool").arg("import").stderr(Stream::Null);
     let mut id = String::new();
     for line in here_lines(&stdout(runner, &list)) {
@@ -258,7 +250,7 @@ pub fn log_unimportable(runner: &dyn Runner, log: &KernelLog<'_>) {
                     .args(["import", "-N", &id])
                     .merge_stderr();
                 for error in here_lines(&stdout(runner, &import)) {
-                    log.error(error);
+                    zbm_trace::error!("{}", error);
                 }
             }
             id.clear();
@@ -300,7 +292,6 @@ pub struct Imported {
 pub fn stage(
     system: &System<'_>,
     state: &State<'_>,
-    log: &KernelLog<'_>,
     settings: &Settings,
     recovery: &mut dyn Recovery,
 ) -> Imported {
@@ -312,21 +303,21 @@ pub fn stage(
         // On a retry, first unlock LUKS volumes on disks that appeared during the
         // delay, so that a pool is not imported without them.
         if attempt > 0 && recovery.unlock_late() {
-            log.info("unlocked LUKS volumes that appeared late");
+            zbm_trace::info!("unlocked LUKS volumes that appeared late");
         }
         if !try_pool.is_empty() {
-            log.debug(format!("attempting to import preferred pool {try_pool}"));
+            zbm_trace::debug!("attempting to import preferred pool {try_pool}");
         }
         let import = Import {
             pool: &try_pool,
             force: settings.import_policy == ImportPolicy::Force,
             ..Import::default()
         };
-        import_pool(system, state, log, import);
+        import_pool(system, state, import);
 
         if check_for_pools(system.runner) {
             if settings.require_pool == "only" {
-                log.debug(format!("only importing {try_pool}"));
+                zbm_trace::debug!("only importing {try_pool}");
                 break;
             } else if !try_pool.is_empty() {
                 // A single pool was imported: try the others too.
@@ -335,11 +326,11 @@ pub fn stage(
             }
             break;
         } else if settings.import_policy == ImportPolicy::Hostid
-            && let Some((pool, hostid)) = match_hostid(system, state, log, settings, &try_pool)
+            && let Some((pool, hostid)) = match_hostid(system, state, settings, &try_pool)
         {
-            log.debug(format!("match_hostid returned: {pool};{hostid}"));
+            zbm_trace::debug!("match_hostid returned: {pool};{hostid}");
             if let Err(error) = state.set_spl_hostid(&hostid) {
-                log.error(error.to_string());
+                zbm_trace::error!("{}", error.to_string());
             }
             imported.spl_hostid = Some(hostid);
             if !try_pool.is_empty() && settings.require_pool == "only" {
@@ -356,9 +347,9 @@ pub fn stage(
         }
 
         attempt += 1;
-        log.info(format!("unable to import a pool on attempt {attempt}"));
+        zbm_trace::info!("unable to import a pool on attempt {attempt}");
         if recovery.unlock_late() {
-            log.info("unlocked LUKS volumes that appeared late, retrying import");
+            zbm_trace::info!("unlocked LUKS volumes that appeared late, retrying import");
             continue;
         }
 
@@ -380,43 +371,38 @@ pub fn stage(
         if answer == Answer::Continue {
             continue;
         }
-        log_unimportable(system.runner, log);
+        log_unimportable(system.runner);
         recovery.emergency_shell("unable to successfully import a pool");
     }
 
-    restrict_unhealthy(system.runner, state, log);
+    restrict_unhealthy(system.runner, state);
     // `zdebug && zdebug "$( zreport )"`: the first call writes an empty line.
     // The system report itself arrives with the recovery tools (package F).
-    if log.enabled(Level::Debug) {
-        log.debug("");
+    if zbm_trace::enabled(Level::Debug) {
+        zbm_trace::debug!("");
     }
-    check_unsupported(system, state, log, settings);
-    imported.bootfs = find_bootfs(system.runner, state, log, settings);
+    check_unsupported(system, state, settings);
+    imported.bootfs = find_bootfs(system.runner, state, settings);
     imported
 }
 
 /// Restricts read-write access to every pool that is not `ONLINE`.
-fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>, log: &KernelLog<'_>) {
+fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>) {
     let list = Command::new("zpool").args(["list", "-H", "-o", "name,health"]);
     for line in tab_lines(&stdout(runner, &list)) {
         let (pool, health) = tab_fields(&line);
         if health != "ONLINE" {
             if let Err(error) = state.restrict(pool) {
-                log.error(error.to_string());
+                zbm_trace::error!("{}", error.to_string());
             }
-            log.error(format!("prohibiting read/write operations on {pool}"));
+            zbm_trace::error!("prohibiting read/write operations on {pool}");
         }
     }
 }
 
 /// Restricts pools with features this build of ZFS does not support, and
 /// tells the user.
-fn check_unsupported(
-    system: &System<'_>,
-    state: &State<'_>,
-    log: &KernelLog<'_>,
-    settings: &Settings,
-) {
+fn check_unsupported(system: &System<'_>, state: &State<'_>, settings: &Settings) {
     let get = Command::new("zpool").args(["get", "all", "-H", "-o", "name,property"]);
     let mut unsupported = false;
     for line in tab_lines(&stdout(system.runner, &get)) {
@@ -424,11 +410,11 @@ fn check_unsupported(
         if !property.contains("unsupported@") {
             continue;
         }
-        log.error(format!("unsupported property: {property}"));
+        zbm_trace::error!("unsupported property: {property}");
         if !state.is_degraded(pool)
             && let Err(error) = state.restrict(pool)
         {
-            log.error(error.to_string());
+            zbm_trace::error!("{}", error.to_string());
         }
         unsupported = true;
     }
@@ -440,7 +426,7 @@ fn check_unsupported(
     } else {
         "Upgrade ZFS modules in ZFSBootMenu with generate-zbm"
     };
-    log.error(format!("Unsupported features detected, {upgrade}"));
+    zbm_trace::error!("Unsupported features detected, {upgrade}");
     TimedPrompt::new()
         .message(colorize("red", "Unsupported features detected"))
         .message(colorize("red", upgrade))
@@ -450,21 +436,16 @@ fn check_unsupported(
 /// The default boot environment: `zbm.prefer` naming a filesystem, or else the
 /// `bootfs` property of the preferred pool or of the first imported pool that
 /// sets it. It is recorded in the state directory.
-fn find_bootfs(
-    runner: &dyn Runner,
-    state: &State<'_>,
-    log: &KernelLog<'_>,
-    settings: &Settings,
-) -> Option<String> {
+fn find_bootfs(runner: &dyn Runner, state: &State<'_>, settings: &Settings) -> Option<String> {
     let mut bootfs = String::new();
     if !settings.prefer_bootfs.is_empty() {
         if Zfs::new(runner).is_filesystem(&settings.prefer_bootfs) {
             bootfs = settings.prefer_bootfs.clone();
         } else {
-            log.error(format!(
+            zbm_trace::error!(
                 "bootfs value '{}' not a ZFS dataset",
                 settings.prefer_bootfs
-            ));
+            );
         }
     } else {
         let pool = if settings.prefer_pool.is_empty() {
@@ -486,7 +467,7 @@ fn find_bootfs(
         return None;
     }
     if let Err(error) = state.set_bootfs(&bootfs) {
-        log.error(error.to_string());
+        zbm_trace::error!("{}", error.to_string());
     }
     Some(bootfs)
 }
@@ -496,6 +477,7 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use std::path::{Path, PathBuf};
+    use zbm_system::{Installed, KernelLog};
 
     use serde::{Deserialize, Serialize};
     use zbm_core::exec::{Output, Status, SystemRunner};
@@ -507,9 +489,9 @@ mod tests {
     use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
     use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
 
-    fn log(fake: &FakeSystem) -> KernelLog<'_> {
+    fn log(fake: &FakeSystem) -> Installed {
         fake.files.dir("/zfsbootmenu");
-        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
     #[test]
@@ -537,21 +519,22 @@ mod tests {
     #[test]
     fn import_arguments_follow_the_options() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         let state = State::new(&fake.files, "/zfsbootmenu");
         let system = fake.system();
-        assert!(import_pool(&system, &state, &log(&fake), Import::default()));
+        assert!(import_pool(&system, &state, Import::default()));
         let import = Import {
             pool: "tank",
             force: true,
             read_write: true,
             rewind: true,
         };
-        assert!(import_pool(&system, &state, &log(&fake), import));
+        assert!(import_pool(&system, &state, import));
         let rewind_all = Import {
             rewind: true,
             ..Import::default()
         };
-        assert!(!import_pool(&system, &state, &log(&fake), rewind_all));
+        assert!(!import_pool(&system, &state, rewind_all));
         assert_eq!(
             fake.runner.lines(),
             [
@@ -579,6 +562,7 @@ mod tests {
     #[test]
     fn failed_imports_log_the_apparent_host_id() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.files.file(ETC_HOSTID, [0x0c, 0xb1, 0xba, 0x00]);
         fake.runner.respond(
             "zpool import -N -o readonly=on tank",
@@ -590,7 +574,7 @@ mod tests {
             pool: "tank",
             ..Import::default()
         };
-        assert!(!import_pool(&fake.system(), &state, &log(&fake), import));
+        assert!(!import_pool(&fake.system(), &state, import));
         let lines = stub_lines(&fake.kmsg());
         assert!(lines.ends_with(
             "DEBUG: hostid from /etc/hostid: 00bab10c\n\
@@ -946,12 +930,14 @@ exit 0
             };
             let state = State::new(&files, dir.join("base"));
             let kmsg = dir.join("kmsg");
-            let log = KernelLog::new(&files, "7", &dir.join("base"), 1).with_device(&kmsg);
+            let _log = KernelLog::new(&files, "7", &dir.join("base"), 1)
+                .with_device(&kmsg)
+                .install();
             let mut recovery = Shell {
                 dir: dir.path().to_path_buf(),
                 shells: 0,
             };
-            let imported = stage(&system, &state, &log, &self.settings, &mut recovery);
+            let imported = stage(&system, &state, &self.settings, &mut recovery);
             let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
             // The marker files of warnings and errors are the Rust log's own.
             let _ = std::fs::remove_file(dir.join("base/have_errors"));
@@ -1093,6 +1079,7 @@ exit 0
     #[test]
     fn late_luks_volumes_are_unlocked_before_retrying() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         let lists = Cell::new(0);
         fake.runner.on(move |command| {
             if command.display() != "zpool list -H -o name" {
@@ -1115,13 +1102,7 @@ exit 0
             calls: 0,
             opens: vec![1, 4],
         };
-        stage(
-            &fake.system(),
-            &state,
-            &log(&fake),
-            &settings,
-            &mut recovery,
-        );
+        stage(&fake.system(), &state, &settings, &mut recovery);
         assert_eq!(recovery.calls, 4);
         let info: Vec<String> = stub_lines(&fake.kmsg())
             .lines()

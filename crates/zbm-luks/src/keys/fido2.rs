@@ -132,9 +132,7 @@ impl Session<'_> {
                         return Outcome::Key(hmac);
                     }
                 }
-                self.log().debug(format!(
-                    "fido2-assert on {device} (pin={pin}) did not produce a secret"
-                ));
+                zbm_trace::debug!("fido2-assert on {device} (pin={pin}) did not produce a secret");
             }
         }
         Outcome::Failed
@@ -152,8 +150,7 @@ impl Session<'_> {
             ),
         );
         if !self.wait_for(self.token_wait(), &message, || self.have_fido2_device()) {
-            self.log()
-                .info(format!("no FIDO2 security key for token {id} on {device}"));
+            zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
             return false;
         }
         let touch = json_bool(json, "fido2-up-required").as_deref() != Some("false");
@@ -177,8 +174,7 @@ impl Session<'_> {
                         self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
                     }
                     if self.open_token_plugin(target, id, Some(&pin)) {
-                        self.log()
-                            .info(format!("unlocked {device} with FIDO2 security key"));
+                        zbm_trace::info!("unlocked {device} with FIDO2 security key");
                         return true;
                     }
                     self.say(&self.paint("red", "The security key did not release the key.\n"));
@@ -189,8 +185,7 @@ impl Session<'_> {
                 self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
             }
             if self.open_token_plugin(target, id, None) {
-                self.log()
-                    .info(format!("unlocked {device} with FIDO2 security key"));
+                zbm_trace::info!("unlocked {device} with FIDO2 security key");
                 return true;
             }
             return false;
@@ -205,15 +200,14 @@ impl Session<'_> {
             }
             Outcome::Failed => false,
             Outcome::Unsupported => {
-                self.log().warning(format!(
+                zbm_trace::warn!(
                     "FIDO2 token {id} on {device} needs fido2-tools or the systemd-fido2 plugin"
-                ));
+                );
                 false
             }
         };
         if opened {
-            self.log()
-                .info(format!("unlocked {device} with FIDO2 security key"));
+            zbm_trace::info!("unlocked {device} with FIDO2 security key");
         }
         opened
     }

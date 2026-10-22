@@ -26,7 +26,6 @@ zbm-cmdline = { path = "crates/zbm-cmdline" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-kcl = { path = "crates/zbm-kcl" }
-zbm-log = { path = "crates/zbm-log" }
 zbm-luks = { path = "crates/zbm-luks" }
 zbm-menu = { path = "crates/zbm-menu" }
 zbm-platform = { path = "crates/zbm-platform" }

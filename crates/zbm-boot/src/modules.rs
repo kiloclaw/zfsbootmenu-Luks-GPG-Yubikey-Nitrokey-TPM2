@@ -3,7 +3,7 @@
 use zbm_core::error::{Error, Result};
 use zbm_core::exec::{Command, Stream};
 use zbm_core::shell::command_substitution;
-use zbm_system::{KernelLog, Runner};
+use zbm_system::Runner;
 
 use crate::recovery::Recovery;
 
@@ -25,8 +25,8 @@ fn run_merged(runner: &dyn Runner, command: Command) -> (bool, String) {
 /// that `/etc/hostid` counts; a failure there is only a warning. When ZFS
 /// cannot be loaded, the recovery shell opens, and the stage carries on after
 /// it, as the legacy stage does.
-pub fn stage(runner: &dyn Runner, log: &KernelLog<'_>, recovery: &mut dyn Recovery) {
-    if let Err(error) = load(runner, log) {
+pub fn stage(runner: &dyn Runner, recovery: &mut dyn Recovery) {
+    if let Err(error) = load(runner) {
         recovery.emergency_shell(&error.to_string());
     }
     let settle = Command::new("udevadm")
@@ -36,29 +36,29 @@ pub fn stage(runner: &dyn Runner, log: &KernelLog<'_>, recovery: &mut dyn Recove
 }
 
 /// Loads the modules; an error means ZFS could not be loaded.
-fn load(runner: &dyn Runner, log: &KernelLog<'_>) -> Result<()> {
+fn load(runner: &dyn Runner) -> Result<()> {
     let (loaded, output) = run_merged(runner, Command::new("modprobe").arg("spl"));
     if !loaded {
-        log.debug(output);
+        zbm_trace::debug!("{}", output);
         let filename = Command::new("modinfo").args(["-F", "filename", "spl"]);
         let filename = runner
             .run(&filename)
             .map(|output| command_substitution(&output.stdout_text()).to_owned())
             .unwrap_or_default();
         if !filename.is_empty() {
-            log.info(format!("loading {filename}"));
+            zbm_trace::info!("loading {filename}");
             let insmod = Command::new("insmod").arg(&filename).arg("spl_hostid=0");
             let (loaded, output) = run_merged(runner, insmod);
             if !loaded {
-                log.warning(output);
-                log.warning("unable to load SPL kernel module; attempting to load ZFS anyway");
+                zbm_trace::warn!("{}", output);
+                zbm_trace::warn!("unable to load SPL kernel module; attempting to load ZFS anyway");
             }
         }
     }
 
     let (loaded, output) = run_merged(runner, Command::new("modprobe").arg("zfs"));
     if !loaded {
-        log.error(output);
+        zbm_trace::error!("{}", output);
         return Err(Error::invalid("unable to load ZFS kernel modules"));
     }
     Ok(())
@@ -68,6 +68,7 @@ fn load(runner: &dyn Runner, log: &KernelLog<'_>) -> Result<()> {
 mod tests {
     use super::*;
     use std::path::Path;
+    use zbm_system::{Installed, KernelLog};
     use zbm_testkit::fakes::FakeSystem;
 
     /// Records the recovery shells.
@@ -84,15 +85,16 @@ mod tests {
         }
     }
 
-    fn log(fake: &FakeSystem) -> KernelLog<'_> {
+    fn log(fake: &FakeSystem) -> Installed {
         fake.files.dir("/zfsbootmenu");
-        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1)
+        KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install()
     }
 
     #[test]
     fn loads_spl_and_zfs() {
         let fake = FakeSystem::new();
-        stage(&fake.runner, &log(&fake), &mut Shells::default());
+        let _log = log(&fake);
+        stage(&fake.runner, &mut Shells::default());
         assert_eq!(
             fake.runner.lines(),
             ["modprobe spl", "modprobe zfs", "udevadm settle"]
@@ -104,6 +106,7 @@ mod tests {
     #[test]
     fn falls_back_to_insmod_with_a_zero_host_id() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.runner
             .respond("modprobe spl", 1, "modprobe: FATAL: bad parameter\n");
         fake.runner.respond(
@@ -116,7 +119,7 @@ mod tests {
             1,
             "insmod: File exists\n",
         );
-        stage(&fake.runner, &log(&fake), &mut Shells::default());
+        stage(&fake.runner, &mut Shells::default());
         assert_eq!(
             fake.runner.lines(),
             [
@@ -136,7 +139,7 @@ mod tests {
         // Without a file name, ZFS is loaded at once.
         let fake = FakeSystem::new();
         fake.runner.respond("modprobe spl", 1, "");
-        stage(&fake.runner, &log(&fake), &mut Shells::default());
+        stage(&fake.runner, &mut Shells::default());
         assert_eq!(
             fake.runner.lines(),
             [
@@ -151,10 +154,11 @@ mod tests {
     #[test]
     fn a_missing_zfs_module_opens_the_recovery_shell() {
         let fake = FakeSystem::new();
+        let _log = log(&fake);
         fake.runner
             .respond("modprobe zfs", 1, "modprobe: FATAL: Module zfs not found\n");
         let mut shells = Shells::default();
-        stage(&fake.runner, &log(&fake), &mut shells);
+        stage(&fake.runner, &mut shells);
         assert_eq!(shells.0, ["unable to load ZFS kernel modules"]);
         assert!(
             fake.kmsg()

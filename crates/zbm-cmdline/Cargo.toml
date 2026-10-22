@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 zbm-core.workspace = true
-zbm-log.workspace = true
+zbm-trace.workspace = true
 zbm-types.workspace = true
 
 [dev-dependencies]

@@ -20,9 +20,9 @@ use crate::session::{Key, PromptRequest, Session};
 
 impl Session<'_> {
     /// Logs the messages of a configuration step.
-    fn log_all(&self, messages: &[zbm_log::Message]) {
+    fn log_all(&self, messages: &[zbm_trace::Message]) {
         for message in messages {
-            self.log().log(message);
+            message.emit();
         }
     }
 
@@ -65,8 +65,7 @@ impl Session<'_> {
         self.log_all(&messages);
 
         if self.device_open(device) {
-            self.log()
-                .info(format!("LUKS device {device} is already in use, skipping"));
+            zbm_trace::info!("LUKS device {device} is already in use, skipping");
             return true;
         }
 
@@ -82,9 +81,7 @@ impl Session<'_> {
             .run(&is_luks)
             .is_ok_and(|output| output.status.success());
         if !luks {
-            self.log().warning(format!(
-                "{header} is not a LUKS volume (header), skipping {device}"
-            ));
+            zbm_trace::warn!("{header} is not a LUKS volume (header), skipping {device}");
             return false;
         }
 
@@ -94,9 +91,7 @@ impl Session<'_> {
             name.to_owned()
         };
         if self.system().files.exists(Path::new(&self.mapper(&name))) {
-            self.log().error(format!(
-                "cannot unlock {device}: mapping {name} already exists"
-            ));
+            zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
             return false;
         }
         let target = Target {
@@ -122,25 +117,23 @@ impl Session<'_> {
                 .filter(|plain| !plain.is_empty())
                 .cloned();
             if let Some(plain) = cached {
-                self.log().info(format!(
+                zbm_trace::info!(
                     "unlocking {device} with GnuPG key file {keyspec} (already decrypted)"
-                ));
+                );
                 if self.cryptsetup_open(&name, device, Key::Stdin(&plain), &options.args) {
-                    self.log()
-                        .info(format!("unlocked {device} as {name} with key file"));
+                    zbm_trace::info!("unlocked {device} as {name} with key file");
                     return self.opened(&name, device, auto);
                 }
-                self.log()
-                    .warning(format!("key file {keyspec} failed to unlock {device}"));
+                zbm_trace::warn!("key file {keyspec} failed to unlock {device}");
             } else {
                 let found = self.find_keyfile(keyspec);
                 if let Some(path) = &found.path {
                     let opened = if options.gpg || is_gpg_keyfile(path, "") {
                         match self.gpg_decrypt(path, device) {
                             Some(plain) => {
-                                self.log().info(format!(
+                                zbm_trace::info!(
                                     "unlocking {device} with GnuPG key file {keyspec}"
-                                ));
+                                );
                                 let opened = self.cryptsetup_open(
                                     &name,
                                     device,
@@ -155,18 +148,15 @@ impl Session<'_> {
                             None => false,
                         }
                     } else {
-                        self.log()
-                            .info(format!("unlocking {device} with key file {keyspec}"));
+                        zbm_trace::info!("unlocking {device} with key file {keyspec}");
                         self.cryptsetup_open(&name, device, Key::File(path), &options.args)
                     };
                     self.release_keyfile(&found);
                     if opened {
-                        self.log()
-                            .info(format!("unlocked {device} as {name} with key file"));
+                        zbm_trace::info!("unlocked {device} as {name} with key file");
                         return self.opened(&name, device, auto);
                     }
-                    self.log()
-                        .warning(format!("key file {keyspec} failed to unlock {device}"));
+                    zbm_trace::warn!("key file {keyspec} failed to unlock {device}");
                 } else {
                     self.release_keyfile(&found);
                 }
@@ -188,9 +178,9 @@ impl Session<'_> {
         let cached = self.passphrases.clone();
         for passphrase in &cached {
             if self.cryptsetup_open(&name, device, Key::Stdin(passphrase), &options.args) {
-                self.log().info(format!(
+                zbm_trace::info!(
                     "unlocked {device} as {name} with a previously entered passphrase"
-                ));
+                );
                 return self.opened(&name, device, auto);
             }
         }
@@ -223,12 +213,10 @@ impl Session<'_> {
             .metadata(Path::new(script))
             .is_ok_and(|metadata| metadata.is_executable());
         if !executable {
-            self.log()
-                .warning(format!("key script {script} is not executable"));
+            zbm_trace::warn!("key script {script} is not executable");
             return false;
         }
-        self.log()
-            .info(format!("unlocking {device} with key script {script}"));
+        zbm_trace::info!("unlocking {device} with key script {script}");
         let key = if keyspec.is_empty() { "none" } else { keyspec };
         let command = self
             .command(script)
@@ -248,14 +236,10 @@ impl Session<'_> {
             .and_then(|output| output.secret)
             .unwrap_or_default();
         if self.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args) {
-            self.log().info(format!(
-                "unlocked {device} as {} with key script",
-                target.name
-            ));
+            zbm_trace::info!("unlocked {device} as {} with key script", target.name);
             return true;
         }
-        self.log()
-            .warning(format!("key script {script} failed to unlock {device}"));
+        zbm_trace::warn!("key script {script} failed to unlock {device}");
         false
     }
 
@@ -289,7 +273,7 @@ impl Session<'_> {
                             if self.device_open(device) {
                                 console.set_echo(true);
                                 self.say("\n");
-                                self.log().info(format!("{device} was unlocked elsewhere"));
+                                zbm_trace::info!("{device} was unlocked elsewhere");
                                 return true;
                             }
                         }
@@ -297,8 +281,7 @@ impl Session<'_> {
                             // Nothing more can be done interactively.
                             console.set_echo(true);
                             self.say("\n");
-                            self.log()
-                                .warning(format!("no console available to unlock {device}"));
+                            zbm_trace::warn!("no console available to unlock {device}");
                             return false;
                         }
                     }
@@ -307,8 +290,7 @@ impl Session<'_> {
                 self.say("\n");
 
                 if passphrase.is_empty() {
-                    self.log()
-                        .info(format!("skipping LUKS volume {device} at user request"));
+                    zbm_trace::info!("skipping LUKS volume {device} at user request");
                     self.mark_skipped(device);
                     return false;
                 }
@@ -316,17 +298,16 @@ impl Session<'_> {
                 self.say(&format!("Unlocking {device} ...\n"));
                 if self.cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args) {
                     self.passphrases.push(passphrase);
-                    self.log().info(format!("unlocked {device} as {name}"));
+                    zbm_trace::info!("unlocked {device} as {name}");
                     return self.opened(name, device, auto);
                 }
                 drop(passphrase);
 
                 if self.device_open(device) {
-                    self.log().info(format!("{device} was unlocked elsewhere"));
+                    zbm_trace::info!("{device} was unlocked elsewhere");
                     return true;
                 }
-                self.log()
-                    .warning(format!("failed to unlock {device} (attempt {attempt})"));
+                zbm_trace::warn!("failed to unlock {device} (attempt {attempt})");
             }
 
             let request = PromptRequest {
@@ -339,8 +320,7 @@ impl Session<'_> {
             self.tput(&["cnorm"]);
             self.tput(&["clear"]);
             if !again {
-                self.log()
-                    .warning(format!("giving up on LUKS volume {device}"));
+                zbm_trace::warn!("giving up on LUKS volume {device}");
                 self.mark_skipped(device);
                 return false;
             }
@@ -353,16 +333,15 @@ impl Session<'_> {
     pub fn wait_device(&self, spec: &str, nofail: bool) -> Option<String> {
         let system = *self.system();
         loop {
-            if let Some(device) = resolve_device(&system, self.log(), spec) {
+            if let Some(device) = resolve_device(&system, spec) {
                 return Some(device);
             }
             self.settle();
-            if let Some(device) = resolve_device(&system, self.log(), spec) {
+            if let Some(device) = resolve_device(&system, spec) {
                 return Some(device);
             }
             if nofail {
-                self.log()
-                    .info(format!("optional LUKS device {spec} not found, skipping"));
+                zbm_trace::info!("optional LUKS device {spec} not found, skipping");
                 return None;
             }
             let delay = match self.settings().retry_delay.as_str() {
@@ -378,7 +357,7 @@ impl Session<'_> {
             if !self.timed_prompt(&request) {
                 self.tput(&["cnorm"]);
                 self.tput(&["clear"]);
-                self.log().error(format!("LUKS device {spec} not found"));
+                zbm_trace::error!("LUKS device {spec} not found");
                 return None;
             }
         }
@@ -442,8 +421,7 @@ impl Session<'_> {
     pub fn unlock_all(&mut self) -> bool {
         let retry = self.settings().retry;
         if !self.available() {
-            self.log()
-                .debug("cryptsetup is not available; LUKS support disabled");
+            zbm_trace::debug!("cryptsetup is not available; LUKS support disabled");
             return !retry;
         }
 
@@ -480,11 +458,10 @@ impl Session<'_> {
                 devices.retain(|device| !self.retry_ignores(device));
             }
             if devices.is_empty() {
-                self.log().debug("no LUKS volumes found");
+                zbm_trace::debug!("no LUKS volumes found");
                 return !retry;
             }
-            self.log()
-                .info(format!("discovered LUKS volumes: {}", devices.join(" ")));
+            zbm_trace::info!("discovered LUKS volumes: {}", devices.join(" "));
             for device in &devices {
                 if self.open_device("", device, &global_key, "", true) {
                     unlocked += 1;
@@ -504,8 +481,7 @@ impl Session<'_> {
                     Options::parse(&entry.options, self.settings().default_tries);
                 self.log_all(&messages);
                 if options.noauto {
-                    self.log()
-                        .debug(format!("not unlocking {} (noauto)", entry.spec));
+                    zbm_trace::debug!("not unlocking {} (noauto)", entry.spec);
                     continue;
                 }
 
@@ -513,7 +489,7 @@ impl Session<'_> {
                 // next time.
                 let device = if retry {
                     let system = *self.system();
-                    match resolve_device(&system, self.log(), &entry.spec) {
+                    match resolve_device(&system, &entry.spec) {
                         Some(device) if !self.retry_ignores(&device) => device,
                         _ => continue,
                     }
@@ -530,8 +506,7 @@ impl Session<'_> {
                 };
 
                 if !seen.insert(device.clone()) {
-                    self.log()
-                        .warning(format!("LUKS device {device} is configured more than once"));
+                    zbm_trace::warn!("LUKS device {device} is configured more than once");
                     continue;
                 }
                 if self.open_device(&entry.name, &device, key, &entry.options, false) {
@@ -555,24 +530,22 @@ impl Session<'_> {
                     && is_block_device(self.system().files, &self.mapper(name))
                     && !self.may_hold_zfs(name)
                 {
-                    self.log().info(format!(
+                    zbm_trace::info!(
                         "closing {name}: {} does not contain a ZFS vdev",
                         mapping.device
-                    ));
+                    );
                     if self.cryptsetup_close(name) {
                         unlocked -= 1;
                         continue;
                     }
-                    self.log().warning(format!("unable to close {name}"));
+                    zbm_trace::warn!("unable to close {name}");
                 }
                 keep.push(mapping);
             }
             self.write_mappings(&keep);
         }
 
-        self.log().info(format!(
-            "LUKS: {unlocked} volume(s) available, {failed} not unlocked"
-        ));
+        zbm_trace::info!("LUKS: {unlocked} volume(s) available, {failed} not unlocked");
         if retry {
             return unlocked > 0;
         }

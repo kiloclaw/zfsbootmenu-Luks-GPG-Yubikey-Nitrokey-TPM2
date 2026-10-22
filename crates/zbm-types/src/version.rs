@@ -253,6 +253,7 @@ mod tests {
         );
         assert_eq!(sorted(&["x-01", "x-1"]), ["x-01", "x-1"]);
         assert_eq!(filevercmp(b"a.tar.gz", b"a.tar.gz"), Ordering::Equal);
+        assert_eq!(filevercmp(b"..", b"."), Ordering::Greater);
         assert_eq!(filevercmp(b"a-1.gz", b"a-2"), Ordering::Less);
         assert_eq!(prefix_len(b"name.tar.gz"), 4);
         assert_eq!(prefix_len(b"6.1"), 3);
@@ -266,6 +267,17 @@ mod tests {
         assert_eq!(reason("6.1/x"), Reason::InvalidCharacter('/'));
         assert_eq!(reason("6.1\t"), Reason::InvalidCharacter('\t'));
         assert_eq!(reason(&"6".repeat(256)), Reason::TooLong { max: 255 });
+    }
+
+    #[test]
+    fn kernel_versions_compare_in_version_order() {
+        let version = |text: &str| text.parse::<KernelVersion>().unwrap();
+        let mut versions = [version("6.10.1"), version("6.9"), version("6.1.0-13-amd64")];
+        versions.sort();
+
+        let texts: Vec<&str> = versions.iter().map(KernelVersion::as_str).collect();
+        assert_eq!(texts, ["6.1.0-13-amd64", "6.9", "6.10.1"]);
+        assert!(version("6.9") < version("6.10"));
     }
 
     proptest! {

@@ -67,11 +67,10 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     }
     settings.base = base.clone();
     settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
-    let log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
+    let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
     let prompter = ConsolePrompter::new(system);
     let mut session = Session::new(Luks {
         system,
-        log: &log,
         settings: &settings,
         prompter: &prompter,
     });
@@ -98,7 +97,7 @@ pub fn run_zluks(session: &mut Session<'_>, args: &[String], io: &mut Io) -> i32
                 return 1;
             };
             let system = *session.system();
-            let Some(device) = resolve_device(&system, session.log(), spec) else {
+            let Some(device) = resolve_device(&system, spec) else {
                 let _ = writeln!(io.stderr, "ERROR: device '{spec}' not found");
                 return 1;
             };
@@ -261,6 +260,7 @@ pub mod seams {
         if let Some(path) = environment.non_empty("ZBMTEST_LOG") {
             log = log.with_device(Path::new(&path)).labelled();
         }
+        let _log = log.install();
         let prompter = Recorded {
             files: system.files,
             prompts: environment.non_empty("ZBMTEST_PROMPTS").map(PathBuf::from),
@@ -272,7 +272,6 @@ pub mod seams {
         };
         let mut session = Session::new(Luks {
             system,
-            log: &log,
             settings: &settings,
             prompter: &prompter,
         });
@@ -290,7 +289,7 @@ pub mod seams {
         match arg(0) {
             "unlock_all" => status(session.unlock_all()),
             "close_all" => status(session.close_all(args.get(1).map(String::as_str))),
-            "resolve_device" => match resolve_device(system, session.log(), arg(1)) {
+            "resolve_device" => match resolve_device(system, arg(1)) {
                 Some(device) => {
                     let _ = writeln!(io.stdout, "{device}");
                     0
@@ -337,10 +336,9 @@ mod tests {
     fn call(fake: &FakeSystem, args: &[&str]) -> (i32, String, String) {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
-        let log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1);
+        let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         let mut session = Session::new(Luks {
             system: fake.system(),
-            log: &log,
             settings: &settings,
             prompter: &NoPrompts,
         });
