@@ -1,17 +1,18 @@
 //! The settings of a run, from the environment, and the constants the
 //! scenarios share.
 //!
-//! | Variable | Meaning | Default |
-//! | --- | --- | --- |
-//! | `ZBMTEST_WORK` | Work directory for disks, images and logs | `/var/tmp/zbm-luks-test` |
-//! | `ZBMTEST_IMAGE` | The build container image | `localhost/zbm-builder` |
-//! | `ZBMTEST_RUNTIME` | `docker` or `podman` | `docker` if installed |
-//! | `ZBMTEST_ACCEL` | `kvm` or `tcg` | `kvm` when `/dev/kvm` is usable |
-//! | `ZBMTEST_REUSE` | `1`: reuse images built from the same inputs | rebuild |
-//! | `ZBMTEST_ZBM_RUNTIME` | `legacy` or `rust`: the runtime of the images | `legacy` |
-//! | `ZBMTEST_SHADOW` | `0`: legacy images without shadow mode | shadow mode |
-//! | `ZBMTEST_OLD_KERNEL`, `ZBMTEST_OLD_INITRD` | An image with an older ZFS | unset: skipped |
-//! | `ZBMTEST_REPO` | The checkout to build images from | this crate's checkout |
+//! - `ZBMTEST_WORK`: the work directory for disks, images and logs
+//!   (`/var/tmp/zbm-luks-test`);
+//! - `ZBMTEST_IMAGE`: the build container image (`localhost/zbm-builder`);
+//! - `ZBMTEST_RUNTIME`: `docker` or `podman` (`docker` when installed);
+//! - `ZBMTEST_ACCEL`: `kvm` or `tcg` (`kvm` when `/dev/kvm` is usable);
+//! - `ZBMTEST_REUSE`: `1` reuses images built from the same inputs;
+//! - `ZBMTEST_ZBM_RUNTIME`: `legacy` (the default) or `rust`, the runtime
+//!   of the images;
+//! - `ZBMTEST_SHADOW`: `0` builds legacy images without shadow mode;
+//! - `ZBMTEST_OLD_KERNEL`, `ZBMTEST_OLD_INITRD`: an image with an older
+//!   ZFS, for the `oldzfs` tests, which are skipped without it;
+//! - `ZBMTEST_REPO`: the checkout to build images from (this crate's).
 
 use std::env;
 use std::path::{Path, PathBuf};
