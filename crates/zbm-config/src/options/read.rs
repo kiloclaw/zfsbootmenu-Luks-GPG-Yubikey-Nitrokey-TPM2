@@ -312,11 +312,11 @@ impl<'a> Reader<'a> {
             return preference;
         };
         let prefer = if let Some(pool) = prefer.strip_suffix("!!") {
-            preference.require = "only".to_owned();
+            "only".clone_into(&mut preference.require);
             self.info(format!("will only attempt to import {}", pool_of(pool)));
             pool.to_owned()
         } else if let Some(pool) = prefer.strip_suffix('!') {
-            preference.require = "yes".to_owned();
+            "yes".clone_into(&mut preference.require);
             self.info(format!("requiring pool {}", pool_of(pool)));
             pool.to_owned()
         } else {

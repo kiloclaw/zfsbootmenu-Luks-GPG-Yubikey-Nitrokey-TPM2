@@ -163,8 +163,6 @@ impl Unlocker<'_> {
                     Some(handler) if handler.pass(token) == pass => {
                         handler.try_open(self, target, token)
                     }
-                    // Tried in the other pass.
-                    Some(_) => continue,
                     None if pass == Pass::Interactive && self.have_token_plugin(&token.kind) => {
                         self.open_token_plugin(target, &token.id, None)
                     }
@@ -177,7 +175,8 @@ impl Unlocker<'_> {
                         );
                         continue;
                     }
-                    None => continue,
+                    // Tried in the other pass, or not at all.
+                    Some(_) | None => continue,
                 };
                 if result.is_ok() {
                     return Ok(());
@@ -209,13 +208,13 @@ pub(crate) mod tests {
 
     pub(crate) fn with_session<T>(
         fake: &FakeSystem,
-        settings: Settings,
+        settings: &Settings,
         body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
         let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
-            settings: &settings,
+            settings,
             prompter: &NoPrompts,
         };
         body(&mut Unlocker::new(luks))
@@ -234,14 +233,14 @@ pub(crate) mod tests {
         );
         fake.files
             .file("/lib64/cryptsetup/libcryptsetup-token-ssh.so", "");
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(session.have_token_plugin("systemd-tpm2"));
             assert!(session.have_token_plugin("ssh"));
             assert!(!session.have_token_plugin("systemd-fido2"));
         });
         let mut settings = Settings::new("/zfsbootmenu");
         settings.token_plugins = false;
-        with_session(&fake, settings, |session| {
+        with_session(&fake, &settings, |session| {
             assert!(!session.have_token_plugin("systemd-tpm2"));
         });
     }
@@ -255,7 +254,7 @@ pub(crate) mod tests {
                 Input::Secret(pin) if pin.expose() == b"1234\n"
             );
             Some(Ok(Output::new(
-                Status::exited(if pin_ok { 0 } else { 1 }),
+                Status::exited(u8::from(!pin_ok)),
                 "No usable token is available.\n",
             )))
         });
@@ -265,7 +264,7 @@ pub(crate) mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert_eq!(
                 session.open_token_plugin(target, "0", Some(&Secret::copy_from(b"1234"))),
                 Ok(())
@@ -336,7 +335,7 @@ pub(crate) mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, settings, |session| {
+        with_session(&fake, &settings, |session| {
             assert!(session.try_tokens(target, "/dev/sda").is_err());
         });
         let infos: Vec<String> = fake

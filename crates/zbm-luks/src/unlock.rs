@@ -56,13 +56,6 @@ pub struct UnlockSummary {
 }
 
 impl Unlocker<'_> {
-    /// Logs the messages of a configuration step.
-    fn log_all(&self, messages: &[zbm_trace::Message]) {
-        for message in messages {
-            message.emit();
-        }
-    }
-
     /// The path of a mapping.
     fn mapper(&self, name: &str) -> String {
         self.settings()
@@ -104,7 +97,7 @@ impl Unlocker<'_> {
         origin: Origin,
     ) -> Result<Opened, LuksError> {
         let (options, messages) = Options::parse(options_text, self.settings().default_tries);
-        self.log_all(&messages);
+        log_all(&messages);
 
         if self.is_device_open(device) {
             zbm_trace::info!("LUKS device {device} is already in use, skipping");
@@ -351,5 +344,12 @@ enum Read {
     /// Nothing: another program opened the volume meanwhile.
     Elsewhere,
 }
+/// Logs the messages of a configuration step.
+fn log_all(messages: &[zbm_trace::Message]) {
+    for message in messages {
+        message.emit();
+    }
+}
+
 #[cfg(test)]
 mod tests;

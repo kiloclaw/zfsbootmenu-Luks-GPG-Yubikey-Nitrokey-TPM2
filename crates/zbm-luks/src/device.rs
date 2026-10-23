@@ -171,13 +171,12 @@ pub fn describe_device(system: &System<'_>, device: &str) -> String {
     let label = devices.tag(device, "LABEL");
     let partlabel = devices.tag(device, "PARTLABEL");
     let mut description = device.to_owned();
-    if !label.is_empty() {
-        description.push_str(&format!(" \"{label}\""));
-    } else if !partlabel.is_empty() {
-        description.push_str(&format!(" \"{partlabel}\""));
+    let name = if label.is_empty() { &partlabel } else { &label };
+    if !name.is_empty() {
+        description.push_str(&[" \"", name, "\""].concat());
     }
     if !size.is_empty() {
-        description.push_str(&format!(" ({size})"));
+        description.push_str(&[" (", &size, ")"].concat());
     }
     description
 }

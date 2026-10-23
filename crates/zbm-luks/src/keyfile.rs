@@ -31,58 +31,70 @@ pub fn split_keyfile(spec: &str) -> (&str, Option<&str>) {
 }
 
 impl Unlocker<'_> {
-    /// Finds the key file of a key file specification (`luks_find_keyfile`).
-    /// A missing key device is waited for once per run, as security keys are,
-    /// but not when the import loop retries.
+    /// Finds the key file of a key file specification. A missing key device
+    /// is waited for once per run, as security keys are, but not when the
+    /// import loop retries.
     pub fn find_keyfile(&mut self, spec: &str) -> FoundKey {
-        let mut found = FoundKey::default();
         if spec.is_empty() {
-            return found;
+            return FoundKey::default();
         }
         let (file, device_spec) = split_keyfile(spec);
-        let files = self.system().files;
         let Some(device_spec) = device_spec.filter(|spec| !spec.is_empty()) else {
-            if files.exists(Path::new(file)) {
+            let mut found = FoundKey::default();
+            if self.system().files.exists(Path::new(file)) {
                 found.path = Some(file.to_owned());
             } else {
                 zbm_trace::warn!("LUKS key file {file} not found");
             }
             return found;
         };
+        match self.key_device(device_spec, file) {
+            Some(device) => self.mount_key_device(&device, file),
+            None => FoundKey::default(),
+        }
+    }
 
+    /// The device of the key device specification `device_spec`, waiting
+    /// for it once per run (USB storage often appears a few seconds after
+    /// boot); `None`, remembered, when it does not come.
+    fn key_device(&mut self, device_spec: &str, file: &str) -> Option<String> {
         let system = *self.system();
-        let mut device = resolve_device(&system, device_spec);
-        if device.is_none() {
-            // USB storage often appears a few seconds after boot.
-            if !self.settings().retry && !self.keydev_absent.contains(device_spec) {
-                let message = self.paint(
-                    "cyan",
-                    &format!(
-                        "Insert the key device {} holding {file}",
-                        self.paint("yellow", device_spec)
-                    ),
-                );
-                let wait = self.token_wait();
-                let waited = self.wait_for(wait, &message, || device_present(&system, device_spec));
-                if waited == Wait::Present {
-                    device = resolve_device(&system, device_spec);
-                }
-            }
-            if device.is_none() {
-                self.keydev_absent.insert(device_spec.to_owned());
-                zbm_trace::warn!("LUKS key device {device_spec} not found");
-                return found;
+        if let Some(device) = resolve_device(&system, device_spec) {
+            return Some(device);
+        }
+        let mut device = None;
+        if !self.settings().retry && !self.keydev_absent.contains(device_spec) {
+            let message = self.paint(
+                "cyan",
+                &format!(
+                    "Insert the key device {} holding {file}",
+                    self.paint("yellow", device_spec)
+                ),
+            );
+            let wait = self.token_wait();
+            let waited = self.wait_for(wait, &message, || device_present(&system, device_spec));
+            if waited == Wait::Present {
+                device = resolve_device(&system, device_spec);
             }
         }
-        let device = device.unwrap_or_default();
+        if device.is_none() {
+            self.keydev_absent.insert(device_spec.to_owned());
+            zbm_trace::warn!("LUKS key device {device_spec} not found");
+        }
+        device
+    }
 
+    /// Mounts the key device `device` read-only and finds `file` on it.
+    fn mount_key_device(&self, device: &str, file: &str) -> FoundKey {
+        let mut found = FoundKey::default();
+        let files = self.system().files;
         let _ = files.create_dir_all(Path::new("/tmp"));
         let Some(dir) = self.temporary_dir("/tmp/luks-key") else {
             zbm_trace::error!("unable to create a mount point for key device {device}");
             return found;
         };
         let mounted = Mount::new(self.system().runner)
-            .read_only(&device, &dir)
+            .read_only(device, &dir)
             .is_ok_and(|output| output.status.is_success());
         if !mounted {
             zbm_trace::warn!("unable to mount LUKS key device {device}");

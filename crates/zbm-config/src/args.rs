@@ -171,7 +171,7 @@ impl Args for CmdlineDir<'_> {
             return None;
         }
         let text = self.files.read_to_string(&self.dir.join(name)).ok()?;
-        Some(read_first_line(&text).to_owned())
+        Some(read_first_line(&text))
     }
 }
 
@@ -407,7 +407,7 @@ mod tests {
         let mut parity = parity!("lookups_match_get_zbm_arg_and_get_zbm_bool");
         for _ in 0..60 {
             let cmdline = rng.join(PIECES, 10);
-            let lookup: Vec<&str> = (0..1 + rng.below(2)).map(|_| *rng.choose(&names)).collect();
+            let lookup: Vec<&str> = (0..=rng.below(2)).map(|_| *rng.choose(&names)).collect();
             let default = *rng.choose(&["0", "1", "", "no", "On"]);
             let mut bool_args = vec![default];
             bool_args.extend(&lookup);
@@ -435,7 +435,7 @@ mod tests {
             assert_eq!(rust, expected, "cmdline {cmdline:?}, lookup {lookup:?}");
             let warnings: String = messages
                 .iter()
-                .map(|message| format!("{}\n", message.stderr_line()))
+                .map(|message| message.stderr_line() + "\n")
                 .collect();
             assert_eq!(warnings, logged, "cmdline {cmdline:?}");
             let rust = flag_names(&args, default, &lookup);

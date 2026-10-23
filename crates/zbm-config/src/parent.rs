@@ -7,6 +7,7 @@
 //! (normally the `zfs` command; see the `zbm-zfs` crate).
 
 use zbm_core::shell::{command_substitution, echo, read_first_line};
+use zbm_platform::files::Files;
 use zbm_trace::Message;
 
 use crate::spec::properties::COMMANDLINE;
@@ -92,13 +93,12 @@ pub fn read_kcl_prop(
 /// [`read_kcl_prop`] reads it.
 pub fn read_kcl_value(
     source: &dyn CommandLineSource,
+    files: &dyn Files,
     filesystem: &str,
     kclfile: &std::path::Path,
     log: &mut Vec<Message>,
 ) -> Option<String> {
-    let contents = zbm_core::fs::is_readable(kclfile)
-        .then(|| std::fs::read(kclfile).ok())
-        .flatten();
+    let contents = files.read(kclfile).ok();
     read_kcl_contents(source, filesystem, kclfile, contents.as_deref(), log)
 }
 
@@ -229,20 +229,28 @@ mod tests {
 
     #[test]
     fn command_line_files_take_precedence() {
+        use zbm_platform::files::RealFiles;
         let dir = zbm_testkit::TempDir::new("zbm-config-parent");
         let file = dir.write("cmdline", "  root=x %{parent} \nignored\n");
         let mut log = Vec::new();
         assert_eq!(
-            read_kcl_value(&properties(), "pool/ROOT", &file, &mut log).as_deref(),
+            read_kcl_value(&properties(), &RealFiles, "pool/ROOT", &file, &mut log).as_deref(),
             Some("root=x spl_hostid=1 a&b quiet")
         );
         let plain = dir.write("plain", "a b");
         assert_eq!(
-            read_kcl_value(&properties(), "pool/ROOT", &plain, &mut log).as_deref(),
+            read_kcl_value(&properties(), &RealFiles, "pool/ROOT", &plain, &mut log).as_deref(),
             Some("a b")
         );
         assert_eq!(
-            read_kcl_value(&properties(), "pool/ROOT", &dir.join("missing"), &mut log).as_deref(),
+            read_kcl_value(
+                &properties(),
+                &RealFiles,
+                "pool/ROOT",
+                &dir.join("missing"),
+                &mut log
+            )
+            .as_deref(),
             Some("spl_hostid=1 a&b quiet")
         );
     }

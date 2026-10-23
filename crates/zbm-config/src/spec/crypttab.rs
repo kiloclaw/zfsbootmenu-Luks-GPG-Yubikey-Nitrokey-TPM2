@@ -46,9 +46,9 @@ pub static DISCARD: OptionSpec = OptionSpec {
     examples: &["discard", "allow-discards"],
 };
 
-const DISCARD_DOC: &str = r#"
+const DISCARD_DOC: &str = r"
 Pass TRIM requests through to the device (**cryptsetup --allow-discards**).
-"#;
+";
 
 /// `readonly`: opens the volume read-only.
 pub static READONLY: OptionSpec = OptionSpec {
@@ -70,9 +70,9 @@ pub static READONLY: OptionSpec = OptionSpec {
     examples: &["readonly", "read-only"],
 };
 
-const READONLY_DOC: &str = r#"
+const READONLY_DOC: &str = r"
 Open the mapping read-only.
-"#;
+";
 
 /// `tries`: passphrase attempts per round; 0 for no limit.
 pub static TRIES: OptionSpec = OptionSpec {
@@ -84,17 +84,17 @@ pub static TRIES: OptionSpec = OptionSpec {
     summary: "Passphrase attempts per round; 0 for no limit",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**tries=**\ *n*"#,
+        heading: r"**tries=**\ *n*",
         body: TRIES_DOC,
     },
     deprecation: None,
     examples: &["tries=5", "tries=0"],
 };
 
-const TRIES_DOC: &str = r#"
+const TRIES_DOC: &str = r"
 Passphrase attempts per round before ZFSBootMenu offers to try again or skip the volume. The
 default is 3; **0** means unlimited. An invalid value is ignored with a warning.
-"#;
+";
 
 /// `noauto`: not unlocked at start-up, only with zluks.
 pub static NOAUTO: OptionSpec = OptionSpec {
@@ -113,9 +113,9 @@ pub static NOAUTO: OptionSpec = OptionSpec {
     examples: &["noauto"],
 };
 
-const NOAUTO_DOC: &str = r#"
+const NOAUTO_DOC: &str = r"
 Do not unlock the volume at start-up. It can still be opened with **zluks open**.
-"#;
+";
 
 /// `nofail`: A missing device is no reason to wait.
 pub static NOFAIL: OptionSpec = OptionSpec {
@@ -134,9 +134,9 @@ pub static NOFAIL: OptionSpec = OptionSpec {
     examples: &["nofail"],
 };
 
-const NOFAIL_DOC: &str = r#"
+const NOFAIL_DOC: &str = r"
 Do not wait or prompt when the device is missing.
-"#;
+";
 
 /// `keyscript`: A program that prints the key.
 pub static KEYSCRIPT: OptionSpec = OptionSpec {
@@ -148,7 +148,7 @@ pub static KEYSCRIPT: OptionSpec = OptionSpec {
     summary: "A program that prints the key",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**keyscript=**\ *path*"#,
+        heading: r"**keyscript=**\ *path*",
         body: KEYSCRIPT_DOC,
     },
     deprecation: None,
@@ -158,13 +158,13 @@ pub static KEYSCRIPT: OptionSpec = OptionSpec {
     ],
 };
 
-const KEYSCRIPT_DOC: &str = r#"
+const KEYSCRIPT_DOC: &str = r"
 Run *path* and use its standard output as the key. A name without a slash refers to
 */lib/cryptsetup/scripts/*\ *name*. The script receives the *key* field as its first argument and
 the environment variables **CRYPTTAB_NAME**, **CRYPTTAB_SOURCE**, **CRYPTTAB_KEY**,
 **CRYPTTAB_OPTIONS** and **CRYPTTAB_TRIED**. Key scripts named in the crypttab are installed in
 the image with their library dependencies.
-"#;
+";
 
 /// `header`: A detached LUKS header.
 pub static HEADER: OptionSpec = OptionSpec {
@@ -176,16 +176,16 @@ pub static HEADER: OptionSpec = OptionSpec {
     summary: "A detached LUKS header",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**header=**\ *path*"#,
+        heading: r"**header=**\ *path*",
         body: HEADER_DOC,
     },
     deprecation: None,
     examples: &["header=/etc/zfsbootmenu/zroot.hdr"],
 };
 
-const HEADER_DOC: &str = r#"
+const HEADER_DOC: &str = r"
 Use a detached LUKS header.
-"#;
+";
 
 /// `keyfile-offset`: bytes of the key file to skip.
 pub static KEYFILE_OFFSET: OptionSpec = OptionSpec {
@@ -197,16 +197,16 @@ pub static KEYFILE_OFFSET: OptionSpec = OptionSpec {
     summary: "Bytes of the key file to skip",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**keyfile-offset=**\ *n*"#,
+        heading: r"**keyfile-offset=**\ *n*",
         body: KEYFILE_OFFSET_DOC,
     },
     deprecation: None,
     examples: &["keyfile-offset=512"],
 };
 
-const KEYFILE_OFFSET_DOC: &str = r#"
+const KEYFILE_OFFSET_DOC: &str = r"
 Skip *n* bytes at the start of the key file.
-"#;
+";
 
 /// `keyfile-size`: bytes of the key file to read.
 pub static KEYFILE_SIZE: OptionSpec = OptionSpec {
@@ -218,16 +218,16 @@ pub static KEYFILE_SIZE: OptionSpec = OptionSpec {
     summary: "Bytes of the key file to read",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**keyfile-size=**\ *n*"#,
+        heading: r"**keyfile-size=**\ *n*",
         body: KEYFILE_SIZE_DOC,
     },
     deprecation: None,
     examples: &["keyfile-size=64"],
 };
 
-const KEYFILE_SIZE_DOC: &str = r#"
+const KEYFILE_SIZE_DOC: &str = r"
 Read at most *n* bytes of the key file.
-"#;
+";
 
 /// `key-slot`: the key slot to try.
 pub static KEY_SLOT: OptionSpec = OptionSpec {
@@ -242,20 +242,20 @@ pub static KEY_SLOT: OptionSpec = OptionSpec {
     summary: "The key slot to try",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**key-slot=**\ *n*, **keyslot=**\ *n*"#,
+        heading: r"**key-slot=**\ *n*, **keyslot=**\ *n*",
         body: KEY_SLOT_DOC,
     },
     deprecation: None,
     examples: &["key-slot=1", "keyslot=2"],
 };
 
-const KEY_SLOT_DOC: &str = r#"
+const KEY_SLOT_DOC: &str = r"
 Try only key slot *n*.
 
 The values of **keyfile-offset**, **keyfile-size** and **key-slot** must be non-negative integers.
 Other values are ignored with a warning, because they would make every attempt fail, the
 passphrase included.
-"#;
+";
 
 /// `gpg`: the key file is GnuPG-encrypted, whatever its name.
 pub static GPG: OptionSpec = OptionSpec {
@@ -274,9 +274,9 @@ pub static GPG: OptionSpec = OptionSpec {
     examples: &["gpg"],
 };
 
-const GPG_DOC: &str = r#"
+const GPG_DOC: &str = r"
 The key file is GnuPG-encrypted, whatever its name.
-"#;
+";
 
 /// `no-tokens`: LUKS2 tokens are not tried.
 pub static NO_TOKENS: OptionSpec = OptionSpec {
@@ -304,9 +304,9 @@ pub static NO_TOKENS: OptionSpec = OptionSpec {
     examples: &["no-tokens", "notoken"],
 };
 
-const NO_TOKENS_DOC: &str = r#"
+const NO_TOKENS_DOC: &str = r"
 Do not try the volume's LUKS2 tokens (TPM2, FIDO2, clevis).
-"#;
+";
 
 /// `ykchalresp`: yubiKey challenge-response, with the slot (2 by default).
 pub static YKCHALRESP: OptionSpec = OptionSpec {
@@ -318,17 +318,17 @@ pub static YKCHALRESP: OptionSpec = OptionSpec {
     summary: "YubiKey challenge-response, with the slot (2 by default)",
     reader: Reader::Rust,
     doc: Doc::Entry {
-        heading: r#"**ykchalresp**, **ykchalresp=**\ *slot*"#,
+        heading: r"**ykchalresp**, **ykchalresp=**\ *slot*",
         body: YKCHALRESP_DOC,
     },
     deprecation: None,
     examples: &["ykchalresp", "ykchalresp=1"],
 };
 
-const YKCHALRESP_DOC: &str = r#"
+const YKCHALRESP_DOC: &str = r"
 Unlock with YubiKey HMAC-SHA1 challenge-response, using *slot* 1 or 2 (default 2). The typed
 passphrase is the challenge and the response is the LUKS passphrase, as with **yubikey-luks**.
-"#;
+";
 
 /// `ykchalresp-hash`: the challenge is the SHA-256 of the passphrase.
 pub static YKCHALRESP_HASH: OptionSpec = OptionSpec {
@@ -347,10 +347,10 @@ pub static YKCHALRESP_HASH: OptionSpec = OptionSpec {
     examples: &["ykchalresp-hash"],
 };
 
-const YKCHALRESP_HASH_DOC: &str = r#"
+const YKCHALRESP_HASH_DOC: &str = r"
 Send the SHA-256 of the passphrase, in hexadecimal, as the challenge (**yubikey-luks** *HASH=1*).
 Implies **ykchalresp**.
-"#;
+";
 
 /// `ykchalresp-concat`.
 pub static YKCHALRESP_CONCAT: OptionSpec = OptionSpec {
@@ -369,10 +369,10 @@ pub static YKCHALRESP_CONCAT: OptionSpec = OptionSpec {
     examples: &["ykchalresp-concat"],
 };
 
-const YKCHALRESP_CONCAT_DOC: &str = r#"
+const YKCHALRESP_CONCAT_DOC: &str = r"
 Use the challenge followed by the response as the LUKS passphrase (**yubikey-luks**
 *CONCATENATE=1*). Implies **ykchalresp**.
-"#;
+";
 
 /// `no-read-workqueue`: A dm-crypt performance flag.
 pub static NO_READ_WORKQUEUE: OptionSpec = OptionSpec {
@@ -394,9 +394,9 @@ pub static NO_READ_WORKQUEUE: OptionSpec = OptionSpec {
     examples: &["no-read-workqueue"],
 };
 
-const NO_READ_WORKQUEUE_DOC: &str = r#"
+const NO_READ_WORKQUEUE_DOC: &str = r"
 dm-crypt performance flags, passed to **cryptsetup** as **--perf-**\ *flag*.
-"#;
+";
 
 /// `no-write-workqueue`: A dm-crypt performance flag.
 pub static NO_WRITE_WORKQUEUE: OptionSpec = OptionSpec {
@@ -489,6 +489,6 @@ pub static IGNORED: OptionSpec = OptionSpec {
     examples: &["luks", "initramfs", "_netdev"],
 };
 
-const IGNORED_DOC: &str = r#"
+const IGNORED_DOC: &str = r"
 Accepted for compatibility with other crypttab files and ignored.
-"#;
+";

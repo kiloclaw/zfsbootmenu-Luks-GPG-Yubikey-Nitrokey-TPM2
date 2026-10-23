@@ -93,8 +93,9 @@ impl Value {
     /// (`None`); every other option takes one.
     pub fn allows(self, value: Option<&str>) -> bool {
         match (self, value) {
-            (Value::Flag | Value::FlagOrChoice(_), None) => true,
-            (Value::Bool, Some(_)) | (Value::Text, Some(_)) => true,
+            (Value::Flag | Value::FlagOrChoice(_), None) | (Value::Bool | Value::Text, Some(_)) => {
+                true
+            }
             (Value::Integer, Some(value)) => {
                 let digits = value.strip_prefix(['-', '+']).unwrap_or(value);
                 !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())

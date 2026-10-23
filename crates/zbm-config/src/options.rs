@@ -225,7 +225,7 @@ impl ZbmOptions {
             ("zbm_require_pool", &self.require_pool),
             ("zbm_prefer_bootfs", &self.prefer_bootfs),
         ] {
-            conf.push_str(&format!("export {name}={}\n", quote(value)));
+            conf.push_str(&export(name, value));
         }
         conf.push_str("export default_hostid=00bab10c\n");
         for (name, value) in [
@@ -236,11 +236,16 @@ impl ZbmOptions {
             ("zbm_wait_for_devices", &self.wait_for_devices),
             ("control_term", &self.control_term),
         ] {
-            conf.push_str(&format!("export {name}={}\n", quote(value)));
+            conf.push_str(&export(name, value));
         }
         conf.push_str("# END additions by zfsbootmenu-preinit.sh\n");
         conf
     }
+}
+
+/// The line that exports `name` with `value`, quoted for the shell.
+fn export(name: &str, value: &str) -> String {
+    ["export ", name, "=", &quote(value), "\n"].concat()
 }
 
 #[cfg(test)]

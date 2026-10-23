@@ -12,6 +12,14 @@
 //!
 //! Buffers that held secret material are wiped before they are freed.
 
+// The algorithms index fixed-size blocks and tables with indices that their
+// sizes or masks bound, in the notation of their specifications; the test
+// vectors and the comparisons with sha256sum, openssl and base64 cover them.
+#![allow(
+    clippy::indexing_slicing,
+    reason = "indices are bounded by fixed block sizes or masks, as in the specifications"
+)]
+
 use zbm_platform::secret::Secret;
 
 /// The initial hash value of SHA-256.
@@ -169,7 +177,12 @@ impl Sha256 {
     }
 }
 
-/// The compression function of SHA-256 on one block.
+/// The compression function of SHA-256 on one block, with the variable names
+/// of FIPS 180-4.
+#[allow(
+    clippy::many_single_char_names,
+    reason = "the working variables a to h of FIPS 180-4"
+)]
 fn compress(state: &mut [u32; 8], block: &[u8]) {
     let mut w = [0_u32; 64];
     for (word, bytes) in w.iter_mut().zip(block.chunks_exact(4)) {
@@ -459,7 +472,9 @@ mod tests {
         let mut rng = Rng::from_env(0x5a5a);
         for _ in 0..20 {
             let len = rng.below(200);
-            let data: Vec<u8> = (0..len).map(|_| rng.below(256) as u8).collect();
+            let data: Vec<u8> = (0..len)
+                .map(|_| u8::try_from(rng.below(256)).unwrap())
+                .collect();
             if have_program("sha256sum") {
                 let legacy = run("sha256sum", &[], &data);
                 assert_eq!(hex(&sha256(&data)).expose(), &legacy[..64]);

@@ -31,7 +31,7 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
         scope.spawn(|| {
             thread::sleep(Duration::from_secs(2));
             let late = lab.image("late.img", 32);
-            lab.format(
+            Lab::format(
                 &late.display().to_string(),
                 b"pw",
                 Format::Luks2,
@@ -126,7 +126,7 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
                     c.with_session(&console, |session, _| {
                         session
                             .mappings()
-                            .record("v", "/dev/loop99", Origin::Configured)
+                            .record("v", "/dev/loop99", Origin::Configured);
                     });
                 });
             }
@@ -189,7 +189,7 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
     c.env.set("LUKS_RETRY", "1");
     let first = c.unlock(&[]);
     let late = lab.image("late2.img", 32);
-    lab.format(
+    Lab::format(
         &late.display().to_string(),
         b"pw",
         Format::Luks2,

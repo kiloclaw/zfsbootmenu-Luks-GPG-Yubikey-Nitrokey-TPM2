@@ -78,7 +78,7 @@ mod tests {
                 let input_ok =
                     matches!(command.get_stdin(), Input::Bytes(bytes) if bytes == b"a.b.c.d.e");
                 Ok(Output::with_secret(
-                    Status::exited(if input_ok { 0 } else { 1 }),
+                    Status::exited(u8::from(!input_ok)),
                     Secret::copy_from(key),
                 ))
             })
@@ -97,7 +97,7 @@ mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, settings, |session| {
+        with_session(&fake, &settings, |session| {
             let json = r#"{"type":"clevis","keyslots":["3","4"],"jwe":{"protected":"x"}}"#;
             let token = Token::from_export("2", json).unwrap();
             assert_eq!(session.try_clevis_token(target, "2", &token), Ok(()));
@@ -133,7 +133,7 @@ mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
                     .try_clevis_token(
@@ -149,7 +149,7 @@ mod tests {
                 .contains("clevis could not recover the key for slot 3 on /dev/sda")
         );
         let fake = FakeSystem::new();
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
                     .try_clevis_token(target, "2", &crate::keys::tests::token("{}"))

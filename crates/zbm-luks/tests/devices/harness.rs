@@ -14,7 +14,8 @@
 //! - `blkid` of a mapping reports the content the case gives the volume;
 //! - `zpool` sees the pools the case writes;
 //! - `tput` and `udevadm` do nothing;
-//! - FIDO2 keys and YubiKeys are the stand-ins of `tests/luks/unit/kstubs`.
+//! - security keys (FIDO2, YubiKey challenge-response) are the stand-ins of
+//!   `tests/luks/unit/kstubs`.
 //!
 //! Every command the LUKS code runs is recorded, in the order it ran.
 
@@ -361,7 +362,6 @@ impl Lab {
     /// Formats `image` as LUKS with `passphrase` (PBKDF2 with 1000 iterations,
     /// which is fast) and the label `label`.
     pub fn format(
-        &self,
         target: &str,
         passphrase: &[u8],
         format: Format,
@@ -388,13 +388,13 @@ impl Lab {
     pub fn luks(&self, name: &str, passphrase: &[u8], format: Format, label: bool) -> String {
         let image = self.image(&format!("{name}.img"), 32);
         let image_text = image.display().to_string();
-        self.format(&image_text, passphrase, format, label.then_some(name), None);
+        Self::format(&image_text, passphrase, format, label.then_some(name), None);
         self.attach(&image, false)
     }
 
     /// Adds the contents of `key_file` as a key of `device`, whose
     /// passphrase is `pw`.
-    pub fn add_key(&self, device: &str, key_file: &Path) {
+    pub fn add_key(device: &str, key_file: &Path) {
         let key = key_file.display().to_string();
         run(
             CRYPTSETUP,

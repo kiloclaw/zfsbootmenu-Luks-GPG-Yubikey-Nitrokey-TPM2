@@ -78,12 +78,12 @@ pub static SPL_HOSTID: OptionSpec = OptionSpec {
     examples: &["spl_hostid=0x00bab10c", "spl.spl_hostid=0xdeadbeef"],
 };
 
-const SPL_HOSTID_DOC: &str = r#"
+const SPL_HOSTID_DOC: &str = r"
 When creating an initramfs or UEFI bundle, the */etc/hostid* from the system is copied into the
 target. If this image will be used on another system with a different hostid, replace **<hostid>**
 with the desired hostid, as an eight-digit hexadecimal number, to override the value contained
 within the image.
-"#;
+";
 
 /// `zbm.prefer`: the pool to import first, or the boot environment to prefer.
 pub static PREFER: OptionSpec = OptionSpec {
@@ -106,7 +106,7 @@ pub static PREFER: OptionSpec = OptionSpec {
     ],
 };
 
-const PREFER_DOC: &str = r#"
+const PREFER_DOC: &str = r"
 ZFSBootMenu attempts to import all detected pools by default, with the *bootfs* property on the
 first pool (sorted alphabetically) used to select the default boot environment. Providing a *pool*
 name for this parameter will override the pool import order. Providing a *dataset* for this
@@ -128,7 +128,7 @@ parameter will override both the pool import order and the default boot environm
 
   If a literal *!!* has been appended to the pool name, ZFSBootMenu will insist on successfully
   importing the named pool and no others.
-"#;
+";
 
 /// `zbm.retry_delay`.
 pub static RETRY_DELAY: OptionSpec = OptionSpec {
@@ -153,14 +153,14 @@ pub static RETRY_DELAY: OptionSpec = OptionSpec {
     examples: &["zbm.retry_delay=10"],
 };
 
-const RETRY_DELAY_DOC: &str = r#"
+const RETRY_DELAY_DOC: &str = r"
 This option determines the interval between repeated attempts of required steps. When **<time>**
 is unspecified or is anything other than a positive integer, a default value of 5 seconds will be
 used. Should ZFSBootMenu fail to successfully import any pool, it will repeat import attempts
 indefinitely until at least one pool can be imported or the user chooses to drop to a recovery
 shell. Additionally, should any required devices be configured via **zbm.wait_for**, device checks
 will repeat on this interval.
-"#;
+";
 
 /// `zbm.import_policy`.
 pub static IMPORT_POLICY: OptionSpec = OptionSpec {
@@ -179,7 +179,7 @@ pub static IMPORT_POLICY: OptionSpec = OptionSpec {
     examples: &["zbm.import_policy=strict", "zbm.import_policy=force"],
 };
 
-const IMPORT_POLICY_DOC: &str = r#"
+const IMPORT_POLICY_DOC: &str = r"
 This option controls how the pool import process should take place.
 
 **zbm.import_policy=hostid**
@@ -203,7 +203,7 @@ This option controls how the pool import process should take place.
   Set this option to attempt to force pool imports. When set, this invokes *zpool import -f* in
   place of the regular *zpool import* command, which will attempt to import a pool that's
   potentially in use on another system. Use this option with caution!
-"#;
+";
 
 /// `zbm.force_import`: forces pool imports.
 pub static FORCE_IMPORT: OptionSpec = OptionSpec {
@@ -245,7 +245,7 @@ pub static SET_HOSTID: OptionSpec = OptionSpec {
     examples: &["zbm.set_hostid=0"],
 };
 
-const SET_HOSTID_DOC: &str = r#"
+const SET_HOSTID_DOC: &str = r"
 Setting this option will cause ZFSBootMenu to set the *spl.spl_hostid* command-line parameter for
 the selected boot environment to the hostid used to import its pool. The SPL kernel module will
 use this value as the hostid of the booted environment regardless of the contents of
@@ -262,7 +262,7 @@ use this value as the hostid of the booted environment regardless of the content
   .. code-block::
 
     echo 0 > /sys/module/spl/parameters/spl_hostid
-"#;
+";
 
 /// `zbm.sort_key`.
 pub static SORT_KEY: OptionSpec = OptionSpec {
@@ -281,7 +281,7 @@ pub static SORT_KEY: OptionSpec = OptionSpec {
     examples: &["zbm.sort_key=creation"],
 };
 
-const SORT_KEY_DOC: &str = r#"
+const SORT_KEY_DOC: &str = r"
 This option accepts a ZFS property name by which the boot environment and snapshot lists will be
 sorted.
 
@@ -296,7 +296,7 @@ sorted.
 **zbm.sort_key=used**
 
   Sort the lists by size *used*.
-"#;
+";
 
 /// `zbm.timeout`.
 pub static TIMEOUT: OptionSpec = OptionSpec {
@@ -321,7 +321,7 @@ pub static TIMEOUT: OptionSpec = OptionSpec {
     examples: &["zbm.timeout=5", "zbm.timeout=-1", "zbm.timeout=0"],
 };
 
-const TIMEOUT_DOC: &str = r#"
+const TIMEOUT_DOC: &str = r"
 This option accepts numeric values that control whether and when the boot-environment menu should
 be displayed.
 
@@ -338,7 +338,7 @@ be displayed.
 
   Display a countdown timer for the specified number of seconds before booting the configured
   *bootfs* boot environment.
-"#;
+";
 
 /// `zbm.show`: shows the menu without a countdown (zbm.timeout=-1).
 pub static SHOW: OptionSpec = OptionSpec {
@@ -498,14 +498,14 @@ pub static SKIP_HOOKS: OptionSpec = OptionSpec {
     examples: &["zbm.skip_hooks=90-xhci-unbind.sh"],
 };
 
-const SKIP_HOOKS_DOC: &str = r#"
+const SKIP_HOOKS_DOC: &str = r"
 Skip execution of any early-setup, setup, load-key, boot-selection or teardown hooks with file
 names matching any entry in the comma-separated list *hooklist*. Only base names of hooks (*i.e.*,
 with any other path component removed) are matched against the *hooklist*.
 
 **NOTE**: The *hooklist* argument **MUST NOT** contain spaces and **MUST NOT** be enclosed in
 quotes.
-"#;
+";
 
 /// `zbm.autosize`: whether the console font is resized to the display.
 pub static AUTOSIZE: OptionSpec = OptionSpec {
@@ -524,10 +524,10 @@ pub static AUTOSIZE: OptionSpec = OptionSpec {
     examples: &["zbm.autosize=0"],
 };
 
-const AUTOSIZE_DOC: &str = r#"
+const AUTOSIZE_DOC: &str = r"
 Enable automatic font resizing of the kernel console to normalize the apparent resolution for both
 low resolution and high resolution displays. This option is enabled by default.
-"#;
+";
 
 /// `zbm.wait_for`: devices to wait for before importing pools.
 pub static WAIT_FOR: OptionSpec = OptionSpec {
@@ -549,7 +549,7 @@ pub static WAIT_FOR: OptionSpec = OptionSpec {
     ],
 };
 
-const WAIT_FOR_DOC: &str = r#"
+const WAIT_FOR_DOC: &str = r"
 Ensure that one or more devices are present before starting the pool import process. Devices may
 be specified as full paths to device nodes (*e.g.*, **/dev/sda** or
 **/dev/disk/by-id/wwn-0x500a07510ee65912**) or, for convenience, as a typed indicator of the form
@@ -559,7 +559,7 @@ be specified as full paths to device nodes (*e.g.*, **/dev/sda** or
 
 The use of full device paths other than descendants of **/dev/disk/** is fragile and should be
 avoided. The delay interval between device checks can be controlled by **zbm.retry_delay**.
-"#;
+";
 
 /// `root`: the pool to import first, as `root=zfsbootmenu:POOL=<pool>`.
 pub static ROOT: OptionSpec = OptionSpec {

@@ -14,6 +14,13 @@
 //! printing its cases and checks as the Bash suites do.
 
 #![allow(
+    clippy::disallowed_macros,
+    clippy::format_collect,
+    clippy::format_push_string,
+    reason = "the device suites print their cases and checks, and build the small texts of \
+              their stand-ins, as the Bash suites do"
+)]
+#![allow(
     clippy::disallowed_methods,
     clippy::expect_used,
     clippy::panic,

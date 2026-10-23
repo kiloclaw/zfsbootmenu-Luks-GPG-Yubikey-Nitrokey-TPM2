@@ -296,7 +296,7 @@ impl<'l> Case<'l> {
         };
         let mut settings = Settings::from_environment(&self.env);
         settings.colors = false;
-        settings.mapper = self.mapper.clone();
+        self.mapper.clone_into(&mut settings.mapper);
         settings.open_check = OpenCheck::Markers(self.fake.join("holders"));
         let _log = KernelLog::new(&files, "7", &settings.base, std::process::id())
             .with_device(&self.fake.join("log"))

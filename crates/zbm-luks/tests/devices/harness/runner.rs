@@ -39,6 +39,11 @@ pub struct DeviceRunner {
 }
 
 impl DeviceRunner {
+    /// An output of a stand-in, as the runner returns it.
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "every answer of the runner is an io::Result"
+    )]
     fn output(
         status: i32,
         stdout: impl Into<Vec<u8>>,
@@ -92,9 +97,9 @@ impl DeviceRunner {
                         later = true;
                     }
                     if later {
-                        stderr.push_str(line)
+                        stderr.push_str(line);
                     } else {
-                        stdout.push_str(line)
+                        stdout.push_str(line);
                     }
                 }
                 let mut changed = Output::new(output.status, stdout.into_bytes());

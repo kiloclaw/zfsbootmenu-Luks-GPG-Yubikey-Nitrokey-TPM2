@@ -109,10 +109,10 @@ fn edge() {
     lab.enroll_tpm(&multi, "", None);
     let fp = lab.path("fp");
     std::fs::write(&fp, &lab.fido.hmac).unwrap();
-    lab.add_key(&multi, &fp);
+    Lab::add_key(&multi, &fp);
     lab.import_token(&multi, &lab.fido.token("2", false));
     let fido_only = lab.luks("fidoonly", b"pw", Format::Luks2, true);
-    lab.add_key(&fido_only, &fp);
+    Lab::add_key(&fido_only, &fp);
     lab.import_token(&fido_only, &lab.fido.token("1", false));
     let tok = lab.luks("tok", b"pw", Format::Luks2, true);
     lab.enroll_tpm(&tok, "", None);
@@ -121,11 +121,11 @@ fn edge() {
     let hdrdata_image = lab.image("hdrdata.img", 32);
     let hdr = lab.image("hdr", 16).display().to_string();
     let hdrdata = lab.attach(&hdrdata_image, false);
-    lab.format(&hdrdata, b"pw", Format::Luks2, None, Some(&hdr));
+    Lab::format(&hdrdata, b"pw", Format::Luks2, None, Some(&hdr));
     let good_key = lab.path("good.key");
     std::fs::write(&good_key, crate::harness::random(64)).unwrap();
     let gk = lab.luks("gk", b"pw", Format::Luks2, true);
-    lab.add_key(&gk, &good_key);
+    Lab::add_key(&gk, &good_key);
     let wrong_key = lab.text("wrong.key");
     std::fs::write(&wrong_key, crate::harness::random(64)).unwrap();
     let gnupg = Gnupg::new(&lab, &good_key);
@@ -200,7 +200,7 @@ fn edge() {
     // three token types, then a gap in the token ids, and a detached header
     let three = lab.luks("three", b"pw", Format::Luks2, true);
     lab.enroll_tpm(&three, "", None);
-    lab.add_key(&three, &fp);
+    Lab::add_key(&three, &fp);
     lab.import_token(&three, &lab.fido.token("2", false));
     lab.bind_clevis(&three);
     checks.case("token list: TPM2, FIDO2 and clevis (nested JSON) tokens");

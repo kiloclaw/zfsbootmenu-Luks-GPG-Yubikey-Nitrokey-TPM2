@@ -149,10 +149,10 @@ fn rust_report(options: &ZbmOptions) -> String {
     let mut report: String = VARIABLES
         .iter()
         .zip(values)
-        .map(|(name, value)| format!("{name}={value}\n"))
+        .map(|(name, value)| [*name, "=", value, "\n"].concat())
         .collect();
     if let Some(text) = &options.kcl_override {
-        report.push_str(&format!("override<<{text}>>\n"));
+        report.push_str(&["override<<", text, ">>\n"].concat());
     }
     report
 }
@@ -252,7 +252,7 @@ fn options_match_the_legacy_parser() {
         .map(|name| {
             // An unset variable and an empty one are the same to the legacy code, which
             // exports both as ''.
-            format!("printf '{name}=%s\\n' \"${{{name}}}\"\n")
+            ["printf '", name, "=%s\\n' \"${", name, "}\"\n"].concat()
         })
         .collect();
     for _ in 0..150 {
@@ -287,7 +287,7 @@ fn options_match_the_legacy_parser() {
         assert_eq!(rust_report(&options), expected, "cmdline {cmdline:?}");
         let messages: String = log
             .iter()
-            .map(|message| format!("{}\n", message.stderr_line()))
+            .map(|message| message.stderr_line() + "\n")
             .collect();
         assert_eq!(messages, logged, "cmdline {cmdline:?}");
     }

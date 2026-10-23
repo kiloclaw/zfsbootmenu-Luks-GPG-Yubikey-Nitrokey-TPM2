@@ -29,7 +29,8 @@
     test,
     allow(
         clippy::disallowed_methods,
-        reason = "tests describe the commands they expect"
+        clippy::disallowed_macros,
+        reason = "tests describe the commands they expect, and say why they skip"
     )
 )]
 

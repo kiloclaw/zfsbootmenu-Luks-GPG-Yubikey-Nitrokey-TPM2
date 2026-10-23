@@ -63,7 +63,7 @@ pub fn parse_mappings(text: &str) -> Vec<Mapping> {
 pub fn format_mappings(mappings: &[Mapping]) -> String {
     mappings
         .iter()
-        .map(|mapping| format!("{}\n", mapping.line()))
+        .map(|mapping| mapping.line() + "\n")
         .collect()
 }
 
@@ -280,7 +280,7 @@ mod tests {
         with_session(&fake, |session| {
             session
                 .mappings()
-                .record("a", "/dev/sda", Origin::Configured)
+                .record("a", "/dev/sda", Origin::Configured);
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
@@ -350,10 +350,8 @@ mod tests {
             let rust: String = parse_mappings(text)
                 .iter()
                 .map(|mapping| {
-                    format!(
-                        "[{}] [{}] [{}]\n",
-                        mapping.name, mapping.device, mapping.auto
-                    )
+                    let fields = [&mapping.name, &mapping.device, &mapping.auto];
+                    ["[", fields[0], "] [", fields[1], "] [", fields[2], "]\n"].concat()
                 })
                 .collect();
             assert_eq!(rust, legacy, "{text:?}");

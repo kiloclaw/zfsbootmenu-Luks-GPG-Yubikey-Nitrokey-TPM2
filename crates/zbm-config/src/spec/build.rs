@@ -43,11 +43,11 @@ pub static MODULE_ROOT: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_module_root="/usr/local/share/zfsbootmenu""#],
 };
 
-const MODULE_ROOT_DOC: &str = r#"
+const MODULE_ROOT_DOC: &str = r"
 Set this variable to override the default **<path>** where the ZFSBootMenu module expects to find
 core components that must be installed in the created image. When unspecified, a default of
 */usr/share/zfsbootmenu* is assumed.
-"#;
+";
 
 /// `zfsbootmenu_hook_root`: where the user hooks for the image are.
 pub static HOOK_ROOT: OptionSpec = OptionSpec {
@@ -66,11 +66,11 @@ pub static HOOK_ROOT: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_hook_root="/etc/zfsbootmenu/hooks""#],
 };
 
-const HOOK_ROOT_DOC: &str = r#"
+const HOOK_ROOT_DOC: &str = r"
 Set this variable to override the default **<path>** where the ZFSBootMenu module expects to find
 optional user hooks that will be installed in the created image. When unspecified, a default of
 */etc/zfsbootmenu/hooks* is assumed.
-"#;
+";
 
 /// `zfsbootmenu_runtime`: the runtime of the image: legacy (shell) or rust.
 pub static RUNTIME: OptionSpec = OptionSpec {
@@ -89,7 +89,7 @@ pub static RUNTIME: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_runtime=rust"],
 };
 
-const RUNTIME_DOC: &str = r#"
+const RUNTIME_DOC: &str = r"
 Select the runtime that the image boots with: *legacy*, the shell implementation, which is the
 default, or *rust*, the Rust runtime that is being written to replace it. The Rust runtime needs
 **zbm** (see **zfsbootmenu_zbm**). So far it unlocks LUKS volumes, with every key method and
@@ -97,7 +97,7 @@ default, or *rust*, the Rust runtime that is being written to replace it. The Ru
 legacy runtime does with **zbm.skip**; where a machine needs more (a locked encryption root,
 **load-key.d** hooks or the menu), it logs what it cannot handle yet and opens the recovery shell.
 Any other value stops the image build with an error.
-"#;
+";
 
 /// `zfsbootmenu_zbm`: the zbm program of the Rust runtime.
 pub static ZBM: OptionSpec = OptionSpec {
@@ -116,15 +116,15 @@ pub static ZBM: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_zbm="/usr/local/libexec/zfsbootmenu/zbm""#],
 };
 
-const ZBM_DOC: &str = r#"
+const ZBM_DOC: &str = r"
 Set this variable to override the default **<path>** of **zbm**, the program of the Rust runtime,
 which is installed in the image as */libexec/zbm*. When unspecified, a default of
 */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy*
 runtime does not use **zbm**; when it is not found, the image is built without it. The *rust*
 runtime cannot be built without it.
-"#;
+";
 
-/// `zfsbootmenu_skip_gcc_s`: leaves libgcc_s.so out of the image.
+/// `zfsbootmenu_skip_gcc_s`: leaves `libgcc_s.so` out of the image.
 pub static SKIP_GCC_S: OptionSpec = OptionSpec {
     name: "zfsbootmenu_skip_gcc_s",
     aliases: &[],
@@ -141,7 +141,7 @@ pub static SKIP_GCC_S: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_skip_gcc_s=yes"],
 };
 
-const SKIP_GCC_S_DOC: &str = r#"
+const SKIP_GCC_S_DOC: &str = r"
 The ZFSBootMenu module attempts to detect and install a copy of the library **libgcc_s.so** in its
 initramfs image on glibc systems. Because several executables may have latent dependencies on this
 library via a **dlopen** call in glibc itself, a failure to detect and install the library will
@@ -149,7 +149,7 @@ cause initramfs generation to fail. If the host system has no dependencies on **
 **zfsbootmenu_skip_gcc_s=yes** to avoid this failure. Alternatively, if **libgcc_s.so** is present
 in an undetected location, set this option and configure dracut or mkinitcpio to explicitly
 install the library.
-"#;
+";
 
 /// `zfsbootmenu_luks`: whether the image can unlock LUKS volumes.
 pub static LUKS: OptionSpec = OptionSpec {
@@ -168,11 +168,11 @@ pub static LUKS: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks=no"],
 };
 
-const LUKS_DOC: &str = r#"
+const LUKS_DOC: &str = r"
 Omit support for ZFS pools on LUKS volumes. By default, when **cryptsetup** is installed on the
 build host, the image includes **cryptsetup**, **dmsetup**, device-mapper udev rules and the
 dm-crypt and common kernel crypto modules.
-"#;
+";
 
 /// `zfsbootmenu_luks_crypttab`: the crypttab to embed in the image.
 pub static LUKS_CRYPTTAB: OptionSpec = OptionSpec {
@@ -191,12 +191,12 @@ pub static LUKS_CRYPTTAB: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_luks_crypttab="/etc/zfsbootmenu/crypttab""#],
 };
 
-const LUKS_CRYPTTAB_DOC: &str = r#"
+const LUKS_CRYPTTAB_DOC: &str = r"
 A crypttab(5)-style file that lists the LUKS volumes to unlock, with optional key files and
 options (default: */etc/zfsbootmenu/crypttab*). It is embedded in the image as
 */etc/zfsbootmenu/crypttab*, together with any **keyscript=** programs it references. Key files
 are never embedded. The file is ignored for release builds.
-"#;
+";
 
 /// `zfsbootmenu_luks_tokens`: whether the image supports LUKS2 tokens.
 pub static LUKS_TOKENS: OptionSpec = OptionSpec {
@@ -215,12 +215,12 @@ pub static LUKS_TOKENS: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_tokens=no"],
 };
 
-const LUKS_TOKENS_DOC: &str = r#"
+const LUKS_TOKENS_DOC: &str = r"
 Omit support for LUKS2 tokens (TPM2, FIDO2 and clevis). By default, the systemd **systemd-tpm2**
 and **systemd-fido2** cryptsetup plugins, **tpm2-tools**, **openssl**, **fido2-assert**,
 **fido2-token** and the clevis tools are installed when present on the build host, together with
 TPM, USB and HID drivers.
-"#;
+";
 
 /// `zfsbootmenu_luks_token_plugins`.
 pub static LUKS_TOKEN_PLUGINS: OptionSpec = OptionSpec {
@@ -239,10 +239,10 @@ pub static LUKS_TOKEN_PLUGINS: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_token_plugins=no"],
 };
 
-const LUKS_TOKEN_PLUGINS_DOC: &str = r#"
+const LUKS_TOKEN_PLUGINS_DOC: &str = r"
 Omit the systemd cryptsetup token plugins; ZFSBootMenu then unlocks systemd TPM2 and FIDO2 tokens
 with its own implementation.
-"#;
+";
 
 /// `zfsbootmenu_luks_clevis`: whether the image has clevis.
 pub static LUKS_CLEVIS: OptionSpec = OptionSpec {
@@ -261,9 +261,9 @@ pub static LUKS_CLEVIS: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_clevis=no"],
 };
 
-const LUKS_CLEVIS_DOC: &str = r#"
+const LUKS_CLEVIS_DOC: &str = r"
 Omit clevis even when it is installed.
-"#;
+";
 
 /// `zfsbootmenu_luks_gpg`: whether the image has GnuPG.
 pub static LUKS_GPG: OptionSpec = OptionSpec {
@@ -282,12 +282,12 @@ pub static LUKS_GPG: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_gpg=no"],
 };
 
-const LUKS_GPG_DOC: &str = r#"
+const LUKS_GPG_DOC: &str = r"
 Omit GnuPG. By default, **gpg**, **gpg-agent** and **scdaemon** are installed when present, so
 that GnuPG-encrypted LUKS key files can be decrypted with a passphrase or an OpenPGP smart card
 (YubiKey, Nitrokey, ...). GnuPG-encrypted key files listed in the crypttab are embedded in the
 image.
-"#;
+";
 
 /// `zfsbootmenu_luks_gpg_keys`.
 pub static LUKS_GPG_KEYS: OptionSpec = OptionSpec {
@@ -306,9 +306,9 @@ pub static LUKS_GPG_KEYS: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_luks_gpg_keys="0x1234ABCD""#],
 };
 
-const LUKS_GPG_KEYS_DOC: &str = r#"
+const LUKS_GPG_KEYS_DOC: &str = r"
 OpenPGP public keys to export from the build host's keyring into the image.
-"#;
+";
 
 /// `zfsbootmenu_luks_gpg_pubkeys`: files of OpenPGP public keys to import.
 pub static LUKS_GPG_PUBKEYS: OptionSpec = OptionSpec {
@@ -327,9 +327,9 @@ pub static LUKS_GPG_PUBKEYS: OptionSpec = OptionSpec {
     examples: &[r#"zfsbootmenu_luks_gpg_pubkeys="/etc/zfsbootmenu/keys.asc""#],
 };
 
-const LUKS_GPG_PUBKEYS_DOC: &str = r#"
+const LUKS_GPG_PUBKEYS_DOC: &str = r"
 Files with OpenPGP public keys to import into the image.
-"#;
+";
 
 /// `zfsbootmenu_luks_pcscd`: whether the image has pcscd.
 pub static LUKS_PCSCD: OptionSpec = OptionSpec {
@@ -348,10 +348,10 @@ pub static LUKS_PCSCD: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_pcscd=yes"],
 };
 
-const LUKS_PCSCD_DOC: &str = r#"
+const LUKS_PCSCD_DOC: &str = r"
 Include **pcscd** and its card reader drivers, for smart card readers that GnuPG's built-in CCID
 driver does not support.
-"#;
+";
 
 /// `zfsbootmenu_luks_yubikey`: whether the image has ykchalresp.
 pub static LUKS_YUBIKEY: OptionSpec = OptionSpec {
@@ -370,9 +370,9 @@ pub static LUKS_YUBIKEY: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_luks_yubikey=no"],
 };
 
-const LUKS_YUBIKEY_DOC: &str = r#"
+const LUKS_YUBIKEY_DOC: &str = r"
 Omit **ykchalresp**, used for YubiKey challenge-response unlocking.
-"#;
+";
 
 /// `zfsbootmenu_miser`: keeps busybox's utilities instead of the system's.
 pub static MISER: OptionSpec = OptionSpec {
@@ -391,13 +391,13 @@ pub static MISER: OptionSpec = OptionSpec {
     examples: &["zfsbootmenu_miser=yes"],
 };
 
-const MISER_DOC: &str = r#"
+const MISER_DOC: &str = r"
 By default, **mkinitcpio** uses busybox to populate initramfs images. However, the *zfsbootmenu*
 hook will install system versions of several utilities that it requires to operate. On most
 systems, these versions will be provided by util-linux rather than busybox. To prefer busybox for
 these utilities when possible, set **zfsbootmenu_miser=yes**. Synonyms for *yes* are *1*, *y* or
 *on*, without regard to letter case.
-"#;
+";
 
 /// `zfsbootmenu_early_setup`: early-setup hooks to install.
 pub static EARLY_SETUP: OptionSpec = OptionSpec {

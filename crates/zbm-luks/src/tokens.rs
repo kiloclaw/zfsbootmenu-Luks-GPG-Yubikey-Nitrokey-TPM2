@@ -87,7 +87,10 @@ mod tests {
     }
 
     fn show(tokens: &[Token]) -> String {
-        tokens.iter().map(|token| format!("{token}\n")).collect()
+        tokens
+            .iter()
+            .map(|token| token.to_string() + "\n")
+            .collect()
     }
 
     #[test]

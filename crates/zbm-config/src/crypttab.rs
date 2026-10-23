@@ -35,6 +35,10 @@ pub struct YubiKey {
 }
 
 /// The options of a volume, as the legacy runtime keeps them.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "four independent crypttab flags, each an option of its own"
+)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Options {
     /// Arguments for `cryptsetup open` (`_luks_args`).
@@ -98,11 +102,6 @@ impl Options {
     }
 
     fn apply(&mut self, option: &str, messages: &mut Vec<Message>) {
-        let invalid = |messages: &mut Vec<Message>| {
-            messages.push(Message::warning(format!(
-                "ignoring invalid LUKS option '{option}'"
-            )));
-        };
         let (key, value) = match option.split_once('=') {
             Some((key, value)) => (key, Some(value)),
             None => (option, None),
@@ -113,17 +112,62 @@ impl Options {
         // Options are matched by the name of their specification; aliases
         // and the options themselves are in the table.
         let name = spec::find(Source::Crypttab, key).map_or("", |spec| spec.name);
-        match (name, value) {
-            ("discard", None) => self.args.push("--allow-discards".to_owned()),
-            ("readonly", None) => self.args.push("--readonly".to_owned()),
-            ("tries", Some(value)) => match test_integer(value) {
+        let known = match value {
+            None => self.set_flag(name),
+            Some(value) => self.set_value(name, value).map(|valid| {
+                if !valid.is_valid() {
+                    messages.push(Message::warning(valid.warning(option)));
+                }
+            }),
+        };
+        if known.is_none() {
+            messages.push(Message::debug(format!(
+                "ignoring unsupported LUKS option '{option}'"
+            )));
+        }
+    }
+
+    /// Sets the option `name`, given without a value; `None` when no such
+    /// option takes none.
+    fn set_flag(&mut self, name: &str) -> Option<()> {
+        match name {
+            "discard" => self.args.push("--allow-discards".to_owned()),
+            "readonly" => self.args.push("--readonly".to_owned()),
+            "noauto" => self.noauto = true,
+            "nofail" => self.nofail = true,
+            "gpg" => self.gpg = true,
+            "no-tokens" => self.notoken = true,
+            "ykchalresp" => {
+                self.yubikey();
+            }
+            "ykchalresp-hash" => self.yubikey().hash = true,
+            "ykchalresp-concat" => self.yubikey().concat = true,
+            "no-read-workqueue" => self.args.push("--perf-no_read_workqueue".to_owned()),
+            "no-write-workqueue" => self.args.push("--perf-no_write_workqueue".to_owned()),
+            "same-cpu-crypt" => self.args.push("--perf-same_cpu_crypt".to_owned()),
+            "submit-from-crypt-cpus" => {
+                self.args.push("--perf-submit_from_crypt_cpus".to_owned());
+            }
+            // Meaningful to other crypttab consumers, not to ZFSBootMenu.
+            "luks" => {}
+            _ => return None,
+        }
+        Some(())
+    }
+
+    /// Sets the option `name` to `value`; `None` when no such option takes
+    /// a value.
+    fn set_value(&mut self, name: &str, value: &str) -> Option<Validity> {
+        let validity = match name {
+            "tries" => match test_integer(value) {
                 // `[ "${value}" -ge 0 ]`
-                Some(tries) if tries >= 0 => self.tries = tries.unsigned_abs(),
-                _ => invalid(messages),
+                Some(tries) if tries >= 0 => {
+                    self.tries = tries.unsigned_abs();
+                    Validity::Valid
+                }
+                _ => Validity::Invalid,
             },
-            ("noauto", None) => self.noauto = true,
-            ("nofail", None) => self.nofail = true,
-            ("keyscript", Some(value)) => {
+            "keyscript" => {
                 // Like Debian, bare names refer to the stock cryptsetup scripts.
                 let path = if value.starts_with('/') {
                     value.to_owned()
@@ -131,51 +175,65 @@ impl Options {
                     format!("{KEYSCRIPTS}{value}")
                 };
                 self.keyscript = Some(path);
+                Validity::Valid
             }
-            ("header", Some(value)) => {
+            "header" => {
                 self.header = Some(value.to_owned());
                 self.args.extend(["--header".to_owned(), value.to_owned()]);
+                Validity::Valid
             }
-            ("keyfile-offset" | "keyfile-size" | "key-slot", Some(value)) => {
-                // A bad value would make every attempt fail, the passphrase
-                // included.
+            // A bad value would make every attempt fail, the passphrase
+            // included.
+            "keyfile-offset" | "keyfile-size" | "key-slot" => {
                 if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
-                    invalid(messages);
-                } else {
-                    self.args.extend([format!("--{name}"), value.to_owned()]);
+                    return Some(Validity::Invalid);
                 }
+                self.args.extend([format!("--{name}"), value.to_owned()]);
+                Validity::Valid
             }
-            ("gpg", None) => self.gpg = true,
-            ("no-tokens", None) => self.notoken = true,
-            ("ykchalresp", None) => {
-                self.yubikey();
+            "ykchalresp" => self.set_yubikey_slot(value),
+            _ => return None,
+        };
+        Some(validity)
+    }
+
+    /// `ykchalresp=<slot>`: slot 1 or 2.
+    fn set_yubikey_slot(&mut self, value: &str) -> Validity {
+        let yubikey = self.yubikey();
+        match value {
+            "1" => yubikey.slot = 1,
+            "2" => yubikey.slot = 2,
+            _ => return Validity::InvalidSlot,
+        }
+        Validity::Valid
+    }
+}
+
+/// Whether the value of a crypttab option was valid.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Validity {
+    /// It was, and the option is set.
+    Valid,
+    /// It was not; the option is ignored.
+    Invalid,
+    /// The YubiKey slot was neither 1 nor 2; YubiKey challenge-response
+    /// stays on, with its slot unchanged.
+    InvalidSlot,
+}
+
+impl Validity {
+    /// Whether the value was valid.
+    fn is_valid(self) -> bool {
+        self == Validity::Valid
+    }
+
+    /// The warning about an invalid value in `option`.
+    fn warning(self, option: &str) -> String {
+        match self {
+            Validity::InvalidSlot => format!("ignoring invalid YubiKey slot in '{option}'"),
+            Validity::Valid | Validity::Invalid => {
+                format!("ignoring invalid LUKS option '{option}'")
             }
-            ("ykchalresp", Some(value)) => {
-                let yubikey = self.yubikey();
-                match value {
-                    "1" => yubikey.slot = 1,
-                    "2" => yubikey.slot = 2,
-                    _ => messages.push(Message::warning(format!(
-                        "ignoring invalid YubiKey slot in '{option}'"
-                    ))),
-                }
-            }
-            ("ykchalresp-hash", None) => self.yubikey().hash = true,
-            ("ykchalresp-concat", None) => self.yubikey().concat = true,
-            ("no-read-workqueue", None) => self.args.push("--perf-no_read_workqueue".to_owned()),
-            ("no-write-workqueue", None) => {
-                self.args.push("--perf-no_write_workqueue".to_owned());
-            }
-            ("same-cpu-crypt", None) => self.args.push("--perf-same_cpu_crypt".to_owned()),
-            ("submit-from-crypt-cpus", None) => {
-                self.args.push("--perf-submit_from_crypt_cpus".to_owned());
-            }
-            ("luks", None) => {
-                // Meaningful to other crypttab consumers, not to ZFSBootMenu.
-            }
-            _ => messages.push(Message::debug(format!(
-                "ignoring unsupported LUKS option '{option}'"
-            ))),
         }
     }
 }

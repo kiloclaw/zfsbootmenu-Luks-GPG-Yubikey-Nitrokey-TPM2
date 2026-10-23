@@ -139,9 +139,10 @@ fn open_with_keyscript(
         .unwrap_or_default();
     let target = volume.target();
     let opened = session.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args);
-    match &opened {
-        Ok(()) => zbm_trace::info!("unlocked {device} as {} with key script", target.name),
-        Err(_) => zbm_trace::warn!("key script {script} failed to unlock {device}"),
+    if opened.is_ok() {
+        zbm_trace::info!("unlocked {device} as {} with key script", target.name);
+    } else {
+        zbm_trace::warn!("key script {script} failed to unlock {device}");
     }
     opened
 }
@@ -361,7 +362,7 @@ mod tests {
             options: &options,
             options_text: text,
         };
-        with_session(machine, Settings::new("/zfsbootmenu"), |session| {
+        with_session(machine, &Settings::new("/zfsbootmenu"), |session| {
             prepare(session);
             method.try_open(session, &volume)
         })

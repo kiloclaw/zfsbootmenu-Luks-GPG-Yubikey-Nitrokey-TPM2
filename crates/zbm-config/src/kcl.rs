@@ -93,40 +93,12 @@ pub fn arguments(input: &str) -> Vec<String> {
 /// are concatenated.
 ///
 /// The sources are `/etc/cmdline`, the files `/etc/cmdline.d/*.conf` and
-/// `/proc/cmdline`, in that order; see [`zbm_sources`].
+/// `/proc/cmdline`, in that order, which `zbm_startup::preinit::zbm_sources`
+/// reads.
 pub fn build_zbm_kcl<S: AsRef<str>>(sources: &[S]) -> String {
     sources
         .iter()
         .map(|source| tokenize(source.as_ref()))
-        .collect()
-}
-
-/// The files `_build_zbm_kcl` reads, in order, under `root` (normally `/`):
-/// `etc/cmdline`, the `etc/cmdline.d/*.conf` files sorted by name, and
-/// `proc/cmdline`. Files that cannot be read are skipped.
-pub fn zbm_sources(root: &std::path::Path) -> Vec<String> {
-    let mut paths = vec![root.join("etc/cmdline")];
-    if let Ok(entries) = std::fs::read_dir(root.join("etc/cmdline.d")) {
-        let mut confs: Vec<_> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension().is_some_and(|ext| ext == "conf")
-                    && path
-                        .file_name()
-                        .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
-            })
-            .collect();
-        // The initramfs runs in the C locale, where Bash sorts glob results by byte
-        // value.
-        confs.sort();
-        paths.extend(confs);
-    }
-    paths.push(root.join("proc/cmdline"));
-    paths
-        .iter()
-        .filter_map(|path| std::fs::read(path).ok())
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
         .collect()
 }
 
@@ -178,17 +150,6 @@ mod tests {
     #[test]
     fn zbm_kcl_concatenates_sources() {
         assert_eq!(build_zbm_kcl(&["a \"b", "c d"]), "a\n\"bc\nd\n");
-        let root = zbm_testkit::TempDir::new("zbm-config-sources");
-        root.write("etc/cmdline", "first");
-        root.write("etc/cmdline.d/b.conf", "third");
-        root.write("etc/cmdline.d/a.conf", "second");
-        root.write("etc/cmdline.d/.hidden.conf", "hidden");
-        root.write("etc/cmdline.d/other.txt", "other");
-        root.write("proc/cmdline", "last");
-        assert_eq!(
-            zbm_sources(root.path()),
-            ["first", "second", "third", "last"]
-        );
     }
 
     const PIECES: &[&str] = &[

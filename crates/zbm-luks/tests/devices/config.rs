@@ -29,7 +29,7 @@ fn config() {
     let good_key = random(64);
     std::fs::write(lab.path("good.key"), &good_key).unwrap();
     let gk = lab.luks("gk", b"pw", Format::Luks2, true);
-    lab.add_key(&gk, &lab.path("good.key"));
+    Lab::add_key(&gk, &lab.path("good.key"));
     let spec = lab.luks("spec", SPECIAL.as_bytes(), Format::Luks2, false);
     let lead = lab.luks("lead", b"-starts-with-dash", Format::Luks2, false);
     let long_passphrase: String = crate::harness::base64(&random(300))
@@ -51,7 +51,7 @@ fn config() {
     thread::sleep(Duration::from_secs(1));
     let part = format!("{part_loop}p1");
     let partuuid = if std::path::Path::new(&part).exists() {
-        lab.format(&part, b"pw", Format::Luks2, None, None);
+        Lab::format(&part, b"pw", Format::Luks2, None, None);
         run(
             "blkid",
             &["-c", "/dev/null", "-s", "PARTUUID", "-o", "value", &part],

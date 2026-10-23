@@ -92,8 +92,8 @@ impl Unlocker<'_> {
         Outcome::Failed
     }
 
-    /// Opens a volume with a systemd-fido2 token (`luks_try_fido2_token`),
-    /// waiting for the security key first.
+    /// Opens a volume with a systemd-fido2 token, waiting for the security
+    /// key first.
     ///
     /// # Errors
     ///
@@ -121,60 +121,66 @@ impl Unlocker<'_> {
             zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
             return Err(failed(TokenFailure::NoDevice));
         }
-        let touch = token.flag("fido2-up-required") != Some(false);
         let heading = format!(
             "Unlock {} with a FIDO2 security key\n",
             self.paint("yellow", device)
         );
-
-        if self.have_token_plugin("systemd-fido2") {
-            self.say("\n");
-            self.say(&self.paint("cyan", &heading));
-            if token.flag("fido2-clientPin-required") == Some(true) {
-                for _ in 0..3 {
-                    let pin = match self
-                        .read_secret("Security key PIN (leave empty to use another method): ")
-                    {
-                        Some(pin) if !pin.is_empty() => pin,
-                        _ => return Err(failed(TokenFailure::NoPin)),
-                    };
-                    if touch {
-                        self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
-                    }
-                    if self.open_token_plugin(target, id, Some(&pin)).is_ok() {
-                        zbm_trace::info!("unlocked {device} with FIDO2 security key");
-                        return Ok(());
-                    }
-                    self.say(&self.paint("red", "The security key did not release the key.\n"));
-                }
-                return Err(failed(TokenFailure::TooManyTries));
-            }
-            if touch {
-                self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
-            }
-            self.open_token_plugin(target, id, None)
-                .map_err(|_| failed(TokenFailure::NotReleased))?;
-            zbm_trace::info!("unlocked {device} with FIDO2 security key");
-            return Ok(());
-        }
-
-        // Without the plugin, fido2-assert asks for the PIN itself.
         self.say("\n");
         self.say(&self.paint("cyan", &heading));
-        match self.fido2_native(token) {
-            Outcome::Key(key) => {
-                self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
-            }
-            Outcome::Failed => return Err(failed(TokenFailure::NotReleased)),
-            Outcome::Unsupported => {
-                zbm_trace::warn!(
-                    "FIDO2 token {id} on {device} needs fido2-tools or the systemd-fido2 plugin"
-                );
-                return Err(failed(TokenFailure::Unsupported));
+        if self.have_token_plugin("systemd-fido2") {
+            self.fido2_plugin_open(target, id, token).map_err(failed)?;
+        } else {
+            // Without the plugin, fido2-assert asks for the PIN itself.
+            match self.fido2_native(token) {
+                Outcome::Key(key) => {
+                    self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
+                }
+                Outcome::Failed => return Err(failed(TokenFailure::NotReleased)),
+                Outcome::Unsupported => {
+                    zbm_trace::warn!(
+                        "FIDO2 token {id} on {device} needs fido2-tools or the systemd-fido2 \
+                         plugin"
+                    );
+                    return Err(failed(TokenFailure::Unsupported));
+                }
             }
         }
         zbm_trace::info!("unlocked {device} with FIDO2 security key");
         Ok(())
+    }
+
+    /// Opens the volume with the token through cryptsetup's plugin, asking
+    /// for the PIN up to three times when the token needs one.
+    fn fido2_plugin_open(
+        &mut self,
+        target: Target<'_>,
+        id: &str,
+        token: &Token,
+    ) -> Result<(), TokenFailure> {
+        let touch = token.flag("fido2-up-required") != Some(false);
+        let touch_message = || {
+            if touch {
+                self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
+            }
+        };
+        if token.flag("fido2-clientPin-required") != Some(true) {
+            touch_message();
+            return self
+                .open_token_plugin(target, id, None)
+                .map_err(|_| TokenFailure::NotReleased);
+        }
+        for _ in 0..3 {
+            let pin = self
+                .read_secret("Security key PIN (leave empty to use another method): ")
+                .filter(|pin| !pin.is_empty())
+                .ok_or(TokenFailure::NoPin)?;
+            touch_message();
+            if self.open_token_plugin(target, id, Some(&pin)).is_ok() {
+                return Ok(());
+            }
+            self.say(&self.paint("red", "The security key did not release the key.\n"));
+        }
+        Err(TokenFailure::TooManyTries)
     }
 }
 
@@ -250,7 +256,7 @@ mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             let token = Token::from_export("0", &json).unwrap();
             assert_eq!(session.try_fido2_token(target, "0", &token), Ok(()));
         });
@@ -300,7 +306,7 @@ mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             let token = crate::keys::tests::token("{}");
             assert!(session.try_fido2_token(target, "3", &token).is_err());
             // The registry's handler does the same.

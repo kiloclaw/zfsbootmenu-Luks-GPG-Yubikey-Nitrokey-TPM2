@@ -32,6 +32,11 @@ pub struct Conf {
 
 impl Conf {
     /// Reads the text of the file.
+    ///
+    /// # Errors
+    ///
+    /// An invalid-input error naming the line that needs more of the shell
+    /// than an assignment.
     pub fn parse(text: &str) -> Result<Conf> {
         let mut conf = Conf::default();
         for (index, line) in text.lines().enumerate() {

@@ -32,7 +32,7 @@ pub static BOOTFS: OptionSpec = OptionSpec {
     examples: &["bootfs=zroot/ROOT/void"],
 };
 
-const BOOTFS_DOC: &str = r#"
+const BOOTFS_DOC: &str = r"
 A dataset that will be considered the default boot environment if the pool is the first to be
 imported by ZFSBootMenu.
 
@@ -40,7 +40,7 @@ imported by ZFSBootMenu.
 
   This must be set for automatic booting to function. When no **bootfs** property is detected,
   ZFSBootMenu will always display a selection menu.
-"#;
+";
 
 /// `org.zfsbootmenu:readonly`.
 pub static READONLY: OptionSpec = OptionSpec {
@@ -59,10 +59,10 @@ pub static READONLY: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:readonly=on"],
 };
 
-const READONLY_DOC: &str = r#"
+const READONLY_DOC: &str = r"
 When set to any value other than *-* or *off*, ZFSBootMenu operations which require the pool to be
 imported read-write will fail.
-"#;
+";
 
 /// `org.zfsbootmenu:kernel`: the kernel to boot, by name or version.
 pub static KERNEL: OptionSpec = OptionSpec {
@@ -81,13 +81,13 @@ pub static KERNEL: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:kernel=5.4"],
 };
 
-const KERNEL_DOC: &str = r#"
+const KERNEL_DOC: &str = r"
 An identifier used to select which kernel to boot among all kernels found in the */boot* directory
 of the selected boot environment. This can be a partial kernel name (e.g., *5.4*) or a full
 filename (e.g., *vmlinuz-5.7.11_1*).
 
 If the identifier does not match any kernels, the latest kernel will be chosen as a fallback.
-"#;
+";
 
 /// `org.zfsbootmenu:commandline`.
 pub static COMMANDLINE: OptionSpec = OptionSpec {
@@ -106,11 +106,11 @@ pub static COMMANDLINE: OptionSpec = OptionSpec {
     examples: &[r#"org.zfsbootmenu:commandline="quiet %{parent}""#],
 };
 
-const COMMANDLINE_DOC: &str = r#"
+const COMMANDLINE_DOC: &str = r"
 A list of command-line arguments to be passed to any kernel in this environment that does not have
 an associated per-kernel argument file. Refer to **Passing Kernel Command Lines to Boot
 Environments** for details.
-"#;
+";
 
 /// `org.zfsbootmenu:active`: shows (on) or hides (off) the boot environment.
 pub static ACTIVE: OptionSpec = OptionSpec {
@@ -129,7 +129,7 @@ pub static ACTIVE: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:active=off"],
 };
 
-const ACTIVE_DOC: &str = r#"
+const ACTIVE_DOC: &str = r"
 This controls whether boot environments appear in or are hidden from ZFSBootMenu.
 
 **off**
@@ -143,7 +143,7 @@ This controls whether boot environments appear in or are hidden from ZFSBootMenu
   the environment.
 
 By default, ZFSBootMenu only shows boot environments with the property *mountpoint=/*.
-"#;
+";
 
 /// `org.zfsbootmenu:rootprefix`.
 pub static ROOTPREFIX: OptionSpec = OptionSpec {
@@ -162,7 +162,7 @@ pub static ROOTPREFIX: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:rootprefix=root=ZFS="],
 };
 
-const ROOTPREFIX_DOC: &str = r#"
+const ROOTPREFIX_DOC: &str = r"
 This specifies the prefix added to the ZFS filesystem provided as the root filesystem on the
 kernel command line. For example, the command-line argument *root=zfs:zroot/ROOT/void* has root
 prefix *root=zfs:*.
@@ -174,7 +174,7 @@ the default is selected to match the expectation of the preferred initramfs gene
 distribution.
 
 Set this property to override the value determined from inspecting the boot environment.
-"#;
+";
 
 /// `org.zfsbootmenu:keysource`.
 pub static KEYSOURCE: OptionSpec = OptionSpec {
@@ -193,7 +193,7 @@ pub static KEYSOURCE: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:keysource=zroot/keystore"],
 };
 
-const KEYSOURCE_DOC: &str = r#"
+const KEYSOURCE_DOC: &str = r"
 If specified, this provides the name of the ZFS filesystem from which keys for a particular boot
 environment will be sourced.
 
@@ -217,7 +217,7 @@ will be used to decrypt the original boot environment. Copied keys are retained 
 boots an environment, so a single password prompt can be sufficient to unlock several pools with
 the same *keysource* or prevent prompts from reappearing when the pool must be exported and
 reimported (for example, to alter boot parameters from within ZFSBootMenu).
-"#;
+";
 
 /// `org.zfsbootmenu:devicetree`: A device tree to load with the kernel.
 pub static DEVICETREE: OptionSpec = OptionSpec {
@@ -236,7 +236,7 @@ pub static DEVICETREE: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:devicetree=rockchip/rk3399-rockpro64.dtb"],
 };
 
-const DEVICETREE_DOC: &str = r#"
+const DEVICETREE_DOC: &str = r"
 If specified, this provides the path to a device-tree file that will be loaded when ZFSBootMenu
 loads and boots an environment. The path may be relative or absolute.
 
@@ -266,4 +266,4 @@ be booted.
 
   This is the absolute path to a device tree file, regardless of the kernel that is to be
   launched.
-"#;
+";

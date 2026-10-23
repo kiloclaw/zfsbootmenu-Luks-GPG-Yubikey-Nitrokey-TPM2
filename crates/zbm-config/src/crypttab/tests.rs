@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use super::*;
 use crate::args::{Args, CmdlineDir};
 use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
@@ -81,7 +83,7 @@ fn assert_same_options(parity: &mut Parity, inputs: &[String]) {
         assert_eq!(show(&options), shown, "{input:?}");
         let rust: String = messages
             .iter()
-            .map(|message| format!("{}\n", message.stderr_line()))
+            .map(|message| message.stderr_line() + "\n")
             .collect();
         assert_eq!(rust, logged, "{input:?}");
     }
@@ -220,10 +222,11 @@ fn show_mode(mode: &Mode) -> String {
     };
     let mut text = format!("rc={rc} mode={name}\n");
     for entry in mode.entries() {
-        text.push_str(&format!(
-            "[{}] [{}] [{}] [{}]\n",
+        let _ = writeln!(
+            text,
+            "[{}] [{}] [{}] [{}]",
             entry.name, entry.spec, entry.keyfile, entry.options
-        ));
+        );
     }
     text
 }
@@ -273,7 +276,7 @@ fn assert_same_config(parity: &mut Parity, zbm_luks: Option<&str>, crypttab: Opt
     );
     let rust: String = messages
         .iter()
-        .map(|message| format!("{}\n", message.stderr_line()))
+        .map(|message| message.stderr_line() + "\n")
         .collect();
     assert_eq!(rust.replace(&path, "$CRYPTTAB"), logged, "{case}");
 }

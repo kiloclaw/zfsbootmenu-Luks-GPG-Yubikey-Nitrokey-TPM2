@@ -52,11 +52,11 @@ fn tokens() {
     std::fs::write(&k1, crate::harness::random(64)).unwrap();
     std::fs::write(&k2, crate::harness::random(64)).unwrap();
     let gs = lab.luks("gpgsym", b"pw", Format::Luks2, true);
-    lab.add_key(&gs, &k1);
+    Lab::add_key(&gs, &k1);
     let gp = lab.luks("gpgpub", b"pw", Format::Luks2, true);
-    lab.add_key(&gp, &k2);
+    Lab::add_key(&gp, &k2);
     let gp2 = lab.luks("gpgpub2", b"pw", Format::Luks2, true);
-    lab.add_key(&gp2, &k2);
+    Lab::add_key(&gp2, &k2);
     let k1_gpg = lab.text("k1.gpg");
     let k2_gpg = lab.text("k2.gpg");
     let k1_text = k1.display().to_string();
@@ -170,9 +170,9 @@ fn tokens() {
     let ykresp = lab.path("ykresp");
     std::fs::write(&ykresp, yubikey_response(b"ykpass")).unwrap();
     let yk = lab.luks("yk", b"pw", Format::Luks2, true);
-    lab.add_key(&yk, &ykresp);
+    Lab::add_key(&yk, &ykresp);
     let yk2 = lab.luks("yk2", b"pw", Format::Luks2, true);
-    lab.add_key(&yk2, &ykresp);
+    Lab::add_key(&yk2, &ykresp);
     let challenge = run("sha256sum", &[], b"ykpass", &[]);
     let challenge = challenge.get(..64).unwrap_or_default().to_owned();
     let ykresp2 = lab.path("ykresp2");
@@ -182,14 +182,14 @@ fn tokens() {
     )
     .unwrap();
     let yh = lab.luks("ykhash", b"pw", Format::Luks2, true);
-    lab.add_key(&yh, &ykresp2);
+    Lab::add_key(&yh, &ykresp2);
 
     // FIDO2: a systemd-fido2 token whose key slot's passphrase is the
     // hmac-secret (base64)
     let f2 = lab.luks("fido", b"pw", Format::Luks2, true);
     let fidopass = lab.path("fidopass");
     std::fs::write(&fidopass, &lab.fido.hmac).unwrap();
-    lab.add_key(&f2, &fidopass);
+    Lab::add_key(&f2, &fidopass);
     lab.import_token(&f2, &lab.fido.token("1", false));
 
     let mut checks = Checks::new("tokens");

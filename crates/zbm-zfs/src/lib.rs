@@ -388,7 +388,13 @@ mod tests {
                 .collect();
             assert_eq!(messages, logged, "dataset {dataset}");
             for (file, legacy) in [&kclfile, &missing].into_iter().zip(values) {
-                let rust = read_kcl_value(&zfs, dataset, file, &mut Vec::new());
+                let rust = read_kcl_value(
+                    &zfs,
+                    &zbm_platform::files::RealFiles,
+                    dataset,
+                    file,
+                    &mut Vec::new(),
+                );
                 assert_eq!(rust, Some(legacy), "dataset {dataset}, file {file:?}");
             }
         }

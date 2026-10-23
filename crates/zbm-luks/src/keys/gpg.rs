@@ -92,84 +92,25 @@ impl Unlocker<'_> {
         self.gpg_decrypt_in(&home, file, description)
     }
 
+    /// Decrypts `file` with the GnuPG home `home`, asking for the passphrase
+    /// or card PIN up to three times.
     fn gpg_decrypt_in(
         &self,
         home: &GnupgHome<'_>,
         file: &str,
         description: &str,
     ) -> Option<Secret> {
-        let recipients = home.recipients(file);
-        let kind = if recipients.is_empty() {
-            None
-        } else {
-            // Encrypted to a public key: find the card (or key) that can
-            // decrypt it.
-            let message = self.paint(
-                "cyan",
-                &format!(
-                    "Insert the OpenPGP security key (YubiKey, Nitrokey, ...) for {}",
-                    self.paint("yellow", description)
-                ),
-            );
-            let waited = self.wait_for(self.token_wait(), &message, || {
-                self.gpg_have_key(home, &recipients)
-            });
-            if waited != Wait::Present {
-                zbm_trace::info!(
-                    "no secret key for {file} (encrypted to {} )",
-                    recipients.join(" ")
-                );
-                return None;
-            }
-            Some(
-                recipients
-                    .iter()
-                    .find_map(|id| home.secret_key(id))
-                    .unwrap_or(SecretKey::Soft),
-            )
-        };
-
+        let decryptor = self.gpg_decryptor(home, file, description)?;
+        let card = decryptor == Decryptor::Key(SecretKey::Card);
         for _ in 0..3 {
             self.say("\n");
-            let secret = match kind {
-                Some(SecretKey::Card) => {
-                    let (serial, left) = home
-                        .card_status()
-                        .unwrap_or_else(|| ("unknown".to_owned(), "?".to_owned()));
-                    let line = format!(
-                        "Unlock {} with OpenPGP card {serial}\n",
-                        self.paint("yellow", description)
-                    );
-                    self.say(&self.paint("cyan", &line));
-                    if left == "0" {
-                        self.say(&self.paint(
-                            "red",
-                            "The card PIN is blocked; unblock it with the admin PIN or reset \
-                             code.\n",
-                        ));
-                        break;
-                    }
-                    self.read_secret(&format!(
-                        "Card PIN ({left} attempts left; leave empty to use another method): "
-                    ))
-                }
-                _ => {
-                    let line = format!(
-                        "Unlock {} with GnuPG key file {file}\n",
-                        self.paint("yellow", description)
-                    );
-                    self.say(&self.paint("cyan", &line));
-                    self.read_secret(if kind == Some(SecretKey::Soft) {
-                        "Secret key passphrase (leave empty to use another method): "
-                    } else {
-                        "Key file passphrase (leave empty to use another method): "
-                    })
-                }
+            let secret = if card {
+                self.ask_card_pin(home, description)
+            } else {
+                self.ask_gpg_passphrase(decryptor, file, description)
             };
-            let Some(secret) = secret.filter(|secret| !secret.is_empty()) else {
-                break;
-            };
-            if kind == Some(SecretKey::Card) {
+            let secret = secret.filter(|secret| !secret.is_empty())?;
+            if card {
                 self.say(&self.paint("yellow", "Touch the security key if it blinks.\n"));
             }
             match home.decrypt(file, &secret) {
@@ -185,6 +126,97 @@ impl Unlocker<'_> {
         }
         None
     }
+
+    /// What decrypts `file`: a passphrase, or a key the image has (on a
+    /// card, after waiting for one, or a secret key); `None` when nothing
+    /// can.
+    fn gpg_decryptor(
+        &self,
+        home: &GnupgHome<'_>,
+        file: &str,
+        description: &str,
+    ) -> Option<Decryptor> {
+        let recipients = home.recipients(file);
+        if recipients.is_empty() {
+            return Some(Decryptor::Passphrase);
+        }
+        // Encrypted to a public key: find the card (or key) that can decrypt
+        // it.
+        let message = self.paint(
+            "cyan",
+            &format!(
+                "Insert the OpenPGP security key (YubiKey, Nitrokey, ...) for {}",
+                self.paint("yellow", description)
+            ),
+        );
+        let waited = self.wait_for(self.token_wait(), &message, || {
+            self.gpg_have_key(home, &recipients)
+        });
+        if waited != Wait::Present {
+            zbm_trace::info!(
+                "no secret key for {file} (encrypted to {} )",
+                recipients.join(" ")
+            );
+            return None;
+        }
+        let kind = recipients
+            .iter()
+            .find_map(|id| home.secret_key(id))
+            .unwrap_or(SecretKey::Soft);
+        Some(Decryptor::Key(kind))
+    }
+
+    /// Asks for the PIN of the OpenPGP card; `None` when the PIN is blocked,
+    /// which ends the attempts, as no PIN does.
+    fn ask_card_pin(&self, home: &GnupgHome<'_>, description: &str) -> Option<Secret> {
+        let (serial, left) = home
+            .card_status()
+            .unwrap_or_else(|| ("unknown".to_owned(), "?".to_owned()));
+        let line = format!(
+            "Unlock {} with OpenPGP card {serial}\n",
+            self.paint("yellow", description)
+        );
+        self.say(&self.paint("cyan", &line));
+        if left == "0" {
+            self.say(&self.paint(
+                "red",
+                "The card PIN is blocked; unblock it with the admin PIN or reset code.\n",
+            ));
+            return None;
+        }
+        self.read_secret(&format!(
+            "Card PIN ({left} attempts left; leave empty to use another method): "
+        ))
+    }
+
+    /// Asks for the passphrase of the secret key or of the symmetrically
+    /// encrypted key file.
+    fn ask_gpg_passphrase(
+        &self,
+        decryptor: Decryptor,
+        file: &str,
+        description: &str,
+    ) -> Option<Secret> {
+        let line = format!(
+            "Unlock {} with GnuPG key file {file}\n",
+            self.paint("yellow", description)
+        );
+        self.say(&self.paint("cyan", &line));
+        self.read_secret(if decryptor == Decryptor::Key(SecretKey::Soft) {
+            "Secret key passphrase (leave empty to use another method): "
+        } else {
+            "Key file passphrase (leave empty to use another method): "
+        })
+    }
+}
+
+/// What decrypts a GnuPG-encrypted key file.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Decryptor {
+    /// A passphrase: the file is encrypted symmetrically.
+    Passphrase,
+    /// A secret key the image has, on a card or not.
+    Key(SecretKey),
 }
 
 #[cfg(test)]
@@ -291,7 +323,7 @@ mod tests {
     fn symmetric_key_files_ask_for_their_passphrase() {
         let fake = gpg_machine("", "");
         fake.console.secret(b"nope").secret(b"gpgpass");
-        let key = with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        let key = with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             session.gpg_decrypt("/k1.gpg", "/dev/sda")
         });
         assert_eq!(key.unwrap().expose(), b"plain-key");
@@ -332,7 +364,7 @@ mod tests {
         let keys = "ssb:u:255:18:3333333333333333:1::::::e:::+:::23:\n";
         let fake = gpg_machine(packets, keys);
         fake.console.secret(b"gpgpass");
-        let key = with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        let key = with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             session.gpg_decrypt("/k2.gpg", "/dev/sda")
         });
         assert!(key.is_some());
@@ -346,7 +378,7 @@ mod tests {
         let fake = gpg_machine(packets, "");
         fake.files
             .file("/zfsbootmenu/cmdline.d/zbm.luks_token_wait", "0");
-        let key = with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
+        let key = with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             session.gpg_decrypt("/k2.gpg", "/dev/sda")
         });
         assert!(key.is_none());

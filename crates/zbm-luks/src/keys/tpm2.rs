@@ -1,10 +1,10 @@
-//! systemd-tpm2 tokens: `luks_have_tpm2`, `luks_tpm2_in_lockout`,
-//! `luks_tpm2_native_unseal` and `luks_try_tpm2_token`.
+//! systemd-tpm2 tokens: whether a TPM is there and in lockout, unsealing
+//! without cryptsetup's plugin, and trying a token.
 //!
 //! Without cryptsetup's plugin, the token is unsealed with tpm2-tools as
 //! systemd's `tpm2_unseal()` does: the sealed object is loaded below the
-//! storage root key, a policy session satisfies PolicyPCR (and
-//! PolicyAuthValue when a PIN is set), and the LUKS passphrase is the base64
+//! storage root key, a policy session satisfies `PolicyPCR` (and
+//! `PolicyAuthValue` when a PIN is set), and the LUKS passphrase is the base64
 //! encoding of the unsealed secret. The secret is captured from
 //! `tpm2_unseal`'s output and reaches `cryptsetup` on standard input; the PIN's
 //! authorization value reaches `tpm2_unseal` on standard input as
@@ -35,7 +35,7 @@ pub fn auth_value(pin: &[u8], salt: Option<&[u8]>) -> Secret {
         .iter()
         .rposition(|byte| *byte != 0)
         .map_or(0, |last| last + 1);
-    hex(&digest[..len])
+    hex(digest.get(..len).unwrap_or_default())
 }
 
 /// The sizes of the `TPM2B_PRIVATE` and the `TPM2B_PUBLIC` at the start of a
@@ -43,8 +43,10 @@ pub fn auth_value(pin: &[u8], salt: Option<&[u8]>) -> Secret {
 /// import seed, which only the plugin handles.
 pub fn split_blob(blob: &[u8]) -> Option<(&[u8], &[u8])> {
     let size = |at: usize| -> Option<usize> {
-        let bytes = blob.get(at..at + 2)?;
-        Some(usize::from(bytes[0]) << 8 | usize::from(bytes[1]))
+        let [high, low] = *blob.get(at..at + 2)? else {
+            return None;
+        };
+        Some(usize::from(high) << 8 | usize::from(low))
     };
     let private = size(0)? + 2;
     let public = size(private)? + 2;
@@ -114,54 +116,66 @@ impl Unlocker<'_> {
         ));
     }
 
-    /// Unseals a systemd-tpm2 token with tpm2-tools
-    /// (`luks_tpm2_native_unseal`).
+    /// Unseals a systemd-tpm2 token with tpm2-tools, as systemd does.
     pub fn tpm2_native_unseal(&self, token: &Token, pin: Option<&Secret>) -> Outcome {
+        match self.unseal_plan(token, pin) {
+            Ok(plan) => self.unseal(&plan),
+            Err(outcome) => outcome,
+        }
+    }
+
+    /// What unsealing `token` needs, or why it cannot be unsealed here.
+    fn unseal_plan(&self, token: &Token, pin: Option<&Secret>) -> Result<Unseal, Outcome> {
         let system = self.system();
         if let Some(tool) = TOOLS.iter().find(|tool| !system.command_exists(tool)) {
             zbm_trace::debug!("native TPM2 unlocking needs {tool}");
-            return Outcome::Unsupported;
+            return Err(Outcome::Unsupported);
         }
         // Signed PCR policies, pcrlock and pre-254 primary keys need the
         // plugin.
         if token.text("tpm2-pubkey").is_some() || token.flag("tpm2_pcrlock") == Some(true) {
             zbm_trace::debug!("TPM2 token uses a signed or pcrlock policy");
-            return Outcome::Unsupported;
+            return Err(Outcome::Unsupported);
         }
         if token.text("tpm2_srk").is_none() {
             zbm_trace::debug!("TPM2 token predates systemd's persistent SRK");
-            return Outcome::Unsupported;
+            return Err(Outcome::Unsupported);
         }
-        let Some(blob) = token.text("tpm2-blob") else {
-            return Outcome::Unsupported;
-        };
-        let pcrs = token.list("tpm2-pcrs").unwrap_or_default().join(",");
-        let bank = token.text("tpm2-pcr-bank").unwrap_or("sha256");
-
+        let blob = token.text("tpm2-blob").ok_or(Outcome::Unsupported)?;
         let blob = base64_decode(blob).unwrap_or_default();
         let Some((private, public)) = split_blob(&blob) else {
             zbm_trace::debug!("TPM2 blob has an unsupported layout");
-            return Outcome::Unsupported;
+            return Err(Outcome::Unsupported);
         };
-
         let auth = pin.map(|pin| {
             let salt = token
                 .text("tpm2_salt")
                 .map(|salt| base64_decode(salt).unwrap_or_default());
             auth_value(pin.expose(), salt.as_deref())
         });
+        Ok(Unseal {
+            private: private.to_vec(),
+            public: public.to_vec(),
+            pcrs: token.list("tpm2-pcrs").unwrap_or_default().join(","),
+            bank: token.text("tpm2-pcr-bank").unwrap_or("sha256").to_owned(),
+            auth,
+        })
+    }
 
+    /// Loads the sealed object of `plan` below the storage root key in a
+    /// private directory, satisfies its policy and unseals it.
+    fn unseal(&self, plan: &Unseal) -> Outcome {
         let Some(work) = self
             .temporary_dir("/run/zbm-tpm2")
             .or_else(|| self.temporary_dir("/tmp/zbm-tpm2"))
         else {
             return Outcome::Failed;
         };
-        let files = system.files;
+        let files = self.system().files;
         let _ = files.set_mode(Path::new(&work), 0o700);
         let path = |name: &str| format!("{work}/{name}");
-        let written = files.write(Path::new(&path("priv")), private).is_ok()
-            && files.write(Path::new(&path("pub")), public).is_ok();
+        let written = files.write(Path::new(&path("priv")), &plan.private).is_ok()
+            && files.write(Path::new(&path("pub")), &plan.public).is_ok();
 
         let mut outcome = Outcome::Failed;
         let tpm = self.tpm2();
@@ -171,15 +185,17 @@ impl Unlocker<'_> {
             && tpm
                 .load(Path::new(&path("pub")), Path::new(&path("priv")), object)
                 .is_ok();
-        if loaded {
-            // The session is flushed when it goes out of scope.
-            if let Ok(session) = tpm.policy_session(context)
-                && (pcrs.is_empty() || session.pcrs(&format!("{bank}:{pcrs}")).is_ok())
-                && (auth.is_none() || session.auth_value().is_ok())
-                && let Some(secret) = session.unseal(object, auth.as_ref())
-            {
-                outcome = Outcome::Key(base64_encode(secret.expose()));
-            }
+        // The session is flushed when it goes out of scope.
+        if loaded
+            && let Ok(session) = tpm.policy_session(context)
+            && (plan.pcrs.is_empty()
+                || session
+                    .pcrs(&format!("{}:{}", plan.bank, plan.pcrs))
+                    .is_ok())
+            && (plan.auth.is_none() || session.auth_value().is_ok())
+            && let Some(secret) = session.unseal(object, plan.auth.as_ref())
+        {
+            outcome = Outcome::Key(base64_encode(secret.expose()));
         }
         tpm.flush_transient();
 
@@ -207,10 +223,10 @@ impl Unlocker<'_> {
         }
     }
 
-    /// Opens a volume with a systemd-tpm2 token (`luks_try_tpm2_token`). A PIN
-    /// that already worked is tried once, then the user is asked, up to three
-    /// times: wrong PINs count towards the TPM's dictionary-attack lockout, so
-    /// no PIN is asked for during a lockout.
+    /// Opens a volume with a systemd-tpm2 token. A PIN that already worked
+    /// is tried once, then the user is asked, up to three times: wrong PINs
+    /// count towards the TPM's dictionary-attack lockout, so no PIN is asked
+    /// for during a lockout.
     ///
     /// # Errors
     ///
@@ -229,25 +245,9 @@ impl Unlocker<'_> {
             zbm_trace::info!("no TPM2 available for token {id} on {device}");
             return Err(failed(TokenFailure::NoTpm));
         }
-
         if token.flag("tpm2-pin") != Some(true) {
-            // Without a PIN, unlocking needs no interaction.
-            if self.have_token_plugin("systemd-tpm2")
-                && self.open_token_plugin(target, id, None).is_ok()
-            {
-                return Ok(());
-            }
-            let result = self.tpm2_native_open(target, token, None);
-            if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
-                zbm_trace::warn!(
-                    "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
-                );
-            }
-            result.map_err(failed)?;
-            zbm_trace::info!("unlocked {device} with TPM2");
-            return Ok(());
+            return self.try_tpm2_without_pin(target, id, token).map_err(failed);
         }
-
         if self.tpm2_in_lockout() {
             self.say("\n");
             self.tpm2_lockout_message();
@@ -256,47 +256,52 @@ impl Unlocker<'_> {
             );
             return Err(failed(TokenFailure::Lockout));
         }
+        self.try_tpm2_pins(target, id, token).map_err(failed)
+    }
 
-        let tries = 3;
-        let mut attempt = 0;
+    /// A token without a PIN, which needs no interaction: the plugin, then
+    /// ZFSBootMenu's own unsealing.
+    fn try_tpm2_without_pin(
+        &mut self,
+        target: Target<'_>,
+        id: &str,
+        token: &Token,
+    ) -> Result<(), TokenFailure> {
+        let device = target.device;
+        if self.have_token_plugin("systemd-tpm2")
+            && self.open_token_plugin(target, id, None).is_ok()
+        {
+            return Ok(());
+        }
+        let result = self.tpm2_native_open(target, token, None);
+        if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
+            zbm_trace::warn!(
+                "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
+            );
+        }
+        result?;
+        zbm_trace::info!("unlocked {device} with TPM2");
+        Ok(())
+    }
+
+    /// A token with a PIN: each PIN that worked before, once, then up to
+    /// three PINs the user types.
+    fn try_tpm2_pins(
+        &mut self,
+        target: Target<'_>,
+        id: &str,
+        token: &Token,
+    ) -> Result<(), TokenFailure> {
+        let device = target.device;
+        let mut asked = 0;
         let cached: Vec<Secret> = self.tpm2_pins.clone();
         for cached in cached.iter().map(Some).chain([None]) {
             loop {
                 let pin = match cached {
                     Some(pin) => pin.clone(),
-                    None => {
-                        attempt += 1;
-                        if attempt > tries {
-                            return Err(failed(TokenFailure::TooManyTries));
-                        }
-                        self.say("\n");
-                        let line =
-                            format!("Unlock {} with the TPM\n", self.paint("yellow", device));
-                        self.say(&self.paint("cyan", &line));
-                        match self.read_secret("TPM2 PIN (leave empty to use another method): ") {
-                            Some(pin) if !pin.is_empty() => pin,
-                            _ => return Err(failed(TokenFailure::NoPin)),
-                        }
-                    }
+                    None => self.ask_tpm2_pin(device, &mut asked)?,
                 };
-
-                let opened = if self.have_token_plugin("systemd-tpm2") {
-                    self.open_token_plugin(target, id, Some(&pin)).is_ok()
-                } else {
-                    match self.tpm2_native_open(target, token, Some(&pin)) {
-                        Ok(()) => true,
-                        Err(TokenFailure::Unsupported) => {
-                            zbm_trace::warn!(
-                                "TPM2 token {id} on {device} needs the systemd-tpm2 \
-                                 cryptsetup plugin"
-                            );
-                            return Err(failed(TokenFailure::Unsupported));
-                        }
-                        Err(_) => false,
-                    }
-                };
-
-                if opened {
+                if self.tpm2_open_with_pin(target, id, token, &pin)? {
                     if cached.is_none() {
                         self.tpm2_pins.push(pin);
                     }
@@ -304,10 +309,9 @@ impl Unlocker<'_> {
                     return Ok(());
                 }
                 drop(pin);
-
                 if self.tpm2_in_lockout() {
                     self.tpm2_lockout_message();
-                    return Err(failed(TokenFailure::Lockout));
+                    return Err(TokenFailure::Lockout);
                 }
                 // A cached PIN is only ever tried once.
                 if cached.is_some() {
@@ -319,319 +323,64 @@ impl Unlocker<'_> {
                 ));
             }
         }
-        Err(failed(TokenFailure::NotReleased))
+        Err(TokenFailure::NotReleased)
     }
+
+    /// Asks for the PIN of the TPM2 token of `device`, the `asked`th time.
+    fn ask_tpm2_pin(&self, device: &str, asked: &mut u32) -> Result<Secret, TokenFailure> {
+        const TRIES: u32 = 3;
+        *asked += 1;
+        if *asked > TRIES {
+            return Err(TokenFailure::TooManyTries);
+        }
+        self.say("\n");
+        let line = format!("Unlock {} with the TPM\n", self.paint("yellow", device));
+        self.say(&self.paint("cyan", &line));
+        self.read_secret("TPM2 PIN (leave empty to use another method): ")
+            .filter(|pin| !pin.is_empty())
+            .ok_or(TokenFailure::NoPin)
+    }
+
+    /// Tries `pin`, with the plugin or ZFSBootMenu's own unsealing; whether
+    /// the volume opened.
+    ///
+    /// # Errors
+    ///
+    /// [`TokenFailure::Unsupported`] when only the plugin could open the
+    /// token and the image has none.
+    fn tpm2_open_with_pin(
+        &self,
+        target: Target<'_>,
+        id: &str,
+        token: &Token,
+        pin: &Secret,
+    ) -> Result<bool, TokenFailure> {
+        if self.have_token_plugin("systemd-tpm2") {
+            return Ok(self.open_token_plugin(target, id, Some(pin)).is_ok());
+        }
+        match self.tpm2_native_open(target, token, Some(pin)) {
+            Ok(()) => Ok(true),
+            Err(TokenFailure::Unsupported) => {
+                zbm_trace::warn!(
+                    "TPM2 token {id} on {} needs the systemd-tpm2 cryptsetup plugin",
+                    target.device
+                );
+                Err(TokenFailure::Unsupported)
+            }
+            Err(_) => Ok(false),
+        }
+    }
+}
+
+/// What unsealing a token needs: the sealed object, its PCR policy and the
+/// authorization value of its PIN.
+struct Unseal {
+    private: Vec<u8>,
+    public: Vec<u8>,
+    pcrs: String,
+    bank: String,
+    auth: Option<Secret>,
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::keys::tests::with_session;
-    use crate::testing::{legacy_function, legacy_luks};
-    use crate::unlocker::Settings;
-    use zbm_platform::exec::{Input, Output, Status};
-    use zbm_testkit::fakes::FakeSystem;
-    use zbm_testkit::{have_program, parity, repo_root};
-
-    fn fixture(name: &str) -> String {
-        let path = repo_root()
-            .join("crates/zbm-luks/tests/fixtures")
-            .join(name);
-        std::fs::read_to_string(path).unwrap()
-    }
-
-    /// The token 0 of a fixture of `cryptsetup token export`.
-    fn token(name: &str) -> Token {
-        Token::from_export("0", &fixture(name)).unwrap()
-    }
-
-    /// The PIN block of the legacy `luks_tpm2_native_unseal`, which turns the
-    /// PIN into the authorization value.
-    fn legacy_auth(json: &str, pin: &str) -> String {
-        let function = legacy_function(
-            "zfsbootmenu/lib/zfsbootmenu-luks-keys.sh",
-            "luks_tpm2_native_unseal",
-        );
-        let start = function.find("  if [ -n \"${pin}\" ]; then\n").unwrap();
-        let end = start + function[start..].find("\n  fi\n\n  ret=1").unwrap() + 5;
-        let block = &function[start..end];
-        let code = format!(
-            "derive() {{ local json=\"$1\" pin=\"$2\" work=/nonexistent salt hexsalt auth\n\
-             {block}\necho \"${{auth}}\"; }}"
-        );
-        let output = legacy_luks().code(&code).call("derive", &[json, pin], b"");
-        output.stdout_text().trim_end().to_owned()
-    }
-
-    #[test]
-    fn authorization_values_match_the_legacy_derivation() {
-        let mut parity = parity!("authorization_values_match_the_legacy_derivation");
-        if parity.mode().needs_legacy() && (!have_program("sha256sum") || !have_program("openssl"))
-        {
-            eprintln!("skipped: the legacy derivation needs sha256sum and openssl");
-            return;
-        }
-        let salted = fixture("token-tpm2-pin.json");
-        let plain = fixture("token-tpm2.json");
-        for pin in ["1234", "0000", "pïn with spaces", "-x", "a\\b"] {
-            for (token, json) in [("salted", &salted), ("plain", &plain)] {
-                let salt = Token::from_export("0", json)
-                    .unwrap()
-                    .text("tpm2_salt")
-                    .map(|salt| base64_decode(salt).unwrap());
-                let rust = auth_value(pin.as_bytes(), salt.as_deref());
-                let legacy: String =
-                    parity.legacy(format!("{pin:?} {token}"), || legacy_auth(json, pin));
-                assert_eq!(String::from_utf8_lossy(rust.expose()), legacy, "{pin:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn trailing_zero_bytes_are_left_out() {
-        // A PIN whose hash ends in a zero byte is rare, so check the trimming
-        // directly.
-        let digest = sha256(b"1234");
-        let full = hex(&digest);
-        assert_eq!(auth_value(b"1234", None).expose(), full.expose());
-        let mut found = None;
-        for n in 0_u32..5000 {
-            let pin = n.to_string();
-            if sha256(pin.as_bytes())[31] == 0 {
-                found = Some(pin);
-                break;
-            }
-        }
-        let pin = found.unwrap();
-        let auth = auth_value(pin.as_bytes(), None);
-        assert!(auth.len() <= 62 && auth.len().is_multiple_of(2));
-        assert!(!auth.expose().ends_with(b"00"));
-    }
-
-    #[test]
-    fn blobs_hold_a_private_and_a_public_part() {
-        let blob = base64_decode(token("token-tpm2.json").text("tpm2-blob").unwrap()).unwrap();
-        let (private, public) = split_blob(&blob).unwrap();
-        assert_eq!(private.len(), 0x9e + 2);
-        assert_eq!(private.len() + public.len(), blob.len());
-        let mut seeded = blob.clone();
-        seeded.extend_from_slice(b"seed");
-        assert!(split_blob(&seeded).is_none());
-        assert!(split_blob(&blob[..1]).is_none());
-        assert!(split_blob(&[0, 0, 0]).is_none());
-        assert_eq!(split_blob(&[0, 0, 0, 0]), Some((&[0, 0][..], &[0, 0][..])));
-    }
-
-    /// A machine with every tool, whose `tpm2_unseal` releases `secret` when
-    /// it gets `auth` (or none) on standard input.
-    fn tpm_machine(auth: Option<Vec<u8>>, secret: &'static [u8]) -> FakeSystem {
-        let fake = FakeSystem::new();
-        fake.environment.set("PATH", "/bin");
-        fake.files.dir("/run");
-        for tool in TOOLS.iter().chain(&["tpm2_getcap"]) {
-            fake.files.file_with_mode(format!("/bin/{tool}"), "", 0o755);
-        }
-        fake.runner.on(move |command| {
-            if command.program() != "tpm2_unseal" {
-                return None;
-            }
-            let given = match command.get_stdin() {
-                Input::Secret(text) => Some(text.expose().to_vec()),
-                _ => None,
-            };
-            Some(Ok(if given == auth {
-                Output::with_secret(Status::exited(0), Secret::copy_from(secret))
-            } else {
-                Output::new(Status::exited(1), "")
-            }))
-        });
-        fake
-    }
-
-    #[test]
-    fn unsealing_runs_the_policy_and_keeps_the_secret_off_files() {
-        let json = token("token-tpm2-pin.json");
-        let salt = base64_decode(json.text("tpm2_salt").unwrap()).unwrap();
-        let mut auth = b"hex:".to_vec();
-        auth.extend_from_slice(auth_value(b"1234", Some(&salt)).expose());
-        let fake = tpm_machine(Some(auth), b"\x01sealed\x00secret");
-        let mut settings = Settings::new("/zfsbootmenu");
-        settings.tpm2_tcti = "swtpm:port=2321".to_owned();
-        with_session(&fake, settings, |session| {
-            let pin = Secret::copy_from(b"1234");
-            match session.tpm2_native_unseal(&json, Some(&pin)) {
-                Outcome::Key(key) => assert_eq!(key.expose(), b"AXNlYWxlZABzZWNyZXQ="),
-                _ => panic!("the token was not unsealed"),
-            }
-            let wrong = Secret::copy_from(b"0000");
-            assert!(matches!(
-                session.tpm2_native_unseal(&json, Some(&wrong)),
-                Outcome::Failed
-            ));
-        });
-        let lines = fake.runner.lines();
-        let work = "/run/zbm-tpm2.4242-0";
-        assert_eq!(
-            lines[..6],
-            [
-                format!("tpm2_load -C 0x81000001 -u {work}/pub -r {work}/priv -c {work}/obj.ctx"),
-                format!("tpm2_startauthsession --policy-session -S {work}/session.ctx"),
-                format!("tpm2_policypcr -S {work}/session.ctx -l sha256:7"),
-                format!("tpm2_policyauthvalue -S {work}/session.ctx"),
-                format!("tpm2_unseal -c {work}/obj.ctx -p session:{work}/session.ctx+file:-"),
-                format!("tpm2_flushcontext {work}/session.ctx"),
-            ]
-        );
-        assert_eq!(lines[6], "tpm2_flushcontext -t");
-        assert!(fake.runner.calls().iter().all(|call| {
-            call.get_env().iter().any(|(key, value)| {
-                key == "TPM2TOOLS_TCTI" && value.as_deref() == Some("swtpm:port=2321".as_ref())
-            })
-        }));
-        // Nothing is left behind, and the PIN went nowhere it could be read.
-        assert!(
-            !fake
-                .files
-                .paths()
-                .iter()
-                .any(|path| path.starts_with("/run/zbm-tpm2"))
-        );
-        fake.assert_no_leak(b"1234");
-        fake.assert_no_leak(b"sealed");
-    }
-
-    #[test]
-    fn tokens_that_need_the_plugin_are_reported() {
-        let fake = tpm_machine(None, b"s");
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            let signed = r#"{"type":"systemd-tpm2","tpm2-pubkey":"AA==","tpm2_srk":"x"}"#;
-            assert!(matches!(
-                session.tpm2_native_unseal(&crate::keys::tests::token(signed), None),
-                Outcome::Unsupported
-            ));
-            let old = r#"{"type":"systemd-tpm2","tpm2-blob":"AAAAAA=="}"#;
-            assert!(matches!(
-                session.tpm2_native_unseal(&crate::keys::tests::token(old), None),
-                Outcome::Unsupported
-            ));
-            let seeded = r#"{"tpm2_srk":"x","tpm2-blob":"AAAAAAA="}"#;
-            assert!(matches!(
-                session.tpm2_native_unseal(&crate::keys::tests::token(seeded), None),
-                Outcome::Unsupported
-            ));
-        });
-        let debug = fake.kmsg();
-        assert!(debug.contains("TPM2 token uses a signed or pcrlock policy"));
-        assert!(debug.contains("TPM2 token predates systemd's persistent SRK"));
-        assert!(debug.contains("TPM2 blob has an unsupported layout"));
-    }
-
-    #[test]
-    fn pins_are_asked_for_and_kept_for_other_volumes() {
-        let json = token("token-tpm2-pin.json");
-        let salt = base64_decode(json.text("tpm2_salt").unwrap()).unwrap();
-        let mut auth = b"hex:".to_vec();
-        auth.extend_from_slice(auth_value(b"1234", Some(&salt)).expose());
-        let fake = tpm_machine(Some(auth), b"secret");
-        fake.files.device("/dev/tpmrm0");
-        fake.console.secret(b"0000").secret(b"1234");
-        let args = [];
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            let a = Target {
-                name: "a",
-                device: "/dev/sda",
-                args: &args,
-            };
-            assert_eq!(session.try_tpm2_token(a, "0", &json), Ok(()));
-            // The second volume gets the PIN that worked, without asking.
-            let b = Target {
-                name: "b",
-                device: "/dev/sdb",
-                args: &args,
-            };
-            assert_eq!(session.try_tpm2_token(b, "0", &json), Ok(()));
-        });
-        let output = fake.console.output_text();
-        assert_eq!(output.matches("TPM2 PIN (leave empty").count(), 2);
-        assert!(output.contains("The TPM did not release the key"));
-        let opened: Vec<String> = fake
-            .runner
-            .lines()
-            .into_iter()
-            .filter(|line| line.starts_with("cryptsetup open"))
-            .collect();
-        assert_eq!(
-            opened,
-            [
-                "cryptsetup open --type luks --key-file=- /dev/sda a",
-                "cryptsetup open --type luks --key-file=- /dev/sdb b",
-            ]
-        );
-        fake.assert_no_leak(b"1234");
-    }
-
-    #[test]
-    fn a_locked_tpm_is_not_asked_for_pins() {
-        let fake = tpm_machine(None, b"s");
-        fake.files.device("/dev/tpmrm0");
-        fake.runner.respond(
-            "tpm2_getcap properties-variable",
-            0,
-            "TPM2_PT_PERMANENT:\n  inLockout:                 1\n",
-        );
-        let args = [];
-        let target = Target {
-            name: "a",
-            device: "/dev/sda",
-            args: &args,
-        };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(
-                session
-                    .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
-                    .is_err()
-            );
-        });
-        assert!(
-            fake.console
-                .output_text()
-                .contains("locked against PIN guessing")
-        );
-        assert!(
-            fake.kmsg()
-                .contains("TPM2 in dictionary-attack lockout; skipping PIN token 0")
-        );
-    }
-
-    #[test]
-    fn missing_tpm_devices_are_probed_once() {
-        let fake = FakeSystem::new();
-        fake.files.dir("/sys/class/tpm");
-        let args = [];
-        let target = Target {
-            name: "a",
-            device: "/dev/sda",
-            args: &args,
-        };
-        with_session(&fake, Settings::new("/zfsbootmenu"), |session| {
-            assert!(
-                session
-                    .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
-                    .is_err()
-            );
-            assert!(
-                session
-                    .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
-                    .is_err()
-            );
-        });
-        assert_eq!(
-            fake.runner.lines(),
-            [
-                "modprobe -q tpm_crb",
-                "modprobe -q tpm_tis",
-                "udevadm settle"
-            ]
-        );
-    }
-}
+mod tests;

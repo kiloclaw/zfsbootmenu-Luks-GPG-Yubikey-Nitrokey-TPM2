@@ -4,6 +4,12 @@
 //! Usage: `gen_docs <repository> [--check]`. With `--check`, it writes
 //! nothing and fails when a page is out of date.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_macros,
+    reason = "a developer tool: it reads and writes the pages and reports on the terminal"
+)]
+
 use std::path::Path;
 use std::process::ExitCode;
 
