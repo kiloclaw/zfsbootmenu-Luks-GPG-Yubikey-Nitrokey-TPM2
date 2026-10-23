@@ -52,6 +52,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
   fonts when `zbm` cannot make them. Legacy images are unchanged.
   **Rust:** done; `zbm_types::psf` makes the subsets, and `crates/zbm/tests/image.rs` checks the fonts of both
   runtimes' images.
+- [x] `79624e4`: the build option `zfsbootmenu_console_font=terminus|spleen` (ROADMAP.md #20), which `generate-zbm`
+  sets from `Global.ConsoleFont`. With `spleen`, `install_zbm_fonts` installs the Spleen fonts of
+  `fonts/spleen/` instead of Terminus, as 256-glyph subsets, with their licence as
+  `/usr/share/zfsbootmenu/fonts/LICENSE.spleen`. Legacy images, whose autosize hook loads the Terminus fonts by name,
+  warn and keep Terminus, as does any other value; without the option, images are unchanged.
+  **Rust:** done; `crates/zbm/tests/image.rs` checks the fonts of a Spleen image and the warnings.
 
 ## Legacy limitations the Rust runtime must not copy
 
