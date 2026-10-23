@@ -48,11 +48,14 @@ const TTY: &str = "readlink /proc/self/fd/0\n";
 /// Typed in the recovery shell: ends the console.
 const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
 
-/// Typed on the kernel console afterwards: the console's messages in the
-/// kernel log, written to the serial console, which the test reads.
-const LOG: &str = "dmesg | grep console: > /dev/ttyS0\n";
+/// Typed on the kernel console afterwards: a line on the serial console,
+/// which the test reads.
+const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
 
-/// The console's message when it starts.
+/// Typed on the kernel console then: the kernel log, on the serial console.
+const LOG: &str = "dmesg > /dev/ttyS0\n";
+
+/// The console's message when it starts, in the kernel log and its mirror.
 const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\d+x\d+) cells";
 
 /// The supervisor's message when the console ended.
@@ -226,7 +229,6 @@ pub(super) fn check_console(
     monitor: &Monitor,
     pace: Pace,
 ) -> Result<()> {
-    let pause = pace.pause;
     let countdown = wait_screen(mirror, COUNTDOWN, pace.patience)?;
     test.check(
         countdown.is_some(),
@@ -240,21 +242,44 @@ pub(super) fn check_console(
         &format!("virtio: the console draws it in colour ({colours:?} colours)"),
     );
     check_shell(test, vm, mirror, monitor, pace)?;
-    type_text(vm, monitor, KILL, pause)?;
-    thread::sleep(pause * 5);
-    type_text(vm, monitor, LOG, pause)?;
-    let logged = vm.expect(&[STARTED], pace.patience.min(60)).is_ok();
+    let started = wait_screen(mirror, STARTED, pace.patience.min(10))?;
+    let shown = started.as_deref().unwrap_or("").trim().to_owned();
     test.check(
-        logged,
-        &format!(
-            "virtio: the console started on the display ({})",
-            vm.group(0).trim()
-        ),
+        started.is_some(),
+        &format!("virtio: the console started on the display ({shown})"),
     );
-    let ended = logged && vm.expect(&[ENDED], pace.patience.min(10)).is_ok();
+    check_fallback(test, vm, mirror, monitor, pace)
+}
+
+/// The console killed from its shell: the kernel console takes keys again,
+/// and the supervisor's message is in the kernel log.
+fn check_fallback(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    mirror: &Path,
+    monitor: &Monitor,
+    pace: Pace,
+) -> Result<()> {
+    type_text(vm, monitor, KILL, pace.pause)?;
+    thread::sleep(pace.pause * 5);
+    let path = test.dir().join("virtio-fallback.ppm");
+    (monitor.dump)(vm, &path)?;
+    let colours = fs::read(&path).ok().and_then(|ppm| screen_colours(&ppm));
+    let screen = last_screen(mirror);
+    test.note(&format!(
+        "virtio: after the kill, {colours:?} colours on the display; the console showed: {screen}"
+    ));
+    type_text(vm, monitor, BACK, pace.pause)?;
+    let back = vm.expect(&["zbm-back"], pace.patience.min(30)).is_ok();
+    test.check(
+        back,
+        "virtio: once the console ended, a shell on the kernel console takes keys",
+    );
+    type_text(vm, monitor, LOG, pace.pause)?;
+    let ended = back && vm.expect(&[ENDED], pace.patience.min(30)).is_ok();
     test.check(
         ended,
-        "virtio: once the console ended, the kernel console takes keys again",
+        "virtio: the supervisor logged that the console ended",
     );
     Ok(())
 }

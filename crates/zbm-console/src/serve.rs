@@ -255,10 +255,9 @@ fn on_display(
     let (columns, rows) = console.size();
     let (x, y) = size;
     let card = card.display();
-    places.log(
-        6,
-        &format!("on {card}: {x}x{y} display, {width}x{height} cells, {columns}x{rows}"),
-    );
+    let started = format!("on {card}: {x}x{y} display, {width}x{height} cells, {columns}x{rows}");
+    places.log(6, &started);
+    settings.mirror_line(&format!("zbm console: {started}"));
     let mut mirror = settings
         .mirror
         .as_deref()

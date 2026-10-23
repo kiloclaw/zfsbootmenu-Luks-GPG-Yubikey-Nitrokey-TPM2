@@ -47,7 +47,9 @@ fn text_is_typed_with_qemu_s_key_names() {
             "shift-semicolon"
         ]
     );
-    assert!(key_names(TTY).is_some() && key_names(KILL).is_some() && key_names(LOG).is_some());
+    for text in [TTY, KILL, BACK, LOG] {
+        assert!(key_names(text).is_some(), "{text}");
+    }
     assert_eq!(key_names("S").unwrap(), ["shift-s"]);
     assert_eq!(key_names("~"), None);
 }
@@ -101,8 +103,7 @@ fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
     assert_eq!(spec.features, None);
 }
 
-const LOGGED: &str = "[    3.1] ZFSBootMenu: console: on /dev/dri/card0: 1280x800 display, \
-    10x20 cells, 128x40\r\n\
+const LOGGED: &str = "zbm-back\r\n\
     [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
     going on on the kernel console\r\n";
 
@@ -113,7 +114,8 @@ fn the_console_shows_takes_keys_and_falls_back() {
     let mirror = mirror_path(&test, "virtio");
     fs::write(
         &mirror,
-        "\x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n",
+        "\x0czbm console: on /dev/dri/card0: 1280x800 display, 10x20 cells, 128x40\n\
+         \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n",
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);
@@ -123,7 +125,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 6, "{checks:?}");
+    assert_eq!(checks.len(), 7, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -146,7 +148,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 9, "{checks:?}");
+    assert_eq!(checks.len(), 10, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

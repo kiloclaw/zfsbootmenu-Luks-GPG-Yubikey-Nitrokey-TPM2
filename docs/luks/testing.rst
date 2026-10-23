@@ -338,8 +338,10 @@ Following a boot
   countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape typed with
   ``sendkey`` must open the recovery shell on the console, and ``readlink /proc/self/fd/0`` typed there must name a
   pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's
-  last screen. After ``kill -9`` of the console, the shell on the kernel console must take ``dmesg | grep console: >
-  /dev/ttyS0``, which shows the console's start and the supervisor's message that it ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
+  last screen. The console writes its start (card, display, cells) to the mirror too. After ``kill -9`` of the
+  console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
+  kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's
+  message that the console ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
   console must write that it handed the display back, and the boot environment must boot.
 
 Results
