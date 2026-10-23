@@ -82,7 +82,7 @@ Work on this branch that no phase planned, or that a later phase planned and was
   back before `kexec`. The VM test `runtime-rust-console` passes (10 checks).
 - ROADMAP.md #19, step 3: the console on the display draws with DejaVu Sans Mono through `swash`, in cells as high as
   the console font `zbm console-autosize` chooses, with box drawing and block characters drawn to fill their cells;
-  `zbm.console_font=psf` keeps the console fonts. `runtime-rust-console` checks both; its run is pending.
+  `zbm.console_font=psf` keeps the console fonts. `runtime-rust-console` checks both, and passes (13 checks).
 
 ### Carried over
 

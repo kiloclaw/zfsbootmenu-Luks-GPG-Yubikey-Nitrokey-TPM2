@@ -176,12 +176,11 @@ the `kexec` path of its images.
 
 **Security.**
 
-**Status:** steps 1 and 2 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
-(10 checks, f337135) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
-`zbm console`, Alacritty's terminal drawn through DRM with the image's PSF fonts, which falls back to the kernel
-console when it ends and hands the display back before `kexec`. Step 3 is built and waits for its VM test: the console
-draws with the image's TrueType font, DejaVu Sans Mono. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
-console becomes the default only after the cutover.
+**Status:** steps 1 to 3 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
+(13 checks, 12f2b69) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
+`zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
+fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
+`kexec`. Keyboard layouts (step 4) remain, and the console becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
@@ -272,7 +271,7 @@ console becomes the default only after the cutover.
        on `simpledrm`, the hand-over and the boot of the boot environment.
      - Left for later: keyboards plugged in after the console started, and a console that comes back after it
        ended.
-  3. **Built; its VM test waits for a run.** TrueType fonts at the size `zbm console-autosize` computes, for full
+  3. **Done.** TrueType fonts at the size `zbm console-autosize` computes, for full
      Unicode without a 512-glyph subset (#18).
      - `zbm_display::outline`: a TrueType or OpenType font through `swash` (hinted, rasterized as coverage), sized
        so that a line fills a cell as high as the console font `zbm console-autosize` chooses, with whole pixels per
