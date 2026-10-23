@@ -91,7 +91,7 @@ fn a_scenario_needs_the_volume_of_the_setup() {
     assert_eq!(
         recorded(&test),
         [
-            "FAIL - run 'firmware-setup' first",
+            "FAIL - run 'firmware.py setup' first",
             "FAIL - unknown scenario other"
         ]
     );
