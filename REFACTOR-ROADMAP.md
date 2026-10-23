@@ -79,7 +79,7 @@ Work on this branch that no phase planned, or that a later phase planned and was
 - ROADMAP.md #19, step 2: `zbm-console` (front ends) and the `zbm console` applet run the Rust runtime's start-up
   program and recovery shell on Alacritty's terminal, drawn through DRM, with `zbm.console=drm`; the supervisor runs
   the programs on its pseudo-terminal and falls back to the kernel console, and `zbm-boot` has it hand the display
-  back before `kexec`. The VM test `runtime-rust-console` waits for a run.
+  back before `kexec`. The VM test `runtime-rust-console` passes (10 checks).
 
 ### Carried over
 

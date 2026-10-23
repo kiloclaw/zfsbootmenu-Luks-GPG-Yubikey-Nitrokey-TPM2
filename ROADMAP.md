@@ -176,10 +176,10 @@ the `kexec` path of its images.
 
 **Security.**
 
-**Status:** step 1 is done: the VM test `runtime-rust-drm` passes on both displays (12 checks, b780c91). Step 2 is
-built and waits for its VM test, `runtime-rust-console`: `zbm.console=drm` runs the Rust runtime's start-up program
-and recovery shell on `zbm console`, Alacritty's terminal drawn through DRM with the image's PSF fonts, which hands
-the display back before `kexec`. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
+**Status:** steps 1 and 2 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
+(10 checks, f337135) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
+`zbm console`, Alacritty's terminal drawn through DRM with the image's PSF fonts, which falls back to the kernel
+console when it ends and hands the display back before `kexec`. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
 console becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
@@ -248,7 +248,7 @@ console becomes the default only after the cutover.
      - The VM test `runtime-rust-drm` checks, on `virtio_gpu` and on `simpledrm` (`vga=0x318`): the driver, the main
        view in the screen's text, its colours in a QEMU screenshot, Down and Enter typed on QEMU's keyboard, and the
        kernel console drawing again after the menu boots.
-  2. **Built; its VM test waits for a run.** The console, with the image's PSF fonts and the US layout, for the
+  2. **Done.** The console, with the image's PSF fonts and the US layout, for the
      Rust runtime as it is before R5 (the countdown and the recovery shell); the menu of R5 runs on it unchanged.
      - `zbm-console` (front ends): Alacritty's terminal on the controlling side of a pseudo-terminal, without
        scrollback or clipboard, drawn where it changed with the grid of `zbm-display`, in the console's 16 colours
