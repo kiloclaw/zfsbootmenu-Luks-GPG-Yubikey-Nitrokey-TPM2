@@ -41,6 +41,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 2 | Medium | Proposed |
 | 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Proposed |
 | 19 | [Own console in Rust](#19-own-console-in-rust) | 4 | Large | Proposed |
+| 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | 2 | Small | Proposed |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -282,6 +283,36 @@ Needs the built-in menu (#12) with its text in a message catalogue, which REFACT
   - a VM test boots with `zbm.lang=` set to each language, unlocks a volume and boots an environment;
   - a test checks that log and journal entries stay English whatever the language;
   - each language has had a native speaker's review.
+
+### 20. Console fonts: Spleen and 256-glyph subsets
+
+For images with the Rust runtime, where `zbm console-autosize` chooses the font; the legacy hook keeps its fonts. It
+helps the kernel console until, and wherever, #19 replaces it.
+
+- **Why:**
+  - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
+    512 glyphs of 64 bytes and a Unicode table). `setfont(8)` warns that a font of more than 256 glyphs leaves 8 of
+    the 16 colours. On a VGA text console that loses the bright ones, which the menu uses for muted text, titles
+    and warnings; what the framebuffer console loses is to be measured.
+  - **Dense displays.** The largest Terminus font is 16×32, so the densest displays get it doubled to a blocky 32×64.
+- **How:**
+  - **Subsets.** `generate-zbm` builds each font of the image as a 256-glyph PSF2 subset: ASCII, the characters the
+    menu draws (box drawing, `▶ ‹ · • … √ ↑ ↓ →` and the others of the theme), Latin-1, and `œ Œ €` for the
+    languages of #18. That is under 200 glyphs, so all 16 colours stay. The Unicode table maps characters a font
+    lacks to a glyph it has (`▶` to `►`, `“ ”` to `"`), so a font missing one can still be used. The subsets are
+    modified fonts: their files keep the licence and do not use a reserved font name.
+  - **Spleen.** An option chooses the family, one per image, so the text looks the same at every density:
+    `Global.ConsoleFont: terminus` (the default, as today) or `spleen`. Spleen (BSD-2) has native sizes from 5×8 to
+    32×64, so the densest displays get a font drawn at that size instead of a doubled one. `zbm console-autosize`
+    already reads the cell of each font from its header, and prefers a native size to a doubled one of the same
+    height.
+- **Done when:**
+  - a test reads every font `generate-zbm` builds and checks that it has at most 256 glyphs, every character the
+    menu draws and the letters of the four languages of #18, as the wireframe tests check the fonts of the image
+    today;
+  - the VM test of `zbm console-autosize` passes with both families, and on the 4K display chooses Spleen's 32×64
+    without doubling;
+  - on a VGA text console and on a framebuffer console, muted text, titles and warnings show in their colours.
 
 ## Phase 3: TPM
 
