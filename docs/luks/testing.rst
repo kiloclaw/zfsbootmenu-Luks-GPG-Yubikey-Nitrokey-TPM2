@@ -17,8 +17,8 @@ Unit suites (``tests/luks/unit``)
   stand-ins for FIDO2 keys and YubiKeys. Device-mapper and ``zpool`` are replaced by stubs, so the suites check the
   decisions the code makes: what it asks, which method it uses, what it opens and closes, and what it leaves behind.
 
-Virtual-machine tests (``tests/luks/vm``)
-  Python scripts that boot ZFSBootMenu images in QEMU and follow every boot from the firmware or kernel to the booted
+Virtual-machine tests (``crates/zbm-vmtest``)
+  A Rust program that boots ZFSBootMenu images in QEMU and follow every boot from the firmware or kernel to the booted
   system. The images are built by the build container from the source tree under test, so they contain OpenZFS 2.4.4
   and the container's cryptsetup, systemd and GnuPG. Every pool is created with the ZFS 2.4.4 tools of those images,
   and the boot environment that ZFSBootMenu hands over to also runs OpenZFS 2.4.4 (Linux 7.3, dracut with the ``zfs``
@@ -41,7 +41,7 @@ Unit suites
 Virtual-machine tests
   QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll`` (in the
   ``systemd-cryptsetup`` package on Ubuntu 24.04 and Debian 13 or later), clevis and GnuPG (for the key-management
-  setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, Python 3 with ``pexpect``, and Docker or
+  setup), ``sgdisk``, ``sfdisk``, ``mkfs.ext4``, ``mkfs.vfat``, mtools, the Rust toolchain (to build the harness), and Docker or
   Podman with the build container image (``localhost/zbm-builder``, see :doc:`/general/container-building`).
   ``runtime-rust-crash`` also runs ``cargo xtask symbolize`` on the host, which needs the Rust toolchain and
   ``addr2line`` (binutils); started with ``sudo``, it runs as the user who started it, with their
@@ -57,13 +57,14 @@ Running the Tests
 
   # tests/luks/unit/run-all.sh
   # tests/luks/unit/run-in-container.sh
-  # tests/luks/vm/run-all.sh
-  # tests/luks/vm/run-all.sh layouts-main complex-hotplug
+  $ cargo build --release -p zbm-vmtest
+  # target/release/zbm-vmtest run
+  # target/release/zbm-vmtest run layouts-main complex-hotplug
 
-``vm/run-all.sh`` runs every VM test, or the named ones, one virtual machine at a time, and prints a summary. Setups
+``zbm-vmtest run`` runs every VM test, or the named ones, one virtual machine at a time, and prints a summary. Setups
 must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a setup
 recreates its disks. The groups (``layouts``, ``complex``, ``keys``, ``firmware`` and ``procedures``) use separate
-disks, as does ``runtime``, so several ``run-all.sh`` processes can run different groups at the same time, given the
+disks, as does ``runtime``, so several ``zbm-vmtest run`` processes can run different groups at the same time, given the
 memory (4 GB per virtual machine) and processors. Set ``ZBMTEST_REUSE=1`` for parallel runs, so that they do not
 rebuild the shared ZFSBootMenu images at the same time.
 
@@ -93,30 +94,24 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 
 * ``steps.log``: every command, prompt and check;
 * ``serial-<boot>.log``: the serial console of each boot;
-* ``result.json``: the number of passed and failed checks and the failures.
+* ``result.json``: the number of passed and failed checks and the failures;
+* ``qemu-<boot>.log``: QEMU's own messages.
 
-The VM tests are being ported to Rust (``crates/zbm-vmtest``), and both harnesses run the same scenarios until their
-results match; then the Python harness is removed. The Rust harness needs the Rust toolchain instead of Python and
-``pexpect``, reads the same environment variables, and writes the same files, plus ``qemu-<boot>.log`` with QEMU's
-own messages. Build it as yourself and run it as root:
+The harness is built as yourself and run as root; ``cargo xtask test vm [<test>...]`` does both, for a user who may
+run the tests. ``zbm-vmtest list`` lists the tests in the order ``run`` runs them. ``zbm-vmtest compare <work>
+<work>`` compares the checks of two runs (two ``ZBMTEST_WORK`` directories, such as those of two commits) message by
+message. The harness reads the serial console from a Unix socket in a thread, which feeds the log, a terminal emulator
+(the screen as a user sees it) and the text that patterns match, with the terminal's escape sequences removed. A test
+that cannot go on (a setup command that fails, a message that does not come in time) records a failed check with the
+reason and still writes its result. ``zbm-vmtest run runtime-record-zfs`` (``cargo xtask record-zfs``) and
+``runtime-record-fixtures`` are not tests: they record what ``zfs`` and ``zpool`` print as the fixtures of
+``zbm-zfs``.
 
-.. code-block:: bash
-
-  $ cargo build --release -p zbm-vmtest
-  # target/release/zbm-vmtest run
-  # target/release/zbm-vmtest run layouts-main complex-hotplug
-  # target/release/zbm-vmtest list
-
-``cargo xtask test vm [<test>...]`` does both, for a user who may run the tests. ``zbm-vmtest compare <work> <work>``
-compares the checks of two runs message by message: give each harness a work directory of its own
-(``ZBMTEST_WORK``), since both write the same paths. The Rust harness reads the serial console from a Unix socket in a
-thread, which feeds the log, a terminal emulator (the screen as a user sees it) and the text that patterns match, with
-the terminal's escape sequences removed. A test that cannot go on (a setup command that fails, a message that does
-not come in time) records a failed check with the reason and still writes its result, where a Python test stopped
-without one.
+The harness replaced a Python one, whose results it reproduced check for check before the Python harness was removed
+(``REFACTOR-ROADMAP.md``, R3.6).
 
 The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
-each case to */tmp/z?/cases*. Run one ``run-all.sh`` at a time: two runs share that directory, the loop devices
+each case to */tmp/z?/cases*. Run one ``unit/run-all.sh`` at a time: two runs share that directory, the loop devices
 backed by its images, and the ports and pid files of their software TPMs. A suite waits for a lock
 (*/run/lock/zbm-luks-unit.lock*) while a suite of another run holds it, but the two runs still write the same output
 files. Each suite hides the host's */dev/hidraw\** devices, which the code would take for FIDO2 keys, and the
@@ -204,7 +199,7 @@ Following a boot
   The harness answers prompts (LUKS passphrases, ZFS keys, TPM2 PINs, GnuPG passphrases) and records them, so tests
   check exactly which prompts appeared. It hot-plugs disks and USB sticks through the QEMU monitor.
 
-``layouts.py``: main vdev layouts
+``layouts``: main vdev layouts
   Pools are created in ZFSBootMenu's recovery shell with ``compatibility=openzfs-2.4-linux`` (except one), data is
   written, then the machine boots again with automatic unlocking.
 
@@ -222,7 +217,7 @@ Following a boot
   ``ONLINE``, the root writable, every scrub clean; ``dynamic_gang_header`` enabled after ``zpool create``, with and
   without a compatibility set.
 
-``complex.py``: complex pools, failures and races
+``complex``: complex pools, failures and races
   A RAIDZ2 pool with special, dedup and log mirrors, a cache and a spare, expanded by RAIDZ expansion; a mirror of a
   LUKS volume with its own passphrase and a plain disk; a mirror of a LUKS partition and a plain partition; the boot
   environment's root uses ZFS native encryption. The setup activates ``raidz_expansion``, ``fast_dedup``,
@@ -251,7 +246,7 @@ Following a boot
     active features, but not the RAIDZ2 pool with ``raidz_expansion`` active, so it boots nothing; ``zpool import``
     names the unsupported feature.
 
-``keys.py``: key management
+``keys``: key management
   Four partitions enrolled on the host with ``systemd-cryptenroll`` against a software TPM (PIN 1234 on two volumes;
   on the third a TPM2 token with another PIN plus a clevis TPM2 binding as second token) and a GnuPG-encrypted key
   file on the fourth; pools created with ZFS 2.4.4.
@@ -262,7 +257,7 @@ Following a boot
   * ``keys-lockout``: the TPM allows one wrong PIN; ZFSBootMenu explains the lockout and falls back to the passphrase.
   * ``keys-notpm``: no TPM; the TPM2 volumes fall back to the passphrase without a PIN prompt.
 
-``firmware.py``: UEFI boot from NVMe, without a crypttab
+``firmware``: UEFI boot from NVMe, without a crypttab
   An NVMe disk with 4 KiB sectors, an EFI system partition holding the ZFSBootMenu EFI image as
   *EFI/BOOT/BOOTX64.EFI*, and a LUKS2 partition with 4 KiB encryption sectors and the TRIM and work-queue flags stored
   in its header. ZFSBootMenu selects the volume with ``zbm.luks=UUID=``; the boot environment uses ``luks.uuid=``,
@@ -273,9 +268,9 @@ Following a boot
   * ``firmware-usblate``: the stick is inserted while ZFSBootMenu waits for it; no prompt.
   * ``firmware-nostick``: no stick; ZFSBootMenu waits, then asks for the passphrase.
 
-``procedures.py``: the documentation, as written
+``procedures``: the documentation, as written
   The commands of :doc:`vdev-configurations` and of the pool sections of :doc:`administration` are extracted from the
-  documentation (``docs.py``) and run with ZFS 2.4.4 and cryptsetup's default key derivation. Placeholder device names
+  documentation and run with ZFS 2.4.4 and cryptsetup's default key derivation. Placeholder device names
   such as *ata-DISK1-part2* are links to virtual disks; only values the documentation abbreviates (UUIDs, GUIDs) are
   filled in. It runs Examples 1-12 (without the ``nvme-cli`` and installed-system steps of Example 12), the refusal of
   ``zpool add`` for a two-way special mirror on RAIDZ2, ``pool_luks_devices``, removing a cache vdev, replacing a failed
@@ -284,7 +279,7 @@ Following a boot
   the 2.4 set and with the property ``off``) and making the pool bootable, then reboots and checks the verification
   step.
 
-``runtime.py``: start-up and pool import with each runtime, without LUKS
+``runtime``: start-up and pool import with each runtime, without LUKS
   Two unencrypted pools hold the test boot environment as their ``bootfs``: ``tplain`` on one disk, exported by this
   host, and ``tforeign`` on another, left imported by a host with the ID ``deadbeef``. The tests check the runtime
   itself (Phase 5 and package A of Phase 6 in ``PORT-ROADMAP.md``); every scenario runs with the legacy image first,
@@ -484,7 +479,7 @@ Observations
 
 * Forcing gang blocks for every block larger than 8 KiB (``metaslab_force_ganging=8192``, a ZFS debugging
   parameter) while writing to a dataset with ``dedup=on``, ``compression=zstd`` and ``checksum=blake3`` on the complex
-  pool did not finish within 15 minutes under emulation. ``complex.py`` forces gang blocks only for 128 KiB records in
+  pool did not finish within 15 minutes under emulation. ``complex-setup`` forces gang blocks only for 128 KiB records in
   a dataset without deduplication and compression.
 * With a disk missing, the boot environment's dracut initramfs waited for the volume named with ``rd.luks.uuid=``
   and dropped to its emergency shell, after ZFSBootMenu had imported the degraded pools. :doc:`administration`

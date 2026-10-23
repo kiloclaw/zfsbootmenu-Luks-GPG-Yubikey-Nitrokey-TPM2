@@ -10,7 +10,7 @@
 | LUKS unit suites, legacy runtime | `tests/luks/unit/run-all.sh` | root, cryptsetup, swtpm, clevis, GnuPG, FIDO2 tools | `tests/luks/unit/` |
 | LUKS unit suites, Rust runtime | `ZBMTEST_IMPL=rust tests/luks/unit/run-all.sh` | as above, and the test build of `zbm` (`cargo build -p zbm --features test-seams`) | `tests/luks/unit/` |
 | Either, in the build container | `tests/luks/unit/run-in-container.sh` | podman or docker | |
-| LUKS VM tests | `tests/luks/vm/run-all.sh [test ...]`; `ZBMTEST_ZBM_RUNTIME=rust` boots the Rust runtime | root, QEMU (KVM if available), the build container image | `tests/luks/vm/` |
+| LUKS VM tests | `cargo xtask test vm [test ...]`, or `zbm-vmtest run [test ...]` as root after `cargo build --release -p zbm-vmtest`; `ZBMTEST_ZBM_RUNTIME=rust` boots the Rust runtime | root, QEMU (KVM if available), the build container image | `crates/zbm-vmtest/`, guest files in `tests/luks/vm/` |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS | `tests/README.md` |
 | Same images from the Perl and Rust `generate-zbm` | `scripts/dev/compare-generators.sh` | podman or docker | |
 
@@ -20,7 +20,7 @@ documentation tests, which nextest cannot run, under `cargo test --doc`; without
 `cargo test`. The profiles are in `.config/nextest.toml`; CI uses `NEXTEST_PROFILE=ci`, which reports every failure
 instead of stopping at the first. `cargo xtask coverage` measures line coverage per crate ([tooling.md](tooling.md)).
 
-`runtime-rust-pilot` (`tests/luks/vm/run-all.sh runtime-rust-pilot`) runs the pilots of REFACTOR-ROADMAP.md in the
+`runtime-rust-pilot` (`zbm-vmtest run runtime-rust-pilot`) runs the pilots of REFACTOR-ROADMAP.md in the
 Rust image: the menu on the serial console with `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS
 volume formatted inside the VM.
 
@@ -80,7 +80,7 @@ people and for AI tools alike:
   (`crates/*/tests/fixtures/`). `cargo xtask record-zfs` records what `zfs` and `zpool` print, in JSON and in text,
   into `crates/zbm-zfs/tests/fixtures/<major.minor>/`: it runs the commands of `xtask/src/record_zfs.rs` in a test VM
   (scenario `runtime-record-zfs`, root and QEMU). The older recordings in `crates/zbm-zfs/tests/fixtures/` (by
-  `scripts/dev/record-fixtures.py`) serve the legacy-compatible `ZfsCommand` until it goes;
+  `zbm-vmtest run runtime-record-fixtures`) serve the legacy-compatible `ZfsCommand` until it goes;
   `scripts/dev/record-luks-fixtures.sh` records `cryptsetup` output. `crates/zbm-boot/tests/fixtures/uutils-sort-v.txt`
   is uutils' `sort -V` order of generated kernel names, which kernel ordering must match; where the host's `sort` is
   uutils (the build container) the test checks the recording against it, and `ZBM_RECORD_UUTILS_ORDER=1` rewrites

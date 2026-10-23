@@ -99,7 +99,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
     }
     let settings = test.settings();
     if !crypttab(settings).exists() {
-        test.check(false, "run 'complex.py setup' first");
+        test.check(false, "run complex-setup first");
         return Ok(());
     }
     let auto = zbm_image(settings, &ImageSpec::new("auto"))?;

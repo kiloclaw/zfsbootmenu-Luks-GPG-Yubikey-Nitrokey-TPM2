@@ -107,10 +107,7 @@ fn replace_failed(run: &mut Run<'_>) -> Result<()> {
         &[r"^zpool status"],
         &[
             ("zpool replace zroot 12345678901234567890", &replace),
-            (
-                "zpool wait -t replace zroot",
-                "zpool wait -t replace tank",
-            ),
+            ("zpool wait -t replace zroot", "zpool wait -t replace tank"),
         ],
     )?;
     let status = run.status("tank")?;

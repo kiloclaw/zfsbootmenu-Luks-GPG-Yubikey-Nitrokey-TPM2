@@ -99,7 +99,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
     let uuid = fs::read_to_string(files.uuid()).unwrap_or_default();
     let uuid = uuid.trim();
     if uuid.is_empty() {
-        test.check(false, "run 'firmware.py setup' first");
+        test.check(false, "run firmware-setup first");
         return Ok(());
     }
     if !matches!(scenario, "boot" | "usbkey" | "usblate" | "nostick") {

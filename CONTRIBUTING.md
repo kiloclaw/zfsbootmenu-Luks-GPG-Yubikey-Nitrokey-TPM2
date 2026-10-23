@@ -74,7 +74,7 @@ quote the seed a failing test prints to reproduce it.
 | --- | --- | --- |
 | LUKS unit tests | `tests/luks/unit/run-all.sh` | root, cryptsetup, swtpm, clevis, GnuPG |
 | LUKS unit tests in the build container | `tests/luks/unit/run-in-container.sh` | podman or docker |
-| LUKS VM tests | `tests/luks/vm/run-all.sh [test ...]` | root, QEMU (KVM if available), the build container image |
+| LUKS VM tests | `cargo xtask test vm [test ...]` | root, QEMU (KVM if available), the build container image |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS; see `tests/README.md` |
 | Rust | `cargo xtask test` | the Rust toolchain; Perl and binutils for the parity tests |
 | Perl and Rust `generate-zbm` give the same images | `scripts/dev/compare-generators.sh [release recovery builder]` | podman or docker, the build container image |
@@ -85,8 +85,8 @@ request which ones you ran.
 The LUKS unit suites load the code under test through `tests/luks/unit/impl.sh`: `ZBMTEST_IMPL=legacy` (the default)
 tests the Bash libraries, and `ZBMTEST_IMPL=rust` will test the Rust runtime; until it exists, the suites skip.
 
-`scripts/dev/record-fixtures.py` records the output of `zfs`, `zpool` and `/proc/self/mounts` of OpenZFS 2.4.4 in a
-VM, with the harness of the LUKS VM tests, into `crates/zbm-zfs/tests/fixtures/`; the Rust tests parse those files.
+`zbm-vmtest run runtime-record-fixtures` records the output of `zfs`, `zpool` and `/proc/self/mounts` of OpenZFS
+2.4.4 in a VM of the LUKS VM tests into `crates/zbm-zfs/tests/fixtures/`; the Rust tests parse those files.
 `scripts/dev/compare-images.sh` compares two directories of images by their unpacked contents.
 
 ## Porting to Rust

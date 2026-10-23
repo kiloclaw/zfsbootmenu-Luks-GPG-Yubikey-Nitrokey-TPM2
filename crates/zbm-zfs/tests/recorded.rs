@@ -1,10 +1,11 @@
 //! `zbm-zfs` against output recorded from OpenZFS 2.4.4.
 //!
-//! `scripts/dev/record-fixtures.py` ran the commands in ZFSBootMenu's recovery
-//! shell and saved their output in `tests/fixtures`; `commands.txt` lists each
-//! file's command and exit status. A fake runner answers those commands with
-//! the recorded output, so the parsers and the property logic see what ZFS
-//! 2.4.4 prints. The pool `tfix` has the boot environments `tfix/ROOT/be`,
+//! `zbm-vmtest run runtime-record-fixtures` runs the commands in
+//! ZFSBootMenu's recovery shell and saves their output in `tests/fixtures`;
+//! `commands.txt` lists each file's command and exit status. A fake runner
+//! answers those commands with the recorded output, so the parsers and the
+//! property logic see what ZFS 2.4.4 prints. The pool `tfix` has the boot
+//! environments `tfix/ROOT/be`,
 //! which inherits `org.zfsbootmenu:commandline` from `tfix/ROOT`, and
 //! `tfix/ROOT/other`, which sets `%{parent} rw`; `tfix/ROOT/other/child`
 //! inherits that value, and `tfix/secret` is encrypted.

@@ -85,7 +85,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
     }
     let settings = test.settings();
     if !gpg_file(settings).exists() {
-        test.check(false, "run 'keys.py setup' first");
+        test.check(false, "run keys-setup first");
         return Ok(());
     }
     let tpm = Swtpm::new(&tpm_dir(settings))?;

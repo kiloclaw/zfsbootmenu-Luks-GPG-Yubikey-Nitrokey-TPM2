@@ -273,9 +273,7 @@ fn run(command: Command) -> Result<()> {
             Ok(())
         }
         Command::RecordZfs { manifest: false } => {
-            process::Program::new("tests/luks/vm/run-all.sh", &root)
-                .args(["runtime-record-zfs"])
-                .run()
+            cargo::test_vm(&root, &["runtime-record-zfs".to_owned()])
         }
         Command::Doc { open } => cargo::doc(&root, open),
         Command::GenDocs { check } => gen_docs::run(&root, check),

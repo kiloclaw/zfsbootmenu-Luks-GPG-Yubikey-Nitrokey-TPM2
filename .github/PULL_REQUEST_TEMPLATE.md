@@ -8,7 +8,7 @@
 
 - [ ] `tests/luks/unit/run-all.sh` or `tests/luks/unit/run-in-container.sh`
 - [ ] `cargo xtask test devices` (as root), for changes to the LUKS code
-- [ ] `tests/luks/vm/run-all.sh` (all tests, or the ones listed here)
+- [ ] `cargo xtask test vm` or `zbm-vmtest run` (all tests, or the ones listed here)
 - [ ] `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` (Rust changes)
 - [ ] Rust unit tests added or updated for every Rust change (Rust changes)
 - [ ] Documentation builds without warnings (documentation changes)

@@ -67,7 +67,7 @@ pub const ALL: &[&str] = &[
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.
-pub const TOOLS: &[&str] = &["runtime-record-zfs"];
+pub const TOOLS: &[&str] = &["runtime-record-zfs", "runtime-record-fixtures"];
 
 /// Runs the scenario of `test`, named as in [`ALL`].
 fn dispatch(test: &Test, name: &str) -> Result<()> {

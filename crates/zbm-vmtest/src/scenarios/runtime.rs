@@ -33,6 +33,9 @@
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).
+//! - `record-fixtures` (`record_fixtures`): not a test: records what
+//!   `zfs`, `zpool` and `/proc/self/mounts` print as the fixtures of the
+//!   legacy-compatible commands of `crates/zbm-zfs`.
 //!
 //! Every scenario must pass with the legacy image first (rule 2 of the
 //! roadmap).
@@ -53,6 +56,7 @@ mod boot;
 mod crash;
 mod host;
 mod pilot;
+mod record_fixtures;
 mod record_zfs;
 mod setup;
 mod signals;
@@ -78,6 +82,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
     match scenario {
         "setup" => setup::run(test),
         "record-zfs" => record_zfs::run(test),
+        "record-fixtures" => record_fixtures::run(test),
         "rust-pilot" => pilot::run(test),
         "rust-crash" => crash::run(test),
         _ => {

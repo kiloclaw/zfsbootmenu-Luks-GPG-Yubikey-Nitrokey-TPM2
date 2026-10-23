@@ -1,5 +1,5 @@
-//! `zbm-vmtest compare`: the checks of two runs side by side, such as the
-//! Python harness's and this one's, message by message.
+//! `zbm-vmtest compare`: the checks of two runs side by side, such as those
+//! of two commits, message by message.
 //!
 //! Each test's checks are read from its `steps.log`. A check of one run
 //! matches the first unmatched check of the other run with the same

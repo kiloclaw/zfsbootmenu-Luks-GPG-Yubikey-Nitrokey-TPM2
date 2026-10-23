@@ -3,8 +3,8 @@
 //!
 //! The recording runs in a virtual machine of the VM test harness, whose
 //! ZFSBootMenu image has the ZFS of the build container: the scenario
-//! `runtime.py record-zfs` (`run-all.sh runtime-record-zfs`) boots it to
-//! the recovery shell, asks this command for the [`manifest`]
+//! `runtime-record-zfs` of `zbm-vmtest` boots it to the recovery shell,
+//! asks this command for the [`manifest`]
 //! (`--manifest`), runs the setup commands on an empty disk, runs each
 //! recorded command and saves its standard output in
 //! `crates/zbm-zfs/tests/fixtures/<major.minor>/<name>`.

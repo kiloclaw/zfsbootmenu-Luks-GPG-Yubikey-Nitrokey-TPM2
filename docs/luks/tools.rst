@@ -65,8 +65,9 @@ Script                                      Runs
 ==========================================  ==========================================================================
 ``tests/luks/unit/run-all.sh``              the unit suites on the host (root)
 ``tests/luks/unit/run-in-container.sh``     the unit suites in the build container, with its tool versions
-``tests/luks/vm/run-all.sh``                the virtual-machine tests: pools created with ZFS 2.4.4, booted through
-                                            ZFSBootMenu into a ZFS 2.4.4 boot environment
+``target/release/zbm-vmtest run``           the virtual-machine tests (``cargo build --release -p zbm-vmtest``): pools
+                                            created with ZFS 2.4.4, booted through ZFSBootMenu into a ZFS 2.4.4 boot
+                                            environment
 ==========================================  ==========================================================================
 
 Kernel Command-Line Parameters

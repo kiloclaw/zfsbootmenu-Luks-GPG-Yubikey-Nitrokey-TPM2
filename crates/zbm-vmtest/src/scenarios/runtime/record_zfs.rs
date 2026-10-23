@@ -105,7 +105,7 @@ fn record(vm: &mut Vm<'_>, records: &[(String, String)]) -> Result<Vec<(String, 
 }
 
 /// The bytes written in hexadecimal in `text`, ignoring white space.
-fn from_hex(text: &str) -> Option<Vec<u8>> {
+pub(super) fn from_hex(text: &str) -> Option<Vec<u8>> {
     let digits: Vec<u8> = text
         .chars()
         .filter(|c| !c.is_whitespace())

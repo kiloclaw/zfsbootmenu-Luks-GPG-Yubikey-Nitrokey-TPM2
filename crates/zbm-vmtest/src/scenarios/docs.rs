@@ -12,9 +12,9 @@
 //! and are skipped. A block without any prompt (a function definition, an
 //! array assignment) is one command.
 //!
-//! The text is read as Python's `docs.py` reads it, so that the commands
-//! are the same: lines split as `str.splitlines` splits them, indentation
-//! counted in characters.
+//! The text is read as the Python harness's `docs.py` read it, so that the
+//! commands stayed the same: lines split as `str.splitlines` splits them,
+//! indentation counted in characters.
 
 use std::fs;
 use std::path::Path;

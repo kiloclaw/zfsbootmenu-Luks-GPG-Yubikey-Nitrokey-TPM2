@@ -20,8 +20,8 @@ Commands:
   scenario <test>        Run one test in this process
   compare <work> <work> [<test>...]
                          Compare the checks of two runs (two ZBMTEST_WORK
-                         directories), such as the Python harness's and this
-                         one's, message by message
+                         directories), such as those of two commits, message
+                         by message
   help                   Show this text
 
 Tests are named <group>-<scenario>: layouts-main, complex-hotplug, ...

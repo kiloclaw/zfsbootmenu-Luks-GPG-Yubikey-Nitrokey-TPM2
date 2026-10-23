@@ -466,7 +466,7 @@ terminal.
 - **Building commands** is a pure function for each operation (`zpool import` with its options, `kexec -l` with its
   command line, `cryptsetup open` with its options), so unit tests compare the exact arguments with the legacy ones.
 - **Parsing output** is a pure function from text to the data model, tested with output recorded from the real
-  programs (`crates/*/tests/fixtures/`, recorded by `scripts/dev/record-fixtures.py` and in the VM tests).
+  programs (`crates/*/tests/fixtures/`, recorded in the VM tests: `zbm-vmtest run runtime-record-fixtures` and `cargo xtask record-zfs`).
 - **Exit statuses** keep their meaning: commands killed by a signal report 128 plus the signal, as a shell does.
 - **Locale and environment:** programs inherit the environment of the process, as now; only the variables the legacy
   code sets are added (`TPM2TOOLS_TCTI`, `GNUPGHOME` and the hook variables).
