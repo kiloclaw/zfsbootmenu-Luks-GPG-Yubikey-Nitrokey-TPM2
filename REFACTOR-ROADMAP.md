@@ -16,10 +16,10 @@ the code, and R5 builds it.
 
 ## Contents
 
-- [Status](#status)
-- [What the pilots taught](#what-the-pilots-taught)
-- [Goals](#goals)
+- [Status](#status): [next](#next), [done outside the phases](#done-outside-the-phases),
+  [carried over](#carried-over)
 - [Where the code stands](#where-the-code-stands)
+- [Goals](#goals)
 - [Findings](#findings)
 - [Target architecture](#target-architecture)
 - [Rules for refactored code](#rules-for-refactored-code)
@@ -33,360 +33,89 @@ the code, and R5 builds it.
 - [Risks](#risks)
 - [Decisions](#decisions)
 - [Proposals for later](#proposals-for-later)
+- [Record of finished work](#record-of-finished-work), and [what the pilots taught](#what-the-pilots-taught)
 
 ## Status
 
-| Phase | State |
-| --- | --- |
-| R0 | Done on branch `claude/zbm-refactor` |
-| R1 | Done on branch `claude/zbm-refactor` |
-| R2 | Done on branch `claude/zbm-refactor` |
-| R3 | Done on branch `claude/zbm-refactor` |
-| D (menu design) | In progress on branch `claude/zbm-refactor`: design, prototype and wireframes done; usability sessions to run |
-| R4 to R9 | Not started |
+In October 2026, on branch `claude/zbm-refactor`:
 
-Done in R0:
+| Phase | State | In short |
+| --- | --- | --- |
+| R0 | Done | `cargo xtask`, the agreed crates and MSRV 1.88, `cargo deny`, the layers, the debt and coverage ratchets, two pilot slices |
+| R1 | Done | `zbm-types`, `zbm-trace` and the runtime journal, `zbm-testkit` with the legacy results as golden files, the threat model and fuzz targets, crash reports, typed errors, shadow mode |
+| R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
+| R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
+| D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
+| R4 | Next | Application layer |
+| R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
-- `cargo xtask` (`xtask/`, documented in `docs/dev/tooling.md`): `lint` runs every check a pull request must pass
-  (rustfmt, line widths, clippy, rustdoc, `check-deps`, `metrics --check`); `lint --strict` reports the lints of
-  [How the rules are enforced](#how-the-rules-are-enforced) with the configuration in `xtask/strict/clippy.toml`;
-  `test` (under `cargo nextest` when it is installed, profiles in `.config/nextest.toml`), `bless`, `doc`,
-  `check-deps`, `metrics`, `coverage` and `widths`.
-- The strict-lint list `xtask/strict/crates.txt`: `xtask`, the pilot crates (`zbm-types`, `zbm-trace`,
-  `zbm-platform`, `zbm-crypt`, `zbm-app`, `zbm-tui`) and the empty `zbm-menu` have no strict finding, and
-  `cargo xtask lint` fails if one appears.
-- The dependency layers of today's crates in `xtask/src/deps.rs`, and the tables of `docs/dev/architecture.md`
-  generated from them.
-- The starting metrics in `xtask/metrics-baseline.txt`; CI fails when a crate's debt rises.
-- The starting line coverage in `xtask/coverage-baseline.txt` (92% over the workspace; every crate but `zbm`, 68%,
-  and `xtask`, 74%, at 80% or more); CI fails when a crate's coverage drops.
-- CI runs `cargo xtask lint` and `cargo xtask test` (with nextest), the strict report and `cargo xtask coverage
-  --check` in jobs of their own.
-- `docs/dev/` (architecture, testing, tooling, dependencies). The shell width check is replaced by
-  `cargo xtask widths`.
-- [Decisions](#decisions) 1, 2, 3 and 5. The agreed crates are pinned, with their features, in
-  `[workspace.dependencies]`; they build together on Rust 1.88, the new minimum, which also brings let chains.
-- `cargo deny` checks licences, advisories, sources and banned crates (`deny.toml`), in CI.
-- Package B of PORT-ROADMAP.md is merged into this branch, with its VM results.
-- Both pilot slices, with unit, snapshot, property and device tests, and the VM test `runtime-rust-pilot`, which
-  runs them in the Rust image on a serial console. [What the pilots taught](#what-the-pilots-taught) lists what they
-  changed.
+The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
+taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
-Decisions 4 and 6 belong to later phases (R2 and R9).
+### Next
 
-Done in R1:
+- **R4**, the application layer: `zbm-app` with the `Snapshot`, `Action` and event lists of
+  `docs/dev/menu-design/interfaces.md`, the applets as thin front ends over it, the `zbm debug` reports, and shadow
+  mode for the key sources of encryption roots.
+- **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
+  console), which the maintainer runs; the review of the design documents; decision 8.
 
-- `zbm-testutil` is `zbm-testkit`. No Rust test runs Bash, Perl or `legacy/` any more: the 71 tests that did record
-  the legacy results in `tests/golden/legacy/` (`zbm_testkit::parity`), `cargo xtask record-parity` records them, and
-  CI's coverage job checks them against the legacy code (`ZBM_PARITY=check`). The legacy helpers panic outside a
-  recording. `cargo xtask test` takes 8 s instead of 27 s.
-- `zbm_testkit::efi` describes EFI images by their payload sections, so recordings made with one systemd stub hold on
-  machines with another.
+### Done outside the phases
 
-- The threat model, `docs/dev/threat-model.md`: attackers, assets, twelve untrusted inputs, eight properties with
-  their evidence and status, and the risks that stay. Fuzz targets in `fuzz/` for the parsers of untrusted input
-  (`cargo xtask fuzz`, nightly in CI); `cargo xtask lint` checks that they build. Their first run found a panic on
-  `zpool import` output that is not ASCII, now fixed.
+Work on this branch that no phase planned, or that a later phase planned and was done early:
 
-- `zbm-types` gains `SnapshotName`, `KernelVersion` with the `sort -V` order (moved from `zbm-boot`), `ImportPolicy`,
-  `Stage` and `HookStage`, each with property tests and in the `domain_names` fuzz target. The start-up stages, the
-  hook stages and the import policy are typed where `zbm-boot` and `zbm-cmdline` use them. Two concepts stay text for
-  now: the menu timeout, which `/etc/zfsbootmenu.conf` keeps as written (`+5`) and which R5's menu counts down, and
-  the LUKS mode, `zbm_luks::config::Mode`, which moves with the LUKS domain crate in R3.
+- R6's built-in hooks `30-console-autosize` and `80-luks-close` are `zbm console-autosize`, which sizes the font from
+  the display's EDID (HiDPI), and `zluks close`, behind two-line shims.
+- ROADMAP.md #20: the console fonts of Rust images are 256-glyph subsets (`zbm console-fonts`, `zbm_types::psf`), and
+  the Spleen fonts are an option (`zfsbootmenu_console_font`, `Global.ConsoleFont`); the VM tests
+  `runtime-rust-autosize` and `runtime-rust-colours` check them on real kernels.
+- The menu prototype goes beyond D's core tasks, with prototypes of ROADMAP.md #4, #6, #7, #11 and #21 (boot checks,
+  boot counting and boot once, file restore and package changes, the TPM2 re-seal, the keyboard layout at unlock).
+  They are designs for after R5's core tasks, not part of D's exit.
+- `cargo xtask test vm` runs the harness as root with `sudo -E`, as `docs/luks/testing.rst` says.
 
-- `zbm-trace` replaces `zbm-log` and the `KernelLog` that code passed around. Code logs with `zbm_trace::error!`,
-  `warn!`, `notice!`, `info!` and `debug!`; `KmsgLayer` writes those events to the kernel log in the legacy formats,
-  with the legacy level filter and marker files, and other `tracing` events never reach it. `zbm_platform::KernelLog`
-  only installs the layer for a process (`System::kernel_log`), so no function takes a log parameter any more.
-  Reading the log back (`zbm_platform::dmesg`, first `zbm_trace::read`) moved from `zbm-log`.
+### Carried over
 
-- The runtime journal: every process that sets up its kernel log also appends every `tracing` event, whatever its
-  level, to `/zfsbootmenu/journal.jsonl` (at most 4 MiB a process), and fields named for secrets are written as
-  `[redacted]`.
-- `zbm_testkit::machine::FakeMachine` builds a machine with LUKS volumes, pools, key files and a command line in one
-  expression, and its fake programs answer from them; the LUKS unlocking tests use it in place of their own model.
-  `assert_ran!`, `assert_not_ran!`, `assert_no_secret_leaked!` and the table macro `cases!` (used by the `zbm-types`
-  tests) make failures name the command or case. `zbm-testkit` passes the strict lints; as test code, its helpers may
-  panic (that is how a test fails) and its host helpers, golden files and fake `zfs` may use real files.
+What the finished phases left open, and the phase that takes it:
 
-- Crash reports. Every runtime program's panic hook (`zbm_platform::CrashReporter`) writes
-  `/zfsbootmenu/crash-<time>-<pid>.txt` with the message and place, the build ID, the open spans
-  (`zbm_trace::crash::SpanStack`) and the stack as offsets from the load address (`zbm_sys::return_addresses`,
-  through the unwinder's `_Unwind_Backtrace`), logs an error naming it and writes it to the journal. The supervisor
-  names the report of the start-up program, or writes one when a signal killed it, and the recovery shell says
-  where it is; `zbm debug crash` prints it. Release builds keep line tables (`debug = "line-tables-only"`, no
-  `strip`), `zbm` links with a build ID, and image builds move the debug information to
-  `debug/<build-id>.debug` with `cargo xtask split-debug`; `cargo xtask symbolize` resolves a report with it. The
-  VM test `runtime-rust-crash` panics a test-only command (`zbm debug panic`, feature `crash-test`) and checks that
-  the symbolized report names the function and line. `xtask` uses `objcopy` and `addr2line` from binutils rather
-  than the `addr2line` crate, which is not among the agreed dependencies; the VM test harness runs the tree's own
-  `build-init.sh`, so changes to it need no new build container.
+| Item | From | To |
+| --- | --- | --- |
+| Shadow mode does not compare the key sources of encryption roots: the Rust code does not decide them yet | R1 | R4 |
+| The menu timeout is the text of `/etc/zfsbootmenu.conf` (`+5`); it becomes a type when the menu counts it down | R1 | R5 |
+| The start-up's pool import and `zbm-boot` run `zfs` and `zpool` with the legacy command lines rather than the typed port, so that their parity recordings compare | R2, R3 | R5, where behaviour may change, or R9, when parity ends |
+| Fixtures of OpenZFS 2.2 and 2.3, and the two `oldzfs` VM tests, which need images with an older ZFS | R2 | When such images exist ([proposal](#proposals-for-later) 10) |
+| Warnings for deprecated option names, a change of behaviour | R3 | R5 |
+| The build options are read by the shell scripts of the dracut module and the mkinitcpio hook | R3 | R6 |
+| The release each option appeared in | R3 | Not planned: the table would have to guess |
+| Debt in crates no phase has refactored yet: `zbm-kcl` and `zbm-state` (two long functions, two long files), success flags in `generate-zbm`, `zbm-kcl` and `zbm-zfs` (8), doc lines naming legacy functions (161, most in `zbm-luks`, `zbm-boot` and `generate-zbm`) | R1 to R3 | The phase that next changes each crate; R9 at the latest, when the legacy code they name is gone |
+| Line coverage below the 80% of new crates: `zbm` 79%, `xtask` 78%, `zbm-vmtest` 60% (its scenarios run only in VMs) | R0, R3 | Ratcheted; never lowered |
+| `zbm-menu`, an empty crate | R0 | R5, which builds the menu in `zbm-tui` |
 
-- Error enums: `zbm_luks::LuksError` (with `TokenFailure`) and `zbm_boot::BootError`, and outcomes where an
-  operation ends in one of several good ways (`Opened`, `UnlockSummary`, `Wait`, `ResumeChoice`, and
-  `zbm_types::Answer` for timed prompts). No function of the two crates returns a success flag any more (the metric
-  went from 18 and 10 to 0); `bool` is left for questions. The unit tests check the specific outcome and error where
-  they checked `true` or `false`.
+## Where the code stands
 
-- Shadow mode ([docs/dev/shadow-mode.md](docs/dev/shadow-mode.md)): `zbm shadow` compares the host ID, the pools
-  imported, the LUKS mapping names, the default boot environment and the kernel with what the legacy runtime did,
-  through `zbm_platform::ReadOnlyRunner` (an allowlist of read-only commands, no secret input, a five-second
-  budget) and without a console (`zbm_platform::NoConsole`). Legacy images built with `zfsbootmenu_shadow=yes` run it
-  from the `boot-sel.d` hook `99-zbm-shadow.sh`; `zbm.shadow=efivar` keeps a summary with differences in an EFI
-  variable for `zbm shadow report`. The VM harness builds every legacy image with shadow mode and fails a test whose
-  serial console reports differences. The key sources of encryption roots are not compared yet: the Rust code does
-  not decide them until R4.
+| Part | Language | Size | State |
+| --- | --- | --- | --- |
+| Host tools: `generate-zbm`, `zbm-kcl` | Rust | 8,200 lines | Done (port phases 1 to 3); `generate-zbm` split in R3 |
+| Types and foundation: `zbm-types`, `zbm-core`, `zbm-trace`, `zbm-sys` | Rust | 5,800 lines | R1, R2 |
+| Platform: `zbm-platform`, `zbm-coreutils` | Rust | 4,100 lines | R2 |
+| State and configuration: `zbm-config`, `zbm-state` | Rust | 7,300 lines | R3 (`zbm-config`) |
+| Adapters: `zbm-zfs`, `zbm-crypt`, `zbm-tools` | Rust | 5,900 lines | R2 |
+| Domain: `zbm-luks`, `zbm-pool` | Rust | 13,100 lines | R3 |
+| Application: `zbm-app` | Rust | 450 lines | The pilot's; R4 |
+| Start-up, boot and applets: `zbm-boot`, `zbm-startup`, `zbm` | Rust | 12,100 lines | R3; Rust images boot their default environment |
+| Menu: `zbm-tui` | Rust | 11,600 lines | The prototype of D; R5 |
+| Test kit: `zbm-testkit` | Rust | 4,700 lines | R1 |
+| Developer tools: `xtask`, `zbm-vmtest` | Rust | 18,300 lines | R0 to R3; 46 VM tests |
+| Legacy runtime (`legacy/zfsbootmenu`) | Bash | 8,400 lines | Frozen; the menu, boot environments, snapshots and recovery tools are not ported yet (R5, R6) |
+| Legacy host tools (`legacy/bin`) | Perl, Bash | 1,800 lines | Replaced; kept to record parity results until R9 |
+| LUKS unit suites (`tests/luks/unit`) | Bash | 1,300 lines | Kept while the legacy runtime is: they are its only device suites. The Rust port is `crates/zbm-luks/tests/devices` |
+| Upstream test VMs (`tests/*.sh`, `tests/helpers`) | Bash, Perl | 2,800 lines | Interactive; R7 |
+| Packaging and scripts (`packaging/`, `scripts/`) | Bash, Python | 2,300 lines | R6, R7 |
 
-R1 is complete: every legacy VM scenario that boots reports zero shadow differences.
-
-Done in R2:
-
-- `zbm-platform` holds the ports and their real implementations: `zbm-core`'s `exec`, `secret` and `error` modules,
-  all of `zbm-system` (files, clock, console, processes, environment, the kernel log writer, crash reports) and
-  `zbm-trace`'s reader of the kernel log (now `zbm_platform::dmesg`, which runs `dmesg`) moved there, and
-  `zbm-system` is gone. `zbm-core` keeps only code that does no I/O through the ports (file tests, `getopts`, shell
-  semantics, release information, colours); `zbm-trace` no longer runs programs. The layers are `foundation`
-  (`zbm-core`, `zbm-trace`), `platform` (`zbm-platform`) and `state` (`zbm-state`, `zbm-cmdline`). The moved code meets
-  the strict lints of `zbm-platform`: the real implementations allow `clippy::disallowed_methods` once per module,
-  `SystemRunner::run` is split into steps, and `Status::success` became `Status::is_success`. The platform tests that
-  use the fakes of `zbm-testkit` are integration tests (`crates/zbm-platform/tests/`), because the fakes implement the
-  traits as other crates see them. The last Rust test that ran Bash, `getopts`' comparison with Bash's `getopts`, now
-  checks answers recorded from Bash.
-
-- The ZFS port: `zbm_zfs::Zfs` (version, pools, pool properties, filesystems, snapshots, properties with their
-  source, `set`, `inherit`) with `ZfsError`, answered by `ZfsCli`, which reads `-j -p` JSON through `serde` when `zfs
-  version -j` works (OpenZFS 2.3 and later) and the `-H -p` text otherwise, into the same types (`Pool`, `Dataset`,
-  `Snapshot`, `Property` with `Source`, `Health`, `Version`). Without `-p`, JSON values such as `creation` are written
-  for people, which the first recording showed. `zbm_testkit::zfs::FakeZfs` is the in-memory model that tests build
-  with builders (the old fake `zfs` program for parity tests is now `ZfsScript`). `cargo xtask record-zfs` defines a
-  pool and the commands to record and runs them in a test VM through the harness scenario `runtime-record-zfs`; the
-  fixtures of OpenZFS 2.4 are in `crates/zbm-zfs/tests/fixtures/2.4/`, and the fixture tests check that JSON and text
-  give the same answers. The menu's snapshot (`zbm-app`) reads through the port. The legacy-compatible command
-  wrappers are now `ZfsCommand` and `ZpoolCommand`.
-
-- The `zbm-crypt` adapters: `Cryptsetup` reads tokens from `luksDump --dump-json-metadata` through `serde` (the text
-  of `luksDump` and `token export` for cryptsetup before 2.4), replacing the `sed`/`awk` emulation, and opens and
-  closes volumes, with a key file, a secret on standard input or a token plugin; `Devices` probes with `blkid` and
-  `lsblk`; `Tpm2` (`tpm2_*`, with a `PolicySession` flushed on drop), `Fido2` (`fido2-token`, `fido2-assert`),
-  `Clevis` (`jose`, `clevis decrypt`), `YubiKey` (`ykinfo`, `ykchalresp`) and `GnupgHome` (`gpg`, `pcscd`; the home
-  is killed with `gpgconf` and removed on drop) answer the key methods of `zbm-luks`, which no longer builds their
-  commands. Each adapter has fake-runner tests in `zbm-crypt`; the command lines are unchanged, and the LUKS unit
-  suites pass (252 checks) with `ZBMTEST_IMPL=rust`. The ZFS port gained `pool_names`, `devices` and `export`, so
-  closing volumes exports pools through it.
-
-- uutils: version order (`zbm_types::version`, so kernel order) is `uucore`'s `version_cmp`, the `sort -V` of uutils,
-  replacing the emulation of GNU's `filevercmp`; a recorded fixture of the build container's `sort -V` on generated
-  names checks it on every host. `zbm-coreutils` copies, restricts and removes file trees in process through the
-  `Files` port (`cp -a`, `chmod -R`, `rm -rf`), which the GnuPG home of `zbm-crypt` uses. The dracut and mkinitcpio
-  modules install the uutils multi-call binary and a hard link per program when the host has it (uutils refuses to run
-  through a symbolic link whose name is not its own). Decision 4 is recorded: images ship that binary next to `zbm`
-  rather than linking `uu_*` applets into it.
-
-- Adapters only: `zbm-tools` (adapters) runs the system's programs (`mount`, `umount`, `mountpoint`, `modprobe`,
-  `modinfo`, `insmod`, `udevadm`, `tput`, `stty`, `kexec`, `blkid`, `lsblk`, `objcopy`, `objdump`, hooks, key
-  scripts, the recovery shell, editors, Bash's `=~` and `cp`), each with fake-runner tests; `zbm-boot`'s `zfs` and
-  `zpool` runs go through `ZfsCommand::text` and `ZpoolCommand::text` with the same command lines. The workspace's
-  `clippy.toml` (and the strict one) disallow `Command::new` and `Command::shell`; the adapter modules allow them,
-  and test builds allow them with `cfg_attr(test, ...)`. The process supervision of `zbm` (`std::process`, which
-  replaces or supervises whole processes) is the one place outside them that starts programs.
-
-- The shell helpers (`command_substitution`, `read_lines`, `test_integer`, `echo`) are gone from all code but the
-  parsing of configuration: `zbm-cmdline` and the LUKS configuration and crypttab parser of `zbm-luks`. Program
-  output is read with `str::lines` and `trim_end_matches('\n')`, numbers with `parse`; the golden files of the
-  legacy results did not change. `ZbmOptions::menu_timeout_seconds` gives the timeout as a number.
-
-- The LUKS device suites in Rust: `crates/zbm-luks/tests/devices/` (`unlock`, `tokens`, `edge`, `config`) ports the
-  Bash suites case for case and check for check, 52 + 55 + 81 + 64 = 252 checks, all passing; `cargo xtask test
-  devices` runs them as root and CI runs them next to the Bash suites. They call the LUKS code directly, with real LUKS
-  volumes on loop devices, swtpm, `systemd-cryptenroll`, clevis and GnuPG; a device runner stands in for
-  device-mapper (`cryptsetup open` checks the key with `--test-passphrase` and creates a node in the case's own
-  mapper directory), so they need no mount namespace. The Bash stand-ins become Rust: the timed prompts, the console
-  input that arrives late (`< <(sleep N; echo ...)`), the background jobs of the race cases (threads), and the
-  `luksDump` of systemd 261's token plugins. The three legacy-only checks are unit tests. With `ZBM_DEVICE_TESTS=1`
-  set, a suite that cannot run fails rather than skips. The Bash suites and `test-seams` stay while the legacy
-  runtime does: they are the only suites that run against it.
-
-- Exit: every LUKS VM test passes on `aaef3a9`, 44 tests and 764 checks with KVM in about 20 minutes over three
-  parallel lanes, with zero shadow differences (every legacy image runs shadow mode, and a difference fails its
-  test). The two `oldzfs` tests need an image with an older ZFS and were skipped. The run found the uutils symbolic
-  link refusal above, and two gaps in the documented host requirements (`systemd-cryptenroll` is its own package
-  on newer Ubuntu and Debian; the crash test needs `addr2line` and the Rust toolchain), now in
-  `docs/luks/testing.rst`; the crash test runs `cargo xtask symbolize` as the user who started the tests.
-
-R2 is complete. Carried over: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services),
-and fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions).
-
-Done in R3:
-
-- `zbm-pool` (domain): pool import moved out of `zbm-boot`. The settings are types (`ImportSettings` with
-  `PoolRef`, `Requirement`, `BootfsPreference`, `RetryDelay` and `Build`, instead of strings and a flag);
-  `Import` builds `zpool import` from `Target`, `ImportPolicy`, `Access` and `Rewind`; `HostId` is the host ID with
-  its `/etc/hostid` bytes. The retry loop of the start-up stage is `ImportLoop`, a state machine whose transitions
-  (`imported`, `matched`) do no I/O and are tested as a table of paths; `stage` drives it against the system and
-  reaches the console only through the `Operator` port, which `zbm-boot` implements with its countdown prompts and
-  recovery shell. The crate meets the size and type rules and the strict lints, and has no doc comment that names a
-  legacy function. The parity tests of the stage stay in `zbm-boot` and pass against the legacy stage with their
-  recordings unchanged; they caught a dropped debug message during the move. The stage keeps the `zpool` command
-  lines of the legacy code, which those recordings compare, so moving it onto the typed ZFS port waits until the
-  parity tests against the legacy runtime end (R9) or behaviour may change (R5).
-
-- `zbm-startup` (front end): the start-up program moved out of `zbm-boot`, with the stages of modules, host ID,
-  device wait and early hooks, the recovery shell and the start-up hooks (`preinit`). The program is a
-  `Vec<Box<dyn Step>>`, one step per `Stage`, in the order of `Stage::ALL` (a test checks it), run by `run_steps`
-  against a `StepContext`; `Rerun` replaces the `force` flag. The early-hooks stage is a step; running a hook
-  directory stays in `zbm-boot`, which also runs the boot-time hooks. `zbm-startup` has an error enum of its own
-  (`StartupError`), meets the strict lints and the size and type rules, and starts at 97% line coverage; `zbm-boot`
-  has two long files and six legacy-named doc lines fewer. Moving the parity tests moved their recordings with them,
-  unchanged, and showed that `.gitignore` patterns meant for the upstream test VMs (`hostid`, `generate-zbm`,
-  `keys`) had kept 18 recordings out of the repository: CI records live, so their absence went unnoticed. They are
-  committed now, and match the legacy code.
-- `zbm-luks` (domain): the unlock session is `Unlocker` (it was `Session`; the pilot's key chain is now
-  `pilot::KeyChain`). The key methods tried before the prompt are strategies (`KeyMethod`: key script, key file,
-  tokens, passphrases of other volumes, YubiKey), listed by `key_methods` in the legacy order, which a test checks;
-  each answers a `Tried` instead of a flag. LUKS2 tokens go through a registry of `TokenHandler`s (TPM2, clevis,
-  FIDO2), each saying whether it needs the user (`Pass`); unknown types still go to cryptsetup's plugins in the
-  interactive pass. The passphrase prompt is `PassphrasePrompt`, a state machine whose transitions do no I/O, and
-  the mapping state file and skip list are a repository, `MappingStore`, which records where each mapping came from
-  (`Origin`). `zbm-luks` has two long functions and seven legacy-named doc lines fewer, and keeps its 95% line
-  coverage.
-- `zbm-config` (state layer, formerly `zbm-cmdline`): the table of options, 98 entries covering the kernel command
-  line (`zbm.*` and the kernel's `loglevel` and `console`), the dracut and mkinitcpio build options, pool and dataset
-  properties, crypttab options and `generate-zbm`'s configuration keys. Every option of `zfsbootmenu(7)`,
-  `zfsbootmenu-crypttab(5)` and `generate-zbm(5)` comes from the table: `cargo xtask gen-docs` rewrites the marked
-  sections of the pages, `cargo xtask lint` and a unit test check them. Rendered with Sphinx, the pages say the
-  same as before; two notes moved into the entry they belong to, and the deprecated options are listed in table
-  order. The parsers read options by their specification through the `Args` trait (the command line, or the
-  `cmdline.d` files the start-up writes, which replaces `State::zbm_arg`); crypttab parsing moved here from
-  `zbm-luks`, matched by the canonical names of the table; `generate-zbm` reads its keys and the boot code its ZFS
-  properties by their specification. `ZbmOptions::read` records where each value came from (`Origin`: default,
-  command line under which name, or an invalid value replaced by the default), and `Config` puts the options, the
-  LUKS mode and the origins together for `zbm debug config` in R4. Behaviour is unchanged: the parity recordings
-  moved with their tests and still match the legacy code. Not done: the release each option appeared in (the table
-  would have to guess it), new warnings for deprecated names (a behaviour change, for R5), and the build options are
-  still read by the shell scripts of the dracut module and the mkinitcpio hook (R6, recorded in the table as their
-  reader). The strict lints for `zbm-config` are part of R3.5.
-- Size and type rules (R3.5): `zbm-boot`'s `boot.rs` is split into `boot/` (ZFS queries, mounts, kernel discovery,
-  the boot sequence) and `commandline.rs` lost its long function; `generate-zbm`'s `generate.rs` is split into
-  `generate/` (settings, system, kernels, initramfs, bundle, install), `dump.rs` into its emitter and quoting styles,
-  and its parity tests into a directory; the long functions of `zbm-luks` (unlocking every volume, TPM2, GnuPG,
-  FIDO2, YubiKey, key devices) and `zbm-config` (crypttab options) are split into small steps, with enums where
-  outcomes were `Option<Option<_>>`. These four crates and `zbm-boot` now have no function over 60 lines and no file
-  over 600 (`xtask metrics`: 0 long functions and files, down from 18 and 10). `zbm-config` and `zbm-luks` pass the
-  strict lints and are on the strict list; indexing in the hand-written SHA-256, HMAC and base64 of `zbm-luks` is
-  allowed with its reason. Moving tests out of source files lowered the measured coverage of `zbm-boot` and
-  `zbm-luks`, whose test lines had counted as covered; new tests of the error paths and of the cryptsetup plugin
-  paths for FIDO2 and TPM2 bring both back to their baselines. Behaviour is unchanged: unit, parity and device tests
-  pass.
-- The VM harness in Rust (R3.6): `zbm-vmtest` has every scenario of the Python harness (layouts, complex, keys,
-  firmware, procedures with the documentation's commands, runtime) and the fixture recorders, and `zbm-vmtest run`
-  (`cargo xtask test vm`) replaces `run-all.sh`. QEMU's serial console goes to a Unix socket, read by a thread into
-  the log, a `vt100` screen and the text patterns match, without escape sequences; `expect` keeps `pexpect`'s rule
-  (the earliest match wins). Check messages are those of the Python harness, and `zbm-vmtest compare` set the two
-  runs side by side: the 45 tests gave the same 764 checks with the same verdicts, except one in `procedures` that
-  the Rust harness, quicker to send the next command, caught failing: `zpool wait -t resilver` returns before ZFS
-  drops the replaced disk, so "Replacing a failed disk" in `docs/luks/administration.rst` now waits with `-t
-  replace`. The Python harness and `scripts/dev/record-fixtures.py` are removed; CI runs the runtime tests with the
-  Rust harness. A test that cannot go on records why as a failed check and still writes its result. The harness is
-  unit tested against scripted consoles; its scenarios run only in VMs, so the crate starts at 60% line coverage,
-  below the 80% of new crates, as its baseline.
-
-Done in D:
-
-- The design in `docs/dev/menu-design/`: users, core tasks with keystroke budgets and scenarios; the information
-  architecture (frame, views, dialogs, navigation); the visual system (colour roles, monochrome, ASCII, capability
-  detection, layout by size); the key map, one meaning per key; the `Snapshot`, `Action` and event lists for R4
-  (`interfaces.md`); the plan of the usability sessions (`usability.md`).
-- In `zbm-tui`, `menu::theme` and `menu::caps` (roles as Ratatui styles, from `TERM`, `NO_COLOR` and the locale) and
-  `menu::keymap` (the bindings, the footer and help generated from them, the classic aliases), with the Elm
-  architecture of the prototype: `Model`, `update`, `view`, and `menu::world`, the lists proposed for `zbm-app`.
-- `cargo run -p zbm-tui -- --demo` runs every core task on a fake machine: two pools (one degraded, with a
-  checkpoint), four boot environments, 400 snapshots, three LUKS volumes with a TPM2 PIN, a passphrase and a security
-  key that is never plugged in, and with `--foreign` a pool of another host. `--log-keys` records key presses for
-  the sessions.
-- The wireframes are the prototype's snapshot tests: every view at 120×40, 80×25 and 52×20, and the main views in
-  ASCII, in `docs/dev/menu-design/wireframes/`. A test of the core tasks keeps each within its budget: T1 0 keys,
-  T2 2, T3 3, T4 3 to boot a snapshot and 4 plus the name to roll back, T5 the secret and Enter, T6 2 plus the edit,
-  T7 2.
-- The design follows Apple's Human Interface Guidelines adapted to the console (`docs/dev/menu-design/apple-hig.md`):
-  a navigation bar with a back label, a countdown banner, grouped lists with value rows, an inspector, alerts with
-  verb buttons (the destructive one disabled until the target's name is typed), action sheets with Cancel set apart,
-  a dimmed backdrop, a toolbar of at most five actions and `? More`, and title case. Glyphs are limited to those of
-  the image's Terminus fonts, which have no check marks or rounded corners; a test of the wireframes reads the
-  fonts' Unicode tables and fails on any other.
-- Boot health in the prototype (`docs/dev/menu-design/boot-health.md`): checks of whether each environment will
-  boot, shown on its row and in the inspector, with a *May Not Boot* sheet before booting one that fails; boot
-  counting, with a banner naming the fallback when the default used up its tries (`--failing`) and a palette
-  command to give them back; a one-time boot asked by the running system (`--next-boot`); and a Changes view of a
-  snapshot that restores marked files behind a safety snapshot. T8, restoring a file, takes 5 keys of its 6.
-- Unlocking and upgrades in the prototype (`docs/dev/menu-design/unlocking.md`, `boot-health.md`): when a PCR a TPM2
-  key is sealed to changed, the unlock dialog asks for the passphrase and says which PCR and why, then offers to seal
-  the key again (`--tpm-changed`); `Ctrl-K` types with another keyboard layout, translated by key position, and a
-  wrong passphrase points to it; `Ctrl-R` shows what is typed; the Changes view of a snapshot gains a Packages
-  segment, from the package database, with the files of each package. ROADMAP.md gains #15 (reclaim space from
-  snapshots) and #16 (pool health in detail).
-- Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
-  under *classic* in help, with no second profile. The usability sessions decide.
-- Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users
-  and are run by the maintainer, and the review of the design documents.
-
-## What the pilots taught
-
-The two pilot slices of R0 ran through every layer of the target architecture: key-file unlock
-(`zluks --pilot open`: `zbm-types`, `zbm-trace`, `zbm-platform`, `zbm-crypt`, the `pilot` of `zbm-luks`,
-`zbm-app`) and the boot environment list of the new menu (`zbm-menu-pilot`: `zbm-app`'s `Snapshot`, `zbm-tui`). Both
-work in the Rust image on a serial console (`runtime-rust-pilot`). The architecture holds; these are the changes and
-measurements they brought, which R1 to R5 follow.
-
-**Crate boundaries and layers.** Three layers were added to the table in `xtask/src/deps.rs`: `types` above `unsafe`
-(`zbm-types`), `ports` between platform and adapters (`zbm-platform`), and `application` between domain and
-orchestration (`zbm-app`). `zbm-tui` sits with `zbm` among the front ends. `check-deps` caught six new crates
-without a layer and four third-party crates nobody had allowed, at once; test-only crates (`insta`, `proptest`,
-`pretty_assertions`) are now allowed as development dependencies of every crate (`TEST_THIRD_PARTY`).
-
-**The shape of `Context`.** A `Context` is the runner (traced), the files and the clock. It must not require a
-console: the real `System` bundles one, which needs a terminal, and `zluks --pilot` run from a script has none.
-`Context::from_parts` builds one from the ports a program has; R2 makes that the only constructor, and the console a
-port of front ends.
-
-**Errors and outcomes.** Typestate with a hand-back works: `Mapping<Closed>` → `Mapping<Open>` through
-`Cryptsetup::open`, and a failure (`Failed<S>`) returns the mapping unchanged with a `CryptError`, so the chain of key
-methods passes it on without clones. `cryptsetup`'s exit statuses map onto typed errors (2 a wrong key, 4 no device, 5
-busy), as a real run in the VM confirmed. "One error enum per crate" bends where a struct reads better:
-`zbm_types::ParseError` is one struct with a `Reason` enum.
-
-**Events.** `Event` is `#[non_exhaustive]`, so every front end matching it needs a catch-all arm; instead, `Event`
-implements `Display` in `zbm-app` and front ends print it. `App::perform` returns `Vec<Event>` for now; the event
-stream waits for a use case that emits events over time (R4).
-
-**Tracing and the journal.** The traced runner, a decorator, gives the command journal for free. Spans carry domain
-fields only (`device`, `name`, the action's `kind`), never the debug text of a request. Journal lines need the
-process ID besides the sequence number, because several programs append to one journal.
-
-**The menu on a serial console.** Ratatui asks the terminal where the cursor is (`ESC [ 6 n`) when it starts; a
-serial console with nobody answering makes it fail. `zbm-tui`'s backend therefore never asks: it keeps the cursor
-position and the size itself (`QuietBackend`). Serial consoles report no size, or whatever `stty` set; the menu uses
-the reported size, else `--size`, else 80×24, in a fixed viewport. `TERM=vt100` gets ASCII borders. Typing filters and
-Enter chooses on both `TERM=vt100` and `TERM=linux`. `nucleo-matcher` inside `update` keeps it pure and fast for the
-short lists of a boot menu.
-
-**Measured.** In the VM, under software emulation (TCG): frames of 15 to 24 ms on average and 38 to 64 ms at most;
-about 76 serial bytes per key typed into the filter, because Ratatui redraws only the cells that change; 0.06 s from
-Enter to the answer. The release `zbm` grows from 1.09 MB to 1.78 MB with Ratatui, crossterm, `nucleo-matcher` and
-`tracing`, about 1% of a 62 MB initramfs.
-
-**Tests.** Snapshot tests paid off at once: the 52-column screen showed the help line cut mid-word, so the help line
-now shows whole key bindings in order of importance. The VM harness needs a terminal emulator: Ratatui moves the
-cursor over blank cells instead of writing spaces, so a serial transcript reads `Boot` + cursor move +
-`environments`. R3 adds one (the `vt100` crate) to `zbm-vmtest`, which can then take `insta` snapshots of real
-screens. Patterns must also wait for the end of a line, or they match half of it. Device tests need a kernel with
-device-mapper, which this development sandbox lacks: they skip and say so, and run in CI and in the VM.
-
-**Lints.** `clippy::must_use_candidate` made up 313 of the 1,105 strict findings, nearly all of them getters; the
-strict set allows it (`STRICT_ALLOWED`) and puts `#[must_use]` where ignoring a value is a mistake. The pilot crates
-have no strict finding.
-
-**Tooling.** `cargo vendor` deletes every other file in `vendor/`, so the list of dependencies moved to
-`docs/dev/dependencies.md`.
+The Rust code is 91,500 lines in 24 crates. `cargo xtask test` runs about 1,060 tests in under 20 seconds without
+root; six fuzz targets cover the parsers of untrusted input; `xtask metrics` counts 2 long functions, 2 long files, 8
+success flags, 161 legacy-named doc lines, 24 uses of the shell helpers (21 in configuration parsing, where they are
+allowed) and 16 `unsafe` blocks, all in `zbm-sys`.
 
 ## Goals
 
@@ -408,7 +137,10 @@ The goals as given, numbered once, with the measure each phase is checked agains
 
 [The Rust Style Guide]: https://doc.rust-lang.org/stable/style-guide/
 
-## Where the code stands
+## Findings
+
+The analysis at the start of R0 found these, in the code of that time, which this table describes; each finding names
+the goals it touches and an example, and ends with where it stands now.
 
 | Part | Language | Size | Tests | State |
 | --- | --- | --- | --- | --- |
@@ -425,13 +157,9 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | Upstream test VMs (`tests/*.sh`, `tests/helpers`) | Bash, Perl | 2,800 lines | manual | Interactive |
 | Packaging and scripts (`packaging/`, `scripts/`) | Bash, Python | 2,400 lines | partly | Container build, release, dev tools |
 
-The Rust code is in good health by most measures: formatted, clippy-clean with `-D warnings`, documented, `unsafe`
+The Rust code was in good health by most measures: formatted, clippy-clean with `-D warnings`, documented, `unsafe`
 confined to `zbm-sys` (13 blocks), every system call behind a trait with a fake. It was, however, written to *be* the
-legacy code in another language, and that shows.
-
-## Findings
-
-Each finding names the goals it touches and an example; the phases below fix them.
+legacy code in another language, and that showed.
 
 ### F1. The code is shaped like the Bash it replaced (G1, G3)
 
@@ -447,6 +175,10 @@ Each finding names the goals it touches and an example; the phases below fix the
   start-up stages are matched by name (`"45-luks-unlock" =>` in `zbm_boot::startup`), booleans travel as `"true"` and
   `""` between functions.
 
+**Now:** the phases R1 to R3 took most of it. The shell helpers are gone outside the parsing of legacy configuration
+(71 uses to 24, 21 of them in `zbm-config`, where they are allowed); LUKS2 metadata is read with `serde`; stages,
+policies, host IDs and outcomes are types. 161 doc comment lines still name a legacy function (from 229).
+
 ### F2. Errors and outcomes are invisible (G5)
 
 - 50 functions outside tests return a `bool` that only says whether they succeeded (`unlock_all`, `export_pool`,
@@ -454,6 +186,9 @@ Each finding names the goals it touches and an example; the phases below fix the
   is gone by the time a caller decides what to do.
 - Outcomes that are not errors (the user skipped a volume, a device is absent, a token is unsupported) are encoded as
   `false`, `None` or ad-hoc enums, differently in each module.
+
+**Now:** `zbm-luks` and `zbm-boot` return typed errors and outcomes (R1). 8 success flags are left, in `generate-zbm`,
+`zbm-kcl` and `zbm-zfs` (from 50).
 
 ### F3. Coupling makes new features expensive (G4)
 
@@ -466,17 +201,28 @@ Each finding names the goals it touches and an example; the phases below fix the
 - `import.rs` and `generate.rs` are 1,300 lines each; `boot.rs` 1,100. Several functions exceed 100 lines
   (`Session::open_device`, `Session::unlock_all`, `Session::tpm2_native_unseal`, `zbm_kcl::run`).
 
+**Now:** `Session` is `Unlocker` with `KeyMethod` strategies and a `TokenHandler` registry (R3); pool import and the
+start-up program left `zbm-boot` for `zbm-pool` and `zbm-startup` (R3); `zbm-app` exists from the pilot and is built in
+R4. Every crate but `zbm-kcl` and `zbm-state` is within the size limits.
+
 ### F4. The ZFS boundary is text tables (G2, G4)
 
 `zbm-zfs` offers `Zfs::get_value(&str, &str) -> Option<String>` and `parse_table` over `-H` output. There are no
 `Pool`, `Dataset`, `Snapshot` or `BootEnvironment` types, so every caller re-interprets strings. OpenZFS 2.3 and later
 print JSON (`zfs list -j`, `zfs get -j`, `zpool status -j`, `zpool list -j`), which removes most parsing code.
 
+**Now:** done in R2: `trait Zfs` with typed pools, datasets, snapshots and properties, from JSON with a text fallback.
+The start-up's import still runs the legacy command lines, so that its parity recordings compare
+([Carried over](#carried-over)).
+
 ### F5. Debugging means reading the kernel log (G5)
 
 Messages go to `/dev/kmsg` in the legacy formats, filtered by a numeric `loglevel` string. There are no spans, no
 correlation between a message and the stage, volume or command that produced it, no record of external commands with
 their durations and statuses, and no way to dump the runtime's state. `ztrace` and `zlogtail` are Bash.
+
+**Now:** `tracing` spans, the runtime journal and crash reports (R1), `zbm debug crash`. `ztrace`, `zlogtail` and the
+other `zbm debug` reports come in R4.
 
 ### F6. The tests depend on Bash and are hard to scan (G7, G8, G10)
 
@@ -487,11 +233,18 @@ their durations and statuses, and no way to dump the runtime's state. `ztrace` a
 - The suites that exercise real devices are Bash (unit) and Python (VM); the upstream test VMs are interactive Bash.
 - There are no snapshot tests, property tests or fuzz targets, and no index from a feature to its tests.
 
+**Now:** no Rust test runs Bash or Perl (R1); `FakeMachine` builders and `cases!` (R1); the device suites (R2) and
+the VM harness (R3) are Rust; snapshot, property and fuzz tests exist. Left: the upstream test VMs (R7) and the test
+map (`xtask test-map`).
+
 ### F7. Coreutils are used implicitly (G9)
 
 Rust code shells out to `cp -a`, `rm -rf`, `chmod -R` and `sort -V` and emulates GNU `sort -V` for kernel ordering,
 while images built in the build container (Ubuntu 26.10) already ship uutils, whose `sort -V` differs in corner cases
 that `zbm_boot::kernels` documents.
+
+**Now:** done in R2: version order is `uucore`'s `version_cmp`, `zbm-coreutils` copies and removes trees in process,
+and images ship the uutils multi-call binary.
 
 ### F8. What is good and stays
 
@@ -532,28 +285,32 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
 
 ### Crates after the refactor
 
-| Crate | Replaces | Responsibility |
-| --- | --- | --- |
-| `zbm-types` | strings across crates | `PoolName`, `DatasetName`, `SnapshotName`, `MappingName`, `DevicePath`, `KernelVersion`, `Stage`, `ImportPolicy`, `LuksMode`, `Timeout`; parsing via `FromStr`, display via `Display`; no IO |
-| `zbm-platform` | `zbm-core::exec`, `zbm-system` | The ports (`Exec`, `Fs`, `Clock`, `Terminal`, `Signals`, `Env`), their real implementations, `Command`, `Secret` |
-| `zbm-sys` | `zbm-sys` | All `unsafe` (signals, `waitpid`, `poll`, `explicit_bzero`, `kexec_file_load`), nothing else |
-| `zbm-trace` | `zbm-log`, `KernelLog` | `tracing` subscriber layers: kmsg (legacy line format), JSON journal file, console; command journal; secret redaction |
-| `zbm-config` | `zbm-cmdline`, crypttab parsing, `/etc/zfsbootmenu.conf` | One `Config` value built from the kernel command line, the configuration file and the crypttab, with typed errors and the source of every value |
-| `zbm-zfs` | `zbm-zfs` | `trait Zfs` with `ZfsCli` (JSON output, text fallback) and `FakeZfs`; `Pool`, `Dataset`, `Snapshot`, properties |
-| `zbm-crypt` | command building in `zbm-luks` | Typed wrappers around `cryptsetup`, `tpm2_*`, `fido2-*`, `gpg`, `clevis`, `ykchalresp`; JSON metadata via `serde` |
-| `zbm-coreutils` | `cp`, `rm`, `chmod`, `sort -V` calls | In-process operations through `uucore` and `std`, and the uutils multi-call binary where a program is needed |
-| `zbm-luks` | `zbm-luks` | `Unlocker` with a `KeyMethod` strategy chain, `VolumeSet`, mapping state |
-| `zbm-pool` | `zbm-boot::import`, `hostid` | Import policies as types, the retry loop as a state machine |
-| `zbm-bootenv` | `zbm-boot::{kernels, commandline}`, port package C | Boot environments, kernels and their order, command lines and caches, native encryption keys and key sources |
-| `zbm-kexec` | `zbm-boot::boot` | Loading kernels, teardown, exporting pools |
-| `zbm-app` | — (new) | Use cases (`boot`, `unlock`, `snapshot`, `rollback`, `clone`, `set_default`, `edit_cmdline`, `chroot`, `diff`), an `Action` enum, an event stream, the shared state store |
-| `zbm-tui` | `zbm-menu`, `lib/zfsbootmenu-ui.sh`, `fzf` | The menu: Elm architecture over `zbm-app`, `nucleo-matcher` for matching, Ratatui widgets per screen |
-| `zbm-startup` | `zbm-boot::{startup, modules, devices, hooks, preinit}` | The start-up pipeline as a list of `Step` values; hook running |
-| `zbm` | `zbm` | The multi-call binary: thin applets that build a context and call `zbm-app` |
-| `zbm-generate`, `zbm-kcl` | `generate-zbm`, `zbm-kcl` | Host tools, split into library and binary like the runtime |
-| `zbm-testkit` | `zbm-testutil` | Fakes, machine builders, golden files, assertion helpers; no Bash |
-| `xtask` | `scripts/`, `packaging/container/*.sh` | Developer automation in Rust: build images, record fixtures, run suites, release |
-| `zbm-vmtest` | `tests/luks/vm`, `tests/*.sh` | The VM test harness and scenarios in Rust |
+| Crate | Replaces | Responsibility | Now |
+| --- | --- | --- | --- |
+| `zbm-types` | strings across crates | `PoolName`, `DatasetName`, `SnapshotName`, `MappingName`, `DevicePath`, `KernelVersion`, `Stage`, `ImportPolicy`, `LuksMode`, `Timeout`; parsing via `FromStr`, display via `Display`; no IO | Exists (R1); the menu timeout is typed in R5, the LUKS mode is in `zbm-config` |
+| `zbm-platform` | `zbm-core::exec`, `zbm-system` | The ports (`Exec`, `Fs`, `Clock`, `Terminal`, `Signals`, `Env`), their real implementations, `Command`, `Secret` | Exists (R2) |
+| `zbm-sys` | `zbm-sys` | All `unsafe` (signals, `waitpid`, `poll`, `explicit_bzero`, `kexec_file_load`), nothing else | Exists; `kexec_file_load` comes with `zbm-kexec` |
+| `zbm-trace` | `zbm-log`, `KernelLog` | `tracing` subscriber layers: kmsg (legacy line format), JSON journal file, console; command journal; secret redaction | Exists (R1) |
+| `zbm-config` | `zbm-cmdline`, crypttab parsing, `/etc/zfsbootmenu.conf` | One `Config` value built from the kernel command line, the configuration file and the crypttab, with typed errors and the source of every value | Exists (R3) |
+| `zbm-zfs` | `zbm-zfs` | `trait Zfs` with `ZfsCli` (JSON output, text fallback) and `FakeZfs`; `Pool`, `Dataset`, `Snapshot`, properties | Exists (R2) |
+| `zbm-crypt` | command building in `zbm-luks` | Typed wrappers around `cryptsetup`, `tpm2_*`, `fido2-*`, `gpg`, `clevis`, `ykchalresp`; JSON metadata via `serde` | Exists (R2) |
+| `zbm-coreutils` | `cp`, `rm`, `chmod`, `sort -V` calls | In-process operations through `uucore` and `std`, and the uutils multi-call binary where a program is needed | Exists (R2) |
+| `zbm-luks` | `zbm-luks` | `Unlocker` with a `KeyMethod` strategy chain, `VolumeSet`, mapping state | Exists (R3) |
+| `zbm-pool` | `zbm-boot::import`, `hostid` | Import policies as types, the retry loop as a state machine | Exists (R3) |
+| `zbm-bootenv` | `zbm-boot::{kernels, commandline}`, port package C | Boot environments, kernels and their order, command lines and caches, native encryption keys and key sources | Planned (R5); the code is in `zbm-boot` |
+| `zbm-kexec` | `zbm-boot::boot` | Loading kernels, teardown, exporting pools | Planned (R5); the code is in `zbm-boot` |
+| `zbm-app` | — (new) | Use cases (`boot`, `unlock`, `snapshot`, `rollback`, `clone`, `set_default`, `edit_cmdline`, `chroot`, `diff`), an `Action` enum, an event stream, the shared state store | The pilot's `Snapshot` and use cases; built in R4 |
+| `zbm-tui` | `zbm-menu`, `lib/zfsbootmenu-ui.sh`, `fzf` | The menu: Elm architecture over `zbm-app`, `nucleo-matcher` for matching, Ratatui widgets per screen | The prototype of D; built in R5 |
+| `zbm-startup` | `zbm-boot::{startup, modules, devices, hooks, preinit}` | The start-up pipeline as a list of `Step` values; hook running | Exists (R3) |
+| `zbm` | `zbm` | The multi-call binary: thin applets that build a context and call `zbm-app` | Exists |
+| `zbm-generate`, `zbm-kcl` | `generate-zbm`, `zbm-kcl` | Host tools, split into library and binary like the runtime | Exist as `generate-zbm` (library and binary) and `zbm-kcl` |
+| `zbm-testkit` | `zbm-testutil` | Fakes, machine builders, golden files, assertion helpers; no Bash | Exists (R1) |
+| `xtask` | `scripts/`, `packaging/container/*.sh` | Developer automation in Rust: build images, record fixtures, run suites, release | Exists (R0 to R3); `build-image`, `release` and the container's entry point in R7 |
+| `zbm-vmtest` | `tests/luks/vm`, `tests/*.sh` | The VM test harness and scenarios in Rust | Exists (R3); the upstream test VMs in R7 |
+
+Crates of today that the table does not list: `zbm-core` (foundation: file tests, option parsing, the shell semantics
+that configuration parsing keeps, release information), `zbm-state` (state files), `zbm-tools` (adapters for the
+system's programs, R2), and `zbm-menu`, an empty placeholder that R5 removes.
 
 ### Patterns, and where they apply
 
@@ -649,20 +406,22 @@ out of date.
 
 ### Crash reports
 
-The runtime is built with `strip = true`, so a panic on a user's machine produces a backtrace of bare addresses that
-nobody can read. After the refactor:
+The runtime was built with `strip = true`, so a panic on a user's machine produced a backtrace of bare addresses that
+nobody could read. Since R1:
 
-- **Release builds keep their debug information outside the image.** They are built with debug information and a
-  GNU build ID; `xtask build-image` splits it into a separate file per binary (`objcopy --only-keep-debug`), strips
-  the binary in the image and links the two by build ID. The debug files are published with each release and kept
-  as CI artifacts for test images, so the image size does not change.
-- **A panic hook in `zbm-trace`** writes a crash report to the journal and to `/zfsbootmenu/crash-<time>.txt`: the
-  panic message (secrets cannot appear, since `Secret` has a redacted `Debug`), the location, the build ID, the
-  open `tracing` spans (stage, volume, pool) and the backtrace as offsets from the binary's load address, read from
-  `/proc/self/maps`, so that address space randomisation does not matter. The supervisor records a child killed by
-  a signal the same way, then opens the recovery shell with the path of the report.
-- **`zbm debug crash`** shows the latest report on the machine; **`xtask symbolize <report>`** finds the debug file
-  by build ID and prints function names, files and lines, using the `addr2line` crate.
+- **Release builds keep their debug information outside the image.** They keep line tables
+  (`debug = "line-tables-only"`, no `strip`), and `zbm` links with a GNU build ID; image builds move the debug
+  information to `debug/<build-id>.debug` with `cargo xtask split-debug`, so the image size does not change. Releases
+  publish the debug files with the images in R6.
+- **A panic hook** (`zbm_platform::CrashReporter`) writes a crash report to the journal and to
+  `/zfsbootmenu/crash-<time>-<pid>.txt`: the panic message (secrets cannot appear, since `Secret` has a redacted
+  `Debug`), the location, the build ID, the open `tracing` spans (`zbm_trace::crash::SpanStack`) and the stack as
+  offsets from the binary's load address (`zbm_sys::return_addresses`), so that address space randomisation does not
+  matter. The supervisor records a child killed by a signal the same way, then opens the recovery shell with the path
+  of the report.
+- **`zbm debug crash`** shows the latest report on the machine; **`cargo xtask symbolize <report>`** finds the debug
+  file by build ID and prints function names, files and lines with binutils' `addr2line` (the `addr2line` crate is not
+  among the agreed crates). The VM test `runtime-rust-crash` checks the whole chain.
 
 ## Rules for refactored code
 
@@ -874,6 +633,8 @@ fakes and the images are unchanged.
 
 ### R0. Decisions, scaffolding and pilot slices (3 to 5 weeks)
 
+**State:** done ([record](#done-in-r0)).
+
 - Decide the [open questions](#decisions): dependency set, MSRV, menu replacing `fzf` outright, when the
   legacy runtime goes.
 - Add `xtask` with `lint`, `test`, `doc`, `bless`, `check-deps` and `metrics`; add `cargo deny`, `cargo nextest`, and
@@ -900,6 +661,8 @@ fakes and the images are unchanged.
 
 ### R1. Foundations: types, errors, tracing, test kit, crash reports, shadow mode (5 to 6 weeks)
 
+**State:** done ([record](#done-in-r1)).
+
 - Create `zbm-types` and move every domain concept into it, with `FromStr`, `Display` and property tests.
 - Create `zbm-trace`: `tracing` with the kmsg layer (keeping the legacy formats for users who read `dmesg`), the
   JSON journal (`/zfsbootmenu/journal.jsonl`), the command journal and redaction; replace `KernelLog` and `zbm-log`.
@@ -922,6 +685,8 @@ fakes and the images are unchanged.
 
 ### R2. Platform and adapters (3 to 4 weeks)
 
+**State:** done ([record](#done-in-r2)); two items carried over ([Carried over](#carried-over)).
+
 - Merge `zbm-core::exec`, `zbm-system` into `zbm-platform`; keep `zbm-sys` as the only `unsafe`.
 - Build `zbm-zfs` on JSON with the text fallback, `FakeZfs` and recorded fixtures for ZFS 2.2 to 2.4.
 - Build `zbm-crypt`: `cryptsetup` (JSON metadata through `serde`, replacing the `sed` and `awk` emulation),
@@ -941,6 +706,8 @@ fakes and the images are unchanged.
   unchanged with zero shadow differences.
 
 ### R3. Domain services (4 to 6 weeks)
+
+**State:** done ([record](#done-in-r3)); items carried over to R5, R6 and R9 ([Carried over](#carried-over)).
 
 - `zbm-luks`: replace `Session` by `Unlocker` + `KeyMethod` strategies + `TokenHandler` registry; the passphrase
   prompt becomes a state machine that asks a `Prompter` port; mapping state behind a small repository type.
@@ -962,6 +729,10 @@ fakes and the images are unchanged.
 
 ### D. Menu design (3 to 4 weeks, alongside R3 and R4)
 
+**State:** in progress ([record](#done-in-d)): everything but the usability sessions and the review of the design.
+The prototype also carries prototypes of ROADMAP.md features beyond the core tasks (#4, #6, #7, #11, #21), which R5
+builds after the core tasks.
+
 - Users, tasks and scenarios: the core tasks of [The menu redesign](#the-menu-redesign), and the situations they
   happen in (a desktop with one pool, a server reached over a serial console, a machine with LUKS and a security key,
   a failed boot).
@@ -981,6 +752,8 @@ fakes and the images are unchanged.
 
 ### R4. Application layer (3 to 4 weeks)
 
+**State:** next. `zbm-app` exists from the menu pilot, with its `Snapshot`; `zbm debug crash` from R1.
+
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
   the applets already need (boot the default environment, unlock, close, import). Their shape follows the lists
   agreed in D, including start-up progress events (stages, unlock requests, import problems), so that the menu can
@@ -994,6 +767,9 @@ fakes and the images are unchanged.
   in the VM tests and no open shadow difference reported by users.
 
 ### R5. The new menu (10 to 12 weeks)
+
+**State:** not started. Its input is ready: the prototype, the wireframes as snapshot tests, and the lists of
+`docs/dev/menu-design/interfaces.md`.
 
 - `zbm-tui` builds the design of D, in the order of the core tasks: the start-up view and countdown, the main view
   with its detail pane, the command palette, snapshots (diff, clone, rollback and boot, with previews and
@@ -1019,6 +795,8 @@ fakes and the images are unchanged.
 
 ### R6. Recovery tools and image assembly in Rust (3 to 4 weeks)
 
+**State:** not started; two built-in hooks were done early (below).
+
 - Port package F (recovery shell commands `zfs-chroot`, `zsnapshots`, `zkexec`, `mount_esp`, `reboot`, `firmware-setup`,
   `logs`, help viewer) as `zbm-app` use cases: views of the menu's recovery tools, and thin `zbm` applets for scripts
   and the recovery shell.
@@ -1034,6 +812,8 @@ fakes and the images are unchanged.
 
 ### R7. Remaining tests and tooling in Rust (3 to 4 weeks, can run alongside R5 and R6)
 
+**State:** not started; the LUKS device suites (R2) and the VM harness (R3) are Rust already.
+
 - The LUKS device suites moved in R2 and the VM harness in R3 and R4. What is left: the upstream test VMs
   (`tests/setup.sh`, `tests/run.sh`) as non-interactive `zbm-vmtest` scenarios.
 - Replace `scripts/` and `packaging/container/*.sh` with `xtask` subcommands (`build-image`, `record-fixtures`,
@@ -1043,6 +823,9 @@ fakes and the images are unchanged.
 
 ### R8. Developer documentation (2 to 3 weeks, finishing alongside R7)
 
+**State:** not started; `docs/dev/` has the architecture, testing, tooling, dependencies, shadow mode, threat
+model and menu design pages.
+
 - `docs/dev/`: the boot flow from `zbm` start to `kexec`, stage by stage, with links into rustdoc; "how to add a key
   method", "how to add a menu screen", "how to add a boot step", "how to debug a failing boot" (journal, `zbm debug`,
   QEMU serial logs), "how the tests are organised".
@@ -1051,6 +834,8 @@ fakes and the images are unchanged.
   documentation.
 
 ### R9. Cutover and removal (with PORT-ROADMAP phases 7 and 8)
+
+**State:** not started; decision 6 is open.
 
 - The Rust runtime becomes the default after a beta in which the legacy image is the fallback.
 - Delete `legacy/`, the golden files recorded from it that no longer guard anything, and the compatibility shims.
@@ -1072,6 +857,8 @@ R0 ─ R1 ─ R2 ─ R3 ─ R4 ─ R5 ─ R6 ─ R9
 R0 includes the pilot slices; R8 (docs) runs alongside R7 and ends before R9. D adds about four weeks of work but
 little to the length of the plan, since it overlaps R3 and R4; R5 grows by about four weeks.
 ```
+
+Done: R0 to R3, with the LUKS device suites and the VM harness in Rust. In progress: D. Next: R4.
 
 Two test ports are tied to the code they protect: the LUKS device suites move to Rust in R2, before R3 rewrites
 `zbm-luks`, and the VM harness moves during R3 and R4, before R5 adds the menu's VM tests. Package B's VM tests, now
@@ -1154,7 +941,8 @@ the plan yet; each would be added to a phase when it is adopted.
    model.
 2. **Debugging failures offline:** `zbm debug bundle` writes a redacted archive of the journal, the commands run, the
    configuration and the pool layout; `xtask replay <bundle>` turns it into a fake machine, so a reported boot
-   failure becomes a `cargo test`; boot timelines exported as Chrome trace files for Perfetto.
+   failure becomes a `cargo test`; boot timelines exported as Chrome trace files for Perfetto. Not adopted; the
+   bundle is ROADMAP.md #9.
 3. **Developer experience:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine
    (adopted: the prototype of phase D);
    Architecture Decision Records in `docs/dev/adr/`; runnable `examples/` per crate; an `AGENTS.md` per crate with its
@@ -1165,6 +953,7 @@ the plan yet; each would be added to a phase when it is adopted.
    (adopted in D and R5);
    budgets for boot time, image size and memory with CI gates; `zeroize` or `secrecy` instead of the hand-written
    `Secret`, `mlock` for secret memory and no core dumps; `cargo vet` and `cargo auditable` for the supply chain.
+   Capability detection is adopted; secret wiping and `mlock` are ROADMAP.md #1.
 6. **A deprecation policy** for kernel command line options and configuration files: old names keep working with a
    warning for one release and `zbm debug config` lists them; possibly a typed TOML configuration with
    `zbm config check`.
@@ -1188,10 +977,359 @@ the plan yet; each would be added to a phase when it is adopted.
     the `zbm-sys` tests.
 15. **Measurable pilot criteria:** R0's pilots pass or fail on numbers: binary size (a minimal build with all the
     agreed crates measured 0.43 MB against 1.09 MB for today's `zbm`, a lower bound), added boot time, memory, and
-    redraw time over a 115200-baud serial console.
+    redraw time over a 115200-baud serial console. The pilots measured binary size, frame times and serial bytes
+    per key ([What the pilots taught](#what-the-pilots-taught)).
 16. **An upstream sync policy:** watch upstream ZFSBootMenu releases; for each relevant fix, write a test first, port
     it, and log it as `legacy/RUNTIME-CHANGES.md` does today.
 17. **A reproducibility check:** build the images twice in different directories and compare them, with build paths
     removed from the binaries (`--remap-path-prefix`), keeping the identical-image guarantee of PORT-ROADMAP phase 3.
+    This is ROADMAP.md #5.
 18. **Metrics for rules 2 and 4:** debt columns for public functions of domain crates that take a raw string, and for
     public items without a doc example, ratcheted like the others.
+
+## Record of finished work
+
+What each finished phase did, in the order it was done. [Status](#status) summarises it.
+
+### Done in R0
+
+- `cargo xtask` (`xtask/`, documented in `docs/dev/tooling.md`): `lint` runs every check a pull request must pass
+  (rustfmt, line widths, clippy, rustdoc, `check-deps`, `metrics --check`); `lint --strict` reports the lints of
+  [How the rules are enforced](#how-the-rules-are-enforced) with the configuration in `xtask/strict/clippy.toml`;
+  `test` (under `cargo nextest` when it is installed, profiles in `.config/nextest.toml`), `bless`, `doc`,
+  `check-deps`, `metrics`, `coverage` and `widths`.
+- The strict-lint list `xtask/strict/crates.txt`: `xtask`, the pilot crates (`zbm-types`, `zbm-trace`,
+  `zbm-platform`, `zbm-crypt`, `zbm-app`, `zbm-tui`) and the empty `zbm-menu` have no strict finding, and
+  `cargo xtask lint` fails if one appears.
+- The dependency layers of today's crates in `xtask/src/deps.rs`, and the tables of `docs/dev/architecture.md`
+  generated from them.
+- The starting metrics in `xtask/metrics-baseline.txt`; CI fails when a crate's debt rises.
+- The starting line coverage in `xtask/coverage-baseline.txt` (92% over the workspace; every crate but `zbm`, 68%,
+  and `xtask`, 74%, at 80% or more); CI fails when a crate's coverage drops.
+- CI runs `cargo xtask lint` and `cargo xtask test` (with nextest), the strict report and `cargo xtask coverage
+  --check` in jobs of their own.
+- `docs/dev/` (architecture, testing, tooling, dependencies). The shell width check is replaced by
+  `cargo xtask widths`.
+- [Decisions](#decisions) 1, 2, 3 and 5. The agreed crates are pinned, with their features, in
+  `[workspace.dependencies]`; they build together on Rust 1.88, the new minimum, which also brings let chains.
+- `cargo deny` checks licences, advisories, sources and banned crates (`deny.toml`), in CI.
+- Package B of PORT-ROADMAP.md is merged into this branch, with its VM results.
+- Both pilot slices, with unit, snapshot, property and device tests, and the VM test `runtime-rust-pilot`, which
+  runs them in the Rust image on a serial console. [What the pilots taught](#what-the-pilots-taught) lists what they
+  changed.
+
+Decisions 4 and 6 belong to later phases (R2 and R9); 4 was decided in R2.
+
+### Done in R1
+
+- `zbm-testutil` is `zbm-testkit`. No Rust test runs Bash, Perl or `legacy/` any more: the 71 tests that did record
+  the legacy results in `tests/golden/legacy/` (`zbm_testkit::parity`), `cargo xtask record-parity` records them, and
+  CI's coverage job checks them against the legacy code (`ZBM_PARITY=check`). The legacy helpers panic outside a
+  recording. `cargo xtask test` takes 8 s instead of 27 s.
+- `zbm_testkit::efi` describes EFI images by their payload sections, so recordings made with one systemd stub hold on
+  machines with another.
+
+- The threat model, `docs/dev/threat-model.md`: attackers, assets, twelve untrusted inputs, eight properties with
+  their evidence and status, and the risks that stay. Fuzz targets in `fuzz/` for the parsers of untrusted input
+  (`cargo xtask fuzz`, nightly in CI); `cargo xtask lint` checks that they build. Their first run found a panic on
+  `zpool import` output that is not ASCII, now fixed.
+
+- `zbm-types` gains `SnapshotName`, `KernelVersion` with the `sort -V` order (moved from `zbm-boot`), `ImportPolicy`,
+  `Stage` and `HookStage`, each with property tests and in the `domain_names` fuzz target. The start-up stages, the
+  hook stages and the import policy are typed where `zbm-boot` and `zbm-cmdline` use them. Two concepts stay text for
+  now: the menu timeout, which `/etc/zfsbootmenu.conf` keeps as written (`+5`) and which R5's menu counts down, and
+  the LUKS mode, `zbm_luks::config::Mode`, which moves with the LUKS domain crate in R3.
+
+- `zbm-trace` replaces `zbm-log` and the `KernelLog` that code passed around. Code logs with `zbm_trace::error!`,
+  `warn!`, `notice!`, `info!` and `debug!`; `KmsgLayer` writes those events to the kernel log in the legacy formats,
+  with the legacy level filter and marker files, and other `tracing` events never reach it. `zbm_platform::KernelLog`
+  only installs the layer for a process (`System::kernel_log`), so no function takes a log parameter any more.
+  Reading the log back (`zbm_platform::dmesg`, first `zbm_trace::read`) moved from `zbm-log`.
+
+- The runtime journal: every process that sets up its kernel log also appends every `tracing` event, whatever its
+  level, to `/zfsbootmenu/journal.jsonl` (at most 4 MiB a process), and fields named for secrets are written as
+  `[redacted]`.
+- `zbm_testkit::machine::FakeMachine` builds a machine with LUKS volumes, pools, key files and a command line in one
+  expression, and its fake programs answer from them; the LUKS unlocking tests use it in place of their own model.
+  `assert_ran!`, `assert_not_ran!`, `assert_no_secret_leaked!` and the table macro `cases!` (used by the `zbm-types`
+  tests) make failures name the command or case. `zbm-testkit` passes the strict lints; as test code, its helpers may
+  panic (that is how a test fails) and its host helpers, golden files and fake `zfs` may use real files.
+
+- Crash reports. Every runtime program's panic hook (`zbm_platform::CrashReporter`) writes
+  `/zfsbootmenu/crash-<time>-<pid>.txt` with the message and place, the build ID, the open spans
+  (`zbm_trace::crash::SpanStack`) and the stack as offsets from the load address (`zbm_sys::return_addresses`,
+  through the unwinder's `_Unwind_Backtrace`), logs an error naming it and writes it to the journal. The supervisor
+  names the report of the start-up program, or writes one when a signal killed it, and the recovery shell says
+  where it is; `zbm debug crash` prints it. Release builds keep line tables (`debug = "line-tables-only"`, no
+  `strip`), `zbm` links with a build ID, and image builds move the debug information to
+  `debug/<build-id>.debug` with `cargo xtask split-debug`; `cargo xtask symbolize` resolves a report with it. The
+  VM test `runtime-rust-crash` panics a test-only command (`zbm debug panic`, feature `crash-test`) and checks that
+  the symbolized report names the function and line. `xtask` uses `objcopy` and `addr2line` from binutils rather
+  than the `addr2line` crate, which is not among the agreed dependencies; the VM test harness runs the tree's own
+  `build-init.sh`, so changes to it need no new build container.
+
+- Error enums: `zbm_luks::LuksError` (with `TokenFailure`) and `zbm_boot::BootError`, and outcomes where an
+  operation ends in one of several good ways (`Opened`, `UnlockSummary`, `Wait`, `ResumeChoice`, and
+  `zbm_types::Answer` for timed prompts). No function of the two crates returns a success flag any more (the metric
+  went from 18 and 10 to 0); `bool` is left for questions. The unit tests check the specific outcome and error where
+  they checked `true` or `false`.
+
+- Shadow mode ([docs/dev/shadow-mode.md](docs/dev/shadow-mode.md)): `zbm shadow` compares the host ID, the pools
+  imported, the LUKS mapping names, the default boot environment and the kernel with what the legacy runtime did,
+  through `zbm_platform::ReadOnlyRunner` (an allowlist of read-only commands, no secret input, a five-second
+  budget) and without a console (`zbm_platform::NoConsole`). Legacy images built with `zfsbootmenu_shadow=yes` run it
+  from the `boot-sel.d` hook `99-zbm-shadow.sh`; `zbm.shadow=efivar` keeps a summary with differences in an EFI
+  variable for `zbm shadow report`. The VM harness builds every legacy image with shadow mode and fails a test whose
+  serial console reports differences. The key sources of encryption roots are not compared yet: the Rust code does
+  not decide them until R4.
+
+R1 is complete: every legacy VM scenario that boots reports zero shadow differences.
+
+### Done in R2
+
+- `zbm-platform` holds the ports and their real implementations: `zbm-core`'s `exec`, `secret` and `error` modules,
+  all of `zbm-system` (files, clock, console, processes, environment, the kernel log writer, crash reports) and
+  `zbm-trace`'s reader of the kernel log (now `zbm_platform::dmesg`, which runs `dmesg`) moved there, and
+  `zbm-system` is gone. `zbm-core` keeps only code that does no I/O through the ports (file tests, `getopts`, shell
+  semantics, release information, colours); `zbm-trace` no longer runs programs. The layers are `foundation`
+  (`zbm-core`, `zbm-trace`), `platform` (`zbm-platform`) and `state` (`zbm-state`, `zbm-cmdline`). The moved code meets
+  the strict lints of `zbm-platform`: the real implementations allow `clippy::disallowed_methods` once per module,
+  `SystemRunner::run` is split into steps, and `Status::success` became `Status::is_success`. The platform tests that
+  use the fakes of `zbm-testkit` are integration tests (`crates/zbm-platform/tests/`), because the fakes implement the
+  traits as other crates see them. The last Rust test that ran Bash, `getopts`' comparison with Bash's `getopts`, now
+  checks answers recorded from Bash.
+
+- The ZFS port: `zbm_zfs::Zfs` (version, pools, pool properties, filesystems, snapshots, properties with their
+  source, `set`, `inherit`) with `ZfsError`, answered by `ZfsCli`, which reads `-j -p` JSON through `serde` when `zfs
+  version -j` works (OpenZFS 2.3 and later) and the `-H -p` text otherwise, into the same types (`Pool`, `Dataset`,
+  `Snapshot`, `Property` with `Source`, `Health`, `Version`). Without `-p`, JSON values such as `creation` are written
+  for people, which the first recording showed. `zbm_testkit::zfs::FakeZfs` is the in-memory model that tests build
+  with builders (the old fake `zfs` program for parity tests is now `ZfsScript`). `cargo xtask record-zfs` defines a
+  pool and the commands to record and runs them in a test VM through the harness scenario `runtime-record-zfs`; the
+  fixtures of OpenZFS 2.4 are in `crates/zbm-zfs/tests/fixtures/2.4/`, and the fixture tests check that JSON and text
+  give the same answers. The menu's snapshot (`zbm-app`) reads through the port. The legacy-compatible command
+  wrappers are now `ZfsCommand` and `ZpoolCommand`.
+
+- The `zbm-crypt` adapters: `Cryptsetup` reads tokens from `luksDump --dump-json-metadata` through `serde` (the text
+  of `luksDump` and `token export` for cryptsetup before 2.4), replacing the `sed`/`awk` emulation, and opens and
+  closes volumes, with a key file, a secret on standard input or a token plugin; `Devices` probes with `blkid` and
+  `lsblk`; `Tpm2` (`tpm2_*`, with a `PolicySession` flushed on drop), `Fido2` (`fido2-token`, `fido2-assert`),
+  `Clevis` (`jose`, `clevis decrypt`), `YubiKey` (`ykinfo`, `ykchalresp`) and `GnupgHome` (`gpg`, `pcscd`; the home
+  is killed with `gpgconf` and removed on drop) answer the key methods of `zbm-luks`, which no longer builds their
+  commands. Each adapter has fake-runner tests in `zbm-crypt`; the command lines are unchanged, and the LUKS unit
+  suites pass (252 checks) with `ZBMTEST_IMPL=rust`. The ZFS port gained `pool_names`, `devices` and `export`, so
+  closing volumes exports pools through it.
+
+- uutils: version order (`zbm_types::version`, so kernel order) is `uucore`'s `version_cmp`, the `sort -V` of uutils,
+  replacing the emulation of GNU's `filevercmp`; a recorded fixture of the build container's `sort -V` on generated
+  names checks it on every host. `zbm-coreutils` copies, restricts and removes file trees in process through the
+  `Files` port (`cp -a`, `chmod -R`, `rm -rf`), which the GnuPG home of `zbm-crypt` uses. The dracut and mkinitcpio
+  modules install the uutils multi-call binary and a hard link per program when the host has it (uutils refuses to run
+  through a symbolic link whose name is not its own). Decision 4 is recorded: images ship that binary next to `zbm`
+  rather than linking `uu_*` applets into it.
+
+- Adapters only: `zbm-tools` (adapters) runs the system's programs (`mount`, `umount`, `mountpoint`, `modprobe`,
+  `modinfo`, `insmod`, `udevadm`, `tput`, `stty`, `kexec`, `blkid`, `lsblk`, `objcopy`, `objdump`, hooks, key
+  scripts, the recovery shell, editors, Bash's `=~` and `cp`), each with fake-runner tests; `zbm-boot`'s `zfs` and
+  `zpool` runs go through `ZfsCommand::text` and `ZpoolCommand::text` with the same command lines. The workspace's
+  `clippy.toml` (and the strict one) disallow `Command::new` and `Command::shell`; the adapter modules allow them,
+  and test builds allow them with `cfg_attr(test, ...)`. The process supervision of `zbm` (`std::process`, which
+  replaces or supervises whole processes) is the one place outside them that starts programs.
+
+- The shell helpers (`command_substitution`, `read_lines`, `test_integer`, `echo`) are gone from all code but the
+  parsing of configuration: `zbm-cmdline` and the LUKS configuration and crypttab parser of `zbm-luks`. Program
+  output is read with `str::lines` and `trim_end_matches('\n')`, numbers with `parse`; the golden files of the
+  legacy results did not change. `ZbmOptions::menu_timeout_seconds` gives the timeout as a number.
+
+- The LUKS device suites in Rust: `crates/zbm-luks/tests/devices/` (`unlock`, `tokens`, `edge`, `config`) ports the
+  Bash suites case for case and check for check, 52 + 55 + 81 + 64 = 252 checks, all passing; `cargo xtask test
+  devices` runs them as root and CI runs them next to the Bash suites. They call the LUKS code directly, with real LUKS
+  volumes on loop devices, swtpm, `systemd-cryptenroll`, clevis and GnuPG; a device runner stands in for
+  device-mapper (`cryptsetup open` checks the key with `--test-passphrase` and creates a node in the case's own
+  mapper directory), so they need no mount namespace. The Bash stand-ins become Rust: the timed prompts, the console
+  input that arrives late (`< <(sleep N; echo ...)`), the background jobs of the race cases (threads), and the
+  `luksDump` of systemd 261's token plugins. The three legacy-only checks are unit tests. With `ZBM_DEVICE_TESTS=1`
+  set, a suite that cannot run fails rather than skips. The Bash suites and `test-seams` stay while the legacy
+  runtime does: they are the only suites that run against it.
+
+- Exit: every LUKS VM test passes on `aaef3a9`, 44 tests and 764 checks with KVM in about 20 minutes over three
+  parallel lanes, with zero shadow differences (every legacy image runs shadow mode, and a difference fails its
+  test). The two `oldzfs` tests need an image with an older ZFS and were skipped. The run found the uutils symbolic
+  link refusal above, and two gaps in the documented host requirements (`systemd-cryptenroll` is its own package
+  on newer Ubuntu and Debian; the crash test needs `addr2line` and the Rust toolchain), now in
+  `docs/luks/testing.rst`; the crash test runs `cargo xtask symbolize` as the user who started the tests.
+
+R2 is complete. Carried over: `zbm-boot`'s text-mode ZFS runs onto the typed port (R3, with the domain services),
+and fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions).
+
+### Done in R3
+
+- `zbm-pool` (domain): pool import moved out of `zbm-boot`. The settings are types (`ImportSettings` with
+  `PoolRef`, `Requirement`, `BootfsPreference`, `RetryDelay` and `Build`, instead of strings and a flag);
+  `Import` builds `zpool import` from `Target`, `ImportPolicy`, `Access` and `Rewind`; `HostId` is the host ID with
+  its `/etc/hostid` bytes. The retry loop of the start-up stage is `ImportLoop`, a state machine whose transitions
+  (`imported`, `matched`) do no I/O and are tested as a table of paths; `stage` drives it against the system and
+  reaches the console only through the `Operator` port, which `zbm-boot` implements with its countdown prompts and
+  recovery shell. The crate meets the size and type rules and the strict lints, and has no doc comment that names a
+  legacy function. The parity tests of the stage stay in `zbm-boot` and pass against the legacy stage with their
+  recordings unchanged; they caught a dropped debug message during the move. The stage keeps the `zpool` command
+  lines of the legacy code, which those recordings compare, so moving it onto the typed ZFS port waits until the
+  parity tests against the legacy runtime end (R9) or behaviour may change (R5).
+
+- `zbm-startup` (front end): the start-up program moved out of `zbm-boot`, with the stages of modules, host ID,
+  device wait and early hooks, the recovery shell and the start-up hooks (`preinit`). The program is a
+  `Vec<Box<dyn Step>>`, one step per `Stage`, in the order of `Stage::ALL` (a test checks it), run by `run_steps`
+  against a `StepContext`; `Rerun` replaces the `force` flag. The early-hooks stage is a step; running a hook
+  directory stays in `zbm-boot`, which also runs the boot-time hooks. `zbm-startup` has an error enum of its own
+  (`StartupError`), meets the strict lints and the size and type rules, and starts at 97% line coverage; `zbm-boot`
+  has two long files and six legacy-named doc lines fewer. Moving the parity tests moved their recordings with them,
+  unchanged, and showed that `.gitignore` patterns meant for the upstream test VMs (`hostid`, `generate-zbm`,
+  `keys`) had kept 18 recordings out of the repository: CI records live, so their absence went unnoticed. They are
+  committed now, and match the legacy code.
+- `zbm-luks` (domain): the unlock session is `Unlocker` (it was `Session`; the pilot's key chain is now
+  `pilot::KeyChain`). The key methods tried before the prompt are strategies (`KeyMethod`: key script, key file,
+  tokens, passphrases of other volumes, YubiKey), listed by `key_methods` in the legacy order, which a test checks;
+  each answers a `Tried` instead of a flag. LUKS2 tokens go through a registry of `TokenHandler`s (TPM2, clevis,
+  FIDO2), each saying whether it needs the user (`Pass`); unknown types still go to cryptsetup's plugins in the
+  interactive pass. The passphrase prompt is `PassphrasePrompt`, a state machine whose transitions do no I/O, and
+  the mapping state file and skip list are a repository, `MappingStore`, which records where each mapping came from
+  (`Origin`). `zbm-luks` has two long functions and seven legacy-named doc lines fewer, and keeps its 95% line
+  coverage.
+- `zbm-config` (state layer, formerly `zbm-cmdline`): the table of options, 98 entries covering the kernel command
+  line (`zbm.*` and the kernel's `loglevel` and `console`), the dracut and mkinitcpio build options, pool and dataset
+  properties, crypttab options and `generate-zbm`'s configuration keys. Every option of `zfsbootmenu(7)`,
+  `zfsbootmenu-crypttab(5)` and `generate-zbm(5)` comes from the table: `cargo xtask gen-docs` rewrites the marked
+  sections of the pages, `cargo xtask lint` and a unit test check them. Rendered with Sphinx, the pages say the
+  same as before; two notes moved into the entry they belong to, and the deprecated options are listed in table
+  order. The parsers read options by their specification through the `Args` trait (the command line, or the
+  `cmdline.d` files the start-up writes, which replaces `State::zbm_arg`); crypttab parsing moved here from
+  `zbm-luks`, matched by the canonical names of the table; `generate-zbm` reads its keys and the boot code its ZFS
+  properties by their specification. `ZbmOptions::read` records where each value came from (`Origin`: default,
+  command line under which name, or an invalid value replaced by the default), and `Config` puts the options, the
+  LUKS mode and the origins together for `zbm debug config` in R4. Behaviour is unchanged: the parity recordings
+  moved with their tests and still match the legacy code. Not done: the release each option appeared in (the table
+  would have to guess it), new warnings for deprecated names (a behaviour change, for R5), and the build options are
+  still read by the shell scripts of the dracut module and the mkinitcpio hook (R6, recorded in the table as their
+  reader). The strict lints for `zbm-config` are part of R3.5.
+- Size and type rules (R3.5): `zbm-boot`'s `boot.rs` is split into `boot/` (ZFS queries, mounts, kernel discovery,
+  the boot sequence) and `commandline.rs` lost its long function; `generate-zbm`'s `generate.rs` is split into
+  `generate/` (settings, system, kernels, initramfs, bundle, install), `dump.rs` into its emitter and quoting styles,
+  and its parity tests into a directory; the long functions of `zbm-luks` (unlocking every volume, TPM2, GnuPG,
+  FIDO2, YubiKey, key devices) and `zbm-config` (crypttab options) are split into small steps, with enums where
+  outcomes were `Option<Option<_>>`. These four crates and `zbm-boot` now have no function over 60 lines and no file
+  over 600 (`xtask metrics`: 0 long functions and files, down from 18 and 10). `zbm-config` and `zbm-luks` pass the
+  strict lints and are on the strict list; indexing in the hand-written SHA-256, HMAC and base64 of `zbm-luks` is
+  allowed with its reason. Moving tests out of source files lowered the measured coverage of `zbm-boot` and
+  `zbm-luks`, whose test lines had counted as covered; new tests of the error paths and of the cryptsetup plugin
+  paths for FIDO2 and TPM2 bring both back to their baselines. Behaviour is unchanged: unit, parity and device tests
+  pass.
+- The VM harness in Rust (R3.6): `zbm-vmtest` has every scenario of the Python harness (layouts, complex, keys,
+  firmware, procedures with the documentation's commands, runtime) and the fixture recorders, and `zbm-vmtest run`
+  (`cargo xtask test vm`) replaces `run-all.sh`. QEMU's serial console goes to a Unix socket, read by a thread into
+  the log, a `vt100` screen and the text patterns match, without escape sequences; `expect` keeps `pexpect`'s rule
+  (the earliest match wins). Check messages are those of the Python harness, and `zbm-vmtest compare` set the two
+  runs side by side: the 45 tests gave the same 764 checks with the same verdicts, except one in `procedures` that
+  the Rust harness, quicker to send the next command, caught failing: `zpool wait -t resilver` returns before ZFS
+  drops the replaced disk, so "Replacing a failed disk" in `docs/luks/administration.rst` now waits with `-t
+  replace`. The Python harness and `scripts/dev/record-fixtures.py` are removed; CI runs the runtime tests with the
+  Rust harness. A test that cannot go on records why as a failed check and still writes its result. The harness is
+  unit tested against scripted consoles; its scenarios run only in VMs, so the crate starts at 60% line coverage,
+  below the 80% of new crates, as its baseline.
+
+### Done in D
+
+- The design in `docs/dev/menu-design/`: users, core tasks with keystroke budgets and scenarios; the information
+  architecture (frame, views, dialogs, navigation); the visual system (colour roles, monochrome, ASCII, capability
+  detection, layout by size); the key map, one meaning per key; the `Snapshot`, `Action` and event lists for R4
+  (`interfaces.md`); the plan of the usability sessions (`usability.md`).
+- In `zbm-tui`, `menu::theme` and `menu::caps` (roles as Ratatui styles, from `TERM`, `NO_COLOR` and the locale) and
+  `menu::keymap` (the bindings, the footer and help generated from them, the classic aliases), with the Elm
+  architecture of the prototype: `Model`, `update`, `view`, and `menu::world`, the lists proposed for `zbm-app`.
+- `cargo run -p zbm-tui -- --demo` runs every core task on a fake machine: two pools (one degraded, with a
+  checkpoint), four boot environments, 400 snapshots, three LUKS volumes with a TPM2 PIN, a passphrase and a security
+  key that is never plugged in, and with `--foreign` a pool of another host. `--log-keys` records key presses for
+  the sessions.
+- The wireframes are the prototype's snapshot tests: every view at 120×40, 80×25 and 52×20, and the main views in
+  ASCII, in `docs/dev/menu-design/wireframes/`. A test of the core tasks keeps each within its budget: T1 0 keys,
+  T2 2, T3 3, T4 3 to boot a snapshot and 4 plus the name to roll back, T5 the secret and Enter, T6 2 plus the edit,
+  T7 2.
+- The design follows Apple's Human Interface Guidelines adapted to the console (`docs/dev/menu-design/apple-hig.md`):
+  a navigation bar with a back label, a countdown banner, grouped lists with value rows, an inspector, alerts with
+  verb buttons (the destructive one disabled until the target's name is typed), action sheets with Cancel set apart,
+  a dimmed backdrop, a toolbar of at most five actions and `? More`, and title case. Glyphs are limited to those of
+  the image's Terminus fonts, which have no check marks or rounded corners; a test of the wireframes reads the
+  fonts' Unicode tables and fails on any other.
+- Boot health in the prototype (`docs/dev/menu-design/boot-health.md`): checks of whether each environment will
+  boot, shown on its row and in the inspector, with a *May Not Boot* sheet before booting one that fails; boot
+  counting, with a banner naming the fallback when the default used up its tries (`--failing`) and a palette
+  command to give them back; a one-time boot asked by the running system (`--next-boot`); and a Changes view of a
+  snapshot that restores marked files behind a safety snapshot. T8, restoring a file, takes 5 keys of its 6.
+- Unlocking and upgrades in the prototype (`docs/dev/menu-design/unlocking.md`, `boot-health.md`): when a PCR a TPM2
+  key is sealed to changed, the unlock dialog asks for the passphrase and says which PCR and why, then offers to seal
+  the key again (`--tpm-changed`); `Ctrl-K` types with another keyboard layout, translated by key position, and a
+  wrong passphrase points to it; `Ctrl-R` shows what is typed; the Changes view of a snapshot gains a Packages
+  segment, from the package database, with the files of each package. ROADMAP.md gains #15 (reclaim space from
+  snapshots) and #16 (pool health in detail).
+- Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
+  under *classic* in help, with no second profile. The usability sessions decide.
+- Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users
+  and are run by the maintainer, and the review of the design documents.
+
+## What the pilots taught
+
+The two pilot slices of R0 ran through every layer of the target architecture: key-file unlock
+(`zluks --pilot open`: `zbm-types`, `zbm-trace`, `zbm-platform`, `zbm-crypt`, the `pilot` of `zbm-luks`,
+`zbm-app`) and the boot environment list of the new menu (`zbm-menu-pilot`: `zbm-app`'s `Snapshot`, `zbm-tui`). Both
+work in the Rust image on a serial console (`runtime-rust-pilot`). The architecture holds; these are the changes and
+measurements they brought, which R1 to R5 follow.
+
+**Crate boundaries and layers.** Three layers were added to the table in `xtask/src/deps.rs`: `types` above `unsafe`
+(`zbm-types`), `ports` between platform and adapters (`zbm-platform`), and `application` between domain and
+orchestration (`zbm-app`). `zbm-tui` sits with `zbm` among the front ends. `check-deps` caught six new crates
+without a layer and four third-party crates nobody had allowed, at once; test-only crates (`insta`, `proptest`,
+`pretty_assertions`) are now allowed as development dependencies of every crate (`TEST_THIRD_PARTY`).
+
+**The shape of `Context`.** A `Context` is the runner (traced), the files and the clock. It must not require a
+console: the real `System` bundles one, which needs a terminal, and `zluks --pilot` run from a script has none.
+`Context::from_parts` builds one from the ports a program has; R2 makes that the only constructor, and the console a
+port of front ends.
+
+**Errors and outcomes.** Typestate with a hand-back works: `Mapping<Closed>` → `Mapping<Open>` through
+`Cryptsetup::open`, and a failure (`Failed<S>`) returns the mapping unchanged with a `CryptError`, so the chain of key
+methods passes it on without clones. `cryptsetup`'s exit statuses map onto typed errors (2 a wrong key, 4 no device, 5
+busy), as a real run in the VM confirmed. "One error enum per crate" bends where a struct reads better:
+`zbm_types::ParseError` is one struct with a `Reason` enum.
+
+**Events.** `Event` is `#[non_exhaustive]`, so every front end matching it needs a catch-all arm; instead, `Event`
+implements `Display` in `zbm-app` and front ends print it. `App::perform` returns `Vec<Event>` for now; the event
+stream waits for a use case that emits events over time (R4).
+
+**Tracing and the journal.** The traced runner, a decorator, gives the command journal for free. Spans carry domain
+fields only (`device`, `name`, the action's `kind`), never the debug text of a request. Journal lines need the
+process ID besides the sequence number, because several programs append to one journal.
+
+**The menu on a serial console.** Ratatui asks the terminal where the cursor is (`ESC [ 6 n`) when it starts; a
+serial console with nobody answering makes it fail. `zbm-tui`'s backend therefore never asks: it keeps the cursor
+position and the size itself (`QuietBackend`). Serial consoles report no size, or whatever `stty` set; the menu uses
+the reported size, else `--size`, else 80×24, in a fixed viewport. `TERM=vt100` gets ASCII borders. Typing filters and
+Enter chooses on both `TERM=vt100` and `TERM=linux`. `nucleo-matcher` inside `update` keeps it pure and fast for the
+short lists of a boot menu.
+
+**Measured.** In the VM, under software emulation (TCG): frames of 15 to 24 ms on average and 38 to 64 ms at most;
+about 76 serial bytes per key typed into the filter, because Ratatui redraws only the cells that change; 0.06 s from
+Enter to the answer. The release `zbm` grows from 1.09 MB to 1.78 MB with Ratatui, crossterm, `nucleo-matcher` and
+`tracing`, about 1% of a 62 MB initramfs.
+
+**Tests.** Snapshot tests paid off at once: the 52-column screen showed the help line cut mid-word, so the help line
+now shows whole key bindings in order of importance. The VM harness needs a terminal emulator: Ratatui moves the
+cursor over blank cells instead of writing spaces, so a serial transcript reads `Boot` + cursor move +
+`environments`. R3 adds one (the `vt100` crate) to `zbm-vmtest`, which can then take `insta` snapshots of real
+screens. Patterns must also wait for the end of a line, or they match half of it. Device tests need a kernel with
+device-mapper, which this development sandbox lacks: they skip and say so, and run in CI and in the VM.
+
+**Lints.** `clippy::must_use_candidate` made up 313 of the 1,105 strict findings, nearly all of them getters; the
+strict set allows it (`STRICT_ALLOWED`) and puts `#[must_use]` where ignoring a value is a mistake. The pilot crates
+have no strict finding.
+
+**Tooling.** `cargo vendor` deletes every other file in `vendor/`, so the list of dependencies moved to
+`docs/dev/dependencies.md`.
