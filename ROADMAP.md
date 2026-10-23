@@ -41,7 +41,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 2 | Medium | Proposed |
 | 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Proposed |
 | 19 | [Own console in Rust](#19-own-console-in-rust) | 4 | Large | Proposed |
-| 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | 2 | Small | In progress |
+| 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | 2 | Small | Done |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -289,7 +289,7 @@ Needs the built-in menu (#12) with its text in a message catalogue, which REFACT
 For images with the Rust runtime, where `zbm console-autosize` chooses the font; the legacy hook keeps its fonts. It
 helps the kernel console until, and wherever, #19 replaces it.
 
-**Status:** the subsets are done: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
+**Status:** done. The subsets: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
 and wireframe tests check them, and the VM test `runtime-rust-autosize` loads them on a real kernel, doubled too.
 Spleen is done too: Spleen 2.2.0 in 8×16, 12×24, 16×32 and 32×64 (`legacy/zfsbootmenu/fonts/spleen/`, with its
 licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Global.ConsoleFont: spleen` or the build option
@@ -297,7 +297,8 @@ licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Globa
 VM test passes with both families (64984bd): the Spleen image, built through `generate-zbm`, holds Spleen only, loads
 8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours is the VM test
 `runtime-rust-colours`, which counts the colours of a 16-colour bar in QEMU screenshots of the VGA text console and the
-framebuffer console, with the image's font and the whole 512-glyph one; it waits for its first run.
+framebuffer console, with the image's font and the whole 512-glyph one: it passes (803de05). The image's fonts show all
+16 colours on both consoles; the whole font shows 8 on the VGA text console.
 
 - **Why:**
   - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
