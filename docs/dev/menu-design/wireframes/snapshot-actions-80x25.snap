@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Snapshots of zroot/ROOT/void    tank DEGRADED · 3/3 open · [!] 1
+┌ Snapshots 400/400 by creation ───────────────────────────────────────────────┐
+│>   pre-upgrade                  12 h ago    1.1 GiB                          │
+│    autosnap_2026-10-22_daily     1 d ago     17 MiB                          │
+│    autosnap_2026-10-21_daily     2 d ago     30 MiB                          │
+│    autosnap_2026-10-20_daily     3 d ago     43 MiB                          │
+│    autosnap_2026-10-19_daily     4 d ago     56 MiB                          │
+│    ┌ Snapshot pre-upgrade ──────────────────────────────────────────────┐    │
+│    │zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1 GiB                    │    │
+│    │                                                                    │    │
+│    │> Boot a temporary clone of it                                      │    │
+│    │  Roll back to it                                                   │    │
+│    │  Clone it into a new boot environment                              │    │
+│    │  Duplicate it (an independent copy)                                │    │
+│    │  Clone it and promote the clone                                    │    │
+│    │  Differences to now                                                │    │
+│    │  Chroot into it (read-only)                                        │    │
+│    └────────────────────────────────────────────────────────────────────┘    │
+│    autosnap_2026-10-07_daily    16 d ago     30 MiB                          │
+│    autosnap_2026-10-06_daily    17 d ago     43 MiB                          │
+│    autosnap_2026-10-05_daily    18 d ago     56 MiB                          │
+│    autosnap_2026-10-04_daily    19 d ago     69 MiB                          │
+│    autosnap_2026-10-03_daily    20 d ago     82 MiB                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Enter] choose  [Esc] back  [Up/Down] select

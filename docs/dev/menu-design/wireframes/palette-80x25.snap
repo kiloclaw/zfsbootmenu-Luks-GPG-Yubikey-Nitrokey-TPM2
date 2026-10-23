@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Boot environments               tank DEGRADED · 3/3 open · [!] 1
+┌ Boot environments 4/4 ───────────────────────────────────────────────────────┐
+│> * zroot/ROOT/void    6.12.9_1                                               │
+│    tank/ROOT/arch     6.11.5-arch1-1                                         │
+│    tank/ROOT/debian   6.1.0-26-amd64                                         │
+│    ┌ Commands 57/427 ───────────────────────────────────────────────────┐    │
+│    │: 2026-09                                                           │    │
+│    │> Boot a clone of zroot/ROOT/void@autosnap_2026-09-30_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-29_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-28_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-27_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-26_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-25_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-24_daily         │    │
+│    │  Boot a clone of zroot/ROOT/void@autosnap_2026-09-23_daily         │    │
+└────│  Boot a clone of zroot/ROOT/void@autosnap_2026-09-22_daily         │────┘
+┌ zro│  Boot a clone of zroot/ROOT/void@autosnap_2026-09-21_daily         │────┐
+│pool│  Boot a clone of zroot/ROOT/void@autosnap_2026-09-20_daily         │    │
+│kern│  Boot a clone of zroot/ROOT/void@autosnap_2026-09-19_daily         │    │
+│snap│  Boot a clone of zroot/ROOT/void@autosnap_2026-09-18_daily         │    │
+│encr└────────────────────────────────────────────────────────────────────┘    │
+│command line quiet loglevel=4  from zroot/ROOT                                │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [Enter] confirm  [Esc] back  [Up/Down] select

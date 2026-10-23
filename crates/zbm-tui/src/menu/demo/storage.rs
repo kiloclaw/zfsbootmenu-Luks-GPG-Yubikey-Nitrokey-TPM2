@@ -72,21 +72,15 @@ fn boot_message(
     format!("Booting {name} with kernel {kernel} and the command line \"{line}\"")
 }
 
-/// Imports `pool` read/write, as every change needs.
-fn make_writable(snapshot: &mut Snapshot, pool: &PoolName) -> bool {
-    let Some(found) = snapshot.pools.iter_mut().find(|p| &p.name == pool) else {
-        return false;
-    };
-    let was = found.writable;
-    found.writable = true;
-    !was
-}
-
-fn note(changed: bool, pool: &PoolName) -> String {
-    if changed {
-        format!(" ({pool} imported read/write)")
-    } else {
-        String::new()
+/// Imports `pool` read/write, as every change needs; returns a note to add
+/// to the outcome when it was read-only, else nothing.
+fn make_writable(snapshot: &mut Snapshot, pool: &PoolName) -> String {
+    match snapshot.pools.iter_mut().find(|p| &p.name == pool) {
+        Some(found) if !found.writable => {
+            found.writable = true;
+            format!(" ({pool} imported read/write)")
+        }
+        _ => String::new(),
     }
 }
 
@@ -96,20 +90,17 @@ fn environment<'a>(snapshot: &'a mut Snapshot, name: &DatasetName) -> Option<&'a
 
 fn set_default(snapshot: &mut Snapshot, name: &DatasetName) -> Outcome {
     let pool = name.pool();
-    let changed = make_writable(snapshot, &pool);
+    let note = make_writable(snapshot, &pool);
     for environment in &mut snapshot.environments {
         if environment.name.pool() == pool {
             environment.is_default = &environment.name == name;
         }
     }
-    Outcome::Done(format!(
-        "{name} is the default of {pool}{}",
-        note(changed, &pool)
-    ))
+    Outcome::Done(format!("{name} is the default of {pool}{note}"))
 }
 
 fn set_kernel(snapshot: &mut Snapshot, name: &DatasetName, version: Option<&str>) -> Outcome {
-    let changed = make_writable(snapshot, &name.pool());
+    let note = make_writable(snapshot, &name.pool());
     let Some(environment) = environment(snapshot, name) else {
         return Outcome::Warning(format!("{name} is gone"));
     };
@@ -120,11 +111,11 @@ fn set_kernel(snapshot: &mut Snapshot, name: &DatasetName, version: Option<&str>
         || format!("{name} boots its newest kernel"),
         |version| format!("{name} boots {version} by default"),
     );
-    Outcome::Done(format!("{what}{}", note(changed, &name.pool())))
+    Outcome::Done(format!("{what}{note}"))
 }
 
 fn create(snapshot: &mut Snapshot, name: &DatasetName, tag: &str) -> Outcome {
-    let changed = make_writable(snapshot, &name.pool());
+    let note = make_writable(snapshot, &name.pool());
     let Some(environment) = environment(snapshot, name) else {
         return Outcome::Warning(format!("{name} is gone"));
     };
@@ -140,10 +131,7 @@ fn create(snapshot: &mut Snapshot, name: &DatasetName, tag: &str) -> Outcome {
             used: 0,
         },
     );
-    Outcome::Done(format!(
-        "{snapshot_name} created{}",
-        note(changed, &name.pool())
-    ))
+    Outcome::Done(format!("{snapshot_name} created{note}"))
 }
 
 fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Outcome {
@@ -175,7 +163,7 @@ fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Out
 
 fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
     let pool = name.pool();
-    let changed = make_writable(snapshot, &pool);
+    let note = make_writable(snapshot, &pool);
     let Some(source) = snapshot
         .environments
         .iter()
@@ -199,11 +187,7 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
         snapshots: Vec::new(),
         ..source
     });
-    Outcome::Done(format!(
-        "{new} created from {}{}",
-        name.name(),
-        note(changed, &pool)
-    ))
+    Outcome::Done(format!("{new} created from {}{}", name.name(), note))
 }
 
 fn diff(from: &SnapshotName, to: Option<&SnapshotName>) -> Outcome {
@@ -215,10 +199,10 @@ fn diff(from: &SnapshotName, to: Option<&SnapshotName>) -> Outcome {
 }
 
 fn writable(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
-    if make_writable(snapshot, pool) {
-        Outcome::Done(format!("{pool} imported read/write"))
-    } else {
+    if make_writable(snapshot, pool).is_empty() {
         Outcome::Done(format!("{pool} was imported read/write already"))
+    } else {
+        Outcome::Done(format!("{pool} imported read/write"))
     }
 }
 

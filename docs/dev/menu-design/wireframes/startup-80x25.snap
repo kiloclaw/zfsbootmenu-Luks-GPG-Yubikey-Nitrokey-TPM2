@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Starting                        tank DEGRADED · 3/3 open · [!] 1
+┌ Starting ZFSBootMenu ────────────────────────────────────────────────────────┐
+│ [  ok  ] Load the ZFS module                                                 │
+│ [  ok  ] Set the host ID                                                     │
+│ [  ... ] Unlock LUKS volumes                                                 │
+│ [      ] Import pools                                                        │
+│ [      ] Find boot environments                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [:] commands  [l] log  [!] recovery  [x] power  [?] help  [Esc] back

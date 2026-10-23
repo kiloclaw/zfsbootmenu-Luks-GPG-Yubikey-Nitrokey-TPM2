@@ -91,6 +91,15 @@ impl Theme {
         }
     }
 
+    /// The separator between facts on one line: a middle dot, or `|`.
+    pub fn dot(self) -> &'static str {
+        if self.capabilities.line_drawing {
+            " · "
+        } else {
+            " | "
+        }
+    }
+
     /// Whether it draws with ASCII characters only.
     pub fn is_ascii(self) -> bool {
         !self.capabilities.line_drawing

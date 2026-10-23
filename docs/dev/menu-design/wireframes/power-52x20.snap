@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Boot environments tank DEGRADED · 3/3 open · [!] 1
+┌ Boot environments 4/4 ───────────────────────────┐
+│> * zroot/ROOT/void    6.12.9_1                   │
+│    tank/ROOT/arch     6.11.5-arch1-1             │
+│    tank/ROOT/debian   6.1.0-26-amd64             │
+│    zroot/ROOT/ubuntu  6.8.0-47-generic           │
+│                                                  │
+│                                                  │
+│ ┌ Power ───────────────────────────────────────┐ │
+│ │> Power off                                   │ │
+└─│  Reboot                                      │─┘
+┌ │  Reboot into the firmware setup              │─┐
+│p└──────────────────────────────────────────────┘ │
+│kernel       6.12.9_1 (3 kernels)                 │
+│snapshots    400, newest pre-upgrade 12 h ago     │
+│encryption   key loaded                           │
+│command line quiet loglevel=4  from zroot/ROOT    │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ [Enter] choose  [Esc] back  [Up/Down] select

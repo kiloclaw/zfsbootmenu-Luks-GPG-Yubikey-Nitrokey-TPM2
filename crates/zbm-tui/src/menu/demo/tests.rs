@@ -96,9 +96,11 @@ fn the_security_key_is_never_found() {
         secret: None,
     });
 
-    assert!(
-        matches!(&events[0], Event::Finished(Outcome::Warning(text)) if text.starts_with("no security key"))
+    let warned = matches!(
+        &events[0],
+        Event::Finished(Outcome::Warning(text)) if text.starts_with("no security key")
     );
+    assert!(warned);
 }
 
 #[test]
@@ -166,7 +168,11 @@ fn leaving_actions_end_the_menu() {
     assert_eq!(
         events,
         [Event::Leaving(
-            "Booting tank/ROOT/arch with kernel 6.11.5-arch1-1 and the command line \"rw quiet splash\"".into()
+            concat!(
+                "Booting tank/ROOT/arch with kernel 6.11.5-arch1-1 ",
+                "and the command line \"rw quiet splash\""
+            )
+            .into()
         )]
     );
 }

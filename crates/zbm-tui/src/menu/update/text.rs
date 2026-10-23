@@ -6,17 +6,18 @@ use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
 use crate::menu::world::{Action, Outcome};
 
-/// Applies a typing input to `text`; returns whether it was one.
-fn edit(text: &mut String, input: Input) -> bool {
+/// Applies a typing input to `text`; returns the intent when the input is
+/// not typing, and leaves `text` alone.
+fn edit(text: &mut String, input: Input) -> Option<Intent> {
     match input {
         Input::Type(c) => text.push(c),
         Input::Erase => {
             text.pop();
         }
         Input::Clear => text.clear(),
-        Input::Intent(_) => return false,
+        Input::Intent(intent) => return Some(intent),
     }
-    true
+    None
 }
 
 /// The filter of the current list.
@@ -24,9 +25,11 @@ pub(super) fn filter(model: &mut Model, input: Input) -> Vec<Action> {
     let Some(list) = model.list_mut() else {
         return Vec::new();
     };
-    if edit(&mut list.filter, input) {
-        list.selected = 0;
+    if edit(&mut list.filter, input).is_none() {
         model.refresh();
+        if let Some(list) = model.list_mut() {
+            list.selected = 0;
+        }
         return Vec::new();
     }
     match input {
@@ -65,7 +68,7 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
         return Vec::new();
     };
     let items = palette_items(model);
-    if edit(&mut palette.query, input) {
+    if edit(&mut palette.query, input).is_none() {
         palette.matches =
             crate::menu::filter::rank(items.iter().map(|item| item.label.as_str()), &palette.query);
         palette.selected = 0;
@@ -151,7 +154,7 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
         model.screen = Screen::Main;
         return Vec::new();
     };
-    if edit(&mut editor.text, input) {
+    if edit(&mut editor.text, input).is_none() {
         model.editor = Some(editor);
         return Vec::new();
     }

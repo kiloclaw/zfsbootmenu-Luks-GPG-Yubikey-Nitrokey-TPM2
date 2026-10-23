@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Booting zroot/ROOT/void in 10 s · any key stops             pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
+┌ Boot environments 4/4 ───────────────────────────────────────────────┐┌ zroot/ROOT/void (default) ───────────────────┐
+│> * zroot/ROOT/void    6.12.9_1                                       ││pool         zroot ONLINE, read-only          │
+│    tank/ROOT/arch     6.11.5-arch1-1                                 ││kernel       6.12.9_1 (3 kernels)             │
+│    tank/ROOT/debian   6.1.0-26-amd64                                 ││snapshots    400, newest pre-upgrade 12 h ago │
+│    zroot/ROOT/ubuntu  6.8.0-47-generic                               ││encryption   key loaded                       │
+│                                                                      ││command line quiet loglevel=4  from zroot/ROOT│
+│                                                                      ││                                              │
+│                                                                      ││Kernels                                       │
+│                                                                      ││* 6.12.9_1                                    │
+│                                                                      ││  6.12.8_1                                    │
+│                                                                      ││  6.8.0_1                                     │
+│                                                                      ││                                              │
+│                                                                      ││Newest snapshots                              │
+│                                                                      ││  pre-upgrade  12 h ago                       │
+│                                                                      ││  autosnap_2026-10-22_daily  1 d ago          │
+│                                                                      ││  autosnap_2026-10-21_daily  2 d ago          │
+│                                                                      ││  autosnap_2026-10-20_daily  3 d ago          │
+│                                                                      ││  autosnap_2026-10-19_daily  4 d ago          │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+└──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
+ [Enter] boot  [k] kernels  [s] snapshots  [e] edit  [d] default  [p] pools  [n] snapshot  [w] read/write  [j] chroot

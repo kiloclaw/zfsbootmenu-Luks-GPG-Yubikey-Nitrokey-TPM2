@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Pools and volumes                             pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
+┌ Pools and LUKS volumes ──────────────────────────────────────────────────────────────────────────────────────────────┐
+│> pool    zroot          ONLINE    read-only                                                                          │
+│  pool    tank           DEGRADED  read-only                                                                          │
+│  volume  luks-zroot-a   open      /dev/nvme0n1p2, TPM2 PIN or passphrase                                             │
+│  volume  luks-zroot-b   open      /dev/nvme1n1p2, security key or passphrase                                         │
+│  volume  luks-tank      open      /dev/sda2, passphrase                                                              │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ [Enter] details  [u] unlock  [i] import  [w] read/write  [h] rewind  [/] filter  [:] commands  [l] log  [!] recovery

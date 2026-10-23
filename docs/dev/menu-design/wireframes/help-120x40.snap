@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Help                                          pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
+┌ Help (Up/Down scroll) ───────────────────────────────────────────────────────────────────────────────────────────────┐
+│This view                                                                                                             │
+│  Enter             boot                                                                                              │
+│  b                 boot                                                                                              │
+│  k                 kernels                                                                                           │
+│  s                 snapshots                                                                                         │
+│  e                 edit                                                                                              │
+│  d                 default                                                                                           │
+│  p                 pools                                                                                             │
+│  n                 snapshot                                                                                          │
+│  w                 read/write                                                                                        │
+│  j                 chroot                                                                                            │
+│  /                 filter                                                                                            │
+│  :                 commands                                                                                          │
+│  o                 sort                                                                                              │
+│  l                 log                                                                                               │
+│  !                 recovery                                                                                          │
+│  x                 power                                                                                             │
+│  ?, F1             help                                                                                              │
+│  Esc, Ctrl-C       back                                                                                              │
+│  Up, Ctrl-P        select                                                                                            │
+│  Down, Ctrl-N      select                                                                                            │
+│  PgUp              move                                                                                              │
+│  PgDn              move                                                                                              │
+│  Home              move                                                                                              │
+│  End               move                                                                                              │
+│  Ctrl-L            redraw                                                                                            │
+│Classic bindings (MOD is Alt or Ctrl)                                                                                 │
+│  MOD+K             kernels                                                                                           │
+│  MOD+S             snapshots                                                                                         │
+│  MOD+D             default                                                                                           │
+│  MOD+E             edit                                                                                              │
+│  MOD+T             revert                                                                                            │
+│  MOD+P             pools                                                                                             │
+│  MOD+R             shell                                                                                             │
+│  MOD+J             chroot                                                                                            │
+│  MOD+W             read/write                                                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ [Esc] back  [Up/Down] scroll

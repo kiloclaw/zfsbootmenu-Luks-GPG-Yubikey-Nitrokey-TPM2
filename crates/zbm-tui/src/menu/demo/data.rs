@@ -42,11 +42,19 @@ pub const HOSTID: &str = "00bab10c";
 /// The host ID that last imported the foreign pool.
 pub const FOREIGN_HOSTID: &str = "deadbeef";
 
+#[allow(
+    clippy::unreachable,
+    reason = "the names of the demo machine are literals that parse"
+)]
 fn dataset(name: &str) -> DatasetName {
     name.parse()
         .unwrap_or_else(|_| unreachable!("demo names are valid"))
 }
 
+#[allow(
+    clippy::unreachable,
+    reason = "the names of the demo machine are literals that parse"
+)]
 fn snapshot_name(name: &str) -> SnapshotName {
     name.parse()
         .unwrap_or_else(|_| unreachable!("demo names are valid"))
@@ -81,6 +89,10 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
     }
 }
 
+#[allow(
+    clippy::unreachable,
+    reason = "the names of the demo machine are literals that parse"
+)]
 fn pool(name: &str, health: Health) -> Pool {
     Pool {
         name: name

@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Starting          tank DEGRADED · 0/3 open · [!] 1
+┌ Starting ZFSBootMenu ────────────────────────────┐
+│ [  ok  ] Load the ZFS module                     │
+│ [  ok  ] Set the host ID                         │
+│ [  ... ] Unlock LUKS volumes                     │
+│ [      ] Import pools                            │
+│ ┌ Unlock ──────────────────────────────────────┐ │
+│ │luks-zroot-a on /dev/nvme0n1p2                │ │
+│ │                                              │ │
+│ │TPM2 PIN:                                     │ │
+│ │                                              │ │
+│ │Up/Down: passphrase                           │ │
+│ │Esc: leave it locked                          │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ [Enter] confirm  [Esc] back  [Up/Down] select

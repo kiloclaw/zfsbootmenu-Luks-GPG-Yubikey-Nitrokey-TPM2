@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Help              tank DEGRADED · 3/3 open · [!] 1
+┌ Help (Up/Down scroll) ───────────────────────────┐
+│This view                                         │
+│  Enter             boot                          │
+│  b                 boot                          │
+│  k                 kernels                       │
+│  s                 snapshots                     │
+│  e                 edit                          │
+│  d                 default                       │
+│  p                 pools                         │
+│  n                 snapshot                      │
+│  w                 read/write                    │
+│  j                 chroot                        │
+│  /                 filter                        │
+│  :                 commands                      │
+│  o                 sort                          │
+│  l                 log                           │
+│  !                 recovery                      │
+└──────────────────────────────────────────────────┘
+ [Esc] back  [Up/Down] scroll

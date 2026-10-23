@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Snapshots of zro… tank DEGRADED · 3/3 open · [!] 1
+┌ Snapshots 400/400 by creation ───────────────────┐
+│>   pre-upgrade                 12 h ago    1.1 Gi│
+│    autosnap_2026-10-22_dai…     1 d ago     17 Mi│
+│    autosnap_2026-10-21_dai…     2 d ago     30 Mi│
+│    autosnap_2026-10-20_dai…     3 d ago     43 Mi│
+│    autosnap_2026-10-19_dai…     4 d ago     56 Mi│
+│    autosnap_2026-10-18_dai…     5 d ago     69 Mi│
+│    autosnap_2026-10-17_dai…     6 d ago     82 Mi│
+│    autosnap_2026-10-16_dai…     7 d ago    4.0 Mi│
+│    autosnap_2026-10-15_dai…     8 d ago     17 Mi│
+│    autosnap_2026-10-14_dai…     9 d ago     30 Mi│
+│    autosnap_2026-10-13_dai…    10 d ago     43 Mi│
+│    autosnap_2026-10-12_dai…    11 d ago     56 Mi│
+│    autosnap_2026-10-11_dai…    12 d ago     69 Mi│
+│    autosnap_2026-10-10_dai…    13 d ago     82 Mi│
+│    autosnap_2026-10-09_dai…    14 d ago    4.0 Mi│
+│    autosnap_2026-10-08_dai…    15 d ago     17 Mi│
+└──────────────────────────────────────────────────┘
+ [Enter] choose  [r] roll back  [c] clone  [f] diff

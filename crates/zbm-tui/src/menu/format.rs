@@ -11,10 +11,11 @@ pub fn size(bytes: u64) -> String {
         value /= 1024;
         unit += 1;
     }
+    let name = UNITS.get(unit).copied().unwrap_or_default();
     if unit > 0 && value < 10 {
-        format!("{value}.{tenths} {}", UNITS[unit])
+        format!("{value}.{tenths} {name}")
     } else {
-        format!("{value} {}", UNITS[unit])
+        format!("{value} {name}")
     }
 }
 

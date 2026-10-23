@@ -5,8 +5,8 @@
 //!   proposed for `zbm-app`;
 //! - [`caps`] and [`theme`]: the visual system;
 //! - [`keymap`]: the key map;
-//! - [`Model`], [`update`] and [`view`]: the Elm architecture of the
-//!   prototype;
+//! - [`Model`], [`update`](fn@update) and [`view`](fn@view): the Elm
+//!   architecture of the prototype;
 //! - [`demo`]: a fake machine that answers the actions, for
 //!   `zbm-tui --demo`.
 
@@ -16,9 +16,12 @@ pub mod filter;
 pub mod format;
 pub mod keymap;
 pub mod model;
+pub mod terminal;
 pub mod theme;
 pub mod update;
+pub mod view;
 pub mod world;
 
 pub use model::Model;
 pub use update::{Message, update};
+pub use view::view;

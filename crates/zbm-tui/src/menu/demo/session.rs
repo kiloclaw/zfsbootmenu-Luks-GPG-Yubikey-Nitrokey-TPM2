@@ -34,6 +34,10 @@ impl Session {
     }
 
     /// The menu.
+    #[allow(
+        clippy::unreachable,
+        reason = "update takes the model by value; step puts it back before returning"
+    )]
     pub fn model(&self) -> &Model {
         self.model
             .as_ref()

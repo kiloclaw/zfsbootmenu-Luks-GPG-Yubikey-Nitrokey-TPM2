@@ -11,6 +11,8 @@ mod storage;
 
 pub use session::Session;
 
+use zbm_platform::secret::Secret;
+
 use crate::menu::world::{Action, Event, Method, Outcome, Snapshot, StageState, VolumeState};
 
 /// What the demo machine has.
@@ -86,20 +88,24 @@ impl FakeMachine {
         else {
             return Vec::new();
         };
-        if stages[current].state == StageState::Pending {
-            stages[current].state = StageState::Running;
+        if let Some(stage) = stages.get_mut(current)
+            && stage.state == StageState::Pending
+        {
+            stage.state = StageState::Running;
             return vec![self.changed()];
         }
         if let Some(event) = self.blocking(current) {
             self.waiting = true;
             return vec![event];
         }
-        let skipped = current == data::UNLOCK_STAGE && self.all_skipped();
-        self.snapshot.startup[current].state = if skipped {
-            StageState::Skipped
-        } else {
-            StageState::Done
-        };
+        let skipped = current == data::UNLOCK_STAGE && self.were_all_skipped();
+        if let Some(stage) = self.snapshot.startup.get_mut(current) {
+            stage.state = if skipped {
+                StageState::Skipped
+            } else {
+                StageState::Done
+            };
+        }
         vec![self.changed()]
     }
 
@@ -146,7 +152,7 @@ impl FakeMachine {
         }
     }
 
-    fn all_skipped(&self) -> bool {
+    fn were_all_skipped(&self) -> bool {
         self.snapshot
             .volumes
             .iter()
@@ -164,7 +170,7 @@ impl FakeMachine {
                 volume,
                 method,
                 secret,
-            } => self.unlock(&volume, method, secret.as_ref().map(|s| s.expose())),
+            } => self.unlock(&volume, method, secret.as_ref().map(Secret::expose)),
             Action::SkipUnlock(volume) => {
                 self.set_volume(&volume, VolumeState::Skipped);
                 self.waiting = false;

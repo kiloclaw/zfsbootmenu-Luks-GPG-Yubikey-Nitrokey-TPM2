@@ -230,7 +230,7 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
     } else {
         (position + 1) % methods.len()
     };
-    methods[next]
+    methods.get(next).copied().unwrap_or(method)
 }
 
 /// The choice dialog.

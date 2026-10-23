@@ -1756,6 +1756,7 @@ dependencies = [
  "pretty_assertions",
  "ratatui",
  "zbm-app",
+ "zbm-platform",
  "zbm-types",
 ]
 

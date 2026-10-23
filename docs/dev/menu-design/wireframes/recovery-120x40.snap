@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Recovery                                      pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
+┌ Recovery tools ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│>   Recovery shell                                                                                                    │
+│    Chroot into the selected environment                                                                              │
+│    Log                                                                                                               │
+│    Pools and volumes                                                                                                 │
+│    Firmware setup                                                                                                    │
+│    Reboot                                                                                                            │
+│    Power off                                                                                                         │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ [Enter] run  [/] filter  [:] commands  [l] log  [!] recovery  [x] power  [?] help  [Esc] back  [Up/Down] select

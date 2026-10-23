@@ -1,5 +1,5 @@
 //! The state of the menu: the snapshot of the machine and everything on the
-//! screen. Nothing in it changes but through [`update`](super::update).
+//! screen. Nothing in it changes but through [`update`](fn@super::update).
 
 use zbm_platform::secret::Secret;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
@@ -46,6 +46,7 @@ pub enum Sort {
 
 impl Sort {
     /// The next order.
+    #[must_use]
     pub fn next(self) -> Sort {
         match self {
             Sort::Name => Sort::Creation,
@@ -181,7 +182,8 @@ pub struct Editor {
 pub struct Palette {
     /// The query.
     pub query: String,
-    /// What it matches, best first, as indexes of [`Model::palette_items`].
+    /// What it matches, best first, as indexes of
+    /// [`palette_items`](super::update::palette_items).
     pub matches: Vec<Ranked>,
     /// The selection in `matches`.
     pub selected: usize,
@@ -239,6 +241,8 @@ pub struct Model {
     pub leaving: Option<String>,
     /// The key presses so far, for the measures of the core tasks.
     pub keys: u32,
+    /// How many lines help or the log are scrolled down.
+    pub scroll: usize,
 }
 
 impl Model {
@@ -264,6 +268,7 @@ impl Model {
             notification: None,
             leaving: None,
             keys: 0,
+            scroll: 0,
             snapshot,
         };
         model.refresh();
@@ -271,23 +276,34 @@ impl Model {
     }
 
     /// Recomputes the lists after the snapshot, a filter or the sort order
-    /// changed, keeping selections in range.
+    /// changed. The selected environment and snapshot stay selected while
+    /// they match; other selections stay in range.
     pub fn refresh(&mut self) {
+        let environment = self.selected_environment().map(|e| e.name.to_string());
+        let snapshot = self.selected_snapshot().map(|s| s.name.name().to_owned());
         let names = self.environment_order();
         let labels: Vec<String> = names
             .iter()
-            .map(|&index| self.snapshot.environments[index].name.to_string())
+            .filter_map(|&index| self.snapshot.environments.get(index))
+            .map(|environment| environment.name.to_string())
             .collect();
         refilter(&mut self.environments, labels.iter().map(String::as_str));
         for ranked in &mut self.environments.matches {
-            ranked.index = names[ranked.index];
+            ranked.index = names.get(ranked.index).copied().unwrap_or(ranked.index);
         }
+        keep(
+            &mut self.environments,
+            &self.snapshot.environments,
+            environment,
+            |e| e.name.to_string(),
+        );
         let snapshots: Vec<String> = self
             .focus_snapshots()
             .iter()
             .map(|info| info.name.name().to_owned())
             .collect();
         refilter(&mut self.snapshots, snapshots.iter().map(String::as_str));
+        keep(&mut self.snapshots, &snapshots, snapshot, Clone::clone);
         let kernels: Vec<String> = self
             .focused()
             .map(|environment| {
@@ -307,13 +323,10 @@ impl Model {
     /// The indexes of the environments in the order of the main view:
     /// defaults first, then by name.
     fn environment_order(&self) -> Vec<usize> {
-        let mut order: Vec<usize> = (0..self.snapshot.environments.len()).collect();
-        let environments = &self.snapshot.environments;
-        order.sort_by(|&a, &b| {
-            let (a, b) = (&environments[a], &environments[b]);
-            b.is_default.cmp(&a.is_default).then(a.name.cmp(&b.name))
-        });
-        order
+        let mut order: Vec<(usize, &Environment)> =
+            self.snapshot.environments.iter().enumerate().collect();
+        order.sort_by(|(_, a), (_, b)| b.is_default.cmp(&a.is_default).then(a.name.cmp(&b.name)));
+        order.into_iter().map(|(index, _)| index).collect()
     }
 
     /// The selected environment of the main view.
@@ -503,6 +516,21 @@ pub enum RecoveryTool {
 pub fn refilter<'a>(list: &mut ListState, items: impl IntoIterator<Item = &'a str>) {
     list.matches = super::filter::rank(items, &list.filter);
     list.selected = list.selected.min(list.matches.len().saturating_sub(1));
+}
+
+/// Selects the match whose item is called `name`, if one is.
+fn keep<T>(list: &mut ListState, items: &[T], name: Option<String>, label: impl Fn(&T) -> String) {
+    let Some(name) = name else {
+        return;
+    };
+    let found = list.matches.iter().position(|ranked| {
+        items
+            .get(ranked.index)
+            .is_some_and(|item| label(item) == name)
+    });
+    if let Some(position) = found {
+        list.selected = position;
+    }
 }
 
 #[cfg(test)]

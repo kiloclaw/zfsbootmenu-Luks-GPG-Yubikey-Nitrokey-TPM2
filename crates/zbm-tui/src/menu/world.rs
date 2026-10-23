@@ -120,8 +120,8 @@ pub struct Environment {
     pub kernels: Vec<Kernel>,
     /// Its command line.
     pub command_line: CommandLine,
-    /// Its snapshots, newest first; loaded with [`Action::LoadSnapshots`]
-    /// in R5, held in full by the prototype.
+    /// Its snapshots, newest first; loaded on demand in R5 (see
+    /// `docs/dev/menu-design/interfaces.md`), held in full by the prototype.
     pub snapshots: Vec<SnapshotInfo>,
 }
 

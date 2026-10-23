@@ -17,6 +17,7 @@ mod snapshots;
 mod text;
 
 pub use dialogs::follow;
+pub use text::palette_items;
 
 /// What happened.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -87,8 +88,12 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
         Intent::Help => {
             let context = model.context();
             model.screen = Screen::Help(context);
+            model.scroll = 0;
         }
-        Intent::Log => model.screen = Screen::Log,
+        Intent::Log => {
+            model.screen = Screen::Log;
+            model.scroll = 0;
+        }
         Intent::Recovery => model.screen = Screen::Recovery,
         Intent::Power => dialogs::power(model),
         Intent::Redraw => {}

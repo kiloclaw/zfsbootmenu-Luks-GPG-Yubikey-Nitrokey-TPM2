@@ -4,7 +4,7 @@ use zbm_types::ImportPolicy;
 
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent};
-use crate::menu::model::{Choice, Editor, Model, RECOVERY, RecoveryTool, Screen, Then};
+use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
 use crate::menu::world::{Action, Environment, Method, Outcome};
 
 /// What `intent` does on the current screen.
@@ -47,8 +47,8 @@ pub(super) fn boot(model: &Model, environment: &Environment, kernel: Option<Stri
 /// Opens `screen` on `environment`: its snapshots, kernels or command line.
 pub(super) fn focus(model: &mut Model, environment: zbm_types::DatasetName, screen: Screen) {
     model.focus = Some(environment);
-    model.snapshots = Default::default();
-    model.kernels = Default::default();
+    model.snapshots = ListState::default();
+    model.kernels = ListState::default();
     model.marked.clear();
     model.refresh();
     if screen == Screen::Kernels {
@@ -86,7 +86,6 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Chroot => return vec![Action::Chroot(name.to_string())],
         Intent::NewSnapshot => return vec![Action::CreateSnapshot(name)],
         Intent::Shell => return vec![Action::Shell],
-        Intent::Sort => {}
         Intent::RevertCommandLine => {
             model.edited.retain(|(edited, _)| *edited != name);
             model.notification = Some(Outcome::Done(format!("command line of {name} reverted")));

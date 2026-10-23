@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu · Boot environments                             pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
+┌ Boot environments 4/4 ───────────────────────────────────────────────┐┌ tank/ROOT/arch (default) ────────────────────┐
+│> * tank/ROOT/arch     6.11.5-arch1-1                                 ││pool         tank DEGRADED, read/write        │
+│  * zroot/ROOT/void    6.12.9_1                                       ││kernel       6.11.5-arch1-1 (2 kernels)       │
+│    tank/ROOT/debian   6.1.0-26-amd64                                 ││snapshots    2, newest 2026-10-01 22 d ago    │
+│    zroot/ROOT/ubuntu  6.8.0-47-generic                               ││encryption   none                             │
+│                                                                      ││command line rw quiet splash  set here        │
+│                                                                      ││                                              │
+│                                                                      ││Kernels                                       │
+│                                                                      ││* 6.11.5-arch1-1                              │
+│                                                                      ││  6.10.10-arch1-1                             │
+│                                                                      ││                                              │
+│                                                                      ││Newest snapshots                              │
+│                                                                      ││  2026-10-01  22 d ago                        │
+│                                                                      ││  2026-09-01  52 d ago                        │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+│                                                                      ││                                              │
+└──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
+ done: tank/ROOT/arch is the default of tank (tank imported read/write)
+ [Enter] boot  [k] kernels  [s] snapshots  [e] edit  [d] default  [p] pools  [n] snapshot  [w] read/write  [j] chroot

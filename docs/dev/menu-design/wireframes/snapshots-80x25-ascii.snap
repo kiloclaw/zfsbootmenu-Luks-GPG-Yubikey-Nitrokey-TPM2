@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu | Snapshots of zroot/ROOT/void    tank DEGRADED | 3/3 open | [!] 1
++ Snapshots 400/400 by creation -----------------------------------------------+
+|>   pre-upgrade                  12 h ago    1.1 GiB                          |
+|    autosnap_2026-10-22_daily     1 d ago     17 MiB                          |
+|    autosnap_2026-10-21_daily     2 d ago     30 MiB                          |
+|    autosnap_2026-10-20_daily     3 d ago     43 MiB                          |
+|    autosnap_2026-10-19_daily     4 d ago     56 MiB                          |
+|    autosnap_2026-10-18_daily     5 d ago     69 MiB                          |
+|    autosnap_2026-10-17_daily     6 d ago     82 MiB                          |
+|    autosnap_2026-10-16_daily     7 d ago    4.0 MiB                          |
+|    autosnap_2026-10-15_daily     8 d ago     17 MiB                          |
+|    autosnap_2026-10-14_daily     9 d ago     30 MiB                          |
+|    autosnap_2026-10-13_daily    10 d ago     43 MiB                          |
+|    autosnap_2026-10-12_daily    11 d ago     56 MiB                          |
+|    autosnap_2026-10-11_daily    12 d ago     69 MiB                          |
+|    autosnap_2026-10-10_daily    13 d ago     82 MiB                          |
+|    autosnap_2026-10-09_daily    14 d ago    4.0 MiB                          |
+|    autosnap_2026-10-08_daily    15 d ago     17 MiB                          |
+|    autosnap_2026-10-07_daily    16 d ago     30 MiB                          |
+|    autosnap_2026-10-06_daily    17 d ago     43 MiB                          |
+|    autosnap_2026-10-05_daily    18 d ago     56 MiB                          |
+|    autosnap_2026-10-04_daily    19 d ago     69 MiB                          |
+|    autosnap_2026-10-03_daily    20 d ago     82 MiB                          |
++------------------------------------------------------------------------------+
+ [Enter] choose  [r] roll back  [c] clone  [f] diff  [y] duplicate

@@ -7,14 +7,14 @@ use crate::menu::model::{Dialog, Screen};
 use crate::menu::theme::Theme;
 use crate::menu::world::{Action, Outcome};
 
-fn session(options: DemoOptions) -> Session {
-    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
+fn session(options: &DemoOptions) -> Session {
+    let mut session = Session::new(options, Theme::new(Capabilities::FULL));
     session.start();
     session
 }
 
 fn started() -> Session {
-    session(DemoOptions::default())
+    session(&DemoOptions::default())
 }
 
 fn boot_action(environment: &str, kernel: Option<&str>, line: Option<&str>) -> Action {
@@ -146,14 +146,16 @@ fn t4_a_rollback_needs_the_name_typed() {
             safety: true
         }]
     );
-    assert!(
-        matches!(&session.model().notification, Some(Outcome::Done(text)) if text.contains("rolled back"))
+    let done = matches!(
+        &session.model().notification,
+        Some(Outcome::Done(text)) if text.contains("rolled back")
     );
+    assert!(done);
 }
 
 #[test]
 fn t5_volumes_unlock_with_the_secret_and_enter() {
-    let mut session = session(DemoOptions {
+    let mut session = session(&DemoOptions {
         locked: true,
         ..DemoOptions::default()
     });
@@ -217,7 +219,7 @@ fn an_unclosed_quote_stops_the_boot_with_a_warning() {
 
 #[test]
 fn t7_a_foreign_pool_imports_with_its_host_id_in_two_keys() {
-    let mut session = session(DemoOptions {
+    let mut session = session(&DemoOptions {
         foreign: true,
         ..DemoOptions::default()
     });
@@ -243,7 +245,7 @@ fn t7_a_foreign_pool_imports_with_its_host_id_in_two_keys() {
 
 #[test]
 fn a_failed_import_shows_what_to_do_next() {
-    let mut session = session(DemoOptions {
+    let mut session = session(&DemoOptions {
         foreign: true,
         ..DemoOptions::default()
     });
@@ -318,7 +320,47 @@ fn setting_the_default_moves_the_mark_and_reports_it() {
         .map(|e| e.name.as_str())
         .collect();
     assert_eq!(defaults, ["zroot/ROOT/void", "tank/ROOT/arch"]);
+    let selected = session
+        .model()
+        .selected_environment()
+        .map(|e| e.name.as_str());
+    assert_eq!(selected, Some("tank/ROOT/arch"));
     assert!(
         matches!(&session.model().notification, Some(Outcome::Done(t)) if t.contains("read/write"))
     );
+}
+
+#[test]
+fn help_scrolls_and_opens_at_the_top() {
+    let mut session = started();
+    session.key(KeyCode::Esc);
+    session.key(KeyCode::Char('?'));
+
+    session.key(KeyCode::Down);
+    session.key(KeyCode::Down);
+    assert_eq!(session.model().scroll, 2);
+    session.key(KeyCode::End);
+    session.key(KeyCode::Down);
+    let end = session.model().scroll;
+    session.key(KeyCode::Esc);
+    session.key(KeyCode::Char('?'));
+
+    assert!(end > 2);
+    assert_eq!(session.model().scroll, 0);
+}
+
+#[test]
+fn a_new_filter_selects_the_best_match() {
+    let mut session = started();
+    session.key(KeyCode::Down);
+    session.key(KeyCode::Down);
+
+    session.key(KeyCode::Char('/'));
+    session.type_text("ubu");
+
+    let selected = session
+        .model()
+        .selected_environment()
+        .map(|e| e.name.as_str());
+    assert_eq!(selected, Some("zroot/ROOT/ubuntu"));
 }

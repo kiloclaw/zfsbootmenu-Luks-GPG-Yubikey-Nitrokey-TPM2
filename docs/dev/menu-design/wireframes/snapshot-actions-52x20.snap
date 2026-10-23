@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ Snapshots of zro… tank DEGRADED · 3/3 open · [!] 1
+┌ Snapshots 400/400 by creation ───────────────────┐
+│>   pre-upgrade                 12 h ago    1.1 Gi│
+│    autosnap_2026-10-22_dai…     1 d ago     17 Mi│
+│ ┌ Snapshot pre-upgrade ────────────────────────┐i│
+│ │zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1  │i│
+│ │GiB                                           │i│
+│ │                                              │i│
+│ │> Boot a temporary clone of it                │i│
+│ │  Roll back to it                             │i│
+│ │  Clone it into a new boot environment        │i│
+│ │  Duplicate it (an independent copy)          │i│
+│ │  Clone it and promote the clone              │i│
+│ │  Differences to now                          │i│
+│ │  Chroot into it (read-only)                  │i│
+│ └──────────────────────────────────────────────┘i│
+│    autosnap_2026-10-09_dai…    14 d ago    4.0 Mi│
+│    autosnap_2026-10-08_dai…    15 d ago     17 Mi│
+└──────────────────────────────────────────────────┘
+ [Enter] choose  [Esc] back  [Up/Down] select

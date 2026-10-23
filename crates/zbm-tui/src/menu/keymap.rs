@@ -138,7 +138,7 @@ pub enum Scope {
 }
 
 impl Scope {
-    fn applies(self, context: Context) -> bool {
+    fn contains(self, context: Context) -> bool {
         match self {
             Scope::Everywhere => true,
             Scope::Views => context != Context::Text,
@@ -202,27 +202,10 @@ const fn key(
 use Context::{Kernels, Log, Main, Pools, Recovery, Snapshots, Startup};
 
 /// Views with a list.
-const LISTS: &[Context] = &[
-    Main,
-    Snapshots,
-    Kernels,
-    Pools,
-    Recovery,
-    Log,
-    Context::Choose,
-];
+const LISTS: &[Context] = &[Main, Snapshots, Kernels, Pools, Recovery];
 
-/// Every view but help and text fields.
-const ALL_VIEWS: &[Context] = &[
-    Startup,
-    Main,
-    Snapshots,
-    Kernels,
-    Pools,
-    Recovery,
-    Log,
-    Context::Choose,
-];
+/// Every view but help, dialogs and text fields.
+const ALL_VIEWS: &[Context] = &[Startup, Main, Snapshots, Kernels, Pools, Recovery, Log];
 
 /// Every binding, in the order of the footer: most important first.
 pub const KEYMAP: &[Binding] = &[
@@ -266,7 +249,7 @@ pub const KEYMAP: &[Binding] = &[
     bind(
         KeyCode::Char(':'),
         NONE,
-        Scope::Views,
+        Scope::Only(ALL_VIEWS),
         Intent::Palette,
         Some(":"),
     ),
@@ -277,7 +260,7 @@ pub const KEYMAP: &[Binding] = &[
     bind(
         KeyCode::Char('?'),
         NONE,
-        Scope::Views,
+        Scope::Only(ALL_VIEWS),
         Intent::Help,
         Some("?"),
     ),
@@ -432,7 +415,7 @@ pub fn input(context: Context, event: KeyEvent) -> Option<Input> {
     let bound = KEYMAP.iter().find(|binding| {
         binding.code == event.code
             && binding.modifiers == event.modifiers
-            && binding.scope.applies(context)
+            && binding.scope.contains(context)
     });
     if let Some(binding) = bound {
         return Some(Input::Intent(binding.intent));
@@ -467,7 +450,6 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (Pools, Intent::Primary) => "details",
         (Recovery, Intent::Primary) => "run",
         (Startup | Context::Text, Intent::Primary) => "confirm",
-        (_, Intent::Primary) => "select",
         (_, Intent::Back) => "back",
         (_, Intent::Kernels) => "kernels",
         (_, Intent::Snapshots) => "snapshots",
@@ -493,7 +475,8 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (_, Intent::Filter) => "filter",
         (_, Intent::Palette) => "commands",
         (_, Intent::Help) => "help",
-        (_, Intent::Up | Intent::Down) => "select",
+        (Context::Help | Context::Log, Intent::Up | Intent::Down) => "scroll",
+        (_, Intent::Primary | Intent::Up | Intent::Down) => "select",
         (_, Intent::PageUp | Intent::PageDown | Intent::First | Intent::Last) => "move",
         (_, Intent::Redraw) => "redraw",
         (_, Intent::RevertCommandLine) => "revert",
@@ -505,9 +488,11 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
 /// The bindings of `context` shown in the footer, in order: (key, what it
 /// does).
 pub fn bindings(context: Context) -> Vec<(&'static str, &'static str)> {
+    let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
     KEYMAP
         .iter()
-        .filter(|binding| binding.scope.applies(context))
+        .filter(|binding| binding.scope.contains(context))
+        .filter(|binding| !(idle && binding.intent == Intent::Primary))
         .filter_map(|binding| Some((binding.footer?, describe(context, binding.intent))))
         .collect()
 }
@@ -559,7 +544,7 @@ pub fn help(context: Context) -> Vec<(String, &'static str)> {
     let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
     for binding in KEYMAP
         .iter()
-        .filter(|binding| binding.scope.applies(context))
+        .filter(|binding| binding.scope.contains(context))
     {
         let name = key_name(binding.code, binding.modifiers);
         match lines
