@@ -41,8 +41,9 @@ const RELEASED: &str = "zbm console: handed the display back";
 /// boot environment and the seconds in their colours.
 const COUNTDOWN_COLOURS: usize = 4;
 
-/// Typed in the recovery shell: the shell's terminal.
-const TTY: &str = "tty\n";
+/// Typed in the recovery shell: the shell's terminal (the image has no
+/// `tty`).
+const TTY: &str = "readlink /proc/self/fd/0\n";
 
 /// Typed in the recovery shell: ends the console.
 const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";

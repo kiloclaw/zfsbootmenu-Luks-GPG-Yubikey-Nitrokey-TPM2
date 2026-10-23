@@ -336,11 +336,10 @@ Following a boot
   terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its
   screen after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the
   countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape typed with
-  ``sendkey`` must open the recovery shell on the console, and ``tty`` typed there must name a pseudo-terminal
-  (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's last screen.
-  After ``kill -9`` of the
-  console, the shell on the kernel console must take ``dmesg | grep console: > /dev/ttyS0``, which shows the console's
-  start and the supervisor's message that it ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
+  ``sendkey`` must open the recovery shell on the console, and ``readlink /proc/self/fd/0`` typed there must name a
+  pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's
+  last screen. After ``kill -9`` of the console, the shell on the kernel console must take ``dmesg | grep console: >
+  /dev/ttyS0``, which shows the console's start and the supervisor's message that it ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
   console must write that it handed the display back, and the boot environment must boot.
 
 Results
