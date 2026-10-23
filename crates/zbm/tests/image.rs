@@ -210,11 +210,14 @@ struct Image {
     texts: BTreeMap<String, String>,
     /// The console fonts, by name, with their numbers of glyphs.
     fonts: BTreeMap<String, usize>,
+    /// What the build warned about.
+    #[serde(default)]
+    warnings: Vec<String>,
 }
 
 impl Image {
     /// Describes the tree under `root`, writing `zbm` as [`ZBM`].
-    fn describe(root: &std::path::Path, zbm: &str) -> Image {
+    fn describe(root: &std::path::Path, zbm: &str, stderr: &str) -> Image {
         let mut entries = BTreeMap::new();
         let mut pending = vec![root.to_path_buf()];
         while let Some(dir) = pending.pop() {
@@ -252,10 +255,16 @@ impl Image {
                 (name, font.map_or(0, |font| font.glyph_count()))
             })
             .collect();
+        let warnings = stderr
+            .lines()
+            .filter_map(|line| line.strip_prefix("dwarning: "))
+            .map(|line| line.replace(zbm, ZBM))
+            .collect();
         Image {
             entries,
             texts,
             fonts,
+            warnings,
         }
     }
 
@@ -310,7 +319,7 @@ fn dracut_install(parity: &mut Parity, settings: &[(&str, &str)]) -> Image {
             "{}",
             output.stderr_text()
         );
-        Image::describe(initdir.path(), &zbm)
+        Image::describe(initdir.path(), &zbm, &output.stderr_text())
     })
 }
 
@@ -422,4 +431,50 @@ fn shadow_mode_adds_a_boot_hook_to_legacy_images() {
     shadow_settings.push(("zfsbootmenu_runtime", "rust"));
     let rust = dracut_install(&mut parity, &shadow_settings);
     assert!(!rust.exists(hook));
+}
+
+#[test]
+fn spleen_is_the_console_font_of_rust_images_that_ask_for_it() {
+    let mut parity = parity!("spleen_is_the_console_font_of_rust_images_that_ask_for_it");
+    let settings = [
+        ("zfsbootmenu_zbm", ZBM),
+        ("zfsbootmenu_console_font", "spleen"),
+    ];
+
+    let mut rust_settings = settings.to_vec();
+    rust_settings.push(("zfsbootmenu_runtime", "rust"));
+    let rust = dracut_install(&mut parity, &rust_settings);
+    let fonts: Vec<(&str, usize)> = rust.fonts.iter().map(|(n, g)| (n.as_str(), *g)).collect();
+    // The licence is no font: 0 glyphs.
+    assert_eq!(
+        fonts,
+        [
+            ("LICENSE.spleen", 0),
+            ("spleen-12x24.psf", 256),
+            ("spleen-16x32.psf", 256),
+            ("spleen-32x64.psf", 256),
+            ("spleen-8x16.psf", 256),
+        ]
+    );
+    assert_eq!(rust.warnings, Vec::<String>::new());
+    let licence = format!("{FONTS}/LICENSE.spleen");
+    assert!(rust.exists(&licence), "{:?}", rust.fonts);
+
+    // The legacy runtime loads Terminus by name: it keeps them, and says so.
+    let legacy = dracut_install(&mut parity, &settings);
+    assert_eq!(legacy.fonts.len(), 6, "{:?}", legacy.fonts);
+    assert!(legacy.fonts.keys().all(|name| name.starts_with("ter-v")));
+    assert_eq!(
+        legacy.warnings,
+        ["Spleen console fonts need zfsbootmenu_runtime=rust; installing Terminus"]
+    );
+
+    // Another family is Terminus too.
+    rust_settings[1] = ("zfsbootmenu_console_font", "comic");
+    let other = dracut_install(&mut parity, &rust_settings);
+    assert!(other.fonts.keys().all(|name| name.starts_with("ter-v")));
+    assert_eq!(
+        other.warnings,
+        ["unknown zfsbootmenu_console_font 'comic'; installing Terminus"]
+    );
 }

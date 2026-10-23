@@ -15,6 +15,7 @@
 )]
 
 mod fixtures;
+mod rust_only;
 mod sandbox;
 
 use fixtures::{

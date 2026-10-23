@@ -309,7 +309,9 @@ Following a boot
   3840×2400 display, and runs ``zbm console-autosize --console /dev/tty1`` from the recovery shell on the serial
   console. With the EDID, which QEMU gives 100 dpi, it must load the 20-pixel font (384×120); with ``edid=off``, the
   32-pixel font of the legacy rule (240×75); with ``zbm.autosize=48``, the 24-pixel font doubled (160×50). At boot
-  the hook must leave the serial console alone.
+  the hook must leave the serial console alone. A second image, built with ``ConsoleFont: spleen`` in the
+  ``generate-zbm`` configuration, must hold the four Spleen fonts and their licence and no Terminus font, load
+  Spleen 8×16 with the EDID (480×150), and the native Spleen 32×64 with ``zbm.autosize=64`` (120×37).
 
 Results
 -------

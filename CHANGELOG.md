@@ -118,6 +118,17 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### Spleen console fonts
+
+Images with the Rust runtime can use the Spleen fonts (BSD-2) instead of Terminus: `ConsoleFont: spleen` in the
+`Global` section of `config.yaml`, which `generate-zbm` passes on as the new build option
+`zfsbootmenu_console_font=spleen`. Spleen has native 8×16, 12×24, 16×32 and 32×64 cells, so the densest displays get
+a font drawn at 64 pixels instead of a doubled 32-pixel one; the image carries Spleen's licence as
+`/usr/share/zfsbootmenu/fonts/LICENSE.spleen`. Like Terminus, the fonts are installed as 256-glyph subsets. Without a
+display density, `zbm console-autosize` keeps the legacy limit of 32 pixels whatever the family. Images with the
+legacy runtime, whose hook loads the Terminus fonts by name, warn and keep Terminus, as the build does for any other
+value. `generate-zbm` refuses a `ConsoleFont` other than `terminus` or `spleen` before it builds anything.
+
 ### Console fonts of 256 glyphs
 
 Images built with `zfsbootmenu_runtime="rust"` install their console fonts as 256-glyph subsets, made at build time by

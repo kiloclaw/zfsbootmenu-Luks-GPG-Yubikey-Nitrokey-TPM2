@@ -75,6 +75,14 @@ Global
   An array of additional arguments that will be passed to **mkinitcpio** when generating an
   initramfs. This option is ignored when *Global.InitCPIO* is not *true*.
 
+**ConsoleFont**
+
+  The console fonts of the images: *terminus*, the default, or *spleen*. **generate-zbm** passes the
+  choice to **dracut** or **mkinitcpio** as the build option **zfsbootmenu_console_font** (see
+  **zfsbootmenu(7)**), unless their configuration sets it. Only images with the Rust runtime load
+  Spleen; images with the legacy runtime keep Terminus. Any other value stops **generate-zbm** with
+  an error before it builds an image.
+
 **PreHooksDir**
 
   The path of the directory containing executables that should be executed after *BootMountPoint*

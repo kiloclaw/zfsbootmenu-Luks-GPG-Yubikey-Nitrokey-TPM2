@@ -10,6 +10,11 @@
 //! - Without it (`edid=off`), the legacy rule: the largest font that leaves
 //!   110 columns, 32 pixels: 240×75.
 //! - With `zbm.autosize=48`, the 24-pixel font doubled: 160×50.
+//! - An image built with `Global.ConsoleFont: spleen` in the configuration
+//!   of `generate-zbm`, which sets `zfsbootmenu_console_font`, has the
+//!   Spleen fonts and their licence, and no Terminus: with the EDID, 18
+//!   pixels make Spleen 8×16, 480×150; `zbm.autosize=64` loads the native
+//!   32×64, 120×37, rather than 16×32 doubled.
 
 use std::ops::RangeInclusive;
 
@@ -35,6 +40,9 @@ const DENSITY: &str = "dmesg | grep -o 'display density [a-z0-9]*' | tail -n 1";
 /// timing of a large mode in an extension block (97 cm): the guest finds
 /// 100 or 101 dpi.
 const EDID_DPI: RangeInclusive<u32> = 99..=101;
+
+/// The fonts of the image, and its Spleen licence, on one line.
+const FONT_FILES: &str = "(cd /usr/share/zfsbootmenu/fonts && echo *)";
 
 /// The skip at boot, from the kernel log.
 const SKIPPED: &str =
@@ -127,8 +135,52 @@ pub(super) fn run(test: &Test) -> Result<()> {
         "zbm.autosize=48",
     )?;
     vm.kill();
+    run_spleen(test)
+}
+
+/// Boots an image with the Spleen fonts, with the EDID, and checks them.
+fn run_spleen(test: &Test) -> Result<()> {
+    let spec = ImageSpec {
+        runtime: Some(ZbmRuntime::Rust),
+        conf: "add_drivers+=\" virtio_gpu \"".into(),
+        console_font: Some("spleen".into()),
+        ..ImageSpec::new("auto-spleen")
+    };
+    let image = zbm_image(test.settings(), &spec)?;
+    let mut vm = boot(test, &image, "spleen", true)?;
+    check_font_files(test, &mut vm)?;
+    check_run(
+        test,
+        &mut vm,
+        &expected("spleen-8x16.psf", false, 480, 150),
+        "Spleen with the EDID",
+    )?;
+    vm.must("echo zbm.autosize=64 >> /zfsbootmenu/zbm.cmdline")?;
+    check_run(
+        test,
+        &mut vm,
+        &expected("spleen-32x64.psf", false, 120, 37),
+        "Spleen with zbm.autosize=64",
+    )?;
+    vm.kill();
     Ok(())
 }
+
+/// Checks that the image has the Spleen fonts, their licence and nothing
+/// else.
+fn check_font_files(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
+    let (_, files) = vm.sh(FONT_FILES)?;
+    let files = files.trim();
+    test.check(
+        files == SPLEEN_FILES,
+        &format!("the image has the Spleen fonts and their licence ({files})"),
+    );
+    Ok(())
+}
+
+/// What [`FONT_FILES`] lists in the Spleen image.
+const SPLEEN_FILES: &str =
+    "LICENSE.spleen spleen-12x24.psf spleen-16x32.psf spleen-32x64.psf spleen-8x16.psf";
 
 /// Boots `image` with the virtio GPU, its EDID on or off, into the
 /// recovery shell.

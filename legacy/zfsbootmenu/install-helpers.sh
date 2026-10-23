@@ -454,10 +454,32 @@ install_zbm_docs() {
 }
 
 install_zbm_fonts() {
-  local font fonts subsets
+  local font fonts subsets family
 
   fonts="${zfsbootmenu_module_root}/fonts"
   [ -d "${fonts}" ] || return 1
+
+  # zfsbootmenu_console_font picks the family: terminus, the default, or
+  # spleen, which only the Rust runtime loads (ROADMAP.md #20)
+  # shellcheck disable=SC2154
+  family="${zfsbootmenu_console_font:-terminus}"
+  case "${family,,}" in
+    terminus) ;;
+    spleen)
+      if [ "${ZBM_RUNTIME}" != "rust" ]; then
+        zbm_warn "Spleen console fonts need zfsbootmenu_runtime=rust; installing Terminus"
+      elif [ -d "${fonts}/spleen" ]; then
+        fonts="${fonts}/spleen"
+        [ -f "${fonts}/LICENSE" ] \
+          && zbm_install_file "${fonts}/LICENSE" "/usr/share/zfsbootmenu/fonts/LICENSE.spleen"
+      else
+        zbm_warn "no Spleen console fonts in ${fonts}; installing Terminus"
+      fi
+      ;;
+    *)
+      zbm_warn "unknown zfsbootmenu_console_font '${family}'; installing Terminus"
+      ;;
+  esac
 
   # Images with the Rust runtime get each font as a 256-glyph subset, which
   # leaves the console all 16 colours (ROADMAP.md #20); the whole fonts when

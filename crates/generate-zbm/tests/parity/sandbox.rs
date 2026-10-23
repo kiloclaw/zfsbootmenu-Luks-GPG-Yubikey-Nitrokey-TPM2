@@ -30,6 +30,12 @@ fn logging_script(body: &str) -> String {
     format!("#!/bin/sh\n{LOG_ARGS}{body}")
 }
 
+/// Logs the build option of the console fonts, which only the Rust program
+/// sets.
+const LOG_FONT: &str = r#"[ -z "$zfsbootmenu_console_font" ] \
+  || echo "zfsbootmenu_console_font=$zfsbootmenu_console_font" >> "$ZBM_FAKE_LOG"
+"#;
+
 /// dracut writes the image named by its next-to-last argument, for the kernel
 /// version in its last.
 const FAKE_DRACUT: &str = r#"echo "dracut: building"
@@ -65,8 +71,14 @@ exit 0
 
 fn fake_programs() -> Vec<(&'static str, String)> {
     vec![
-        ("dracut", logging_script(FAKE_DRACUT)),
-        ("mkinitcpio", logging_script(FAKE_MKINITCPIO)),
+        (
+            "dracut",
+            logging_script(&format!("{LOG_FONT}{FAKE_DRACUT}")),
+        ),
+        (
+            "mkinitcpio",
+            logging_script(&format!("{LOG_FONT}{FAKE_MKINITCPIO}")),
+        ),
         (
             "mountpoint",
             logging_script("exit \"${FAKE_MOUNTPOINT_STATUS:-0}\"\n"),
@@ -362,6 +374,28 @@ fn run_perl(case: &Case) -> Outcome {
         log: debug_log(&perl_box.normalize(&output.stderr_text(), &script)),
         state: perl_box.state(&script),
         stderr: perl_box.normalize(&output.stderr_text(), &script),
+    }
+}
+
+/// What the Rust program did in a case that the Perl program has no part in.
+pub(crate) struct RustRun {
+    pub(crate) code: i32,
+    pub(crate) stdout: String,
+    /// The commands the fake programs logged.
+    pub(crate) log: String,
+}
+
+/// Runs a case with the Rust program alone, for configuration keys that the
+/// Perl program does not read.
+pub(crate) fn run_rust(case: &Case) -> RustRun {
+    let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
+    let rust_box = Sandbox::new(case);
+    let rust = rust_box.run(std::slice::from_ref(&binary), case);
+    let log = std::fs::read_to_string(rust_box.path().join("calls.log")).unwrap_or_default();
+    RustRun {
+        code: rust.status.shell_code(),
+        stdout: rust_box.normalize(&rust.stdout_text(), &binary),
+        log: rust_box.normalize(&log, &binary),
     }
 }
 

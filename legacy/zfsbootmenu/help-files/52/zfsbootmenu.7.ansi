@@ -684,6 +684,20 @@
       built without it. The [33mrust[0m runtime
       cannot be built without it.
 
+    [1mzfsbootmenu_console_font=terminus[0m
+
+      Select the console fonts of the image:
+      [33mterminus[0m, the default, or [33mspleen[0m, Spleen
+      2.2.0 in cells of 8x16, 12x24, 16x32 and
+      32x64, with its licence as
+      [33m/usr/share/zfsbootmenu/fonts/LICENS-
+      E.spleen[0m. Only the [33mrust[0m runtime loads
+      Spleen: an image with the [33mlegacy[0m runtime
+      warns and keeps Terminus, as it does for
+      any other value. [1mgenerate-zbm[0m sets this
+      variable from [33mGlobal.ConsoleFont[0m when
+      its configuration has that key.
+
     [1mzfsbootmenu_skip_gcc_s=yes[0m
 
       The ZFSBootMenu module attempts to detect and

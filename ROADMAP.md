@@ -291,7 +291,10 @@ helps the kernel console until, and wherever, #19 replaces it.
 
 **Status:** the subsets are done: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
 and wireframe tests check them, and the VM test `runtime-rust-autosize` loads them on a real kernel, doubled too.
-Spleen, `Global.ConsoleFont` and the check of the colours on VGA text and framebuffer consoles remain.
+Spleen is done too: Spleen 2.2.0 in 8×16, 12×24, 16×32 and 32×64 (`legacy/zfsbootmenu/fonts/spleen/`, with its
+licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Global.ConsoleFont: spleen` or the build option
+`zfsbootmenu_console_font=spleen`; without a display density, `zbm console-autosize` still keeps to 32 pixels. The
+VM test boots a Spleen image too; the check of the colours on VGA text and framebuffer consoles remains.
 
 - **Why:**
   - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is

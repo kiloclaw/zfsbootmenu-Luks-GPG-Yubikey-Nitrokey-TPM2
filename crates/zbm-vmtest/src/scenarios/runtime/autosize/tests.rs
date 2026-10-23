@@ -82,3 +82,34 @@ fn a_run_is_checked_against_the_font_it_should_keep() {
     assert!(fs::read_to_string(test.dir().join("steps.log")).is_ok());
     cleanup(&settings);
 }
+
+#[test]
+fn the_spleen_image_has_its_fonts_and_licence_only() {
+    let settings = settings("runtime-autosize-spleen");
+    let test = Test::new(&settings, "runtime-rust-autosize").unwrap();
+    let files: &'static str = Box::leak(format!("{FONT_FILES}; echo RC=$?").into_boxed_str());
+    let terminus = "LICENSE.spleen spleen-8x16.psf ter-v32b.psf\r\nRC=0\r\n";
+    let spleen: &'static str = Box::leak(format!("{SPLEEN_FILES}\r\nRC=0\r\n").into_boxed_str());
+    let script = vec![
+        Step::Hear(files),
+        Step::Say(spleen),
+        Step::Hear(files),
+        Step::Say(terminus),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    check_font_files(&test, &mut vm).unwrap();
+    check_font_files(&test, &mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let checks = checks(&test);
+    assert!(
+        checks[0].starts_with("ok   - the image has the Spleen fonts"),
+        "{checks:?}"
+    );
+    assert!(
+        checks[1].starts_with("FAIL - the image has the Spleen fonts"),
+        "{checks:?}"
+    );
+    cleanup(&settings);
+}

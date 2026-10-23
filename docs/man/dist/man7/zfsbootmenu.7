@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "ZFSBOOTMENU" "7" "2026-10-21" "" "ZFSBootMenu"
+.TH "ZFSBOOTMENU" "7" "2026-10-23" "" "ZFSBootMenu"
 .SH NAME
 zfsbootmenu \- System Integration
 .SH SYNOPSIS
@@ -519,6 +519,13 @@ Select the runtime that the image boots with: \fIlegacy\fP, the shell implementa
 .INDENT 0.0
 .INDENT 3.5
 Set this variable to override the default \fB<path>\fP of \fBzbm\fP, the program of the Rust runtime, which is installed in the image as \fI/libexec/zbm\fP\&. When unspecified, a default of \fI/usr/libexec/zfsbootmenu/zbm\fP is assumed, which is where \fBmake install\fP puts it. The \fIlegacy\fP runtime does not use \fBzbm\fP; when it is not found, the image is built without it. The \fIrust\fP runtime cannot be built without it.
+.UNINDENT
+.UNINDENT
+.sp
+\fBzfsbootmenu_console_font=terminus\fP
+.INDENT 0.0
+.INDENT 3.5
+Select the console fonts of the image: \fIterminus\fP, the default, or \fIspleen\fP, Spleen 2.2.0 in cells of 8x16, 12x24, 16x32 and 32x64, with its licence as \fI/usr/share/zfsbootmenu/fonts/LICENSE.spleen\fP\&. Only the \fIrust\fP runtime loads Spleen: an image with the \fIlegacy\fP runtime warns and keeps Terminus, as it does for any other value. \fBgenerate\-zbm\fP sets this variable from \fIGlobal.ConsoleFont\fP when its configuration has that key.
 .UNINDENT
 .UNINDENT
 .sp

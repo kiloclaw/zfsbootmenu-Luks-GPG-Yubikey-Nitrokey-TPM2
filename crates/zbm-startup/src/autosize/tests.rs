@@ -24,8 +24,20 @@ const TERMINUS: [(&str, u16, u16); 6] = [
     ("ter-v32b.psf", 16, 32),
 ];
 
+/// The Spleen fonts of an image built with `zfsbootmenu_console_font=spleen`.
+const SPLEEN: [(&str, u16, u16); 4] = [
+    ("spleen-8x16.psf", 8, 16),
+    ("spleen-12x24.psf", 12, 24),
+    ("spleen-16x32.psf", 16, 32),
+    ("spleen-32x64.psf", 32, 64),
+];
+
 fn fonts() -> Vec<(PathBuf, Cell)> {
-    TERMINUS
+    family(&TERMINUS)
+}
+
+fn family(fonts: &[(&str, u16, u16)]) -> Vec<(PathBuf, Cell)> {
+    fonts
         .iter()
         .map(|(name, width, height)| {
             let cell = Cell {
@@ -118,6 +130,33 @@ fn with_a_density_the_closest_height_comes_first_doubled_or_not() {
     );
     // 17 pixels: 20 and 14 are as close; the larger wins.
     assert_eq!(heights(&normal)[..3], ["20", "14", "12"]);
+}
+
+#[test]
+fn spleen_is_not_guessed_larger_than_32_pixels_but_given_when_asked() {
+    let spleen = family(&SPLEEN);
+    let laptop = density((3840, 2400), (302, 189));
+
+    assert_eq!(
+        heights(&order(&spleen, Request::Auto, None)),
+        ["32", "24", "16"]
+    );
+    // 57 pixels: the native 32×64 is as close as 24 doubled, and comes first;
+    // 16×32 doubled is the native 32×64 again, and left out.
+    assert_eq!(
+        heights(&order(&spleen, Request::Auto, laptop))[..3],
+        ["64", "48d", "32"]
+    );
+    assert_eq!(
+        heights(&order(&spleen, Request::Height(64), None)),
+        ["64", "48d", "32", "24", "16", "128d"]
+    );
+    let tall_only = family(&SPLEEN[3..]);
+    assert_eq!(heights(&order(&tall_only, Request::Auto, None)), ["64"]);
+    assert_eq!(
+        super::choice::smallest(&spleen).map(|c| c.cell.height),
+        Some(16)
+    );
 }
 
 #[test]
@@ -435,30 +474,26 @@ fn the_settings_come_from_the_image() {
 
 #[test]
 fn the_fonts_of_the_image_have_the_cells_their_names_say() {
-    let dir = zbm_testkit::repo_root().join("legacy/zfsbootmenu/fonts");
+    let root = zbm_testkit::repo_root().join("legacy/zfsbootmenu/fonts");
     let files = zbm_platform::files::RealFiles;
 
-    let found: Vec<(String, Cell)> = super::fonts(&files, &dir)
-        .into_iter()
-        .map(|(path, cell)| {
-            (
-                path.file_name().unwrap().to_string_lossy().into_owned(),
-                cell,
-            )
-        })
-        .collect();
-
-    let expected: Vec<(String, Cell)> = TERMINUS
-        .iter()
-        .map(|(name, width, height)| {
-            let cell = Cell {
-                width: *width,
-                height: *height,
-            };
-            ((*name).to_owned(), cell)
-        })
-        .collect();
-    assert_eq!(found, expected);
+    for (dir, table) in [
+        (root.clone(), &TERMINUS[..]),
+        (root.join("spleen"), &SPLEEN[..]),
+    ] {
+        let found: Vec<(PathBuf, Cell)> = super::fonts(&files, &dir)
+            .into_iter()
+            .map(|(path, cell)| {
+                (
+                    Path::new("/").join(FONTS).join(path.file_name().unwrap()),
+                    cell,
+                )
+            })
+            .collect();
+        let mut expected = family(table);
+        expected.sort();
+        assert_eq!(found, expected, "{}", dir.display());
+    }
 }
 
 #[test]

@@ -75,6 +75,21 @@ fn the_build_directory_holds_what_the_image_is_built_from() {
 }
 
 #[test]
+fn a_console_font_is_a_global_key_of_the_generate_zbm_configuration() {
+    let spec = ImageSpec {
+        console_font: Some("spleen".into()),
+        ..ImageSpec::new("auto-spleen")
+    };
+
+    assert!(
+        generate_config(&spec).starts_with("Global:\n  ConsoleFont: spleen\nComponents:\n"),
+        "{}",
+        generate_config(&spec)
+    );
+    assert_ne!(spec.stamp(), ImageSpec::new("auto-spleen").stamp());
+}
+
+#[test]
 fn an_image_without_a_crypttab_names_none() {
     let conf = dracut_conf(&ImageSpec::new("auto"), "");
 

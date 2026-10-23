@@ -5,9 +5,9 @@
 use std::io::Write;
 
 use zbm_config::spec::generate::{
-    GLOBAL_DRACUT_CONF_DIR, GLOBAL_INIT_CPIO, GLOBAL_INIT_CPIO_CONFIG, GLOBAL_INIT_CPIO_HOOK_DIRS,
-    GLOBAL_MANAGE_IMAGES, GLOBAL_VERSION, KERNEL_COMMAND_LINE, KERNEL_PATH, KERNEL_PREFIX,
-    KERNEL_VERSION,
+    GLOBAL_CONSOLE_FONT, GLOBAL_DRACUT_CONF_DIR, GLOBAL_INIT_CPIO, GLOBAL_INIT_CPIO_CONFIG,
+    GLOBAL_INIT_CPIO_HOOK_DIRS, GLOBAL_MANAGE_IMAGES, GLOBAL_VERSION, KERNEL_COMMAND_LINE,
+    KERNEL_PATH, KERNEL_PREFIX, KERNEL_VERSION,
 };
 use zbm_core::fs::{is_readable, strerror};
 
@@ -30,6 +30,9 @@ pub(super) struct Settings {
     pub(super) cmdline: Option<String>,
     /// The ZFSBootMenu version in image names.
     pub(super) version: String,
+    /// `Global.ConsoleFont`, for the build option `zfsbootmenu_console_font`;
+    /// the Perl program has no such key.
+    pub(super) console_font: Option<String>,
 }
 
 impl Generator<'_, '_, '_> {
@@ -133,7 +136,24 @@ impl Generator<'_, '_, '_> {
             hookd,
             cmdline: options.cmdline.clone(),
             version: String::new(),
+            console_font: self.console_font()?,
         })
+    }
+
+    /// `Global.ConsoleFont`, in lower case; a value that is not a font family
+    /// stops the run before anything is built.
+    fn console_font(&mut self) -> Step<Option<String>> {
+        let Some(font) = self.setting(&GLOBAL_CONSOLE_FONT)? else {
+            return Ok(None);
+        };
+        let family = font.to_lowercase();
+        if GLOBAL_CONSOLE_FONT.value.allows(Some(&family)) {
+            return Ok(Some(family));
+        }
+        self.print(&format!(
+            "Global.ConsoleFont must be terminus or spleen, not '{font}'\n"
+        ));
+        Err(Stop::Exit(1))
     }
 
     /// Fills in the kernel options that are not given from the configuration,

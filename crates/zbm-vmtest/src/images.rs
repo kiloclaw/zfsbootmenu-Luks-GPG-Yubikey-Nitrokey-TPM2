@@ -137,6 +137,8 @@ pub struct ImageSpec {
     pub runtime: Option<ZbmRuntime>,
     /// Cargo features of the build, such as `zbm/crash-test`.
     pub features: Option<String>,
+    /// `Global.ConsoleFont` of the `generate-zbm` configuration.
+    pub console_font: Option<String>,
 }
 
 impl ImageSpec {
@@ -169,6 +171,9 @@ impl ImageSpec {
             optional(self.rc.as_ref()),
             optional(self.features.as_ref()),
         );
+        if let Some(font) = &self.console_font {
+            writeln!(stamp, "console-font {}", hex(font.as_bytes())).ok();
+        }
         let mut files: Vec<&(String, Vec<u8>)> = self.files.iter().collect();
         files.sort();
         for (name, data) in files {
@@ -206,8 +211,11 @@ fn dracut_conf(spec: &ImageSpec, conf: &str) -> String {
 
 /// The `generate-zbm` configuration of an image.
 fn generate_config(spec: &ImageSpec) -> String {
+    let global = spec.console_font.as_ref().map_or(String::new(), |font| {
+        format!("Global:\n  ConsoleFont: {font}\n")
+    });
     let mut config = format!(
-        "Components:\n  Enabled: true\n  Versions: false\nEFI:\n  Enabled: {}\n  \
+        "{global}Components:\n  Enabled: true\n  Versions: false\nEFI:\n  Enabled: {}\n  \
          Versions: false\nKernel:\n  Version: 7.3.*\n",
         spec.efi
     );

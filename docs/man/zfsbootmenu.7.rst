@@ -480,6 +480,14 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   runtime does not use **zbm**; when it is not found, the image is built without it. The *rust*
   runtime cannot be built without it.
 
+**zfsbootmenu_console_font=terminus**
+
+  Select the console fonts of the image: *terminus*, the default, or *spleen*, Spleen 2.2.0 in cells
+  of 8x16, 12x24, 16x32 and 32x64, with its licence as
+  */usr/share/zfsbootmenu/fonts/LICENSE.spleen*. Only the *rust* runtime loads Spleen: an image with
+  the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
+  sets this variable from *Global.ConsoleFont* when its configuration has that key.
+
 **zfsbootmenu_skip_gcc_s=yes**
 
   The ZFSBootMenu module attempts to detect and install a copy of the library **libgcc_s.so** in its

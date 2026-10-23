@@ -36,6 +36,35 @@ const TERMINUS: [(&str, &[u8], (u32, u32)); 6] = [
     ),
 ];
 
+/// The Spleen fonts of images built with `zfsbootmenu_console_font=spleen`.
+const SPLEEN: [(&str, &[u8], (u32, u32)); 4] = [
+    (
+        "spleen-8x16",
+        include_bytes!("../../../../legacy/zfsbootmenu/fonts/spleen/spleen-8x16.psf"),
+        (8, 16),
+    ),
+    (
+        "spleen-12x24",
+        include_bytes!("../../../../legacy/zfsbootmenu/fonts/spleen/spleen-12x24.psf"),
+        (12, 24),
+    ),
+    (
+        "spleen-16x32",
+        include_bytes!("../../../../legacy/zfsbootmenu/fonts/spleen/spleen-16x32.psf"),
+        (16, 32),
+    ),
+    (
+        "spleen-32x64",
+        include_bytes!("../../../../legacy/zfsbootmenu/fonts/spleen/spleen-32x64.psf"),
+        (32, 64),
+    ),
+];
+
+/// Every font of the image, of both families.
+fn every_font() -> impl Iterator<Item = (&'static str, &'static [u8], (u32, u32))> {
+    TERMINUS.into_iter().chain(SPLEEN)
+}
+
 /// A PSF 2 font of `chars`, one 8×2 glyph each whose rows are the
 /// character's code, with or without a table.
 fn psf2(chars: &[char], table: bool) -> Vec<u8> {
@@ -59,8 +88,8 @@ fn psf2(chars: &[char], table: bool) -> Vec<u8> {
 }
 
 #[test]
-fn every_terminus_font_of_the_image_parses_with_its_table() {
-    for (name, bytes, cell) in TERMINUS {
+fn every_font_of_the_image_parses_with_its_table() {
+    for (name, bytes, cell) in every_font() {
         let font = Font::parse(bytes).unwrap();
 
         assert_eq!(font.cell(), cell, "{name}");
@@ -70,8 +99,8 @@ fn every_terminus_font_of_the_image_parses_with_its_table() {
 }
 
 #[test]
-fn a_terminus_subset_has_256_glyphs_and_the_whole_repertoire() {
-    for (name, bytes, cell) in TERMINUS {
+fn a_subset_has_256_glyphs_and_the_whole_repertoire() {
+    for (name, bytes, cell) in every_font() {
         let font = Font::parse(bytes).unwrap();
 
         let subset = font.subset(&repertoire());

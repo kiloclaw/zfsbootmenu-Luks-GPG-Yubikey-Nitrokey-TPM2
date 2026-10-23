@@ -274,8 +274,8 @@ fn the_main_views_and_dialogs_in_ascii() {
     });
 }
 
-/// The characters every console font of the image can draw as the image
-/// installs it with the Rust runtime: a 256-glyph subset.
+/// The characters every console font, Terminus and Spleen, can draw as the
+/// image installs it with the Rust runtime: a 256-glyph subset.
 #[allow(
     clippy::disallowed_methods,
     reason = "the test reads the image's fonts from the repository"
@@ -284,8 +284,17 @@ fn console_characters() -> std::collections::BTreeSet<char> {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../legacy/zfsbootmenu/fonts");
     let mut common: Option<std::collections::BTreeSet<char>> = None;
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let font = Font::parse(&std::fs::read(entry.unwrap().path()).unwrap()).unwrap();
+    let paths = [dir.clone(), dir.join("spleen")]
+        .into_iter()
+        .flat_map(|family| {
+            std::fs::read_dir(family)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| path.extension().is_some_and(|ext| ext == "psf"))
+                .collect::<Vec<_>>()
+        });
+    for path in paths {
+        let font = Font::parse(&std::fs::read(path).unwrap()).unwrap();
         let chars = font.subset(&repertoire()).font.chars().collect();
         common = Some(match common {
             Some(seen) => seen.intersection(&chars).copied().collect(),

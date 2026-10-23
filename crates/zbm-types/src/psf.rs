@@ -433,7 +433,7 @@ fn look_alikes(c: char) -> &'static [char] {
 pub fn repertoire() -> Vec<char> {
     let ascii = (0x20_u8..0x7f).map(char::from);
     let latin1 = (0xa0_u8..=0xff).map(char::from);
-    let extra = "ŒœŸ€‹›‘’“”„–—•…√←↑→↓▶►◀▲▼\u{fffd}".chars();
+    let extra = "ŒœŸ€‹›‘’“”„–—•…√←↑→↓▶►\u{fffd}".chars();
     let lines = CP437.iter().map(|(c, _)| *c);
     ascii.chain(latin1).chain(extra).chain(lines).collect()
 }

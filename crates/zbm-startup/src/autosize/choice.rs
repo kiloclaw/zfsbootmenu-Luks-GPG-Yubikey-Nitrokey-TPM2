@@ -2,8 +2,8 @@
 //!
 //! With the display's pixel density known, the fonts closest to
 //! [`TEXT_HEIGHT_MM`] tall come first, doubled fonts included. Without it,
-//! the order is the legacy hook's: the largest font first, and the first
-//! that leaves [`MIN_COLUMNS`] columns is kept.
+//! the order is the legacy hook's: the largest font up to [`GUESS_HEIGHT`]
+//! first, and the first that leaves [`MIN_COLUMNS`] columns is kept.
 
 use std::cmp::Reverse;
 use std::path::PathBuf;
@@ -18,6 +18,11 @@ pub const TEXT_HEIGHT_MM: u32 = 45;
 /// The fewest columns an automatic size leaves, as the legacy hook: the
 /// snapshot view of the `fzf` menu needs 110.
 pub const MIN_COLUMNS: u16 = 110;
+
+/// The tallest font tried without a density, as the legacy hook, whose
+/// largest font is Terminus 16×32: Spleen's 32×64 would leave 120 columns
+/// of 64-pixel text on any 4K display, however large.
+pub const GUESS_HEIGHT: u16 = 32;
 
 /// The pixel densities taken as real, in dots per inch; an EDID outside them
 /// is wrong (a size given as an aspect ratio, a projector).
@@ -121,7 +126,7 @@ pub fn order(
 ) -> Vec<Candidate> {
     let target = match (request, density) {
         (Request::Off, _) => return Vec::new(),
-        (Request::Auto, None) => return largest_first(fonts),
+        (Request::Auto, None) => return guessed(fonts),
         (Request::Auto, Some(density)) => density.pixels(TEXT_HEIGHT_MM),
         (Request::Height(pixels), _) => u32::from(pixels),
     };
@@ -141,6 +146,16 @@ pub fn order(
         let height = u32::from(c.cell.height);
         (height.abs_diff(target), c.doubled, Reverse(c.cell))
     });
+    candidates
+}
+
+/// The fonts up to [`GUESS_HEIGHT`] tall, largest first; all of them when
+/// none is that small.
+fn guessed(fonts: &[(PathBuf, Cell)]) -> Vec<Candidate> {
+    let mut candidates = largest_first(fonts);
+    if candidates.iter().any(|c| c.cell.height <= GUESS_HEIGHT) {
+        candidates.retain(|c| c.cell.height <= GUESS_HEIGHT);
+    }
     candidates
 }
 

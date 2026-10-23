@@ -27,7 +27,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "GENERATE-ZBM" "5" "2026-01-01" "" "ZFSBootMenu"
+.TH "GENERATE-ZBM" "5" "2026-10-23" "" "ZFSBootMenu"
 .SH NAME
 generate-zbm \- configuration file for generate-zbm
 .SH SYNOPSIS
@@ -101,6 +101,13 @@ An array of additional arguments that will be passed to \fBdracut\fP when genera
 .INDENT 0.0
 .INDENT 3.5
 An array of additional arguments that will be passed to \fBmkinitcpio\fP when generating an initramfs. This option is ignored when \fIGlobal.InitCPIO\fP is not \fItrue\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBConsoleFont\fP
+.INDENT 0.0
+.INDENT 3.5
+The console fonts of the images: \fIterminus\fP, the default, or \fIspleen\fP\&. \fBgenerate\-zbm\fP passes the choice to \fBdracut\fP or \fBmkinitcpio\fP as the build option \fBzfsbootmenu_console_font\fP (see \fBzfsbootmenu(7)\fP), unless their configuration sets it. Only images with the Rust runtime load Spleen; images with the legacy runtime keep Terminus. Any other value stops \fBgenerate\-zbm\fP with an error before it builds an image.
 .UNINDENT
 .UNINDENT
 .sp

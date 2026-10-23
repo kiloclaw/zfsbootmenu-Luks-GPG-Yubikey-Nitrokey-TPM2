@@ -9,6 +9,7 @@ pub static ALL: &[&OptionSpec] = &[
     &HOOK_ROOT,
     &RUNTIME,
     &ZBM,
+    &CONSOLE_FONT,
     &SKIP_GCC_S,
     &LUKS,
     &LUKS_CRYPTTAB,
@@ -122,6 +123,31 @@ which is installed in the image as */libexec/zbm*. When unspecified, a default o
 */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy*
 runtime does not use **zbm**; when it is not found, the image is built without it. The *rust*
 runtime cannot be built without it.
+";
+
+/// `zfsbootmenu_console_font`: the console font family of the image.
+pub static CONSOLE_FONT: OptionSpec = OptionSpec {
+    name: "zfsbootmenu_console_font",
+    aliases: &[],
+    source: Source::BuildOption,
+    value: Value::Choice(&["terminus", "spleen"]),
+    default: Some("terminus"),
+    summary: "The console font family of the image: terminus or spleen",
+    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
+    doc: Doc::Entry {
+        heading: "**zfsbootmenu_console_font=terminus**",
+        body: CONSOLE_FONT_DOC,
+    },
+    deprecation: None,
+    examples: &["zfsbootmenu_console_font=spleen"],
+};
+
+const CONSOLE_FONT_DOC: &str = r"
+Select the console fonts of the image: *terminus*, the default, or *spleen*, Spleen 2.2.0 in cells
+of 8x16, 12x24, 16x32 and 32x64, with its licence as
+*/usr/share/zfsbootmenu/fonts/LICENSE.spleen*. Only the *rust* runtime loads Spleen: an image with
+the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
+sets this variable from *Global.ConsoleFont* when its configuration has that key.
 ";
 
 /// `zfsbootmenu_skip_gcc_s`: leaves `libgcc_s.so` out of the image.

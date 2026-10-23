@@ -1,6 +1,7 @@
 //! The initramfs, built with dracut or mkinitcpio, and the way build commands
 //! run.
 
+use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::{GLOBAL_DRACUT_FLAGS, GLOBAL_INIT_CPIO_FLAGS};
 use zbm_core::shell::quote;
 
@@ -35,6 +36,11 @@ impl Generator<'_, '_, '_> {
     ) -> Step<String> {
         let output = format!("{dir}/zfsbootmenu.img");
         let mut words: Vec<String> = Vec::new();
+        // The build option of the console fonts, for the dracut module or the
+        // mkinitcpio hook, which read it from the environment
+        if let Some(family) = &settings.console_font {
+            words.push(format!("zfsbootmenu_console_font={}", quote(family)));
+        }
         let flags_key = if settings.usecpio {
             words.extend([
                 "mkinitcpio".to_owned(),
@@ -61,17 +67,7 @@ impl Generator<'_, '_, '_> {
             }
             &GLOBAL_DRACUT_FLAGS
         };
-        // The flags are shell words, as written in the configuration.
-        match self.config.option(flags_key)? {
-            Some(Value::Seq(flags)) => words.extend(
-                flags
-                    .borrow()
-                    .iter()
-                    .map(|flag| flag.perl_string().unwrap_or_default()),
-            ),
-            Some(flag) => words.push(flag.perl_string().unwrap_or_default()),
-            None => {}
-        }
+        words.extend(self.flags(flags_key)?);
         if settings.usecpio {
             words.extend([
                 "-A".to_owned(),
@@ -86,5 +82,19 @@ impl Generator<'_, '_, '_> {
         }
         self.run_build_step(&words, &output)?;
         Ok(output)
+    }
+
+    /// `Global.DracutFlags` or `Global.InitCPIOFlags`: shell words, as written
+    /// in the configuration.
+    fn flags(&self, key: &OptionSpec) -> Step<Vec<String>> {
+        Ok(match self.config.option(key)? {
+            Some(Value::Seq(flags)) => flags
+                .borrow()
+                .iter()
+                .map(|flag| flag.perl_string().unwrap_or_default())
+                .collect(),
+            Some(flag) => vec![flag.perl_string().unwrap_or_default()],
+            None => Vec::new(),
+        })
     }
 }
