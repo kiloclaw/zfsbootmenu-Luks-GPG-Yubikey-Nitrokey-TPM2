@@ -11,6 +11,8 @@
 //!   110 columns, 32 pixels: 240×75.
 //! - With `zbm.autosize=48`, the 24-pixel font doubled: 160×50.
 
+use std::ops::RangeInclusive;
+
 use crate::error::Result;
 use crate::expect::regex;
 use crate::images::{Image, ImageSpec, zbm_image};
@@ -26,6 +28,13 @@ const RUN: &str = "/libexec/zbm console-autosize --console /dev/tty1; \
 
 /// The density the run found, from the kernel log.
 const DENSITY: &str = "dmesg | grep -o 'display density [a-z0-9]*' | tail -n 1";
+
+/// The density the EDID gives. QEMU makes the display 100 dpi, but an EDID
+/// holds the size in whole millimetres (975 for 3840 pixels), or in whole
+/// centimetres when its first descriptor has no size, as when QEMU puts the
+/// timing of a large mode in an extension block (97 cm): the guest finds
+/// 100 or 101 dpi.
+const EDID_DPI: RangeInclusive<u32> = 99..=101;
 
 /// The skip at boot, from the kernel log.
 const SKIPPED: &str =
@@ -91,8 +100,8 @@ pub(super) fn run(test: &Test) -> Result<()> {
     check_density(
         test,
         &mut vm,
-        "display density 100",
-        "the EDID gives 100 dpi",
+        Some(&EDID_DPI),
+        "the EDID gives about 100 dpi",
     )?;
     check_run(
         test,
@@ -103,12 +112,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     vm.kill();
 
     let mut vm = boot(test, &image, "noedid", false)?;
-    check_density(
-        test,
-        &mut vm,
-        "display density unknown",
-        "no EDID, no density",
-    )?;
+    check_density(test, &mut vm, None, "no EDID, no density")?;
     check_run(
         test,
         &mut vm,
@@ -145,15 +149,31 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, edid: bool) -> Result<Vm<
     Ok(vm)
 }
 
-/// Checks the density a run of `zbm console-autosize` logs.
-fn check_density(test: &Test, vm: &mut Vm<'_>, density: &str, what: &str) -> Result<()> {
+/// Checks the density a run of `zbm console-autosize` logs: within `want`
+/// dots per inch, or unknown when `want` is `None`.
+fn check_density(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    want: Option<&RangeInclusive<u32>>,
+    what: &str,
+) -> Result<()> {
     vm.sh(RUN)?;
     let (_, found) = vm.sh(DENSITY)?;
     test.check(
-        found.trim() == density,
+        density_matches(&found, want),
         &format!("{what} ({})", found.trim()),
     );
     Ok(())
+}
+
+/// Whether the logged density `found`, `display density 100`, is within
+/// `want`, or `display density unknown` when `want` is `None`.
+pub(super) fn density_matches(found: &str, want: Option<&RangeInclusive<u32>>) -> bool {
+    match (found.trim().strip_prefix("display density "), want) {
+        (Some("unknown"), None) => true,
+        (Some(dpi), Some(range)) => dpi.parse().is_ok_and(|dpi| range.contains(&dpi)),
+        _ => false,
+    }
 }
 
 /// Runs `zbm console-autosize` and checks what it kept.

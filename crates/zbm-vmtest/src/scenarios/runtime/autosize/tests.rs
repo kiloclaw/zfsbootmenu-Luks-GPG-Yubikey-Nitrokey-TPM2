@@ -24,6 +24,18 @@ fn reports_give_the_font_and_the_size() {
 }
 
 #[test]
+fn the_density_may_be_off_by_the_rounding_of_the_edid() {
+    // 3840 pixels on 975 mm, and on 97 cm.
+    assert!(density_matches("display density 100\n", Some(&EDID_DPI)));
+    assert!(density_matches("display density 101", Some(&EDID_DPI)));
+    assert!(!density_matches("display density 120", Some(&EDID_DPI)));
+    assert!(!density_matches("display density unknown", Some(&EDID_DPI)));
+    assert!(density_matches("display density unknown", None));
+    assert!(!density_matches("display density 100", None));
+    assert!(!density_matches("", None));
+}
+
+#[test]
 fn a_run_is_checked_against_the_font_it_should_keep() {
     let settings = settings("runtime-autosize-run");
     let test = Test::new(&settings, "runtime-rust-autosize").unwrap();
@@ -52,8 +64,8 @@ fn a_run_is_checked_against_the_font_it_should_keep() {
     check_density(
         &test,
         &mut vm,
-        "display density 100",
-        "the EDID gives 100 dpi",
+        Some(&EDID_DPI),
+        "the EDID gives about 100 dpi",
     )
     .unwrap();
     check_run(&test, &mut vm, &edid, "with the EDID").unwrap();
@@ -63,7 +75,7 @@ fn a_run_is_checked_against_the_font_it_should_keep() {
     let checks = checks(&test);
     assert_eq!(
         checks[0],
-        "ok   - the EDID gives 100 dpi (display density 100)"
+        "ok   - the EDID gives about 100 dpi (display density 100)"
     );
     assert!(checks[1].starts_with("ok   - with the EDID: ter-v20b.psf at 384x120"));
     assert!(checks[2].starts_with("FAIL - again: ter-v20b.psf at 384x120"));
