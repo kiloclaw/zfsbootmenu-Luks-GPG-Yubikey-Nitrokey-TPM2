@@ -60,44 +60,18 @@ fn split_words(pattern: &[u8]) -> Vec<Vec<u8>> {
     let mut s = 0;
     while s < end {
         match pattern[s] {
-            quote @ (b'\'' | b'"') => {
+            b'\'' | b'"' => {
                 let current = word.get_or_insert_with(Vec::new);
                 if let Some(start) = piece {
                     current.extend_from_slice(&pattern[start..s]);
                 }
-                let mut start = s + 1;
-                let mut found = false;
-                loop {
-                    s += 1;
-                    if s >= end {
-                        break;
-                    }
-                    if pattern[s] == b'\\' {
-                        s += 1;
-                        if s < end && pattern[s] == quote {
-                            current.extend_from_slice(&pattern[start..s - 1]);
-                            start = s;
-                        }
-                    } else if pattern[s] == quote {
-                        found = true;
-                        break;
-                    }
-                }
-                if !found {
+                let Some(close) = read_quoted(pattern, s, current) else {
                     // An unmatched quote: the whole pattern, without surrounding white space, is
                     // the last word.
-                    let first = pattern
-                        .iter()
-                        .position(|byte| !is_space(*byte))
-                        .unwrap_or(end);
-                    let last = pattern
-                        .iter()
-                        .rposition(|byte| !is_space(*byte))
-                        .map_or(first, |i| i + 1);
-                    words.push(pattern[first..last].to_vec());
+                    words.push(trim_spaces(pattern).to_vec());
                     return words;
-                }
-                current.extend_from_slice(&pattern[start..s]);
+                };
+                s = close;
                 piece = None;
             }
             b'\\' => {
@@ -132,6 +106,45 @@ fn split_words(pattern: &[u8]) -> Vec<Vec<u8>> {
         words.push(last);
     }
     words
+}
+
+/// Adds the text between the quote at `open` and the matching closing quote to
+/// `word`, without the backslashes that escape that quote inside it, and
+/// returns the index of the closing quote; `None` when there is none.
+fn read_quoted(pattern: &[u8], open: usize, word: &mut Vec<u8>) -> Option<usize> {
+    let quote = pattern[open];
+    let end = pattern.len();
+    let mut start = open + 1;
+    let mut s = open;
+    loop {
+        s += 1;
+        if s >= end {
+            return None;
+        }
+        if pattern[s] == b'\\' {
+            s += 1;
+            if s < end && pattern[s] == quote {
+                word.extend_from_slice(&pattern[start..s - 1]);
+                start = s;
+            }
+        } else if pattern[s] == quote {
+            word.extend_from_slice(&pattern[start..s]);
+            return Some(s);
+        }
+    }
+}
+
+/// The pattern without the white space around it.
+fn trim_spaces(pattern: &[u8]) -> &[u8] {
+    let first = pattern
+        .iter()
+        .position(|byte| !is_space(*byte))
+        .unwrap_or(pattern.len());
+    let last = pattern
+        .iter()
+        .rposition(|byte| !is_space(*byte))
+        .map_or(first, |i| i + 1);
+    &pattern[first..last]
 }
 
 /// A pattern character and whether a backslash protects it from being special.
@@ -277,6 +290,23 @@ impl Token {
 /// sorted.
 fn glob0(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
     let pattern = expand_tilde(pattern);
+    let (tokens, magic) = compile(&pattern);
+    let before = matches.len();
+    if !tokens.is_empty() {
+        glob2(&mut Vec::new(), &tokens, base, matches);
+    }
+    if matches.len() == before {
+        if !magic {
+            matches.push(pattern.iter().map(|c| c.byte).collect());
+        }
+    } else {
+        matches[before..].sort_by(|a, b| compare_ignoring_case(a, b));
+    }
+}
+
+/// Compiles a pattern into tokens, and tells whether it has wildcards: `*`,
+/// `?` or a closed bracket expression. Repeated `*`s become one.
+fn compile(pattern: &[Char]) -> (Vec<Token>, bool) {
     let mut tokens = Vec::new();
     let mut magic = false;
     let mut index = 0;
@@ -284,39 +314,13 @@ fn glob0(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
         let c = pattern[index];
         index += 1;
         if c.is(b'[') {
-            let negate = pattern.get(index).is_some_and(|next| next.is(b'!'));
-            let body = if negate { index + 1 } else { index };
-            let has_close =
-                body < pattern.len() && (body + 1..pattern.len()).any(|i| pattern[i].is(b']'));
-            if !has_close {
-                tokens.push(Token::Byte(b'['));
-                continue;
-            }
-            tokens.push(Token::Set);
-            if negate {
-                tokens.push(Token::Not);
-            }
-            index = body;
-            let mut c = pattern[index];
-            index += 1;
-            loop {
-                tokens.push(Token::Byte(c.byte));
-                if pattern.get(index).is_some_and(|next| next.is(b'-'))
-                    && let Some(&high) = pattern.get(index + 1)
-                    && !high.is(b']')
-                {
-                    tokens.push(Token::Range);
-                    tokens.push(Token::Byte(high.byte));
-                    index += 2;
+            match compile_bracket(pattern, index, &mut tokens) {
+                Some(next) => {
+                    index = next;
+                    magic = true;
                 }
-                c = pattern[index];
-                index += 1;
-                if c.is(b']') {
-                    break;
-                }
+                None => tokens.push(Token::Byte(b'[')),
             }
-            magic = true;
-            tokens.push(Token::End);
         } else if c.is(b'?') {
             magic = true;
             tokens.push(Token::One);
@@ -329,18 +333,44 @@ fn glob0(pattern: &[Char], base: &Path, matches: &mut Vec<Vec<u8>>) {
             tokens.push(Token::Byte(c.byte));
         }
     }
+    (tokens, magic)
+}
 
-    let before = matches.len();
-    if !tokens.is_empty() {
-        glob2(&mut Vec::new(), &tokens, base, matches);
+/// Compiles the bracket expression that starts at `index`, just after its `[`,
+/// and returns the index after its `]`. When no `]` closes it, nothing is
+/// added and the result is `None`: the `[` stands for itself.
+fn compile_bracket(pattern: &[Char], index: usize, tokens: &mut Vec<Token>) -> Option<usize> {
+    let negate = pattern.get(index).is_some_and(|next| next.is(b'!'));
+    let body = if negate { index + 1 } else { index };
+    let has_close = body < pattern.len() && (body + 1..pattern.len()).any(|i| pattern[i].is(b']'));
+    if !has_close {
+        return None;
     }
-    if matches.len() == before {
-        if !magic {
-            matches.push(pattern.iter().map(|c| c.byte).collect());
+    tokens.push(Token::Set);
+    if negate {
+        tokens.push(Token::Not);
+    }
+    let mut index = body;
+    let mut c = pattern[index];
+    index += 1;
+    loop {
+        tokens.push(Token::Byte(c.byte));
+        if pattern.get(index).is_some_and(|next| next.is(b'-'))
+            && let Some(&high) = pattern.get(index + 1)
+            && !high.is(b']')
+        {
+            tokens.push(Token::Range);
+            tokens.push(Token::Byte(high.byte));
+            index += 2;
         }
-    } else {
-        matches[before..].sort_by(|a, b| compare_ignoring_case(a, b));
+        c = pattern[index];
+        index += 1;
+        if c.is(b']') {
+            break;
+        }
     }
+    tokens.push(Token::End);
+    Some(index)
 }
 
 /// `globtilde`: replaces a leading `~` or `~user` with the home directory.
@@ -535,109 +565,4 @@ fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, TempDir, have_program, parity};
-
-    #[test]
-    fn words() {
-        let words = |pattern: &str| -> Vec<String> {
-            split_words(pattern.as_bytes())
-                .into_iter()
-                .map(|word| String::from_utf8(word).unwrap())
-                .collect()
-        };
-        assert_eq!(words("a b"), ["a", "b"]);
-        assert_eq!(words(" \"d e\" x\\ y"), ["d e", "x\\ y"]);
-        assert_eq!(words("a \"b"), ["a", "a \"b"]);
-        assert_eq!(words("\"\""), [""]);
-        assert_eq!(words("\\\"b"), ["\"b"]);
-    }
-
-    #[test]
-    fn files() {
-        let dir = TempDir::new("generate-zbm-glob");
-        for name in ["Ab", "ab", "aB", ".h", "b", "x[1]"] {
-            dir.write(name, "");
-        }
-        let base = dir.path().display().to_string();
-        let names = |pattern: &str| -> Vec<String> {
-            glob(&format!("{base}/{pattern}"))
-                .into_iter()
-                .map(|path| path[base.len() + 1..].to_owned())
-                .collect()
-        };
-        assert_eq!(names("*"), ["Ab", "aB", "ab", "b", "x[1]"]);
-        assert_eq!(names("A?"), ["Ab", "aB", "ab"]);
-        assert_eq!(names(".*"), [".", "..", ".h"]);
-        assert_eq!(names("[!a]*"), ["b", "x[1]"]);
-        assert_eq!(names("x\\[1]"), ["x[1]"]);
-        assert_eq!(names("{b,zz}"), ["b", "zz"]);
-        assert_eq!(names("none*"), Vec::<String>::new());
-        assert_eq!(glob("a{b"), ["a"]);
-        assert_eq!(glob("\\*"), ["*"]);
-    }
-
-    fn perl_glob(pattern: &str, cwd: &std::path::Path) -> String {
-        let program = "use File::Glob qw(:globally :nocase); chdir $ARGV[1] or die;\n\
-                       print map { \"<$_>\" } glob($ARGV[0]);";
-        perl(program, &[pattern, &cwd.to_string_lossy()], b"").stdout_text()
-    }
-
-    #[test]
-    fn matches_file_glob() {
-        let mut parity = parity!("matches_file_glob");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
-            return;
-        }
-        let dir = TempDir::new("generate-zbm-glob-parity");
-        for name in [
-            "vmlinuz-6.1.0",
-            "VMLINUZ-6.2",
-            "vmlinuz-6.10_1.EFI",
-            "Ab",
-            "ab",
-            ".hidden",
-            "d e",
-            "x[1]",
-            "a{b",
-            "q'x",
-            "-",
-            "]",
-            "sub/f",
-            "sub/G",
-            "sub/.dot",
-            "s2/f",
-        ] {
-            dir.write(name, "");
-        }
-        let pieces = [
-            "*", "?", "[ab]", "[!a]", "[]a]", "[a-z]", "[A-Z]", "[a-", "[", "]", "{", "}", ",",
-            "{a,b}", "{,}", "\\", "\\*", "'", "\"", " ", "  ", "/", "sub", "s*", "vmlinuz", "-",
-            "6", ".", ".*", "EFI", "_", "x", "d", "e", "~", "q", "{}", "1",
-        ];
-        let mut rng = Rng::from_env(11);
-        for _ in 0..400 {
-            let pattern = rng.join(&pieces, 5);
-            // `~` is the home directory, which differs between machines.
-            let home = std::env::var("HOME").unwrap_or_default();
-            let without_home = |text: String| {
-                if home.is_empty() {
-                    text
-                } else {
-                    text.replace(&home, "$HOME")
-                }
-            };
-            let rust: String = glob_at(&pattern, dir.path())
-                .iter()
-                .map(|path| format!("<{path}>"))
-                .collect();
-            let legacy: String = parity.legacy(format!("{pattern:?}"), || {
-                without_home(perl_glob(&pattern, dir.path()))
-            });
-            assert_eq!(without_home(rust), legacy, "pattern {pattern:?}");
-        }
-    }
-}
+mod tests;

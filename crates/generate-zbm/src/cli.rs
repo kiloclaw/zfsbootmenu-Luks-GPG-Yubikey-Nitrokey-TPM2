@@ -203,76 +203,16 @@ struct Parser {
 }
 
 impl Parser {
+    /// Looks at one argument: whether it is an option and, if it is, its value,
+    /// taken from `rest` when the option needs one and was given no `=value`.
     fn find(&mut self, arg: &str, rest: &mut std::collections::VecDeque<String>) -> Found {
-        // The prefix: `--`, `-`, or (without POSIXLY_CORRECT) `+`. A lone `-` is an
-        // operand.
-        let starter = if arg.starts_with("--") {
-            "--"
-        } else if arg.starts_with('-') {
-            "-"
-        } else if arg.starts_with('+') && !self.posix {
-            "+"
-        } else {
+        let Some(starter) = self.starter(arg) else {
             return Found::Operand;
         };
-        if arg == "-" {
-            return Found::Operand;
-        }
-        let mut opt = &arg[starter.len()..];
-
-        // `name=value`, where the name has at least one character; Getopt::Long splits
-        // it after any prefix unless POSIXLY_CORRECT limits that to `--`.
-        let mut optarg = None;
-        if (starter == "--" || !self.posix)
-            && let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=')
-        {
-            let position = position + 1;
-            optarg = Some(opt[position + 1..].to_owned());
-            opt = &opt[..position];
-        }
-
-        // Unique prefixes stand for the full name.
-        let mut tryopt = opt.to_owned();
-        if !self.posix && !opt.is_empty() {
-            let hits: Vec<&Name> = self
-                .names
-                .iter()
-                .filter(|name| name.name.starts_with(opt))
-                .collect();
-            let exact = hits.iter().filter(|name| name.name == opt).count();
-            let mut resolved: Vec<String> = hits.iter().map(|name| name.name.clone()).collect();
-            if !(hits.len() <= 1 || exact == 1) {
-                // Several names match: they may all be forms of one option.
-                let mut options: Vec<String> = hits
-                    .iter()
-                    .map(|name| {
-                        if name.negated {
-                            format!("no{}", name.canonical)
-                        } else {
-                            name.canonical.to_owned()
-                        }
-                    })
-                    .collect();
-                options.sort();
-                options.dedup();
-                if options.len() == 2 {
-                    // `auto_version` lets a match with `version` give way to the other option.
-                    options.retain(|option| option != "version");
-                }
-                if options.len() != 1 {
-                    self.warnings.push(format!(
-                        "Option {opt} is ambiguous ({})\n",
-                        resolved.join(", ")
-                    ));
-                    return Found::Error;
-                }
-                resolved = options;
-            }
-            if resolved.len() == 1 && resolved[0] != opt {
-                tryopt.clone_from(&resolved[0]);
-            }
-        }
-
+        let (opt, optarg) = self.split_value(starter, &arg[starter.len()..]);
+        let Some(tryopt) = self.complete(opt) else {
+            return Found::Error;
+        };
         let Some(name) = self.names.iter().find(|name| name.name == tryopt).cloned() else {
             if opt.is_empty() {
                 self.warnings
@@ -282,7 +222,77 @@ impl Parser {
             }
             return Found::Error;
         };
+        self.value(&name, optarg, rest)
+    }
 
+    /// The prefix that makes `arg` an option: `--`, `-`, or (without
+    /// POSIXLY_CORRECT) `+`; none for an operand, which a lone `-` is.
+    fn starter(&self, arg: &str) -> Option<&'static str> {
+        let starter = if arg.starts_with("--") {
+            "--"
+        } else if arg.starts_with('-') {
+            "-"
+        } else if arg.starts_with('+') && !self.posix {
+            "+"
+        } else {
+            return None;
+        };
+        (arg != "-").then_some(starter)
+    }
+
+    /// Splits `name=value`, where the name has at least one character, into the
+    /// name and the value. Getopt::Long splits it after any prefix unless
+    /// POSIXLY_CORRECT limits that to `--`.
+    fn split_value<'o>(&self, starter: &str, opt: &'o str) -> (&'o str, Option<String>) {
+        if (starter == "--" || !self.posix)
+            && let Some(position) = opt.bytes().skip(1).position(|byte| byte == b'=')
+        {
+            let position = position + 1;
+            return (&opt[..position], Some(opt[position + 1..].to_owned()));
+        }
+        (opt, None)
+    }
+
+    /// The name to look up for `opt`: the full name when `opt` is a unique
+    /// prefix of one, otherwise `opt` itself. Without a unique option, records
+    /// a warning and returns `None`.
+    fn complete(&mut self, opt: &str) -> Option<String> {
+        if self.posix || opt.is_empty() {
+            return Some(opt.to_owned());
+        }
+        let hits: Vec<&Name> = self
+            .names
+            .iter()
+            .filter(|name| name.name.starts_with(opt))
+            .collect();
+        let exact = hits.iter().filter(|name| name.name == opt).count();
+        let mut resolved: Vec<String> = hits.iter().map(|name| name.name.clone()).collect();
+        if !(hits.len() <= 1 || exact == 1) {
+            // Several names match: they may all be forms of one option.
+            let options = options_of(&hits);
+            if options.len() != 1 {
+                self.warnings.push(format!(
+                    "Option {opt} is ambiguous ({})\n",
+                    resolved.join(", ")
+                ));
+                return None;
+            }
+            resolved = options;
+        }
+        if resolved.len() == 1 && resolved[0] != opt {
+            return resolved.pop();
+        }
+        Some(opt.to_owned())
+    }
+
+    /// The value of the option `name`: a switch must have no `=value`; a string
+    /// takes `optarg` or, without one, the next argument.
+    fn value(
+        &mut self,
+        name: &Name,
+        optarg: Option<String>,
+        rest: &mut std::collections::VecDeque<String>,
+    ) -> Found {
         match name.kind {
             Kind::Flag | Kind::Negatable => {
                 if optarg.is_some() {
@@ -308,6 +318,28 @@ impl Parser {
             }
         }
     }
+}
+
+/// The options that the matching names `hits` are forms of, sorted and without
+/// duplicates; a negated form counts as an option of its own.
+fn options_of(hits: &[&Name]) -> Vec<String> {
+    let mut options: Vec<String> = hits
+        .iter()
+        .map(|name| {
+            if name.negated {
+                format!("no{}", name.canonical)
+            } else {
+                name.canonical.to_owned()
+            }
+        })
+        .collect();
+    options.sort();
+    options.dedup();
+    if options.len() == 2 {
+        // `auto_version` lets a match with `version` give way to the other option.
+        options.retain(|option| option != "version");
+    }
+    options
 }
 
 /// Parses the arguments; `posixly_correct` tells whether `POSIXLY_CORRECT` is
@@ -369,264 +401,4 @@ pub fn parse(args: &[String], posixly_correct: bool) -> Parsed {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
-    use zbm_testkit::legacy::path;
-    use zbm_testkit::{Rng, have_program, parity};
-
-    fn args(list: &[&str]) -> Vec<String> {
-        list.iter().map(|arg| (*arg).to_owned()).collect()
-    }
-
-    fn run(list: &[&str]) -> Options {
-        match parse(&args(list), false).outcome {
-            Outcome::Run(options) => *options,
-            other => panic!("{list:?} gave {other:?}"),
-        }
-    }
-
-    #[test]
-    fn names_and_values() {
-        let options = run(&[
-            "-c",
-            "-d",
-            "--kv",
-            "6.1",
-            "+V",
-            "--no",
-            "-H",
-            "a",
-            "--hookd=b",
-            "x",
-        ]);
-        assert_eq!(options.config, "-d");
-        assert_eq!(options.kernel_version.as_deref(), Some("6.1"));
-        assert!(options.showver && !options.debug);
-        assert_eq!(options.initcpio, Some(false));
-        assert_eq!(options.hookd, Some(vec!["a".to_owned(), "b".to_owned()]));
-        assert_eq!(run(&["-config=foo"]).config, "foo");
-        assert_eq!(run(&["--init"]).initcpio, Some(true));
-        assert!(!run(&["--", "-d"]).debug);
-    }
-
-    #[test]
-    fn errors() {
-        let parsed = parse(
-            &args(&["--con", "x", "-dV", "--config=", "--en=1", "+"]),
-            false,
-        );
-        assert_eq!(parsed.outcome, Outcome::Invalid);
-        assert_eq!(
-            parsed.warnings,
-            [
-                "Option con is ambiguous (confd, config)\n",
-                "Unknown option: dV\n",
-                "Option config requires an argument\n",
-                "Option enable does not take an argument\n",
-                "Missing option after +\n",
-            ]
-        );
-        let parsed = parse(&args(&["--x", "--help", "--y"]), false);
-        assert_eq!(parsed.outcome, Outcome::Help);
-        assert_eq!(parsed.warnings, ["Unknown option: x\n"]);
-        let parsed = parse(&args(&["foo", "-d"]), true);
-        assert_eq!(parsed.outcome, Outcome::Run(Box::default()));
-    }
-
-    /// The `GetOptions` call of the Perl program, run on `list`, reporting the
-    /// options, warnings and status.
-    fn perl_parse(source: &str, list: &[String], posix: bool) -> String {
-        let start = source.find("GetOptions(").unwrap();
-        let end = source[start..].find(") or exit 1;").unwrap() + start;
-        let call = &source[start..end + 1];
-        let program = format!(
-            "use strict; use warnings; use Getopt::Long qw(:config no_ignore_case auto_version);\n\
-             my %runConf; $runConf{{config}} = '/etc/zfsbootmenu/config.yaml';\n\
-             $runConf{{bootdir}} = '/boot';\n\
-             sub pod2usage {{ print \"HELP\\n\"; exit 1; }}\n\
-             my $ok = {call};\n\
-             for my $k (sort keys %runConf) {{ my $v = $runConf{{$k}}; next unless defined $v;\n\
-               $v = join('|', @$v) if ref $v; print \"$k=$v\\n\"; }}\n\
-             print $ok ? \"ok\\n\" : \"invalid\\n\";\n"
-        );
-        let mut command = Command::new("perl")
-            .arg("-e")
-            .arg(program)
-            .arg("--")
-            .args(list.iter().cloned())
-            .merge_stderr()
-            .stderr(Stream::Capture)
-            .env_remove("POSIXLY_CORRECT");
-        if posix {
-            command = command.env("POSIXLY_CORRECT", "1");
-        }
-        SystemRunner.run(&command).unwrap().stdout_text()
-    }
-
-    fn rust_parse(list: &[String], posix: bool) -> String {
-        let parsed = parse(list, posix);
-        let mut text: String = parsed.warnings.concat();
-        match parsed.outcome {
-            Outcome::Help => text.push_str("HELP\n"),
-            Outcome::Invalid | Outcome::Run(_) => {
-                let options = match &parsed.outcome {
-                    Outcome::Run(options) => (**options).clone(),
-                    _ => Options::default(),
-                };
-                // After an error Perl still holds the values it stored; only valid runs are
-                // compared in full.
-                if matches!(parsed.outcome, Outcome::Run(_)) {
-                    let mut fields: Vec<(&str, String)> = vec![
-                        ("bootdir", options.bootdir.clone()),
-                        ("config", options.config.clone()),
-                    ];
-                    let optional = [
-                        ("cmdline", &options.cmdline),
-                        ("confd", &options.confd),
-                        ("kernel", &options.kernel),
-                        ("kernel_prefix", &options.kernel_prefix),
-                        ("kernel_version", &options.kernel_version),
-                        ("version", &options.version),
-                    ];
-                    for (key, value) in optional {
-                        if let Some(value) = value {
-                            fields.push((key, value.clone()));
-                        }
-                    }
-                    if let Some(hooks) = &options.hookd {
-                        fields.push(("cpio_hookd", hooks.join("|")));
-                    }
-                    for (key, set) in [
-                        ("debug", options.debug),
-                        ("disable", options.disable),
-                        ("enable", options.enable),
-                        ("showver", options.showver),
-                    ] {
-                        if set {
-                            fields.push((key, "1".to_owned()));
-                        }
-                    }
-                    if let Some(value) = options.initcpio {
-                        fields.push(("usecpio", u8::from(value).to_string()));
-                    }
-                    fields.sort();
-                    for (key, value) in fields {
-                        text.push_str(&format!("{key}={value}\n"));
-                    }
-                    text.push_str("ok\n");
-                } else {
-                    text.push_str("invalid\n");
-                }
-            }
-        }
-        text
-    }
-
-    /// Perl's output without the option values of invalid runs, which the Rust
-    /// parser does not report.
-    fn comparable(perl: &str) -> String {
-        if perl.ends_with("invalid\n") {
-            perl.lines()
-                .filter(|line| {
-                    !line.contains('=')
-                        || line.starts_with("Option ")
-                        || line.starts_with("Unknown")
-                })
-                .map(|line| format!("{line}\n"))
-                .collect()
-        } else {
-            perl.to_owned()
-        }
-    }
-
-    #[test]
-    fn matches_getopt_long() {
-        let mut parity = parity!("matches_getopt_long");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
-            return;
-        }
-        let pieces = [
-            "-v",
-            "--version",
-            "--ver",
-            "-k",
-            "--kernel=x",
-            "--k",
-            "--ke",
-            "--con",
-            "--conf",
-            "--confi",
-            "-c",
-            "--config=",
-            "-C=c",
-            "--noi",
-            "--no-initcpio",
-            "--noinit",
-            "--init",
-            "-i",
-            "--n",
-            "--no",
-            "-H",
-            "--hookd=a",
-            "--ho",
-            "--debug",
-            "-d",
-            "-de",
-            "-dV",
-            "--debug=1",
-            "+d",
-            "+",
-            "-",
-            "--",
-            "---x",
-            "x",
-            "-x",
-            "--x",
-            "--en",
-            "--e",
-            "--enable",
-            "--disable",
-            "--dis",
-            "--di",
-            "-V",
-            "--showver",
-            "--sh",
-            "-K",
-            "--kv",
-            "-p",
-            "--pre",
-            "-b",
-            "--boot",
-            "-l",
-            "--cm",
-            "a",
-            "",
-            "a=b",
-            "--=x",
-            "--Kver",
-            "--h",
-            "--help",
-            "-noinitcpio",
-            "--initcpio=1",
-        ];
-        let mut rng = Rng::from_env(10);
-        for _ in 0..300 {
-            let count = rng.below(6);
-            let list: Vec<String> = (0..count)
-                .map(|_| (*rng.choose(&pieces)).to_owned())
-                .collect();
-            let posix = rng.below(5) == 0;
-            let legacy: String = parity.legacy(format!("args {list:?}, posix {posix}"), || {
-                let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
-                comparable(&perl_parse(&source, &list, posix))
-            });
-            assert_eq!(
-                rust_parse(&list, posix),
-                legacy,
-                "args {list:?}, posix {posix}"
-            );
-        }
-    }
-}
+mod tests;
