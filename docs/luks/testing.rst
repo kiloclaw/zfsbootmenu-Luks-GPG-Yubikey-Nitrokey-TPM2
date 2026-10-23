@@ -335,8 +335,10 @@ Following a boot
   step 2), in a Rust image with the ``virtio_gpu`` and ``evdev`` drivers. Both boots have ``tty1`` as the control
   terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its
   screen after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the
-  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape and ``tty``
-  typed with ``sendkey`` must give the recovery shell on a pseudo-terminal (``/dev/pts/N``); after ``kill -9`` of the
+  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape typed with
+  ``sendkey`` must open the recovery shell on the console, and ``tty`` typed there must name a pseudo-terminal
+  (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's last screen.
+  After ``kill -9`` of the
   console, the shell on the kernel console must take ``dmesg | grep console: > /dev/ttyS0``, which shows the console's
   start and the supervisor's message that it ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
   console must write that it handed the display back, and the boot environment must boot.

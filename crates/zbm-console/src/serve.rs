@@ -90,6 +90,15 @@ impl Settings {
     }
 }
 
+/// Opens the mirror at `path` without blocking: when it cannot take a
+/// screen, as a serial port whose line is full, the screen is lost rather
+/// than the console stopped.
+fn open_mirror(path: &Path) -> Option<File> {
+    let mirror = OpenOptions::new().append(true).open(path).ok()?;
+    rustix::io::ioctl_fionbio(&mirror, true).ok()?;
+    Some(mirror)
+}
+
 /// Gives the font's grid for a display of a size in pixels.
 pub type MakeGrid<'g> = &'g mut dyn FnMut((u32, u32)) -> io::Result<Grid>;
 
@@ -196,10 +205,7 @@ fn on_display(
         6,
         &format!("on {card}: {x}x{y} display, {width}x{height} cells, {columns}x{rows}"),
     );
-    let mut mirror = settings
-        .mirror
-        .as_ref()
-        .and_then(|path| OpenOptions::new().append(true).open(path).ok());
+    let mut mirror = settings.mirror.as_deref().and_then(open_mirror);
     let mut last = String::new();
     let mut shown = |text: &str| {
         if text != last {

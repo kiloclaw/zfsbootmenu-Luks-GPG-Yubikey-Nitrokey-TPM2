@@ -111,6 +111,8 @@ fn the_mirror_gets_lines_of_their_own() {
         format!("\x0c{RELEASED}\n")
     );
     assert_eq!(Places::system().kmsg, PathBuf::from("/dev/kmsg"));
+    assert!(open_mirror(&mirror).is_some());
+    assert!(open_mirror(&dir.join("none/mirror")).is_none());
 }
 
 #[test]

@@ -69,6 +69,10 @@ fn screens_are_read_from_the_mirror() {
         None
     );
     assert!(wait_screen(&path, "(", 0).is_err());
+    assert_eq!(last_screen(&path), "two 42");
+    fs::write(&path, "\x0ca\r\n\r\nb\r\n\x0c\n").unwrap();
+    assert_eq!(last_screen(&path), "a | b");
+    assert_eq!(last_screen(&test.dir().join("none")), "(nothing)");
     cleanup(&settings);
 }
 
@@ -109,7 +113,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
     let mirror = mirror_path(&test, "virtio");
     fs::write(
         &mirror,
-        "\x0cBooting tplain/ROOT/be in 29 seconds\n\x0c# tty\n/dev/pts/0\n",
+        "\x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n",
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);
@@ -119,12 +123,12 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 5, "{checks:?}");
+    assert_eq!(checks.len(), 6, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
     );
-    assert!(checks[3].contains("1280x800 display"), "{checks:?}");
+    assert!(checks[4].contains("1280x800 display"), "{checks:?}");
     cleanup(&settings);
 }
 
@@ -142,7 +146,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 8, "{checks:?}");
+    assert_eq!(checks.len(), 9, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

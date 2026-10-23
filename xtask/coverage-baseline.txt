@@ -11,7 +11,7 @@ zbm-app                   98
 zbm-boot                  97
 zbm-config                99
 zbm-core                  97
-zbm-console               89
+zbm-console               90
 zbm-coreutils            100
 zbm-crypt                100
 zbm-display               85

@@ -58,7 +58,7 @@ const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\d+x\d+) cells";
 const ENDED: &str = r"console on the display ended";
 
 /// How the test waits: the guest gets `pause` to settle between steps,
-/// and keys are typed 20 a `pause`; a boot may take `patience` seconds.
+/// and keys are typed 5 a `pause`; a boot may take `patience` seconds.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Pace {
     /// The pause between steps.
@@ -109,9 +109,9 @@ fn mirror_path(test: &Test, name: &str) -> PathBuf {
     test.dir().join(format!("mirror-{name}.txt"))
 }
 
-/// Presses `key` on the machine's keyboard.
+/// Presses `key` on the machine's keyboard for 50 milliseconds.
 fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {
-    vm.monitor(&format!("sendkey {key}")).map(drop)
+    vm.monitor(&format!("sendkey {key} 50")).map(drop)
 }
 
 /// QEMU's names of the keys that type `text` on the US layout; `None` for
@@ -140,14 +140,33 @@ pub(super) fn key_names(text: &str) -> Option<Vec<String>> {
         .collect()
 }
 
-/// Types `text` on the machine's keyboard, a key each `pause` / 20.
+/// Types `text` on the machine's keyboard, a key each `pause` / 5: QEMU
+/// holds each key a while, and a key sent before the last one was let go
+/// can be lost.
 fn type_text(vm: &Vm<'_>, monitor: &Monitor, text: &str, pause: Duration) -> Result<()> {
     let names = key_names(text).ok_or_else(|| Error::Setup(format!("no keys type {text:?}")))?;
     for name in names {
         (monitor.key)(vm, &name)?;
-        thread::sleep(pause / 20);
+        thread::sleep(pause / 5);
     }
     Ok(())
+}
+
+/// The last screen of the mirror at `path`, for the notes of a failure.
+pub(super) fn last_screen(path: &Path) -> String {
+    let text = fs::read(path).unwrap_or_default();
+    let text = String::from_utf8_lossy(&text).replace('\r', "");
+    let screen = text.rsplit('\x0c').find(|screen| !screen.trim().is_empty());
+    let lines: Vec<&str> = screen
+        .unwrap_or("")
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    if lines.is_empty() {
+        "(nothing)".to_owned()
+    } else {
+        lines.join(" | ")
+    }
 }
 
 /// Waits at most `seconds` until a screen in the mirror at `path` matches
@@ -219,15 +238,7 @@ pub(super) fn check_console(
         colours.is_some_and(|count| count >= COUNTDOWN_COLOURS),
         &format!("virtio: the console draws it in colour ({colours:?} colours)"),
     );
-    thread::sleep(pause * 2);
-    (monitor.key)(vm, "esc")?;
-    thread::sleep(pause * 5);
-    type_text(vm, monitor, TTY, pause)?;
-    let shell = wait_screen(mirror, r"/dev/pts/\d+", pace.patience.min(60))?;
-    test.check(
-        shell.is_some(),
-        "virtio: Escape reaches the countdown, and the recovery shell runs on the console",
-    );
+    check_shell(test, vm, mirror, monitor, pace)?;
     type_text(vm, monitor, KILL, pause)?;
     thread::sleep(pause * 5);
     type_text(vm, monitor, LOG, pause)?;
@@ -244,6 +255,44 @@ pub(super) fn check_console(
         ended,
         "virtio: once the console ended, the kernel console takes keys again",
     );
+    Ok(())
+}
+
+/// Escape typed during the countdown opens the recovery shell on the
+/// console, which runs on its pseudo-terminal and takes typed commands.
+fn check_shell(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    mirror: &Path,
+    monitor: &Monitor,
+    pace: Pace,
+) -> Result<()> {
+    thread::sleep(pace.pause * 2);
+    (monitor.key)(vm, "esc")?;
+    let shell = wait_screen(mirror, "emergency shell", pace.patience.min(60))?;
+    test.check(
+        shell.is_some(),
+        "virtio: Escape typed on the keyboard opens the recovery shell on the console",
+    );
+    if shell.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
+    thread::sleep(pace.pause * 3);
+    type_text(vm, monitor, TTY, pace.pause)?;
+    let tty = wait_screen(mirror, r"/dev/pts/\d+", pace.patience.min(60))?;
+    test.check(
+        tty.is_some(),
+        "virtio: the shell runs on the console's pseudo-terminal and takes typed commands",
+    );
+    if tty.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
     Ok(())
 }
 
