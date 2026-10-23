@@ -30,6 +30,8 @@
 //!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
 //! - `rust-colours` (`colours`): the image's console fonts leave the VGA
 //!   text console and the framebuffer console their 16 colours.
+//! - `rust-drm` (`drm`): the menu prototype on the display without a
+//!   terminal, on `virtio_gpu` and on `simpledrm` (ROADMAP.md #19).
 //! - `rust-crash` (`crash`): a hook runs `zbm debug panic` in an image
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
@@ -60,6 +62,7 @@ mod autosize;
 mod boot;
 mod colours;
 mod crash;
+mod drm;
 mod host;
 mod pilot;
 mod record_fixtures;
@@ -79,7 +82,7 @@ const ESCAPE_APPEND: &str = "console=ttyS0 zbm.timeout=30 loglevel=7";
 const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
-/// `rust-colours`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
+/// `rust-colours`, `rust-drm`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
 ///
@@ -93,6 +96,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-crash" => crash::run(test),
         "rust-autosize" => autosize::run(test),
         "rust-colours" => colours::run(test),
+        "rust-drm" => drm::run(test),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

@@ -6,6 +6,7 @@ zbm-app
 zbm-config
 zbm-coreutils
 zbm-crypt
+zbm-display
 zbm-luks
 zbm-menu
 zbm-platform

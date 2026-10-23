@@ -268,3 +268,14 @@ fn the_repertoire_fits_in_a_subset_and_holds_the_letters_of_the_four_languages()
     unique.dedup();
     assert_eq!(unique.len(), repertoire.len());
 }
+
+#[test]
+fn a_glyph_is_found_for_a_character_or_its_look_alike_with_its_bitmap() {
+    let font = Font::parse(&psf2(&['A', '>'], true)).unwrap();
+
+    assert_eq!(font.glyph_for('A'), Some(0));
+    assert_eq!(font.glyph_for('▶'), Some(1));
+    assert_eq!(font.glyph_for('Z'), None);
+    assert_eq!(font.bitmap(0), Some(&b"AA"[..]));
+    assert_eq!(font.bitmap(2), None);
+}

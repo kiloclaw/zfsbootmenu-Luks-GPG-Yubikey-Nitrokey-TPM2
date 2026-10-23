@@ -40,6 +40,9 @@ fn the_colours_of_the_bar_line_are_counted() {
     // The text above the bar is left out.
     assert_eq!(colours(&screen(1), rows), Some(1));
     assert_eq!(colours(&screen(16), 0..CELL_HEIGHT), Some(1));
+    // Black, white and the bar's 16, which include black.
+    assert_eq!(screen_colours(&screen(16)), Some(17));
+    assert_eq!(screen_colours(b"P3"), None);
 }
 
 #[test]

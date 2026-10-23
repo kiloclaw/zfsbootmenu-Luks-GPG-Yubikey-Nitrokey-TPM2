@@ -14,6 +14,7 @@ zbm-boot.workspace = true
 zbm-startup.workspace = true
 zbm-config.workspace = true
 zbm-core.workspace = true
+zbm-display.workspace = true
 zbm-luks.workspace = true
 zbm-platform.workspace = true
 zbm-state.workspace = true
@@ -31,6 +32,9 @@ zbm-types.workspace = true
 test-seams = []
 # A test build for the crash report VM test: `zbm debug panic` panics.
 crash-test = []
+# A test build for the VM test runtime-rust-drm: `zbm debug menu-demo` runs the
+# menu prototype on the display without a terminal (ROADMAP.md #19, step 1).
+menu-demo = []
 
 [dev-dependencies]
 pretty_assertions.workspace = true

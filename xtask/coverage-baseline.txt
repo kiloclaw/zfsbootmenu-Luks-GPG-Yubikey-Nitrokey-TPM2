@@ -13,6 +13,7 @@ zbm-config                99
 zbm-core                  97
 zbm-coreutils            100
 zbm-crypt                100
+zbm-display               84
 zbm-kcl                   90
 zbm-luks                  95
 zbm-platform              98

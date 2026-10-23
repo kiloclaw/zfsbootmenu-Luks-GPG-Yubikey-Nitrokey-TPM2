@@ -176,8 +176,10 @@ the `kexec` path of its images.
 
 **Security.**
 
-Its first step, a prototype on the display without a terminal, can start now; the console itself needs the menu (R5)
-and becomes the default only after the cutover.
+**Status:** step 1 is built and waits for its VM test: `zbm-display` draws the menu prototype through DRM with the
+image's console fonts and reads the keyboards, `zbm-tui --demo --drm` runs it on a developer's console, and
+`zbm debug menu-demo` (the `menu-demo` build) in the VM test `runtime-rust-drm`, on `virtio_gpu` and on `simpledrm`.
+The console itself (step 2) needs the menu (R5), and becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
@@ -201,7 +203,9 @@ and becomes the default only after the cutover.
     workspace) is a Ratatui backend on `embedded-graphics`, with bitmap fonts. `soft_ratatui` (MIT or Apache-2.0, one
     maintainer) renders a Ratatui buffer into an RGB pixel map, with bitmap (BDF, `embedded-graphics`) or TrueType
     fonts (`rusttype`, `cosmic-text`). Both build on `ratatui-core`, which the workspace already vendors, and either
-    turns the menu into pixels without a renderer of our own.
+    turns the menu into pixels without a renderer of our own. Step 1 took neither: neither reads the PSF fonts that
+    every image already carries, which `zbm_types::psf` reads and `zbm console-autosize` sizes, and drawing a cell
+    from a PSF glyph is a few dozen lines. They stay the choice for TrueType fonts in step 2.
   - **The other layers.** `drm` for the display; `fontdue`, `rusttype` or `cosmic-text` (shaping, and much larger)
     for fonts; `alacritty_terminal`, or `vt100` and `vte`, which the workspace vendors, for the terminal; `evdev` for
     keys and `xkbcommon-rs`, a young pure Rust port of libxkbcommon (0.1), for layouts; `drmkit-session` (new in
@@ -225,15 +229,23 @@ and becomes the default only after the cutover.
     that the booted kernel takes over as it does today.
   - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
     the drivers), so it is not hidden behind the console.
-  - **Dependencies.** `drm`, `mousefood` or `soft_ratatui`, `fontdue`, `alacritty_terminal` and the keyboard crates
-    are not among the agreed crates (decision 1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with
-    their size in the image.
+  - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only. `fontdue`
+    or a Ratatui pixel backend, `alacritty_terminal` and the keyboard crates are not among the agreed crates (decision
+    1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with their size in the image.
 - **Steps:**
-  1. A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts, sizes, `simpledrm`, keyboard input
-     and the hand-over before `kexec`, without a terminal. `mousefood` turns Ratatui's buffer into pixels, or
-     `soft_ratatui` where TrueType fonts at any size are wanted at once; the prototype copies them into a DRM dumb
-     buffer and reads keys from `evdev`, so it is mostly glue. The VM tests can read the screen with QEMU's
-     `screendump`, as `runtime-rust-colours` does. Small to medium.
+  1. **Done, waiting for its VM run.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
+     sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
+     - `zbm-display` (platform layer): a frame of pixels; a grid that draws characters with the image's PSF fonts,
+       doubled where `zbm console-autosize` doubles them; a DRM dumb buffer on the first connected output, in its
+       preferred mode, restored when dropped; keys from the keyboards' input devices (`/dev/input/event*`, found
+       through sysfs), on the US layout; the virtual terminal in graphics mode with its keyboard off
+       (`KDSETMODE`, `KDSKBMODE` in `zbm-sys`) until the menu ends, so that the kernel console neither draws over it
+       nor passes its keys to the shell.
+     - `zbm_tui::menu::display`: a Ratatui backend that draws cells as pixels in the Linux console's palette (bold
+       drawn bright), and the menu's loop on a screen and a key source, which tests replace.
+     - The VM test `runtime-rust-drm` checks, on `virtio_gpu` and on `simpledrm` (`vga=0x318`): the driver, the main
+       view in the screen's text, its colours in a QEMU screenshot, Down and Enter typed on QEMU's keyboard, and the
+       kernel console drawing again after the menu boots.
   2. The console: `alacritty_terminal`, the pseudo-terminal, the recovery shell, the fallback. Large; after R5.
   3. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**

@@ -118,6 +118,16 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### The menu on the display without a terminal (prototype)
+
+The first step of ROADMAP.md #19, for developers and VM tests only: images are unchanged. The new crate `zbm-display`
+draws through DRM, with any DRM driver including `simpledrm` on the firmware's framebuffer, using the image's console
+fonts at the size `zbm console-autosize` chooses, and reads keys from the keyboards' input devices (US layout). While it
+draws, the virtual terminal is in graphics mode with its keyboard off; both, and the display, go back to the kernel
+console when the menu ends. `zbm-tui --demo --drm --font <psf>` runs the menu prototype that way on a virtual console,
+as root; images built with the `menu-demo` feature have `zbm debug menu-demo`, which the VM test `runtime-rust-drm`
+runs. The only new dependency is the `drm` crate.
+
 ### Spleen console fonts
 
 Images with the Rust runtime can use the Spleen fonts (BSD-2) instead of Terminus: `ConsoleFont: spleen` in the

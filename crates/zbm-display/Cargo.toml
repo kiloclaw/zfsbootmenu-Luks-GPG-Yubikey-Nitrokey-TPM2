@@ -1,0 +1,20 @@
+[package]
+name = "zbm-display"
+description = "The display and keyboard without a terminal: DRM dumb buffers, evdev keys and the virtual terminal's hand-over"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+drm.workspace = true
+zbm-sys.workspace = true
+zbm-types.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true

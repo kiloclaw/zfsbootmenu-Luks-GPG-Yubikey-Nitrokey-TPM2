@@ -26,6 +26,7 @@ zbm-config = { path = "crates/zbm-config" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-coreutils = { path = "crates/zbm-coreutils" }
 zbm-crypt = { path = "crates/zbm-crypt" }
+zbm-display = { path = "crates/zbm-display" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-luks = { path = "crates/zbm-luks" }
 zbm-pool = { path = "crates/zbm-pool" }
@@ -55,6 +56,8 @@ thiserror = "2"
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "registry"] }
 uucore = { version = "0.12", features = ["version-cmp"] }
+# The menu on the display without a terminal (ROADMAP.md #19, step 1): dumb buffers through DRM.
+drm = { version = "=0.15.0", default-features = false }
 
 # Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

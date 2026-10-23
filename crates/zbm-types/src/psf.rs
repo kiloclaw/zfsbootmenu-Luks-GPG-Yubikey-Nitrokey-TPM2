@@ -102,6 +102,19 @@ impl Font {
         self.glyph_of(c).is_some()
     }
 
+    /// The glyph that draws `c`, or else one of its look-alikes the font
+    /// has (`▶` drawn as `►` or `>`).
+    pub fn glyph_for(&self, c: char) -> Option<usize> {
+        self.glyph_or_look_alike(c)
+    }
+
+    /// The bitmap of glyph `index`: one row after another, each of
+    /// `width.div_ceil(8)` bytes, the leftmost pixel in the highest bit of a
+    /// row's first byte.
+    pub fn bitmap(&self, index: usize) -> Option<&[u8]> {
+        self.glyphs.get(index).map(Vec::as_slice)
+    }
+
     /// The font as a PSF 2 file with a Unicode table.
     pub fn to_bytes(&self) -> Vec<u8> {
         let count = u32::try_from(self.glyphs.len()).unwrap_or(u32::MAX);

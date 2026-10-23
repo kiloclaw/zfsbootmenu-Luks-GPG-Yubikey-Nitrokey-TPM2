@@ -52,8 +52,9 @@ pub const LAYERS: &[Layer] = &[
     Layer {
         name: "platform",
         purpose: "The ports to the system (programs, files, clock, console, processes, \
-                  environment), their real implementations, secrets and the Context",
-        crates: &["zbm-platform", "zbm-coreutils"],
+                  environment), their real implementations, secrets and the Context; the \
+                  display and keyboard without a terminal",
+        crates: &["zbm-platform", "zbm-coreutils", "zbm-display"],
     },
     Layer {
         name: "state",
@@ -112,6 +113,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-boot", &["thiserror", "tracing"]),
     ("zbm-config", &["thiserror"]),
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
+    ("zbm-display", &["drm"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     ("zbm-pool", &["thiserror"]),

@@ -8,6 +8,9 @@
 //! - `zbm debug panic`, only in builds with the `crash-test` feature, panics,
 //!   so that VM tests can check the whole way from a panic to a symbolized
 //!   report.
+//! - `zbm debug menu-demo`, only in builds with the `menu-demo` feature, runs
+//!   the menu prototype on the display without a terminal
+//!   ([`crate::menu_demo`]).
 
 use std::path::Path;
 
@@ -77,6 +80,11 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
         }
         #[cfg(feature = "crash-test")]
         ["panic"] => panic_for_test(),
+        #[cfg(feature = "menu-demo")]
+        ["menu-demo", ..] => {
+            let rest: Vec<String> = args.iter().skip(1).map(|arg| (*arg).to_owned()).collect();
+            crate::menu_demo::run(&rest, io)
+        }
         _ => {
             let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
             USAGE

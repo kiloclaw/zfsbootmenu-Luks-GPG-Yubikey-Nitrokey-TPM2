@@ -8,10 +8,13 @@
 //! - [`Model`], [`update`](fn@update) and [`view`](fn@view): the Elm
 //!   architecture of the prototype;
 //! - [`demo`]: a fake machine that answers the actions, for
-//!   `zbm-tui --demo`.
+//!   `zbm-tui --demo`;
+//! - [`terminal`] and [`display`]: the menu on a terminal, or on the
+//!   display without one (ROADMAP.md #19).
 
 pub mod caps;
 pub mod demo;
+pub mod display;
 pub mod filter;
 pub mod format;
 pub mod keyboard;

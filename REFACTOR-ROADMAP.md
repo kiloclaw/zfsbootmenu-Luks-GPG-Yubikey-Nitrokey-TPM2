@@ -73,6 +73,9 @@ Work on this branch that no phase planned, or that a later phase planned and was
   boot counting and boot once, file restore and package changes, the TPM2 re-seal, the keyboard layout at unlock).
   They are designs for after R5's core tasks, not part of D's exit.
 - `cargo xtask test vm` runs the harness as root with `sudo -E`, as `docs/luks/testing.rst` says.
+- ROADMAP.md #19, step 1: `zbm-display` (platform layer) draws the menu prototype through DRM with the image's PSF
+  fonts and reads the keyboards' input devices; `zbm_tui::menu::display` is its Ratatui backend and loop; the VM test
+  `runtime-rust-drm` runs it on `virtio_gpu` and `simpledrm`.
 
 ### Carried over
 
@@ -911,6 +914,7 @@ Decided on 22 October 2026:
    gets its own small expect module in R3. `uucore` needs its default `signals` feature. Added in R3 for the VM
    harness `zbm-vmtest` only, a developer tool that never reaches an image: `vt100`, the terminal emulator the pilot
    asked for, and `regex`, for the patterns the scenarios wait for (the Python harness's were regular expressions).
+   Added for ROADMAP.md #19, step 1: `drm` (0.15.0), for the display without a terminal in `zbm-display`.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images

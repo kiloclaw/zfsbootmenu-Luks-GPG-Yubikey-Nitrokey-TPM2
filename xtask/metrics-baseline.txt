@@ -13,6 +13,7 @@ zbm-config                  0           0               0           13          
 zbm-core                    0           0               0            3              2             0              0
 zbm-coreutils               0           0               0            0              0             0              0
 zbm-crypt                   0           0               0            0              0             0              0
+zbm-display                 0           0               0            0              0             0              0
 zbm-kcl                     2           1               3            7              0             0              0
 zbm-luks                    0           0               0           52              0             0              0
 zbm-menu                    0           0               0            0              0             0              0
@@ -20,7 +21,7 @@ zbm-platform                0           0               0            0          
 zbm-pool                    0           0               0            0              0             0              0
 zbm-startup                 0           0               0            0              0             0              0
 zbm-state                   0           1               0            4              1             0              0
-zbm-sys                     0           0               0            0              0             0             16
+zbm-sys                     0           0               0            0              0             0             18
 zbm-testkit                 0           0               0            0              0             0              0
 zbm-tools                   0           0               0            0              0             0              0
 zbm-trace                   0           0               0            0              0             0              0

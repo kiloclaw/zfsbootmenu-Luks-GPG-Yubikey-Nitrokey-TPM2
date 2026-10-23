@@ -13,6 +13,7 @@ pub mod applets;
 pub mod debug;
 pub mod fonts;
 pub mod luks;
+pub mod menu_demo;
 pub mod pilot;
 pub mod shadow;
 pub mod supervisor;

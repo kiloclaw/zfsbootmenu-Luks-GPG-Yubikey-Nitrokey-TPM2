@@ -30,6 +30,8 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets, terminal output and key input |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
 | `uucore` (`version-cmp`) | `zbm-types` | Version order, the `sort -V` of uutils coreutils, the images' coreutils. Its required dependencies (`clap`, `fluent`, `nix` and others) are built, but link-time optimization leaves only `version_cmp` in `zbm`: 6.8 KB of a 2.2 MB stripped binary |
+| `drm` | `zbm-display` | The display without a terminal (ROADMAP.md #19, step 1): DRM dumb buffers, modes and outputs, in safe Rust over `rustix`, which the workspace already has. Smithay's crate, MIT. Pinned to 0.15.0 |
+| `drm-ffi`, `drm-sys`, `drm-fourcc`, `bytemuck`, `bytemuck_derive` | (`drm`) | Its dependencies: the ioctl structures and calls, pixel format codes, and plain-data casts (`bytemuck_derive` runs at build time only). `drm-sys` brings an older `linux-raw-sys` (0.9) beside the 0.12 of `rustix` |
 
 Their own dependencies are vendored with them; `cargo tree -e normal -p zbm` lists everything that is compiled into
 `zbm`. Some vendored crates are never compiled for Linux: `windows-sys`, `winapi`, `wasi`, `redox_syscall` and the

@@ -5,13 +5,15 @@
 //! reproduce: Rust ignores `SIGPIPE` at start-up, has no signal handlers, and
 //! cannot tell the effective user and groups of the process. The runtime also
 //! sends signals to other processes, wipes secrets from memory and reads the
-//! stack for crash reports ([`return_addresses`]). This crate
-//! wraps the C functions that provide them. It is the only crate in the
+//! stack for crash reports ([`return_addresses`]); the menu on the display
+//! takes over the virtual terminal's modes ([`console`]). This crate wraps
+//! the C functions that provide them. It is the only crate in the
 //! workspace that may contain `unsafe` code, and each `unsafe` block states
 //! why it is sound.
 
 #![allow(unsafe_code)]
 
+pub mod console;
 mod stack;
 
 pub use stack::{MAX_FRAMES, return_addresses};
@@ -251,35 +253,7 @@ pub fn send_signal(pid: u32, signal: Signal) -> std::io::Result<()> {
 /// (`None`: without limit). Returns whether it is readable, as Bash's
 /// `read -t` decides whether to read.
 pub fn wait_readable(fd: i32, timeout: Option<std::time::Duration>) -> std::io::Result<bool> {
-    // Milliseconds, rounded up so that a short wait still waits; -1 waits without
-    // limit.
-    let timeout = match timeout {
-        None => -1,
-        Some(timeout) => {
-            let millis = timeout.as_nanos().div_ceil(1_000_000);
-            c_int::try_from(millis).unwrap_or(c_int::MAX)
-        }
-    };
-    let mut entry = PollFd {
-        fd,
-        events: POLLIN,
-        revents: 0,
-    };
-    loop {
-        // SAFETY: `entry` is a valid `struct pollfd` that lives across the call,
-        // and the count says there is exactly one.
-        let ready = unsafe { poll(&mut entry, 1, timeout) };
-        match ready {
-            0 => return Ok(false),
-            ready if ready > 0 => return Ok(true),
-            _ => {
-                let error = std::io::Error::last_os_error();
-                if error.kind() != std::io::ErrorKind::Interrupted {
-                    return Err(error);
-                }
-            }
-        }
-    }
+    console::first_readable(&[fd], timeout).map(|ready| ready.is_some())
 }
 
 /// Overwrites `bytes` with zeros in a way the compiler cannot optimise away,

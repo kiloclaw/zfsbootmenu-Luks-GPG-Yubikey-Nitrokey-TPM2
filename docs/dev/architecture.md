@@ -31,7 +31,7 @@ dependencies that exist.
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
-| platform | `zbm-platform`, `zbm-coreutils` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context |
+| platform | `zbm-platform`, `zbm-coreutils`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
 | foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
@@ -54,6 +54,7 @@ Third-party crates:
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-config`: `thiserror`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
+- `zbm-display`: `drm`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`

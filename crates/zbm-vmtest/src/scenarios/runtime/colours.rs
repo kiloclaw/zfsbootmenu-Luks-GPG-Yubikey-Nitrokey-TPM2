@@ -52,7 +52,7 @@ pub(super) const VGA_512_COLOURS: usize = 8;
 /// normal ones (`ESC [0;3Nm`) and the bright ones (`ESC [1;3Nm`), on a
 /// cleared screen without its cursor, then waits for the screen to be
 /// updated.
-const BAR: &str = "b=$(printf '\\342\\226\\210%.0s' 1 2 3 4); \
+pub(super) const BAR: &str = "b=$(printf '\\342\\226\\210%.0s' 1 2 3 4); \
     { printf '\\e[?25l\\e[H\\e[2J\\e[10;1H'; \
     for w in 0 1; do for c in 0 1 2 3 4 5 6 7; do printf '\\e[%s;3%sm%s' $w $c \"$b\"; done; done; \
     printf '\\e[0m'; } > /dev/tty1; sleep 1";
@@ -148,7 +148,7 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, gpu: bool) -> Result<Vm<'
 }
 
 /// Writes a screenshot of the machine to `path` (a PPM image).
-fn screendump(vm: &Vm<'_>, path: &Path) -> Result<()> {
+pub(super) fn screendump(vm: &Vm<'_>, path: &Path) -> Result<()> {
     let reply = vm.monitor(&format!("screendump {}", path.display()))?;
     if !reply.is_empty() {
         vm.test().show(&format!("monitor: screendump: {reply}"));
@@ -197,10 +197,9 @@ fn describe(found: Option<usize>) -> String {
     found.map_or("no screenshot".into(), |count| format!("{count} colours"))
 }
 
-/// The number of colours in the pixel rows `rows` of a binary PPM image
-/// (`P6`) of 8-bit samples, as QEMU's `screendump` writes it; `None` when
-/// it is not one, or has none of the rows.
-pub(super) fn colours(ppm: &[u8], rows: Range<usize>) -> Option<usize> {
+/// The width, the height and the pixels of a binary PPM image (`P6`) of
+/// 8-bit samples, as QEMU's `screendump` writes it.
+fn parse_ppm(ppm: &[u8]) -> Option<(usize, usize, &[u8])> {
     let mut rest = ppm.strip_prefix(b"P6")?;
     let mut numbers = [0_usize; 3];
     for number in &mut numbers {
@@ -215,7 +214,14 @@ pub(super) fn colours(ppm: &[u8], rows: Range<usize>) -> Option<usize> {
     let [width, height, maximum] = numbers;
     // One white space character ends the header.
     let pixels = rest.get(1..)?;
-    if maximum == 0 || maximum > 255 || rows.end > height || rows.is_empty() {
+    (maximum > 0 && maximum <= 255).then_some((width, height, pixels))
+}
+
+/// The number of colours in the pixel rows `rows` of a PPM image; `None`
+/// when it is not one, or has none of the rows.
+pub(super) fn colours(ppm: &[u8], rows: Range<usize>) -> Option<usize> {
+    let (width, height, pixels) = parse_ppm(ppm)?;
+    if rows.end > height || rows.is_empty() {
         return None;
     }
     let row = width.checked_mul(3)?;
@@ -224,6 +230,12 @@ pub(super) fn colours(ppm: &[u8], rows: Range<usize>) -> Option<usize> {
     seen.sort_unstable();
     seen.dedup();
     Some(seen.len())
+}
+
+/// The number of colours of a whole PPM image.
+pub(super) fn screen_colours(ppm: &[u8]) -> Option<usize> {
+    let (_, height, _) = parse_ppm(ppm)?;
+    colours(ppm, 0..height)
 }
 
 /// `bytes` from its first character that is neither white space nor in a
