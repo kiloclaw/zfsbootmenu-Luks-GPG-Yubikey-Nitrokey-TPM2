@@ -75,7 +75,7 @@ Work on this branch that no phase planned, or that a later phase planned and was
 - `cargo xtask test vm` runs the harness as root with `sudo -E`, as `docs/luks/testing.rst` says.
 - ROADMAP.md #19, step 1: `zbm-display` (platform layer) draws the menu prototype through DRM with the image's PSF
   fonts and reads the keyboards' input devices; `zbm_tui::menu::display` is its Ratatui backend and loop; the VM test
-  `runtime-rust-drm` runs it on `virtio_gpu` and `simpledrm`.
+  `runtime-rust-drm` runs it on `virtio_gpu` and `simpledrm`, and passes.
 
 ### Carried over
 

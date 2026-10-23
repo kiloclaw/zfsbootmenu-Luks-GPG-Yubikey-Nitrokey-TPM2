@@ -176,8 +176,7 @@ the `kexec` path of its images.
 
 **Security.**
 
-**Status:** step 1 is built, and its VM test drew, drove and handed back the menu on both displays; a rerun waits
-for a fixed check of the virtio card's driver. `zbm-display` draws the menu prototype through DRM with the
+**Status:** step 1 is done: the VM test `runtime-rust-drm` passes on both displays (12 checks, b780c91). `zbm-display` draws the menu prototype through DRM with the
 image's console fonts and reads the keyboards, `zbm-tui --demo --drm` runs it on a developer's console, and
 `zbm debug menu-demo` (the `menu-demo` build) in the VM test `runtime-rust-drm`, on `virtio_gpu` and on `simpledrm`.
 The console itself (step 2) needs the menu (R5), and becomes the default only after the cutover.
@@ -234,7 +233,7 @@ The console itself (step 2) needs the menu (R5), and becomes the default only af
     or a Ratatui pixel backend, `alacritty_terminal` and the keyboard crates are not among the agreed crates (decision
     1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with their size in the image.
 - **Steps:**
-  1. **Built; its VM test passes but for a check fixed since.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
+  1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
      sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
      - `zbm-display` (platform layer): a frame of pixels; a grid that draws characters with the image's PSF fonts,
        doubled where `zbm console-autosize` doubles them; a DRM dumb buffer on the first connected output, in its
