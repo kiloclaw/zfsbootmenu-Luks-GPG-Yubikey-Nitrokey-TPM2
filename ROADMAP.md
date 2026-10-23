@@ -298,13 +298,14 @@ VM test passes with both families (64984bd): the Spleen image, built through `ge
 8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours is the VM test
 `runtime-rust-colours`, which counts the colours of a 16-colour bar in QEMU screenshots of the VGA text console and the
 framebuffer console, with the image's font and the whole 512-glyph one: it passes (803de05). The image's fonts show all
-16 colours on both consoles; the whole font shows 8 on the VGA text console.
+16 colours on both consoles; the whole font shows 8 on the VGA text console and 16 on the framebuffer console, which
+keeps the bright foreground colours with 512 glyphs: the subsets are what the VGA text console needs.
 
 - **Why:**
   - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
     512 glyphs of 64 bytes and a Unicode table). `setfont(8)` warns that a font of more than 256 glyphs leaves 8 of
     the 16 colours. On a VGA text console that loses the bright ones, which the menu uses for muted text, titles
-    and warnings; what the framebuffer console loses is to be measured.
+    and warnings; the framebuffer console keeps the 16 foreground colours (measured by `runtime-rust-colours`).
   - **Dense displays.** The largest Terminus font is 16×32, so the densest displays get it doubled to a blocky 32×64.
 - **How:**
   - **Subsets.** The image build makes each font of the image a 256-glyph PSF2 subset: ASCII, the characters the
