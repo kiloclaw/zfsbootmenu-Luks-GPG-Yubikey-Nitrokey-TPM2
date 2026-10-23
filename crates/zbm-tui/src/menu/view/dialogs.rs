@@ -69,8 +69,10 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     }
 }
 
-/// A box of `width` by `height` in the middle of `area`, cleared.
-fn centred(frame: &mut Frame<'_>, area: Rect, width: u16, height: u16) -> Rect {
+/// A box of `width` by `height` in the middle of `area`, cleared to the
+/// text style, so that text without a role reads as primary.
+fn centred(theme: Theme, frame: &mut Frame<'_>, area: Rect, size: (u16, u16)) -> Rect {
+    let (width, height) = size;
     let [row] = Layout::vertical([Constraint::Length(height.min(area.height))])
         .flex(Flex::Center)
         .areas(area);
@@ -78,6 +80,7 @@ fn centred(frame: &mut Frame<'_>, area: Rect, width: u16, height: u16) -> Rect {
         .flex(Flex::Center)
         .areas(row);
     frame.render_widget(Clear, rect);
+    frame.buffer_mut().set_style(rect, theme.style(Role::Text));
     rect
 }
 
@@ -129,7 +132,7 @@ pub(super) fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Aler
     let inner_width = width.saturating_sub(4);
     let body = wrapped(&alert.body, inner_width);
     let height = body.saturating_add(6);
-    let rect = centred(frame, area, width, height);
+    let rect = centred(theme, frame, area, (width, height));
     let block = frame_block(theme, alert.danger);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
@@ -175,12 +178,8 @@ fn sheet(
     let message = body_lines(theme, lines);
     let body = wrapped(&message, width.saturating_sub(4));
     let count = u16::try_from(choices.len()).unwrap_or(u16::MAX);
-    let rect = centred(
-        frame,
-        area,
-        width,
-        count.saturating_add(body).saturating_add(6),
-    );
+    let height = count.saturating_add(body).saturating_add(6);
+    let rect = centred(theme, frame, area, (width, height));
     let block = frame_block(theme, false);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
@@ -342,7 +341,8 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let items = palette_items(model);
     let height = area.height.saturating_sub(2).min(16);
-    let rect = centred(frame, area, area.width.saturating_sub(4).min(70), height);
+    let width = area.width.saturating_sub(4).min(70);
+    let rect = centred(theme, frame, area, (width, height));
     let count = format!("{} of {}", palette.matches.len(), items.len());
     let block = lists::counted(theme, "Commands", &count);
     let inner = block.inner(rect);

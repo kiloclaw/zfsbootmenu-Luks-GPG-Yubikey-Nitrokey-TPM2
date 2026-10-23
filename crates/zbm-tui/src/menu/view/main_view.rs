@@ -36,7 +36,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             .or(forms.last())
             .cloned()
             .unwrap_or_default();
-        frame.render_widget(Paragraph::new(text).style(model.theme.style(role)), top);
+        frame.render_widget(Paragraph::new(health::banner_line(model, &text, role)), top);
     }
     let (list, detail) = if area.width >= WIDE {
         let [list, detail] =

@@ -32,8 +32,8 @@ Options:
   --next-boot            the running system asked to boot tank/ROOT/arch once
   --tpm-changed          the firmware was updated: the TPM keeps the key of
                          luks-zroot-a, and the passphrase is asked instead
-  --theme <name>         colour, mono or ascii (default: from TERM, NO_COLOR
-                         and the locale)
+  --theme <name>         colour, console, mono or ascii (default: from TERM,
+                         NO_COLOR and the locale)
   --size <cols>x<rows>   the size when the terminal reports none
   --log-keys <file>      log every key press with its time, for usability
                          sessions

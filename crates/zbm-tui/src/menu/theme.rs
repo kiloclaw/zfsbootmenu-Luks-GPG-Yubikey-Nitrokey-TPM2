@@ -142,6 +142,7 @@ impl Theme {
     /// The style of `role`.
     pub fn style(self, role: Role) -> Style {
         match self.capabilities.colours {
+            Colours::Sixteen if self.capabilities.console => console(role),
             Colours::Sixteen => colour(role),
             Colours::Monochrome => monochrome(role),
         }
@@ -189,14 +190,20 @@ impl Theme {
     }
 }
 
-/// The 16-colour style of `role`.
+/// The 16-colour style of `role`, for a terminal whose palette and
+/// background are unknown: text keeps the terminal's own colour.
 fn colour(role: Role) -> Style {
     let bold = Modifier::BOLD;
     match role {
         Role::Text => Style::new(),
         Role::Muted | Role::Border | Role::Header => Style::new().fg(Color::DarkGray),
         Role::Title => Style::new().add_modifier(bold),
-        Role::Selected => Style::new().fg(Color::Black).bg(Color::Cyan),
+        // Never bold: the console draws bold black as dark grey, which
+        // cannot be read on cyan. The row's own labels take its colours.
+        Role::Selected => Style::new()
+            .fg(Color::Black)
+            .bg(Color::Cyan)
+            .remove_modifier(bold | Modifier::DIM),
         Role::Match => Style::new().fg(Color::Yellow).add_modifier(bold),
         Role::Default => Style::new().fg(Color::Green).add_modifier(bold),
         Role::Good => Style::new().fg(Color::Green),
@@ -205,6 +212,19 @@ fn colour(role: Role) -> Style {
         Role::Locked => Style::new().fg(Color::Magenta),
         Role::Key | Role::Accent => Style::new().fg(Color::Cyan).add_modifier(bold),
         Role::StatusBar => Style::new().fg(Color::Black).bg(Color::White),
+    }
+}
+
+/// The style of `role` on the Linux console, whose background is black: three
+/// levels of text, as labels have in Apple's dark appearance. White for what
+/// is read first, grey for secondary facts and labels, dark grey only for
+/// lines, whose low contrast is wanted.
+fn console(role: Role) -> Style {
+    match role {
+        Role::Text => Style::new().fg(Color::White),
+        Role::Title => Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+        Role::Muted | Role::Header => Style::new().fg(Color::Gray),
+        other => colour(other),
     }
 }
 
@@ -268,6 +288,34 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_selection_is_never_bold_so_its_labels_stay_readable() {
+        for capabilities in [Capabilities::FULL, Capabilities::CONSOLE] {
+            let selected = Theme::new(capabilities).style(Role::Selected);
+            assert!(selected.sub_modifier.contains(Modifier::BOLD));
+            let label = Theme::new(capabilities)
+                .style(Role::Default)
+                .patch(selected);
+            assert!(!label.add_modifier.contains(Modifier::BOLD), "{label:?}");
+            assert_eq!(label.fg, Some(Color::Black));
+        }
+    }
+
+    #[test]
+    fn the_console_has_three_levels_of_text() {
+        let console = Theme::new(Capabilities::CONSOLE);
+        let fg = |role| console.style(role).fg;
+
+        assert_eq!(fg(Role::Text), Some(Color::White));
+        assert_eq!(fg(Role::Title), Some(Color::White));
+        assert_eq!(fg(Role::Muted), Some(Color::Gray));
+        assert_eq!(fg(Role::Header), Some(Color::Gray));
+        assert_eq!(fg(Role::Border), Some(Color::DarkGray));
+        assert_eq!(fg(Role::Key), Some(Color::Cyan));
+        let elsewhere = Theme::new(Capabilities::FULL);
+        assert_eq!(elsewhere.style(Role::Text), Style::new());
     }
 
     #[test]

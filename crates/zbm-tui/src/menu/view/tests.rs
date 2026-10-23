@@ -111,3 +111,40 @@ fn a_tall_detail_pane_lists_kernels_and_snapshots() {
     );
     assert!(!short.contains("NEWEST SNAPSHOTS"), "{short}");
 }
+
+/// The cells of the screen `model` draws at 80×25.
+fn cells(model: &Model) -> ratatui::buffer::Buffer {
+    let mut terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
+    terminal.draw(|frame| view(model, frame)).unwrap();
+    terminal.backend().buffer().clone()
+}
+
+/// The first cell of `text` on row `y`.
+fn find(buffer: &ratatui::buffer::Buffer, y: u16, text: &str) -> ratatui::buffer::Cell {
+    let row: String = (0..80)
+        .map(|x| buffer[(x, y)].symbol().to_owned())
+        .collect();
+    let column = row
+        .find(text)
+        .unwrap_or_else(|| panic!("{text} not in {row}"));
+    let x = u16::try_from(row[..column].chars().count()).unwrap();
+    buffer[(x, y)].clone()
+}
+
+#[test]
+fn on_the_console_the_banner_leads_with_what_boots_and_when() {
+    use ratatui::style::{Color, Modifier};
+    let session = started(Capabilities::CONSOLE);
+    let buffer = cells(session.model());
+
+    assert_eq!(find(&buffer, 1, "Booting").fg, Color::White);
+    assert_eq!(find(&buffer, 1, "zroot/ROOT/void").fg, Color::White);
+    assert_eq!(find(&buffer, 1, "10 s").fg, Color::Cyan);
+    assert_eq!(find(&buffer, 1, "Press any key").fg, Color::Gray);
+    // The selected row's own label takes the selection's colours, not bold.
+    let label = find(&buffer, 3, "default");
+    assert_eq!((label.fg, label.bg), (Color::Black, Color::Cyan));
+    assert!(!label.modifier.contains(Modifier::BOLD));
+    assert_eq!(find(&buffer, 24, "Kernels").fg, Color::Gray);
+    assert_eq!(find(&buffer, 24, "k Kernels").fg, Color::Cyan);
+}

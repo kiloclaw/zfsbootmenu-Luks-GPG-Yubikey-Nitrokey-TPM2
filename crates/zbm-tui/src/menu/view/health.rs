@@ -53,6 +53,48 @@ pub(super) fn banner(model: &Model) -> Option<(Vec<String>, Role)> {
     Some((forms, Role::Accent))
 }
 
+/// The banner's `text` as a line. A countdown is plain text with the
+/// environment in bold, the seconds in the accent colour and the hint
+/// secondary, so the eye goes to what will boot and when; the banner of a
+/// fallback stays a warning throughout.
+pub(super) fn banner_line(model: &Model, text: &str, role: Role) -> Line<'static> {
+    let theme = model.theme;
+    if role != Role::Accent {
+        return Line::styled(text.to_owned(), theme.style(role));
+    }
+    let mut marks = Vec::new();
+    if let Some(environment) = model.selected_environment() {
+        marks.push((environment.name.to_string(), Role::Title));
+    }
+    if let Some(seconds) = model.countdown_seconds() {
+        marks.push((format!("{seconds} s"), Role::Accent));
+    }
+    marks.push(("Press any key to choose another.".to_owned(), Role::Muted));
+    emphasised(theme, text, &marks)
+}
+
+/// `text` in the text role, with each of `marks` in its own role.
+fn emphasised(theme: Theme, text: &str, marks: &[(String, Role)]) -> Line<'static> {
+    let mut spans = Vec::new();
+    let mut rest = text;
+    while let Some((at, mark, role)) = marks
+        .iter()
+        .filter(|(mark, _)| !mark.is_empty())
+        .filter_map(|(mark, role)| Some((rest.find(mark.as_str())?, mark, *role)))
+        .min_by_key(|(at, ..)| *at)
+    {
+        if at > 0 {
+            spans.push(Span::styled(rest[..at].to_owned(), theme.style(Role::Text)));
+        }
+        spans.push(Span::styled(mark.clone(), theme.style(role)));
+        rest = &rest[at + mark.len()..];
+    }
+    if !rest.is_empty() {
+        spans.push(Span::styled(rest.to_owned(), theme.style(Role::Text)));
+    }
+    Line::from(spans)
+}
+
 /// The labels of a row: problems its checks found, and `next boot`.
 pub(super) fn badges(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let theme = model.theme;

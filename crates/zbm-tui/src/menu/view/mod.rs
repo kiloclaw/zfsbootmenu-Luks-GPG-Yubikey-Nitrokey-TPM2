@@ -38,6 +38,10 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
         frame.render_widget(Paragraph::new(notice), area);
         return;
     }
+    // Text without a role is primary text: white on the console.
+    frame
+        .buffer_mut()
+        .set_style(area, model.theme.style(Role::Text));
     let notification = u16::from(model.notification.is_some());
     let [top, body, note, bottom] = Layout::vertical([
         Constraint::Length(1),
@@ -113,7 +117,7 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
         }
         used += length;
         spans.push(Span::styled(key, theme.style(Role::Key)));
-        spans.push(Span::raw(format!(" {label}")));
+        spans.push(Span::styled(format!(" {label}"), theme.style(Role::Muted)));
     }
     Line::from(spans)
 }
