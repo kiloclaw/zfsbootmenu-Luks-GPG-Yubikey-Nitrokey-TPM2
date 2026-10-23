@@ -9,7 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-zbm-cmdline.workspace = true
+zbm-config.workspace = true
 zbm-core.workspace = true
 zbm-platform.workspace = true
 zbm-sys.workspace = true

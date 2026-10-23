@@ -8,6 +8,7 @@
 //! volumes go through the [`Operator`] port, which the start-up program
 //! provides.
 
+use zbm_config::spec::properties::BOOTFS;
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_trace::Level;
@@ -243,7 +244,7 @@ pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<D
 fn pool_bootfs(runner: &dyn Runner, pool: Option<&PoolRef>) -> Option<DatasetName> {
     let pool = pool.map_or("--", PoolRef::as_str);
     let list =
-        ZpoolCommand::new(runner).text(&["list", "-H", "-o", "bootfs", pool], Stderr::Console);
+        ZpoolCommand::new(runner).text(&["list", "-H", "-o", BOOTFS.name, pool], Stderr::Console);
     // The first line that is not `-` decides; an empty one means none.
     let bootfs = here_lines(&stdout(list))
         .into_iter()

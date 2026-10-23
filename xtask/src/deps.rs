@@ -57,8 +57,9 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "state",
-        purpose: "State files and the kernel command line",
-        crates: &["zbm-state", "zbm-cmdline"],
+        purpose: "State files, and the configuration: the table of options, the kernel command \
+                  line, /etc/zfsbootmenu.conf and crypttab files",
+        crates: &["zbm-state", "zbm-config"],
     },
     Layer {
         name: "adapters",
@@ -109,6 +110,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm", &["tracing"]),
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
+    ("zbm-config", &["thiserror"]),
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),

@@ -4,7 +4,10 @@
 
 use std::path::Path;
 
-use zbm_cmdline::conf::{self, Conf};
+use zbm_config::args::{Args, CmdlineDir};
+use zbm_config::conf::{self, Conf};
+use zbm_config::spec::cmdline::luks::LUKS;
+use zbm_config::spec::properties::KERNEL;
 use zbm_luks::config::{CRYPTTAB, load_config};
 use zbm_luks::device::{default_name, resolve_device};
 use zbm_platform::exec::Runner;
@@ -118,7 +121,7 @@ pub fn luks_mappings(system: &System<'_>, state: &State<'_>) -> Option<Compariso
         return None;
     }
     let crypttab = system.files.read_to_string(Path::new(CRYPTTAB)).ok();
-    let zbm_luks = state.zbm_arg("zbm.luks");
+    let zbm_luks = CmdlineDir::new(system.files, state.base()).lookup(&LUKS, &mut Vec::new());
     let (mode, _) = load_config(zbm_luks.as_deref(), crypttab.as_deref(), CRYPTTAB);
     let expected = |device: &str, auto: &str| {
         let configured = (auto != "1")
@@ -172,8 +175,8 @@ pub fn kernel(system: &System<'_>, selected: &Selected) -> Option<Comparison> {
         return None;
     }
     let discovery = kernels::discover(system.files, &selected.be, Path::new(&selected.mountpoint));
-    let property = zfs_value(system.runner, "org.zfsbootmenu:kernel", &selected.be)
-        .unwrap_or_else(|| "-".to_owned());
+    let property =
+        zfs_value(system.runner, KERNEL.name, &selected.be).unwrap_or_else(|| "-".to_owned());
     let rust = kernels::select(system.runner, &discovery.kernels, &property).map_or_else(
         || "none".to_owned(),
         |kernel| format!("{} {}", kernel.kernel, kernel.initramfs),

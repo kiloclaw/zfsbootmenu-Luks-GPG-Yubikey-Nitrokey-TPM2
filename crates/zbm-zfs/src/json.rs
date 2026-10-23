@@ -10,6 +10,7 @@
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
+use zbm_config::spec::properties::BOOTFS;
 
 use crate::model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
 
@@ -140,7 +141,7 @@ pub fn pools(text: &str) -> Result<Vec<Pool>, JsonError> {
                     .and_then(Property::value)
                     .unwrap_or_default()
             };
-            let bootfs = value("bootfs");
+            let bootfs = value(BOOTFS.name);
             Ok(Pool {
                 name: raw
                     .name

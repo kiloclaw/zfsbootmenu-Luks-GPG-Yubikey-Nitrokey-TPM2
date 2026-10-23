@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
+use zbm_config::spec::properties::{DEVICETREE, KERNEL, ROOTPREFIX};
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_tools::mount::Mount;
@@ -331,9 +332,9 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
         .unwrap_or_default()
         .to_owned();
 
-    let property = zfs_value(system.runner, "org.zfsbootmenu:kernel", fs).unwrap_or_default();
+    let property = zfs_value(system.runner, KERNEL.name, fs).unwrap_or_default();
     if property != "-" {
-        zbm_trace::debug!("org.zfsbootmenu:kernel set to {property}");
+        zbm_trace::debug!("{} set to {property}", KERNEL.name);
         for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
             let kernel = Kernel::parse(line);
             if kernels::bash_regex_match(system.runner, &kernel.kernel, &property) == Some(true) {
@@ -446,7 +447,7 @@ impl Default for BootSettings {
 fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
     zbm_trace::debug!("zfsbe_fs set to {fs}");
     zbm_trace::debug!("zfsbe_mnt set to {}", mnt.display());
-    if let Some(prefix) = zfs_value(system.runner, "org.zfsbootmenu:rootprefix", fs)
+    if let Some(prefix) = zfs_value(system.runner, ROOTPREFIX.name, fs)
         && prefix != "-"
     {
         zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}");
@@ -534,7 +535,7 @@ pub fn kexec_kernel(
     }
     let root_prefix = find_root_prefix(system, fs, &mnt);
 
-    let dtb_property = zfs_value(system.runner, "org.zfsbootmenu:devicetree", fs);
+    let dtb_property = zfs_value(system.runner, DEVICETREE.name, fs);
     let mut dtb = None;
     match dtb_property.as_deref() {
         Some(property) if !property.is_empty() && property != "-" => {

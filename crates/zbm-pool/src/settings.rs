@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use zbm_cmdline::conf::Conf;
+use zbm_config::conf::Conf;
 use zbm_types::{DatasetName, ImportPolicy};
 
 /// A pool as `zpool import` takes it: a name or a numeric pool ID, as the

@@ -5,10 +5,10 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use zbm_cmdline::args::{ZbmArgs, cmdline_files};
-use zbm_cmdline::conf::Conf;
-use zbm_cmdline::kcl::tokenize;
-use zbm_cmdline::options::ZbmOptions;
+use zbm_config::args::{ZbmArgs, cmdline_files};
+use zbm_config::conf::Conf;
+use zbm_config::kcl::tokenize;
+use zbm_config::options::ZbmOptions;
 
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);

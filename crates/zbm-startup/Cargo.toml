@@ -11,7 +11,7 @@ publish.workspace = true
 [dependencies]
 thiserror.workspace = true
 zbm-boot.workspace = true
-zbm-cmdline.workspace = true
+zbm-config.workspace = true
 zbm-platform.workspace = true
 zbm-pool.workspace = true
 zbm-state.workspace = true

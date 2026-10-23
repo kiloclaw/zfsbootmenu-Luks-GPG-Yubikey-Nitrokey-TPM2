@@ -11,7 +11,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use zbm_cmdline::options::ZbmOptions;
+use zbm_config::options::ZbmOptions;
 use zbm_platform::files::Files;
 
 use crate::hooks;
@@ -102,7 +102,7 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_cmdline::args::ZbmArgs;
+    use zbm_config::args::ZbmArgs;
     use zbm_testkit::fakes::FakeFiles;
 
     fn options(cmdline: &str) -> ZbmOptions {

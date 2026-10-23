@@ -662,7 +662,7 @@ version = "0.1.0"
 dependencies = [
  "thiserror",
  "tracing",
- "zbm-cmdline",
+ "zbm-config",
  "zbm-core",
  "zbm-luks",
  "zbm-platform",
@@ -675,9 +675,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "zbm-cmdline"
+name = "zbm-config"
 version = "0.1.0"
 dependencies = [
+ "thiserror",
  "zbm-core",
  "zbm-platform",
  "zbm-trace",
@@ -716,7 +717,7 @@ version = "0.1.0"
 dependencies = [
  "libfuzzer-sys",
  "zbm-boot",
- "zbm-cmdline",
+ "zbm-config",
  "zbm-crypt",
  "zbm-luks",
  "zbm-pool",
@@ -730,6 +731,7 @@ version = "0.1.0"
 dependencies = [
  "thiserror",
  "tracing",
+ "zbm-config",
  "zbm-core",
  "zbm-crypt",
  "zbm-platform",
@@ -757,7 +759,7 @@ name = "zbm-pool"
 version = "0.1.0"
 dependencies = [
  "thiserror",
- "zbm-cmdline",
+ "zbm-config",
  "zbm-platform",
  "zbm-state",
  "zbm-trace",
@@ -809,7 +811,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "zbm-cmdline",
+ "zbm-config",
  "zbm-core",
  "zbm-platform",
  "zbm-trace",

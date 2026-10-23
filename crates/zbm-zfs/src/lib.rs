@@ -16,7 +16,8 @@
 use std::ffi::OsString;
 use std::io;
 
-use zbm_cmdline::parent::{COMMANDLINE_PROPERTY, CommandLineSource};
+use zbm_config::parent::CommandLineSource;
+use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Command, Output, Runner, Stream};
 
 mod cli;
@@ -187,11 +188,11 @@ impl<'a> ZfsCommand<'a> {
 
 impl CommandLineSource for ZfsCommand<'_> {
     fn commandline(&self, filesystem: &str) -> Option<String> {
-        self.get_value(COMMANDLINE_PROPERTY, filesystem)
+        self.get_value(COMMANDLINE.name, filesystem)
     }
 
     fn inherited_source(&self, filesystem: &str) -> Option<String> {
-        ZfsCommand::inherited_source(self, COMMANDLINE_PROPERTY, filesystem)
+        ZfsCommand::inherited_source(self, COMMANDLINE.name, filesystem)
     }
 }
 
@@ -263,7 +264,7 @@ impl<'a> ZpoolCommand<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_cmdline::parent::{read_kcl_prop, read_kcl_value};
+    use zbm_config::parent::{read_kcl_prop, read_kcl_value};
     use zbm_platform::exec::SystemRunner;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::zfs_script::ZfsScript;
@@ -280,14 +281,14 @@ mod tests {
         runner.respond("zfs list -o name -H missing", 1, "");
         let zfs = ZfsCommand::new(&runner);
         assert_eq!(
-            zfs.get_value(COMMANDLINE_PROPERTY, "pool/be").as_deref(),
+            zfs.get_value(COMMANDLINE.name, "pool/be").as_deref(),
             Some("quiet")
         );
         assert!(zfs.exists("pool/be"));
         assert!(!zfs.exists("missing"));
         assert!(!zfs.is_filesystem(""));
-        assert!(zfs.set(COMMANDLINE_PROPERTY, "a b", "pool/be").unwrap());
-        assert!(zfs.inherit(COMMANDLINE_PROPERTY, "pool/be").unwrap());
+        assert!(zfs.set(COMMANDLINE.name, "a b", "pool/be").unwrap());
+        assert!(zfs.inherit(COMMANDLINE.name, "pool/be").unwrap());
         assert_eq!(
             runner.lines(),
             [
@@ -342,7 +343,7 @@ mod tests {
             for dataset in datasets {
                 if rng.below(3) > 0 {
                     let value = *rng.choose(VALUES);
-                    fake.set(dataset, COMMANDLINE_PROPERTY, value);
+                    fake.set(dataset, COMMANDLINE.name, value);
                     properties.push((dataset, value));
                 }
             }

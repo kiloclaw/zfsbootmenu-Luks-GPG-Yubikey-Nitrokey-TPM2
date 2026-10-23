@@ -6,8 +6,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_cmdline::kcl;
-use zbm_cmdline::parent::{CommandLineSource, read_kcl_contents};
+use zbm_config::kcl;
+use zbm_config::parent::{CommandLineSource, read_kcl_contents};
 use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
 use zbm_state::State;
@@ -741,7 +741,7 @@ mod tests {
 
         /// A base directory with the files.
         fn base(&self) -> TempDir {
-            let dir = TempDir::new("zbm-cmdline");
+            let dir = TempDir::new("zbm-config");
             std::fs::create_dir_all(dir.join("environments/tank/ROOT/be/kcl")).unwrap();
             if let Some(text) = &self.kernel_kcl {
                 dir.write("environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl", text);

@@ -18,6 +18,7 @@ mod debuginfo;
 mod deps;
 mod error;
 mod fuzz;
+mod gen_docs;
 mod lint;
 mod metrics;
 mod process;
@@ -39,8 +40,8 @@ Usage: cargo xtask <command> [options]
 Commands:
   lint                   Every check a pull request must pass: format, line
                          widths, clippy, the strict lints of the crates in
-                         xtask/strict/crates.txt, documentation, check-deps
-                         and metrics --check
+                         xtask/strict/crates.txt, documentation,
+                         gen-docs --check, check-deps and metrics --check
   lint --strict          Report the stricter lints that refactored crates
                          must pass, for every crate; fails only on a finding
                          in a crate of xtask/strict/crates.txt
@@ -60,6 +61,10 @@ Commands:
                          fixtures of crates/zbm-zfs/tests/fixtures;
                          --manifest prints the commands the harness runs
   doc [--open]           Build the documentation, warnings as errors
+  gen-docs [--check]     Write the option sections of zfsbootmenu(7),
+                         zfsbootmenu-crypttab(5) and generate-zbm(5) from
+                         the table of options in zbm-config; --check fails
+                         when one is out of date
   check-deps [--bless]   Check the dependencies between crates against the
                          layers in xtask/src/deps.rs; --bless rewrites the
                          generated section of docs/dev/architecture.md
@@ -104,6 +109,8 @@ enum Command {
     RecordZfs { manifest: bool },
     /// `doc`.
     Doc { open: bool },
+    /// `gen-docs`.
+    GenDocs { check: bool },
     /// `check-deps`.
     CheckDeps { bless: bool },
     /// `metrics`.
@@ -142,6 +149,8 @@ impl Command {
             ["record-zfs", "--manifest"] => Command::RecordZfs { manifest: true },
             ["doc"] => Command::Doc { open: false },
             ["doc", "--open"] => Command::Doc { open: true },
+            ["gen-docs"] => Command::GenDocs { check: false },
+            ["gen-docs", "--check"] => Command::GenDocs { check: true },
             ["check-deps"] => Command::CheckDeps { bless: false },
             ["check-deps", "--bless"] => Command::CheckDeps { bless: true },
             ["metrics"] => Command::Metrics(Mode::Report),
@@ -260,6 +269,7 @@ fn run(command: Command) -> Result<()> {
                 .run()
         }
         Command::Doc { open } => cargo::doc(&root, open),
+        Command::GenDocs { check } => gen_docs::run(&root, check),
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
         Command::Coverage(mode) => coverage::run(&Workspace::load(&root)?, mode),

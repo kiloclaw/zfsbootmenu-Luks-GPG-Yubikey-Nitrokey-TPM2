@@ -30,7 +30,7 @@ dependencies that exist.
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
-| state | `zbm-state`, `zbm-cmdline` | State files and the kernel command line |
+| state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
 | platform | `zbm-platform`, `zbm-coreutils` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context |
 | foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
@@ -52,6 +52,7 @@ Third-party crates:
 - `zbm`: `tracing`
 - `zbm-app`: `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
+- `zbm-config`: `thiserror`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
@@ -81,7 +82,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   which its `KmsgLayer` writes in the formats of the legacy runtime, and it reads that log back.
 - **platform**: `zbm-system` defines the interfaces through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`) and their real implementations. `zbm-state` shares state between
-  processes through files. `zbm-cmdline` parses the kernel command line and the configuration file.
+  processes through files. `zbm-config` parses the kernel command line and the configuration file.
 - **ports**: `zbm-platform` gives services a `Context`: the ports they may use, with a runner that reports every
   program it runs to the journal (the command journal). Refactored services take a `&Context`.
 - **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`

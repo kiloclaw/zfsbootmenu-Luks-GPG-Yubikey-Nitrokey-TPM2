@@ -75,7 +75,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and the read-only runner of shadow mode. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
 | `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
-| `zbm-cmdline` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
+| `zbm-config` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
 | `zbm-boot` | Packages A, C and D: the start-up sequence, hooks, pool import, boot environments, kernels, ZFS encryption keys, `kexec`, snapshots and pool management. | `init.d/*`, `zfsbootmenu-core.sh` |
@@ -83,16 +83,16 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 
-The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-platform`, `zbm-cmdline`,
+The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-platform`, `zbm-config`,
 `zbm-trace` and `zbm-zfs` with the runtime.
 
 Dependencies point from the program to the system and never back:
 
 - `zbm` uses `zbm-menu`, `zbm-boot` and `zbm-luks`; `zbm-menu` uses `zbm-boot`; `zbm-boot` uses `zbm-luks`, because
   pool import retries unlocking volumes that appear late.
-- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-platform`, `zbm-zfs`, `zbm-cmdline` and `zbm-trace` as
+- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-platform`, `zbm-zfs`, `zbm-config` and `zbm-trace` as
   they need them.
-- `zbm-state`, `zbm-zfs` and `zbm-cmdline` use `zbm-platform`; `zbm-zfs` and `zbm-cmdline` run programs through
+- `zbm-state`, `zbm-zfs` and `zbm-config` use `zbm-platform`; `zbm-zfs` and `zbm-config` run programs through
   `Runner` alone, as the host tools need.
 - `zbm-platform` uses `zbm-core`, `zbm-trace` (for its kernel log writer and crash reports) and `zbm-sys`.
 - `docs/dev/architecture.md` lists the layers and every allowed dependency; `cargo xtask check-deps` enforces them.

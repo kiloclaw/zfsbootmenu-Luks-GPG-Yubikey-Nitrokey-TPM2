@@ -16,6 +16,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use zbm_boot::shadow::{Selected, compare, efivar};
+use zbm_config::args::{Args, CmdlineDir};
+use zbm_config::spec::cmdline::SHADOW;
 use zbm_platform::ReadOnlyRunner;
 use zbm_platform::{Files, NoConsole, RealFiles, RealSystem, System};
 use zbm_state::State;
@@ -66,7 +68,12 @@ pub fn check(system: &System<'_>, base: Option<&Path>, io: &mut Io) -> i32 {
     );
     let _ = io.stdout.write_all(report.text().as_bytes());
     zbm_trace::notice!("{}", report.summary());
-    if report.differences() > 0 && state.zbm_arg("zbm.shadow").as_deref() == Some("efivar") {
+    if report.differences() > 0
+        && CmdlineDir::new(system.files, state.base())
+            .lookup(&SHADOW, &mut Vec::new())
+            .as_deref()
+            == Some("efivar")
+    {
         let efivars = Path::new(efivar::EFIVARS);
         if let Err(error) = efivar::record(system.files, &state, efivars, &report.text()) {
             zbm_trace::warn!("unable to keep the shadow summary in an EFI variable: {error}");

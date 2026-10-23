@@ -12,6 +12,15 @@ use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use zbm_config::spec::OptionSpec;
+use zbm_config::spec::generate::{
+    COMPONENTS_ENABLED, COMPONENTS_IMAGE_DIR, COMPONENTS_VERSIONS, EFI_DEVICE_TREE, EFI_ENABLED,
+    EFI_IMAGE_DIR, EFI_SPLASH_IMAGE, EFI_STUB, EFI_VERSIONS, GLOBAL_BOOT_MOUNT_POINT,
+    GLOBAL_DRACUT_CONF_DIR, GLOBAL_DRACUT_FLAGS, GLOBAL_INIT_CPIO, GLOBAL_INIT_CPIO_CONFIG,
+    GLOBAL_INIT_CPIO_FLAGS, GLOBAL_INIT_CPIO_HOOK_DIRS, GLOBAL_MANAGE_IMAGES,
+    GLOBAL_POST_HOOKS_DIR, GLOBAL_PRE_HOOKS_DIR, GLOBAL_VERSION, KERNEL_COMMAND_LINE, KERNEL_PATH,
+    KERNEL_PREFIX, KERNEL_VERSION,
+};
 use zbm_core::fs::{is_dir, is_executable, is_file, is_readable, is_writable, strerror};
 use zbm_core::shell::quote;
 use zbm_platform::exec::Runner;
@@ -220,19 +229,19 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `$config{section}{key}` as text, when it is defined.
-    fn setting(&self, section: &str, key: &str) -> Step<Option<String>> {
+    /// The configuration key `spec` as text, when it is defined.
+    fn setting(&self, spec: &OptionSpec) -> Step<Option<String>> {
         Ok(self
             .config
-            .lookup(section, key)?
+            .option(spec)?
             .and_then(|value| value.perl_string()))
     }
 
-    /// `enabled $config{section}`.
-    fn enabled(&self, section: &str) -> Step<bool> {
+    /// `enabled $config{section}`, for the `Enabled` key `spec` of a section.
+    fn enabled(&self, spec: &OptionSpec) -> Step<bool> {
         Ok(self
             .config
-            .lookup(section, "Enabled")?
+            .option(spec)?
             .is_some_and(|value| value.truthy()))
     }
 
@@ -313,7 +322,7 @@ impl Generator<'_, '_, '_> {
 
         if !self
             .config
-            .lookup("Global", "ManageImages")?
+            .option(&GLOBAL_MANAGE_IMAGES)?
             .is_some_and(|value| value.truthy())
         {
             self.print("ManageImages not enabled, no action taken\n");
@@ -322,10 +331,10 @@ impl Generator<'_, '_, '_> {
 
         let mut settings = self.settings(&options)?;
         self.mount_boot()?;
-        self.run_hooks("PreHooksDir")?;
+        self.run_hooks(&GLOBAL_PRE_HOOKS_DIR)?;
         let work = self.work_dir()?;
         self.build(&options, &mut settings, &work)?;
-        self.run_hooks("PostHooksDir")?;
+        self.run_hooks(&GLOBAL_POST_HOOKS_DIR)?;
         drop(work);
         Ok(())
     }
@@ -359,7 +368,7 @@ impl Generator<'_, '_, '_> {
     /// `Global.ManageImages` set.
     fn set_manage_images(&mut self, path: &str, enable: bool) -> Step<()> {
         self.config
-            .set("Global", "ManageImages", Value::Bool(enable))?;
+            .set_option(&GLOBAL_MANAGE_IMAGES, Value::Bool(enable))?;
         let text = dump::dump(&self.config);
         let mut file = std::fs::File::create(path).map_err(|error| {
             Stop::fatal(
@@ -382,7 +391,7 @@ impl Generator<'_, '_, '_> {
     fn settings(&mut self, options: &Options) -> Step<Settings> {
         let usecpio = match options.initcpio {
             Some(usecpio) => usecpio,
-            None => match self.config.lookup("Global", "InitCPIO")? {
+            None => match self.config.option(&GLOBAL_INIT_CPIO)? {
                 Some(value) => value.truthy(),
                 None => {
                     let (_, status) = self.execute("sh -c \"command -v dracut\"")?;
@@ -401,18 +410,17 @@ impl Generator<'_, '_, '_> {
             Some(confd) => confd.clone(),
             None => {
                 let (default, key) = if usecpio {
-                    ("/etc/zfsbootmenu/mkinitcpio.conf", "InitCPIOConfig")
+                    ("/etc/zfsbootmenu/mkinitcpio.conf", &GLOBAL_INIT_CPIO_CONFIG)
                 } else {
-                    ("/etc/zfsbootmenu/dracut.conf.d", "DracutConfDir")
+                    ("/etc/zfsbootmenu/dracut.conf.d", &GLOBAL_DRACUT_CONF_DIR)
                 };
-                self.setting("Global", key)?
-                    .unwrap_or_else(|| default.to_owned())
+                self.setting(key)?.unwrap_or_else(|| default.to_owned())
             }
         };
 
         let mut hookd = options.hookd.clone();
         if usecpio && hookd.is_none() {
-            let hooks = match self.config.lookup("Global", "InitCPIOHookDirs")? {
+            let hooks = match self.config.option(&GLOBAL_INIT_CPIO_HOOK_DIRS)? {
                 Some(Value::Seq(items)) => items
                     .borrow()
                     .iter()
@@ -436,7 +444,7 @@ impl Generator<'_, '_, '_> {
     /// Mounts `Global.BootMountPoint` unless it is mounted already.
     fn mount_boot(&mut self) -> Step<()> {
         let Some(mount_point) = self
-            .setting("Global", "BootMountPoint")?
+            .setting(&GLOBAL_BOOT_MOUNT_POINT)?
             .filter(|text| !text.is_empty())
         else {
             return Ok(());
@@ -458,8 +466,8 @@ impl Generator<'_, '_, '_> {
 
     /// Runs the executables in `Global.PreHooksDir` or `Global.PostHooksDir`, in
     /// glob order.
-    fn run_hooks(&mut self, key: &str) -> Step<()> {
-        let Some(dir) = self.setting("Global", key)?.filter(|text| !text.is_empty()) else {
+    fn run_hooks(&mut self, key: &OptionSpec) -> Step<()> {
+        let Some(dir) = self.setting(key)?.filter(|text| !text.is_empty()) else {
             return Ok(());
         };
         if !is_dir(&dir) {
@@ -518,36 +526,34 @@ impl Generator<'_, '_, '_> {
         let mut prefix = options.kernel_prefix.clone();
         let mut kernel_version = options.kernel_version.clone();
         let mut version = options.version.clone();
-        if let Some(path) = self
-            .setting("Kernel", "Path")?
-            .filter(|text| !text.is_empty())
+        if let Some(path) = self.setting(&KERNEL_PATH)?.filter(|text| !text.is_empty())
             && !has_value(kernel.as_ref())
         {
             kernel = Some(path);
         }
         if let Some(value) = self
-            .setting("Kernel", "Prefix")?
+            .setting(&KERNEL_PREFIX)?
             .filter(|text| !text.is_empty())
             && !has_value(prefix.as_ref())
         {
             prefix = Some(value);
         }
         if let Some(value) = self
-            .setting("Kernel", "Version")?
+            .setting(&KERNEL_VERSION)?
             .filter(|text| !text.is_empty())
             && !has_value(kernel_version.as_ref())
         {
             kernel_version = Some(perl::mark_current(&value));
         }
         if let Some(value) = self
-            .setting("Global", "Version")?
+            .setting(&GLOBAL_VERSION)?
             .filter(|text| !text.is_empty())
             && !has_value(version.as_ref())
         {
             version = Some(value);
         }
         if let Some(value) = self
-            .setting("Kernel", "CommandLine")?
+            .setting(&KERNEL_COMMAND_LINE)?
             .filter(|text| !text.is_empty())
             && !has_value(settings.cmdline.as_ref())
         {
@@ -644,15 +650,15 @@ impl Generator<'_, '_, '_> {
 
         let work_dir = work.0.display().to_string();
         let mut initramfs = String::new();
-        if self.enabled("EFI")? || self.enabled("Components")? {
+        if self.enabled(&EFI_ENABLED)? || self.enabled(&COMPONENTS_ENABLED)? {
             initramfs = self.create_initramfs(&work_dir, &kernel_version, settings)?;
         }
-        if self.enabled("EFI")? {
+        if self.enabled(&EFI_ENABLED)? {
             let bundle =
                 self.create_bundle(&work_dir, &kernel, &initramfs, &kernel_version, settings)?;
             self.install_bundle(&bundle, &prefix, &settings.version)?;
         }
-        if self.enabled("Components")? {
+        if self.enabled(&COMPONENTS_ENABLED)? {
             self.install_components(&kernel, &initramfs, &prefix, &settings.version)?;
         }
         Ok(())
@@ -788,7 +794,7 @@ impl Generator<'_, '_, '_> {
                 words.push("--hookdir".to_owned());
                 words.push(quote(hook_dir));
             }
-            "InitCPIOFlags"
+            &GLOBAL_INIT_CPIO_FLAGS
         } else {
             words.extend([
                 "dracut".to_owned(),
@@ -799,10 +805,10 @@ impl Generator<'_, '_, '_> {
             if !self.debug {
                 words.push("-q".to_owned());
             }
-            "DracutFlags"
+            &GLOBAL_DRACUT_FLAGS
         };
         // The flags are shell words, as written in the configuration.
-        match self.config.lookup("Global", flags_key)? {
+        match self.config.option(flags_key)? {
             Some(Value::Seq(flags)) => words.extend(
                 flags
                     .borrow()
@@ -876,7 +882,7 @@ impl Generator<'_, '_, '_> {
             return Err(Stop::Exit(1));
         }
 
-        let stub = match self.setting("EFI", "Stub")?.filter(|text| !text.is_empty()) {
+        let stub = match self.setting(&EFI_STUB)?.filter(|text| !text.is_empty()) {
             Some(stub) => {
                 if !is_file(&stub) {
                     self.print(&format!("UEFI stub loader '{stub}' does not exist\n"));
@@ -934,14 +940,14 @@ impl Generator<'_, '_, '_> {
             offset = self.add_section(&mut words, ".cmdline", &file, offset, alignment)?;
         }
         if let Some(splash) = self
-            .setting("EFI", "SplashImage")?
+            .setting(&EFI_SPLASH_IMAGE)?
             .filter(|text| !text.is_empty())
             && is_file(&splash)
         {
             offset = self.add_section(&mut words, ".splash", &splash, offset, alignment)?;
         }
         if let Some(tree) = self
-            .setting("EFI", "DeviceTree")?
+            .setting(&EFI_DEVICE_TREE)?
             .filter(|text| !text.is_empty())
         {
             let path = if tree.starts_with('/') {
@@ -1051,12 +1057,12 @@ impl Generator<'_, '_, '_> {
     /// Places the EFI bundle in `EFI.ImageDir`, as a new revision or replacing the
     /// previous image.
     fn install_bundle(&mut self, bundle: &str, prefix: &str, version: &str) -> Step<()> {
-        let image_dir = self.setting("EFI", "ImageDir")?.unwrap_or_default();
+        let image_dir = self.setting(&EFI_IMAGE_DIR)?.unwrap_or_default();
         let efi_prefix = format!("{image_dir}/{prefix}");
         self.log(&format!("Setting $efi_prefix: {efi_prefix}"));
         let versions = self
             .config
-            .lookup("EFI", "Versions")?
+            .option(&EFI_VERSIONS)?
             .map_or(0, |value| value.perl_int());
         make_path(&image_dir)?;
 
@@ -1102,11 +1108,11 @@ impl Generator<'_, '_, '_> {
         prefix: &str,
         version: &str,
     ) -> Step<()> {
-        let image_dir = self.setting("Components", "ImageDir")?.unwrap_or_default();
+        let image_dir = self.setting(&COMPONENTS_IMAGE_DIR)?.unwrap_or_default();
         let component_prefix = format!("{image_dir}/{prefix}");
         let versions = self
             .config
-            .lookup("Components", "Versions")?
+            .option(&COMPONENTS_VERSIONS)?
             .map_or(0, |value| value.perl_int());
         make_path(&image_dir)?;
 

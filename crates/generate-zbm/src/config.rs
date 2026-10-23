@@ -19,12 +19,19 @@ use std::rc::Rc;
 
 use yaml_rust2::parser::{Event, MarkedEventReceiver, Parser, Tag};
 use yaml_rust2::scanner::{Marker, TScalarStyle};
+use zbm_config::spec::OptionSpec;
 
 /// A sequence, shared like a Perl array reference.
 pub type Seq = Rc<RefCell<Vec<Value>>>;
 
 /// A mapping in file order, shared like a Perl hash reference.
 pub type Map = Rc<RefCell<Vec<(String, Value)>>>;
+
+/// The section and the key of a configuration key of the table, whose name
+/// is `Section.Key`.
+fn section_key(spec: &OptionSpec) -> (&'static str, &'static str) {
+    spec.name.split_once('.').unwrap_or(("", spec.name))
+}
 
 /// A configuration value, typed as YAML::PP's core schema types it. Cloning a
 /// sequence or a mapping shares it, as copying a Perl reference does.
@@ -127,6 +134,28 @@ impl Value {
                 .map(|(_, value)| value.clone()),
             _ => None,
         }
+    }
+
+    /// The value of the configuration key `spec` of the [table of
+    /// options](zbm_config::spec::generate), `Section.Key`, as [`Value::lookup`]
+    /// reads it.
+    ///
+    /// # Errors
+    ///
+    /// [`Fatal`] when the section is defined but is not a mapping.
+    pub fn option(&self, spec: &OptionSpec) -> Result<Option<Value>, Fatal> {
+        let (section, key) = section_key(spec);
+        self.lookup(section, key)
+    }
+
+    /// Sets the configuration key `spec`, as [`Value::set`] does.
+    ///
+    /// # Errors
+    ///
+    /// [`Fatal`] when the configuration or the section is not a mapping.
+    pub fn set_option(&self, spec: &OptionSpec, value: Value) -> Result<(), Fatal> {
+        let (section, key) = section_key(spec);
+        self.set(section, key, value)
     }
 
     /// `$config{section}{key}` in Perl: the value, or `None` when the section or

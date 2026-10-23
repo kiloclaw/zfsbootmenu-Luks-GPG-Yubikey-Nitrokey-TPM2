@@ -7,7 +7,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 
 | Command | What it does |
 | --- | --- |
-| `cargo xtask lint` | Every check a pull request must pass: `rustfmt` (also of the fuzz targets), that the fuzz targets build, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
+| `cargo xtask lint` | Every check a pull request must pass: `rustfmt` (also of the fuzz targets), that the fuzz targets build, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `gen-docs --check`, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
 | `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
 | `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
 | `cargo xtask record-zfs [--manifest]` | Records what `zfs` and `zpool` print, as JSON and as text, in a test VM (root, QEMU), into `crates/zbm-zfs/tests/fixtures/<major.minor>/`; `--manifest` prints the commands the VM harness runs ([testing.md](testing.md)) |
@@ -16,6 +16,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask bless` | Accepts every changed snapshot (`INSTA_UPDATE=always` over the crates that use `insta`) and lists the `.snap` files that changed, for review with `git diff` |
 | `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |
+| `cargo xtask gen-docs [--check]` | Writes the option sections of `zfsbootmenu(7)`, `zfsbootmenu-crypttab(5)` and `generate-zbm(5)` from the table of options in `zbm-config` (`zbm_config::spec`), between the `.. BEGIN generated` and `.. END generated` lines of each page; `--check` fails when one is out of date. Edit an option's entry in the table, never the generated text. It runs the example `gen_docs` of `zbm-config`, since `xtask` depends on no crate of the workspace |
 | `cargo xtask check-deps [--bless]` | Checks the dependencies between crates against the layers ([architecture.md](architecture.md)); `--bless` regenerates the tables on that page |
 | `cargo xtask metrics [--check \| --bless]` | Prints code metrics per crate (below) |
 | `cargo xtask split-debug <binary> [<dir>]` | Moves the debug information of a release binary to `<dir>/<build-id>.debug` (default `target/debug-files`) with `objcopy` and strips the binary; image builds do this to `zbm` (below) |

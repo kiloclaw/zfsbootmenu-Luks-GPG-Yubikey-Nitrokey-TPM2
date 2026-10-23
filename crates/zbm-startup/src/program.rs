@@ -17,9 +17,10 @@ use zbm_boot::kernels::Kernel;
 use zbm_boot::prompt::{Answer, TimedPrompt, colorize, tput};
 use zbm_boot::recovery::Recovery;
 use zbm_boot::support::{self, Facts};
-use zbm_cmdline::args::ZbmArgs;
-use zbm_cmdline::conf::Conf;
-use zbm_cmdline::options::ZbmOptions;
+use zbm_config::args::{Args, ZbmArgs};
+use zbm_config::conf::Conf;
+use zbm_config::options::ZbmOptions;
+use zbm_config::spec::cmdline::SKIP_HOOKS;
 use zbm_platform::{Installed, System};
 use zbm_pool::{BootfsPreference, Build, PoolRef, Requirement, RetryDelay};
 use zbm_state::State;
@@ -146,7 +147,7 @@ impl<'a> Startup<'a> {
     /// The start-up stages, in the order they run.
     pub fn steps(&self) -> Vec<Box<dyn Step + '_>> {
         let mut messages = Vec::new();
-        let skip = self.args.lookup(&["zbm.skip_hooks"], &mut messages);
+        let skip = self.args.lookup(&SKIP_HOOKS, &mut messages);
         vec![
             Box::new(stages::Modules),
             Box::new(stages::HostId {

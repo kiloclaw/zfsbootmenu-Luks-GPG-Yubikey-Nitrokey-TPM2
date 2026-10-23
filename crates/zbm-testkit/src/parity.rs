@@ -484,12 +484,12 @@ mod tests {
 
     #[test]
     fn the_golden_file_is_named_after_the_crate_module_and_test() {
-        let parity = Parity::new("zbm-cmdline", "zbm_cmdline::args::tests", "lookups");
+        let parity = Parity::new("zbm-config", "zbm_config::args::tests", "lookups");
 
         assert!(
             parity
                 .path()
-                .ends_with("tests/golden/legacy/zbm-cmdline/args/lookups.json")
+                .ends_with("tests/golden/legacy/zbm-config/args/lookups.json")
         );
         let integration = Parity::new("zbm-kcl", "parity", "edits");
         assert!(

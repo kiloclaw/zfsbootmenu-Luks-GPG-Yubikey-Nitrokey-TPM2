@@ -79,17 +79,17 @@ fn parent_references_expand_through_the_recorded_properties() {
     let zfs = ZfsCommand::new(&runner);
     let mut log = Vec::new();
     assert_eq!(
-        zbm_cmdline::parent::read_kcl_prop(&zfs, "tfix/ROOT/other", &mut log).as_deref(),
+        zbm_config::parent::read_kcl_prop(&zfs, "tfix/ROOT/other", &mut log).as_deref(),
         Some("quiet loglevel=4 rw")
     );
     // The child inherits "%{parent} rw" and gets the expansion at tfix/ROOT/other,
     // not a second "rw".
     assert_eq!(
-        zbm_cmdline::parent::read_kcl_prop(&zfs, "tfix/ROOT/other/child", &mut log).as_deref(),
+        zbm_config::parent::read_kcl_prop(&zfs, "tfix/ROOT/other/child", &mut log).as_deref(),
         Some("quiet loglevel=4 rw")
     );
     assert_eq!(
-        zbm_cmdline::parent::read_kcl_prop(&zfs, "tfix/ROOT/be", &mut log).as_deref(),
+        zbm_config::parent::read_kcl_prop(&zfs, "tfix/ROOT/be", &mut log).as_deref(),
         Some("quiet loglevel=4")
     );
 }

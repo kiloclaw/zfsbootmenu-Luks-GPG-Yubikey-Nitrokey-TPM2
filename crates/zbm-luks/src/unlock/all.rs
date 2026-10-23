@@ -4,6 +4,8 @@
 use crate::mappings::Origin;
 use std::collections::BTreeSet;
 
+use zbm_config::spec::cmdline::luks::{LUKS, LUKS_KEY};
+
 use crate::config::{Mode, Options, load_config};
 use crate::device::{is_block_device, resolve_device};
 use crate::error::LuksError;
@@ -37,7 +39,7 @@ impl Unlocker<'_> {
             return nothing_to_do();
         }
 
-        let zbm_luks = self.zbm_arg("zbm.luks");
+        let zbm_luks = self.option(&LUKS);
         let crypttab_path = self.settings().crypttab.clone();
         let crypttab = self
             .system()
@@ -56,7 +58,7 @@ impl Unlocker<'_> {
         }
 
         // The default key for volumes without one of their own.
-        let global_key = self.zbm_arg("zbm.luks_key").unwrap_or_default();
+        let global_key = self.option(&LUKS_KEY).unwrap_or_default();
         self.settle();
         let mut unlocked: i64 = 0;
         let mut failed: i64 = 0;

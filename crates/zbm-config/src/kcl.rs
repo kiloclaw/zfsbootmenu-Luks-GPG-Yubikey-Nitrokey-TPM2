@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn zbm_kcl_concatenates_sources() {
         assert_eq!(build_zbm_kcl(&["a \"b", "c d"]), "a\n\"bc\nd\n");
-        let root = zbm_testkit::TempDir::new("zbm-cmdline-sources");
+        let root = zbm_testkit::TempDir::new("zbm-config-sources");
         root.write("etc/cmdline", "first");
         root.write("etc/cmdline.d/b.conf", "third");
         root.write("etc/cmdline.d/a.conf", "second");

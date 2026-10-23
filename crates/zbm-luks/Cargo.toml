@@ -12,6 +12,7 @@ publish.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 zbm-core.workspace = true
+zbm-config.workspace = true
 zbm-crypt.workspace = true
 zbm-trace.workspace = true
 zbm-platform.workspace = true

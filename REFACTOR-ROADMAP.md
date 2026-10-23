@@ -249,6 +249,22 @@ Done in R3:
   the mapping state file and skip list are a repository, `MappingStore`, which records where each mapping came from
   (`Origin`). `zbm-luks` has two long functions and seven legacy-named doc lines fewer, and keeps its 95% line
   coverage.
+- `zbm-config` (state layer, formerly `zbm-cmdline`): the table of options, 98 entries covering the kernel command
+  line (`zbm.*` and the kernel's `loglevel` and `console`), the dracut and mkinitcpio build options, pool and dataset
+  properties, crypttab options and `generate-zbm`'s configuration keys. Every option of `zfsbootmenu(7)`,
+  `zfsbootmenu-crypttab(5)` and `generate-zbm(5)` comes from the table: `cargo xtask gen-docs` rewrites the marked
+  sections of the pages, `cargo xtask lint` and a unit test check them. Rendered with Sphinx, the pages say the
+  same as before; two notes moved into the entry they belong to, and the deprecated options are listed in table
+  order. The parsers read options by their specification through the `Args` trait (the command line, or the
+  `cmdline.d` files the start-up writes, which replaces `State::zbm_arg`); crypttab parsing moved here from
+  `zbm-luks`, matched by the canonical names of the table; `generate-zbm` reads its keys and the boot code its ZFS
+  properties by their specification. `ZbmOptions::read` records where each value came from (`Origin`: default,
+  command line under which name, or an invalid value replaced by the default), and `Config` puts the options, the
+  LUKS mode and the origins together for `zbm debug config` in R4. Behaviour is unchanged: the parity recordings
+  moved with their tests and still match the legacy code. Not done: the release each option appeared in (the table
+  would have to guess it), new warnings for deprecated names (a behaviour change, for R5), and the build options are
+  still read by the shell scripts of the dracut module and the mkinitcpio hook (R6, recorded in the table as their
+  reader). The strict lints for `zbm-config` are part of R3.5.
 
 ## What the pilots taught
 
@@ -552,16 +568,17 @@ Today each kernel command line option, configuration key and crypttab option is 
 `zbm-cmdline` or `zbm-luks`, a section in a hand-written man page (`docs/man/zfsbootmenu.7.rst`,
 `zfsbootmenu-crypttab.5.rst`, `generate-zbm.5.rst`) and, for the menu, a help file rendered from RST. They drift.
 
-After the refactor, `zbm-config` holds one table of option specifications, a `const` slice of `OptionSpec` values:
-name, type (a `zbm-types` type with `FromStr`), default, accepted values, the release it appeared in, deprecation,
-a one-line summary, the full description and examples. From that table:
+After the refactor, `zbm-config` holds one table of option specifications (`zbm_config::spec`), one `OptionSpec`
+each: name, aliases, where it is set, the values it takes, default, a one-line summary, what reads it, its manual
+page entry, deprecation and examples. From that table:
 
-- the parsers are driven by the table, so an option without a specification cannot be parsed;
-- `xtask gen-docs` writes the option sections of the man pages as RST fragments that the pages include, and the
-  option reference in `docs/`;
-- `zbm debug config` prints each value with its specification and where it came from;
-- deprecated names produce a warning naming the replacement;
-- a table-driven test parses every example of every specification and checks that it round-trips through `Display`.
+- the parsers look options up by their specification, so an option without one cannot be read (outside
+  `zbm-config`, the lookup by name is a disallowed method);
+- `xtask gen-docs` writes the option sections of the man pages between marker comments in each page, and CI checks
+  them; the pages keep their hand-written titles, introductions and examples;
+- `zbm debug config` prints each value with its specification and where it came from (`zbm_config::Config`);
+- a deprecated name logs a warning naming the option, as the legacy runtime does;
+- a table-driven test reads every example of every specification as its option and checks its value.
 
 The menu's key bindings work the same way: `zbm-tui`'s `keymap.rs` table drives the input handling, the help screen
 and a generated section of the man page. CI runs `xtask gen-docs --check`, which fails when a generated fragment is

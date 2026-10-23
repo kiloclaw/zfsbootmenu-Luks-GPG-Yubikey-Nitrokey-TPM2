@@ -12,10 +12,10 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_cmdline::args::{ZbmArgs, cmdline_files};
-use zbm_cmdline::conf::{self, Conf};
-use zbm_cmdline::kcl;
-use zbm_cmdline::options::ZbmOptions;
+use zbm_config::args::{ZbmArgs, cmdline_files};
+use zbm_config::conf::{self, Conf};
+use zbm_config::kcl;
+use zbm_config::options::ZbmOptions;
 use zbm_platform::error::{Error, Result};
 use zbm_platform::{KernelLog, System};
 use zbm_tools::terminal;
@@ -107,8 +107,8 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     }
 
     // get_zbm_kcl and make_cmdline_dir
-    let zbm_cmdline = format!("{}\n", kcl.trim_end_matches('\n'));
-    let _ = files.write(&base_in_root.join("zbm.cmdline"), zbm_cmdline.as_bytes());
+    let zbm_config = format!("{}\n", kcl.trim_end_matches('\n'));
+    let _ = files.write(&base_in_root.join("zbm.cmdline"), zbm_config.as_bytes());
     let dir = base_in_root.join("cmdline.d");
     let _ = files.create_dir_all(&dir);
     for (key, contents) in cmdline_files(&kcl) {
@@ -210,8 +210,8 @@ export embedded_kcl=\"rd.hostonly=0\"
                 .as_deref(),
             Some("rd.hostonly=0\n")
         );
-        let zbm_cmdline = fake.files.text("/zfsbootmenu/zbm.cmdline").unwrap();
-        assert!(zbm_cmdline.starts_with("zbm.timeout=3\nrd.hostonly=0\nloglevel=7\n"));
+        let zbm_config = fake.files.text("/zfsbootmenu/zbm.cmdline").unwrap();
+        assert!(zbm_config.starts_with("zbm.timeout=3\nrd.hostonly=0\nloglevel=7\n"));
         assert_eq!(
             fake.files
                 .text("/zfsbootmenu/cmdline.d/zbm.prefer")

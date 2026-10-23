@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 zbm-boot.workspace = true
-zbm-cmdline.workspace = true
+zbm-config.workspace = true
 zbm-state.workspace = true
 
 [dev-dependencies]

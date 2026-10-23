@@ -9,8 +9,7 @@
 use zbm_core::shell::{command_substitution, echo, read_first_line};
 use zbm_trace::Message;
 
-/// The property that holds boot environment command lines.
-pub const COMMANDLINE_PROPERTY: &str = "org.zfsbootmenu:commandline";
+use crate::spec::properties::COMMANDLINE;
 
 /// Where command line properties come from.
 pub trait CommandLineSource {
@@ -40,19 +39,22 @@ pub fn read_kcl_prop(
     }
     let Some(args) = source.commandline(filesystem) else {
         log.push(Message::error(format!(
-            "unable to read {COMMANDLINE_PROPERTY} on {filesystem}"
+            "unable to read {property} on {filesystem}",
+            property = COMMANDLINE.name
         )));
         return None;
     };
     if args == "-" {
         log.push(Message::debug(format!(
-            "{COMMANDLINE_PROPERTY} on {filesystem} has no value"
+            "{property} on {filesystem} has no value",
+            property = COMMANDLINE.name
         )));
         return Some(String::new());
     }
     if !args.contains("%{parent}") {
         log.push(Message::debug(format!(
-            "no parent reference in {COMMANDLINE_PROPERTY} on {filesystem}"
+            "no parent reference in {property} on {filesystem}",
+            property = COMMANDLINE.name
         )));
         return Some(printed(&args));
     }
@@ -74,8 +76,9 @@ pub fn read_kcl_prop(
             .is_some_and(|inherited| !inherited.is_empty())
         {
             log.push(Message::debug(format!(
-                "{COMMANDLINE_PROPERTY} on {filesystem} is inherited, \
-                 using parent expansion verbatim"
+                "{property} on {filesystem} is inherited, \
+                 using parent expansion verbatim",
+                property = COMMANDLINE.name
             )));
             return Some(printed(&parent_args));
         }
@@ -226,7 +229,7 @@ mod tests {
 
     #[test]
     fn command_line_files_take_precedence() {
-        let dir = zbm_testkit::TempDir::new("zbm-cmdline-parent");
+        let dir = zbm_testkit::TempDir::new("zbm-config-parent");
         let file = dir.write("cmdline", "  root=x %{parent} \nignored\n");
         let mut log = Vec::new();
         assert_eq!(

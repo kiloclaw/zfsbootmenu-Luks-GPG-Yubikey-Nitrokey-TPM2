@@ -22,7 +22,7 @@ generate-zbm = { path = "crates/generate-zbm" }
 zbm = { path = "crates/zbm" }
 zbm-app = { path = "crates/zbm-app" }
 zbm-boot = { path = "crates/zbm-boot" }
-zbm-cmdline = { path = "crates/zbm-cmdline" }
+zbm-config = { path = "crates/zbm-config" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-coreutils = { path = "crates/zbm-coreutils" }
 zbm-crypt = { path = "crates/zbm-crypt" }

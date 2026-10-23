@@ -12,12 +12,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use zbm_config::args::{Args, CmdlineDir};
+use zbm_config::spec::OptionSpec;
+use zbm_config::spec::cmdline::luks::{LUKS_TOKEN_WAIT, LUKS_TOKENS};
 use zbm_core::color::colorize;
 use zbm_crypt::{CryptError, Cryptsetup, KeySource};
 use zbm_platform::exec::Input;
 use zbm_platform::secret::Secret;
 use zbm_platform::{Environment, System};
-use zbm_state::State;
 use zbm_tools::{Shown, terminal, udev};
 pub use zbm_types::Answer;
 
@@ -292,9 +294,14 @@ impl<'a> Unlocker<'a> {
         }
     }
 
+    /// The options the start-up stored from ZFSBootMenu's command line.
+    pub fn options(&self) -> CmdlineDir<'a> {
+        CmdlineDir::new(self.system().files, &self.settings().base)
+    }
+
     /// The value of a ZFSBootMenu command line option (`get_zbm_arg`).
-    pub fn zbm_arg(&self, key: &str) -> Option<String> {
-        State::new(self.system().files, &self.settings().base).zbm_arg(key)
+    pub fn option(&self, spec: &OptionSpec) -> Option<String> {
+        self.options().lookup(spec, &mut Vec::new())
     }
 
     /// `colorize`, or plain text where the suites expect it.
@@ -345,7 +352,7 @@ impl<'a> Unlocker<'a> {
     /// (`luks_token_wait`, `zbm.luks_token_wait`): up to six digits, 10
     /// otherwise.
     pub fn token_wait(&self) -> u64 {
-        self.zbm_arg("zbm.luks_token_wait")
+        self.option(&LUKS_TOKEN_WAIT)
             .filter(|wait| (1..=6).contains(&wait.len()))
             .filter(|wait| wait.bytes().all(|byte| byte.is_ascii_digit()))
             .and_then(|wait| wait.parse().ok())
@@ -355,8 +362,7 @@ impl<'a> Unlocker<'a> {
     /// Whether LUKS2 tokens may be tried (`zbm.luks_tokens`, on by default),
     /// as `get_zbm_bool 1 zbm.luks_tokens` decides.
     pub fn tokens_enabled(&self) -> bool {
-        self.zbm_arg("zbm.luks_tokens")
-            .is_none_or(|value| !matches!(value.to_lowercase().as_str(), "" | "no" | "off" | "0"))
+        self.options().enabled(&LUKS_TOKENS, &mut Vec::new())
     }
 
     /// Waits up to `seconds` for `present` to hold, showing `message`, unless

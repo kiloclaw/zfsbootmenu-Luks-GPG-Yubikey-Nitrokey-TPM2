@@ -2,6 +2,7 @@
 //! over SSH, and in the test build the operations the LUKS unit suites call.
 
 use std::path::Path;
+use zbm_config::spec::cmdline::luks::LUKS_KEY;
 
 use zbm_boot::prompt::{ConsolePrompter, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open, resolve_device};
@@ -52,7 +53,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         let _ = writeln!(
             io.stderr,
             "ERROR: unable to source {}",
-            zbm_cmdline::conf::PATH
+            zbm_config::conf::PATH
         );
         return 1;
     };
@@ -103,7 +104,7 @@ pub fn run_zluks(session: &mut Unlocker<'_>, args: &[String], io: &mut Io) -> i3
                 return 1;
             };
             let name = rest.get(1).map_or("", String::as_str);
-            let key = session.zbm_arg("zbm.luks_key").unwrap_or_default();
+            let key = session.option(&LUKS_KEY).unwrap_or_default();
             let opened = session.open_device(name, &device, &key, "", Origin::Configured);
             session.forget_secrets();
             session.settle();

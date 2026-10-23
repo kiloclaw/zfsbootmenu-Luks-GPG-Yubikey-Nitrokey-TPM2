@@ -1,15 +1,102 @@
-//! Looking up arguments of ZFSBootMenu's own command line.
+//! Looking up options of ZFSBootMenu's own command line.
 //!
 //! The legacy code stores every argument as a file `${BASE}/cmdline.d/<key>`
 //! holding its value (`1` for an argument without `=`), so the last occurrence
 //! of a key wins, and reads them back with `get_zbm_arg` and `get_zbm_bool`.
 //! [`ZbmArgs`] keeps the same key-value pairs in memory, with the values
-//! exactly as reading the files back produces them.
+//! exactly as reading the files back produces them; [`CmdlineDir`] reads the
+//! files.
+//!
+//! Both are [`Args`], which look an option up by its specification in the
+//! [table of options](crate::spec): by its name, then by its aliases, with a
+//! warning for an alias.
+//!
+//! ```
+//! use zbm_config::args::{Args, ZbmArgs};
+//! use zbm_config::spec::cmdline::{SET_HOSTID, TIMEOUT};
+//!
+//! let args = ZbmArgs::from_cmdline("quiet timeout=3");
+//! let mut messages = Vec::new();
+//! assert_eq!(args.lookup(&TIMEOUT, &mut messages).as_deref(), Some("3"));
+//! assert_eq!(messages.len(), 1); // timeout is a deprecated name
+//! assert!(args.enabled(&SET_HOSTID, &mut messages)); // on by default
+//! ```
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use zbm_core::shell::{command_substitution, echo, read_first_line, read_lines};
+use zbm_platform::files::Files;
 use zbm_trace::Message;
+
+use crate::spec::OptionSpec;
+
+/// An option found on the command line: the name it was given under, and
+/// its value.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Found {
+    /// The name, the option's or one of its aliases.
+    pub name: &'static str,
+    /// The value; `1` for an argument without `=`.
+    pub value: String,
+}
+
+/// The options of a command line, looked up by their specification.
+pub trait Args {
+    /// The stored value of the argument `name`.
+    ///
+    /// Look options up with [`Args::lookup`] or [`Args::enabled`] instead, which
+    /// know their names from the table; outside this crate, this method is
+    /// disallowed (`clippy.toml`).
+    fn raw(&self, name: &str) -> Option<String>;
+
+    /// The option `spec`, under the first of its names the command line has.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the lookup by name, for the names of the specification"
+    )]
+    fn find(&self, spec: &OptionSpec) -> Option<Found> {
+        spec.names().find_map(|name| {
+            Some(Found {
+                name,
+                value: self.raw(name)?,
+            })
+        })
+    }
+
+    /// The value of `spec`, as the legacy runtime reads it; finding it under an
+    /// alias adds a warning to `messages`.
+    fn lookup(&self, spec: &OptionSpec, messages: &mut Vec<Message>) -> Option<String> {
+        let found = self.find(spec)?;
+        if found.name != spec.name {
+            messages.push(deprecated(found.name, spec.name));
+        }
+        Some(found.value)
+    }
+
+    /// Whether the boolean option `spec` is on, as the legacy runtime
+    /// decides: when it is not given, its default decides (off when it has
+    /// none).
+    fn enabled(&self, spec: &OptionSpec, messages: &mut Vec<Message>) -> bool {
+        let value = self
+            .lookup(spec, messages)
+            .unwrap_or_else(|| spec.default.unwrap_or("0").to_owned());
+        is_on(&value)
+    }
+}
+
+/// The warning about a deprecated name.
+pub(crate) fn deprecated(name: &str, preferred: &str) -> Message {
+    Message::warning(format!(
+        "using deprecated arg '{name}' when '{preferred}' is preferred"
+    ))
+}
+
+/// Whether a boolean value means on: an empty value and `no`, `off` and `0`
+/// in any case mean off.
+pub(crate) fn is_on(value: &str) -> bool {
+    !matches!(value.to_lowercase().as_str(), "" | "no" | "off" | "0")
+}
 
 /// The arguments of ZFSBootMenu's command line, by key.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -49,37 +136,42 @@ impl ZbmArgs {
     }
 
     /// The stored value of `key`, if the command line has it.
-    pub fn get(&self, key: &str) -> Option<&str> {
+    pub(crate) fn get(&self, key: &str) -> Option<&str> {
         self.values.get(key).map(String::as_str)
     }
+}
 
-    /// The value of the first of `names` the command line has, as `get_zbm_arg`
-    /// returns it.
-    ///
-    /// `names` lists a preferred name followed by deprecated alternatives; using an
-    /// alternative adds a warning to `messages`. An argument without `=` has the
-    /// value `1`.
-    pub fn lookup(&self, names: &[&str], messages: &mut Vec<Message>) -> Option<String> {
-        let preferred = names.first().filter(|name| !name.is_empty())?;
-        names.iter().find_map(|&name| {
-            let value = self.get(name)?;
-            if name != *preferred {
-                messages.push(Message::warning(format!(
-                    "using deprecated arg '{name}' when '{preferred}' is preferred"
-                )));
-            }
-            Some(value.to_owned())
-        })
+impl Args for ZbmArgs {
+    fn raw(&self, name: &str) -> Option<String> {
+        self.get(name).map(str::to_owned)
     }
+}
 
-    /// Whether a boolean option is on, as `get_zbm_bool` decides: when none of
-    /// `names` is given, `default` decides. An empty value and `no`, `off` and `0`
-    /// in any case mean off; everything else means on.
-    pub fn flag(&self, default: &str, names: &[&str], messages: &mut Vec<Message>) -> bool {
-        let value = self
-            .lookup(names, messages)
-            .unwrap_or_else(|| default.to_owned());
-        !matches!(value.to_lowercase().as_str(), "" | "no" | "off" | "0")
+/// The options the start-up stored in `${BASE}/cmdline.d`, one file each,
+/// read when they are looked up.
+pub struct CmdlineDir<'a> {
+    files: &'a dyn Files,
+    dir: PathBuf,
+}
+
+impl<'a> CmdlineDir<'a> {
+    /// The options stored below the state directory `base`.
+    pub fn new(files: &'a dyn Files, base: &Path) -> CmdlineDir<'a> {
+        CmdlineDir {
+            files,
+            dir: base.join("cmdline.d"),
+        }
+    }
+}
+
+impl Args for CmdlineDir<'_> {
+    /// The first line of the file of `name`, as `read -r` reads it.
+    fn raw(&self, name: &str) -> Option<String> {
+        if name.is_empty() || name.contains('/') {
+            return None;
+        }
+        let text = self.files.read_to_string(&self.dir.join(name)).ok()?;
+        Some(read_first_line(&text).to_owned())
     }
 }
 
@@ -117,6 +209,9 @@ fn can_be_file_name(key: &str) -> bool {
 mod tests {
     use super::*;
     use crate::kcl::tokenize;
+    use crate::spec::cmdline::luks::{LUKS, LUKS_KEY, LUKS_TOKENS};
+    use crate::spec::cmdline::{HOOKROOT, RETRY_DELAY, SET_HOSTID, SHOW, TIMEOUT};
+    use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::{Rng, TempDir, parity};
 
@@ -158,38 +253,82 @@ mod tests {
         assert_eq!(ZbmArgs::from_cmdline("k=\"open").get("k"), Some("\"open"));
     }
 
+    /// `get_zbm_arg` with any list of names: the first given, with a warning
+    /// for every name but the first.
+    fn lookup_names(args: &ZbmArgs, names: &[&str], messages: &mut Vec<Message>) -> Option<String> {
+        let preferred = names.first().filter(|name| !name.is_empty())?;
+        names.iter().find_map(|&name| {
+            let value = args.get(name)?;
+            if name != *preferred {
+                messages.push(deprecated(name, preferred));
+            }
+            Some(value.to_owned())
+        })
+    }
+
+    /// `get_zbm_bool` with any default and list of names.
+    fn flag_names(args: &ZbmArgs, default: &str, names: &[&str]) -> bool {
+        is_on(&lookup_names(args, names, &mut Vec::new()).unwrap_or_else(|| default.to_owned()))
+    }
+
     #[test]
     fn lookup_warns_about_deprecated_names() {
-        let args = ZbmArgs::from_cmdline("timeout=3");
+        let args = ZbmArgs::from_cmdline("timeout=3 zbm.retry_delay=4");
         let mut messages = Vec::new();
-        assert_eq!(
-            args.lookup(&["zbm.timeout", "timeout"], &mut messages),
-            Some("3".to_owned())
-        );
+        assert_eq!(args.lookup(&TIMEOUT, &mut messages), Some("3".to_owned()));
         assert_eq!(
             messages,
             [Message::warning(
                 "using deprecated arg 'timeout' when 'zbm.timeout' is preferred"
             )]
         );
-        assert_eq!(args.lookup(&[], &mut messages), None);
-        assert_eq!(args.lookup(&["", "timeout"], &mut messages), None);
+        assert_eq!(
+            args.find(&RETRY_DELAY),
+            Some(Found {
+                name: "zbm.retry_delay",
+                value: "4".to_owned()
+            })
+        );
+        assert_eq!(args.lookup(&HOOKROOT, &mut messages), None);
+        assert_eq!(messages.len(), 1);
     }
 
     #[test]
     fn flags_follow_get_zbm_bool() {
-        let args = ZbmArgs::from_cmdline("a b=0 c=OFF d=No e=yes f=");
+        let on = |cmdline: &str, spec: &OptionSpec| {
+            ZbmArgs::from_cmdline(cmdline).enabled(spec, &mut Vec::new())
+        };
+        // zbm.set_hostid is on by default, zbm.show off.
+        assert!(on("", &SET_HOSTID));
+        assert!(!on("", &SHOW));
+        assert!(on("zbm.show", &SHOW));
+        for off in ["0", "OFF", "No", ""] {
+            assert!(!on(&format!("zbm.set_hostid={off}"), &SET_HOSTID), "{off}");
+        }
+        assert!(on("zbm.set_hostid=yes", &SET_HOSTID));
+        // A specification without a default is off.
+        assert!(!on("", &HOOKROOT));
+        assert!(is_on("On") && !is_on("off"));
+    }
+
+    #[test]
+    fn the_cmdline_directory_holds_the_first_line_of_each_value() {
+        let fake = FakeSystem::new();
+        fake.files
+            .dir("/zfsbootmenu/cmdline.d")
+            .file("/zfsbootmenu/cmdline.d/zbm.luks", "\tUUID=a, b \nmore\n")
+            .file("/zfsbootmenu/cmdline.d/zbm.luks_key", "");
+        let dir = CmdlineDir::new(&fake.files, Path::new("/zfsbootmenu"));
         let mut messages = Vec::new();
-        assert!(args.flag("0", &["a"], &mut messages));
-        assert!(!args.flag("1", &["b"], &mut messages));
-        assert!(!args.flag("1", &["c"], &mut messages));
-        assert!(!args.flag("1", &["d"], &mut messages));
-        assert!(args.flag("0", &["e"], &mut messages));
-        assert!(!args.flag("1", &["f"], &mut messages));
-        assert!(!args.flag("0", &["missing"], &mut messages));
-        assert!(args.flag("1", &["missing"], &mut messages));
-        assert!(args.flag("yes", &["missing"], &mut messages));
-        assert!(!args.flag("", &["missing"], &mut messages));
+        assert_eq!(
+            dir.lookup(&LUKS, &mut messages).as_deref(),
+            Some("UUID=a, b")
+        );
+        assert_eq!(dir.lookup(&LUKS_KEY, &mut messages).as_deref(), Some(""));
+        assert_eq!(dir.lookup(&LUKS_TOKENS, &mut messages), None);
+        assert_eq!(dir.raw(""), None);
+        assert_eq!(dir.raw("a/b"), None);
+        assert!(messages.is_empty());
     }
 
     const PIECES: &[&str] = &[
@@ -222,7 +361,7 @@ mod tests {
         for _ in 0..40 {
             let cmdline = rng.join(PIECES, 10);
             let legacy: Vec<(String, String)> = parity.legacy(format!("{cmdline:?}"), || {
-                let base = TempDir::new("zbm-cmdline-dir");
+                let base = TempDir::new("zbm-config-dir");
                 kcl_lib(&base, &cmdline).call("make_cmdline_dir", &[], b"");
                 let mut files: Vec<(String, String)> = std::fs::read_dir(base.join("cmdline.d"))
                     .unwrap()
@@ -275,7 +414,7 @@ mod tests {
             let input = format!("cmdline {cmdline:?}, lookup {lookup:?}, flag {bool_args:?}");
             let (expected, logged, flag): (Option<String>, String, bool) =
                 parity.legacy(input, || {
-                    let base = TempDir::new("zbm-cmdline-args");
+                    let base = TempDir::new("zbm-config-args");
                     let lib = kcl_lib(&base, &cmdline);
                     let arg = lib.call("get_zbm_arg", &lookup, b"");
                     let value = arg
@@ -292,14 +431,14 @@ mod tests {
 
             let args = ZbmArgs::from_kcl(&tokenize(&cmdline));
             let mut messages = Vec::new();
-            let rust = args.lookup(&lookup, &mut messages);
+            let rust = lookup_names(&args, &lookup, &mut messages);
             assert_eq!(rust, expected, "cmdline {cmdline:?}, lookup {lookup:?}");
             let warnings: String = messages
                 .iter()
                 .map(|message| format!("{}\n", message.stderr_line()))
                 .collect();
             assert_eq!(warnings, logged, "cmdline {cmdline:?}");
-            let rust = args.flag(default, &lookup, &mut Vec::new());
+            let rust = flag_names(&args, default, &lookup);
             assert_eq!(rust, flag, "cmdline {cmdline:?}, flag {bool_args:?}");
         }
     }

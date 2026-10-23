@@ -22,8 +22,8 @@ use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use zbm_cmdline::kcl;
-use zbm_cmdline::parent::COMMANDLINE_PROPERTY;
+use zbm_config::kcl;
+use zbm_config::spec::properties::COMMANDLINE;
 use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_core::getopts::{self, Opt};
 use zbm_platform::exec::{Output, Runner, SystemRunner};
@@ -360,7 +360,7 @@ fn run_in(context: &Context, args: &[String], io: &mut Io, workspace: &mut Works
 /// `raw_kcl_zfs`: the property's value, empty when it is not set or cannot be
 /// read.
 fn raw_kcl_zfs(zfs: &ZfsCommand, dataset: &str) -> String {
-    match zfs.get_value(COMMANDLINE_PROPERTY, dataset) {
+    match zfs.get_value(COMMANDLINE.name, dataset) {
         Some(value) if value != "-" => format!("{value}\n"),
         _ => String::new(),
     }
@@ -400,14 +400,11 @@ fn save_kcl_zfs(zfs: &ZfsCommand, io: &mut Io, assembled: &str, dataset: &str) -
     // `kcl="$(cat)"` drops trailing newlines and NUL bytes.
     let kcl = assembled.trim_end_matches('\n').replace('\0', "");
     if kcl.is_empty() {
-        if !zfs.inherit(COMMANDLINE_PROPERTY, dataset).unwrap_or(false) {
+        if !zfs.inherit(COMMANDLINE.name, dataset).unwrap_or(false) {
             error(io, &format!("failed to clear KCL property on {dataset}"));
             return false;
         }
-    } else if !zfs
-        .set(COMMANDLINE_PROPERTY, &kcl, dataset)
-        .unwrap_or(false)
-    {
+    } else if !zfs.set(COMMANDLINE.name, &kcl, dataset).unwrap_or(false) {
         error(io, &format!("failed to set KCL property on {dataset}"));
         return false;
     }

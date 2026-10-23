@@ -9,7 +9,7 @@ xtask                     78
 zbm                       75
 zbm-app                   98
 zbm-boot                  97
-zbm-cmdline               99
+zbm-config                99
 zbm-core                  97
 zbm-coreutils            100
 zbm-crypt                100

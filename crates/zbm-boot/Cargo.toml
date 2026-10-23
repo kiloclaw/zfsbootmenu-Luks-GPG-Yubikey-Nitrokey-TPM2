@@ -11,7 +11,7 @@ publish.workspace = true
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
-zbm-cmdline.workspace = true
+zbm-config.workspace = true
 zbm-core.workspace = true
 zbm-trace.workspace = true
 zbm-luks.workspace = true

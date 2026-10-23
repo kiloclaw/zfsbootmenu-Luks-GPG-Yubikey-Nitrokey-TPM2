@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 yaml-rust2.workspace = true
+zbm-config.workspace = true
 zbm-core.workspace = true
 zbm-platform.workspace = true
 zbm-sys.workspace = true

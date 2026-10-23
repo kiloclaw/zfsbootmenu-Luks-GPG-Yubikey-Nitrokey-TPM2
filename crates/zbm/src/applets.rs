@@ -47,7 +47,7 @@ pub fn parse_commandline(_args: &[String], io: &mut Io) -> i32 {
     let system = real.with_console(&terminal);
     match preinit::parse_commandline(&system, Path::new("/")) {
         Ok(_) => 0,
-        Err(_) => give_up(io, zbm_cmdline::conf::PATH),
+        Err(_) => give_up(io, zbm_config::conf::PATH),
     }
 }
 
@@ -67,7 +67,7 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     };
     let system = real.with_console(&terminal);
     let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
-        return give_up(io, zbm_cmdline::conf::PATH);
+        return give_up(io, zbm_config::conf::PATH);
     };
     let options = preinit::saved_options(&system, Path::new("/"), &conf);
     preinit::prepare(&system, Path::new("/"), &options);
@@ -126,7 +126,7 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     };
     let system = real.with_console(&terminal);
     let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
-        return give_up(io, zbm_cmdline::conf::PATH);
+        return give_up(io, zbm_config::conf::PATH);
     };
     Startup::new(system, &conf).run(modes, None)
 }
