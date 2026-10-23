@@ -56,7 +56,9 @@ tracing = { version = "0.1", default-features = false, features = ["std", "attri
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "registry"] }
 uucore = { version = "0.12", features = ["version-cmp"] }
 
-# Used only by xtask, the developer tooling; never part of an image.
+# Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
+vt100 = { version = "0.18", default-features = false, features = ["std"] }
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 syn = { version = "2", default-features = false, features = ["full", "parsing", "visit"] }
 

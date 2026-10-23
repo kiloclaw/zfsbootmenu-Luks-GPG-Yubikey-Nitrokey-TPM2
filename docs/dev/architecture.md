@@ -43,7 +43,7 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-startup`
 
-Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`) use no crate of the workspace.
+Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
 
 Third-party crates:
 
@@ -62,6 +62,7 @@ Third-party crates:
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `nucleo-matcher`, `ratatui`
 - `zbm-types`: `thiserror`, `uucore`
+- `zbm-vmtest`: `regex`, `serde_json`, `thiserror`, `vt100`
 - `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 
 Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as development dependencies.

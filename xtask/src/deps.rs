@@ -101,7 +101,7 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
 pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
 
 /// Developer tools, which no crate may use.
-pub const TOOLS: &[&str] = &["xtask"];
+pub const TOOLS: &[&str] = &["xtask", "zbm-vmtest"];
 
 /// The third-party crates each crate may depend on, in any section.
 pub const THIRD_PARTY: &[(&str, &[&str])] = &[
@@ -126,6 +126,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ),
     ("zbm-tui", &["nucleo-matcher", "ratatui"]),
     ("zbm-types", &["thiserror", "uucore"]),
+    ("zbm-vmtest", &["regex", "serde_json", "thiserror", "vt100"]),
     ("zbm-zfs", &["serde", "serde_json", "thiserror"]),
 ];
 

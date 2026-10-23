@@ -1,0 +1,24 @@
+[package]
+name = "zbm-vmtest"
+description = "The VM tests of ZFSBootMenu: QEMU, a serial console read through a terminal emulator, disks, images and the test scenarios"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# A developer tool: it boots images in QEMU on a host with KVM, and never
+# reaches an image itself.
+
+[dependencies]
+regex.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+vt100.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true
