@@ -188,10 +188,24 @@ and becomes the default only after the cutover.
   - keyboard layouts only as the image's one keymap, which the unlock dialog works around by translating keys
     itself.
 
-  Fedora is replacing the kernel console with `kmscon`, a console in user space that draws on the display through DRM.
-  `kmscon` is C with `libtsm`, `libxkbcommon`, `freetype` and `fontconfig`, a few megabytes in the image. A console in
-  Rust fits this project better: it is one more applet of `zbm`, and it keeps typed secrets under the rules of
-  `docs/dev/threat-model.md`.
+  Fedora is replacing the kernel console with `kmscon`, a console in user space that draws on the display through DRM
+  (reported for Fedora 45). `kmscon` is C with `libtsm`, `libxkbcommon`, `freetype` and `fontconfig`, a few megabytes
+  in the image. A console in Rust fits this project better: it is one more applet of `zbm`, and it keeps typed secrets
+  under the rules of `docs/dev/threat-model.md`.
+- **Prior art in Rust (October 2026):** no Rust program does what `kmscon` does, so the console is assembled from
+  crates:
+  - **Whole programs.** None replaces the kernel console. `term39` (MIT), a terminal multiplexer, comes closest: it can
+    draw on `/dev/fb0` from a physical console, with `vte` and `portable-pty`, but through the old framebuffer device
+    rather than DRM, with bitmap console fonts, and with keys read through the kernel console it runs on.
+  - **Ratatui drawn as pixels.** `mousefood` (MIT or Apache-2.0, from the Ratatui project, Rust 1.88 as the
+    workspace) is a Ratatui backend on `embedded-graphics`, with bitmap fonts. `soft_ratatui` (MIT or Apache-2.0, one
+    maintainer) renders a Ratatui buffer into an RGB pixel map, with bitmap (BDF, `embedded-graphics`) or TrueType
+    fonts (`rusttype`, `cosmic-text`). Both build on `ratatui-core`, which the workspace already vendors, and either
+    turns the menu into pixels without a renderer of our own.
+  - **The other layers.** `drm` for the display; `fontdue`, `rusttype` or `cosmic-text` (shaping, and much larger)
+    for fonts; `alacritty_terminal`, or `vt100` and `vte`, which the workspace vendors, for the terminal; `evdev` for
+    keys and `xkbcommon-rs`, a young pure Rust port of libxkbcommon (0.1), for layouts; `drmkit-session` (new in
+    October 2026) for revoking devices across VT switches, to watch rather than take.
 - **How:** a `zbm console` applet, which the supervisor starts on the display before the first prompt.
   - **Display.** It draws into a dumb buffer through DRM (the `drm` crate, 0.15, on the workspace's `rustix` 1). It
     works on `simpledrm`, the firmware's framebuffer, without graphics drivers, and at the native resolution with #17.
@@ -211,12 +225,15 @@ and becomes the default only after the cutover.
     that the booted kernel takes over as it does today.
   - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
     the drivers), so it is not hidden behind the console.
-  - **Dependencies.** `drm`, `fontdue`, `alacritty_terminal` and the keyboard crates are not among the agreed crates
-    (decision 1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with their size in the image.
+  - **Dependencies.** `drm`, `mousefood` or `soft_ratatui`, `fontdue`, `alacritty_terminal` and the keyboard crates
+    are not among the agreed crates (decision 1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with
+    their size in the image.
 - **Steps:**
   1. A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts, sizes, `simpledrm`, keyboard input
-     and the hand-over before `kexec`, without a terminal. The VM tests can read the screen with QEMU's `screendump`,
-     as `runtime-rust-colours` does. Medium.
+     and the hand-over before `kexec`, without a terminal. `mousefood` turns Ratatui's buffer into pixels, or
+     `soft_ratatui` where TrueType fonts at any size are wanted at once; the prototype copies them into a DRM dumb
+     buffer and reads keys from `evdev`, so it is mostly glue. The VM tests can read the screen with QEMU's
+     `screendump`, as `runtime-rust-colours` does. Small to medium.
   2. The console: `alacritty_terminal`, the pseudo-terminal, the recovery shell, the fallback. Large; after R5.
   3. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
