@@ -50,6 +50,9 @@ Commands:
   test devices           The LUKS device suites: the LUKS code against real
                          LUKS volumes on loop devices (root, cryptsetup,
                          swtpm, clevis, GnuPG; the build container has them)
+  test vm [<test>...]    The VM tests: build zbm-vmtest and run the tests
+                         (all by default) in QEMU (KVM, the build container,
+                         root for the disk setups; docs/luks/testing.rst)
   bless                  Accept every changed snapshot and list the files
   record-parity [--check]
                          Run the legacy code of the parity tests and record
@@ -101,6 +104,8 @@ enum Command {
     Test,
     /// `test devices`.
     TestDevices,
+    /// `test vm`, with the tests to run.
+    TestVm(Vec<String>),
     /// `bless`.
     Bless,
     /// `record-parity`.
@@ -142,6 +147,9 @@ impl Command {
             ["lint", "--strict"] => Command::Lint { strict: true },
             ["test"] => Command::Test,
             ["test", "devices"] => Command::TestDevices,
+            ["test", "vm", tests @ ..] => {
+                Command::TestVm(tests.iter().map(|&test| test.to_owned()).collect())
+            }
             ["bless"] => Command::Bless,
             ["record-parity"] => Command::RecordParity { check: false },
             ["record-parity", "--check"] => Command::RecordParity { check: true },
@@ -257,6 +265,7 @@ fn run(command: Command) -> Result<()> {
         Command::Lint { strict: true } => lint::strict(&Workspace::load(&root)?),
         Command::Test => cargo::test(&root),
         Command::TestDevices => cargo::test_devices(&root),
+        Command::TestVm(tests) => cargo::test_vm(&root, &tests),
         Command::Bless => cargo::bless(&Workspace::load(&root)?),
         Command::RecordParity { check } => cargo::record_parity(&root, check),
         Command::RecordZfs { manifest: true } => {
@@ -314,6 +323,10 @@ mod tests {
         );
         assert_eq!(parse("bless").unwrap(), Command::Bless);
         assert_eq!(parse("test devices").unwrap(), Command::TestDevices);
+        assert_eq!(
+            parse("test vm procedures").unwrap(),
+            Command::TestVm(vec!["procedures".to_owned()])
+        );
         assert_eq!(
             parse("record-parity --check").unwrap(),
             Command::RecordParity { check: true }

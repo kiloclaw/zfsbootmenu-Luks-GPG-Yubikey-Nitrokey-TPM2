@@ -12,6 +12,7 @@
 //! `zbm-vmtest run` runs them; see `docs/luks/testing.rst`.
 
 pub mod boot;
+pub mod compare;
 pub mod console;
 pub mod disks;
 pub mod error;
@@ -21,6 +22,7 @@ pub mod images;
 pub mod pyfmt;
 pub mod qemu;
 pub mod record;
+pub mod runner;
 pub mod scenarios;
 pub mod settings;
 pub mod swtpm;

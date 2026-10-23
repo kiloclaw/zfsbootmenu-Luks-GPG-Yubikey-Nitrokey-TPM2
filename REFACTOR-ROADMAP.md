@@ -1063,7 +1063,9 @@ Decided on 22 October 2026:
    the matcher of Nucleo, rather than `nucleo`, whose thread pool (`rayon`) a boot menu's short lists do not need
    (see [The menu on Nucleo and Ratatui](#the-menu-on-nucleo-and-ratatui)). `nucleo-matcher` is under MPL-2.0, a
    file-level copyleft licence; `deny.toml` allows it for this crate only. `rexpect` is not taken: the VM harness
-   gets its own small expect module in R3. `uucore` needs its default `signals` feature.
+   gets its own small expect module in R3. `uucore` needs its default `signals` feature. Added in R3 for the VM
+   harness `zbm-vmtest` only, a developer tool that never reaches an image: `vt100`, the terminal emulator the pilot
+   asked for, and `regex`, for the patterns the scenarios wait for (the Python harness's were regular expressions).
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images

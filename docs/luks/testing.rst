@@ -95,6 +95,26 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 * ``serial-<boot>.log``: the serial console of each boot;
 * ``result.json``: the number of passed and failed checks and the failures.
 
+The VM tests are being ported to Rust (``crates/zbm-vmtest``), and both harnesses run the same scenarios until their
+results match; then the Python harness is removed. The Rust harness needs the Rust toolchain instead of Python and
+``pexpect``, reads the same environment variables, and writes the same files, plus ``qemu-<boot>.log`` with QEMU's
+own messages. Build it as yourself and run it as root:
+
+.. code-block:: bash
+
+  $ cargo build --release -p zbm-vmtest
+  # target/release/zbm-vmtest run
+  # target/release/zbm-vmtest run layouts-main complex-hotplug
+  # target/release/zbm-vmtest list
+
+``cargo xtask test vm [<test>...]`` does both, for a user who may run the tests. ``zbm-vmtest compare <work> <work>``
+compares the checks of two runs message by message: give each harness a work directory of its own
+(``ZBMTEST_WORK``), since both write the same paths. The Rust harness reads the serial console from a Unix socket in a
+thread, which feeds the log, a terminal emulator (the screen as a user sees it) and the text that patterns match, with
+the terminal's escape sequences removed. A test that cannot go on (a setup command that fails, a message that does
+not come in time) records a failed check with the reason and still writes its result, where a Python test stopped
+without one.
+
 The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
 each case to */tmp/z?/cases*. Run one ``run-all.sh`` at a time: two runs share that directory, the loop devices
 backed by its images, and the ports and pid files of their software TPMs. A suite waits for a lock

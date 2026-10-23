@@ -90,6 +90,31 @@ fn test_devices_program(root: &Path) -> Program {
     ])
 }
 
+/// Builds `zbm-vmtest` and runs the VM tests `tests` (all of them when
+/// empty): ZFSBootMenu images booted in QEMU, which needs KVM, the build
+/// container and, for the disk and key setups, root
+/// (`docs/luks/testing.rst`).
+///
+/// # Errors
+///
+/// When the build or a test fails.
+pub fn test_vm(root: &Path, tests: &[String]) -> Result<()> {
+    for program in test_vm_programs(root, tests) {
+        program.run()?;
+    }
+    Ok(())
+}
+
+/// The programs [`test_vm`] runs.
+fn test_vm_programs(root: &Path, tests: &[String]) -> Vec<Program> {
+    let build = cargo(root).args(["build", "--release", "--locked", "-p", "zbm-vmtest"]);
+    let harness = root.join("target/release/zbm-vmtest");
+    let run = Program::new(&harness.display().to_string(), root)
+        .args(["run"])
+        .args(tests);
+    vec![build, run]
+}
+
 /// The golden files of the legacy results, relative to the root.
 pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
 
@@ -255,6 +280,21 @@ mod tests {
                 "ZBM_PARITY=check cargo nextest run --workspace --locked",
                 "ZBM_PARITY=check cargo test --workspace --doc --locked",
                 "ZBM_PARITY=check cargo nextest run -p zbm --features test-seams --locked",
+            ]
+        );
+    }
+
+    #[test]
+    fn vm_tests_run_with_a_release_build_of_the_harness() {
+        let tests = vec!["keys-setup".to_owned(), "keys-plugin".to_owned()];
+
+        let programs = test_vm_programs(Path::new("/w"), &tests);
+
+        assert_eq!(
+            shown(&programs),
+            [
+                "cargo build --release --locked -p zbm-vmtest",
+                "/w/target/release/zbm-vmtest run keys-setup keys-plugin",
             ]
         );
     }

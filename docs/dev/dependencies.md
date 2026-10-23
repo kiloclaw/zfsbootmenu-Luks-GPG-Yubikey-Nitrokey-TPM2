@@ -65,12 +65,17 @@ These are development dependencies only, allowed for every crate (`TEST_THIRD_PA
 
 ## Developer tooling
 
-Used by `xtask` alone, never by an image or a host tool.
+Used by the developer tools `xtask` and `zbm-vmtest` (the VM test harness), never by an image or a host tool.
 
-| Crate | Why |
-| --- | --- |
-| `syn`, `proc-macro2`, `unicode-ident` | Parse Rust source for `cargo xtask metrics` |
-| `serde_json` | Read `cargo metadata` and clippy's JSON messages, write `target/metrics.json` |
+| Crate | Used by | Why |
+| --- | --- | --- |
+| `syn`, `proc-macro2`, `unicode-ident` | `xtask` | Parse Rust source for `cargo xtask metrics` |
+| `serde_json` | `xtask`, `zbm-vmtest` | Read `cargo metadata` and clippy's JSON messages, write `target/metrics.json`; the VM tests' `result.json` and `sfdisk --json` |
+| `vt100` | `zbm-vmtest` | A terminal emulator for the serial console: the screen as a user sees it, where Ratatui moves the cursor over blank cells instead of writing spaces |
+| `vte`, `arrayvec`, `itoa`, `unicode-width` | (`vt100`) | Its dependencies: the escape sequence parser |
+| `regex` | `zbm-vmtest` | The patterns the scenarios wait for on the console, as `pexpect` matched them |
+| `regex-automata`, `regex-syntax`, `aho-corasick`, `memchr` | (`regex`) | Its dependencies |
+| `thiserror` | `zbm-vmtest` | Its error enum |
 
 ## Agreed, not used yet
 

@@ -283,8 +283,8 @@ fn summarize_shadow(texts: &[String]) -> ShadowSummary {
     summary
 }
 
-/// The local time of day, `HH:MM:SS`.
-fn clock() -> String {
+/// The local time of day, `HH:MM:SS`, as steps show it.
+pub fn clock() -> String {
     static OFFSET: OnceLock<i64> = OnceLock::new();
     let offset = *OFFSET.get_or_init(utc_offset);
     let now = SystemTime::now()
