@@ -194,6 +194,7 @@ const TEXTS: &[&str] = &[
     "bin/zluks",
     "etc/zfsbootmenu.conf",
     "libexec/hooks/teardown.d/80-luks-close.sh",
+    "libexec/hooks/early-setup.d/30-console-autosize.sh",
     "libexec/hooks/boot-sel.d/99-zbm-shadow.sh",
 ];
 
@@ -340,7 +341,18 @@ fn dracut_images_start_the_selected_runtime() {
     assert!(!rust.exists("libexec/zfsbootmenu-init"));
     assert!(!rust.exists("libexec/init.d"));
     assert!(rust.exists("lib/zfsbootmenu-core.sh"));
-    assert!(rust.exists("libexec/hooks/early-setup.d/30-console-autosize.sh"));
+    // zbm sizes the console font, with the hook's name, so that
+    // zbm.skip_hooks=30-console-autosize.sh still works.
+    let autosize = rust.text("libexec/hooks/early-setup.d/30-console-autosize.sh");
+    assert!(autosize.starts_with("#!/bin/bash\n"), "{autosize}");
+    assert!(
+        autosize.ends_with("\nexec /libexec/zbm console-autosize\n"),
+        "{autosize}"
+    );
+    assert_eq!(
+        rust.entries["libexec/hooks/early-setup.d/30-console-autosize.sh"],
+        "file 755"
+    );
     let conf = rust.text("etc/zfsbootmenu.conf");
     assert!(conf.contains("export ZBM_RUNTIME=\"rust\"\n"), "{conf}");
     // zbm is zluks, which also closes the LUKS mappings before booting.

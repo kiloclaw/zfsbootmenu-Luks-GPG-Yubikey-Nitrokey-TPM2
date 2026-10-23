@@ -19,6 +19,7 @@ pub const TARGETS: &[&str] = &[
     "crypttab",
     "luks_metadata",
     "program_output",
+    "display_data",
 ];
 
 /// How long each target runs when no time is given, in seconds.

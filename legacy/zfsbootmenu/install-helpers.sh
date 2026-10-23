@@ -532,6 +532,22 @@ install_zbm_hooks() {
     chmod 755 "${BUILDROOT}/libexec/hooks/teardown.d/80-luks-close.sh" || ret=$?
   fi
 
+  # The Rust runtime sizes the console font with zbm, which knows the display's
+  # pixel density (HiDPI)
+  if [ "${ZBM_RUNTIME}" = "rust" ] && [ -e "${BUILDROOT}/libexec/hooks/early-setup.d/30-console-autosize.sh" ]; then
+    cat > "${BUILDROOT}/libexec/hooks/early-setup.d/30-console-autosize.sh" <<-'EOF'
+	#!/bin/bash
+	## Size the console font to the display (zbm.autosize), with zbm: from the
+	## display's physical size where its EDID gives it, so that text is readable
+	## on high-density (HiDPI) and ordinary screens alike.
+	##
+	## This hook may be disabled with zbm.skip_hooks=30-console-autosize.sh
+
+	exec /libexec/zbm console-autosize
+	EOF
+    chmod 755 "${BUILDROOT}/libexec/hooks/early-setup.d/30-console-autosize.sh" || ret=$?
+  fi
+
   # Shadow mode: zbm compares the legacy runtime's decisions with the Rust
   # code's just before each boot (docs/dev/shadow-mode.md)
   # shellcheck disable=SC2154

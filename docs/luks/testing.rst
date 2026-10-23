@@ -305,6 +305,12 @@ Following a boot
   ``zluks --pilot open`` on a LUKS volume formatted in the VM, refused with a wrong key file and opened with the
   right one, with its JSON journal.
 
+* ``runtime-rust-autosize`` boots the Rust image, with the ``virtio_gpu`` driver added, on a virtio GPU with a
+  3840×2400 display, and runs ``zbm console-autosize --console /dev/tty1`` from the recovery shell on the serial
+  console. With the EDID, which QEMU gives 100 dpi, it must load the 20-pixel font (384×120); with ``edid=off``, the
+  32-pixel font of the legacy rule (240×75); with ``zbm.autosize=48``, the 24-pixel font doubled (160×50). At boot
+  the hook must leave the serial console alone.
+
 Results
 -------
 

@@ -58,6 +58,12 @@ const ZLUKS: Applet = Applet {
     run: luks::zluks,
 };
 
+const CONSOLE_AUTOSIZE: Applet = Applet {
+    name: "console-autosize",
+    summary: "size the console font to the display (early-setup hook)",
+    run: applets::console_autosize,
+};
+
 const DEBUG: Applet = Applet {
     name: "debug",
     summary: "show crash reports (zbm debug crash)",
@@ -83,6 +89,7 @@ pub const APPLETS: &[Applet] = &[
     PARSE_COMMANDLINE,
     PREINIT,
     ZLUKS,
+    CONSOLE_AUTOSIZE,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -96,6 +103,7 @@ pub const APPLETS: &[Applet] = &[
     PARSE_COMMANDLINE,
     PREINIT,
     ZLUKS,
+    CONSOLE_AUTOSIZE,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -293,6 +301,7 @@ mod tests {
             "zfsbootmenu-parse-commandline",
             "zfsbootmenu-preinit",
             "zluks",
+            "console-autosize",
             "zbm-menu-pilot",
             "debug",
             "shadow",
@@ -304,6 +313,20 @@ mod tests {
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
         assert_eq!(code, USAGE);
         assert_eq!(stderr, "zfsbootmenu-init: unknown option --bogus\n");
+        let (code, _, stderr) = call(APPLETS, "zbm", &["console-autosize", "--console"]);
+        assert_eq!(code, USAGE);
+        assert_eq!(stderr, "console-autosize: unknown option --console\n");
+        // /dev/null is no virtual console: without the image's configuration
+        // the applet says so, and with it the font is left alone.
+        let (code, _, stderr) = call(
+            APPLETS,
+            "zbm",
+            &["console-autosize", "--console", "/dev/null"],
+        );
+        assert!(
+            (code == 1 && stderr.contains("unable to source")) || (code == 0 && stderr.is_empty()),
+            "{code}: {stderr}"
+        );
         assert_eq!(command_name("/a/b/"), "b");
         let args = |list: &[&str]| list.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
         assert_eq!(applet_name("/bin/zluks", &args(&["open"])), "zluks");

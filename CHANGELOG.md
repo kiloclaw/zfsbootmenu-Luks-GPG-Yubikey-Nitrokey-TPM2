@@ -107,6 +107,17 @@ key to a file, and computes the salted TPM2 PIN in the process instead of passin
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 
+### Console font on high-density (HiDPI) displays
+
+In images built with `zfsbootmenu_runtime="rust"`, the early-setup hook `30-console-autosize` runs
+`zbm console-autosize`, which sizes the console font to the display. Where a kernel graphics driver exposes the
+display's EDID, it takes the font that makes text about 4.5 millimetres tall while leaving at least 110 columns, so a
+4K laptop and a 4K monitor both get readable text; fonts doubled by `setfont -d` reach 64 pixels where the kernel
+and `setfont` accept them. Without an EDID it keeps the legacy rule (the largest font up to 32 pixels that leaves 110
+columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include no graphics drivers by default, so
+the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
+`zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
+
 ### Refactoring pilots
 
 `REFACTOR-ROADMAP.md` plans the refactoring of the Rust code into layers (domain types, ports, adapters, an

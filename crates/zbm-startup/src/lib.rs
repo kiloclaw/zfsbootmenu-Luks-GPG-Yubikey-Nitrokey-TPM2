@@ -22,6 +22,7 @@
     )
 )]
 
+pub mod autosize;
 pub mod error;
 pub mod preinit;
 pub mod program;

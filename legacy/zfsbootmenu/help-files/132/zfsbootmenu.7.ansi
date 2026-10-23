@@ -167,7 +167,19 @@
     [1mzbm.autosize[0m
 
       Enable automatic font resizing of the kernel console to normalize the apparent resolution for both low resolution and high
-      resolution displays. This option is enabled by default.
+      resolution (HiDPI) displays. This option is enabled by default. It applies to virtual consoles only, and does nothing
+      when [1mrd.vconsole.font[0m names a font or the mkinitcpio [33mconsolefont[0m hook loaded one.
+
+      Images built with the Rust runtime ([33mzfsbootmenu_runtime=rust[0m) read the physical size of the display from its EDID, when a
+      kernel graphics driver provides it, and choose the font that makes text about 4.5 millimetres tall while leaving at
+      least 110 columns; fonts doubled by [1msetfont -d[0m reach 64 pixels for the densest panels, where the kernel and [1msetfont[0m
+      accept them. Without an EDID, and in images with the legacy runtime, the largest font up to 32 pixels that leaves at
+      least 110 columns is chosen.
+
+      [1mzbm.autosize=<pixels>[0m
+
+        With the Rust runtime, use the font closest to this height in pixels, doubled if need be, whatever the size of the screen.
+        The legacy runtime takes any number as [33mon[0m.
 
     [1mzbm.wait_for=device,device,...[0m
 
@@ -224,6 +236,18 @@
 
     [1mDeprecated Parameters[0m
 
+      [1mzbm.import_delay[0m
+
+        Deprecated; use [1mzbm.retry_delay[0m.
+
+      [1mzbm.force_import=1[0m
+
+        Deprecated; use [1mzbm.import_policy=force[0m.
+
+      [1mforce_import=1[0m
+
+        Deprecated; use [1mzbm.import_policy=force[0m.
+
       [1mtimeout[0m
 
         Deprecated; use [1mzbm.timeout[0m.
@@ -231,18 +255,6 @@
       [1mroot=zfsbootmenu:POOL=<pool>[0m
 
         Deprecated; use [1mzbm.prefer[0m.
-
-      [1mforce_import=1[0m
-
-        Deprecated; use [1mzbm.import_policy=force[0m.
-
-      [1mzbm.force_import=1[0m
-
-        Deprecated; use [1mzbm.import_policy=force[0m.
-
-      [1mzbm.import_delay[0m
-
-        Deprecated; use [1mzbm.retry_delay[0m
 
   [1mZFS Pool Properties[0m
 
@@ -252,10 +264,10 @@
 
       A dataset that will be considered the default boot environment if the pool is the first to be imported by ZFSBootMenu.
 
-    [1mNote[0m
+      [1mNote[0m
 
-      This must be set for automatic booting to function. When no [1mbootfs[0m property is detected, ZFSBootMenu will always display a
-      selection menu.
+        This must be set for automatic booting to function. When no [1mbootfs[0m property is detected, ZFSBootMenu will always display a
+        selection menu.
 
     [1morg.zfsbootmenu:readonly[0m
 
@@ -289,7 +301,7 @@
 
         For boot environments with [33mmountpoint=legacy[0m, set [1morg.zfsbootmenu:active=on[0m to [1mSHOW[0m the environment.
 
-    By default, ZFSBootMenu only shows boot environments with the property [33mmountpoint=/[0m.
+      By default, ZFSBootMenu only shows boot environments with the property [33mmountpoint=/[0m.
 
     [1morg.zfsbootmenu:rootprefix[0m
 

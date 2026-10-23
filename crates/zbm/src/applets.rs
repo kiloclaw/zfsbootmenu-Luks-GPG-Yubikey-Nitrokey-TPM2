@@ -5,6 +5,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 
 use zbm_platform::RealSystem;
+use zbm_startup::autosize::{self, Outcome};
 use zbm_startup::preinit;
 use zbm_startup::program::{Modes, Startup, is_on};
 use zbm_startup::step::Rerun;
@@ -129,4 +130,45 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
         return give_up(io, zbm_config::conf::PATH);
     };
     Startup::new(system, &conf).run(modes, None)
+}
+
+/// `console-autosize`: the early-setup hook `30-console-autosize` of the Rust
+/// runtime, which sizes the console font to the display (`zbm.autosize`).
+///
+/// Options: `--console DEVICE` sizes this virtual console instead of the
+/// control terminal. The exit status is 0 when the font was set or left
+/// alone on purpose, 1 when no font could be loaded.
+pub fn console_autosize(args: &[String], io: &mut Io) -> i32 {
+    let mut console = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match (arg.as_str(), args.next()) {
+            ("--console", Some(device)) => console = Some(device.clone()),
+            (other, _) => {
+                let _ = writeln!(io.stderr, "console-autosize: unknown option {other}");
+                return crate::USAGE;
+            }
+        }
+    }
+    let real = RealSystem::new();
+    let terminal = match real.terminal() {
+        Ok(terminal) => terminal,
+        Err(error) => {
+            let _ = writeln!(io.stderr, "zbm: no terminal: {error}");
+            return 1;
+        }
+    };
+    let system = real.with_console(&terminal);
+    match autosize::hook(&system, Path::new("/"), console) {
+        Ok(Outcome::Failed) => 1,
+        Ok(Outcome::Set { .. } | Outcome::Skipped(_)) => 0,
+        Err(_) => {
+            let _ = writeln!(
+                io.stderr,
+                "ERROR: unable to source {}",
+                zbm_config::conf::PATH
+            );
+            1
+        }
+    }
 }

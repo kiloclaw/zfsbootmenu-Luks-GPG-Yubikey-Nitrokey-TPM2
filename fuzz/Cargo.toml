@@ -21,6 +21,7 @@ zbm-config = { path = "../crates/zbm-config" }
 zbm-crypt = { path = "../crates/zbm-crypt" }
 zbm-luks = { path = "../crates/zbm-luks" }
 zbm-pool = { path = "../crates/zbm-pool" }
+zbm-startup = { path = "../crates/zbm-startup" }
 zbm-types = { path = "../crates/zbm-types" }
 zbm-zfs = { path = "../crates/zbm-zfs" }
 
@@ -55,6 +56,13 @@ bench = false
 [[bin]]
 name = "program_output"
 path = "fuzz_targets/program_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "display_data"
+path = "fuzz_targets/display_data.rs"
 test = false
 doc = false
 bench = false

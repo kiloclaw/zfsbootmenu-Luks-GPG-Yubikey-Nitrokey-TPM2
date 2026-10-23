@@ -1001,7 +1001,9 @@ fakes and the images are unchanged.
   `logs`, help viewer) as `zbm-app` use cases: views of the menu's recovery tools, and thin `zbm` applets for scripts
   and the recovery shell.
 - Built-in hooks (`20-dracut-console-init`, `30-console-autosize`, `80-luks-close`, `90-xhci-unbind`) become Rust
-  steps; user hooks stay shell scripts, run by `zbm-startup`.
+  steps; user hooks stay shell scripts, run by `zbm-startup`. Done early: `30-console-autosize` is
+  `zbm console-autosize` (`zbm_startup::autosize`, sizing the font from the display's EDID for HiDPI screens) behind
+  a two-line shim, as `80-luks-close` is `zluks close`.
 - Image assembly logic moves from `install-helpers.sh` into `zbm-generate` (a library computing the file list); the
   dracut `module-setup.sh` and the mkinitcpio install hook shrink to shims that call it.
 - Releases publish the debug files of every binary next to the images, indexed by build ID, so `xtask symbolize`

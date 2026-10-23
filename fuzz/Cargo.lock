@@ -721,6 +721,7 @@ dependencies = [
  "zbm-crypt",
  "zbm-luks",
  "zbm-pool",
+ "zbm-startup",
  "zbm-types",
  "zbm-zfs",
 ]
@@ -762,6 +763,22 @@ dependencies = [
  "zbm-config",
  "zbm-platform",
  "zbm-state",
+ "zbm-trace",
+ "zbm-types",
+ "zbm-zfs",
+]
+
+[[package]]
+name = "zbm-startup"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "zbm-boot",
+ "zbm-config",
+ "zbm-platform",
+ "zbm-pool",
+ "zbm-state",
+ "zbm-tools",
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",

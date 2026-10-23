@@ -64,6 +64,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-signals",
     "runtime-rust-pilot",
     "runtime-rust-crash",
+    "runtime-rust-autosize",
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.

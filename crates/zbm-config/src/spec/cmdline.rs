@@ -1,9 +1,11 @@
 //! Options of the kernel command line of ZFSBootMenu, documented in
 //! `zfsbootmenu(7)`; those for LUKS volumes are in [`luks`].
 
+pub mod console;
 pub mod luks;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
+pub use console::{AUTOSIZE, VCONSOLE_FONT};
 
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
@@ -25,6 +27,7 @@ pub static ALL: &[&OptionSpec] = &[
     &KCL_OVERRIDE,
     &SKIP_HOOKS,
     &AUTOSIZE,
+    &VCONSOLE_FONT,
     &WAIT_FOR,
     &ROOT,
     &SHADOW,
@@ -505,28 +508,6 @@ with any other path component removed) are matched against the *hooklist*.
 
 **NOTE**: The *hooklist* argument **MUST NOT** contain spaces and **MUST NOT** be enclosed in
 quotes.
-";
-
-/// `zbm.autosize`: whether the console font is resized to the display.
-pub static AUTOSIZE: OptionSpec = OptionSpec {
-    name: "zbm.autosize",
-    aliases: &[],
-    source: Source::KernelCommandLine,
-    value: Value::Bool,
-    default: Some("1"),
-    summary: "Whether the console font is resized to the display",
-    reader: Reader::Shell("the hook 30-console-autosize"),
-    doc: Doc::Entry {
-        heading: "**zbm.autosize**",
-        body: AUTOSIZE_DOC,
-    },
-    deprecation: None,
-    examples: &["zbm.autosize=0"],
-};
-
-const AUTOSIZE_DOC: &str = r"
-Enable automatic font resizing of the kernel console to normalize the apparent resolution for both
-low resolution and high resolution displays. This option is enabled by default.
 ";
 
 /// `zbm.wait_for`: devices to wait for before importing pools.

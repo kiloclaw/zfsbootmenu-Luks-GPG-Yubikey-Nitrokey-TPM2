@@ -26,6 +26,8 @@
 //!     (legacy only: the menu) and the recovery shell; the Rust run
 //!     compares with the legacy run's.
 //! - `rust-pilot` (`pilot`): the pilots of `REFACTOR-ROADMAP.md` (R0).
+//! - `rust-autosize` (`autosize`): the console font follows the display's
+//!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
 //! - `rust-crash` (`crash`): a hook runs `zbm debug panic` in an image
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
@@ -52,6 +54,7 @@ use crate::settings::{Settings, ZbmRuntime};
 use crate::text::clean;
 use crate::vm::Vm;
 
+mod autosize;
 mod boot;
 mod crash;
 mod host;
@@ -72,7 +75,7 @@ const ESCAPE_APPEND: &str = "console=ttyS0 zbm.timeout=30 loglevel=7";
 /// The countdown of `tplain`'s boot environment.
 const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
-/// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`,
+/// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
 /// `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
@@ -85,6 +88,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "record-fixtures" => record_fixtures::run(test),
         "rust-pilot" => pilot::run(test),
         "rust-crash" => crash::run(test),
+        "rust-autosize" => autosize::run(test),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

@@ -253,7 +253,16 @@ Skip execution of any early\-setup, setup, load\-key, boot\-selection or teardow
 \fBzbm.autosize\fP
 .INDENT 0.0
 .INDENT 3.5
-Enable automatic font resizing of the kernel console to normalize the apparent resolution for both low resolution and high resolution displays. This option is enabled by default.
+Enable automatic font resizing of the kernel console to normalize the apparent resolution for both low resolution and high resolution (HiDPI) displays. This option is enabled by default. It applies to virtual consoles only, and does nothing when \fBrd.vconsole.font\fP names a font or the mkinitcpio \fIconsolefont\fP hook loaded one.
+.sp
+Images built with the Rust runtime (\fIzfsbootmenu_runtime=rust\fP) read the physical size of the display from its EDID, when a kernel graphics driver provides it, and choose the font that makes text about 4.5 millimetres tall while leaving at least 110 columns; fonts doubled by \fBsetfont \-d\fP reach 64 pixels for the densest panels, where the kernel and \fBsetfont\fP accept them. Without an EDID, and in images with the legacy runtime, the largest font up to 32 pixels that leaves at least 110 columns is chosen.
+.sp
+\fBzbm.autosize=<pixels>\fP
+.INDENT 0.0
+.INDENT 3.5
+With the Rust runtime, use the font closest to this height in pixels, doubled if need be, whatever the size of the screen. The legacy runtime takes any number as \fIon\fP\&.
+.UNINDENT
+.UNINDENT
 .UNINDENT
 .UNINDENT
 .sp
