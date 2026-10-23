@@ -23,6 +23,7 @@ use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
 use zbm_display::keys::{Key, KeyPress};
+use zbm_display::palette;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 
 use super::demo::Session;
@@ -33,26 +34,6 @@ const TICK: Duration = Duration::from_millis(200);
 
 /// How long the last frame stays before the menu ends.
 const LAST_FRAME: Duration = Duration::from_millis(1500);
-
-/// The 16 colours of the Linux console, in the order of their numbers.
-const PALETTE: [Rgb; 16] = [
-    Rgb(0x00, 0x00, 0x00),
-    Rgb(0xaa, 0x00, 0x00),
-    Rgb(0x00, 0xaa, 0x00),
-    Rgb(0xaa, 0x55, 0x00),
-    Rgb(0x00, 0x00, 0xaa),
-    Rgb(0xaa, 0x00, 0xaa),
-    Rgb(0x00, 0xaa, 0xaa),
-    Rgb(0xaa, 0xaa, 0xaa),
-    Rgb(0x55, 0x55, 0x55),
-    Rgb(0xff, 0x55, 0x55),
-    Rgb(0x55, 0xff, 0x55),
-    Rgb(0xff, 0xff, 0x55),
-    Rgb(0x55, 0x55, 0xff),
-    Rgb(0xff, 0x55, 0xff),
-    Rgb(0x55, 0xff, 0xff),
-    Rgb(0xff, 0xff, 0xff),
-];
 
 /// The console's number of a named colour; `None` for the others.
 fn console_number(colour: Color) -> Option<u8> {
@@ -80,25 +61,14 @@ fn console_number(colour: Color) -> Option<u8> {
 
 /// The pixels of a colour; `Reset` is `default`.
 pub fn rgb(colour: Color, default: Rgb) -> Rgb {
-    if let Some(colour) = console_number(colour).and_then(|n| PALETTE.get(usize::from(n))) {
-        return *colour;
+    if let Some(number) = console_number(colour) {
+        return palette::indexed(number);
     }
     match colour {
         Color::Rgb(red, green, blue) => Rgb(red, green, blue),
-        Color::Indexed(number) => indexed(number),
+        Color::Indexed(number) => palette::indexed(number),
         _ => default,
     }
-}
-
-/// Colours 16 to 255 of the 256-colour palette: a 6×6×6 cube, then greys.
-fn indexed(number: u8) -> Rgb {
-    if number >= 232 {
-        let grey = 8 + (number - 232) * 10;
-        return Rgb(grey, grey, grey);
-    }
-    let cube = number.saturating_sub(16);
-    let level = |step: u8| if step == 0 { 0 } else { 55 + step * 40 };
-    Rgb(level(cube / 36), level(cube / 6 % 6), level(cube % 6))
 }
 
 /// How a cell is drawn: its colours, bold drawing the eight base colours
@@ -112,10 +82,10 @@ pub fn cell_style(cell: &Cell) -> CellStyle {
     {
         fg_colour = Color::Indexed(number + 8);
     }
-    let mut fg = rgb(fg_colour, PALETTE[7]);
-    let mut bg = rgb(cell.bg, PALETTE[0]);
+    let mut fg = rgb(fg_colour, palette::FOREGROUND);
+    let mut bg = rgb(cell.bg, palette::BACKGROUND);
     if modifiers.contains(Modifier::DIM) {
-        fg = Rgb(fg.0 / 2, fg.1 / 2, fg.2 / 2);
+        fg = palette::dim(fg);
     }
     if modifiers.contains(Modifier::REVERSED) {
         std::mem::swap(&mut fg, &mut bg);

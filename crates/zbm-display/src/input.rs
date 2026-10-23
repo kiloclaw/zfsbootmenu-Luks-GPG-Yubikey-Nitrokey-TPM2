@@ -124,38 +124,52 @@ impl Keyboards {
                 })
             })
             .collect::<io::Result<Vec<File>>>()?;
-        Ok(Keyboards {
+        Ok(Keyboards::from_files(devices))
+    }
+
+    /// Keyboards read from `devices`, open input devices or, in tests,
+    /// anything that gives their records.
+    pub fn from_files(devices: Vec<File>) -> Keyboards {
+        Keyboards {
             devices,
             decoder: Decoder::new(),
             pending: Vec::new(),
-        })
+        }
     }
 
-    /// Reads the events of the device at `index` into the pending presses.
-    fn read(&mut self, index: usize) -> io::Result<()> {
+    /// The open devices, for a caller that waits on them with other files.
+    pub fn fds(&self) -> Vec<i32> {
+        self.devices.iter().map(AsRawFd::as_raw_fd).collect()
+    }
+
+    /// Reads the events of the device at `index`, which has some, and
+    /// returns the presses among them, with any still pending.
+    ///
+    /// # Errors
+    ///
+    /// When the device cannot be read.
+    pub fn read_device(&mut self, index: usize) -> io::Result<Vec<KeyPress>> {
         let mut buffer = [0_u8; EVENT_SIZE * 32];
-        let Some(device) = self.devices.get_mut(index) else {
-            return Ok(());
-        };
-        let length = device.read(&mut buffer)?;
-        for event in parse_events(buffer.get(..length).unwrap_or(&[])) {
-            if event.kind == EV_KEY
-                && let Some(press) = self.decoder.feed(event.code, event.value)
-            {
-                self.pending.push(press);
+        if let Some(device) = self.devices.get_mut(index) {
+            let length = device.read(&mut buffer)?;
+            for event in parse_events(buffer.get(..length).unwrap_or(&[])) {
+                if event.kind == EV_KEY
+                    && let Some(press) = self.decoder.feed(event.code, event.value)
+                {
+                    self.pending.push(press);
+                }
             }
         }
-        Ok(())
+        Ok(std::mem::take(&mut self.pending))
     }
 }
 
 impl KeySource for Keyboards {
     fn next(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
-        if self.pending.is_empty() {
-            let fds: Vec<i32> = self.devices.iter().map(AsRawFd::as_raw_fd).collect();
-            if let Some(index) = zbm_sys::console::first_readable(&fds, Some(timeout))? {
-                self.read(index)?;
-            }
+        if self.pending.is_empty()
+            && let Some(index) = zbm_sys::console::first_readable(&self.fds(), Some(timeout))?
+        {
+            self.pending = self.read_device(index)?;
         }
         Ok((!self.pending.is_empty()).then(|| self.pending.remove(0)))
     }

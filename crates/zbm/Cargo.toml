@@ -13,6 +13,7 @@ zbm-app.workspace = true
 zbm-boot.workspace = true
 zbm-startup.workspace = true
 zbm-config.workspace = true
+zbm-console.workspace = true
 zbm-core.workspace = true
 zbm-display.workspace = true
 zbm-luks.workspace = true

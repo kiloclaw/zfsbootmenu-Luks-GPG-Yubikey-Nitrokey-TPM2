@@ -331,6 +331,16 @@ Following a boot
   the selection, Enter must boot and end the demo, and afterwards the kernel console must draw a 16-colour bar again
   (``<boot>-console.ppm``).
 
+* ``runtime-rust-console`` runs the Rust runtime on the console on the display (``zbm.console=drm``, ROADMAP.md #19,
+  step 2), in a Rust image with the ``virtio_gpu`` and ``evdev`` drivers. Both boots have ``tty1`` as the control
+  terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its
+  screen after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the
+  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape and ``tty``
+  typed with ``sendkey`` must give the recovery shell on a pseudo-terminal (``/dev/pts/N``); after ``kill -9`` of the
+  console, the shell on the kernel console must take ``dmesg | grep console: > /dev/ttyS0``, which shows the console's
+  start and the supervisor's message that it ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
+  console must write that it handed the display back, and the boot environment must boot.
+
 Results
 -------
 

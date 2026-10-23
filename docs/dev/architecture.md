@@ -25,7 +25,7 @@ dependencies that exist.
 
 | Layer | Crates | Purpose |
 | --- | --- | --- |
-| front ends | `zbm-menu`, `zbm-tui`, `zbm-startup`, `zbm` | The menus, the start-up program and the multi-call binary |
+| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm-startup`, `zbm` | The menus, the console on the display, the start-up program and the multi-call binary |
 | orchestration | `zbm-boot`, `generate-zbm` | Start-up and boot; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
@@ -41,6 +41,7 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm-trace` → `zbm-core`
 - `zbm-coreutils` → `zbm-platform`
 - `zbm` → `zbm-tui`
+- `zbm` → `zbm-console`
 - `zbm` → `zbm-startup`
 
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
@@ -53,6 +54,7 @@ Third-party crates:
 - `zbm-app`: `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-config`: `thiserror`
+- `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-display`: `drm`
 - `zbm-testkit`: `serde`, `serde_json`

@@ -118,6 +118,17 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### The console on the display (`zbm.console=drm`)
+
+Step 2 of ROADMAP.md #19, for images with the Rust runtime, off by default. With `zbm.console=drm` on the kernel
+command line and a virtual terminal as the control terminal, ZFSBootMenu runs its start-up program and recovery shell on
+a console of its own, `zbm console`: Alacritty's terminal (`alacritty_terminal`) on a pseudo-terminal, drawn through DRM
+with the image's console fonts, with 256 colours and true colour, no scrollback, and keys read from the keyboards on the
+US layout. Before `kexec` it hands the display, the keyboards and the virtual terminal back to the kernel and relays to
+the kernel console; when it cannot use the display, or ends, ZFSBootMenu goes on on the kernel console. The image needs
+the `evdev` module and the display's DRM driver. New dependencies: `alacritty_terminal`, with `rustix` and
+`signal-hook` used directly.
+
 ### The menu on the display without a terminal (prototype)
 
 The first step of ROADMAP.md #19, for developers and VM tests only: images are unchanged. The new crate `zbm-display`

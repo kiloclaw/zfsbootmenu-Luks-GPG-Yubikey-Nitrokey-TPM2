@@ -25,6 +25,7 @@ zbm-boot = { path = "crates/zbm-boot" }
 zbm-config = { path = "crates/zbm-config" }
 zbm-core = { path = "crates/zbm-core" }
 zbm-coreutils = { path = "crates/zbm-coreutils" }
+zbm-console = { path = "crates/zbm-console" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-display = { path = "crates/zbm-display" }
 zbm-kcl = { path = "crates/zbm-kcl" }
@@ -58,6 +59,11 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["s
 uucore = { version = "0.12", features = ["version-cmp"] }
 # The menu on the display without a terminal (ROADMAP.md #19, step 1): dumb buffers through DRM.
 drm = { version = "=0.15.0", default-features = false }
+# The console without the kernel's (ROADMAP.md #19, step 2): Alacritty's terminal on a pseudo-terminal, which
+# `rustix` opens, and the signal that hands the display back before `kexec`.
+alacritty_terminal = { version = "=0.26.0", default-features = false }
+rustix = { version = "1", default-features = false, features = ["std", "pty", "termios", "process"] }
+signal-hook = { version = "0.4", default-features = false }
 
 # Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

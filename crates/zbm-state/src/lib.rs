@@ -134,6 +134,23 @@ impl<'a> State<'a> {
         self.remove("active");
     }
 
+    /// The process ID of the console on the display (`zbm console`,
+    /// ROADMAP.md #19), while it holds the display: the supervisor writes
+    /// it, and the console removes it once it handed the display back.
+    pub fn console_pid(&self) -> Option<u32> {
+        self.read_line("console")?.parse().ok()
+    }
+
+    /// Records the console with process ID `pid`.
+    pub fn set_console(&self, pid: u32) -> Result<()> {
+        self.write("console", format!("{pid}\n").as_bytes())
+    }
+
+    /// Records that no console holds the display.
+    pub fn clear_console(&self) {
+        self.remove("console");
+    }
+
     /// The default boot environment (`bootfs`), if one is recorded.
     pub fn bootfs(&self) -> Option<String> {
         self.read_line("bootfs").filter(|bootfs| !bootfs.is_empty())
@@ -369,6 +386,13 @@ mod tests {
         state.clear_active();
         state.clear_active();
         assert!(!state.is_active());
+
+        assert_eq!(state.console_pid(), None);
+        state.set_console(42).unwrap();
+        assert_eq!(files.text("/zfsbootmenu/console").unwrap(), "42\n");
+        assert_eq!(state.console_pid(), Some(42));
+        state.clear_console();
+        assert_eq!(state.console_pid(), None);
 
         files.file("/zfsbootmenu/have_errors", "");
         assert!(state.has_errors() && !state.has_warnings());

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::spec::properties::{DEVICETREE, ROOTPREFIX};
 use zbm_platform::System;
 use zbm_state::State;
-use zbm_tools::kexec;
+use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
 use zbm_types::HookStage;
 use zbm_zfs::ZfsCommand;
@@ -64,8 +64,9 @@ fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
 
 /// Boots `selected` as `kexec_kernel` does: mounts it, runs the `boot-sel.d`
 /// hooks, loads the kernel with its command line, unmounts it, exports the
-/// pools imported read-write, runs the `teardown.d` hooks and executes the
-/// kernel. Returns only if that fails, after telling the user.
+/// pools imported read-write, runs the `teardown.d` hooks, has the console
+/// on the display hand the display back, and executes the kernel. Returns
+/// only if that fails, after telling the user.
 pub fn kexec_kernel(
     system: &System<'_>,
     state: &State<'_>,
@@ -121,6 +122,7 @@ pub fn kexec_kernel(
     log_loaded(&load, &output);
 
     tear_down(system, settings, &hook_env, &mnt);
+    hand_over(system, state);
     execute(system, fs, kernel);
 }
 
@@ -278,6 +280,15 @@ fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &s
     );
 }
 
+/// Has the console on the display, if one runs, hand the display, the
+/// keyboards and the virtual terminal back, so that the booted kernel takes
+/// them over as it would from the kernel console.
+fn hand_over(system: &System<'_>, state: &State<'_>) {
+    if state.console_pid().is_some() {
+        let _ = programs::release_console(system.runner);
+    }
+}
+
 /// Tells the user which kernel boots and executes it. Returns only if that
 /// fails, after telling the user.
 fn execute(system: &System<'_>, fs: &str, kernel: &str) {
@@ -296,4 +307,32 @@ fn execute(system: &System<'_>, fs: &str, kernel: &str) {
         .delay(10)
         .message(colorize("red", &format!("kexec run of {kernel} failed!")))
         .run(system);
+}
+
+#[cfg(test)]
+mod tests {
+    use zbm_testkit::fakes::FakeSystem;
+
+    use super::*;
+
+    #[test]
+    fn the_console_on_the_display_hands_it_back_before_kexec() {
+        let fake = FakeSystem::new();
+        let system = fake.system();
+        let state = State::new(system.files, "/zfsbootmenu");
+
+        hand_over(&system, &state);
+        assert!(fake.runner.calls().is_empty());
+
+        state.create().unwrap();
+        state.set_console(42).unwrap();
+        hand_over(&system, &state);
+        let calls: Vec<String> = fake
+            .runner
+            .calls()
+            .iter()
+            .map(|call| call.display())
+            .collect();
+        assert_eq!(calls, ["/libexec/zbm console release"]);
+    }
 }

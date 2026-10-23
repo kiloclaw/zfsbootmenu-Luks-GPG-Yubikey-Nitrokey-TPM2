@@ -157,15 +157,21 @@ pub fn prepare(system: &System<'_>, root: &Path, options: &ZbmOptions) {
     let _ = files.write(&root.join("proc/sys/kernel/hostname"), b"ZFSBootMenu\n");
 }
 
-/// The options for [`prepare`]: the command line that
-/// [`parse_commandline`] saved in `zbm.cmdline`, parsed again without
-/// logging, with the control terminal of the configuration.
-pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOptions {
+/// The command line that [`parse_commandline`] saved in `zbm.cmdline`, in
+/// the state directory of `conf` below `root`; empty when there is none.
+pub fn saved_commandline(system: &System<'_>, root: &Path, conf: &Conf) -> String {
     let base = base(conf);
     let path = root
         .join(base.strip_prefix("/").unwrap_or(&base))
         .join("zbm.cmdline");
-    let kcl = system.files.read_to_string(&path).unwrap_or_default();
+    system.files.read_to_string(&path).unwrap_or_default()
+}
+
+/// The options for [`prepare`]: the command line that
+/// [`parse_commandline`] saved in `zbm.cmdline`, parsed again without
+/// logging, with the control terminal of the configuration.
+pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOptions {
+    let kcl = saved_commandline(system, root, conf);
     let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_kcl(&kcl));
     if let Some(term) = conf.get("control_term").filter(|term| !term.is_empty()) {
         term.clone_into(&mut options.control_term);

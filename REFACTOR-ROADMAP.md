@@ -76,6 +76,10 @@ Work on this branch that no phase planned, or that a later phase planned and was
 - ROADMAP.md #19, step 1: `zbm-display` (platform layer) draws the menu prototype through DRM with the image's PSF
   fonts and reads the keyboards' input devices; `zbm_tui::menu::display` is its Ratatui backend and loop; the VM test
   `runtime-rust-drm` runs it on `virtio_gpu` and `simpledrm`, and passes.
+- ROADMAP.md #19, step 2: `zbm-console` (front ends) and the `zbm console` applet run the Rust runtime's start-up
+  program and recovery shell on Alacritty's terminal, drawn through DRM, with `zbm.console=drm`; the supervisor runs
+  the programs on its pseudo-terminal and falls back to the kernel console, and `zbm-boot` has it hand the display
+  back before `kexec`. The VM test `runtime-rust-console` waits for a run.
 
 ### Carried over
 
@@ -915,6 +919,9 @@ Decided on 22 October 2026:
    harness `zbm-vmtest` only, a developer tool that never reaches an image: `vt100`, the terminal emulator the pilot
    asked for, and `regex`, for the patterns the scenarios wait for (the Python harness's were regular expressions).
    Added for ROADMAP.md #19, step 1: `drm` (0.15.0), for the display without a terminal in `zbm-display`.
+   Added for ROADMAP.md #19, step 2: `alacritty_terminal` (0.26.0, Apache-2.0, without its `serde` feature), the
+   terminal of the console on the display in `zbm-console`, with `rustix` (pseudo-terminals, `termios`, signals) and
+   `signal-hook` (0.4) used directly; both already came with `drm` and `alacritty_terminal`.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images

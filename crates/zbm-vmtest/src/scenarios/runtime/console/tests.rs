@@ -1,0 +1,175 @@
+use pretty_assertions::assert_eq;
+
+use super::*;
+use crate::testing::{Step, checks, cleanup, scripted, settings};
+
+/// A screenshot of 5 colours, one row each.
+fn dump(_: &Vm<'_>, path: &Path) -> Result<()> {
+    let mut bytes = b"P6\n4 5\n255\n".to_vec();
+    for colour in 0..5_u8 {
+        bytes.extend(std::iter::repeat_n([colour, 0, 0], 4).flatten());
+    }
+    fs::write(path, bytes).map_err(Error::io("writing the screenshot"))
+}
+
+/// A screenshot that never comes.
+fn no_dump(_: &Vm<'_>, _: &Path) -> Result<()> {
+    Ok(())
+}
+
+fn key(_: &Vm<'_>, _: &str) -> Result<()> {
+    Ok(())
+}
+
+/// No pauses, and no waiting.
+const NOW: Pace = Pace {
+    pause: Duration::ZERO,
+    patience: 0,
+};
+
+#[test]
+fn text_is_typed_with_qemu_s_key_names() {
+    assert_eq!(
+        key_names("ls -l /a.b\n").unwrap(),
+        [
+            "l", "s", "spc", "minus", "l", "spc", "slash", "a", "dot", "b", "ret"
+        ]
+    );
+    assert_eq!(
+        key_names("$(x)|>:").unwrap(),
+        [
+            "shift-4",
+            "shift-9",
+            "x",
+            "shift-0",
+            "shift-backslash",
+            "shift-dot",
+            "shift-semicolon"
+        ]
+    );
+    assert!(key_names(TTY).is_some() && key_names(KILL).is_some() && key_names(LOG).is_some());
+    assert_eq!(key_names("S").unwrap(), ["shift-s"]);
+    assert_eq!(key_names("~"), None);
+}
+
+#[test]
+fn screens_are_read_from_the_mirror() {
+    let settings = settings("runtime-console-mirror");
+    let test = Test::new(&settings, "runtime-rust-console").unwrap();
+    let path = mirror_path(&test, "virtio");
+    fs::write(&path, "\x0cone\r\n\x0ctwo 42\r\n").unwrap();
+
+    assert_eq!(
+        wait_screen(&path, r"two \d+", 0).unwrap().as_deref(),
+        Some("two 42\n")
+    );
+    assert_eq!(wait_screen(&path, "three", 0).unwrap(), None);
+    assert_eq!(
+        wait_screen(&test.dir().join("none"), "one", 0).unwrap(),
+        None
+    );
+    assert!(wait_screen(&path, "(", 0).is_err());
+    cleanup(&settings);
+}
+
+#[test]
+fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
+    let virtio = machine_extra("virtio", Path::new("/w/m.txt"));
+    let simpledrm = machine_extra("simpledrm", Path::new("/w/m.txt"));
+
+    assert_eq!(
+        virtio,
+        [
+            "-vga",
+            "none",
+            "-device",
+            "virtio-vga",
+            "-chardev",
+            "file,id=mirror,path=/w/m.txt",
+            "-serial",
+            "chardev:mirror"
+        ]
+    );
+    assert_eq!(simpledrm, virtio[4..]);
+    let spec = spec();
+    assert_eq!(spec.runtime, Some(ZbmRuntime::Rust));
+    assert!(spec.conf.contains("virtio_gpu evdev"), "{}", spec.conf);
+    assert_eq!(spec.features, None);
+}
+
+const LOGGED: &str = "[    3.1] ZFSBootMenu: console: on /dev/dri/card0: 1280x800 display, \
+    10x20 cells, 128x40\r\n\
+    [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
+    going on on the kernel console\r\n";
+
+#[test]
+fn the_console_shows_takes_keys_and_falls_back() {
+    let settings = settings("runtime-console-run");
+    let test = Test::new(&settings, "runtime-rust-console").unwrap();
+    let mirror = mirror_path(&test, "virtio");
+    fs::write(
+        &mirror,
+        "\x0cBooting tplain/ROOT/be in 29 seconds\n\x0c# tty\n/dev/pts/0\n",
+    )
+    .unwrap();
+    let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);
+    let monitor = Monitor { dump, key };
+
+    check_console(&test, &mut vm, &mirror, &monitor, NOW).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let checks = checks(&test);
+    assert_eq!(checks.len(), 5, "{checks:?}");
+    assert!(
+        checks.iter().all(|check| check.starts_with("ok")),
+        "{checks:?}"
+    );
+    assert!(checks[3].contains("1280x800 display"), "{checks:?}");
+    cleanup(&settings);
+}
+
+#[test]
+fn a_console_that_shows_nothing_fails_its_checks() {
+    let settings = settings("runtime-console-fail");
+    let test = Test::new(&settings, "runtime-rust-console").unwrap();
+    let mirror = mirror_path(&test, "virtio");
+    fs::write(&mirror, "").unwrap();
+    let (mut vm, guest) = scripted(&test, Vec::new());
+    let monitor = Monitor { dump: no_dump, key };
+
+    check_console(&test, &mut vm, &mirror, &monitor, NOW).unwrap();
+    check_handover(&test, &mut vm, &mirror, NOW).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let checks = checks(&test);
+    assert_eq!(checks.len(), 8, "{checks:?}");
+    assert!(
+        checks.iter().all(|check| check.starts_with("FAIL")),
+        "{checks:?}"
+    );
+    cleanup(&settings);
+}
+
+#[test]
+fn the_console_hands_the_display_back_and_the_environment_boots() {
+    let settings = settings("runtime-console-handover");
+    let test = Test::new(&settings, "runtime-rust-console").unwrap();
+    let mirror = mirror_path(&test, "simpledrm");
+    fs::write(
+        &mirror,
+        format!("\x0cBooting tplain/ROOT/be in 4 seconds\n\x0c{RELEASED}\n"),
+    )
+    .unwrap();
+    let (mut vm, guest) = scripted(&test, vec![Step::Say("BE-INIT-DONE\r\n")]);
+
+    check_handover(&test, &mut vm, &mirror, NOW).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    let checks = checks(&test);
+    assert_eq!(checks.len(), 3, "{checks:?}");
+    assert!(
+        checks.iter().all(|check| check.starts_with("ok")),
+        "{checks:?}"
+    );
+    cleanup(&settings);
+}

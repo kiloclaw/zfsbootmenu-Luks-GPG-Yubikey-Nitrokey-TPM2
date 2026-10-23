@@ -1,0 +1,26 @@
+[package]
+name = "zbm-console"
+description = "The console without the kernel's: Alacritty's terminal on a pseudo-terminal, drawn through DRM"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+alacritty_terminal.workspace = true
+rustix.workspace = true
+signal-hook.workspace = true
+zbm-display.workspace = true
+zbm-platform.workspace = true
+zbm-state.workspace = true
+zbm-sys.workspace = true
+zbm-types.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+zbm-testkit.workspace = true
+
+[lints]
+workspace = true

@@ -10,6 +10,7 @@
 //! - [`display`]: a DRM dumb buffer on the first connected output, which
 //!   works with any DRM driver, `simpledrm` on the firmware's framebuffer
 //!   included, and gives the output back when dropped;
+//! - [`palette`]: the console's colours, and the 256 of xterm;
 //! - [`input`] and [`keys`]: key presses from the keyboards' input devices,
 //!   on the US layout;
 //! - [`vt`]: the virtual terminal taken over (graphics mode, keyboard off)
@@ -38,4 +39,5 @@ pub mod grid;
 pub mod input;
 pub mod keys;
 pub mod output;
+pub mod palette;
 pub mod vt;

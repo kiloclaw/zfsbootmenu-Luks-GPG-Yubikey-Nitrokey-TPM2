@@ -216,6 +216,19 @@ These options are set on the kernel command line when booting the initramfs or U
     With the Rust runtime, use the font closest to this height in pixels, doubled if need be,
     whatever the size of the screen. The legacy runtime takes any number as *on*.
 
+**zbm.console=drm**
+
+  In images built with the Rust runtime (*zfsbootmenu_runtime=rust*), run ZFSBootMenu and its
+  recovery shell on a console of its own, which draws on the display through the kernel's DRM drivers
+  (*simpledrm* on the firmware's framebuffer is enough) with the image's console fonts, at the size
+  **zbm.autosize** chooses, and reads the keyboards itself. It shows 256 colours and true colour, and
+  keeps nothing that scrolls off the screen. Before booting, it hands the display and the keyboards
+  back to the kernel. When the control terminal is not a virtual console, when the console cannot
+  use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on the
+  US layout, from the keyboards present when it starts. The image needs the kernel's *evdev* module
+  and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
+  configuration. The default, **zbm.console=kernel**, keeps the kernel console.
+
 **zbm.wait_for=device,device,...**
 
   Ensure that one or more devices are present before starting the pool import process. Devices may

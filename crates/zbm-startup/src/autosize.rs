@@ -57,11 +57,7 @@ impl Settings {
     /// `conf`, and the options of the command line that start-up saved.
     pub fn from_image(system: &System<'_>, root: &Path, conf: &Conf) -> Settings {
         let options = preinit::saved_options(system, root, conf);
-        let base = preinit::base(conf);
-        let saved = root
-            .join(base.strip_prefix("/").unwrap_or(&base))
-            .join("zbm.cmdline");
-        let kcl = system.files.read_to_string(&saved).unwrap_or_default();
+        let kcl = preinit::saved_commandline(system, root, conf);
         let args = ZbmArgs::from_kcl(&kcl);
         let mut messages = Vec::new();
         let request = Request::parse(args.lookup(&AUTOSIZE, &mut messages).as_deref());

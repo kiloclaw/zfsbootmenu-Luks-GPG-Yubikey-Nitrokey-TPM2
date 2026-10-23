@@ -12,7 +12,7 @@ use zbm_startup::step::Rerun;
 use zbm_sys::Signal;
 
 use crate::Io;
-use crate::supervisor::Supervisor;
+use crate::supervisor::{Program, Supervisor};
 
 /// Where the boot image installs `zbm`.
 const ZBM: &str = "/libexec/zbm";
@@ -87,6 +87,17 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     1
 }
 
+/// The console on the display that the command line asks for
+/// (`zbm.console=drm`), as a program for the supervisor.
+fn display_console() -> Option<Program> {
+    let real = RealSystem::new();
+    let terminal = real.terminal().ok()?;
+    let system = real.with_console(&terminal);
+    let conf = preinit::read_conf(&system, Path::new("/")).ok()?;
+    let args = zbm_startup::console::from_image(&system, Path::new("/"), &conf)?;
+    Some(Program { path: zbm(), args })
+}
+
 /// `zfsbootmenu-init`: the start-up program, or with `--supervise` the
 /// supervisor that runs it as process 1.
 ///
@@ -98,7 +109,9 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     for arg in args {
         match arg.as_str() {
             "--supervise" => {
-                Supervisor::new(zbm()).run(None, &mut |_| {});
+                let mut supervisor = Supervisor::new(zbm());
+                supervisor.console = display_console();
+                supervisor.run(None, &mut |_| {});
                 return 0;
             }
             "--console" => modes.console = true,
@@ -170,5 +183,18 @@ pub fn console_autosize(args: &[String], io: &mut Io) -> i32 {
             );
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn without_the_image_s_configuration_there_is_no_console_on_the_display() {
+        // The machine of the tests has no /etc/zfsbootmenu.conf.
+        assert!(!Path::new(zbm_config::conf::PATH).exists());
+        assert_eq!(display_console(), None);
+        assert!(zbm().file_name().is_some());
     }
 }

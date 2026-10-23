@@ -4,6 +4,7 @@
 xtask
 zbm-app
 zbm-config
+zbm-console
 zbm-coreutils
 zbm-crypt
 zbm-display

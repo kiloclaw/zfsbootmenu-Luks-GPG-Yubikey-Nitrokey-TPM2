@@ -92,6 +92,20 @@ pub fn applet(
     runner.run(&on_console(command))
 }
 
+/// Where the boot image installs `zbm`.
+pub const ZBM: &str = "/libexec/zbm";
+
+/// Asks the console on the display to hand the display, the keyboards and
+/// the virtual terminal back to the kernel, and waits until it did
+/// (`zbm console release`), before `kexec`.
+///
+/// # Errors
+///
+/// The error that kept it from starting.
+pub fn release_console(runner: &dyn Runner) -> io::Result<Output> {
+    runner.run(&on_console(Command::new(ZBM).args(["console", "release"])))
+}
+
 /// Copies the file `from` to `to` as `cp FROM TO` does, quietly: the copy
 /// gets the mode `cp` gives a new file, the source's less the umask.
 ///

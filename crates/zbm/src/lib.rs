@@ -10,6 +10,7 @@
 use std::io::Write;
 
 pub mod applets;
+pub mod console;
 pub mod debug;
 pub mod fonts;
 pub mod luks;
@@ -72,6 +73,12 @@ const CONSOLE_FONTS: Applet = Applet {
     run: fonts::run,
 };
 
+const CONSOLE: Applet = Applet {
+    name: "console",
+    summary: "the console on the display, without the kernel's (zbm.console=drm)",
+    run: console::run,
+};
+
 const DEBUG: Applet = Applet {
     name: "debug",
     summary: "show crash reports (zbm debug crash)",
@@ -99,6 +106,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     CONSOLE_AUTOSIZE,
     CONSOLE_FONTS,
+    CONSOLE,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -114,6 +122,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     CONSOLE_AUTOSIZE,
     CONSOLE_FONTS,
+    CONSOLE,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -313,6 +322,7 @@ mod tests {
             "zluks",
             "console-autosize",
             "console-fonts",
+            "console",
             "zbm-menu-pilot",
             "debug",
             "shadow",

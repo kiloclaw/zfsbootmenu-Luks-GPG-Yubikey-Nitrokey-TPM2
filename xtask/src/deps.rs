@@ -85,8 +85,9 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "front ends",
-        purpose: "The menus, the start-up program and the multi-call binary",
-        crates: &["zbm-menu", "zbm-tui", "zbm-startup", "zbm"],
+        purpose: "The menus, the console on the display, the start-up program and the \
+                  multi-call binary",
+        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm-startup", "zbm"],
     },
 ];
 
@@ -95,6 +96,7 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm-trace", "zbm-core"),
     ("zbm-coreutils", "zbm-platform"),
     ("zbm", "zbm-tui"),
+    ("zbm", "zbm-console"),
     ("zbm", "zbm-startup"),
 ];
 
@@ -112,6 +114,10 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-app", &["thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
     ("zbm-config", &["thiserror"]),
+    (
+        "zbm-console",
+        &["alacritty_terminal", "rustix", "signal-hook"],
+    ),
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
     ("zbm-display", &["drm"]),
     ("zbm-testkit", &["serde", "serde_json"]),

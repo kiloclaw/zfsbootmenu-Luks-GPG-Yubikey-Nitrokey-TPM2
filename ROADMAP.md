@@ -176,10 +176,11 @@ the `kexec` path of its images.
 
 **Security.**
 
-**Status:** step 1 is done: the VM test `runtime-rust-drm` passes on both displays (12 checks, b780c91). `zbm-display` draws the menu prototype through DRM with the
-image's console fonts and reads the keyboards, `zbm-tui --demo --drm` runs it on a developer's console, and
-`zbm debug menu-demo` (the `menu-demo` build) in the VM test `runtime-rust-drm`, on `virtio_gpu` and on `simpledrm`.
-The console itself (step 2) needs the menu (R5), and becomes the default only after the cutover.
+**Status:** step 1 is done: the VM test `runtime-rust-drm` passes on both displays (12 checks, b780c91). Step 2 is
+built and waits for its VM test, `runtime-rust-console`: `zbm.console=drm` runs the Rust runtime's start-up program
+and recovery shell on `zbm console`, Alacritty's terminal drawn through DRM with the image's PSF fonts, which hands
+the display back before `kexec`. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
+console becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
@@ -229,9 +230,10 @@ The console itself (step 2) needs the menu (R5), and becomes the default only af
     that the booted kernel takes over as it does today.
   - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
     the drivers), so it is not hidden behind the console.
-  - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only. `fontdue`
-    or a Ratatui pixel backend, `alacritty_terminal` and the keyboard crates are not among the agreed crates (decision
-    1 of REFACTOR-ROADMAP.md): adding them is a decision of their own, with their size in the image.
+  - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only; step 2
+    added `alacritty_terminal` (0.26.0, Apache-2.0, without `serde`), `rustix` directly and `signal-hook`, for
+    `zbm-console` (decision 1 of REFACTOR-ROADMAP.md). `fontdue` or a Ratatui pixel backend and the keyboard crates
+    are not among the agreed crates: adding them is a decision of their own, with their size in the image.
 - **Steps:**
   1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
      sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
@@ -246,8 +248,33 @@ The console itself (step 2) needs the menu (R5), and becomes the default only af
      - The VM test `runtime-rust-drm` checks, on `virtio_gpu` and on `simpledrm` (`vga=0x318`): the driver, the main
        view in the screen's text, its colours in a QEMU screenshot, Down and Enter typed on QEMU's keyboard, and the
        kernel console drawing again after the menu boots.
-  2. The console: `alacritty_terminal`, the pseudo-terminal, the recovery shell, the fallback. Large; after R5.
-  3. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
+  2. **Built; its VM test waits for a run.** The console, with the image's PSF fonts and the US layout, for the
+     Rust runtime as it is before R5 (the countdown and the recovery shell); the menu of R5 runs on it unchanged.
+     - `zbm-console` (front ends): Alacritty's terminal on the controlling side of a pseudo-terminal, without
+       scrollback or clipboard, drawn where it changed with the grid of `zbm-display`, in the console's 16 colours
+       (bold drawn bright), xterm's 256 and true colour; the answers the programs ask for (cursor position, device
+       attributes, colours, size); keys as the Linux console sends them (`TERM=linux`), the bytes typed wiped once
+       written; `SIGUSR1` as the request to hand the display back, and the relay to the kernel console afterwards.
+     - `zbm console` (an applet): the display, the keyboards and the virtual terminal shown now, taken in that
+       order, so that a missing card or keyboard leaves the virtual terminal alone; without them it relays at once.
+       `zbm console release` sends the request and waits until the console removed its process ID from the state
+       directory.
+     - The supervisor, with `zbm.console=drm` and a virtual terminal as its control terminal, opens the
+       pseudo-terminal, starts the console on it and runs the start-up program and the recovery shell on the other
+       side in sessions of their own (`setsid -c`). If the console ends, it gives the virtual terminal back (text
+       mode, the keyboard's mode) and goes on on the kernel console; a program hung up then leaves no crash report.
+     - `zbm-boot` runs `zbm console release` after the teardown hooks, before `kexec -e`, when a console runs.
+     - The VM test `runtime-rust-console` reads the screen's text from a second serial port
+       (`zbm.console_mirror`): on `virtio_gpu`, the countdown in colour, Escape and a command typed on QEMU's
+       keyboard, the shell on the pseudo-terminal, and the kernel console taking keys after the console is killed;
+       on `simpledrm`, the hand-over and the boot of the boot environment.
+     - Left for later: keyboards plugged in after the console started, and a console that comes back after it
+       ended.
+  3. TrueType fonts with `fontdue` at the size `zbm console-autosize` computes, for full Unicode without a 512-glyph
+     subset (#18).
+  4. Keyboard layouts with `xkbcommon-rs` and the layout files the image needs, so that the unlock dialog's
+     `Ctrl-K` switches real layouts.
+  5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
   - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;
   - snapshot tests compare its rendering, in memory, with reference images at three sizes;

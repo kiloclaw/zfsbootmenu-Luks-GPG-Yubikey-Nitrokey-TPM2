@@ -1,5 +1,6 @@
-//! Options of the kernel command line for the console font, documented in
-//! `zfsbootmenu(7)` under `zbm.autosize`.
+//! Options of the kernel command line for the console: its font,
+//! documented in `zfsbootmenu(7)` under `zbm.autosize`, and the console on
+//! the display, under `zbm.console`.
 
 use crate::spec::{Doc, OptionSpec, Reader, Source, Value};
 
@@ -53,4 +54,50 @@ pub static VCONSOLE_FONT: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.autosize"),
     deprecation: None,
     examples: &["rd.vconsole.font=ter-v24b"],
+};
+
+/// `zbm.console`: which console the runtime runs on: the kernel's, or its
+/// own on the display (ROADMAP.md #19).
+pub static DISPLAY_CONSOLE: OptionSpec = OptionSpec {
+    name: "zbm.console",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["kernel", "drm"]),
+    default: Some("kernel"),
+    summary: "Which console the runtime runs on: the kernel's, or its own on the display",
+    reader: Reader::Rust,
+    doc: Doc::Entry {
+        heading: "**zbm.console=drm**",
+        body: DISPLAY_CONSOLE_DOC,
+    },
+    deprecation: None,
+    examples: &["zbm.console=drm", "zbm.console=kernel"],
+};
+
+const DISPLAY_CONSOLE_DOC: &str = r#"
+In images built with the Rust runtime (*zfsbootmenu_runtime=rust*), run ZFSBootMenu and its
+recovery shell on a console of its own, which draws on the display through the kernel's DRM drivers
+(*simpledrm* on the firmware's framebuffer is enough) with the image's console fonts, at the size
+**zbm.autosize** chooses, and reads the keyboards itself. It shows 256 colours and true colour, and
+keeps nothing that scrolls off the screen. Before booting, it hands the display and the keyboards
+back to the kernel. When the control terminal is not a virtual console, when the console cannot
+use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on the
+US layout, from the keyboards present when it starts. The image needs the kernel's *evdev* module
+and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
+configuration. The default, **zbm.console=kernel**, keeps the kernel console.
+"#;
+
+/// `zbm.console_mirror`: where the console on the display writes the text
+/// of its screen, for the VM tests.
+pub static CONSOLE_MIRROR: OptionSpec = OptionSpec {
+    name: "zbm.console_mirror",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Text,
+    default: None,
+    summary: "Where the console on the display writes the text of its screen",
+    reader: Reader::Rust,
+    doc: Doc::NotInManual("for the VM tests, which read the console's screen on a serial port"),
+    deprecation: None,
+    examples: &["zbm.console_mirror=/dev/ttyS1"],
 };

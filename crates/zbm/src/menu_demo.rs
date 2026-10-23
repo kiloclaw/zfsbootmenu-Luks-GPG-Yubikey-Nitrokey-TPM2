@@ -84,8 +84,8 @@ pub fn choose_font(
 }
 
 /// The grid of the font chosen for a display of `size`, from the image's
-/// fonts below `root`.
-fn grid(
+/// fonts below `root`; `zbm console` uses it too.
+pub(crate) fn grid(
     files: &dyn Files,
     root: &Path,
     height: Option<u16>,
