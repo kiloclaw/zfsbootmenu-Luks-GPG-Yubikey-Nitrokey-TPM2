@@ -93,17 +93,9 @@ impl TimedPrompt {
             None => (30, false),
         };
         let width = delay.to_string().len();
-        let prompt: PromptText = match self.prompt {
-            Some(prompt) => prompt,
-            None => Box::new(move |seconds| {
-                let mut text = format!("Press {} to continue", colorize("green", "[RETURN]"));
-                if !infinite {
-                    let left = colorize("yellow", &format!("{seconds:0width$}"));
-                    text.push_str(&format!(" or wait {left} seconds"));
-                }
-                text
-            }),
-        };
+        let prompt = self
+            .prompt
+            .unwrap_or_else(|| default_prompt(infinite, width));
         let mut messages = self.messages;
         messages.push(String::new());
 
@@ -114,38 +106,76 @@ impl TimedPrompt {
 
         let lines = i64::try_from(messages.len()).unwrap_or(i64::MAX);
         let mut row = (height / 2 - lines).max(0);
-        let column = |text: &str| {
-            let len = i64::try_from(decolorize(text).chars().count()).unwrap_or(0);
-            ((columns - len) / 2).max(0)
-        };
         for message in &messages {
-            tput(
-                system,
-                &["cup", &row.to_string(), &column(message).to_string()],
-            );
-            let _ = system.console.write(message.as_bytes());
+            draw_centred(system, row, columns, message);
             row += 1;
         }
+        let countdown = Countdown {
+            prompt,
+            delay,
+            infinite,
+            row,
+            columns,
+        };
+        countdown.wait(system)
+    }
+}
 
-        let timeout = (!infinite).then_some(Duration::from_secs(1));
-        let mut left = delay;
+/// The countdown line of a prompt without `-p`: how to continue, and the
+/// seconds left unless the prompt waits without limit. `width` is the number
+/// of digits the seconds take.
+fn default_prompt(infinite: bool, width: usize) -> PromptText {
+    Box::new(move |seconds| {
+        let mut text = format!("Press {} to continue", colorize("green", "[RETURN]"));
+        if !infinite {
+            let left = colorize("yellow", &format!("{seconds:0width$}"));
+            text.push_str(&format!(" or wait {left} seconds"));
+        }
+        text
+    })
+}
+
+/// Writes `text` on `row` of the screen, centred in its `columns`.
+fn draw_centred(system: &System<'_>, row: i64, columns: i64, text: &str) {
+    let len = i64::try_from(decolorize(text).chars().count()).unwrap_or(0);
+    let column = ((columns - len) / 2).max(0);
+    tput(system, &["cup", &row.to_string(), &column.to_string()]);
+    let _ = system.console.write(text.as_bytes());
+}
+
+/// The last line of a timed prompt, counting down while it waits for a key.
+struct Countdown {
+    /// The text of the line for the seconds left.
+    prompt: PromptText,
+    /// The seconds to wait.
+    delay: u64,
+    /// Whether the prompt waits without limit.
+    infinite: bool,
+    /// The screen row of the line.
+    row: i64,
+    /// The width of the screen.
+    columns: i64,
+}
+
+impl Countdown {
+    /// Redraws the line every second and waits for RETURN or ESCAPE, until
+    /// the time runs out.
+    fn wait(&self, system: &System<'_>) -> Answer {
+        let timeout = (!self.infinite).then_some(Duration::from_secs(1));
+        let mut left = self.delay;
         while left > 0 {
-            let text = prompt(left);
-            tput(
-                system,
-                &["cup", &row.to_string(), &column(&text).to_string()],
-            );
-            let _ = system.console.write(text.as_bytes());
+            let text = (self.prompt)(left);
+            draw_centred(system, self.row, self.columns, &text);
             match system.console.read_key(timeout) {
                 Ok(Some(0x1b)) => return Answer::Escape,
                 Ok(Some(b'\n')) => return Answer::Continue,
                 // The end of the input: `read` fails at once, every time, so the
                 // legacy loop would spin; a terminal never ends, so stopping here
                 // changes nothing a user can see
-                Ok(None) | Err(_) if infinite => return Answer::Continue,
+                Ok(None) | Err(_) if self.infinite => return Answer::Continue,
                 _ => {}
             }
-            if !infinite {
+            if !self.infinite {
                 left -= 1;
             }
         }

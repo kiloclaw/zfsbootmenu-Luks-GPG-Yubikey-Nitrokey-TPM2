@@ -1,0 +1,167 @@
+//! Mounting and unmounting: a boot environment on its mount point in the
+//! state directory, the recursive unmount of a mount point, and `efivarfs`.
+
+use std::path::{Path, PathBuf};
+
+use zbm_platform::{Runner, System};
+use zbm_state::State;
+use zbm_tools::Shown;
+use zbm_tools::mount::Mount;
+use zbm_zfs::{Stderr, ZfsCommand};
+
+use super::zfs::{locked_root, substituted};
+use crate::error::BootError;
+use crate::kernels;
+
+/// The state directory of a boot environment (`be_location`), created if
+/// needed.
+pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
+    zbm_trace::debug!("fs set to {fs}");
+    match state.environment(fs) {
+        Ok(location) => location,
+        // `mkdir -p` failed; be_location gives the path all the same.
+        Err(_) => {
+            let mnt = state.mount_point(fs);
+            mnt.parent().map_or(mnt.clone(), Path::to_path_buf)
+        }
+    }
+}
+
+/// How the output of `mount` reaches the user.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Noise {
+    /// Error messages go to the console, as in `kexec_kernel`.
+    Shown,
+    /// Error messages are captured and dropped, as `$( mount_zfs ... 2>&1 )`
+    /// in `find_be_kernels` drops them.
+    Hidden,
+}
+
+impl Noise {
+    /// Where `mount`'s error messages go.
+    fn shown(self) -> Shown {
+        match self {
+            Noise::Shown => Shown::Console,
+            Noise::Hidden => Shown::Hidden,
+        }
+    }
+}
+
+/// Mounts `fs` read-only on its mount point in the state directory, as
+/// `mount_zfs` does, and returns the mount point.
+pub fn mount_zfs(
+    system: &System<'_>,
+    state: &State<'_>,
+    fs: &str,
+    noise: Noise,
+) -> Option<PathBuf> {
+    if fs.is_empty() {
+        zbm_trace::error!("fs is undefined");
+        return None;
+    }
+    if locked_root(system.runner, fs).is_some() {
+        zbm_trace::error!("{fs} is locked, unable to mount filesystem");
+        zbm_trace::debug!("{fs} is locked, returning");
+        return None;
+    }
+    let mnt = be_location(state, fs).join("mnt");
+    let _ = system.files.create_dir_all(&mnt);
+    let rwo = "ro";
+
+    let errors = match noise {
+        Noise::Shown => Stderr::Console,
+        Noise::Hidden => Stderr::Hidden,
+    };
+    let mountpoint = ZfsCommand::new(system.runner)
+        .text(&["get", "-H", "-o", "value", "mountpoint", fs], errors);
+    let legacy = substituted(mountpoint).1 == "legacy";
+    let mnt_text = mnt.to_string_lossy();
+    let options = if legacy || fs.contains('@') {
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");
+        rwo.to_owned()
+    } else {
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo}) with zfsutil");
+        zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}");
+        format!("zfsutil,{rwo}")
+    };
+    let code = match Mount::new(system.runner).zfs(fs, &mnt, &options, noise.shown()) {
+        Ok(output) => output.status.shell_code(),
+        Err(_) => 126,
+    };
+    zbm_trace::debug!("mount return code: {code}");
+    (code == 0).then_some(mnt)
+}
+
+/// Runs `umount <path>`.
+pub(super) fn umount(runner: &dyn Runner, path: &Path) {
+    let _ = Mount::new(runner).unmount(path, Shown::Console);
+}
+
+/// Unmounts everything below `mountpoint`, deepest first, as
+/// `recursive_umount` does when `umount -R` fails.
+///
+/// # Errors
+///
+/// [`BootError::Unmount`] with the mount points that stay mounted.
+pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), BootError> {
+    let mount = Mount::new(system.runner);
+    if mount
+        .unmount_recursive(mountpoint)
+        .is_ok_and(|output| output.status.is_success())
+    {
+        return Ok(());
+    }
+    let pattern = format!("^{}", mountpoint.display());
+    let table = system
+        .files
+        .read_to_string(Path::new("/proc/self/mounts"))
+        .unwrap_or_default();
+    let mut mounts: Vec<(usize, String)> = table
+        .lines()
+        .filter_map(|line| line.split_whitespace().nth(1).map(str::to_owned))
+        .filter(|mp| kernels::bash_regex_match(system.runner, mp, &pattern) == Some(true))
+        .map(|mp| (mp.matches('/').count(), mp))
+        .collect();
+    // sort -n -k1 -r on "depth,path"
+    mounts.sort_by(|a, b| b.cmp(a));
+    let mut mounted = Vec::new();
+    for (_, mp) in mounts {
+        if !mount
+            .unmount(Path::new(&mp), Shown::Hidden)
+            .is_ok_and(|output| output.status.is_success())
+        {
+            zbm_trace::error!("unable to unmount {mp}");
+            mounted.push(mp);
+        }
+    }
+    if mounted.is_empty() {
+        Ok(())
+    } else {
+        Err(BootError::Unmount { mounts: mounted })
+    }
+}
+
+/// Whether the machine booted with UEFI (`is_efi_system`).
+fn is_efi_system(system: &System<'_>) -> bool {
+    system.files.is_dir(Path::new("/sys/firmware/efi"))
+}
+
+/// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`), as
+/// `mount_efivarfs` does. Does nothing without UEFI.
+pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
+    let location = "/sys/firmware/efi/efivars";
+    if !is_efi_system(system) {
+        zbm_trace::debug!("efivarfs unsupported");
+        return;
+    }
+    let mount = Mount::new(system.runner);
+    let mounted = mount.is_mountpoint(location);
+    let options = if mounted {
+        zbm_trace::debug!("remounting '{location}' '{mode}'");
+        format!("remount,{mode}")
+    } else {
+        zbm_trace::debug!("mounting '{location}' '{mode}'");
+        mode.to_owned()
+    };
+    let _ = mount.efivarfs(location, &options);
+}
