@@ -38,6 +38,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 14 | [Built-in SSH server for remote unlock](#14-built-in-ssh-server-for-remote-unlock) | 4 | Large | Proposed |
 | 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
 | 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
+| 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 2 | Medium | Proposed |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -189,6 +190,42 @@ Needs the built-in menu (#12), which REFACTOR-ROADMAP.md builds in R5.
   read/write first.
 - **Done when:** VM tests with a degraded mirror and a resilvering raidz show the same devices, errors and progress as
   `zpool status`; clearing errors and bringing a device back online work; a read-only pool offers the import first.
+
+### 17. Graphics drivers for AMD and Intel GPUs
+
+Needs the Rust boot runtime (the port's Phase 8), which owns the `kexec` path this changes.
+
+- **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
+  `config/zfsbootmenu/dracut.conf.d/omit-drivers.conf`), and the release images boot with `nomodeset`, because a GPU
+  that one kernel has set up rarely starts again under the kernel that `kexec` hands over to. The console then runs
+  on the framebuffer the firmware left behind:
+  - in whatever mode the firmware chose, often not the panel's own;
+  - with nothing on a screen the firmware did not light up, such as a second monitor or one behind a dock;
+  - with no EDID, so `zbm console-autosize` cannot size the font to the display and falls back to its old rule.
+- **How:**
+  - **Opt-in drivers.** The drivers are `amdgpu` for AMD GPUs from GCN on, and `i915` and `xe` for Intel graphics.
+    `generate-zbm` adds them when asked, for example with `Kernel.GraphicsDrivers: amdgpu i915 xe`, for dracut and
+    mkinitcpio alike, and drops `nomodeset` from the image's command line. Host-only builds include only the firmware
+    files of the machine's own GPU: `amdgpu` firmware for every chip is tens of megabytes, and one chip needs a few.
+    Release images stay without the drivers.
+  - **Load before the first prompt.** At start-up the drivers load before anything is asked, so the console does not
+    change mode under a passphrase field.
+  - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
+    shutdown path, and resets the PCI function where it supports a reset. The booted kernel then finds the GPU as at
+    power-on.
+  - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at
+    all. Other GPUs stay on the firmware framebuffer, and the log says why.
+  - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come
+    back.
+  - **What stays out.** `radeon` (AMD GPUs before GCN) and NVIDIA's drivers: the proprietary driver cannot ship in the
+    image, and `nouveau` is not tested.
+- **Done when:**
+  - A VM test with a graphics driver QEMU can emulate (`bochs` or `virtio-gpu`) checks the sequence: the driver loads
+    before the prompts, the EDID reaches `zbm console-autosize`, the device is unbound before `kexec`, and the booted
+    kernel brings up its display.
+  - On real hardware, each listed machine (Intel Gen 9 and Xe graphics, an AMD APU, an AMD RDNA graphics card) boots
+    twenty times in a row through `kexec`, with a working display both in ZFSBootMenu and in the booted system.
+  - Image size and the time to the menu are measured against an image without the drivers.
 
 ## Phase 3: TPM
 
