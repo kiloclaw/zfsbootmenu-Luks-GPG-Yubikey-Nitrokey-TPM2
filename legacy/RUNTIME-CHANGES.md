@@ -58,6 +58,9 @@ off, and so that a change to the runtime adds its entry in the same commit.
   `/usr/share/zfsbootmenu/fonts/LICENSE.spleen`. Legacy images, whose autosize hook loads the Terminus fonts by name,
   warn and keep Terminus, as does any other value; without the option, images are unchanged.
   **Rust:** done; `crates/zbm/tests/image.rs` checks the fonts of a Spleen image and the warnings.
+- [x] `37dcb86`: the online help of `zfsbootmenu(7)` (`help-files/`) describes `zbm.console=drm`, the console on
+  the display of the Rust runtime (ROADMAP.md #19); the legacy runtime is unchanged.
+  **Rust:** nothing to port; documentation only.
 
 ## Legacy limitations the Rust runtime must not copy
 
