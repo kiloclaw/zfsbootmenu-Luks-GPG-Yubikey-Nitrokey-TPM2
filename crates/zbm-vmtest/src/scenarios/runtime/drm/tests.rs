@@ -49,7 +49,7 @@ fn the_menu_is_drawn_moved_booted_and_the_console_comes_back() {
     let settings = settings("runtime-drm-run");
     let test = Test::new(&settings, "runtime-rust-drm").unwrap();
     let answers = [
-        "/sys/bus/virtio/drivers/virtio_gpu\r\nRC=0\r\n",
+        "/sys/bus/pci/drivers/virtio-pci\r\nRC=0\r\n",
         "RC=0\r\n",
         "Boot Environments\r\n▶ tank/ROOT/void\r\n  tank/ROOT/arch\r\nRC=0\r\n",
         "▶ tank/ROOT/void\r\nRC=0\r\n",
@@ -60,7 +60,7 @@ fn the_menu_is_drawn_moved_booted_and_the_console_comes_back() {
     let (mut vm, guest) = scripted(&test, script(answers));
     let monitor = Monitor { dump, key };
 
-    check_menu(&test, &mut vm, "virtio", "virtio_gpu", &monitor).unwrap();
+    check_menu(&test, &mut vm, "virtio", "virtio", &monitor).unwrap();
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);

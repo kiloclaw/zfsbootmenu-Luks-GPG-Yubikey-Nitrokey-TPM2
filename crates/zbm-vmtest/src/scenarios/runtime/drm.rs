@@ -3,7 +3,8 @@
 //! `menu-demo` feature and the `virtio_gpu` and `evdev` drivers, and boots
 //! twice:
 //!
-//! - on a virtio GPU, whose DRM driver is `virtio_gpu`;
+//! - on a virtio GPU, whose DRM driver is `virtio_gpu` (the card's device
+//!   is the PCI function it sits on, driven by `virtio-pci`);
 //! - on QEMU's standard VGA in a VESA mode set at boot (`vga=0x318`), which
 //!   `simpledrm` drives on the firmware's framebuffer, without a graphics
 //!   driver.
@@ -82,7 +83,9 @@ pub(super) fn run(test: &Test) -> Result<()> {
         dump: screendump,
         key: sendkey,
     };
-    for (name, driver) in [("virtio", "virtio_gpu"), ("simpledrm", "simple")] {
+    // The card's device on virtio-vga is the PCI function, whose driver is
+    // virtio-pci; virtio_gpu drives the virtio device below it.
+    for (name, driver) in [("virtio", "virtio"), ("simpledrm", "simple")] {
         let mut vm = boot(test, &image, name)?;
         check_menu(test, &mut vm, name, driver, &monitor)?;
         vm.kill();

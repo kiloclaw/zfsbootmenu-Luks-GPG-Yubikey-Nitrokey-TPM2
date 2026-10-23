@@ -324,10 +324,11 @@ Following a boot
 * ``runtime-rust-drm`` runs the menu prototype on the display without a terminal (ROADMAP.md #19, step 1), in a Rust
   image built with the ``menu-demo`` feature and the ``virtio_gpu`` and ``evdev`` drivers. It boots on a virtio GPU and
   on QEMU's standard VGA in a VESA mode (``vga=0x318``), which ``simpledrm`` drives. Each time, ``zbm debug
-  menu-demo --wait --dump /tmp/menu.txt`` runs in the background from the serial console: card0 must be driven by
-  ``virtio_gpu`` or ``simple-framebuffer``, the screen's text must show the main view, a QEMU screenshot
-  (``<boot>-menu.ppm``) at least 6 colours, Down typed with ``sendkey`` must move the selection, Enter must boot and end
-  the demo, and afterwards the kernel console must draw a 16-colour bar again (``<boot>-console.ppm``).
+  menu-demo --wait --dump /tmp/menu.txt`` runs in the background from the serial console: card0's device must be
+  driven by ``virtio-pci`` (the PCI function under ``virtio_gpu``) or ``simple-framebuffer``, the screen's text must
+  show the main view, a QEMU screenshot (``<boot>-menu.ppm``) at least 6 colours, Down typed with ``sendkey`` must move
+  the selection, Enter must boot and end the demo, and afterwards the kernel console must draw a 16-colour bar again
+  (``<boot>-console.ppm``).
 
 Results
 -------
