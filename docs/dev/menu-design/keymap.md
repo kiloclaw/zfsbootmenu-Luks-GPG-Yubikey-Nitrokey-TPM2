@@ -82,9 +82,11 @@ keeps working, with its old meaning in its old view, as an alias that the help v
 | `MOD+N` | | new snapshot | | |
 | `MOD+U` | | | inherit the default | |
 
-So people who know the `fzf` menu keep their habits, and new users learn the letters from the footer. The two maps
-never collide: classic bindings all hold `Alt` or `Ctrl`, the new ones none. `Ctrl-S` and `Ctrl-J` may not reach the
-menu on serial lines (flow control, newline): their `Alt` forms do. The sessions confirm or reject this before R5.
+So people who know the `fzf` menu keep their habits, and new users learn the letters from the footer. The new
+letters hold no modifier, so the two maps meet only where the new map gives `Ctrl` a meaning of every view (`Ctrl-C`
+back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning wins, and the classic binding works
+with `Alt` only. `Ctrl-S` and `Ctrl-J` may not reach the menu on serial lines (flow control, newline): their `Alt`
+forms do. The sessions confirm or reject this before R5.
 
 ## The footer and the help view
 

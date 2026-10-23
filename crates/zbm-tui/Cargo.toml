@@ -12,6 +12,7 @@ publish.workspace = true
 nucleo-matcher.workspace = true
 ratatui.workspace = true
 zbm-app.workspace = true
+zbm-platform.workspace = true
 zbm-types.workspace = true
 
 [dev-dependencies]

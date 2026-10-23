@@ -34,6 +34,7 @@
 
 mod filter;
 pub mod keymap;
+pub mod menu;
 mod model;
 mod quiet;
 pub mod terminal;

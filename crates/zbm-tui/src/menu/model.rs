@@ -1,0 +1,509 @@
+//! The state of the menu: the snapshot of the machine and everything on the
+//! screen. Nothing in it changes but through [`update`](super::update).
+
+use zbm_platform::secret::Secret;
+use zbm_types::{DatasetName, PoolName, SnapshotName};
+
+use super::filter::Ranked;
+use super::keymap::Context;
+use super::theme::Theme;
+use super::world::{Action, Environment, Method, Outcome, Snapshot, SnapshotInfo, Timeout};
+
+/// The views (`docs/dev/menu-design/information-architecture.md`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Screen {
+    /// Start-up: its stages, and the dialogs it opens.
+    Startup,
+    /// The boot environments and the detail pane.
+    Main,
+    /// The snapshots of an environment.
+    Snapshots,
+    /// The kernels of an environment.
+    Kernels,
+    /// The command line editor.
+    CommandLine,
+    /// Pools and LUKS volumes.
+    Pools,
+    /// Recovery tools.
+    Recovery,
+    /// The log.
+    Log,
+    /// Help for the view it was opened from.
+    Help(Context),
+}
+
+/// How lists are sorted.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Sort {
+    /// By name.
+    #[default]
+    Name,
+    /// Newest first.
+    Creation,
+    /// Largest first.
+    Size,
+}
+
+impl Sort {
+    /// The next order.
+    pub fn next(self) -> Sort {
+        match self {
+            Sort::Name => Sort::Creation,
+            Sort::Creation => Sort::Size,
+            Sort::Size => Sort::Name,
+        }
+    }
+
+    /// Its name.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Sort::Name => "name",
+            Sort::Creation => "creation",
+            Sort::Size => "size",
+        }
+    }
+}
+
+/// A list's selection and filter.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ListState {
+    /// The filter text, while filtering or when one was kept.
+    pub filter: String,
+    /// Whether the filter field has the focus.
+    pub filtering: bool,
+    /// The items the filter matches, best first, as indexes of the list.
+    pub matches: Vec<Ranked>,
+    /// The index in `matches` of the selection.
+    pub selected: usize,
+}
+
+impl ListState {
+    /// The index in the list of the selection, if anything matches.
+    pub fn selected_item(&self) -> Option<usize> {
+        self.matches.get(self.selected).map(|ranked| ranked.index)
+    }
+}
+
+/// A choice in a [`Dialog::Choose`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Choice {
+    /// What it does, for people.
+    pub label: String,
+    /// What it leads to.
+    pub then: Then,
+}
+
+/// What a choice or a confirmation leads to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Then {
+    /// Ask the machine to do this.
+    Act(Action),
+    /// Confirm first, by typing `name`, then act.
+    Confirm {
+        /// The action.
+        action: Action,
+        /// The title of the confirmation.
+        title: String,
+        /// What will happen and what will be lost.
+        lines: Vec<String>,
+        /// What has to be typed.
+        name: String,
+    },
+    /// Open this screen.
+    Open(Screen),
+    /// Open the snapshots or kernels of an environment, or its command
+    /// line.
+    Focus(DatasetName, Screen),
+}
+
+/// A dialog over a view.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Dialog {
+    /// A volume asks for a secret, or waits for a device.
+    Unlock {
+        /// The volume.
+        volume: String,
+        /// The method being tried.
+        method: Method,
+        /// Tries left, if limited.
+        tries_left: Option<u32>,
+        /// What was typed; never shown, wiped when dropped.
+        secret: Secret,
+    },
+    /// A choice among actions.
+    Choose {
+        /// The title.
+        title: String,
+        /// What the choice is about.
+        lines: Vec<String>,
+        /// The choices.
+        choices: Vec<Choice>,
+        /// The selected choice.
+        selected: usize,
+    },
+    /// A destructive action that needs its target's name typed.
+    Confirm {
+        /// The title.
+        title: String,
+        /// What will happen and what will be lost.
+        lines: Vec<String>,
+        /// What has to be typed.
+        name: String,
+        /// What was typed.
+        typed: String,
+        /// The action.
+        action: Action,
+    },
+    /// What failed, why, and the next steps.
+    Error {
+        /// What failed.
+        what: String,
+        /// Why.
+        why: Vec<String>,
+        /// What can be done next.
+        next: Vec<String>,
+    },
+}
+
+/// The command line editor.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Editor {
+    /// The environment.
+    pub environment: DatasetName,
+    /// The kernel, when one was chosen.
+    pub kernel: Option<String>,
+    /// The text.
+    pub text: String,
+}
+
+/// The command palette.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Palette {
+    /// The query.
+    pub query: String,
+    /// What it matches, best first, as indexes of [`Model::palette_items`].
+    pub matches: Vec<Ranked>,
+    /// The selection in `matches`.
+    pub selected: usize,
+}
+
+/// One entry of the command palette.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaletteItem {
+    /// What the palette shows and matches.
+    pub label: String,
+    /// What it does.
+    pub then: Then,
+}
+
+/// The menu.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Model {
+    /// The machine.
+    pub snapshot: Snapshot,
+    /// How to draw.
+    pub theme: Theme,
+    /// The view.
+    pub screen: Screen,
+    /// The dialog over it.
+    pub dialog: Option<Dialog>,
+    /// The palette, when open.
+    pub palette: Option<Palette>,
+    /// The command line editor, when open.
+    pub editor: Option<Editor>,
+    /// The environments of the main view, sorted, defaults first.
+    pub environments: ListState,
+    /// The snapshots of [`Model::focus`].
+    pub snapshots: ListState,
+    /// Snapshots marked for a diff.
+    pub marked: Vec<SnapshotName>,
+    /// The kernels of [`Model::focus`].
+    pub kernels: ListState,
+    /// The pools and volumes, as one list: pools first.
+    pub pools: ListState,
+    /// The recovery tools.
+    pub recovery: ListState,
+    /// The environment the snapshots and kernels views show.
+    pub focus: Option<DatasetName>,
+    /// The sort order of the snapshots.
+    pub sort: Sort,
+    /// Command lines edited for this boot, by environment.
+    pub edited: Vec<(DatasetName, String)>,
+    /// The countdown, in milliseconds, while it runs.
+    pub countdown: Option<u64>,
+    /// Whether start-up finished and the main view opened.
+    pub started: bool,
+    /// The outcome of the last action.
+    pub notification: Option<Outcome>,
+    /// Why the menu ends, once it does.
+    pub leaving: Option<String>,
+    /// The key presses so far, for the measures of the core tasks.
+    pub keys: u32,
+}
+
+impl Model {
+    /// The menu for `snapshot`: on the start-up view while start-up runs.
+    pub fn new(snapshot: Snapshot, theme: Theme) -> Model {
+        let mut model = Model {
+            screen: Screen::Startup,
+            theme,
+            dialog: None,
+            palette: None,
+            editor: None,
+            environments: ListState::default(),
+            snapshots: ListState::default(),
+            marked: Vec::new(),
+            kernels: ListState::default(),
+            pools: ListState::default(),
+            recovery: ListState::default(),
+            focus: None,
+            sort: Sort::Name,
+            edited: Vec::new(),
+            countdown: None,
+            started: false,
+            notification: None,
+            leaving: None,
+            keys: 0,
+            snapshot,
+        };
+        model.refresh();
+        model
+    }
+
+    /// Recomputes the lists after the snapshot, a filter or the sort order
+    /// changed, keeping selections in range.
+    pub fn refresh(&mut self) {
+        let names = self.environment_order();
+        let labels: Vec<String> = names
+            .iter()
+            .map(|&index| self.snapshot.environments[index].name.to_string())
+            .collect();
+        refilter(&mut self.environments, labels.iter().map(String::as_str));
+        for ranked in &mut self.environments.matches {
+            ranked.index = names[ranked.index];
+        }
+        let snapshots: Vec<String> = self
+            .focus_snapshots()
+            .iter()
+            .map(|info| info.name.name().to_owned())
+            .collect();
+        refilter(&mut self.snapshots, snapshots.iter().map(String::as_str));
+        let kernels: Vec<String> = self
+            .focused()
+            .map(|environment| {
+                environment
+                    .kernels
+                    .iter()
+                    .map(|k| k.version.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        refilter(&mut self.kernels, kernels.iter().map(String::as_str));
+        let pools = self.pool_rows();
+        refilter(&mut self.pools, pools.iter().map(String::as_str));
+        refilter(&mut self.recovery, RECOVERY.iter().map(|(label, _)| *label));
+    }
+
+    /// The indexes of the environments in the order of the main view:
+    /// defaults first, then by name.
+    fn environment_order(&self) -> Vec<usize> {
+        let mut order: Vec<usize> = (0..self.snapshot.environments.len()).collect();
+        let environments = &self.snapshot.environments;
+        order.sort_by(|&a, &b| {
+            let (a, b) = (&environments[a], &environments[b]);
+            b.is_default.cmp(&a.is_default).then(a.name.cmp(&b.name))
+        });
+        order
+    }
+
+    /// The selected environment of the main view.
+    pub fn selected_environment(&self) -> Option<&Environment> {
+        self.snapshot
+            .environments
+            .get(self.environments.selected_item()?)
+    }
+
+    /// The environment the snapshots and kernels views show.
+    pub fn focused(&self) -> Option<&Environment> {
+        let focus = self.focus.as_ref()?;
+        self.snapshot
+            .environments
+            .iter()
+            .find(|environment| &environment.name == focus)
+    }
+
+    /// The snapshots of the focused environment, in the sort order.
+    pub fn focus_snapshots(&self) -> Vec<&SnapshotInfo> {
+        let mut snapshots: Vec<&SnapshotInfo> = self
+            .focused()
+            .map(|environment| environment.snapshots.iter().collect())
+            .unwrap_or_default();
+        match self.sort {
+            Sort::Name => snapshots.sort_by(|a, b| a.name.name().cmp(b.name.name())),
+            Sort::Creation => snapshots.sort_by_key(|s| std::cmp::Reverse(s.created)),
+            Sort::Size => snapshots.sort_by_key(|s| std::cmp::Reverse(s.used)),
+        }
+        snapshots
+    }
+
+    /// The selected snapshot.
+    pub fn selected_snapshot(&self) -> Option<&SnapshotInfo> {
+        let snapshots = self.focus_snapshots();
+        snapshots.get(self.snapshots.selected_item()?).copied()
+    }
+
+    /// The rows of the pools view: each pool, then each volume.
+    pub fn pool_rows(&self) -> Vec<String> {
+        let pools = self.snapshot.pools.iter().map(|pool| pool.name.to_string());
+        let volumes = self
+            .snapshot
+            .volumes
+            .iter()
+            .map(|volume| volume.name.clone());
+        pools.chain(volumes).collect()
+    }
+
+    /// The pool of the selected row of the pools view, if it is a pool.
+    pub fn selected_pool(&self) -> Option<&PoolName> {
+        let row = self.pools.selected_item()?;
+        self.snapshot.pools.get(row).map(|pool| &pool.name)
+    }
+
+    /// The volume of the selected row of the pools view, if it is one.
+    pub fn selected_volume(&self) -> Option<&str> {
+        let row = self
+            .pools
+            .selected_item()?
+            .checked_sub(self.snapshot.pools.len())?;
+        self.snapshot
+            .volumes
+            .get(row)
+            .map(|volume| volume.name.as_str())
+    }
+
+    /// The command line `environment` boots with: the edited one, else its
+    /// own.
+    pub fn command_line(&self, environment: &Environment) -> String {
+        self.edited
+            .iter()
+            .find(|(name, _)| *name == environment.name)
+            .map_or_else(
+                || environment.command_line.value.clone(),
+                |(_, line)| line.clone(),
+            )
+    }
+
+    /// Whether start-up is over: every stage done, failed or skipped.
+    pub fn is_started(&self) -> bool {
+        self.snapshot.startup.iter().all(|stage| {
+            !matches!(
+                stage.state,
+                super::world::StageState::Pending | super::world::StageState::Running
+            )
+        })
+    }
+
+    /// The key map context of the focus.
+    pub fn context(&self) -> Context {
+        match &self.dialog {
+            Some(Dialog::Unlock { .. } | Dialog::Confirm { .. }) => return Context::Text,
+            Some(Dialog::Choose { .. } | Dialog::Error { .. }) => return Context::Choose,
+            None => {}
+        }
+        if self.palette.is_some()
+            || self.editor.is_some()
+            || self.list().is_some_and(|l| l.filtering)
+        {
+            return Context::Text;
+        }
+        match self.screen {
+            Screen::Startup => Context::Startup,
+            Screen::Main => Context::Main,
+            Screen::Snapshots => Context::Snapshots,
+            Screen::Kernels => Context::Kernels,
+            Screen::CommandLine => Context::Text,
+            Screen::Pools => Context::Pools,
+            Screen::Recovery => Context::Recovery,
+            Screen::Log => Context::Log,
+            Screen::Help(_) => Context::Help,
+        }
+    }
+
+    /// The list of the current screen.
+    pub fn list(&self) -> Option<&ListState> {
+        match self.screen {
+            Screen::Main => Some(&self.environments),
+            Screen::Snapshots => Some(&self.snapshots),
+            Screen::Kernels => Some(&self.kernels),
+            Screen::Pools => Some(&self.pools),
+            Screen::Recovery => Some(&self.recovery),
+            _ => None,
+        }
+    }
+
+    /// The list of the current screen, to change.
+    pub fn list_mut(&mut self) -> Option<&mut ListState> {
+        match self.screen {
+            Screen::Main => Some(&mut self.environments),
+            Screen::Snapshots => Some(&mut self.snapshots),
+            Screen::Kernels => Some(&mut self.kernels),
+            Screen::Pools => Some(&mut self.pools),
+            Screen::Recovery => Some(&mut self.recovery),
+            _ => None,
+        }
+    }
+
+    /// The seconds left of the countdown, rounded up.
+    pub fn countdown_seconds(&self) -> Option<u64> {
+        self.countdown.map(|ms| ms.div_ceil(1000))
+    }
+
+    /// The countdown of the timeout, in milliseconds.
+    pub fn timeout_ms(&self) -> Option<u64> {
+        match self.snapshot.timeout {
+            Timeout::Seconds(seconds) => Some(u64::from(seconds) * 1000),
+            Timeout::Skip => Some(0),
+            Timeout::Wait => None,
+        }
+    }
+}
+
+/// The recovery tools: what the list shows and what it does.
+pub const RECOVERY: &[(&str, RecoveryTool)] = &[
+    ("Recovery shell", RecoveryTool::Shell),
+    ("Chroot into the selected environment", RecoveryTool::Chroot),
+    ("Log", RecoveryTool::Log),
+    ("Pools and volumes", RecoveryTool::Pools),
+    ("Firmware setup", RecoveryTool::FirmwareSetup),
+    ("Reboot", RecoveryTool::Reboot),
+    ("Power off", RecoveryTool::PowerOff),
+];
+
+/// A recovery tool.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecoveryTool {
+    /// The recovery shell.
+    Shell,
+    /// A chroot of the selected environment.
+    Chroot,
+    /// The log.
+    Log,
+    /// Pools and volumes.
+    Pools,
+    /// Firmware setup.
+    FirmwareSetup,
+    /// Reboot.
+    Reboot,
+    /// Power off.
+    PowerOff,
+}
+
+/// Matches a list's filter against its items again, keeping the selection
+/// in range.
+pub fn refilter<'a>(list: &mut ListState, items: impl IntoIterator<Item = &'a str>) {
+    list.matches = super::filter::rank(items, &list.filter);
+    list.selected = list.selected.min(list.matches.len().saturating_sub(1));
+}
+
+#[cfg(test)]
+mod tests;
