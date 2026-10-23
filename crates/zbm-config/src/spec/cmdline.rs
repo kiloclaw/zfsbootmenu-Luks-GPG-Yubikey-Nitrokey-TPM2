@@ -5,7 +5,7 @@ pub mod console;
 pub mod luks;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
-pub use console::{AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, VCONSOLE_FONT};
+pub use console::{AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, VCONSOLE_FONT};
 
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
@@ -29,6 +29,7 @@ pub static ALL: &[&OptionSpec] = &[
     &AUTOSIZE,
     &VCONSOLE_FONT,
     &DISPLAY_CONSOLE,
+    &DISPLAY_CONSOLE_FONT,
     &CONSOLE_MIRROR,
     &WAIT_FOR,
     &ROOT,

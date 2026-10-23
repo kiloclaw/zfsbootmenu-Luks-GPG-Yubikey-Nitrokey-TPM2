@@ -33,11 +33,13 @@
 //! assert_eq!(frame.take_damage().map(|area| area.width), Some(2));
 //! ```
 
+pub mod boxes;
 pub mod display;
 pub mod frame;
 pub mod grid;
 pub mod input;
 pub mod keys;
+pub mod outline;
 pub mod output;
 pub mod palette;
 pub mod vt;

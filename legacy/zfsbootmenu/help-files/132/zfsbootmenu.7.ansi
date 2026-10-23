@@ -192,6 +192,11 @@
       [33mevdev[0m module and the display's DRM driver, for instance with [33madd_drivers+=" evdev virtio_gpu "[0m in its dracut configuration.
       The default, [1mzbm.console=kernel[0m, keeps the kernel console.
 
+      [1mzbm.console_font=psf[0m
+
+        The console draws with the image's TrueType font, DejaVu Sans Mono, which covers Latin, Greek and Cyrillic, in cells as high
+        as the console font [1mzbm.autosize[0m chooses. With [1mpsf[0m, it draws with that console font itself, as the kernel console would.
+
     [1mzbm.wait_for=device,device,...[0m
 
       Ensure that one or more devices are present before starting the pool import process. Devices may be specified as full paths to

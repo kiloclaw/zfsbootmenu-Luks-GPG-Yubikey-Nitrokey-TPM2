@@ -10,8 +10,10 @@
 //!   the console's pseudo-terminal. Killing the console from that shell
 //!   puts the runtime back on the kernel console, whose shell takes keys
 //!   again and finds the console's start and end in the kernel log.
-//! - On `simpledrm` (`vga=0x318`): the countdown runs out; the console
-//!   hands the display back, and the boot environment boots.
+//!   The console draws with the image's TrueType font, anti-aliased.
+//! - On `simpledrm` (`vga=0x318`), with `zbm.console_font=psf`: the console
+//!   draws with a console font; the countdown runs out, the console hands
+//!   the display back, and the boot environment boots.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,9 +39,11 @@ const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
 /// What the console writes to its mirror once it handed the display back.
 const RELEASED: &str = "zbm console: handed the display back";
 
-/// The fewest colours of the countdown: the background, the text, and the
-/// boot environment and the seconds in their colours.
-const COUNTDOWN_COLOURS: usize = 4;
+/// The fewest colours of the countdown drawn with the TrueType font: the
+/// background, the text, the boot environment and the seconds in their
+/// colours (4 with a console font), and the shades between them that
+/// anti-aliasing gives.
+const COUNTDOWN_COLOURS: usize = 8;
 
 /// Typed in the recovery shell: the shell's terminal (the image has no
 /// `tty`).
@@ -56,7 +60,7 @@ const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
 const LOG: &str = "dmesg > /dev/ttyS0\n";
 
 /// The console's message when it starts, in the kernel log and its mirror.
-const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\d+x\d+) cells";
+const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\S+) (\d+x\d+) cells";
 
 /// The supervisor's message when the console ended.
 const ENDED: &str = r"console on the display ended";
@@ -196,7 +200,7 @@ pub(super) fn wait_screen(path: &Path, pattern: &str, seconds: u64) -> Result<Op
 fn boot<'t>(test: &'t Test, image: &Image, name: &str, mirror: &Path) -> Result<Vm<'t>> {
     let settings = test.settings();
     let append = if name == "simpledrm" {
-        format!("{APPEND} zbm.timeout=5 vga=0x318")
+        format!("{APPEND} zbm.timeout=5 zbm.console_font=psf vga=0x318")
     } else {
         format!("{APPEND} zbm.timeout=30")
     };
@@ -239,16 +243,37 @@ pub(super) fn check_console(
     let colours = fs::read(&path).ok().and_then(|ppm| screen_colours(&ppm));
     test.check(
         colours.is_some_and(|count| count >= COUNTDOWN_COLOURS),
-        &format!("virtio: the console draws it in colour ({colours:?} colours)"),
+        &format!("virtio: the console draws it in colour, anti-aliased ({colours:?} colours)"),
     );
     check_shell(test, vm, mirror, monitor, pace)?;
+    check_font(test, "virtio", mirror, ".ttf", pace)?;
+    check_fallback(test, vm, mirror, monitor, pace)
+}
+
+/// The font of the console's start, from its mirror, of a file ending in
+/// `extension`: `.ttf` by default, `.psf` with `zbm.console_font=psf`.
+pub(super) fn check_font(
+    test: &Test,
+    name: &str,
+    mirror: &Path,
+    extension: &str,
+    pace: Pace,
+) -> Result<()> {
     let started = wait_screen(mirror, STARTED, pace.patience.min(10))?;
     let shown = started.as_deref().unwrap_or("").trim().to_owned();
     test.check(
         started.is_some(),
-        &format!("virtio: the console started on the display ({shown})"),
+        &format!("{name}: the console started on the display ({shown})"),
     );
-    check_fallback(test, vm, mirror, monitor, pace)
+    let font = regex(STARTED)?
+        .captures(&shown)
+        .and_then(|captures| captures.get(3))
+        .map_or(String::new(), |font| font.as_str().to_owned());
+    test.check(
+        font.ends_with(extension),
+        &format!("{name}: it draws with a {extension} font ({font})"),
+    );
+    Ok(())
 }
 
 /// The console killed from its shell: the kernel console takes keys again,
@@ -335,6 +360,7 @@ pub(super) fn check_handover(
         countdown.is_some(),
         "simpledrm: the countdown shows on the console",
     );
+    check_font(test, "simpledrm", mirror, ".psf", pace)?;
     let released = wait_screen(mirror, RELEASED, pace.patience.min(120))?;
     test.check(
         released.is_some(),

@@ -64,6 +64,8 @@ drm = { version = "=0.15.0", default-features = false }
 alacritty_terminal = { version = "=0.26.0", default-features = false }
 rustix = { version = "1", default-features = false, features = ["std", "pty", "termios", "process"] }
 signal-hook = { version = "0.4", default-features = false }
+# TrueType fonts for the console on the display (ROADMAP.md #19, step 3): parsed with skrifa, hinted and rasterized.
+swash = { version = "=0.2.10", default-features = false, features = ["std", "scale", "render"] }
 
 # Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

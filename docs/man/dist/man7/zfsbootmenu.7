@@ -270,6 +270,13 @@ With the Rust runtime, use the font closest to this height in pixels, doubled if
 .INDENT 0.0
 .INDENT 3.5
 In images built with the Rust runtime (\fIzfsbootmenu_runtime=rust\fP), run ZFSBootMenu and its recovery shell on a console of its own, which draws on the display through the kernel\(aqs DRM drivers (\fIsimpledrm\fP on the firmware\(aqs framebuffer is enough) with the image\(aqs console fonts, at the size \fBzbm.autosize\fP chooses, and reads the keyboards itself. It shows 256 colours and true colour, and keeps nothing that scrolls off the screen. Before booting, it hands the display and the keyboards back to the kernel. When the control terminal is not a virtual console, when the console cannot use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on the US layout, from the keyboards present when it starts. The image needs the kernel\(aqs \fIevdev\fP module and the display\(aqs DRM driver, for instance with \fIadd_drivers+=\(dq evdev virtio_gpu \(dq\fP in its dracut configuration. The default, \fBzbm.console=kernel\fP, keeps the kernel console.
+.sp
+\fBzbm.console_font=psf\fP
+.INDENT 0.0
+.INDENT 3.5
+The console draws with the image\(aqs TrueType font, DejaVu Sans Mono, which covers Latin, Greek and Cyrillic, in cells as high as the console font \fBzbm.autosize\fP chooses. With \fBpsf\fP, it draws with that console font itself, as the kernel console would.
+.UNINDENT
+.UNINDENT
 .UNINDENT
 .UNINDENT
 .sp

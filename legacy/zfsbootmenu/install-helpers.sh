@@ -500,6 +500,15 @@ install_zbm_fonts() {
     [ -f "${font}" ] && zbm_install_file "${font}" "/usr/share/zfsbootmenu/fonts/${font##*/}"
   done
 
+  # The console on the display of the Rust runtime draws with a TrueType
+  # font (zbm.console=drm, ROADMAP.md #19)
+  if [ "${ZBM_RUNTIME}" = "rust" ] && [ -f "${zfsbootmenu_module_root}/fonts/dejavu/DejaVuSansMono.ttf" ]; then
+    zbm_install_file "${zfsbootmenu_module_root}/fonts/dejavu/DejaVuSansMono.ttf" \
+      "/usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf"
+    zbm_install_file "${zfsbootmenu_module_root}/fonts/dejavu/LICENSE" \
+      "/usr/share/zfsbootmenu/fonts/LICENSE.dejavu"
+  fi
+
   [ -n "${subsets}" ] && rm -rf "${subsets}"
   return 0
 }

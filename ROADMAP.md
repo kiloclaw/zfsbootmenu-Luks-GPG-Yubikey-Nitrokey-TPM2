@@ -179,7 +179,8 @@ the `kexec` path of its images.
 **Status:** steps 1 and 2 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
 (10 checks, f337135) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
 `zbm console`, Alacritty's terminal drawn through DRM with the image's PSF fonts, which falls back to the kernel
-console when it ends and hands the display back before `kexec`. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
+console when it ends and hands the display back before `kexec`. Step 3 is built and waits for its VM test: the console
+draws with the image's TrueType font, DejaVu Sans Mono. TrueType fonts and keyboard layouts are steps of their own (3 and 4), and the
 console becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
@@ -232,8 +233,9 @@ console becomes the default only after the cutover.
     the drivers), so it is not hidden behind the console.
   - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only; step 2
     added `alacritty_terminal` (0.26.0, Apache-2.0, without `serde`), `rustix` directly and `signal-hook`, for
-    `zbm-console` (decision 1 of REFACTOR-ROADMAP.md). `fontdue` or a Ratatui pixel backend and the keyboard crates
-    are not among the agreed crates: adding them is a decision of their own, with their size in the image.
+    `zbm-console`; step 3 added `swash` (0.2.10, MIT or Apache-2.0) for `zbm-display`, not `fontdue`, whose parser
+    `ttf-parser` was declared unmaintained (RUSTSEC-2026-0192) (decision 1 of REFACTOR-ROADMAP.md). The keyboard
+    crates are not among the agreed crates: adding them is a decision of their own, with their size in the image.
 - **Steps:**
   1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
      sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
@@ -270,8 +272,21 @@ console becomes the default only after the cutover.
        on `simpledrm`, the hand-over and the boot of the boot environment.
      - Left for later: keyboards plugged in after the console started, and a console that comes back after it
        ended.
-  3. TrueType fonts with `fontdue` at the size `zbm console-autosize` computes, for full Unicode without a 512-glyph
-     subset (#18).
+  3. **Built; its VM test waits for a run.** TrueType fonts at the size `zbm console-autosize` computes, for full
+     Unicode without a 512-glyph subset (#18).
+     - `zbm_display::outline`: a TrueType or OpenType font through `swash` (hinted, rasterized as coverage), sized
+       so that a line fills a cell as high as the console font `zbm console-autosize` chooses, with whole pixels per
+       em; each character rasterized once. The grid blends its coverage between the cell's colours, and falls back
+       to the replacement character or `?` for characters the font lacks.
+     - `zbm_display::boxes`: the box drawing (U+2500 to U+257F, but the diagonals) and block characters (U+2580 to
+       U+259F) drawn to fill their cells, so that borders and bars join as they do with the console fonts.
+     - Images with the Rust runtime carry DejaVu Sans Mono 2.37 (340 KB, Bitstream Vera licence) as
+       `/usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf`; `zbm console` draws with it unless
+       `zbm.console_font=psf`, or the image has none, and names its font in its start message.
+     - `runtime-rust-console` checks the TrueType font and its anti-aliasing on `virtio_gpu`, and
+       `zbm.console_font=psf` on `simpledrm`.
+     - Left for later: a bold face (bold is drawn bright, as on the kernel console), fonts other than the image's,
+       and characters wider than a cell, which are cut at its edge.
   4. Keyboard layouts with `xkbcommon-rs` and the layout files the image needs, so that the unlock dialog's
      `Ctrl-K` switches real layouts.
   5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.

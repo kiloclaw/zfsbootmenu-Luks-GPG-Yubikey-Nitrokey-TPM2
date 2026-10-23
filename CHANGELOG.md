@@ -118,6 +118,14 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### TrueType fonts on the console on the display
+
+Step 3 of ROADMAP.md #19. Images with the Rust runtime carry DejaVu Sans Mono 2.37 (340 KB, Bitstream Vera licence),
+and the console of `zbm.console=drm` draws with it, through `swash`, in cells as high as the console font
+`zbm.autosize` chooses: Latin, Greek and Cyrillic without a 512-glyph subset, anti-aliased and hinted. Box drawing and
+block characters are drawn to fill their cells. `zbm.console_font=psf` keeps the console fonts. New dependency:
+`swash` with `skrifa`, chosen over `fontdue`, whose parser is unmaintained (RUSTSEC-2026-0192).
+
 ### The console on the display (`zbm.console=drm`)
 
 Step 2 of ROADMAP.md #19, for images with the Rust runtime, off by default. With `zbm.console=drm` on the kernel

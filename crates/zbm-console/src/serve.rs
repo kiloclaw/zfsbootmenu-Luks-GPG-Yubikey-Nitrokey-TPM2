@@ -250,12 +250,15 @@ fn on_display(
     let keyboards = Keyboards::open(&places.sys, &places.dev)?;
     let taken = VirtualTerminal::take(vt)?;
     let (width, height) = grid.cell();
+    let grid_name = grid.name().to_owned();
     let mut console = Console::new(grid, size);
     set_size(&*master, &console.window_size())?;
     let (columns, rows) = console.size();
     let (x, y) = size;
     let card = card.display();
-    let started = format!("on {card}: {x}x{y} display, {width}x{height} cells, {columns}x{rows}");
+    let font = grid_name;
+    let started =
+        format!("on {card}: {x}x{y} display, {font} {width}x{height} cells, {columns}x{rows}");
     places.log(6, &started);
     settings.mirror_line(&format!("zbm console: {started}"));
     let mut mirror = settings

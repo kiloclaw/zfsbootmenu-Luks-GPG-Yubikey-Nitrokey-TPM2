@@ -85,7 +85,27 @@ use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Ke
 US layout, from the keyboards present when it starts. The image needs the kernel's *evdev* module
 and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
 configuration. The default, **zbm.console=kernel**, keeps the kernel console.
+
+**zbm.console_font=psf**
+
+  The console draws with the image's TrueType font, DejaVu Sans Mono, which covers Latin, Greek and
+  Cyrillic, in cells as high as the console font **zbm.autosize** chooses. With **psf**, it draws
+  with that console font itself, as the kernel console would.
 "#;
+
+/// `zbm.console_font`: which fonts the console on the display draws with.
+pub static DISPLAY_CONSOLE_FONT: OptionSpec = OptionSpec {
+    name: "zbm.console_font",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["ttf", "psf"]),
+    default: Some("ttf"),
+    summary: "The fonts of the console on the display: TrueType or console fonts",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_font=psf"],
+};
 
 /// `zbm.console_mirror`: where the console on the display writes the text
 /// of its screen, for the VM tests.

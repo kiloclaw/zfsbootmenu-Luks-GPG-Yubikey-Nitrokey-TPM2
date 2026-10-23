@@ -393,14 +393,21 @@ fn dracut_images_start_the_selected_runtime() {
     let conf = rust.text("etc/zfsbootmenu.conf");
     assert!(conf.contains("export ZBM_RUNTIME=\"rust\"\n"), "{conf}");
     // Rust images get the same fonts as 256-glyph subsets, which leave the
-    // console all 16 colours.
-    let names: Vec<&String> = rust.fonts.keys().collect();
+    // console all 16 colours, and the TrueType font of the console on the
+    // display, with its licence.
+    let (outline, bitmap): (Vec<_>, Vec<_>) = rust
+        .fonts
+        .iter()
+        .partition(|(name, _)| !name.ends_with(".psf"));
+    let names: Vec<&String> = bitmap.iter().map(|(name, _)| *name).collect();
     assert_eq!(names, legacy.fonts.keys().collect::<Vec<_>>());
     assert!(
-        rust.fonts.values().all(|&glyphs| glyphs == 256),
+        bitmap.iter().all(|(_, glyphs)| **glyphs == 256),
         "{:?}",
         rust.fonts
     );
+    let outline: Vec<&str> = outline.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(outline, ["DejaVuSansMono.ttf", "LICENSE.dejavu"]);
     // zbm is zluks, which also closes the LUKS mappings before booting.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
     let hook = rust.text(teardown);
@@ -449,6 +456,8 @@ fn spleen_is_the_console_font_of_rust_images_that_ask_for_it() {
     assert_eq!(
         fonts,
         [
+            ("DejaVuSansMono.ttf", 0),
+            ("LICENSE.dejavu", 0),
             ("LICENSE.spleen", 0),
             ("spleen-12x24.psf", 256),
             ("spleen-16x32.psf", 256),
@@ -472,7 +481,8 @@ fn spleen_is_the_console_font_of_rust_images_that_ask_for_it() {
     // Another family is Terminus too.
     rust_settings[1] = ("zfsbootmenu_console_font", "comic");
     let other = dracut_install(&mut parity, &rust_settings);
-    assert!(other.fonts.keys().all(|name| name.starts_with("ter-v")));
+    let psf = other.fonts.keys().filter(|name| name.ends_with(".psf"));
+    assert!(psf.clone().count() == 6 && psf.clone().all(|name| name.starts_with("ter-v")));
     assert_eq!(
         other.warnings,
         ["unknown zfsbootmenu_console_font 'comic'; installing Terminus"]

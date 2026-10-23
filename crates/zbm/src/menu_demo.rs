@@ -97,7 +97,11 @@ pub(crate) fn grid(
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no console font"))?;
     let font = Font::parse(&files.read(&chosen.path)?)
         .map_err(|error| std::io::Error::other(format!("{}: {error}", chosen.path.display())))?;
-    Ok(Grid::new(font, if chosen.doubled { 2 } else { 1 }))
+    let name = chosen
+        .path
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    Ok(Grid::new(font, if chosen.doubled { 2 } else { 1 }).named(&name))
 }
 
 /// `zbm debug menu-demo`.

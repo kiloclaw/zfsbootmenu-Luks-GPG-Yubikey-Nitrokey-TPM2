@@ -3,10 +3,10 @@ use pretty_assertions::assert_eq;
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
-/// A screenshot of 5 colours, one row each.
+/// A screenshot of 9 colours, one row each.
 fn dump(_: &Vm<'_>, path: &Path) -> Result<()> {
-    let mut bytes = b"P6\n4 5\n255\n".to_vec();
-    for colour in 0..5_u8 {
+    let mut bytes = b"P6\n4 9\n255\n".to_vec();
+    for colour in 0..9_u8 {
         bytes.extend(std::iter::repeat_n([colour, 0, 0], 4).flatten());
     }
     fs::write(path, bytes).map_err(Error::io("writing the screenshot"))
@@ -114,7 +114,8 @@ fn the_console_shows_takes_keys_and_falls_back() {
     let mirror = mirror_path(&test, "virtio");
     fs::write(
         &mirror,
-        "\x0czbm console: on /dev/dri/card0: 1280x800 display, 10x20 cells, 128x40\n\
+        "\x0czbm console: on /dev/dri/card0: 1280x800 display, DejaVuSansMono.ttf 10x20 cells, \
+         128x40\n\
          \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n",
     )
     .unwrap();
@@ -125,12 +126,13 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 7, "{checks:?}");
+    assert_eq!(checks.len(), 8, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
     );
     assert!(checks[4].contains("1280x800 display"), "{checks:?}");
+    assert!(checks[5].contains("DejaVuSansMono.ttf"), "{checks:?}");
     cleanup(&settings);
 }
 
@@ -148,7 +150,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 10, "{checks:?}");
+    assert_eq!(checks.len(), 13, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"
@@ -163,7 +165,11 @@ fn the_console_hands_the_display_back_and_the_environment_boots() {
     let mirror = mirror_path(&test, "simpledrm");
     fs::write(
         &mirror,
-        format!("\x0cBooting tplain/ROOT/be in 4 seconds\n\x0c{RELEASED}\n"),
+        format!(
+            "\x0czbm console: on /dev/dri/card0: 1024x768 display, ter-v14b.psf 8x14 cells, \
+             128x54\n\
+             \x0cBooting tplain/ROOT/be in 4 seconds\n\x0c{RELEASED}\n"
+        ),
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say("BE-INIT-DONE\r\n")]);
@@ -172,7 +178,7 @@ fn the_console_hands_the_display_back_and_the_environment_boots() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 3, "{checks:?}");
+    assert_eq!(checks.len(), 5, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"

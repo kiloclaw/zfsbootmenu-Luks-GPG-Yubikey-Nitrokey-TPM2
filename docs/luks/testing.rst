@@ -335,14 +335,16 @@ Following a boot
   step 2), in a Rust image with the ``virtio_gpu`` and ``evdev`` drivers. Both boots have ``tty1`` as the control
   terminal (``console=ttyS0 console=tty1``) and a second serial port, to which the console writes the text of its
   screen after each change (``zbm.console_mirror=/dev/ttyS1``), kept as ``mirror-<boot>.txt``. On a virtio GPU, the
-  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 4 colours; Escape typed with
+  countdown must show on the console and a screenshot (``virtio-countdown.ppm``) at least 8 colours, as the TrueType
+  font is anti-aliased, and the console's start must name a ``.ttf`` font; Escape typed with
   ``sendkey`` must open the recovery shell on the console, and ``readlink /proc/self/fd/0`` typed there must name a
   pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's
   last screen. The console writes its start (card, display, cells) to the mirror too. After ``kill -9`` of the
   console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
   kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's
-  message that the console ended. On ``simpledrm`` (``vga=0x318``), the countdown runs out: the
-  console must write that it handed the display back, and the boot environment must boot.
+  message that the console ended. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start
+  must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the
+  boot environment must boot.
 
 Results
 -------

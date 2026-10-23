@@ -334,6 +334,8 @@
           "usr/share/zfs/compatibility.d/zol-0.8": "file 644",
           "usr/share/zfsbootmenu": "dir",
           "usr/share/zfsbootmenu/fonts": "dir",
+          "usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf": "file 644",
+          "usr/share/zfsbootmenu/fonts/LICENSE.dejavu": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v12n.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v14b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v20b.psf": "file 644",
@@ -342,6 +344,8 @@
           "usr/share/zfsbootmenu/fonts/ter-v32b.psf": "file 644"
         },
         "fonts": {
+          "DejaVuSansMono.ttf": 0,
+          "LICENSE.dejavu": 0,
           "ter-v12n.psf": 256,
           "ter-v14b.psf": 256,
           "ter-v20b.psf": 256,

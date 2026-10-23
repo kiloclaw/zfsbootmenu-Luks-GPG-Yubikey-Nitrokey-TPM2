@@ -229,6 +229,12 @@ These options are set on the kernel command line when booting the initramfs or U
   and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
   configuration. The default, **zbm.console=kernel**, keeps the kernel console.
 
+  **zbm.console_font=psf**
+
+    The console draws with the image's TrueType font, DejaVu Sans Mono, which covers Latin, Greek and
+    Cyrillic, in cells as high as the console font **zbm.autosize** chooses. With **psf**, it draws
+    with that console font itself, as the kernel console would.
+
 **zbm.wait_for=device,device,...**
 
   Ensure that one or more devices are present before starting the pool import process. Devices may

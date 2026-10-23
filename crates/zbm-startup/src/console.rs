@@ -1,12 +1,13 @@
 //! Whether the supervisor starts the console on the display
 //! (`zbm.console=drm`, ROADMAP.md #19), and with which arguments: the font
-//! height of `zbm.autosize=<pixels>`, and the mirror of the VM tests.
+//! height of `zbm.autosize=<pixels>`, the console fonts instead of the
+//! TrueType font (`zbm.console_font=psf`), and the mirror of the VM tests.
 
 use std::path::Path;
 
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
-use zbm_config::spec::cmdline::{AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE};
+use zbm_config::spec::cmdline::{AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT};
 use zbm_platform::System;
 
 use crate::autosize::choice::Request;
@@ -25,6 +26,10 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
     let request = Request::parse(args.lookup(&AUTOSIZE, &mut messages).as_deref());
     if let Request::Height(pixels) = request {
         arguments.extend(["--height".to_owned(), pixels.to_string()]);
+    }
+    let font = args.lookup(&DISPLAY_CONSOLE_FONT, &mut messages);
+    if font.as_deref().map(str::trim) == Some("psf") {
+        arguments.push("--psf".to_owned());
     }
     if let Some(mirror) = args
         .lookup(&CONSOLE_MIRROR, &mut messages)
@@ -73,8 +78,10 @@ mod tests {
         // A value the option does not document is the default.
         assert_eq!(console("zbm.console=fb"), None);
         assert_eq!(
-            console("zbm.console=drm zbm.autosize=48 zbm.console_mirror=/dev/ttyS1"),
-            words("console --height 48 --mirror /dev/ttyS1")
+            console(
+                "zbm.console=drm zbm.autosize=48 zbm.console_font=psf zbm.console_mirror=/dev/ttyS1"
+            ),
+            words("console --height 48 --psf --mirror /dev/ttyS1")
         );
         assert_eq!(
             console("zbm.console=drm zbm.console_mirror="),

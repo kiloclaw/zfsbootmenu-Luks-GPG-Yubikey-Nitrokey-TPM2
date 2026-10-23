@@ -12,15 +12,25 @@
 //! it also does at once when it cannot use the display.
 //!
 //! ```text
-//! zbm console [--card <path>] [--height <pixels>] [--mirror <file>]
+//! zbm console [--card <path>] [--height <pixels>] [--psf] [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! ```
+//!
+//! The console draws with the image's TrueType font, in cells as high as
+//! the console font `zbm console-autosize` would choose; `--psf` draws with
+//! that console font itself.
 //!
 //! `--mirror` writes the screen's text to a file or device after each
 //! change, after a form feed, for the VM tests.
 
+use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+use zbm_display::grid::Grid;
+use zbm_display::outline::Outline;
+use zbm_platform::Files;
+use zbm_startup::autosize::FONTS;
 
 use zbm_console::serve::{Places, Released, Settings, release, serve};
 use zbm_platform::RealFiles;
@@ -29,7 +39,7 @@ use crate::{Io, USAGE};
 
 /// The usage text.
 const USAGE_TEXT: &str = "\
-Usage: zbm console [--card <path>] [--height <pixels>] [--mirror <file>]
+Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
 ";
 
@@ -43,6 +53,8 @@ pub struct Options {
     pub card: Option<PathBuf>,
     /// The font height asked for, as `zbm.autosize=<pixels>`.
     pub height: Option<u16>,
+    /// Whether to draw with the console fonts instead of the TrueType font.
+    pub psf: bool,
     /// Where to write the screen's text.
     pub mirror: Option<PathBuf>,
 }
@@ -56,6 +68,7 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--card" => options.card = Some(PathBuf::from(args.next()?)),
             "--height" => options.height = Some(args.next()?.parse().ok()?),
             "--mirror" => options.mirror = Some(PathBuf::from(args.next()?)),
+            "--psf" => options.psf = true,
             _ => return None,
         }
     }
@@ -72,6 +85,36 @@ pub fn parse_release(args: &[String]) -> Option<Duration> {
     }
 }
 
+/// The image's TrueType font, in its fonts directory.
+pub const TTF: &str = "DejaVuSansMono.ttf";
+
+/// The grid the console draws with on a display of `size`, from the
+/// image's fonts below `root`: the TrueType font in cells as high as the
+/// console font `zbm console-autosize` would choose, or that console font
+/// itself, with `--psf` or when the image has no TrueType font.
+///
+/// # Errors
+///
+/// When the image has no console font.
+pub fn console_grid(
+    files: &dyn Files,
+    root: &Path,
+    options: &Options,
+    size: (u32, u32),
+) -> io::Result<Grid> {
+    let bitmap = crate::menu_demo::grid(files, root, options.height, size)?;
+    if options.psf {
+        return Ok(bitmap);
+    }
+    let Ok(data) = files.read(&root.join(FONTS).join(TTF)) else {
+        return Ok(bitmap);
+    };
+    Ok(match Outline::new(data, bitmap.cell().1) {
+        Ok(outline) => Grid::outline(outline).named(TTF),
+        Err(_) => bitmap,
+    })
+}
+
 /// `zbm console`, or `zbm console release`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     if args.first().map(String::as_str) == Some("release") {
@@ -82,12 +125,12 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         return USAGE;
     };
     let settings = Settings {
-        card: options.card,
-        mirror: options.mirror,
+        card: options.card.clone(),
+        mirror: options.mirror.clone(),
     };
     let places = Places::system();
     let files = RealFiles;
-    let mut grid = |size| crate::menu_demo::grid(&files, Path::new("/"), options.height, size);
+    let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
     match serve(&settings, &places, &mut grid) {
         Ok(()) => 0,
         Err(error) => {
@@ -137,10 +180,12 @@ mod tests {
             Some(Options {
                 card: Some(PathBuf::from("/dev/dri/card1")),
                 height: Some(32),
+                psf: false,
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
             })
         );
         assert_eq!(parse(&[]), Some(Options::default()));
+        assert!(parse(&args("--psf")).unwrap().psf);
         assert_eq!(parse(&args("--height tall")), None);
         assert_eq!(parse(&args("--mirror")), None);
         assert_eq!(parse(&args("--loud")), None);
@@ -168,5 +213,34 @@ mod tests {
         assert_eq!(run(&args("release --now"), &mut io), USAGE);
         let text = String::from_utf8_lossy(&stderr).into_owned();
         assert_eq!(text.matches("Usage: zbm console").count(), 2, "{text}");
+    }
+
+    #[test]
+    fn the_console_draws_with_the_truetype_font_at_the_console_font_s_height() {
+        let files = zbm_testkit::fakes::FakeFiles::new();
+        let fonts = Path::new("/").join(FONTS);
+        let terminus = include_bytes!("../../../legacy/zfsbootmenu/fonts/ter-v20b.psf");
+        files.file(fonts.join("ter-v20b.psf"), terminus.as_slice());
+        let options = Options::default();
+        let psf = Options {
+            psf: true,
+            ..Options::default()
+        };
+        let grid = |options: &Options| console_grid(&files, Path::new("/"), options, (1280, 800));
+
+        // Without a TrueType font, the console font.
+        let bitmap = grid(&options).unwrap();
+        assert_eq!((bitmap.name(), bitmap.cell()), ("ter-v20b.psf", (10, 20)));
+
+        let dejavu = include_bytes!("../../../legacy/zfsbootmenu/fonts/dejavu/DejaVuSansMono.ttf");
+        files.file(fonts.join(TTF), dejavu.as_slice());
+        let outline = grid(&options).unwrap();
+        assert_eq!(outline.name(), TTF);
+        assert_eq!(outline.cell().1, 20);
+        assert_eq!(grid(&psf).unwrap().name(), "ter-v20b.psf");
+
+        // A file that is no font leaves the console font.
+        files.file(fonts.join(TTF), "not a font");
+        assert_eq!(grid(&options).unwrap().name(), "ter-v20b.psf");
     }
 }
