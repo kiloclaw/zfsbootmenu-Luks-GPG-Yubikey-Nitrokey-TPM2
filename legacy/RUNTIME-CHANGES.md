@@ -47,6 +47,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   script, and their teardown hook `80-luks-close.sh` runs `zluks close`; legacy images are unchanged. The online help
   of `zfsbootmenu(7)` and `zfsbootmenu-luks(7)` describes what the Rust runtime does with LUKS.
   **Rust:** done; `crates/zbm/tests/image.rs` checks both runtimes' images.
+- [x] `c364e98`: images with `zfsbootmenu_runtime=rust` install their console fonts as 256-glyph subsets that
+  `install_zbm_fonts` makes with `zbm console-fonts` (ROADMAP.md #20), so the console keeps its 16 colours; the whole
+  fonts when `zbm` cannot make them. Legacy images are unchanged.
+  **Rust:** done; `zbm_types::psf` makes the subsets, and `crates/zbm/tests/image.rs` checks the fonts of both
+  runtimes' images.
 
 ## Legacy limitations the Rust runtime must not copy
 
