@@ -306,3 +306,103 @@ fn missing_tpm_devices_are_probed_once() {
         ]
     );
 }
+
+/// A machine with a TPM (not a device, so it is always there) and the
+/// systemd-tpm2 plugin, whose `cryptsetup` accepts the PIN `1234`.
+fn plugin_machine() -> (FakeSystem, Settings) {
+    let fake = FakeSystem::new();
+    fake.files.file(
+        "/usr/lib/cryptsetup/libcryptsetup-token-systemd-tpm2.so",
+        "",
+    );
+    fake.runner.on(|command| {
+        let right = matches!(
+            command.get_stdin(),
+            Input::Secret(pin) if pin.expose().starts_with(b"1234")
+        );
+        let pinless = matches!(command.get_stdin(), Input::Null);
+        let status = if right || pinless { 0 } else { 2 };
+        Some(Ok(Output::new(Status::exited(status), "")))
+    });
+    let mut settings = Settings::new("/zfsbootmenu");
+    settings.tpm2_tcti = "swtpm:port=2321".to_owned();
+    (fake, settings)
+}
+
+#[test]
+fn the_plugin_opens_tokens_with_and_without_a_pin() {
+    let args = [];
+    let target = Target {
+        name: "v",
+        device: "/dev/sda",
+        args: &args,
+    };
+    let (fake, settings) = plugin_machine();
+    fake.console.secret(b"bad").secret(b"1234");
+    with_session(&fake, &settings, |session| {
+        assert_eq!(
+            session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json")),
+            Ok(())
+        );
+        // The PIN that worked is tried first on the next volume.
+        assert_eq!(session.tpm2_pins.len(), 1);
+        assert_eq!(
+            session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json")),
+            Ok(())
+        );
+        assert_eq!(session.tpm2_pins.len(), 1);
+        assert_eq!(
+            session.try_tpm2_token(target, "0", &token("token-tpm2.json")),
+            Ok(())
+        );
+    });
+    let output = fake.console.output_text();
+    assert!(output.contains("The TPM did not release the key"));
+    assert!(fake.kmsg().contains("unlocked /dev/sda with TPM2 and PIN"));
+
+    // An empty PIN gives up; so do three wrong ones.
+    let (fake, settings) = plugin_machine();
+    fake.console.secret(b"");
+    let given_up = with_session(&fake, &settings, |session| {
+        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+    });
+    assert!(given_up.is_err());
+    let (fake, settings) = plugin_machine();
+    fake.console
+        .secret(b"a")
+        .secret(b"b")
+        .secret(b"c")
+        .secret(b"d");
+    let too_many = with_session(&fake, &settings, |session| {
+        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+    });
+    assert!(too_many.is_err());
+    // Three PINs, three attempts to open.
+    let opens = fake.runner.lines();
+    let opens = opens
+        .iter()
+        .filter(|line| line.starts_with("cryptsetup open"));
+    assert_eq!(opens.count(), 3);
+}
+
+#[test]
+fn without_plugin_or_tools_a_pin_token_is_unsupported() {
+    let fake = FakeSystem::new();
+    fake.console.secret(b"1234");
+    let mut settings = Settings::new("/zfsbootmenu");
+    settings.tpm2_tcti = "swtpm:port=2321".to_owned();
+    let args = [];
+    let target = Target {
+        name: "v",
+        device: "/dev/sda",
+        args: &args,
+    };
+    let result = with_session(&fake, &settings, |session| {
+        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+    });
+    assert!(result.is_err());
+    assert!(
+        fake.kmsg()
+            .contains("needs the systemd-tpm2 cryptsetup plugin")
+    );
+}

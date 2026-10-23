@@ -265,6 +265,18 @@ Done in R3:
   would have to guess it), new warnings for deprecated names (a behaviour change, for R5), and the build options are
   still read by the shell scripts of the dracut module and the mkinitcpio hook (R6, recorded in the table as their
   reader). The strict lints for `zbm-config` are part of R3.5.
+- Size and type rules (R3.5): `zbm-boot`'s `boot.rs` is split into `boot/` (ZFS queries, mounts, kernel discovery,
+  the boot sequence) and `commandline.rs` lost its long function; `generate-zbm`'s `generate.rs` is split into
+  `generate/` (settings, system, kernels, initramfs, bundle, install), `dump.rs` into its emitter and quoting styles,
+  and its parity tests into a directory; the long functions of `zbm-luks` (unlocking every volume, TPM2, GnuPG,
+  FIDO2, YubiKey, key devices) and `zbm-config` (crypttab options) are split into small steps, with enums where
+  outcomes were `Option<Option<_>>`. These four crates and `zbm-boot` now have no function over 60 lines and no file
+  over 600 (`xtask metrics`: 0 long functions and files, down from 18 and 10). `zbm-config` and `zbm-luks` pass the
+  strict lints and are on the strict list; indexing in the hand-written SHA-256, HMAC and base64 of `zbm-luks` is
+  allowed with its reason. Moving tests out of source files lowered the measured coverage of `zbm-boot` and
+  `zbm-luks`, whose test lines had counted as covered; new tests of the error paths and of the cryptsetup plugin
+  paths for FIDO2 and TPM2 bring both back to their baselines. Behaviour is unchanged: unit, parity and device tests
+  pass.
 
 ## What the pilots taught
 

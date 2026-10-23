@@ -323,4 +323,74 @@ mod tests {
                 .contains("no FIDO2 security key for token 3 on /dev/sda")
         );
     }
+
+    /// A machine with a FIDO2 security key and the systemd-fido2 plugin,
+    /// whose `cryptsetup` accepts the PIN `1234`, or no PIN.
+    fn plugin_machine() -> FakeSystem {
+        let fake = FakeSystem::new();
+        fake.files.device("/dev/hidraw99").file(
+            "/usr/lib/cryptsetup/libcryptsetup-token-systemd-fido2.so",
+            "",
+        );
+        fake.runner.on(|command| {
+            let right = matches!(
+                command.get_stdin(),
+                Input::Secret(pin) if pin.expose().starts_with(b"1234")
+            );
+            let pinless = matches!(command.get_stdin(), Input::Null);
+            let status = if right || pinless { 0 } else { 2 };
+            Some(Ok(Output::new(Status::exited(status), "")))
+        });
+        fake
+    }
+
+    fn fido2_token(pin: bool) -> Token {
+        let json = std::fs::read_to_string(
+            repo_root().join("crates/zbm-luks/tests/fixtures/token-fido2.json"),
+        )
+        .unwrap()
+        .replace(
+            r#""fido2-clientPin-required":false"#,
+            &format!(r#""fido2-clientPin-required":{pin}"#),
+        );
+        Token::from_export("0", &json).unwrap()
+    }
+
+    #[test]
+    fn the_plugin_asks_for_the_pin_when_the_token_needs_one() {
+        let args = [];
+        let target = Target {
+            name: "v",
+            device: "/dev/sda",
+            args: &args,
+        };
+        let fake = plugin_machine();
+        fake.console.secret(b"bad").secret(b"1234");
+        let settings = Settings::new("/zfsbootmenu");
+        with_session(&fake, &settings, |session| {
+            assert_eq!(
+                session.try_fido2_token(target, "0", &fido2_token(true)),
+                Ok(())
+            );
+            assert_eq!(
+                session.try_fido2_token(target, "0", &fido2_token(false)),
+                Ok(())
+            );
+        });
+        let output = fake.console.output_text();
+        assert!(output.contains("The security key did not release the key."));
+        assert!(output.contains("Touch the security key when it blinks."));
+
+        // No PIN, or three wrong ones, give up.
+        for secrets in [&[&b""[..]][..], &[b"a", b"b", b"c"]] {
+            let fake = plugin_machine();
+            for secret in secrets {
+                fake.console.secret(secret);
+            }
+            let result = with_session(&fake, &settings, |session| {
+                session.try_fido2_token(target, "0", &fido2_token(true))
+            });
+            assert!(result.is_err());
+        }
+    }
 }

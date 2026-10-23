@@ -16,6 +16,7 @@ use zbm_testkit::parity::Parity;
 use zbm_testkit::{TempDir, parity};
 
 use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
+use crate::error::BootError;
 use crate::kernels::Kernel;
 use crate::recovery::Recovery;
 use crate::support;
@@ -536,4 +537,38 @@ fn a_locked_boot_environment_is_not_supported_yet() {
     assert_eq!(outcome.shells, format!("{}\n", support::MESSAGE));
     assert!(!outcome.calls.contains("mount"));
     assert!(outcome.log.contains("ERROR: "));
+}
+
+#[test]
+fn missing_arguments_and_failed_exports_are_errors() {
+    let fake = FakeSystem::new();
+    let _log = fake_log(&fake);
+    fake.files.dir("/zfsbootmenu");
+    fake.runner
+        .respond("zpool export busy", 1, "pool is busy\n");
+    let system = fake.system();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    assert_eq!(export_pool(system.runner, ""), Err(BootError::NoPool));
+    assert_eq!(
+        export_pool(system.runner, "busy"),
+        Err(BootError::Export {
+            pool: "busy".to_owned(),
+            status: 1
+        })
+    );
+    assert_eq!(encryption_root(system.runner, "@snap"), None);
+    assert_eq!(locked_root(system.runner, ""), None);
+    assert_eq!(mount_zfs(&system, &state, "", Noise::Shown), None);
+    assert_eq!(
+        find_kernels(&system, &state, ""),
+        Err(BootError::NoFilesystem)
+    );
+    assert_eq!(select_kernel(&system, &state, ""), None);
+    assert_eq!(select_kernel(&system, &state, "tank/ROOT/none"), None);
+    let kmsg = fake.kmsg();
+    assert!(kmsg.contains("pool is undefined"));
+    assert!(kmsg.contains("fs is undefined"));
+    assert!(kmsg.contains("missing or empty"));
+    let defaults = BootSettings::default();
+    assert!(defaults.set_hostid && defaults.env.is_empty());
 }
