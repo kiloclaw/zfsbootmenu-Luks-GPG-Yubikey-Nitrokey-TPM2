@@ -53,6 +53,15 @@ pub fn option(value: Option<&str>) -> String {
     value.unwrap_or("None").to_owned()
 }
 
+/// A list of optional strings: `['enabled', None]`.
+pub fn option_list(items: &[Option<&str>]) -> String {
+    let items: Vec<String> = items
+        .iter()
+        .map(|item| item.map_or_else(|| "None".to_owned(), string))
+        .collect();
+    format!("[{}]", items.join(", "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,5 +79,6 @@ mod tests {
         assert_eq!(string("a'b\"c\n"), "'a\\'b\"c\\n'");
         assert_eq!(option(None), "None");
         assert_eq!(option(Some("ONLINE")), "ONLINE");
+        assert_eq!(option_list(&[Some("enabled"), None]), "['enabled', None]");
     }
 }
