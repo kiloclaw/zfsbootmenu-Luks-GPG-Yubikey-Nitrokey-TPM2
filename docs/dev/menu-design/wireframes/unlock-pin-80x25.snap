@@ -8,7 +8,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ …  Unlock LUKS volumes                                                       │
 │    Import pools                                                              │
 │    Find boot environments                                                    │
-│                                                                              │
 │         ┌──────────────────────────────────────────────────────────┐         │
 │         │                    Unlock luks-zroot-a                   │         │
 │         │                                                          │         │
@@ -16,6 +15,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │         │                                                          │         │
 │         │ TPM2 PIN:                                                │         │
 │         │ ↑/↓ to use the passphrase instead                        │         │
+│         │ Keyboard: us · Ctrl-K: layout · Ctrl-R: show             │         │
 │         │                                                          │         │
 │         │                                     [ Skip ]  [ Unlock ] │         │
 │         └──────────────────────────────────────────────────────────┘         │

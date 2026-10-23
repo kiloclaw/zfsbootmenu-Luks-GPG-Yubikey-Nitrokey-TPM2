@@ -1,5 +1,6 @@
-//! The differences view: what changed since a snapshot, as a grouped list,
-//! and a preview of the selected change; marked paths can be restored.
+//! The differences view: what changed since a snapshot, in two segments,
+//! the files and the packages, each a grouped list with a preview of the
+//! selection; marked paths can be restored.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -8,7 +9,7 @@ use ratatui::widgets::{Paragraph, Wrap};
 
 use super::lists;
 use crate::menu::format::fit;
-use crate::menu::model::{DiffView, Model};
+use crate::menu::model::{DiffView, Model, Segment};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::world::{Change, ChangeKind};
 
@@ -20,6 +21,8 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let Some(diff) = &model.diff else {
         return;
     };
+    let [bar, area] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(area);
+    frame.render_widget(Paragraph::new(segments(model.theme, diff)).centered(), bar);
     let (list, preview) = if area.width >= WIDE {
         let [list, preview] =
             Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
@@ -31,8 +34,40 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             Layout::vertical([Constraint::Min(4), Constraint::Length(lines)]).areas(area);
         (list, preview)
     };
+    if diff.segment == Segment::Packages {
+        super::packages::render_list(model, frame, list, diff);
+        super::packages::render_preview(model.theme, frame, preview, diff);
+        return;
+    }
     render_list(model, frame, list, diff);
     render_preview(model.theme, frame, preview, diff);
+}
+
+/// The segmented control: the shown segment in brackets, as a button, so
+/// it reads without colour.
+fn segments(theme: Theme, diff: &DiffView) -> Line<'static> {
+    let packages = diff
+        .packages
+        .as_ref()
+        .map_or_else(|| "none".to_owned(), |p| p.changes.len().to_string());
+    let files = diff.changes.len().to_string();
+    let mut spans = Vec::new();
+    for (segment, label, count) in [
+        (Segment::Files, "Files", files),
+        (Segment::Packages, "Packages", packages),
+    ] {
+        if !spans.is_empty() {
+            spans.push(Span::raw("   "));
+        }
+        let shown = segment == diff.segment;
+        let (text, role) = if shown {
+            (format!("[ {label} {count} ]"), Role::Selected)
+        } else {
+            (format!("  {label} {count}  "), Role::Muted)
+        };
+        spans.push(Span::styled(text, theme.style(role)));
+    }
+    Line::from(spans)
 }
 
 /// The style of a kind of change.

@@ -8,6 +8,8 @@
 
 mod diff;
 mod health;
+mod packages;
+mod unlock;
 
 use zbm_app::Encryption;
 use zbm_platform::secret::Secret;
@@ -15,6 +17,8 @@ use zbm_types::{DatasetName, ImportPolicy, PoolName, SnapshotName};
 
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
+pub use self::packages::{PackageChange, PackageDiff, PackageKind};
+pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
 
 /// The machine, as every view reads it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -38,6 +42,8 @@ pub struct Snapshot {
     pub next_boot: Option<DatasetName>,
     /// The default environment used up its boot tries: what boots instead.
     pub fallback: Option<Fallback>,
+    /// The keyboard layouts secrets can be typed with.
+    pub keyboard: Keyboard,
 }
 
 /// One stage of start-up.
@@ -204,6 +210,8 @@ pub struct Volume {
     pub methods: Vec<Method>,
     /// The pool it holds a device of, when known.
     pub pool: Option<PoolName>,
+    /// Its TPM2 key, if it has one.
+    pub tpm2: Option<Tpm2Seal>,
 }
 
 /// The state of a LUKS volume.
@@ -346,6 +354,8 @@ pub enum Action {
     },
     /// Give an environment its boot tries back: mark it good.
     ResetBootTries(DatasetName),
+    /// Seal a volume's TPM2 key to the PCRs as they are now.
+    Reseal(String),
     /// A shell in a chroot of an environment, or of a snapshot read-only.
     Chroot(String),
     /// Import a pool read/write again.
@@ -388,7 +398,13 @@ pub enum Event {
         method: Method,
         /// Tries left for a typed method, if limited.
         tries_left: Option<u32>,
+        /// Why this method is asked, when another one failed or the last
+        /// try was wrong: `the TPM kept the key: …`.
+        notice: Option<Notice>,
     },
+    /// A volume was opened without its TPM2 key, which the TPM kept: the
+    /// menu offers to seal it again.
+    ResealOffered(String),
     /// A pool did not import.
     ImportProblem {
         /// The pool.
@@ -404,6 +420,9 @@ pub enum Event {
         to: Option<SnapshotName>,
         /// What changed.
         changes: Vec<Change>,
+        /// The packages that changed; `None` when no package database was
+        /// found.
+        packages: Option<PackageDiff>,
     },
     /// An action finished.
     Finished(Outcome),

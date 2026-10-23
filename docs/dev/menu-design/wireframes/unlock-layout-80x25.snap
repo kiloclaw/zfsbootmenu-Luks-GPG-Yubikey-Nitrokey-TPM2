@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+                           Starting ZFSBootMenu  tank DEGRADED · 0/3 open · ! 1
+┌ STARTING ZFSBOOTMENU ──────────────────────────────────────────────── 3 of 5 ┐
+│ √  Load the ZFS module                                                       │
+│ √  Set the host ID                                                           │
+│ …  Unlock LUKS volumes                                                       │
+│    Import pools                                                              │
+│    Find boot environments                                                    │
+│         ┌──────────────────────────────────────────────────────────┐         │
+│         │                    Unlock luks-zroot-a                   │         │
+│         │                                                          │         │
+│         │ on /dev/nvme0n1p2                                        │         │
+│         │                                                          │         │
+│         │ Passphrase: Zürich                                       │         │
+│         │ ↑/↓ to use the TPM2 PIN instead                          │         │
+│         │ Keyboard: de · Ctrl-K: layout · Ctrl-R: hide             │         │
+│         │                                                          │         │
+│         │                                     [ Skip ]  [ Unlock ] │         │
+│         └──────────────────────────────────────────────────────────┘         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

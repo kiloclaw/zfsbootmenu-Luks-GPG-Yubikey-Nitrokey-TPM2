@@ -1,8 +1,8 @@
 # Boot health
 
-Four features that answer the questions people ask the menu after something went wrong: *will this environment
+Five features that answer the questions people ask the menu after something went wrong: *will this environment
 boot?*, *what happens when it doesn't?*, *can the running system choose the next boot?* and *can I get one file back
-without rolling back?*. The prototype draws them on its fake machine; the checks, the counting and the restore are
+without rolling back?*, and *what did the upgrade change?*. The prototype draws them on its fake machine; the checks, the counting and the restore are
 built in R4 (`zbm-app`) and R5. Nothing here is in the images yet.
 
 ```sh
@@ -78,9 +78,26 @@ preview of the selected change, to the right from 100 columns and below otherwis
 
 `Esc` goes back to the snapshots.
 
+## What the upgrade changed: packages
+
+Files say *what* changed; after an upgrade people think in packages. The Changes view has two segments, **Files** and
+**Packages**, in a segmented control above the list: the shown one in brackets, as a button, so it reads without
+colour. `Left` and `Right` switch them (wireframe `diff-packages`).
+
+- The packages segment compares the package database in the snapshot with the live one: `xbps` (`/var/db/xbps`),
+  `dpkg` (`/var/lib/dpkg/status`), `pacman` (`/var/lib/pacman/local`) or `rpm` (its SQLite database, read without
+  `rpm`). Each row has a mark (`+` installed, `-` removed, `↑` upgraded, `↓` downgraded; `^` and `v` in ASCII), the
+  name, and the versions right-aligned: *mesa 24.1.7_1 → 24.2.4_1*.
+- The preview says what happened, how to undo it (a removed package comes back by booting a clone of the snapshot or
+  rolling back, with its package record; restoring its files alone would leave the database wrong), and lists the
+  changed files that belong to the package. `Enter` shows them in the files segment, the first one selected.
+- In the demo, yesterday's upgrade removed `libdrm` when it installed the NVIDIA driver: the reason the desktop does
+  not start, found without reading 6 files.
+- Without a package database the segment says so (*No Package Database*), and the control shows `Packages none`.
+
 ## What `zbm-app` gains
 
 In [interfaces.md](interfaces.md): `checks` and `tries` on each environment, `fallback` and `next_boot` in the
 snapshot, the actions `RestoreFiles` and `ResetBootTries`, and the event `DiffReady` with the changes and their
-previews. The commands `zbm bless` and `zbm next-boot` and the `zbm.boot_tries` option are proposals for R5; their
+previews, and the packages that changed. The commands `zbm bless` and `zbm next-boot` and the `zbm.boot_tries` option are proposals for R5; their
 names are open until then.

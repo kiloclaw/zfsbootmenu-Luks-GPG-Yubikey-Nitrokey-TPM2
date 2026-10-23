@@ -230,10 +230,18 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
         VolumeState::Skipped => ("skipped".to_owned(), Role::Muted),
         VolumeState::Failed(reason) => (format!("failed: {reason}"), Role::Danger),
     };
-    let facts = vec![
-        Span::styled(format!("{}{dot}", volume.device), theme.style(Role::Muted)),
-        Span::styled(format!("{word:<8}"), theme.style(role)),
-    ];
+    let mut facts = Vec::new();
+    if volume.tpm2.as_ref().is_some_and(|seal| !seal.is_current()) {
+        facts.push(Span::styled(
+            format!("TPM2 changed{dot}"),
+            theme.style(Role::Warning),
+        ));
+    }
+    facts.push(Span::styled(
+        format!("{}{dot}", volume.device),
+        theme.style(Role::Muted),
+    ));
+    facts.push(Span::styled(format!("{word:<8}"), theme.style(role)));
     let name = format!("Volume  {}", volume.name);
     Some(lists::row(theme, &name, &[], width, facts))
 }

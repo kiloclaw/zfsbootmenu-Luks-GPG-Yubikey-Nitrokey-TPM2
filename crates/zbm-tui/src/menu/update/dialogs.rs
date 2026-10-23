@@ -1,12 +1,11 @@
-//! Dialogs: unlocking, choosing, confirming, errors.
+//! Dialogs: choosing, confirming, errors; unlocking is in `unlock`.
 
-use zbm_platform::secret::Secret;
 use zbm_types::{ImportPolicy, PoolName};
 
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Choice, Dialog, Model, Then};
-use crate::menu::world::{Action, Method, Outcome};
+use crate::menu::world::{Action, Outcome};
 
 /// A choice dialog.
 pub(super) fn choose(title: &str, lines: Vec<String>, choices: Vec<Choice>) -> Dialog {
@@ -138,12 +137,7 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
         return Vec::new();
     };
     match dialog {
-        Dialog::Unlock {
-            volume,
-            method,
-            tries_left,
-            secret,
-        } => unlock(model, input, (volume, method, tries_left, secret)),
+        Dialog::Unlock(prompt) => super::unlock::prompt(model, input, prompt),
         Dialog::Choose {
             title,
             lines,
@@ -164,73 +158,6 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
             Vec::new()
         }
     }
-}
-
-/// The unlock dialog: the secret never leaves its [`Secret`].
-fn unlock(
-    model: &mut Model,
-    input: Input,
-    (volume, method, tries_left, mut secret): (String, Method, Option<u32>, Secret),
-) -> Vec<Action> {
-    let mut method = method;
-    match input {
-        Input::Type(c) => {
-            let mut bytes = [0_u8; 4];
-            secret.push_bytes(c.encode_utf8(&mut bytes).as_bytes());
-        }
-        Input::Erase => erase_char(&mut secret),
-        Input::Clear => secret = Secret::new(),
-        Input::Intent(Intent::Back) => return vec![Action::SkipUnlock(volume)],
-        Input::Intent(Intent::Up | Intent::Down) => {
-            method = other_method(model, &volume, method, input);
-            secret = Secret::new();
-        }
-        Input::Intent(Intent::Primary) => {
-            let secret = method.is_typed().then_some(secret);
-            return vec![Action::Unlock {
-                volume,
-                method,
-                secret,
-            }];
-        }
-        Input::Intent(_) => {}
-    }
-    model.dialog = Some(Dialog::Unlock {
-        volume,
-        method,
-        tries_left,
-        secret,
-    });
-    Vec::new()
-}
-
-/// Removes the last character of a secret typed as UTF-8.
-fn erase_char(secret: &mut Secret) {
-    while let Some(byte) = secret.pop() {
-        if byte & 0xC0 != 0x80 {
-            break;
-        }
-    }
-}
-
-/// The method before or after `method` among those of `volume`.
-fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Method {
-    let methods = model
-        .snapshot
-        .volumes
-        .iter()
-        .find(|known| known.name == volume)
-        .map(|known| known.methods.clone())
-        .unwrap_or_default();
-    let Some(position) = methods.iter().position(|known| *known == method) else {
-        return method;
-    };
-    let next = if input == Input::Intent(Intent::Up) {
-        position.checked_sub(1).unwrap_or(methods.len() - 1)
-    } else {
-        (position + 1) % methods.len()
-    };
-    methods.get(next).copied().unwrap_or(method)
 }
 
 /// The choice dialog.

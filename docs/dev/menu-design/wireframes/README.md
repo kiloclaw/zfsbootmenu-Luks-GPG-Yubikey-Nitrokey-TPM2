@@ -31,6 +31,12 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `diff` | the changes since a snapshot, with a preview |
 | `diff-marked` | two changes marked to restore |
 | `restore-confirm` | the restore alert, its button disabled until the name is typed |
+| `diff-packages` | the packages segment of the changes, with the preview of a removed package |
+| `unlock-tpm-changed` | the TPM kept a key after a firmware update: the passphrase is asked, and why (`--tpm-changed`) |
+| `unlock-wrong` | a wrong passphrase, and the keyboard layout as a likely cause |
+| `unlock-layout` | typing with the German layout, what is typed shown with `Ctrl-R` |
+| `reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
+| `pools-tpm-changed` | a volume whose TPM2 key is out of date, in the pools view |
 
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
 files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). Colour

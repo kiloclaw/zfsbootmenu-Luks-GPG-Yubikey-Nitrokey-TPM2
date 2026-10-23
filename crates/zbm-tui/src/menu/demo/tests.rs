@@ -43,13 +43,11 @@ fn a_locked_volume_stops_start_up_until_it_is_unlocked() {
     assert_eq!(asked, 1);
     assert!(matches!(
         &wrong[..],
-        [
-            Event::Finished(Outcome::Warning(_)),
-            Event::UnlockRequested {
-                tries_left: Some(2),
-                ..
-            }
-        ]
+        [Event::UnlockRequested {
+            tries_left: Some(2),
+            notice: Some(Notice::Wrong(_)),
+            ..
+        }]
     ));
 }
 
@@ -73,13 +71,11 @@ fn three_wrong_pins_lock_the_tpm_and_offer_the_passphrase() {
 
     assert!(matches!(
         &last[..],
-        [
-            _,
-            Event::UnlockRequested {
-                method: Method::Passphrase,
-                ..
-            }
-        ]
+        [Event::UnlockRequested {
+            method: Method::Passphrase,
+            notice: Some(Notice::Instead(_)),
+            ..
+        }]
     ));
 }
 
@@ -97,8 +93,9 @@ fn the_security_key_is_never_found() {
     });
 
     let warned = matches!(
-        &events[0],
-        Event::Finished(Outcome::Warning(text)) if text.starts_with("no security key")
+        &events[..],
+        [Event::UnlockRequested { notice: Some(Notice::Instead(text)), .. }]
+            if text.starts_with("No security key")
     );
     assert!(warned);
 }

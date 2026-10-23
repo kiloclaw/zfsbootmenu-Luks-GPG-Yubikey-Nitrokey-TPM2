@@ -36,6 +36,8 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 12 | [Built-in menu interface](#12-built-in-menu-interface) | 4 | Large | Proposed |
 | 13 | [Own init](#13-own-init) | 4 | Large | Proposed |
 | 14 | [Built-in SSH server for remote unlock](#14-built-in-ssh-server-for-remote-unlock) | 4 | Large | Proposed |
+| 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
+| 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -89,6 +91,8 @@ runtime), never as part of the port itself.
 - **How:** call libcryptsetup through `libcryptsetup-rs` and the TPM through `tss-esapi` instead of parsing tool output,
   and map their return codes to one error type with a message and a hint for each case.
 - **Done when:** every failure case in `tests/luks/unit/edge.sh` produces its own message, and the test checks it.
+- **Prototype:** the new menu's unlock dialog says why a method is asked and when a secret was wrong
+  ([unlocking](docs/dev/menu-design/unlocking.md)).
 
 ### 5. Reproducible images
 
@@ -114,6 +118,8 @@ runtime), never as part of the port itself.
   support, and ask before booting.
 - **Done when:** a VM test with an old ZFS in the boot environment, like `complex-oldzfs`, shows the warning before
   booting, and boot environments with a recent enough ZFS boot without it.
+- **Prototype:** the new menu shows these checks and asks before booting
+  ([boot health](docs/dev/menu-design/boot-health.md)).
 
 ### 7. Boot counting with automatic fallback
 
@@ -126,6 +132,7 @@ runtime), never as part of the port itself.
   are not supported at first.
 - **Done when:** a VM test boots a boot environment that crashes and ZFSBootMenu falls back after the configured number
   of tries, and a boot environment whose service marks the boot good keeps booting.
+- **Prototype:** `zbm-tui --demo --failing` shows the fallback ([boot health](docs/dev/menu-design/boot-health.md)).
 
 ### 8. Locked menu
 
@@ -150,6 +157,38 @@ runtime), never as part of the port itself.
   status, versions and the log to the EFI system partition or a USB stick. It never includes key material.
 - **Done when:** a VM test restarts the machine and finds the previous log on the EFI system partition, and a test
   checks that a report contains none of the test passphrases or keys.
+
+### 15. Reclaim space from snapshots
+
+Needs the built-in menu (#12), which REFACTOR-ROADMAP.md builds in R5.
+
+- **Why:** a nearly full pool makes writes fail during boot, and only destroying snapshots frees the space they hold.
+  Finding which ones hold it takes `zfs list -o space` and `zfs destroy -nv` in the recovery shell, and space shared
+  by neighbouring snapshots is freed only when all of them go, which no single snapshot's `used` shows. The menu's
+  boot checks already warn when a pool has less than 5% free; this is what to do next.
+- **How:** a *Reclaim Space* view lists an environment's snapshots by the space destroying each frees. The user marks
+  several, and the header shows what destroying them together frees, from a dry run (`zfs destroy -nvp` on the marked
+  snapshots). One confirmation, with the environment's name typed, imports the pool read/write and destroys them.
+  Snapshots with a `zfs hold`, and those a clone depends on, are shown as protected and cannot be marked; a key adds or
+  releases a hold, so a snapshot can be kept from automatic pruning. The pool's checkpoint is never offered.
+- **Done when:** a VM test fills a pool, marks snapshots and checks that the space freed matches the dry run, and that
+  held snapshots and snapshots with clones cannot be destroyed.
+
+### 16. Pool health in detail
+
+Needs the built-in menu (#12), which REFACTOR-ROADMAP.md builds in R5.
+
+- **Why:** after a disk fails or is replaced, the menu shows a pool as `DEGRADED` and nothing more. Which device
+  failed, how many errors each has, whether a resilver runs and when it ends, and which files are damaged take
+  `zpool status -v` in the recovery shell.
+- **How:** opening a pool shows its device tree (each vdev and device with its state and read, write and checksum
+  errors), the progress of a scrub or resilver with the time left, and the damaged files, from `zpool status -j`
+  (OpenZFS 2.3 and later; `zpool status -p` before). Actions, each confirmed: clear the errors (`zpool clear`), bring a
+  device online or take it offline. Replacing a device stays in the recovery shell. ZFSBootMenu imports pools
+  read-only, and a read-only pool neither resilvers nor takes these actions: the view says so and offers to import it
+  read/write first.
+- **Done when:** VM tests with a degraded mirror and a resilvering raidz show the same devices, errors and progress as
+  `zpool status`; clearing errors and bringing a device back online work; a read-only pool offers the import first.
 
 ## Phase 3: TPM
 
@@ -180,6 +219,8 @@ runtime), never as part of the port itself.
   TPM2 and FIDO2 tokens and recovery keys.
 - **Done when:** a VM test changes a PCR the token is bound to, unlocks with the passphrase, re-seals, and the next
   boot unlocks with the TPM alone.
+- **Prototype:** `zbm-tui --demo --tpm-changed` shows the dialog and the re-seal alert
+  ([unlocking](docs/dev/menu-design/unlocking.md)).
 
 ## Phase 4: long term
 

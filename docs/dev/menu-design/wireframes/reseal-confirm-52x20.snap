@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+           Starting  tank DEGRADED · 3/3 open · ! 1
+┌ STARTING ZFSBOOTMENU ──────────────────── 3 of 5 ┐
+│ √  Load the ZFS module                           │
+│ ┌──────────────────────────────────────────────┐ │
+│ │     Re-seal the TPM2 Key of luks-zroot-a     │ │
+│ │                                              │ │
+│ │ PCR 0 (firmware code): the firmware was      │ │
+│ │ updated to 1.21.                             │ │
+│ │ Re-sealing trusts the machine as it is now   │ │
+│ │ (PCRs 0 and 7).                              │ │
+│ │ Do it only for changes you made; else keep   │ │
+│ │ the passphrase.                              │ │
+│ │                                              │ │
+│ │ Type luks-zroot-a to confirm:                │ │
+│ │                                              │ │
+│ │                      [ Cancel ]  [ Re-seal ] │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ √ Done: luks-zroot-a opened with its passphrase
+ Enter Confirm   Esc Cancel   Up/Down Select

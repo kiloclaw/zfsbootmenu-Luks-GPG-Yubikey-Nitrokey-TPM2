@@ -23,10 +23,10 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                             │                                                          │                             │
 │                             │ TPM2 PIN:                                                │                             │
 │                             │ ↑/↓ to use the passphrase instead                        │                             │
+│                             │ Keyboard: us · Ctrl-K: layout · Ctrl-R: show             │                             │
 │                             │                                                          │                             │
 │                             │                                     [ Skip ]  [ Unlock ] │                             │
 │                             └──────────────────────────────────────────────────────────┘                             │
-│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

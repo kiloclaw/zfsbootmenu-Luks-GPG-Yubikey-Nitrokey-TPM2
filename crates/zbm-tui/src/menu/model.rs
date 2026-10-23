@@ -1,17 +1,18 @@
 //! The state of the menu: the snapshot of the machine and everything on the
 //! screen. Nothing in it changes but through [`update`](fn@super::update).
 
-use zbm_platform::secret::Secret;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 mod diff;
+mod prompt;
 
-pub use self::diff::DiffView;
+pub use self::diff::{DiffView, Segment};
+pub use self::prompt::Prompt;
 
 use super::filter::Ranked;
 use super::keymap::Context;
 use super::theme::Theme;
-use super::world::{Action, Environment, Method, Outcome, Snapshot, SnapshotInfo, Timeout};
+use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
 
 /// The views (`docs/dev/menu-design/information-architecture.md`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -127,16 +128,7 @@ pub enum Then {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Dialog {
     /// A volume asks for a secret, or waits for a device.
-    Unlock {
-        /// The volume.
-        volume: String,
-        /// The method being tried.
-        method: Method,
-        /// Tries left, if limited.
-        tries_left: Option<u32>,
-        /// What was typed; never shown, wiped when dropped.
-        secret: Secret,
-    },
+    Unlock(Prompt),
     /// A choice among actions.
     Choose {
         /// The title.
@@ -251,6 +243,9 @@ pub struct Model {
     pub scroll: usize,
     /// The differences view, when open.
     pub diff: Option<DiffView>,
+    /// The keyboard layout typing is translated into, as an index of the
+    /// snapshot's layouts: 0 is the console's own.
+    pub layout: usize,
 }
 
 impl Model {
@@ -278,6 +273,7 @@ impl Model {
             keys: 0,
             scroll: 0,
             diff: None,
+            layout: 0,
             snapshot,
         };
         model.refresh();
@@ -444,7 +440,7 @@ impl Model {
     /// The key map context of the focus.
     pub fn context(&self) -> Context {
         match &self.dialog {
-            Some(Dialog::Unlock { .. } | Dialog::Confirm { .. }) => return Context::Text,
+            Some(Dialog::Unlock(_) | Dialog::Confirm { .. }) => return Context::Text,
             Some(Dialog::Choose { .. } | Dialog::Error { .. }) => return Context::Choose,
             None => {}
         }
@@ -464,7 +460,10 @@ impl Model {
             Screen::Recovery => Context::Recovery,
             Screen::Log => Context::Log,
             Screen::Help(_) => Context::Help,
-            Screen::Diff => Context::Diff,
+            Screen::Diff => match self.diff.as_ref().map(|diff| diff.segment) {
+                Some(Segment::Packages) => Context::Packages,
+                _ => Context::Diff,
+            },
         }
     }
 
@@ -476,7 +475,7 @@ impl Model {
             Screen::Kernels => Some(&self.kernels),
             Screen::Pools => Some(&self.pools),
             Screen::Recovery => Some(&self.recovery),
-            Screen::Diff => self.diff.as_ref().map(|diff| &diff.list),
+            Screen::Diff => self.diff.as_ref().map(DiffView::active_list),
             _ => None,
         }
     }
@@ -489,9 +488,19 @@ impl Model {
             Screen::Kernels => Some(&mut self.kernels),
             Screen::Pools => Some(&mut self.pools),
             Screen::Recovery => Some(&mut self.recovery),
-            Screen::Diff => self.diff.as_mut().map(|diff| &mut diff.list),
+            Screen::Diff => self.diff.as_mut().map(DiffView::active_list_mut),
             _ => None,
         }
+    }
+
+    /// The keyboard layout typing is translated into: the console's own
+    /// until the user chooses another.
+    pub fn layout(&self) -> Option<&str> {
+        self.snapshot
+            .keyboard
+            .layouts
+            .get(self.layout)
+            .map(String::as_str)
     }
 
     /// The seconds left of the countdown, rounded up.

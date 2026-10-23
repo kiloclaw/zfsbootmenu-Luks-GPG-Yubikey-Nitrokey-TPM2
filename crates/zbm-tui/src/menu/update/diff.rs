@@ -1,9 +1,9 @@
 //! The differences view: marking changed paths and restoring them from the
-//! snapshot.
+//! snapshot, and the packages that changed.
 
 use super::dialogs;
 use crate::menu::keymap::Intent;
-use crate::menu::model::{DiffView, Model, Then};
+use crate::menu::model::{DiffView, Model, Segment, Then};
 use crate::menu::world::{Action, Outcome};
 
 /// How many paths the restore confirmation lists.
@@ -11,13 +11,14 @@ const LISTED: usize = 4;
 
 /// What `intent` does in the differences view.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
-    match intent {
-        Intent::Mark => {
-            if let Some(diff) = &mut model.diff {
-                diff.toggle_mark();
-            }
-        }
-        Intent::Primary => restore(model),
+    let Some(diff) = &mut model.diff else {
+        return Vec::new();
+    };
+    match (diff.segment, intent) {
+        (_, Intent::Segment) => diff.switch(),
+        (Segment::Files, Intent::Mark) => diff.toggle_mark(),
+        (Segment::Files, Intent::Primary) => restore(model),
+        (Segment::Packages, Intent::Primary) => diff.show_package_files(),
         _ => {}
     }
     Vec::new()

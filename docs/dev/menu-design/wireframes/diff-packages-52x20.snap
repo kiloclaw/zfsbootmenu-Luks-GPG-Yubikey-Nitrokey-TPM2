@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹          Changes  tank DEGRADED · 3/3 open · ! 1
+              Files 6     [ Packages 5 ]
+┌ XBPS PACKAGES SINCE PRE-UPGRADE ────────────── 5 ┐
+│ ▶ - libdrm                             2.4.123_1 │
+│   + nvidia                           560.35.03_1 │
+│   ↑ mesa                     24.1.7_1 → 24.2.4_1 │
+│   ↑ zfs                        2.4.3_1 → 2.4.4_1 │
+│   ↑ linux-firmware       20240909_1 → 20241017_1 │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ PACKAGE ──────────────────────────────── removed ┐
+│ libdrm                                           │
+│ Removed since the snapshot, which has 2.4.123_1. │
+│ Booting a clone of the snapshot, or rolling      │
+│ back, brings it back with its package record.    │
+│                                                  │
+│ CHANGED FILES                                    │
+└──────────────────────────────────────────────────┘
+ Enter Show Files                            ? More

@@ -106,7 +106,7 @@ fn context_name(context: Context) -> &'static str {
         Context::Pools => "Pools",
         Context::Recovery => "Recovery",
         Context::Log => "Log",
-        Context::Diff => "Changes",
+        Context::Diff | Context::Packages => "Changes",
         _ => "Boot Environments",
     }
 }

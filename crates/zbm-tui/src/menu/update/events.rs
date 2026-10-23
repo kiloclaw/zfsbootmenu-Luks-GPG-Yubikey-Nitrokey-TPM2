@@ -1,6 +1,6 @@
 //! What the machine's events do to the menu.
 
-use crate::menu::model::{Choice, Dialog, DiffView, Model, Screen, Then};
+use crate::menu::model::{Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Event, Outcome, Target};
 use zbm_types::ImportPolicy;
 
@@ -16,24 +16,33 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             volume,
             method,
             tries_left,
+            notice,
         } => {
-            model.dialog = Some(Dialog::Unlock {
-                volume,
-                method,
-                tries_left,
-                secret: zbm_platform::secret::Secret::new(),
-            });
+            let prompt = Prompt::new(volume, method, tries_left, notice);
+            model.dialog = Some(Dialog::Unlock(prompt));
+        }
+        Event::ResealOffered(volume) => {
+            if let Some(then) = super::unlock::reseal(model, &volume) {
+                model.dialog = Some(super::dialogs::confirm(then));
+            }
         }
         Event::ImportProblem { pool, reason } => import_problem(model, &pool, reason),
-        Event::DiffReady { from, to, changes } => {
+        Event::DiffReady {
+            from,
+            to,
+            changes,
+            packages,
+        } => {
             let kept = model
                 .diff
                 .as_ref()
                 .filter(|diff| diff.from == from)
-                .map(|diff| diff.list.selected);
-            let mut view = DiffView::new(from, to, changes);
+                .map(|diff| (diff.list.selected, diff.segment));
+            let mut view = DiffView::new((from, to), changes, packages);
             let last = view.list.matches.len().saturating_sub(1);
-            view.list.selected = kept.unwrap_or(0).min(last);
+            let (selected, segment) = kept.unwrap_or_default();
+            view.list.selected = selected.min(last);
+            view.segment = segment;
             model.diff = Some(view);
             model.screen = Screen::Diff;
         }
@@ -45,8 +54,9 @@ pub(super) fn apply(model: &mut Model, event: Event) {
     }
 }
 
-/// Opens the main view and arms the countdown once start-up is over.
-fn start(model: &mut Model) {
+/// Opens the main view and arms the countdown once start-up is over and no
+/// dialog waits for the user.
+pub(super) fn start(model: &mut Model) {
     if model.started || !model.is_started() || model.dialog.is_some() {
         return;
     }

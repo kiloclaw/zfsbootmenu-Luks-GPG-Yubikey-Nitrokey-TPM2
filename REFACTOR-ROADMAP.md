@@ -318,6 +318,12 @@ Done in D:
   counting, with a banner naming the fallback when the default used up its tries (`--failing`) and a palette
   command to give them back; a one-time boot asked by the running system (`--next-boot`); and a Changes view of a
   snapshot that restores marked files behind a safety snapshot. T8, restoring a file, takes 5 keys of its 6.
+- Unlocking and upgrades in the prototype (`docs/dev/menu-design/unlocking.md`, `boot-health.md`): when a PCR a TPM2
+  key is sealed to changed, the unlock dialog asks for the passphrase and says which PCR and why, then offers to seal
+  the key again (`--tpm-changed`); `Ctrl-K` types with another keyboard layout, translated by key position, and a
+  wrong passphrase points to it; `Ctrl-R` shows what is typed; the Changes view of a snapshot gains a Packages
+  segment, from the package database, with the files of each package. ROADMAP.md gains #15 (reclaim space from
+  snapshots) and #16 (pool health in detail).
 - Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
   under *classic* in help, with no second profile. The usability sessions decide.
 - Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users

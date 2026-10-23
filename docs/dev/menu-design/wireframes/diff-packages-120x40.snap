@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Snapshots               Changes since zroot/ROOT/void@pre-upgrade  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+                                                Files 6     [ Packages 5 ]
+┌ XBPS PACKAGES SINCE PRE-UPGRADE ──────────────────────────── 5 ┐┌ PACKAGE ────────────────────────────────── removed ┐
+│ ▶ - libdrm                                           2.4.123_1 ││ libdrm                                             │
+│   + nvidia                                         560.35.03_1 ││ Removed since the snapshot, which has 2.4.123_1.   │
+│   ↑ mesa                                   24.1.7_1 → 24.2.4_1 ││ Booting a clone of the snapshot, or rolling back,  │
+│   ↑ zfs                                      2.4.3_1 → 2.4.4_1 ││ brings it back with its package record.            │
+│   ↑ linux-firmware                     20240909_1 → 20241017_1 ││                                                    │
+│                                                                ││ CHANGED FILES                                      │
+│                                                                ││   /usr/lib/libdrm.so.2                             │
+│                                                                ││ Enter shows them among the files.                  │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+└────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────────┘
+ Enter Show Files   Left/Right Files/Packages   / Filter   : Commands   l Log                                    ? More

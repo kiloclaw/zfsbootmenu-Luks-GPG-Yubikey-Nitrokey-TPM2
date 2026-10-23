@@ -1,7 +1,9 @@
 //! The demo machine's boot health and file changes: what the checks of each
 //! environment find, and what `zfs diff` reports for a snapshot.
 
-use crate::menu::world::{Change, ChangeKind, Check, Verdict};
+use crate::menu::world::{
+    Change, ChangeKind, Check, PackageChange, PackageDiff, PackageKind, Verdict,
+};
 
 /// A check that passed.
 fn pass(name: &str, detail: &str) -> Check {
@@ -114,4 +116,57 @@ pub fn changes(restored: &[String]) -> Vec<Change> {
     all.into_iter()
         .filter(|change| !restored.contains(&change.path))
         .collect()
+}
+
+/// A package that changed, and the changed paths that belong to it.
+fn package(
+    name: &str,
+    kind: PackageKind,
+    (before, after): (Option<&str>, Option<&str>),
+    files: &[&str],
+) -> PackageChange {
+    PackageChange {
+        name: name.to_owned(),
+        kind,
+        before: before.map(str::to_owned),
+        after: after.map(str::to_owned),
+        files: files.iter().map(|file| (*file).to_owned()).collect(),
+    }
+}
+
+/// What yesterday's upgrade changed in the packages of `zroot/ROOT/void`,
+/// as xbps records them: the NVIDIA driver replaced the libdrm the desktop
+/// needs.
+pub fn packages() -> PackageDiff {
+    use PackageKind::{Installed, Removed, Upgraded};
+    PackageDiff {
+        manager: "xbps".to_owned(),
+        changes: vec![
+            package(
+                "libdrm",
+                Removed,
+                (Some("2.4.123_1"), None),
+                &["/usr/lib/libdrm.so.2"],
+            ),
+            package(
+                "nvidia",
+                Installed,
+                (None, Some("560.35.03_1")),
+                &["/etc/modprobe.d/nvidia.conf"],
+            ),
+            package("mesa", Upgraded, (Some("24.1.7_1"), Some("24.2.4_1")), &[]),
+            package(
+                "zfs",
+                Upgraded,
+                (Some("2.4.3_1"), Some("2.4.4_1")),
+                &["/boot/initramfs-6.12.9_1.img", "/etc/default/zfs"],
+            ),
+            package(
+                "linux-firmware",
+                Upgraded,
+                (Some("20240909_1"), Some("20241017_1")),
+                &[],
+            ),
+        ],
+    }
 }

@@ -9,8 +9,9 @@ use zbm_types::{DatasetName, SnapshotName};
 use super::DemoOptions;
 use super::health;
 use crate::menu::world::{
-    CommandLine, Environment, Fallback, Health, Kernel, Level, Log, LogEntry, Method, Origin, Pool,
-    Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout, Tries, Volume, VolumeState,
+    CommandLine, Environment, Fallback, Health, Kernel, Keyboard, Level, Log, LogEntry, Method,
+    Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout, Tpm2Seal,
+    Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -94,7 +95,11 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
             .into_iter()
             .map(|environment| with_health(environment, options))
             .collect(),
-        volumes: volumes(options.locked),
+        volumes: volumes(options),
+        keyboard: Keyboard {
+            layouts: crate::menu::keyboard::known().map(str::to_owned).collect(),
+            local: true,
+        },
         log: log(),
         now: NOW,
     }
@@ -245,8 +250,21 @@ fn few_snapshots(dataset: &str) -> Vec<SnapshotInfo> {
     ]
 }
 
-fn volumes(locked: bool) -> Vec<Volume> {
-    let state = if locked {
+/// The TPM2 key of `luks-zroot-a`, sealed to PCRs 0 and 7; with
+/// `changed`, the firmware was updated since.
+fn tpm2_seal(changed: bool) -> Tpm2Seal {
+    let update = PcrChange {
+        index: 0,
+        detail: Some("the firmware was updated to 1.21".to_owned()),
+    };
+    Tpm2Seal {
+        pcrs: vec![0, 7],
+        changed: if changed { vec![update] } else { Vec::new() },
+    }
+}
+
+fn volumes(options: &DemoOptions) -> Vec<Volume> {
+    let state = if options.locked {
         VolumeState::Locked
     } else {
         VolumeState::Open
@@ -257,14 +275,20 @@ fn volumes(locked: bool) -> Vec<Volume> {
         state: state.clone(),
         methods,
         pool: pool.parse().ok(),
+        tpm2: None,
     };
+    let mut first = volume(
+        "luks-zroot-a",
+        "/dev/nvme0n1p2",
+        vec![Method::Tpm2Pin, Method::Passphrase],
+        "zroot",
+    );
+    first.tpm2 = Some(tpm2_seal(options.tpm_changed));
+    if options.tpm_changed {
+        first.state = VolumeState::Locked;
+    }
     vec![
-        volume(
-            "luks-zroot-a",
-            "/dev/nvme0n1p2",
-            vec![Method::Tpm2Pin, Method::Passphrase],
-            "zroot",
-        ),
+        first,
         volume(
             "luks-zroot-b",
             "/dev/nvme1n1p2",

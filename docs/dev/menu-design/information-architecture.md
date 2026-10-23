@@ -34,7 +34,7 @@ Every view is drawn in the same frame ([apple-hig.md](apple-hig.md), rules 1, 2,
 | Main | start-up done | boot environments and a detail pane | boot the selection |
 | Command palette | `:` anywhere | one filter over environments, snapshots, kernels and actions | run the match |
 | Snapshots | `s` | the snapshots of the selected environment, newest first, with size and age | choose an action for the snapshot |
-| Changes | `f` on a snapshot | what changed since the snapshot, each path with its kind, and a preview of the selection | restore the marked files, or the selection |
+| Changes | `f` on a snapshot | what changed since the snapshot in two segments, files and packages, each with a preview of the selection | files: restore the marked files, or the selection; packages: show its files |
 | Kernels | `k` | the kernels of the selected environment, default marked | boot that kernel |
 | Command line | `e` | the command line of the selection, editable, with its origin | boot with it |
 | Pools and volumes | `p` | each pool with health, mode and host ID; each LUKS volume with its state and methods | details of the selection |
@@ -44,7 +44,9 @@ Every view is drawn in the same frame ([apple-hig.md](apple-hig.md), rules 1, 2,
 Dialogs open over a view and return to it:
 
 - **Unlock**: a volume, the method being tried (passphrase, TPM2 PIN, security key, key file passphrase), the time
-  left for a device to appear, and the other methods; the secret field never echoes.
+  left for a device to appear, why this method is asked (the TPM kept the key, or the last try was wrong), the other
+  methods, and the keyboard layout; the secret field echoes only after `Ctrl-R` ([unlocking](unlocking.md)).
+- **Re-seal** (an alert): after the TPM kept a key, what changed and the risk of trusting it; the volume's name typed.
 - **Import problem**: which pool, why it did not import (another host, missing devices, unsupported features), and the
   choices that apply (retry, wait for devices, import read-only, match the host ID, force, shell).
 - **Confirm** (an alert): for destructive actions (rollback, destroy, promote, force import): what will happen, what will be lost

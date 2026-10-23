@@ -14,6 +14,7 @@ pub mod caps;
 pub mod demo;
 pub mod filter;
 pub mod format;
+pub mod keyboard;
 pub mod keymap;
 pub mod model;
 pub mod terminal;

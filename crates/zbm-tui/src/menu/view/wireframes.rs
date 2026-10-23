@@ -3,7 +3,7 @@
 //! snapshot tests. Change a view, then review and accept the new
 //! wireframes with `cargo insta review` or `cargo xtask bless`.
 
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use super::tests::screen;
 use crate::menu::caps::Capabilities;
@@ -17,6 +17,9 @@ const SIZES: [(u16, u16); 3] = [(120, 40), (80, 25), (52, 20)];
 #[derive(Clone, Copy)]
 enum Key {
     Char(char),
+    Ctrl(char),
+    /// Time passes until start-up is over or a dialog opens.
+    Start,
     Code(KeyCode),
     Text(&'static str),
 }
@@ -27,6 +30,14 @@ struct Wireframe {
     options: DemoOptions,
     ticks: usize,
     keys: &'static [Key],
+}
+
+/// The demo after a firmware update: the TPM keeps a volume's key.
+fn tpm_changed() -> DemoOptions {
+    DemoOptions {
+        tpm_changed: true,
+        ..DemoOptions::default()
+    }
 }
 
 /// The demo with the default used up its boot tries, or a one-time boot.
@@ -48,6 +59,58 @@ fn options(locked: bool, foreign: bool) -> DemoOptions {
 
 /// Every wireframe.
 fn wireframes() -> Vec<Wireframe> {
+    let mut all = first_wireframes();
+    all.extend(unlock_wireframes());
+    all
+}
+
+/// The wireframes of unlocking and of the packages since a snapshot.
+fn unlock_wireframes() -> Vec<Wireframe> {
+    use Key::{Char, Code, Ctrl, Start, Text};
+    let frame = |name, options, keys| Wireframe {
+        name,
+        options,
+        ticks: 50,
+        keys,
+    };
+    vec![
+        frame("unlock-tpm-changed", tpm_changed(), &[]),
+        frame(
+            "unlock-wrong",
+            options(true, false),
+            &[Code(KeyCode::Down), Text("dmeo"), Code(KeyCode::Enter)],
+        ),
+        frame(
+            "unlock-layout",
+            options(true, false),
+            &[Code(KeyCode::Down), Ctrl('k'), Text("Y[rich"), Ctrl('r')],
+        ),
+        frame(
+            "reseal-confirm",
+            tpm_changed(),
+            &[Text("demo"), Code(KeyCode::Enter)],
+        ),
+        frame(
+            "pools-tpm-changed",
+            tpm_changed(),
+            &[
+                Text("demo"),
+                Code(KeyCode::Enter),
+                Code(KeyCode::Esc),
+                Start,
+                Char('p'),
+            ],
+        ),
+        frame(
+            "diff-packages",
+            options(false, false),
+            &[Char('s'), Char('o'), Char('f'), Code(KeyCode::Right)],
+        ),
+    ]
+}
+
+/// The wireframes of the views, and of boot health.
+fn first_wireframes() -> Vec<Wireframe> {
     use Key::{Char, Code, Text};
     let plain = || options(false, false);
     let frame = |name, options, ticks, keys| Wireframe {
@@ -161,6 +224,8 @@ fn play(wireframe: &Wireframe, capabilities: Capabilities) -> Session {
     for key in wireframe.keys {
         match *key {
             Key::Char(c) => session.key(KeyCode::Char(c)),
+            Key::Ctrl(c) => session.press(KeyCode::Char(c), KeyModifiers::CONTROL),
+            Key::Start => session.start(),
             Key::Code(code) => session.key(code),
             Key::Text(text) => session.type_text(text),
         }

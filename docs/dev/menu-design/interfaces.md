@@ -18,7 +18,8 @@ loads them and an event delivers them.
 | `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of snapshots and the newest, the checks of whether it will boot (name, verdict, what was found, the fix), its boot tries left of the total | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
 | `fallback` | when the default used up its boot tries: which, after how many, and what boots instead (an environment, or a clone of a snapshot) | `zbm-boot`, an EFI variable |
 | `next_boot` | the environment the running system asked to boot once | an EFI variable |
-| `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds | `zbm-luks` |
+| `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds, the PCRs its TPM2 key is sealed to and those that changed since, with what the event log says | `zbm-luks`, `zbm-crypt` |
+| `keyboard` | the layouts typing can be translated into, the console's own first, and whether keys come from the machine's keyboard or a serial terminal | `zbm-config` |
 | `log` | the number of warnings and errors since start | `zbm-trace` |
 
 ## Actions
@@ -39,6 +40,7 @@ stays right when the snapshot changes under it.
 | `Diff` | snapshot, and a second snapshot or the live filesystem | snapshots |
 | `RestoreFiles` | snapshot, the paths | changes |
 | `ResetBootTries` | environment | palette |
+| `Reseal` | volume | re-seal alert, palette |
 | `Chroot` | environment or snapshot | main, snapshots |
 | `ImportReadWrite`, `RewindCheckpoint` | pool | main, pools |
 | `Import` | pool, policy (host ID, force), read-only or not | pools, import problem |
@@ -53,12 +55,13 @@ stays right when the snapshot changes under it.
 | Event | Carries | Shown as |
 | --- | --- | --- |
 | `StageStarted`, `StageFinished` | the stage, its outcome | the start-up view |
-| `UnlockRequested` | volume, method, how long to wait for a device | the unlock dialog (the `Prompter` port of `zbm-luks`) |
+| `UnlockRequested` | volume, method, how long to wait for a device, a notice: the last secret was wrong, or why this method instead of another | the unlock dialog (the `Prompter` port of `zbm-luks`) |
+| `ResealOffered` | volume: it was opened without its TPM2 key, which the TPM kept | the re-seal alert |
 | `UnlockFinished` | volume, outcome (opened, wrong secret with tries left, locked out, skipped) | the dialog, then a notification |
 | `ImportProblem` | pool, the reason, the choices that apply | the import problem dialog (the `Operator` port of `zbm-pool`) |
 | `SnapshotChanged` | the new `Snapshot` | every view redraws |
 | `SnapshotsLoaded` | environment, the snapshots (name, creation, used, referenced) | the snapshots view |
-| `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference) | the changes view |
+| `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference), the packages that changed (name, kind, versions, their changed files) with the package manager, or none without a database | the changes view |
 | `ActionStarted`, `ActionProgress`, `ActionFinished` | the action, progress as text and a fraction where known, the outcome (done, or failed with the error's cause chain and the next steps) | the notification line, the error dialog |
 | `LogLoaded` | the log entries | the log view |
 | `Leaving` | why the menu ends (booting, shell, reboot) | the last frame |

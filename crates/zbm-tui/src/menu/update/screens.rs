@@ -29,7 +29,7 @@ pub(super) fn screen_of(context: Context) -> Screen {
         Context::Recovery => Screen::Recovery,
         Context::Log => Screen::Log,
         Context::Startup => Screen::Startup,
-        Context::Diff => Screen::Diff,
+        Context::Diff | Context::Packages => Screen::Diff,
         _ => Screen::Main,
     }
 }
@@ -207,12 +207,8 @@ pub(super) fn unlock(model: &mut Model, volume: &str) {
         .find(|known| known.name == volume)
         .and_then(|known| known.methods.first().copied())
         .unwrap_or(Method::Passphrase);
-    model.dialog = Some(crate::menu::model::Dialog::Unlock {
-        volume: volume.to_owned(),
-        method,
-        tries_left: None,
-        secret: zbm_platform::secret::Secret::new(),
-    });
+    let prompt = crate::menu::model::Prompt::new(volume.to_owned(), method, None, None);
+    model.dialog = Some(crate::menu::model::Dialog::Unlock(prompt));
 }
 
 /// The ways to import `pool`.

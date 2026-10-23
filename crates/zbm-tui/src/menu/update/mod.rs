@@ -16,6 +16,7 @@ mod lists;
 mod screens;
 mod snapshots;
 mod text;
+mod unlock;
 
 pub use dialogs::follow;
 pub use text::palette_items;
@@ -34,7 +35,11 @@ pub enum Message {
 /// The menu after `message`, and the actions it asks the machine for.
 pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
     let actions = match message {
-        Message::Key(key) => key_press(&mut model, key),
+        Message::Key(key) => {
+            let actions = key_press(&mut model, key);
+            events::start(&mut model);
+            actions
+        }
         Message::Tick(ms) => tick(&mut model, ms),
         Message::Event(event) => {
             events::apply(&mut model, *event);
@@ -53,6 +58,7 @@ fn key_press(model: &mut Model, key: KeyEvent) -> Vec<Action> {
     if !matches!(model.notification, Some(Outcome::Failed { .. })) {
         model.notification = None;
     }
+    let key = unlock::translated(model, key);
     match keymap::input(model.context(), key) {
         Some(input) => handle(model, input),
         None => Vec::new(),
@@ -61,6 +67,10 @@ fn key_press(model: &mut Model, key: KeyEvent) -> Vec<Action> {
 
 /// An input, routed to the focused element.
 fn handle(model: &mut Model, input: Input) -> Vec<Action> {
+    if input == Input::Intent(Intent::Layout) {
+        unlock::next_layout(model);
+        return Vec::new();
+    }
     if model.dialog.is_some() {
         return dialogs::handle(model, input);
     }
@@ -175,3 +185,5 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 mod health_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod unlock_tests;

@@ -14,14 +14,14 @@ use crate::menu::format::{capitalised, fit};
 use crate::menu::model::{Choice, Dialog, Model, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::update::palette_items;
-use crate::menu::world::{Action, Method};
+use crate::menu::world::Action;
 
 /// The widest an alert or action sheet gets.
 const ALERT_WIDTH: u16 = 60;
 
 /// How a button looks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Kind {
+pub(super) enum Kind {
     /// An ordinary button.
     Normal,
     /// The button `Enter` presses.
@@ -33,11 +33,11 @@ enum Kind {
 }
 
 /// An alert: a title, a message, buttons.
-struct Alert {
-    title: String,
-    body: Vec<Line<'static>>,
-    buttons: Vec<(String, Kind)>,
-    danger: bool,
+pub(super) struct Alert {
+    pub(super) title: String,
+    pub(super) body: Vec<Line<'static>>,
+    pub(super) buttons: Vec<(String, Kind)>,
+    pub(super) danger: bool,
 }
 
 /// Draws the dialog or the palette, if one is open, over the dimmed view.
@@ -50,12 +50,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .set_style(area, Style::new().add_modifier(Modifier::DIM));
     let theme = model.theme;
     match &model.dialog {
-        Some(Dialog::Unlock {
-            volume,
-            method,
-            tries_left,
-            ..
-        }) => unlock(model, frame, area, (volume, *method, *tries_left)),
+        Some(Dialog::Unlock(prompt)) => super::unlock::render(model, frame, area, prompt),
         Some(Dialog::Choose {
             title,
             lines,
@@ -129,7 +124,7 @@ fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
 }
 
 /// Draws `alert`; returns the area of its message.
-fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Alert) -> Rect {
+pub(super) fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Alert) -> Rect {
     let width = alert_width(area);
     let inner_width = width.saturating_sub(4);
     let body = wrapped(&alert.body, inner_width);
@@ -165,93 +160,6 @@ fn body_lines(theme: Theme, lines: &[String]) -> Vec<Line<'static>> {
         .iter()
         .map(|line| Line::styled(line.clone(), theme.style(Role::Text)))
         .collect()
-}
-
-/// The unlock alert: the volume, the hidden field, the other methods;
-/// **Skip** (`Esc`) and **Unlock** (`Enter`).
-fn unlock(
-    model: &Model,
-    frame: &mut Frame<'_>,
-    area: Rect,
-    dialog: (&String, Method, Option<u32>),
-) {
-    let (volume, method, _) = dialog;
-    let body = unlock_body(model, dialog);
-    let buttons = vec![
-        ("Skip".into(), Kind::Normal),
-        ("Unlock".into(), Kind::Default),
-    ];
-    let title = format!("Unlock {volume}");
-    let message = alert(
-        model.theme,
-        frame,
-        area,
-        Alert {
-            title,
-            body,
-            buttons,
-            danger: false,
-        },
-    );
-    if method.is_typed() {
-        let column = u16::try_from(method.as_str().len() + 2).unwrap_or(u16::MAX);
-        let row = message.y.saturating_add(2);
-        frame.set_cursor_position(Position::new(message.x.saturating_add(column), row));
-    }
-}
-
-/// The message of the unlock alert: the device, the field or what is
-/// awaited, the tries left, the other methods.
-fn unlock_body(
-    model: &Model,
-    (volume, method, tries_left): (&String, Method, Option<u32>),
-) -> Vec<Line<'static>> {
-    let theme = model.theme;
-    let known = model
-        .snapshot
-        .volumes
-        .iter()
-        .find(|known| &known.name == volume);
-    let device = known.map(|known| known.device.clone()).unwrap_or_default();
-    let mut body = vec![
-        Line::styled(format!("on {device}"), theme.style(Role::Muted)),
-        Line::default(),
-    ];
-    let ask = if method.is_typed() {
-        format!("{}:", capitalised(method.as_str()))
-    } else {
-        format!(
-            "Waiting for the {}: touch it, or plug it in.",
-            method.as_str()
-        )
-    };
-    body.push(Line::styled(ask, theme.style(Role::Title)));
-    if let Some(left) = tries_left {
-        body.push(Line::styled(
-            format!("{left} tries left"),
-            theme.style(Role::Warning),
-        ));
-    }
-    let others: Vec<&str> = known
-        .map(|known| {
-            known
-                .methods
-                .iter()
-                .filter(|m| **m != method)
-                .map(|m| m.as_str())
-                .collect()
-        })
-        .unwrap_or_default();
-    if !others.is_empty() {
-        let keys = if theme.is_ascii() {
-            "Up/Down"
-        } else {
-            "↑/↓"
-        };
-        let line = format!("{keys} to use the {} instead", others.join(" or "));
-        body.push(Line::styled(line, theme.style(Role::Muted)));
-    }
-    body
 }
 
 /// An action sheet: the item, a message, the actions, then **Cancel** set
@@ -343,6 +251,7 @@ fn verb(action: &Action) -> &'static str {
         Action::RewindCheckpoint(_) => "Rewind",
         Action::Import(..) => "Force Import",
         Action::RestoreFiles { .. } => "Restore",
+        Action::Reseal(_) => "Re-seal",
         _ => "Continue",
     }
 }

@@ -2,6 +2,7 @@
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
  ‹ Snapshots               Changes since zroot/ROOT/void@pre-upgrade  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+                                              [ Files 6 ]     Packages 5
 ┌ CHANGES SINCE PRE-UPGRADE ────────────────────────────────── 6 ┐┌ PREVIEW ────────────────────────────────── removed ┐
 │   • M /etc/fstab                                               ││ /usr/lib/libdrm.so.2                               │
 │     + /etc/modprobe.d/nvidia.conf                              ││ Removed since the snapshot: restoring brings it    │
@@ -38,6 +39,5 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                ││                                                    │
 │                                                                ││                                                    │
 │                                                                ││                                                    │
-│                                                                ││                                                    │
 └────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────────┘
- Enter Restore   / Filter   : Commands   l Log   ! Recovery                                                      ? More
+ Enter Restore   Left/Right Files/Packages   / Filter   : Commands   l Log                                       ? More

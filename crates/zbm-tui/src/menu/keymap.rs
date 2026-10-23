@@ -27,8 +27,10 @@ pub enum Context {
     Log,
     /// Help.
     Help,
-    /// What changed since a snapshot.
+    /// The files changed since a snapshot.
     Diff,
+    /// The packages changed since a snapshot.
+    Packages,
     /// A choice among actions (the snapshot actions, power).
     Choose,
     /// A field that takes text: the filter, the palette, the command line,
@@ -113,6 +115,12 @@ pub enum Intent {
     Shell,
     /// Inherit the default kernel (classic `MOD+U`).
     InheritDefault,
+    /// The next keyboard layout, for what is typed.
+    Layout,
+    /// Show or hide the secret being typed.
+    Reveal,
+    /// The other segment of the changes: files or packages.
+    Segment,
 }
 
 /// What a key press means in a context.
@@ -201,15 +209,26 @@ const fn key(
     )
 }
 
-use Context::{Diff, Kernels, Log, Main, Pools, Recovery, Snapshots, Startup};
+mod classic;
+
+use self::classic::classic;
+pub use self::classic::{CLASSIC, classic_bindings};
+
+use Context::{Diff, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
 
 /// Views with a list.
-const LISTS: &[Context] = &[Main, Snapshots, Kernels, Pools, Recovery, Diff];
+const LISTS: &[Context] = &[Main, Snapshots, Kernels, Pools, Recovery, Diff, Packages];
 
 /// Every view but help, dialogs and text fields.
 const ALL_VIEWS: &[Context] = &[
-    Startup, Main, Snapshots, Kernels, Pools, Recovery, Log, Diff,
+    Startup, Main, Snapshots, Kernels, Pools, Recovery, Log, Diff, Packages,
 ];
+
+/// The two segments of the changes since a snapshot.
+const CHANGES: &[Context] = &[Diff, Packages];
+
+/// Text fields.
+const TEXT: &[Context] = &[Context::Text];
 
 /// Every binding, in the order of the footer: most important first.
 pub const KEYMAP: &[Binding] = &[
@@ -237,6 +256,20 @@ pub const KEYMAP: &[Binding] = &[
     key('d', "d", &[Main, Kernels], Intent::SetDefault),
     key('p', "p", &[Main], Intent::Pools),
     key('f', "f", &[Snapshots], Intent::Diff),
+    bind(
+        KeyCode::Right,
+        NONE,
+        Scope::Only(CHANGES),
+        Intent::Segment,
+        Some("Left/Right"),
+    ),
+    bind(
+        KeyCode::Left,
+        NONE,
+        Scope::Only(CHANGES),
+        Intent::Segment,
+        None,
+    ),
     key('y', "y", &[Snapshots], Intent::Duplicate),
     key('m', "m", &[Snapshots], Intent::CloneAndPromote),
     key('n', "n", &[Main, Snapshots], Intent::NewSnapshot),
@@ -342,74 +375,21 @@ pub const KEYMAP: &[Binding] = &[
         Intent::Redraw,
         None,
     ),
+    bind(
+        KeyCode::Char('k'),
+        CTRL,
+        Scope::Only(TEXT),
+        Intent::Layout,
+        None,
+    ),
+    bind(
+        KeyCode::Char('r'),
+        CTRL,
+        Scope::Only(TEXT),
+        Intent::Reveal,
+        None,
+    ),
 ];
-
-/// The classic bindings of the `fzf` menu: a letter with `Alt` or `Ctrl`,
-/// and its meaning in each view where it had one.
-pub const CLASSIC: &[(char, &[(Context, Intent)])] = &[
-    ('k', &[(Main, Intent::Kernels)]),
-    ('s', &[(Main, Intent::Snapshots)]),
-    (
-        'd',
-        &[
-            (Main, Intent::SetDefault),
-            (Snapshots, Intent::Diff),
-            (Kernels, Intent::SetDefault),
-        ],
-    ),
-    ('e', &[(Main, Intent::Edit), (Kernels, Intent::Edit)]),
-    ('t', &[(Main, Intent::RevertCommandLine)]),
-    ('p', &[(Main, Intent::Pools)]),
-    (
-        'r',
-        &[
-            (Main, Intent::Shell),
-            (Snapshots, Intent::Rollback),
-            (Pools, Intent::Rewind),
-        ],
-    ),
-    ('j', &[(Main, Intent::Chroot), (Snapshots, Intent::Chroot)]),
-    ('w', &[(Main, Intent::ReadWrite)]),
-    ('o', &[(Main, Intent::Sort), (Snapshots, Intent::Sort)]),
-    (
-        'l',
-        &[
-            (Main, Intent::Log),
-            (Snapshots, Intent::Log),
-            (Kernels, Intent::Log),
-            (Pools, Intent::Log),
-        ],
-    ),
-    (
-        'x',
-        &[(Main, Intent::Power), (Snapshots, Intent::CloneAndPromote)],
-    ),
-    ('c', &[(Snapshots, Intent::Clone)]),
-    ('n', &[(Snapshots, Intent::NewSnapshot)]),
-    ('u', &[(Kernels, Intent::InheritDefault)]),
-];
-
-/// The intent of a classic binding: `Alt` or `Ctrl` with a letter.
-fn classic(context: Context, event: KeyEvent) -> Option<Intent> {
-    let KeyCode::Char(c) = event.code else {
-        return None;
-    };
-    let modifier = event
-        .modifiers
-        .intersects(KeyModifiers::ALT | KeyModifiers::CONTROL);
-    if !modifier || context == Context::Text {
-        return None;
-    }
-    CLASSIC
-        .iter()
-        .find(|(letter, _)| *letter == c.to_ascii_lowercase())
-        .and_then(|(_, meanings)| {
-            meanings
-                .iter()
-                .find(|(view, _)| *view == context)
-                .map(|(_, intent)| *intent)
-        })
-}
 
 /// What `event` means in `context`, if anything.
 pub fn input(context: Context, event: KeyEvent) -> Option<Input> {
@@ -453,6 +433,7 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (Snapshots | Context::Choose, Intent::Primary) => "choose",
         (Pools, Intent::Primary) => "details",
         (Diff, Intent::Primary) => "restore",
+        (Packages, Intent::Primary) => "show files",
         (Recovery, Intent::Primary) => "run",
         (Startup | Context::Text, Intent::Primary) => "confirm",
         (Context::Choose | Context::Text, Intent::Back) => "cancel",
@@ -488,6 +469,9 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (_, Intent::RevertCommandLine) => "revert",
         (_, Intent::Shell) => "shell",
         (_, Intent::InheritDefault) => "inherit",
+        (_, Intent::Layout) => "keyboard layout",
+        (_, Intent::Reveal) => "show what is typed",
+        (_, Intent::Segment) => "files/packages",
     }
 }
 
@@ -545,6 +529,8 @@ pub fn key_name(code: KeyCode, modifiers: KeyModifiers) -> String {
         KeyCode::Tab => "Tab".to_owned(),
         KeyCode::Up => "Up".to_owned(),
         KeyCode::Down => "Down".to_owned(),
+        KeyCode::Left => "Left".to_owned(),
+        KeyCode::Right => "Right".to_owned(),
         KeyCode::PageUp => "PgUp".to_owned(),
         KeyCode::PageDown => "PgDn".to_owned(),
         KeyCode::Home => "Home".to_owned(),
@@ -581,18 +567,6 @@ pub fn help(context: Context) -> Vec<(String, &'static str)> {
     lines
         .into_iter()
         .map(|(intent, keys)| (keys.join(", "), describe(context, intent)))
-        .collect()
-}
-
-/// The classic bindings of `context`, as (`MOD+K`, what it does).
-pub fn classic_bindings(context: Context) -> Vec<(String, &'static str)> {
-    CLASSIC
-        .iter()
-        .filter_map(|(letter, meanings)| {
-            let (_, intent) = meanings.iter().find(|(view, _)| *view == context)?;
-            let key = format!("MOD+{}", letter.to_ascii_uppercase());
-            Some((key, describe(context, *intent)))
-        })
         .collect()
 }
 

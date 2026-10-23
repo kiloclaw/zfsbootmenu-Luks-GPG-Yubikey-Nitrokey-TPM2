@@ -17,6 +17,9 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
    `F`-keys and `Shift` with arrows are extras, never the only way. `Ctrl-S` and `Ctrl-Q` are flow control on serial
    lines, `Ctrl-J` and `Ctrl-M` are `Enter`, `Ctrl-H` is backspace on some terminals: none of them is bound to an
    action.
+6. **Keys are the characters on their labels.** After `Ctrl-K` chose another keyboard layout, every key is translated
+   by its position, view keys too: the key labelled `/` filters wherever the layout puts it
+   ([unlocking](unlocking.md)).
 
 ## Every view
 
@@ -30,6 +33,8 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `:` | the command palette |
 | `?`, `F1` | help |
 | `Ctrl-L` | redraw the screen (for consoles that garbled it) |
+| `Ctrl-K` | in a text field: the next keyboard layout ([unlocking](unlocking.md)) |
+| `Ctrl-R` | in the unlock dialog: show what is typed, or hide it |
 
 ## Actions
 
@@ -54,7 +59,8 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `n` | new snapshot of the environment | main, snapshots |
 | `f` | the changes since the snapshot, or between two marked snapshots | snapshots |
 | `Space`, `Tab` | mark the selection (snapshots for `f`, files to restore) | snapshots, changes |
-| `Enter` | restore the marked files, or the selected one | changes |
+| `Enter` | restore the marked files, or the selected one; on a package, show its files | changes |
+| `Left`, `Right` | the other segment: files or packages | changes |
 | `u` | unlock the selected volume | pools |
 | `i` | import the selected pool | pools |
 | `h` | rewind the pool to its checkpoint | pools |

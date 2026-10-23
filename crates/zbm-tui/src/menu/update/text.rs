@@ -132,6 +132,26 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             ));
         }
     }
+    items.extend(tool_items(model));
+    items
+}
+
+/// The palette's entries that are not about an environment: sealing TPM2
+/// keys again, the views, the recovery shell and power.
+fn tool_items(model: &Model) -> Vec<PaletteItem> {
+    let item = |label: String, then: Then| PaletteItem { label, then };
+    let mut items: Vec<PaletteItem> = model
+        .snapshot
+        .volumes
+        .iter()
+        .filter_map(|volume| {
+            let then = super::unlock::reseal(model, &volume.name)?;
+            Some(item(
+                format!("Re-seal the TPM2 Key of {}", volume.name),
+                then,
+            ))
+        })
+        .collect();
     let screens = [
         ("Pools and volumes", Screen::Pools),
         ("Recovery tools", Screen::Recovery),

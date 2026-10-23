@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Boot Environments          Pools and Volumes  tank DEGRADED · 3/3 open · ! 1
+┌ POOLS AND LUKS VOLUMES ─────────────────────────────────────────────────── 5 ┐
+│ ▶ Pool    zroot                                         read-only · ONLINE   │
+│   Pool    tank                                          read-only · DEGRADED │
+│   Volume  luks-zroot-a              TPM2 changed · /dev/nvme0n1p2 · open     │
+│   Volume  luks-zroot-b                             /dev/nvme1n1p2 · open     │
+│   Volume  luks-tank                                     /dev/sda2 · open     │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Details   u Unlock   i Import   w Read/Write   h Rewind           ? More

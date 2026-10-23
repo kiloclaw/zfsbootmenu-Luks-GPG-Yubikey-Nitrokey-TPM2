@@ -14,7 +14,9 @@ pub use session::Session;
 
 use zbm_platform::secret::Secret;
 
-use crate::menu::world::{Action, Event, Method, Outcome, Snapshot, StageState, VolumeState};
+use crate::menu::world::{
+    Action, Event, Method, Notice, Outcome, Snapshot, StageState, Volume, VolumeState,
+};
 
 /// What the demo machine has.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -36,6 +38,9 @@ pub struct DemoOptions {
     pub failing: bool,
     /// The running system asked to boot `tank/ROOT/arch` once.
     pub next_boot: bool,
+    /// The firmware was updated: PCR 0 changed, and the TPM keeps the key
+    /// of `luks-zroot-a`, which starts locked.
+    pub tpm_changed: bool,
 }
 
 impl Default for DemoOptions {
@@ -47,6 +52,7 @@ impl Default for DemoOptions {
             snapshots: 400,
             failing: false,
             next_boot: false,
+            tpm_changed: false,
         }
     }
 }
@@ -132,14 +138,16 @@ impl FakeMachine {
                 .volumes
                 .iter()
                 .find(|volume| volume.state == VolumeState::Locked)?;
+            let first = volume.methods.first().copied();
+            let (method, notice) = match (first, kept_by_tpm(volume)) {
+                (Some(Method::Tpm2Pin), Some(notice)) => (Method::Passphrase, Some(notice)),
+                (first, _) => (first.unwrap_or(Method::Passphrase), None),
+            };
             return Some(Event::UnlockRequested {
                 volume: volume.name.clone(),
-                method: volume
-                    .methods
-                    .first()
-                    .copied()
-                    .unwrap_or(Method::Passphrase),
+                method,
                 tries_left: None,
+                notice,
             });
         }
         if stage == data::IMPORT_STAGE && !self.import_asked {
@@ -200,7 +208,9 @@ impl FakeMachine {
                 from,
                 to,
                 changes: health::changes(&self.restored),
+                packages: Some(health::packages()),
             }],
+            Action::Reseal(volume) => self.reseal(&volume),
             Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
             other => storage::apply(&mut self.snapshot, other),
         }
@@ -217,16 +227,44 @@ impl FakeMachine {
                 from: snapshot.clone(),
                 to: None,
                 changes: health::changes(&self.restored),
+                packages: Some(health::packages()),
             },
             Event::Finished(outcome),
         ]
     }
 
+    /// Seals the TPM2 key of `volume` to the PCRs as they are now.
+    fn reseal(&mut self, name: &str) -> Vec<Event> {
+        let seal = self
+            .snapshot
+            .volumes
+            .iter_mut()
+            .find(|volume| volume.name == name)
+            .and_then(|volume| volume.tpm2.as_mut());
+        let Some(seal) = seal else {
+            return Vec::new();
+        };
+        seal.changed.clear();
+        let done = Outcome::Done(format!(
+            "{name}: the TPM2 key is sealed to PCRs {} as they are now",
+            seal.pcr_list()
+        ));
+        vec![self.changed(), Event::Finished(done)]
+    }
+
     /// An unlock attempt.
     fn unlock(&mut self, volume: &str, method: Method, secret: Option<&[u8]>) -> Vec<Event> {
+        let kept = self
+            .snapshot
+            .volumes
+            .iter()
+            .find(|known| known.name == volume)
+            .and_then(kept_by_tpm);
         let right = match method {
             Method::Passphrase => secret == Some(PASSPHRASE),
-            Method::Tpm2Pin => secret == Some(PIN) && self.pin_failures < PIN_TRIES,
+            Method::Tpm2Pin => {
+                secret == Some(PIN) && self.pin_failures < PIN_TRIES && kept.is_none()
+            }
             _ => false,
         };
         if right {
@@ -246,46 +284,60 @@ impl FakeMachine {
                 }
             }
             let done = Outcome::Done(format!("{volume} opened with its {}", method.as_str()));
-            return vec![self.changed(), Event::Finished(done)];
+            let mut events = vec![self.changed(), Event::Finished(done)];
+            if kept.is_some() {
+                events.push(Event::ResealOffered(volume.to_owned()));
+            }
+            return events;
+        }
+        if let (Method::Tpm2Pin, Some(notice)) = (method, kept) {
+            return vec![Event::UnlockRequested {
+                volume: volume.to_owned(),
+                method: Method::Passphrase,
+                tries_left: None,
+                notice: Some(notice),
+            }];
         }
         self.wrong(volume, method)
     }
 
     /// A failed unlock attempt: the dialog asks again, with the reason.
     fn wrong(&mut self, volume: &str, method: Method) -> Vec<Event> {
-        let (warning, method, tries_left) = match method {
+        let (notice, method, tries_left) = match method {
             Method::Tpm2Pin => {
                 self.pin_failures += 1;
                 let left = PIN_TRIES.saturating_sub(self.pin_failures);
                 if left == 0 {
-                    let text = "the TPM is locked against PIN guessing: use the passphrase";
-                    (text.to_owned(), Method::Passphrase, None)
+                    let text = "The TPM is locked against PIN guessing: use the passphrase.";
+                    (Notice::Instead(text.to_owned()), Method::Passphrase, None)
                 } else {
                     (
-                        format!("wrong PIN, {left} tries left"),
+                        Notice::Wrong("Wrong PIN.".to_owned()),
                         Method::Tpm2Pin,
                         Some(left),
                     )
                 }
             }
             Method::Fido2 | Method::YubiKey | Method::KeyDevice => (
-                format!(
-                    "no {} found: plug it in and press Enter, or choose another method",
+                Notice::Instead(format!(
+                    "No {} found: plug it in and press Enter, or choose another method.",
                     method.as_str()
-                ),
+                )),
                 method,
                 None,
             ),
-            _ => (format!("wrong {}", method.as_str()), method, None),
-        };
-        vec![
-            Event::Finished(Outcome::Warning(warning)),
-            Event::UnlockRequested {
-                volume: volume.to_owned(),
+            _ => (
+                Notice::Wrong(format!("Wrong {}.", method.as_str())),
                 method,
-                tries_left,
-            },
-        ]
+                None,
+            ),
+        };
+        vec![Event::UnlockRequested {
+            volume: volume.to_owned(),
+            method,
+            tries_left,
+            notice: Some(notice),
+        }]
     }
 
     fn set_volume(&mut self, name: &str, state: VolumeState) {
@@ -329,6 +381,17 @@ impl FakeMachine {
         let done = Outcome::Done(format!("{name} imported ({policy})"));
         vec![self.changed(), Event::Finished(done)]
     }
+}
+
+/// Why the TPM keeps the key of `volume`, when a PCR it is sealed to
+/// changed.
+fn kept_by_tpm(volume: &Volume) -> Option<Notice> {
+    let seal = volume.tpm2.as_ref()?;
+    let change = seal.changed.first()?;
+    Some(Notice::Instead(format!(
+        "The TPM kept the key. {}.",
+        change.describe()
+    )))
 }
 
 /// The menu ends.

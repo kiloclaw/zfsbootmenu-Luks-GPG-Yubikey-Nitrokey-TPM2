@@ -18,8 +18,10 @@ mod diff;
 mod health;
 mod lists;
 mod main_view;
+mod packages;
 mod screens;
 mod status;
+mod unlock;
 
 /// The smallest size the menu lays out for.
 pub const MINIMUM: (u16, u16) = (52, 20);
@@ -117,6 +119,6 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 #[cfg(test)]
 mod wireframes;
