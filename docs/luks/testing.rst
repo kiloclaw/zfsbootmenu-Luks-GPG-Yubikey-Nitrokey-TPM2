@@ -97,8 +97,8 @@ Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 * ``result.json``: the number of passed and failed checks and the failures;
 * ``qemu-<boot>.log``: QEMU's own messages.
 
-The harness is built as yourself and run as root; ``cargo xtask test vm [<test>...]`` does both, for a user who may
-run the tests. ``zbm-vmtest list`` lists the tests in the order ``run`` runs them. ``zbm-vmtest compare <work>
+The harness is built as yourself and run as root; ``cargo xtask test vm [<test>...]`` does both, running the harness
+with ``sudo -E`` unless it already runs as root. ``zbm-vmtest list`` lists the tests in the order ``run`` runs them. ``zbm-vmtest compare <work>
 <work>`` compares the checks of two runs (two ``ZBMTEST_WORK`` directories, such as those of two commits) message by
 message. The harness reads the serial console from a Unix socket in a thread, which feeds the log, a terminal emulator
 (the screen as a user sees it) and the text that patterns match, with the terminal's escape sequences removed. A test

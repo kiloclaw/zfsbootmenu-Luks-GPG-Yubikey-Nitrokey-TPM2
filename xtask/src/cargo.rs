@@ -90,8 +90,9 @@ fn test_devices_program(root: &Path) -> Program {
     ])
 }
 
-/// Builds `zbm-vmtest` and runs the VM tests `tests` (all of them when
-/// empty): ZFSBootMenu images booted in QEMU, which needs KVM, the build
+/// Builds `zbm-vmtest` as the user and runs the VM tests `tests` (all of
+/// them when empty) as root, with `sudo -E` unless xtask already runs as
+/// root: ZFSBootMenu images booted in QEMU, which needs KVM, the build
 /// container and, for the disk and key setups, root
 /// (`docs/luks/testing.rst`).
 ///
@@ -99,20 +100,35 @@ fn test_devices_program(root: &Path) -> Program {
 ///
 /// When the build or a test fails.
 pub fn test_vm(root: &Path, tests: &[String]) -> Result<()> {
-    for program in test_vm_programs(root, tests) {
+    for program in test_vm_programs(root, tests, is_root()) {
         program.run()?;
     }
     Ok(())
 }
 
-/// The programs [`test_vm`] runs.
-fn test_vm_programs(root: &Path, tests: &[String]) -> Vec<Program> {
+/// The programs [`test_vm`] runs; `as_root` when xtask runs as root.
+fn test_vm_programs(root: &Path, tests: &[String], as_root: bool) -> Vec<Program> {
     let build = cargo(root).args(["build", "--release", "--locked", "-p", "zbm-vmtest"]);
-    let harness = root.join("target/release/zbm-vmtest");
-    let run = Program::new(&harness.display().to_string(), root)
-        .args(["run"])
-        .args(tests);
-    vec![build, run]
+    let harness = root.join("target/release/zbm-vmtest").display().to_string();
+    let run = if as_root {
+        Program::new(&harness, root)
+    } else {
+        Program::new("sudo", root).args(["-E", harness.as_str()])
+    };
+    vec![build, run.args(["run"]).args(tests)]
+}
+
+/// Whether this process runs as root: its effective user ID, the second
+/// number of the `Uid:` line of `/proc/self/status`, is 0.
+fn is_root() -> bool {
+    std::fs::read_to_string("/proc/self/status")
+        .is_ok_and(|status| effective_uid(&status) == Some(0))
+}
+
+/// The effective user ID in the text of `/proc/<pid>/status`.
+fn effective_uid(status: &str) -> Option<u32> {
+    let line = status.lines().find_map(|line| line.strip_prefix("Uid:"))?;
+    line.split_whitespace().nth(1)?.parse().ok()
 }
 
 /// The golden files of the legacy results, relative to the root.
@@ -288,7 +304,8 @@ mod tests {
     fn vm_tests_run_with_a_release_build_of_the_harness() {
         let tests = vec!["keys-setup".to_owned(), "keys-plugin".to_owned()];
 
-        let programs = test_vm_programs(Path::new("/w"), &tests);
+        let programs = test_vm_programs(Path::new("/w"), &tests, true);
+        let as_user = test_vm_programs(Path::new("/w"), &tests, false);
 
         assert_eq!(
             shown(&programs),
@@ -296,6 +313,28 @@ mod tests {
                 "cargo build --release --locked -p zbm-vmtest",
                 "/w/target/release/zbm-vmtest run keys-setup keys-plugin",
             ]
+        );
+        // The harness runs as root; the build stays the user's.
+        assert_eq!(
+            shown(&as_user),
+            [
+                "cargo build --release --locked -p zbm-vmtest",
+                "sudo -E /w/target/release/zbm-vmtest run keys-setup keys-plugin",
+            ]
+        );
+    }
+
+    #[test]
+    fn root_is_an_effective_user_id_of_0() {
+        let user = "Name:\txtask\nUid:\t1000\t1000\t1000\t1000\n";
+        let setuid = "Uid:\t1000\t0\t0\t0\n";
+
+        assert_eq!(effective_uid(user), Some(1000));
+        assert_eq!(effective_uid(setuid), Some(0));
+        assert_eq!(effective_uid("Name:\txtask\n"), None);
+        assert_eq!(
+            is_root(),
+            effective_uid(&std::fs::read_to_string("/proc/self/status").unwrap()) == Some(0)
         );
     }
 
