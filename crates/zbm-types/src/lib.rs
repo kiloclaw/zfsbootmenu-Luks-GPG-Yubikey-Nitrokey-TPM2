@@ -38,6 +38,7 @@ mod device;
 mod error;
 mod mapping;
 mod policy;
+pub mod psf;
 mod snapshot;
 mod stage;
 pub mod version;

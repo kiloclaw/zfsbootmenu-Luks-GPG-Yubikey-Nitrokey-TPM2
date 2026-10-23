@@ -166,6 +166,14 @@
           "usr/share/zfsbootmenu/fonts/ter-v28b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v32b.psf": "file 644"
         },
+        "fonts": {
+          "ter-v12n.psf": 512,
+          "ter-v14b.psf": 512,
+          "ter-v20b.psf": 512,
+          "ter-v24b.psf": 512,
+          "ter-v28b.psf": 512,
+          "ter-v32b.psf": 512
+        },
         "texts": {
           "bin/zluks": "#!/bin/bash\n# vim: softtabstop=2 shiftwidth=2 expandtab\n\n# zluks: manage LUKS volumes from the ZFSBootMenu recovery shell or over SSH\n\nsources=(\n  /lib/profiling-lib.sh\n  /etc/zfsbootmenu.conf\n  /lib/kmsg-log-lib.sh\n  /lib/zfsbootmenu-core.sh\n  /lib/zfsbootmenu-luks.sh\n)\n\nfor src in \"${sources[@]}\"; do\n  # shellcheck disable=SC1090\n  if ! source \"${src}\" >/dev/null 2>&1; then\n    echo \"ERROR: unable to source ${src}\" >&2\n    exit 1\n  fi\ndone\n\nunset src sources\n\nusage() {\n  cat <<-USAGE\n\tUsage: ${0##*/} [command]\n\n\tCommands:\n\t  unlock               Unlock all configured LUKS volumes (default)\n\t  open <device> [name] Unlock a single LUKS volume; device may be a path or\n\t                       UUID=, PARTUUID=, LABEL=, PARTLABEL=, ID=, PATH=\n\t  close [name]         Export pools on, and close, mappings opened by\n\t                       ZFSBootMenu (all of them unless a name is given)\n\t  status               List mappings opened by ZFSBootMenu\n\t  list                 List all LUKS volumes on the system and their\n\t                       LUKS2 tokens (TPM2, FIDO2, clevis)\n\n\tAfter unlocking, return to ZFSBootMenu (type 'exit') to import pools, or\n\trun 'zpool import' manually.\n\tUSAGE\n}\n\nif ! luks_available; then\n  echo \"ERROR: cryptsetup is not available in this image\" >&2\n  exit 1\nfi\n\ncmd=\"${1:-unlock}\"\n[ \"$#\" -gt 0 ] && shift\n\ncase \"${cmd}\" in\n  unlock)\n    luks_unlock_all\n    ;;\n  open)\n    if [ -z \"${1}\" ]; then\n      usage >&2\n      exit 1\n    fi\n\n    if ! dev=\"$( luks_resolve_device \"${1}\" )\"; then\n      echo \"ERROR: device '${1}' not found\" >&2\n      exit 1\n    fi\n\n    luks_open_device \"${2}\" \"${dev}\" \"$( get_zbm_arg zbm.luks_key )\" \"\" \"\"\n    ret=$?\n    luks_forget_secrets\n    udevadm settle >/dev/null 2>&1\n    exit \"${ret}\"\n    ;;\n  close)\n    luks_close_all \"${1}\"\n    ;;\n  status)\n    if [ ! -s \"${LUKS_STATE}\" ]; then\n      echo \"No LUKS mappings opened by ZFSBootMenu\"\n      exit 0\n    fi\n\n    while IFS=$'\\t' read -r name dev _; do\n      [ -n \"${name}\" ] || continue\n      if [ -b \"/dev/mapper/${name}\" ]; then\n        state=\"$( colorize green \"open\" )\"\n        pools=\"$( luks_pools_on_device \"/dev/mapper/${name}\" | tr '\\n' ' ' )\"\n      else\n        state=\"$( colorize red \"closed\" )\"\n        pools=\"\"\n      fi\n      echo -e \"${name}\\t${dev}\\t${state}${pools:+\\tpools: ${pools}}\"\n    done < \"${LUKS_STATE}\"\n    ;;\n  list)\n    while read -r dev; do\n      [ -n \"${dev}\" ] || continue\n      if luks_is_open \"${dev}\"; then\n        state=\"$( colorize green \"in use\" )\"\n      else\n        state=\"$( colorize yellow \"locked\" )\"\n      fi\n      tokens=\"$( luks_list_tokens \"${dev}\" | awk '{ print $2 }' | sort -u | tr '\\n' ' ' )\"\n      echo -e \"$( luks_describe_device \"${dev}\" )\\t${state}${tokens:+\\ttokens: ${tokens}}\"\n    done <<< \"$( luks_discover_devices )\"\n    ;;\n  -h|--help|help)\n    usage\n    ;;\n  *)\n    usage >&2\n    exit 1\n    ;;\nesac\n",
           "etc/zfsbootmenu.conf": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"legacy\"\nexport embedded_kcl=\"zbm.timeout=3\"\n",
@@ -331,6 +339,14 @@
           "usr/share/zfsbootmenu/fonts/ter-v24b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v28b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v32b.psf": "file 644"
+        },
+        "fonts": {
+          "ter-v12n.psf": 256,
+          "ter-v14b.psf": 256,
+          "ter-v20b.psf": 256,
+          "ter-v24b.psf": 256,
+          "ter-v28b.psf": 256,
+          "ter-v32b.psf": 256
         },
         "texts": {
           "etc/zfsbootmenu.conf": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"rust\"\nexport embedded_kcl=\"zbm.timeout=3\"\n",

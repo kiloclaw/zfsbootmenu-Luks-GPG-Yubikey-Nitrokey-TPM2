@@ -454,14 +454,32 @@ install_zbm_docs() {
 }
 
 install_zbm_fonts() {
+  local font fonts subsets
 
-  [ -d "${zfsbootmenu_module_root}/fonts" ] || return 1
+  fonts="${zfsbootmenu_module_root}/fonts"
+  [ -d "${fonts}" ] || return 1
+
+  # Images with the Rust runtime get each font as a 256-glyph subset, which
+  # leaves the console all 16 colours (ROADMAP.md #20); the whole fonts when
+  # zbm cannot make them
+  # shellcheck disable=SC2154
+  if [ "${ZBM_RUNTIME}" = "rust" ] && subsets="$( mktemp -d )"; then
+    if "${zfsbootmenu_zbm:-/usr/libexec/zfsbootmenu/zbm}" console-fonts "${fonts}" "${subsets}" >&2 \
+      && compgen -G "${subsets}/*.psf" >/dev/null; then
+      fonts="${subsets}"
+    else
+      zbm_warn "unable to make 256-glyph console fonts; installing the whole fonts"
+    fi
+  fi
 
   # Install into a non-standard path so that the Dracut i18n module doesn't stomp over our custom fonts
 
-  for font in "${zfsbootmenu_module_root}/fonts"/*.psf; do
+  for font in "${fonts}"/*.psf; do
     [ -f "${font}" ] && zbm_install_file "${font}" "/usr/share/zfsbootmenu/fonts/${font##*/}"
   done
+
+  [ -n "${subsets}" ] && rm -rf "${subsets}"
+  return 0
 }
 
 install_zbm_osver() {

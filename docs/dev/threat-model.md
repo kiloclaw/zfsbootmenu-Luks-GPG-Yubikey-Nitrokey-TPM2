@@ -56,7 +56,7 @@ bytes into values; each one in this table must fail with an error on hostile inp
 | I10 | Key presses on the console | A2 (a fake keyboard) | the menu (`zbm-tui`), prompts |
 | I11 | The state files of `/zfsbootmenu` (`luks-mappings`, `degraded`, command line caches) | Only ZFSBootMenu itself writes them; listed because hooks (I6) can | `zbm_luks::mappings::parse_mappings`, `zbm_state` |
 | I12 | EFI images that `zbm-kcl` edits, and `generate-zbm`'s configuration | The host's root user | `zbm-kcl`, `generate-zbm` (host tools: trusted input, but they must not crash on a broken file) |
-| I13 | The EDID of connected displays (`/sys/class/drm/*/edid`) and the headers of the image's console fonts | A2 (a display or adapter plugged in), A1 (the fonts) | `zbm_startup::autosize` (`edid::parse`, `font::cell`, `choice`) |
+| I13 | The EDID of connected displays (`/sys/class/drm/*/edid`) and the headers of the image's console fonts | A2 (a display or adapter plugged in), A1 (the fonts) | `zbm_startup::autosize` (`edid::parse`, `font::cell`, `choice`), `zbm_types::psf` (`Font::parse`, `Font::subset`, at image build) |
 
 ## What must hold
 
@@ -110,7 +110,7 @@ night.
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |
 | `program_output` | `zbm_zfs::parse_table`, `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
-| `display_data` | `zbm_startup::autosize`: `edid::parse`, `font::cell`, `Density::new`, `choice::order` | I13 | A1, A2 |
+| `display_data` | `zbm_startup::autosize`: `edid::parse`, `font::cell`, `Density::new`, `choice::order`; `zbm_types::psf`: `Font::parse`, `Font::subset`, `Font::to_bytes` | I13 | A1, A2 |
 
 A parser that a phase adds or moves gets a target, or joins one, in the same pull request, and this table says which.
 

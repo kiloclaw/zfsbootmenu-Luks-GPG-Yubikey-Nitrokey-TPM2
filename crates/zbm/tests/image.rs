@@ -188,6 +188,9 @@ dinfo() { echo "dinfo: $*" >&2; }
 derror() { echo "derror: $*" >&2; }
 "#;
 
+/// Where images keep their console fonts.
+const FONTS: &str = "usr/share/zfsbootmenu/fonts";
+
 /// The files of an image that the tests read.
 const TEXTS: &[&str] = &[
     "hooks.list",
@@ -205,6 +208,8 @@ struct Image {
     entries: BTreeMap<String, String>,
     /// The contents of the files of [`TEXTS`] that exist.
     texts: BTreeMap<String, String>,
+    /// The console fonts, by name, with their numbers of glyphs.
+    fonts: BTreeMap<String, usize>,
 }
 
 impl Image {
@@ -237,7 +242,21 @@ impl Image {
                 Some(((*name).to_owned(), text.replace(zbm, ZBM)))
             })
             .collect();
-        Image { entries, texts }
+        let fonts = std::fs::read_dir(root.join(FONTS))
+            .into_iter()
+            .flatten()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let font = zbm_types::psf::Font::parse(&std::fs::read(entry.path()).unwrap());
+                let name = entry.file_name().to_string_lossy().into_owned();
+                (name, font.map_or(0, |font| font.glyph_count()))
+            })
+            .collect();
+        Image {
+            entries,
+            texts,
+            fonts,
+        }
     }
 
     /// Whether `path` exists in the image.
@@ -256,7 +275,9 @@ impl Image {
 fn dracut_install(parity: &mut Parity, settings: &[(&str, &str)]) -> Image {
     parity.legacy(format!("{settings:?}"), || {
         let dir = TempDir::new("zbm-image-zbm");
-        let zbm = dir.write_executable("zbm", "#!/bin/sh\n");
+        // The real zbm, which makes the console fonts of Rust images.
+        let real = env!("CARGO_BIN_EXE_zbm");
+        let zbm = dir.write_executable("zbm", format!("#!/bin/sh\nexec {real} \"$@\"\n"));
         let zbm = zbm.to_string_lossy().into_owned();
         let initdir = TempDir::new("zbm-dracut");
         std::fs::create_dir_all(initdir.join("etc/cmdline.d")).unwrap();
@@ -316,6 +337,13 @@ fn dracut_images_start_the_selected_runtime() {
     assert!(legacy.text(teardown).contains("luks_close_all"));
     let conf = legacy.text("etc/zfsbootmenu.conf");
     assert!(conf.contains("export ZBM_RUNTIME=\"legacy\"\n"), "{conf}");
+    // Legacy images keep the whole fonts.
+    assert_eq!(legacy.fonts.len(), 6, "{:?}", legacy.fonts);
+    assert!(
+        legacy.fonts.values().all(|&glyphs| glyphs == 512),
+        "{:?}",
+        legacy.fonts
+    );
     // The embedded command line survives the configuration file being written.
     assert!(
         conf.contains("export embedded_kcl=\"zbm.timeout=3\"\n"),
@@ -355,6 +383,15 @@ fn dracut_images_start_the_selected_runtime() {
     );
     let conf = rust.text("etc/zfsbootmenu.conf");
     assert!(conf.contains("export ZBM_RUNTIME=\"rust\"\n"), "{conf}");
+    // Rust images get the same fonts as 256-glyph subsets, which leave the
+    // console all 16 colours.
+    let names: Vec<&String> = rust.fonts.keys().collect();
+    assert_eq!(names, legacy.fonts.keys().collect::<Vec<_>>());
+    assert!(
+        rust.fonts.values().all(|&glyphs| glyphs == 256),
+        "{:?}",
+        rust.fonts
+    );
     // zbm is zluks, which also closes the LUKS mappings before booting.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
     let hook = rust.text(teardown);

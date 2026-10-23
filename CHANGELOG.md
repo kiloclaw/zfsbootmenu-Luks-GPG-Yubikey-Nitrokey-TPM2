@@ -118,6 +118,16 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### Console fonts of 256 glyphs
+
+Images built with `zfsbootmenu_runtime="rust"` install their console fonts as 256-glyph subsets, made at build time by
+`zbm console-fonts`. A console font of more than 256 glyphs costs colours (`setfont(8)`): on a VGA text console the
+eight bright ones, which the menu uses for secondary text, titles and warnings. The subsets keep ASCII, Latin-1, the
+letters Spanish, French, Dutch and Brazilian Portuguese use beyond it, the menu's symbols and the line characters,
+and draw the screen exactly as the whole fonts do; a character a font lacks is drawn with a look-alike it has. ASCII
+keeps its codes and the line characters their codes of code page 437. The six Terminus fonts take 65 KB instead of
+130 KB. When `zbm` cannot make them, the image build installs the whole fonts, as legacy images do.
+
 ### Refactoring pilots
 
 `REFACTOR-ROADMAP.md` plans the refactoring of the Rust code into layers (domain types, ports, adapters, an

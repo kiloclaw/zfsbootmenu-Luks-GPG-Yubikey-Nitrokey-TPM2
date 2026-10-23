@@ -11,6 +11,7 @@ use std::io::Write;
 
 pub mod applets;
 pub mod debug;
+pub mod fonts;
 pub mod luks;
 pub mod pilot;
 pub mod shadow;
@@ -64,6 +65,12 @@ const CONSOLE_AUTOSIZE: Applet = Applet {
     run: applets::console_autosize,
 };
 
+const CONSOLE_FONTS: Applet = Applet {
+    name: "console-fonts",
+    summary: "write an image's console fonts as 256-glyph subsets (image build)",
+    run: fonts::run,
+};
+
 const DEBUG: Applet = Applet {
     name: "debug",
     summary: "show crash reports (zbm debug crash)",
@@ -90,6 +97,7 @@ pub const APPLETS: &[Applet] = &[
     PREINIT,
     ZLUKS,
     CONSOLE_AUTOSIZE,
+    CONSOLE_FONTS,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -104,6 +112,7 @@ pub const APPLETS: &[Applet] = &[
     PREINIT,
     ZLUKS,
     CONSOLE_AUTOSIZE,
+    CONSOLE_FONTS,
     MENU_PILOT,
     DEBUG,
     SHADOW,
@@ -302,6 +311,7 @@ mod tests {
             "zfsbootmenu-preinit",
             "zluks",
             "console-autosize",
+            "console-fonts",
             "zbm-menu-pilot",
             "debug",
             "shadow",

@@ -9,6 +9,7 @@ use super::tests::screen;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
+use zbm_types::psf::{Font, repertoire};
 
 /// The sizes of the wireframes.
 const SIZES: [(u16, u16); 3] = [(120, 40), (80, 25), (52, 20)];
@@ -273,41 +274,8 @@ fn the_main_views_and_dialogs_in_ascii() {
     });
 }
 
-/// The characters a console font can draw, from its Unicode table: PSF 2
-/// has one UTF-8 entry per glyph, ended by `0xff`; PSF 1 has 16-bit code
-/// points, each entry ended by `0xffff`. Sequences after `0xfe` (`0xfffe`)
-/// are left out.
-fn font_characters(bytes: &[u8]) -> std::collections::BTreeSet<char> {
-    if bytes.starts_with(&[0x36, 0x04]) {
-        let count = if bytes[2] & 1 == 1 { 512 } else { 256 };
-        let table = &bytes[4 + count * usize::from(bytes[3])..];
-        let points: Vec<u16> = table
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect();
-        return points
-            .split(|point| *point == 0xffff)
-            .flat_map(|entry| {
-                entry
-                    .split(|point| *point == 0xfffe)
-                    .next()
-                    .unwrap_or_default()
-            })
-            .filter_map(|point| char::from_u32(u32::from(*point)))
-            .collect();
-    }
-    let word = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
-    let table = &bytes[word(8) + word(16) * word(20)..];
-    table
-        .split(|byte| *byte == 0xff)
-        .flat_map(|entry| {
-            let single = entry.split(|byte| *byte == 0xfe).next().unwrap_or_default();
-            String::from_utf8_lossy(single).chars().collect::<Vec<_>>()
-        })
-        .collect()
-}
-
-/// The characters every console font of the image can draw.
+/// The characters every console font of the image can draw as the image
+/// installs it with the Rust runtime: a 256-glyph subset.
 #[allow(
     clippy::disallowed_methods,
     reason = "the test reads the image's fonts from the repository"
@@ -317,7 +285,8 @@ fn console_characters() -> std::collections::BTreeSet<char> {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../legacy/zfsbootmenu/fonts");
     let mut common: Option<std::collections::BTreeSet<char>> = None;
     for entry in std::fs::read_dir(dir).unwrap() {
-        let chars = font_characters(&std::fs::read(entry.unwrap().path()).unwrap());
+        let font = Font::parse(&std::fs::read(entry.unwrap().path()).unwrap()).unwrap();
+        let chars = font.subset(&repertoire()).font.chars().collect();
         common = Some(match common {
             Some(seen) => seen.intersection(&chars).copied().collect(),
             None => chars,
@@ -342,6 +311,6 @@ fn every_character_drawn_is_in_the_console_fonts() {
         }
     }
 
-    assert!(fonts.len() > 500, "{} characters", fonts.len());
+    assert!(fonts.len() > 200, "{} characters", fonts.len());
     assert_eq!(missing, std::collections::BTreeSet::new());
 }

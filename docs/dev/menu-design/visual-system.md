@@ -61,8 +61,9 @@ story; the snapshot tests compare the monochrome text with the coloured one.
 
 ## Glyphs
 
-Only glyphs that every console font of the image has (the six Terminus fonts, 512 glyphs each); a test of the
-wireframes reads the fonts' Unicode tables and fails on any other. Each has an ASCII form.
+Only glyphs that every console font of the image has, as images with the Rust runtime install them: the six Terminus
+fonts as 256-glyph subsets (`zbm_types::psf`), which keep the console's 16 colours. A test of the wireframes makes
+the subsets and fails on any character they cannot draw. Each glyph has an ASCII form.
 
 | Glyph | Means | ASCII |
 | --- | --- | --- |
