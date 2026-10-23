@@ -62,7 +62,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 1 | Medium | Partly done |
 | 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Partly done |
-| 19 | [Own console in Rust](#19-own-console-in-rust) | 1 | Large | Proposed |
+| 19 | [Own console in Rust](#19-own-console-in-rust) | 1 | Large | In progress |
 | 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | Done | Small | Done |
 | 21 | [Restore files and see what an upgrade changed](#21-restore-files-and-see-what-an-upgrade-changed) | 2 | Medium | Prototyped |
 
