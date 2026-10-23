@@ -6,6 +6,11 @@ based on an analysis of the whole tree in October 2026, during Phase 6 of [PORT-
 changes that plan: fundamental changes to structure and behaviour are allowed, and every line of code and every test
 ends up in Rust.
 
+The menu is redesigned from TUI and UX design principles, not rebuilt screen for screen from the `fzf` menu of the
+legacy runtime: [The menu redesign](#the-menu-redesign) sets out the principles and the structure, phase
+[D](#d-menu-design-3-to-4-weeks-alongside-r3-and-r4) designs it and tries it on a prototype while R3 and R4 prepare
+the code, and R5 builds it.
+
 [Nucleo]: https://github.com/helix-editor/nucleo
 [Ratatui]: https://ratatui.rs
 
@@ -37,6 +42,7 @@ ends up in Rust.
 | R1 | Done on branch `claude/zbm-refactor` |
 | R2 | Done on branch `claude/zbm-refactor` |
 | R3 | In progress on branch `claude/zbm-refactor` |
+| D (menu design) | Not started |
 | R4 to R9 | Not started |
 
 Done in R0:
@@ -319,6 +325,7 @@ The goals as given, numbered once, with the measure each phase is checked agains
 | G8 | Unit tests that people find easy to use | `cargo test` (or `cargo nextest run`) runs everything without root in under a minute; builders for test machines; readable failure diffs; `docs/dev/testing.md` |
 | G9 | Heavy use of uutils coreutils | Images ship uutils as their only coreutils; Rust code uses `uucore` where it reimplements coreutils behaviour; tests compare with uutils, not GNU (see [Using uutils coreutils](#using-uutils-coreutils)) |
 | G10 | All code and tests in Rust from the start | No Bash, Perl or Python in the tree except the dracut and mkinitcpio entry points that those tools require to be shell, and user hook examples; refactored code is written in Rust first, never ported later |
+| G11 | A menu designed from TUI and UX principles, not rebuilt from the `fzf` screens | The task measures of [The menu redesign](#the-menu-redesign): keystrokes for each core task, every screen usable at 52×20, in monochrome and over a 115200-baud serial console, a redraw budget, usability sessions with users before and after R5 |
 
 [The Rust Style Guide]: https://doc.rust-lang.org/stable/style-guide/
 
@@ -489,17 +496,55 @@ terminals or files; adapters implement narrow traits; front ends drive the appli
 - `zbm-app` exposes a `Snapshot` of the world (pools, boot environments, kernels, snapshots, LUKS volumes, health)
   and accepts `Action`s; it is the only thing the menu talks to.
 - `zbm-tui` keeps a `Model` (current screen, selection, filter text, pending dialog), turns terminal events into
-  `Message`s, and has one pure `update(model, message) -> (Model, Vec<Action>)`. Each screen (boot environments,
-  kernels, snapshots, diff, pool status, help, command line editor, LUKS volumes) is a module with a `view` function
-  and its own messages.
+  `Message`s, and has one pure `update(model, message) -> (Model, Vec<Action>)`. Each view of the
+  [redesigned menu](#the-menu-redesign) (start-up, main view, command palette, snapshots, kernels, command line
+  editor, pools and LUKS volumes, recovery tools, help) is a module with a `view` function and its own messages.
 - `nucleo-matcher`, the matcher of Nucleo without its thread pool, scores the filter text against the list of the
   current screen inside `update`, so matching is as pure and testable as the rest of `update`; the list widget
   renders the highlighted positions. The lists of a boot menu hold tens to hundreds of entries, which this matches in
   well under a frame. `nucleo` itself adds `rayon` and `parking_lot` to run matching on a thread pool, built for
-  editors that search millions of files; the menu does not take it unless the R0 pilot measures a need.
+  editors that search millions of files; the menu does not take it unless the R0 pilot measures a need. The
+  command palette matches across every list at once; the performance test of R5 (10,000 snapshots) decides whether
+  that still holds (open [decision](#decisions) 7).
 - Key bindings are a table (`keymap.rs`) that the help screen renders, so documentation and behaviour cannot drift.
 - Tests: `update` with table-driven cases; `view` with `TestBackend` and `insta` snapshots at 80×25, 120×40 and
   52×20; one end-to-end test per screen through `zbm-app` with fakes.
+
+### The menu redesign
+
+The `fzf` menu grew screen by screen around one tool: a list per screen, key bindings that differ between screens,
+start-up and unlock prompts printed on the console before the menu exists, and destructive actions behind a single key
+and a yes/no question. The new menu is designed from the tasks users come to do, with these principles, each with the
+way it is applied and checked:
+
+| Principle | Applied as | Checked by |
+| --- | --- | --- |
+| Task first | The core tasks (boot the default, boot another environment or kernel, roll back or boot a snapshot, unlock volumes, edit the command line once, recover a failed boot) shape the layout; booting the default needs no key | Keystrokes per core task, measured on the prototype and in R5 |
+| One place, details on demand | One main view: the boot environment list with a detail pane (kernels, snapshots, command line, encryption, pool health); other views open from it and return to it | Every core task starts from the main view |
+| Visible state and feedback | A status bar always shows the countdown, pools, LUKS volumes and health; every action reports progress and its outcome as a notification, without blocking | Snapshot tests of each state; no silent action |
+| Keyboard first and discoverable | One key map for every view (`Enter` primary action, `Esc` back, `/` filter, `?` help, `:` command palette); a footer shows the keys of the focused element; the palette finds every environment, snapshot, kernel and action by fuzzy match | The key map is a table (`keymap.rs`) that drives input, footer, help and the man page |
+| Safe by default | Rollback, destroy and promote show what will be lost and need a typed confirmation; a safety snapshot before a rollback when the pool is writable | A test per destructive action that it cannot run without confirmation |
+| Errors that say what to do | Every error view names what failed, why, and the next steps offered (retry, other method, shell) | Each error variant reachable from the menu has a view test |
+| Works on every console | 52×20 at least; 16 colours, monochrome and `NO_COLOR`; ASCII borders when the terminal cannot draw lines; meaning never carried by colour alone; terminal capabilities detected at start | Snapshot tests at 80×25, 120×40 and 52×20, in colour, monochrome and ASCII |
+| Fast | The first frame shortly after the menu starts; only changed cells are redrawn; matching and redraw fit a frame | Redraw budget over 115200 baud; 10,000 snapshots in the performance test |
+| The whole boot in one interface | Start-up progress, the countdown, passphrase, PIN and security key prompts, and pool import problems are views of the menu, through the `Prompter` and `Operator` ports of R3; a plain console fallback when the terminal cannot run the TUI | VM tests drive unlock and import problems through the menu |
+| Secrets stay secret | Secret fields never echo, never enter the model as text, and are wiped after use | `assert_no_secret_leaked` over the model, the journal and the screen |
+
+The structure of the menu:
+
+- **Start-up view:** the stages of `zbm-startup` as a progress list; unlock dialogs per volume, offering the key
+  methods that apply; import problems with their choices (retry, force, match the host ID, shell).
+- **Main view:** the boot environment list and the detail pane (to the right, or below on narrow terminals); the
+  countdown in the status bar, stopped by any key.
+- **Command palette:** fuzzy matching with `nucleo-matcher` over environments, snapshots, kernels and actions.
+- **Views opened from the main view:** snapshots (diff, clone, rollback, boot), kernels, the command line editor
+  (validated with the types of `zbm-config`), pools and LUKS volumes (unlock, import, status), recovery tools (logs,
+  chroot, shell, firmware setup, power), help generated from the key map.
+
+The design (users and tasks, wireframes, the visual system, the key map) is written in phase
+[D](#d-menu-design-3-to-4-weeks-alongside-r3-and-r4) under `docs/dev/menu-design/`; its wireframes, as text, become
+the first snapshot tests of R5. Behaviour changes against the `fzf` menu are recorded in `CHANGES-FROM-LEGACY.md`,
+written as a migration guide.
 
 ### Options defined once
 
@@ -731,6 +776,9 @@ It covers at least:
   outlives `kexec` in ZFSBootMenu's memory or files; a pool property cannot add an unquoted argument to the kernel
   command line except the one documented property; parsing hostile input fails with an error, never a panic or a
   hang) and the test, fuzz target or review that shows it.
+- **Display:** the menu draws names and properties that a hostile pool controls. Control characters and escape
+  sequences are replaced before anything reaches the terminal, so that a dataset name cannot move the cursor, change
+  the title or forge a prompt; a fuzz target renders hostile names through `view`.
 - **Out of scope,** stated as such: for example, a compromised firmware, or an attacker who can already run code as
   root before ZFSBootMenu starts.
 
@@ -741,7 +789,8 @@ legacy runtime, an independent security review of the Rust runtime against this 
 
 Each phase ends with every suite green on its own branch merge, the measures of its goals met for the code it
 touched, and its docs written. Phases R1 to R4 change structure without changing behaviour (the golden files and VM
-tests are the proof); behaviour changes start with R5.
+tests are the proof); behaviour changes start with R5. Phase D changes no behaviour either: its prototype runs on
+fakes and the images are unchanged.
 
 ### R0. Decisions, scaffolding and pilot slices (3 to 5 weeks)
 
@@ -831,10 +880,31 @@ tests are the proof); behaviour changes start with R5.
 - **Exit:** the size and type rules hold in these crates (checked by `xtask metrics`); golden files unchanged; the VM
   tests pass in the Rust harness with zero shadow differences; every option in the man pages comes from the table.
 
+### D. Menu design (3 to 4 weeks, alongside R3 and R4)
+
+- Users, tasks and scenarios: the core tasks of [The menu redesign](#the-menu-redesign), and the situations they
+  happen in (a desktop with one pool, a server reached over a serial console, a machine with LUKS and a security key,
+  a failed boot).
+- Information architecture and wireframes of every view at 80×25, 120×40 and 52×20, as text files under
+  `docs/dev/menu-design/`.
+- The visual system: colour roles as Ratatui `Style`s in one `theme.rs`, their monochrome and `NO_COLOR` forms, ASCII
+  borders, and terminal capability detection (from [Proposals for later](#proposals-for-later), item 5).
+- The key map: the first version of `keymap.rs`, with the classic profile question decided (open
+  [decision](#decisions) 8).
+- A prototype: `cargo run -p zbm-tui -- --demo` on a fake machine (item 3 of the proposals), built on the Elm skeleton
+  of the R0 menu pilot, running every core task.
+- Usability sessions on the prototype with at least five people who use ZFSBootMenu, one of them on a serial console;
+  findings fixed in the design or recorded.
+- The `Snapshot`, `Action` and event lists the design needs, handed to R4.
+- **Exit:** the design documents are reviewed; `theme.rs` and `keymap.rs` are in `zbm-tui`; the prototype runs
+  every core task on fakes; the lists for `zbm-app` are agreed.
+
 ### R4. Application layer (3 to 4 weeks)
 
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
-  the applets already need (boot the default environment, unlock, close, import).
+  the applets already need (boot the default environment, unlock, close, import). Their shape follows the lists
+  agreed in D, including start-up progress events (stages, unlock requests, import problems), so that the menu can
+  show start-up and answer its prompts through the ports of R3.
 - Rewrite the applets (`zluks`, `zfsbootmenu-init`, the supervisor glue) as thin front ends over `zbm-app`.
 - Add `zbm debug` (`config`, `state`, `journal`, `commands`, `luks`, `pools`, `crash`), replacing `ztrace` and
   `zlogtail`.
@@ -843,23 +913,30 @@ tests are the proof); behaviour changes start with R5.
 - **Exit:** no front end imports an adapter crate; `zbm debug` documented in `zbm-debug(8)`; zero shadow differences
   in the VM tests and no open shadow difference reported by users.
 
-### R5. The new menu (6 to 8 weeks)
+### R5. The new menu (10 to 12 weeks)
 
-- `zbm-tui` with Ratatui and Nucleo, screen by screen, in the order users meet them: boot environments, kernels,
-  snapshots and their actions, diff, pool status, help, command line editor, LUKS volumes (new: unlock from the menu
-  instead of the recovery shell), power menu.
+- `zbm-tui` builds the design of D, in the order of the core tasks: the start-up view and countdown, the main view
+  with its detail pane, the command palette, snapshots (diff, clone, rollback and boot, with previews and
+  confirmations), kernels and the command line editor, pools and LUKS volumes (unlock and import from the menu instead
+  of the recovery shell), recovery tools, help, power.
+- Start-up runs inside the menu: the `Prompter` of `zbm-luks` and the `Operator` of `zbm-pool` are answered by
+  dialogs; a plain console fallback remains for terminals that cannot run the TUI.
 - Port package C (boot environments, kernels, native encryption keys, key sources, booting) into `zbm-bootenv` and
-  `zbm-kexec` as the boot environment screen needs it, and package D (snapshots, rollback, clone, set default) into
-  `zbm-app` use cases.
-- Decide and document every behaviour change against the `fzf` menu in `CHANGES-FROM-LEGACY.md` (key bindings,
-  layout, previews). The key binding section of the man page is generated from `keymap.rs`.
-- **Exit:** the VM tests that drive the menu are written for the new screens in `zbm-vmtest` and pass; snapshot
-  tests cover every screen at three sizes; the menu runs without `fzf` in images, including on a serial console.
+  `zbm-kexec` as the main view needs it, and package D (snapshots, rollback, clone, set default) into `zbm-app` use
+  cases.
+- Record every behaviour change against the `fzf` menu in `CHANGES-FROM-LEGACY.md`, written as a migration guide. The
+  key binding section of the man page is generated from `keymap.rs`.
+- Usability sessions on the R5 build, as in D; findings fixed or recorded.
+- **Exit:** the VM tests in `zbm-vmtest` drive every core task through the menu and pass; snapshot tests cover
+  every view at three sizes, in colour, monochrome and ASCII; the task measures and the redraw budget of
+  [The menu redesign](#the-menu-redesign) are met; the performance test with 10,000 snapshots passes; the fuzz
+  target for hostile names passes; the menu runs without `fzf` in images, including on a serial console.
 
 ### R6. Recovery tools and image assembly in Rust (3 to 4 weeks)
 
 - Port package F (recovery shell commands `zfs-chroot`, `zsnapshots`, `zkexec`, `mount_esp`, `reboot`, `firmware-setup`,
-  `logs`, help viewer) as `zbm` applets over `zbm-app`.
+  `logs`, help viewer) as `zbm-app` use cases: views of the menu's recovery tools, and thin `zbm` applets for scripts
+  and the recovery shell.
 - Built-in hooks (`20-dracut-console-init`, `30-console-autosize`, `80-luks-close`, `90-xhci-unbind`) become Rust
   steps; user hooks stay shell scripts, run by `zbm-startup`.
 - Image assembly logic moves from `install-helpers.sh` into `zbm-generate` (a library computing the file list); the
@@ -899,12 +976,14 @@ tests are the proof); behaviour changes start with R5.
 
 ```text
 R0 ─ R1 ─ R2 ─ R3 ─ R4 ─ R5 ─ R6 ─ R9
-          │    └────┤    └────┤
-          │         │         └ R7: upstream test VMs and tooling (alongside R5 and R6)
-          │         └ VM harness in Rust (alongside R3 and R4, done before R5)
+          │    ├────┤    └────┤
+          │    │    │         └ R7: upstream test VMs and tooling (alongside R5 and R6)
+          │    │    └ VM harness in Rust (alongside R3 and R4, done before R5)
+          │    └ D: menu design and prototype (alongside R3 and R4; its lists shape R4)
           └ LUKS device suites in Rust (done before R3)
 
-R0 includes the pilot slices; R8 (docs) runs alongside R7 and ends before R9.
+R0 includes the pilot slices; R8 (docs) runs alongside R7 and ends before R9. D adds about four weeks of work but
+little to the length of the plan, since it overlaps R3 and R4; R5 grows by about four weeks.
 ```
 
 Two test ports are tied to the code they protect: the LUKS device suites move to Rust in R2, before R3 rewrites
@@ -916,7 +995,8 @@ running against the Rust image, are the regression check from R1 on.
 - Packages A and B are done (B's complex-pool VM tests wait for the boot environment code of R5). They are
   refactored in R1 to R4, not ported again.
 - Packages C, D, E and F are no longer ported in the current architecture: C and D land in R5 and E is replaced by
-  the Ratatui menu in R5, F in R6. This avoids writing the menu twice (once around `fzf`, once natively).
+  the redesigned menu (designed in D, built in R5), F in R6. This avoids writing the menu twice (once around
+  `fzf`, once natively).
 - PORT-ROADMAP's rule 6 ("no new features") applies until R4 ends; from R5 on, behaviour changes are allowed and
   recorded in `CHANGES-FROM-LEGACY.md`.
 - The legacy freeze, `legacy/RUNTIME-CHANGES.md` and the rule that every suite runs against both images stay until
@@ -939,6 +1019,8 @@ running against the Rust image, are the regression check from R1 on.
 | A refactor breaks the tests that should catch it | Test suites move to Rust before the code they protect changes (device suites in R2, VM harness in R3 and R4), and old and new suites run side by side until they agree |
 | A hostile disk, pool or USB device attacks the boot | The [threat model](#threat-model), a fuzz target per untrusted input, an independent security review before R9 |
 | Rules erode as more people contribute | Every rule is checked by a tool in CI ([How the rules are enforced](#how-the-rules-are-enforced)) |
+| The redesign breaks users' habits | A migration guide in `CHANGES-FROM-LEGACY.md`; the keys of the focused element on every screen; a classic key map if decision 8 adopts it; usability sessions with existing users in D and R5 |
+| Design work grows without end | D has a fixed exit: the core tasks only; new ideas go to [Proposals for later](#proposals-for-later); R5 builds what D decided |
 | Too many abstractions for the size of the code | Patterns only where the table above says; `docs/dev/architecture.md` explains each one where it is used |
 
 ## Decisions
@@ -955,7 +1037,8 @@ Decided on 22 October 2026:
    gets its own small expect module in R3. `uucore` needs its default `signals` feature.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
-3. **Menu:** the Nucleo and Ratatui menu replaces `fzf` outright in R5; `fzf` leaves the images then.
+3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images
+   then.
 4. **uutils in `zbm`** (decided by the R2 spike): images ship the uutils multi-call binary next to `zbm`, which does
    not link `uu_*` applets (see [Using uutils coreutils](#using-uutils-coreutils), item 3).
 5. **Errors:** `thiserror`, which only runs at build time and adds nothing to the binaries.
@@ -964,6 +1047,11 @@ Still open:
 
 6. **When the legacy runtime goes:** keep the PORT-ROADMAP beta (phase 7) with the legacy image as fallback, or cut
    over directly after R6; decided before R9.
+7. **Nucleo or its matcher:** decision 1 stands (`nucleo-matcher` without the thread pool) unless the command palette
+   misses its frame budget in the performance test of R5 (10,000 snapshots); then `nucleo` is taken with its worker
+   thread, and `rayon` and `parking_lot` are measured against the image size budget. Decided in R5.
+8. **A classic key map:** whether `keymap.rs` offers a second profile close to the `fzf` menu's bindings for users who
+   know them; decided at the end of D, from its usability sessions.
 
 ## Proposals for later
 
@@ -977,12 +1065,14 @@ the plan yet; each would be added to a phase when it is adopted.
 2. **Debugging failures offline:** `zbm debug bundle` writes a redacted archive of the journal, the commands run, the
    configuration and the pool layout; `xtask replay <bundle>` turns it into a fake machine, so a reported boot
    failure becomes a `cargo test`; boot timelines exported as Chrome trace files for Perfetto.
-3. **Developer experience:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine;
+3. **Developer experience:** a demo mode for the menu (`cargo run -p zbm-tui -- --demo`) on a fake machine
+   (adopted: the prototype of phase D);
    Architecture Decision Records in `docs/dev/adr/`; runnable `examples/` per crate; an `AGENTS.md` per crate with its
    invariants, commands and test conventions for AI tools.
 4. **Stable error codes:** `ZBM-E0412: no key method could open /dev/sda2`, explained by `zbm explain <code>` and one
    documentation page per code.
-5. **Boot environment specifics:** terminal capability detection with ASCII borders, 16 colours and `NO_COLOR`;
+5. **Boot environment specifics:** terminal capability detection with ASCII borders, 16 colours and `NO_COLOR`
+   (adopted in D and R5);
    budgets for boot time, image size and memory with CI gates; `zeroize` or `secrecy` instead of the hand-written
    `Secret`, `mlock` for secret memory and no core dumps; `cargo vet` and `cargo auditable` for the supply chain.
 6. **A deprecation policy** for kernel command line options and configuration files: old names keep working with a
