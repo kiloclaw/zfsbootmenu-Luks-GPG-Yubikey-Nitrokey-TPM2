@@ -40,6 +40,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 2 | Medium | Proposed |
 | 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Proposed |
+| 19 | [Own console in Rust](#19-own-console-in-rust) | 4 | Large | Proposed |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -349,6 +350,52 @@ Needs the built-in menu (#12) with its text in a message catalogue, which REFACT
   a shell only when configured.
 - **Done when:** a VM test unlocks a pool over SSH, password logins and unknown keys are refused, and a security review
   is done.
+
+### 19. Own console in Rust
+
+**Security.**
+
+- **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts:
+  - at most 512 glyphs, and a font of more than 256 can cost colours (`setfont(8)`), while the menu's theme uses the
+    bright ones for muted text and emphasis;
+  - fixed sizes, so the densest displays get Terminus 32 doubled to a blocky 64;
+  - keyboard layouts only as the image's one keymap, which the unlock dialog works around by translating keys
+    itself.
+
+  Fedora is replacing the kernel console with `kmscon`, a console in user space that draws on the display through DRM.
+  `kmscon` is C with `libtsm`, `libxkbcommon`, `freetype` and `fontconfig`, a few megabytes in the image. A console in
+  Rust fits this project better: it is one more applet of `zbm`, and it keeps typed secrets under the rules of
+  `docs/dev/threat-model.md`.
+- **How:** a `zbm console` applet, which the supervisor starts on the display before the first prompt.
+  - **Display.** It draws into a dumb buffer through DRM (the `drm` crate). It works on `simpledrm`, the firmware's
+    framebuffer, without graphics drivers, and at the native resolution with #17.
+  - **Text.** Any TTF or OTF font, at the size `zbm console-autosize` already computes from the display's EDID,
+    rasterized with `fontdue` (pure Rust; a terminal grid of Latin text needs no shaping). Full Unicode and 256
+    colours, so the four languages of #18 show without a 512-glyph subset.
+  - **Terminal.** `alacritty_terminal`, the terminal state machine of Alacritty, on a pseudo-terminal (`rustix`), so
+    `zfsbootmenu-init`, the menu and the recovery shell run in it and `vim`, `less` and `mc` work. `vte` and `vt100`
+    are already vendored for the VM tests.
+  - **Keyboard.** Key events from `evdev`, layouts from `xkbcommon_rs` (a Rust port of libxkbcommon) with the layout
+    files the image needs. The unlock dialog's `Ctrl-K` then switches real keyboard layouts, dead keys and compose
+    included.
+  - **Secrets.** No scrollback while a prompt is open, and the grid and the PTY's buffers wiped when it closes.
+  - **Fallback.** If the console fails to start or ends, the supervisor puts the menu back on the kernel console,
+    which stays built in. The serial console is unchanged.
+  - **Handing over.** Before `kexec` it releases the display and the keyboard, and gives the kernel console back, so
+    that the booted kernel takes over as it does today.
+  - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
+    the drivers), so it is not hidden behind the console.
+- **Steps:**
+  1. A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts, sizes, `simpledrm`, keyboard input
+     and the hand-over before `kexec`, without a terminal. Medium.
+  2. The console: `alacritty_terminal`, the pseudo-terminal, the recovery shell, the fallback. Large.
+  3. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
+- **Done when:**
+  - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;
+  - snapshot tests compare its rendering, in memory, with reference images at three sizes;
+  - a test types a passphrase and finds it in no buffer of the console once the dialog closed;
+  - a VM test kills the console and the menu comes back on the kernel console;
+  - image size and the time to the menu are measured against the kernel console.
 
 ## Not planned
 
