@@ -1,0 +1,167 @@
+//! The tests compile layouts from the XKB data and compose rules of the
+//! machine that runs them (`xkb-data` and `libx11-data` on Debian and
+//! Ubuntu), as the image build does.
+
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the compose rules are the machine's own file, as the image build reads it"
+)]
+
+use std::path::Path;
+use std::sync::OnceLock;
+
+use pretty_assertions::assert_eq;
+
+use super::compile::{self, COMPOSE, XKB};
+use super::*;
+use crate::keys::{Decoder, Key};
+
+/// The rules of dead keys, compiled once.
+fn dead_keys() -> &'static str {
+    static RULES: OnceLock<String> = OnceLock::new();
+    RULES.get_or_init(|| {
+        let compose =
+            std::fs::read(COMPOSE).expect("the compose rules of en_US.UTF-8 (libx11-data)");
+        compile::dead_keys(&compose).unwrap()
+    })
+}
+
+/// The keymap of `name`, compiled from the machine's XKB data.
+fn keymap(name: &str) -> String {
+    compile::keymap(Path::new(XKB), name).expect("the XKB data (xkb-data)")
+}
+
+/// The German layout, with its dead keys.
+pub(crate) fn german() -> Layout {
+    Layout::from_keymap("de", keymap("de").as_bytes())
+        .unwrap()
+        .with_dead_keys(dead_keys().as_bytes())
+        .unwrap()
+}
+
+/// What pressing and releasing each key of `codes` types; key code 0 and
+/// the next code hold that key while the one after is pressed.
+fn typed(layout: &mut Layout, codes: &[u16]) -> String {
+    let mut text = String::new();
+    let mut codes = codes.iter();
+    while let Some(&code) = codes.next() {
+        let held = (code == 0).then(|| *codes.next().unwrap());
+        let code = if let Some(held) = held {
+            layout.key(held, 1);
+            *codes.next().unwrap()
+        } else {
+            code
+        };
+        text.extend(layout.key(code, 1).and_then(|typed| typed.char));
+        assert_eq!(layout.key(code, 0), None);
+        if let Some(held) = held {
+            layout.key(held, 0);
+        }
+    }
+    text
+}
+
+#[test]
+fn names_are_layouts_with_an_optional_variant() {
+    assert_eq!(compile::split("de"), Ok(("de", "")));
+    assert_eq!(compile::split("de(nodeadkeys)"), Ok(("de", "nodeadkeys")));
+    assert_eq!(compile::split("us(dvorak-intl)"), Ok(("us", "dvorak-intl")));
+    for wrong in ["", "de(", "de()", "../de", "de(x/y)", "de nodeadkeys"] {
+        let error = compile::split(wrong).unwrap_err();
+        assert!(error.to_string().contains("not a layout name"), "{wrong}");
+    }
+}
+
+#[test]
+fn unknown_layouts_and_broken_keymaps_are_errors() {
+    let unknown = compile::keymap(Path::new(XKB), "zz").unwrap_err();
+    assert_eq!(unknown, LayoutError::Unknown("zz".to_owned()));
+    assert_eq!(unknown.to_string(), "zz: no such keyboard layout");
+    assert!(compile::keymap(Path::new(XKB), "de(").is_err());
+    let broken = Layout::from_keymap("de", b"xkb_keymap {").unwrap_err();
+    assert!(broken.to_string().starts_with("de: "), "{broken}");
+}
+
+#[test]
+fn a_layout_types_its_characters() {
+    let mut layout = german();
+
+    assert_eq!(layout.name(), "de");
+    assert_eq!(format!("{layout:?}"), "Layout { name: \"de\", .. }");
+    // y z, Shift-2, AltGr-q, Caps Lock then a, Caps Lock again then a
+    let text = typed(&mut layout, &[21, 44, 0, 42, 3, 0, 100, 16, 58, 30, 58, 30]);
+    assert_eq!(text, "zy\"@Aa");
+    layout.key(29, 1);
+    let control = layout.key(37, 1).unwrap();
+    assert_eq!(
+        (control.char, control.ctrl, control.shift),
+        (Some('k'), true, false)
+    );
+    assert_eq!(layout.key(37, 2).unwrap().char, Some('k'));
+    layout.key(37, 0);
+    layout.key(29, 0);
+    let modifier = layout.key(42, 1).unwrap();
+    assert_eq!((modifier.char, modifier.shift), (None, true));
+}
+
+#[test]
+fn dead_keys_compose_with_the_next_key() {
+    let mut layout = german();
+
+    // ^ then e, ^ then space, ´ (Shift ´ is `) then a, ^ then x
+    let text = typed(
+        &mut layout,
+        &[41, 18, 41, 57, 13, 30, 0, 42, 13, 18, 41, 45],
+    );
+    assert_eq!(text, "ê^áèx");
+    let mut plain = Layout::from_keymap("de", keymap("de").as_bytes()).unwrap();
+    assert_eq!(typed(&mut plain, &[41, 18]), "e");
+    let rules = dead_keys();
+    assert!(
+        rules.contains("<dead_circumflex> <e> : \"ê\"\n"),
+        "{}",
+        &rules[..200]
+    );
+    assert!(rules.lines().all(|rule| rule.starts_with("<dead_")));
+}
+
+#[test]
+fn compose_strings_are_quoted() {
+    let rules = compile::dead_keys(b"<dead_acute> <quotedbl> : \"\\\"\"\n<a> : \"b\"\n").unwrap();
+    assert_eq!(rules, "<dead_acute> <quotedbl> : \"\\\"\"\n");
+    assert_eq!(single(Some("ab")), None);
+    assert_eq!(single(None), None);
+}
+
+#[test]
+fn control_keys_take_the_us_letter_on_other_scripts() {
+    let russian = Layout::from_keymap("ru", keymap("ru").as_bytes()).unwrap();
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(russian));
+
+    assert_eq!(decoder.feed(37, 1).unwrap().key, Key::Char('л'));
+    decoder.feed(29, 1);
+    let control = decoder.feed(37, 1).unwrap();
+    assert_eq!((control.key, control.ctrl), (Key::Char('k'), true));
+    assert_eq!(decoder.feed(103, 1).unwrap().key, Key::Up);
+}
+
+#[test]
+fn a_decoder_takes_a_layout_with_the_keys_held() {
+    let mut decoder = Decoder::new();
+    assert_eq!(decoder.layout(), "us");
+    decoder.feed(42, 1);
+
+    decoder.set_layout(Some(german()));
+
+    assert_eq!(decoder.layout(), "de");
+    assert_eq!(decoder.feed(3, 1).unwrap().key, Key::Char('"'));
+    let tab = decoder.feed(15, 1).unwrap();
+    assert_eq!((tab.key, tab.shift), (Key::BackTab, true));
+    decoder.feed(42, 0);
+    assert_eq!(decoder.feed(44, 1).unwrap().key, Key::Char('y'));
+    assert_eq!(decoder.feed(41, 1), None);
+    assert_eq!(decoder.feed(42, 1), None);
+    decoder.set_layout(None);
+    assert_eq!(decoder.feed(44, 1).unwrap().key, Key::Char('Z'));
+}

@@ -34,7 +34,9 @@ if [ -z "${kabi}" ]; then
   exit 1
 fi
 
-# Install the kernel, ZFS and the ZFSBootMenu dependencies
+# Install the kernel, ZFS and the ZFSBootMenu dependencies; xkb-data and
+# libx11-data hold the keyboard layouts and compose rules that zbm
+# keyboard-layouts compiles into Rust images
 # shellcheck disable=SC2086
 apt-get -y install --no-install-recommends ${kpkgs} zfsutils-linux \
   dracut-core dracut-network systemd-boot-efi systemd-cryptsetup \
@@ -45,7 +47,7 @@ apt-get -y install --no-install-recommends ${kpkgs} zfsutils-linux \
   e2fsprogs efibootmgr cryptsetup-bin openssh-client util-linux \
   util-linux-extra less kpartx gnupg scdaemon libfido2-1 fido2-tools \
   clevis clevis-luks clevis-tpm2 tpm2-tools yubikey-personalization \
-  openssl cargo rustc
+  openssl xkb-data libx11-data cargo rustc
 
 # The ZFS module must exist for the installed kernel
 if ! modinfo -k "${kabi}" zfs >/dev/null; then

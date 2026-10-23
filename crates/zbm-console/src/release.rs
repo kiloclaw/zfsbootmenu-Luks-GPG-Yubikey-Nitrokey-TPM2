@@ -1,6 +1,8 @@
-//! Handing the display back before `kexec`: `zbm console release` sends
-//! the console `SIGUSR1` and waits until it has given the display, the
-//! keyboards and the virtual terminal back to the kernel.
+//! Requests to the console from other processes: `zbm console release`,
+//! before `kexec`, sends `SIGUSR1` and waits until the console has given
+//! the display, the keyboards and the virtual terminal back to the kernel;
+//! `zbm console layout` sends `SIGUSR2` and waits until it has taken the
+//! keyboard layout asked for.
 
 #![allow(
     clippy::disallowed_methods,
@@ -29,6 +31,18 @@ pub fn on_request() -> io::Result<Arc<AtomicBool>> {
     Ok(flag)
 }
 
+/// Sets the flag it returns when this process is asked for another
+/// keyboard layout.
+///
+/// # Errors
+///
+/// When the signal's handler cannot be installed.
+pub fn on_layout_request() -> io::Result<Arc<AtomicBool>> {
+    let flag = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGUSR2, Arc::clone(&flag))?;
+    Ok(flag)
+}
+
 /// Asks the console with process ID `pid` to hand the display back, and
 /// waits at most `timeout` until `is_released` says it did. Returns
 /// whether it did; a console that is gone has nothing to hand back.
@@ -41,18 +55,43 @@ pub fn request(
     timeout: Duration,
     is_released: &mut dyn FnMut() -> bool,
 ) -> io::Result<bool> {
+    send(pid, Signal::USR1, timeout, is_released)
+}
+
+/// Asks the console with process ID `pid` for the keyboard layout written
+/// in the state directory, and waits at most `timeout` until `is_taken`
+/// says it took the request. Returns whether it did, or is gone.
+///
+/// # Errors
+///
+/// When the signal cannot be sent.
+pub fn request_layout(
+    pid: u32,
+    timeout: Duration,
+    is_taken: &mut dyn FnMut() -> bool,
+) -> io::Result<bool> {
+    send(pid, Signal::USR2, timeout, is_taken)
+}
+
+/// Sends `signal` to `pid`, and waits at most `timeout` until `is_done`.
+fn send(
+    pid: u32,
+    signal: Signal,
+    timeout: Duration,
+    is_done: &mut dyn FnMut() -> bool,
+) -> io::Result<bool> {
     let pid = i32::try_from(pid)
         .ok()
         .and_then(Pid::from_raw)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "no such process ID"))?;
-    match kill_process(pid, Signal::USR1) {
+    match kill_process(pid, signal) {
         Ok(()) => {}
         Err(rustix::io::Errno::SRCH) => return Ok(true),
         Err(error) => return Err(error.into()),
     }
     let start = Instant::now();
     loop {
-        if is_released() {
+        if is_done() {
             return Ok(true);
         }
         if start.elapsed() >= timeout {
@@ -85,6 +124,17 @@ mod tests {
         });
         assert!(!late.unwrap());
         assert!(asked >= 2);
+    }
+
+    #[test]
+    fn a_layout_request_reaches_the_console() {
+        let flag = on_layout_request().unwrap();
+
+        let done = request_layout(std::process::id(), Duration::from_secs(5), &mut || {
+            flag.load(Ordering::SeqCst)
+        });
+
+        assert!(done.unwrap());
     }
 
     #[test]

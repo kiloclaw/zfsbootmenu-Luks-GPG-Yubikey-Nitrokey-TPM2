@@ -5,6 +5,7 @@ use std::io::{Read as _, Write as _};
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use pretty_assertions::assert_eq;
 use zbm_testkit::TempDir;
@@ -42,15 +43,20 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             terminal: &mut terminal,
             vt: &vt,
         };
+        let mut grid = |_| {
+            asked = true;
+            Err(io::Error::other("no font"))
+        };
+        let layouts = Layouts {
+            first: None,
+            load: &mut |name: &str| Err(format!("{name}: not in this image")),
+        };
         let served = serve_on(
             &settings,
             &places,
-            &mut |_| {
-                asked = true;
-                Err(io::Error::other("no font"))
-            },
+            (&mut grid, layouts),
             terminals,
-            Arc::new(AtomicBool::new(false)),
+            Requests::default(),
         );
         served.map(|()| asked)
     });
@@ -190,4 +196,121 @@ fn the_mirror_ends_with_the_screen_shown_when_the_line_was_full() {
     assert_eq!(mirror.get_ref().written, b"\x0cone\x0cthree");
     mirror.show("three");
     assert_eq!(mirror.get_ref().written, b"\x0cone\x0cthree");
+}
+
+/// The German layout, from the XKB data of the machine (`xkb-data`).
+fn german(name: &str) -> Result<Layout, String> {
+    let xkb = Path::new(zbm_display::layout::compile::XKB);
+    let keymap = zbm_display::layout::compile::keymap(xkb, name).map_err(|e| e.to_string())?;
+    Layout::from_keymap(name, keymap.as_bytes()).map_err(|e| e.to_string())
+}
+
+#[test]
+fn a_layout_asked_for_is_taken_and_recorded() {
+    let dir = TempDir::new("zbm-console-layout");
+    let places = places(&dir);
+    std::fs::create_dir_all(&places.base).unwrap();
+    let state = State::new(&RealFiles, &places.base);
+    let mut keyboards = Keyboards::from_files(Vec::new());
+
+    switch_layout(&places, &mut german, &mut keyboards);
+    assert_eq!(state.console_layout().as_deref(), Some("us"));
+    state.request_console_layout("de").unwrap();
+    switch_layout(&places, &mut german, &mut keyboards);
+    assert_eq!(keyboards.layout(), "de");
+    state.request_console_layout("zz").unwrap();
+    switch_layout(&places, &mut german, &mut keyboards);
+
+    assert_eq!(keyboards.layout(), "de");
+    assert_eq!(state.console_layout().as_deref(), Some("de"));
+    assert!(!state.has_console_layout_request());
+    let log = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert_eq!(
+        log,
+        "<6>ZFSBootMenu: console: keyboard de\n\
+         <4>ZFSBootMenu: console: zz: no such keyboard layout; keeping keyboard de\n"
+    );
+}
+
+#[test]
+fn a_layout_request_waits_for_the_console() {
+    let dir = TempDir::new("zbm-console-layout");
+    let places = places(&dir);
+    std::fs::create_dir_all(&places.base).unwrap();
+    let state = State::new(&RealFiles, &places.base);
+    let timeout = Duration::from_secs(5);
+
+    assert_eq!(
+        request_layout(&places.base, "de", timeout).unwrap(),
+        Switched::NoConsole
+    );
+    state.set_console(std::process::id()).unwrap();
+    let requested = crate::release::on_layout_request().unwrap();
+    let console_places = places.clone();
+    let console = std::thread::spawn(move || {
+        while !requested.swap(false, Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let mut keyboards = Keyboards::from_files(Vec::new());
+        switch_layout(&console_places, &mut german, &mut keyboards);
+    });
+
+    let switched = request_layout(&places.base, "de", timeout).unwrap();
+    console.join().unwrap();
+
+    assert_eq!(switched, Switched::Done("de".to_owned()));
+    let late = request_layout(&places.base, "fr", Duration::from_millis(30)).unwrap();
+    assert_eq!(late, Switched::Late);
+    assert!(!state.has_console_layout_request());
+}
+
+#[test]
+fn the_start_is_announced_with_the_font_and_the_layout() {
+    let dir = TempDir::new("zbm-console-start");
+    let places = places(&dir);
+    std::fs::create_dir_all(&places.base).unwrap();
+    let mirror = dir.write("mirror", "");
+    let settings = Settings {
+        card: None,
+        mirror: Some(mirror.clone()),
+    };
+    let started = Started {
+        card: PathBuf::from("/dev/dri/card0"),
+        display: (1280, 800),
+        font: "DejaVuSansMono.ttf".to_owned(),
+        cell: (10, 20),
+        grid: (128, 40),
+        keyboard: "de".to_owned(),
+    };
+
+    announce(&settings, &places, &started);
+
+    let text = "on /dev/dri/card0: 1280x800 display, DejaVuSansMono.ttf 10x20 cells, 128x40, \
+                keyboard de";
+    let log = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert_eq!(log, format!("<6>ZFSBootMenu: console: {text}\n"));
+    let mirrored = std::fs::read_to_string(&mirror).unwrap();
+    assert_eq!(mirrored, format!("\x0czbm console: {text}\n"));
+    let state = State::new(&RealFiles, &places.base);
+    assert_eq!(state.console_layout().as_deref(), Some("de"));
+    let layouts = Layouts {
+        first: None,
+        load: &mut |name: &str| Err(name.to_owned()),
+    };
+    assert_eq!(format!("{layouts:?}"), "Layouts { first: None, .. }");
+}
+
+#[test]
+fn without_a_virtual_terminal_the_console_cannot_serve() {
+    let dir = TempDir::new("zbm-console-novt");
+    let places = places(&dir);
+    let mut grid = |_| Err(io::Error::other("no font"));
+    let layouts = Layouts {
+        first: None,
+        load: &mut |name: &str| Err(name.to_owned()),
+    };
+
+    let error = serve(&Settings::default(), &places, &mut grid, layouts).unwrap_err();
+
+    assert!(error.to_string().contains("dev/tty0"), "{error}");
 }

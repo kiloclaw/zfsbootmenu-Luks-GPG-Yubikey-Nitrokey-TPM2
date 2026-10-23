@@ -220,24 +220,32 @@
     [1mzbm.console=drm[0m
 
       In images built with the Rust runtime ([33mzfsbootmenu_runtime=rust[0m), run ZFSBootMenu and
-      its recovery shell on a console of its own, which draws on the display through the
-      kernel's DRM drivers ([33msimpledrm[0m on the firmware's framebuffer is enough) with the
-      image's console fonts, at the size [1mzbm.autosize[0m chooses, and reads the keyboards
-      itself. It shows 256 colours and true colour, and keeps nothing that scrolls off the
-      screen. Before booting, it hands the display and the keyboards back to the kernel.
-      When the control terminal is not a virtual console, when the console cannot use the
-      display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on
-      the US layout, from the keyboards present when it starts. The image needs the kernel's
-      [33mevdev[0m module and the display's DRM driver, for instance with [33madd_drivers+=" evdev
-      virtio_gpu "[0m in its dracut configuration. The default, [1mzbm.console=kernel[0m, keeps the
-      kernel console.
+      its recovery shell on a console of its own, which draws on the display through
+      the kernel's DRM drivers ([33msimpledrm[0m on the firmware's framebuffer is enough)
+      with the image's console fonts, at the size [1mzbm.autosize[0m chooses, and reads the
+      keyboards itself. It shows 256 colours and true colour, and keeps nothing that
+      scrolls off the screen. Before booting, it hands the display and the keyboards
+      back to the kernel. When the control terminal is not a virtual console, when the
+      console cannot use the display, or when it fails, ZFSBootMenu goes on on the
+      kernel console. Keys are read from the keyboards present when it starts. The
+      image needs the kernel's [33mevdev[0m module and the display's DRM driver, for instance
+      with [33madd_drivers+=" evdev virtio_gpu "[0m in its dracut configuration. The default,
+      [1mzbm.console=kernel[0m, keeps the kernel console.
 
       [1mzbm.console_font=psf[0m
 
         The console draws with the image's TrueType font, DejaVu Sans Mono, which covers
         Latin, Greek and Cyrillic, in cells as high as the console font [1mzbm.autosize[0m
-        chooses. With [1mpsf[0m, it draws with that console font itself, as the kernel console
-        would.
+        chooses. With [1mpsf[0m, it draws with that console font itself, as the kernel
+        console would.
+
+      [1mzbm.keyboard_layout=de[0m
+
+        The console translates keys with the first of the image's keyboard layouts
+        ([33mzfsbootmenu_keyboard_layouts[0m), dead keys included, or with the one this
+        option names. A layout the image lacks leaves the first, and an image
+        without layouts reads keys on the US layout. [1mzbm console layout[0m [33mname[0m
+        switches layouts while the console runs.
 
     [1mzbm.wait_for=device,device,...[0m
 
@@ -499,6 +507,19 @@
       an image with the [33mlegacy[0m runtime warns and keeps Terminus, as it does for any
       other value. [1mgenerate-zbm[0m sets this variable from [33mGlobal.ConsoleFont[0m when its
       configuration has that key.
+
+    [1mzfsbootmenu_keyboard_layouts="de us"[0m
+
+      In images with the [33mrust[0m runtime, the keyboard layouts of the console on the display
+      ([1mzbm.console=drm[0m), as XKB names separated by spaces or commas: a layout, such as
+      [33mde[0m, or a layout and its variant, such as [33mde(nodeadkeys)[0m. The first is the
+      console's own unless [1mzbm.keyboard_layout[0m chooses another. [1mzbm keyboard-layouts[0m
+      compiles each from the XKB data of the machine that builds the image
+      ([33m/usr/share/X11/xkb[0m, from [33mxkeyboard-config[0m) into [33m/usr/share/zfsbootmenu/layouts[0m,
+      about 70 KB each, with the dead keys of the [33men_US.UTF-8[0m compose rules
+      ([33m/usr/share/X11/locale[0m, from [33mlibX11[0m); the build warns about layouts it does not
+      know and leaves them out. When unspecified, the image gets the layout of the
+      build host's [33m/etc/vconsole.conf[0m ([33mXKBLAYOUT[0m), then [33mus[0m, [33mde[0m, [33mfr[0m and [33mgb[0m.
 
     [1mzfsbootmenu_skip_gcc_s=yes[0m
 

@@ -91,42 +91,77 @@ pub fn set_size(master: impl AsFd, size: &WindowSize) -> io::Result<()> {
     termios::tcsetwinsize(master, winsize).map_err(io::Error::from)
 }
 
-/// The pseudo-terminal, the keyboards and the request to hand the display
-/// back.
-#[derive(Debug)]
-pub struct RealHost<M> {
+/// What the console does when asked for another keyboard layout: takes
+/// the request and gives the keyboards the layout.
+pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards) + 'h>;
+
+/// The pseudo-terminal, the keyboards, the request to hand the display
+/// back and the request for another keyboard layout.
+pub struct RealHost<'h, M> {
     master: M,
     keyboards: Keyboards,
     release: Arc<AtomicBool>,
+    layout: Option<(Arc<AtomicBool>, Switch<'h>)>,
 }
 
-impl<M: Read + Write + AsFd> RealHost<M> {
+impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RealHost")
+            .field("master", &self.master)
+            .field("keyboards", &self.keyboards)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// A host on `master`, with keys from `keyboards`; `release` is set
     /// when the display must be handed back.
-    pub fn new(master: M, keyboards: Keyboards, release: Arc<AtomicBool>) -> RealHost<M> {
+    pub fn new(master: M, keyboards: Keyboards, release: Arc<AtomicBool>) -> RealHost<'h, M> {
         RealHost {
             master,
             keyboards,
             release,
+            layout: None,
         }
+    }
+
+    /// The host, which runs `switch` when `requested` is set: a keyboard
+    /// layout was asked for.
+    #[must_use]
+    pub fn with_layouts(mut self, requested: Arc<AtomicBool>, switch: Switch<'h>) -> Self {
+        self.layout = Some((requested, switch));
+        self
     }
 
     /// The controlling side of the pseudo-terminal, given back.
     pub fn into_master(self) -> M {
         self.master
     }
+
+    /// Gives the keyboards the layout asked for, if one was.
+    fn switch_layout(&mut self) {
+        if let Some((requested, switch)) = &mut self.layout
+            && requested.swap(false, Ordering::SeqCst)
+        {
+            switch(&mut self.keyboards);
+        }
+    }
 }
 
-impl<M: Read + Write + AsFd> Host for RealHost<M> {
+impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn wait(&mut self, timeout: Duration) -> io::Result<Input> {
         if self.release.load(Ordering::SeqCst) {
             return Ok(Input::Release);
         }
+        self.switch_layout();
         let mut fds = vec![self.master.as_fd().as_raw_fd()];
         fds.extend(self.keyboards.fds());
         match first_readable(&fds, Some(timeout))? {
             None if self.release.load(Ordering::SeqCst) => Ok(Input::Release),
-            None => Ok(Input::Nothing),
+            None => {
+                self.switch_layout();
+                Ok(Input::Nothing)
+            }
             Some(0) => read_output(&mut self.master),
             Some(index) => Ok(Input::Keys(self.keyboards.read_device(index - 1)?)),
         }

@@ -52,6 +52,13 @@ fn text_is_typed_with_qemu_s_key_names() {
     }
     assert_eq!(key_names("S").unwrap(), ["shift-s"]);
     assert_eq!(key_names("~"), None);
+    assert_eq!(
+        german_key_names("zy /\n").unwrap(),
+        ["y", "z", "spc", "shift-7", "ret"]
+    );
+    assert!(german_key_names(&format!("{LAYOUT}us\n")).is_some());
+    assert_eq!(german_key_names("$"), None);
+    assert_eq!(german_key_names("Z"), None);
 }
 
 #[test]
@@ -115,8 +122,9 @@ fn the_console_shows_takes_keys_and_falls_back() {
     fs::write(
         &mirror,
         "\x0czbm console: on /dev/dri/card0: 1280x800 display, DejaVuSansMono.ttf 10x20 cells, \
-         128x40\n\
-         \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n",
+         128x40, keyboard us\n\
+         \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n\
+         \x0c# layout de\nkeyboard: de\n\x0c# echo zyê\nzyê\n\x0c# layout us\nkeyboard: us\n",
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);
@@ -126,7 +134,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 8, "{checks:?}");
+    assert_eq!(checks.len(), 12, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -150,7 +158,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 13, "{checks:?}");
+    assert_eq!(checks.len(), 17, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

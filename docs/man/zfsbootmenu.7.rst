@@ -224,8 +224,8 @@ These options are set on the kernel command line when booting the initramfs or U
   **zbm.autosize** chooses, and reads the keyboards itself. It shows 256 colours and true colour, and
   keeps nothing that scrolls off the screen. Before booting, it hands the display and the keyboards
   back to the kernel. When the control terminal is not a virtual console, when the console cannot
-  use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on the
-  US layout, from the keyboards present when it starts. The image needs the kernel's *evdev* module
+  use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read from
+  the keyboards present when it starts. The image needs the kernel's *evdev* module
   and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
   configuration. The default, **zbm.console=kernel**, keeps the kernel console.
 
@@ -234,6 +234,13 @@ These options are set on the kernel command line when booting the initramfs or U
     The console draws with the image's TrueType font, DejaVu Sans Mono, which covers Latin, Greek and
     Cyrillic, in cells as high as the console font **zbm.autosize** chooses. With **psf**, it draws
     with that console font itself, as the kernel console would.
+
+  **zbm.keyboard_layout=de**
+
+    The console translates keys with the first of the image's keyboard layouts
+    (*zfsbootmenu_keyboard_layouts*), dead keys included, or with the one this option names. A layout
+    the image lacks leaves the first, and an image without layouts reads keys on the US layout.
+    **zbm console layout** *name* switches layouts while the console runs.
 
 **zbm.wait_for=device,device,...**
 
@@ -506,6 +513,18 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   */usr/share/zfsbootmenu/fonts/LICENSE.spleen*. Only the *rust* runtime loads Spleen: an image with
   the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
   sets this variable from *Global.ConsoleFont* when its configuration has that key.
+
+**zfsbootmenu_keyboard_layouts="de us"**
+
+  In images with the *rust* runtime, the keyboard layouts of the console on the display
+  (**zbm.console=drm**), as XKB names separated by spaces or commas: a layout, such as *de*, or a
+  layout and its variant, such as *de(nodeadkeys)*. The first is the console's own unless
+  **zbm.keyboard_layout** chooses another. **zbm keyboard-layouts** compiles each from the XKB data of
+  the machine that builds the image (*/usr/share/X11/xkb*, from *xkeyboard-config*) into
+  */usr/share/zfsbootmenu/layouts*, about 70 KB each, with the dead keys of the *en_US.UTF-8* compose
+  rules (*/usr/share/X11/locale*, from *libX11*); the build warns about layouts it does not know and
+  leaves them out. When unspecified, the image gets the layout of the build host's
+  */etc/vconsole.conf* (*XKBLAYOUT*), then *us*, *de*, *fr* and *gb*.
 
 **zfsbootmenu_skip_gcc_s=yes**
 

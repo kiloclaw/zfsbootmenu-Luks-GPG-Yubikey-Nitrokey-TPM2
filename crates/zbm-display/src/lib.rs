@@ -12,7 +12,7 @@
 //!   included, and gives the output back when dropped;
 //! - [`palette`]: the console's colours, and the 256 of xterm;
 //! - [`input`] and [`keys`]: key presses from the keyboards' input devices,
-//!   on the US layout;
+//!   with a [`layout`] compiled from XKB data, or on the US layout;
 //! - [`vt`]: the virtual terminal taken over (graphics mode, keyboard off)
 //!   and given back, so that the kernel console neither draws over the menu
 //!   nor passes its keys to the shell.
@@ -39,6 +39,7 @@ pub mod frame;
 pub mod grid;
 pub mod input;
 pub mod keys;
+pub mod layout;
 pub mod outline;
 pub mod output;
 pub mod palette;

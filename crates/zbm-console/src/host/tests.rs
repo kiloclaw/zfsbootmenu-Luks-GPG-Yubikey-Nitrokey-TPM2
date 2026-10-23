@@ -100,9 +100,32 @@ fn the_host_waits_on_the_programs_the_keyboards_and_the_release() {
 
     release.store(true, Ordering::SeqCst);
     assert_eq!(host.wait(timeout).unwrap(), Input::Release);
+    assert!(format!("{host:?}").starts_with("RealHost"));
     drop(program);
     let mut master = host.into_master();
     assert_eq!(read_output(&mut master).unwrap(), Input::Hangup);
+}
+
+#[test]
+fn a_layout_asked_for_reaches_the_keyboards() {
+    let (master, _program) = UnixStream::pair().unwrap();
+    let (keyboard, _typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let requested = Arc::new(AtomicBool::new(false));
+    let mut switched = Vec::new();
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false))).with_layouts(
+        Arc::clone(&requested),
+        Box::new(|keyboards: &mut Keyboards| switched.push(keyboards.layout().to_owned())),
+    );
+    let timeout = Duration::from_millis(10);
+
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    requested.store(true, Ordering::SeqCst);
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    drop(host);
+
+    assert_eq!(switched, ["us"]);
 }
 
 #[test]

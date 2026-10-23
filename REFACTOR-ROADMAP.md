@@ -83,6 +83,9 @@ Work on this branch that no phase planned, or that a later phase planned and was
 - ROADMAP.md #19, step 3: the console on the display draws with DejaVu Sans Mono through `swash`, in cells as high as
   the console font `zbm console-autosize` chooses, with box drawing and block characters drawn to fill their cells;
   `zbm.console_font=psf` keeps the console fonts. `runtime-rust-console` checks both, and passes (13 checks).
+- ROADMAP.md #19, step 4: keyboard layouts on the console on the display, with `kbvm` (decision 1): XKB keymaps
+  compiled when the image is built (`zbm keyboard-layouts`), `zbm.keyboard_layout`, and `zbm console layout`, which
+  switches layouts while the console runs. To be checked by `runtime-rust-console` (17 checks).
 
 ### Carried over
 
@@ -927,6 +930,10 @@ Decided on 22 October 2026:
    `signal-hook` (0.4) used directly; both already came with `drm` and `alacritty_terminal`.
    Added for ROADMAP.md #19, step 3: `swash` (0.2.10), for TrueType fonts in `zbm-display`, rather than `fontdue`, whose
    parser is unmaintained (RUSTSEC-2026-0192).
+   Added for ROADMAP.md #19, step 4: `kbvm` (0.1.7, MIT or Apache-2.0, with its `compose` feature), for keyboard
+   layouts in `zbm-display`: XKB keymaps compiled when the image is built, and dead keys through a compose table.
+   Chosen over `xkbcommon-rs` (0.1.2, last released in February 2025, with a non-standard licence and `lalrpop`,
+   `nix` 0.28 and pinned `phf`), and over reading the kernel's keymap, which holds one layout only.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images

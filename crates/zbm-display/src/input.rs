@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::keys::{Decoder, KeyPress};
+use crate::layout::Layout;
 
 /// `EV_KEY`: an event of a key or button.
 const EV_KEY: u16 = 1;
@@ -135,6 +136,16 @@ impl Keyboards {
             decoder: Decoder::new(),
             pending: Vec::new(),
         }
+    }
+
+    /// Translates keys with `layout` from now on, or on the US layout.
+    pub fn set_layout(&mut self, layout: Option<Layout>) {
+        self.decoder.set_layout(layout);
+    }
+
+    /// The name of the layout keys are translated with.
+    pub fn layout(&self) -> &str {
+        self.decoder.layout()
     }
 
     /// The open devices, for a caller that waits on them with other files.

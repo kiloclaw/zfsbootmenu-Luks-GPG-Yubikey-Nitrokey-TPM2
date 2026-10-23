@@ -119,7 +119,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         &["alacritty_terminal", "rustix", "signal-hook"],
     ),
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
-    ("zbm-display", &["drm", "swash"]),
+    ("zbm-display", &["drm", "kbvm", "swash"]),
     ("zbm-testkit", &["serde", "serde_json"]),
     ("zbm-luks", &["thiserror", "tracing", "tracing-subscriber"]),
     ("zbm-pool", &["thiserror"]),

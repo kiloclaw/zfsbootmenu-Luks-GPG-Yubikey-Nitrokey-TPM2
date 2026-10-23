@@ -1,13 +1,16 @@
 //! Whether the supervisor starts the console on the display
 //! (`zbm.console=drm`, ROADMAP.md #19), and with which arguments: the font
 //! height of `zbm.autosize=<pixels>`, the console fonts instead of the
-//! TrueType font (`zbm.console_font=psf`), and the mirror of the VM tests.
+//! TrueType font (`zbm.console_font=psf`), the keyboard layout
+//! (`zbm.keyboard_layout`), and the mirror of the VM tests.
 
 use std::path::Path;
 
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
-use zbm_config::spec::cmdline::{AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT};
+use zbm_config::spec::cmdline::{
+    AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
+};
 use zbm_platform::System;
 
 use crate::autosize::choice::Request;
@@ -30,6 +33,12 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
     let font = args.lookup(&DISPLAY_CONSOLE_FONT, &mut messages);
     if font.as_deref().map(str::trim) == Some("psf") {
         arguments.push("--psf".to_owned());
+    }
+    if let Some(layout) = args
+        .lookup(&KEYBOARD_LAYOUT, &mut messages)
+        .filter(|layout| !layout.trim().is_empty())
+    {
+        arguments.extend(["--layout".to_owned(), layout.trim().to_owned()]);
     }
     if let Some(mirror) = args
         .lookup(&CONSOLE_MIRROR, &mut messages)
@@ -79,12 +88,13 @@ mod tests {
         assert_eq!(console("zbm.console=fb"), None);
         assert_eq!(
             console(
-                "zbm.console=drm zbm.autosize=48 zbm.console_font=psf zbm.console_mirror=/dev/ttyS1"
+                "zbm.console=drm zbm.autosize=48 zbm.console_font=psf zbm.keyboard_layout=de \
+                 zbm.console_mirror=/dev/ttyS1"
             ),
-            words("console --height 48 --psf --mirror /dev/ttyS1")
+            words("console --height 48 --psf --layout de --mirror /dev/ttyS1")
         );
         assert_eq!(
-            console("zbm.console=drm zbm.console_mirror="),
+            console("zbm.console=drm zbm.console_mirror= zbm.keyboard_layout="),
             words("console")
         );
     }

@@ -180,7 +180,8 @@ the `kexec` path of its images.
 (13 checks, 12f2b69) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
 `zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
 fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
-`kexec`. Keyboard layouts (step 4) remain, and the console becomes the default only after the cutover.
+`kexec`. Step 4, keyboard layouts with `kbvm`, is built and waits for its VM run (`runtime-rust-console`, 17 checks);
+the console becomes the default only after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
@@ -220,8 +221,8 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
   - **Terminal.** `alacritty_terminal`, the terminal state machine of Alacritty, on a pseudo-terminal (`rustix`), so
     `zfsbootmenu-init`, the menu and the recovery shell run in it and `vim`, `less` and `mc` work. `vte` and `vt100`
     are already vendored for the VM tests.
-  - **Keyboard.** Key events from `evdev`, layouts from `xkbcommon_rs` (a Rust port of libxkbcommon) with the layout
-    files the image needs. The unlock dialog's `Ctrl-K` then switches real keyboard layouts, dead keys and compose
+  - **Keyboard.** Key events from `evdev`, layouts from `kbvm` (an implementation of XKB in Rust), compiled when the
+    image is built into one file each. The unlock dialog's `Ctrl-K` then switches real keyboard layouts, dead keys
     included.
   - **Secrets.** No scrollback while a prompt is open, and the grid and the PTY's buffers wiped when it closes.
   - **Fallback.** If the console fails to start or ends, the supervisor puts the menu back on the kernel console,
@@ -233,8 +234,9 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
   - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only; step 2
     added `alacritty_terminal` (0.26.0, Apache-2.0, without `serde`), `rustix` directly and `signal-hook`, for
     `zbm-console`; step 3 added `swash` (0.2.10, MIT or Apache-2.0) for `zbm-display`, not `fontdue`, whose parser
-    `ttf-parser` was declared unmaintained (RUSTSEC-2026-0192) (decision 1 of REFACTOR-ROADMAP.md). The keyboard
-    crates are not among the agreed crates: adding them is a decision of their own, with their size in the image.
+    `ttf-parser` was declared unmaintained (RUSTSEC-2026-0192); step 4 added `kbvm` (0.1.7, MIT or Apache-2.0), the
+    XKB engine of the Jay compositor, not `xkbcommon-rs`, last released in February 2025 (decision 1 of
+    REFACTOR-ROADMAP.md). The layouts cost about 70 KB each in the image, and the dead keys 75 KB.
 - **Steps:**
   1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
      sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
@@ -286,8 +288,26 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
        `zbm.console_font=psf` on `simpledrm`.
      - Left for later: a bold face (bold is drawn bright, as on the kernel console), fonts other than the image's,
        and characters wider than a cell, which are cut at its edge.
-  4. Keyboard layouts with `xkbcommon-rs` and the layout files the image needs, so that the unlock dialog's
-     `Ctrl-K` switches real layouts.
+  4. **Built; waits for its VM run.** Keyboard layouts, so that the unlock dialog's `Ctrl-K` can switch real
+     layouts.
+     - `zbm_display::layout`: an XKB keymap through `kbvm`, its key state machine (Shift, Caps Lock, `AltGr`, level
+       and group switches as the keymap defines them) and its dead keys through a compose table; Ctrl and Alt with a
+       key of a layout not in Latin letters give the key's US letter, as `Ctrl-C` needs. The decoder takes a layout,
+       and a new one keeps the keys held; without one it keeps the US tables of step 1.
+     - `zbm keyboard-layouts` compiles, when the image is built, each layout of `zfsbootmenu_keyboard_layouts`
+       (`de`, `de(nodeadkeys)`; by default the build host's `XKBLAYOUT`, then `us`, `de`, `fr` and `gb`) from the
+       build host's XKB data into a self-contained keymap, and the compose rules of `en_US.UTF-8` that start with a
+       dead key; Rust images install them in `/usr/share/zfsbootmenu/layouts` with their order. The build container
+       gains `xkb-data` and `libx11-data`.
+     - `zbm console` types with the image's first layout, or `zbm.keyboard_layout` (`--layout`), and names it in its
+       start message. `zbm console layout <name>` writes the request in the state directory and sends `SIGUSR2`; the
+       console loads the layout, records it (`console-layout`) and removes the request, which the command waits for.
+       Without a name it shows the layout and the image's others.
+     - `runtime-rust-console` checks, on `virtio_gpu`, the start layout, `zbm console layout de` typed in the shell,
+       `y`, `z` and a dead circumflex typed on the German layout, and the switch back typed with it.
+     - Left for later: the menu's `Ctrl-K` asking the console for the layout (R5, with the unlock dialog; on the
+       console the menu then stops translating by key position), `Global.KeyboardLayouts` in `generate-zbm`, the
+       compose key (`Multi_key`), and keyboards with their own layouts.
   5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
   - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;

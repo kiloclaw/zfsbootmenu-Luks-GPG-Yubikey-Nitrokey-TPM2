@@ -13,6 +13,7 @@ pub mod applets;
 pub mod console;
 pub mod debug;
 pub mod fonts;
+pub mod layouts;
 pub mod luks;
 pub mod menu_demo;
 pub mod pilot;
@@ -73,6 +74,12 @@ const CONSOLE_FONTS: Applet = Applet {
     run: fonts::run,
 };
 
+const KEYBOARD_LAYOUTS: Applet = Applet {
+    name: "keyboard-layouts",
+    summary: "compile an image's keyboard layouts from XKB data (image build)",
+    run: layouts::run,
+};
+
 const CONSOLE: Applet = Applet {
     name: "console",
     summary: "the console on the display, without the kernel's (zbm.console=drm)",
@@ -106,6 +113,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     CONSOLE_AUTOSIZE,
     CONSOLE_FONTS,
+    KEYBOARD_LAYOUTS,
     CONSOLE,
     MENU_PILOT,
     DEBUG,
@@ -122,6 +130,7 @@ pub const APPLETS: &[Applet] = &[
     ZLUKS,
     CONSOLE_AUTOSIZE,
     CONSOLE_FONTS,
+    KEYBOARD_LAYOUTS,
     CONSOLE,
     MENU_PILOT,
     DEBUG,
@@ -322,6 +331,7 @@ mod tests {
             "zluks",
             "console-autosize",
             "console-fonts",
+            "keyboard-layouts",
             "console",
             "zbm-menu-pilot",
             "debug",

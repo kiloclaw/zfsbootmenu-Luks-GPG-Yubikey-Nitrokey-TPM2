@@ -12,9 +12,15 @@
 //! it also does at once when it cannot use the display.
 //!
 //! ```text
-//! zbm console [--card <path>] [--height <pixels>] [--psf] [--mirror <file>]
+//! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
+//!             [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
+//! zbm console layout [<name>]
 //! ```
+//!
+//! Keys are translated with the image's first keyboard layout, or the one
+//! `--layout` names (ROADMAP.md #19, step 4); `zbm console layout` names
+//! the layout and the others of the image, or switches to another.
 //!
 //! The console draws with the image's TrueType font, in cells as high as
 //! the console font `zbm console-autosize` would choose; `--psf` draws with
@@ -32,15 +38,17 @@ use zbm_display::outline::Outline;
 use zbm_platform::Files;
 use zbm_startup::autosize::FONTS;
 
-use zbm_console::serve::{Places, Released, Settings, release, serve};
+use zbm_console::serve::{Layouts, Places, Released, Settings, release, serve};
 use zbm_platform::RealFiles;
 
 use crate::{Io, USAGE};
 
 /// The usage text.
 const USAGE_TEXT: &str = "\
-Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--mirror <file>]
+Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
+                   [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
+       zbm console layout [<name>]
 ";
 
 /// How long `zbm console release` waits by default.
@@ -55,6 +63,8 @@ pub struct Options {
     pub height: Option<u16>,
     /// Whether to draw with the console fonts instead of the TrueType font.
     pub psf: bool,
+    /// The keyboard layout asked for; the image's first otherwise.
+    pub layout: Option<String>,
     /// Where to write the screen's text.
     pub mirror: Option<PathBuf>,
 }
@@ -68,6 +78,7 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--card" => options.card = Some(PathBuf::from(args.next()?)),
             "--height" => options.height = Some(args.next()?.parse().ok()?),
             "--mirror" => options.mirror = Some(PathBuf::from(args.next()?)),
+            "--layout" => options.layout = Some(args.next()?.clone()),
             "--psf" => options.psf = true,
             _ => return None,
         }
@@ -117,8 +128,10 @@ pub fn console_grid(
 
 /// `zbm console`, or `zbm console release`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
-    if args.first().map(String::as_str) == Some("release") {
-        return run_release(args.get(1..).unwrap_or(&[]), io);
+    match args.first().map(String::as_str) {
+        Some("release") => return run_release(args.get(1..).unwrap_or(&[]), io),
+        Some("layout") => return crate::layouts::run_switch(args.get(1..).unwrap_or(&[]), io),
+        _ => {}
     }
     let Some(options) = parse(args) else {
         let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
@@ -131,7 +144,15 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     let places = Places::system();
     let files = RealFiles;
     let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
-    match serve(&settings, &places, &mut grid) {
+    let directory = Path::new(crate::layouts::DIRECTORY);
+    let mut warn = |text: String| places.log(4, &text);
+    let first = crate::layouts::first(&files, directory, options.layout.as_deref(), &mut warn);
+    let mut load = |name: &str| crate::layouts::load(&files, directory, name);
+    let layouts = Layouts {
+        first,
+        load: &mut load,
+    };
+    match serve(&settings, &places, &mut grid, layouts) {
         Ok(()) => 0,
         Err(error) => {
             places.log(3, &error.to_string());
@@ -181,11 +202,15 @@ mod tests {
                 card: Some(PathBuf::from("/dev/dri/card1")),
                 height: Some(32),
                 psf: false,
+                layout: None,
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
             })
         );
         assert_eq!(parse(&[]), Some(Options::default()));
         assert!(parse(&args("--psf")).unwrap().psf);
+        let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;
+        assert_eq!(layout.as_deref(), Some("de(nodeadkeys)"));
+        assert_eq!(parse(&args("--layout")), None);
         assert_eq!(parse(&args("--height tall")), None);
         assert_eq!(parse(&args("--mirror")), None);
         assert_eq!(parse(&args("--loud")), None);

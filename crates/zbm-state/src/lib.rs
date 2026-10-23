@@ -146,9 +146,44 @@ impl<'a> State<'a> {
         self.write("console", format!("{pid}\n").as_bytes())
     }
 
-    /// Records that no console holds the display.
+    /// Records that no console holds the display, nor reads the keyboards.
     pub fn clear_console(&self) {
         self.remove("console");
+        self.remove("console-layout");
+    }
+
+    /// The keyboard layout the console on the display types with.
+    pub fn console_layout(&self) -> Option<String> {
+        self.read_line("console-layout")
+            .filter(|name| !name.is_empty())
+    }
+
+    /// Records the keyboard layout the console types with.
+    pub fn set_console_layout(&self, name: &str) -> Result<()> {
+        self.write("console-layout", format!("{name}\n").as_bytes())
+    }
+
+    /// Asks the console for the keyboard layout `name`
+    /// (`zbm console layout`); the console takes the request.
+    pub fn request_console_layout(&self, name: &str) -> Result<()> {
+        self.write("console-layout-request", format!("{name}\n").as_bytes())
+    }
+
+    /// Whether a request for a keyboard layout waits for the console.
+    pub fn has_console_layout_request(&self) -> bool {
+        self.files.exists(&self.path("console-layout-request"))
+    }
+
+    /// The keyboard layout asked for, while the request waits.
+    pub fn console_layout_request(&self) -> Option<String> {
+        self.read_line("console-layout-request")
+            .filter(|name| !name.is_empty())
+    }
+
+    /// Removes the request for a keyboard layout: the console took it, or
+    /// it came too late.
+    pub fn clear_console_layout_request(&self) {
+        self.remove("console-layout-request");
     }
 
     /// The default boot environment (`bootfs`), if one is recorded.
@@ -391,8 +426,17 @@ mod tests {
         state.set_console(42).unwrap();
         assert_eq!(files.text("/zfsbootmenu/console").unwrap(), "42\n");
         assert_eq!(state.console_pid(), Some(42));
+        state.set_console_layout("de").unwrap();
+        assert_eq!(state.console_layout().as_deref(), Some("de"));
+        state.request_console_layout("fr").unwrap();
+        assert!(state.has_console_layout_request());
+        assert_eq!(state.console_layout_request().as_deref(), Some("fr"));
+        state.clear_console_layout_request();
+        assert!(!state.has_console_layout_request());
+        assert_eq!(state.console_layout_request(), None);
         state.clear_console();
         assert_eq!(state.console_pid(), None);
+        assert_eq!(state.console_layout(), None);
 
         files.file("/zfsbootmenu/have_errors", "");
         assert!(state.has_errors() && !state.has_warnings());

@@ -199,6 +199,7 @@ const TEXTS: &[&str] = &[
     "libexec/hooks/teardown.d/80-luks-close.sh",
     "libexec/hooks/early-setup.d/30-console-autosize.sh",
     "libexec/hooks/boot-sel.d/99-zbm-shadow.sh",
+    "usr/share/zfsbootmenu/layouts/layouts",
 ];
 
 /// What the dracut module installed: every path, and the texts of [`TEXTS`].
@@ -306,6 +307,8 @@ fn dracut_install(parity: &mut Parity, settings: &[(&str, &str)]) -> Image {
             .env("zfsbootmenu_hook_root", "/nonexistent")
             .env("zfsbootmenu_luks", "no")
             .env("zfsbootmenu_release_build", "yes")
+            // Not the layout of the machine's /etc/vconsole.conf
+            .env("zfsbootmenu_keyboard_layouts", "us")
             .env("PATH", "/usr/bin:/bin");
         for (key, value) in with_zbm(settings, &zbm) {
             bash = bash.env(&key, &value);
@@ -359,8 +362,11 @@ fn dracut_images_start_the_selected_runtime() {
         "{conf}"
     );
 
+    assert!(!legacy.exists("usr/share/zfsbootmenu/layouts"));
+
     let mut rust_settings = settings.to_vec();
     rust_settings.push(("zfsbootmenu_runtime", "rust"));
+    rust_settings.push(("zfsbootmenu_keyboard_layouts", "de,us zz"));
     let rust = dracut_install(&mut parity, &rust_settings);
     let hooks = rust.text("hooks.list");
     assert!(
@@ -408,6 +414,21 @@ fn dracut_images_start_the_selected_runtime() {
     );
     let outline: Vec<&str> = outline.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(outline, ["DejaVuSansMono.ttf", "LICENSE.dejavu"]);
+    // The keyboard layouts of the console on the display, compiled from the
+    // XKB data of the machine that runs the test; unknown ones are left out.
+    let layouts = rust.text("usr/share/zfsbootmenu/layouts/layouts");
+    assert_eq!(layouts, "de\nus\n");
+    for file in ["de.xkb", "us.xkb", "dead-keys"] {
+        let path = format!("usr/share/zfsbootmenu/layouts/{file}");
+        assert_eq!(rust.entries[&path], "file 644", "{path}");
+    }
+    assert!(
+        rust.warnings
+            .iter()
+            .any(|warning| warning.contains("unable to compile every keyboard layout")),
+        "{:?}",
+        rust.warnings
+    );
     // zbm is zluks, which also closes the LUKS mappings before booting.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
     let hook = rust.text(teardown);

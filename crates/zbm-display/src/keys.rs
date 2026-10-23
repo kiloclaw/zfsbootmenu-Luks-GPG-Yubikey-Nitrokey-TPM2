@@ -1,11 +1,12 @@
-//! Key presses from Linux key codes, on the US layout.
+//! Key presses from Linux key codes, with a keyboard layout.
 //!
 //! The input devices report keys by position (`KEY_Q` is the key left of
 //! `KEY_W`, whatever is printed on it). Without the kernel console, which
-//! translates them with the image's keymap, the menu translates them itself.
-//! The US layout is enough for the prototype; the menu's own layout switch
-//! (`Ctrl-K` in the unlock dialog) works on the characters it gets, and real
-//! layouts come with `xkbcommon` (ROADMAP.md #19, step 2).
+//! translates them with the image's keymap, the console on the display
+//! translates them itself: with an XKB [`Layout`], or on the US layout when
+//! it has none.
+
+use crate::layout::Layout;
 
 /// A key, as the menu sees it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -129,22 +130,57 @@ fn modifier(code: u16) -> Option<Modifier> {
     }
 }
 
+/// The key of `code` if it types no character, on any layout.
+fn special(code: u16, shift: bool) -> Option<Key> {
+    if let Some(&(_, key)) = SPECIAL.iter().find(|(c, _)| *c == code) {
+        return Some(if key == Key::Tab && shift {
+            Key::BackTab
+        } else {
+            key
+        });
+    }
+    if (59..=68).contains(&code) {
+        return u8::try_from(code - 58).ok().map(Key::F);
+    }
+    None
+}
+
 /// `KEY_CAPSLOCK`.
 const CAPS_LOCK: u16 = 58;
 
 /// Turns key events into key presses, keeping the modifiers held and Caps
 /// Lock.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct Decoder {
-    /// The modifier keys held, by key code.
+    /// The modifier keys held, by key code, on the US layout.
     held: Vec<u16>,
     caps_lock: bool,
+    /// The layout, unless it is the US layout of this module's tables.
+    layout: Option<Layout>,
+    /// The keys down, by key code, which a new layout takes over.
+    down: Vec<u16>,
 }
 
 impl Decoder {
     /// A decoder with nothing held.
     pub fn new() -> Decoder {
         Decoder::default()
+    }
+
+    /// Translates keys with `layout` from now on, or on the US layout; the
+    /// keys down stay down.
+    pub fn set_layout(&mut self, layout: Option<Layout>) {
+        self.layout = layout;
+        if let Some(layout) = &mut self.layout {
+            for &code in &self.down {
+                layout.hold(code);
+            }
+        }
+    }
+
+    /// The name of the layout keys are translated with: `us` without one.
+    pub fn layout(&self) -> &str {
+        self.layout.as_ref().map_or("us", Layout::name)
     }
 
     fn is_held(&self, wanted: Modifier) -> bool {
@@ -154,6 +190,28 @@ impl Decoder {
     /// The press of a key event: key `code`, released (0), pressed (1) or
     /// repeated (2); `None` for releases and the modifiers themselves.
     pub fn feed(&mut self, code: u16, value: i32) -> Option<KeyPress> {
+        self.down.retain(|&down| down != code);
+        if value != 0 {
+            self.down.push(code);
+        }
+        if let Some(layout) = &mut self.layout {
+            let typed = layout.key(code, value)?;
+            let key = match (special(code, typed.shift), typed.char) {
+                (Some(key), _) => key,
+                // Ctrl and Alt with a key of a layout not in Latin letters
+                // take the key's US letter, as `Ctrl-C` needs
+                (None, Some(c)) if (typed.ctrl || typed.alt) && !c.is_ascii() => {
+                    self.key(code, typed.shift)?
+                }
+                (None, c) => Key::Char(c?),
+            };
+            return Some(KeyPress {
+                key,
+                shift: typed.shift,
+                ctrl: typed.ctrl,
+                alt: typed.alt,
+            });
+        }
         if modifier(code).is_some() {
             self.held.retain(|&held| held != code);
             if value != 0 {
@@ -180,15 +238,8 @@ impl Decoder {
 
     /// The key of `code` on the US layout.
     fn key(&self, code: u16, shift: bool) -> Option<Key> {
-        if let Some(&(_, key)) = SPECIAL.iter().find(|(c, _)| *c == code) {
-            return Some(if key == Key::Tab && shift {
-                Key::BackTab
-            } else {
-                key
-            });
-        }
-        if (59..=68).contains(&code) {
-            return u8::try_from(code - 58).ok().map(Key::F);
+        if let Some(key) = special(code, shift) {
+            return Some(key);
         }
         if let Some(&(_, plain, shifted)) = CHARACTERS.iter().find(|(c, ..)| *c == code) {
             return Some(Key::Char(if shift { shifted } else { plain }));

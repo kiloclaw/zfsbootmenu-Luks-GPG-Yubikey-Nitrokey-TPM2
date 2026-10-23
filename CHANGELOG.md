@@ -118,6 +118,18 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### Keyboard layouts on the console on the display
+
+Step 4 of ROADMAP.md #19. Images with the Rust runtime carry keyboard layouts for the console of `zbm.console=drm`:
+`zfsbootmenu_keyboard_layouts` names them (XKB names such as `de` or `de(nodeadkeys)`; by default the build host's
+`XKBLAYOUT` from `/etc/vconsole.conf`, then `us`, `de`, `fr` and `gb`), and the new `zbm keyboard-layouts` compiles
+each from the build host's XKB data into a self-contained keymap of about 70 KB in `/usr/share/zfsbootmenu/layouts`,
+with the dead keys of the `en_US.UTF-8` compose rules. The console types with the first, or with
+`zbm.keyboard_layout`: Shift, Caps Lock, AltGr and dead keys as XKB defines them, and Ctrl with a key of a non-Latin
+layout gives the US letter. `zbm console layout <name>` switches layouts while it runs. Images built without the XKB
+data (`xkb-data` or `xkeyboard-config`) and the compose rules (`libx11-data` or `libX11`) warn and keep the US layout;
+the build container installs both, so rebuild it. New dependency: `kbvm`, chosen over `xkbcommon-rs`.
+
 ### TrueType fonts on the console on the display
 
 Step 3 of ROADMAP.md #19. Images with the Rust runtime carry DejaVu Sans Mono 2.37 (340 KB, Bitstream Vera licence),

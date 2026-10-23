@@ -269,6 +269,8 @@ build() {
       install_zbm_fonts && add_binary setfont
     fi
 
+    install_zbm_keyboard_layouts
+
     add_runscript
 }
 

@@ -260,4 +260,6 @@ install() {
   if command -v setfont >/dev/null 2>&1; then
     install_zbm_fonts && dracut_install setfont
   fi
+
+  install_zbm_keyboard_layouts
 }

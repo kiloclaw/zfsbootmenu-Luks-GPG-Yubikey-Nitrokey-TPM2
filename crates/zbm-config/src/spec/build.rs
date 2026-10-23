@@ -10,6 +10,7 @@ pub static ALL: &[&OptionSpec] = &[
     &RUNTIME,
     &ZBM,
     &CONSOLE_FONT,
+    &KEYBOARD_LAYOUTS,
     &SKIP_GCC_S,
     &LUKS,
     &LUKS_CRYPTTAB,
@@ -148,6 +149,39 @@ of 8x16, 12x24, 16x32 and 32x64, with its licence as
 */usr/share/zfsbootmenu/fonts/LICENSE.spleen*. Only the *rust* runtime loads Spleen: an image with
 the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
 sets this variable from *Global.ConsoleFont* when its configuration has that key.
+";
+
+/// `zfsbootmenu_keyboard_layouts`: the keyboard layouts of the console on
+/// the display.
+pub static KEYBOARD_LAYOUTS: OptionSpec = OptionSpec {
+    name: "zfsbootmenu_keyboard_layouts",
+    aliases: &[],
+    source: Source::BuildOption,
+    value: Value::Text,
+    default: None,
+    summary: "The keyboard layouts of the console on the display, its own first",
+    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
+    doc: Doc::Entry {
+        heading: "**zfsbootmenu_keyboard_layouts=\"de us\"**",
+        body: KEYBOARD_LAYOUTS_DOC,
+    },
+    deprecation: None,
+    examples: &[
+        "zfsbootmenu_keyboard_layouts=\"de us\"",
+        "zfsbootmenu_keyboard_layouts=\"de(nodeadkeys) fr\"",
+    ],
+};
+
+const KEYBOARD_LAYOUTS_DOC: &str = r"
+In images with the *rust* runtime, the keyboard layouts of the console on the display
+(**zbm.console=drm**), as XKB names separated by spaces or commas: a layout, such as *de*, or a
+layout and its variant, such as *de(nodeadkeys)*. The first is the console's own unless
+**zbm.keyboard_layout** chooses another. **zbm keyboard-layouts** compiles each from the XKB data of
+the machine that builds the image (*/usr/share/X11/xkb*, from *xkeyboard-config*) into
+*/usr/share/zfsbootmenu/layouts*, about 70 KB each, with the dead keys of the *en_US.UTF-8* compose
+rules (*/usr/share/X11/locale*, from *libX11*); the build warns about layouts it does not know and
+leaves them out. When unspecified, the image gets the layout of the build host's
+*/etc/vconsole.conf* (*XKBLAYOUT*), then *us*, *de*, *fr* and *gb*.
 ";
 
 /// `zfsbootmenu_skip_gcc_s`: leaves `libgcc_s.so` out of the image.

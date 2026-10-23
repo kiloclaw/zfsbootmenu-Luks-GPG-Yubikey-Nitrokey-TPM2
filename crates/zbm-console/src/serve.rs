@@ -1,7 +1,8 @@
 //! `zbm console` itself: the display, the keyboards and the virtual
 //! terminal taken in that order, the loop on them, and the relay on the
-//! kernel console once the display is handed back or cannot be had; and
-//! `zbm console release`, which asks for the hand-over.
+//! kernel console once the display is handed back or cannot be had;
+//! `zbm console release`, which asks for the hand-over, and
+//! `zbm console layout`, which asks for another keyboard layout.
 //!
 //! The places it uses ([`Places`]) are the system's, or a test's.
 
@@ -22,11 +23,12 @@ use std::time::Duration;
 use zbm_display::display::{Display, Screen as _, first_card};
 use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
+use zbm_display::layout::Layout;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::RealFiles;
 use zbm_state::State;
 
-use crate::host::{RealHost, relay, set_size};
+use crate::host::{RealHost, Switch, relay, set_size};
 use crate::run::{Ended, run};
 use crate::screen::Console;
 
@@ -156,15 +158,73 @@ impl<W: io::Write> Mirror<W> {
 /// Gives the font's grid for a display of a size in pixels.
 pub type MakeGrid<'g> = &'g mut dyn FnMut((u32, u32)) -> io::Result<Grid>;
 
+/// Loads a keyboard layout of the image by name.
+pub type LoadLayout<'l> = &'l mut dyn FnMut(&str) -> Result<Layout, String>;
+
+/// The keyboard layouts the console types with.
+pub struct Layouts<'l> {
+    /// The layout it starts with; the US layout without one.
+    pub first: Option<Layout>,
+    /// Loads the layouts `zbm console layout` asks for.
+    pub load: LoadLayout<'l>,
+}
+
+impl std::fmt::Debug for Layouts<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Layouts")
+            .field("first", &self.first)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The requests other processes send the console.
+#[derive(Clone, Debug, Default)]
+pub struct Requests {
+    /// Set when the display must be handed back.
+    pub release: Arc<AtomicBool>,
+    /// Set when another keyboard layout is asked for.
+    pub layout: Arc<AtomicBool>,
+}
+
+/// Takes the request for a keyboard layout in `places`' state directory,
+/// and gives `keyboards` the layout when `load` has it; the state records
+/// the layout they type with before the request goes, which tells the
+/// process that asked.
+pub fn switch_layout(places: &Places, load: LoadLayout<'_>, keyboards: &mut Keyboards) {
+    let state = State::new(&RealFiles, &places.base);
+    if let Some(name) = state.console_layout_request() {
+        match load(&name) {
+            Ok(layout) => {
+                keyboards.set_layout(Some(layout));
+                places.log(6, &format!("keyboard {name}"));
+            }
+            Err(error) => {
+                let kept = keyboards.layout();
+                places.log(4, &format!("{error}; keeping keyboard {kept}"));
+            }
+        }
+    }
+    let _ = state.set_console_layout(keyboards.layout());
+    state.clear_console_layout_request();
+}
+
 /// The console of the boot image: the programs on standard input, the
 /// virtual terminal shown now.
 ///
 /// # Errors
 ///
-/// When the request's signal, standard input or the virtual terminal
+/// When the requests' signals, standard input or the virtual terminal
 /// cannot be had, or the relay fails.
-pub fn serve(settings: &Settings, places: &Places, grid: MakeGrid<'_>) -> io::Result<()> {
-    let requested = crate::release::on_request()?;
+pub fn serve(
+    settings: &Settings,
+    places: &Places,
+    grid: MakeGrid<'_>,
+    layouts: Layouts<'_>,
+) -> io::Result<()> {
+    let requests = Requests {
+        release: crate::release::on_request()?,
+        layout: crate::release::on_layout_request()?,
+    };
     let mut master = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let vt = active_terminal(&places.sys, &places.dev).unwrap_or_else(|| places.dev.join("tty0"));
     let mut terminal = OpenOptions::new()
@@ -178,7 +238,7 @@ pub fn serve(settings: &Settings, places: &Places, grid: MakeGrid<'_>) -> io::Re
         terminal: &mut terminal,
         vt: &vt,
     };
-    serve_on(settings, places, grid, console, requested)
+    serve_on(settings, places, (grid, layouts), console, requests)
 }
 
 /// The programs' terminal and the kernel console's.
@@ -192,9 +252,10 @@ pub struct Terminals<'t> {
     pub vt: &'t Path,
 }
 
-/// Runs the console on the display until the programs are gone, or until
-/// `requested` asks for the display back; then relays on the kernel
-/// console, as it does at once when it cannot use the display.
+/// Runs the console on the display, with the font's grid and the keyboard
+/// layouts of `fonts`, until the programs are gone, or until `requests`
+/// asks for the display back; then relays on the kernel console, as it
+/// does at once when it cannot use the display.
 ///
 /// # Errors
 ///
@@ -202,16 +263,16 @@ pub struct Terminals<'t> {
 pub fn serve_on(
     settings: &Settings,
     places: &Places,
-    grid: MakeGrid<'_>,
+    fonts: (MakeGrid<'_>, Layouts<'_>),
     terminals: Terminals<'_>,
-    requested: Arc<AtomicBool>,
+    requests: Requests,
 ) -> io::Result<()> {
     let Terminals {
         master,
         terminal,
         vt,
     } = terminals;
-    let text = match on_display(settings, places, grid, master, vt, requested) {
+    let text = match on_display(settings, places, fonts, master, vt, requests) {
         Ok((Ended::Hangup, _)) => return Ok(()),
         Ok((Ended::Released, text)) => {
             places.log(6, "handed the display back");
@@ -228,16 +289,57 @@ pub fn serve_on(
     relay(master, terminal)
 }
 
+/// How the console started: on which card and display, with which font
+/// and keyboard layout.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Started {
+    /// The DRM card.
+    pub card: PathBuf,
+    /// The display's size in pixels.
+    pub display: (u32, u32),
+    /// The font's name.
+    pub font: String,
+    /// The size of a cell in pixels.
+    pub cell: (u32, u32),
+    /// The columns and rows.
+    pub grid: (u16, u16),
+    /// The keyboard layout.
+    pub keyboard: String,
+}
+
+impl std::fmt::Display for Started {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ((x, y), (width, height)) = (self.display, self.cell);
+        let (columns, rows) = self.grid;
+        write!(
+            f,
+            "on {}: {x}x{y} display, {} {width}x{height} cells, {columns}x{rows}, keyboard {}",
+            self.card.display(),
+            self.font,
+            self.keyboard
+        )
+    }
+}
+
+/// Says that the console started, in the kernel log and the mirror, and
+/// records its keyboard layout in the state directory.
+fn announce(settings: &Settings, places: &Places, started: &Started) {
+    let text = started.to_string();
+    places.log(6, &text);
+    let _ = State::new(&RealFiles, &places.base).set_console_layout(&started.keyboard);
+    settings.mirror_line(&format!("zbm console: {text}"));
+}
+
 /// Draws the programs on `master` on the display, with the virtual
-/// terminal `vt` taken over, until they are gone or `requested` asks for
+/// terminal `vt` taken over, until they are gone or `requests` asks for
 /// the display back; returns why, and the screen's last text.
 fn on_display(
     settings: &Settings,
     places: &Places,
-    grid: MakeGrid<'_>,
+    (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
     master: &mut File,
     vt: &Path,
-    requested: Arc<AtomicBool>,
+    requests: Requests,
 ) -> io::Result<(Ended, String)> {
     let card = match &settings.card {
         Some(card) => card.clone(),
@@ -247,20 +349,28 @@ fn on_display(
     let mut display = Display::open(&card)?;
     let size = display.size();
     let grid = grid(size)?;
-    let keyboards = Keyboards::open(&places.sys, &places.dev)?;
+    let mut keyboards = Keyboards::open(&places.sys, &places.dev)?;
+    let Layouts { first, load } = layouts;
+    keyboards.set_layout(first);
     let taken = VirtualTerminal::take(vt)?;
-    let (width, height) = grid.cell();
-    let grid_name = grid.name().to_owned();
+    let started = Started {
+        card: card.clone(),
+        display: size,
+        font: grid.name().to_owned(),
+        cell: grid.cell(),
+        grid: (0, 0),
+        keyboard: keyboards.layout().to_owned(),
+    };
     let mut console = Console::new(grid, size);
     set_size(&*master, &console.window_size())?;
-    let (columns, rows) = console.size();
-    let (x, y) = size;
-    let card = card.display();
-    let font = grid_name;
-    let started =
-        format!("on {card}: {x}x{y} display, {font} {width}x{height} cells, {columns}x{rows}");
-    places.log(6, &started);
-    settings.mirror_line(&format!("zbm console: {started}"));
+    announce(
+        settings,
+        places,
+        &Started {
+            grid: console.size(),
+            ..started
+        },
+    );
     let mut mirror = settings
         .mirror
         .as_deref()
@@ -271,7 +381,11 @@ fn on_display(
             mirror.show(text);
         }
     };
-    let mut host = RealHost::new(&mut *master, keyboards, requested);
+    let switch: Switch<'_> = Box::new(|keyboards: &mut Keyboards| {
+        switch_layout(places, &mut *load, keyboards);
+    });
+    let mut host = RealHost::new(&mut *master, keyboards, requests.release)
+        .with_layouts(requests.layout, switch);
     let ended = run(&mut console, &mut display, &mut host, &mut shown)?;
     drop(taken);
     Ok((ended, console.text()))
@@ -303,6 +417,44 @@ pub fn release(base: &Path, timeout: Duration) -> io::Result<Released> {
         Ok(Released::Done)
     } else {
         Ok(Released::Late)
+    }
+}
+
+/// What became of a request for a keyboard layout.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Switched {
+    /// The console took it, and types with this layout now: the one asked
+    /// for, or the one it kept.
+    Done(String),
+    /// No console reads the keyboards.
+    NoConsole,
+    /// The console did not take it in time.
+    Late,
+}
+
+/// `zbm console layout <name>`: asks the console recorded in the state
+/// directory `base` for the keyboard layout `name`, and waits at most
+/// `timeout` until it took the request.
+///
+/// # Errors
+///
+/// When the request cannot be written or sent.
+pub fn request_layout(base: &Path, name: &str, timeout: Duration) -> io::Result<Switched> {
+    let files = RealFiles;
+    let state = State::new(&files, base);
+    let Some(pid) = state.console_pid() else {
+        return Ok(Switched::NoConsole);
+    };
+    state
+        .request_console_layout(name)
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    let taken =
+        crate::release::request_layout(pid, timeout, &mut || !state.has_console_layout_request())?;
+    if taken && !state.has_console_layout_request() {
+        Ok(Switched::Done(state.console_layout().unwrap_or_default()))
+    } else {
+        state.clear_console_layout_request();
+        Ok(Switched::Late)
     }
 }
 

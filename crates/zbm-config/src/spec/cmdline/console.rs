@@ -81,8 +81,8 @@ recovery shell on a console of its own, which draws on the display through the k
 **zbm.autosize** chooses, and reads the keyboards itself. It shows 256 colours and true colour, and
 keeps nothing that scrolls off the screen. Before booting, it hands the display and the keyboards
 back to the kernel. When the control terminal is not a virtual console, when the console cannot
-use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read on the
-US layout, from the keyboards present when it starts. The image needs the kernel's *evdev* module
+use the display, or when it fails, ZFSBootMenu goes on on the kernel console. Keys are read from
+the keyboards present when it starts. The image needs the kernel's *evdev* module
 and the display's DRM driver, for instance with *add_drivers+=" evdev virtio_gpu "* in its dracut
 configuration. The default, **zbm.console=kernel**, keeps the kernel console.
 
@@ -91,6 +91,13 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   The console draws with the image's TrueType font, DejaVu Sans Mono, which covers Latin, Greek and
   Cyrillic, in cells as high as the console font **zbm.autosize** chooses. With **psf**, it draws
   with that console font itself, as the kernel console would.
+
+**zbm.keyboard_layout=de**
+
+  The console translates keys with the first of the image's keyboard layouts
+  (*zfsbootmenu_keyboard_layouts*), dead keys included, or with the one this option names. A layout
+  the image lacks leaves the first, and an image without layouts reads keys on the US layout.
+  **zbm console layout** *name* switches layouts while the console runs.
 "#;
 
 /// `zbm.console_font`: which fonts the console on the display draws with.
@@ -105,6 +112,24 @@ pub static DISPLAY_CONSOLE_FONT: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.console"),
     deprecation: None,
     examples: &["zbm.console_font=psf"],
+};
+
+/// `zbm.keyboard_layout`: the keyboard layout of the console on the
+/// display.
+pub static KEYBOARD_LAYOUT: OptionSpec = OptionSpec {
+    name: "zbm.keyboard_layout",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Text,
+    default: None,
+    summary: "The keyboard layout of the console on the display",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &[
+        "zbm.keyboard_layout=de",
+        "zbm.keyboard_layout=de(nodeadkeys)",
+    ],
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text

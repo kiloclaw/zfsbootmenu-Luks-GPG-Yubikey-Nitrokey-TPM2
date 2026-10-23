@@ -513,6 +513,42 @@ install_zbm_fonts() {
   return 0
 }
 
+# Images with the Rust runtime get the keyboard layouts of
+# zfsbootmenu_keyboard_layouts for the console on the display, compiled by
+# zbm keyboard-layouts from the build host's XKB data (ROADMAP.md #19). The
+# first is the console's own; without the option, the layout of the build
+# host's /etc/vconsole.conf (XKBLAYOUT) comes before us, de, fr and gb.
+#
+# prints: nothing
+# returns: 0
+
+install_zbm_keyboard_layouts() {
+  local layouts host compiled file
+
+  [ "${ZBM_RUNTIME}" = "rust" ] || return 0
+
+  # shellcheck disable=SC2154
+  layouts="${zfsbootmenu_keyboard_layouts}"
+  if [ -z "${layouts}" ]; then
+    host="$( sed -n 's/^XKBLAYOUT="\{0,1\}\([^",]*\).*/\1/p' /etc/vconsole.conf 2>/dev/null )"
+    layouts="${host} us de fr gb"
+  fi
+
+  compiled="$( mktemp -d )" || return 0
+  # shellcheck disable=SC2086
+  if ! "${zfsbootmenu_zbm:-/usr/libexec/zfsbootmenu/zbm}" keyboard-layouts \
+    "${compiled}" ${layouts//,/ } >&2; then
+    zbm_warn "unable to compile every keyboard layout of '${layouts}'"
+  fi
+
+  for file in "${compiled}"/*; do
+    [ -f "${file}" ] && zbm_install_file "${file}" "/usr/share/zfsbootmenu/layouts/${file##*/}"
+  done
+
+  rm -rf "${compiled}"
+  return 0
+}
+
 install_zbm_osver() {
   local build_date
   [ -r "${zfsbootmenu_module_root}/zbm-release" ] || return 0

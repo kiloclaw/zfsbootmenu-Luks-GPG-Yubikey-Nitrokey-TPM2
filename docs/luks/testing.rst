@@ -339,7 +339,11 @@ Following a boot
   font is anti-aliased, and the console's start must name a ``.ttf`` font; Escape typed with
   ``sendkey`` must open the recovery shell on the console, and ``readlink /proc/self/fd/0`` typed there must name a
   pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's
-  last screen. The console writes its start (card, display, cells) to the mirror too. After ``kill -9`` of the
+  last screen. The console writes its start (card, display, cells, keyboard layout) to the mirror too. The image has
+  the layouts ``us`` and ``de`` (``zfsbootmenu_keyboard_layouts``): the console must start with ``us``;
+  ``/libexec/zbm console layout de`` typed in the shell must answer ``keyboard: de``, after which the keys of ``y``,
+  ``z``, the dead circumflex and ``e`` must type ``zyê``; the same command for ``us``, typed with the German layout,
+  must switch back. After ``kill -9`` of the
   console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
   kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's
   message that the console ended. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start

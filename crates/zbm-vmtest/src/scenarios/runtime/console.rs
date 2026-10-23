@@ -10,7 +10,10 @@
 //!   the console's pseudo-terminal. Killing the console from that shell
 //!   puts the runtime back on the kernel console, whose shell takes keys
 //!   again and finds the console's start and end in the kernel log.
-//!   The console draws with the image's TrueType font, anti-aliased.
+//!   The console draws with the image's TrueType font, anti-aliased. It
+//!   starts with the image's first keyboard layout, `us`; switched to `de`
+//!   from the shell (`zbm console layout`, step 4), the keys of `y` and `z`
+//!   swap and the dead circumflex composes `ê`.
 //! - On `simpledrm` (`vga=0x318`), with `zbm.console_font=psf`: the console
 //!   draws with a console font; the countdown runs out, the console hands
 //!   the display back, and the boot environment boots.
@@ -58,6 +61,25 @@ const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
 
 /// Typed on the kernel console then: the kernel log, on the serial console.
 const LOG: &str = "dmesg > /dev/ttyS0\n";
+
+/// Typed in the recovery shell, with a layout's name: switches the
+/// console's keyboard layout.
+const LAYOUT: &str = "/libexec/zbm console layout ";
+
+/// Keys typed with the German layout: `echo`, the keys of `y` and `z`, the
+/// dead circumflex (left of `1`) and `e`, which the shell shows as `zyê`.
+const GERMAN_KEYS: &[&str] = &[
+    "e",
+    "c",
+    "h",
+    "o",
+    "spc",
+    "y",
+    "z",
+    "grave_accent",
+    "e",
+    "ret",
+];
 
 /// The console's message when it starts, in the kernel log and its mirror.
 const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\S+) (\d+x\d+) cells";
@@ -107,7 +129,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
 pub(super) fn spec() -> ImageSpec {
     ImageSpec {
         runtime: Some(ZbmRuntime::Rust),
-        conf: "add_drivers+=\" virtio_gpu evdev \"".into(),
+        conf: "add_drivers+=\" virtio_gpu evdev \"\nzfsbootmenu_keyboard_layouts=\"us de\"".into(),
         ..ImageSpec::new("console")
     }
 }
@@ -148,16 +170,34 @@ pub(super) fn key_names(text: &str) -> Option<Vec<String>> {
         .collect()
 }
 
-/// Types `text` on the machine's keyboard, a key each `pause` / 5: QEMU
-/// holds each key a while, and a key sent before the last one was let go
-/// can be lost.
-fn type_text(vm: &Vm<'_>, monitor: &Monitor, text: &str, pause: Duration) -> Result<()> {
-    let names = key_names(text).ok_or_else(|| Error::Setup(format!("no keys type {text:?}")))?;
+/// QEMU's names of the keys that type `text` on the German layout, for
+/// letters, digits, spaces, `/` and newlines; `None` for other characters.
+pub(super) fn german_key_names(text: &str) -> Option<Vec<String>> {
+    text.chars()
+        .map(|c| match c {
+            'y' => Some("z".to_owned()),
+            'z' => Some("y".to_owned()),
+            '/' => Some("shift-7".to_owned()),
+            'a'..='x' | '0'..='9' | ' ' | '\n' => key_names(&c.to_string())?.pop(),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Presses the keys `names`, a key each `pause` / 5: QEMU holds each key a
+/// while, and a key sent before the last one was let go can be lost.
+fn press_keys(vm: &Vm<'_>, monitor: &Monitor, names: &[String], pause: Duration) -> Result<()> {
     for name in names {
-        (monitor.key)(vm, &name)?;
+        (monitor.key)(vm, name)?;
         thread::sleep(pause / 5);
     }
     Ok(())
+}
+
+/// Types `text` on the machine's keyboard, on the US layout.
+fn type_text(vm: &Vm<'_>, monitor: &Monitor, text: &str, pause: Duration) -> Result<()> {
+    let names = key_names(text).ok_or_else(|| Error::Setup(format!("no keys type {text:?}")))?;
+    press_keys(vm, monitor, &names, pause)
 }
 
 /// The last screen of the mirror at `path`, for the notes of a failure.
@@ -247,7 +287,57 @@ pub(super) fn check_console(
     );
     check_shell(test, vm, mirror, monitor, pace)?;
     check_font(test, "virtio", mirror, ".ttf", pace)?;
+    check_layouts(test, vm, mirror, monitor, pace)?;
     check_fallback(test, vm, mirror, monitor, pace)
+}
+
+/// The keyboard layouts: the console starts with the image's first, and
+/// the shell switches it to `de` and back, typing the second time with
+/// the German layout.
+fn check_layouts(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    mirror: &Path,
+    monitor: &Monitor,
+    pace: Pace,
+) -> Result<()> {
+    let first = wait_screen(
+        mirror,
+        r"cells, \d+x\d+, keyboard us",
+        pace.patience.min(10),
+    )?;
+    test.check(
+        first.is_some(),
+        "virtio: the console starts with the image's first keyboard layout, us",
+    );
+    type_text(vm, monitor, &format!("{LAYOUT}de\n"), pace.pause)?;
+    let switched = wait_screen(mirror, "keyboard: de", pace.patience.min(30))?;
+    test.check(
+        switched.is_some(),
+        "virtio: zbm console layout de switches the console to the German layout",
+    );
+    let german: Vec<String> = GERMAN_KEYS.iter().map(|&name| name.to_owned()).collect();
+    press_keys(vm, monitor, &german, pace.pause)?;
+    let typed = wait_screen(mirror, r"(?m)^zyê\s*$", pace.patience.min(30))?;
+    test.check(
+        typed.is_some(),
+        "virtio: keys type on the German layout: y and z swap, ^ then e is ê",
+    );
+    if typed.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
+    let back = format!("{LAYOUT}us\n");
+    let names = german_key_names(&back).ok_or_else(|| Error::Setup(back.clone()))?;
+    press_keys(vm, monitor, &names, pace.pause)?;
+    let us = wait_screen(mirror, "keyboard: us", pace.patience.min(30))?;
+    test.check(
+        us.is_some(),
+        "virtio: typed on the German layout, zbm console layout us switches back",
+    );
+    Ok(())
 }
 
 /// The font of the console's start, from its mirror, of a file ending in

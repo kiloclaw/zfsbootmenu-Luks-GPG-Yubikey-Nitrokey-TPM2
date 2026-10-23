@@ -66,6 +66,9 @@ rustix = { version = "1", default-features = false, features = ["std", "pty", "t
 signal-hook = { version = "0.4", default-features = false }
 # TrueType fonts for the console on the display (ROADMAP.md #19, step 3): parsed with skrifa, hinted and rasterized.
 swash = { version = "=0.2.10", default-features = false, features = ["std", "scale", "render"] }
+# Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled when the image is
+# built, and their dead keys through a compose table.
+kbvm = { version = "=0.1.7", default-features = false, features = ["compose"] }
 
 # Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

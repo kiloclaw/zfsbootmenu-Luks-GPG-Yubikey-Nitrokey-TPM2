@@ -157,7 +157,11 @@
           "usr/share/zfsbootmenu/fonts/spleen-12x24.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/spleen-16x32.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/spleen-32x64.psf": "file 644",
-          "usr/share/zfsbootmenu/fonts/spleen-8x16.psf": "file 644"
+          "usr/share/zfsbootmenu/fonts/spleen-8x16.psf": "file 644",
+          "usr/share/zfsbootmenu/layouts": "dir",
+          "usr/share/zfsbootmenu/layouts/dead-keys": "file 644",
+          "usr/share/zfsbootmenu/layouts/layouts": "file 644",
+          "usr/share/zfsbootmenu/layouts/us.xkb": "file 644"
         },
         "fonts": {
           "DejaVuSansMono.ttf": 0,
@@ -172,7 +176,8 @@
           "etc/zfsbootmenu.conf": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"rust\"\n",
           "hooks.list": "cmdline 95 zfsbootmenu-rust-cmdline.sh\npre-mount 90 zfsbootmenu-rust-preinit.sh\ninitqueue/settled 99 zfsbootmenu-ready-set.sh\ninitqueue/finished 99 zfsbootmenu-ready-chk.sh\n",
           "libexec/hooks/early-setup.d/30-console-autosize.sh": "#!/bin/bash\n## Size the console font to the display (zbm.autosize), with zbm: from the\n## display's physical size where its EDID gives it, so that text is readable\n## on high-density (HiDPI) and ordinary screens alike.\n##\n## This hook may be disabled with zbm.skip_hooks=30-console-autosize.sh\n\nexec /libexec/zbm console-autosize\n",
-          "libexec/hooks/teardown.d/80-luks-close.sh": "#!/bin/bash\n## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with\n## zluks: the pools on them are exported first, and closing them makes the\n## kernel wipe the dm-crypt volume keys before the new kernel starts.\n##\n## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh\n\ncommand -v cryptsetup >/dev/null 2>&1 || exit 0\n/bin/zluks close\nexit 0\n"
+          "libexec/hooks/teardown.d/80-luks-close.sh": "#!/bin/bash\n## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with\n## zluks: the pools on them are exported first, and closing them makes the\n## kernel wipe the dm-crypt volume keys before the new kernel starts.\n##\n## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh\n\ncommand -v cryptsetup >/dev/null 2>&1 || exit 0\n/bin/zluks close\nexit 0\n",
+          "usr/share/zfsbootmenu/layouts/layouts": "us\n"
         },
         "warnings": []
       }
@@ -519,7 +524,11 @@
           "usr/share/zfsbootmenu/fonts/ter-v20b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v24b.psf": "file 644",
           "usr/share/zfsbootmenu/fonts/ter-v28b.psf": "file 644",
-          "usr/share/zfsbootmenu/fonts/ter-v32b.psf": "file 644"
+          "usr/share/zfsbootmenu/fonts/ter-v32b.psf": "file 644",
+          "usr/share/zfsbootmenu/layouts": "dir",
+          "usr/share/zfsbootmenu/layouts/dead-keys": "file 644",
+          "usr/share/zfsbootmenu/layouts/layouts": "file 644",
+          "usr/share/zfsbootmenu/layouts/us.xkb": "file 644"
         },
         "fonts": {
           "DejaVuSansMono.ttf": 0,
@@ -535,7 +544,8 @@
           "etc/zfsbootmenu.conf": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"rust\"\n",
           "hooks.list": "cmdline 95 zfsbootmenu-rust-cmdline.sh\npre-mount 90 zfsbootmenu-rust-preinit.sh\ninitqueue/settled 99 zfsbootmenu-ready-set.sh\ninitqueue/finished 99 zfsbootmenu-ready-chk.sh\n",
           "libexec/hooks/early-setup.d/30-console-autosize.sh": "#!/bin/bash\n## Size the console font to the display (zbm.autosize), with zbm: from the\n## display's physical size where its EDID gives it, so that text is readable\n## on high-density (HiDPI) and ordinary screens alike.\n##\n## This hook may be disabled with zbm.skip_hooks=30-console-autosize.sh\n\nexec /libexec/zbm console-autosize\n",
-          "libexec/hooks/teardown.d/80-luks-close.sh": "#!/bin/bash\n## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with\n## zluks: the pools on them are exported first, and closing them makes the\n## kernel wipe the dm-crypt volume keys before the new kernel starts.\n##\n## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh\n\ncommand -v cryptsetup >/dev/null 2>&1 || exit 0\n/bin/zluks close\nexit 0\n"
+          "libexec/hooks/teardown.d/80-luks-close.sh": "#!/bin/bash\n## Close the LUKS mappings that ZFSBootMenu opened to import ZFS pools, with\n## zluks: the pools on them are exported first, and closing them makes the\n## kernel wipe the dm-crypt volume keys before the new kernel starts.\n##\n## This hook may be disabled with zbm.skip_hooks=80-luks-close.sh\n\ncommand -v cryptsetup >/dev/null 2>&1 || exit 0\n/bin/zluks close\nexit 0\n",
+          "usr/share/zfsbootmenu/layouts/layouts": "us\n"
         },
         "warnings": [
           "unknown zfsbootmenu_console_font 'comic'; installing Terminus"
