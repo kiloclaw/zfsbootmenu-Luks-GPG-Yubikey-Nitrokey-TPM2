@@ -284,7 +284,8 @@ Done in R3:
   Check messages are written as the Python harness wrote them, so that `zbm-vmtest compare` sets two runs side by
   side message by message. A test that cannot go on records why as a failed check and still writes its result.
   The harness itself is unit tested against scripted consoles, and booted once against a host kernel; its
-  scenarios run only in VMs. Left: the side-by-side runs on a host with KVM, then removing the Python harness.
+  scenarios run only in VMs, so the crate starts at 60% line coverage, below the 80% of new crates, as its
+  baseline. Left: the side-by-side runs on a host with KVM, then removing the Python harness.
 
 ## What the pilots taught
 
