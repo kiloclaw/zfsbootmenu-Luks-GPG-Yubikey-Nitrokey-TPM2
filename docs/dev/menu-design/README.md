@@ -12,6 +12,7 @@ The design of the new menu of ZFSBootMenu (REFACTOR-ROADMAP.md, phase D), which 
 | [The key map](keymap.md) | one meaning per key, the bindings, the classic `MOD+key` aliases (decision 8) |
 | [What the menu needs from `zbm-app`](interfaces.md) | the `Snapshot`, `Action` and event lists handed to R4 |
 | [Usability sessions](usability.md) | who, how, the task script, what to record |
+| [Findings](findings.md) | what the sessions found, and what was done about it |
 | [Wireframes](wireframes/) | every view at 120×40, 80×25 and 52×20, drawn by the prototype |
 
 ## The prototype

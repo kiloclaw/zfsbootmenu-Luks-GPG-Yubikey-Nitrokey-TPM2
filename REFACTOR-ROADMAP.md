@@ -41,8 +41,8 @@ the code, and R5 builds it.
 | R0 | Done on branch `claude/zbm-refactor` |
 | R1 | Done on branch `claude/zbm-refactor` |
 | R2 | Done on branch `claude/zbm-refactor` |
-| R3 | In progress on branch `claude/zbm-refactor` |
-| D (menu design) | Not started |
+| R3 | Done on branch `claude/zbm-refactor` |
+| D (menu design) | In progress on branch `claude/zbm-refactor`: design, prototype and wireframes done; usability sessions to run |
 | R4 to R9 | Not started |
 
 Done in R0:
@@ -289,6 +289,28 @@ Done in R3:
   Rust harness. A test that cannot go on records why as a failed check and still writes its result. The harness is
   unit tested against scripted consoles; its scenarios run only in VMs, so the crate starts at 60% line coverage,
   below the 80% of new crates, as its baseline.
+
+Done in D:
+
+- The design in `docs/dev/menu-design/`: users, core tasks with keystroke budgets and scenarios; the information
+  architecture (frame, views, dialogs, navigation); the visual system (colour roles, monochrome, ASCII, capability
+  detection, layout by size); the key map, one meaning per key; the `Snapshot`, `Action` and event lists for R4
+  (`interfaces.md`); the plan of the usability sessions (`usability.md`).
+- In `zbm-tui`, `menu::theme` and `menu::caps` (roles as Ratatui styles, from `TERM`, `NO_COLOR` and the locale) and
+  `menu::keymap` (the bindings, the footer and help generated from them, the classic aliases), with the Elm
+  architecture of the prototype: `Model`, `update`, `view`, and `menu::world`, the lists proposed for `zbm-app`.
+- `cargo run -p zbm-tui -- --demo` runs every core task on a fake machine: two pools (one degraded, with a
+  checkpoint), four boot environments, 400 snapshots, three LUKS volumes with a TPM2 PIN, a passphrase and a security
+  key that is never plugged in, and with `--foreign` a pool of another host. `--log-keys` records key presses for
+  the sessions.
+- The wireframes are the prototype's snapshot tests: every view at 120×40, 80×25 and 52×20, and the main views in
+  ASCII, in `docs/dev/menu-design/wireframes/`. A test of the core tasks keeps each within its budget: T1 0 keys,
+  T2 2, T3 3, T4 3 to boot a snapshot and 4 plus the name to roll back, T5 the secret and Enter, T6 2 plus the edit,
+  T7 2.
+- Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
+  under *classic* in help, with no second profile. The usability sessions decide.
+- Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users
+  and are run by the maintainer, and the review of the design documents.
 
 ## What the pilots taught
 
@@ -1094,7 +1116,8 @@ Still open:
    misses its frame budget in the performance test of R5 (10,000 snapshots); then `nucleo` is taken with its worker
    thread, and `rayon` and `parking_lot` are measured against the image size budget. Decided in R5.
 8. **A classic key map:** whether `keymap.rs` offers a second profile close to the `fzf` menu's bindings for users who
-   know them; decided at the end of D, from its usability sessions.
+   know them; decided at the end of D, from its usability sessions. Proposed in D: no second profile; the
+   `MOD+key` bindings work as aliases in their old views ([keymap.md](docs/dev/menu-design/keymap.md)).
 
 ## Proposals for later
 

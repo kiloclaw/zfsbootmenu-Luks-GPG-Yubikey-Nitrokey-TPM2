@@ -59,6 +59,19 @@ stays right when the snapshot changes under it.
 | `LogLoaded` | the log entries | the log view |
 | `Leaving` | why the menu ends (booting, shell, reboot) | the last frame |
 
+## What the prototype simplifies
+
+`menu::world` follows these lists with a few shortcuts that R4 does not take:
+
+- the snapshot holds every snapshot of every environment and the log entries, so there is no `LoadSnapshots`,
+  `LoadLog`, `SnapshotsLoaded` or `LogLoaded`; the performance test of R5 (10,000 snapshots) is where loading on
+  demand earns its place;
+- one `Changed` event stands for `SnapshotChanged` and the stage events, and `Finished` with an outcome for
+  `ActionStarted`, `ActionProgress` and `ActionFinished`: the fake machine answers at once;
+- the import problem is answered with `Import` and a policy rather than `AnswerImportProblem`, and `UnlockRequested`
+  carries the tries left, which `UnlockFinished` will carry in R4;
+- `Diff` returns its changes in the notification instead of a diff view.
+
 ## The ports of R3
 
 Start-up runs inside the menu: `zbm-luks`'s `Prompter` and `zbm-pool`'s `Operator` turn into `UnlockRequested` and

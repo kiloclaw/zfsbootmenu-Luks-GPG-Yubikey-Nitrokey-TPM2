@@ -300,4 +300,6 @@ fn leave(why: &str) -> Vec<Event> {
 }
 
 #[cfg(test)]
+mod measures;
+#[cfg(test)]
 mod tests;

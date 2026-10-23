@@ -92,3 +92,18 @@ The prototype measures each core task as the number of key presses from the main
 in the shortest path, and compares it with the `fzf` menu; the tests of the prototype keep those numbers from
 growing. The usability sessions add time on task, errors (a wrong action started, a dialog dismissed unread) and
 whether help was needed.
+
+The prototype's shortest paths, from `crates/zbm-tui/src/menu/demo/measures.rs`, which fails when one grows. Text
+typed (filter letters, a name, a secret, an edit) is not counted. The `fzf` column is counted by hand from that
+menu's key help, to be checked in the sessions.
+
+| Task | Path in the prototype | Keys | Budget | `fzf` menu |
+| --- | --- | --- | --- | --- |
+| T1 | nothing | 0 | 0 | 0 |
+| T2 | Down, Enter; or `/`, letters, Enter | 2 | 4 | 3 (Esc to stop the countdown, Down, Enter) |
+| T3 | `k`, Down, Enter | 3 | 5 | 4 (Esc, `MOD+K`, Down, Enter) |
+| T4, boot a snapshot | `s`, `o` (newest first), `b` | 3 | 6 | no direct path: clone it, then boot the clone |
+| T4, roll back | `s`, `o`, `r`, the name, Enter | 4 | 6 | Esc, `MOD+S`, choose, `MOD+R`, then confirm |
+| T5 | the secret, Enter | 1 | 1 | 1 |
+| T6 | `e`, the edit, Enter | 2 | 3 | about 3 (Esc, `MOD+E`, the edit, Enter) |
+| T7 | Down, Enter from the problem | 2 | 2 | depends on `zbm.import_policy`; otherwise the recovery shell |
