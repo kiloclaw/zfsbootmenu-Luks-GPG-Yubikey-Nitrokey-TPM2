@@ -61,6 +61,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `37dcb86`: the online help of `zfsbootmenu(7)` (`help-files/`) describes `zbm.console=drm`, the console on
   the display of the Rust runtime (ROADMAP.md #19); the legacy runtime is unchanged.
   **Rust:** nothing to port; documentation only.
+- [x] `adc48b8`: images with `zfsbootmenu_runtime=rust` install the TrueType font of the console on the display,
+  `fonts/dejavu/DejaVuSansMono.ttf`, with its licence as `/usr/share/zfsbootmenu/fonts/LICENSE.dejavu`
+  (ROADMAP.md #19, step 3); the online help of `zfsbootmenu(7)` describes `zbm.console_font`. Legacy images are
+  unchanged.
+  **Rust:** done; `crates/zbm/tests/image.rs` checks the fonts of both runtimes' images.
 
 ## Legacy limitations the Rust runtime must not copy
 
