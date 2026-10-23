@@ -91,12 +91,66 @@ impl Settings {
 }
 
 /// Opens the mirror at `path` without blocking: when it cannot take a
-/// screen, as a serial port whose line is full, the screen is lost rather
-/// than the console stopped.
+/// screen, as a serial port whose line is full, the console goes on and
+/// writes the rest later.
 fn open_mirror(path: &Path) -> Option<File> {
     let mirror = OpenOptions::new().append(true).open(path).ok()?;
     rustix::io::ioctl_fionbio(&mirror, true).ok()?;
     Some(mirror)
+}
+
+/// The screens written to the mirror, each after a form feed. A screen is
+/// written whole, even across calls; of the screens that come meanwhile,
+/// only the latest is written, so that the mirror always ends with the
+/// screen shown.
+#[derive(Debug)]
+pub struct Mirror<W> {
+    out: W,
+    /// What is left to write of the screen being written.
+    pending: Vec<u8>,
+    /// The latest screen, not written yet.
+    next: Option<String>,
+    /// The latest screen taken.
+    last: String,
+}
+
+impl<W: io::Write> Mirror<W> {
+    /// A mirror writing to `out`.
+    pub fn new(out: W) -> Mirror<W> {
+        Mirror {
+            out,
+            pending: Vec::new(),
+            next: None,
+            last: String::new(),
+        }
+    }
+
+    /// Takes the screen `text`, and writes what `out` takes now.
+    pub fn show(&mut self, text: &str) {
+        if text != self.last {
+            text.clone_into(&mut self.last);
+            self.next = Some(format!("\x0c{text}"));
+        }
+        loop {
+            if self.pending.is_empty() {
+                match self.next.take() {
+                    Some(screen) => self.pending = screen.into_bytes(),
+                    None => return,
+                }
+            }
+            match self.out.write(&self.pending) {
+                Ok(0) | Err(_) => return,
+                Ok(written) => {
+                    self.pending.drain(..written.min(self.pending.len()));
+                }
+            }
+        }
+    }
+
+    /// What it writes to.
+    pub fn get_ref(&self) -> &W {
+        &self.out
+    }
 }
 
 /// Gives the font's grid for a display of a size in pixels.
@@ -205,14 +259,14 @@ fn on_display(
         6,
         &format!("on {card}: {x}x{y} display, {width}x{height} cells, {columns}x{rows}"),
     );
-    let mut mirror = settings.mirror.as_deref().and_then(open_mirror);
-    let mut last = String::new();
+    let mut mirror = settings
+        .mirror
+        .as_deref()
+        .and_then(open_mirror)
+        .map(Mirror::new);
     let mut shown = |text: &str| {
-        if text != last {
-            if let Some(mirror) = &mut mirror {
-                let _ = mirror.write_all(format!("\x0c{text}").as_bytes());
-            }
-            text.clone_into(&mut last);
+        if let Some(mirror) = &mut mirror {
+            mirror.show(text);
         }
     };
     let mut host = RealHost::new(&mut *master, keyboards, requested);

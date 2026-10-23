@@ -288,9 +288,13 @@ fn programs_run_on_the_console_s_terminal_in_a_session_of_their_own() {
         .spawn(&supervisor.startup, &[], false, attached.as_ref())
         .unwrap();
     let status = supervisor.wait_for(pid, &mut attached, &mut |_| {});
-    let mut shown = vec![0_u8; 256];
-    let length = std::io::Read::read(&mut master, &mut shown).unwrap();
-    let shown = String::from_utf8_lossy(&shown[..length]).into_owned();
+    // The output may come in more than one read.
+    let mut shown = String::new();
+    while shown.lines().count() < 2 {
+        let mut chunk = vec![0_u8; 256];
+        let length = std::io::Read::read(&mut master, &mut chunk).unwrap();
+        shown.push_str(&String::from_utf8_lossy(&chunk[..length]));
+    }
 
     assert_eq!(status, Some(0));
     assert!(shown.starts_with("/dev/pts/"), "{shown:?}");
