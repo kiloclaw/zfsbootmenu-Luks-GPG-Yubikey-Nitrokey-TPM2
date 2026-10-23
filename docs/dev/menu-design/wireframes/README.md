@@ -8,12 +8,12 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | Name | What it shows |
 | --- | --- |
 | `startup` | start-up with its stages |
-| `main` | the boot environments, the countdown and the detail pane |
-| `main-filter` | the main view filtered by `ta` |
+| `main` | the navigation bar, the countdown banner, the boot environments and the inspector |
+| `main-filter` | the search field, filtered by `ta` |
 | `kernels` | the kernels of the default environment |
 | `snapshots` | 400 snapshots, newest first |
-| `snapshot-actions` | what Enter offers on a snapshot |
-| `rollback-confirm` | a rollback, waiting for the environment's name to be typed |
+| `snapshot-actions` | the action sheet of a snapshot |
+| `rollback-confirm` | the rollback alert, its button disabled until the name is typed |
 | `command-line` | the command line edited for one boot |
 | `pools` | pools and LUKS volumes |
 | `unlock-pin` | a TPM2 PIN asked at start-up, two digits typed and not shown |
@@ -29,7 +29,8 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
 files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). Colour
 is not in the text: colour and monochrome draw the same characters, which a test checks, so nothing depends on
-colour alone.
+colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
+glyph they lack. The design rules they follow are in [../apple-hig.md](../apple-hig.md).
 
 ## Changing them
 

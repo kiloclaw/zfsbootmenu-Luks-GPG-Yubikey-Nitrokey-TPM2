@@ -61,14 +61,14 @@ fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String)
             Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
         ),
         act(
-            "Import with the host ID it was last imported with",
+            "Import with Its Last Host ID",
             Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
         ),
-        act("Force the import", super::dialogs::force_import(pool)),
-        act("Recovery shell", Then::Act(Action::Shell)),
+        act("Force the Import", super::dialogs::force_import(pool)),
+        act("Open the Recovery Shell", Then::Act(Action::Shell)),
     ];
     model.dialog = Some(super::dialogs::choose(
-        &format!("{pool} did not import"),
+        &format!("{pool} Did Not Import"),
         vec![reason],
         choices,
     ));

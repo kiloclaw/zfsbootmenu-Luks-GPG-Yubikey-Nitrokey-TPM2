@@ -1,49 +1,76 @@
-//! Dialogs and the command palette, drawn over the view.
+//! Alerts, action sheets and the command palette, over the dimmed view
+//! (`docs/dev/menu-design/apple-hig.md`, rules 6 to 8).
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Position, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{
+    Block, Clear, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Wrap,
+};
 
 use super::lists;
-use crate::menu::model::{Choice, Dialog, Model};
-use crate::menu::theme::{Role, Theme};
+use crate::menu::format::{capitalised, fit};
+use crate::menu::model::{Choice, Dialog, Model, Then};
+use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::update::palette_items;
-use crate::menu::world::Method;
+use crate::menu::world::{Action, Method};
 
-/// Draws the dialog or the palette, if one is open.
+/// The widest an alert or action sheet gets.
+const ALERT_WIDTH: u16 = 60;
+
+/// How a button looks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Kind {
+    /// An ordinary button.
+    Normal,
+    /// The button `Enter` presses.
+    Default,
+    /// A destructive button `Enter` presses.
+    Destructive,
+    /// A button that cannot be pressed yet.
+    Disabled,
+}
+
+/// An alert: a title, a message, buttons.
+struct Alert {
+    title: String,
+    body: Vec<Line<'static>>,
+    buttons: Vec<(String, Kind)>,
+    danger: bool,
+}
+
+/// Draws the dialog or the palette, if one is open, over the dimmed view.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    if let Some(dialog) = &model.dialog {
-        match dialog {
-            Dialog::Unlock {
-                volume,
-                method,
-                tries_left,
-                ..
-            } => {
-                unlock(model, frame, area, (volume, *method, *tries_left));
-            }
-            Dialog::Choose {
-                title,
-                lines,
-                choices,
-                selected,
-            } => {
-                choose(model.theme, frame, area, (title, lines, choices, *selected));
-            }
-            Dialog::Confirm {
-                title,
-                lines,
-                name,
-                typed,
-                ..
-            } => {
-                confirm(model.theme, frame, area, (title, lines, name, typed));
-            }
-            Dialog::Error { what, why, next } => error(model.theme, frame, area, (what, why, next)),
-        }
-    } else if model.palette.is_some() {
-        palette(model, frame, area);
+    if model.dialog.is_none() && model.palette.is_none() {
+        return;
+    }
+    frame
+        .buffer_mut()
+        .set_style(area, Style::new().add_modifier(Modifier::DIM));
+    let theme = model.theme;
+    match &model.dialog {
+        Some(Dialog::Unlock {
+            volume,
+            method,
+            tries_left,
+            ..
+        }) => unlock(model, frame, area, (volume, *method, *tries_left)),
+        Some(Dialog::Choose {
+            title,
+            lines,
+            choices,
+            selected,
+        }) => sheet(theme, frame, area, (title, lines, choices, *selected)),
+        Some(Dialog::Confirm {
+            title,
+            lines,
+            name,
+            typed,
+            action,
+        }) => confirm(theme, frame, area, (title, lines, name, typed, action)),
+        Some(Dialog::Error { what, why, next }) => error(theme, frame, area, (what, why, next)),
+        None => palette(model, frame, area),
     }
 }
 
@@ -59,56 +86,126 @@ fn centred(frame: &mut Frame<'_>, area: Rect, width: u16, height: u16) -> Rect {
     rect
 }
 
-/// The width of dialogs: 70 columns, or the screen less a margin.
-fn dialog_width(area: Rect) -> u16 {
-    area.width.saturating_sub(4).min(70)
+/// The width of alerts: 60 columns, or the screen less a margin.
+fn alert_width(area: Rect) -> u16 {
+    area.width.saturating_sub(4).min(ALERT_WIDTH)
 }
 
-/// The height of a bordered box of `width` holding `lines` wrapped.
-fn wrapped_height(lines: &[Line<'_>], width: u16) -> u16 {
-    let inner = usize::from(width.saturating_sub(2).max(1));
+/// The rows `lines` take wrapped in `width` columns.
+fn wrapped(lines: &[Line<'_>], width: u16) -> u16 {
+    let width = usize::from(width.max(1));
     let rows: usize = lines
         .iter()
-        .map(|line| line.width().div_ceil(inner).max(1))
+        .map(|line| line.width().div_ceil(width).max(1))
         .sum();
-    u16::try_from(rows).unwrap_or(u16::MAX).saturating_add(2)
+    u16::try_from(rows).unwrap_or(u16::MAX)
 }
 
-/// Text lines in the muted style.
-fn muted(theme: Theme, lines: &[String]) -> Vec<Line<'static>> {
+/// The frame of an alert or sheet: borders, red for danger, margins.
+fn frame_block(theme: Theme, danger: bool) -> Block<'static> {
+    let role = if danger { Role::Danger } else { Role::Border };
+    Block::bordered()
+        .border_set(theme.border())
+        .border_style(theme.style(role))
+        .padding(Padding::horizontal(1))
+}
+
+/// The buttons, right-aligned, drawn `[ Label ]`.
+fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
+    let mut spans = Vec::new();
+    for (index, (label, kind)) in buttons.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw("  "));
+        }
+        let style = match kind {
+            Kind::Normal => theme.style(Role::Text),
+            Kind::Default => theme.style(Role::Selected),
+            Kind::Destructive => theme.style(Role::Danger).add_modifier(Modifier::REVERSED),
+            Kind::Disabled => theme.style(Role::Muted),
+        };
+        spans.push(Span::styled(format!("[ {label} ]"), style));
+    }
+    Line::from(spans).right_aligned()
+}
+
+/// Draws `alert`; returns the area of its message.
+fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Alert) -> Rect {
+    let width = alert_width(area);
+    let inner_width = width.saturating_sub(4);
+    let body = wrapped(&alert.body, inner_width);
+    let height = body.saturating_add(6);
+    let rect = centred(frame, area, width, height);
+    let block = frame_block(theme, alert.danger);
+    let inner = block.inner(rect);
+    frame.render_widget(block, rect);
+    let [title, _, message, _, row] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(body),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(inner);
+    let heading = fit(&alert.title, usize::from(inner.width), theme.is_ascii());
+    frame.render_widget(
+        Paragraph::new(Line::styled(heading, theme.style(Role::Title)).centered()),
+        title,
+    );
+    frame.render_widget(
+        Paragraph::new(alert.body).wrap(Wrap { trim: false }),
+        message,
+    );
+    frame.render_widget(Paragraph::new(buttons(theme, &alert.buttons)), row);
+    message
+}
+
+/// Lines in the body style.
+fn body_lines(theme: Theme, lines: &[String]) -> Vec<Line<'static>> {
     lines
         .iter()
         .map(|line| Line::styled(line.clone(), theme.style(Role::Text)))
         .collect()
 }
 
-/// The unlock dialog: the volume, the method, the hidden field, the other
-/// methods. The field shows nothing, not even the length of the secret.
+/// The unlock alert: the volume, the hidden field, the other methods;
+/// **Skip** (`Esc`) and **Unlock** (`Enter`).
 fn unlock(
     model: &Model,
     frame: &mut Frame<'_>,
     area: Rect,
     dialog: (&String, Method, Option<u32>),
 ) {
-    let (_, method, _) = dialog;
-    let lines = unlock_lines(model, dialog);
-    let width = dialog_width(area);
-    let rect = centred(frame, area, width, wrapped_height(&lines, width));
-    let block = lists::block(model.theme, "Unlock");
-    let inner = block.inner(rect);
-    frame.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: true }).block(block),
-        rect,
+    let (volume, method, _) = dialog;
+    let body = unlock_body(model, dialog);
+    let buttons = vec![
+        ("Skip".into(), Kind::Normal),
+        ("Unlock".into(), Kind::Default),
+    ];
+    let title = format!("Unlock {volume}");
+    let message = alert(
+        model.theme,
+        frame,
+        area,
+        Alert {
+            title,
+            body,
+            buttons,
+            danger: false,
+        },
     );
     if method.is_typed() {
         let column = u16::try_from(method.as_str().len() + 2).unwrap_or(u16::MAX);
-        frame.set_cursor_position(Position::new(inner.x.saturating_add(column), inner.y + 2));
+        let row = message.y.saturating_add(2);
+        frame.set_cursor_position(Position::new(message.x.saturating_add(column), row));
     }
 }
 
-/// The text of the unlock dialog.
-fn unlock_lines(model: &Model, dialog: (&String, Method, Option<u32>)) -> Vec<Line<'static>> {
-    let (volume, method, tries_left) = dialog;
+/// The message of the unlock alert: the device, the field or what is
+/// awaited, the tries left, the other methods.
+fn unlock_body(
+    model: &Model,
+    (volume, method, tries_left): (&String, Method, Option<u32>),
+) -> Vec<Line<'static>> {
     let theme = model.theme;
     let known = model
         .snapshot
@@ -116,112 +213,182 @@ fn unlock_lines(model: &Model, dialog: (&String, Method, Option<u32>)) -> Vec<Li
         .iter()
         .find(|known| &known.name == volume);
     let device = known.map(|known| known.device.clone()).unwrap_or_default();
-    let others: Vec<&str> = known
-        .map(|known| {
-            let others = known.methods.iter().filter(|m| **m != method);
-            others.map(|m| m.as_str()).collect()
-        })
-        .unwrap_or_default();
+    let mut body = vec![
+        Line::styled(format!("on {device}"), theme.style(Role::Muted)),
+        Line::default(),
+    ];
     let ask = if method.is_typed() {
         format!("{}:", capitalised(method.as_str()))
     } else {
         format!(
-            "Waiting for the {}: touch it, or plug it in and press Enter",
+            "Waiting for the {}: touch it, or plug it in.",
             method.as_str()
         )
     };
-    let mut lines = vec![
-        Line::from(format!("{volume} on {device}")),
-        Line::default(),
-        Line::styled(ask, theme.style(Role::Title)),
-    ];
+    body.push(Line::styled(ask, theme.style(Role::Title)));
     if let Some(left) = tries_left {
-        let warning = format!("{left} tries left");
-        lines.push(Line::styled(warning, theme.style(Role::Warning)));
+        body.push(Line::styled(
+            format!("{left} tries left"),
+            theme.style(Role::Warning),
+        ));
     }
-    lines.push(Line::default());
+    let others: Vec<&str> = known
+        .map(|known| {
+            known
+                .methods
+                .iter()
+                .filter(|m| **m != method)
+                .map(|m| m.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
     if !others.is_empty() {
-        let switch = format!("Up/Down: {}", others.join(", "));
-        lines.push(Line::styled(switch, theme.style(Role::Muted)));
+        let keys = if theme.is_ascii() {
+            "Up/Down"
+        } else {
+            "↑/↓"
+        };
+        let line = format!("{keys} to use the {} instead", others.join(" or "));
+        body.push(Line::styled(line, theme.style(Role::Muted)));
     }
-    lines.push(Line::styled(
-        "Esc: leave it locked",
-        theme.style(Role::Muted),
-    ));
-    lines
+    body
 }
 
-fn capitalised(text: &str) -> String {
-    let mut chars = text.chars();
-    chars
-        .next()
-        .map(|first| first.to_uppercase().chain(chars).collect())
-        .unwrap_or_default()
-}
-
-/// A choice among actions.
-fn choose(
+/// An action sheet: the item, a message, the actions, then **Cancel** set
+/// apart. Destructive actions are red; those that ask first end in `…`.
+fn sheet(
     theme: Theme,
     frame: &mut Frame<'_>,
     area: Rect,
     dialog: (&String, &Vec<String>, &Vec<Choice>, usize),
 ) {
     let (title, lines, choices, selected) = dialog;
-    let mut text = muted(theme, lines);
-    if !text.is_empty() {
-        text.push(Line::default());
-    }
-    let width = dialog_width(area);
-    let extra = wrapped_height(&text, width).saturating_sub(2) * u16::from(!text.is_empty());
-    let height = u16::try_from(choices.len()).unwrap_or(u16::MAX) + extra + 2;
-    let rect = centred(frame, area, width, height);
-    let block = lists::block(theme, title);
+    let width = alert_width(area);
+    let message = body_lines(theme, lines);
+    let body = wrapped(&message, width.saturating_sub(4));
+    let count = u16::try_from(choices.len()).unwrap_or(u16::MAX);
+    let rect = centred(
+        frame,
+        area,
+        width,
+        count.saturating_add(body).saturating_add(6),
+    );
+    let block = frame_block(theme, false);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
-    let [top, list] =
-        Layout::vertical([Constraint::Length(extra), Constraint::Min(1)]).areas(inner);
-    frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), top);
-    let items: Vec<ListItem<'static>> = choices
-        .iter()
-        .map(|c| ListItem::new(c.label.clone()))
-        .collect();
-    let widget = List::new(items)
-        .highlight_symbol("> ")
-        .highlight_style(theme.style(Role::Selected));
-    frame.render_stateful_widget(
-        widget,
-        list,
-        &mut ListState::default().with_selected(Some(selected)),
-    );
+    let [head, text, _, list, rule, cancel] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(body),
+        Constraint::Length(1),
+        Constraint::Length(count),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(inner);
+    let heading = fit(title, usize::from(inner.width), theme.is_ascii());
+    let heading = Line::styled(heading, theme.style(Role::Title)).centered();
+    frame.render_widget(Paragraph::new(heading), head);
+    frame.render_widget(Paragraph::new(message).wrap(Wrap { trim: true }), text);
+    actions(theme, frame, (list, rule, cancel), (choices, selected));
 }
 
-/// A typed confirmation.
+/// The actions of a sheet in `list`, the separator in `rule`, and Cancel,
+/// which is selected after the last action.
+fn actions(
+    theme: Theme,
+    frame: &mut Frame<'_>,
+    (list, rule, cancel): (Rect, Rect, Rect),
+    (choices, selected): (&[Choice], usize),
+) {
+    let items: Vec<ListItem<'static>> = choices
+        .iter()
+        .map(|choice| ListItem::new(action_line(theme, choice)))
+        .collect();
+    let marker = format!("{} ", theme.glyph(Glyph::Selected));
+    let widget = List::new(items)
+        .highlight_symbol(Line::from(marker.clone()))
+        .highlight_spacing(HighlightSpacing::Always)
+        .highlight_style(theme.style(Role::Selected));
+    let on_list = (selected < choices.len()).then_some(selected);
+    let mut state = ListState::default().with_selected(on_list);
+    frame.render_stateful_widget(widget, list, &mut state);
+    let line = if theme.is_ascii() { "-" } else { "─" };
+    let separator = Paragraph::new(line.repeat(usize::from(rule.width)));
+    frame.render_widget(separator.style(theme.style(Role::Border)), rule);
+    let (prefix, style) = if on_list.is_none() {
+        (marker, theme.style(Role::Selected))
+    } else {
+        ("  ".to_owned(), theme.style(Role::Text))
+    };
+    let row = Paragraph::new(format!("{prefix}Cancel")).style(style);
+    frame.render_widget(row, cancel);
+}
+
+/// The line of an action: title case, `…` and red when it asks first.
+fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
+    let label = choice.label.clone();
+    if matches!(choice.then, Then::Confirm { .. }) {
+        let text = format!("{label}{}", theme.glyph(Glyph::Ellipsis));
+        Line::styled(text, theme.style(Role::Danger))
+    } else {
+        Line::from(label)
+    }
+}
+
+/// The verb of the button that does `action`.
+fn verb(action: &Action) -> &'static str {
+    match action {
+        Action::Rollback { .. } => "Roll Back",
+        Action::CloneAndPromote(_) => "Promote",
+        Action::RewindCheckpoint(_) => "Rewind",
+        Action::Import(..) => "Force Import",
+        _ => "Continue",
+    }
+}
+
+/// A destructive alert: what happens, the name to type, then **Cancel**
+/// and the action, which stays disabled until the name is right.
 fn confirm(
     theme: Theme,
     frame: &mut Frame<'_>,
     area: Rect,
-    dialog: (&String, &Vec<String>, &String, &String),
+    dialog: (&String, &Vec<String>, &String, &String, &Action),
 ) {
-    let (title, lines, name, typed) = dialog;
-    let mut text = muted(theme, lines);
-    text.push(Line::default());
-    text.push(Line::from(vec![
+    let (title, lines, name, typed, action) = dialog;
+    let mut body = body_lines(theme, lines);
+    body.push(Line::default());
+    body.push(Line::from(vec![
         Span::raw("Type "),
         Span::styled(name.clone(), theme.style(Role::Danger)),
         Span::raw(" to confirm: "),
-        Span::raw(typed.clone()),
+        Span::styled(typed.clone(), theme.style(Role::Title)),
     ]));
-    text.push(Line::styled("Esc: cancel", theme.style(Role::Muted)));
-    let width = dialog_width(area);
-    let rect = centred(frame, area, width, wrapped_height(&text, width));
-    let block = lists::block(theme, title).border_style(theme.style(Role::Danger));
-    frame.render_widget(
-        Paragraph::new(text).wrap(Wrap { trim: true }).block(block),
-        rect,
+    let ready = typed == name;
+    let kind = if ready {
+        Kind::Destructive
+    } else {
+        Kind::Disabled
+    };
+    let cancel = if ready { Kind::Normal } else { Kind::Default };
+    let buttons = vec![
+        ("Cancel".to_owned(), cancel),
+        (verb(action).to_owned(), kind),
+    ];
+    let title = title.clone();
+    alert(
+        theme,
+        frame,
+        area,
+        Alert {
+            title,
+            body,
+            buttons,
+            danger: true,
+        },
     );
 }
 
-/// What failed, why, and the next steps.
+/// An error alert: what failed, why, what can be done; **OK**.
 fn error(
     theme: Theme,
     frame: &mut Frame<'_>,
@@ -229,27 +396,31 @@ fn error(
     dialog: (&String, &Vec<String>, &Vec<String>),
 ) {
     let (what, why, next) = dialog;
-    let mut text = vec![Line::styled(what.clone(), theme.style(Role::Danger))];
-    text.extend(
-        why.iter()
-            .map(|reason| Line::from(format!("because {reason}"))),
-    );
+    let mut body: Vec<Line<'static>> = why
+        .iter()
+        .map(|reason| Line::from(format!("{}.", capitalised(reason))))
+        .collect();
     if !next.is_empty() {
-        text.push(Line::default());
-        text.push(Line::styled("You can:", theme.style(Role::Title)));
-        text.extend(next.iter().map(|step| Line::from(format!("  - {step}"))));
+        body.push(Line::default());
+        body.push(Line::styled("You can:", theme.style(Role::Title)));
+        let bullet = theme.glyph(Glyph::Bullet);
+        let steps = next
+            .iter()
+            .map(|step| Line::from(format!("{bullet} {}", capitalised(step))));
+        body.extend(steps);
     }
-    text.push(Line::default());
-    text.push(Line::styled(
-        "Enter or Esc: close",
-        theme.style(Role::Muted),
-    ));
-    let width = dialog_width(area);
-    let rect = centred(frame, area, width, wrapped_height(&text, width));
-    let block = lists::block(theme, "Failed").border_style(theme.style(Role::Danger));
-    frame.render_widget(
-        Paragraph::new(text).wrap(Wrap { trim: false }).block(block),
-        rect,
+    let title = format!("{} {what}", theme.glyph(Glyph::Failed));
+    let buttons = vec![("OK".to_owned(), Kind::Default)];
+    alert(
+        theme,
+        frame,
+        area,
+        Alert {
+            title,
+            body,
+            buttons,
+            danger: true,
+        },
     );
 }
 
@@ -261,11 +432,9 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let items = palette_items(model);
     let height = area.height.saturating_sub(2).min(16);
-    let rect = centred(frame, area, dialog_width(area), height);
-    let block = lists::block(
-        theme,
-        &format!("Commands {}/{}", palette.matches.len(), items.len()),
-    );
+    let rect = centred(frame, area, area.width.saturating_sub(4).min(70), height);
+    let count = format!("{} of {}", palette.matches.len(), items.len());
+    let block = lists::counted(theme, "Commands", &count);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
     let [query, list] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(inner);
@@ -278,24 +447,16 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .take(usize::from(list.height).max(palette.selected + 1))
         .filter_map(|ranked| {
             let item = items.get(ranked.index)?;
-            let label = crate::menu::format::fit(
-                &item.label,
-                usize::from(list.width).saturating_sub(2),
-                theme.is_ascii(),
-            );
-            Some(ListItem::new(Line::from(lists::highlighted(
-                theme,
-                &label,
-                &ranked.positions,
-            ))))
+            let room = usize::from(list.width).saturating_sub(2);
+            let label = fit(&item.label, room, theme.is_ascii());
+            let line = Line::from(lists::highlighted(theme, &label, &ranked.positions));
+            Some(ListItem::new(line))
         })
         .collect();
     let widget = List::new(rows)
-        .highlight_symbol("> ")
+        .highlight_symbol(Line::from(format!("{} ", theme.glyph(Glyph::Selected))))
+        .highlight_spacing(HighlightSpacing::Always)
         .highlight_style(theme.style(Role::Selected));
-    frame.render_stateful_widget(
-        widget,
-        list,
-        &mut ListState::default().with_selected(Some(palette.selected)),
-    );
+    let mut state = ListState::default().with_selected(Some(palette.selected));
+    frame.render_stateful_widget(widget, list, &mut state);
 }

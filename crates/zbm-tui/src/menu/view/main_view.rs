@@ -1,30 +1,40 @@
-//! The main view: the boot environments and the detail pane, to the right
-//! from 100 columns, below the list otherwise.
+//! The main view (`docs/dev/menu-design/apple-hig.md`, rules 2 to 4 and 14):
+//! the countdown banner, the boot environments as a grouped list, and the
+//! inspector, to the right from 100 columns (split view), below otherwise.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Padding, Paragraph};
 use zbm_app::Encryption;
 
 use super::lists;
 use crate::menu::format::{age, fit};
 use crate::menu::model::Model;
 use crate::menu::theme::Role;
-use crate::menu::world::{Environment, Origin};
+use crate::menu::world::{Environment, Health, Origin};
 
-/// From this width the detail pane is to the right of the list.
+/// From this width the inspector is to the right of the list.
 const WIDE: u16 = 100;
+
+/// The width of the inspector's labels, right-aligned.
+const LABEL: usize = 12;
 
 /// Draws the main view.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    let banner = u16::from(model.countdown_seconds().is_some());
+    let [top, area] =
+        Layout::vertical([Constraint::Length(banner), Constraint::Min(1)]).areas(area);
+    if banner > 0 {
+        countdown(model, frame, top);
+    }
     let (list, detail) = if area.width >= WIDE {
         let [list, detail] =
-            Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
+            Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
                 .areas(area);
         (list, detail)
     } else {
-        let lines = if area.height >= 18 { 8 } else { 5 };
+        let lines = if area.height >= 17 { 8 } else { 5 };
         let [list, detail] =
             Layout::vertical([Constraint::Min(4), Constraint::Length(lines)]).areas(area);
         (list, detail)
@@ -33,75 +43,104 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     render_detail(model, frame, detail);
 }
 
-/// The list of boot environments: default marked, the kernel that boots,
-/// and the encryption.
+/// The countdown banner, longest form that fits.
+fn countdown(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    let (Some(seconds), Some(environment)) =
+        (model.countdown_seconds(), model.selected_environment())
+    else {
+        return;
+    };
+    let name = &environment.name;
+    let forms = [
+        format!(" Booting {name} in {seconds} s. Press any key to choose another."),
+        format!(" Booting {name} in {seconds} s."),
+        format!(" Booting in {seconds} s."),
+    ];
+    let width = usize::from(area.width);
+    let text = forms
+        .iter()
+        .find(|form| form.chars().count() <= width)
+        .or(forms.last())
+        .cloned()
+        .unwrap_or_default();
+    let style = model.theme.style(Role::Accent);
+    frame.render_widget(Paragraph::new(text).style(style), area);
+}
+
+/// The boot environments: the name, then its labels and the kernel that
+/// boots, right-aligned.
 fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let environments = &model.snapshot.environments;
-    let limit = usize::from(area.width).saturating_sub(24);
-    let width = lists::name_width(environments.iter().map(|e| e.name.as_str()), limit);
+    let width = lists::row_width(area);
     let rows = model
         .environments
         .matches
         .iter()
         .filter_map(|ranked| {
             let environment = environments.get(ranked.index)?;
-            let name = fit(environment.name.as_str(), limit, theme.is_ascii());
-            let mut line = lists::row(
-                theme,
-                &name,
-                &ranked.positions,
-                width,
-                facts(model, environment),
-            );
-            let mark = if environment.is_default {
-                Span::styled("* ", theme.style(Role::Default))
-            } else {
-                Span::raw("  ")
-            };
-            line.spans.insert(0, mark);
-            Some(line)
+            let facts = facts(model, environment);
+            let room: usize =
+                width.saturating_sub(facts.iter().map(Span::width).sum::<usize>() + 2);
+            let name = fit(environment.name.as_str(), room, theme.is_ascii());
+            Some(lists::row(theme, &name, &ranked.positions, width, facts))
         })
         .collect();
-    let title = format!(
-        "Boot environments {}/{}",
-        model.environments.matches.len(),
-        environments.len()
+    let empty = (
+        "No Boot Environments",
+        "No imported pool has a boot environment. Press p for the pools, ! for recovery.",
     );
-    lists::render(model, frame, area, &title, &model.environments, rows);
+    let header = ("Boot Environments", environments.len());
+    lists::render(model, frame, area, header, &model.environments, rows, empty);
 }
 
-/// The facts of a row: the kernel that boots, and `locked`.
+/// The facts of a row: `locked`, `default`, and the kernel that boots.
 fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let theme = model.theme;
+    let mut facts = Vec::new();
+    if environment.encryption == Encryption::Locked {
+        facts.push(Span::styled("locked  ", theme.style(Role::Locked)));
+    }
+    if environment.is_default {
+        facts.push(Span::styled("default  ", theme.style(Role::Default)));
+    }
     let kernel = environment
         .boot_kernel()
-        .map(|k| k.version.clone())
-        .unwrap_or_default();
-    let mut facts = vec![Span::styled(kernel, theme.style(Role::Muted))];
-    if environment.encryption == Encryption::Locked {
-        facts.push(Span::raw(" "));
-        facts.push(Span::styled("locked", theme.style(Role::Locked)));
-    }
+        .map_or_else(|| "no kernel".to_owned(), |k| k.version.clone());
+    facts.push(Span::styled(kernel, theme.style(Role::Muted)));
     facts
 }
 
-/// The detail pane: what decides whether to boot the selection.
+/// The inspector of the selected environment: its name as the title,
+/// `default` on the right, the facts that decide whether to boot it.
 fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let Some(environment) = model.selected_environment() else {
         let block = lists::block(theme, "Details");
-        frame.render_widget(Paragraph::new("no boot environment").block(block), area);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+        lists::empty_state(theme, frame, inner, ("No Selection", ""));
         return;
     };
-    let mut title = environment.name.to_string();
+    let mut block = Block::bordered()
+        .border_set(theme.border())
+        .border_style(theme.style(Role::Border))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(
+            format!(" {} ", environment.name),
+            theme.style(Role::Title),
+        ));
     if environment.is_default {
-        title.push_str(" (default)");
+        let label = Span::styled(" default ", theme.style(Role::Default));
+        block = block.title_top(Line::from(label).right_aligned());
     }
-    let block = lists::block(theme, &title);
-    let mut lines = detail_lines(model, environment);
-    let room = usize::from(area.height.saturating_sub(2));
     let width = usize::from(area.width.saturating_sub(4));
+    let clip = |line| lists::clip(line, width, theme.is_ascii());
+    let mut lines: Vec<Line<'static>> = detail_lines(model, environment)
+        .into_iter()
+        .map(clip)
+        .collect();
+    let room = usize::from(area.height.saturating_sub(2));
     for section in [
         kernel_lines(model, environment, width),
         snapshot_lines(model, environment, width),
@@ -114,21 +153,21 @@ fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-/// When the pane is tall: the kernels, the one that boots marked.
+/// When the pane is tall: the kernels, the one that boots labelled.
 fn kernel_lines(model: &Model, environment: &Environment, width: usize) -> Vec<Line<'static>> {
     let theme = model.theme;
     let boots = environment.boot_kernel().map(|k| k.version.clone());
-    let mut lines = vec![Line::styled("Kernels", theme.style(Role::Title))];
+    let mut lines = vec![Line::styled("KERNELS", theme.style(Role::Header))];
     lines.extend(environment.kernels.iter().map(|kernel| {
-        let version = fit(&kernel.version, width, theme.is_ascii());
-        if boots.as_ref() == Some(&kernel.version) {
-            Line::from(vec![
-                Span::styled("* ", theme.style(Role::Default)),
-                Span::raw(version),
-            ])
+        let label = if boots.as_ref() == Some(&kernel.version) {
+            vec![Span::styled("boots", theme.style(Role::Default))]
         } else {
-            Line::from(format!("  {version}"))
-        }
+            Vec::new()
+        };
+        let version = fit(&kernel.version, width.saturating_sub(9), theme.is_ascii());
+        let mut line = lists::row(theme, &version, &[], width.saturating_sub(2), label);
+        line.spans.insert(0, Span::raw("  "));
+        line
     }));
     lines
 }
@@ -136,31 +175,29 @@ fn kernel_lines(model: &Model, environment: &Environment, width: usize) -> Vec<L
 /// How many snapshots the tall pane lists.
 const NEWEST: usize = 5;
 
-/// When the pane is tall: the newest snapshots and their ages.
+/// When the pane is tall: the newest snapshots, their ages right-aligned.
 fn snapshot_lines(model: &Model, environment: &Environment, width: usize) -> Vec<Line<'static>> {
     let theme = model.theme;
     let mut newest: Vec<_> = environment.snapshots.iter().collect();
     newest.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
-    let mut lines = vec![Line::styled("Newest snapshots", theme.style(Role::Title))];
+    let mut lines = vec![Line::styled("NEWEST SNAPSHOTS", theme.style(Role::Header))];
     lines.extend(newest.iter().take(NEWEST).map(|snapshot| {
         let when = age(model.snapshot.now, snapshot.created);
-        let name = fit(
-            snapshot.name.name(),
-            width.saturating_sub(when.len() + 4),
-            theme.is_ascii(),
-        );
-        Line::from(vec![
-            Span::raw(format!("  {name}  ")),
-            Span::styled(when, theme.style(Role::Muted)),
-        ])
+        let room = width.saturating_sub(when.len() + 4);
+        let name = fit(snapshot.name.name(), room, theme.is_ascii());
+        let facts = vec![Span::styled(when, theme.style(Role::Muted))];
+        let mut line = lists::row(theme, &name, &[], width.saturating_sub(2), facts);
+        line.spans.insert(0, Span::raw("  "));
+        line
     }));
     lines
 }
 
-/// One line of facts: a label and its value.
+/// One row of the inspector: the label right-aligned and secondary, then
+/// the value.
 fn fact(model: &Model, label: &str, value: Vec<Span<'static>>) -> Line<'static> {
     let mut spans = vec![Span::styled(
-        format!("{label:<13}"),
+        format!("{label:>LABEL$}  "),
         model.theme.style(Role::Muted),
     )];
     spans.extend(value);
@@ -171,6 +208,7 @@ fn fact(model: &Model, label: &str, value: Vec<Span<'static>>) -> Line<'static> 
 /// many as fit.
 fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> {
     let theme = model.theme;
+    let dot = theme.dot();
     let pool = model
         .snapshot
         .pools
@@ -178,7 +216,7 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         .find(|pool| pool.name == environment.name.pool());
     let mut lines = Vec::new();
     if let Some(pool) = pool {
-        let role = if pool.health == crate::menu::world::Health::Online {
+        let role = if pool.health == Health::Online {
             Role::Good
         } else {
             Role::Warning
@@ -190,11 +228,11 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         };
         lines.push(fact(
             model,
-            "pool",
+            "Pool",
             vec![
-                Span::raw(format!("{} ", pool.name)),
+                Span::raw(format!("{}{dot}", pool.name)),
                 Span::styled(pool.health.as_str(), theme.style(role)),
-                Span::raw(format!(", {mode}")),
+                Span::raw(format!("{dot}{mode}")),
             ],
         ));
     }
@@ -204,23 +242,23 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
     let count = environment.kernels.len();
     lines.push(fact(
         model,
-        "kernel",
-        vec![Span::raw(format!("{kernel} ({count} kernels)"))],
+        "Kernel",
+        vec![Span::raw(format!("{kernel}{dot}{count} kernels"))],
     ));
     let snapshots = match environment.snapshots.iter().max_by_key(|s| s.created) {
         Some(newest) => format!(
-            "{}, newest {} {}",
+            "{}{dot}newest {}, {}",
             environment.snapshots.len(),
             newest.name.name(),
             age(model.snapshot.now, newest.created)
         ),
         None => "none".to_owned(),
     };
-    lines.push(fact(model, "snapshots", vec![Span::raw(snapshots)]));
-    lines.push(fact(model, "encryption", encryption(model, environment)));
+    lines.push(fact(model, "Snapshots", vec![Span::raw(snapshots)]));
+    lines.push(fact(model, "Encryption", encryption(model, environment)));
     lines.push(fact(
         model,
-        "command line",
+        "Command Line",
         command_line(model, environment),
     ));
     lines
@@ -254,8 +292,9 @@ fn command_line(model: &Model, environment: &Environment) -> Vec<Span<'static>> 
     } else {
         line
     };
+    let dot = model.theme.dot();
     vec![
         Span::raw(shown),
-        Span::styled(format!("  {origin}"), model.theme.style(Role::Muted)),
+        Span::styled(format!("{dot}{origin}"), model.theme.style(Role::Muted)),
     ]
 }

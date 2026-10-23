@@ -1,43 +1,43 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Boot environments                             pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
-┌ Boot environments 2/4 ───────────────────────────────────────────────┐┌ tank/ROOT/arch ──────────────────────────────┐
-│>   tank/ROOT/arch     6.11.5-arch1-1                                 ││pool         tank DEGRADED, read-only         │
-│    tank/ROOT/debian   6.1.0-26-amd64                                 ││kernel       6.11.5-arch1-1 (2 kernels)       │
-│                                                                      ││snapshots    2, newest 2026-10-01 22 d ago    │
-│                                                                      ││encryption   none                             │
-│                                                                      ││command line rw quiet splash  set here        │
-│                                                                      ││                                              │
-│                                                                      ││Kernels                                       │
-│                                                                      ││* 6.11.5-arch1-1                              │
-│                                                                      ││  6.10.10-arch1-1                             │
-│                                                                      ││                                              │
-│                                                                      ││Newest snapshots                              │
-│                                                                      ││  2026-10-01  22 d ago                        │
-│                                                                      ││  2026-09-01  52 d ago                        │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│                                                                      ││                                              │
-│/ta                                                                   ││                                              │
-└──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
- [Enter] confirm  [Esc] back  [Up/Down] select
+                                                   Boot Environments  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ BOOT ENVIRONMENTS ───────────────────────────────────────── 2 of 4 ┐┌ tank/ROOT/arch ────────────────────────────────┐
+│ / ta                                                    Esc Cancel ││         Pool  tank · DEGRADED · read-only      │
+│ ▶ tank/ROOT/arch                                    6.11.5-arch1-1 ││       Kernel  6.11.5-arch1-1 · 2 kernels       │
+│   tank/ROOT/debian                                  6.1.0-26-amd64 ││    Snapshots  2 · newest 2026-10-01, 22 d ago  │
+│                                                                    ││   Encryption  none                             │
+│                                                                    ││ Command Line  rw quiet splash · set here       │
+│                                                                    ││                                                │
+│                                                                    ││ KERNELS                                        │
+│                                                                    ││   6.11.5-arch1-1                         boots │
+│                                                                    ││   6.10.10-arch1-1                              │
+│                                                                    ││                                                │
+│                                                                    ││ NEWEST SNAPSHOTS                               │
+│                                                                    ││   2026-10-01                          22 d ago │
+│                                                                    ││   2026-09-01                          52 d ago │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+└────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

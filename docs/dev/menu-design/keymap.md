@@ -88,8 +88,9 @@ back, `Ctrl-L` redraw, `Ctrl-N` and `Ctrl-P` down and up): there the new meaning
 with `Alt` only. `Ctrl-S` and `Ctrl-J` may not reach the menu on serial lines (flow control, newline): their `Alt`
 forms do. The sessions confirm or reject this before R5.
 
-## The footer and the help view
+## The toolbar and the help view
 
-The footer shows, for the focused element, the bindings marked for it in the order of the table, as `[Enter] boot`,
-whole bindings only, as many as fit: on 52 columns the first three. The help view lists every binding of the view it
-was opened from, then the global ones, then the classic aliases.
+The toolbar (the last line, [apple-hig.md](apple-hig.md) rule 9) shows, for the focused element, the bindings marked
+for it in the order of the table, as `Enter Boot`: at most five, whole ones only, as many as fit, then `? More` on the
+right, which opens help. The help view lists every binding of the view it was opened from, then the global ones, then
+the classic aliases. In alerts and action sheets `Esc` reads *Cancel*.

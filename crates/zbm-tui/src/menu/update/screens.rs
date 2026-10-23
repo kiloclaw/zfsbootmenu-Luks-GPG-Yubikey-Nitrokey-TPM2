@@ -143,7 +143,7 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Rewind => {
             model.dialog = Some(dialogs::confirm(Then::Confirm {
                 action: Action::RewindCheckpoint(pool.clone()),
-                title: format!("Rewind {pool} to its checkpoint"),
+                title: format!("Rewind {pool} to Its Checkpoint"),
                 lines: vec![
                     format!("Every change to {pool} since its checkpoint is lost."),
                     "The checkpoint itself is discarded.".to_owned(),
@@ -177,15 +177,15 @@ pub(super) fn unlock(model: &mut Model, volume: &str) {
 fn import_choices(model: &mut Model, pool: &zbm_types::PoolName) {
     let choices = vec![
         Choice {
-            label: "Import with this machine's host ID".to_owned(),
+            label: "Import with This Host ID".to_owned(),
             then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
         },
         Choice {
-            label: "Import with the host ID it was last imported with".to_owned(),
+            label: "Import with Its Last Host ID".to_owned(),
             then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
         },
         Choice {
-            label: "Force the import (another host may be using it)".to_owned(),
+            label: "Force the Import".to_owned(),
             then: dialogs::force_import(pool),
         },
     ];

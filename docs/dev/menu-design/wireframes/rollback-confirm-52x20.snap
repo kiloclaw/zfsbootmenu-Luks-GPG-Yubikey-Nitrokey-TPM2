@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Snapshots of zro… tank DEGRADED · 3/3 open · [!] 1
-┌ Snapshots 400/400 by creation ───────────────────┐
-│>   pre-upgrade                 12 h ago    1.1 Gi│
-│    autosnap_2026-10-22_dai…     1 d ago     17 Mi│
-│    autosnap_2026-10-21_dai…     2 d ago     30 Mi│
-│ ┌ Roll back zroot/ROOT/void ───────────────────┐i│
-│ │zroot/ROOT/void goes back to pre-upgrade:     │i│
-│ │every change since is lost.                   │i│
-│ │No newer snapshot is destroyed.               │i│
-│ │A safety snapshot                             │i│
-│ │zroot/ROOT/void@before-rollback is taken      │i│
-│ │first.                                        │i│
-│ │                                              │i│
-│ │Type void to confirm: vo                      │i│
-│ └──────────────────────────────────────────────┘i│
-│    autosnap_2026-10-10_dai…    13 d ago     82 Mi│
-│    autosnap_2026-10-09_dai…    14 d ago    4.0 Mi│
-│    autosnap_2026-10-08_dai…    15 d ago     17 Mi│
+ ‹        Snapshots  tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────── 400 ┐
+│ ▶   pre-upgrade              12 h ago    1.1 GiB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │           Roll Back zroot/ROOT/void          │ │
+│ │                                              │ │
+│ │ zroot/ROOT/void goes back to pre-upgrade:    │ │
+│ │ every change since is lost.                  │ │
+│ │ No newer snapshot is destroyed.              │ │
+│ │ A safety snapshot                            │ │
+│ │ zroot/ROOT/void@before-rollback is taken     │ │
+│ │ first: roll back to it to undo.              │ │
+│ │                                              │ │
+│ │ Type void to confirm: vo                     │ │
+│ │                                              │ │
+│ │                    [ Cancel ]  [ Roll Back ] │ │
+│ └──────────────────────────────────────────────┘ │
+│     autosnap_2026-10-08_…    15 d ago     17 MiB │
 └──────────────────────────────────────────────────┘
- [Enter] confirm  [Esc] back  [Up/Down] select
+ Enter Confirm   Esc Cancel   Up/Down Select

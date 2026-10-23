@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Help              tank DEGRADED · 3/3 open · [!] 1
-┌ Help (Up/Down scroll) ───────────────────────────┐
-│This view                                         │
-│  Enter             boot                          │
-│  b                 boot                          │
-│  k                 kernels                       │
-│  s                 snapshots                     │
-│  e                 edit                          │
-│  d                 default                       │
-│  p                 pools                         │
-│  n                 snapshot                      │
-│  w                 read/write                    │
-│  j                 chroot                        │
-│  /                 filter                        │
-│  :                 commands                      │
-│  o                 sort                          │
-│  l                 log                           │
-│  !                 recovery                      │
+ ‹             Help  tank DEGRADED · 3/3 open · ! 1
+┌ KEYS, UP/DOWN TO SCROLL ─────────────────────────┐
+│ THIS VIEW                                        │
+│            Enter  Boot                           │
+│                b  Boot                           │
+│                k  Kernels                        │
+│                s  Snapshots                      │
+│                e  Edit                           │
+│                d  Default                        │
+│                p  Pools                          │
+│                n  Snapshot                       │
+│                w  Read/Write                     │
+│                j  Chroot                         │
+│                /  Filter                         │
+│                :  Commands                       │
+│                o  Sort                           │
+│                l  Log                            │
+│                !  Recovery                       │
 └──────────────────────────────────────────────────┘
- [Esc] back  [Up/Down] scroll
+ Esc Back   Up/Down Scroll

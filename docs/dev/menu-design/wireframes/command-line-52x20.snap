@@ -1,12 +1,12 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Command line of … tank DEGRADED · 3/3 open · [!] 1
-┌ Command line of zroot/ROOT/void ─────────────────┐
-│quiet loglevel=4 systemd.unit=rescue.target       │
+ ‹     Command Line  tank DEGRADED · 3/3 open · ! 1
+┌ COMMAND LINE ────────────────────────────────────┐
+│ quiet loglevel=4 systemd.unit=rescue.target      │
 │                                                  │
-│For this boot only: Enter boots with it, Esc keeps│
-│the saved one.                                    │
+│ For this boot only: Enter boots with it, Esc     │
+│ keeps the saved one.                             │
 │                                                  │
 │                                                  │
 │                                                  │
@@ -20,4 +20,4 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                  │
 │                                                  │
 └──────────────────────────────────────────────────┘
- [Enter] confirm  [Esc] back  [Up/Down] select
+ Enter Confirm   Esc Cancel   Up/Down Select

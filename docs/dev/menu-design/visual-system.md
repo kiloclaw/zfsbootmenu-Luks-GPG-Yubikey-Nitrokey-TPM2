@@ -1,5 +1,7 @@
 # The visual system
 
+The rules behind it are Apple's, adapted to the console: [apple-hig.md](apple-hig.md).
+
 The menu runs on the Linux console, serial consoles, and terminal emulators from the 1980s to now. It must read well
 on all of them, so the visual system is small: a handful of roles, each drawn in three ways, and borders in two.
 
@@ -20,15 +22,17 @@ Every styled piece of text has a role; views never pick colours. The roles and t
 | `Warning` | `DEGRADED`, read-only, warnings | yellow | bold |
 | `Danger` | `FAULTED`, failures, destructive actions | red, bold | bold, reverse |
 | `Locked` | encrypted and not unlocked | magenta | underlined |
-| `Key` | key names in the footer and help | cyan, bold | bold |
+| `Key` | key names in the toolbar and help | cyan, bold | bold |
 | `Border` | borders and separators | dark grey | default |
-| `StatusBar` | the status bar | black on white | reverse |
+| `StatusBar` | unused since the navigation bar replaced the status bar | black on white | reverse |
+| `Accent` | the tint colour: the back label, the countdown banner | cyan, bold | bold |
+| `Header` | section headers, in upper case | dark grey | default |
 
 Only the eight basic colours and their bright forms are used, as the Linux console has no more, and they map to every
-terminal's palette. Backgrounds are left to the terminal except for the selection and the status bar.
+terminal's palette. Backgrounds are left to the terminal except for the selection and the default button.
 
-**Meaning is never carried by colour alone.** Every role that means something has a word or mark too: `*` and
-`default`, `ONLINE`/`DEGRADED`, `locked`, `failed`, `[!]` with the count. A monochrome screenshot must tell the same
+**Meaning is never carried by colour alone.** Every role that means something has a word or mark too: `default`,
+`ONLINE`/`DEGRADED`, `locked`, `failed`, `!` with the count, the selection's `▶`. A monochrome screenshot must tell the same
 story; the snapshot tests compare the monochrome text with the coloured one.
 
 ## Three ways to draw
@@ -38,6 +42,24 @@ story; the snapshot tests compare the monochrome text with the coloured one.
 - **ASCII**: monochrome styles, and borders drawn with `+`, `-` and `|`; for terminals that cannot draw line
   characters (`TERM=vt100`, `vt102`, `vt220`, `ansi`, and any terminal whose locale is not UTF-8). Icons (`🔒`) become
   words.
+
+## Glyphs
+
+Only glyphs that every console font of the image has (the six Terminus fonts, 512 glyphs each); a test of the
+wireframes reads the fonts' Unicode tables and fails on any other. Each has an ASCII form.
+
+| Glyph | Means | ASCII |
+| --- | --- | --- |
+| `‹` | back (navigation bar) | `<` |
+| `▶` | the selected row | `>` |
+| `•` | a marked row, a list item in a message | `+`, `-` |
+| `√` | done | `*` |
+| `…` | running; an action that asks first | `>`, `...` |
+| `×` | failed | `x` |
+| `–` | skipped | `-` |
+| `!` | warning | `!` |
+| `·` | between facts on one line | `|` |
+| `─ │ ┌ ┐ └ ┘` | borders, square: the fonts have no rounded corners | `- | +` |
 
 ## Terminal capabilities
 
@@ -56,11 +78,11 @@ Detected once at start, from the environment the menu was started with; the kern
 
 ## Layout by size
 
-| Size | Detail pane | Status bar | Footer |
+| Size class | Inspector | Navigation bar | Toolbar |
 | --- | --- | --- | --- |
-| 120×40 and wider | right of the list, 40% | full | every binding that fits |
-| 80×25 | below the list, 6 lines | full | the first five bindings |
-| 52×20 | below the list, 3 lines | short forms | the first three bindings |
+| wide, 100 columns and more | right of the list, 42% (split view), with kernels and snapshots when tall | full | five actions and `? More` |
+| regular, 80×25 | below the list, 6 lines | short status | five actions and `? More` |
+| compact, down to 52×20 | below the list, 3 lines | short status, `‹` alone | as many actions as fit, and `? More` |
 
 ## Motion and redraw
 

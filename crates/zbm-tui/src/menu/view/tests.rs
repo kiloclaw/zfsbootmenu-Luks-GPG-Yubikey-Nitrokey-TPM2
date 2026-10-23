@@ -36,10 +36,12 @@ fn the_main_view_shows_the_countdown_the_list_and_the_details() {
     let text = screen(session.model(), 80, 25);
 
     assert!(text.contains("Booting zroot/ROOT/void in 10 s"), "{text}");
-    assert!(text.contains("* zroot/ROOT/void"), "{text}");
+    assert!(text.contains("▶ zroot/ROOT/void"), "{text}");
+    assert!(text.contains("default  6.12.9_1"), "{text}");
     assert!(text.contains("zroot/ROOT/ubuntu"), "{text}");
     assert!(text.contains("tank DEGRADED"), "{text}");
-    assert!(text.contains("[Enter] boot"), "{text}");
+    assert!(text.contains("Enter Boot"), "{text}");
+    assert!(text.contains("? More"), "{text}");
 }
 
 #[test]
@@ -104,8 +106,8 @@ fn a_tall_detail_pane_lists_kernels_and_snapshots() {
     let short = screen(session.model(), 80, 25);
 
     assert!(
-        tall.contains("Newest snapshots") && tall.contains("* 6.12.9_1"),
+        tall.contains("NEWEST SNAPSHOTS") && tall.contains("boots"),
         "{tall}"
     );
-    assert!(!short.contains("Newest snapshots"), "{short}");
+    assert!(!short.contains("NEWEST SNAPSHOTS"), "{short}");
 }

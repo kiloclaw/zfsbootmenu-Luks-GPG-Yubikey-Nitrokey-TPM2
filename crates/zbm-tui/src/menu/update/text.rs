@@ -134,10 +134,10 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             .map(|(label, screen)| item(label.to_owned(), Then::Open(screen))),
     );
     let actions = [
-        ("Recovery shell", Action::Shell),
-        ("Power off", Action::PowerOff),
+        ("Recovery Shell", Action::Shell),
+        ("Power Off", Action::PowerOff),
         ("Reboot", Action::Reboot),
-        ("Reboot into the firmware setup", Action::FirmwareSetup),
+        ("Reboot into Firmware Setup", Action::FirmwareSetup),
     ];
     items.extend(
         actions

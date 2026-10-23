@@ -5,28 +5,26 @@ view, and `Esc` always goes back one step.
 
 ## The frame
 
-Every view is drawn in the same frame:
+Every view is drawn in the same frame ([apple-hig.md](apple-hig.md), rules 1, 2, 9 and 10):
 
 ```text
-┌ ZFSBootMenu ─────────────────────────────────────── status bar ┐   1 line
-│ Booting zroot/ROOT/void in 7 s · any key stops                 │
-│ pools 2 ok · volumes 3 open · log 1 warning                    │
-├────────────────────────────────────────────────────────────────┤
-│                                                                │
-│                     the view                                   │
-│                                                                │
-├────────────────────────────────────────────────────────────────┤
-│ notification: Snapshot zroot/ROOT/void@safety created          │   0 or 1 line
-│ [Enter] boot  [k] kernels  [s] snapshots  [e] edit  [?] help   │   footer
-└────────────────────────────────────────────────────────────────┘
+ ‹ Boot Environments               Snapshots     tank DEGRADED · 3/3 open · ! 1    navigation bar
+ Booting zroot/ROOT/void in 10 s. Press any key to choose another.                   banner (countdown only)
+┌ SNAPSHOTS BY CREATION ────────────────────────────────────────────────── 400 ┐
+│                              the view                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+ √ Done: zroot/ROOT/void is the default of zroot                                     notification (0 or 1 line)
+ Enter Choose   r Roll Back   c Clone   f Diff   y Duplicate              ? More     toolbar
 ```
 
-- **Status bar** (always shown): the countdown while it runs, else the name of the view; the pools (how many, and
-  the worst health with its name: `pools 2 · tank DEGRADED`), the LUKS volumes (open, locked, failed), and the log (the
-  number of warnings and errors). On 52 columns the parts shorten (`2 pools · 1 DEGRADED`), never wrap.
-- **Notification line**: the outcome of the last action, with its level as a word (`done`, `warning`, `failed`); it
-  stays until the next key press, and the log keeps it.
-- **Footer**: the keys of the focused element, from the key map, in order of importance; as many whole bindings as fit.
+- **Navigation bar** (always shown): the back label (`‹` and the view `Esc` returns to), the title of the view in the
+  middle, and the status of the machine: the worst pool and its health, the LUKS volumes open, and the warnings and
+  errors of the log. On narrow screens the back label shortens to `‹` and the status to its short forms, never wraps.
+- **Banner**: the countdown while it runs, in the tint colour; any key stops it, and its line goes back to the view.
+- **Notification line**: the outcome of the last action, with a glyph and a word (`√ Done`, `! Warning`,
+  `× Failed`); it stays until the next key press, and the log keeps it.
+- **Toolbar**: up to five actions of the focused element, from the key map in order of importance, and `? More`,
+  which opens help.
 
 ## Views
 
@@ -48,30 +46,40 @@ Dialogs open over a view and return to it:
   left for a device to appear, and the other methods; the secret field never echoes.
 - **Import problem**: which pool, why it did not import (another host, missing devices, unsupported features), and the
   choices that apply (retry, wait for devices, import read-only, match the host ID, force, shell).
-- **Confirm**: for destructive actions (rollback, destroy, promote, force import): what will happen, what will be lost
+- **Confirm** (an alert): for destructive actions (rollback, destroy, promote, force import): what will happen, what will be lost
   (snapshots newer than the target, with their sizes), whether a safety snapshot will be taken, and a field that wants
   the short name of the target typed.
-- **Choose**: the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot).
+- **Choose** (an action sheet, with **Cancel** set apart): the actions for a snapshot (boot a clone, roll back, clone, duplicate, clone and promote, diff, chroot).
 - **Error**: what failed, why (the cause chain of the error, in words), and the next steps offered.
 
 ## The main view
 
 ```text
- Boot environments          2/3 │ zroot/ROOT/void              default
- > * zroot/ROOT/void   6.8.9   │ pool      zroot ONLINE, read-only
-     tank/ROOT/arch    6.9.1   │ kernel    6.8.9 (3 kernels)
-     zroot/ROOT/ubuntu 6.8.0 🔒│ snapshots 12, newest @2026-10-22 2 h ago
-                                │ encryption zroot · key loaded
-                                │ command line  quiet loglevel=4
+ Booting zroot/ROOT/void in 10 s. Press any key to choose another.
+┌ BOOT ENVIRONMENTS ──────────────────────────────────────────────────────── 4 ┐
+│ ▶ zroot/ROOT/void                                          default  6.12.9_1 │
+│   tank/ROOT/arch                                              6.11.5-arch1-1 │
+│   tank/ROOT/debian                                            6.1.0-26-amd64 │
+│   zroot/ROOT/ubuntu                                         6.8.0-47-generic │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ zroot/ROOT/void ──────────────────────────────────────────────────── default ┐
+│         Pool  zroot · ONLINE · read-only                                     │
+│       Kernel  6.12.9_1 · 3 kernels                                           │
+│    Snapshots  400 · newest pre-upgrade, 12 h ago                             │
+│   Encryption  key loaded                                                     │
+│ Command Line  quiet loglevel=4 · from zroot/ROOT                             │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- The list: one line per environment, the default marked with `*` and the word `default` in the detail pane, the
-  kernel that would boot, and `locked` for an encrypted environment whose key is not loaded (an icon only where the
-  terminal can draw it, the word always). Grouped by pool when there is more than one pool, defaults first.
-- The detail pane: to the right from 100 columns, below the list from 80, and three lines at 52 (pool health,
-  kernel, snapshots). It shows the facts that decide whether to boot: pool health and mode, kernel, snapshots,
-  encryption, command line.
-- `/` filters the list with `nucleo-matcher`; the matched characters are highlighted; `Esc` clears the filter.
+- The list: a grouped list, one value row per environment: the name, then `locked` for an encrypted environment
+  whose key is not loaded, `default` for the default, and the kernel that would boot, right-aligned. Defaults first,
+  then by name.
+- The inspector: to the right from 100 columns (split view), below the list otherwise. Its title is the selection,
+  with `default` on the right; right-aligned labels, then the facts that decide whether to boot: pool health and mode,
+  kernel, snapshots, encryption, command line. When tall, the kernels and the newest snapshots follow.
+- `/` opens the search field at the top of the list; the matched characters are highlighted, the header counts
+  `2 of 4`, and `Esc` clears the search.
 
 ## Navigation
 

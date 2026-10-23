@@ -1,43 +1,43 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Snapshots of zroot/ROOT/void                  pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
-┌ Snapshots 400/400 by creation ───────────────────────────────────────────────────────────────────────────────────────┐
-│>   pre-upgrade                  12 h ago    1.1 GiB                                                                  │
-│    autosnap_2026-10-22_daily     1 d ago     17 MiB                                                                  │
-│    autosnap_2026-10-21_daily     2 d ago     30 MiB                                                                  │
-│    autosnap_2026-10-20_daily     3 d ago     43 MiB                                                                  │
-│    autosnap_2026-10-19_daily     4 d ago     56 MiB                                                                  │
-│    autosnap_2026-10-18_daily     5 d ago     69 MiB                                                                  │
-│    autosnap_2026-10-17_daily     6 d ago     82 MiB                                                                  │
-│    autosnap_2026-10-16_daily     7 d ago    4.0 MiB                                                                  │
-│    autosnap_2026-10-15_daily     8 d ago     17 MiB                                                                  │
-│    autosnap_2026-10-14_daily     9 d ago     30 MiB                                                                  │
-│    autosnap_2026-10-13_daily    10 d ago     43 MiB                                                                  │
-│    autosnap_2026-10-12_daily    11 d ago     56 MiB                                                                  │
-│    autosnap_2026-10-11_daily    12 d ago     69 MiB                                                                  │
-│    autosnap_2026-10-10_daily    13 d ago     82 MiB                                                                  │
-│    autosnap_2026-10-09_daily    14 d ago    4.0 MiB                                                                  │
-│    autosnap_2026-10-08_daily    15 d ago     17 MiB                                                                  │
-│    autosnap_2026-10-07_daily    16 d ago     30 MiB                                                                  │
-│    autosnap_2026-10-06_daily    17 d ago     43 MiB                                                                  │
-│    autosnap_2026-10-05_daily    18 d ago     56 MiB                                                                  │
-│    autosnap_2026-10-04_daily    19 d ago     69 MiB                                                                  │
-│    autosnap_2026-10-03_daily    20 d ago     82 MiB                                                                  │
-│    autosnap_2026-10-02_daily    21 d ago    4.0 MiB                                                                  │
-│    autosnap_2026-10-01_daily    22 d ago     17 MiB                                                                  │
-│    autosnap_2026-09-30_daily    23 d ago     30 MiB                                                                  │
-│    autosnap_2026-09-29_daily    24 d ago     43 MiB                                                                  │
-│    autosnap_2026-09-28_daily    25 d ago     56 MiB                                                                  │
-│    autosnap_2026-09-27_daily    26 d ago     69 MiB                                                                  │
-│    autosnap_2026-09-26_daily    27 d ago     82 MiB                                                                  │
-│    autosnap_2026-09-25_daily    28 d ago    4.0 MiB                                                                  │
-│    autosnap_2026-09-24_daily    29 d ago     17 MiB                                                                  │
-│    autosnap_2026-09-23_daily    30 d ago     30 MiB                                                                  │
-│    autosnap_2026-09-22_daily    31 d ago     43 MiB                                                                  │
-│    autosnap_2026-09-21_daily    32 d ago     56 MiB                                                                  │
-│    autosnap_2026-09-20_daily    33 d ago     69 MiB                                                                  │
-│    autosnap_2026-09-19_daily    34 d ago     82 MiB                                                                  │
-│    autosnap_2026-09-18_daily    35 d ago    4.0 MiB                                                                  │
+ ‹ Boot Environments                    Snapshots of zroot/ROOT/void  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ SNAPSHOTS BY CREATION ────────────────────────────────────────────────────────────────────────────────────────── 400 ┐
+│ ▶   pre-upgrade                                                                                  12 h ago    1.1 GiB │
+│     autosnap_2026-10-22_daily                                                                     1 d ago     17 MiB │
+│     autosnap_2026-10-21_daily                                                                     2 d ago     30 MiB │
+│     autosnap_2026-10-20_daily                                                                     3 d ago     43 MiB │
+│     autosnap_2026-10-19_daily                                                                     4 d ago     56 MiB │
+│     autosnap_2026-10-18_daily                                                                     5 d ago     69 MiB │
+│     autosnap_2026-10-17_daily                                                                     6 d ago     82 MiB │
+│     autosnap_2026-10-16_daily                                                                     7 d ago    4.0 MiB │
+│     autosnap_2026-10-15_daily                                                                     8 d ago     17 MiB │
+│     autosnap_2026-10-14_daily                                                                     9 d ago     30 MiB │
+│     autosnap_2026-10-13_daily                                                                    10 d ago     43 MiB │
+│     autosnap_2026-10-12_daily                                                                    11 d ago     56 MiB │
+│     autosnap_2026-10-11_daily                                                                    12 d ago     69 MiB │
+│     autosnap_2026-10-10_daily                                                                    13 d ago     82 MiB │
+│     autosnap_2026-10-09_daily                                                                    14 d ago    4.0 MiB │
+│     autosnap_2026-10-08_daily                                                                    15 d ago     17 MiB │
+│     autosnap_2026-10-07_daily                                                                    16 d ago     30 MiB │
+│     autosnap_2026-10-06_daily                                                                    17 d ago     43 MiB │
+│     autosnap_2026-10-05_daily                                                                    18 d ago     56 MiB │
+│     autosnap_2026-10-04_daily                                                                    19 d ago     69 MiB │
+│     autosnap_2026-10-03_daily                                                                    20 d ago     82 MiB │
+│     autosnap_2026-10-02_daily                                                                    21 d ago    4.0 MiB │
+│     autosnap_2026-10-01_daily                                                                    22 d ago     17 MiB │
+│     autosnap_2026-09-30_daily                                                                    23 d ago     30 MiB │
+│     autosnap_2026-09-29_daily                                                                    24 d ago     43 MiB │
+│     autosnap_2026-09-28_daily                                                                    25 d ago     56 MiB │
+│     autosnap_2026-09-27_daily                                                                    26 d ago     69 MiB │
+│     autosnap_2026-09-26_daily                                                                    27 d ago     82 MiB │
+│     autosnap_2026-09-25_daily                                                                    28 d ago    4.0 MiB │
+│     autosnap_2026-09-24_daily                                                                    29 d ago     17 MiB │
+│     autosnap_2026-09-23_daily                                                                    30 d ago     30 MiB │
+│     autosnap_2026-09-22_daily                                                                    31 d ago     43 MiB │
+│     autosnap_2026-09-21_daily                                                                    32 d ago     56 MiB │
+│     autosnap_2026-09-20_daily                                                                    33 d ago     69 MiB │
+│     autosnap_2026-09-19_daily                                                                    34 d ago     82 MiB │
+│     autosnap_2026-09-18_daily                                                                    35 d ago    4.0 MiB │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- [Enter] choose  [r] roll back  [c] clone  [f] diff  [y] duplicate  [m] clone+promote  [n] snapshot  [j] chroot
+ Enter Choose   r Roll Back   c Clone   f Diff   y Duplicate                                                     ? More

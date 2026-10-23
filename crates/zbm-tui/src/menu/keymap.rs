@@ -450,6 +450,7 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (Pools, Intent::Primary) => "details",
         (Recovery, Intent::Primary) => "run",
         (Startup | Context::Text, Intent::Primary) => "confirm",
+        (Context::Choose | Context::Text, Intent::Back) => "cancel",
         (_, Intent::Back) => "back",
         (_, Intent::Kernels) => "kernels",
         (_, Intent::Snapshots) => "snapshots",
@@ -497,19 +498,36 @@ pub fn bindings(context: Context) -> Vec<(&'static str, &'static str)> {
         .collect()
 }
 
-/// The footer of `context` for a screen `width` columns wide: as many whole
-/// bindings as fit, as `[Enter] boot  [k] kernels`.
+/// The most actions the toolbar shows (`apple-hig.md`, rule 9).
+pub const TOOLBAR: usize = 5;
+
+/// The space between toolbar items.
+pub const TOOLBAR_GAP: usize = 3;
+
+/// The toolbar of `context` for a screen `width` columns wide, as (key,
+/// what): at most [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the
+/// most important first; then `? more`, which opens help with every key,
+/// wherever help can be opened.
 pub fn footer(context: Context, width: usize) -> Vec<(&'static str, &'static str)> {
-    let mut used = 0;
+    let all = bindings(context);
+    let more = all.iter().any(|(key, _)| *key == "?");
+    let mut used = if more {
+        "? More".len() + TOOLBAR_GAP
+    } else {
+        0
+    };
     let mut shown = Vec::new();
-    for (key, help) in bindings(context) {
-        let length = key.len() + help.len() + 3;
-        let separator = if shown.is_empty() { 0 } else { 2 };
-        if used + separator + length > width {
+    for (key, help) in all.into_iter().filter(|(key, _)| *key != "?") {
+        let length = key.len() + 1 + help.len();
+        let gap = if shown.is_empty() { 0 } else { TOOLBAR_GAP };
+        if shown.len() == TOOLBAR || used + gap + length > width {
             break;
         }
-        used += separator + length;
+        used += gap + length;
         shown.push((key, help));
+    }
+    if more && "? More".len() <= width {
+        shown.push(("?", "more"));
     }
     shown
 }

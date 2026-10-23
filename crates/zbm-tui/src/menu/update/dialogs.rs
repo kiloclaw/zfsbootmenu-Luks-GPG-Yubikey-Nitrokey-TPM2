@@ -46,7 +46,7 @@ pub(super) fn confirm(then: Then) -> Dialog {
 pub(super) fn force_import(pool: &PoolName) -> Then {
     Then::Confirm {
         action: Action::Import(pool.clone(), ImportPolicy::Force),
-        title: format!("Force the import of {pool}"),
+        title: format!("Force the Import of {pool}"),
         lines: vec![
             format!("{pool} was last imported by another host."),
             "If that host is still running and using it, forcing the import can corrupt it."
@@ -78,9 +78,9 @@ pub(super) fn power(model: &mut Model) {
         "Power",
         Vec::new(),
         vec![
-            act("Power off", Action::PowerOff),
+            act("Power Off", Action::PowerOff),
             act("Reboot", Action::Reboot),
-            act("Reboot into the firmware setup", Action::FirmwareSetup),
+            act("Reboot into Firmware Setup", Action::FirmwareSetup),
         ],
     ));
 }
@@ -102,26 +102,26 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
     let mut choices = Vec::new();
     if pool.imported && !pool.writable {
         choices.push(Choice {
-            label: "Import it read/write".to_owned(),
+            label: "Import Read/Write".to_owned(),
             then: Then::Act(Action::ImportReadWrite(name.clone())),
         });
     }
     if !pool.imported {
         choices.push(Choice {
-            label: "Import it with the host ID it was last imported with".to_owned(),
+            label: "Import with Its Last Host ID".to_owned(),
             then: Then::Act(Action::Import(name.clone(), ImportPolicy::Hostid)),
         });
         choices.push(Choice {
-            label: "Force the import".to_owned(),
+            label: "Force the Import".to_owned(),
             then: force_import(name),
         });
     }
     if pool.checkpoint {
         choices.push(Choice {
-            label: "Rewind it to its checkpoint".to_owned(),
+            label: "Rewind to the Checkpoint".to_owned(),
             then: Then::Confirm {
                 action: Action::RewindCheckpoint(name.clone()),
-                title: format!("Rewind {name} to its checkpoint"),
+                title: format!("Rewind {name} to Its Checkpoint"),
                 lines: vec![format!(
                     "Every change to {name} since its checkpoint is lost."
                 )],
@@ -239,7 +239,8 @@ fn chosen(
     input: Input,
     (title, lines, choices, selected): (String, Vec<String>, Vec<Choice>, usize),
 ) -> Vec<Action> {
-    let last = choices.len().saturating_sub(1);
+    // The row after the choices is Cancel.
+    let last = choices.len();
     let selected = match input {
         Input::Intent(Intent::Back) => return Vec::new(),
         Input::Intent(Intent::Primary) => {

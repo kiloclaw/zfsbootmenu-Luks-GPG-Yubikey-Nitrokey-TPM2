@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Boot environments tank DEGRADED · 3/3 open · [!] 1
-┌ Boot environments 4/4 ───────────────────────────┐
-│> * tank/ROOT/arch     6.11.5-arch1-1             │
-│  * zroot/ROOT/void    6.12.9_1                   │
-│    tank/ROOT/debian   6.1.0-26-amd64             │
-│    zroot/ROOT/ubuntu  6.8.0-47-generic           │
-│                                                  │
-│                                                  │
-│                                                  │
+  Boot Environments  tank DEGRADED · 3/3 open · ! 1
+┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
+│ ▶ tank/ROOT/arch         default  6.11.5-arch1-1 │
+│   zroot/ROOT/void              default  6.12.9_1 │
+│   tank/ROOT/debian                6.1.0-26-amd64 │
+│   zroot/ROOT/ubuntu             6.8.0-47-generic │
 │                                                  │
 │                                                  │
 │                                                  │
 └──────────────────────────────────────────────────┘
-┌ tank/ROOT/arch (default) ────────────────────────┐
-│pool         tank DEGRADED, read/write            │
-│kernel       6.11.5-arch1-1 (2 kernels)           │
-│snapshots    2, newest 2026-10-01 22 d ago        │
+┌ tank/ROOT/arch ───────────────────────── default ┐
+│         Pool  tank · DEGRADED · read/write       │
+│       Kernel  6.11.5-arch1-1 · 2 kernels         │
+│    Snapshots  2 · newest 2026-10-01, 22 d ago    │
+│   Encryption  none                               │
+│ Command Line  rw quiet splash · set here         │
+│                                                  │
 └──────────────────────────────────────────────────┘
- done: tank/ROOT/arch is the default of tank (tank i
- [Enter] boot  [k] kernels  [s] snapshots  [e] edit
+ √ Done: tank/ROOT/arch is the default of tank (tank
+ Enter Boot   k Kernels   s Snapshots        ? More

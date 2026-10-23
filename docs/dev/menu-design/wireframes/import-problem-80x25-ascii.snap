@@ -1,28 +1,28 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu | Starting                        tank DEGRADED | 3/3 open | [!] 1
-+ Starting ZFSBootMenu --------------------------------------------------------+
-| [  ok  ] Load the ZFS module                                                 |
-| [  ok  ] Set the host ID                                                     |
-| [  ok  ] Unlock LUKS volumes                                                 |
-| [  ... ] Import pools                                                        |
-| [      ] Find boot environments                                              |
-|                                                                              |
-|    + backup did not import ---------------------------------------------+    |
-|    |backup was last imported by host deadbeef, and this machine is host |    |
-|    |00bab10c.                                                           |    |
-|    |                                                                    |    |
-|    |> Retry                                                             |    |
-|    |  Import with the host ID it was last imported with                 |    |
-|    |  Force the import                                                  |    |
-|    |  Recovery shell                                                    |    |
-|    +--------------------------------------------------------------------+    |
-|                                                                              |
-|                                                                              |
+                           Starting ZFSBootMenu  tank DEGRADED | 3/3 open | ! 1
++ STARTING ZFSBOOTMENU ------------------------------------------------ 4 of 5 +
+| *  Load the ZFS module                                                       |
+| *  Set the host ID                                                           |
+| *  Unlock LUKS volumes                                                       |
+| >  Import pools                                                              |
+|    Find boot environments                                                    |
+|         +----------------------------------------------------------+         |
+|         |                   backup Did Not Import                  |         |
+|         | backup was last imported by host deadbeef, and this      |         |
+|         | machine is host 00bab10c.                                |         |
+|         |                                                          |         |
+|         | > Retry                                                  |         |
+|         |   Import with Its Last Host ID                           |         |
+|         |   Force the Import...                                    |         |
+|         |   Open the Recovery Shell                                |         |
+|         | -------------------------------------------------------- |         |
+|         |   Cancel                                                 |         |
+|         +----------------------------------------------------------+         |
 |                                                                              |
 |                                                                              |
 |                                                                              |
 |                                                                              |
 +------------------------------------------------------------------------------+
- [Enter] choose  [Esc] back  [Up/Down] select
+ Enter Choose   Esc Cancel   Up/Down Select

@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Boot environments tank DEGRADED · 3/3 open · [!] 1
-┌ Boot environments 4/4 ───────────────────────────┐
-│>┌ Commands 57/427 ─────────────────────────────┐ │
-│ │: 2026-09                                     │ │
-│ │> Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│ │  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│ │  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│ │  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│ │  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│ │  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-└─│  Boot a clone of zroot/ROOT/void@autosnap_20…│─┘
-┌ │  Boot a clone of zroot/ROOT/void@autosnap_20…│─┐
-│p│  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│k│  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│s│  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│e│  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
-│c│  Boot a clone of zroot/ROOT/void@autosnap_20…│ │
+  Boot Environments  tank DEGRADED · 3/3 open · ! 1
+┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
+│ ┌ COMMANDS ───────────────────────── 57 of 427 ┐ │
+│ │ : 2026-09                                    │ │
+│ │ ▶ Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+└─│   Boot a clone of zroot/ROOT/void@autosnap_… │─┘
+┌ │   Boot a clone of zroot/ROOT/void@autosnap_… │ ┐
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
+│ │   Boot a clone of zroot/ROOT/void@autosnap_… │ │
 │ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
- [Enter] confirm  [Esc] back  [Up/Down] select
+ Enter Confirm   Esc Cancel   Up/Down Select

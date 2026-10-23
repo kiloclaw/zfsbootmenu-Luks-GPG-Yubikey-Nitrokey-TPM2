@@ -1,12 +1,12 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Log                                           pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
-┌ Log since start, 2026-10-23 ─────────────────────────────────────────────────────────────────────────────────────────┐
-│ info    ZFS 2.4.4 loaded, host ID 00bab10c                                                                           │
-│ info    imported zroot read-only                                                                                     │
-│ warning tank is DEGRADED: /dev/sdb2 is missing, 1 of 3 devices                                                       │
-│ info    imported tank read-only                                                                                      │
+ ‹ Boot Environments                                      Log         tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ LOG SINCE START ───────────────────────────────────────────────────────────────────────────────────────── 2026-10-23 ┐
+│   info    ZFS 2.4.4 loaded, host ID 00bab10c                                                                         │
+│   info    imported zroot read-only                                                                                   │
+│ ! warning tank is DEGRADED: /dev/sdb2 is missing, 1 of 3 devices                                                     │
+│   info    imported tank read-only                                                                                    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
@@ -40,4 +40,4 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                                                                      │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- [:] commands  [l] log  [!] recovery  [x] power  [?] help  [Esc] back  [Up/Down] scroll
+ : Commands   l Log   ! Recovery   x Power   Esc Back                                                            ? More

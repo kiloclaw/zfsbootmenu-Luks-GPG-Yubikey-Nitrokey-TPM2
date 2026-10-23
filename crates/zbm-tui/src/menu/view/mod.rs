@@ -7,9 +7,10 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use super::format::title_case;
 use super::keymap;
 use super::model::{Model, Screen};
-use super::theme::Role;
+use super::theme::{Glyph, Role};
 use super::world::Outcome;
 
 mod dialogs;
@@ -65,34 +66,49 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     }
 }
 
-/// The notification line: the outcome of the last action, its level as a
-/// word.
+/// The notification line (rule 10): the outcome of the last action, with a
+/// glyph and a word.
 fn notification_line<'a>(model: &Model, outcome: &'a Outcome) -> Line<'a> {
     let theme = model.theme;
-    let (word, role, text) = match outcome {
-        Outcome::Done(text) => ("done", Role::Good, text.as_str()),
-        Outcome::Warning(text) => ("warning", Role::Warning, text.as_str()),
-        Outcome::Failed { what, .. } => ("failed", Role::Danger, what.as_str()),
+    let (glyph, word, role, text) = match outcome {
+        Outcome::Done(text) => (Glyph::Done, "Done", Role::Good, text.as_str()),
+        Outcome::Warning(text) => (Glyph::Warning, "Warning", Role::Warning, text.as_str()),
+        Outcome::Failed { what, .. } => (Glyph::Failed, "Failed", Role::Danger, what.as_str()),
     };
     Line::from(vec![
-        Span::styled(format!(" {word}: "), theme.style(role)),
+        Span::styled(
+            format!(" {} {word}: ", theme.glyph(glyph)),
+            theme.style(role),
+        ),
         Span::styled(text, theme.style(Role::Text)),
     ])
 }
 
-/// The footer: the keys of the focused element.
+/// The toolbar (rule 9): the actions of the focused element, each its key
+/// and a title-case label, and `? More` on the right.
 fn footer(model: &Model, width: u16) -> Line<'static> {
     let theme = model.theme;
+    let width = usize::from(width).saturating_sub(2);
+    let gap = " ".repeat(keymap::TOOLBAR_GAP);
     let mut spans = vec![Span::raw(" ")];
-    for (index, (key, help)) in keymap::footer(model.context(), usize::from(width) - 1)
+    let mut used = 0;
+    for (index, (key, help)) in keymap::footer(model.context(), width)
         .into_iter()
         .enumerate()
     {
-        if index > 0 {
-            spans.push(Span::raw("  "));
+        let label = title_case(help);
+        let length = key.len() + 1 + label.len();
+        if key == "?" {
+            spans.push(Span::raw(
+                " ".repeat(width.saturating_sub(used + length).max(1)),
+            ));
+        } else if index > 0 {
+            spans.push(Span::raw(gap.clone()));
+            used += gap.len();
         }
-        spans.push(Span::styled(format!("[{key}]"), theme.style(Role::Key)));
-        spans.push(Span::raw(format!(" {help}")));
+        used += length;
+        spans.push(Span::styled(key, theme.style(Role::Key)));
+        spans.push(Span::raw(format!(" {label}")));
     }
     Line::from(spans)
 }

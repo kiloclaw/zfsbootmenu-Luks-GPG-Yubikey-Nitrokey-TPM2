@@ -307,6 +307,12 @@ Done in D:
   ASCII, in `docs/dev/menu-design/wireframes/`. A test of the core tasks keeps each within its budget: T1 0 keys,
   T2 2, T3 3, T4 3 to boot a snapshot and 4 plus the name to roll back, T5 the secret and Enter, T6 2 plus the edit,
   T7 2.
+- The design follows Apple's Human Interface Guidelines adapted to the console (`docs/dev/menu-design/apple-hig.md`):
+  a navigation bar with a back label, a countdown banner, grouped lists with value rows, an inspector, alerts with
+  verb buttons (the destructive one disabled until the target's name is typed), action sheets with Cancel set apart,
+  a dimmed backdrop, a toolbar of at most five actions and `? More`, and title case. Glyphs are limited to those of
+  the image's Terminus fonts, which have no check marks or rounded corners; a test of the wireframes reads the
+  fonts' Unicode tables and fails on any other.
 - Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
   under *classic* in help, with no second profile. The usability sessions decide.
 - Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users

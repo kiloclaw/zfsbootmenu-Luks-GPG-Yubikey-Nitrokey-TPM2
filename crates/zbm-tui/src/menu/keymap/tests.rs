@@ -135,7 +135,7 @@ fn releases_do_nothing() {
 }
 
 #[test]
-fn the_footer_shows_whole_bindings_in_order() {
+fn the_toolbar_shows_five_whole_actions_then_more() {
     assert_eq!(
         footer(Main, 80),
         [
@@ -144,18 +144,20 @@ fn the_footer_shows_whole_bindings_in_order() {
             ("s", "snapshots"),
             ("e", "edit"),
             ("d", "default"),
-            ("p", "pools"),
+            ("?", "more"),
         ]
     );
     assert_eq!(
         footer(Main, 40),
-        [("Enter", "boot"), ("k", "kernels"), ("s", "snapshots")]
+        [("Enter", "boot"), ("k", "kernels"), ("?", "more")]
     );
-    assert_eq!(
-        footer(Snapshots, 30),
-        [("Enter", "choose"), ("r", "roll back")]
-    );
+    assert_eq!(footer(Snapshots, 30), [("Enter", "choose"), ("?", "more")]);
     assert_eq!(footer(Main, 5), []);
+    assert!(
+        footer(Context::Choose, 80)
+            .iter()
+            .all(|(key, _)| *key != "?")
+    );
 }
 
 #[test]

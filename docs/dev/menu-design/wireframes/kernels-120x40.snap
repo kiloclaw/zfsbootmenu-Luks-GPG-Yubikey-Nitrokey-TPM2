@@ -1,11 +1,11 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Kernels of zroot/ROOT/void                    pools 2 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
-┌ Kernels of zroot/ROOT/void ──────────────────────────────────────────────────────────────────────────────────────────┐
-│>   6.12.9_1                                                                                                          │
-│    6.12.8_1                                                                                                          │
-│    6.8.0_1                                                                                                           │
+ ‹ Boot Environments                      Kernels of zroot/ROOT/void  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ KERNELS ────────────────────────────────────────────────────────────────────────────────────────────────────────── 3 ┐
+│ ▶ 6.12.9_1                                                                                                           │
+│   6.12.8_1                                                                                                           │
+│   6.8.0_1                                                                                                            │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
@@ -40,4 +40,4 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                                                                      │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- [Enter] boot  [e] edit  [d] default  [/] filter  [:] commands  [l] log  [!] recovery  [x] power  [?] help  [Esc] back
+ Enter Boot   e Edit   d Default   / Filter   : Commands                                                         ? More

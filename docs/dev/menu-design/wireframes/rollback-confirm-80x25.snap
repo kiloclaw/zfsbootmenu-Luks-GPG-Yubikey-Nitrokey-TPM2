@@ -1,28 +1,28 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Snapshots of zroot/ROOT/void    tank DEGRADED · 3/3 open · [!] 1
-┌ Snapshots 400/400 by creation ───────────────────────────────────────────────┐
-│>   pre-upgrade                  12 h ago    1.1 GiB                          │
-│    autosnap_2026-10-22_daily     1 d ago     17 MiB                          │
-│    autosnap_2026-10-21_daily     2 d ago     30 MiB                          │
-│    autosnap_2026-10-20_daily     3 d ago     43 MiB                          │
-│    autosnap_2026-10-19_daily     4 d ago     56 MiB                          │
-│    autosnap_2026-10-18_daily     5 d ago     69 MiB                          │
-│    ┌ Roll back zroot/ROOT/void ─────────────────────────────────────────┐    │
-│    │zroot/ROOT/void goes back to pre-upgrade: every change since is     │    │
-│    │lost.                                                               │    │
-│    │No newer snapshot is destroyed.                                     │    │
-│    │A safety snapshot zroot/ROOT/void@before-rollback is taken first.   │    │
-│    │                                                                    │    │
-│    │Type void to confirm: vo                                            │    │
-│    │Esc: cancel                                                         │    │
-│    └────────────────────────────────────────────────────────────────────┘    │
-│    autosnap_2026-10-08_daily    15 d ago     17 MiB                          │
-│    autosnap_2026-10-07_daily    16 d ago     30 MiB                          │
-│    autosnap_2026-10-06_daily    17 d ago     43 MiB                          │
-│    autosnap_2026-10-05_daily    18 d ago     56 MiB                          │
-│    autosnap_2026-10-04_daily    19 d ago     69 MiB                          │
-│    autosnap_2026-10-03_daily    20 d ago     82 MiB                          │
+ ‹ Boot Environments               Snapshots     tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────────────────────────────────── 400 ┐
+│ ▶   pre-upgrade                                          12 h ago    1.1 GiB │
+│     autosnap_2026-10-22_daily                             1 d ago     17 MiB │
+│     autosnap_2026-10-21_daily                             2 d ago     30 MiB │
+│     autosnap_2026-10-20_daily                             3 d ago     43 MiB │
+│     auto┌──────────────────────────────────────────────────────────┐  56 MiB │
+│     auto│                 Roll Back zroot/ROOT/void                │  69 MiB │
+│     auto│                                                          │  82 MiB │
+│     auto│ zroot/ROOT/void goes back to pre-upgrade: every change   │ 4.0 MiB │
+│     auto│ since is lost.                                           │  17 MiB │
+│     auto│ No newer snapshot is destroyed.                          │  30 MiB │
+│     auto│ A safety snapshot zroot/ROOT/void@before-rollback is     │  43 MiB │
+│     auto│ taken first: roll back to it to undo.                    │  56 MiB │
+│     auto│                                                          │  69 MiB │
+│     auto│ Type void to confirm: vo                                 │  82 MiB │
+│     auto│                                                          │ 4.0 MiB │
+│     auto│                                [ Cancel ]  [ Roll Back ] │  17 MiB │
+│     auto└──────────────────────────────────────────────────────────┘  30 MiB │
+│     autosnap_2026-10-06_daily                            17 d ago     43 MiB │
+│     autosnap_2026-10-05_daily                            18 d ago     56 MiB │
+│     autosnap_2026-10-04_daily                            19 d ago     69 MiB │
+│     autosnap_2026-10-03_daily                            20 d ago     82 MiB │
 └──────────────────────────────────────────────────────────────────────────────┘
- [Enter] confirm  [Esc] back  [Up/Down] select
+ Enter Confirm   Esc Cancel   Up/Down Select

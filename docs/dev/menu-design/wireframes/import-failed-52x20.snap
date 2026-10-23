@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Starting          tank DEGRADED · 3/3 open · [!] 1
-┌ Starting ZFSBootMenu ────────────────────────────┐
-│ [  ok  ] Load the ZFS module                     │
-│ ┌ Failed ──────────────────────────────────────┐ │
-│ │backup did not import                         │ │
-│ │because it was last imported by host deadbeef,│ │
-│ │and this machine is host 00bab10c             │ │
+           Starting  tank DEGRADED · 3/3 open · ! 1
+┌ STARTING ZFSBOOTMENU ──────────────────── 4 of 5 ┐
+│ ┌──────────────────────────────────────────────┐ │
+│ │            × backup did not import           │ │
 │ │                                              │ │
-│ │You can:                                      │ │
-│ │  - import it with the host ID it was last    │ │
-│ │imported with                                 │ │
-│ │  - force the import, if that host is not     │ │
-│ │running                                       │ │
-│ │  - open the recovery shell                   │ │
+│ │ It was last imported by host deadbeef, and   │ │
+│ │ this machine is host 00bab10c.               │ │
 │ │                                              │ │
-│ │Enter or Esc: close                           │ │
+│ │ You can:                                     │ │
+│ │ • Import it with the host ID it was last     │ │
+│ │ imported with                                │ │
+│ │ • Force the import, if that host is not      │ │
+│ │ running                                      │ │
+│ │ • Open the recovery shell                    │ │
+│ │                                              │ │
+│ │                                       [ OK ] │ │
 │ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
- failed: backup did not import
- [Enter] choose  [Esc] back  [Up/Down] select
+ × Failed: backup did not import
+ Enter Choose   Esc Cancel   Up/Down Select

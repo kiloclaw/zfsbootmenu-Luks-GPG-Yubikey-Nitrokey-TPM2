@@ -1,32 +1,32 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- ZFSBootMenu · Starting                                      pools 3 · tank DEGRADED · volumes 3/3 open · [!] 1 warning
-┌ Starting ZFSBootMenu ────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [  ok  ] Load the ZFS module                                                                                         │
-│ [  ok  ] Set the host ID                                                                                             │
-│ [  ok  ] Unlock LUKS volumes                                                                                         │
-│ [  ... ] Import pools                                                                                                │
-│ [      ] Find boot environments                                                                                      │
+                                                Starting ZFSBootMenu  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ STARTING ZFSBOOTMENU ──────────────────────────────────────────────────────────────────────────────────────── 4 of 5 ┐
+│ √  Load the ZFS module                                                                                               │
+│ √  Set the host ID                                                                                                   │
+│ √  Unlock LUKS volumes                                                                                               │
+│ …  Import pools                                                                                                      │
+│    Find boot environments                                                                                            │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
-│                                                                                                                      │
-│                        ┌ Failed ────────────────────────────────────────────────────────────┐                        │
-│                        │backup did not import                                               │                        │
-│                        │because it was last imported by host deadbeef, and this machine is  │                        │
-│                        │host 00bab10c                                                       │                        │
-│                        │                                                                    │                        │
-│                        │You can:                                                            │                        │
-│                        │  - import it with the host ID it was last imported with            │                        │
-│                        │  - force the import, if that host is not running                   │                        │
-│                        │  - open the recovery shell                                         │                        │
-│                        │                                                                    │                        │
-│                        │Enter or Esc: close                                                 │                        │
-│                        └────────────────────────────────────────────────────────────────────┘                        │
+│                             ┌──────────────────────────────────────────────────────────┐                             │
+│                             │                  × backup did not import                 │                             │
+│                             │                                                          │                             │
+│                             │ It was last imported by host deadbeef, and this machine  │                             │
+│                             │ is host 00bab10c.                                        │                             │
+│                             │                                                          │                             │
+│                             │ You can:                                                 │                             │
+│                             │ • Import it with the host ID it was last imported with   │                             │
+│                             │ • Force the import, if that host is not running          │                             │
+│                             │ • Open the recovery shell                                │                             │
+│                             │                                                          │                             │
+│                             │                                                   [ OK ] │                             │
+│                             └──────────────────────────────────────────────────────────┘                             │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
@@ -39,5 +39,5 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                                                                      │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- failed: backup did not import
- [Enter] choose  [Esc] back  [Up/Down] select
+ × Failed: backup did not import
+ Enter Choose   Esc Cancel   Up/Down Select

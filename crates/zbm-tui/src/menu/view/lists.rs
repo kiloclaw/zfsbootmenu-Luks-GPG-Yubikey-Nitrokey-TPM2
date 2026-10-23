@@ -1,20 +1,44 @@
-//! Lists: a box with a title, rows with the filter's matches highlighted,
-//! the selection, and the filter line while one is set.
+//! Grouped lists (`docs/dev/menu-design/apple-hig.md`, rules 3, 5 and 11):
+//! a box with the section header and the count in its top border, one
+//! column of margin, value rows, the selection highlighted and marked, the
+//! search field on top while searching, and an empty state.
 
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Position, Rect};
+use ratatui::layout::{Constraint, Flex, Layout, Position, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, List, ListItem, ListState as WidgetState, Paragraph};
+use ratatui::widgets::{
+    Block, HighlightSpacing, List, ListItem, ListState as WidgetState, Padding, Paragraph,
+};
 
+use crate::menu::format::fit;
 use crate::menu::model::{ListState, Model};
-use crate::menu::theme::{Role, Theme};
+use crate::menu::theme::{Glyph, Role, Theme};
 
-/// A box around a view, with its title.
-pub(super) fn block(theme: Theme, title: &str) -> Block<'static> {
+/// What a list says when it is empty: a title and a sentence.
+pub(super) type Empty<'a> = (&'a str, &'a str);
+
+/// A group: a box with `header` in upper case in its top border, and one
+/// column of margin inside.
+pub(super) fn block(theme: Theme, header: &str) -> Block<'static> {
     Block::bordered()
         .border_set(theme.border())
         .border_style(theme.style(Role::Border))
-        .title(Span::styled(format!(" {title} "), theme.style(Role::Title)))
+        .padding(Padding::horizontal(1))
+        .title(Span::styled(
+            format!(" {} ", header.to_uppercase()),
+            theme.style(Role::Header),
+        ))
+}
+
+/// A group with `count` on the right of its top border.
+pub(super) fn counted(theme: Theme, header: &str, count: &str) -> Block<'static> {
+    block(theme, header).title_top(
+        Line::from(Span::styled(
+            format!(" {count} "),
+            theme.style(Role::Header),
+        ))
+        .right_aligned(),
+    )
 }
 
 /// `text` as spans, with the characters at `positions` in the match style.
@@ -35,59 +59,116 @@ pub(super) fn highlighted(theme: Theme, text: &str, positions: &[usize]) -> Vec<
         .collect()
 }
 
-/// A list in a box: `rows` in the order of `state.matches`, the selection
-/// marked, the filter line under it while a filter is set.
+/// The width a row has in a group drawn in `area`: less the borders, the
+/// margins and the selection marker.
+pub(super) fn row_width(area: Rect) -> usize {
+    usize::from(area.width).saturating_sub(6)
+}
+
+/// A list in a group: `rows` in the order of `state.matches` out of `total`,
+/// the selection marked, the search field on top while searching, `empty`
+/// when there is nothing to show.
 pub(super) fn render(
     model: &Model,
     frame: &mut Frame<'_>,
     area: Rect,
-    title: &str,
+    (header, total): (&str, usize),
     state: &ListState,
     rows: Vec<Line<'static>>,
+    empty: Empty<'_>,
 ) {
     let theme = model.theme;
-    let block = block(theme, title);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-    let show_filter = state.filtering || !state.filter.is_empty();
-    let [list_area, filter_area] = Layout::vertical([
-        Constraint::Min(1),
-        Constraint::Length(u16::from(show_filter)),
-    ])
-    .areas(inner);
-    if rows.is_empty() {
-        let empty = if state.filter.is_empty() {
-            "nothing here".to_owned()
-        } else {
-            format!("nothing matches \"{}\"", state.filter)
-        };
-        frame.render_widget(
-            Paragraph::new(empty).style(theme.style(Role::Muted)),
-            list_area,
-        );
+    let searching = state.filtering || !state.filter.is_empty();
+    let count = if searching {
+        format!("{} of {total}", state.matches.len())
     } else {
-        let items: Vec<ListItem<'static>> = rows.into_iter().map(ListItem::new).collect();
-        let list = List::new(items)
-            .highlight_symbol("> ")
-            .highlight_style(theme.style(Role::Selected));
-        let mut widget = WidgetState::default().with_selected(Some(state.selected));
-        frame.render_stateful_widget(list, list_area, &mut widget);
+        total.to_string()
+    };
+    let group = counted(theme, header, &count);
+    let inner = group.inner(area);
+    frame.render_widget(group, area);
+    let [search, list_area] =
+        Layout::vertical([Constraint::Length(u16::from(searching)), Constraint::Min(1)])
+            .areas(inner);
+    if searching {
+        search_field(model, frame, search, state);
     }
-    if show_filter {
-        let text = format!("/{}", state.filter);
-        let column = u16::try_from(text.chars().count()).unwrap_or(u16::MAX);
-        frame.render_widget(Paragraph::new(text), filter_area);
-        if state.filtering {
-            frame.set_cursor_position(Position::new(
-                filter_area.x.saturating_add(column),
-                filter_area.y,
-            ));
-        }
+    if rows.is_empty() {
+        let quoted = format!(
+            "Nothing matches {}. Esc clears the search.",
+            quote(theme, &state.filter)
+        );
+        let shown = if searching {
+            ("No Matches", quoted.as_str())
+        } else {
+            empty
+        };
+        empty_state(theme, frame, list_area, shown);
+        return;
+    }
+    let items: Vec<ListItem<'static>> = rows.into_iter().map(ListItem::new).collect();
+    let list = List::new(items)
+        .highlight_symbol(Line::from(format!("{} ", theme.glyph(Glyph::Selected))))
+        .highlight_spacing(HighlightSpacing::Always)
+        .highlight_style(theme.style(Role::Selected));
+    let mut widget = WidgetState::default().with_selected(Some(state.selected));
+    frame.render_stateful_widget(list, list_area, &mut widget);
+}
+
+/// `text` in quotation marks.
+fn quote(theme: Theme, text: &str) -> String {
+    if theme.is_ascii() {
+        format!("\"{text}\"")
+    } else {
+        format!("“{text}”")
     }
 }
 
-/// A two-column row: a name with its matches, then facts in the muted
-/// style, padded so that the facts line up.
+/// The search field: `/` and the query, `Esc Cancel` on the right.
+fn search_field(model: &Model, frame: &mut Frame<'_>, area: Rect, state: &ListState) {
+    let theme = model.theme;
+    let query = format!("/ {}", state.filter);
+    let hint = "Esc Cancel";
+    let gap = usize::from(area.width).saturating_sub(query.chars().count() + hint.len());
+    let line = Line::from(vec![
+        Span::styled(query.clone(), theme.style(Role::Text)),
+        Span::raw(" ".repeat(gap)),
+        Span::styled("Esc", theme.style(Role::Key)),
+        Span::styled(" Cancel", theme.style(Role::Muted)),
+    ]);
+    frame.render_widget(Paragraph::new(line), area);
+    if state.filtering {
+        let column = u16::try_from(query.chars().count()).unwrap_or(u16::MAX);
+        frame.set_cursor_position(Position::new(area.x.saturating_add(column), area.y));
+    }
+}
+
+/// An empty state: the title and the sentence, centred.
+pub(super) fn empty_state(
+    theme: Theme,
+    frame: &mut Frame<'_>,
+    area: Rect,
+    (title, text): Empty<'_>,
+) {
+    let width = usize::from(area.width);
+    let lines = vec![
+        Line::styled(
+            fit(title, width, theme.is_ascii()),
+            theme.style(Role::Title),
+        )
+        .centered(),
+        Line::styled(text.to_owned(), theme.style(Role::Muted)).centered(),
+    ];
+    let height = u16::try_from(lines.len() + 1).unwrap_or(u16::MAX);
+    let [middle] = Layout::vertical([Constraint::Length(height)])
+        .flex(Flex::Center)
+        .areas(area);
+    let paragraph = Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: true });
+    frame.render_widget(paragraph, middle);
+}
+
+/// A value row: a name with its matches on the left, `facts` right-aligned
+/// in a row `width` columns wide.
 pub(super) fn row(
     theme: Theme,
     name: &str,
@@ -96,20 +177,32 @@ pub(super) fn row(
     facts: Vec<Span<'static>>,
 ) -> Line<'static> {
     let mut spans = highlighted(theme, name, positions);
-    let length = name.chars().count();
+    let used = name.chars().count() + facts.iter().map(Span::width).sum::<usize>();
     if !facts.is_empty() {
-        spans.push(Span::raw(" ".repeat(width.saturating_sub(length).max(1))));
+        spans.push(Span::raw(" ".repeat(width.saturating_sub(used).max(2))));
         spans.extend(facts);
     }
     Line::from(spans)
 }
 
-/// The width of the name column: the longest name, within `limit`.
-pub(super) fn name_width<'a>(names: impl Iterator<Item = &'a str>, limit: usize) -> usize {
-    names
-        .map(|name| name.chars().count())
-        .max()
-        .unwrap_or(0)
-        .min(limit)
-        + 2
+/// `line` cut to `width` columns, with a mark where it was cut.
+pub(super) fn clip(line: Line<'static>, width: usize, ascii: bool) -> Line<'static> {
+    if line.width() <= width {
+        return line;
+    }
+    let mut room = width.saturating_sub(1);
+    let mut spans = Vec::new();
+    for span in line.spans {
+        let length = span.content.chars().count();
+        if length <= room {
+            room -= length;
+            spans.push(span);
+            continue;
+        }
+        let kept: String = span.content.chars().take(room).collect();
+        spans.push(Span::styled(kept, span.style));
+        break;
+    }
+    spans.push(Span::raw(if ascii { "~" } else { "…" }));
+    Line::from(spans)
 }

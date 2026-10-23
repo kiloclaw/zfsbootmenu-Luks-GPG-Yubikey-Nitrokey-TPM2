@@ -1,23 +1,23 @@
 ---
 source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
- Snapshots of zro… tank DEGRADED · 3/3 open · [!] 1
-┌ Snapshots 400/400 by creation ───────────────────┐
-│>   pre-upgrade                 12 h ago    1.1 Gi│
-│    autosnap_2026-10-22_dai…     1 d ago     17 Mi│
-│ ┌ Snapshot pre-upgrade ────────────────────────┐i│
-│ │zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1  │i│
-│ │GiB                                           │i│
-│ │                                              │i│
-│ │> Boot a temporary clone of it                │i│
-│ │  Roll back to it                             │i│
-│ │  Clone it into a new boot environment        │i│
-│ │  Duplicate it (an independent copy)          │i│
-│ │  Clone it and promote the clone              │i│
-│ │  Differences to now                          │i│
-│ │  Chroot into it (read-only)                  │i│
-│ └──────────────────────────────────────────────┘i│
-│    autosnap_2026-10-09_dai…    14 d ago    4.0 Mi│
-│    autosnap_2026-10-08_dai…    15 d ago     17 Mi│
+ ‹        Snapshots  tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────── 400 ┐
+│ ▶   pre-upgrade              12 h ago    1.1 GiB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │             Snapshot pre-upgrade             │ │
+│ │ zroot/ROOT/void@pre-upgrade · 12 h ago · 1.1 │ │
+│ │ GiB                                          │ │
+│ │                                              │ │
+│ │ ▶ Boot a Temporary Clone                     │ │
+│ │   Roll Back to It…                           │ │
+│ │   Clone as a New Boot Environment            │ │
+│ │   Duplicate as an Independent Copy           │ │
+│ │   Clone and Promote…                         │ │
+│ │   Show Differences to Now                    │ │
+│ │   Chroot into It, Read-Only                  │ │
+│ │ ──────────────────────────────────────────── │ │
+│ │   Cancel                                     │ │
+│ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
- [Enter] choose  [Esc] back  [Up/Down] select
+ Enter Choose   Esc Cancel   Up/Down Select

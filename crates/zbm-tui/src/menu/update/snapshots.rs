@@ -82,25 +82,25 @@ fn actions(model: &Model, snapshot: &SnapshotInfo) -> crate::menu::model::Dialog
     };
     let choices = vec![
         choice(
-            "Boot a temporary clone of it",
+            "Boot a Temporary Clone",
             Then::Act(Action::BootSnapshot(name.clone())),
         ),
-        choice("Roll back to it", rollback(model, snapshot)),
+        choice("Roll Back to It", rollback(model, snapshot)),
         choice(
-            "Clone it into a new boot environment",
+            "Clone as a New Boot Environment",
             Then::Act(Action::Clone(name.clone())),
         ),
         choice(
-            "Duplicate it (an independent copy)",
+            "Duplicate as an Independent Copy",
             Then::Act(Action::Duplicate(name.clone())),
         ),
-        choice("Clone it and promote the clone", promote(name)),
+        choice("Clone and Promote", promote(name)),
         choice(
-            "Differences to now",
+            "Show Differences to Now",
             Then::Act(Action::Diff(name.clone(), None)),
         ),
         choice(
-            "Chroot into it (read-only)",
+            "Chroot into It, Read-Only",
             Then::Act(Action::Chroot(name.to_string())),
         ),
     ];
@@ -145,14 +145,14 @@ fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
         ));
     }
     lines.push(format!(
-        "A safety snapshot {environment}@before-rollback is taken first."
+        "A safety snapshot {environment}@before-rollback is taken first: roll back to it to undo."
     ));
     Then::Confirm {
         action: Action::Rollback {
             snapshot: snapshot.name.clone(),
             safety: true,
         },
-        title: format!("Roll back {environment}"),
+        title: format!("Roll Back {environment}"),
         lines,
         name: environment.last_component().to_owned(),
     }
@@ -163,7 +163,7 @@ fn promote(name: &SnapshotName) -> Then {
     let environment = name.dataset();
     Then::Confirm {
         action: Action::CloneAndPromote(name.clone()),
-        title: format!("Clone {} and promote the clone", name.name()),
+        title: format!("Clone and Promote {}", name.name()),
         lines: vec![
             format!(
                 "The clone takes over the snapshots of {environment} up to {}.",
