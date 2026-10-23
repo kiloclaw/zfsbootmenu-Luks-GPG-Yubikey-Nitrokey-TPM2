@@ -39,6 +39,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 | 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
 | 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 2 | Medium | Proposed |
+| 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Proposed |
 
 Status is one of Proposed, In progress or Done. Update it in the pull request that changes it.
 
@@ -226,6 +227,60 @@ Needs the Rust boot runtime (the port's Phase 8), which owns the `kexec` path th
   - On real hardware, each listed machine (Intel Gen 9 and Xe graphics, an AMD APU, an AMD RDNA graphics card) boots
     twenty times in a row through `kexec`, with a working display both in ZFSBootMenu and in the booted system.
   - Image size and the time to the menu are measured against an image without the drivers.
+
+### 18. Spanish, French, Dutch and Brazilian Portuguese
+
+Needs the built-in menu (#12) with its text in a message catalogue, which REFACTOR-ROADMAP.md R5 builds in English.
+
+- **Why:** ZFSBootMenu speaks only English, at the moment a user is least able to look words up: a boot that went
+  wrong, a passphrase refused, a pool that did not import. Spanish, French, Dutch and Brazilian Portuguese cover
+  many of the users who ask for help in other languages today.
+- **What is translated:**
+  - about 500 strings the user reads: the menu, the unlock and import prompts, and the errors of unlocking,
+    importing, start-up and booting;
+  - the help inside the menu;
+  - the man pages `zfsbootmenu(7)` and `zfsbootmenu-luks(7)`.
+- **What stays English:**
+  - the log, the runtime journal and bug-report bundles (#9), so that maintainers can read and search them;
+  - command line options, `org.zfsbootmenu:*` properties and configuration keys, which ZFSBootMenu shares with
+    upstream;
+  - the distribution guides, which change too often for translations to keep up.
+- **How:**
+  - **Catalogues.** One Fluent file per language (`locales/es`, `fr`, `nl`, `pt-BR`), built into `zbm`: a few tens of
+    kilobytes each. Fluent is already vendored, as a dependency of `uucore`. Its plural rules follow CLDR (French
+    counts 0 as singular, for example).
+  - **Choosing the language.**
+    1. `zbm.lang=fr` on the kernel command line.
+    2. Otherwise, the language `generate-zbm` read from the build host's `/etc/locale.conf`.
+    3. Otherwise, English.
+
+    The command palette changes it for the rest of the session. A string missing from a catalogue is shown in
+    English.
+  - **Characters.** The image's Terminus fonts have every letter and mark the four languages use: ñ ¿ ¡ é è ç œ « »
+    ã õ ë. The only gap is the Dutch ligature ĳ, which Dutch usually writes as two letters. Where the terminal has no
+    UTF-8 (`--theme ascii`, old serial terminals), accents are dropped (é becomes e), as line drawing already falls
+    back to ASCII.
+  - **Keys stay the same in every language.** `s` opens the snapshots whatever the word for them, so that each key
+    keeps one meaning, and the classic bindings, the VM tests and the documentation stay valid. Help shows each key
+    beside its translated label.
+  - **Layout.** Translations run 20 to 35% longer than English. Titles use sentence case, as these languages do, not
+    English title case. Numbers, sizes and ages follow the language (`1,2 Go`, `il y a 12 h`), from small rules per
+    language rather than ICU, which is too large for the image.
+  - **Keyboard layouts.** The layout translation of the unlock dialog gains `es` and `br-abnt2`. Dutch users mostly
+    type on the US layout.
+  - **Translators.** Each language needs a native speaker who reviews its changes. A language without one stays at
+    its last reviewed state, its missing strings in English, and never blocks a release.
+- **Steps:**
+  1. In R5 (REFACTOR-ROADMAP.md), the menu takes every string from the catalogue, in English. CI checks that every
+     key exists and that placeholders match. A pseudo-language that lengthens and accents every string finds text
+     that does not fit before any translation exists. Small, if done then.
+  2. The four catalogues of the menu, the prompts, the errors and the help. Medium.
+  3. The two man pages, through Sphinx's translation tools (`sphinx-intl`, `.po` files). Large, and ongoing.
+- **Done when:**
+  - every view's wireframes, at 120×40, 80×25 and 52×20, exist in each language and fit without clipping;
+  - a VM test boots with `zbm.lang=` set to each language, unlocks a volume and boots an environment;
+  - a test checks that log and journal entries stay English whatever the language;
+  - each language has had a native speaker's review.
 
 ## Phase 3: TPM
 

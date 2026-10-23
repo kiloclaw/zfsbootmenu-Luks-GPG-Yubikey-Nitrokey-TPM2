@@ -1006,11 +1006,16 @@ fakes and the images are unchanged.
   cases.
 - Record every behaviour change against the `fzf` menu in `CHANGES-FROM-LEGACY.md`, written as a migration guide. The
   key binding section of the man page is generated from `keymap.rs`.
+- Every string the user reads comes from a Fluent message catalogue (`locales/en`), never from a literal in the code,
+  so ROADMAP.md #18 (Spanish, French, Dutch and Brazilian Portuguese) is translation work, not a rewrite. Titles,
+  plurals, numbers and ages are formatted through the catalogue. Logs and the journal stay English and do not use
+  it. A pseudo-language that lengthens every string by a third and accents it is drawn in the snapshot tests.
 - Usability sessions on the R5 build, as in D; findings fixed or recorded.
 - **Exit:** the VM tests in `zbm-vmtest` drive every core task through the menu and pass; snapshot tests cover
   every view at three sizes, in colour, monochrome and ASCII; the task measures and the redraw budget of
   [The menu redesign](#the-menu-redesign) are met; the performance test with 10,000 snapshots passes; the fuzz
-  target for hostile names passes; the menu runs without `fzf` in images, including on a serial console.
+  target for hostile names passes; the menu runs without `fzf` in images, including on a serial console; no string the
+  user reads is a literal outside the catalogue, and every view fits at 52×20 in the pseudo-language.
 
 ### R6. Recovery tools and image assembly in Rust (3 to 4 weeks)
 
