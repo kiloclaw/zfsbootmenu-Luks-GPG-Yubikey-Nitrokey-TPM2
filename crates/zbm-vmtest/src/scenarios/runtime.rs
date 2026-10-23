@@ -28,6 +28,8 @@
 //! - `rust-pilot` (`pilot`): the pilots of `REFACTOR-ROADMAP.md` (R0).
 //! - `rust-autosize` (`autosize`): the console font follows the display's
 //!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
+//! - `rust-colours` (`colours`): the image's console fonts leave the VGA
+//!   text console and the framebuffer console their 16 colours.
 //! - `rust-crash` (`crash`): a hook runs `zbm debug panic` in an image
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
@@ -56,6 +58,7 @@ use crate::vm::Vm;
 
 mod autosize;
 mod boot;
+mod colours;
 mod crash;
 mod host;
 mod pilot;
@@ -76,7 +79,7 @@ const ESCAPE_APPEND: &str = "console=ttyS0 zbm.timeout=30 loglevel=7";
 const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
-/// `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
+/// `rust-colours`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
 ///
@@ -89,6 +92,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-pilot" => pilot::run(test),
         "rust-crash" => crash::run(test),
         "rust-autosize" => autosize::run(test),
+        "rust-colours" => colours::run(test),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

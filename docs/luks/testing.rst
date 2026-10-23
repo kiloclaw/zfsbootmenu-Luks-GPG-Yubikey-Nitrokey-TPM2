@@ -313,6 +313,14 @@ Following a boot
   ``generate-zbm`` configuration, must hold the four Spleen fonts and their licence and no Terminus font, load
   Spleen 8×16 with the EDID (480×150), and the native Spleen 32×64 with ``zbm.autosize=64`` (120×37).
 
+* ``runtime-rust-colours`` checks that the console fonts of the Rust image leave the console its 16 colours
+  (ROADMAP.md #20). The image adds the ``virtio_gpu`` driver and, as a control, the whole 512-glyph Terminus 8×14. For
+  each font, the test draws a bar of the 16 foreground colours on ``/dev/tty1`` (the 8 normal ones, and the 8 bright
+  ones bold gives, as the menu's theme draws them), takes a screenshot with the QEMU monitor's ``screendump``, kept as
+  ``<boot>-<font>.ppm``, and counts the colours of the bar's line. On QEMU's standard VGA, the VGA text console, the
+  image's 256-glyph font must show 16 colours and the whole font 8, which shows that the test sees the loss; on a
+  virtio GPU, the framebuffer console, the image's font must show 16, and the count of the whole font is noted.
+
 Results
 -------
 

@@ -295,8 +295,9 @@ Spleen is done too: Spleen 2.2.0 in 8×16, 12×24, 16×32 and 32×64 (`legacy/zf
 licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Global.ConsoleFont: spleen` or the build option
 `zfsbootmenu_console_font=spleen`; without a display density, `zbm console-autosize` still keeps to 32 pixels. The
 VM test passes with both families (64984bd): the Spleen image, built through `generate-zbm`, holds Spleen only, loads
-8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours on VGA text and framebuffer
-consoles remains.
+8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours is the VM test
+`runtime-rust-colours`, which counts the colours of a 16-colour bar in QEMU screenshots of the VGA text console and the
+framebuffer console, with the image's font and the whole 512-glyph one; it waits for its first run.
 
 - **Why:**
   - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
