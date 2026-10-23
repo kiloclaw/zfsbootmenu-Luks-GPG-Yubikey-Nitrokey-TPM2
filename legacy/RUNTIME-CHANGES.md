@@ -66,6 +66,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
   (ROADMAP.md #19, step 3); the online help of `zfsbootmenu(7)` describes `zbm.console_font`. Legacy images are
   unchanged.
   **Rust:** done; `crates/zbm/tests/image.rs` checks the fonts of both runtimes' images.
+- [x] `4408efb`: images with `zfsbootmenu_runtime=rust` install the keyboard layouts of the console on the display
+  (ROADMAP.md #19, step 4): `install_zbm_keyboard_layouts`, which the dracut module and the mkinitcpio hook call, runs
+  `zbm keyboard-layouts` on the layouts of `zfsbootmenu_keyboard_layouts` and installs them in
+  `/usr/share/zfsbootmenu/layouts`; the online help of `zfsbootmenu(7)` describes `zbm.keyboard_layout` and the build
+  option. Legacy images are unchanged.
+  **Rust:** done; `crates/zbm/tests/image.rs` checks the layouts of Rust images and their absence from legacy ones.
 
 ## Legacy limitations the Rust runtime must not copy
 
