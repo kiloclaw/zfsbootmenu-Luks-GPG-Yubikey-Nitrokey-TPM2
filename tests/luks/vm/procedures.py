@@ -224,7 +224,7 @@ def main():
     out = r.doc(ADMIN, "Replacing a failed disk",
                 skip=[r"^zpool status"],
                 subst=[("zpool replace zroot 12345678901234567890", f"zpool replace tank {failed}"),
-                       ("zpool wait -t resilver zroot", "zpool wait -t resilver tank")])
+                       ("zpool wait -t replace zroot", "zpool wait -t replace tank")])
     st = r.status("tank")
     t.check("DEGRADED" not in st and "state: ONLINE" in st, "replacement resilvered; tank ONLINE")
     r.reset("tank")

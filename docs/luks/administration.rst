@@ -381,12 +381,13 @@ Replacing a failed disk
      # VDEVS=()
      # luks_create /dev/disk/by-id/ata-NEWDISK-part2
 
-3. Replace the failed vdev and wait for the resilver to finish:
+3. Replace the failed vdev and wait for the replacement to finish: the resilver, then the removal of the failed vdev
+   from the pool (``-t resilver`` alone returns before that, while the pool still shows ``DEGRADED``):
 
    .. code-block:: bash
 
      # zpool replace zroot 12345678901234567890 "${VDEVS[0]}"
-     # zpool wait -t resilver zroot
+     # zpool wait -t replace zroot
 
 4. Enroll the same unlock methods (TPM, FIDO2, key files) on the new volume as on the others, and back up its header.
 
