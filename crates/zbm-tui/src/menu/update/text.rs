@@ -116,6 +116,15 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             format!("Edit the command line of {name}"),
             Then::Focus(name.clone(), Screen::CommandLine),
         ));
+        if environment
+            .tries
+            .is_some_and(|tries| tries.left < tries.total)
+        {
+            items.push(item(
+                format!("Give {name} Its Boot Tries Back"),
+                Then::Act(Action::ResetBootTries(name.clone())),
+            ));
+        }
         for snapshot in &environment.snapshots {
             items.push(item(
                 format!("Boot a clone of {}", snapshot.name),
@@ -182,11 +191,8 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
             model
                 .edited
                 .push((editor.environment.clone(), editor.text.clone()));
-            vec![super::screens::boot(
-                model,
-                &environment,
-                editor.kernel.clone(),
-            )]
+            let action = super::screens::boot(model, &environment, editor.kernel.clone());
+            super::screens::guarded(model, action)
         }
         _ => {
             model.editor = Some(editor);

@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Snapshots               Changes since zroot/ROOT/void@pre-upgrade  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ CHANGES SINCE PRE-UPGRADE ────────────────────────────────── 6 ┐┌ PREVIEW ───────────────────────────────── modified ┐
+│ ▶   M /etc/fstab                                               ││ /etc/fstab                                         │
+│     + /etc/modprobe.d/nvidia.conf                              ││ -tank/home  /home  zfs  defaults           0 0     │
+│     M /etc/default/grub                                        ││ +tank/home  /home  zfs  defaults,noauto    0 0     │
+│     - /usr/lib/libdrm.so.2                                     ││ +/dev/sdc1  /mnt/backup  ext4  defaults  0 2       │
+│     R /etc/default/zfs → /etc/default/zfs.bak                  ││                                                    │
+│     M /boot/initramfs-6.12.9_1.img                             ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+└────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────────┘
+ Enter Restore   / Filter   : Commands   l Log   ! Recovery                                                      ? More

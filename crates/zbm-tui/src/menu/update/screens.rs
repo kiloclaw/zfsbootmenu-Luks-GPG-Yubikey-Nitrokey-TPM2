@@ -5,7 +5,7 @@ use zbm_types::ImportPolicy;
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
-use crate::menu::world::{Action, Environment, Method, Outcome};
+use crate::menu::world::{Action, Environment, Method, Outcome, Verdict};
 
 /// What `intent` does on the current screen.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
@@ -15,6 +15,7 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
         Screen::Snapshots => super::snapshots::intent(model, intent),
         Screen::Pools => pools(model, intent),
         Screen::Recovery => recovery(model, intent),
+        Screen::Diff => super::diff::intent(model, intent),
         _ => Vec::new(),
     }
 }
@@ -28,6 +29,7 @@ pub(super) fn screen_of(context: Context) -> Screen {
         Context::Recovery => Screen::Recovery,
         Context::Log => Screen::Log,
         Context::Startup => Screen::Startup,
+        Context::Diff => Screen::Diff,
         _ => Screen::Main,
     }
 }
@@ -42,6 +44,40 @@ pub(super) fn boot(model: &Model, environment: &Environment, kernel: Option<Stri
         kernel,
         command_line: edited.then_some(line),
     }
+}
+
+/// A boot the user asked for: done at once, unless a check of the
+/// environment failed; then an action sheet says why it may not boot and
+/// offers to boot anyway (`docs/dev/menu-design/boot-health.md`).
+pub(super) fn guarded(model: &mut Model, action: Action) -> Vec<Action> {
+    let Action::Boot { environment, .. } = &action else {
+        return vec![action];
+    };
+    let failures: Vec<String> = model
+        .snapshot
+        .environments
+        .iter()
+        .filter(|e| &e.name == environment)
+        .flat_map(|e| e.checks.iter())
+        .filter(|check| check.verdict == Verdict::Failure)
+        .map(|check| {
+            let detail = crate::menu::format::capitalised(&check.detail);
+            match check.fix.as_deref() {
+                Some(fix) => format!("{detail}. {}.", crate::menu::format::capitalised(fix)),
+                None => format!("{detail}."),
+            }
+        })
+        .collect();
+    if failures.is_empty() {
+        return vec![action];
+    }
+    let title = format!("{environment} May Not Boot");
+    let choice = Choice {
+        label: "Boot Anyway".to_owned(),
+        then: Then::Act(action),
+    };
+    model.dialog = Some(dialogs::choose(&title, failures, vec![choice]));
+    Vec::new()
 }
 
 /// Opens `screen` on `environment`: its snapshots, kernels or command line.
@@ -76,7 +112,10 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
     };
     let name = environment.name.clone();
     match intent {
-        Intent::Primary | Intent::Boot => return vec![boot(model, &environment, None)],
+        Intent::Primary | Intent::Boot => {
+            let action = boot(model, &environment, None);
+            return guarded(model, action);
+        }
         Intent::Kernels => focus(model, name, Screen::Kernels),
         Intent::Snapshots => focus(model, name, Screen::Snapshots),
         Intent::Edit => focus(model, name, Screen::CommandLine),
@@ -110,7 +149,10 @@ fn kernels(model: &mut Model, intent: Intent) -> Vec<Action> {
     };
     let name = environment.name.clone();
     match intent {
-        Intent::Primary | Intent::Boot => vec![boot(model, &environment, Some(kernel.version))],
+        Intent::Primary | Intent::Boot => {
+            let action = boot(model, &environment, Some(kernel.version));
+            guarded(model, action)
+        }
         Intent::SetDefault if kernel.is_default => vec![Action::InheritDefaultKernel(name)],
         Intent::SetDefault => vec![Action::SetDefaultKernel(name, kernel.version)],
         Intent::InheritDefault => vec![Action::InheritDefaultKernel(name)],

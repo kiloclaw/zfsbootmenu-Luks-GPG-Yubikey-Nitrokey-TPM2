@@ -25,6 +25,12 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `help` | help for the main view, which scrolls |
 | `power` | reboot, power off, firmware setup |
 | `notification` | the outcome of setting a default, on the notification line |
+| `main-fallback` | the default used up its boot tries, and the fallback the countdown boots (`--failing`) |
+| `main-next-boot` | a boot once, asked by the running system (`--next-boot`) |
+| `may-not-boot` | booting an environment whose checks found a failure |
+| `diff` | the changes since a snapshot, with a preview |
+| `diff-marked` | two changes marked to restore |
+| `restore-confirm` | the restore alert, its button disabled until the name is typed |
 
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
 files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). Colour

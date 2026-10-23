@@ -27,6 +27,9 @@ Options:
   --locked               start with the LUKS volumes locked
   --foreign              add a pool of another host, which does not import
   --wait                 no countdown: wait for a key
+  --failing              the default used up its boot tries: the countdown
+                         boots a clone of its snapshot pre-upgrade instead
+  --next-boot            the running system asked to boot tank/ROOT/arch once
   --theme <name>         colour, mono or ascii (default: from TERM, NO_COLOR
                          and the locale)
   --size <cols>x<rows>   the size when the terminal reports none
@@ -54,6 +57,8 @@ fn parse(args: &[String]) -> Result<Arguments, String> {
             "--locked" => parsed.options.locked = true,
             "--foreign" => parsed.options.foreign = true,
             "--wait" => parsed.options.timeout = None,
+            "--failing" => parsed.options.failing = true,
+            "--next-boot" => parsed.options.next_boot = true,
             "--theme" => {
                 let name = args.next().ok_or("--theme needs a name")?;
                 parsed.theme =
@@ -125,11 +130,12 @@ mod tests {
 
     #[test]
     fn the_demo_options_are_parsed() {
-        let parsed =
-            arguments("--demo --locked --foreign --wait --theme ascii --size 52x20 --log-keys k")
-                .unwrap();
+        let line = "--demo --locked --foreign --wait --failing --next-boot --theme ascii \
+                    --size 52x20 --log-keys k";
+        let parsed = arguments(line).unwrap();
 
         assert!(parsed.options.locked && parsed.options.foreign);
+        assert!(parsed.options.failing && parsed.options.next_boot);
         assert_eq!(parsed.options.timeout, None);
         assert_eq!(parsed.theme, Some(Capabilities::ASCII));
         assert_eq!(parsed.size, Some((52, 20)));

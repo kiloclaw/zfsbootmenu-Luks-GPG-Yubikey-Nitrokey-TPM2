@@ -14,6 +14,8 @@ use super::theme::{Glyph, Role};
 use super::world::Outcome;
 
 mod dialogs;
+mod diff;
+mod health;
 mod lists;
 mod main_view;
 mod screens;
@@ -63,6 +65,7 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Screen::Recovery => screens::recovery(model, frame, area),
         Screen::Log => screens::log(model, frame, area),
         Screen::Help(context) => screens::help(model, frame, area, context),
+        Screen::Diff => diff::render(model, frame, area),
     }
 }
 

@@ -7,9 +7,10 @@ use zbm_app::Encryption;
 use zbm_types::{DatasetName, SnapshotName};
 
 use super::DemoOptions;
+use super::health;
 use crate::menu::world::{
-    CommandLine, Environment, Health, Kernel, Level, Log, LogEntry, Method, Origin, Pool, Snapshot,
-    SnapshotInfo, Stage, StageState, Timeout, Volume, VolumeState,
+    CommandLine, Environment, Fallback, Health, Kernel, Level, Log, LogEntry, Method, Origin, Pool,
+    Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout, Tries, Volume, VolumeState,
 };
 
 /// The demo's clock: 2026-10-23 08:00 UTC.
@@ -72,7 +73,14 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         foreign.foreign_hostid = Some(FOREIGN_HOSTID.to_owned());
         pools.push(foreign);
     }
+    let fallback = options.failing.then(|| Fallback {
+        failed: dataset("zroot/ROOT/void"),
+        attempts: 3,
+        target: Target::Snapshot(snapshot_name("zroot/ROOT/void@pre-upgrade")),
+    });
     Snapshot {
+        next_boot: options.next_boot.then(|| dataset("tank/ROOT/arch")),
+        fallback,
         startup: STAGES
             .iter()
             .map(|name| Stage {
@@ -82,7 +90,10 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
             .collect(),
         timeout: options.timeout.map_or(Timeout::Wait, Timeout::Seconds),
         pools,
-        environments: environments(options),
+        environments: environments(options)
+            .into_iter()
+            .map(|environment| with_health(environment, options))
+            .collect(),
         volumes: volumes(options.locked),
         log: log(),
         now: NOW,
@@ -123,6 +134,20 @@ fn inherited(value: &str, from: &str) -> CommandLine {
     }
 }
 
+/// `environment` with its checks, and boot counting on the default one.
+fn with_health(mut environment: Environment, options: &DemoOptions) -> Environment {
+    let kernel = environment
+        .boot_kernel()
+        .map(|k| k.version.clone())
+        .unwrap_or_default();
+    environment.checks = health::checks(environment.name.as_str(), &kernel);
+    if environment.is_default && environment.name.pool().as_str() == "zroot" {
+        let left = if options.failing { 0 } else { 3 };
+        environment.tries = Some(Tries { left, total: 3 });
+    }
+    environment
+}
+
 fn environments(options: &DemoOptions) -> Vec<Environment> {
     let environment =
         |name: &str, is_default, encryption, kernels, command_line, snapshots| Environment {
@@ -132,6 +157,8 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             kernels,
             command_line,
             snapshots,
+            checks: Vec::new(),
+            tries: None,
         };
     vec![
         environment(

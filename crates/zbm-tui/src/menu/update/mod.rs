@@ -7,9 +7,10 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use super::keymap::{self, Input, Intent};
 use super::model::{Dialog, Model, Screen};
-use super::world::{Action, Event, Outcome};
+use super::world::{Action, Event, Outcome, Target};
 
 mod dialogs;
+mod diff;
 mod events;
 mod lists;
 mod screens;
@@ -26,8 +27,8 @@ pub enum Message {
     Key(KeyEvent),
     /// Time passed, in milliseconds.
     Tick(u64),
-    /// The machine said something.
-    Event(Event),
+    /// The machine said something; boxed, as a snapshot is large.
+    Event(Box<Event>),
 }
 
 /// The menu after `message`, and the actions it asks the machine for.
@@ -36,7 +37,7 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
         Message::Key(key) => key_press(&mut model, key),
         Message::Tick(ms) => tick(&mut model, ms),
         Message::Event(event) => {
-            events::apply(&mut model, event);
+            events::apply(&mut model, *event);
             Vec::new()
         }
     };
@@ -126,6 +127,10 @@ fn back(model: &mut Model) {
         }
         Screen::Startup => {}
         Screen::Help(context) => model.screen = screens::screen_of(context),
+        Screen::Diff => {
+            model.screen = Screen::Snapshots;
+            model.diff = None;
+        }
         _ => {
             model.screen = Screen::Main;
             model.marked.clear();
@@ -133,8 +138,9 @@ fn back(model: &mut Model) {
     }
 }
 
-/// Time passed: the countdown runs, and boots the default environment when
-/// it ends.
+/// Time passed: the countdown runs, and when it ends boots the selection:
+/// the default environment, the one asked for once, or the fallback of a
+/// default that used up its boot tries. It never asks: nobody may be there.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
     let Some(left) = model.countdown else {
         return Vec::new();
@@ -145,6 +151,9 @@ fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
         return Vec::new();
     }
     model.countdown = None;
+    if let Some(Target::Snapshot(snapshot)) = model.snapshot.fallback.as_ref().map(|f| &f.target) {
+        return vec![Action::BootSnapshot(snapshot.clone())];
+    }
     let Some(environment) = model.selected_environment().cloned() else {
         return Vec::new();
     };
@@ -162,5 +171,7 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
     }
 }
 
+#[cfg(test)]
+mod health_tests;
 #[cfg(test)]
 mod tests;

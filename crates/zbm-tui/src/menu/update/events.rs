@@ -1,7 +1,7 @@
 //! What the machine's events do to the menu.
 
-use crate::menu::model::{Choice, Dialog, Model, Screen, Then};
-use crate::menu::world::{Action, Event, Outcome};
+use crate::menu::model::{Choice, Dialog, DiffView, Model, Screen, Then};
+use crate::menu::world::{Action, Event, Outcome, Target};
 use zbm_types::ImportPolicy;
 
 /// Applies an event.
@@ -25,6 +25,18 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             });
         }
         Event::ImportProblem { pool, reason } => import_problem(model, &pool, reason),
+        Event::DiffReady { from, to, changes } => {
+            let kept = model
+                .diff
+                .as_ref()
+                .filter(|diff| diff.from == from)
+                .map(|diff| diff.list.selected);
+            let mut view = DiffView::new(from, to, changes);
+            let last = view.list.matches.len().saturating_sub(1);
+            view.list.selected = kept.unwrap_or(0).min(last);
+            model.diff = Some(view);
+            model.screen = Screen::Diff;
+        }
         Event::Finished(outcome) => {
             super::show_failure(model, &outcome);
             model.notification = Some(outcome);
@@ -41,6 +53,17 @@ fn start(model: &mut Model) {
     model.started = true;
     model.screen = Screen::Main;
     model.countdown = model.timeout_ms();
+    // What the countdown boots: the fallback of a default that used up its
+    // tries, else the environment the running system asked for once.
+    let fallback = model.snapshot.fallback.as_ref().map(|f| f.target.clone());
+    let target = match fallback {
+        Some(Target::Environment(name)) => Some(name),
+        Some(Target::Snapshot(_)) => None,
+        None => model.snapshot.next_boot.clone(),
+    };
+    if let Some(name) = target {
+        model.select_environment(&name);
+    }
     if model.snapshot.environments.is_empty() {
         model.countdown = None;
         model.notification = Some(Outcome::Warning(

@@ -53,7 +53,7 @@ impl Session {
         for action in actions {
             self.actions.push(action.clone());
             for event in self.machine.apply(action) {
-                self.step(Message::Event(event));
+                self.step(Message::Event(Box::new(event)));
             }
         }
     }
@@ -82,7 +82,7 @@ impl Session {
     /// Time passes: start-up goes a step further, and the countdown runs.
     pub fn tick(&mut self, ms: u64) {
         for event in self.machine.tick() {
-            self.step(Message::Event(event));
+            self.step(Message::Event(Box::new(event)));
         }
         self.step(Message::Tick(ms));
     }

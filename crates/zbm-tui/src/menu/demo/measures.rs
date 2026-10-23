@@ -49,7 +49,8 @@ fn boots(session: &Session, environment: &str) -> bool {
     )
 }
 
-fn tasks() -> Vec<Task> {
+/// The core tasks T1 to T4.
+fn first_tasks() -> Vec<Task> {
     use KeyCode::{Char, Down, Enter};
     use Step::{Key, Text};
     vec![
@@ -72,10 +73,10 @@ fn tasks() -> Vec<Task> {
         Task {
             name: "T2 boot another environment, by filter",
             options: options(false, false),
-            steps: &[Key(Char('/')), Text("deb"), Key(Enter)],
+            steps: &[Key(Char('/')), Text("ubu"), Key(Enter)],
             measured: 2,
             budget: 4,
-            done: |s| boots(s, "tank/ROOT/debian"),
+            done: |s| boots(s, "zroot/ROOT/ubuntu"),
         },
         Task {
             name: "T3 boot another kernel",
@@ -112,6 +113,14 @@ fn tasks() -> Vec<Task> {
             budget: 6,
             done: |s| matches!(s.actions.as_slice(), [Action::Rollback { .. }]),
         },
+    ]
+}
+
+/// The core tasks T5 to T8.
+fn more_tasks() -> Vec<Task> {
+    use KeyCode::{Char, Down, Enter};
+    use Step::{Key, Text};
+    vec![
         Task {
             name: "T5 unlock a volume, from its prompt",
             options: options(true, false),
@@ -146,6 +155,25 @@ fn tasks() -> Vec<Task> {
             budget: 2,
             done: |s| s.model().snapshot.pools.iter().all(|pool| pool.imported),
         },
+        Task {
+            name: "T8 restore a file from the newest snapshot",
+            options: options(false, false),
+            steps: &[
+                Key(Char('s')),
+                Key(Char('o')),
+                Key(Char('f')),
+                Key(Enter),
+                Text("void"),
+                Key(Enter),
+            ],
+            measured: 5,
+            budget: 6,
+            done: |s| {
+                s.actions
+                    .iter()
+                    .any(|a| matches!(a, Action::RestoreFiles { .. }))
+            },
+        },
     ]
 }
 
@@ -175,7 +203,7 @@ fn run(task: &Task) -> (Session, u32) {
 
 #[test]
 fn every_core_task_is_done_within_its_budget() {
-    for task in tasks() {
+    for task in first_tasks().into_iter().chain(more_tasks()) {
         let (session, keys) = run(&task);
 
         assert!((task.done)(&session), "{}: not done", task.name);

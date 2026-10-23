@@ -29,6 +29,15 @@ struct Wireframe {
     keys: &'static [Key],
 }
 
+/// The demo with the default used up its boot tries, or a one-time boot.
+fn health(failing: bool, next_boot: bool) -> DemoOptions {
+    DemoOptions {
+        failing,
+        next_boot,
+        ..DemoOptions::default()
+    }
+}
+
 fn options(locked: bool, foreign: bool) -> DemoOptions {
     DemoOptions {
         locked,
@@ -90,6 +99,51 @@ fn wireframes() -> Vec<Wireframe> {
             plain(),
             50,
             &[Code(KeyCode::Down), Char('d')],
+        ),
+        frame("main-fallback", health(true, false), 50, &[]),
+        frame("main-next-boot", health(false, true), 50, &[]),
+        frame(
+            "may-not-boot",
+            plain(),
+            50,
+            &[
+                Code(KeyCode::Down),
+                Code(KeyCode::Down),
+                Code(KeyCode::Enter),
+            ],
+        ),
+        frame("diff", plain(), 50, &[Char('s'), Char('o'), Char('f')]),
+        frame(
+            "diff-marked",
+            plain(),
+            50,
+            &[
+                Char('s'),
+                Char('o'),
+                Char('f'),
+                Char(' '),
+                Code(KeyCode::Down),
+                Code(KeyCode::Down),
+                Code(KeyCode::Down),
+                Char(' '),
+            ],
+        ),
+        frame(
+            "restore-confirm",
+            plain(),
+            50,
+            &[
+                Char('s'),
+                Char('o'),
+                Char('f'),
+                Char(' '),
+                Code(KeyCode::Down),
+                Code(KeyCode::Down),
+                Code(KeyCode::Down),
+                Char(' '),
+                Code(KeyCode::Enter),
+                Text("vo"),
+            ],
         ),
     ]
 }

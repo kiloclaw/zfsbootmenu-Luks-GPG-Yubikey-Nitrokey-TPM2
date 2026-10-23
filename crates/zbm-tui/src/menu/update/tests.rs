@@ -87,12 +87,12 @@ fn t2_the_filter_finds_an_environment() {
     let mut session = started();
 
     session.key(KeyCode::Char('/'));
-    session.type_text("deb");
+    session.type_text("ubu");
     session.key(KeyCode::Enter);
 
     assert_eq!(
         session.actions,
-        [boot_action("tank/ROOT/debian", None, None)]
+        [boot_action("zroot/ROOT/ubuntu", None, None)]
     );
 }
 

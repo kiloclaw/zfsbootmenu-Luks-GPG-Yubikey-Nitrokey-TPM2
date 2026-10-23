@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  Boot Environments  tank DEGRADED · 3/3 open · ! 1
+┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
+│   zroot/ROOT/void              default  6.12.9_1 │
+│   tank/ROOT/arch       1 warning  6.11.5-arch1-1 │
+│ ▶ tank/ROOT/debian     1 problem  6.1.0-26-amd64 │
+│ ┌──────────────────────────────────────────────┐ │
+│ │         tank/ROOT/debian May Not Boot        │ │
+│ │ No zfs.ko for 6.1.0-26-amd64: its initramfs  │ │
+│ │ cannot import a pool. Rebuild the initramfs  │ │
+└─│ in a chroot (j), or boot another             │─┘
+┌ │ environment.                                 │─┐
+│ │                                              │ │
+│ │ ▶ Boot Anyway                                │ │
+│ │ ──────────────────────────────────────────── │ │
+│ │   Cancel                                     │ │
+│ └──────────────────────────────────────────────┘ │
+│ Command Line  (empty) · default                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

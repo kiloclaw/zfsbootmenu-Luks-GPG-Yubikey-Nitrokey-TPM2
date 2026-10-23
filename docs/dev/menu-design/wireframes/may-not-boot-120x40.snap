@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+                                                   Boot Environments  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ BOOT ENVIRONMENTS ────────────────────────────────────────────── 4 ┐┌ tank/ROOT/debian ──────────────────────────────┐
+│   zroot/ROOT/void                                default  6.12.9_1 ││       Checks  × no zfs.ko for 6.1.0-26-amd64:… │
+│   tank/ROOT/arch                         1 warning  6.11.5-arch1-1 ││         Pool  tank · DEGRADED · read-only      │
+│ ▶ tank/ROOT/debian                       1 problem  6.1.0-26-amd64 ││       Kernel  6.1.0-26-amd64 · 1 kernel        │
+│   zroot/ROOT/ubuntu                               6.8.0-47-generic ││    Snapshots  none                             │
+│                                                                    ││   Encryption  none                             │
+│                                                                    ││ Command Line  (empty) · default                │
+│                                                                    ││                                                │
+│                                                                    ││ CHECKS                                         │
+│                                                                    ││   √ Kernel and initramfs: 6.1.0-26-amd64 with… │
+│                                                                    ││   × ZFS module: no zfs.ko for 6.1.0-26-amd64:… │
+│                                                                    ││     rebuild the initramfs in a chroot (j), or… │
+│                                                                    ││   ! Pool features: tank uses fast_dedup, whic… │
+│                                                                    ││     upgrade ZFS in this environment before it… │
+│                             ┌──────────────────────────────────────────────────────────┐mountpoint / and canmount=n… │
+│                             │               tank/ROOT/debian May Not Boot              │nk has 4% free: writes duri… │
+│                             │ No zfs.ko for 6.1.0-26-amd64: its initramfs cannot       │apshots, or boot it read-on… │
+│                             │ import a pool. Rebuild the initramfs in a chroot (j), or │                             │
+│                             │ boot another environment.                                │                             │
+│                             │                                                          │                       boots │
+│                             │ ▶ Boot Anyway                                            │                             │
+│                             │ ──────────────────────────────────────────────────────── │                             │
+│                             │   Cancel                                                 │                             │
+│                             └──────────────────────────────────────────────────────────┘                             │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+│                                                                    ││                                                │
+└────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────┘
+ Enter Choose   Esc Cancel   Up/Down Select

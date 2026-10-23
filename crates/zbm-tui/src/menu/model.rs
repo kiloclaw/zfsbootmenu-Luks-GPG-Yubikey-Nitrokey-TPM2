@@ -4,6 +4,10 @@
 use zbm_platform::secret::Secret;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
+mod diff;
+
+pub use self::diff::DiffView;
+
 use super::filter::Ranked;
 use super::keymap::Context;
 use super::theme::Theme;
@@ -30,6 +34,8 @@ pub enum Screen {
     Log,
     /// Help for the view it was opened from.
     Help(Context),
+    /// What changed since a snapshot.
+    Diff,
 }
 
 /// How lists are sorted.
@@ -243,6 +249,8 @@ pub struct Model {
     pub keys: u32,
     /// How many lines help or the log are scrolled down.
     pub scroll: usize,
+    /// The differences view, when open.
+    pub diff: Option<DiffView>,
 }
 
 impl Model {
@@ -269,6 +277,7 @@ impl Model {
             leaving: None,
             keys: 0,
             scroll: 0,
+            diff: None,
             snapshot,
         };
         model.refresh();
@@ -318,6 +327,9 @@ impl Model {
         let pools = self.pool_rows();
         refilter(&mut self.pools, pools.iter().map(String::as_str));
         refilter(&mut self.recovery, RECOVERY.iter().map(|(label, _)| *label));
+        if let Some(diff) = &mut self.diff {
+            diff.refilter();
+        }
     }
 
     /// The indexes of the environments in the order of the main view:
@@ -327,6 +339,19 @@ impl Model {
             self.snapshot.environments.iter().enumerate().collect();
         order.sort_by(|(_, a), (_, b)| b.is_default.cmp(&a.is_default).then(a.name.cmp(&b.name)));
         order.into_iter().map(|(index, _)| index).collect()
+    }
+
+    /// Selects the environment `name` in the main view, if it is listed.
+    pub fn select_environment(&mut self, name: &DatasetName) {
+        let environments = &self.snapshot.environments;
+        let found = self.environments.matches.iter().position(|ranked| {
+            environments
+                .get(ranked.index)
+                .is_some_and(|environment| &environment.name == name)
+        });
+        if let Some(position) = found {
+            self.environments.selected = position;
+        }
     }
 
     /// The selected environment of the main view.
@@ -439,6 +464,7 @@ impl Model {
             Screen::Recovery => Context::Recovery,
             Screen::Log => Context::Log,
             Screen::Help(_) => Context::Help,
+            Screen::Diff => Context::Diff,
         }
     }
 
@@ -450,6 +476,7 @@ impl Model {
             Screen::Kernels => Some(&self.kernels),
             Screen::Pools => Some(&self.pools),
             Screen::Recovery => Some(&self.recovery),
+            Screen::Diff => self.diff.as_ref().map(|diff| &diff.list),
             _ => None,
         }
     }
@@ -462,6 +489,7 @@ impl Model {
             Screen::Kernels => Some(&mut self.kernels),
             Screen::Pools => Some(&mut self.pools),
             Screen::Recovery => Some(&mut self.recovery),
+            Screen::Diff => self.diff.as_mut().map(|diff| &mut diff.list),
             _ => None,
         }
     }

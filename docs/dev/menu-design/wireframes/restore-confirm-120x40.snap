@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Snapshots               Changes since zroot/ROOT/void@pre-upgrade  tank DEGRADED · 3/3 volumes open · ! 1 in the log
+┌ CHANGES SINCE PRE-UPGRADE ────────────────────────────────── 6 ┐┌ PREVIEW ────────────────────────────────── removed ┐
+│   • M /etc/fstab                                               ││ /usr/lib/libdrm.so.2                               │
+│     + /etc/modprobe.d/nvidia.conf                              ││ Removed since the snapshot: restoring brings it    │
+│     M /etc/default/grub                                        ││ back.                                              │
+│ ▶ • - /usr/lib/libdrm.so.2                                     ││                                                    │
+│     R /etc/default/zfs → /etc/default/zfs.bak                  ││                                                    │
+│     M /boot/initramfs-6.12.9_1.img                             ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                             ┌──────────────────────────────────────────────────────────┐                             │
+│                             │             Restore 2 Files from pre-upgrade             │                             │
+│                             │                                                          │                             │
+│                             │ /etc/fstab                                               │                             │
+│                             │ /usr/lib/libdrm.so.2                                     │                             │
+│                             │ They replace the files in zroot/ROOT/void as they are    │                             │
+│                             │ now.                                                     │                             │
+│                             │ zroot is imported read/write, and a safety snapshot      │                             │
+│                             │ zroot/ROOT/void@before-restore is taken first: roll back │                             │
+│                             │ to it to undo.                                           │                             │
+│                             │                                                          │                             │
+│                             │ Type void to confirm: vo                                 │                             │
+│                             │                                                          │                             │
+│                             │                                  [ Cancel ]  [ Restore ] │                             │
+│                             └──────────────────────────────────────────────────────────┘                             │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+│                                                                ││                                                    │
+└────────────────────────────────────────────────────────────────┘└────────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

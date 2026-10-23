@@ -27,6 +27,8 @@ pub enum Context {
     Log,
     /// Help.
     Help,
+    /// What changed since a snapshot.
+    Diff,
     /// A choice among actions (the snapshot actions, power).
     Choose,
     /// A field that takes text: the filter, the palette, the command line,
@@ -199,13 +201,15 @@ const fn key(
     )
 }
 
-use Context::{Kernels, Log, Main, Pools, Recovery, Snapshots, Startup};
+use Context::{Diff, Kernels, Log, Main, Pools, Recovery, Snapshots, Startup};
 
 /// Views with a list.
-const LISTS: &[Context] = &[Main, Snapshots, Kernels, Pools, Recovery];
+const LISTS: &[Context] = &[Main, Snapshots, Kernels, Pools, Recovery, Diff];
 
 /// Every view but help, dialogs and text fields.
-const ALL_VIEWS: &[Context] = &[Startup, Main, Snapshots, Kernels, Pools, Recovery, Log];
+const ALL_VIEWS: &[Context] = &[
+    Startup, Main, Snapshots, Kernels, Pools, Recovery, Log, Diff,
+];
 
 /// Every binding, in the order of the footer: most important first.
 pub const KEYMAP: &[Binding] = &[
@@ -282,14 +286,14 @@ pub const KEYMAP: &[Binding] = &[
     bind(
         KeyCode::Char(' '),
         NONE,
-        Scope::Only(&[Snapshots]),
+        Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
         Some("Space"),
     ),
     bind(
         KeyCode::Tab,
         NONE,
-        Scope::Only(&[Snapshots]),
+        Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
         None,
     ),
@@ -448,6 +452,7 @@ pub fn describe(context: Context, intent: Intent) -> &'static str {
         (Main | Kernels, Intent::Primary) | (_, Intent::Boot) => "boot",
         (Snapshots | Context::Choose, Intent::Primary) => "choose",
         (Pools, Intent::Primary) => "details",
+        (Diff, Intent::Primary) => "restore",
         (Recovery, Intent::Primary) => "run",
         (Startup | Context::Text, Intent::Primary) => "confirm",
         (Context::Choose | Context::Text, Intent::Back) => "cancel",

@@ -4,11 +4,20 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
                                                    Boot Environments  tank DEGRADED · 3/3 volumes open · ! 1 in the log
  Booting zroot/ROOT/void in 10 s. Press any key to choose another.
 ┌ BOOT ENVIRONMENTS ────────────────────────────────────────────── 4 ┐┌ zroot/ROOT/void ────────────────────── default ┐
-│ ▶ zroot/ROOT/void                                default  6.12.9_1 ││         Pool  zroot · ONLINE · read-only       │
-│   tank/ROOT/arch                                    6.11.5-arch1-1 ││       Kernel  6.12.9_1 · 3 kernels             │
-│   tank/ROOT/debian                                  6.1.0-26-amd64 ││    Snapshots  400 · newest pre-upgrade, 12 h … │
-│   zroot/ROOT/ubuntu                               6.8.0-47-generic ││   Encryption  key loaded                       │
+│ ▶ zroot/ROOT/void                                default  6.12.9_1 ││       Checks  √ all 5 passed                   │
+│   tank/ROOT/arch                         1 warning  6.11.5-arch1-1 ││   Boot Tries  3 of 3 left                      │
+│   tank/ROOT/debian                       1 problem  6.1.0-26-amd64 ││         Pool  zroot · ONLINE · read-only       │
+│   zroot/ROOT/ubuntu                               6.8.0-47-generic ││       Kernel  6.12.9_1 · 3 kernels             │
+│                                                                    ││    Snapshots  400 · newest pre-upgrade, 12 h … │
+│                                                                    ││   Encryption  key loaded                       │
 │                                                                    ││ Command Line  quiet loglevel=4 · from zroot/R… │
+│                                                                    ││                                                │
+│                                                                    ││ CHECKS                                         │
+│                                                                    ││   √ Kernel and initramfs: 6.12.9_1 with its i… │
+│                                                                    ││   √ ZFS module: zfs 2.4.4 for 6.12.9_1         │
+│                                                                    ││   √ Pool features: its ZFS reads every enable… │
+│                                                                    ││   √ Root dataset: mountpoint / and canmount=n… │
+│                                                                    ││   √ Free space: 62% of the pool is free        │
 │                                                                    ││                                                │
 │                                                                    ││ KERNELS                                        │
 │                                                                    ││   6.12.9_1                               boots │
@@ -21,15 +30,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                    ││   autosnap_2026-10-21_daily            2 d ago │
 │                                                                    ││   autosnap_2026-10-20_daily            3 d ago │
 │                                                                    ││   autosnap_2026-10-19_daily            4 d ago │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │

@@ -3,11 +3,20 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
                                                    Boot Environments  tank DEGRADED · 3/3 volumes open · ! 1 in the log
 ┌ BOOT ENVIRONMENTS ────────────────────────────────────────────── 4 ┐┌ tank/ROOT/arch ─────────────────────── default ┐
-│ ▶ tank/ROOT/arch                           default  6.11.5-arch1-1 ││         Pool  tank · DEGRADED · read/write     │
-│   zroot/ROOT/void                                default  6.12.9_1 ││       Kernel  6.11.5-arch1-1 · 2 kernels       │
-│   tank/ROOT/debian                                  6.1.0-26-amd64 ││    Snapshots  2 · newest 2026-10-01, 22 d ago  │
-│   zroot/ROOT/ubuntu                               6.8.0-47-generic ││   Encryption  none                             │
+│ ▶ tank/ROOT/arch                1 warning  default  6.11.5-arch1-1 ││       Checks  ! tank has 4% free: writes duri… │
+│   zroot/ROOT/void                                default  6.12.9_1 ││         Pool  tank · DEGRADED · read/write     │
+│   tank/ROOT/debian                       1 problem  6.1.0-26-amd64 ││       Kernel  6.11.5-arch1-1 · 2 kernels       │
+│   zroot/ROOT/ubuntu                               6.8.0-47-generic ││    Snapshots  2 · newest 2026-10-01, 22 d ago  │
+│                                                                    ││   Encryption  none                             │
 │                                                                    ││ Command Line  rw quiet splash · set here       │
+│                                                                    ││                                                │
+│                                                                    ││ CHECKS                                         │
+│                                                                    ││   √ Kernel and initramfs: 6.11.5-arch1-1 with… │
+│                                                                    ││   √ ZFS module: zfs 2.4.4 for 6.11.5-arch1-1   │
+│                                                                    ││   √ Pool features: ZFS 2.4.4 reads every feat… │
+│                                                                    ││   √ Root dataset: mountpoint / and canmount=n… │
+│                                                                    ││   ! Free space: tank has 4% free: writes duri… │
+│                                                                    ││     destroy old snapshots, or boot it read-on… │
 │                                                                    ││                                                │
 │                                                                    ││ KERNELS                                        │
 │                                                                    ││   6.11.5-arch1-1                         boots │
@@ -16,15 +25,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                                                                    ││ NEWEST SNAPSHOTS                               │
 │                                                                    ││   2026-10-01                          22 d ago │
 │                                                                    ││   2026-09-01                          52 d ago │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
-│                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │
 │                                                                    ││                                                │

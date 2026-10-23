@@ -52,8 +52,9 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `m` | clone and promote (moves the snapshots to the clone) | snapshots |
 | `y` | duplicate the selected snapshot (an independent copy, as `zfs send` and `zfs recv` make) | snapshots |
 | `n` | new snapshot of the environment | main, snapshots |
-| `f` | differences: the snapshot against now, or two marked snapshots | snapshots |
-| `Space`, `Tab` | mark the selection (for `f`) | snapshots |
+| `f` | the changes since the snapshot, or between two marked snapshots | snapshots |
+| `Space`, `Tab` | mark the selection (snapshots for `f`, files to restore) | snapshots, changes |
+| `Enter` | restore the marked files, or the selected one | changes |
 | `u` | unlock the selected volume | pools |
 | `i` | import the selected pool | pools |
 | `h` | rewind the pool to its checkpoint | pools |

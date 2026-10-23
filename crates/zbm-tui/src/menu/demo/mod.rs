@@ -6,6 +6,7 @@
 //! security key is never plugged in.
 
 pub mod data;
+mod health;
 mod session;
 mod storage;
 
@@ -17,6 +18,10 @@ use crate::menu::world::{Action, Event, Method, Outcome, Snapshot, StageState, V
 
 /// What the demo machine has.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is a switch of the demo's command line"
+)]
 pub struct DemoOptions {
     /// The LUKS volumes start locked, and start-up asks for them.
     pub locked: bool,
@@ -26,6 +31,11 @@ pub struct DemoOptions {
     pub timeout: Option<u32>,
     /// The snapshots of the default environment.
     pub snapshots: usize,
+    /// The default environment used up its boot tries: the countdown boots
+    /// the fallback.
+    pub failing: bool,
+    /// The running system asked to boot `tank/ROOT/arch` once.
+    pub next_boot: bool,
 }
 
 impl Default for DemoOptions {
@@ -35,6 +45,8 @@ impl Default for DemoOptions {
             foreign: false,
             timeout: Some(10),
             snapshots: 400,
+            failing: false,
+            next_boot: false,
         }
     }
 }
@@ -58,6 +70,8 @@ pub struct FakeMachine {
     pin_failures: u32,
     /// The import problem of the foreign pool was shown.
     import_asked: bool,
+    /// The paths restored from snapshots, which no longer differ.
+    restored: Vec<String>,
 }
 
 impl FakeMachine {
@@ -68,6 +82,7 @@ impl FakeMachine {
             waiting: false,
             pin_failures: 0,
             import_asked: false,
+            restored: Vec::new(),
         }
     }
 
@@ -181,8 +196,30 @@ impl FakeMachine {
             Action::Reboot => leave("Rebooting"),
             Action::PowerOff => leave("Powering off"),
             Action::FirmwareSetup => leave("Rebooting into the firmware setup"),
+            Action::Diff(from, to) => vec![Event::DiffReady {
+                from,
+                to,
+                changes: health::changes(&self.restored),
+            }],
+            Action::RestoreFiles { snapshot, paths } => self.restore(&snapshot, paths),
             other => storage::apply(&mut self.snapshot, other),
         }
+    }
+
+    /// Restores `paths` from `snapshot`, after a safety snapshot; the diff
+    /// is sent again without them.
+    fn restore(&mut self, snapshot: &zbm_types::SnapshotName, paths: Vec<String>) -> Vec<Event> {
+        let outcome = storage::restore(&mut self.snapshot, snapshot, paths.len());
+        self.restored.extend(paths);
+        vec![
+            Event::Changed(self.snapshot.clone()),
+            Event::DiffReady {
+                from: snapshot.clone(),
+                to: None,
+                changes: health::changes(&self.restored),
+            },
+            Event::Finished(outcome),
+        ]
     }
 
     /// An unlock attempt.

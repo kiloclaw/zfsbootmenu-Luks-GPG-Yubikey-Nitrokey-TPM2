@@ -92,6 +92,7 @@ fn back(model: &Model) -> Option<String> {
     match model.screen {
         Screen::Startup | Screen::Main => None,
         Screen::Help(context) => Some(context_name(context).to_owned()),
+        Screen::Diff => Some("Snapshots".to_owned()),
         _ => Some("Boot Environments".to_owned()),
     }
 }
@@ -105,6 +106,7 @@ fn context_name(context: Context) -> &'static str {
         Context::Pools => "Pools",
         Context::Recovery => "Recovery",
         Context::Log => "Log",
+        Context::Diff => "Changes",
         _ => "Boot Environments",
     }
 }
@@ -129,6 +131,14 @@ fn titles(model: &Model) -> Vec<String> {
         Screen::Recovery => vec!["Recovery".to_owned()],
         Screen::Log => vec!["Log".to_owned()],
         Screen::Help(_) => vec!["Help".to_owned()],
+        Screen::Diff => {
+            let since = model.diff.as_ref().map(|diff| diff.from.to_string());
+            let mut titles = vec!["Changes".to_owned()];
+            if let Some(since) = since {
+                titles.insert(0, format!("Changes since {since}"));
+            }
+            titles
+        }
     }
 }
 

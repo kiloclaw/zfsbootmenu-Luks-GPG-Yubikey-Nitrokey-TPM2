@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 use zbm_app::Encryption;
 
-use super::lists;
+use super::{health, lists};
 use crate::menu::format::{age, fit};
 use crate::menu::model::Model;
 use crate::menu::theme::Role;
@@ -22,11 +22,21 @@ const LABEL: usize = 12;
 
 /// Draws the main view.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let banner = u16::from(model.countdown_seconds().is_some());
-    let [top, area] =
-        Layout::vertical([Constraint::Length(banner), Constraint::Min(1)]).areas(area);
-    if banner > 0 {
-        countdown(model, frame, top);
+    let banner = health::banner(model);
+    let [top, area] = Layout::vertical([
+        Constraint::Length(u16::from(banner.is_some())),
+        Constraint::Min(1),
+    ])
+    .areas(area);
+    if let Some((forms, role)) = banner {
+        let width = usize::from(top.width);
+        let text = forms
+            .iter()
+            .find(|form| form.chars().count() <= width)
+            .or(forms.last())
+            .cloned()
+            .unwrap_or_default();
+        frame.render_widget(Paragraph::new(text).style(model.theme.style(role)), top);
     }
     let (list, detail) = if area.width >= WIDE {
         let [list, detail] =
@@ -34,37 +44,13 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
                 .areas(area);
         (list, detail)
     } else {
-        let lines = if area.height >= 17 { 8 } else { 5 };
+        let lines = if area.height >= 17 { 9 } else { 5 };
         let [list, detail] =
             Layout::vertical([Constraint::Min(4), Constraint::Length(lines)]).areas(area);
         (list, detail)
     };
     render_list(model, frame, list);
     render_detail(model, frame, detail);
-}
-
-/// The countdown banner, longest form that fits.
-fn countdown(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let (Some(seconds), Some(environment)) =
-        (model.countdown_seconds(), model.selected_environment())
-    else {
-        return;
-    };
-    let name = &environment.name;
-    let forms = [
-        format!(" Booting {name} in {seconds} s. Press any key to choose another."),
-        format!(" Booting {name} in {seconds} s."),
-        format!(" Booting in {seconds} s."),
-    ];
-    let width = usize::from(area.width);
-    let text = forms
-        .iter()
-        .find(|form| form.chars().count() <= width)
-        .or(forms.last())
-        .cloned()
-        .unwrap_or_default();
-    let style = model.theme.style(Role::Accent);
-    frame.render_widget(Paragraph::new(text).style(style), area);
 }
 
 /// The boot environments: the name, then its labels and the kernel that
@@ -94,10 +80,11 @@ fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     lists::render(model, frame, area, header, &model.environments, rows, empty);
 }
 
-/// The facts of a row: `locked`, `default`, and the kernel that boots.
+/// The facts of a row: problems, `next boot`, `locked`, `default`, and the
+/// kernel that boots.
 fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
     let theme = model.theme;
-    let mut facts = Vec::new();
+    let mut facts = health::badges(model, environment);
     if environment.encryption == Encryption::Locked {
         facts.push(Span::styled("locked  ", theme.style(Role::Locked)));
     }
@@ -142,6 +129,7 @@ fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .collect();
     let room = usize::from(area.height.saturating_sub(2));
     for section in [
+        health::check_lines(model, environment, width),
         kernel_lines(model, environment, width),
         snapshot_lines(model, environment, width),
     ] {
@@ -209,33 +197,11 @@ fn fact(model: &Model, label: &str, value: Vec<Span<'static>>) -> Line<'static> 
 fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> {
     let theme = model.theme;
     let dot = theme.dot();
-    let pool = model
-        .snapshot
-        .pools
-        .iter()
-        .find(|pool| pool.name == environment.name.pool());
-    let mut lines = Vec::new();
-    if let Some(pool) = pool {
-        let role = if pool.health == Health::Online {
-            Role::Good
-        } else {
-            Role::Warning
-        };
-        let mode = if pool.writable {
-            "read/write"
-        } else {
-            "read-only"
-        };
-        lines.push(fact(
-            model,
-            "Pool",
-            vec![
-                Span::raw(format!("{}{dot}", pool.name)),
-                Span::styled(pool.health.as_str(), theme.style(role)),
-                Span::raw(format!("{dot}{mode}")),
-            ],
-        ));
-    }
+    let mut lines: Vec<Line<'static>> = health::facts(model, environment)
+        .into_iter()
+        .map(|(label, value)| fact(model, label, value))
+        .collect();
+    lines.extend(pool_fact(model, environment));
     let kernel = environment
         .boot_kernel()
         .map_or_else(|| "none".to_owned(), |k| k.version.clone());
@@ -243,7 +209,10 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
     lines.push(fact(
         model,
         "Kernel",
-        vec![Span::raw(format!("{kernel}{dot}{count} kernels"))],
+        vec![Span::raw(format!(
+            "{kernel}{dot}{count} kernel{}",
+            if count == 1 { "" } else { "s" }
+        ))],
     ));
     let snapshots = match environment.snapshots.iter().max_by_key(|s| s.created) {
         Some(newest) => format!(
@@ -262,6 +231,36 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         command_line(model, environment),
     ));
     lines
+}
+
+/// The pool of an environment, its health and whether it is writable.
+fn pool_fact(model: &Model, environment: &Environment) -> Option<Line<'static>> {
+    let theme = model.theme;
+    let dot = theme.dot();
+    let pool = model
+        .snapshot
+        .pools
+        .iter()
+        .find(|pool| pool.name == environment.name.pool())?;
+    let role = if pool.health == Health::Online {
+        Role::Good
+    } else {
+        Role::Warning
+    };
+    let mode = if pool.writable {
+        "read/write"
+    } else {
+        "read-only"
+    };
+    Some(fact(
+        model,
+        "Pool",
+        vec![
+            Span::raw(format!("{}{dot}", pool.name)),
+            Span::styled(pool.health.as_str(), theme.style(role)),
+            Span::raw(format!("{dot}{mode}")),
+        ],
+    ))
 }
 
 fn encryption(model: &Model, environment: &Environment) -> Vec<Span<'static>> {

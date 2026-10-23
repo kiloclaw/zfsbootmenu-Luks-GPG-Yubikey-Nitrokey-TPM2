@@ -342,6 +342,7 @@ fn verb(action: &Action) -> &'static str {
         Action::CloneAndPromote(_) => "Promote",
         Action::RewindCheckpoint(_) => "Rewind",
         Action::Import(..) => "Force Import",
+        Action::RestoreFiles { .. } => "Restore",
         _ => "Continue",
     }
 }

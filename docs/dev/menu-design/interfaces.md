@@ -15,7 +15,9 @@ loads them and an event delivers them.
 | `startup` | the stages of start-up, each pending, running, done, failed with its reason, or skipped | `zbm-startup` |
 | `timeout` | the countdown: seconds, or none (wait), or skip (boot at once) | `zbm-config` |
 | `pools` | name, health, read-only or read/write, host ID, whether imported, whether it has a checkpoint, problems | `zbm-pool`, `zbm-zfs` |
-| `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of snapshots and the newest | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
+| `environments` | name, pool, default or not, encryption (none, locked, unlocked), kernels with the default marked, the command line with its origin, the number of snapshots and the newest, the checks of whether it will boot (name, verdict, what was found, the fix), its boot tries left of the total | `zbm-boot`, `zbm-kcl`, `zbm-zfs` |
+| `fallback` | when the default used up its boot tries: which, after how many, and what boots instead (an environment, or a clone of a snapshot) | `zbm-boot`, an EFI variable |
+| `next_boot` | the environment the running system asked to boot once | an EFI variable |
 | `volumes` | LUKS volumes: name, device, state (locked, open, failed, skipped), the key methods that apply, the pool it holds | `zbm-luks` |
 | `log` | the number of warnings and errors since start | `zbm-trace` |
 
@@ -35,6 +37,8 @@ stays right when the snapshot changes under it.
 | `Rollback` | snapshot, whether to take a safety snapshot first | snapshots |
 | `Clone`, `CloneAndPromote`, `Duplicate` | snapshot, new name | snapshots |
 | `Diff` | snapshot, and a second snapshot or the live filesystem | snapshots |
+| `RestoreFiles` | snapshot, the paths | changes |
+| `ResetBootTries` | environment | palette |
 | `Chroot` | environment or snapshot | main, snapshots |
 | `ImportReadWrite`, `RewindCheckpoint` | pool | main, pools |
 | `Import` | pool, policy (host ID, force), read-only or not | pools, import problem |
@@ -54,7 +58,7 @@ stays right when the snapshot changes under it.
 | `ImportProblem` | pool, the reason, the choices that apply | the import problem dialog (the `Operator` port of `zbm-pool`) |
 | `SnapshotChanged` | the new `Snapshot` | every view redraws |
 | `SnapshotsLoaded` | environment, the snapshots (name, creation, used, referenced) | the snapshots view |
-| `DiffReady` | the changes (path, kind) | the diff view |
+| `DiffReady` | the two ends, the changes (path, kind, new name of a rename, a preview of the difference) | the changes view |
 | `ActionStarted`, `ActionProgress`, `ActionFinished` | the action, progress as text and a fraction where known, the outcome (done, or failed with the error's cause chain and the next steps) | the notification line, the error dialog |
 | `LogLoaded` | the log entries | the log view |
 | `Leaving` | why the menu ends (booting, shell, reboot) | the last frame |
@@ -70,7 +74,8 @@ stays right when the snapshot changes under it.
   `ActionStarted`, `ActionProgress` and `ActionFinished`: the fake machine answers at once;
 - the import problem is answered with `Import` and a policy rather than `AnswerImportProblem`, and `UnlockRequested`
   carries the tries left, which `UnlockFinished` will carry in R4;
-- `Diff` returns its changes in the notification instead of a diff view.
+- the checks are computed once by the fake machine, where R4 runs them again when a pool is imported or a kernel
+  changes.
 
 ## The ports of R3
 

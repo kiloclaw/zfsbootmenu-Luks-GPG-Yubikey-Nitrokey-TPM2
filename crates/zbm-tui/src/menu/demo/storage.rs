@@ -43,7 +43,7 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         Action::Clone(name) => copy(snapshot, &name, "clone"),
         Action::Duplicate(name) => copy(snapshot, &name, "copy"),
         Action::CloneAndPromote(name) => copy(snapshot, &name, "promoted"),
-        Action::Diff(from, to) => diff(&from, to.as_ref()),
+        Action::ResetBootTries(name) => reset_tries(snapshot, &name),
         Action::ImportReadWrite(pool) => writable(snapshot, &pool),
         Action::RewindCheckpoint(pool) => rewind(snapshot, &pool),
         _ => return Vec::new(),
@@ -185,17 +185,44 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
         is_default: false,
         command_line,
         snapshots: Vec::new(),
+        tries: None,
         ..source
     });
     Outcome::Done(format!("{new} created from {}{}", name.name(), note))
 }
 
-fn diff(from: &SnapshotName, to: Option<&SnapshotName>) -> Outcome {
-    let to = to.map_or_else(|| "now".to_owned(), |to| to.name().to_owned());
-    Outcome::Done(format!(
-        "{} → {to}: 3 changes: M /etc/fstab, + /etc/modprobe.d/nvidia.conf, - /usr/lib/libdrm.so.2",
-        from.name()
-    ))
+/// Restores `count` paths from `from` into its environment: the pool is
+/// imported read/write and a safety snapshot taken first.
+pub(super) fn restore(snapshot: &mut Snapshot, from: &SnapshotName, count: usize) -> Outcome {
+    let environment = from.dataset();
+    let note = make_writable(snapshot, &environment.pool());
+    let safety = create(snapshot, environment, "before-restore");
+    let files = if count == 1 { "file" } else { "files" };
+    match safety {
+        Outcome::Done(_) => Outcome::Done(format!(
+            "{count} {files} of {environment} restored from {}{note}; @before-restore undoes it",
+            from.name()
+        )),
+        other => other,
+    }
+}
+
+/// Gives `name` its boot tries back, and ends the fallback it caused.
+fn reset_tries(snapshot: &mut Snapshot, name: &DatasetName) -> Outcome {
+    if snapshot
+        .fallback
+        .as_ref()
+        .is_some_and(|fallback| &fallback.failed == name)
+    {
+        snapshot.fallback = None;
+    }
+    match environment(snapshot, name).and_then(|e| e.tries.as_mut()) {
+        Some(tries) => {
+            tries.left = tries.total;
+            Outcome::Done(format!("{name} has its {} boot tries back", tries.total))
+        }
+        None => Outcome::Warning(format!("{name} does not count its boots")),
+    }
 }
 
 fn writable(snapshot: &mut Snapshot, pool: &PoolName) -> Outcome {
@@ -231,6 +258,7 @@ pub(super) fn add_backup_environment(snapshot: &mut Snapshot, pool: &PoolName) {
         name,
         is_default: true,
         snapshots: Vec::new(),
+        tries: None,
         command_line: CommandLine {
             value: "quiet".to_owned(),
             origin: Origin::Local,

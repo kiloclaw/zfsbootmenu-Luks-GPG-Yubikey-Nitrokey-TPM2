@@ -3,15 +3,15 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ---
   Boot Environments  tank DEGRADED · 3/3 open · ! 1
 ┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐
-│ ▶ tank/ROOT/arch         default  6.11.5-arch1-1 │
+│ ▶ tank/ROOT…  1 warning  default  6.11.5-arch1-1 │
 │   zroot/ROOT/void              default  6.12.9_1 │
-│   tank/ROOT/debian                6.1.0-26-amd64 │
+│   tank/ROOT/debian     1 problem  6.1.0-26-amd64 │
 │   zroot/ROOT/ubuntu             6.8.0-47-generic │
-│                                                  │
 │                                                  │
 │                                                  │
 └──────────────────────────────────────────────────┘
 ┌ tank/ROOT/arch ───────────────────────── default ┐
+│       Checks  ! tank has 4% free: writes during… │
 │         Pool  tank · DEGRADED · read/write       │
 │       Kernel  6.11.5-arch1-1 · 2 kernels         │
 │    Snapshots  2 · newest 2026-10-01, 22 d ago    │

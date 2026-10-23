@@ -40,6 +40,7 @@ measure (see [Measures](#measures)).
 | T5. Unlock volumes | Answer the prompt with the method offered, or choose another | The secret and Enter |
 | T6. Edit the command line once | Open the editor on the selection, edit, boot | 3 keys, plus the edit |
 | T7. Recover a failed boot | Read the problem, choose a next step (retry, import another way, shell, logs) | 2 keys from the problem view |
+| T8. Restore a file from a snapshot | Open the snapshots, choose one, see its changes, restore the selected file, confirm | 6 keys, plus the typed confirmation |
 
 Secondary tasks, reachable from the main view or the command palette in at most two steps: set the default
 environment or kernel, create a snapshot, clone or duplicate a snapshot, diff two snapshots, pool and volume status,
@@ -107,3 +108,4 @@ menu's key help, to be checked in the sessions.
 | T5 | the secret, Enter | 1 | 1 | 1 |
 | T6 | `e`, the edit, Enter | 2 | 3 | about 3 (Esc, `MOD+E`, the edit, Enter) |
 | T7 | Down, Enter from the problem | 2 | 2 | depends on `zbm.import_policy`; otherwise the recovery shell |
+| T8 | `s`, `o`, `f`, Enter, the name, Enter | 5 | 6 | none: chroot, then copy from `.zfs/snapshot` by hand |

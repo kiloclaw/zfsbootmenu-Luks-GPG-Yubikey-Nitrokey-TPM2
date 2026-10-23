@@ -6,9 +6,15 @@
 //! [`FakeMachine`](super::demo::FakeMachine); R4 moves them into `zbm-app`,
 //! and the menu then imports them from there.
 
+mod diff;
+mod health;
+
 use zbm_app::Encryption;
 use zbm_platform::secret::Secret;
 use zbm_types::{DatasetName, ImportPolicy, PoolName, SnapshotName};
+
+pub use self::diff::{Change, ChangeKind};
+pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 
 /// The machine, as every view reads it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -27,6 +33,11 @@ pub struct Snapshot {
     pub log: Log,
     /// The time the snapshot describes, in seconds since the epoch, for ages.
     pub now: u64,
+    /// The environment the running system asked to boot once
+    /// (`zbm next-boot`); start-up read and deleted the request.
+    pub next_boot: Option<DatasetName>,
+    /// The default environment used up its boot tries: what boots instead.
+    pub fallback: Option<Fallback>,
 }
 
 /// One stage of start-up.
@@ -123,6 +134,10 @@ pub struct Environment {
     /// Its snapshots, newest first; loaded on demand in R5 (see
     /// `docs/dev/menu-design/interfaces.md`), held in full by the prototype.
     pub snapshots: Vec<SnapshotInfo>,
+    /// Whether it will boot: the checks, empty when none ran.
+    pub checks: Vec<Check>,
+    /// Its boot counting, when `zbm.boot_tries` is set.
+    pub tries: Option<Tries>,
 }
 
 impl Environment {
@@ -321,6 +336,16 @@ pub enum Action {
     /// The differences between a snapshot and another one or the live
     /// filesystem.
     Diff(SnapshotName, Option<SnapshotName>),
+    /// Copy paths back from a snapshot into its environment, after a safety
+    /// snapshot.
+    RestoreFiles {
+        /// The snapshot.
+        snapshot: SnapshotName,
+        /// The paths, as the snapshot has them.
+        paths: Vec<String>,
+    },
+    /// Give an environment its boot tries back: mark it good.
+    ResetBootTries(DatasetName),
     /// A shell in a chroot of an environment, or of a snapshot read-only.
     Chroot(String),
     /// Import a pool read/write again.
@@ -370,6 +395,15 @@ pub enum Event {
         pool: PoolName,
         /// Why, for people.
         reason: String,
+    },
+    /// The differences a [`Action::Diff`] asked for.
+    DiffReady {
+        /// The snapshot.
+        from: SnapshotName,
+        /// The other snapshot; `None`: the live filesystem.
+        to: Option<SnapshotName>,
+        /// What changed.
+        changes: Vec<Change>,
     },
     /// An action finished.
     Finished(Outcome),
@@ -457,6 +491,8 @@ mod tests {
                 origin: Origin::Default,
             },
             snapshots: Vec::new(),
+            checks: Vec::new(),
+            tries: None,
         };
 
         assert_eq!(

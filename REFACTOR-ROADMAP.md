@@ -313,6 +313,11 @@ Done in D:
   a dimmed backdrop, a toolbar of at most five actions and `? More`, and title case. Glyphs are limited to those of
   the image's Terminus fonts, which have no check marks or rounded corners; a test of the wireframes reads the
   fonts' Unicode tables and fails on any other.
+- Boot health in the prototype (`docs/dev/menu-design/boot-health.md`): checks of whether each environment will
+  boot, shown on its row and in the inspector, with a *May Not Boot* sheet before booting one that fails; boot
+  counting, with a banner naming the fallback when the default used up its tries (`--failing`) and a palette
+  command to give them back; a one-time boot asked by the running system (`--next-boot`); and a Changes view of a
+  snapshot that restores marked files behind a safety snapshot. T8, restoring a file, takes 5 keys of its 6.
 - Decision 8 is proposed, not taken: the `fzf` menu's `MOD+key` bindings work as aliases in their old views, listed
   under *classic* in help, with no second profile. The usability sessions decide.
 - Left for the exit: the usability sessions (at least five people, one on a serial console), which need real users
