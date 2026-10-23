@@ -91,29 +91,45 @@ fn test_devices_program(root: &Path) -> Program {
 }
 
 /// Builds `zbm-vmtest` as the user and runs the VM tests `tests` (all of
-/// them when empty) as root, with `sudo -E` unless xtask already runs as
-/// root: ZFSBootMenu images booted in QEMU, which needs KVM, the build
-/// container and, for the disk and key setups, root
-/// (`docs/luks/testing.rst`).
+/// them when empty) as root, with `sudo` unless xtask already runs as root:
+/// ZFSBootMenu images booted in QEMU, which needs KVM, the build container
+/// and, for the disk and key setups, root (`docs/luks/testing.rst`). The
+/// harness's settings, the `ZBMTEST_*` variables, are passed through
+/// `env`: `sudo-rs` ignores `sudo -E`.
 ///
 /// # Errors
 ///
 /// When the build or a test fails.
 pub fn test_vm(root: &Path, tests: &[String]) -> Result<()> {
-    for program in test_vm_programs(root, tests, is_root()) {
+    let settings: Vec<(String, String)> = std::env::vars()
+        .filter(|(name, _)| name.starts_with("ZBMTEST_"))
+        .collect();
+    for program in test_vm_programs(root, tests, is_root(), &settings) {
         program.run()?;
     }
     Ok(())
 }
 
-/// The programs [`test_vm`] runs; `as_root` when xtask runs as root.
-fn test_vm_programs(root: &Path, tests: &[String], as_root: bool) -> Vec<Program> {
+/// The programs [`test_vm`] runs; `as_root` when xtask runs as root, with
+/// the harness's `settings` to pass through `sudo` otherwise.
+fn test_vm_programs(
+    root: &Path,
+    tests: &[String],
+    as_root: bool,
+    settings: &[(String, String)],
+) -> Vec<Program> {
     let build = cargo(root).args(["build", "--release", "--locked", "-p", "zbm-vmtest"]);
     let harness = root.join("target/release/zbm-vmtest").display().to_string();
     let run = if as_root {
         Program::new(&harness, root)
     } else {
-        Program::new("sudo", root).args(["-E", harness.as_str()])
+        let assignments = settings
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"));
+        Program::new("sudo", root)
+            .args(["env".to_owned()])
+            .args(assignments)
+            .args([harness.clone()])
     };
     vec![build, run.args(["run"]).args(tests)]
 }
@@ -304,8 +320,9 @@ mod tests {
     fn vm_tests_run_with_a_release_build_of_the_harness() {
         let tests = vec!["keys-setup".to_owned(), "keys-plugin".to_owned()];
 
-        let programs = test_vm_programs(Path::new("/w"), &tests, true);
-        let as_user = test_vm_programs(Path::new("/w"), &tests, false);
+        let settings = [("ZBMTEST_REUSE".to_owned(), "1".to_owned())];
+        let programs = test_vm_programs(Path::new("/w"), &tests, true, &settings);
+        let as_user = test_vm_programs(Path::new("/w"), &tests, false, &settings);
 
         assert_eq!(
             shown(&programs),
@@ -314,12 +331,13 @@ mod tests {
                 "/w/target/release/zbm-vmtest run keys-setup keys-plugin",
             ]
         );
-        // The harness runs as root; the build stays the user's.
+        // The harness runs as root with its settings; the build stays the
+        // user's.
         assert_eq!(
             shown(&as_user),
             [
                 "cargo build --release --locked -p zbm-vmtest",
-                "sudo -E /w/target/release/zbm-vmtest run keys-setup keys-plugin",
+                "sudo env ZBMTEST_REUSE=1 /w/target/release/zbm-vmtest run keys-setup keys-plugin",
             ]
         );
     }
