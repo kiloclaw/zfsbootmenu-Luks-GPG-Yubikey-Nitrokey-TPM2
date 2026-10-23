@@ -289,8 +289,9 @@ Needs the built-in menu (#12) with its text in a message catalogue, which REFACT
 For images with the Rust runtime, where `zbm console-autosize` chooses the font; the legacy hook keeps its fonts. It
 helps the kernel console until, and wherever, #19 replaces it.
 
-**Status:** the subsets are done: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, and the
-image and wireframe tests check them. Spleen and `Global.ConsoleFont` remain.
+**Status:** the subsets are done: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
+and wireframe tests check them, and the VM test `runtime-rust-autosize` loads them on a real kernel, doubled too.
+Spleen, `Global.ConsoleFont` and the check of the colours on VGA text and framebuffer consoles remain.
 
 - **Why:**
   - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
