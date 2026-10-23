@@ -109,7 +109,7 @@ pub(super) fn hotplug(test: &Test, auto: &Image) -> Result<()> {
     let follow = passphrases().on(Kind::Missing, move |vm| vm.hotplug_disk(&d0, "d0"));
     let boot = follow_boot(&mut vm, follow)?;
     test.check(
-        boot.saw("luks"),
+        boot.has_prompt("luks"),
         &format!("prompts: {}", boot.prompts_text()),
     );
     expect_healthy(test, &boot, Expect::default())
@@ -163,7 +163,7 @@ pub(super) fn badkey(test: &Test, auto: &Image) -> Result<()> {
     };
     let boot = follow_boot(&mut vm, follow)?;
     test.check(
-        boot.saw("keyload-failed"),
+        boot.has_prompt("keyload-failed"),
         "a wrong ZFS key ends in the recovery shell (root mount failure)",
     );
     vm.shell_ready()?;

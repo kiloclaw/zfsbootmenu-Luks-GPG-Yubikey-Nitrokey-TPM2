@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn a_table_with_512_byte_sectors_passes_sgdisk_verification() {
-        if !crate::settings::find_program("sgdisk") {
+        if !crate::settings::program_exists("sgdisk") {
             return;
         }
         let path = std::env::temp_dir().join(format!("zbm-vmtest-gpt512-{}", std::process::id()));

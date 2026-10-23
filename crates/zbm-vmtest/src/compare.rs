@@ -123,7 +123,7 @@ pub fn report(differences: &[Difference]) -> String {
 /// Compares the tests `tests` (all of either run when empty) of the work
 /// directories `first` and `second`; prints a report and returns whether
 /// they have the same checks with the same verdicts.
-pub fn run(first: &Path, second: &Path, tests: &[String]) -> bool {
+pub fn has_same_checks(first: &Path, second: &Path, tests: &[String]) -> bool {
     let tests = if tests.is_empty() {
         test_names(first, second)
     } else {
@@ -249,8 +249,8 @@ mod tests {
         write("py", "keys-notpm", "[1] ok   - a\n");
         let (py, rs) = (settings.work.join("py"), settings.work.join("rs"));
 
-        assert!(run(&py, &rs, &["keys-plugin".to_owned()]));
-        assert!(!run(&py, &rs, &[]));
+        assert!(has_same_checks(&py, &rs, &["keys-plugin".to_owned()]));
+        assert!(!has_same_checks(&py, &rs, &[]));
         assert_eq!(test_names(&py, &rs), ["keys-notpm", "keys-plugin"]);
         crate::testing::cleanup(&settings);
     }

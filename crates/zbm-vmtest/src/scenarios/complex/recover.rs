@@ -51,7 +51,7 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
     };
     let boot = follow_boot(&mut vm, follow)?;
     test.check(
-        boot.saw("menu"),
+        boot.has_prompt("menu"),
         "the boot menu lists tank's boot environment after the shell",
     );
     // mixed and parts were imported, read-only, through their unencrypted

@@ -97,7 +97,9 @@ fn execute(command: Command) -> Result<bool, String> {
             let outcome = scenarios::run(&settings, &test).map_err(|error| error.to_string())?;
             Ok(outcome.is_pass())
         }
-        Command::Compare(first, second, tests) => Ok(compare::run(&first, &second, &tests)),
+        Command::Compare(first, second, tests) => {
+            Ok(compare::has_same_checks(&first, &second, &tests))
+        }
     }
 }
 

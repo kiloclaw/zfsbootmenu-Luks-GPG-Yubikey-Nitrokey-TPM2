@@ -89,7 +89,7 @@ pub struct Settings {
 impl Settings {
     /// The settings from the environment.
     pub fn from_env() -> Settings {
-        let docker = find_program("docker");
+        let docker = program_exists("docker");
         let kvm = Path::new("/dev/kvm").exists()
             && std::fs::OpenOptions::new()
                 .write(true)
@@ -144,7 +144,7 @@ fn default_repo() -> PathBuf {
 }
 
 /// Whether `program` is in a directory of `PATH`.
-pub fn find_program(program: &str) -> bool {
+pub fn program_exists(program: &str) -> bool {
     env::var_os("PATH")
         .is_some_and(|path| env::split_paths(&path).any(|dir| dir.join(program).is_file()))
 }

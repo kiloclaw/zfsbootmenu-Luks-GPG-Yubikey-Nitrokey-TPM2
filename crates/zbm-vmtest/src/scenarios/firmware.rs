@@ -301,7 +301,7 @@ fn boot(test: &Test, files: &Files, scenario: &str, uuid: &str) -> Result<Boot> 
         "usbkey" => {
             let boot = follow_boot(&mut vm, Follow::default())?;
             test.check(
-                !boot.saw("luks"),
+                !boot.has_prompt("luks"),
                 &format!(
                     "no passphrase prompt: the key file on the stick was used ({})",
                     boot.prompts_text()
@@ -322,7 +322,7 @@ fn usblate(test: &Test, vm: &mut Vm<'_>, stick: &Path) -> Result<Boot> {
     vm.hotplug_usb(stick, "usb0")?;
     let boot = follow_boot(vm, Follow::default())?;
     test.check(
-        !boot.saw("luks"),
+        !boot.has_prompt("luks"),
         &format!(
             "no passphrase prompt after the stick arrived ({})",
             boot.prompts_text()
@@ -380,7 +380,7 @@ fn checks(test: &Test, boot: &Boot, uuid: &str) {
         "boot environment: TRIM and no-workqueue flags active",
     );
     test.check(
-        !boot.saw("be-luks-prompt"),
+        !boot.has_prompt("be-luks-prompt"),
         "the boot environment did not ask for a passphrase",
     );
 }

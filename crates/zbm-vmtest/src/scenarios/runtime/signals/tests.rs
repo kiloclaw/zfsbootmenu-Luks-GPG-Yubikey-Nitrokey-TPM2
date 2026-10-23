@@ -19,7 +19,7 @@ fn masks_are_read_from_proc_status_lines() {
     let masks = masks(STATUS).unwrap();
 
     assert_eq!(masks, complete("0000000000000000"));
-    assert!(masks.complete());
+    assert!(masks.is_complete());
     assert_eq!(
         masks.text(),
         "{'SigBlk': '0000000000000000', 'SigIgn': '0000000000384004', \
@@ -32,7 +32,7 @@ fn a_repeated_mask_keeps_its_place_and_takes_the_last_value() {
     let masks = masks("SigIgn: 1 SigBlk: 2 SigIgn: 3 SigQ: 4").unwrap();
 
     assert_eq!(masks.text(), "{'SigIgn': '3', 'SigBlk': '2'}");
-    assert!(!masks.complete());
+    assert!(!masks.is_complete());
     assert_eq!(Masks::default().text(), "{}");
 }
 

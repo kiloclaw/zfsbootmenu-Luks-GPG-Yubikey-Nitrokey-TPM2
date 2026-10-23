@@ -277,6 +277,14 @@ Done in R3:
   `zbm-luks`, whose test lines had counted as covered; new tests of the error paths and of the cryptsetup plugin
   paths for FIDO2 and TPM2 bring both back to their baselines. Behaviour is unchanged: unit, parity and device tests
   pass.
+- The VM harness in Rust (R3.6, in progress): `zbm-vmtest` has every scenario of the Python harness (layouts,
+  complex, keys, firmware, procedures with the documentation's commands, runtime) and `zbm-vmtest run` replaces
+  `run-all.sh`. QEMU's serial console goes to a Unix socket, read by a thread into the log, a `vt100` screen and
+  the text patterns match, without escape sequences; `expect` keeps `pexpect`'s rule (the earliest match wins).
+  Check messages are written as the Python harness wrote them, so that `zbm-vmtest compare` sets two runs side by
+  side message by message. A test that cannot go on records why as a failed check and still writes its result.
+  The harness itself is unit tested against scripted consoles, and booted once against a host kernel; its
+  scenarios run only in VMs. Left: the side-by-side runs on a host with KVM, then removing the Python harness.
 
 ## What the pilots taught
 

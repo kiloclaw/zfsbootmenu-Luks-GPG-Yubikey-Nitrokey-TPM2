@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use super::host::{find_tool, host_user_command};
+use super::host::{host_user_command, is_on_path};
 use crate::error::{Error, Result};
 use crate::expect::regex;
 use crate::images::{ImageSpec, zbm_image};
@@ -131,7 +131,7 @@ fn symbolize(test: &Test, report: &Path, debug: &Path) -> Result<()> {
     let command = host_user_command(&args)?;
     let missing: Vec<&str> = ["cargo", "addr2line"]
         .into_iter()
-        .filter(|tool| !find_tool(tool, &command.path))
+        .filter(|tool| !is_on_path(tool, &command.path))
         .collect();
     let ran = if missing.is_empty() {
         run_host(&command.args, &test.settings().repo)?

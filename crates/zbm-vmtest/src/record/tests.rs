@@ -16,8 +16,8 @@ fn a_test_records_its_checks_and_writes_its_result() {
     let settings = settings("record");
     let test = Test::new(&settings, "layouts-main").unwrap();
 
-    assert!(test.check(true, "zpool create tsingle"));
-    assert!(!test.check(false, "ZFSBootMenu imported tank: None"));
+    test.check(true, "zpool create tsingle");
+    test.check(false, "ZFSBootMenu imported tank: None");
     test.note("a note");
     test.show("one\n\n  two\n");
     let outcome = test.finish();

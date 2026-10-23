@@ -64,14 +64,14 @@ pub(super) fn new_states(features: &Features) -> String {
 }
 
 /// Whether every feature of [`NEW_IN_24`] is in `wanted` state.
-pub(super) fn all_new(features: &Features, wanted: &str) -> bool {
+pub(super) fn has_all_new(features: &Features, wanted: &str) -> bool {
     NEW_IN_24
         .iter()
         .all(|feature| state(features, feature) == Some(wanted))
 }
 
 /// Whether `zpool upgrade` enabled the features it can enable.
-fn upgraded(features: &Features) -> bool {
+fn is_upgraded(features: &Features) -> bool {
     state(features, "block_cloning_endian") == Some("enabled")
         && state(features, "physical_rewrite") == Some("enabled")
 }
@@ -104,7 +104,7 @@ fn create_pools(run: &mut Run<'_>) -> Result<()> {
         ))?;
         let features = feature_states(&mut run.vm, pool)?;
         test.check(
-            all_new(&features, "disabled"),
+            has_all_new(&features, "disabled"),
             &format!(
                 "{pool}: openzfs-2.3-linux leaves the 2.4 features disabled ({})",
                 new_states(&features)
@@ -141,7 +141,7 @@ fn upgrade_zroot(run: &mut Run<'_>) -> Result<()> {
     run.doc_with(ZV, "Upgrading a Pool", &[DGH_SET], &[])?;
     let features = feature_states(&mut run.vm, "zroot")?;
     test.check(
-        upgraded(&features),
+        is_upgraded(&features),
         "openzfs-2.4-linux and zpool upgrade enable block_cloning_endian and physical_rewrite",
     );
     let dgh = state(&features, "dynamic_gang_header");
@@ -156,7 +156,7 @@ fn upgrade_zroot(run: &mut Run<'_>) -> Result<()> {
     let (rc, _) = run.vm.sh_show(command)?;
     let features = feature_states(&mut run.vm, "zroot")?;
     test.check(
-        rc == 0 && all_new(&features, "enabled"),
+        rc == 0 && has_all_new(&features, "enabled"),
         &format!(
             "Upgrading a Pool: the 2.4 features are enabled ({})",
             new_states(&features)
@@ -173,7 +173,7 @@ fn upgrade_zoff(run: &mut Run<'_>) -> Result<()> {
         .sh_show("zpool set compatibility=off zoff && zpool upgrade zoff")?;
     let features = feature_states(&mut run.vm, "zoff")?;
     test.check(
-        upgraded(&features),
+        is_upgraded(&features),
         "compatibility=off: zpool upgrade enables block_cloning_endian and physical_rewrite",
     );
     let dgh = state(&features, "dynamic_gang_header");

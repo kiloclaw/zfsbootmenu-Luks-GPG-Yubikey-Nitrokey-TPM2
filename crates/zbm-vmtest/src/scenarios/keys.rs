@@ -160,7 +160,7 @@ fn tokens(test: &Test, scenario: &str) -> Result<()> {
         ),
     );
     test.check(
-        !boot.saw("luks"),
+        !boot.has_prompt("luks"),
         "no fallback to the LUKS passphrase: zfs2 was unlocked by its second token (clevis)",
     );
     boot_checks(test, &boot);
@@ -206,7 +206,7 @@ fn lockout(test: &Test, tpm: &Swtpm) -> Result<()> {
         "ZFSBootMenu explains the TPM lockout",
     );
     test.check(
-        boot.saw("luks"),
+        boot.has_prompt("luks"),
         &format!(
             "falls back to the passphrase after the lockout ({})",
             boot.prompts_text()
@@ -231,9 +231,12 @@ fn notpm(test: &Test) -> Result<()> {
         .answer(Kind::Luks, &[PW, PW, PW])
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
-    test.check(!boot.saw("tpm2pin"), "no TPM2 PIN prompt without a TPM");
     test.check(
-        boot.saw("luks"),
+        !boot.has_prompt("tpm2pin"),
+        "no TPM2 PIN prompt without a TPM",
+    );
+    test.check(
+        boot.has_prompt("luks"),
         &format!(
             "TPM2 volumes fall back to the passphrase ({})",
             boot.prompts_text()

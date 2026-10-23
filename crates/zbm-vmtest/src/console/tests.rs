@@ -97,7 +97,7 @@ fn a_closed_console_ends_the_wait() {
     let error = console.expect(&["RC="], SECOND * 5).unwrap_err();
 
     assert!(matches!(error, Error::Eof { .. }));
-    assert!(console.expect_eof(SECOND));
+    assert!(console.expect_eof(SECOND).is_ok());
 }
 
 #[test]
@@ -105,10 +105,10 @@ fn expect_eof_waits_for_the_end_and_keeps_the_rest() {
     let (mut console, mut vm, _log) = console();
 
     vm.write_all(b"sysrq: Power Off\r\n").unwrap();
-    assert!(!console.expect_eof(Duration::from_millis(50)));
+    assert!(console.expect_eof(Duration::from_millis(50)).is_err());
     drop(vm);
 
-    assert!(console.expect_eof(SECOND));
+    assert!(console.expect_eof(SECOND).is_ok());
     assert_eq!(console.before(), "sysrq: Power Off\n");
 }
 

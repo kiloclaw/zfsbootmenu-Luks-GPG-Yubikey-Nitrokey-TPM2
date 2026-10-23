@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 
 use super::devices::{links, table};
 use super::session::{Run, count, first_line, substitute};
-use super::upgrade::{all_new, new_states, parse_features, state};
+use super::upgrade::{has_all_new, new_states, parse_features, state};
 use super::verify::check_boot;
 use crate::boot::Boot;
 use crate::record::Test;
@@ -123,7 +123,7 @@ fn feature_states_are_read_from_zpool_get() {
     assert_eq!(state(&features, "async_destroy"), Some("enabled"));
     assert_eq!(state(&features, "fast_dedup"), None);
     assert_eq!(new_states(&features), "['disabled', 'disabled', None]");
-    assert!(!all_new(&features, "disabled"));
+    assert!(!has_all_new(&features, "disabled"));
 }
 
 #[test]
@@ -133,7 +133,7 @@ fn every_new_feature_in_a_state_is_reported() {
          feature@dynamic_gang_header enabled",
     );
 
-    assert!(all_new(&features, "enabled"));
+    assert!(has_all_new(&features, "enabled"));
     assert_eq!(new_states(&features), "['enabled', 'enabled', 'enabled']");
 }
 

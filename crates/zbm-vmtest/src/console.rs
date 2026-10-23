@@ -163,14 +163,22 @@ impl Console {
         }
     }
 
-    /// Waits up to `timeout` for the console to close; returns whether it
-    /// did. What it showed until then is [`Console::before`].
-    pub fn expect_eof(&mut self, timeout: Duration) -> bool {
+    /// Waits up to `timeout` for the console to close. What it showed
+    /// until then is [`Console::before`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Timeout`] when it is still open.
+    pub fn expect_eof(&mut self, timeout: Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
         let mut guard = lock(&self.state);
         while !guard.eof {
             let Some(left) = deadline.checked_duration_since(Instant::now()) else {
-                return false;
+                return Err(Error::Timeout {
+                    patterns: vec!["the end of the console".into()],
+                    seconds: timeout.as_secs(),
+                    tail: tail(&guard.text),
+                });
             };
             guard = self
                 .state
@@ -180,7 +188,7 @@ impl Console {
                 .0;
         }
         self.before = std::mem::take(&mut guard.text);
-        true
+        Ok(())
     }
 
     fn compile(&mut self, patterns: &[&str]) -> Result<Vec<Regex>> {

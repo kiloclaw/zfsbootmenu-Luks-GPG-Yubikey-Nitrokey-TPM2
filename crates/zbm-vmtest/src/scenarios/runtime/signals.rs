@@ -77,7 +77,7 @@ impl Masks {
 
     /// Whether every disposition of [`SIG_KEYS`], and only those, was
     /// reported.
-    fn complete(&self) -> bool {
+    fn is_complete(&self) -> bool {
         let mut keys: Vec<&str> = self.0.iter().map(|(key, _)| key.as_str()).collect();
         let mut expected = SIG_KEYS;
         keys.sort_unstable();
@@ -229,13 +229,16 @@ fn verify(test: &Test, runtime: ZbmRuntime, result: &Dispositions) -> Result<()>
         result.fzf.text(),
         result.shell.text()
     ));
-    test.check(result.hook.complete(), "the hook reported its dispositions");
     test.check(
-        result.shell.complete(),
+        result.hook.is_complete(),
+        "the hook reported its dispositions",
+    );
+    test.check(
+        result.shell.is_complete(),
         "the recovery shell reported its dispositions",
     );
     if runtime == ZbmRuntime::Legacy {
-        test.check(result.fzf.complete(), "fzf's dispositions were recorded");
+        test.check(result.fzf.is_complete(), "fzf's dispositions were recorded");
         return Ok(());
     }
     let reference = test

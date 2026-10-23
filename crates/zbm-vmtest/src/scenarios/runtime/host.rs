@@ -72,7 +72,7 @@ fn home_in_passwd(passwd: &str, user: &str) -> Option<String> {
 
 /// Whether `tool` is an executable file in a directory of `path`, as
 /// Python's `shutil.which(tool, path=path)` finds it.
-pub(super) fn find_tool(tool: &str, path: &str) -> bool {
+pub(super) fn is_on_path(tool: &str, path: &str) -> bool {
     path.split(':')
         .filter(|dir| !dir.is_empty())
         .map(|dir| Path::new(dir).join(tool))
@@ -146,10 +146,10 @@ mod tests {
         fs::set_permissions(dir.join("tool"), fs::Permissions::from_mode(0o755)).unwrap();
         let path = format!("/nonexistent::{}", dir.display());
 
-        let found = (find_tool("tool", &path), find_tool("data", &path));
+        let found = (is_on_path("tool", &path), is_on_path("data", &path));
 
         assert_eq!(found, (true, false));
-        assert!(!find_tool("tool", "/nonexistent"));
+        assert!(!is_on_path("tool", "/nonexistent"));
         fs::remove_dir_all(&dir).ok();
     }
 }

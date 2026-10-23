@@ -142,8 +142,8 @@ impl Test {
         writeln!(tally.log, "{line}").ok();
     }
 
-    /// Records a check; returns whether it passed.
-    pub fn check(&self, passed: bool, message: &str) -> bool {
+    /// Records a check.
+    pub fn check(&self, passed: bool, message: &str) {
         self.step(&format!(
             "{}{message}",
             if passed { "ok   - " } else { "FAIL - " }
@@ -154,7 +154,6 @@ impl Test {
         } else {
             tally.failures.push(message.to_owned());
         }
-        passed
     }
 
     /// Records a note.

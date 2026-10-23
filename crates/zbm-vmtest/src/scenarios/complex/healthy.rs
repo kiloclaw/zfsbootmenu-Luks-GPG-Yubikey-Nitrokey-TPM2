@@ -72,7 +72,7 @@ pub(super) fn expect_healthy(test: &Test, boot: &Boot, expect: Expect<'_>) -> Re
     }
     check_teardown(test, boot, expect.readonly);
     test.check(
-        boot.saw("be-zfskey"),
+        boot.has_prompt("be-zfskey"),
         "boot environment asked for the ZFS key of its encrypted root",
     );
     let be_states = expect.be_states.unwrap_or(expect.states);

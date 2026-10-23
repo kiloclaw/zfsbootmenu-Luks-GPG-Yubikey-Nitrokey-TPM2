@@ -127,7 +127,7 @@ pub struct Boot {
 
 impl Boot {
     /// Whether a prompt or event of that name was recorded.
-    pub fn saw(&self, name: &str) -> bool {
+    pub fn has_prompt(&self, name: &str) -> bool {
         self.prompts.iter().any(|prompt| prompt == name)
     }
 
@@ -329,49 +329,77 @@ pub fn follow_boot(vm: &mut Vm<'_>, mut follow: Follow<'_>) -> Result<Boot> {
     loop {
         let patterns: Vec<&str> = kinds.iter().map(|kind| kind.pattern()).collect();
         let kind = kinds[vm.expect(&patterns, timeout)?];
-        match kind {
-            Kind::Status => break,
-            Kind::KeyLoad => {
-                boot.prompts.push("keyload-failed".into());
-                return Ok(boot);
-            }
-            Kind::Refused => {
-                refused(vm, &mut boot)?;
-                break;
-            }
-            Kind::Menu => {
-                boot.prompts.push("menu".into());
-                vm.test().step("boot menu -> Enter");
-                thread::sleep(Duration::from_secs(2));
-                vm.send("\r")?;
-                kinds.retain(|&known| known != Kind::Menu);
-            }
-            Kind::Emergency => {
-                // ZFSBootMenu found nothing to boot; the caller may open
-                // the shell.
-                boot.prompts.push("emergency".into());
-                vm.test().step("ZFSBootMenu dropped to its emergency shell");
-                return Ok(boot);
-            }
-            Kind::Missing | Kind::Retry => {
-                if let Some(callback) = follow.on.remove(&kind) {
-                    callback(vm)?;
-                }
-                if kind == Kind::Retry {
-                    vm.expect1("seconds", 120)?;
-                }
-            }
-            Kind::Luks | Kind::ZfsKey | Kind::Tpm2Pin | Kind::Gpg => {
-                answer(vm, &mut boot, &mut follow, kind)?;
-            }
+        match on_prompt(vm, &mut boot, &mut follow, kind)? {
+            Next::Wait => {}
+            Next::WaitWithoutMenu => kinds.retain(|&known| known != Kind::Menu),
+            Next::Reports => break,
+            Next::Stop => return Ok(boot),
         }
     }
     reports(vm, &mut boot)?;
-    if follow.no_be || boot.saw("refused") {
+    if follow.no_be || boot.has_prompt("refused") {
         return Ok(boot);
     }
     follow_be(vm, &mut boot, timeout)?;
     Ok(boot)
+}
+
+/// What [`follow_boot`] does after a prompt.
+enum Next {
+    /// Waits for the next prompt.
+    Wait,
+    /// Waits for the next prompt; the menu was left.
+    WaitWithoutMenu,
+    /// Reads the reports of the test hooks.
+    Reports,
+    /// Stops: the boot ends here.
+    Stop,
+}
+
+/// Acts on a prompt of `kind`.
+fn on_prompt(
+    vm: &mut Vm<'_>,
+    boot: &mut Boot,
+    follow: &mut Follow<'_>,
+    kind: Kind,
+) -> Result<Next> {
+    match kind {
+        Kind::Status => return Ok(Next::Reports),
+        Kind::KeyLoad => {
+            boot.prompts.push("keyload-failed".into());
+            return Ok(Next::Stop);
+        }
+        Kind::Refused => {
+            refused(vm, boot)?;
+            return Ok(Next::Reports);
+        }
+        Kind::Menu => {
+            boot.prompts.push("menu".into());
+            vm.test().step("boot menu -> Enter");
+            thread::sleep(Duration::from_secs(2));
+            vm.send("\r")?;
+            return Ok(Next::WaitWithoutMenu);
+        }
+        Kind::Emergency => {
+            // ZFSBootMenu found nothing to boot; the caller may open the
+            // shell.
+            boot.prompts.push("emergency".into());
+            vm.test().step("ZFSBootMenu dropped to its emergency shell");
+            return Ok(Next::Stop);
+        }
+        Kind::Missing | Kind::Retry => {
+            if let Some(callback) = follow.on.remove(&kind) {
+                callback(vm)?;
+            }
+            if kind == Kind::Retry {
+                vm.expect1("seconds", 120)?;
+            }
+        }
+        Kind::Luks | Kind::ZfsKey | Kind::Tpm2Pin | Kind::Gpg => {
+            answer(vm, boot, follow, kind)?;
+        }
+    }
+    Ok(Next::Wait)
 }
 
 /// Answers a prompt of `kind`.
@@ -476,7 +504,7 @@ fn follow_be(vm: &mut Vm<'_>, boot: &mut Boot, timeout: u64) -> Result<()> {
             .or_default()
             .push(value.trim().to_owned());
     }
-    if !vm.expect_eof(300) {
+    if vm.expect_eof(300).is_err() {
         vm.kill();
     }
     vm.stop_tpm();
@@ -498,7 +526,7 @@ pub fn check_be(
             .map_or("ONLINE", |(_, state)| *state)
     };
     test.check(
-        !boot.saw("BE-INIT-START") && !boot.be.is_empty(),
+        !boot.has_prompt("BE-INIT-START") && !boot.be.is_empty(),
         "kexec into the ZFS 2.4.4 boot environment",
     );
     if boot.be.is_empty() {

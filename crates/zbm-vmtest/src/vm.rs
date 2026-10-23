@@ -205,9 +205,12 @@ impl<'t> Vm<'t> {
         self.expect(&[pattern], seconds).map(drop)
     }
 
-    /// Waits up to `seconds` for the machine to stop; returns whether it
-    /// did.
-    pub fn expect_eof(&mut self, seconds: u64) -> bool {
+    /// Waits up to `seconds` for the machine to stop.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Timeout`] when it is still running.
+    pub fn expect_eof(&mut self, seconds: u64) -> Result<()> {
         self.console.expect_eof(Duration::from_secs(seconds))
     }
 
@@ -428,7 +431,7 @@ impl<'t> Vm<'t> {
     /// [`Error::Io`] when the console is closed.
     pub fn poweroff(&mut self) -> Result<()> {
         self.sendline("echo o > /proc/sysrq-trigger")?;
-        if !self.expect_eof(180) {
+        if self.expect_eof(180).is_err() {
             self.kill();
         }
         if let Some(child) = &mut self.child {

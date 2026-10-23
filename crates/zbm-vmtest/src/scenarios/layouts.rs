@@ -24,7 +24,7 @@
 //! `traidz2` imports read-only with a warning, and the ZFS 2.4.4 boot
 //! environment still boots.
 
-use crate::boot::{Follow, check_be, check_teardown, follow_boot, pool_block};
+use crate::boot::{Boot, Follow, check_be, check_teardown, follow_boot, pool_block};
 use crate::error::{Error, Result};
 use crate::expect::regex;
 use crate::images::{ImageSpec, hostid_arg, zbm_image};
@@ -227,6 +227,16 @@ fn verify(test: &Test, name: &str, group: &Group) -> Result<()> {
             boot.prompts_text()
         ),
     );
+    check_pools(test, &boot, group)?;
+    check_teardown(test, &boot, &[]);
+    let names: Vec<&str> = group.pools.iter().map(|pool| pool.name).collect();
+    check_be(test, &boot, group.root, &names, &[]);
+    check_features(test, &boot, name, group);
+    Ok(())
+}
+
+/// The pools in ZFSBootMenu's status: imported, with their vdevs, on LUKS.
+fn check_pools(test: &Test, boot: &Boot, group: &Group) -> Result<()> {
     let pools = boot.pools();
     let mapping = regex(r"/dev/mapper/luks-\S+\s+(ONLINE|AVAIL)")?;
     for pool in group.pools {
@@ -247,9 +257,11 @@ fn verify(test: &Test, name: &str, group: &Group) -> Result<()> {
             &format!("{} vdevs are LUKS mappings", pool.name),
         );
     }
-    check_teardown(test, &boot, &[]);
-    let names: Vec<&str> = group.pools.iter().map(|pool| pool.name).collect();
-    check_be(test, &boot, group.root, &names, &[]);
+    Ok(())
+}
+
+/// The features the boot environment reports.
+fn check_features(test: &Test, boot: &Boot, name: &str, group: &Group) {
     let features = boot.be_features();
     let feature = |pool: &str, name: &str| {
         features
@@ -283,7 +295,6 @@ fn verify(test: &Test, name: &str, group: &Group) -> Result<()> {
             "blake3 active on raidz3",
         );
     }
-    Ok(())
 }
 
 /// Boots the pools of a group with an image with an older ZFS.
@@ -303,7 +314,7 @@ fn oldzfs(test: &Test, name: &str) -> Result<()> {
     )?);
     let mut vm = Vm::start(test, "oldzfs", &machine)?;
     let boot = follow_boot(&mut vm, Follow::default())?;
-    if boot.saw("emergency") {
+    if boot.has_prompt("emergency") {
         // Records why nothing could be booted.
         vm.shell_ready()?;
         for command in [
