@@ -93,7 +93,6 @@ What the finished phases left open, and the phase that takes it:
 
 | Item | From | To |
 | --- | --- | --- |
-| Shadow mode does not compare the key sources of encryption roots: the Rust code does not decide them yet | R1 | R4 |
 | The menu timeout is the text of `/etc/zfsbootmenu.conf` (`+5`); it becomes a type when the menu counts it down | R1 | R5 |
 | The start-up's pool import and `zbm-boot` run `zfs` and `zpool` with the legacy command lines rather than the typed port, so that their parity recordings compare | R2, R3 | R5, where behaviour may change, or R9, when parity ends |
 | Fixtures of OpenZFS 2.2 and 2.3, and the two `oldzfs` VM tests, which need images with an older ZFS | R2 | When such images exist ([proposal](#proposals-for-later) 10) |
@@ -798,8 +797,13 @@ builds after the core tasks.
    traced runner (`System::with_runner`), as `zbm-app` did, so the journal records start-up's commands too. On 59834ed,
    `runtime-rust-saved` passes 36 checks with the reports read in its recovery shell, `runtime-rust` 15, and the
    `secrets` tests find no secret with start-up's commands in the journal.
-5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a
-   difference.
+5. **Built; VM tests to run.** The Rust code decides where the key of an encryption root comes from
+   (`zbm_boot::keys::key_source`: the prompt, a key file in the image, or a key file copied from
+   `org.zfsbootmenu:keysource`, in the legacy order) and shadow mode compares it (`key source`). The LUKS mapping
+   names that shadow mode expects are those the unlock use cases give (`zbm_luks::device::mapping_name`, a detached
+   header included). The use cases of import and booting arrive in R5 with port package C, and shadow mode covers
+   them then. A new VM test, `runtime-legacy-keysource`, boots a boot environment whose key comes from its key
+   source.
 
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
   the applets already need (boot the default environment, unlock, close, import). Their shape follows the lists

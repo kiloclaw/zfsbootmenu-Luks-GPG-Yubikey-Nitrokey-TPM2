@@ -63,6 +63,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-hooks",
     "runtime-legacy-signals",
     "runtime-rust-signals",
+    "runtime-legacy-keysource",
     "runtime-rust-pilot",
     "runtime-rust-crash",
     "runtime-rust-autosize",

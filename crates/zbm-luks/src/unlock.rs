@@ -11,7 +11,7 @@ use zbm_tools::devices::Devices;
 
 use crate::config::Options;
 use crate::device::{
-    canonical, default_name, describe_device, is_block_device, is_open, resolve_device,
+    canonical, describe_device, is_block_device, is_open, mapping_name, resolve_device,
 };
 use crate::error::LuksError;
 use crate::mappings::Origin;
@@ -110,11 +110,7 @@ impl Unlocker<'_> {
             return Err(LuksError::NotLuks { header });
         }
 
-        let name = if name.is_empty() {
-            default_name(self.system(), &header)
-        } else {
-            name.to_owned()
-        };
+        let name = mapping_name(self.system(), name, &header);
         if self.system().files.exists(Path::new(&self.mapper(&name))) {
             zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
             return Err(LuksError::MappingExists { name });

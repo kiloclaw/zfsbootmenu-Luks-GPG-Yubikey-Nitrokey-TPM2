@@ -12,7 +12,8 @@
 //! - the pools imported, and that they are read-only;
 //! - the mapping name of each LUKS volume the legacy runtime opened;
 //! - the default boot environment;
-//! - the kernel and initramfs of the selected boot environment.
+//! - the kernel and initramfs of the selected boot environment;
+//! - where the key of its encryption root came from ([`crate::keys`]).
 //!
 //! Each phase of the refactoring adds the decisions it moves. A decision
 //! whose inputs are missing is left out, not counted as a difference.
@@ -25,7 +26,7 @@ use std::fmt::Write as _;
 use zbm_platform::System;
 use zbm_state::State;
 
-pub use decisions::{boot_environment, host_id, kernel, luks_mappings, pools};
+pub use decisions::{boot_environment, host_id, kernel, key_source, luks_mappings, pools};
 
 /// What the legacy runtime passes to `boot-sel.d` hooks.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -129,6 +130,7 @@ pub fn compare(system: &System<'_>, state: &State<'_>, selected: &Selected) -> R
         luks_mappings(system, state),
         boot_environment(system.runner, system.files, state),
         kernel(system, selected),
+        key_source(system, state, selected),
     ]
     .into_iter()
     .flatten()

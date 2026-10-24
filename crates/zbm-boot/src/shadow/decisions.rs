@@ -8,8 +8,8 @@ use zbm_config::args::{Args, CmdlineDir};
 use zbm_config::conf::{self, Conf};
 use zbm_config::spec::cmdline::luks::LUKS;
 use zbm_config::spec::properties::KERNEL;
-use zbm_luks::config::{CRYPTTAB, load_config};
-use zbm_luks::device::{default_name, resolve_device};
+use zbm_luks::config::{CRYPTTAB, DEFAULT_TRIES, Options, load_config};
+use zbm_luks::device::{mapping_name, resolve_device};
 use zbm_platform::exec::Runner;
 use zbm_platform::{Files, System};
 use zbm_state::State;
@@ -18,9 +18,12 @@ use zbm_zfs::{Stderr, ZpoolCommand};
 use super::{Comparison, Selected};
 use crate::boot::zfs_value;
 use crate::commandline::ETC_HOSTID;
+use crate::hooks::{HOOKS, executable_hooks};
 use crate::import::{ImportSettings, choose_bootfs, imported_pools};
 use crate::kernels;
+use crate::keys::{self, KeySource, key_file, keysource_property};
 use zbm_pool::{HostId, Requirement};
+use zbm_types::HookStage;
 
 /// `/etc/zfsbootmenu.conf`, or an empty one when it cannot be read.
 fn configuration(files: &dyn Files) -> Conf {
@@ -123,6 +126,8 @@ pub fn luks_mappings(system: &System<'_>, state: &State<'_>) -> Option<Compariso
     let crypttab = system.files.read_to_string(Path::new(CRYPTTAB)).ok();
     let zbm_luks = CmdlineDir::new(system.files, state.base()).lookup(&LUKS, &mut Vec::new());
     let (mode, _) = load_config(zbm_luks.as_deref(), crypttab.as_deref(), CRYPTTAB);
+    // As the unlock use cases name them: the crypttab entry's name, or the
+    // default name of its header (`header=`, or the device).
     let expected = |device: &str, auto: &str| {
         let configured = (auto != "1")
             .then(|| {
@@ -130,9 +135,15 @@ pub fn luks_mappings(system: &System<'_>, state: &State<'_>) -> Option<Compariso
                     .iter()
                     .find(|entry| resolve_device(system, &entry.spec).as_deref() == Some(device))
             })
-            .flatten()
-            .filter(|entry| !entry.name.is_empty());
-        configured.map_or_else(|| default_name(system, device), |entry| entry.name.clone())
+            .flatten();
+        configured.map_or_else(
+            || mapping_name(system, "", device),
+            |entry| {
+                let (options, _) = Options::parse(&entry.options, DEFAULT_TRIES);
+                let header = options.header.unwrap_or_else(|| device.to_owned());
+                mapping_name(system, &entry.name, &header)
+            },
+        )
     };
     let mut legacy = Vec::new();
     let mut rust = Vec::new();
@@ -185,5 +196,56 @@ pub fn kernel(system: &System<'_>, selected: &Selected) -> Option<Comparison> {
         decision: "kernel",
         legacy: format!("{} {}", selected.kernel, selected.initramfs),
         rust,
+    })
+}
+
+/// Where the legacy runtime took the key of `root` for `fs`, from what it
+/// left: it makes `/zfsbootmenu/.keys/<source>` only for a key source it
+/// accepted, before copying the key file there.
+fn legacy_key_source(system: &System<'_>, state: &State<'_>, root: &str, fs: &str) -> KeySource {
+    let keylocation =
+        zfs_value(system.runner, "keylocation", root).unwrap_or_else(|| "prompt".into());
+    if keylocation == "prompt" {
+        return KeySource::Prompt;
+    }
+    if let Some(file) = key_file(&keylocation) {
+        let path = format!("/{file}");
+        if system.files.exists(Path::new(&path)) {
+            return KeySource::File(path);
+        }
+        let cached = keysource_property(system.runner, fs).filter(|source| {
+            system
+                .files
+                .exists(&state.base().join(".keys").join(source))
+        });
+        if let Some(source) = cached {
+            return KeySource::Keysource(source);
+        }
+    }
+    if zfs_value(system.runner, "keyformat", root).as_deref() == Some("passphrase") {
+        KeySource::Prompt
+    } else {
+        KeySource::Nothing
+    }
+}
+
+/// Where the key of the selected boot environment's encryption root came
+/// from. Left out for an unencrypted boot environment, and when `load-key.d`
+/// hooks may have unlocked it in their own way.
+pub fn key_source(
+    system: &System<'_>,
+    state: &State<'_>,
+    selected: &Selected,
+) -> Option<Comparison> {
+    if selected.be.is_empty()
+        || !executable_hooks(system.files, Path::new(HOOKS), HookStage::LoadKey).is_empty()
+    {
+        return None;
+    }
+    let (root, rust) = keys::key_source(system.runner, system.files, &selected.be)?;
+    Some(Comparison {
+        decision: "key source",
+        legacy: legacy_key_source(system, state, &root, &selected.be).to_string(),
+        rust: rust.to_string(),
     })
 }

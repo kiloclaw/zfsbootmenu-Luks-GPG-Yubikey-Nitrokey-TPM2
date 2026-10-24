@@ -43,6 +43,9 @@
 //!   FAT disk before `kexec`; after a restart, `zbm debug saved` lists them
 //!   and `zbm report` writes a report beside them (ROADMAP.md #9); the
 //!   other reports of `zbm-debug(8)` read the restart's start-up.
+//! - `legacy-keysource` (`keysource`): the boot environment of `tkeys`
+//!   (d2) takes its key from its key source; shadow mode compares where
+//!   the key came from.
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).
@@ -72,6 +75,7 @@ mod console;
 mod crash;
 mod drm;
 mod host;
+mod keysource;
 mod pilot;
 mod record_fixtures;
 mod record_zfs;
@@ -92,7 +96,7 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`,
-/// `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
+/// `legacy-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
 ///
@@ -109,6 +113,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
         "rust-saved" => saved::run(test),
+        "legacy-keysource" => keysource::run(test),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

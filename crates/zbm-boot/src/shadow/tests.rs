@@ -228,3 +228,91 @@ fn the_selection_comes_from_the_hook_environment() {
     assert_eq!(selected.mountpoint, "/mnt");
     assert_eq!(selected.initramfs, "/boot/initramfs.img");
 }
+
+/// A machine where `tank/ROOT/be`, selected, is encrypted below `tank/ROOT`
+/// with a key file that is not in the image and the key source `tank/keys`.
+fn keyed_machine() -> FakeSystem {
+    let fake = FakeSystem::new();
+    let runner = &fake.runner;
+    runner.respond("zpool list -H -o feature@encryption tank", 0, "active\n");
+    runner.respond(
+        "zfs get -H -o value encryptionroot tank/ROOT/be",
+        0,
+        "tank/ROOT\n",
+    );
+    runner.respond(
+        "zfs get -H -o value keylocation tank/ROOT",
+        0,
+        "file:///etc/zfs/tank.key\n",
+    );
+    runner.respond("zfs get -H -o value keyformat tank/ROOT", 0, "passphrase\n");
+    runner.respond(
+        "zfs get -H -o value org.zfsbootmenu:keysource tank/ROOT/be",
+        0,
+        "tank/keys\n",
+    );
+    runner.respond("zfs get -H -o value name tank/keys", 0, "tank/keys\n");
+    runner.respond(
+        "zfs get -H -o value encryptionroot tank/keys",
+        0,
+        "tank/keys\n",
+    );
+    fake
+}
+
+/// The selection of `tank/ROOT/be`.
+fn selected_be() -> Selected {
+    Selected {
+        be: "tank/ROOT/be".to_owned(),
+        ..Selected::default()
+    }
+}
+
+#[test]
+fn the_key_source_is_the_one_the_legacy_runtime_cached_the_key_from() {
+    let fake = keyed_machine();
+    let state = state(&fake);
+    let system = fake.system();
+
+    let missed = key_source(&system, &state, &selected_be()).unwrap();
+    assert_eq!(
+        (missed.legacy.as_str(), missed.rust.as_str()),
+        ("prompt", "keysource tank/keys")
+    );
+
+    fake.files.dir("/zfsbootmenu/.keys/tank/keys");
+    let same = key_source(&system, &state, &selected_be()).unwrap();
+    assert!(!same.is_difference(), "{same:?}");
+    assert_eq!(same.rust, "keysource tank/keys");
+
+    fake.files.file("/etc/zfs/tank.key", "key");
+    assert_eq!(
+        key_source(&system, &state, &selected_be()).unwrap().legacy,
+        "file /etc/zfs/tank.key"
+    );
+}
+
+#[test]
+fn the_key_source_is_left_out_without_a_selection_or_with_load_key_hooks() {
+    let fake = keyed_machine();
+    let keyed_state = state(&fake);
+    let system = fake.system();
+
+    assert_eq!(
+        key_source(&system, &keyed_state, &Selected::default()),
+        None
+    );
+    fake.files
+        .file_with_mode("/libexec/hooks/load-key.d/10-key", "", 0o755);
+    assert_eq!(key_source(&system, &keyed_state, &selected_be()), None);
+
+    let plain = FakeSystem::new();
+    plain
+        .runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    let plain_state = state(&plain);
+    assert_eq!(
+        key_source(&plain.system(), &plain_state, &selected_be()),
+        None
+    );
+}

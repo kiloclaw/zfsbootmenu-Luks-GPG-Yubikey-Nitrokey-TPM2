@@ -27,6 +27,11 @@ legacy runtime has chosen a boot environment and before it loads the kernel. Ima
 | LUKS mappings | the mappings in `luks-mappings` | the crypttab name, or `luks-<UUID>` for volumes discovery found |
 | default boot environment | the `bootfs` the start-up stage chose | `zbm_pool::choose_bootfs` |
 | kernel | `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS` | the kernel `org.zfsbootmenu:kernel` and the version order choose |
+| key source | where the key of the selected boot environment's encryption root came from: `prompt`, `file <path>` when the key file is in the image, or `keysource <filesystem>` when it made `/zfsbootmenu/.keys/<filesystem>` to copy the key file from `org.zfsbootmenu:keysource` | the same order, decided by `zbm_boot::keys::key_source` without loading anything |
+
+The LUKS mapping names are the ones the unlock use cases of `zbm-app` give (`zbm_luks::device::mapping_name`), a
+detached header (`header=`) included. The key source is left out for an unencrypted boot environment and when the
+image has `load-key.d` hooks, which may unlock it in their own way.
 
 A decision whose inputs are missing (no LUKS volume, no `bootfs`) is left out rather than counted. A kernel picked by
 hand in the menu shows as a difference. Each phase of the refactoring adds the decisions it moves.

@@ -286,7 +286,9 @@ Following a boot
   itself (Phase 5 and package A of Phase 6 in ``PORT-ROADMAP.md``); every scenario runs with the legacy image first,
   which is the reference, then with an image built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``).
 
-  * ``runtime-setup``: creates the pools in the recovery shell of the legacy image.
+  * ``runtime-setup``: creates the pools in the recovery shell of the legacy image, and a third, ``tkeys``, whose
+    boot environment is encrypted with a key file kept in its key source ``tkeys/keystore``
+    (``org.zfsbootmenu:keysource``), itself encrypted with a passphrase.
   * ``runtime-legacy``, ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
@@ -299,6 +301,10 @@ Following a boot
   * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook, of ``fzf`` in
     the menu and of the recovery shell, on the console. The legacy run records them; the Rust run must reproduce
     those of the hook and the shell (its menu arrives with package E).
+  * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only: ZFSBootMenu asks once for the key
+    source's passphrase, copies the key file from it and boots the boot environment, and shadow mode compares where
+    the key came from (``key source``) without a difference. The Rust runtime does not load keys yet, and the boot
+    environment itself is not followed, as its initramfs has no key file.
 
 * ``runtime-rust-pilot`` runs the pilots of ``REFACTOR-ROADMAP.md`` in the Rust image, from the recovery shell on the
   serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the

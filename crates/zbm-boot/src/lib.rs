@@ -30,6 +30,7 @@ pub mod error;
 pub mod hooks;
 pub mod import;
 pub mod kernels;
+pub mod keys;
 pub mod prompt;
 pub mod recovery;
 pub mod report;
