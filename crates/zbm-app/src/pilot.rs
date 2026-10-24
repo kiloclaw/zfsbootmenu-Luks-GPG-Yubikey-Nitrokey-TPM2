@@ -1,4 +1,6 @@
-//! A snapshot of the machine: what the menu shows.
+//! The boot environment list of the menu pilot (R0): a small snapshot of
+//! the machine, which the pilot menus show. [`crate::model::Snapshot`] is
+//! the full one.
 //!
 //! It is read through the ZFS port of `zbm-zfs` (REFACTOR-ROADMAP.md, "The
 //! ZFS boundary"): the pools for their `bootfs`, and the filesystems with
@@ -8,6 +10,8 @@ use std::collections::BTreeSet;
 
 use zbm_types::DatasetName;
 use zbm_zfs::{Zfs, ZfsError};
+
+use crate::Encryption;
 
 /// The machine, as far as a front end needs to know it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -25,17 +29,6 @@ pub struct BootEnvironment {
     pub is_default: bool,
     /// Whether it is encrypted, and whether its key is loaded.
     pub encryption: Encryption,
-}
-
-/// The encryption of a boot environment.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Encryption {
-    /// Not encrypted.
-    None,
-    /// Encrypted, and the key is not loaded.
-    Locked,
-    /// Encrypted, and the key is loaded.
-    Unlocked,
 }
 
 impl Snapshot {

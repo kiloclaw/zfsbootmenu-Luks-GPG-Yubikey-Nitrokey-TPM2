@@ -159,6 +159,27 @@ fn missing_program_reports_127() {
 }
 
 #[test]
+fn a_missing_program_is_reported_where_standard_error_goes() {
+    let missing = |stderr: Stream| {
+        SystemRunner
+            .run(&Command::new("zbm-no-such-program").stderr(stderr))
+            .unwrap()
+    };
+
+    let secret = missing(Stream::CaptureSecret);
+    let discarded = missing(Stream::Null);
+    let shown = missing(Stream::Inherit);
+
+    let message = secret.secret.unwrap();
+    assert_eq!(
+        message.expose(),
+        b"zbm-no-such-program: command not found\n"
+    );
+    assert_eq!(discarded.stderr_text(), "");
+    assert_eq!(shown.status.code(), Some(127));
+}
+
+#[test]
 fn signal_statuses_follow_perl_and_shell() {
     let output = SystemRunner.run(&Command::shell("kill -9 $$")).unwrap();
     assert_eq!(output.status.signal(), Some(9));

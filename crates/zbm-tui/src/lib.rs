@@ -21,7 +21,7 @@
 //! boot environments. R5 adds the others.
 //!
 //! ```
-//! use zbm_app::Snapshot;
+//! use zbm_app::pilot::Snapshot;
 //! use zbm_tui::{Message, Model, Request, update};
 //! use zbm_tui::keymap::Intent;
 //!

@@ -361,7 +361,9 @@ bad line
         );
 
         drop(child.stdin.take());
-        child.wait().unwrap();
+        // Under `cargo test`, the supervisor's tests in the same process may
+        // reap the child first.
+        let _ = child.wait();
         let places: Vec<&str> = findings
             .found
             .iter()

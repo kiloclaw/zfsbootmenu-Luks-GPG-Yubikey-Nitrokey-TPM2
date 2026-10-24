@@ -2,13 +2,17 @@
 //! what they get back.
 //!
 //! Front ends (the menu, `zluks`, the start-up program) talk only to this
-//! crate. They read the machine as a [`Snapshot`], send an [`Action`] to
-//! [`App::perform`], and get [`Event`]s back, or an [`AppError`] that keeps
-//! the cause of the failure. They never run programs or call the domain
-//! crates themselves, which `cargo xtask check-deps` enforces.
+//! crate. They read the machine as a [`model::Snapshot`] ([`App::snapshot`]),
+//! send an [`Action`] to [`App::perform`], and get [`Event`]s back, or an
+//! [`AppError`] that keeps the cause of the failure. They never run programs
+//! or call the domain crates themselves, which `cargo xtask check-deps`
+//! enforces.
 //!
-//! This is the pilot of REFACTOR-ROADMAP.md (R0); R4 adds the remaining use
-//! cases.
+//! The vocabulary is [`model`], the lists of
+//! `docs/dev/menu-design/interfaces.md`, which the menu prototype tried on a
+//! fake machine. R4 of REFACTOR-ROADMAP.md fills it from the real one; the
+//! actions and events below are still those of the pilot (R0), which R4
+//! replaces with the model's.
 //!
 //! ```
 //! use zbm_app::{Action, App, Event, UnlockRequest};
@@ -29,14 +33,21 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-mod snapshot;
+pub mod model;
+pub mod pilot;
+mod read;
 mod unlock;
 
-pub use snapshot::{BootEnvironment, Encryption, Snapshot, SnapshotError};
+pub use model::Encryption;
+pub use pilot::SnapshotError;
 pub use unlock::UnlockRequest;
 pub use zbm_crypt::OpenOptions;
 pub use zbm_luks::pilot::UnlockFailed;
 
+use std::path::Path;
+
+use zbm_config::options::ZbmOptions;
+use zbm_luks::unlocker::Luks;
 use zbm_platform::Context;
 use zbm_types::{DevicePath, MappingName};
 
@@ -106,12 +117,63 @@ pub enum AppError {
 pub struct App<'a> {
     /// The ports the use cases reach the system through.
     context: Context<'a>,
+    /// The options of this boot, when the front end read them.
+    options: Option<&'a ZbmOptions>,
+    /// The LUKS session, when the front end has one.
+    luks: Option<Luks<'a>>,
+    /// The state directory (`/zfsbootmenu`).
+    base: Option<&'a Path>,
+    /// The directory of the image's keyboard layouts.
+    layouts: Option<&'a Path>,
 }
 
 impl<'a> App<'a> {
-    /// The application on `context`.
+    /// The application on `context`, knowing nothing of this boot yet.
     pub fn new(context: Context<'a>) -> App<'a> {
-        App { context }
+        App {
+            context,
+            options: None,
+            luks: None,
+            base: None,
+            layouts: None,
+        }
+    }
+
+    /// With the options of this boot: the countdown and the console.
+    #[must_use]
+    pub fn with_options(self, options: &'a ZbmOptions) -> App<'a> {
+        App {
+            options: Some(options),
+            ..self
+        }
+    }
+
+    /// With a LUKS session: the volumes.
+    #[must_use]
+    pub fn with_luks(self, luks: Luks<'a>) -> App<'a> {
+        App {
+            luks: Some(luks),
+            ..self
+        }
+    }
+
+    /// With the state directory `base`: the journal and the console's
+    /// layout.
+    #[must_use]
+    pub fn with_base(self, base: &'a Path) -> App<'a> {
+        App {
+            base: Some(base),
+            ..self
+        }
+    }
+
+    /// With the directory of the image's keyboard layouts.
+    #[must_use]
+    pub fn with_layouts(self, directory: &'a Path) -> App<'a> {
+        App {
+            layouts: Some(directory),
+            ..self
+        }
     }
 
     /// Performs `action`.
@@ -126,15 +188,60 @@ impl<'a> App<'a> {
         }
     }
 
-    /// Reads the machine: its boot environments.
+    /// Reads the machine for the menu pilot: its boot environments.
     ///
     /// # Errors
     ///
     /// [`AppError::Snapshot`] when `zfs` or `zpool` fails or prints something
     /// unexpected.
-    pub fn snapshot(&self) -> Result<Snapshot, AppError> {
+    pub fn pilot_snapshot(&self) -> Result<pilot::Snapshot, AppError> {
         let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
-        Ok(snapshot::read(&zfs)?)
+        Ok(pilot::read(&zfs)?)
+    }
+
+    /// Reads the machine: what every view of the menu reads. What the
+    /// application was not given (options, a LUKS session, the state and
+    /// layout directories) stays empty.
+    ///
+    /// # Errors
+    ///
+    /// [`AppError::Snapshot`] when `zfs` or `zpool` fails or prints something
+    /// unexpected.
+    pub fn snapshot(&self) -> Result<model::Snapshot, AppError> {
+        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
+        let files = self.context.files();
+        let now = self
+            .context
+            .clock()
+            .wall()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |time| time.as_secs());
+        let keyboard = match (self.layouts, self.base) {
+            (Some(layouts), Some(base)) => {
+                let state = zbm_state::State::new(files, base);
+                let console = self
+                    .options
+                    .map_or("", |options| options.control_term.as_str());
+                read::keyboard(files, layouts, &state, console)
+            }
+            _ => model::Keyboard::default(),
+        };
+        Ok(model::Snapshot {
+            pools: read::pools(&zfs).map_err(SnapshotError::from)?,
+            environments: read::environments(&zfs).map_err(SnapshotError::from)?,
+            volumes: self
+                .luks
+                .map(|luks| read::volumes(&zbm_luks::unlocker::Unlocker::new(luks)))
+                .unwrap_or_default(),
+            timeout: self.options.map(read::timeout).unwrap_or_default(),
+            log: self
+                .base
+                .map(|base| read::log(files, base))
+                .unwrap_or_default(),
+            keyboard,
+            now,
+            ..model::Snapshot::default()
+        })
     }
 }
 
@@ -156,7 +263,44 @@ mod tests {
         let fake = FakeSystem::new();
         fake.runner.respond_program("zpool", 0, "");
         fake.runner.respond_program("zfs", 0, "");
-        let snapshot = App::new(Context::new(fake.system())).snapshot().unwrap();
-        assert!(snapshot.boot_environments.is_empty());
+        let app = App::new(Context::new(fake.system()));
+        assert!(app.pilot_snapshot().unwrap().boot_environments.is_empty());
+        let snapshot = app.snapshot().unwrap();
+        assert!(snapshot.environments.is_empty() && snapshot.volumes.is_empty());
+    }
+
+    #[test]
+    fn the_snapshot_holds_what_the_app_was_given() {
+        let fake = FakeSystem::new();
+        fake.runner.respond_program("zpool", 0, "");
+        fake.runner.respond_program("zfs", 0, "");
+        fake.files.file("/layouts/layouts", "us\nde\n").file(
+            "/zfsbootmenu/journal.jsonl",
+            "{\"level\":\"WARN\",\"message\":\"slow\"}\n",
+        );
+        let (mut options, _) =
+            ZbmOptions::parse(&zbm_config::args::ZbmArgs::from_kcl("zbm.timeout=7"));
+        options.control_term = "ttyS0".into();
+        let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
+        let prompter = crate::read::tests::NoPrompts;
+        let luks = Luks {
+            system: fake.system(),
+            settings: &settings,
+            prompter: &prompter,
+        };
+
+        let snapshot = App::new(Context::new(fake.system()))
+            .with_options(&options)
+            .with_luks(luks)
+            .with_base(Path::new("/zfsbootmenu"))
+            .with_layouts(Path::new("/layouts"))
+            .snapshot()
+            .unwrap();
+
+        assert_eq!(snapshot.timeout, model::Timeout::Seconds(7));
+        assert_eq!(snapshot.keyboard.layouts, ["us", "de"]);
+        assert!(!snapshot.keyboard.local);
+        assert_eq!(snapshot.log.count(model::Level::Warning), 1);
+        assert!(snapshot.volumes.is_empty() && snapshot.now > 0);
     }
 }

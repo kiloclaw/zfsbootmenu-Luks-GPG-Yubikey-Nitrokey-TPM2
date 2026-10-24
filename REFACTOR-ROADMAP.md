@@ -46,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
-| R4 | Next | Application layer |
+| R4 | In progress | Application layer: step 1 of 5 done (the vocabulary in `zbm-app` and the snapshot read from the machine) |
 | R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -765,7 +765,22 @@ builds after the core tasks.
 
 ### R4. Application layer (3 to 4 weeks)
 
-**State:** next. `zbm-app` exists from the menu pilot, with its `Snapshot`; `zbm debug crash` from R1.
+**State:** in progress, in five steps:
+
+1. **Done.** The vocabulary of `docs/dev/menu-design/interfaces.md` (`Snapshot`, `Action`, `Event` and their
+   parts) moved from the menu prototype into `zbm_app::model`, and the prototype imports it from there.
+   `App::snapshot` reads the machine into it: the pools (health, read-only, checkpoint), the boot environments (the
+   pool's default, encryption, the command line and where it was set), the LUKS volumes (mapping, open or locked, the
+   key methods their tokens offer), the countdown, the keyboard layouts and the warnings and errors of the journal.
+   Kernels, checks, boot tries and snapshots wait for R5 and port package C; start-up stages arrive as events in step
+   2. The pilot's small snapshot is `zbm_app::pilot`.
+2. The use cases and events over the ports of R3: unlock and skip (the `Prompter` of `zbm-luks` as
+   `UnlockRequested`), close, import (the `Operator` of `zbm-pool` as `ImportProblem`), boot the default environment,
+   and the stage events of start-up.
+3. The applets as thin front ends over `zbm-app`, with the `check-deps` rule that no front end imports an adapter.
+4. The `zbm debug` reports and `zbm-debug(8)`.
+5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a
+   difference.
 
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
   the applets already need (boot the default environment, unlock, close, import). Their shape follows the lists

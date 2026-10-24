@@ -112,7 +112,7 @@ mod tests {
     use insta::assert_snapshot;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
-    use zbm_app::Snapshot;
+    use zbm_app::pilot::Snapshot;
 
     /// The screen of `model` on a terminal of `columns` by `rows`.
     fn screen(model: &Model, columns: u16, rows: u16) -> TestBackend {

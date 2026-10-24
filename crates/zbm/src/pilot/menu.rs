@@ -6,7 +6,8 @@
 //! nothing. With `--stats` it prints how long frames took to draw, which is
 //! what the pilot measures on a serial console.
 
-use zbm_app::{App, Snapshot};
+use zbm_app::App;
+use zbm_app::pilot::Snapshot;
 use zbm_platform::{Context, RealFiles, SystemClock, SystemRunner};
 use zbm_tui::Request;
 use zbm_tui::terminal::{self, Options};
@@ -96,7 +97,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         Snapshot::example()
     } else {
         let (runner, files, clock) = (SystemRunner, RealFiles, SystemClock::new());
-        match App::new(Context::from_parts(&runner, &files, &clock)).snapshot() {
+        match App::new(Context::from_parts(&runner, &files, &clock)).pilot_snapshot() {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 let _ = writeln!(io.stderr, "zbm-menu-pilot: {error}");

@@ -79,7 +79,7 @@ fn refilter(model: &mut Model) {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use zbm_app::Snapshot;
+    use zbm_app::pilot::Snapshot;
 
     fn menu() -> Model {
         Model::new(&Snapshot::example(), false)

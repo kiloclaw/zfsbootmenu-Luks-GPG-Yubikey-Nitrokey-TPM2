@@ -1967,11 +1967,14 @@ name = "zbm-app"
 version = "0.1.0"
 dependencies = [
  "pretty_assertions",
+ "serde_json",
  "thiserror",
  "tracing",
+ "zbm-config",
  "zbm-crypt",
  "zbm-luks",
  "zbm-platform",
+ "zbm-state",
  "zbm-testkit",
  "zbm-types",
  "zbm-zfs",

@@ -108,3 +108,23 @@ fn the_output_of_the_inner_runner_is_returned_unchanged() {
     assert_eq!(output.stdout_text(), "hi\n");
     assert_eq!(runner.lines(), ["echo hi"]);
 }
+
+#[test]
+fn a_command_that_cannot_start_is_reported_as_a_warning() {
+    let _serial = serial();
+    let clock = FakeClock::new();
+    let runner = FakeRunner::new();
+    runner.on(|_| Some(Err(std::io::Error::other("no such program"))));
+    let layer = JournalLayer::new(std::io::sink());
+    let lines = layer.lines();
+    let subscriber = tracing_subscriber::registry().with(layer);
+
+    let result = tracing::subscriber::with_default(subscriber, || {
+        TracedRunner::new(&runner, &clock).run(&Command::new("tpm2_unseal"))
+    });
+
+    assert!(result.is_err());
+    let lines = lines.take();
+    assert_eq!(lines[0]["level"], "WARN");
+    assert_eq!(lines[0]["message"], "command could not start");
+}

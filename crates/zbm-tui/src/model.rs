@@ -1,6 +1,7 @@
 //! The state of the menu.
 
-use zbm_app::{Encryption, Snapshot};
+use zbm_app::Encryption;
+use zbm_app::pilot::Snapshot;
 use zbm_types::DatasetName;
 
 use crate::filter;

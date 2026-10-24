@@ -19,7 +19,7 @@ use ratatui::crossterm::event::{self, Event};
 use ratatui::crossterm::terminal;
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::{Terminal, TerminalOptions, Viewport};
-use zbm_app::Snapshot;
+use zbm_app::pilot::Snapshot;
 
 use crate::keymap;
 use crate::model::Model;

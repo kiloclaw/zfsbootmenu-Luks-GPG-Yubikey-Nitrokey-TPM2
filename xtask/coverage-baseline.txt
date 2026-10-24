@@ -7,7 +7,7 @@ crate          line_coverage
 generate-zbm              92
 xtask                     78
 zbm                       82
-zbm-app                   98
+zbm-app                   99
 zbm-boot                  97
 zbm-config                99
 zbm-console               91
