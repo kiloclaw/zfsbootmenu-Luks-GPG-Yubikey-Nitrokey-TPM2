@@ -175,7 +175,7 @@ the `kexec` path of its images.
 **Security.**
 
 **Status:** steps 1 to 4 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
-(18 checks, 44421d0) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
+(19 checks, 905c3da) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
 `zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
 fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
 `kexec`. It types with the image's keyboard layouts, compiled from XKB data with `kbvm`, dead keys included, and
@@ -310,7 +310,7 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
        same console typed, as readline in the image's C locale may take their bytes for Meta keys. Rust images get
        `/etc/inputrc` (8-bit input and output) and, where the build host's C library has it, the character set of
        `C.UTF-8` (`LC_CTYPE`, 360 KB) with `LC_CTYPE=C.UTF-8` in `/etc/profile`; `runtime-rust-console` checks `ê`
-       at the prompt (19 checks).
+       at the prompt, and passes (19 checks).
   5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
   - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;
