@@ -795,7 +795,9 @@ builds after the core tasks.
    the runtime ran, with their statuses and durations, from the journal's `command` spans), and `luks` and `pools`
    (`App::snapshot`, with the LUKS settings of `/etc/zfsbootmenu.conf`). They replace `ztrace` and `zlogtail` for the
    Rust runtime; those stay in the frozen legacy runtime. `zfsbootmenu-init` now runs its programs through the
-   traced runner (`System::with_runner`), as `zbm-app` did, so the journal records start-up's commands too.
+   traced runner (`System::with_runner`), as `zbm-app` did, so the journal records start-up's commands too. On 59834ed,
+   `runtime-rust-saved` passes 36 checks with the reports read in its recovery shell, `runtime-rust` 15, and the
+   `secrets` tests find no secret with start-up's commands in the journal.
 5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a
    difference.
 
