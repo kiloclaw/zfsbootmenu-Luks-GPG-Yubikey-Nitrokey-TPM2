@@ -86,6 +86,9 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `89657e6`: the online help of `zfsbootmenu(7)` (`help-files/`) describes `zbm.save_logs`, the saved boot logs
   and `zbm report` of the Rust runtime (ROADMAP.md #9); the legacy runtime is unchanged.
   **Rust:** nothing to port; documentation only.
+- [x] `1fd2a01`: the online help of `zfsbootmenu(7)` (`help-files/`) says how the Rust runtime keeps secrets in memory
+  and recommends `init_on_free=1` for its images (ROADMAP.md #1); the legacy runtime is unchanged.
+  **Rust:** nothing to port; documentation only.
 
 ## Legacy limitations the Rust runtime must not copy
 
