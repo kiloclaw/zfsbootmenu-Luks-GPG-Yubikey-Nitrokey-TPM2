@@ -18,7 +18,7 @@ use std::io;
 
 use zbm_config::parent::CommandLineSource;
 use zbm_config::spec::properties::COMMANDLINE;
-use zbm_platform::exec::{Command, Output, Runner, Stream};
+use zbm_platform::exec::{Command, Input, Output, Runner, Stream};
 
 mod cli;
 pub mod json;
@@ -184,6 +184,24 @@ impl<'a> ZfsCommand<'a> {
             .stdout(Stream::Inherit);
         Ok(self.runner.run(&command)?.status.is_success())
     }
+
+    /// Loads the key of the encryption root `root` from `location` (`zfs
+    /// load-key -L <location> <root>`) on the console: for `prompt`, `zfs`
+    /// asks for the passphrase on the terminal itself, so the passphrase
+    /// never passes through this program. Returns whether the key is loaded.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `zfs` from starting.
+    pub fn load_key(&self, root: &str, location: &str) -> io::Result<bool> {
+        let command = self
+            .command()
+            .args(["load-key", "-L", location, root])
+            .stdin(Input::Inherit)
+            .stdout(Stream::Inherit)
+            .stderr(Stream::Inherit);
+        Ok(self.runner.run(&command)?.status.is_success())
+    }
 }
 
 impl CommandLineSource for ZfsCommand<'_> {
@@ -299,6 +317,23 @@ mod tests {
                 "zfs inherit org.zfsbootmenu:commandline pool/be",
             ]
         );
+    }
+
+    #[test]
+    fn keys_are_loaded_on_the_console() {
+        let runner = FakeRunner::new();
+        runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
+        let zfs = ZfsCommand::new(&runner);
+
+        assert!(!zfs.load_key("tank/ROOT", "prompt").unwrap());
+        assert!(zfs.load_key("tank/ROOT", "file:///etc/zfs/k").unwrap());
+        let calls = runner.calls();
+        assert_eq!(
+            calls[1].display(),
+            "zfs load-key -L file:///etc/zfs/k tank/ROOT"
+        );
+        assert!(matches!(calls[0].get_stdin(), Input::Inherit));
+        assert_eq!(calls[0].get_stdout(), Stream::Inherit);
     }
 
     #[test]

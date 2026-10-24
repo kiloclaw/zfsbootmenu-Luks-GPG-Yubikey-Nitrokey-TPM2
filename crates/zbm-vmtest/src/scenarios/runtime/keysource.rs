@@ -1,4 +1,4 @@
-//! `runtime-legacy-keysource`: the boot environment of `tkeys` (d2) is
+//! `runtime-RUNTIME-keysource`: the boot environment of `tkeys` (d2) is
 //! encrypted with a key file that the image does not have; its key source
 //! `tkeys/keystore` holds it. Two boots, each stopped before the boot
 //! environment runs, as its initramfs has no key file either:
@@ -10,9 +10,9 @@
 //!   runtime asks for the key source's passphrase, copies the key file into
 //!   `/zfsbootmenu/.keys` and unlocks the boot environment with it.
 //!
-//! Each time, shadow mode must compare where the key came from without a
-//! difference. Only the legacy runtime: the Rust runtime does not load the
-//! keys of encryption roots yet.
+//! With the legacy runtime, shadow mode must compare where the key came
+//! from without a difference each time. The Rust runtime boots only from
+//! the countdown, as it has no menu yet.
 
 use crate::boot::{Follow, Kind, follow_boot};
 use crate::error::Result;
@@ -54,16 +54,20 @@ const BOOTS: [Boot; 2] = [
     },
 ];
 
-/// Boots `tkeys`'s boot environment from the countdown, then from the menu,
-/// with the legacy runtime.
+/// Boots `tkeys`'s boot environment from the countdown, then, with the
+/// legacy runtime, from the menu.
 ///
 /// # Errors
 ///
 /// When a step of the test cannot be done.
-pub(super) fn run(test: &Test) -> Result<()> {
+pub(super) fn run(test: &Test, runtime: ZbmRuntime) -> Result<()> {
     let settings = test.settings();
-    let image = super::image(settings, "auto", ZbmRuntime::Legacy, None)?;
-    for boot in &BOOTS {
+    let image = super::image(settings, "auto", runtime, None)?;
+    let boots = match runtime {
+        ZbmRuntime::Legacy => &BOOTS[..],
+        ZbmRuntime::Rust => &BOOTS[..1],
+    };
+    for boot in boots {
         let machine =
             Machine::boot(&image, boot.append).with_disks(vec![super::disk(settings, 2)?]);
         let mut vm = Vm::start(test, boot.label, &machine)?;
@@ -78,6 +82,9 @@ pub(super) fn run(test: &Test) -> Result<()> {
         vm.kill();
         let log = super::serial_text(&vm)?;
         check(test, boot, &followed.prompts, &log);
+        if runtime == ZbmRuntime::Legacy {
+            check_shadow(test, boot, &log);
+        }
     }
     Ok(())
 }
@@ -94,9 +101,13 @@ fn check(test: &Test, boot: &Boot, prompts: &[String], log: &str) {
         log.contains(&format!("passphrase for '{}'", boot.asker)),
         &format!("{label}: the passphrase asked for is {}'s", boot.asker),
     );
+}
+
+/// Checks that shadow mode compared the key source of `boot`.
+fn check_shadow(test: &Test, boot: &Boot, log: &str) {
     test.check(
         regex(COMPARED).is_ok_and(|compared| compared.is_match(log)),
-        &format!("{label}: shadow mode compared the key source"),
+        &format!("{}: shadow mode compared the key source", boot.label),
     );
 }
 
@@ -114,12 +125,10 @@ mod tests {
                    kernel, key source)\n";
         let prompts = ["menu".to_owned(), "zfskey".to_owned()];
         check(&test, &BOOTS[1], &prompts, log);
-        check(
-            &test,
-            &BOOTS[0],
-            &[],
-            "ZBM-SHADOW: 0 differences in 2 decisions (pools, kernel)\n",
-        );
+        check_shadow(&test, &BOOTS[1], log);
+        let other = "ZBM-SHADOW: 0 differences in 2 decisions (pools, kernel)\n";
+        check(&test, &BOOTS[0], &[], other);
+        check_shadow(&test, &BOOTS[0], other);
 
         let results: Vec<bool> = checks(&test)
             .iter()

@@ -22,6 +22,12 @@ pub enum BootError {
         /// Its exit status (126 when it could not start).
         status: i32,
     },
+    /// The key of an encryption root could not be loaded.
+    #[error("unable to load the key of {root}")]
+    KeyNotLoaded {
+        /// The encryption root.
+        root: String,
+    },
     /// A boot environment could not be mounted.
     #[error("unable to mount {fs}")]
     Mount {

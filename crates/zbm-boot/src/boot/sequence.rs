@@ -13,14 +13,14 @@ use zbm_types::HookStage;
 use zbm_zfs::ZfsCommand;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
-use super::zfs::{export_writable_pools, locked_root, substituted, zfs_value};
+use super::zfs::{export_writable_pools, substituted, zfs_value};
 use crate::commandline::{self, KexecLoad};
 use crate::hooks;
 use crate::kernels::Kernel;
+use crate::keys::{self, BootPath, Clear, KeyLoad};
 use crate::prompt::{TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
 use crate::saved_logs::{self, Destination};
-use crate::support::{self, Unsupported};
 
 /// What booting needs besides the kernel.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,6 +67,18 @@ fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
     "root=zfs:".to_owned()
 }
 
+/// Loads the key of `fs` if it is locked, with key sources and after
+/// clearing the screen. The countdown has loaded it already, so this loads
+/// it for a boot chosen in the menu; a failure shows when mounting.
+fn load_key(system: &System<'_>, state: &State<'_>, settings: &BootSettings, fs: &str) {
+    let how = KeyLoad {
+        hooks: &settings.hooks,
+        path: BootPath::Menu,
+        clear: Clear::Yes,
+    };
+    let _ = keys::load_key(system, state, &how, fs);
+}
+
 /// Boots `selected`: mounts it, runs the `boot-sel.d` hooks, loads the kernel
 /// with its command line, unmounts it, exports the pools imported read-write,
 /// runs the `teardown.d` hooks, has the console on the display hand the
@@ -90,13 +102,7 @@ pub fn kexec_kernel(
     }
     zbm_trace::debug!("fs: {fs}, kernel: {kernel}, initramfs: {initramfs}");
 
-    // load_key: keys are not loaded yet, so a locked boot environment stops here.
-    zbm_trace::debug!("fs set to {fs}");
-    if let Some(root) = locked_root(system.runner, fs) {
-        zbm_trace::error!("{}", Unsupported::LockedEncryptionRoot(root).to_string());
-        recovery.emergency_shell(support::MESSAGE);
-        return;
-    }
+    load_key(system, state, settings, fs);
 
     tput(system, &["cnorm"]);
     tput(system, &["clear"]);

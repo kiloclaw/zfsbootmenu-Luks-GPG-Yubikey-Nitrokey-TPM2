@@ -514,8 +514,9 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   default, or *rust*, the Rust runtime that is being written to replace it. The Rust runtime needs
   **zbm** (see **zfsbootmenu_zbm**). So far it unlocks LUKS volumes, with every key method and
   **zluks**, imports pools, with every import option, and boots the default boot environment, as the
-  legacy runtime does with **zbm.skip**; where a machine needs more (a locked encryption root,
-  **load-key.d** hooks or the menu), it logs what it cannot handle yet and opens the recovery shell.
+  legacy runtime does with **zbm.skip**, loading the key of its encryption root with the
+  **load-key.d** hooks, a key file in the image or the passphrase prompt; where a machine needs the
+  menu, it logs that it cannot show it yet and opens the recovery shell.
   It keeps secrets in memory that is locked, left out of core dumps and, where the kernel allows it
   (*memfd_secret*), out of the kernel's own map of memory; boot it with *init_on_free=1* (in
   **Kernel.CommandLine** of **generate-zbm**) so that the kernel also zeroes the memory it frees,

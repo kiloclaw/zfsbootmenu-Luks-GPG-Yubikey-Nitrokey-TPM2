@@ -107,6 +107,15 @@ key to a file, and computes the salted TPM2 PIN in the process instead of passin
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 
+### Rust runtime, encrypted boot environments
+
+The Rust runtime boots a default boot environment whose encryption root is locked, as the legacy runtime does: it
+runs the `load-key.d` hooks, then loads the key from the passphrase prompt (`keylocation=prompt`), from a key file in
+the image, or, for a `passphrase` key, from the prompt. When the key cannot be loaded it opens the recovery shell
+with `unable to load key for <boot environment>`. The countdown's boot does not copy keys from a key source
+(`org.zfsbootmenu:keysource`), as in the legacy runtime; the code that does, for boots chosen in the menu, is in
+place for the menu. Only the menu is still refused.
+
 ### Console font on high-density (HiDPI) displays
 
 In images built with `zfsbootmenu_runtime="rust"`, the early-setup hook `30-console-autosize` runs

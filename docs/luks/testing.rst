@@ -304,9 +304,10 @@ Following a boot
   * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only, booted twice. From the countdown, which
     skips key sources, ZFSBootMenu asks for the boot environment's own passphrase; from the menu (``zbm.show``), it
     asks for the key source's passphrase instead, copies the key file from it and unlocks the boot environment with
-    it. Each time, shadow mode compares where the key came from (``key source``) without a difference. The Rust
-    runtime does not load keys yet, and the boot environment itself is not followed, as its initramfs has no key
-    file.
+    it. Each time, shadow mode compares where the key came from (``key source``) without a difference. The boot
+    environment itself is not followed, as its initramfs has no key file.
+  * ``runtime-rust-keysource``: the countdown's boot of ``runtime-legacy-keysource`` with the Rust image, which loads
+    the key in the same order and asks for the boot environment's passphrase. The Rust runtime has no menu yet.
 
 * ``runtime-rust-pilot`` runs the pilots of ``REFACTOR-ROADMAP.md`` in the Rust image, from the recovery shell on the
   serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the

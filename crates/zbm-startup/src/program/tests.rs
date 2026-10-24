@@ -220,23 +220,39 @@ fn what_the_minimal_runtime_refuses() {
     startup(&fake, "zbm.show").run(console, Some(0));
     assert!(fake.kmsg().contains("the menu (zbm.show)"));
     assert_eq!(shells(&fake).len(), 1);
+}
 
-    // A locked boot environment.
+#[test]
+fn a_key_that_cannot_be_loaded_opens_the_shell() {
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
     let fake = machine();
-    fake.runner
-        .respond("zpool list -H -o feature@encryption tank", 0, "active\n");
-    fake.runner.respond(
+    let runner = &fake.runner;
+    runner.respond("zpool list -H -o feature@encryption tank", 0, "active\n");
+    runner.respond(
         "zfs get -H -o value encryptionroot tank/ROOT/void",
         0,
         "tank/ROOT\n",
     );
-    fake.runner.respond(
+    runner.respond(
         "zfs get -H -o value keystatus tank/ROOT",
         0,
         "unavailable\n",
     );
+    runner.respond("zfs get -H -o value keylocation tank/ROOT", 0, "prompt\n");
+    runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
     startup(&fake, "zbm.timeout=0").run(console, Some(0));
-    assert!(fake.kmsg().contains("the locked encryption root tank/ROOT"));
+    assert!(
+        fake.runner
+            .lines()
+            .iter()
+            .any(|line| line == "zfs load-key -L prompt tank/ROOT")
+    );
+    let banner = "emergency shell\x1b[0m: unable to load key for \x1b[0;36mtank/ROOT/void";
+    assert!(fake.console.output_text().contains(banner));
+    assert!(!fake.kmsg().contains(support::MESSAGE));
     assert!(
         !fake
             .runner

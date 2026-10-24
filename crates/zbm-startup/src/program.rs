@@ -14,6 +14,7 @@ use zbm_boot::boot::{self, BootSettings};
 use zbm_boot::hooks;
 use zbm_boot::import::{self, Import, ImportSettings};
 use zbm_boot::kernels::Kernel;
+use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
 use zbm_boot::prompt::{Answer, TimedPrompt, colorize, tput};
 use zbm_boot::recovery::Recovery;
 use zbm_boot::saved_logs::Destination;
@@ -121,10 +122,6 @@ impl<'a> Startup<'a> {
         Destination::from_option(value.as_deref())
     }
 
-    fn facts(&self) -> Facts {
-        Facts::from_files(self.system.files, &self.hooks)
-    }
-
     /// Runs the program. Without the console mode it returns after the stages;
     /// otherwise it returns only after `rounds` rounds of the recovery loop
     /// (never, with `None`).
@@ -187,8 +184,10 @@ impl<'a> Startup<'a> {
 
     /// The countdown and the automatic boot of `bootfs`.
     fn countdown(&self, bootfs: Option<&str>) {
-        let mut facts = self.facts();
-        facts.bootfs = bootfs.map(str::to_owned);
+        let mut facts = Facts {
+            bootfs: bootfs.map(str::to_owned),
+            ..Facts::default()
+        };
         let timeout = self.options.menu_timeout_seconds();
         let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
             let _ = self
@@ -208,7 +207,7 @@ impl<'a> Startup<'a> {
         if self.state.is_active() {
             return;
         }
-        self.boot(bootfs, facts);
+        self.boot(bootfs);
     }
 
     /// Counts down `seconds` before booting `bootfs`: RETURN boots at once,
@@ -227,19 +226,21 @@ impl<'a> Startup<'a> {
             .run(&self.system)
     }
 
-    /// Boots `bootfs` with its selected kernel, unless something about it is
-    /// not supported yet.
-    fn boot(&self, bootfs: &str, mut facts: Facts) {
+    /// Loads the key of `bootfs` and boots it with its selected kernel, or
+    /// opens the recovery shell when the key cannot be loaded.
+    fn boot(&self, bootfs: &str) {
         let system = &self.system;
+        // Clear the screen before a possible passphrase prompt.
         tput(system, &["clear"]);
-        // load_key: keys are not loaded yet.
-        zbm_trace::debug!("fs set to {bootfs}");
-        facts.locked_encryption_root = boot::locked_root(system.runner, bootfs);
-        if self
-            .shell()
-            .refuse(&support::unsupported(&self.options, &facts))
-            .is_err()
-        {
+        // `NO_CACHE=1 load_key`: the countdown tries no key sources.
+        let how = KeyLoad {
+            hooks: &self.hooks,
+            path: BootPath::Countdown,
+            clear: Clear::No,
+        };
+        if keys::load_key(system, &self.state, &how, bootfs).is_err() {
+            let message = format!("unable to load key for {}", colorize("cyan", bootfs));
+            self.shell().emergency_shell(&message);
             return;
         }
         if boot::find_kernels(system, &self.state, bootfs).is_ok() && !self.state.is_active() {

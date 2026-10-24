@@ -13,15 +13,21 @@
 //! the root in their own way; this decision leaves them out.
 //!
 //! Shadow mode compares this decision with what the legacy runtime did
-//! (`crate::shadow`); R5 loads keys with it.
+//! (`crate::shadow`), and the loading in `load` follows the same order.
 
 use std::fmt;
 use std::path::Path;
 
 use zbm_config::spec::properties::KEYSOURCE;
 use zbm_platform::{Files, Runner};
+use zbm_zfs::{Stderr, ZfsCommand};
 
 use crate::boot::{encryption_root, zfs_value};
+
+mod cache;
+mod load;
+
+pub use load::{Clear, KeyLoad, load_key};
 
 /// How the boot was chosen, which decides whether key sources are tried.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -66,8 +72,22 @@ pub fn keysource_property(runner: &dyn Runner, fs: &str) -> Option<String> {
 /// The key source of `fs`: the filesystem its
 /// `org.zfsbootmenu:keysource` names, if that exists and is encrypted.
 pub fn keysource(runner: &dyn Runner, fs: &str) -> Option<String> {
-    let source = keysource_property(runner, fs)?;
-    if zfs_value(runner, "name", &source).is_none() {
+    if fs.is_empty() {
+        zbm_trace::error!("fs is undefined");
+        return None;
+    }
+    zbm_trace::debug!("fs set to {fs}");
+    let Some(source) = zfs_value(runner, KEYSOURCE.name, fs) else {
+        zbm_trace::warn!("failed to read {} on {fs}", KEYSOURCE.name);
+        return None;
+    };
+    if source.is_empty() || source == "-" {
+        return None;
+    }
+    let listed = ZfsCommand::new(runner)
+        .text(&["list", "-o", "name", "-H", &source], Stderr::Hidden)
+        .is_ok_and(|output| output.status.is_success());
+    if !listed {
         zbm_trace::debug!("keysource {source} for {fs} is not a filesystem");
         return None;
     }
@@ -76,6 +96,13 @@ pub fn keysource(runner: &dyn Runner, fs: &str) -> Option<String> {
         return None;
     }
     Some(source)
+}
+
+/// A key location without `file://` and one leading `/`, as the legacy
+/// runtime strips it; other locations stay as they are.
+fn stripped(keylocation: &str) -> &str {
+    let key = keylocation.strip_prefix("file://").unwrap_or(keylocation);
+    key.strip_prefix('/').unwrap_or(key)
 }
 
 /// The key file of a `file://` key location, relative to the root, as the

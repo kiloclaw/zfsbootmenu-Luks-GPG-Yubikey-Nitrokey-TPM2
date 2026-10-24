@@ -45,7 +45,8 @@
 //!   other reports of `zbm-debug(8)` read the restart's start-up.
 //! - `legacy-keysource` (`keysource`): the boot environment of `tkeys`
 //!   (d2) takes its key from its key source; shadow mode compares where
-//!   the key came from.
+//!   the key came from. `rust-keysource`: its countdown boot with the Rust
+//!   runtime.
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).
@@ -96,7 +97,7 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`,
-/// `legacy-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
+/// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
 ///
@@ -113,7 +114,8 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
         "rust-saved" => saved::run(test),
-        "legacy-keysource" => keysource::run(test),
+        "legacy-keysource" => keysource::run(test, ZbmRuntime::Legacy),
+        "rust-keysource" => keysource::run(test, ZbmRuntime::Rust),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

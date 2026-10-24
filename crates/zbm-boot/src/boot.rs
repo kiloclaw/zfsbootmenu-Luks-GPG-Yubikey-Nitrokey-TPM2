@@ -2,8 +2,8 @@
 //!
 //! Mounting a boot environment, finding its kernels, choosing one and
 //! booting it with `kexec`, with the ZFS questions, mounts and unmounts this
-//! needs. This is the default boot of the Phase 5 runtime: read-only mounts,
-//! no key loading (a locked encryption root is not supported yet).
+//! needs, with read-only mounts. Keys of locked encryption roots are loaded
+//! by `crate::keys` before the boot environment is mounted.
 //!
 //! The code is split by what it works on: `zfs` asks ZFS about datasets and
 //! pools, `mounts` mounts and unmounts, `discovery` finds the kernels of a

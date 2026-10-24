@@ -19,7 +19,6 @@ use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
 use crate::error::BootError;
 use crate::kernels::Kernel;
 use crate::recovery::Recovery;
-use crate::support;
 use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
 
 /// A fake for every program the boot runs: it records each call and
@@ -45,6 +44,12 @@ Z="$(cd "$(dirname "$0")/../.." && pwd)"
 printf 'hook %s %s|%s|%s|%s\n' "$(basename "$(dirname "$0")")" "${ZBM_SELECTED_BE}" \
   "${ZBM_SELECTED_KERNEL}" "${ZBM_SELECTED_INITRAMFS}" "${ZBM_SELECTED_MOUNTPOINT}" \
   >> "$Z/calls"
+"#;
+
+/// A `load-key.d` hook that records the variables it gets.
+const KEY_HOOK: &str = r#"#!/bin/sh
+Z="$(cd "$(dirname "$0")/../.." && pwd)"
+printf 'hook load-key.d %s|%s\n' "${ZBM_LOCKED_FS}" "${ZBM_ENCRYPTION_ROOT}" >> "$Z/calls"
 "#;
 
 const PROGRAMS: [&str; 6] = ["zfs", "zpool", "mount", "umount", "kexec", "mountpoint"];
@@ -94,6 +99,7 @@ impl Machine {
         if self.hooks {
             dir.write_executable("hooks/boot-sel.d/10-record", HOOK);
             dir.write_executable("hooks/teardown.d/10-record", HOOK);
+            dir.write_executable("hooks/load-key.d/10-record", KEY_HOOK);
         }
         dir
     }
@@ -515,30 +521,38 @@ fn writable_pools_and_exports() {
 }
 
 #[test]
-fn a_locked_boot_environment_is_not_supported_yet() {
-    let machine = Machine {
+fn boots_a_locked_environment_as_the_legacy_function_does() {
+    let mut parity = parity!("boots_a_locked_environment_as_the_legacy_function_does");
+    // The hook leaves it locked, and so does the passphrase prompt: the
+    // mount refuses it.
+    let locked = |keylocation| Machine {
         answers: vec![
             (0, "zpool list -H -o feature@encryption tank", "active\\n"),
             (0, "zfs get -H -o value encryptionroot *", "tank/ROOT\\n"),
             (0, "zfs get -H -o value keystatus *", "unavailable\\n"),
+            (0, "zfs get -H -o value keylocation *", keylocation),
+            (0, "zfs get -H -o value keyformat *", "hex\\n"),
+            (1, "zfs load-key *", ""),
         ],
         files: vec![],
-        hooks: false,
+        hooks: true,
     };
-    let outcome = machine.rust(|system, state, shells, hooks| {
-        let settings = BootSettings {
-            set_hostid: true,
-            hooks: hooks.to_path_buf(),
-            env: Vec::new(),
-            save_logs: None,
-        };
-        let selected = Kernel::parse("tank/ROOT/void\t/boot/vmlinuz\t/boot/initrd.img");
-        kexec_kernel(system, state, &settings, &selected, shells);
-        String::new()
-    });
-    assert_eq!(outcome.shells, format!("{}\n", support::MESSAGE));
-    assert!(!outcome.calls.contains("mount"));
-    assert!(outcome.log.contains("ERROR: "));
+    boot(&locked("prompt\\n"), &mut parity);
+    // A key file that is not in the image, and a key that is not a
+    // passphrase.
+    boot(&locked("file:///zbm-test/missing.key\\n"), &mut parity);
+    // A key source, locked with the same missing key: its own cache
+    // attempt is not repeated.
+    let mut with_source = locked("file:///zbm-test/missing.key\\n");
+    with_source.answers.insert(
+        0,
+        (
+            0,
+            "zfs get -H -o value org.zfsbootmenu:keysource *",
+            "tank/keys\\n",
+        ),
+    );
+    boot(&with_source, &mut parity);
 }
 
 #[test]

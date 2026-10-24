@@ -47,16 +47,16 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 to R9 | Not started | Two built-in hooks of R6 were done early |
+| R5 | In progress | Step 1 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks on the countdown's boot |
+| R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
 taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 ### Next
 
-- **R5**, the new menu: the menu of `zbm-tui` on the application layer, with booting moved into Rust (import, key
-  loading with `zbm_boot::keys`, `kexec`), so that the Rust runtime boots locked encryption roots and the `complex`
-  VM tests pass on it.
+- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 2, the message
+  catalogue, is next.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -827,8 +827,28 @@ builds after the core tasks.
 
 ### R5. The new menu (10 to 12 weeks)
 
-**State:** not started. Its input is ready: the prototype, the wireframes as snapshot tests, and the lists of
-`docs/dev/menu-design/interfaces.md`.
+**State:** in progress. Its input is ready: the prototype, the wireframes as snapshot tests, and the lists of
+`docs/dev/menu-design/interfaces.md`. The work goes in seven steps, each pushed and tested on its own:
+
+1. **Keys on the countdown's boot** (done). `zbm_boot::keys::load_key` loads the key of a locked encryption root in
+   the legacy order: the `load-key.d` hooks, the prompt of `keylocation=prompt`, a key file in the image, the
+   key-source cache (for boots chosen in the menu only, as the legacy `NO_CACHE=1` countdown skips it), then the
+   passphrase prompt of a `passphrase` key. Locked encryption roots and `load-key.d` hooks are no longer refused, so
+   the `complex` VM tests pass on the Rust runtime; parity tests compare the boot of a locked environment, its hooks
+   and the cache's recursion guard with the legacy functions.
+2. **The message catalogue**: Fluent in `locales/en`, the pseudo-language in the snapshot tests, and a lint against
+   literals the user reads.
+3. **The menu in the image**: the main view on the real machine, booting from it with key sources, and the
+   countdown and start-up views, replacing `fzf`.
+4. **Start-up inside the menu**: the `Prompter` and `Operator` answered by dialogs, with the plain console
+   fallback.
+5. **Snapshots and package D**: diff, clone, rollback and set default, and the command palette.
+6. **The rest of the menu**: kernels and the command line editor, pools and LUKS volumes from the menu, recovery
+   tools, help, power.
+7. **The exit**: `CHANGES-FROM-LEGACY.md`, the generated key binding section, the 10,000-snapshot performance test,
+   the hostile-names fuzz target, the 52×20 pseudo-language fit, and the usability sessions.
+
+The plan in full:
 
 - `zbm-tui` builds the design of D, in the order of the core tasks: the start-up view and countdown, the main view
   with its detail pane, the command palette, snapshots (diff, clone, rollback and boot, with previews and

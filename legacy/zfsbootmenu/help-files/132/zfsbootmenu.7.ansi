@@ -424,11 +424,12 @@
       Select the runtime that the image boots with: [33mlegacy[0m, the shell implementation, which is the default, or [33mrust[0m, the Rust
       runtime that is being written to replace it. The Rust runtime needs [1mzbm[0m (see [1mzfsbootmenu_zbm[0m). So far it unlocks LUKS
       volumes, with every key method and [1mzluks[0m, imports pools, with every import option, and boots the default boot
-      environment, as the legacy runtime does with [1mzbm.skip[0m; where a machine needs more (a locked encryption root, [1mload-key.d[0m
-      hooks or the menu), it logs what it cannot handle yet and opens the recovery shell. It keeps secrets in memory that is
-      locked, left out of core dumps and, where the kernel allows it ([33mmemfd_secret[0m), out of the kernel's own map of memory;
-      boot it with [33minit_on_free=1[0m (in [1mKernel.CommandLine[0m of [1mgenerate-zbm[0m) so that the kernel also zeroes the memory it frees,
-      which [1mzbm report[0m shows. Any other value stops the image build with an error.
+      environment, as the legacy runtime does with [1mzbm.skip[0m, loading the key of its encryption root with the [1mload-key.d[0m hooks,
+      a key file in the image or the passphrase prompt; where a machine needs the menu, it logs that it cannot show it yet and
+      opens the recovery shell. It keeps secrets in memory that is locked, left out of core dumps and, where the kernel allows
+      it ([33mmemfd_secret[0m), out of the kernel's own map of memory; boot it with [33minit_on_free=1[0m (in [1mKernel.CommandLine[0m of
+      [1mgenerate-zbm[0m) so that the kernel also zeroes the memory it frees, which [1mzbm report[0m shows. Any other value stops the
+      image build with an error.
 
     [1mzfsbootmenu_zbm=<path>[0m
 

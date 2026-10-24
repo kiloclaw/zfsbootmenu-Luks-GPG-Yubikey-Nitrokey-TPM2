@@ -33,14 +33,14 @@ fn with_format(keylocation: &str, keysource: &str, keyformat: &str) -> FakeSyste
         0,
         &format!("{keysource}\n"),
     );
-    runner.respond("zfs get -H -o value name tank/keys", 0, "tank/keys\n");
+    runner.respond("zfs list -o name -H tank/keys", 0, "tank/keys\n");
     runner.respond(
         "zfs get -H -o value encryptionroot tank/keys",
         0,
         "tank/keys\n",
     );
-    runner.respond("zfs get -H -o value name tank/missing", 1, "");
-    runner.respond("zfs get -H -o value name tank/plain", 0, "tank/plain\n");
+    runner.respond("zfs list -o name -H tank/missing", 1, "");
+    runner.respond("zfs list -o name -H tank/plain", 0, "tank/plain\n");
     runner.respond("zfs get -H -o value encryptionroot tank/plain", 0, "-\n");
     fake
 }

@@ -582,7 +582,9 @@ set-up with a pure function, which lists what it cannot handle yet:
 - the menu: `zbm.show`, no default boot environment, or any key press during the countdown.
 
 Package A of Phase 6 removed the import options (`zbm.import_policy`, `zbm.prefer`, `zbm.force_import`,
-`zbm.wait_for`) and `zbm.hookroot` from the list, once their VM tests passed against the Rust image.
+`zbm.wait_for`) and `zbm.hookroot` from the list, once their VM tests passed against the Rust image, and package B
+the LUKS volumes. Step 1 of R5 (`REFACTOR-ROADMAP.md`) removed locked encryption roots and `load-key.d` hooks: the
+runtime loads keys in the legacy order, with the key-source cache for boots chosen in the menu. Only the menu is left.
 
 Hooks themselves are not on the list: every image installs the bundled hooks (console set-up in `early-setup.d`, LUKS
 closing and xHCI unbinding in `teardown.d`), so the Phase 5 runtime already runs the `early-setup.d`, `boot-sel.d` and
