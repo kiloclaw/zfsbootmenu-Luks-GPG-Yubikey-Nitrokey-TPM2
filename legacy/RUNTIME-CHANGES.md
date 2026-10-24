@@ -83,6 +83,9 @@ off, and so that a change to the runtime adds its entry in the same commit.
   nothing changes.
   **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over. The CI job
   `reproducible` checks it.
+- [x] `89657e6`: the online help of `zfsbootmenu(7)` (`help-files/`) describes `zbm.save_logs`, the saved boot logs
+  and `zbm report` of the Rust runtime (ROADMAP.md #9); the legacy runtime is unchanged.
+  **Rust:** nothing to port; documentation only.
 
 ## Legacy limitations the Rust runtime must not copy
 
