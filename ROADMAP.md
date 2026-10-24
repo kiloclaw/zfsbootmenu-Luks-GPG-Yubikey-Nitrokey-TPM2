@@ -39,6 +39,9 @@ In October 2026, on branch `claude/zbm-refactor`:
   #17 (the console font follows the display's EDID when a graphics driver provides it) and #18 (the fonts carry the
   letters).
 - **Proposed:** the others.
+- **Dropped** in October 2026, with their numbers left unused: #13 (an own init in place of dracut and mkinitcpio,
+  which stay the image builders) and #14 (a built-in SSH server; remote unlock stays with dropbear and
+  `dracut-crypt-ssh`, as `contrib/remote-ssh-build.sh` builds it).
 
 ## Overview
 
@@ -56,8 +59,6 @@ In October 2026, on branch `claude/zbm-refactor`:
 | 10 | [Measured boot](#10-measured-boot) | 3 | Medium | Proposed |
 | 11 | [Re-seal the TPM after firmware updates](#11-re-seal-the-tpm-after-firmware-updates) | 2 | Medium | Prototyped |
 | 12 | [Built-in menu interface](#12-built-in-menu-interface) | 2 | Large | In progress |
-| 13 | [Own init](#13-own-init) | 4 | Large | Proposed |
-| 14 | [Built-in SSH server for remote unlock](#14-built-in-ssh-server-for-remote-unlock) | 4 | Large | Proposed |
 | 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
 | 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
 | 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 1 | Medium | Partly done |
@@ -75,8 +76,6 @@ Groups:
 3. [**After the menu, on the finished runtime**](#group-3-after-the-menu-on-the-finished-runtime): they change how
    start-up, unlocking or booting behave, which the refactoring allows from R5, or need the Rust `kexec` path of all
    images.
-4. [**After the cutover**](#group-4-after-the-cutover): they replace parts of the image or add a way in, and wait until
-   the legacy runtime is gone (R9).
 
 Status is one of Proposed, Prototyped, Partly done, In progress or Done. Update it, and the entry's **Status** line, in
 the pull request that changes it.
@@ -112,8 +111,7 @@ dropped (`zbm_sys::wipe`), and reach programs only on standard input; the journa
   records timestamps.
 - **How:** set `SOURCE_DATE_EPOCH` from the last commit and pass dracut's `--reproducible` option; check the EFI bundle
   that `objcopy` writes for timestamps. `generate-zbm` is Rust now, so the change goes there. Build paths are removed
-  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md). With #13, the Rust generator
-  writes the archive itself, with fixed timestamps, owners and file order.
+  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md).
 - **Done when:** CI builds the release image twice, in different directories, and the two images are identical.
 
 ### 9. Saved boot log and bug-report bundle
@@ -563,35 +561,6 @@ of the port, which R5 builds, brings the Rust `kexec` path to every image.
   the PCR values for a boot environment, so policies can be prepared before an upgrade.
 - **Done when:** a VM test with a software TPM compares the PCR values after booting with the prediction, and checks
   that ZFSBootMenu's TPM tokens no longer unseal after the extension.
-
-## Group 4: after the cutover
-
-These replace how the image is built or add a way into it, so they wait until the Rust runtime is the only one (R9)
-and the image assembly is Rust (R6).
-
-### 13. Own init
-
-- **Why:** dracut and mkinitcpio add size and boot time, and they differ between distributions. For example, Ubuntu's
-  dracut builds host-only images by default, which left the ZFS and dm-crypt modules out of container builds.
-- **How:** a Rust program runs as PID 1 in a minimal initramfs. It mounts `/proc`, `/sys` and `/dev`, loads modules
-  using `modules.dep`, waits for devices through kernel uevents instead of udev, sets up the console and keymap, and
-  starts the menu. The Rust `generate-zbm`, which computes the image's file list from R6, writes the image itself.
-  dracut and mkinitcpio stay supported until the new image passes every test. The risk is hardware that dracut handles
-  today: USB keyboards, NVMe, firmware files and microcode.
-- **Done when:** every VM test passes with the new image type, and its size and boot time are measured against dracut
-  images.
-
-### 14. Built-in SSH server for remote unlock
-
-**Security.**
-
-- **Why:** remote unlocking needs dropbear, `dracut-crypt-ssh` and NetworkManager in the image, assembled by
-  `contrib/remote-ssh-build.sh`.
-- **How:** an SSH server written in Rust (`russh`) with key authentication only and host keys created at build time.
-  The network is configured by DHCP or from the kernel command line (`ip=`). A session offers unlocking and the menu;
-  a shell only when configured.
-- **Done when:** a VM test unlocks a pool over SSH, password logins and unknown keys are refused, and a security review
-  is done.
 
 ## Done
 
