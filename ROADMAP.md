@@ -178,8 +178,9 @@ the `kexec` path of its images.
 (13 checks, 12f2b69) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
 `zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
 fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
-`kexec`. Step 4, keyboard layouts with `kbvm`, is built and waits for its VM run (`runtime-rust-console`, 17 checks);
-the console becomes the default only after the cutover.
+`kexec`. Step 4, keyboard layouts with `kbvm`, is built; its first VM run passed but for `ê` typed at the shell's
+prompt, which the check now types into `cat` (`runtime-rust-console`, 18 checks). The console becomes the default only
+after the cutover.
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
@@ -302,10 +303,12 @@ the console becomes the default only after the cutover.
        console loads the layout, records it (`console-layout`) and removes the request, which the command waits for.
        Without a name it shows the layout and the image's others.
      - `runtime-rust-console` checks, on `virtio_gpu`, the start layout, `zbm console layout de` typed in the shell,
-       `y`, `z` and a dead circumflex typed on the German layout, and the switch back typed with it.
+       `y`, `z` and a dead circumflex typed on the German layout into `cat`, and the switch back typed with it.
      - Left for later: the menu's `Ctrl-K` asking the console for the layout (R5, with the unlock dialog; on the
        console the menu then stops translating by key position), `Global.KeyboardLayouts` in `generate-zbm`, the
-       compose key (`Multi_key`), and keyboards with their own layouts.
+       compose key (`Multi_key`), keyboards with their own layouts, and characters beyond ASCII at the recovery
+       shell's prompt: in the image's C locale its line editor may take their bytes for Meta keys (the first VM run
+       lost `ê` there).
   5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
   - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;

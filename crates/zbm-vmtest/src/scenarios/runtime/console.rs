@@ -66,19 +66,22 @@ const LOG: &str = "dmesg > /dev/ttyS0\n";
 /// console's keyboard layout.
 const LAYOUT: &str = "/libexec/zbm console layout ";
 
-/// Keys typed with the German layout: `echo`, the keys of `y` and `z`, the
-/// dead circumflex (left of `1`) and `e`, which the shell shows as `zyê`.
+/// Keys typed with the German layout: `cat`, then the keys of `y` and `z`,
+/// the dead circumflex (left of `1`) and `e`, which the terminal echoes as
+/// `zyê`, and `Ctrl-D`. `cat` rather than the shell's `echo`: the shell's
+/// line editor, in the image's C locale, takes the bytes of `ê` for
+/// Meta keys.
 const GERMAN_KEYS: &[&str] = &[
-    "e",
     "c",
-    "h",
-    "o",
-    "spc",
+    "a",
+    "t",
+    "ret",
     "y",
     "z",
     "grave_accent",
     "e",
     "ret",
+    "ctrl-d",
 ];
 
 /// The console's message when it starts, in the kernel log and its mirror.
@@ -318,12 +321,17 @@ fn check_layouts(
     );
     let german: Vec<String> = GERMAN_KEYS.iter().map(|&name| name.to_owned()).collect();
     press_keys(vm, monitor, &german, pace.pause)?;
-    let typed = wait_screen(mirror, r"(?m)^zyê\s*$", pace.patience.min(30))?;
+    let swapped = wait_screen(mirror, r"(?m)^zy", pace.patience.min(30))?;
     test.check(
-        typed.is_some(),
-        "virtio: keys type on the German layout: y and z swap, ^ then e is ê",
+        swapped.is_some(),
+        "virtio: keys type on the German layout: the keys of y and z swap",
     );
-    if typed.is_none() {
+    let composed = wait_screen(mirror, r"(?m)^zyê\s*$", pace.patience.min(10))?;
+    test.check(
+        composed.is_some(),
+        "virtio: the dead circumflex then e types ê",
+    );
+    if composed.is_none() {
         test.note(&format!(
             "virtio: the console shows: {}",
             last_screen(mirror)

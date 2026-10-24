@@ -341,8 +341,9 @@ Following a boot
   pseudo-terminal (``/dev/pts/N``); keys are held 50 ms and sent 200 ms apart, and a failed check notes the console's
   last screen. The console writes its start (card, display, cells, keyboard layout) to the mirror too. The image has
   the layouts ``us`` and ``de`` (``zfsbootmenu_keyboard_layouts``): the console must start with ``us``;
-  ``/libexec/zbm console layout de`` typed in the shell must answer ``keyboard: de``, after which the keys of ``y``,
-  ``z``, the dead circumflex and ``e`` must type ``zyê``; the same command for ``us``, typed with the German layout,
+  ``/libexec/zbm console layout de`` typed in the shell must answer ``keyboard: de``; then, typed into ``cat`` (in the
+  image's C locale the shell's line editor may take ``ê`` for Meta keys), the keys of ``y`` and ``z`` must type
+  ``zy`` and the dead circumflex and ``e`` must add ``ê``; the same command for ``us``, typed with the German layout,
   must switch back. After ``kill -9`` of the
   console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
   kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's

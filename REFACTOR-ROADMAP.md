@@ -85,7 +85,7 @@ Work on this branch that no phase planned, or that a later phase planned and was
   `zbm.console_font=psf` keeps the console fonts. `runtime-rust-console` checks both, and passes (13 checks).
 - ROADMAP.md #19, step 4: keyboard layouts on the console on the display, with `kbvm` (decision 1): XKB keymaps
   compiled when the image is built (`zbm keyboard-layouts`), `zbm.keyboard_layout`, and `zbm console layout`, which
-  switches layouts while the console runs. To be checked by `runtime-rust-console` (17 checks).
+  switches layouts while the console runs. To be checked by `runtime-rust-console` (18 checks).
 
 ### Carried over
 

@@ -124,7 +124,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
         "\x0czbm console: on /dev/dri/card0: 1280x800 display, DejaVuSansMono.ttf 10x20 cells, \
          128x40, keyboard us\n\
          \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n\
-         \x0c# layout de\nkeyboard: de\n\x0c# echo zyê\nzyê\n\x0c# layout us\nkeyboard: us\n",
+         \x0c# layout de\nkeyboard: de\n\x0c# cat\nzyê\nzyê\n\x0c# layout us\nkeyboard: us\n",
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);
@@ -134,7 +134,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 12, "{checks:?}");
+    assert_eq!(checks.len(), 13, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -158,7 +158,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 17, "{checks:?}");
+    assert_eq!(checks.len(), 18, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"
