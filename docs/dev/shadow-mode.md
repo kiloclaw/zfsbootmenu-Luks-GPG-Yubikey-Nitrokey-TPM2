@@ -5,6 +5,9 @@ legacy runtime still decides everything; just before each boot, `zbm shadow` wor
 have decided from the same inputs and reports where the two differ. The plan behind it is in
 [REFACTOR-ROADMAP.md](../../REFACTOR-ROADMAP.md#shadow-mode-on-real-machines).
 
+Testers start from [docs/general/shadow-testing.rst](../general/shadow-testing.rst): how to build an image with it,
+read the report after a boot and send it in.
+
 ## Building an image with shadow mode
 
 Set the option in the dracut or mkinitcpio configuration of a legacy runtime image:
