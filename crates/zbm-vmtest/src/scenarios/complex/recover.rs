@@ -72,7 +72,7 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
 /// What the Rust runtime does after the recovery shell, as it has no menu
 /// yet (R5 step 3): it imports the pools the shell made importable and
 /// opens the shell again, where the legacy runtime shows the menu.
-fn after_the_shell_without_menu(test: &Test, boot: &Boot) -> Result<()> {
+pub(super) fn after_the_shell_without_menu(test: &Test, boot: &Boot) -> Result<()> {
     test.check(
         boot.has_prompt("refused"),
         "the Rust runtime opened the recovery shell again, where the legacy one shows the menu",

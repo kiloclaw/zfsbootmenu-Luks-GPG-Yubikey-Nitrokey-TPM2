@@ -1,7 +1,9 @@
 use pretty_assertions::assert_eq;
 
 use super::healthy::{Expect, cmdline, expect_healthy};
-use super::recover::{answer_prompts, imported, skip_prompts, unlock};
+use super::recover::{
+    after_the_shell_without_menu, answer_prompts, imported, skip_prompts, unlock,
+};
 use super::setup::{crypttab_lines, crypttab_text};
 use super::*;
 use crate::boot::Boot;
@@ -333,4 +335,25 @@ fn only_mixed_and_parts_online_count_as_imported() {
                 tank\tFAULTED\nmixed2 DEGRADED";
 
     assert_eq!(imported(list).unwrap(), ["mixed", "parts"]);
+}
+
+#[test]
+fn without_a_menu_the_rust_runtime_imports_tank_and_opens_the_shell_again() {
+    let settings = settings("complex-without-menu");
+    let test = Test::new(&settings, "complex-skip-recover").unwrap();
+    let imported = Boot {
+        prompts: vec!["refused".into()],
+        zbm_status: "  pool: tank\n state: ONLINE\n".into(),
+        ..Boot::default()
+    };
+    after_the_shell_without_menu(&test, &imported).unwrap();
+    after_the_shell_without_menu(&test, &Boot::default()).unwrap();
+
+    let results: Vec<bool> = checks(&test)
+        .iter()
+        .map(|line| line.starts_with("ok"))
+        .collect();
+    assert_eq!(results, [true, true, false, false]);
+    assert!(checks(&test)[3].contains("ZFSBootMenu imported tank after the shell: None"));
+    cleanup(&settings);
 }
