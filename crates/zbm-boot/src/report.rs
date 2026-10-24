@@ -124,6 +124,39 @@ fn tpm(system: &System<'_>, text: &mut String) {
     }
 }
 
+/// Whether the kernel zeroes the memory it frees (`init_on_free=1`), which
+/// wipes what processes and the kernel left in it (ROADMAP.md #1): from its
+/// start-up message (`mem auto-init: ..., heap free:on`) in `kernel_log`,
+/// else from its command line.
+pub fn zeroes_freed_memory(kernel_log: &str, cmdline: &str) -> Option<bool> {
+    let logged = kernel_log
+        .lines()
+        .filter_map(|line| line.split_once("mem auto-init:"))
+        .find_map(|(_, rest)| rest.split_once("heap free:"))
+        .map(|(_, rest)| rest.trim_start().starts_with("on"));
+    logged.or_else(|| {
+        cmdline
+            .split_whitespace()
+            .find_map(|word| word.strip_prefix("init_on_free="))
+            .map(|value| matches!(value, "1" | "on" | "y" | "yes"))
+    })
+}
+
+/// The memory section: whether freed memory is zeroed.
+fn memory(system: &System<'_>, text: &mut String) {
+    let _ = writeln!(text, "== memory");
+    let cmdline = system
+        .files
+        .read_to_string(Path::new("/proc/cmdline"))
+        .unwrap_or_default();
+    let line = match zeroes_freed_memory(&kernel_log(system.runner), &cmdline) {
+        Some(true) => "freed memory is zeroed (init_on_free)",
+        Some(false) => "freed memory is not zeroed: add init_on_free=1 to the command line",
+        None => "unknown whether freed memory is zeroed",
+    };
+    let _ = writeln!(text, "{line}\n");
+}
+
 /// The crash reports of the state directory `base`, by name.
 fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
     let mut names: Vec<String> = files
@@ -144,6 +177,7 @@ pub fn summary(system: &System<'_>, base: &Path, seconds: u64) -> String {
     pools(system, &mut text);
     luks(system, &mut text);
     tpm(system, &mut text);
+    memory(system, &mut text);
     let _ = writeln!(text, "== crash reports");
     let reports = crash_reports(system.files, base);
     let _ = writeln!(

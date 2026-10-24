@@ -9,6 +9,9 @@ fn main() {
     // `cryptsetup` refusing a device while a key is written to it, must not end
     // the process that feeds it. Writes to a closed pipe fail instead, and the
     // runtime handles the failure (see "Signals" in crates/DESIGN.md).
+    // Secrets (ROADMAP.md #1): no core dump of the runtime, and no process but
+    // root's may read its memory. A failure leaves it as it was.
+    let _ = zbm_sys::memory::set_undumpable();
     let mut args = std::env::args();
     let argv0 = args.next().unwrap_or_else(|| "zbm".to_owned());
     let args: Vec<String> = args.collect();

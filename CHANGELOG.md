@@ -127,6 +127,16 @@ passes it on) and builds `zbm` with its work directory remapped. Set it to the t
 `SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"`. A CI job builds the release image twice, from checkouts in
 different directories, and compares the bytes.
 
+### Secrets in locked memory
+
+ROADMAP.md #1, in images with the Rust runtime. Passphrases, PINs and keys are kept in memory of their own: locked so
+that it is never swapped out, left out of core dumps and child processes, and, on kernels that allow `memfd_secret`,
+out of the kernel's own map of memory. They are wiped when no longer needed, the runtime's processes are undumpable,
+and the console on the display wipes the key codes it reads. Before booting a kernel, ZFSBootMenu drops the page
+cache, so that key files read from key devices leave memory. Boot Rust images with `init_on_free=1` on their command
+line (`Kernel.CommandLine`) so that the kernel zeroes the memory it frees; `zbm report` says whether it does. Two VM
+tests search the whole machine for the passphrase and the key file just before `kexec`.
+
 ### Saved boot logs and bug reports
 
 ROADMAP.md #9, in images with the Rust runtime. With `zbm.save_logs` on the kernel command line, ZFSBootMenu saves

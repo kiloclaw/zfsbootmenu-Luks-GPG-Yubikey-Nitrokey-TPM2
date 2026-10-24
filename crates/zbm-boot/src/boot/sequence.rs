@@ -308,9 +308,28 @@ fn hand_over(system: &System<'_>, state: &State<'_>) {
     }
 }
 
+/// The kernel's file that drops clean caches.
+const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
+
+/// The last step before `kexec` (ROADMAP.md #1), which leaves the memory of
+/// running processes and of the kernel as it is: drops the clean page cache,
+/// which may hold key files read from key devices, so that the kernel frees
+/// those pages, and zeroes them with `init_on_free=1`; and warns when this
+/// process still holds secrets.
+pub fn wipe_before_kexec(system: &System<'_>) {
+    if let Err(error) = system.files.write(Path::new(DROP_CACHES), b"3\n") {
+        zbm_trace::debug!("unable to drop the page cache: {error}");
+    }
+    let live = zbm_platform::secret::live_secrets();
+    if live > 0 {
+        zbm_trace::warn!("{live} secrets are still in memory before kexec");
+    }
+}
+
 /// Tells the user which kernel boots and executes it. Returns only if that
 /// fails, after telling the user.
 fn execute(system: &System<'_>, fs: &str, kernel: &str) {
+    wipe_before_kexec(system);
     let booting = format!(
         "\nBooting {} for {} ...\n\n",
         colorize("yellow", kernel),
@@ -381,5 +400,26 @@ mod tests {
         assert!(fake.files.exists(std::path::Path::new(
             "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log"
         )));
+    }
+
+    #[test]
+    fn the_page_cache_is_dropped_and_live_secrets_named_before_kexec() {
+        let fake = FakeSystem::new();
+        fake.files.dir("/proc/sys/vm");
+        let system = fake.system();
+        let _log =
+            zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
+                .install();
+
+        wipe_before_kexec(&system);
+        assert_eq!(fake.files.text(DROP_CACHES).as_deref(), Some("3\n"));
+        assert!(!fake.kmsg().contains("still in memory"), "{}", fake.kmsg());
+        let held = zbm_platform::secret::Secret::copy_from(b"pass");
+        wipe_before_kexec(&system);
+        assert!(
+            fake.kmsg()
+                .contains("secrets are still in memory before kexec")
+        );
+        drop(held);
     }
 }

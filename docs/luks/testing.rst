@@ -351,6 +351,17 @@ Following a boot
   must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the
   boot environment must boot.
 
+* ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
+  (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
+  passphrase and a key file, both unlike anything else in memory, and the pool ``tsecret`` on it. The other two boot a
+  Rust image built with the ``secret-test`` feature, with ``init_on_free=1`` and ``zbm.luks=UUID=``: ``passphrase``
+  types the passphrase at the prompt; ``keyfile`` names the key file on a FAT USB stick (``zbm.luks_key``), and no
+  prompt may appear. A teardown hook runs just before ``kexec``: ``zbm debug secrets`` searches the memory of every
+  other process, their command lines and environments, and every file on the file systems in memory, for both
+  secrets, given in hexadecimal. It must search and find nothing, and the kernel must say that it zeroes freed memory
+  (``heap free:on``). The test notes how the image's kernel lets secrets be kept (``Secret`` with ``memfd_secret``,
+  else ``Locked``).
+
 * ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
   FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The
   first boot's countdown boots ``tplain``'s boot environment, which must boot. The machine then restarts with the same

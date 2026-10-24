@@ -80,6 +80,21 @@ fn a_secret_on_standard_input_is_reported_by_kind_only() {
 }
 
 #[test]
+fn plain_input_is_reported_by_kind_too() {
+    let _serial = serial();
+    for (input, kind) in [
+        (Input::Null, "null"),
+        (Input::Bytes(b"yes\n".to_vec()), "bytes"),
+    ] {
+        let command = Command::new("zpool").arg("import").stdin(input);
+
+        let lines = journal_of(&command, 0, Duration::ZERO);
+
+        assert_eq!(lines[0]["spans"][0]["stdin"], kind);
+    }
+}
+
+#[test]
 fn the_output_of_the_inner_runner_is_returned_unchanged() {
     let _serial = serial();
     let clock = FakeClock::new();

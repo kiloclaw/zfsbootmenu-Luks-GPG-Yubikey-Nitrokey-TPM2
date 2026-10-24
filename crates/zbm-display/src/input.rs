@@ -38,6 +38,21 @@ pub struct InputEvent {
     pub value: i32,
 }
 
+/// What wiped events are overwritten with.
+const BLANK_EVENT: InputEvent = InputEvent {
+    kind: 0,
+    code: 0,
+    value: 0,
+};
+
+/// What wiped key presses are overwritten with.
+const BLANK_PRESS: KeyPress = KeyPress {
+    key: crate::keys::Key::Char('\0'),
+    shift: false,
+    ctrl: false,
+    alt: false,
+};
+
 /// The events in `bytes`, as read from an input device; a partial event at
 /// the end is left out.
 pub fn parse_events(bytes: &[u8]) -> Vec<InputEvent> {
@@ -162,14 +177,20 @@ impl Keyboards {
     pub fn read_device(&mut self, index: usize) -> io::Result<Vec<KeyPress>> {
         let mut buffer = [0_u8; EVENT_SIZE * 32];
         if let Some(device) = self.devices.get_mut(index) {
-            let length = device.read(&mut buffer)?;
-            for event in parse_events(buffer.get(..length).unwrap_or(&[])) {
+            let read = device.read(&mut buffer);
+            let length = read.as_ref().map_or(0, |length| *length);
+            let mut events = parse_events(buffer.get(..length).unwrap_or(&[]));
+            for event in &events {
                 if event.kind == EV_KEY
                     && let Some(press) = self.decoder.feed(event.code, event.value)
                 {
                     self.pending.push(press);
                 }
             }
+            // The key codes of a passphrase tell it as well as its bytes.
+            zbm_sys::wipe(&mut buffer);
+            zbm_sys::wipe_values(&mut events, BLANK_EVENT);
+            read?;
         }
         Ok(std::mem::take(&mut self.pending))
     }
@@ -182,7 +203,12 @@ impl KeySource for Keyboards {
         {
             self.pending = self.read_device(index)?;
         }
-        Ok((!self.pending.is_empty()).then(|| self.pending.remove(0)))
+        let press = (!self.pending.is_empty()).then(|| self.pending.remove(0));
+        if self.pending.is_empty() {
+            // `remove` leaves copies of the presses in the spare capacity.
+            zbm_sys::wipe_values(&mut self.pending, BLANK_PRESS);
+        }
+        Ok(press)
     }
 }
 

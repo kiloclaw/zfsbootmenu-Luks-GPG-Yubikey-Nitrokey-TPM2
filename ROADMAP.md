@@ -35,8 +35,9 @@ In October 2026, on branch `claude/zbm-refactor`:
 - **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
   the menu side of #4 ([boot health](docs/dev/menu-design/boot-health.md),
   [unlocking](docs/dev/menu-design/unlocking.md)).
-- **Partly done** by the port and the refactoring: #1 (secrets are wiped when dropped and reach programs only on
-  standard input), #12 (the menu is phase D and R5 of the refactoring), #17 (the console font follows the display's
+- **Built**, with its VM tests still to run: #1 (secrets in locked memory, and a search of the machine before
+  `kexec`).
+- **Partly done** by the port and the refactoring: #12 (the menu is phase D and R5 of the refactoring), #17 (the console font follows the display's
   EDID when a graphics driver provides it) and #18 (the fonts carry the letters).
 - **Proposed:** the others.
 - **Dropped** in October 2026, with their numbers left unused: #13 (an own init in place of dracut and mkinitcpio,
@@ -47,7 +48,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 
 | # | Feature | Group | Effort | Status |
 | --- | --- | --- | --- | --- |
-| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | 1 | Small | Partly done |
+| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | 1 | Small | Built |
 | 2 | [Unlock with whatever arrives first](#2-unlock-with-whatever-arrives-first) | 3 | Medium | Proposed |
 | 3 | [Parallel startup](#3-parallel-startup) | 3 | Medium | Proposed |
 | 4 | [Clear unlock errors](#4-clear-unlock-errors) | 2 | Medium | Prototyped |
@@ -89,10 +90,19 @@ These touch code that is already Rust. Each is added as a change of its own, for
 
 **Security.**
 
-**Status:** partly done. In the Rust runtime secrets are `zbm_platform::Secret`, wiped with `explicit_bzero` when
-dropped (`zbm_sys::wipe`), and reach programs only on standard input; the journal writes fields named for secrets as
-`[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
-`docs/dev/threat-model.md`). Locked pages, the wipe before `kexec` and the memory search remain.
+**Status:** built; its VM tests, `secrets-passphrase` and `secrets-keyfile`, have still to pass on the maintainer's
+machine. In the Rust runtime secrets are `zbm_platform::Secret`, in pages of their own (`zbm_sys::memory::Pages`):
+from `memfd_secret` where the kernel allows it, which keeps them out of the kernel's map of memory too, else locked
+with `mlock`; never in core dumps (`MADV_DONTDUMP`) or child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`); wiped
+with `explicit_bzero` when dropped. They reach programs only on standard input, the journal writes fields named for
+secrets as `[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
+`docs/dev/threat-model.md`). The runtime's processes are undumpable, and the console on the display wipes the key
+codes it reads. Before `kexec`, the start-up program drops the page cache and warns about secrets it still holds;
+`zbm report` says whether the kernel zeroes freed memory (`init_on_free=1`), which the man page recommends for Rust
+images. The VM tests unlock a volume with a long passphrase, then with a key file on a USB stick, and a teardown hook
+runs `zbm debug secrets` (in images built with the `secret-test` feature) just before `kexec`: it searches every other
+process's memory, command line and environment, and every file on the file systems in memory, for both. Kernel
+buffers still in use at `kexec` are not searched, and stay a risk (R4 of the threat model).
 
 - **Why:** Bash keeps passphrases and key material in variables, here-strings and pipe buffers that cannot be reliably
   erased. Copies can remain in RAM after ZFSBootMenu hands over to the booted kernel. ZFSBootMenu already closes LUKS

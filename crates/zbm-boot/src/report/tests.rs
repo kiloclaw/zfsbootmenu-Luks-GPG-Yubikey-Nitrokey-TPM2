@@ -45,8 +45,12 @@ fn machine() -> FakeSystem {
         0,
         METADATA,
     );
-    fake.runner
-        .respond("dmesg", 0, "[    1.0] zfsbootmenu: started\n");
+    fake.runner.respond(
+        "dmesg",
+        0,
+        "[    0.1] mem auto-init: stack:all(zero), heap alloc:on, heap free:on\n\
+         [    1.0] zfsbootmenu: started\n",
+    );
     fake.files
         .file(
             "/etc/zbm-release",
@@ -82,6 +86,7 @@ fn the_summary_says_what_the_machine_is_and_how_it_booted() {
         "  pool: tank\n state: ONLINE\n",
         "/dev/vda2: UUID 2a6f-luks; tokens: 0 systemd-tpm2 (key slots 1); 1 clevis (key slots 2)\n",
         "/dev/tpmrm0: present, not in lockout\n",
+        "== memory\nfreed memory is zeroed (init_on_free)\n",
         "== crash reports\ncrash-1767225600-77.txt\n",
     ] {
         assert!(text.contains(expected), "{expected:?} in:\n{text}");
@@ -100,6 +105,7 @@ fn a_bare_machine_has_little_to_report() {
         "== pools\nno pool is imported\n",
         "== LUKS volumes\nnone\n",
         "== TPM\nnone\n",
+        "== memory\nunknown whether freed memory is zeroed\n",
         "== crash reports\nnone\n",
     ] {
         assert!(text.contains(expected), "{expected:?} in:\n{text}");
@@ -161,4 +167,17 @@ fn a_report_goes_to_the_esp_or_says_why_not() {
             .starts_with("unable to write /media/full/"),
         "{error}"
     );
+}
+
+#[test]
+fn zeroing_of_freed_memory_is_read_from_the_kernel_log_or_command_line() {
+    let off = "[0.0] mem auto-init: stack:off, heap alloc:on, heap free:off\n";
+    assert_eq!(zeroes_freed_memory(off, "init_on_free=1"), Some(false));
+    assert_eq!(zeroes_freed_memory("", "quiet init_on_free=1"), Some(true));
+    assert_eq!(zeroes_freed_memory("", "init_on_free=0"), Some(false));
+    assert_eq!(zeroes_freed_memory("", "quiet"), None);
+    let fake = FakeSystem::new();
+    fake.files.file("/proc/cmdline", "ro init_on_free=0\n");
+    let text = summary(&fake.system(), Path::new("/zfsbootmenu"), 0);
+    assert!(text.contains("not zeroed: add init_on_free=1"), "{text}");
 }

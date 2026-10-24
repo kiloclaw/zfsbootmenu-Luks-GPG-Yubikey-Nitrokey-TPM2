@@ -475,9 +475,15 @@ terminal.
 
 Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and decrypted key files are secrets.
 
-- **In memory,** a secret is a `zbm_platform::Secret`: its bytes are wiped (with `explicit_bzero`, through
-  `zbm-sys`) when it is dropped, it grows without leaving copies behind, and it prints as `Secret(..)`, so it cannot
-  end up in a log message or an error by accident.
+- **In memory,** a secret is a `zbm_platform::Secret`: its bytes live in pages of their own
+  (`zbm_sys::memory::Pages`), from `memfd_secret` where the kernel allows it, which takes them out of the kernel's
+  map of memory too, else anonymous memory locked with `mlock`; either way left out of core dumps
+  (`MADV_DONTDUMP`) and of child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`). They are wiped (with
+  `explicit_bzero`) when the secret is dropped, it grows without leaving copies behind, and it prints as
+  `Secret(..)`, so it cannot end up in a log message or an error by accident.
+- **Processes** of the runtime are undumpable (`PR_SET_DUMPABLE`): no core dump, and only root may read their
+  memory. Buffers that held what a secret is made of, such as the key codes the console on the display reads, are
+  wiped too (`zbm_sys::wipe_values`).
 - **Into a program,** a secret goes only on standard input (`Input::Secret`), for example
   `cryptsetup open --key-file=- ...`, `gpg --passphrase-fd 0`, or `tpm2_unseal -p session:<context>+file:-`. Some
   programs read their input as text: `tpm2_unseal` stops at a zero byte and drops a final newline, so the
@@ -489,6 +495,11 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   process instead of by `sha256sum` and `openssl`.
 - **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end; the run is a
   process of its own, so nothing remains in the memory of the start-up program.
+- **Before `kexec`,** which leaves memory as it is, the start-up program drops the clean page cache (key files read
+  from key devices) and warns if it still holds a secret (`zbm_boot::boot::wipe_before_kexec`). With `init_on_free=1`
+  on its command line, the kernel zeroes every page it frees, so what ended processes and closed pipes left behind is
+  gone too; `zbm report` says whether it does. The VM tests `secrets-passphrase` and `secrets-keyfile` search every
+  process's memory, command line and environment, and every file in memory, just before `kexec`.
 
 The legacy code is close to this but not the same, and the Rust runtime is stricter where nothing observable changes:
 

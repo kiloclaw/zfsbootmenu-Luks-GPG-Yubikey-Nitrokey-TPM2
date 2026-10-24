@@ -98,7 +98,10 @@ default, or *rust*, the Rust runtime that is being written to replace it. The Ru
 **zluks**, imports pools, with every import option, and boots the default boot environment, as the
 legacy runtime does with **zbm.skip**; where a machine needs more (a locked encryption root,
 **load-key.d** hooks or the menu), it logs what it cannot handle yet and opens the recovery shell.
-Any other value stops the image build with an error.
+It keeps secrets in memory that is locked, left out of core dumps and, where the kernel allows it
+(*memfd_secret*), out of the kernel's own map of memory; boot it with *init_on_free=1* (in
+**Kernel.CommandLine** of **generate-zbm**) so that the kernel also zeroes the memory it frees,
+which **zbm report** shows. Any other value stops the image build with an error.
 ";
 
 /// `zfsbootmenu_zbm`: the zbm program of the Rust runtime.

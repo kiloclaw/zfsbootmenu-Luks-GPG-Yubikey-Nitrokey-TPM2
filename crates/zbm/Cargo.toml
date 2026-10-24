@@ -33,6 +33,9 @@ zbm-types.workspace = true
 test-seams = []
 # A test build for the crash report VM test: `zbm debug panic` panics.
 crash-test = []
+# A test build for the VM test secrets-*: `zbm debug secrets` searches the
+# machine's processes and files in memory for secrets (ROADMAP.md #1).
+secret-test = []
 # A test build for the VM test runtime-rust-drm: `zbm debug menu-demo` runs the
 # menu prototype on the display without a terminal (ROADMAP.md #19, step 1).
 menu-demo = []

@@ -16,6 +16,7 @@ pub mod keys;
 pub mod layouts;
 pub mod procedures;
 pub mod runtime;
+pub mod secrets;
 
 /// Every test, in the order `zbm-vmtest run` runs them: each setup before
 /// the scenarios that need it.
@@ -69,6 +70,9 @@ pub const ALL: &[&str] = &[
     "runtime-rust-drm",
     "runtime-rust-console",
     "runtime-rust-saved",
+    "secrets-setup",
+    "secrets-passphrase",
+    "secrets-keyfile",
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.
@@ -84,6 +88,7 @@ fn dispatch(test: &Test, name: &str) -> Result<()> {
         "firmware" => firmware::run(test, scenario),
         "procedures" => procedures::run(test),
         "runtime" => runtime::run(test, scenario),
+        "secrets" => secrets::run(test, scenario),
         _ => Err(Error::Setup(format!("unknown test {name}"))),
     }
 }

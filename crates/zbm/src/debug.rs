@@ -11,6 +11,8 @@
 //! - `zbm debug panic`, only in builds with the `crash-test` feature, panics,
 //!   so that VM tests can check the whole way from a panic to a symbolized
 //!   report.
+//! - `zbm debug secrets HEX...`, only in builds with the `secret-test`
+//!   feature, searches the machine for secrets (`secret_search`).
 //! - `zbm debug menu-demo`, only in builds with the `menu-demo` feature, runs
 //!   the menu prototype on the display without a terminal
 //!   ([`crate::menu_demo`]).
@@ -85,6 +87,8 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
         }
         #[cfg(feature = "crash-test")]
         ["panic"] => panic_for_test(),
+        #[cfg(feature = "secret-test")]
+        ["secrets", secrets @ ..] => crate::secret_search::run(secrets, io),
         #[cfg(feature = "menu-demo")]
         ["menu-demo", ..] => {
             let rest: Vec<String> = args.iter().skip(1).map(|arg| (*arg).to_owned()).collect();

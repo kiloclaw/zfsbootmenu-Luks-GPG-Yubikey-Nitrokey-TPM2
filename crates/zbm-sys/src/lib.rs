@@ -14,6 +14,7 @@
 #![allow(unsafe_code)]
 
 pub mod console;
+pub mod memory;
 mod stack;
 
 pub use stack::{MAX_FRAMES, return_addresses};
@@ -276,6 +277,19 @@ pub fn wipe_vec(vec: &mut Vec<u8>) {
     vec.clear();
 }
 
+/// Overwrites the whole allocation of `vec` with `blank`, the capacity beyond
+/// its length included, and empties it: for vectors of values that tell a
+/// secret, such as the keys typed at a passphrase prompt.
+pub fn wipe_values<T: Copy>(vec: &mut Vec<T>, blank: T) {
+    vec.clear();
+    for slot in vec.spare_capacity_mut() {
+        // SAFETY: `slot` is a valid, aligned place for a `T` in the vector's
+        // allocation; a volatile write is not optimised away, and the vector's
+        // length stays 0, so no value it holds changes.
+        unsafe { std::ptr::write_volatile(slot.as_mut_ptr(), blank) }
+    }
+}
+
 /// The effective user, group and supplementary groups of the process.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Credentials {
@@ -322,6 +336,17 @@ fn supplementary_groups() -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn values_are_wiped_beyond_the_length_too() {
+        let mut values = vec![7_u16, 8, 9];
+        values.truncate(1);
+        wipe_values(&mut values, 0);
+        assert!(values.is_empty());
+        // SAFETY (test): the capacity holds 3 values written above.
+        let all = unsafe { std::slice::from_raw_parts(values.as_ptr(), 3) };
+        assert_eq!(all, [0, 0, 0]);
+    }
     use std::time::{Duration, Instant};
 
     /// Held by every test that starts processes or changes dispositions, so that
