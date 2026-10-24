@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+      SStárrtíññg  tank DEGRADED · 0/3 óópéññ · ! 1
+┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 3 óóf 5 ┐
+│ √  Load the ZFS module                           │
+│ √  Set the host ID                               │
+│ ┌──────────────────────────────────────────────┐ │
+│ │             ÚÚñlóóçk luks-zroot-a            │ │
+│ │                                              │ │
+│ │ óóñ /dev/nvme0n1p2                           │ │
+│ │                                              │ │
+│ │ PPásssphrráséé:                              │ │
+│ │ Wrong passphrase.                            │ │
+│ │ ↑/↓ ttó ússé thhé TTPM2 PPÍÑ ííñsttéádd      │ │
+│ │ KKéýbbóárrd: us. SSét wwíthh áñóóthéér       │ │
+│ │ lááýóúút? Çttrl-KK çhááñgéés ítt.            │ │
+│ │                                              │ │
+│ │                     [ SSkípp ]  [ ÚÚñlóóçk ] │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

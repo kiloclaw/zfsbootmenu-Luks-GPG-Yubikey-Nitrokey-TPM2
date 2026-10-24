@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+      SStárrtíññg  tank DEGRADED · 2/3 óópéññ · ! 1
+┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 3 óóf 5 ┐
+│ √  Load the ZFS module                           │
+│ ┌──────────────────────────────────────────────┐ │
+│ │             ÚÚñlóóçk luks-zroot-a            │ │
+│ │                                              │ │
+│ │ óóñ /dev/nvme0n1p2                           │ │
+│ │                                              │ │
+│ │ PPásssphrráséé:                              │ │
+│ │ The TPM kept the key. PCR 0 (firmware code): │ │
+│ │ the firmware was updated to 1.21.            │ │
+│ │ ↑/↓ ttó ússé thhé TTPM2 PPÍÑ ííñsttéádd      │ │
+│ │ KKéýbbóárrd: us · ÇÇtrll-K: lááýóúút ·       │ │
+│ │ ÇÇtrll-R: shhów                              │ │
+│ │                                              │ │
+│ │                     [ SSkípp ]  [ ÚÚñlóóçk ] │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

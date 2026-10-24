@@ -454,6 +454,7 @@ mod tests {
     fn file(lines: usize, functions: Vec<FnScan>) -> ScannedFile {
         ScannedFile {
             path: PathBuf::from("src/lib.rs"),
+            test_code: false,
             scan: FileScan {
                 lines,
                 functions,

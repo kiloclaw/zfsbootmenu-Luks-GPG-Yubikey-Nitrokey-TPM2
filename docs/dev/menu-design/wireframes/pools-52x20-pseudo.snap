@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹        PPóólls  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ PPÓÓLLS ÁÑÑD LÚÚKS VVÓLÚÚMÉSS ──────────────── 5 ┐
+│ ▶ PPóóll  zroot          rréádd-óñllý · ONLINE   │
+│   PPóóll  tank           rréádd-óñllý · DEGRADED │
+│   VVólúúméluks-zroot-a  /dev/nvme0n1p2 · óópéññ  │
+│   VVólúúméluks-zroot-b  /dev/nvme1n1p2 · óópéññ  │
+│   VVólúúméluks-tank         /dev/sda2 · óópéññ   │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér DDétááílss   u ÚÚñlóóçk           ? MMóréé

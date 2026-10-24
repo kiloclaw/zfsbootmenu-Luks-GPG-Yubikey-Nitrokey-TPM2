@@ -7,65 +7,15 @@ use ratatui::text::{Line, Span};
 use crate::menu::format::fit;
 use crate::menu::model::Model;
 use crate::menu::theme::{Glyph, Role, Theme};
-use crate::menu::world::{Environment, Target, Verdict, worst};
+use crate::menu::world::{Environment, Fallback, Target, Verdict, worst};
 use crate::text::text;
 
 /// The banner: its forms, longest first, and its role; `None` when there
 /// is nothing to say.
 pub(super) fn banner(model: &Model) -> Option<(Vec<String>, Role)> {
     let seconds = model.countdown_seconds();
-    let spaced = |forms: Vec<String>| forms.into_iter().map(|form| format!(" {form}")).collect();
     if let Some(fallback) = &model.snapshot.fallback {
-        let failed = fallback.failed.to_string();
-        let attempts = fallback.attempts;
-        let Some(seconds) = seconds else {
-            let forms = vec![
-                text!(
-                    "banner-used-up",
-                    failed = failed.as_str(),
-                    attempts = attempts
-                ),
-                text!(
-                    "banner-used-up.short",
-                    failed = failed.as_str(),
-                    attempts = attempts
-                ),
-            ];
-            return Some((spaced(forms), Role::Warning));
-        };
-        let target = match &fallback.target {
-            Target::Environment(name) => {
-                text!(
-                    "fallback-target-environment",
-                    environment = name.to_string()
-                )
-            }
-            Target::Snapshot(name) => text!("fallback-target-clone", snapshot = name.name()),
-        };
-        let forms = vec![
-            text!(
-                "banner-fallback",
-                failed = failed.as_str(),
-                attempts = attempts,
-                target = target.as_str(),
-                seconds = seconds
-            ),
-            text!(
-                "banner-fallback.shorter",
-                failed = failed.as_str(),
-                attempts = attempts,
-                target = target.as_str(),
-                seconds = seconds
-            ),
-            text!(
-                "banner-fallback.short",
-                failed = failed.as_str(),
-                attempts = attempts,
-                seconds = seconds
-            ),
-            text!("banner-fallback.shortest", seconds = seconds),
-        ];
-        return Some((spaced(forms), Role::Warning));
+        return Some((spaced(fallback_forms(fallback, seconds)), Role::Warning));
     }
     let seconds = seconds?;
     let selected = &model.selected_environment()?.name;
@@ -97,6 +47,58 @@ pub(super) fn banner(model: &Model) -> Option<(Vec<String>, Role)> {
         ]
     };
     Some((spaced(forms), Role::Accent))
+}
+
+/// `forms` after the space that starts a banner.
+fn spaced(forms: Vec<String>) -> Vec<String> {
+    forms.into_iter().map(|form| format!(" {form}")).collect()
+}
+
+/// The forms of the banner of a default that used up its boot tries,
+/// longest first: with the countdown to the fallback when `seconds` runs.
+fn fallback_forms(fallback: &Fallback, seconds: Option<u64>) -> Vec<String> {
+    let failed = fallback.failed.to_string();
+    let failed = failed.as_str();
+    let attempts = fallback.attempts;
+    let Some(seconds) = seconds else {
+        return vec![
+            text!("banner-used-up", failed = failed, attempts = attempts),
+            text!("banner-used-up.short", failed = failed, attempts = attempts),
+        ];
+    };
+    let target = match &fallback.target {
+        Target::Environment(name) => {
+            text!(
+                "fallback-target-environment",
+                environment = name.to_string()
+            )
+        }
+        Target::Snapshot(name) => text!("fallback-target-clone", snapshot = name.name()),
+    };
+    let target = target.as_str();
+    vec![
+        text!(
+            "banner-fallback",
+            failed = failed,
+            attempts = attempts,
+            target = target,
+            seconds = seconds
+        ),
+        text!(
+            "banner-fallback.shorter",
+            failed = failed,
+            attempts = attempts,
+            target = target,
+            seconds = seconds
+        ),
+        text!(
+            "banner-fallback.short",
+            failed = failed,
+            attempts = attempts,
+            seconds = seconds
+        ),
+        text!("banner-fallback.shortest", seconds = seconds),
+    ]
 }
 
 /// The banner's `text` as a line. A countdown is plain text with the

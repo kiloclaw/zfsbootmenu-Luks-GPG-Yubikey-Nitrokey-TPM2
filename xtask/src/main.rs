@@ -23,6 +23,7 @@ mod lint;
 mod metrics;
 mod process;
 mod record_zfs;
+mod texts;
 mod widths;
 mod workspace;
 

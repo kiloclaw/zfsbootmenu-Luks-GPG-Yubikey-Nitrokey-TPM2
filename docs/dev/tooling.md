@@ -7,7 +7,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 
 | Command | What it does |
 | --- | --- |
-| `cargo xtask lint` | Every check a pull request must pass: `rustfmt` (also of the fuzz targets), that the fuzz targets build, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `gen-docs --check`, `check-deps` and `metrics --check`. All checks run, and the failures are listed at the end |
+| `cargo xtask lint` | Every check a pull request must pass: `rustfmt` (also of the fuzz targets), that the fuzz targets build, line widths, clippy with warnings as errors (also on the test build of `zbm`), the strict lints of the crates in `xtask/strict/crates.txt` (below), rustdoc with warnings as errors, `gen-docs --check`, `check-deps`, the menu's text (that every string the menu shows comes from its catalogue, [text.md](menu-design/text.md)) and `metrics --check`. All checks run, and the failures are listed at the end |
 | `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
 | `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
 | `cargo xtask record-zfs [--manifest]` | Records what `zfs` and `zpool` print, as JSON and as text, in a test VM (root, QEMU), into `crates/zbm-zfs/tests/fixtures/<major.minor>/`; `--manifest` prints the commands the VM harness runs ([testing.md](testing.md)) |

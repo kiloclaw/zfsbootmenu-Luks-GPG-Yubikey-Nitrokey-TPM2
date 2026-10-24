@@ -2,6 +2,7 @@
 
 use crate::menu::model::{Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome};
+use crate::text::text;
 use zbm_types::ImportPolicy;
 
 /// Applies an event.
@@ -62,10 +63,10 @@ pub(super) fn apply(model: &mut Model, event: Event) {
 /// The notification of how unlocking `volume` ended.
 fn unlocked(volume: &str, outcome: UnlockOutcome) -> Outcome {
     match outcome {
-        UnlockOutcome::Opened => Outcome::Done(format!("{volume} is open")),
-        UnlockOutcome::Skipped => Outcome::Warning(format!("{volume} stays locked")),
+        UnlockOutcome::Opened => Outcome::Done(text!("unlock-opened", volume = volume)),
+        UnlockOutcome::Skipped => Outcome::Warning(text!("unlock-skipped", volume = volume)),
         UnlockOutcome::Failed(why) => Outcome::Failed {
-            what: format!("unable to unlock {volume}"),
+            what: text!("unlock-failed", volume = volume),
             why: vec![why],
             next: Vec::new(),
         },
@@ -108,32 +109,30 @@ pub(super) fn start(model: &mut Model) {
     }
     if model.snapshot.environments.is_empty() {
         model.countdown = None;
-        model.notification = Some(Outcome::Warning(
-            "no boot environment found: see the pools, or open the recovery shell".to_owned(),
-        ));
+        model.notification = Some(Outcome::Warning(text!("environments-none.notice")));
     }
 }
 
 /// The choices of a pool that did not import.
 fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String) {
-    let act = |label: &str, then: Then| Choice {
-        label: label.to_owned(),
-        then,
-    };
+    let act = |label: String, then: Then| Choice { label, then };
     let choices = vec![
         act(
-            "Retry",
+            text!("import-retry"),
             Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
         ),
         act(
-            "Import with Its Last Host ID",
+            text!("pool-import-last-host"),
             Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
         ),
-        act("Force the Import", super::dialogs::force_import(pool)),
-        act("Open the Recovery Shell", Then::Act(Action::Shell)),
+        act(
+            text!("pool-force-import"),
+            super::dialogs::force_import(pool),
+        ),
+        act(text!("import-shell"), Then::Act(Action::Shell)),
     ];
     model.dialog = Some(super::dialogs::choose(
-        &format!("{pool} Did Not Import"),
+        &text!("import-failed.title", pool = pool.to_string()),
         vec![reason],
         choices,
     ));

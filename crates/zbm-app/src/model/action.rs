@@ -6,6 +6,14 @@ use zbm_types::{DatasetName, ImportPolicy, PoolName, SnapshotName};
 
 use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
 
+/// The name of the safety snapshot a rollback takes first, so that it can
+/// be undone: `<environment>@before-rollback`.
+pub const SAFETY_SNAPSHOT: &str = "before-rollback";
+
+/// The name of the safety snapshot restoring files takes first:
+/// `<environment>@before-restore`.
+pub const RESTORE_SNAPSHOT: &str = "before-restore";
+
 /// What the menu asks the machine to do.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Action {
@@ -29,8 +37,8 @@ pub enum Action {
     InheritDefaultKernel(DatasetName),
     /// Take a snapshot.
     CreateSnapshot(DatasetName),
-    /// Roll an environment back to a snapshot, after a safety snapshot when
-    /// `safety` is set.
+    /// Roll an environment back to a snapshot, after a safety snapshot
+    /// ([`SAFETY_SNAPSHOT`]) when `safety` is set.
     Rollback {
         /// The snapshot.
         snapshot: SnapshotName,

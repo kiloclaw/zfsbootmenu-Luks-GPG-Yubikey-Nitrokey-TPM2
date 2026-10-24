@@ -51,7 +51,7 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
     let header = match &diff.packages {
         Some(packages) => text!(
             "packages-since.manager",
-            manager = packages.manager.to_string(),
+            manager = packages.manager.as_str(),
             snapshot = snapshot
         ),
         None => text!("packages-since", snapshot = snapshot),

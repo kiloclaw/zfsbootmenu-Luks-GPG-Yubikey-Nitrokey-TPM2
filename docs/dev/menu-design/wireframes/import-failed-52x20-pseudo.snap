@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+      SStárrtíññg  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 4 óóf 5 ┐
+│ ┌──────────────────────────────────────────────┐ │
+│ │            × backup did not import           │ │
+│ │                                              │ │
+│ │ It was last imported by host deadbeef, and   │ │
+│ │ this machine is host 00bab10c.               │ │
+│ │                                              │ │
+│ │ ÝÝóú ççáñ:                                   │ │
+│ │ • Import it with the host ID it was last     │ │
+│ │ imported with                                │ │
+│ │ • Force the import, if that host is not      │ │
+│ │ running                                      │ │
+│ │ • Open the recovery shell                    │ │
+│ │                                              │ │
+│ │                                      [ ÓÓK ] │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ × FFáílléd: backup did not import
+ ÉÉñtéér ÇÇhóóósé   ÉÉsç ÇÇáñççél

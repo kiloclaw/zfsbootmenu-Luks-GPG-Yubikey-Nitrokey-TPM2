@@ -4,7 +4,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use super::data::NOW;
 use crate::menu::world::{
-    Action, CommandLine, Environment, Event, Origin, Outcome, Snapshot, SnapshotInfo,
+    Action, CommandLine, Environment, Event, Origin, Outcome, RESTORE_SNAPSHOT, SAFETY_SNAPSHOT,
+    Snapshot, SnapshotInfo,
 };
 
 /// Applies an action on storage, and says what happened.
@@ -137,7 +138,7 @@ fn create(snapshot: &mut Snapshot, name: &DatasetName, tag: &str) -> Outcome {
 fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Outcome {
     let name = target.dataset().clone();
     if safety {
-        create(snapshot, &name, "before-rollback");
+        create(snapshot, &name, SAFETY_SNAPSHOT);
     }
     let Some(environment) = environment(snapshot, &name) else {
         return Outcome::Warning(format!("{name} is gone"));
@@ -153,7 +154,7 @@ fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Out
     let before = environment.snapshots.len();
     environment
         .snapshots
-        .retain(|s| s.created <= created || s.name.name().starts_with("before-rollback"));
+        .retain(|s| s.created <= created || s.name.name().starts_with(SAFETY_SNAPSHOT));
     let destroyed = before - environment.snapshots.len();
     Outcome::Done(format!(
         "{name} rolled back to {}; {destroyed} newer snapshots destroyed",
@@ -196,7 +197,7 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
 pub(super) fn restore(snapshot: &mut Snapshot, from: &SnapshotName, count: usize) -> Outcome {
     let environment = from.dataset();
     let note = make_writable(snapshot, &environment.pool());
-    let safety = create(snapshot, environment, "before-restore");
+    let safety = create(snapshot, environment, RESTORE_SNAPSHOT);
     let files = if count == 1 { "file" } else { "files" };
     match safety {
         Outcome::Done(_) => Outcome::Done(format!(

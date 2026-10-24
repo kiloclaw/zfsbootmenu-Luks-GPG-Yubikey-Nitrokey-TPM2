@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹   SSñáppshóóts  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ SSÑÁPPSHÓÓTS BBÝ ÇÇRÉÁÁTÍÓÓÑ ─────────────── 400 ┐
+│ ▶   pre-upgrade            12 hh ágóó   1.1 GGíB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │         RRólll Báççk zroot/ROOT/void         │ │
+│ │                                              │ │
+│ │ zroot/ROOT/void ggóéss báççk tóó             │ │
+│ │ pre-upgrade: éévérrý çhháñggé sííñçéé ís     │ │
+│ │ llóstt.                                      │ │
+│ │ ÑÑó ñééwérr sñáápshhót íís dééstrróýééd.     │ │
+│ │ ÁÁ sáffétýý sñáápshhót                       │ │
+│ │ zroot/ROOT/void@before-rollback íís táákéññ  │ │
+│ │ fírrst: rrólll báççk tóó ít ttó úññdó.       │ │
+│ │                                              │ │
+│ │                                              │ │
+│ │               [ ÇÇáñççél ]  [ RRólll Báççk ] │ │
+│ └──────────────────────────────────────────────┘ │
+│     autosnap_2026-10-08_…  15 dd ágóó    17 MMíB │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

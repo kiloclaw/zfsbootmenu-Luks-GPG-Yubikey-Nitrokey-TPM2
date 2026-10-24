@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+           BBóótt  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ BBÓÓTT ÉÑVVÍRÓÓÑMÉÉÑTSS ────────────────────── 4 ┐
+│ ▶ tan…  1 wwárññíñgg  ddéfááúltt  6.11.5-arch1-1 │
+│   zroot/ROOT/void           ddéfááúltt  6.12.9_1 │
+│   tank/ROOT/debian  1 ppróbblémm  6.1.0-26-amd64 │
+│   zroot/ROOT/ubuntu             6.8.0-47-generic │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ tank/ROOT/arch ────────────────────── ddéfááúltt ┐
+│     ÇÇhéççks  ! tank has 4% free: writes during… │
+│       PPóóll  tank · DEGRADED · rréádd/wrííté    │
+│     KKérññél  6.11.5-arch1-1 · 2 kkérññélss      │
+│ SSñáppshóóts  2 · ññéwéést 2026-10-01, 22 dd ág… │
+│ ÉÉñçrrýpttíóññ  ññóñéé                           │
+│ ÇÇómmmáñdd Líññé  rw quiet splash · ssét hhéréé  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ √ DDóñéé: tank/ROOT/arch is the default of tank (ta
+ ÉÉñtéér BBóótt   k KKérññélss             ? MMóréé

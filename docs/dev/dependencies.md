@@ -28,6 +28,7 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | `serde_json` | `zbm-trace`, `zbm-zfs`, `zbm-crypt` | The JSON journal; the JSON output of `zfs` and `zpool`; LUKS2 metadata from `cryptsetup` |
 | `serde` | `zbm-zfs` | The shape of that output, derived (`derive`) |
 | `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets, terminal output and key input |
+| `fluent-bundle`, `unic-langid` | `zbm-tui` | The menu's message catalogue ([text.md](menu-design/text.md)): Project Fluent's bundle, with plurals and attributes, and its language identifiers. Already built for `uucore`, which takes them through `fluent`; Apache-2.0 or MIT |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
 | `uucore` (`version-cmp`) | `zbm-types` | Version order, the `sort -V` of uutils coreutils, the images' coreutils. Its required dependencies (`clap`, `fluent`, `nix` and others) are built, but link-time optimization leaves only `version_cmp` in `zbm`: 6.8 KB of a 2.2 MB stripped binary |
 | `drm` | `zbm-display` | The display without a terminal (ROADMAP.md #19, step 1): DRM dumb buffers, modes and outputs, in safe Rust over `rustix`, which the workspace already has. Smithay's crate, MIT. Pinned to 0.15.0 |

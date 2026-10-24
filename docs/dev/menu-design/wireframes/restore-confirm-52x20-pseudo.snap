@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹     ÇÇháññgéss  tank DEGRADED · 3/3 óópéññ · ! 1
+          [ FFíléés 6 ]     PPáçkkágéés 5
+┌ ┌──────────────────────────────────────────────┐ ┐
+│ │    RRésttóréé 2 FFíléés frróm pre-upgrade    │ │
+│ │                                              │ │
+│ │ /etc/fstab                                   │ │
+│ │ /usr/lib/libdrm.so.2                         │ │
+│ │ TThéýý réppláççé thhé fííléss íñ             │ │
+│ │ zroot/ROOT/void áás thhéý ááré ññów.         │ │
+│ │ zroot íís ímmpórrtédd réáád/wrrítéé, áñdd á  │ │
+└─│ sááféttý sññápsshótt                         │─┘
+┌ │ zroot/ROOT/void@before-restore íís táákéññ   │ ┐
+│ │ fírrst: rrólll báççk tóó ít ttó úññdó.       │ │
+│ │                                              │ │
+│ │ TTýpéé void ttó çóóñfíírm: vo                │ │
+│ │                                              │ │
+│ │                 [ ÇÇáñççél ]  [ RRésttóréé ] │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇóñffírmm   ÉÉsç ÇÇáñççél

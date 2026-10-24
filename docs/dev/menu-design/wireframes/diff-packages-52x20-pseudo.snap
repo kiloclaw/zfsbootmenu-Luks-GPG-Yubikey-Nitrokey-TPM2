@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹     ÇÇháññgéss  tank DEGRADED · 3/3 óópéññ · ! 1
+            FFíléés 6     [ PPáçkkágéés 5 ]
+┌ XBPS PPÁÇKKÁGÉÉS SÍÍÑÇÉÉ PRE-UPGRADE ───────── 5 ┐
+│ ▶ - libdrm                             2.4.123_1 │
+│   + nvidia                           560.35.03_1 │
+│   ↑ mesa                     24.1.7_1 → 24.2.4_1 │
+│   ↑ zfs                        2.4.3_1 → 2.4.4_1 │
+│   ↑ linux-firmware       20240909_1 → 20241017_1 │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ PPÁÇKKÁGÉÉ ────────────────────────── rrémóóvédd ┐
+│ libdrm                                           │
+│ RRémóóvédd síññçé tthé ssñáppshóót, whhíçhh háss │
+│ 2.4.123_1. BBóóttíñgg á çllóñéé óf tthé          │
+│ ssñáppshóót, órr rólllíññg bááçk, bbríññgs íít   │
+│ bááçk wwíthh ítss páççkággé rééçórrd.            │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér SShóww Fíllés                     ? MMóréé

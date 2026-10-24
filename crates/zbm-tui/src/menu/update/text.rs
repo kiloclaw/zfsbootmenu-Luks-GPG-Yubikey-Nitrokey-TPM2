@@ -5,6 +5,7 @@ use super::dialogs;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
 use crate::menu::world::{Action, Outcome};
+use crate::text::{self, id, text};
 
 /// Applies a typing input to `text`; returns the intent when the input is
 /// not typing, and leaves `text` alone.
@@ -102,18 +103,23 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
     let mut items = Vec::new();
     for environment in &model.snapshot.environments {
         let name = &environment.name;
+        let shown = name.to_string();
+        let environment_text = shown.as_str();
         let boot = super::screens::boot(model, environment, None);
-        items.push(item(format!("Boot {name}"), Then::Act(boot)));
         items.push(item(
-            format!("Kernels of {name}"),
+            text!("palette-boot", environment = environment_text),
+            Then::Act(boot),
+        ));
+        items.push(item(
+            text!("view-kernels.of", environment = environment_text),
             Then::Focus(name.clone(), Screen::Kernels),
         ));
         items.push(item(
-            format!("Snapshots of {name}"),
+            text!("view-snapshots.of", environment = environment_text),
             Then::Focus(name.clone(), Screen::Snapshots),
         ));
         items.push(item(
-            format!("Edit the command line of {name}"),
+            text!("palette-edit", environment = environment_text),
             Then::Focus(name.clone(), Screen::CommandLine),
         ));
         if environment
@@ -121,13 +127,13 @@ pub fn palette_items(model: &Model) -> Vec<PaletteItem> {
             .is_some_and(|tries| tries.left < tries.total)
         {
             items.push(item(
-                format!("Give {name} Its Boot Tries Back"),
+                text!("palette-reset-tries", environment = environment_text),
                 Then::Act(Action::ResetBootTries(name.clone())),
             ));
         }
         for snapshot in &environment.snapshots {
             items.push(item(
-                format!("Boot a clone of {}", snapshot.name),
+                text!("palette-boot-clone", snapshot = snapshot.name.to_string()),
                 Then::Act(Action::BootSnapshot(snapshot.name.clone())),
             ));
         }
@@ -147,31 +153,31 @@ fn tool_items(model: &Model) -> Vec<PaletteItem> {
         .filter_map(|volume| {
             let then = super::unlock::reseal(model, &volume.name)?;
             Some(item(
-                format!("Re-seal the TPM2 Key of {}", volume.name),
+                text!("reseal.title", volume = volume.name.as_str()),
                 then,
             ))
         })
         .collect();
     let screens = [
-        ("Pools and volumes", Screen::Pools),
-        ("Recovery tools", Screen::Recovery),
-        ("Log", Screen::Log),
+        (id!("tool-pools"), Screen::Pools),
+        (id!("palette-recovery-tools"), Screen::Recovery),
+        (id!("tool-log"), Screen::Log),
     ];
     items.extend(
         screens
             .into_iter()
-            .map(|(label, screen)| item(label.to_owned(), Then::Open(screen))),
+            .map(|(label, screen)| item(text::get(label), Then::Open(screen))),
     );
     let actions = [
-        ("Recovery Shell", Action::Shell),
-        ("Power Off", Action::PowerOff),
-        ("Reboot", Action::Reboot),
-        ("Reboot into Firmware Setup", Action::FirmwareSetup),
+        (id!("tool-shell.title"), Action::Shell),
+        (id!("power-off"), Action::PowerOff),
+        (id!("power-reboot"), Action::Reboot),
+        (id!("power-firmware-setup"), Action::FirmwareSetup),
     ];
     items.extend(
         actions
             .into_iter()
-            .map(|(label, action)| item(label.to_owned(), Then::Act(action))),
+            .map(|(label, action)| item(text::get(label), Then::Act(action))),
     );
     items
 }
@@ -224,5 +230,5 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
 /// What is wrong with a command line, if anything: an unclosed quote.
 pub fn check(line: &str) -> Option<String> {
     let quotes = line.chars().filter(|c| *c == '"').count();
-    (quotes % 2 == 1).then(|| "the command line has an unclosed \" quote".to_owned())
+    (quotes % 2 == 1).then(|| text!("command-line-unclosed-quote"))
 }

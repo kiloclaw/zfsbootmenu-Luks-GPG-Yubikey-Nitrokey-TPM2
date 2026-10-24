@@ -8,7 +8,8 @@ use zbm_platform::secret::Secret;
 use crate::menu::keyboard;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Dialog, Model, Prompt, Then};
-use crate::menu::world::{Action, Method, Outcome};
+use crate::menu::world::{Action, Method, Outcome, PcrChange};
+use crate::text::{self, Id, id, text};
 
 /// The unlock dialog: the secret never leaves its [`Secret`].
 pub(super) fn prompt(model: &mut Model, input: Input, mut prompt: Prompt) -> Vec<Action> {
@@ -95,15 +96,11 @@ pub(super) fn translated(model: &Model, mut key: KeyEvent) -> KeyEvent {
 pub(super) fn next_layout(model: &mut Model) {
     let keyboard = &model.snapshot.keyboard;
     if !keyboard.local {
-        model.notification = Some(Outcome::Warning(
-            "keys come from a serial terminal: its own layout applies".to_owned(),
-        ));
+        model.notification = Some(Outcome::Warning(text!("layout-serial")));
         return;
     }
     if keyboard.layouts.len() < 2 {
-        model.notification = Some(Outcome::Warning(
-            "this image knows one keyboard layout".to_owned(),
-        ));
+        model.notification = Some(Outcome::Warning(text!("layout-only-one")));
         return;
     }
     model.layout = (model.layout + 1) % keyboard.layouts.len();
@@ -111,7 +108,7 @@ pub(super) fn next_layout(model: &mut Model) {
         prompt.secret = Secret::new();
     }
     let name = model.layout().unwrap_or_default().to_owned();
-    model.notification = Some(Outcome::Done(format!("typing with the {name} layout")));
+    model.notification = Some(Outcome::Done(text!("layout-typing", layout = name)));
 }
 
 /// The confirmation of sealing `volume`'s TPM2 key to the PCRs as they are
@@ -123,17 +120,45 @@ pub(super) fn reseal(model: &Model, volume: &str) -> Option<Then> {
     let mut lines: Vec<String> = seal
         .changed
         .iter()
-        .map(|change| format!("{}.", change.describe()))
+        .map(|change| format!("{}.", pcr_change(change)))
         .collect();
-    lines.push(format!(
-        "Re-sealing trusts the machine as it is now (PCRs {}).",
-        seal.pcr_list()
-    ));
-    lines.push("Do it only for changes you made; else keep the passphrase.".to_owned());
+    lines.push(text!("reseal", pcrs = seal.pcr_list()));
+    lines.push(text!("reseal.only-yours"));
     Some(Then::Confirm {
         action: Action::Reseal(volume.to_owned()),
-        title: format!("Re-seal the TPM2 Key of {volume}"),
+        title: text!("reseal.title", volume = volume),
         lines,
         name: volume.to_owned(),
     })
+}
+
+/// A PCR that changed, for people: `PCR 0 (firmware code): the firmware
+/// was updated to 1.21`.
+pub(crate) fn pcr_change(change: &PcrChange) -> String {
+    let name = text::get(pcr_name(change.index));
+    let pcr = text!("pcr", index = change.index, name = name);
+    match &change.detail {
+        Some(detail) => format!("{pcr}: {detail}"),
+        None => pcr,
+    }
+}
+
+/// What a PCR measures on a UEFI machine, as the TCG PC Client profile and
+/// systemd use them.
+fn pcr_name(index: u8) -> Id {
+    match index {
+        0 => id!("pcr-firmware-code"),
+        1 => id!("pcr-firmware-settings"),
+        2 => id!("pcr-option-roms"),
+        3 => id!("pcr-option-rom-settings"),
+        4 => id!("pcr-boot-loader"),
+        5 => id!("pcr-partition-table"),
+        7 => id!("pcr-secure-boot"),
+        9 => id!("pcr-initramfs"),
+        11 => id!("pcr-kernel-image"),
+        12 => id!("pcr-command-line"),
+        14 => id!("pcr-shim"),
+        15 => id!("pcr-system-identity"),
+        _ => id!("pcr-other"),
+    }
 }

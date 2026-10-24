@@ -13,6 +13,7 @@ The design of the new menu of ZFSBootMenu (REFACTOR-ROADMAP.md, phase D), which 
 | [The key map](keymap.md) | one meaning per key, the bindings, the classic `MOD+key` aliases (decision 8) |
 | [Boot health](boot-health.md) | will it boot (checks), boot counting with a fallback, boot once, restoring files from a snapshot, the packages an upgrade changed |
 | [Unlocking](unlocking.md) | why the TPM kept a key and sealing it again, the keyboard layout of a passphrase |
+| [The menu's text](text.md) | the Fluent catalogue every string comes from, titles and plurals, the lint, the pseudo-language, adding a language |
 | [What the menu needs from `zbm-app`](interfaces.md) | the `Snapshot`, `Action` and event lists handed to R4 |
 | [Usability sessions](usability.md) | who, how, the task script, what to record |
 | [Findings](findings.md) | what the sessions found, and what was done about it |

@@ -6,6 +6,7 @@ use super::dialogs;
 use crate::menu::keymap::{Context, Intent};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
 use crate::menu::world::{Action, Environment, Method, Outcome, Verdict};
+use crate::text::text;
 
 /// What `intent` does on the current screen.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
@@ -71,9 +72,9 @@ pub(super) fn guarded(model: &mut Model, action: Action) -> Vec<Action> {
     if failures.is_empty() {
         return vec![action];
     }
-    let title = format!("{environment} May Not Boot");
+    let title = text!("may-not-boot.title", environment = environment.to_string());
     let choice = Choice {
-        label: "Boot Anyway".to_owned(),
+        label: text!("may-not-boot.anyway"),
         then: Then::Act(action),
     };
     model.dialog = Some(dialogs::choose(&title, failures, vec![choice]));
@@ -127,7 +128,10 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Shell => return vec![Action::Shell],
         Intent::RevertCommandLine => {
             model.edited.retain(|(edited, _)| *edited != name);
-            model.notification = Some(Outcome::Done(format!("command line of {name} reverted")));
+            model.notification = Some(Outcome::Done(text!(
+                "command-line-reverted",
+                environment = name.to_string()
+            )));
         }
         _ => {}
     }
@@ -185,10 +189,10 @@ fn pools(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Rewind => {
             model.dialog = Some(dialogs::confirm(Then::Confirm {
                 action: Action::RewindCheckpoint(pool.clone()),
-                title: format!("Rewind {pool} to Its Checkpoint"),
+                title: text!("rewind.title", pool = pool.to_string()),
                 lines: vec![
-                    format!("Every change to {pool} since its checkpoint is lost."),
-                    "The checkpoint itself is discarded.".to_owned(),
+                    text!("rewind", pool = pool.to_string()),
+                    text!("rewind.discarded"),
                 ],
                 name: pool.to_string(),
             }));
@@ -215,20 +219,20 @@ pub(super) fn unlock(model: &mut Model, volume: &str) {
 fn import_choices(model: &mut Model, pool: &zbm_types::PoolName) {
     let choices = vec![
         Choice {
-            label: "Import with This Host ID".to_owned(),
+            label: text!("pool-import-this-host"),
             then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Strict)),
         },
         Choice {
-            label: "Import with Its Last Host ID".to_owned(),
+            label: text!("pool-import-last-host"),
             then: Then::Act(Action::Import(pool.clone(), ImportPolicy::Hostid)),
         },
         Choice {
-            label: "Force the Import".to_owned(),
+            label: text!("pool-force-import"),
             then: dialogs::force_import(pool),
         },
     ];
     model.dialog = Some(dialogs::choose(
-        &format!("Import {pool}"),
+        &text!("import-title", pool = pool.to_string()),
         Vec::new(),
         choices,
     ));

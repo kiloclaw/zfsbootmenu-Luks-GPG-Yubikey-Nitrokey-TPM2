@@ -4,7 +4,8 @@
 use super::dialogs;
 use crate::menu::keymap::Intent;
 use crate::menu::model::{DiffView, Model, Segment, Then};
-use crate::menu::world::{Action, Outcome};
+use crate::menu::world::{Action, Outcome, RESTORE_SNAPSHOT};
+use crate::text::text;
 
 /// How many paths the restore confirmation lists.
 const LISTED: usize = 4;
@@ -33,9 +34,10 @@ fn restore(model: &mut Model) {
     let paths = diff.to_restore();
     if paths.is_empty() {
         let created = diff.selected().map_or_else(String::new, |c| c.path.clone());
-        model.notification = Some(Outcome::Warning(format!(
-            "{created} was created after {}: there is nothing to restore",
-            diff.from.name()
+        model.notification = Some(Outcome::Warning(text!(
+            "restore-nothing",
+            path = created,
+            snapshot = diff.from.name()
         )));
         return;
     }
@@ -45,21 +47,22 @@ fn restore(model: &mut Model) {
 /// The confirmation of restoring `paths` from the snapshot of `diff`.
 fn confirmation(diff: &DiffView, paths: Vec<String>) -> Then {
     let environment = diff.from.dataset();
-    let files = if paths.len() == 1 { "File" } else { "Files" };
     let mut lines: Vec<String> = paths.iter().take(LISTED).cloned().collect();
     if paths.len() > LISTED {
-        lines.push(format!("and {} more", paths.len() - LISTED));
+        lines.push(text!("restore.more", count = paths.len() - LISTED));
     }
-    lines.push(format!(
-        "They replace the files in {environment} as they are now."
-    ));
-    lines.push(format!(
-        "{} is imported read/write, and a safety snapshot {environment}@before-restore is \
-         taken first: roll back to it to undo.",
-        environment.pool()
+    lines.push(text!("restore", environment = environment.to_string()));
+    lines.push(text!(
+        "restore.safety",
+        pool = environment.pool().to_string(),
+        safety = format!("{environment}@{RESTORE_SNAPSHOT}")
     ));
     Then::Confirm {
-        title: format!("Restore {} {files} from {}", paths.len(), diff.from.name()),
+        title: text!(
+            "restore.title",
+            count = paths.len(),
+            snapshot = diff.from.name()
+        ),
         action: Action::RestoreFiles {
             snapshot: diff.from.clone(),
             paths,

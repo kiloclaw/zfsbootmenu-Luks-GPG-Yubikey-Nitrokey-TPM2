@@ -4,9 +4,11 @@
 use zbm_types::SnapshotName;
 
 use super::dialogs;
+use crate::menu::format::{age, size};
 use crate::menu::keymap::Intent;
 use crate::menu::model::{Choice, Model, Then};
-use crate::menu::world::{Action, SnapshotInfo};
+use crate::menu::world::{Action, SAFETY_SNAPSHOT, SnapshotInfo};
+use crate::text::text;
 
 /// How many marked snapshots a diff compares.
 const MARKS: usize = 2;
@@ -76,41 +78,42 @@ fn diff(model: &Model, selected: &SnapshotName) -> Action {
 /// The choice of actions for a snapshot.
 fn actions(model: &Model, snapshot: &SnapshotInfo) -> crate::menu::model::Dialog {
     let name = &snapshot.name;
-    let choice = |label: &str, then: Then| Choice {
-        label: label.to_owned(),
-        then,
-    };
+    let choice = |label: String, then: Then| Choice { label, then };
     let choices = vec![
         choice(
-            "Boot a Temporary Clone",
+            text!("snapshot-boot-clone"),
             Then::Act(Action::BootSnapshot(name.clone())),
         ),
-        choice("Roll Back to It", rollback(model, snapshot)),
+        choice(text!("snapshot-roll-back"), rollback(model, snapshot)),
         choice(
-            "Clone as a New Boot Environment",
+            text!("snapshot-clone"),
             Then::Act(Action::Clone(name.clone())),
         ),
         choice(
-            "Duplicate as an Independent Copy",
+            text!("snapshot-duplicate"),
             Then::Act(Action::Duplicate(name.clone())),
         ),
-        choice("Clone and Promote", promote(name)),
+        choice(text!("snapshot-promote"), promote(name)),
         choice(
-            "Show Differences to Now",
+            text!("snapshot-diff"),
             Then::Act(Action::Diff(name.clone(), None)),
         ),
         choice(
-            "Chroot into It, Read-Only",
+            text!("snapshot-chroot"),
             Then::Act(Action::Chroot(name.to_string())),
         ),
     ];
     let lines = vec![format!(
         "{} · {} · {}",
         name,
-        crate::menu::format::age(model.snapshot.now, snapshot.created),
-        crate::menu::format::size(snapshot.used)
+        age(model.snapshot.now, snapshot.created),
+        size(snapshot.used)
     )];
-    dialogs::choose(&format!("Snapshot {}", name.name()), lines, choices)
+    dialogs::choose(
+        &text!("snapshot-title", snapshot = name.name()),
+        lines,
+        choices,
+    )
 }
 
 /// The confirmation of a rollback: what is lost, and the name to type.
@@ -126,33 +129,34 @@ fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
                 .collect()
         })
         .unwrap_or_default();
-    let mut lines = vec![format!(
-        "{environment} goes back to {}: every change since is lost.",
-        snapshot.name.name()
+    let environment_name = environment.to_string();
+    let mut lines = vec![text!(
+        "rollback",
+        environment = environment_name.as_str(),
+        snapshot = snapshot.name.name()
     )];
     if newer.is_empty() {
-        lines.push("No newer snapshot is destroyed.".to_owned());
+        lines.push(text!("rollback.none-destroyed"));
     } else {
-        let size: u64 = newer.iter().map(|s| s.used).sum();
-        lines.push(format!(
-            "{} newer snapshots are destroyed ({}), the newest {}.",
-            newer.len(),
-            crate::menu::format::size(size),
-            newer
+        let used: u64 = newer.iter().map(|s| s.used).sum();
+        lines.push(text!(
+            "rollback.destroyed",
+            count = newer.len(),
+            size = size(used),
+            newest = newer
                 .iter()
                 .max_by_key(|s| s.created)
                 .map_or("", |s| s.name.name())
         ));
     }
-    lines.push(format!(
-        "A safety snapshot {environment}@before-rollback is taken first: roll back to it to undo."
-    ));
+    let safety = format!("{environment}@{SAFETY_SNAPSHOT}");
+    lines.push(text!("rollback.safety", safety = safety));
     Then::Confirm {
         action: Action::Rollback {
             snapshot: snapshot.name.clone(),
             safety: true,
         },
-        title: format!("Roll Back {environment}"),
+        title: text!("rollback.title", environment = environment_name),
         lines,
         name: environment.last_component().to_owned(),
     }
@@ -163,13 +167,14 @@ fn promote(name: &SnapshotName) -> Then {
     let environment = name.dataset();
     Then::Confirm {
         action: Action::CloneAndPromote(name.clone()),
-        title: format!("Clone and Promote {}", name.name()),
+        title: text!("promote.title", snapshot = name.name()),
         lines: vec![
-            format!(
-                "The clone takes over the snapshots of {environment} up to {}.",
-                name.name()
+            text!(
+                "promote",
+                environment = environment.to_string(),
+                snapshot = name.name()
             ),
-            format!("{environment} then depends on the clone, and cannot be destroyed without it."),
+            text!("promote.depends", environment = environment.to_string()),
         ],
         name: environment.last_component().to_owned(),
     }

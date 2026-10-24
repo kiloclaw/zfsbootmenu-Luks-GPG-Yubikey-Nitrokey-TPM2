@@ -17,6 +17,8 @@ use crate::workspace::{Package, TargetKind};
 pub struct ScannedFile {
     /// The file.
     pub path: PathBuf,
+    /// Whether the whole file is test code.
+    pub test_code: bool,
     /// What it holds.
     pub scan: FileScan,
 }
@@ -78,6 +80,7 @@ pub fn scan_package(package: &Package, legacy_names: &HashSet<String>) -> Result
         }
         files.push(ScannedFile {
             path: pending.path,
+            test_code: pending.test_code,
             scan,
         });
     }

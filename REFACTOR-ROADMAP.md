@@ -47,7 +47,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 | In progress | Step 1 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks on the countdown's boot |
+| R5 | In progress | Steps 1 and 2 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks on the countdown's boot; the menu's text comes from a Fluent catalogue |
 | R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -55,8 +55,8 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 ### Next
 
-- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 2, the message
-  catalogue, is next.
+- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 3, the menu in the
+  image, is next.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -836,8 +836,13 @@ builds after the core tasks.
    passphrase prompt of a `passphrase` key. Locked encryption roots and `load-key.d` hooks are no longer refused, so
    the `complex` VM tests pass on the Rust runtime; parity tests compare the boot of a locked environment, its hooks
    and the cache's recursion guard with the legacy functions.
-2. **The message catalogue**: Fluent in `locales/en`, the pseudo-language in the snapshot tests, and a lint against
-   literals the user reads.
+2. **The message catalogue** (done). Every string of the menu (`zbm_tui::menu`) comes from
+   `crates/zbm-tui/locales/en/menu.ftl` through `text!` and `id!`, with `.title` attributes for title case, plurals,
+   ages and sizes in the catalogue; the wireframes are unchanged. The pseudo-language draws every view at 52×20 in the
+   wireframe tests, and `cargo xtask lint` fails on a text literal in the menu's code, an id missing from the
+   catalogue, or a message nothing uses ([text.md](docs/dev/menu-design/text.md)). Left for step 3: the R0 pilot
+   (`zbm_tui::view`), which step 3 replaces, and the English that the application layer still writes (check
+   results, failure reasons, stage names).
 3. **The menu in the image**: the main view on the real machine, booting from it with key sources, and the
    countdown and start-up views, replacing `fzf`.
 4. **Start-up inside the menu**: the `Prompter` and `Operator` answered by dialogs, with the plain console
@@ -1000,6 +1005,8 @@ Decided on 22 October 2026:
    layouts in `zbm-display`: XKB keymaps compiled when the image is built, and dead keys through a compose table.
    Chosen over `xkbcommon-rs` (0.1.2, last released in February 2025, with a non-standard licence and `lalrpop`,
    `nix` 0.28 and pinned `phf`), and over reading the kernel's keymap, which holds one layout only.
+   Added for R5, step 2: `fluent-bundle` (0.16) and `unic-langid` (0.9), the menu's message catalogue in `zbm-tui`;
+   both were already vendored and built for `uucore`.
 2. **MSRV:** 1.88, what `ratatui` 0.30, `uucore` 0.12 and `proptest` 1.12 need, checked in CI with `cargo +1.88`; it
    rises only when an agreed crate needs it. The workspace now uses let chains, which 1.88 brought.
 3. **Menu:** the Nucleo and Ratatui menu, redesigned in D, replaces `fzf` outright in R5; `fzf` leaves the images

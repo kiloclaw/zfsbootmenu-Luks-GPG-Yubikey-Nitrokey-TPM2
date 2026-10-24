@@ -153,6 +153,8 @@ kernels-none = No Kernels
 command-line-title = Command Line
 command-line-with = Command Line with { $kernel }
 command-line-hint = For this boot only: Enter boots with it, Esc keeps the saved one.
+command-line-reverted = command line of { $environment } reverted
+command-line-unclosed-quote = the command line has an unclosed " quote
 
 ## Pools and LUKS volumes.
 
@@ -247,6 +249,7 @@ status-log-problems = { $count } in the log
 
 environments-none = No Boot Environments
     .text = No imported pool has a boot environment. Press p for the pools, ! for recovery.
+    .notice = no boot environment found: see the pools, or open the recovery shell
 label-locked = locked
 label-boots = boots
 kernel-none = no kernel
@@ -324,6 +327,11 @@ button-reseal = Re-seal
 confirm-type = Type { $name } to confirm:
 error-you-can = You can:
 palette-title = Commands
+palette-boot = Boot { $environment }
+palette-edit = Edit the command line of { $environment }
+palette-reset-tries = Give { $environment } Its Boot Tries Back
+palette-boot-clone = Boot a clone of { $snapshot }
+palette-recovery-tools = Recovery tools
 
 ## The changes since a snapshot: files and packages.
 
@@ -362,6 +370,9 @@ package-files-hint = Enter shows them among the files.
 ## Unlocking a LUKS volume.
 
 unlock-title = Unlock { $volume }
+unlock-opened = { $volume } is open
+unlock-skipped = { $volume } stays locked
+unlock-failed = unable to unlock { $volume }
 unlock-device = on { $device }
 button-skip = Skip
 button-unlock = Unlock
@@ -391,3 +402,95 @@ keyboard-terminal = Keyboard: the terminal's own
 keyboard-layout = Keyboard: { $layout }
 keyboard-change = Ctrl-K: layout
 keyboard-wrong = Keyboard: { $layout }. Set with another layout? Ctrl-K changes it.
+
+## Pools: their dialog, importing and rewinding.
+
+pool-title = Pool { $pool }
+pool-last-host = last imported by host { $hostid }
+pool-import-read-write = Import Read/Write
+pool-import-last-host = Import with Its Last Host ID
+pool-import-this-host = Import with This Host ID
+pool-force-import = Force the Import
+pool-rewind = Rewind to the Checkpoint
+import-failed =
+    .title = { $pool } Did Not Import
+import-retry = Retry
+import-title = Import { $pool }
+import-shell = Open the Recovery Shell
+force-import = { $pool } was last imported by another host.
+    .title = Force the Import of { $pool }
+    .risk = If that host is still running and using it, forcing the import can corrupt it.
+rewind = Every change to { $pool } since its checkpoint is lost.
+    .title = Rewind { $pool } to Its Checkpoint
+    .discarded = The checkpoint itself is discarded.
+error-nothing-to-confirm = nothing to confirm
+confirm-type-first = type { $name } to confirm
+
+## Power.
+
+power-title = Power
+power-off = Power Off
+power-reboot = Reboot
+power-firmware-setup = Reboot into Firmware Setup
+
+## Booting an environment whose checks failed.
+
+may-not-boot =
+    .title = { $environment } May Not Boot
+    .anyway = Boot Anyway
+
+## The actions on a snapshot.
+
+snapshot-title = Snapshot { $snapshot }
+snapshot-boot-clone = Boot a Temporary Clone
+snapshot-roll-back = Roll Back to It
+snapshot-clone = Clone as a New Boot Environment
+snapshot-duplicate = Duplicate as an Independent Copy
+snapshot-promote = Clone and Promote
+snapshot-diff = Show Differences to Now
+snapshot-chroot = Chroot into It, Read-Only
+rollback = { $environment } goes back to { $snapshot }: every change since is lost.
+    .title = Roll Back { $environment }
+    .none-destroyed = No newer snapshot is destroyed.
+    .destroyed = { $count ->
+        [one] One newer snapshot is destroyed ({ $size }): { $newest }.
+       *[other] { $count } newer snapshots are destroyed ({ $size }), the newest { $newest }.
+    }
+    .safety = A safety snapshot { $safety } is taken first: roll back to it to undo.
+promote = The clone takes over the snapshots of { $environment } up to { $snapshot }.
+    .title = Clone and Promote { $snapshot }
+    .depends = { $environment } then depends on the clone, and cannot be destroyed without it.
+
+## Restoring files from a snapshot.
+
+restore = They replace the files in { $environment } as they are now.
+    .title = { $count ->
+        [one] Restore { $count } File from { $snapshot }
+       *[other] Restore { $count } Files from { $snapshot }
+    }
+    .more = and { $count } more
+    .safety = { $pool } is imported read/write, and a safety snapshot { $safety } is taken first: roll back to it to undo.
+restore-nothing = { $path } was created after { $snapshot }: there is nothing to restore
+
+## Keyboard layouts and sealing a TPM2 key again.
+
+layout-serial = keys come from a serial terminal: its own layout applies
+layout-only-one = this image knows one keyboard layout
+layout-typing = typing with the { $layout } layout
+reseal = Re-sealing trusts the machine as it is now (PCRs { $pcrs }).
+    .title = Re-seal the TPM2 Key of { $volume }
+    .only-yours = Do it only for changes you made; else keep the passphrase.
+pcr = PCR { $index } ({ $name })
+pcr-firmware-code = firmware code
+pcr-firmware-settings = firmware settings
+pcr-option-roms = option ROMs
+pcr-option-rom-settings = option ROM settings
+pcr-boot-loader = boot loader
+pcr-partition-table = partition table
+pcr-secure-boot = Secure Boot state
+pcr-initramfs = initramfs
+pcr-kernel-image = unified kernel image
+pcr-command-line = kernel command line
+pcr-shim = shim certificates
+pcr-system-identity = system identity
+pcr-other = other measurements

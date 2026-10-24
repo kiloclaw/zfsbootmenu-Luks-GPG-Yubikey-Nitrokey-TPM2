@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+           BBóótt  tank DEGRADED · 3/3 óópéññ · ! 1
+ BBóóttíñgg zroot/ROOT/void ííñ 10 ss.
+┌ BBÓÓTT ÉÑVVÍRÓÓÑMÉÉÑTSS ────────────────────── 4 ┐
+│ ▶ zroot/ROOT/void           ddéfááúltt  6.12.9_1 │
+│   tank/ROOT/arch    1 wwárññíñgg  6.11.5-arch1-1 │
+│   tank/ROOT/debian  1 ppróbblémm  6.1.0-26-amd64 │
+│   zroot/ROOT/ubuntu             6.8.0-47-generic │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+┌ zroot/ROOT/void ───────────────────── ddéfááúltt ┐
+│     ÇÇhéççks  √ ááll 5 ppássséd                  │
+│ BBóótt Trííés  3 óóf 3 lléftt                    │
+│       PPóóll  zroot · ONLINE · rréádd-óñllý      │
+│     KKérññél  6.12.9_1 · 3 kkérññélss            │
+│ SSñáppshóóts  400 · ññéwéést pre-upgrade, 12 hh… │
+│ ÉÉñçrrýpttíóññ  kkéý llóáddéd                    │
+│ ÇÇómmmáñdd Líññé  quiet loglevel=4 · ffrómm zro… │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér BBóótt   k KKérññélss             ? MMóréé

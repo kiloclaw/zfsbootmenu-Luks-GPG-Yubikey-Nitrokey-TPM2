@@ -16,6 +16,7 @@ use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::{DemoOptions, Session};
 use zbm_tui::menu::theme::Theme;
 use zbm_tui::menu::{display, terminal};
+use zbm_tui::text::{Language, set_language};
 use zbm_types::psf::Font;
 
 /// The text of `zbm-tui --help`.
@@ -38,6 +39,9 @@ Options:
   --theme <name>         colour, console, mono or ascii (default: from TERM,
                          NO_COLOR and the locale)
   --size <cols>x<rows>   the size when the terminal reports none
+  --language <name>      en (the default) or pseudo: English accented and a
+                         third longer, to see where a translation would not
+                         fit
   --log-keys <file>      log every key press with its time, for usability
                          sessions
   --drm                  draw on the display through DRM instead of the
@@ -55,6 +59,7 @@ struct Arguments {
     theme: Option<Capabilities>,
     size: Option<(u16, u16)>,
     keys: Option<String>,
+    language: Language,
     drm: Option<Drm>,
 }
 
@@ -85,6 +90,11 @@ fn parse(args: &[String]) -> Result<Arguments, String> {
                 let name = args.next().ok_or("--theme needs a name")?;
                 parsed.theme =
                     Some(Capabilities::named(name).ok_or(format!("unknown theme {name}"))?);
+            }
+            "--language" => {
+                let name = args.next().ok_or("--language needs a name")?;
+                parsed.language =
+                    Language::from_name(name).ok_or(format!("unknown language {name}"))?;
             }
             "--size" => {
                 let size = args.next().ok_or("--size needs <cols>x<rows>")?;
@@ -132,6 +142,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    set_language(arguments.language);
     let capabilities = arguments
         .theme
         .unwrap_or_else(|| Capabilities::detect(|name| std::env::var(name).ok()));
@@ -201,7 +212,7 @@ mod tests {
     #[test]
     fn the_demo_options_are_parsed() {
         let line = "--demo --locked --foreign --wait --failing --next-boot --tpm-changed \
-                    --theme ascii --size 52x20 --log-keys k";
+                    --theme ascii --size 52x20 --log-keys k --language pseudo";
         let parsed = arguments(line).unwrap();
 
         assert!(parsed.options.locked && parsed.options.foreign);
@@ -211,6 +222,9 @@ mod tests {
         assert_eq!(parsed.theme, Some(Capabilities::ASCII));
         assert_eq!(parsed.size, Some((52, 20)));
         assert_eq!(parsed.keys.as_deref(), Some("k"));
+        assert_eq!(parsed.language, Language::Pseudo);
+        assert!(arguments("--demo --language xx").is_err());
+        assert!(arguments("--demo --language").is_err());
     }
 
     #[test]

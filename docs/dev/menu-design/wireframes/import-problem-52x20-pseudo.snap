@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+      SStárrtíññg  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 4 óóf 5 ┐
+│ √  Load the ZFS module                           │
+│ √  Set the host ID                               │
+│ ┌──────────────────────────────────────────────┐ │
+│ │           backup DDíd ÑÑót ÍÍmpóórt          │ │
+│ │ backup was last imported by host deadbeef,   │ │
+│ │ and this machine is host 00bab10c.           │ │
+│ │                                              │ │
+│ │ ▶ RRétrrý                                    │ │
+│ │   ÍÍmpóórt wwíthh Ítss Lásst Hóóst ÍÍD       │ │
+│ │   FFórççé thhé Ímmpórrt…                     │ │
+│ │   ÓÓpéññ théé Réççóvéérý SShélll             │ │
+│ │ ──────────────────────────────────────────── │ │
+│ │   ÇÇáñççél                                   │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ ÉÉñtéér ÇÇhóóósé   ÉÉsç ÇÇáñççél

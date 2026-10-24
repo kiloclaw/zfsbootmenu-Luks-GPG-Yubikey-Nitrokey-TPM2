@@ -274,6 +274,23 @@ fn the_main_views_and_dialogs_in_ascii() {
     });
 }
 
+/// Every view at 52×20, the smallest size, in the pseudo-language: English
+/// accented and a third longer, as a translation may be. Text that is not
+/// from the catalogue shows unaccented, and text that does not fit shows
+/// cut.
+#[test]
+fn every_view_in_the_pseudo_language() {
+    let old = crate::text::set_language(crate::text::Language::Pseudo);
+    settings().bind(|| {
+        for wireframe in wireframes() {
+            let session = play(&wireframe, Capabilities::FULL);
+            let name = format!("{}-52x20-pseudo", wireframe.name);
+            insta::assert_snapshot!(name, screen(session.model(), 52, 20));
+        }
+    });
+    crate::text::set_language(old);
+}
+
 /// The characters every console font, Terminus and Spleen, can draw as the
 /// image installs it with the Rust runtime: a 256-glyph subset.
 #[allow(
@@ -312,12 +329,19 @@ fn every_character_drawn_is_in_the_console_fonts() {
     for glyph in crate::menu::theme::Glyph::ALL {
         missing.extend(theme.glyph(glyph).chars().filter(|c| !fonts.contains(c)));
     }
-    for wireframe in wireframes() {
-        let session = play(&wireframe, Capabilities::FULL);
-        for (width, height) in SIZES {
-            let text = screen(session.model(), width, height);
-            missing.extend(text.chars().filter(|c| *c != '\n' && !fonts.contains(c)));
+    for language in [
+        crate::text::Language::English,
+        crate::text::Language::Pseudo,
+    ] {
+        let old = crate::text::set_language(language);
+        for wireframe in wireframes() {
+            let session = play(&wireframe, Capabilities::FULL);
+            for (width, height) in SIZES {
+                let text = screen(session.model(), width, height);
+                missing.extend(text.chars().filter(|c| *c != '\n' && !fonts.contains(c)));
+            }
         }
+        crate::text::set_language(old);
     }
 
     assert!(fonts.len() > 200, "{} characters", fonts.len());

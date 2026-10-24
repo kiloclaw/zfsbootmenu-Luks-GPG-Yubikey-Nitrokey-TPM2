@@ -49,7 +49,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &
         (text!("button-skip"), Kind::Normal),
         (text!("button-unlock"), Kind::Default),
     ];
-    let title = text!("unlock-title", volume = prompt.volume.to_string());
+    let title = text!("unlock-title", volume = prompt.volume.as_str());
     let message = alert(
         model.theme,
         frame,
@@ -87,7 +87,7 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
     let device = known.map(|known| known.device.clone()).unwrap_or_default();
     let mut body = vec![
         Line::styled(
-            text!("unlock-device", device = device.to_string()),
+            text!("unlock-device", device = device.as_str()),
             theme.style(Role::Muted),
         ),
         Line::default(),
@@ -112,33 +112,38 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
             theme.style(Role::Warning),
         ));
     }
-    let others: Vec<String> = known
-        .map(|known| {
-            known
-                .methods
-                .iter()
-                .filter(|m| **m != method)
-                .map(|m| text::get(method_name(*m)))
-                .collect()
-        })
-        .unwrap_or_default();
-    if !others.is_empty() {
-        let keys = if theme.is_ascii() {
-            text!("keys-up-down")
-        } else {
-            "↑/↓".to_owned()
-        };
-        let line = text!(
-            "unlock-other-methods",
-            keys = keys,
-            methods = others.join(&text!("unlock-or"))
-        );
-        body.push(Line::styled(line, theme.style(Role::Muted)));
+    if let Some(line) = known.and_then(|known| other_methods(model, &known.methods, method)) {
+        body.push(line);
     }
     if method.is_typed() {
         body.push(keyboard_line(model, prompt));
     }
     body
+}
+
+/// The line that names the methods of `methods` other than `method`, and
+/// the keys that choose them; `None` when there is none.
+fn other_methods(model: &Model, methods: &[Method], method: Method) -> Option<Line<'static>> {
+    let theme = model.theme;
+    let others: Vec<String> = methods
+        .iter()
+        .filter(|m| **m != method)
+        .map(|m| text::get(method_name(*m)))
+        .collect();
+    if others.is_empty() {
+        return None;
+    }
+    let keys = if theme.is_ascii() {
+        text!("keys-up-down")
+    } else {
+        "↑/↓".to_owned()
+    };
+    let line = text!(
+        "unlock-other-methods",
+        keys = keys,
+        methods = others.join(&text!("unlock-or"))
+    );
+    Some(Line::styled(line, theme.style(Role::Muted)))
 }
 
 /// The keyboard layout and the keys that change it or show what is typed;
@@ -156,8 +161,7 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
         let line = format!("{}{dot}{reveal}", text!("keyboard-terminal"));
         return Line::styled(line, theme.style(Role::Muted));
     }
-    // The console's own layout when none was named.
-    let layout = model.layout().unwrap_or("us");
+    let layout = model.layout().unwrap_or(crate::menu::keyboard::CONSOLE);
     if keyboard.layouts.len() < 2 {
         let line = format!("{}{dot}{reveal}", text!("keyboard-layout", layout = layout));
         return Line::styled(line, theme.style(Role::Muted));

@@ -6,6 +6,7 @@ use super::screens;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Choice, Dialog, Model, Then};
 use crate::menu::world::{Action, Outcome};
+use crate::text::text;
 
 /// A choice dialog.
 pub(super) fn choose(title: &str, lines: Vec<String>, choices: Vec<Choice>) -> Dialog {
@@ -34,7 +35,7 @@ pub(super) fn confirm(then: Then) -> Dialog {
             action,
         },
         _ => Dialog::Error {
-            what: "nothing to confirm".to_owned(),
+            what: text!("error-nothing-to-confirm"),
             why: Vec::new(),
             next: Vec::new(),
         },
@@ -45,11 +46,10 @@ pub(super) fn confirm(then: Then) -> Dialog {
 pub(super) fn force_import(pool: &PoolName) -> Then {
     Then::Confirm {
         action: Action::Import(pool.clone(), ImportPolicy::Force),
-        title: format!("Force the Import of {pool}"),
+        title: text!("force-import.title", pool = pool.to_string()),
         lines: vec![
-            format!("{pool} was last imported by another host."),
-            "If that host is still running and using it, forcing the import can corrupt it."
-                .to_owned(),
+            text!("force-import", pool = pool.to_string()),
+            text!("force-import.risk"),
         ],
         name: pool.to_string(),
     }
@@ -69,17 +69,17 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
 
 /// The power choices.
 pub(super) fn power(model: &mut Model) {
-    let act = |label: &str, action: Action| Choice {
-        label: label.to_owned(),
+    let act = |label: String, action: Action| Choice {
+        label,
         then: Then::Act(action),
     };
     model.dialog = Some(choose(
-        "Power",
+        &text!("power-title"),
         Vec::new(),
         vec![
-            act("Power Off", Action::PowerOff),
-            act("Reboot", Action::Reboot),
-            act("Reboot into Firmware Setup", Action::FirmwareSetup),
+            act(text!("power-off"), Action::PowerOff),
+            act(text!("power-reboot"), Action::Reboot),
+            act(text!("power-firmware-setup"), Action::FirmwareSetup),
         ],
     ));
 }
@@ -90,45 +90,47 @@ pub(super) fn pool_details(model: &mut Model, name: &PoolName) {
         return;
     };
     let mode = if pool.writable {
-        "read/write"
+        text!("pool-read-write")
     } else {
-        "read-only"
+        text!("pool-read-only")
     };
     let mut lines = vec![format!("{name}: {} · {mode}", pool.health.as_str())];
     if let Some(hostid) = &pool.foreign_hostid {
-        lines.push(format!("last imported by host {hostid}"));
+        lines.push(text!("pool-last-host", hostid = hostid.as_str()));
     }
     let mut choices = Vec::new();
     if pool.imported && !pool.writable {
         choices.push(Choice {
-            label: "Import Read/Write".to_owned(),
+            label: text!("pool-import-read-write"),
             then: Then::Act(Action::ImportReadWrite(name.clone())),
         });
     }
     if !pool.imported {
         choices.push(Choice {
-            label: "Import with Its Last Host ID".to_owned(),
+            label: text!("pool-import-last-host"),
             then: Then::Act(Action::Import(name.clone(), ImportPolicy::Hostid)),
         });
         choices.push(Choice {
-            label: "Force the Import".to_owned(),
+            label: text!("pool-force-import"),
             then: force_import(name),
         });
     }
     if pool.checkpoint {
         choices.push(Choice {
-            label: "Rewind to the Checkpoint".to_owned(),
+            label: text!("pool-rewind"),
             then: Then::Confirm {
                 action: Action::RewindCheckpoint(name.clone()),
-                title: format!("Rewind {name} to Its Checkpoint"),
-                lines: vec![format!(
-                    "Every change to {name} since its checkpoint is lost."
-                )],
+                title: text!("rewind.title", pool = name.to_string()),
+                lines: vec![text!("rewind", pool = name.to_string())],
                 name: name.to_string(),
             },
         });
     }
-    model.dialog = Some(choose(&format!("Pool {name}"), lines, choices));
+    model.dialog = Some(choose(
+        &text!("pool-title", pool = name.to_string()),
+        lines,
+        choices,
+    ));
 }
 
 /// An input while a dialog is open.
@@ -204,7 +206,10 @@ fn confirmed(
         Input::Intent(Intent::Back) => return Vec::new(),
         Input::Intent(Intent::Primary) if typed == name => return vec![action],
         Input::Intent(Intent::Primary) => {
-            model.notification = Some(Outcome::Warning(format!("type {name} to confirm")));
+            model.notification = Some(Outcome::Warning(text!(
+                "confirm-type-first",
+                name = name.as_str()
+            )));
         }
         Input::Intent(_) => {}
     }

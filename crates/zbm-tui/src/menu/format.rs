@@ -70,33 +70,6 @@ pub fn fit(text: &str, width: usize, ascii: bool) -> String {
     cut
 }
 
-/// Short words that title case leaves in lower case, unless first or last.
-const MINOR: [&str; 15] = [
-    "a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "of", "on", "or", "the", "to",
-];
-
-/// `text` in title case, as Apple writes titles, buttons and menu items:
-/// every word capitalised but short ones inside the text (`Clone into a New
-/// Boot Environment`); parts after `/` too (`Read/Write`).
-pub fn title_case(text: &str) -> String {
-    let words: Vec<&str> = text.split(' ').collect();
-    let last = words.len().saturating_sub(1);
-    let words: Vec<String> = words
-        .iter()
-        .enumerate()
-        .map(|(index, word)| {
-            if index != 0 && index != last && MINOR.contains(word) {
-                return (*word).to_owned();
-            }
-            word.split('/')
-                .map(capitalised)
-                .collect::<Vec<_>>()
-                .join("/")
-        })
-        .collect();
-    words.join(" ")
-}
-
 /// `word` with its first letter in upper case.
 pub fn capitalised(word: &str) -> String {
     let mut chars = word.chars();
@@ -144,14 +117,8 @@ mod tests {
     }
 
     #[test]
-    fn titles_are_capitalised_as_apple_does() {
-        assert_eq!(title_case("roll back"), "Roll Back");
-        assert_eq!(
-            title_case("clone into a new boot environment"),
-            "Clone into a New Boot Environment"
-        );
-        assert_eq!(title_case("read/write"), "Read/Write");
-        assert_eq!(title_case("look into"), "Look Into");
-        assert_eq!(title_case(""), "");
+    fn a_capitalised_word_starts_in_upper_case() {
+        assert_eq!(capitalised("éclair"), "Éclair");
+        assert_eq!(capitalised(""), "");
     }
 }

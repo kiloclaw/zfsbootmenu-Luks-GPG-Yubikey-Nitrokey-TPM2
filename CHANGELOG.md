@@ -116,6 +116,13 @@ with `unable to load key for <boot environment>`. The countdown's boot does not 
 (`org.zfsbootmenu:keysource`), as in the legacy runtime; the code that does, for boots chosen in the menu, is in
 place for the menu. Only the menu is still refused.
 
+### The new menu's text in a message catalogue
+
+Every string of the new menu (`zbm-tui`, not yet in images) comes from a Project Fluent catalogue,
+`crates/zbm-tui/locales/en/menu.ftl`, so that translations (ROADMAP.md #18) need no change of the code;
+`cargo xtask lint` keeps literals out of the menu's code. `zbm-tui --demo --language pseudo` shows the menu in a
+pseudo-language, accented and a third longer, as the snapshot tests draw it. See `docs/dev/menu-design/text.md`.
+
 ### Console font on high-density (HiDPI) displays
 
 In images built with `zfsbootmenu_runtime="rust"`, the early-setup hook `30-console-autosize` runs

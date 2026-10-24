@@ -5,13 +5,13 @@
 //! that the menu's code has no text literal, that every id it uses is in
 //! the English catalogue, and that every message there is used.
 //!
-//! [`text!`](crate::text::text) formats a message with its arguments:
+//! `text!` formats a message with its arguments:
 //!
 //! ```text
 //! text!("pool-did-not-import.title", pool = name)
 //! ```
 //!
-//! and [`id!`](crate::text::id) names one to format later, as the key map
+//! and `id!` names one to format later, as the key map
 //! does for what a key does. An id `message.attribute` names an attribute:
 //! the catalogue gives a title its own form (`.title`), as title case is a
 //! rule of English. Plurals, numbers and ages are formatted by the
@@ -53,13 +53,13 @@ impl Language {
 }
 
 /// The id of a message of the catalogue, or of one of its attributes
-/// (`message.attribute`). Made with [`id!`](crate::text::id), whose literal
+/// (`message.attribute`). Made with `id!`, whose literal
 /// `cargo xtask lint` checks against the catalogue.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Id(&'static str);
 
 impl Id {
-    /// The id `id`; use [`id!`](crate::text::id) instead.
+    /// The id `id`; use `id!` instead.
     #[doc(hidden)]
     pub const fn new(id: &'static str) -> Id {
         Id(id)
@@ -212,7 +212,7 @@ fn pseudo(text: &str) -> Cow<'_, str> {
         let shown = accented(c);
         out.push(shown);
         if c.is_alphabetic() {
-            if letters % 3 == 0 {
+            if letters.is_multiple_of(3) {
                 out.push(shown);
             }
             letters += 1;

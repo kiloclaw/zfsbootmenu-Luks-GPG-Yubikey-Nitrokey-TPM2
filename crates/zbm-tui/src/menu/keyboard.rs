@@ -3,12 +3,15 @@
 //! the menu turns them into the characters of the layout the user chose, so
 //! a passphrase set on a German or French keyboard can be typed on one.
 
+/// The console's own layout when the image names none.
+pub const CONSOLE: &str = "us";
+
 /// The rows of each layout the menu knows, unshifted and shifted, in the
 /// order of the keys: the same index is the same key in every layout. Only
 /// the keys of the main block are listed; the others pass unchanged.
 const LAYOUTS: &[(&str, [&str; 8])] = &[
     (
-        "us",
+        CONSOLE,
         [
             "`1234567890-=",
             "~!@#$%^&*()_+",

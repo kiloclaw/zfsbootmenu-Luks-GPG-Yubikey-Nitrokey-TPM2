@@ -224,7 +224,11 @@ fn every_action_has_a_title() {
         for binding in KEYMAP {
             let what = describe(context, binding.intent);
             let title = crate::text::title(what);
-            assert!(!title.ends_with(".title"), "{what:?} has no title");
+            assert_ne!(
+                title,
+                format!("{}.title", what.as_str()),
+                "{what:?} has no title"
+            );
         }
     }
 }

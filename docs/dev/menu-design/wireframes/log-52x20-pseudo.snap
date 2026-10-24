@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹           LLóg  tank DEGRADED · 3/3 óópéññ · ! 1
+┌ LLÓG SSÍÑÇÇÉ STTÁRTT ──────────────── 2026-10-23 ┐
+│   ííñfóó  ZFS 2.4.4 loaded, host ID 00bab10c     │
+│   ííñfóó  imported zroot read-only               │
+│ ! wwárññíñggtank is DEGRADED: /dev/sdb2 is       │
+│ missing, 1 of 3 devices                          │
+│   ííñfóó  imported tank read-only                │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ : ÇÇómmmáñdds   l LLóg   ! RRéçóóvérrý    ? MMóréé
