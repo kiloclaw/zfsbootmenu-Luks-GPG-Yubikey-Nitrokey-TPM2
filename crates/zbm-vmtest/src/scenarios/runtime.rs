@@ -39,6 +39,9 @@
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
 //!   the image's debug file.
+//! - `rust-saved` (`saved`): `zbm.save_logs` saves the logs of a boot on a
+//!   FAT disk before `kexec`; after a restart, `zbm debug saved` lists them
+//!   and `zbm report` writes a report beside them (ROADMAP.md #9).
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).
@@ -71,6 +74,7 @@ mod host;
 mod pilot;
 mod record_fixtures;
 mod record_zfs;
+mod saved;
 mod setup;
 mod signals;
 
@@ -86,8 +90,8 @@ const ESCAPE_APPEND: &str = "console=ttyS0 zbm.timeout=30 loglevel=7";
 const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
-/// `rust-colours`, `rust-drm`, `rust-console`, `RUNTIME-signals` or
-/// `RUNTIME[-SCENARIO]`.
+/// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`,
+/// `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
 ///
@@ -103,6 +107,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-colours" => colours::run(test),
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
+        "rust-saved" => saved::run(test),
         _ => {
             let (name, rest) = scenario.split_once('-').unwrap_or((scenario, ""));
             let runtime = parse_runtime(name)?;

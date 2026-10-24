@@ -75,6 +75,20 @@ impl<'a> Mount<'a> {
         self.runner.run(&shown(command, Shown::Console))
     }
 
+    /// Mounts the FAT file system on `device` read-write on `dir`, quietly
+    /// (`mount -t vfat -o rw,noatime DEVICE DIR`), as for the EFI system
+    /// partition.
+    ///
+    /// # Errors
+    ///
+    /// The error that kept `mount` from starting.
+    pub fn fat(&self, device: &str, dir: &Path) -> io::Result<Output> {
+        let command = Command::new("mount")
+            .args(["-t", "vfat", "-o", "rw,noatime", device])
+            .arg(dir);
+        self.runner.run(&shown(command, Shown::Hidden))
+    }
+
     /// Mounts, or with `options` `remount,...` remounts, `efivarfs` on
     /// `location` (`mount -t efivarfs efivarfs LOCATION -o OPTIONS`).
     ///

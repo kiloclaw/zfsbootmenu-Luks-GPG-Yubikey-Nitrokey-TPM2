@@ -59,6 +59,33 @@ prints each frame of the binary as its function, file and line, with the calls i
 `make install` strips the programs it installs unless `INSTALL_STRIP` is empty, for packages that keep debug files
 of their own.
 
+## Saved logs and bug reports
+
+The runtime journal and the crash reports live in `/zfsbootmenu`, in memory, and are lost at `kexec` or a restart.
+With `zbm.save_logs` (see `zfsbootmenu(7)`), the Rust runtime copies them and the kernel log to the EFI system
+partition just before it boots a kernel, and the supervisor does after a crash
+(`zbm_boot::saved_logs`). Each boot gets `EFI/zfsbootmenu/logs/<time>`, in UTC, such as `2026-10-24T01-29-15Z`, with
+`.2` added when two saves fall in the same second; the newest five stay. The partition is mounted at
+`/run/zbm-saved-logs` only for the write. Without a value, it is the partition named by the boot loader's
+`LoaderDevicePartUUID` EFI variable (systemd's EFI stub sets it), or else the only partition of the EFI system
+partition type; a tag or a device path names another.
+
+In the recovery shell:
+
+```sh
+zbm debug saved                 # the saved boots and their files
+zbm debug save                  # save this boot's logs now
+zbm report                      # a bug report on the same partition, in EFI/zfsbootmenu/reports
+zbm report /media/usb           # ... in a directory
+zbm report LABEL=USB            # ... on another FAT partition
+```
+
+A report (`zbm_boot::report`) is a directory `zbm-report-<time>` with `report.txt` (versions, `zpool status -P`,
+each LUKS header's UUID and its tokens' IDs, types and key slots, whether `/dev/tpmrm0` is there and in lockout,
+and the crash reports' names), `journal.jsonl`, the crash reports and `kernel.log`. It never copies a token's fields
+or anything else of the LUKS header, which hold sealed keys and credentials; a unit test checks that no file of a
+report holds the secrets of a fake header.
+
 ## Third-party crates
 
 `cargo deny check` (with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny), installed with

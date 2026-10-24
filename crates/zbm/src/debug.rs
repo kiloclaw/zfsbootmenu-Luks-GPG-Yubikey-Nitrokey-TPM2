@@ -5,6 +5,9 @@
 //!   ones of the same process and second), and `zbm debug crash --list` lists
 //!   them, oldest first. A developer turns a report's offsets into function
 //!   names and lines with `cargo xtask symbolize`.
+//! - `zbm debug saved` lists the logs saved on the EFI system partition
+//!   (`zbm.save_logs`), and `zbm debug save` saves this boot's now
+//!   ([`crate::saved`]).
 //! - `zbm debug panic`, only in builds with the `crash-test` feature, panics,
 //!   so that VM tests can check the whole way from a panic to a symbolized
 //!   report.
@@ -24,6 +27,8 @@ pub const BASE: &str = "/zfsbootmenu";
 /// The usage text.
 const USAGE_TEXT: &str = "\
 Usage: zbm debug crash [--list]   print the latest crash report, or list them
+       zbm debug saved            list the logs saved on the EFI system partition
+       zbm debug save             save this boot's logs there now
 ";
 
 /// The crash reports in `base`, oldest first.
@@ -94,6 +99,14 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
 
 /// `zbm debug`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    if matches!(words.first(), Some(&("saved" | "save"))) {
+        let code = crate::saved::run(Path::new(BASE), &words, io);
+        if code == USAGE {
+            let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
+        }
+        return code;
+    }
     run_in(&RealFiles, Path::new(BASE), args, io)
 }
 

@@ -127,6 +127,19 @@ passes it on) and builds `zbm` with its work directory remapped. Set it to the t
 `SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"`. A CI job builds the release image twice, from checkouts in
 different directories, and compares the bytes.
 
+### Saved boot logs and bug reports
+
+ROADMAP.md #9, in images with the Rust runtime. With `zbm.save_logs` on the kernel command line, ZFSBootMenu saves
+its runtime journal, its crash reports and the kernel log on the EFI system partition just before it boots a kernel,
+and after one of its programs crashes, so that they survive the boot and a restart. They go to
+`EFI/zfsbootmenu/logs/<time>`; the newest five stay, and the partition is mounted only for the write. The option
+takes the partition as a tag or a device (`zbm.save_logs=LABEL=EFI`); without one it is the partition ZFSBootMenu was
+loaded from, or the machine's only EFI system partition. In the recovery shell, `zbm debug saved` lists the saved
+boots and `zbm debug save` saves now. `zbm report` writes a bug report to attach to an issue, on the same partition
+(`EFI/zfsbootmenu/reports`), in a directory such as a mounted USB stick, or on another partition: versions, pool
+status, a summary of each LUKS header (UUID, tokens' types and key slots), the TPM's state, the crash reports, the
+journal and the kernel log. It holds no key material, which a test checks.
+
 ### Keyboard layouts on the console on the display
 
 Step 4 of ROADMAP.md #19. Images with the Rust runtime carry keyboard layouts for the console of `zbm.console=drm`:

@@ -231,6 +231,9 @@ impl Supervisor {
                 if let Some(path) = &report {
                     self.error(&format!("crash report: {}", path.display()));
                 }
+                if let Some(saved) = crate::saved::after_crash(&self.base) {
+                    self.error(&saved);
+                }
             } else {
                 events(Event::Failed(self.startup.path.display().to_string()));
                 report = None;

@@ -388,6 +388,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             set_hostid: true,
             hooks: hooks.to_path_buf(),
             env: Vec::new(),
+            save_logs: None,
         };
         kexec_kernel(system, state, &settings, &selected, shells);
         String::new()
@@ -529,6 +530,7 @@ fn a_locked_boot_environment_is_not_supported_yet() {
             set_hostid: true,
             hooks: hooks.to_path_buf(),
             env: Vec::new(),
+            save_logs: None,
         };
         let selected = Kernel::parse("tank/ROOT/void\t/boot/vmlinuz\t/boot/initrd.img");
         kexec_kernel(system, state, &settings, &selected, shells);

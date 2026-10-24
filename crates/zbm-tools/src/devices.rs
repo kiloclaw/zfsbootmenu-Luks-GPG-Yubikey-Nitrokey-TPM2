@@ -99,6 +99,17 @@ impl<'a> Devices<'a> {
             .is_ok_and(|output| output.status.is_success())
     }
 
+    /// The partitions whose GPT partition type is `kind`, a GUID such as
+    /// the EFI system partition's, as paths (`lsblk -rnpo NAME,PARTTYPE`).
+    pub fn partitions_of_type(&self, kind: &str) -> Vec<String> {
+        self.output("lsblk", &["-rnpo", "NAME,PARTTYPE"], true)
+            .lines()
+            .filter_map(|line| line.split_once(' '))
+            .filter(|(_, found)| found.eq_ignore_ascii_case(kind))
+            .map(|(name, _)| name.to_owned())
+            .collect()
+    }
+
     /// The size of `device` as `lsblk -dno SIZE` prints it, without spaces,
     /// such as `512M`; empty when it cannot be read.
     pub fn size(&self, device: &str) -> String {
@@ -137,6 +148,11 @@ mod tests {
             "ignored\n",
         );
         runner.respond("lsblk -dno SIZE /dev/sda2", 0, " 7.5G\n");
+        runner.respond(
+            "lsblk -rnpo NAME,PARTTYPE",
+            0,
+            "/dev/sda \n/dev/sda1 C12A7328-F81F-11D2-BA4B-00A0C93EC93B\n/dev/sda2 6a85cf4d\n",
+        );
         let devices = Devices::new(&runner);
 
         assert_eq!(devices.find("LABEL", "key"), "/dev/sdb1");
@@ -144,6 +160,8 @@ mod tests {
         assert_eq!(devices.content_type("/dev/mapper/a"), "zfs_member");
         assert_eq!(devices.tag("/dev/sda2", "LABEL"), "");
         assert_eq!(devices.size("/dev/sda2"), "7.5G");
+        let esp = devices.partitions_of_type("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
+        assert_eq!(esp, ["/dev/sda1"]);
         let failing = FakeRunner::new();
         failing.on(|_| Some(Err(std::io::Error::other("no blkid"))));
         assert_eq!(Devices::new(&failing).find("UUID", "x"), "");

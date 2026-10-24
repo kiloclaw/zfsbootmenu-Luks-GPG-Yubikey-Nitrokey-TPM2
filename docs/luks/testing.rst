@@ -351,6 +351,15 @@ Following a boot
   must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the
   boot environment must boot.
 
+* ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
+  FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The
+  first boot's countdown boots ``tplain``'s boot environment, which must boot. The machine then restarts with the same
+  disks; in the recovery shell, ``/libexec/zbm debug saved`` must list one saved boot, with a journal that is not
+  empty and the kernel log, and ``/libexec/zbm report`` must write a report. After the machine stops, the host reads
+  the disk with ``mtype``: the saved journal must be the first boot's (it holds ``running init stage``) and must have
+  been saved after the teardown hooks ran (it names ``teardown.d``), and the report's ``report.txt`` must show the
+  versions, the pool ``tplain`` and no LUKS volume, beside this boot's journal.
+
 Results
 -------
 

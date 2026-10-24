@@ -19,6 +19,7 @@ use crate::hooks;
 use crate::kernels::Kernel;
 use crate::prompt::{TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
+use crate::saved_logs::{self, Destination};
 use crate::support::{self, Unsupported};
 
 /// What booting needs besides the kernel.
@@ -31,6 +32,9 @@ pub struct BootSettings {
     /// Variables the start-up program exported after it started (`BOOTFS`),
     /// which hooks get on top of its environment.
     pub env: Vec<(String, String)>,
+    /// `zbm.save_logs`: where the logs of this boot are saved before the
+    /// kernel starts, if anywhere (ROADMAP.md #9).
+    pub save_logs: Option<Destination>,
 }
 
 impl Default for BootSettings {
@@ -39,6 +43,7 @@ impl Default for BootSettings {
             set_hostid: true,
             hooks: PathBuf::from(hooks::HOOKS),
             env: Vec::new(),
+            save_logs: None,
         }
     }
 }
@@ -122,6 +127,7 @@ pub fn kexec_kernel(
     log_loaded(&load, &output);
 
     tear_down(system, settings, &hook_env, &mnt);
+    save_logs(system, state, settings.save_logs.as_ref());
     hand_over(system, state);
     execute(system, fs, kernel);
 }
@@ -280,6 +286,19 @@ fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &s
     );
 }
 
+/// Saves the logs of this boot to `destination`, if given, last of all but
+/// the hand-over, so that they hold the teardown; a failure is logged and
+/// the boot goes on.
+pub fn save_logs(system: &System<'_>, state: &State<'_>, destination: Option<&Destination>) {
+    let Some(destination) = destination else {
+        return;
+    };
+    match saved_logs::save(system, state.base(), destination) {
+        Ok(saved) => zbm_trace::info!("saved the logs on {} in {}", saved.device, saved.directory),
+        Err(error) => zbm_trace::warn!("unable to save the logs: {error}"),
+    }
+}
+
 /// Has the console on the display, if one runs, hand the display, the
 /// keyboards and the virtual terminal back, so that the booted kernel takes
 /// them over as it would from the kernel console.
@@ -311,6 +330,7 @@ fn execute(system: &System<'_>, fs: &str, kernel: &str) {
 
 #[cfg(test)]
 mod tests {
+    use zbm_platform::Files as _;
     use zbm_testkit::fakes::FakeSystem;
 
     use super::*;
@@ -334,5 +354,32 @@ mod tests {
             .map(|call| call.display())
             .collect();
         assert_eq!(calls, ["/libexec/zbm console release"]);
+    }
+
+    #[test]
+    fn the_logs_are_saved_or_the_failure_logged() {
+        let fake = FakeSystem::new();
+        let system = fake.system();
+        let state = State::new(system.files, "/zfsbootmenu");
+        fake.runner.respond(
+            "lsblk -rnpo NAME,PARTTYPE",
+            0,
+            "/dev/vda1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b\n",
+        );
+
+        save_logs(&system, &state, None);
+        assert!(fake.runner.lines().is_empty());
+        save_logs(&system, &state, Some(&Destination::Esp));
+        let none = Destination::Device("LABEL=none".to_owned());
+        save_logs(&system, &state, Some(&none));
+
+        let lines = fake.runner.lines();
+        assert!(
+            lines.contains(&"mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs".to_owned()),
+            "{lines:?}"
+        );
+        assert!(fake.files.exists(std::path::Path::new(
+            "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log"
+        )));
     }
 }

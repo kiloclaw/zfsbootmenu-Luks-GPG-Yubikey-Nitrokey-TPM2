@@ -17,6 +17,8 @@ pub mod layouts;
 pub mod luks;
 pub mod menu_demo;
 pub mod pilot;
+pub mod report;
+pub mod saved;
 pub mod shadow;
 pub mod supervisor;
 
@@ -88,8 +90,14 @@ const CONSOLE: Applet = Applet {
 
 const DEBUG: Applet = Applet {
     name: "debug",
-    summary: "show crash reports (zbm debug crash)",
+    summary: "show crash reports and saved logs (zbm debug crash, saved)",
     run: debug::run,
+};
+
+const REPORT: Applet = Applet {
+    name: "report",
+    summary: "write a bug report, without key material, on the ESP or a USB stick",
+    run: report::run,
 };
 
 const SHADOW: Applet = Applet {
@@ -117,6 +125,7 @@ pub const APPLETS: &[Applet] = &[
     CONSOLE,
     MENU_PILOT,
     DEBUG,
+    REPORT,
     SHADOW,
 ];
 
@@ -134,6 +143,7 @@ pub const APPLETS: &[Applet] = &[
     CONSOLE,
     MENU_PILOT,
     DEBUG,
+    REPORT,
     SHADOW,
     Applet {
         name: "zbm-luks-test",
@@ -335,6 +345,7 @@ mod tests {
             "console",
             "zbm-menu-pilot",
             "debug",
+            "report",
             "shadow",
         ];
         if cfg!(feature = "test-seams") {

@@ -32,7 +32,9 @@ pub mod import;
 pub mod kernels;
 pub mod prompt;
 pub mod recovery;
+pub mod report;
 pub mod resume;
+pub mod saved_logs;
 pub mod shadow;
 pub mod support;
 

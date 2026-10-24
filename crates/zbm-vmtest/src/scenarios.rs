@@ -68,6 +68,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-colours",
     "runtime-rust-drm",
     "runtime-rust-console",
+    "runtime-rust-saved",
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.

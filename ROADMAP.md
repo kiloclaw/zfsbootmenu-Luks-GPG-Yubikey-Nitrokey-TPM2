@@ -34,8 +34,9 @@ In October 2026, on branch `claude/zbm-refactor`:
 - **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
   the menu side of #4 ([boot health](docs/dev/menu-design/boot-health.md),
   [unlocking](docs/dev/menu-design/unlocking.md)).
+- **Built**, with its VM test still to run: #9 (saved boot logs and `zbm report`).
 - **Partly done** by the port and the refactoring: #1 (secrets are wiped when dropped and reach programs only on
-  standard input), #9 (the runtime journal and crash reports), #12 (the menu is phase D and R5 of the refactoring),
+  standard input), #12 (the menu is phase D and R5 of the refactoring),
   #17 (the console font follows the display's EDID when a graphics driver provides it) and #18 (the fonts carry the
   letters).
 - **Proposed:** the others.
@@ -55,7 +56,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | 6 | [Check the boot environment's ZFS before booting](#6-check-the-boot-environments-zfs-before-booting) | 2 | Small | Prototyped |
 | 7 | [Boot counting with automatic fallback, and boot once](#7-boot-counting-with-automatic-fallback-and-boot-once) | 2 | Medium | Prototyped |
 | 8 | [Locked menu](#8-locked-menu) | 2 | Medium | Proposed |
-| 9 | [Saved boot log and bug-report bundle](#9-saved-boot-log-and-bug-report-bundle) | 1 | Small | Partly done |
+| 9 | [Saved boot log and bug-report bundle](#9-saved-boot-log-and-bug-report-bundle) | 1 | Small | Built |
 | 10 | [Measured boot](#10-measured-boot) | 3 | Medium | Proposed |
 | 11 | [Re-seal the TPM after firmware updates](#11-re-seal-the-tpm-after-firmware-updates) | 2 | Medium | Prototyped |
 | 12 | [Built-in menu interface](#12-built-in-menu-interface) | 2 | Large | In progress |
@@ -106,10 +107,17 @@ dropped (`zbm_sys::wipe`), and reach programs only on standard input; the journa
 
 ### 9. Saved boot log and bug-report bundle
 
-**Status:** partly done. Every runtime program appends its events to the runtime journal
-(`/zfsbootmenu/journal.jsonl`), with secrets redacted, and a panic leaves a crash report that `zbm debug crash`
-prints and `cargo xtask symbolize` resolves (REFACTOR-ROADMAP.md R1). Both are lost with the memory file system at
-`kexec` or restart. `zbm debug` grows its other reports in R4.
+**Status:** built; its VM test, `runtime-rust-saved`, has still to pass on the maintainer's machine. Every runtime
+program appends its events to the runtime journal (`/zfsbootmenu/journal.jsonl`), with secrets redacted, and a panic
+leaves a crash report that `zbm debug crash` prints and `cargo xtask symbolize` resolves (REFACTOR-ROADMAP.md R1).
+With `zbm.save_logs`, the Rust runtime saves the journal, the crash reports and the kernel log on the EFI system
+partition before `kexec` and after a crash, in `EFI/zfsbootmenu/logs/<time>`, keeping the newest five and mounting
+the partition only for the write; `zbm debug saved` lists them and `zbm debug save` saves now. `zbm report` writes a
+bug report there or in a directory, such as a USB stick: versions, pool status, each LUKS header's UUID and its
+tokens' IDs, types and key slots, whether a TPM is there and locked out, the crash reports, the journal and the
+kernel log. A unit test (`zbm_boot::report`) fills a fake machine's LUKS header with sealed keys, Clevis JWEs and key
+slot salts and checks that no file of the report holds any of them; the VM test boots once into a boot environment,
+restarts and reads the first boot's journal back.
 
 - **Why:** ZFSBootMenu logs to the kernel log of its own kernel, which is lost when it boots another kernel or the
   machine restarts. Failures on unattended machines cannot be diagnosed afterwards.

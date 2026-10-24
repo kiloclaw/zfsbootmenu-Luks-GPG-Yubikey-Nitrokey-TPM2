@@ -1986,6 +1986,7 @@ dependencies = [
  "tracing",
  "zbm-config",
  "zbm-core",
+ "zbm-crypt",
  "zbm-luks",
  "zbm-platform",
  "zbm-pool",

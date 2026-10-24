@@ -247,6 +247,29 @@
         without layouts reads keys on the US layout. [1mzbm console layout[0m [33mname[0m
         switches layouts while the console runs.
 
+    [1mzbm.save_logs[0m
+
+      In images built with the Rust runtime, save the logs of each boot on an EFI system
+      partition, which survive the boot and a restart: the runtime journal, the crash
+      reports and the kernel log go to a directory named for the time (UTC), such as
+      [33m/EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z[0m, just before the selected kernel
+      starts, and after a program of the runtime crashes. The newest five stay. The
+      partition is mounted only for the write, and must be FAT, with the [33mvfat[0m module
+      in the image. With no value, or [1mesp[0m, it is the partition the boot loader loaded
+      ZFSBootMenu from (systemd's EFI stub records it in ZFSBootMenu's EFI bundles),
+      or else the machine's only EFI system partition; a tag such as [33mPARTUUID=...[0m or
+      [33mLABEL=...[0m, or a device path, names another. [1mzbm debug saved[0m lists the saved
+      boots from the recovery shell, and [1mzbm debug save[0m saves now. [1mzbm report[0m writes a
+      bug report on the same partition, below [33m/EFI/zfsbootmenu/reports[0m, or in a
+      directory it is given, such as a USB stick: the versions, the pools' status,
+      each LUKS header's tokens and key slots, the TPM's state and the logs, with no
+      key material. Logs are off by default and with [1mzbm.save_logs=off[0m. The journal
+      holds no secrets: fields that could are written as [33m[redacted][0m.
+
+      [1mzbm.save_logs=LABEL=EFI[0m
+
+        Save the logs on the partition labelled [33mEFI[0m.
+
     [1mzbm.wait_for=device,device,...[0m
 
       Ensure that one or more devices are present before starting the pool import process.

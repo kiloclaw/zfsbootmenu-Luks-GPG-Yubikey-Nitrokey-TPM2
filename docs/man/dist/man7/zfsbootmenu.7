@@ -287,6 +287,20 @@ The console translates keys with the first of the image\(aqs keyboard layouts (\
 .UNINDENT
 .UNINDENT
 .sp
+\fBzbm.save_logs\fP
+.INDENT 0.0
+.INDENT 3.5
+In images built with the Rust runtime, save the logs of each boot on an EFI system partition, which survive the boot and a restart: the runtime journal, the crash reports and the kernel log go to a directory named for the time (UTC), such as \fI/EFI/zfsbootmenu/logs/2026\-10\-24T01\-29\-15Z\fP, just before the selected kernel starts, and after a program of the runtime crashes. The newest five stay. The partition is mounted only for the write, and must be FAT, with the \fIvfat\fP module in the image. With no value, or \fBesp\fP, it is the partition the boot loader loaded ZFSBootMenu from (systemd\(aqs EFI stub records it in ZFSBootMenu\(aqs EFI bundles), or else the machine\(aqs only EFI system partition; a tag such as \fIPARTUUID=...\fP or \fILABEL=...\fP, or a device path, names another. \fBzbm debug saved\fP lists the saved boots from the recovery shell, and \fBzbm debug save\fP saves now. \fBzbm report\fP writes a bug report on the same partition, below \fI/EFI/zfsbootmenu/reports\fP, or in a directory it is given, such as a USB stick: the versions, the pools\(aq status, each LUKS header\(aqs tokens and key slots, the TPM\(aqs state and the logs, with no key material. Logs are off by default and with \fBzbm.save_logs=off\fP\&. The journal holds no secrets: fields that could are written as \fI[redacted]\fP\&.
+.sp
+\fBzbm.save_logs=LABEL=EFI\fP
+.INDENT 0.0
+.INDENT 3.5
+Save the logs on the partition labelled \fIEFI\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
 \fBzbm.wait_for=device,device,...\fP
 .INDENT 0.0
 .INDENT 3.5

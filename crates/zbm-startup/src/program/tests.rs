@@ -147,6 +147,40 @@ fn the_console_counts_down_and_boots() {
 }
 
 #[test]
+fn the_logs_are_saved_before_the_kernel_starts_when_asked() {
+    let fake = machine();
+    fake.runner.respond(
+        "lsblk -rnpo NAME,PARTTYPE",
+        0,
+        "/dev/vda1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b\n",
+    );
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    let mount = "mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs";
+
+    startup(&fake, "zbm.timeout=0").run(console, Some(1));
+    assert!(!has(&fake, mount));
+    fake.files
+        .file("/zfsbootmenu/zbm.cmdline", "zbm.timeout=0\nzbm.save_logs\n");
+    startup(&fake, "zbm.timeout=0").run(console, Some(1));
+
+    let lines = fake.runner.lines();
+    let saved = lines
+        .iter()
+        .position(|line| line == mount)
+        .expect("the logs are saved");
+    let execute = lines
+        .iter()
+        .rposition(|line| line == "kexec -e -i")
+        .unwrap();
+    assert!(saved < execute, "{lines:?}");
+    let saved = "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log";
+    assert!(zbm_platform::Files::exists(&fake.files, Path::new(saved)));
+}
+
+#[test]
 fn the_countdown_can_be_interrupted() {
     let fake = machine();
     fake.console.keys(b"\x1b");

@@ -242,6 +242,26 @@ These options are set on the kernel command line when booting the initramfs or U
     the image lacks leaves the first, and an image without layouts reads keys on the US layout.
     **zbm console layout** *name* switches layouts while the console runs.
 
+**zbm.save_logs**
+
+  In images built with the Rust runtime, save the logs of each boot on an EFI system partition, which
+  survive the boot and a restart: the runtime journal, the crash reports and the kernel log go to a
+  directory named for the time (UTC), such as */EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z*, just
+  before the selected kernel starts, and after a program of the runtime crashes. The newest five stay.
+  The partition is mounted only for the write, and must be FAT, with the *vfat* module in the image.
+  With no value, or **esp**, it is the partition the boot loader loaded ZFSBootMenu from (systemd's
+  EFI stub records it in ZFSBootMenu's EFI bundles), or else the machine's only EFI system partition;
+  a tag such as *PARTUUID=...* or *LABEL=...*, or a device path, names another. **zbm debug saved**
+  lists the saved boots from the recovery shell, and **zbm debug save** saves now. **zbm report**
+  writes a bug report on the same partition, below */EFI/zfsbootmenu/reports*, or in a directory it is
+  given, such as a USB stick: the versions, the pools' status, each LUKS header's tokens and key
+  slots, the TPM's state and the logs, with no key material. Logs are off by default and with
+  **zbm.save_logs=off**. The journal holds no secrets: fields that could are written as *[redacted]*.
+
+  **zbm.save_logs=LABEL=EFI**
+
+    Save the logs on the partition labelled *EFI*.
+
 **zbm.wait_for=device,device,...**
 
   Ensure that one or more devices are present before starting the pool import process. Devices may

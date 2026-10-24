@@ -2,12 +2,14 @@
 //! `zfsbootmenu(7)`; those for LUKS volumes are in [`luks`].
 
 pub mod console;
+pub mod logs;
 pub mod luks;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
 pub use console::{
     AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT, VCONSOLE_FONT,
 };
+pub use logs::SAVE_LOGS;
 
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
@@ -34,6 +36,7 @@ pub static ALL: &[&OptionSpec] = &[
     &DISPLAY_CONSOLE_FONT,
     &KEYBOARD_LAYOUT,
     &CONSOLE_MIRROR,
+    &logs::SAVE_LOGS,
     &WAIT_FOR,
     &ROOT,
     &SHADOW,

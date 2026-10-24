@@ -16,11 +16,12 @@ use zbm_boot::import::{self, Import, ImportSettings};
 use zbm_boot::kernels::Kernel;
 use zbm_boot::prompt::{Answer, TimedPrompt, colorize, tput};
 use zbm_boot::recovery::Recovery;
+use zbm_boot::saved_logs::Destination;
 use zbm_boot::support::{self, Facts};
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
-use zbm_config::spec::cmdline::SKIP_HOOKS;
+use zbm_config::spec::cmdline::{SAVE_LOGS, SKIP_HOOKS};
 use zbm_platform::{Installed, System};
 use zbm_pool::{BootfsPreference, Build, PoolRef, Requirement, RetryDelay};
 use zbm_state::State;
@@ -112,6 +113,12 @@ impl<'a> Startup<'a> {
             retry_delay: RetryDelay::from_conf(&self.options.retry_delay),
             build: self.build,
         }
+    }
+
+    /// Where `zbm.save_logs` saves the logs of a boot, if anywhere.
+    fn save_logs(&self) -> Option<Destination> {
+        let value = self.args.lookup(&SAVE_LOGS, &mut Vec::new());
+        Destination::from_option(value.as_deref())
     }
 
     fn facts(&self) -> Facts {
@@ -243,6 +250,7 @@ impl<'a> Startup<'a> {
                 set_hostid: self.options.set_hostid,
                 hooks: self.hooks.clone(),
                 env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
+                save_logs: self.save_logs(),
             };
             let mut shell = self.shell();
             boot::kexec_kernel(system, &self.state, &settings, &selected, &mut shell);

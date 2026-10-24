@@ -106,6 +106,19 @@ pub fn release_console(runner: &dyn Runner) -> io::Result<Output> {
     runner.run(&on_console(Command::new(ZBM).args(["console", "release"])))
 }
 
+/// The kernel log as `dmesg` prints it, with its timestamps; empty when it
+/// cannot be read.
+pub fn kernel_log(runner: &dyn Runner) -> String {
+    let command = Command::new("dmesg")
+        .stdin(Input::Null)
+        .stdout(Stream::Capture)
+        .stderr(Stream::Null);
+    runner
+        .run(&command)
+        .map(|output| output.stdout_text())
+        .unwrap_or_default()
+}
+
 /// Copies the file `from` to `to` as `cp FROM TO` does, quietly: the copy
 /// gets the mode `cp` gives a new file, the source's less the umask.
 ///
