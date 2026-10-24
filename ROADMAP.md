@@ -30,13 +30,11 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 
 In October 2026, on branch `claude/zbm-refactor`:
 
-- **Done:** #5 (reproducible images), #9 (saved boot logs and `zbm report`) and #20 (console fonts as 256-glyph
-  subsets, and Spleen).
+- **Done:** #1 (secrets in locked memory, and none left before `kexec`), #5 (reproducible images), #9 (saved boot
+  logs and `zbm report`) and #20 (console fonts as 256-glyph subsets, and Spleen).
 - **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
   the menu side of #4 ([boot health](docs/dev/menu-design/boot-health.md),
   [unlocking](docs/dev/menu-design/unlocking.md)).
-- **Built**, with its VM tests still to run: #1 (secrets in locked memory, and a search of the machine before
-  `kexec`).
 - **Partly done** by the port and the refactoring: #12 (the menu is phase D and R5 of the refactoring), #17 (the console font follows the display's
   EDID when a graphics driver provides it) and #18 (the fonts carry the letters).
 - **Proposed:** the others.
@@ -48,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 
 | # | Feature | Group | Effort | Status |
 | --- | --- | --- | --- | --- |
-| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | 1 | Small | Built |
+| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | Done | Small | Done |
 | 2 | [Unlock with whatever arrives first](#2-unlock-with-whatever-arrives-first) | 3 | Medium | Proposed |
 | 3 | [Parallel startup](#3-parallel-startup) | 3 | Medium | Proposed |
 | 4 | [Clear unlock errors](#4-clear-unlock-errors) | 2 | Medium | Prototyped |
@@ -85,34 +83,6 @@ the pull request that changes it.
 
 These touch code that is already Rust. Each is added as a change of its own, for images with
 `zfsbootmenu_runtime=rust`; legacy images stay frozen (`legacy/RUNTIME-CHANGES.md`).
-
-### 1. Wipe secrets from memory
-
-**Security.**
-
-**Status:** built; its VM tests, `secrets-passphrase` and `secrets-keyfile`, have still to pass on the maintainer's
-machine. In the Rust runtime secrets are `zbm_platform::Secret`, in pages of their own (`zbm_sys::memory::Pages`):
-from `memfd_secret` where the kernel allows it, which keeps them out of the kernel's map of memory too, else locked
-with `mlock`; never in core dumps (`MADV_DONTDUMP`) or child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`); wiped
-with `explicit_bzero` when dropped. They reach programs only on standard input, the journal writes fields named for
-secrets as `[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
-`docs/dev/threat-model.md`). The runtime's processes are undumpable, and the console on the display wipes the key
-codes it reads. Before `kexec`, the start-up program drops the page cache and warns about secrets it still holds;
-`zbm report` says whether the kernel zeroes freed memory (`init_on_free=1`), which the man page recommends for Rust
-images. The VM tests unlock a volume with a long passphrase, then with a key file on a USB stick, and a teardown hook
-runs `zbm debug secrets` (in images built with the `secret-test` feature) just before `kexec`: it searches every other
-process's memory, command line and environment, and every file on the file systems in memory, for both. Kernel
-buffers still in use at `kexec` are not searched, and stay a risk (R4 of the threat model).
-
-- **Why:** Bash keeps passphrases and key material in variables, here-strings and pipe buffers that cannot be reliably
-  erased. Copies can remain in RAM after ZFSBootMenu hands over to the booted kernel. ZFSBootMenu already closes LUKS
-  mappings before booting, which wipes the volume keys, but not the secrets used to unlock them.
-- **How:** hold secrets in types that erase themselves when dropped (done: `Secret`; `zeroize` or `secrecy` are
-  proposal 5 of REFACTOR-ROADMAP.md), lock their pages in RAM (`mlock`), and hand them to libcryptsetup and helper
-  tools through memory or pipes: never through command-line arguments, environment variables or files. Wipe
-  everything that is left before `kexec`.
-- **Done when:** a test unlocks volumes with a known passphrase and key file, then searches process memory, command
-  lines, environments and tmpfs for them and finds nothing.
 
 ### 17. Graphics drivers for AMD and Intel GPUs
 
@@ -551,6 +521,34 @@ of the port, which R5 builds, brings the Rust `kexec` path to every image.
   that ZFSBootMenu's TPM tokens no longer unseal after the extension.
 
 ## Done
+
+### 1. Wipe secrets from memory
+
+**Security.**
+
+**Status:** done; the VM tests `secrets-passphrase` and `secrets-keyfile` passed on 24 October 2026, with the key
+methods of `keys-*` and `firmware-*` on the Rust runtime. In the Rust runtime secrets are `zbm_platform::Secret`, in pages of their own (`zbm_sys::memory::Pages`):
+from `memfd_secret` where the kernel allows it, which keeps them out of the kernel's map of memory too, else locked
+with `mlock`; never in core dumps (`MADV_DONTDUMP`) or child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`); wiped
+with `explicit_bzero` when dropped. They reach programs only on standard input, the journal writes fields named for
+secrets as `[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
+`docs/dev/threat-model.md`). The runtime's processes are undumpable, and the console on the display wipes the key
+codes it reads. Before `kexec`, the start-up program drops the page cache and warns about secrets it still holds;
+`zbm report` says whether the kernel zeroes freed memory (`init_on_free=1`), which the man page recommends for Rust
+images. The VM tests unlock a volume with a long passphrase, then with a key file on a USB stick, and a teardown hook
+runs `zbm debug secrets` (in images built with the `secret-test` feature) just before `kexec`: it searches every other
+process's memory, command line and environment, and every file on the file systems in memory, for both. Kernel
+buffers still in use at `kexec` are not searched, and stay a risk (R4 of the threat model).
+
+- **Why:** Bash keeps passphrases and key material in variables, here-strings and pipe buffers that cannot be reliably
+  erased. Copies can remain in RAM after ZFSBootMenu hands over to the booted kernel. ZFSBootMenu already closes LUKS
+  mappings before booting, which wipes the volume keys, but not the secrets used to unlock them.
+- **How:** hold secrets in types that erase themselves when dropped (done: `Secret`; `zeroize` or `secrecy` are
+  proposal 5 of REFACTOR-ROADMAP.md), lock their pages in RAM (`mlock`), and hand them to libcryptsetup and helper
+  tools through memory or pipes: never through command-line arguments, environment variables or files. Wipe
+  everything that is left before `kexec`.
+- **Done when:** a test unlocks volumes with a known passphrase and key file, then searches process memory, command
+  lines, environments and tmpfs for them and finds nothing.
 
 ### 5. Reproducible images
 
