@@ -89,6 +89,10 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `1fd2a01`: the online help of `zfsbootmenu(7)` (`help-files/`) says how the Rust runtime keeps secrets in memory
   and recommends `init_on_free=1` for its images (ROADMAP.md #1); the legacy runtime is unchanged.
   **Rust:** nothing to port; documentation only.
+- [x] `99652d4`: the online help of `zfsbootmenu(7)` (`help-files/`) says that the Rust runtime loads the keys of
+  encrypted boot environments and runs `load-key.d` hooks (R5 step 1 of `REFACTOR-ROADMAP.md`); the legacy runtime is
+  unchanged.
+  **Rust:** nothing to port; documentation only.
 
 ## Legacy limitations the Rust runtime must not copy
 
