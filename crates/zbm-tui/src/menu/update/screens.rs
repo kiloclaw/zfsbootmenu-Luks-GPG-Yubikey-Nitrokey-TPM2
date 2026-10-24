@@ -44,6 +44,7 @@ pub(super) fn boot(model: &Model, environment: &Environment, kernel: Option<Stri
         environment: environment.name.clone(),
         kernel,
         command_line: edited.then_some(line),
+        countdown: false,
     }
 }
 

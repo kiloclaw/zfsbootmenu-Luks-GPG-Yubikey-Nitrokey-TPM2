@@ -26,9 +26,9 @@ dependencies that exist.
 | Layer | Crates | Purpose |
 | --- | --- | --- |
 | front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm` | The menus, the console on the display and the multi-call binary, whose applets start the programs |
-| orchestration | `zbm-boot`, `zbm-startup`, `generate-zbm` | Start-up and boot; image generation |
+| orchestration | `zbm-startup`, `generate-zbm` | Start-up; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
-| domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
+| domain | `zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
 | platform | `zbm-platform`, `zbm-coreutils`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
@@ -42,7 +42,8 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm-coreutils` → `zbm-platform`
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
-- `zbm-startup` → `zbm-boot`
+- `zbm-boot` → `zbm-luks`
+- `zbm-boot` → `zbm-pool`
 
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
 

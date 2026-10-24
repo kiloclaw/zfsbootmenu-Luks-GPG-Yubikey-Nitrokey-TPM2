@@ -26,6 +26,9 @@ pub enum Action {
         kernel: Option<String>,
         /// The command line.
         command_line: Option<String>,
+        /// Whether the countdown booted it, nobody having chosen: the
+        /// countdown's boot tries no key source.
+        countdown: bool,
     },
     /// Boot a temporary clone of a snapshot.
     BootSnapshot(SnapshotName),
@@ -107,6 +110,22 @@ pub enum Action {
     Reboot,
     /// Power off.
     PowerOff,
+}
+
+impl Action {
+    /// Whether the action takes the console from the menu: booting, which
+    /// may ask for a passphrase, the recovery shell, rebooting and powering
+    /// off.
+    pub fn needs_console(&self) -> bool {
+        matches!(
+            self,
+            Action::Boot { .. }
+                | Action::Shell
+                | Action::Reboot
+                | Action::PowerOff
+                | Action::FirmwareSetup
+        )
+    }
 }
 
 /// What the machine tells the menu.

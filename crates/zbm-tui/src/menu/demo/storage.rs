@@ -15,6 +15,7 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
             environment,
             kernel,
             command_line,
+            ..
         } => {
             return vec![Event::Leaving(boot_message(
                 snapshot,

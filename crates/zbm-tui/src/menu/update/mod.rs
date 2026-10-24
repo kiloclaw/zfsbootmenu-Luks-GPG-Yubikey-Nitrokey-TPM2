@@ -167,7 +167,11 @@ fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
     let Some(environment) = model.selected_environment().cloned() else {
         return Vec::new();
     };
-    vec![screens::boot(model, &environment, None)]
+    let mut boot = screens::boot(model, &environment, None);
+    if let Action::Boot { countdown, .. } = &mut boot {
+        *countdown = true;
+    }
+    vec![boot]
 }
 
 /// Opens the error dialog for a failed outcome.

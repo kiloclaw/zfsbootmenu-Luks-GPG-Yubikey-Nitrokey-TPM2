@@ -33,17 +33,21 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod boot;
 pub mod model;
 pub mod pilot;
 mod read;
 mod unlock;
 mod volumes;
 
+pub use boot::kernel_version;
 pub use model::Encryption;
 pub use pilot::SnapshotError;
 pub use read::stage_name;
 pub use unlock::UnlockRequest;
 pub use volumes::{NO_CRYPTSETUP, device_not_found};
+pub use zbm_boot::boot::BootSettings;
+pub use zbm_boot::recovery::Recovery;
 pub use zbm_crypt::OpenOptions;
 pub use zbm_luks::pilot::UnlockFailed;
 
@@ -51,7 +55,7 @@ use std::path::Path;
 
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;
-use zbm_platform::Context;
+use zbm_platform::{Context, System};
 use zbm_types::{DevicePath, MappingName};
 
 /// What a front end asks the application to do.
@@ -140,6 +144,8 @@ pub struct App<'a> {
     base: Option<&'a Path>,
     /// The directory of the image's keyboard layouts.
     layouts: Option<&'a Path>,
+    /// How to boot, when the front end can boot.
+    boot: Option<&'a BootSettings>,
 }
 
 impl<'a> App<'a> {
@@ -151,6 +157,7 @@ impl<'a> App<'a> {
             luks: None,
             base: None,
             layouts: None,
+            boot: None,
         }
     }
 
@@ -178,6 +185,16 @@ impl<'a> App<'a> {
     pub fn with_base(self, base: &'a Path) -> App<'a> {
         App {
             base: Some(base),
+            ..self
+        }
+    }
+
+    /// With what booting needs besides the state directory: the hooks, the
+    /// host ID and the saved logs.
+    #[must_use]
+    pub fn with_boot(self, settings: &'a BootSettings) -> App<'a> {
+        App {
+            boot: Some(settings),
             ..self
         }
     }
@@ -217,6 +234,79 @@ impl<'a> App<'a> {
             why: vec![format!("{action:?} is not available in this program yet")],
             next: Vec::new(),
         })]
+    }
+
+    /// Performs `action`, one that takes the console
+    /// ([`model::Action::needs_console`]): booting, which may ask for a
+    /// passphrase, the recovery shell, rebooting and powering off. It
+    /// returns only when the machine did not boot or reset, or the shell
+    /// ended, with how the action ended as the last event. `console` is the
+    /// front end's whole system, whose console the action takes; `recovery`
+    /// opens the shell, and the recovery shells of a failed boot.
+    pub fn act_on_console(
+        &self,
+        action: &model::Action,
+        console: System<'_>,
+        recovery: &mut dyn Recovery,
+    ) -> Vec<model::Event> {
+        let system = console.with_runner(self.context.runner());
+        let pools =
+            || read::pools(&zbm_zfs::ZfsCli::new(self.context.runner())).unwrap_or_default();
+        match action {
+            model::Action::Shell => {
+                recovery.emergency_shell("");
+                Vec::new()
+            }
+            model::Action::Reboot => boot::reset(&system, &pools(), "b"),
+            model::Action::PowerOff => boot::reset(&system, &pools(), "o"),
+            model::Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
+            model::Action::Boot {
+                environment,
+                kernel,
+                command_line,
+                countdown,
+            } => {
+                let (Some(base), Some(settings)) = (self.base, self.boot) else {
+                    return self.act(action);
+                };
+                let state = zbm_state::State::new(system.files, base);
+                let boot = boot::Boot {
+                    system: &system,
+                    state: &state,
+                    settings,
+                };
+                boot.boot(
+                    environment,
+                    kernel.as_deref(),
+                    command_line.as_deref(),
+                    *countdown,
+                    recovery,
+                )
+            }
+            other => self.act(other),
+        }
+    }
+
+    /// Fills in the kernels of the environments of `snapshot` whose keys are
+    /// loaded, by mounting each read-only, as the menu needs them; the
+    /// snapshot alone mounts nothing. `console` is the front end's whole
+    /// system.
+    pub fn read_kernels(&self, snapshot: &mut model::Snapshot, console: System<'_>) {
+        let (Some(base), Some(settings)) = (self.base, self.boot) else {
+            return;
+        };
+        let system = console.with_runner(self.context.runner());
+        let state = zbm_state::State::new(system.files, base);
+        let boot = boot::Boot {
+            system: &system,
+            state: &state,
+            settings,
+        };
+        for environment in &mut snapshot.environments {
+            if environment.encryption != Encryption::Locked {
+                environment.kernels = boot.kernels(environment.name.as_str());
+            }
+        }
     }
 
     /// Reads the machine for the menu pilot: its boot environments.

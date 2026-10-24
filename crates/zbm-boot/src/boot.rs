@@ -18,7 +18,7 @@ mod zfs;
 #[cfg(test)]
 mod tests;
 
-pub use discovery::{find_kernels, select_kernel};
+pub use discovery::{find_kernels, kernel_property, select_kernel};
 pub use mounts::{Noise, mount_efivarfs, mount_zfs, recursive_umount};
 pub use sequence::{BootSettings, kexec_kernel};
 pub(crate) use zfs::zfs_value;

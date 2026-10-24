@@ -160,6 +160,7 @@ fn leaving_actions_end_the_menu() {
         environment: "tank/ROOT/arch".parse().unwrap(),
         kernel: None,
         command_line: None,
+        countdown: false,
     });
 
     assert_eq!(

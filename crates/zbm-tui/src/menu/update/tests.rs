@@ -22,6 +22,7 @@ fn boot_action(environment: &str, kernel: Option<&str>, line: Option<&str>) -> A
         environment: environment.parse().unwrap(),
         kernel: kernel.map(str::to_owned),
         command_line: line.map(str::to_owned),
+        countdown: false,
     }
 }
 
@@ -49,10 +50,14 @@ fn t1_the_countdown_boots_the_default_without_a_key() {
     }
 
     assert_eq!(session.keys(), 0);
-    assert_eq!(
-        session.actions,
-        [boot_action("zroot/ROOT/void", None, None)]
-    );
+    // The countdown's boot, which tries no key source.
+    let expected = Action::Boot {
+        environment: "zroot/ROOT/void".parse().unwrap(),
+        kernel: None,
+        command_line: None,
+        countdown: true,
+    };
+    assert_eq!(session.actions, [expected]);
     assert!(
         session
             .leaving()

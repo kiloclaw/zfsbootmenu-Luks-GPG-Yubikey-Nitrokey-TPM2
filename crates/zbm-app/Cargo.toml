@@ -12,6 +12,7 @@ publish.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+zbm-boot.workspace = true
 zbm-config.workspace = true
 zbm-crypt.workspace = true
 zbm-luks.workspace = true

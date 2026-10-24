@@ -70,8 +70,8 @@ pub const LAYERS: &[Layer] = &[
     Layer {
         name: "domain",
         purpose: "LUKS volumes and key methods, pool import, kernel command lines of boot \
-                  environments",
-        crates: &["zbm-luks", "zbm-kcl", "zbm-pool"],
+                  environments; boot environments, their kernels and keys, and booting",
+        crates: &["zbm-luks", "zbm-kcl", "zbm-pool", "zbm-boot"],
     },
     Layer {
         name: "application",
@@ -80,8 +80,8 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "orchestration",
-        purpose: "Start-up and boot; image generation",
-        crates: &["zbm-boot", "zbm-startup", "generate-zbm"],
+        purpose: "Start-up; image generation",
+        crates: &["zbm-startup", "generate-zbm"],
     },
     Layer {
         name: "front ends",
@@ -97,7 +97,8 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm-coreutils", "zbm-platform"),
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
-    ("zbm-startup", "zbm-boot"),
+    ("zbm-boot", "zbm-luks"),
+    ("zbm-boot", "zbm-pool"),
 ];
 
 /// Layers whose crates may not use the crates of another, lower layer:

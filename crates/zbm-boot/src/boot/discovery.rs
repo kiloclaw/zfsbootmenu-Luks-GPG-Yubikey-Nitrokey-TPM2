@@ -122,6 +122,11 @@ fn cache_kernel_kcl(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &str,
     }
 }
 
+/// The value of `org.zfsbootmenu:kernel` on `fs`, when it is set.
+pub fn kernel_property(system: &System<'_>, fs: &str) -> Option<String> {
+    zfs_value(system.runner, KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
+}
+
 /// The kernel to boot from the kernel list of `fs`: the last one, or the last
 /// one `org.zfsbootmenu:kernel` matches.
 pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option<Kernel> {
