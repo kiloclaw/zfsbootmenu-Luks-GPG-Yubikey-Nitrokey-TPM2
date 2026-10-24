@@ -86,6 +86,23 @@ and the crash reports' names), `journal.jsonl`, the crash reports and `kernel.lo
 or anything else of the LUKS header, which hold sealed keys and credentials; a unit test checks that no file of a
 report holds the secrets of a fake header.
 
+## Reports on a running image
+
+`zbm-debug(8)` describes the reports of `/libexec/zbm debug`, which a developer asks a user for, or runs in a VM's
+recovery shell. They only read:
+
+```sh
+zbm debug config                # each kernel command-line option, its value and where it came from
+zbm debug state                 # the files of /zfsbootmenu, without the journal, crash reports and key files
+zbm debug journal --level warn  # the journal, one line per record, with its fields and spans
+zbm debug commands              # each program run, its exit status and duration, from the journal
+zbm debug luks                  # the LUKS volumes, as App::snapshot reads them
+zbm debug pools                 # the pools and boot environments, as App::snapshot reads them
+```
+
+The code is in `crates/zbm/src/debug/`: `files.rs` for `config` and `state`, `journal.rs` for `journal` and
+`commands`, and `machine.rs` for `luks` and `pools`, the only two that run commands (`zpool`, `zfs`, `cryptsetup`).
+
 ## Third-party crates
 
 `cargo deny check` (with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny), installed with

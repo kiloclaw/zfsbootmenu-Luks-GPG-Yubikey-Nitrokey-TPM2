@@ -5,6 +5,14 @@
 //!   ones of the same process and second), and `zbm debug crash --list` lists
 //!   them, oldest first. A developer turns a report's offsets into function
 //!   names and lines with `cargo xtask symbolize`.
+//! - `zbm debug config` prints the options in force and where each came
+//!   from, and `zbm debug state` the files of the state directory
+//!   ([`files`]).
+//! - `zbm debug journal [--level LEVEL]` prints the runtime journal, and
+//!   `zbm debug commands` the programs the runtime ran ([`journal`]); they
+//!   replace the legacy `zlogtail` and `ztrace`.
+//! - `zbm debug luks` and `zbm debug pools` print the LUKS volumes, and the
+//!   pools and boot environments, as `zbm-app` reads them ([`machine`]).
 //! - `zbm debug saved` lists the logs saved on the EFI system partition
 //!   (`zbm.save_logs`), and `zbm debug save` saves this boot's now
 //!   ([`crate::saved`]).
@@ -16,6 +24,10 @@
 //! - `zbm debug menu-demo`, only in builds with the `menu-demo` feature, runs
 //!   the menu prototype on the display without a terminal
 //!   ([`crate::menu_demo`]).
+
+pub mod files;
+pub mod journal;
+pub mod machine;
 
 use std::path::Path;
 
@@ -29,6 +41,13 @@ pub const BASE: &str = "/zfsbootmenu";
 /// The usage text.
 const USAGE_TEXT: &str = "\
 Usage: zbm debug crash [--list]   print the latest crash report, or list them
+       zbm debug config           the options in force, and where they came from
+       zbm debug state            the files of the state directory
+       zbm debug journal [--level LEVEL]
+                                  the runtime journal (error, warn, info, debug)
+       zbm debug commands         the programs the runtime ran, and how they ended
+       zbm debug luks             the LUKS volumes and their key methods
+       zbm debug pools            the pools and the boot environments
        zbm debug saved            list the logs saved on the EFI system partition
        zbm debug save             save this boot's logs there now
 ";
@@ -85,6 +104,13 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
             }
             0
         }
+        ["config"] => files::config(files, base, io),
+        ["state"] => files::state(files, base, io),
+        ["commands"] => journal::print_commands(files, base, io),
+        ["journal", rest @ ..] => journal::journal(files, base, rest, io).unwrap_or_else(|| {
+            let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
+            USAGE
+        }),
         #[cfg(feature = "crash-test")]
         ["panic"] => panic_for_test(),
         #[cfg(feature = "secret-test")]
@@ -104,6 +130,9 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
 /// `zbm debug`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    if let ["luks" | "pools"] = words.as_slice() {
+        return machine::run(words[0], io);
+    }
     if matches!(words.first(), Some(&("saved" | "save"))) {
         let code = crate::saved::run(Path::new(BASE), &words, io);
         if code == USAGE {

@@ -150,6 +150,14 @@ boots and `zbm debug save` saves now. `zbm report` writes a bug report to attach
 status, a summary of each LUKS header (UUID, tokens' types and key slots), the TPM's state, the crash reports, the
 journal and the kernel log. It holds no key material, which a test checks.
 
+### Reports for finding out why a boot went wrong
+
+In images with the Rust runtime, `/libexec/zbm debug` prints reports from the recovery shell or an SSH session,
+described in the new `zbm-debug(8)`: `config` (each option of the kernel command line, its value and where it came
+from), `state` (the files of `/zfsbootmenu`, without key files), `journal` (the runtime journal, from a level up),
+`commands` (each program the runtime ran, its exit status and how long it took), `luks` (the LUKS volumes, their
+state and key methods) and `pools` (the pools and boot environments). They only read, and print no key material.
+
 ### Keyboard layouts on the console on the display
 
 Step 4 of ROADMAP.md #19. Images with the Rust runtime carry keyboard layouts for the console of `zbm.console=drm`:

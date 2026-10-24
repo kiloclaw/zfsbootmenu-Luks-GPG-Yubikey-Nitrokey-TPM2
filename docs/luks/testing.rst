@@ -369,7 +369,10 @@ Following a boot
   empty and the kernel log, and ``/libexec/zbm report`` must write a report. After the machine stops, the host reads
   the disk with ``mtype``: the saved journal must be the first boot's (it holds ``running init stage``) and must have
   been saved after the teardown hooks ran (it names ``teardown.d``), and the report's ``report.txt`` must show the
-  versions, the pool ``tplain`` and no LUKS volume, beside this boot's journal.
+  versions, the pool ``tplain`` and no LUKS volume, beside this boot's journal. In the same recovery shell, the
+  reports of ``zbm-debug(8)`` must end with 0 and show this boot's start-up: ``config`` the option
+  ``zbm.save_logs=LABEL=ZBMLOGS``, ``state`` the state directory without the journal, ``journal`` the init stages,
+  ``commands`` the pool import and a summary, ``pools`` the pool ``tplain`` and ``luks`` no LUKS volume.
 
 Results
 -------

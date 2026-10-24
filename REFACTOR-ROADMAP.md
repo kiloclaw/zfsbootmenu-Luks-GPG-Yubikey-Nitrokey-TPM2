@@ -46,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
-| R4 | In progress | Application layer: steps 1 to 3 of 5 done (the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter) |
+| R4 | In progress | Application layer: steps 1 to 4 of 5 done (the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`) |
 | R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -234,8 +234,9 @@ Messages go to `/dev/kmsg` in the legacy formats, filtered by a numeric `logleve
 correlation between a message and the stage, volume or command that produced it, no record of external commands with
 their durations and statuses, and no way to dump the runtime's state. `ztrace` and `zlogtail` are Bash.
 
-**Now:** `tracing` spans, the runtime journal and crash reports (R1), `zbm debug crash`. `ztrace`, `zlogtail` and the
-other `zbm debug` reports come in R4.
+**Now:** `tracing` spans, the runtime journal and crash reports (R1), and the `zbm debug` reports (R4, documented in
+`zbm-debug(8)`): `crash`, `config`, `state`, `journal`, `commands`, `luks` and `pools`. `zbm debug journal` and
+`zbm debug commands` do what `zlogtail` and `ztrace` do for the legacy runtime, from the journal.
 
 ### F6. The tests depend on Bash and are hard to scan (G7, G8, G10)
 
@@ -787,7 +788,13 @@ builds after the core tasks.
    and `list` stay displays of the front end. `zbm-startup` moved to the orchestration layer, beside `zbm-boot`,
    whose prompts and recovery it uses: it runs the start-up stages, and `zfsbootmenu-init` is its front end.
    `check-deps` now refuses a front end that depends on an adapter (`NOT_THROUGH`), and none does.
-4. The `zbm debug` reports and `zbm-debug(8)`.
+4. **Done.** `zbm debug` gained its reports, documented in `zbm-debug(8)`, all of them read-only: `config` (each
+   option of the saved command line with its value and origin, from `zbm-config`'s specification table and
+   origins), `state` (the state directory without the journal, the crash reports and the cached key files),
+   `journal [--level LEVEL]` (the journal, one line per record with its fields and spans), `commands` (the programs
+   the runtime ran, with their statuses and durations, from the journal's `command` spans), and `luks` and `pools`
+   (`App::snapshot`, with the LUKS settings of `/etc/zfsbootmenu.conf`). They replace `ztrace` and `zlogtail` for the
+   Rust runtime; those stay in the frozen legacy runtime.
 5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a
    difference.
 

@@ -1,0 +1,249 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "ZBM-DEBUG" "8" "2026-10-24" "" "ZFSBootMenu"
+.SH NAME
+zbm-debug \- reports on a ZFSBootMenu runtime, for finding out why a boot went wrong
+.SH SYNOPSIS
+.sp
+\fB/libexec/zbm debug\fP \fBconfig\fP
+.sp
+\fB/libexec/zbm debug\fP \fBstate\fP
+.sp
+\fB/libexec/zbm debug\fP \fBjournal\fP [\fB\-\-level\fP \fIlevel\fP]
+.sp
+\fB/libexec/zbm debug\fP \fBcommands\fP
+.sp
+\fB/libexec/zbm debug\fP \fBluks\fP
+.sp
+\fB/libexec/zbm debug\fP \fBpools\fP
+.sp
+\fB/libexec/zbm debug\fP \fBcrash\fP [\fB\-\-list\fP]
+.sp
+\fB/libexec/zbm debug\fP \fBsaved\fP
+.sp
+\fB/libexec/zbm debug\fP \fBsave\fP
+.SH DESCRIPTION
+.sp
+\fBzbm debug\fP shows what the ZFSBootMenu runtime was told, what it did and what it sees, from the recovery shell or
+an SSH session. It is meant for finding out why a boot went wrong, and for bug reports. Every report only reads: none
+of them imports, unlocks, closes or changes anything, and none of them prints key material.
+.sp
+\fBzbm debug\fP is part of the \fBzbm\fP program, which images built with the Rust runtime (and other images when \fBzbm\fP
+was found on the build host) carry at \fI/libexec/zbm\fP\&. The journal, the command list and the saved command line are
+written by the Rust runtime only.
+.SH SUBCOMMANDS
+.sp
+\fBconfig\fP
+.INDENT 0.0
+.INDENT 3.5
+Print the command line that start\-up read, then every ZFSBootMenu option of the kernel command line, one per line:
+its name, the value in force, and where that value came from. The origin is \fBcommand line\fP when the option was
+given, \fBcommand line, as\fP \fIalias\fP when it was given under an older name, \fBdefault\fP when it was not, and
+\fBdefault:\fP \fIname\fP\fB=\fP\fIvalue\fP \fBis not valid\fP when it was given a value ZFSBootMenu refused. The warnings
+the options give follow, as start\-up gave them. Options are described in
+\fI\%zfsbootmenu(7)\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBstate\fP
+.INDENT 0.0
+.INDENT 3.5
+Print the files of the state directory, \fI/zfsbootmenu\fP, by name, with their size, and the contents of the files of
+4096 bytes or less. The journal and the crash reports are left out, as they have reports of their own, and so are
+the key files cached from \fBorg.zfsbootmenu:keysource\fP (\fI/zfsbootmenu/.keys\fP), which are secrets.
+.UNINDENT
+.UNINDENT
+.sp
+\fBjournal\fP [\fB\-\-level\fP \fIlevel\fP]
+.INDENT 0.0
+.INDENT 3.5
+Print the runtime journal, one record per line: the process ID, the level, the part of the runtime that wrote the
+record, the message and its fields, and the operations it was part of, outermost first, in brackets. With
+\fB\-\-level\fP, print only the records of \fIlevel\fP or a more severe one: \fBerror\fP, \fBwarn\fP, \fBinfo\fP, \fBdebug\fP or
+\fBtrace\fP\&. Fields that could hold a secret are written as \fI[redacted]\fP when the record is made, so they are never
+in the journal.
+.UNINDENT
+.UNINDENT
+.sp
+\fBcommands\fP
+.INDENT 0.0
+.INDENT 3.5
+Print the programs the runtime ran, in order, each with its exit status (\fB\-\fP when it could not start), how long
+it took and its command line, then how many there were, how many failed or did not start, and how long they took in
+all. The input given to a program is never shown.
+.UNINDENT
+.UNINDENT
+.sp
+\fBluks\fP
+.INDENT 0.0
+.INDENT 3.5
+Print each LUKS volume: its device, its mapping name, its state (\fBopen\fP, \fBlocked\fP, \fBskipped\fP, or \fBfailed:\fP
+with the reason), the key methods its header and the configuration offer, and the pool on it when it is open. The
+volumes are those the configuration selects, as for \fBzluks unlock\fP in \fI\%zluks(8)\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+\fBpools\fP
+.INDENT 0.0
+.INDENT 3.5
+Print each imported pool: its health, whether it is imported read/write or read\-only, and whether it has a
+checkpoint. Then each boot environment, indented: whether it is its pool\(aqs default (\fBbootfs\fP), its encryption
+(\fBnot encrypted\fP, \fBlocked\fP or \fBunlocked\fP), and the kernel command line it boots with, with where that was set:
+\fBset here\fP for its own \fBorg.zfsbootmenu:commandline\fP property, \fBfrom\fP \fIdataset\fP when it inherits the property,
+and \fBdefault\fP when no dataset sets it.
+.UNINDENT
+.UNINDENT
+.sp
+\fBcrash\fP [\fB\-\-list\fP]
+.INDENT 0.0
+.INDENT 3.5
+Print the latest crash report of the runtime, or with \fB\-\-list\fP list them, oldest first. A developer turns a
+report into function names and lines with the debug file of the image\(aqs build.
+.UNINDENT
+.UNINDENT
+.sp
+\fBsaved\fP
+.INDENT 0.0
+.INDENT 3.5
+List the boots whose logs were saved on the EFI system partition (\fBzbm.save_logs\fP in
+\fI\%zfsbootmenu(7)\fP), and their files.
+.UNINDENT
+.UNINDENT
+.sp
+\fBsave\fP
+.INDENT 0.0
+.INDENT 3.5
+Save this boot\(aqs logs on the EFI system partition now.
+.UNINDENT
+.UNINDENT
+.SH FILES
+.sp
+\fI/zfsbootmenu/zbm.cmdline\fP
+.INDENT 0.0
+.INDENT 3.5
+The kernel command line start\-up read, one argument per line, which \fBconfig\fP prints.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/zfsbootmenu/journal.jsonl\fP
+.INDENT 0.0
+.INDENT 3.5
+The runtime journal, one JSON object per line, which \fBjournal\fP and \fBcommands\fP read.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/zfsbootmenu/crash\-\fP\fItime\fP\fI\-\fP\fIpid\fP\fI\&.txt\fP
+.INDENT 0.0
+.INDENT 3.5
+Crash reports.
+.UNINDENT
+.UNINDENT
+.sp
+\fI/etc/zfsbootmenu.conf\fP
+.INDENT 0.0
+.INDENT 3.5
+The configuration of the image, which \fBluks\fP and \fBpools\fP read for the LUKS settings.
+.UNINDENT
+.UNINDENT
+.SH EXIT STATUS
+.sp
+\fB0\fP
+.INDENT 0.0
+.INDENT 3.5
+The report was printed.
+.UNINDENT
+.UNINDENT
+.sp
+\fB1\fP
+.INDENT 0.0
+.INDENT 3.5
+There was nothing to report from (no journal, no saved command line, an empty state directory, no crash report),
+or the machine could not be read (\fBzpool\fP or \fBzfs\fP failed); a message on standard error says which.
+.UNINDENT
+.UNINDENT
+.sp
+\fB2\fP
+.INDENT 0.0
+.INDENT 3.5
+The arguments were not understood; the usage is printed on standard error.
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES
+.SS Example 1: Finding a failed command
+.sp
+The following commands show the programs that failed, then the warnings and errors around them:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# /libexec/zbm debug commands | grep \-v \(aq^   0 \(aq
+   1      84 ms  zpool import \-N \-o readonly=on zroot
+   \-       0 ms  tpm2_unseal \-c 0x81000001 \-p pcr:sha256:7
+14 commands, 2 failed or did not start, 412 ms in all
+# /libexec/zbm debug journal \-\-level warn
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 2: Checking an option
+.sp
+The following command shows whether \fBzbm.timeout\fP was given, under which name, and the value in force:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# /libexec/zbm debug config | grep timeout
+zbm.timeout                5                        command line, as timeout
+.EE
+.UNINDENT
+.UNINDENT
+.SS Example 3: Showing the volumes and pools
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+# /libexec/zbm debug luks
+/dev/sda2  luks\-0a1b2c3d\-...  open    methods: TPM2, passphrase  pool: zroot
+/dev/sdb2  /dev/sdb2          locked  methods: FIDO2, passphrase
+# /libexec/zbm debug pools
+zroot  ONLINE  read/write
+  zroot/ROOT/void (default)  unlocked  command line: quiet (from zroot/ROOT)
+.EE
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.sp
+\fI\%zfsbootmenu(7)\fP, \fI\%zluks(8)\fP,
+\fI\%zfsbootmenu\-luks(7)\fP, \fBzpool\fP(8), \fBzfs\fP(8)
+.SH AUTHOR
+ZFSBootMenu Team <https://github.com/zbm-dev/zfsbootmenu>
+.SH COPYRIGHT
+2019 Zach Dykstra, 2020-2025 ZFSBootMenu Team
+.\" Generated by docutils manpage writer.
+.

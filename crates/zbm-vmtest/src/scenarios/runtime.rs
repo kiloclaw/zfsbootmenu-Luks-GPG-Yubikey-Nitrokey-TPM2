@@ -41,7 +41,8 @@
 //!   the image's debug file.
 //! - `rust-saved` (`saved`): `zbm.save_logs` saves the logs of a boot on a
 //!   FAT disk before `kexec`; after a restart, `zbm debug saved` lists them
-//!   and `zbm report` writes a report beside them (ROADMAP.md #9).
+//!   and `zbm report` writes a report beside them (ROADMAP.md #9); the
+//!   other reports of `zbm-debug(8)` read the restart's start-up.
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).

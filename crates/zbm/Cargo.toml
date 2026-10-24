@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+serde_json.workspace = true
 zbm-app.workspace = true
 zbm-boot.workspace = true
 zbm-startup.workspace = true

@@ -33,6 +33,24 @@ After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
 run 'zpool import' manually.
 ";
 
+/// The LUKS settings of `zluks` and `zbm debug luks`: the state directory of
+/// `conf`, its retry delay, and the LUKS variables of the environment.
+pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf) -> Settings {
+    let base = zbm_startup::preinit::base(conf);
+    let mut settings = Settings::from_environment(system.environment);
+    settings.mappings = base.join("luks-mappings");
+    settings.skipped = base.join("luks-skipped");
+    if let Some(path) = system.environment.non_empty("LUKS_STATE") {
+        settings.mappings = path.into();
+    }
+    if let Some(path) = system.environment.non_empty("LUKS_SKIPPED") {
+        settings.skipped = path.into();
+    }
+    settings.base = base;
+    settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
+    settings
+}
+
 /// `zluks`: as the legacy script, with the configuration of
 /// `/etc/zfsbootmenu.conf` (the state directory, the log level and the retry
 /// delay) and the LUKS variables of the environment.
@@ -57,19 +75,8 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         );
         return 1;
     };
-    let base = zbm_startup::preinit::base(&conf);
-    let mut settings = Settings::from_environment(system.environment);
-    settings.mappings = base.join("luks-mappings");
-    settings.skipped = base.join("luks-skipped");
-    if let Some(path) = system.environment.non_empty("LUKS_STATE") {
-        settings.mappings = path.into();
-    }
-    if let Some(path) = system.environment.non_empty("LUKS_SKIPPED") {
-        settings.skipped = path.into();
-    }
-    settings.base = base.clone();
-    settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
-    let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
+    let settings = settings(&system, &conf);
+    let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
     let prompter = ConsolePrompter::new(system);
     let luks = Luks {
         system,

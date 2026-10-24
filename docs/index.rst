@@ -42,6 +42,7 @@
   man/zfsbootmenu-luks.7
   man/zfsbootmenu-crypttab.5
   man/zluks.8
+  man/zbm-debug.8
 
 .. toctree::
   :caption: Encrypted Pools (LUKS)

@@ -4,7 +4,8 @@
 //! boot environment; ZFSBootMenu saves its logs on the disk before `kexec`.
 //! After a restart, `zbm debug saved` in the recovery shell must list the
 //! first boot's logs, and `zbm report` must write a report on the same
-//! disk. The host then reads both from the disk.
+//! disk. The host then reads both from the disk. The reports of
+//! `zbm-debug(8)` must read this boot's start-up there too.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -78,9 +79,54 @@ pub(super) fn run(test: &Test) -> Result<()> {
     check_saved(test, &boots);
     let (code, written) = vm.sh_show("/libexec/zbm report")?;
     test.check(code == 0, "zbm report writes a report");
+    check_reports(test, &mut vm)?;
     vm.kill();
 
     check_on_disk(test, &logs, &boots, &written)
+}
+
+/// The reports of `zbm-debug(8)` the restart runs, and what each must
+/// print about its start-up.
+const REPORTS: &[(&str, &[&str])] = &[
+    ("config", &["zbm.save_logs", "LABEL=ZBMLOGS"]),
+    ("state", &["== "]),
+    ("journal --level info", &["running init stage"]),
+    ("commands", &["zpool import", " ms  "]),
+    ("pools", &["tplain", "ONLINE", "command line:"]),
+    ("luks", &["no LUKS volume"]),
+];
+
+/// Runs the reports of `zbm-debug(8)` in the recovery shell.
+fn check_reports(test: &Test, vm: &mut Vm) -> Result<()> {
+    for (report, wanted) in REPORTS {
+        let (code, output) = vm.sh_show(&format!("/libexec/zbm debug {report}"))?;
+        check_report(test, report, code, &output, wanted);
+    }
+    Ok(())
+}
+
+/// Checks that `zbm debug REPORT` ended with 0 and printed each of
+/// `wanted`, and what `state` and `commands` must or must not print.
+fn check_report(test: &Test, report: &str, code: i32, output: &str, wanted: &[&str]) {
+    test.check(code == 0, &format!("zbm debug {report} ends with 0"));
+    for text in wanted {
+        test.check(
+            output.contains(text),
+            &format!("zbm debug {report} prints {text:?}"),
+        );
+    }
+    match report {
+        "state" => test.check(
+            !output.contains("journal.jsonl"),
+            "zbm debug state leaves out the journal",
+        ),
+        "commands" => test.check(
+            regex(r"\d+ commands, \d+ failed or did not start, \d+ ms in all")
+                .is_ok_and(|summary| summary.is_match(output)),
+            "zbm debug commands ends with a summary",
+        ),
+        _ => {}
+    }
 }
 
 /// The boots `zbm debug saved` listed.
@@ -217,6 +263,31 @@ mod tests {
         assert_eq!(&results[..3], [true, true, true]);
         assert_eq!(&results[3..6], [false, true, true]);
         assert_eq!(&results[6..], [false, false, false]);
+        cleanup(&settings);
+    }
+
+    #[test]
+    fn the_reports_must_end_well_and_show_the_start_up() {
+        let settings = settings("runtime-saved-reports");
+        let test = Test::new(&settings, "runtime-rust-saved").unwrap();
+        let commands = "   0      12 ms  zpool import -N tplain\r\n\
+                        1 commands, 0 failed or did not start, 12 ms in all\r\n";
+        check_report(&test, "commands", 0, commands, &["zpool import"]);
+        check_report(&test, "commands", 1, "", &["zpool import"]);
+        check_report(&test, "state", 0, "== bootfs (5 bytes)\n", &["== "]);
+        check_report(&test, "state", 0, "== journal.jsonl (5 bytes)\n", &[]);
+        check_report(&test, "luks", 0, "no LUKS volume\n", &["no LUKS volume"]);
+
+        let results: Vec<bool> = checks(&test)
+            .iter()
+            .map(|line| line.starts_with("ok"))
+            .collect();
+        assert_eq!(&results[..3], [true, true, true]);
+        assert_eq!(&results[3..6], [false, false, false]);
+        assert_eq!(&results[6..9], [true, true, true]);
+        assert_eq!(&results[9..11], [true, false]);
+        assert_eq!(&results[11..], [true, true]);
+        assert_eq!(REPORTS.len(), 6);
         cleanup(&settings);
     }
 }
