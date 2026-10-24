@@ -78,6 +78,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   `LC_CTYPE=C.UTF-8` in `/etc/profile`. Legacy images are unchanged.
   **Rust:** done; `crates/zbm/tests/image.rs` checks both runtimes' images, and `runtime-rust-console` types `ê` at
   the prompt.
+- [x] `6c543fe`: with `SOURCE_DATE_EPOCH` set, `install_zbm_osver` writes that day as the image's `BUILD_ID`
+  instead of the build's, so that reproducible builds give the same `/etc/zbm-release` (ROADMAP.md #5). Without it,
+  nothing changes.
+  **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over. The CI job
+  `reproducible` checks it.
 
 ## Legacy limitations the Rust runtime must not copy
 
