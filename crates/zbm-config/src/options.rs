@@ -210,8 +210,8 @@ impl ZbmOptions {
 
     /// The lines `zfsbootmenu-preinit.sh` appends to `/etc/zfsbootmenu.conf`.
     /// Values are written between single quotes, with each single quote in them
-    /// written as `'\''`, as `zbm_conf_quote` writes them, so that sourcing the
-    /// file (or [`crate::conf::Conf::parse`]) gives the values back.
+    /// written as `'\''`, so that sourcing the file (or
+    /// [`crate::conf::Conf::parse`]) gives the values back.
     pub fn conf(&self, base: &str) -> String {
         let set_hostid = if self.set_hostid { "1" } else { "0" };
         let mut conf = String::from("# BEGIN additions by zfsbootmenu-preinit.sh\n");

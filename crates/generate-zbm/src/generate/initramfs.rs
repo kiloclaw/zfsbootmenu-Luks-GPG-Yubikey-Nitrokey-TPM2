@@ -27,7 +27,7 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `createInitramfs`: builds the initramfs with dracut or mkinitcpio.
+    /// Builds the initramfs with dracut or mkinitcpio.
     pub(super) fn create_initramfs(
         &mut self,
         dir: &str,

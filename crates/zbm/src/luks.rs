@@ -275,10 +275,10 @@ pub mod seams {
         }
     }
 
-    /// `zbm-luks-test <operation> [arguments]`: the operations of the LUKS
-    /// unit suites (`luks_unlock_all`, `luks_close_all [name]`,
-    /// `luks_resolve_device <spec>`, `luks_list_tokens <device>`,
-    /// `luks_record_mapping <name> <device> <auto>` and `luks_token_wait`).
+    /// `zbm-luks-test <operation> [arguments]`: the operations the LUKS unit
+    /// suites drive, which are `unlock_all`, `close_all [name]`,
+    /// `resolve_device <spec>`, `list_tokens <device>`,
+    /// `record_mapping <name> <device> <auto>` and `token_wait`.
     pub fn run(args: &[String], io: &mut Io) -> i32 {
         let real = RealSystem::new();
         let terminal = match real.terminal() {

@@ -1,6 +1,5 @@
-//! Laying out a unified EFI bundle, as `createUEFIBundle` in `generate-zbm`
-//! does: the stub's section alignment and the end of its last section, from
-//! `objdump`, decide where each added section goes.
+//! Laying out a unified EFI bundle: the stub's section alignment and the end
+//! of its last section, from `objdump`, decide where each added section goes.
 
 use crate::perl::split_whitespace;
 
@@ -44,8 +43,8 @@ pub fn last_section_end(last_line: &[u8]) -> Option<u128> {
     size.checked_add(vma)
 }
 
-/// `increaseBundleOffset`: the offset after a section of `size` bytes, rounded
-/// up to the alignment.
+/// The offset after a section of `size` bytes at `offset`, rounded up to the
+/// alignment.
 pub fn next_offset(size: u128, offset: u128, alignment: u128) -> u128 {
     offset + size.div_ceil(alignment) * alignment
 }

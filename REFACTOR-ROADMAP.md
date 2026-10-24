@@ -65,6 +65,12 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 Work on this branch that no phase planned, or that a later phase planned and was done early:
 
+- The debt left from R1 to R3, cleared after R4: `zbm-kcl` and `zbm-state` within the size rules (`zbm-kcl`'s run
+  split into its steps, saving and editing in modules of their own), no success flag left (they return the reason
+  of a failure, or are named as the questions they are), and no doc comment that names a legacy function (161 lines
+  rewritten to explain the Rust code in its own terms). Every debt metric but the shell helpers of the configuration
+  parsers and the unsafe blocks of `zbm-sys` is now zero, and the ratchet keeps it there.
+
 - R6's built-in hooks `30-console-autosize` and `80-luks-close` are `zbm console-autosize`, which sizes the font from
   the display's EDID (HiDPI), and `zluks close`, behind two-line shims.
 - ROADMAP.md #20: the console fonts of Rust images are 256-glyph subsets (`zbm console-fonts`, `zbm_types::psf`), and
@@ -100,7 +106,6 @@ What the finished phases left open, and the phase that takes it:
 | Warnings for deprecated option names, a change of behaviour | R3 | R5 |
 | The build options are read by the shell scripts of the dracut module and the mkinitcpio hook | R3 | R6 |
 | The release each option appeared in | R3 | Not planned: the table would have to guess |
-| Debt in crates no phase has refactored yet: `zbm-kcl` and `zbm-state` (two long functions, two long files), success flags in `generate-zbm`, `zbm-kcl` and `zbm-zfs` (8), doc lines naming legacy functions (161, most in `zbm-luks`, `zbm-boot` and `generate-zbm`) | R1 to R3 | The phase that next changes each crate; R9 at the latest, when the legacy code they name is gone |
 | Line coverage below the 80% of new crates: `xtask` 78%, `zbm-vmtest` 61% (its scenarios run only in VMs) | R0, R3 | Ratcheted; never lowered |
 | `zbm-menu`, an empty crate | R0 | R5, which builds the menu in `zbm-tui` |
 

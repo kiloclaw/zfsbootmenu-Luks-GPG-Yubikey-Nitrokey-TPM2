@@ -1,5 +1,5 @@
-//! Recognising kernel versions, as `kernelVersion` in `generate-zbm` does: from
-//! the file name and from the printable strings in the kernel.
+//! Recognising kernel versions from the file name and from the printable
+//! strings in the kernel.
 
 /// The end of the run of ASCII digits that starts at `start`, if there is at
 /// least one digit.
@@ -56,8 +56,8 @@ pub fn version_in_line(line: &[u8]) -> Option<String> {
     })
 }
 
-/// How the versions from the file name and from the kernel's strings combine,
-/// as `kernelVersion` decides.
+/// How the versions from the file name and from the kernel's strings
+/// combine.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Decision {
     /// Neither gives a version: the kernel is unusable.

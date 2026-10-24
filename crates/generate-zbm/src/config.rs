@@ -1,8 +1,8 @@
 //! The `generate-zbm` configuration file, read as Perl's YAML::PP reads it.
 //!
 //! `generate-zbm` loads `config.yaml` with YAML::PP's core schema and booleans,
-//! then tests the values with Perl's rules: `has_value` (defined and not
-//! empty), truthiness, and `int`. A value's Perl meaning depends on how
+//! then tests the values with Perl's rules: [`Value::has_value`] (defined and
+//! not empty), truthiness, and `int`. A value's Perl meaning depends on how
 //! YAML::PP typed it: `Versions: 3` is the number 3, `Version: 3.10` is the
 //! number 3.1 (so it prints as `3.1`), `Enabled: false` is a false boolean that
 //! prints as `0`, and an empty value is undefined. [`Value`] keeps those types,
@@ -91,8 +91,8 @@ impl Value {
         })
     }
 
-    /// Perl's `has_value` of `generate-zbm`: defined and not empty when printed. A
-    /// false boolean prints as `0`, so it has a value.
+    /// Whether the value is defined and not empty when printed. A false
+    /// boolean prints as `0`, so it has a value.
     pub fn has_value(&self) -> bool {
         self.perl_string().is_some_and(|text| !text.is_empty())
     }

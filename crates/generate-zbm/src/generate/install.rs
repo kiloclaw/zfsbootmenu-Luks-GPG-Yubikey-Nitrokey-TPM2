@@ -37,23 +37,20 @@ struct Installed {
 }
 
 impl Generator<'_, '_, '_> {
-    /// `safeCopy` without keeping times, as the Perl program always calls it.
-    fn safe_copy(&mut self, source: &str, dest: &str) -> bool {
+    /// Copies `source` to `dest` without keeping file times. A failure is
+    /// printed with its reason, then returned.
+    fn safe_copy(&mut self, source: &str, dest: &str) -> std::io::Result<()> {
         self.log(&format!("safeCopy called with: {source}, {dest}, 0"));
-        match file_copy(source, dest) {
-            Ok(()) => true,
-            Err(error) => {
-                self.print(&format!(
-                    "Unable to copy {source} to {dest}: {}\n",
-                    strerror(&error)
-                ));
-                false
-            }
-        }
+        file_copy(source, dest).inspect_err(|error| {
+            self.print(&format!(
+                "Unable to copy {source} to {dest}: {}\n",
+                strerror(error)
+            ));
+        })
     }
 
-    /// `verboseUnlink`: removes a file if it exists, printing `message` first, or a
-    /// confirmation when there is no message.
+    /// Removes `file` if it exists, printing `message` first, or a confirmation
+    /// when there is no message.
     fn verbose_unlink(&mut self, file: &str, message: Option<&str>) {
         if !is_file(file) {
             return;
@@ -76,14 +73,16 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `maxRevision`, with its log message.
+    /// The highest revision among `files` (see [`images::max_revision`]),
+    /// logged.
     fn max_revision(&mut self, files: Option<&Vec<String>>, suffix: &str) -> u64 {
         let revision = files.map_or(0, |files| images::max_revision(files, suffix));
         self.log(&format!("maxRevision discovered: {revision}"));
         revision
     }
 
-    /// `pruneVersions`, with its log messages.
+    /// Removes the files that [`images::prune_versions`] selects, logging the
+    /// groups it chooses from.
     fn prune(&mut self, groups: &BTreeMap<String, Vec<String>>, current: &str, keep: i64) {
         self.log(&format!("pruneVersions called with: {current}, {keep}"));
         self.log_groups(groups);
@@ -114,11 +113,6 @@ impl Generator<'_, '_, '_> {
             })
     }
 
-    /// Renames a file, reporting whether it worked.
-    fn rename(from: &str, to: &str) -> bool {
-        std::fs::rename(from, to).is_ok()
-    }
-
     /// Places the EFI bundle in `EFI.ImageDir`, as a new revision or replacing the
     /// previous image.
     pub(super) fn install_bundle(&mut self, bundle: &str, prefix: &str, version: &str) -> Step<()> {
@@ -140,7 +134,7 @@ impl Generator<'_, '_, '_> {
             let revision = self.max_revision(groups.get(version), ".EFI") + 1;
             target = format!("{efi_prefix}-{version}_{revision}.EFI");
             self.log(&format!("Setting $efi_target: {target}"));
-            if !self.safe_copy(bundle, &target) {
+            if self.safe_copy(bundle, &target).is_err() {
                 self.verbose_unlink(&target, Some(&format!("Failed to create {target}")));
                 return Err(Stop::Exit(1));
             }
@@ -148,15 +142,15 @@ impl Generator<'_, '_, '_> {
         } else {
             target = format!("{efi_prefix}.EFI");
             let temp = self.temp_file(&image_dir, "zbm.XXXXXX")?;
-            if !self.safe_copy(bundle, &temp) {
+            if self.safe_copy(bundle, &temp).is_err() {
                 self.verbose_unlink(&temp, Some(&format!("Failed to create {target}")));
                 return Err(Stop::Exit(1));
             }
             let backup = format!("{efi_prefix}-backup.EFI");
-            if is_file(&target) && Self::rename(&target, &backup) {
+            if is_file(&target) && std::fs::rename(&target, &backup).is_ok() {
                 self.print(&format!("Created backup {target} -> {backup}\n"));
             }
-            if !Self::rename(&temp, &target) {
+            if std::fs::rename(&temp, &target).is_err() {
                 self.verbose_unlink(&temp, Some(&format!("Failed to create {target}")));
                 return Err(Stop::Exit(1));
             }
@@ -218,14 +212,14 @@ impl Generator<'_, '_, '_> {
         let revision = self.max_revision(groups.get(version), "") + 1;
         let kernel_target = format!("{prefix}-{version}_{revision}");
         let initramfs_target = format!("{image_dir}/initramfs-{version}_{revision}.img");
-        if !self.safe_copy(initramfs, &initramfs_target) {
+        if self.safe_copy(initramfs, &initramfs_target).is_err() {
             self.verbose_unlink(
                 &initramfs_target,
                 Some(&format!("Failed to create {initramfs_target}")),
             );
             return Err(Stop::Exit(1));
         }
-        if !self.safe_copy(kernel, &kernel_target) {
+        if self.safe_copy(kernel, &kernel_target).is_err() {
             self.verbose_unlink(
                 &kernel_target,
                 Some(&format!("Failed to create {kernel_target}")),
@@ -261,7 +255,7 @@ impl Generator<'_, '_, '_> {
         let kernel_target = format!("{prefix}-bootmenu");
         let initramfs_target = format!("{image_dir}/initramfs-bootmenu.img");
         let init_temp = self.temp_file(image_dir, "init.XXXXXX")?;
-        if !self.safe_copy(initramfs, &init_temp) {
+        if self.safe_copy(initramfs, &init_temp).is_err() {
             self.verbose_unlink(
                 &init_temp,
                 Some(&format!("Failed to create {initramfs_target}")),
@@ -269,7 +263,7 @@ impl Generator<'_, '_, '_> {
             return Err(Stop::Exit(1));
         }
         let kern_temp = self.temp_file(image_dir, "kern.XXXXXX")?;
-        if !self.safe_copy(kernel, &kern_temp) {
+        if self.safe_copy(kernel, &kern_temp).is_err() {
             self.verbose_unlink(
                 &kern_temp,
                 Some(&format!("Failed to create {kernel_target}")),
@@ -278,18 +272,20 @@ impl Generator<'_, '_, '_> {
             return Err(Stop::Exit(1));
         }
         let kernel_backup = format!("{kernel_target}-backup");
-        if is_file(&kernel_target) && Self::rename(&kernel_target, &kernel_backup) {
+        if is_file(&kernel_target) && std::fs::rename(&kernel_target, &kernel_backup).is_ok() {
             self.print(&format!(
                 "Created backup {kernel_target} -> {kernel_backup}\n"
             ));
         }
         let initramfs_backup = format!("{image_dir}/initramfs-bootmenu-backup.img");
-        if is_file(&initramfs_target) && Self::rename(&initramfs_target, &initramfs_backup) {
+        if is_file(&initramfs_target)
+            && std::fs::rename(&initramfs_target, &initramfs_backup).is_ok()
+        {
             self.print(&format!(
                 "Created backup {initramfs_target} -> {initramfs_backup}\n"
             ));
         }
-        if !Self::rename(&init_temp, &initramfs_target) {
+        if std::fs::rename(&init_temp, &initramfs_target).is_err() {
             self.verbose_unlink(
                 &init_temp,
                 Some(&format!("Failed to create {initramfs_target}")),
@@ -297,7 +293,7 @@ impl Generator<'_, '_, '_> {
             self.verbose_unlink(&kern_temp, Some(""));
             return Err(Stop::Exit(1));
         }
-        if !Self::rename(&kern_temp, &kernel_target) {
+        if std::fs::rename(&kern_temp, &kernel_target).is_err() {
             self.verbose_unlink(
                 &kern_temp,
                 Some(&format!("Failed to create {kernel_target}")),

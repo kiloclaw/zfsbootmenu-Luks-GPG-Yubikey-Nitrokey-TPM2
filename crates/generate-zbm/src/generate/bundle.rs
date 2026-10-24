@@ -21,14 +21,14 @@ struct Sections {
 }
 
 impl Generator<'_, '_, '_> {
-    /// `increaseBundleOffset`.
+    /// The offset after a section (see [`efi::next_offset`]), logged.
     fn next_offset(&mut self, size: u128, offset: u128, alignment: u128) -> u128 {
         let next = efi::next_offset(size, offset, alignment);
         self.log(&format!("New offset is: 0x{next:X}"));
         next
     }
 
-    /// `addBundleSection`.
+    /// Adds the section `name` with the contents of `file` at the next offset.
     fn add_section(&mut self, sections: &mut Sections, name: &str, file: &str) -> Step<()> {
         let offset = sections.offset;
         sections.words.push("--add-section".to_owned());
@@ -47,9 +47,8 @@ impl Generator<'_, '_, '_> {
         Ok(())
     }
 
-    /// `createUEFIBundle`: combines the stub, the release information, the command
-    /// line, a splash image, a device tree, the initramfs and the kernel with
-    /// objcopy.
+    /// Combines the stub, the release information, the command line, a splash
+    /// image, a device tree, the initramfs and the kernel with objcopy.
     pub(super) fn create_bundle(
         &mut self,
         dir: &str,

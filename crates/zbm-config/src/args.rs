@@ -1,11 +1,10 @@
 //! Looking up options of ZFSBootMenu's own command line.
 //!
-//! The legacy code stores every argument as a file `${BASE}/cmdline.d/<key>`
+//! The shell code stores every argument as a file `${BASE}/cmdline.d/<key>`
 //! holding its value (`1` for an argument without `=`), so the last occurrence
-//! of a key wins, and reads them back with `get_zbm_arg` and `get_zbm_bool`.
-//! [`ZbmArgs`] keeps the same key-value pairs in memory, with the values
-//! exactly as reading the files back produces them; [`CmdlineDir`] reads the
-//! files.
+//! of a key wins. [`ZbmArgs`] keeps the same key-value pairs in memory, with
+//! the values exactly as reading the files back produces them; [`CmdlineDir`]
+//! reads the files.
 //!
 //! Both are [`Args`], which look an option up by its specification in the
 //! [table of options](crate::spec): by its name, then by its aliases, with a
@@ -106,7 +105,8 @@ pub struct ZbmArgs {
 
 impl ZbmArgs {
     /// The arguments of a tokenized command line (see
-    /// [`crate::kcl::build_zbm_kcl`]), as `make_cmdline_dir` stores them.
+    /// [`crate::kcl::build_zbm_kcl`]), with each value as its file in
+    /// `cmdline.d` holds it (see [`cmdline_files`]).
     pub fn from_kcl(text: &str) -> ZbmArgs {
         // `while read -r karg ... done <<< "$( _build_zbm_kcl )"`: the command
         // substitution and the here-string end the text with a single newline, so every
@@ -175,10 +175,10 @@ impl Args for CmdlineDir<'_> {
     }
 }
 
-/// The files `make_cmdline_dir` writes in `${BASE}/cmdline.d` for a tokenized
-/// command line: each key with the `echo` output of its value (`1` for an
-/// argument without `=`), in the order written, so a later one replaces an
-/// earlier one with the same key.
+/// The files written in `${BASE}/cmdline.d` for a tokenized command line: each
+/// key with the `echo` output of its value (`1` for an argument without `=`),
+/// in the order written, so a later one replaces an earlier one with the same
+/// key.
 pub fn cmdline_files(text: &str) -> Vec<(String, String)> {
     let input = format!("{}\n", command_substitution(text));
     read_lines(&input)

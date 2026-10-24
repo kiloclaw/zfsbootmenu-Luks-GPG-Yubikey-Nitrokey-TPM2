@@ -4,24 +4,24 @@
 # Lower a number by improving the code and running the command again;
 # never raise one by hand.
 crate          long_functions  long_files  flag_functions  legacy_docs  shell_helpers  legacy_tests  unsafe_blocks
-generate-zbm                0           0               3           26              0             0              0
+generate-zbm                0           0               0            0              0             0              0
 xtask                       0           0               0            0              0             0              0
-zbm                         0           0               0            4              0             0              0
+zbm                         0           0               0            0              0             0              0
 zbm-app                     0           0               0            0              0             0              0
-zbm-boot                    0           0               0           47              0             0              0
-zbm-config                  0           0               0           13             21             0              0
+zbm-boot                    0           0               0            0              0             0              0
+zbm-config                  0           0               0            0             21             0              0
 zbm-console                 0           0               0            0              0             0              0
-zbm-core                    0           0               0            3              2             0              0
+zbm-core                    0           0               0            0              2             0              0
 zbm-coreutils               0           0               0            0              0             0              0
 zbm-crypt                   0           0               0            0              0             0              0
 zbm-display                 0           0               0            0              0             0              0
-zbm-kcl                     2           1               3            7              0             0              0
-zbm-luks                    0           0               0           52              0             0              0
+zbm-kcl                     0           0               0            0              0             0              0
+zbm-luks                    0           0               0            0              0             0              0
 zbm-menu                    0           0               0            0              0             0              0
 zbm-platform                0           0               0            0              0             0              0
 zbm-pool                    0           0               0            0              0             0              0
 zbm-startup                 0           0               0            0              0             0              0
-zbm-state                   0           1               0            4              1             0              0
+zbm-state                   0           0               0            0              1             0              0
 zbm-sys                     0           0               0            0              0             0             28
 zbm-testkit                 0           0               0            0              0             0              0
 zbm-tools                   0           0               0            0              0             0              0
@@ -29,4 +29,4 @@ zbm-trace                   0           0               0            0          
 zbm-tui                     0           0               0            0              0             0              0
 zbm-types                   0           0               0            0              0             0              0
 zbm-vmtest                  0           0               0            0              0             0              0
-zbm-zfs                     0           0               2            5              0             0              0
+zbm-zfs                     0           0               0            0              0             0              0

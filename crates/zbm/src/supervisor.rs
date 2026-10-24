@@ -95,7 +95,8 @@ impl Supervisor {
         }
     }
 
-    /// Writes an error to the log, as `zerror` does; failures are ignored.
+    /// Writes an error to the kernel log at level 3, with the `ZFSBootMenu:`
+    /// prefix; failures are ignored.
     fn error(&self, text: &str) {
         if let Ok(mut kmsg) = std::fs::OpenOptions::new().append(true).open(&self.log) {
             let _ = writeln!(kmsg, "<3>ZFSBootMenu: {text}");

@@ -1,7 +1,7 @@
-//! Colours: `colorize` and `decolorize` of the legacy core library, which
-//! only transform text.
+//! Colours: adding ANSI colour sequences to text and removing them. Both
+//! functions only transform text.
 
-/// `colorize`: `text` in `color`, followed by the reset sequence.
+/// `text` in `color`, followed by the reset sequence.
 pub fn colorize(color: &str, text: &str) -> String {
     let code = match color {
         "black" => "0;30",
@@ -50,8 +50,7 @@ fn sequence_len(text: &[u8]) -> Option<usize> {
     }
 }
 
-/// `decolorize`: `text` without colour sequences, as the legacy pattern
-/// removes them.
+/// `text` without colour sequences.
 pub fn decolorize(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut kept = Vec::with_capacity(bytes.len());

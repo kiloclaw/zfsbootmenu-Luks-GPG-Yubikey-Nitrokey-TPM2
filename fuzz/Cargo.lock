@@ -849,7 +849,6 @@ dependencies = [
  "zbm-config",
  "zbm-core",
  "zbm-platform",
- "zbm-trace",
  "zbm-types",
 ]
 

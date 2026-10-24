@@ -195,7 +195,7 @@ impl Generator<'_, '_, '_> {
         }
     }
 
-    /// `Log`: a debug message on standard error.
+    /// Prints a debug message on standard error, when debugging.
     fn log(&mut self, entry: &str) {
         if self.debug {
             let entry = entry.strip_suffix('\n').unwrap_or(entry);
@@ -230,7 +230,7 @@ impl Generator<'_, '_, '_> {
             .and_then(|value| value.perl_string()))
     }
 
-    /// `enabled $config{section}`, for the `Enabled` key `spec` of a section.
+    /// Whether the `Enabled` key `spec` of a section is set to a true value.
     fn enabled(&self, spec: &OptionSpec) -> Step<bool> {
         Ok(self
             .config
@@ -238,9 +238,9 @@ impl Generator<'_, '_, '_> {
             .is_some_and(|value| value.truthy()))
     }
 
-    /// `execute`: runs a shell command with standard error merged into its output,
-    /// and returns the output lines and the exit status (128 plus the signal number
-    /// for a command killed by a signal).
+    /// Runs a shell command with standard error merged into its output, and
+    /// returns the output lines and the exit status (128 plus the signal
+    /// number for a command killed by a signal).
     fn run_shell(&self, command: &str) -> (Vec<Vec<u8>>, i32) {
         match programs::shell(self.context.runner, command) {
             Ok(output) => (output_lines(&output.stdout), output.status.shell_code()),
@@ -273,7 +273,7 @@ impl Generator<'_, '_, '_> {
         Ok(())
     }
 
-    /// `cleanupMount`: unmounts the boot partition if the generator mounted it.
+    /// Unmounts the boot partition if the generator mounted it.
     fn cleanup_mount(&mut self) {
         if let Some(mount_point) = self.mounted.take() {
             self.print(&format!("Unmounting {mount_point}\n"));

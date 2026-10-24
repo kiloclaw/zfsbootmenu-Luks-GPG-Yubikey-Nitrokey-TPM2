@@ -1,5 +1,4 @@
-//! Naming and pruning image files, the counterparts of `maxRevision`,
-//! `groupKernels`, `pruneVersions` and `purgeFiles` in `generate-zbm`.
+//! Naming and pruning image files.
 //!
 //! Images are named `<prefix>-<version>_<revision>` (with a suffix such as
 //! `.EFI` for EFI bundles). When `Versions` is set, each build adds a revision
@@ -33,7 +32,7 @@ fn revision_of(file: &str, suffix: &str) -> Option<u64> {
 }
 
 /// Groups `files` matching `<prefix>-<version>_<digits><suffix>` by their
-/// version, as `groupKernels` does.
+/// version.
 ///
 /// The version is the greedy match of `.+` between the prefix and the final
 /// `_<digits>`, so a version may itself contain `_<digits>`.
@@ -71,18 +70,19 @@ fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
     split.map(|index| after_dash[..index].to_owned())
 }
 
-/// Perl's `$keep gt 0`: a string comparison, so any non-empty keep that is not
-/// `"0"` and does not sort before `"0"` counts as "keep some". For the
-/// non-negative integers used here, this is "keep is at least 1".
-fn keep_some(keep: u64) -> bool {
+/// Whether `keep` asks to keep some files. Perl tests this with `$keep gt 0`,
+/// a string comparison, so any non-empty keep that is not `"0"` and does not
+/// sort before `"0"` keeps some. For the non-negative integers used here,
+/// this is "keep is at least 1".
+fn wants_some(keep: u64) -> bool {
     keep > 0
 }
 
-/// The files `purgeFiles(files, keep)` removes, in order: when keeping some,
-/// the oldest by version until `keep` remain; otherwise all of them, in their
+/// The files of one version to remove, in order: when keeping some, the
+/// oldest by version until `keep` remain; otherwise all of them, in their
 /// given order.
 fn purge(files: &[String], keep: u64) -> Vec<String> {
-    if keep_some(keep) {
+    if wants_some(keep) {
         let mut sorted = files.to_vec();
         sort_versions(&mut sorted);
         let remove = sorted
@@ -95,8 +95,7 @@ fn purge(files: &[String], keep: u64) -> Vec<String> {
     }
 }
 
-/// The files `pruneVersions(groups, current, keep)` removes, in the order it
-/// removes them.
+/// The files of `groups` to remove, in the order to remove them.
 ///
 /// The current version keeps its newest `keep` revisions. Older versions are
 /// removed whole while more than `keep` versions remain, then the rest keep

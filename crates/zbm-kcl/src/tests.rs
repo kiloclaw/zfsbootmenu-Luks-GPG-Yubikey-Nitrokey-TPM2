@@ -160,3 +160,53 @@ fn script_name_follows_bash() {
     assert_eq!(script_name("./zbm-kcl", Some(&path)), "./zbm-kcl");
     assert_eq!(script_name("other", Some(&path)), "other");
 }
+
+#[test]
+fn failures_to_save_or_edit_say_why_then_that_the_changes_were_not_saved() {
+    let dir = TempDir::new("zbm-kcl-mounts");
+    let mounts = dir.write("mounts", "tmpfs / tmpfs rw 0 0\n");
+
+    let runner = FakeRunner::new();
+    runner.respond("zfs set org.zfsbootmenu:commandline=quiet pool/be", 1, "");
+    let set = run_with(&runner, &mounts, &["-a", "quiet", "pool/be"], b"");
+    assert_eq!(set.code, 1);
+    assert_eq!(
+        set.stderr,
+        "ERROR: failed to set KCL property on pool/be\nERROR: failed to save KCL changes\n"
+    );
+
+    let runner = FakeRunner::new();
+    runner.respond("zfs inherit org.zfsbootmenu:commandline pool/be", 1, "");
+    let clear = run_with(&runner, &mounts, &["-d", "pool/be"], b"");
+    assert_eq!(
+        clear.stderr,
+        "ERROR: failed to clear KCL property on pool/be\nERROR: failed to save KCL changes\n"
+    );
+
+    let edit = run_with(&FakeRunner::new(), &mounts, &["-e", "pool/be"], b"");
+    assert_eq!(
+        (edit.code, edit.stderr.as_str()),
+        (1, "ERROR: define $EDITOR to edit\n")
+    );
+}
+
+#[test]
+fn an_unreadable_image_cannot_take_a_new_command_line() {
+    let dir = TempDir::new("zbm-kcl-mounts");
+    let mounts = dir.write("mounts", "tmpfs / tmpfs rw 0 0\n");
+    let runner = FakeRunner::new();
+    runner.respond_program("objdump", 1, "");
+
+    let result = run_with(&runner, &mounts, &["-a", "quiet", "-"], b"MZ");
+
+    assert_eq!(result.code, 1);
+    assert!(
+        result.stderr.ends_with(
+            "ERROR: failed to parse object file; is objdump available?\n\
+             ERROR: failed to determine offset data for KCL\n\
+             ERROR: failed to save KCL changes\n"
+        ),
+        "{}",
+        result.stderr
+    );
+}

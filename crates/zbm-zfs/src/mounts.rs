@@ -4,7 +4,6 @@
 use std::path::Path;
 
 use zbm_platform::exec::{Command, Runner, Stream};
-use zbm_trace::Message;
 
 /// One line of the mount table, split as `read -r dev path fs opts` splits it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -75,8 +74,7 @@ impl MountTable {
         }
     }
 
-    /// Where `source` is mounted, as `is_mounted` finds it: the first entry for the
-    /// source.
+    /// Where `source` is mounted: the target of the first entry for the source.
     pub fn mountpoint_of(&self, source: &str) -> Option<&str> {
         self.entries
             .iter()
@@ -84,20 +82,20 @@ impl MountTable {
             .map(|entry| entry.target.as_str())
     }
 
-    /// The mount points `recursive_umount` unmounts one by one when `umount -R`
-    /// fails, in its order.
+    /// The mount points [`unmount_recursive`] unmounts one by one when
+    /// `umount -R` fails, in that order.
     ///
-    /// These are the mount points that start with `mountpoint`, which the legacy
-    /// code tests with the regular expression `^mountpoint`, so a `.` in it matches
-    /// any character. They are ordered as `sort -n -k1 -r` orders
-    /// `depth,mountpoint`: deepest first, and in reverse byte order among equals.
-    /// When there are none, the list holds a single empty name, as `printf '%s\n'`
-    /// of an empty array prints one empty line.
+    /// These are the mount points that start with `mountpoint` read as the regular
+    /// expression `^mountpoint`, so a `.` in it matches any character. They are
+    /// ordered as `sort -n -k1 -r` orders `depth,mountpoint`: deepest first, and in
+    /// reverse byte order among equals. When there are none, the list holds a
+    /// single empty name, as `printf '%s\n'` of an empty array prints one empty
+    /// line.
     pub fn unmount_order(&self, mountpoint: &str) -> Vec<String> {
         let mut lines: Vec<(usize, String)> = self
             .entries
             .iter()
-            .filter(|entry| regex_prefix(mountpoint, &entry.target))
+            .filter(|entry| matches_prefix(mountpoint, &entry.target))
             .map(|entry| {
                 let depth = entry.target.matches('/').count();
                 (depth, format!("{depth},{}", entry.target))
@@ -122,7 +120,7 @@ impl MountTable {
 
 /// Whether `text` starts with `prefix` read as a regular expression without
 /// special characters but `.`.
-fn regex_prefix(prefix: &str, text: &str) -> bool {
+fn matches_prefix(prefix: &str, text: &str) -> bool {
     let mut text = text.chars();
     prefix.chars().all(|expected| match text.next() {
         Some(actual) => expected == '.' || expected == actual,
@@ -130,8 +128,8 @@ fn regex_prefix(prefix: &str, text: &str) -> bool {
     })
 }
 
-/// The command `mount_zfs` runs: `mount -o [zfsutil,]ro|rw -t zfs <dataset>
-/// <target>`.
+/// The command that mounts a dataset:
+/// `mount -o [zfsutil,]ro|rw -t zfs <dataset> <target>`.
 ///
 /// `zfsutil` is needed for datasets with a non-legacy mount point, and must be
 /// left out for legacy mount points and for snapshots.
@@ -145,9 +143,8 @@ pub fn zfs_mount_command(dataset: &str, target: &str, read_write: bool, zfsutil:
     Command::new("mount").args(["-o", &options, "-t", "zfs", dataset, target])
 }
 
-/// The command `mount_efivarfs` runs to mount `efivarfs` read-only (`ro`) or
-/// read-write (`rw`) at `location`, or to remount it when it is already mounted
-/// there.
+/// The command that mounts `efivarfs` read-only (`ro`) or read-write (`rw`)
+/// at `location`, or remounts it when it is already mounted there.
 pub fn efivarfs_mount_command(state: &str, location: &str, remount: bool) -> Command {
     let options = if remount {
         format!("remount,{state}")
@@ -157,18 +154,32 @@ pub fn efivarfs_mount_command(state: &str, location: &str, remount: bool) -> Com
     Command::new("mount").args(["-t", "efivarfs", "efivarfs", location, "-o", &options])
 }
 
-/// Unmounts `mountpoint` and everything below it, as `recursive_umount` does:
-/// `umount -R` first, then each mount point in [`MountTable::unmount_order`].
-/// Returns whether everything was unmounted; failures are added to `log`.
-pub fn recursive_umount(
+/// Why [`unmount_recursive`] left something mounted.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum UnmountError {
+    /// The mount point was empty.
+    #[error("mountpoint undefined")]
+    NoMountpoint,
+    /// `umount -R` failed, and so did `umount` of these mount points.
+    #[error("unable to unmount {}", .0.join(", "))]
+    StillMounted(Vec<String>),
+}
+
+/// Unmounts `mountpoint` and everything below it: `umount -R` first, then,
+/// when that fails, each mount point in [`MountTable::unmount_order`].
+///
+/// # Errors
+///
+/// [`UnmountError::NoMountpoint`] when `mountpoint` is empty, and
+/// [`UnmountError::StillMounted`] with the mount points that `umount` could
+/// not unmount.
+pub fn unmount_recursive(
     runner: &dyn Runner,
     table: &MountTable,
     mountpoint: &str,
-    log: &mut Vec<Message>,
-) -> bool {
+) -> Result<(), UnmountError> {
     if mountpoint.is_empty() {
-        log.push(Message::error("mountpoint undefined"));
-        return false;
+        return Err(UnmountError::NoMountpoint);
     }
     let quiet = |command: Command| command.stdout(Stream::Null).stderr(Stream::Null);
     let succeeded = |command: Command| {
@@ -177,16 +188,18 @@ pub fn recursive_umount(
             .is_ok_and(|output| output.status.is_success())
     };
     if succeeded(Command::new("umount").args(["-R", mountpoint])) {
-        return true;
+        return Ok(());
     }
-    let mut all = true;
-    for target in table.unmount_order(mountpoint) {
-        if !succeeded(Command::new("umount").arg(&target)) {
-            log.push(Message::error(format!("unable to unmount {target}")));
-            all = false;
-        }
+    let mounted: Vec<String> = table
+        .unmount_order(mountpoint)
+        .into_iter()
+        .filter(|target| !succeeded(Command::new("umount").arg(target)))
+        .collect();
+    if mounted.is_empty() {
+        Ok(())
+    } else {
+        Err(UnmountError::StillMounted(mounted))
     }
-    all
 }
 
 #[cfg(test)]
@@ -288,7 +301,7 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
     }
 
     #[test]
-    fn recursive_umount_falls_back_to_single_mounts() {
+    fn unmount_recursive_falls_back_to_single_mounts() {
         let table = MountTable::parse(MOUNTS);
         let runner = FakeRunner::new();
         runner.respond(
@@ -301,24 +314,25 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
             32,
             "",
         );
-        let mut log = Vec::new();
-        assert!(!recursive_umount(
+        let result = unmount_recursive(
             &runner,
             &table,
             "/zfsbootmenu/environments/pool/ROOT/be/mnt",
-            &mut log
-        ));
+        );
         assert_eq!(runner.lines().len(), 5);
         assert_eq!(
-            log,
-            [Message::error(
-                "unable to unmount /zfsbootmenu/environments/pool/ROOT/be/mnt/usr"
-            )]
+            result,
+            Err(UnmountError::StillMounted(vec![
+                "/zfsbootmenu/environments/pool/ROOT/be/mnt/usr".to_owned()
+            ]))
         );
 
         let runner = FakeRunner::new();
-        assert!(recursive_umount(&runner, &table, "/x", &mut log));
+        assert_eq!(unmount_recursive(&runner, &table, "/x"), Ok(()));
         assert_eq!(runner.lines(), ["umount -R /x"]);
-        assert!(!recursive_umount(&runner, &table, "", &mut log));
+        assert_eq!(
+            unmount_recursive(&runner, &table, ""),
+            Err(UnmountError::NoMountpoint)
+        );
     }
 }

@@ -2,9 +2,11 @@
 //!
 //! A boot environment's `org.zfsbootmenu:commandline` may contain `%{parent}`,
 //! which stands for the command line of its parent dataset, expanded in turn.
-//! [`read_kcl_prop`] and [`read_kcl_value`] do what the legacy functions of the
-//! same names do, with the property values coming from a [`CommandLineSource`]
-//! (normally the `zfs` command; see the `zbm-zfs` crate).
+//! Two functions expand it: [one for the property of a dataset](read_kcl_prop)
+//! and [one for a command line file](read_kcl_value), which falls back on the
+//! property when the file cannot be read. The property values come from a
+//! [`CommandLineSource`] (normally the `zfs` command; see the `zbm-zfs`
+//! crate).
 
 use zbm_core::shell::{command_substitution, echo, read_first_line};
 use zbm_platform::files::Files;
@@ -89,8 +91,8 @@ pub fn read_kcl_prop(
 }
 
 /// The command line in `kclfile`, with `%{parent}` expanded from the property
-/// of `filesystem`; when the file cannot be read, the property itself, as
-/// [`read_kcl_prop`] reads it.
+/// of `filesystem`; when the file cannot be read, the property itself,
+/// [expanded](read_kcl_prop).
 pub fn read_kcl_value(
     source: &dyn CommandLineSource,
     files: &dyn Files,
@@ -102,8 +104,9 @@ pub fn read_kcl_value(
     read_kcl_contents(source, filesystem, kclfile, contents.as_deref(), log)
 }
 
-/// [`read_kcl_value`] with the contents of `kclfile` already read: `None` when
-/// it was not readable. The runtime reads the file through its files interface.
+/// [The command line in `kclfile`](read_kcl_value), with the contents of the
+/// file already read: `None` when it was not readable. The runtime reads the
+/// file through its files interface.
 pub fn read_kcl_contents(
     source: &dyn CommandLineSource,
     filesystem: &str,

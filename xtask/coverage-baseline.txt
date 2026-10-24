@@ -15,7 +15,7 @@ zbm-core                  97
 zbm-coreutils            100
 zbm-crypt                100
 zbm-display               90
-zbm-kcl                   90
+zbm-kcl                   91
 zbm-luks                  95
 zbm-platform              98
 zbm-pool                  98

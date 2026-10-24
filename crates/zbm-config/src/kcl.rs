@@ -6,7 +6,7 @@
 
 use zbm_core::shell::{echo, read_lines};
 
-/// Splits a command line into arguments, one per line, as `kcl_tokenize` does.
+/// Splits a command line into arguments, one per line.
 ///
 /// Arguments are separated by spaces, tabs and newlines, except within double
 /// quotes: words of a quoted argument are joined by a single space. When a
@@ -36,11 +36,11 @@ pub fn tokenize(input: &str) -> String {
     text
 }
 
-/// Removes arguments, as `kcl_suppress` does: an argument is removed when it
-/// equals one of `removals`, or when its part before the first `=` does.
+/// Removes arguments: an argument is removed when it equals one of
+/// `removals`, or when its part before the first `=` does.
 ///
-/// Like the `while read -r` loop of the legacy function, this drops a last
-/// argument without a newline and trims blanks around each argument.
+/// Each argument is read as `while read -r` reads it: a last argument without
+/// a newline is dropped, and blanks around each argument are trimmed.
 pub fn suppress(text: &str, removals: &[&str]) -> String {
     read_lines(text)
         .iter()
@@ -54,8 +54,8 @@ pub fn suppress(text: &str, removals: &[&str]) -> String {
         .collect()
 }
 
-/// Adds arguments, as `kcl_append` does: the text is kept as it is, and each
-/// non-empty argument is added as one line, even if it contains spaces.
+/// Adds arguments: the text is kept as it is, and each non-empty argument is
+/// added as one line, even if it contains spaces.
 pub fn append(text: &str, args: &[&str]) -> String {
     let mut result = text.to_owned();
     for arg in args.iter().filter(|arg| !arg.is_empty()) {
@@ -64,8 +64,8 @@ pub fn append(text: &str, args: &[&str]) -> String {
     result
 }
 
-/// Joins a tokenized command line with single spaces, as `kcl_assemble` does.
-/// The result has no newline.
+/// Joins a tokenized command line with single spaces. The result has no
+/// newline.
 pub fn assemble(text: &str) -> String {
     lines(text).join(" ")
 }
@@ -88,9 +88,8 @@ pub fn arguments(input: &str) -> Vec<String> {
         .collect()
 }
 
-/// The tokenized form of ZFSBootMenu's own command line, as `_build_zbm_kcl`
-/// builds it: the text of each source is tokenized separately and the results
-/// are concatenated.
+/// The tokenized form of ZFSBootMenu's own command line: the text of each
+/// source is tokenized separately and the results are concatenated.
 ///
 /// The sources are `/etc/cmdline`, the files `/etc/cmdline.d/*.conf` and
 /// `/proc/cmdline`, in that order, which `zbm_startup::preinit::zbm_sources`

@@ -141,8 +141,8 @@ impl Generator<'_, '_, '_> {
         Ok(prefix)
     }
 
-    /// `latestKernel`: the kernel with the highest version among the first prefix
-    /// that has any.
+    /// The kernel with the highest version among the first prefix that has
+    /// any.
     fn latest_kernel(&mut self, bootdir: &str) -> Step<Option<String>> {
         for prefix in ["vmlinuz*", "vmlinux*", "linux*", "kernel*"] {
             let mut kernels: BTreeMap<String, String> = BTreeMap::new();
@@ -163,7 +163,7 @@ impl Generator<'_, '_, '_> {
         Ok(None)
     }
 
-    /// `kernelVersion`: the version from the file name and from the kernel's
+    /// The version of `kernel`, from the file name and from the kernel's
     /// strings.
     fn kernel_version(&mut self, kernel: &str) -> Step<Option<String>> {
         if !is_readable(kernel) {
@@ -203,8 +203,7 @@ impl Generator<'_, '_, '_> {
     }
 }
 
-/// `versionedKernel`: a kernel in the boot directory for a version, exactly or
-/// by glob.
+/// A kernel in the boot directory for a version, exactly or by glob.
 fn versioned_kernel(bootdir: &str, version: &str) -> Option<(String, bool)> {
     for prefix in ["vmlinuz", "linux", "vmlinux", "kernel"] {
         let pattern = format!("{bootdir}/{prefix}-{version}");

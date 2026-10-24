@@ -1,8 +1,8 @@
 //! Reading `/etc/zfsbootmenu.conf`.
 //!
-//! The image build writes the first part of the file (`create_zbm_conf` in
-//! `install-helpers.sh`: an include guard, then `export NAME="value"` lines),
-//! and the start-up appends the options parsed from the command line
+//! The image build writes the first part of the file (`install-helpers.sh`:
+//! an include guard, then `export NAME="value"` lines), and the start-up
+//! appends the options parsed from the command line
 //! ([`crate::options::ZbmOptions::conf`], `zfsbootmenu-preinit.sh`:
 //! `export name='value'` lines). Shell code sources the file; every Rust
 //! program reads it with [`Conf::parse`] instead, as `crates/DESIGN.md`
