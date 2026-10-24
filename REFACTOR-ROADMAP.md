@@ -46,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
-| R4 | In progress | Application layer: steps 1 to 4 of 5 done (the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`) |
+| R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
 | R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -765,7 +765,7 @@ builds after the core tasks.
 
 ### R4. Application layer (3 to 4 weeks)
 
-**State:** in progress, in five steps:
+**State:** done, in five steps:
 
 1. **Done.** The vocabulary of `docs/dev/menu-design/interfaces.md` (`Snapshot`, `Action`, `Event` and their
    parts) moved from the menu prototype into `zbm_app::model`, and the prototype imports it from there.
@@ -797,14 +797,15 @@ builds after the core tasks.
    traced runner (`System::with_runner`), as `zbm-app` did, so the journal records start-up's commands too. On 59834ed,
    `runtime-rust-saved` passes 36 checks with the reports read in its recovery shell, `runtime-rust` 15, and the
    `secrets` tests find no secret with start-up's commands in the journal.
-5. **Built; VM tests to run.** The Rust code decides where the key of an encryption root comes from
+5. **Done.** The Rust code decides where the key of an encryption root comes from
    (`zbm_boot::keys::key_source`: the prompt, a key file in the image, or a key file copied from
    `org.zfsbootmenu:keysource`, in the legacy order; key sources only for a boot chosen in the menu, as the
    countdown's boot skips them) and shadow mode compares it (`key source`). The LUKS mapping
    names that shadow mode expects are those the unlock use cases give (`zbm_luks::device::mapping_name`, a detached
    header included). The use cases of import and booting arrive in R5 with port package C, and shadow mode covers
    them then. A new VM test, `runtime-legacy-keysource`, boots a boot environment whose key comes from its key
-   source.
+   source, from the countdown and from the menu. On 7a25250 every legacy VM test reports zero shadow differences,
+   and the Rust `keys` tests and the LUKS unit suites pass.
 
 - Create `zbm-app`: the `Snapshot` of the world, `Action`, events, and the use cases that the start-up program and
   the applets already need (boot the default environment, unlock, close, import). Their shape follows the lists
@@ -910,7 +911,7 @@ R0 includes the pilot slices; R8 (docs) runs alongside R7 and ends before R9. D 
 little to the length of the plan, since it overlaps R3 and R4; R5 grows by about four weeks.
 ```
 
-Done: R0 to R3, with the LUKS device suites and the VM harness in Rust. In progress: D. Next: R4.
+Done: R0 to R4, with the LUKS device suites and the VM harness in Rust. In progress: D. Next: R5.
 
 Two test ports are tied to the code they protect: the LUKS device suites move to Rust in R2, before R3 rewrites
 `zbm-luks`, and the VM harness moves during R3 and R4, before R5 adds the menu's VM tests. Package B's VM tests, now
