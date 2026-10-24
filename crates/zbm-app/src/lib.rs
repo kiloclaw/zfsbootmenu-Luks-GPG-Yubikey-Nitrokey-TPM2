@@ -37,9 +37,11 @@ pub mod model;
 pub mod pilot;
 mod read;
 mod unlock;
+mod volumes;
 
 pub use model::Encryption;
 pub use pilot::SnapshotError;
+pub use read::stage_name;
 pub use unlock::UnlockRequest;
 pub use zbm_crypt::OpenOptions;
 pub use zbm_luks::pilot::UnlockFailed;
@@ -97,6 +99,18 @@ impl std::fmt::Display for Event {
                 name.mapper_path()
             ),
         }
+    }
+}
+
+/// Where events go: a front end that shows them, or a list.
+pub trait Sink {
+    /// Receives `event`.
+    fn send(&mut self, event: model::Event);
+}
+
+impl Sink for Vec<model::Event> {
+    fn send(&mut self, event: model::Event) {
+        self.push(event);
     }
 }
 
@@ -188,6 +202,22 @@ impl<'a> App<'a> {
         }
     }
 
+    /// Performs `action` of the model; what happened comes back as events,
+    /// the last of them saying how the action ended. Actions the runtime
+    /// cannot perform yet (most of them wait for R5) end as failed.
+    pub fn act(&self, action: &model::Action) -> Vec<model::Event> {
+        if let Some(luks) = self.luks
+            && let Some(events) = volumes::perform(luks, action)
+        {
+            return events;
+        }
+        vec![model::Event::Finished(model::Outcome::Failed {
+            what: "unable to do that here".to_owned(),
+            why: vec![format!("{action:?} is not available in this program yet")],
+            next: Vec::new(),
+        })]
+    }
+
     /// Reads the machine for the menu pilot: its boot environments.
     ///
     /// # Errors
@@ -226,7 +256,12 @@ impl<'a> App<'a> {
             }
             _ => model::Keyboard::default(),
         };
+        let startup = self
+            .base
+            .map(|base| read::startup(&zbm_state::State::new(files, base)))
+            .unwrap_or_default();
         Ok(model::Snapshot {
+            startup,
             pools: read::pools(&zfs).map_err(SnapshotError::from)?,
             environments: read::environments(&zfs).map_err(SnapshotError::from)?,
             volumes: self

@@ -6,14 +6,15 @@
 //! prototype (`zbm_tui::menu`) tried their shape on a fake machine; R4 of
 //! REFACTOR-ROADMAP.md fills them from the real one.
 
+mod action;
 mod diff;
 mod health;
 mod packages;
 mod unlock;
 
-use zbm_platform::secret::Secret;
-use zbm_types::{DatasetName, ImportPolicy, PoolName, SnapshotName};
+use zbm_types::{DatasetName, PoolName, SnapshotName};
 
+pub use self::action::{Action, Event, Outcome, UnlockOutcome};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
@@ -318,150 +319,6 @@ pub enum Level {
     Warning,
     /// An error.
     Error,
-}
-
-/// What the menu asks the machine to do.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Action {
-    /// Boot an environment with a kernel and a command line, its own when
-    /// `None`.
-    Boot {
-        /// The environment.
-        environment: DatasetName,
-        /// The kernel version.
-        kernel: Option<String>,
-        /// The command line.
-        command_line: Option<String>,
-    },
-    /// Boot a temporary clone of a snapshot.
-    BootSnapshot(SnapshotName),
-    /// Make an environment the `bootfs` of its pool.
-    SetDefaultEnvironment(DatasetName),
-    /// Make a kernel the default of its environment.
-    SetDefaultKernel(DatasetName, String),
-    /// Let an environment inherit its default kernel again.
-    InheritDefaultKernel(DatasetName),
-    /// Take a snapshot.
-    CreateSnapshot(DatasetName),
-    /// Roll an environment back to a snapshot, after a safety snapshot when
-    /// `safety` is set.
-    Rollback {
-        /// The snapshot.
-        snapshot: SnapshotName,
-        /// Whether to take a safety snapshot first.
-        safety: bool,
-    },
-    /// Clone a snapshot into a new environment.
-    Clone(SnapshotName),
-    /// Clone a snapshot and promote the clone.
-    CloneAndPromote(SnapshotName),
-    /// Copy a snapshot into an independent environment.
-    Duplicate(SnapshotName),
-    /// The differences between a snapshot and another one or the live
-    /// filesystem.
-    Diff(SnapshotName, Option<SnapshotName>),
-    /// Copy paths back from a snapshot into its environment, after a safety
-    /// snapshot.
-    RestoreFiles {
-        /// The snapshot.
-        snapshot: SnapshotName,
-        /// The paths, as the snapshot has them.
-        paths: Vec<String>,
-    },
-    /// Give an environment its boot tries back: mark it good.
-    ResetBootTries(DatasetName),
-    /// Seal a volume's TPM2 key to the PCRs as they are now.
-    Reseal(String),
-    /// A shell in a chroot of an environment, or of a snapshot read-only.
-    Chroot(String),
-    /// Import a pool read/write again.
-    ImportReadWrite(PoolName),
-    /// Rewind a pool to its checkpoint.
-    RewindCheckpoint(PoolName),
-    /// Import a pool with a policy.
-    Import(PoolName, ImportPolicy),
-    /// Unlock a volume with a method and, for typed methods, a secret.
-    Unlock {
-        /// The volume.
-        volume: String,
-        /// The method.
-        method: Method,
-        /// The secret typed, for typed methods.
-        secret: Option<Secret>,
-    },
-    /// Leave a volume locked.
-    SkipUnlock(String),
-    /// The recovery shell.
-    Shell,
-    /// Reboot into the firmware's setup.
-    FirmwareSetup,
-    /// Reboot.
-    Reboot,
-    /// Power off.
-    PowerOff,
-}
-
-/// What the machine tells the menu.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Event {
-    /// The snapshot changed.
-    Changed(Snapshot),
-    /// A volume needs a secret or a device.
-    UnlockRequested {
-        /// The volume.
-        volume: String,
-        /// The method being tried.
-        method: Method,
-        /// Tries left for a typed method, if limited.
-        tries_left: Option<u32>,
-        /// Why this method is asked, when another one failed or the last
-        /// try was wrong: `the TPM kept the key: …`.
-        notice: Option<Notice>,
-    },
-    /// A volume was opened without its TPM2 key, which the TPM kept: the
-    /// menu offers to seal it again.
-    ResealOffered(String),
-    /// A pool did not import.
-    ImportProblem {
-        /// The pool.
-        pool: PoolName,
-        /// Why, for people.
-        reason: String,
-    },
-    /// The differences a [`Action::Diff`] asked for.
-    DiffReady {
-        /// The snapshot.
-        from: SnapshotName,
-        /// The other snapshot; `None`: the live filesystem.
-        to: Option<SnapshotName>,
-        /// What changed.
-        changes: Vec<Change>,
-        /// The packages that changed; `None` when no package database was
-        /// found.
-        packages: Option<PackageDiff>,
-    },
-    /// An action finished.
-    Finished(Outcome),
-    /// The menu ends: the machine boots, powers off or opens the shell.
-    Leaving(String),
-}
-
-/// How an action ended.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Outcome {
-    /// Done, with what happened.
-    Done(String),
-    /// Done, with something to note.
-    Warning(String),
-    /// Failed: what failed, why, and the next steps.
-    Failed {
-        /// What failed.
-        what: String,
-        /// Why, from the error's causes.
-        why: Vec<String>,
-        /// What the user can do next.
-        next: Vec<String>,
-    },
 }
 
 /// The pool with the worst health, if any is not online.

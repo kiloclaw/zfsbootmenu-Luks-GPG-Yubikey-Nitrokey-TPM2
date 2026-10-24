@@ -247,3 +247,27 @@ fn unset_and_default_properties_have_the_default_origin() {
     assert_eq!(environments[0].command_line.origin, Origin::Default);
     assert_eq!(origin(&Source::Default), Origin::Default);
 }
+
+#[test]
+fn the_stages_are_done_once_the_state_directory_records_them() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    state.finish_stage("10-kmods").unwrap();
+
+    let stages = startup(&state);
+
+    assert_eq!(stages.len(), zbm_types::Stage::ALL.len());
+    assert_eq!(stages[0].name, "Loading kernel modules");
+    assert_eq!(stages[0].state, crate::model::StageState::Done);
+    assert!(
+        stages[1..]
+            .iter()
+            .all(|stage| stage.state == crate::model::StageState::Pending)
+    );
+    let names: std::collections::BTreeSet<&str> = zbm_types::Stage::ALL
+        .iter()
+        .map(|stage| stage_name(*stage))
+        .collect();
+    assert_eq!(names.len(), zbm_types::Stage::ALL.len());
+}

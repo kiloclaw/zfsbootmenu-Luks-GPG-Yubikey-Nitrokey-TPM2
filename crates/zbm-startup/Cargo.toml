@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+zbm-app.workspace = true
 thiserror.workspace = true
 zbm-boot.workspace = true
 zbm-config.workspace = true

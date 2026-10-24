@@ -657,6 +657,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbm-app"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "zbm-config",
+ "zbm-crypt",
+ "zbm-luks",
+ "zbm-platform",
+ "zbm-state",
+ "zbm-types",
+ "zbm-zfs",
+]
+
+[[package]]
 name = "zbm-boot"
 version = "0.1.0"
 dependencies = [
@@ -774,6 +790,7 @@ name = "zbm-startup"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+ "zbm-app",
  "zbm-boot",
  "zbm-config",
  "zbm-platform",

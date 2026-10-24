@@ -1,7 +1,7 @@
 //! What the machine's events do to the menu.
 
 use crate::menu::model::{Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
-use crate::menu::world::{Action, Event, Outcome, Target};
+use crate::menu::world::{Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome};
 use zbm_types::ImportPolicy;
 
 /// Applies an event.
@@ -51,7 +51,39 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             model.notification = Some(outcome);
         }
         Event::Leaving(why) => model.leaving = Some(why),
+        Event::StageStarted(name) => stage(model, name, StageState::Running),
+        Event::StageFinished { stage: name, state } => stage(model, name, state),
+        Event::UnlockFinished { volume, outcome } => {
+            model.notification = Some(unlocked(&volume, outcome));
+        }
     }
+}
+
+/// The notification of how unlocking `volume` ended.
+fn unlocked(volume: &str, outcome: UnlockOutcome) -> Outcome {
+    match outcome {
+        UnlockOutcome::Opened => Outcome::Done(format!("{volume} is open")),
+        UnlockOutcome::Skipped => Outcome::Warning(format!("{volume} stays locked")),
+        UnlockOutcome::Failed(why) => Outcome::Failed {
+            what: format!("unable to unlock {volume}"),
+            why: vec![why],
+            next: Vec::new(),
+        },
+    }
+}
+
+/// Records how far the start-up stage `name` got, adding it when the
+/// snapshot did not list it, and opens the main view once start-up is over.
+fn stage(model: &mut Model, name: String, reached: StageState) {
+    let startup = &mut model.snapshot.startup;
+    match startup.iter_mut().find(|known| known.name == name) {
+        Some(known) => known.state = reached,
+        None => startup.push(Stage {
+            name,
+            state: reached,
+        }),
+    }
+    start(model);
 }
 
 /// Opens the main view and arms the countdown once start-up is over and no
@@ -105,4 +137,47 @@ fn import_problem(model: &mut Model, pool: &zbm_types::PoolName, reason: String)
         vec![reason],
         choices,
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::menu::caps::Capabilities;
+    use crate::menu::theme::Theme;
+    use crate::menu::world::Snapshot;
+
+    #[test]
+    fn stage_and_unlock_events_update_the_menu() {
+        let mut model = Model::new(Snapshot::default(), Theme::new(Capabilities::FULL));
+
+        apply(&mut model, Event::StageStarted("Importing pools".into()));
+        assert_eq!(model.snapshot.startup[0].state, StageState::Running);
+        let finished = Event::StageFinished {
+            stage: "Importing pools".into(),
+            state: StageState::Done,
+        };
+        apply(&mut model, finished);
+        assert_eq!(model.snapshot.startup.len(), 1);
+        assert_eq!(model.snapshot.startup[0].state, StageState::Done);
+
+        let opened = Event::UnlockFinished {
+            volume: "zroot-a".into(),
+            outcome: UnlockOutcome::Opened,
+        };
+        apply(&mut model, opened);
+        assert_eq!(
+            model.notification,
+            Some(Outcome::Done("zroot-a is open".into()))
+        );
+        assert_eq!(
+            unlocked("b", UnlockOutcome::Skipped),
+            Outcome::Warning("b stays locked".into())
+        );
+        assert!(matches!(
+            unlocked("c", UnlockOutcome::Failed("wrong".into())),
+            Outcome::Failed { why, .. } if why == ["wrong"]
+        ));
+    }
 }

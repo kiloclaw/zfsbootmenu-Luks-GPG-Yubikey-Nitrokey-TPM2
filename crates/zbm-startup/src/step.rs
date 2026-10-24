@@ -32,6 +32,8 @@
 //! assert_eq!(state.finished_stages(), ["20-hostid"]);
 //! ```
 
+use zbm_app::Sink;
+use zbm_app::model::{Event, StageState};
 use zbm_boot::error::BootError;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
@@ -49,6 +51,8 @@ pub struct StepContext<'c, 'a> {
     pub recovery: &'c mut dyn Recovery,
     /// The default boot environment, once pool import found one.
     pub bootfs: Option<DatasetName>,
+    /// Where the stages' events go, when a front end shows them.
+    pub events: Option<&'c mut dyn Sink>,
 }
 
 impl<'c, 'a> StepContext<'c, 'a> {
@@ -63,6 +67,7 @@ impl<'c, 'a> StepContext<'c, 'a> {
             state,
             recovery,
             bootfs: None,
+            events: None,
         }
     }
 }
@@ -101,7 +106,17 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
             continue;
         }
         zbm_trace::info!("running init stage {stage}");
+        let name = zbm_app::stage_name(stage);
+        if let Some(events) = context.events.as_mut() {
+            events.send(Event::StageStarted(name.to_owned()));
+        }
         step.run(context);
+        if let Some(events) = context.events.as_mut() {
+            events.send(Event::StageFinished {
+                stage: name.to_owned(),
+                state: StageState::Done,
+            });
+        }
         if let Err(error) = context.state.finish_stage(stage.as_str()) {
             zbm_trace::error!("{}", error.to_string());
         }
@@ -120,5 +135,58 @@ impl Recovery for NoRecovery {
 
     fn emergency_shell(&mut self, message: &str) {
         zbm_trace::error!("no recovery shell for: {message}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use zbm_testkit::fakes::FakeSystem;
+
+    use super::*;
+
+    /// A step that does nothing.
+    struct Nothing(Stage);
+
+    impl Step for Nothing {
+        fn stage(&self) -> Stage {
+            self.0
+        }
+
+        fn run(&self, _context: &mut StepContext<'_, '_>) {}
+    }
+
+    #[test]
+    fn each_stage_sends_its_start_and_end() {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        let system = fake.system();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let mut recovery = NoRecovery;
+        let mut events: Vec<Event> = Vec::new();
+        let steps: Vec<Box<dyn Step>> = vec![
+            Box::new(Nothing(Stage::Modules)),
+            Box::new(Nothing(Stage::ImportPools)),
+        ];
+
+        let mut context = StepContext::new(&system, &state, &mut recovery);
+        context.events = Some(&mut events);
+        run_steps(&steps, &mut context, Rerun::Pending);
+
+        assert_eq!(
+            events,
+            [
+                Event::StageStarted("Loading kernel modules".into()),
+                Event::StageFinished {
+                    stage: "Loading kernel modules".into(),
+                    state: StageState::Done,
+                },
+                Event::StageStarted("Importing pools".into()),
+                Event::StageFinished {
+                    stage: "Importing pools".into(),
+                    state: StageState::Done,
+                },
+            ]
+        );
     }
 }

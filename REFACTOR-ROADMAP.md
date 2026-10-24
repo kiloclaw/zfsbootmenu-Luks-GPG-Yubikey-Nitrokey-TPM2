@@ -46,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
-| R4 | In progress | Application layer: step 1 of 5 done (the vocabulary in `zbm-app` and the snapshot read from the machine) |
+| R4 | In progress | Application layer: steps 1 and 2 of 5 done (the vocabulary in `zbm-app`, the snapshot read from the machine, the LUKS use cases and the start-up events) |
 | R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -774,9 +774,14 @@ builds after the core tasks.
    key methods their tokens offer), the countdown, the keyboard layouts and the warnings and errors of the journal.
    Kernels, checks, boot tries and snapshots wait for R5 and port package C; start-up stages arrive as events in step
    2. The pilot's small snapshot is `zbm_app::pilot`.
-2. The use cases and events over the ports of R3: unlock and skip (the `Prompter` of `zbm-luks` as
-   `UnlockRequested`), close, import (the `Operator` of `zbm-pool` as `ImportProblem`), boot the default environment,
-   and the stage events of start-up.
+2. **Done.** `App::act` performs the actions `zluks` needs, each as one unlocking run of `zbm-luks`: `UnlockAll`,
+   `Open` (a device or tag, with `zbm.luks_key`) and `Close`, with an `UnlockFinished` event for each volume opened,
+   skipped or failed, and a `Finished` outcome whose failure lists the error's causes. Start-up's stage runner sends
+   `StageStarted` and `StageFinished` to a `Sink` when a front end gives one, and the snapshot fills the stages from
+   the state directory; the menu prototype shows both. Other actions end as failed until their use cases exist.
+   Answering the prompts of `zbm-luks` (`Prompter`, and the passphrase read from the console) and of `zbm-pool`
+   (`Operator`) through `UnlockRequested` and `ImportProblem` needs the menu to answer them, so it moves to R5, with
+   import and booting, which need port package C below `zbm-app`.
 3. The applets as thin front ends over `zbm-app`, with the `check-deps` rule that no front end imports an adapter.
 4. The `zbm debug` reports and `zbm-debug(8)`.
 5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a

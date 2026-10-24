@@ -2152,6 +2152,7 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "thiserror",
+ "zbm-app",
  "zbm-boot",
  "zbm-config",
  "zbm-platform",

@@ -195,6 +195,35 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
         .collect()
 }
 
+/// What a stage of start-up does, for people.
+pub fn stage_name(stage: zbm_types::Stage) -> &'static str {
+    match stage {
+        zbm_types::Stage::Modules => "Loading kernel modules",
+        zbm_types::Stage::HostId => "Setting the host ID",
+        zbm_types::Stage::DeviceWait => "Waiting for devices",
+        zbm_types::Stage::EarlyHooks => "Running the early setup hooks",
+        zbm_types::Stage::LuksUnlock => "Unlocking LUKS volumes",
+        zbm_types::Stage::ImportPools => "Importing pools",
+    }
+}
+
+/// The stages of start-up: done when the state directory records them
+/// finished, else pending.
+pub fn startup(state: &State<'_>) -> Vec<crate::model::Stage> {
+    let finished = state.finished_stages();
+    zbm_types::Stage::ALL
+        .iter()
+        .map(|stage| crate::model::Stage {
+            name: stage_name(*stage).to_owned(),
+            state: if finished.iter().any(|done| done == stage.as_str()) {
+                crate::model::StageState::Done
+            } else {
+                crate::model::StageState::Pending
+            },
+        })
+        .collect()
+}
+
 /// The countdown `zbm.timeout` asks for: no number or a negative one waits,
 /// zero boots at once.
 pub fn timeout(options: &ZbmOptions) -> Timeout {
