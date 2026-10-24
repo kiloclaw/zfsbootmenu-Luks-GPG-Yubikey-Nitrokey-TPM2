@@ -12,6 +12,7 @@ use crate::menu::keymap::Context;
 use crate::menu::model::{Model, Screen};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, VolumeState, worst_pool};
+use crate::text::text;
 
 /// Below this width the status takes its short forms.
 const NARROW: u16 = 100;
@@ -91,51 +92,57 @@ fn joined(model: &Model, status: &[Part]) -> String {
 fn back(model: &Model) -> Option<String> {
     match model.screen {
         Screen::Startup | Screen::Main => None,
-        Screen::Help(context) => Some(context_name(context).to_owned()),
-        Screen::Diff => Some("Snapshots".to_owned()),
-        _ => Some("Boot Environments".to_owned()),
+        Screen::Help(context) => Some(context_name(context)),
+        Screen::Diff => Some(text!("view-snapshots")),
+        _ => Some(text!("view-main")),
     }
 }
 
 /// The name of the view of `context`, for the back label of help.
-fn context_name(context: Context) -> &'static str {
+fn context_name(context: Context) -> String {
     match context {
-        Context::Startup => "Starting",
-        Context::Snapshots => "Snapshots",
-        Context::Kernels => "Kernels",
-        Context::Pools => "Pools",
-        Context::Recovery => "Recovery",
-        Context::Log => "Log",
-        Context::Diff | Context::Packages => "Changes",
-        _ => "Boot Environments",
+        Context::Startup => text!("view-startup.short"),
+        Context::Snapshots => text!("view-snapshots"),
+        Context::Kernels => text!("view-kernels"),
+        Context::Pools => text!("view-pools.short"),
+        Context::Recovery => text!("view-recovery"),
+        Context::Log => text!("view-log"),
+        Context::Diff | Context::Packages => text!("view-changes"),
+        _ => text!("view-main"),
     }
 }
 
 /// The title of the view, longest first.
 fn titles(model: &Model) -> Vec<String> {
-    let of = |what: &str| {
-        let focus = model
-            .focus
-            .as_ref()
-            .map(ToString::to_string)
-            .unwrap_or_default();
-        vec![format!("{what} of {focus}"), what.to_owned()]
-    };
+    let focus = model
+        .focus
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
     match model.screen {
-        Screen::Startup => vec!["Starting ZFSBootMenu".to_owned(), "Starting".to_owned()],
-        Screen::Main => vec!["Boot Environments".to_owned(), "Boot".to_owned()],
-        Screen::Snapshots => of("Snapshots"),
-        Screen::Kernels => of("Kernels"),
-        Screen::CommandLine => of("Command Line"),
-        Screen::Pools => vec!["Pools and Volumes".to_owned(), "Pools".to_owned()],
-        Screen::Recovery => vec!["Recovery".to_owned()],
-        Screen::Log => vec!["Log".to_owned()],
-        Screen::Help(_) => vec!["Help".to_owned()],
+        Screen::Startup => vec![text!("view-startup"), text!("view-startup.short")],
+        Screen::Main => vec![text!("view-main"), text!("view-main.short")],
+        Screen::Snapshots => vec![
+            text!("view-snapshots.of", environment = focus.as_str()),
+            text!("view-snapshots"),
+        ],
+        Screen::Kernels => vec![
+            text!("view-kernels.of", environment = focus.as_str()),
+            text!("view-kernels"),
+        ],
+        Screen::CommandLine => vec![
+            text!("view-command-line.of", environment = focus.as_str()),
+            text!("view-command-line"),
+        ],
+        Screen::Pools => vec![text!("view-pools"), text!("view-pools.short")],
+        Screen::Recovery => vec![text!("view-recovery")],
+        Screen::Log => vec![text!("view-log")],
+        Screen::Help(_) => vec![text!("view-help")],
         Screen::Diff => {
             let since = model.diff.as_ref().map(|diff| diff.from.to_string());
-            let mut titles = vec!["Changes".to_owned()];
+            let mut titles = vec![text!("view-changes")];
             if let Some(since) = since {
-                titles.insert(0, format!("Changes since {since}"));
+                titles.insert(0, text!("view-changes.since", snapshot = since));
             }
             titles
         }
@@ -156,8 +163,11 @@ fn facts(model: &Model, short: bool) -> Vec<Part> {
             };
             parts.push((format!("{} {}", pool.name, pool.health.as_str()), role));
         }
-        None if short => parts.push(("pools ok".to_owned(), Role::Muted)),
-        None => parts.push((format!("{} pools ok", snapshot.pools.len()), Role::Muted)),
+        None if short => parts.push((text!("status-pools-ok.short"), Role::Muted)),
+        None => parts.push((
+            text!("status-pools-ok", count = snapshot.pools.len()),
+            Role::Muted,
+        )),
     }
     let volumes = &snapshot.volumes;
     if !volumes.is_empty() {
@@ -170,8 +180,16 @@ fn facts(model: &Model, short: bool) -> Vec<Part> {
         } else {
             Role::Locked
         };
-        let noun = if short { "" } else { " volumes" };
-        parts.push((format!("{open}/{}{noun} open", volumes.len()), role));
+        let text = if short {
+            text!(
+                "status-volumes-open.short",
+                open = open,
+                total = volumes.len()
+            )
+        } else {
+            text!("status-volumes-open", open = open, total = volumes.len())
+        };
+        parts.push((text, role));
     }
     let problems = snapshot.log.count(Level::Warning) + snapshot.log.count(Level::Error);
     if problems > 0 {
@@ -179,7 +197,7 @@ fn facts(model: &Model, short: bool) -> Vec<Part> {
         let text = if short {
             format!("{glyph} {problems}")
         } else {
-            format!("{glyph} {problems} in the log")
+            format!("{glyph} {}", text!("status-log-problems", count = problems))
         };
         parts.push((text, Role::Warning));
     }

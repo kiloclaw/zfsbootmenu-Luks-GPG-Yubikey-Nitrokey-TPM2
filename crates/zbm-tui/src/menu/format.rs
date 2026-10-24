@@ -1,22 +1,25 @@
-//! Numbers as people read them.
+//! Numbers as people read them, through the catalogue.
+
+use crate::text::{decimal, text};
 
 /// `bytes` as `1.2 GiB`, `340 MiB`, `12 KiB`, `512 B`.
 pub fn size(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    /// The binary units, by the power of 1024: the selector of `size`.
+    const UNITS: usize = 5;
     let mut value = bytes;
     let mut unit = 0;
     let mut tenths = 0;
-    while value >= 1024 && unit < UNITS.len() - 1 {
+    while value >= 1024 && unit < UNITS - 1 {
         tenths = (value % 1024) * 10 / 1024;
         value /= 1024;
         unit += 1;
     }
-    let name = UNITS.get(unit).copied().unwrap_or_default();
-    if unit > 0 && value < 10 {
-        format!("{value}.{tenths} {name}")
+    let number = if unit > 0 && value < 10 {
+        decimal(&format!("{value}.{tenths}"))
     } else {
-        format!("{value} {name}")
-    }
+        value.into()
+    };
+    text!("size", value = number, unit = unit)
 }
 
 /// How long ago `then` was at `now` (seconds since the epoch): `just now`,
@@ -24,10 +27,10 @@ pub fn size(bytes: u64) -> String {
 pub fn age(now: u64, then: u64) -> String {
     let seconds = now.saturating_sub(then);
     match seconds {
-        0..60 => "just now".to_owned(),
-        60..3600 => format!("{} min ago", seconds / 60),
-        3600..86_400 => format!("{} h ago", seconds / 3600),
-        _ => format!("{} d ago", seconds / 86_400),
+        0..60 => text!("age-now"),
+        60..3600 => text!("age-minutes", count = seconds / 60),
+        3600..86_400 => text!("age-hours", count = seconds / 3600),
+        _ => text!("age-days", count = seconds / 86_400),
     }
 }
 

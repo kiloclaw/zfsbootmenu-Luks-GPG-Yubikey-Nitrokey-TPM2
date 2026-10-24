@@ -15,6 +15,7 @@ use crate::menu::model::{Choice, Dialog, Model, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::update::palette_items;
 use crate::menu::world::Action;
+use crate::text::text;
 
 /// The widest an alert or action sheet gets.
 const ALERT_WIDTH: u16 = 60;
@@ -227,7 +228,7 @@ fn actions(
     } else {
         ("  ".to_owned(), theme.style(Role::Text))
     };
-    let row = Paragraph::new(format!("{prefix}Cancel")).style(style);
+    let row = Paragraph::new(format!("{prefix}{}", text!("button-cancel"))).style(style);
     frame.render_widget(row, cancel);
 }
 
@@ -243,15 +244,15 @@ fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
 }
 
 /// The verb of the button that does `action`.
-fn verb(action: &Action) -> &'static str {
+fn verb(action: &Action) -> String {
     match action {
-        Action::Rollback { .. } => "Roll Back",
-        Action::CloneAndPromote(_) => "Promote",
-        Action::RewindCheckpoint(_) => "Rewind",
-        Action::Import(..) => "Force Import",
-        Action::RestoreFiles { .. } => "Restore",
-        Action::Reseal(_) => "Re-seal",
-        _ => "Continue",
+        Action::Rollback { .. } => text!("button-roll-back"),
+        Action::CloneAndPromote(_) => text!("button-promote"),
+        Action::RewindCheckpoint(_) => text!("button-rewind"),
+        Action::Import(..) => text!("button-force-import"),
+        Action::RestoreFiles { .. } => text!("button-restore"),
+        Action::Reseal(_) => text!("button-reseal"),
+        _ => text!("button-continue"),
     }
 }
 
@@ -266,10 +267,13 @@ fn confirm(
     let (title, lines, name, typed, action) = dialog;
     let mut body = body_lines(theme, lines);
     body.push(Line::default());
+    // The sentence around the name, which is drawn in its own style.
+    let sentence = text!("confirm-type", name = "\u{1}");
+    let (before, after) = sentence.split_once('\u{1}').unwrap_or((&sentence, ""));
     body.push(Line::from(vec![
-        Span::raw("Type "),
+        Span::raw(before.to_owned()),
         Span::styled(name.clone(), theme.style(Role::Danger)),
-        Span::raw(" to confirm: "),
+        Span::raw(format!("{after} ")),
         Span::styled(typed.clone(), theme.style(Role::Title)),
     ]));
     let ready = typed == name;
@@ -279,10 +283,7 @@ fn confirm(
         Kind::Disabled
     };
     let cancel = if ready { Kind::Normal } else { Kind::Default };
-    let buttons = vec![
-        ("Cancel".to_owned(), cancel),
-        (verb(action).to_owned(), kind),
-    ];
+    let buttons = vec![(text!("button-cancel"), cancel), (verb(action), kind)];
     let title = title.clone();
     alert(
         theme,
@@ -311,7 +312,10 @@ fn error(
         .collect();
     if !next.is_empty() {
         body.push(Line::default());
-        body.push(Line::styled("You can:", theme.style(Role::Title)));
+        body.push(Line::styled(
+            text!("error-you-can"),
+            theme.style(Role::Title),
+        ));
         let bullet = theme.glyph(Glyph::Bullet);
         let steps = next
             .iter()
@@ -319,7 +323,7 @@ fn error(
         body.extend(steps);
     }
     let title = format!("{} {what}", theme.glyph(Glyph::Failed));
-    let buttons = vec![("OK".to_owned(), Kind::Default)];
+    let buttons = vec![(text!("button-ok"), Kind::Default)];
     alert(
         theme,
         frame,
@@ -343,8 +347,12 @@ fn palette(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let height = area.height.saturating_sub(2).min(16);
     let width = area.width.saturating_sub(4).min(70);
     let rect = centred(theme, frame, area, (width, height));
-    let count = format!("{} of {}", palette.matches.len(), items.len());
-    let block = lists::counted(theme, "Commands", &count);
+    let count = text!(
+        "list-count-of",
+        shown = palette.matches.len(),
+        total = items.len()
+    );
+    let block = lists::counted(theme, &text!("palette-title"), &count);
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
     let [query, list] = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(inner);

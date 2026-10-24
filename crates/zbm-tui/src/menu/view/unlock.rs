@@ -7,19 +7,49 @@ use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 
 use super::dialogs::{Alert, Kind, alert};
-use crate::menu::format::capitalised;
 use crate::menu::model::{Model, Prompt};
 use crate::menu::theme::Role;
-use crate::menu::world::Notice;
+use crate::menu::world::{Method, Notice};
+use crate::text::{self, Id, id, text};
+
+/// The name of a key method: the message is how a sentence names it, its
+/// `.label` the label of its field.
+pub(crate) fn method_name(method: Method) -> Id {
+    match method {
+        Method::Passphrase => id!("method-passphrase"),
+        Method::Tpm2Pin => id!("method-tpm2-pin"),
+        Method::Tpm2 => id!("method-tpm2"),
+        Method::Clevis => id!("method-clevis"),
+        Method::Fido2 => id!("method-fido2"),
+        Method::YubiKey => id!("method-yubikey"),
+        Method::GnupgKeyFile => id!("method-gnupg"),
+        Method::KeyDevice => id!("method-key-device"),
+    }
+}
+
+/// The label of the field of a typed method.
+fn field_label(method: Method) -> String {
+    text::message(method_label(method), &[])
+}
+
+/// The `.label` of a method's name.
+fn method_label(method: Method) -> Id {
+    match method {
+        Method::Passphrase => id!("method-passphrase.label"),
+        Method::Tpm2Pin => id!("method-tpm2-pin.label"),
+        Method::GnupgKeyFile => id!("method-gnupg.label"),
+        other => method_name(other),
+    }
+}
 
 /// Draws the unlock alert of `prompt`, the cursor in its field.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &Prompt) {
     let body = body(model, prompt);
     let buttons = vec![
-        ("Skip".into(), Kind::Normal),
-        ("Unlock".into(), Kind::Default),
+        (text!("button-skip"), Kind::Normal),
+        (text!("button-unlock"), Kind::Default),
     ];
-    let title = format!("Unlock {}", prompt.volume);
+    let title = text!("unlock-title", volume = prompt.volume.to_string());
     let message = alert(
         model.theme,
         frame,
@@ -37,7 +67,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &
         } else {
             0
         };
-        let column = prompt.method.as_str().len() + 2 + shown;
+        let column = field_label(prompt.method).chars().count() + 2 + shown;
         let column = u16::try_from(column).unwrap_or(u16::MAX);
         let row = message.y.saturating_add(2);
         frame.set_cursor_position(Position::new(message.x.saturating_add(column), row));
@@ -56,18 +86,18 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
         .find(|known| known.name == prompt.volume);
     let device = known.map(|known| known.device.clone()).unwrap_or_default();
     let mut body = vec![
-        Line::styled(format!("on {device}"), theme.style(Role::Muted)),
+        Line::styled(
+            text!("unlock-device", device = device.to_string()),
+            theme.style(Role::Muted),
+        ),
         Line::default(),
     ];
     let ask = if !method.is_typed() {
-        format!(
-            "Waiting for the {}: touch it, or plug it in.",
-            method.as_str()
-        )
+        text!("unlock-waiting", method = text::get(method_name(method)))
     } else if prompt.revealed {
-        format!("{}: {}", capitalised(method.as_str()), prompt.typed())
+        format!("{}: {}", field_label(method), prompt.typed())
     } else {
-        format!("{}:", capitalised(method.as_str()))
+        format!("{}:", field_label(method))
     };
     body.push(Line::styled(ask, theme.style(Role::Title)));
     if let Some(notice) = &prompt.notice {
@@ -78,27 +108,31 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
     }
     if let Some(left) = prompt.tries_left {
         body.push(Line::styled(
-            format!("{left} tries left"),
+            text!("unlock-tries-left", count = left),
             theme.style(Role::Warning),
         ));
     }
-    let others: Vec<&str> = known
+    let others: Vec<String> = known
         .map(|known| {
             known
                 .methods
                 .iter()
                 .filter(|m| **m != method)
-                .map(|m| m.as_str())
+                .map(|m| text::get(method_name(*m)))
                 .collect()
         })
         .unwrap_or_default();
     if !others.is_empty() {
         let keys = if theme.is_ascii() {
-            "Up/Down"
+            text!("keys-up-down")
         } else {
-            "↑/↓"
+            "↑/↓".to_owned()
         };
-        let line = format!("{keys} to use the {} instead", others.join(" or "));
+        let line = text!(
+            "unlock-other-methods",
+            keys = keys,
+            methods = others.join(&text!("unlock-or"))
+        );
         body.push(Line::styled(line, theme.style(Role::Muted)));
     }
     if method.is_typed() {
@@ -113,25 +147,30 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
     let theme = model.theme;
     let keyboard = &model.snapshot.keyboard;
     let reveal = if prompt.revealed {
-        "Ctrl-R: hide"
+        text!("unlock-hide")
     } else {
-        "Ctrl-R: show"
+        text!("unlock-show")
     };
     let dot = theme.dot();
     if !keyboard.local {
-        let text = format!("Keyboard: the terminal's own{dot}{reveal}");
-        return Line::styled(text, theme.style(Role::Muted));
+        let line = format!("{}{dot}{reveal}", text!("keyboard-terminal"));
+        return Line::styled(line, theme.style(Role::Muted));
     }
+    // The console's own layout when none was named.
     let layout = model.layout().unwrap_or("us");
     if keyboard.layouts.len() < 2 {
-        let text = format!("Keyboard: {layout}{dot}{reveal}");
-        return Line::styled(text, theme.style(Role::Muted));
+        let line = format!("{}{dot}{reveal}", text!("keyboard-layout", layout = layout));
+        return Line::styled(line, theme.style(Role::Muted));
     }
     let wrong = prompt.notice.as_ref().is_some_and(Notice::is_wrong_secret);
     if wrong && model.layout == 0 {
-        let text = format!("Keyboard: {layout}. Set with another layout? Ctrl-K changes it.");
-        return Line::styled(text, theme.style(Role::Warning));
+        let line = text!("keyboard-wrong", layout = layout);
+        return Line::styled(line, theme.style(Role::Warning));
     }
-    let text = format!("Keyboard: {layout}{dot}Ctrl-K: layout{dot}{reveal}");
-    Line::styled(text, theme.style(Role::Muted))
+    let line = format!(
+        "{}{dot}{}{dot}{reveal}",
+        text!("keyboard-layout", layout = layout),
+        text!("keyboard-change")
+    );
+    Line::styled(line, theme.style(Role::Muted))
 }

@@ -7,11 +7,11 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::format::title_case;
 use super::keymap;
 use super::model::{Model, Screen};
 use super::theme::{Glyph, Role};
 use super::world::Outcome;
+use crate::text::text;
 
 mod dialogs;
 mod diff;
@@ -34,7 +34,7 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
         return;
     }
     if area.width < MINIMUM.0 || area.height < MINIMUM.1 {
-        let notice = format!("The menu needs {}x{} at least.", MINIMUM.0, MINIMUM.1);
+        let notice = text!("menu-too-small", width = MINIMUM.0, height = MINIMUM.1);
         frame.render_widget(Paragraph::new(notice), area);
         return;
     }
@@ -79,17 +79,24 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 /// glyph and a word.
 fn notification_line<'a>(model: &Model, outcome: &'a Outcome) -> Line<'a> {
     let theme = model.theme;
-    let (glyph, word, role, text) = match outcome {
-        Outcome::Done(text) => (Glyph::Done, "Done", Role::Good, text.as_str()),
-        Outcome::Warning(text) => (Glyph::Warning, "Warning", Role::Warning, text.as_str()),
-        Outcome::Failed { what, .. } => (Glyph::Failed, "Failed", Role::Danger, what.as_str()),
+    let (glyph, word, role, what) = match outcome {
+        Outcome::Done(what) => (Glyph::Done, text!("outcome-done"), Role::Good, what),
+        Outcome::Warning(what) => (
+            Glyph::Warning,
+            text!("outcome-warning"),
+            Role::Warning,
+            what,
+        ),
+        Outcome::Failed { what, .. } => {
+            (Glyph::Failed, text!("outcome-failed"), Role::Danger, what)
+        }
     };
     Line::from(vec![
         Span::styled(
             format!(" {} {word}: ", theme.glyph(glyph)),
             theme.style(role),
         ),
-        Span::styled(text, theme.style(Role::Text)),
+        Span::styled(what.as_str(), theme.style(Role::Text)),
     ])
 }
 
@@ -101,13 +108,12 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let gap = " ".repeat(keymap::TOOLBAR_GAP);
     let mut spans = vec![Span::raw(" ")];
     let mut used = 0;
-    for (index, (key, help)) in keymap::footer(model.context(), width)
+    for (index, tool) in keymap::footer(model.context(), width)
         .into_iter()
         .enumerate()
     {
-        let label = title_case(help);
-        let length = key.len() + 1 + label.len();
-        if key == "?" {
+        let length = tool.width();
+        if tool.is_more {
             spans.push(Span::raw(
                 " ".repeat(width.saturating_sub(used + length).max(1)),
             ));
@@ -116,8 +122,11 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
             used += gap.len();
         }
         used += length;
-        spans.push(Span::styled(key, theme.style(Role::Key)));
-        spans.push(Span::styled(format!(" {label}"), theme.style(Role::Muted)));
+        spans.push(Span::styled(tool.key, theme.style(Role::Key)));
+        spans.push(Span::styled(
+            format!(" {}", tool.label),
+            theme.style(Role::Muted),
+        ));
     }
     Line::from(spans)
 }

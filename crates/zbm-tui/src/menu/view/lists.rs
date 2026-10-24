@@ -13,6 +13,7 @@ use ratatui::widgets::{
 use crate::menu::format::fit;
 use crate::menu::model::{ListState, Model};
 use crate::menu::theme::{Glyph, Role, Theme};
+use crate::text::{self, id, text};
 
 /// What a list says when it is empty: a title and a sentence.
 pub(super) type Empty<'a> = (&'a str, &'a str);
@@ -80,7 +81,7 @@ pub(super) fn render(
     let theme = model.theme;
     let searching = state.filtering || !state.filter.is_empty();
     let count = if searching {
-        format!("{} of {total}", state.matches.len())
+        text!("list-count-of", shown = state.matches.len(), total = total)
     } else {
         total.to_string()
     };
@@ -94,12 +95,10 @@ pub(super) fn render(
         search_field(model, frame, search, state);
     }
     if rows.is_empty() {
-        let quoted = format!(
-            "Nothing matches {}. Esc clears the search.",
-            quote(theme, &state.filter)
-        );
+        let title = text!("list-no-matches");
+        let quoted = text!("list-no-matches.text", filter = quote(theme, &state.filter));
         let shown = if searching {
-            ("No Matches", quoted.as_str())
+            (title.as_str(), quoted.as_str())
         } else {
             empty
         };
@@ -115,12 +114,12 @@ pub(super) fn render(
     frame.render_stateful_widget(list, list_area, &mut widget);
 }
 
-/// `text` in quotation marks.
-fn quote(theme: Theme, text: &str) -> String {
+/// `quoted` in quotation marks.
+fn quote(theme: Theme, quoted: &str) -> String {
     if theme.is_ascii() {
-        format!("\"{text}\"")
+        text!("quoted-ascii", text = quoted)
     } else {
-        format!("“{text}”")
+        text!("quoted", text = quoted)
     }
 }
 
@@ -128,13 +127,15 @@ fn quote(theme: Theme, text: &str) -> String {
 fn search_field(model: &Model, frame: &mut Frame<'_>, area: Rect, state: &ListState) {
     let theme = model.theme;
     let query = format!("/ {}", state.filter);
-    let hint = "Esc Cancel";
-    let gap = usize::from(area.width).saturating_sub(query.chars().count() + hint.len());
+    let key = text!("key-esc");
+    let cancel = format!(" {}", text::title(id!("action-cancel")));
+    let hint = key.chars().count() + cancel.chars().count();
+    let gap = usize::from(area.width).saturating_sub(query.chars().count() + hint);
     let line = Line::from(vec![
         Span::styled(query.clone(), theme.style(Role::Text)),
         Span::raw(" ".repeat(gap)),
-        Span::styled("Esc", theme.style(Role::Key)),
-        Span::styled(" Cancel", theme.style(Role::Muted)),
+        Span::styled(key, theme.style(Role::Key)),
+        Span::styled(cancel, theme.style(Role::Muted)),
     ]);
     frame.render_widget(Paragraph::new(line), area);
     if state.filtering {

@@ -2218,10 +2218,12 @@ dependencies = [
 name = "zbm-tui"
 version = "0.1.0"
 dependencies = [
+ "fluent-bundle",
  "insta",
  "nucleo-matcher",
  "pretty_assertions",
  "ratatui",
+ "unic-langid",
  "zbm-app",
  "zbm-display",
  "zbm-platform",

@@ -7,11 +7,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
 use super::lists;
-use crate::menu::format::{age, date, fit, size, title_case};
+use crate::menu::format::{age, date, fit, size};
 use crate::menu::keymap::{self, Context};
 use crate::menu::model::{Model, RECOVERY};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, StageState, VolumeState};
+use crate::text::{self, Id, text};
 
 /// Start-up as a checklist (rule 10): each stage with a glyph, and the
 /// step count in the header.
@@ -47,8 +48,8 @@ pub(super) fn startup(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .iter()
         .position(|stage| matches!(stage.state, StageState::Pending | StageState::Running))
         .map_or(stages.len(), |index| index + 1);
-    let count = format!("{current} of {}", stages.len());
-    let block = lists::counted(theme, "Starting ZFSBootMenu", &count);
+    let count = text!("startup-step", current = current, total = stages.len());
+    let block = lists::counted(theme, &text!("startup-title"), &count);
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
@@ -90,8 +91,9 @@ pub(super) fn snapshots(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             Some(line)
         })
         .collect();
-    let header = format!("Snapshots by {}", model.sort.as_str());
-    let empty = ("No Snapshots", "Press n to take one.");
+    let header = text!("snapshots-by", order = text::get(model.sort.id()));
+    let (title, hint) = (text!("snapshots-none"), text!("snapshots-none.text"));
+    let empty = (title.as_str(), hint.as_str());
     let total = (header.as_str(), snapshots.len());
     lists::render(model, frame, area, total, &model.snapshots, rows, empty);
 }
@@ -110,7 +112,10 @@ pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .filter_map(|ranked| {
             let kernel = environment.kernels.get(ranked.index)?;
             let facts = if kernel.is_default {
-                vec![Span::styled("default", theme.style(Role::Default))]
+                vec![Span::styled(
+                    text!("label-default"),
+                    theme.style(Role::Default),
+                )]
             } else {
                 Vec::new()
             };
@@ -123,11 +128,10 @@ pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             ))
         })
         .collect();
-    let empty = (
-        "No Kernels",
-        "This boot environment has no kernel in /boot.",
-    );
-    let total = ("Kernels", environment.kernels.len());
+    let (title, hint) = (text!("kernels-none"), text!("kernels-none.text"));
+    let empty = (title.as_str(), hint.as_str());
+    let header = text!("kernels-title");
+    let total = (header.as_str(), environment.kernels.len());
     lists::render(model, frame, area, total, &model.kernels, rows, empty);
 }
 
@@ -138,18 +142,15 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         return;
     };
     let header = match editor.kernel.as_deref() {
-        Some(kernel) => format!("Command Line with {kernel}"),
-        None => "Command Line".to_owned(),
+        Some(kernel) => text!("command-line-with", kernel = kernel),
+        None => text!("command-line-title"),
     };
     let block = lists::block(theme, &header);
     let inner = block.inner(area);
     let lines = vec![
         Line::from(editor.text.clone()),
         Line::default(),
-        Line::styled(
-            "For this boot only: Enter boots with it, Esc keeps the saved one.",
-            theme.style(Role::Muted),
-        ),
+        Line::styled(text!("command-line-hint"), theme.style(Role::Muted)),
     ];
     frame.render_widget(
         Paragraph::new(lines)
@@ -179,11 +180,10 @@ pub(super) fn pools(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .filter_map(|ranked| pool_row(model, ranked.index, width))
         .collect();
     let total = snapshot.pools.len() + snapshot.volumes.len();
-    let empty = (
-        "No Pools",
-        "No pool was found. Press ! for the recovery shell.",
-    );
-    let header = ("Pools and LUKS Volumes", total);
+    let (title, hint) = (text!("pools-none"), text!("pools-none.text"));
+    let empty = (title.as_str(), hint.as_str());
+    let header = text!("pools-title");
+    let header = (header.as_str(), total);
     lists::render(model, frame, area, header, &model.pools, rows, empty);
 }
 
@@ -199,14 +199,14 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
             Role::Warning
         };
         let mode = match (pool.imported, pool.writable) {
-            (false, _) => "not imported",
-            (true, true) => "read/write",
-            (true, false) => "read-only",
+            (false, _) => text!("pool-not-imported"),
+            (true, true) => text!("pool-read-write"),
+            (true, false) => text!("pool-read-only"),
         };
         let mut facts = Vec::new();
         if let Some(hostid) = &pool.foreign_hostid {
             facts.push(Span::styled(
-                format!("host {hostid}{dot}"),
+                format!("{}{dot}", text!("pool-host", hostid = hostid.as_str())),
                 theme.style(Role::Warning),
             ));
         }
@@ -218,22 +218,25 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
             format!("{:<8}", pool.health.as_str()),
             theme.style(role),
         ));
-        let name = format!("Pool    {}", pool.name);
+        let name = format!("{:<8}{}", text!("pool-label"), pool.name);
         return Some(lists::row(theme, &name, &[], width, facts));
     }
     let volume = snapshot
         .volumes
         .get(index.checked_sub(snapshot.pools.len())?)?;
     let (word, role) = match &volume.state {
-        VolumeState::Open => ("open".to_owned(), Role::Good),
-        VolumeState::Locked => ("locked".to_owned(), Role::Locked),
-        VolumeState::Skipped => ("skipped".to_owned(), Role::Muted),
-        VolumeState::Failed(reason) => (format!("failed: {reason}"), Role::Danger),
+        VolumeState::Open => (text!("volume-open"), Role::Good),
+        VolumeState::Locked => (text!("volume-locked"), Role::Locked),
+        VolumeState::Skipped => (text!("volume-skipped"), Role::Muted),
+        VolumeState::Failed(reason) => (
+            text!("volume-failed", reason = reason.as_str()),
+            Role::Danger,
+        ),
     };
     let mut facts = Vec::new();
     if volume.tpm2.as_ref().is_some_and(|seal| !seal.is_current()) {
         facts.push(Span::styled(
-            format!("TPM2 changed{dot}"),
+            format!("{}{dot}", text!("volume-tpm2-changed")),
             theme.style(Role::Warning),
         ));
     }
@@ -242,7 +245,7 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
         theme.style(Role::Muted),
     ));
     facts.push(Span::styled(format!("{word:<8}"), theme.style(role)));
-    let name = format!("Volume  {}", volume.name);
+    let name = format!("{:<8}{}", text!("volume-label"), volume.name);
     Some(lists::row(theme, &name, &[], width, facts))
 }
 
@@ -253,10 +256,12 @@ pub(super) fn recovery(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .matches
         .iter()
         .filter_map(|ranked| RECOVERY.get(ranked.index))
-        .map(|(label, _)| Line::from(title_case(label)))
+        .map(|(label, _)| Line::from(text::title(*label)))
         .collect();
-    let empty = ("No Tools", "");
-    let total = ("Recovery Tools", RECOVERY.len());
+    let title = text!("recovery-none");
+    let empty = (title.as_str(), "");
+    let header = text!("recovery-title");
+    let total = (header.as_str(), RECOVERY.len());
     lists::render(model, frame, area, total, &model.recovery, rows, empty);
 }
 
@@ -270,9 +275,13 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .iter()
         .map(|entry| {
             let (glyph, word, role) = match entry.level {
-                Level::Info => (" ", "info", Role::Muted),
-                Level::Warning => (theme.glyph(Glyph::Warning), "warning", Role::Warning),
-                Level::Error => (theme.glyph(Glyph::Failed), "error", Role::Danger),
+                Level::Info => (" ", text!("log-info"), Role::Muted),
+                Level::Warning => (
+                    theme.glyph(Glyph::Warning),
+                    text!("log-warning"),
+                    Role::Warning,
+                ),
+                Level::Error => (theme.glyph(Glyph::Failed), text!("log-error"), Role::Danger),
             };
             Line::from(vec![
                 Span::styled(format!("{glyph} {word:<8}"), theme.style(role)),
@@ -281,7 +290,7 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         })
         .collect();
     let count = date(model.snapshot.now);
-    let block = lists::counted(theme, "Log Since Start", &count);
+    let block = lists::counted(theme, &text!("log-title"), &count);
     let paragraph = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
         .block(block);
@@ -293,37 +302,31 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
 pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Context) {
     let theme = model.theme;
     let mut lines = Vec::new();
-    let mut section = |title: &str, rows: Vec<(String, &str)>| {
+    let mut section = |title: String, rows: Vec<(String, Id)>| {
         if rows.is_empty() {
             return;
         }
         if !lines.is_empty() {
             lines.push(Line::default());
         }
-        lines.push(Line::styled(
-            title.to_uppercase(),
-            theme.style(Role::Header),
-        ));
+        lines.push(Line::styled(title, theme.style(Role::Header)));
         for (keys, what) in rows {
             lines.push(Line::from(vec![
                 Span::styled(format!("{keys:>16}  "), theme.style(Role::Key)),
-                Span::raw(title_case(what)),
+                Span::raw(text::title(what)),
             ]));
         }
     };
-    section("This View", keymap::help(context));
-    section(
-        "Classic Bindings (MOD is Alt or Ctrl)",
-        keymap::classic_bindings(context),
-    );
+    section(text!("help-this-view"), keymap::help(context));
+    section(text!("help-classic"), keymap::classic_bindings(context));
     let shown = usize::from(area.height.saturating_sub(2));
     let scroll = model.scroll.min(lines.len().saturating_sub(shown));
     let header = if lines.len() > shown {
-        "Keys, Up/Down to Scroll"
+        text!("help-keys-scroll")
     } else {
-        "Keys"
+        text!("help-keys")
     };
-    let block = lists::block(theme, header);
+    let block = lists::block(theme, &header);
     frame.render_widget(
         Paragraph::new(lines)
             .block(block)

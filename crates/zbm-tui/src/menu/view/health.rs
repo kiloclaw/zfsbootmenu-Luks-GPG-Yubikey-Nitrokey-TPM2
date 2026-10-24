@@ -8,49 +8,95 @@ use crate::menu::format::fit;
 use crate::menu::model::Model;
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::world::{Environment, Target, Verdict, worst};
+use crate::text::text;
 
 /// The banner: its forms, longest first, and its role; `None` when there
 /// is nothing to say.
 pub(super) fn banner(model: &Model) -> Option<(Vec<String>, Role)> {
     let seconds = model.countdown_seconds();
+    let spaced = |forms: Vec<String>| forms.into_iter().map(|form| format!(" {form}")).collect();
     if let Some(fallback) = &model.snapshot.fallback {
-        let failed = &fallback.failed;
+        let failed = fallback.failed.to_string();
         let attempts = fallback.attempts;
         let Some(seconds) = seconds else {
             let forms = vec![
-                format!(" {failed} failed to start {attempts} times; its boot tries are used up."),
-                format!(" {failed} failed to start {attempts} times."),
+                text!(
+                    "banner-used-up",
+                    failed = failed.as_str(),
+                    attempts = attempts
+                ),
+                text!(
+                    "banner-used-up.short",
+                    failed = failed.as_str(),
+                    attempts = attempts
+                ),
             ];
-            return Some((forms, Role::Warning));
+            return Some((spaced(forms), Role::Warning));
         };
         let target = match &fallback.target {
-            Target::Environment(name) => format!("{name}, the last good one"),
-            Target::Snapshot(name) => format!("a clone of {}", name.name()),
+            Target::Environment(name) => {
+                text!(
+                    "fallback-target-environment",
+                    environment = name.to_string()
+                )
+            }
+            Target::Snapshot(name) => text!("fallback-target-clone", snapshot = name.name()),
         };
         let forms = vec![
-            format!(" {failed} failed to start {attempts} times. Booting {target} in {seconds} s."),
-            format!(" {failed} failed {attempts} times. Booting {target} in {seconds} s."),
-            format!(" {failed} failed {attempts} times. Fallback in {seconds} s."),
-            format!(" Fallback in {seconds} s."),
+            text!(
+                "banner-fallback",
+                failed = failed.as_str(),
+                attempts = attempts,
+                target = target.as_str(),
+                seconds = seconds
+            ),
+            text!(
+                "banner-fallback.shorter",
+                failed = failed.as_str(),
+                attempts = attempts,
+                target = target.as_str(),
+                seconds = seconds
+            ),
+            text!(
+                "banner-fallback.short",
+                failed = failed.as_str(),
+                attempts = attempts,
+                seconds = seconds
+            ),
+            text!("banner-fallback.shortest", seconds = seconds),
         ];
-        return Some((forms, Role::Warning));
+        return Some((spaced(forms), Role::Warning));
     }
     let seconds = seconds?;
-    let name = &model.selected_environment()?.name;
-    if model.snapshot.next_boot.as_ref() == Some(name) {
-        let forms = vec![
-            format!(" Booting {name} once, as the running system asked, in {seconds} s."),
-            format!(" Booting {name} once in {seconds} s."),
-            format!(" Booting in {seconds} s."),
-        ];
-        return Some((forms, Role::Accent));
-    }
-    let forms = vec![
-        format!(" Booting {name} in {seconds} s. Press any key to choose another."),
-        format!(" Booting {name} in {seconds} s."),
-        format!(" Booting in {seconds} s."),
-    ];
-    Some((forms, Role::Accent))
+    let selected = &model.selected_environment()?.name;
+    let name = selected.to_string();
+    let environment = name.as_str();
+    let forms = if model.snapshot.next_boot.as_ref() == Some(selected) {
+        vec![
+            text!("banner-once", environment = environment, seconds = seconds),
+            text!(
+                "banner-once.short",
+                environment = environment,
+                seconds = seconds
+            ),
+            text!("banner-once.shortest", seconds = seconds),
+        ]
+    } else {
+        vec![
+            text!(
+                "banner-countdown",
+                environment = environment,
+                seconds = seconds
+            ),
+            text!(
+                "banner-countdown.short",
+                environment = environment,
+                seconds = seconds
+            ),
+            text!("banner-countdown.shortest", seconds = seconds),
+        ]
+    };
+    Some((spaced(forms), Role::Accent))
 }
 
 /// The banner's `text` as a line. A countdown is plain text with the
@@ -67,9 +113,9 @@ pub(super) fn banner_line(model: &Model, text: &str, role: Role) -> Line<'static
         marks.push((environment.name.to_string(), Role::Title));
     }
     if let Some(seconds) = model.countdown_seconds() {
-        marks.push((format!("{seconds} s"), Role::Accent));
+        marks.push((text!("countdown-seconds", seconds = seconds), Role::Accent));
     }
-    marks.push(("Press any key to choose another.".to_owned(), Role::Muted));
+    marks.push((text!("countdown-hint"), Role::Muted));
     emphasised(theme, text, &marks)
 }
 
@@ -100,18 +146,17 @@ pub(super) fn badges(model: &Model, environment: &Environment) -> Vec<Span<'stat
     let theme = model.theme;
     let mut badges = Vec::new();
     if let Some((verdict, count)) = worst(&environment.checks) {
-        let (noun, role) = match verdict {
-            Verdict::Failure => ("problem", Role::Danger),
-            _ => ("warning", Role::Warning),
+        let (badge, role) = match verdict {
+            Verdict::Failure => (text!("badge-problems", count = count), Role::Danger),
+            _ => (text!("badge-warnings", count = count), Role::Warning),
         };
-        let plural = if count == 1 { "" } else { "s" };
-        badges.push(Span::styled(
-            format!("{count} {noun}{plural}  "),
-            theme.style(role),
-        ));
+        badges.push(Span::styled(format!("{badge}  "), theme.style(role)));
     }
     if model.snapshot.next_boot.as_ref() == Some(&environment.name) {
-        badges.push(Span::styled("next boot  ", theme.style(Role::Accent)));
+        badges.push(Span::styled(
+            format!("{}  ", text!("badge-next-boot")),
+            theme.style(Role::Accent),
+        ));
     }
     badges
 }
@@ -127,18 +172,17 @@ fn mark(theme: Theme, verdict: Verdict) -> (&'static str, Role) {
 
 /// The inspector's facts on boot health: the checks in one line, boot
 /// counting, the one-time boot; as (label, value).
-pub(super) fn facts(
-    model: &Model,
-    environment: &Environment,
-) -> Vec<(&'static str, Vec<Span<'static>>)> {
+pub(super) fn facts(model: &Model, environment: &Environment) -> Vec<(String, Vec<Span<'static>>)> {
     let theme = model.theme;
     let checks = &environment.checks;
     let summary = match worst(checks) {
-        _ if checks.is_empty() => vec![Span::styled("not checked", theme.style(Role::Muted))],
+        _ if checks.is_empty() => {
+            vec![Span::styled(text!("checks-none"), theme.style(Role::Muted))]
+        }
         None => {
             let (glyph, role) = mark(theme, Verdict::Pass);
             vec![Span::styled(
-                format!("{glyph} all {} passed", checks.len()),
+                format!("{glyph} {}", text!("checks-passed", count = checks.len())),
                 theme.style(role),
             )]
         }
@@ -154,21 +198,26 @@ pub(super) fn facts(
             )]
         }
     };
-    let mut facts = vec![("Checks", summary)];
+    let mut facts = vec![(text!("fact-checks"), summary)];
     if let Some(tries) = environment.tries {
         let role = if tries.left == 0 {
             Role::Danger
         } else {
             Role::Muted
         };
-        let text = format!("{} of {} left", tries.left, tries.total);
-        facts.push(("Boot Tries", vec![Span::styled(text, theme.style(role))]));
+        let left = text!("tries-left", left = tries.left, total = tries.total);
+        facts.push((
+            text!("fact-boot-tries"),
+            vec![Span::styled(left, theme.style(role))],
+        ));
     }
     if model.snapshot.next_boot.as_ref() == Some(&environment.name) {
-        let text = "once, as the running system asked";
         facts.push((
-            "Next Boot",
-            vec![Span::styled(text, theme.style(Role::Accent))],
+            text!("fact-next-boot"),
+            vec![Span::styled(
+                text!("next-boot-once"),
+                theme.style(Role::Accent),
+            )],
         ));
     }
     facts
@@ -182,7 +231,10 @@ pub(super) fn check_lines(
     width: usize,
 ) -> Vec<Line<'static>> {
     let theme = model.theme;
-    let mut lines = vec![Line::styled("CHECKS", theme.style(Role::Header))];
+    let mut lines = vec![Line::styled(
+        text!("details-checks"),
+        theme.style(Role::Header),
+    )];
     for check in &environment.checks {
         let (glyph, role) = mark(theme, check.verdict);
         let text = fit(

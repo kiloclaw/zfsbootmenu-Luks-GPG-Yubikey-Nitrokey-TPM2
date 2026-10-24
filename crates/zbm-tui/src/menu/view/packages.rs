@@ -8,10 +8,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
 use super::lists;
-use crate::menu::format::{capitalised, fit};
+use crate::menu::format::fit;
 use crate::menu::model::{DiffView, Model};
 use crate::menu::theme::{Role, Theme};
 use crate::menu::world::{PackageChange, PackageKind};
+use crate::text::text;
 
 /// The style of what happened to a package.
 fn role(kind: PackageKind) -> Role {
@@ -46,18 +47,24 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
             Some(line)
         })
         .collect();
+    let snapshot = diff.from.name();
     let header = match &diff.packages {
-        Some(packages) => format!("{} Packages since {}", packages.manager, diff.from.name()),
-        None => format!("Packages since {}", diff.from.name()),
+        Some(packages) => text!(
+            "packages-since.manager",
+            manager = packages.manager.to_string(),
+            snapshot = snapshot
+        ),
+        None => text!("packages-since", snapshot = snapshot),
     };
-    let empty = if diff.packages.is_some() {
-        ("No Package Changes", "The snapshot has the same packages.")
+    let (title, hint) = if diff.packages.is_some() {
+        (text!("packages-none"), text!("packages-none.text"))
     } else {
         (
-            "No Package Database",
-            "No xbps, dpkg, pacman or rpm database was found in the snapshot.",
+            text!("packages-no-database"),
+            text!("packages-no-database.text"),
         )
     };
+    let empty = (title.as_str(), hint.as_str());
     let total = (header.as_str(), packages.len());
     lists::render(model, frame, area, total, &diff.package_list, rows, empty);
 }
@@ -65,27 +72,36 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
 /// The preview of the selected package: what happened, and its files.
 pub(super) fn render_preview(theme: Theme, frame: &mut Frame<'_>, area: Rect, diff: &DiffView) {
     let Some(package) = diff.selected_package() else {
-        frame.render_widget(lists::block(theme, "Package"), area);
+        frame.render_widget(lists::block(theme, &text!("package-title")), area);
         return;
     };
-    let block = lists::counted(theme, "Package", package.kind.as_str());
+    let block = lists::counted(theme, &text!("package-title"), &kind_word(package.kind));
     let paragraph = Paragraph::new(preview_lines(theme, package))
         .wrap(Wrap { trim: false })
         .block(block);
     frame.render_widget(paragraph, area);
 }
 
+/// What happened to a package, in a word.
+fn kind_word(kind: PackageKind) -> String {
+    match kind {
+        PackageKind::Installed => text!("package-installed"),
+        PackageKind::Removed => text!("package-removed"),
+        PackageKind::Upgraded => text!("package-upgraded"),
+        PackageKind::Downgraded => text!("package-downgraded"),
+    }
+}
+
 /// What happened to `package`, how to undo it, and its changed files.
 fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
     let ascii = theme.is_ascii();
     let versions = package.versions(ascii);
+    let versions = versions.as_str();
     let what = match package.kind {
-        PackageKind::Installed => format!("Installed since the snapshot: {versions}."),
-        PackageKind::Removed => format!(
-            "Removed since the snapshot, which has {versions}. Booting a clone of the \
-             snapshot, or rolling back, brings it back with its package record."
-        ),
-        kind => format!("{} {versions}.", capitalised(kind.as_str())),
+        PackageKind::Installed => text!("package-installed.since", versions = versions),
+        PackageKind::Removed => text!("package-removed.since", versions = versions),
+        PackageKind::Upgraded => text!("package-upgraded.since", versions = versions),
+        PackageKind::Downgraded => text!("package-downgraded.since", versions = versions),
     };
     let mut lines = vec![
         Line::styled(package.name.clone(), theme.style(Role::Title)),
@@ -93,13 +109,16 @@ fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
     ];
     if package.files.is_empty() {
         lines.push(Line::styled(
-            "None of the files that changed belongs to it.",
+            text!("package-no-files"),
             theme.style(Role::Muted),
         ));
         return lines;
     }
     lines.push(Line::default());
-    lines.push(Line::styled("CHANGED FILES", theme.style(Role::Header)));
+    lines.push(Line::styled(
+        text!("package-changed-files"),
+        theme.style(Role::Header),
+    ));
     lines.extend(
         package
             .files
@@ -107,7 +126,7 @@ fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
             .map(|file| Line::styled(format!("  {file}"), theme.style(Role::Text))),
     );
     lines.push(Line::styled(
-        "Enter shows them among the files.",
+        text!("package-files-hint"),
         theme.style(Role::Muted),
     ));
     lines

@@ -43,7 +43,7 @@ fn snapshots_sort_by_name_creation_or_size() {
     assert_eq!(newest, "pre-upgrade");
     assert_eq!(largest, "pre-upgrade");
     assert_eq!(Sort::Size.next(), Sort::Name);
-    assert_eq!(Sort::Creation.as_str(), "creation");
+    assert_eq!(crate::text::get(Sort::Creation.id()), "creation");
 }
 
 #[test]

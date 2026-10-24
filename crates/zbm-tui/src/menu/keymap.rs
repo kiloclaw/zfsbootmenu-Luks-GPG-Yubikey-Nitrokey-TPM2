@@ -8,6 +8,8 @@
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+use crate::text::{self, Id, id, text};
+
 /// Where the focus is: which bindings apply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Context {
@@ -157,6 +159,17 @@ impl Scope {
     }
 }
 
+/// How a binding shows in the toolbar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Footer {
+    /// Not at all: an alternative key, which the help view still lists.
+    Hidden,
+    /// As the name of its key.
+    Key,
+    /// As this text, for a pair of keys (`Up/Down`).
+    Keys(Id),
+}
+
 /// A key binding.
 #[derive(Clone, Copy, Debug)]
 pub struct Binding {
@@ -168,9 +181,8 @@ pub struct Binding {
     pub scope: Scope,
     /// What it asks for.
     pub intent: Intent,
-    /// The key as the footer shows it; `None` keeps it out of the footer
-    /// (an alternative key), and the help view still lists it.
-    pub footer: Option<&'static str>,
+    /// How the toolbar shows it.
+    pub footer: Footer,
 }
 
 const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -182,7 +194,7 @@ const fn bind(
     modifiers: KeyModifiers,
     scope: Scope,
     intent: Intent,
-    footer: Option<&'static str>,
+    footer: Footer,
 ) -> Binding {
     Binding {
         code,
@@ -194,18 +206,13 @@ const fn bind(
 }
 
 /// A plain key bound in some views, shown in the footer as itself.
-const fn key(
-    c: char,
-    footer: &'static str,
-    contexts: &'static [Context],
-    intent: Intent,
-) -> Binding {
+const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
     bind(
         KeyCode::Char(c),
         NONE,
         Scope::Only(contexts),
         intent,
-        Some(footer),
+        Footer::Key,
     )
 }
 
@@ -237,157 +244,181 @@ pub const KEYMAP: &[Binding] = &[
         NONE,
         Scope::Everywhere,
         Intent::Primary,
-        Some("Enter"),
+        Footer::Key,
     ),
     bind(
         KeyCode::Char('b'),
         NONE,
         Scope::Only(&[Main, Kernels, Snapshots]),
         Intent::Boot,
-        None,
+        Footer::Hidden,
     ),
-    key('k', "k", &[Main], Intent::Kernels),
-    key('s', "s", &[Main], Intent::Snapshots),
-    key('e', "e", &[Main, Kernels], Intent::Edit),
-    key('r', "r", &[Snapshots], Intent::Rollback),
-    key('c', "c", &[Snapshots], Intent::Clone),
-    key('u', "u", &[Pools], Intent::Unlock),
-    key('i', "i", &[Pools], Intent::Import),
-    key('d', "d", &[Main, Kernels], Intent::SetDefault),
-    key('p', "p", &[Main], Intent::Pools),
-    key('f', "f", &[Snapshots], Intent::Diff),
+    key('k', &[Main], Intent::Kernels),
+    key('s', &[Main], Intent::Snapshots),
+    key('e', &[Main, Kernels], Intent::Edit),
+    key('r', &[Snapshots], Intent::Rollback),
+    key('c', &[Snapshots], Intent::Clone),
+    key('u', &[Pools], Intent::Unlock),
+    key('i', &[Pools], Intent::Import),
+    key('d', &[Main, Kernels], Intent::SetDefault),
+    key('p', &[Main], Intent::Pools),
+    key('f', &[Snapshots], Intent::Diff),
     bind(
         KeyCode::Right,
         NONE,
         Scope::Only(CHANGES),
         Intent::Segment,
-        Some("Left/Right"),
+        Footer::Keys(id!("keys-left-right")),
     ),
     bind(
         KeyCode::Left,
         NONE,
         Scope::Only(CHANGES),
         Intent::Segment,
-        None,
+        Footer::Hidden,
     ),
-    key('y', "y", &[Snapshots], Intent::Duplicate),
-    key('m', "m", &[Snapshots], Intent::CloneAndPromote),
-    key('n', "n", &[Main, Snapshots], Intent::NewSnapshot),
-    key('w', "w", &[Main, Pools], Intent::ReadWrite),
-    key('h', "h", &[Pools], Intent::Rewind),
-    key('j', "j", &[Main, Snapshots], Intent::Chroot),
+    key('y', &[Snapshots], Intent::Duplicate),
+    key('m', &[Snapshots], Intent::CloneAndPromote),
+    key('n', &[Main, Snapshots], Intent::NewSnapshot),
+    key('w', &[Main, Pools], Intent::ReadWrite),
+    key('h', &[Pools], Intent::Rewind),
+    key('j', &[Main, Snapshots], Intent::Chroot),
     bind(
         KeyCode::Char('/'),
         NONE,
         Scope::Only(LISTS),
         Intent::Filter,
-        Some("/"),
+        Footer::Key,
     ),
     bind(
         KeyCode::Char(':'),
         NONE,
         Scope::Only(ALL_VIEWS),
         Intent::Palette,
-        Some(":"),
+        Footer::Key,
     ),
-    key('o', "o", &[Main, Snapshots], Intent::Sort),
-    key('l', "l", ALL_VIEWS, Intent::Log),
-    key('!', "!", ALL_VIEWS, Intent::Recovery),
-    key('x', "x", ALL_VIEWS, Intent::Power),
+    key('o', &[Main, Snapshots], Intent::Sort),
+    key('l', ALL_VIEWS, Intent::Log),
+    key('!', ALL_VIEWS, Intent::Recovery),
+    key('x', ALL_VIEWS, Intent::Power),
     bind(
         KeyCode::Char('?'),
         NONE,
         Scope::Only(ALL_VIEWS),
         Intent::Help,
-        Some("?"),
+        Footer::Key,
     ),
-    bind(KeyCode::F(1), NONE, Scope::Everywhere, Intent::Help, None),
+    bind(
+        KeyCode::F(1),
+        NONE,
+        Scope::Everywhere,
+        Intent::Help,
+        Footer::Hidden,
+    ),
     bind(
         KeyCode::Esc,
         NONE,
         Scope::Everywhere,
         Intent::Back,
-        Some("Esc"),
+        Footer::Key,
     ),
     bind(
         KeyCode::Char('c'),
         CTRL,
         Scope::Everywhere,
         Intent::Back,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::Char(' '),
         NONE,
         Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
-        Some("Space"),
+        Footer::Key,
     ),
     bind(
         KeyCode::Tab,
         NONE,
         Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::Up,
         NONE,
         Scope::Everywhere,
         Intent::Up,
-        Some("Up/Down"),
+        Footer::Keys(id!("keys-up-down")),
     ),
-    bind(KeyCode::Down, NONE, Scope::Everywhere, Intent::Down, None),
+    bind(
+        KeyCode::Down,
+        NONE,
+        Scope::Everywhere,
+        Intent::Down,
+        Footer::Hidden,
+    ),
     bind(
         KeyCode::Char('p'),
         CTRL,
         Scope::Everywhere,
         Intent::Up,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::Char('n'),
         CTRL,
         Scope::Everywhere,
         Intent::Down,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::PageUp,
         NONE,
         Scope::Everywhere,
         Intent::PageUp,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::PageDown,
         NONE,
         Scope::Everywhere,
         Intent::PageDown,
-        None,
+        Footer::Hidden,
     ),
-    bind(KeyCode::Home, NONE, Scope::Views, Intent::First, None),
-    bind(KeyCode::End, NONE, Scope::Views, Intent::Last, None),
+    bind(
+        KeyCode::Home,
+        NONE,
+        Scope::Views,
+        Intent::First,
+        Footer::Hidden,
+    ),
+    bind(
+        KeyCode::End,
+        NONE,
+        Scope::Views,
+        Intent::Last,
+        Footer::Hidden,
+    ),
     bind(
         KeyCode::Char('l'),
         CTRL,
         Scope::Everywhere,
         Intent::Redraw,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::Char('k'),
         CTRL,
         Scope::Only(TEXT),
         Intent::Layout,
-        None,
+        Footer::Hidden,
     ),
     bind(
         KeyCode::Char('r'),
         CTRL,
         Scope::Only(TEXT),
         Intent::Reveal,
-        None,
+        Footer::Hidden,
     ),
 ];
 
@@ -426,64 +457,74 @@ fn text(event: KeyEvent) -> Option<Input> {
     }
 }
 
-/// What the footer says for an intent in a context.
-pub fn describe(context: Context, intent: Intent) -> &'static str {
+/// What a key does for an intent in a context, as the toolbar and the
+/// help view say it: a message of the catalogue with a `.title`.
+pub fn describe(context: Context, intent: Intent) -> Id {
     match (context, intent) {
-        (Main | Kernels, Intent::Primary) | (_, Intent::Boot) => "boot",
-        (Snapshots | Context::Choose, Intent::Primary) => "choose",
-        (Pools, Intent::Primary) => "details",
-        (Diff, Intent::Primary) => "restore",
-        (Packages, Intent::Primary) => "show files",
-        (Recovery, Intent::Primary) => "run",
-        (Startup | Context::Text, Intent::Primary) => "confirm",
-        (Context::Choose | Context::Text, Intent::Back) => "cancel",
-        (_, Intent::Back) => "back",
-        (_, Intent::Kernels) => "kernels",
-        (_, Intent::Snapshots) => "snapshots",
-        (_, Intent::Edit) => "edit",
-        (_, Intent::SetDefault) => "default",
-        (_, Intent::Pools) => "pools",
-        (_, Intent::ReadWrite) => "read/write",
-        (_, Intent::Chroot) => "chroot",
-        (_, Intent::Sort) => "sort",
-        (_, Intent::Log) => "log",
-        (_, Intent::Recovery) => "recovery",
-        (_, Intent::Power) => "power",
-        (_, Intent::Rollback) => "roll back",
-        (_, Intent::Clone) => "clone",
-        (_, Intent::CloneAndPromote) => "clone+promote",
-        (_, Intent::Duplicate) => "duplicate",
-        (_, Intent::NewSnapshot) => "snapshot",
-        (_, Intent::Diff) => "diff",
-        (_, Intent::Mark) => "mark",
-        (_, Intent::Unlock) => "unlock",
-        (_, Intent::Import) => "import",
-        (_, Intent::Rewind) => "rewind",
-        (_, Intent::Filter) => "filter",
-        (_, Intent::Palette) => "commands",
-        (_, Intent::Help) => "help",
-        (Context::Help | Context::Log, Intent::Up | Intent::Down) => "scroll",
-        (_, Intent::Primary | Intent::Up | Intent::Down) => "select",
-        (_, Intent::PageUp | Intent::PageDown | Intent::First | Intent::Last) => "move",
-        (_, Intent::Redraw) => "redraw",
-        (_, Intent::RevertCommandLine) => "revert",
-        (_, Intent::Shell) => "shell",
-        (_, Intent::InheritDefault) => "inherit",
-        (_, Intent::Layout) => "keyboard layout",
-        (_, Intent::Reveal) => "show what is typed",
-        (_, Intent::Segment) => "files/packages",
+        (Main | Kernels, Intent::Primary) | (_, Intent::Boot) => id!("action-boot"),
+        (Snapshots | Context::Choose, Intent::Primary) => id!("action-choose"),
+        (Pools, Intent::Primary) => id!("action-details"),
+        (Diff, Intent::Primary) => id!("action-restore"),
+        (Packages, Intent::Primary) => id!("action-show-files"),
+        (Recovery, Intent::Primary) => id!("action-run"),
+        (Startup | Context::Text, Intent::Primary) => id!("action-confirm"),
+        (Context::Choose | Context::Text, Intent::Back) => id!("action-cancel"),
+        (_, Intent::Back) => id!("action-back"),
+        (_, Intent::Kernels) => id!("action-kernels"),
+        (_, Intent::Snapshots) => id!("action-snapshots"),
+        (_, Intent::Edit) => id!("action-edit"),
+        (_, Intent::SetDefault) => id!("action-default"),
+        (_, Intent::Pools) => id!("action-pools"),
+        (_, Intent::ReadWrite) => id!("action-read-write"),
+        (_, Intent::Chroot) => id!("action-chroot"),
+        (_, Intent::Sort) => id!("action-sort"),
+        (_, Intent::Log) => id!("action-log"),
+        (_, Intent::Recovery) => id!("action-recovery"),
+        (_, Intent::Power) => id!("action-power"),
+        (_, Intent::Rollback) => id!("action-roll-back"),
+        (_, Intent::Clone) => id!("action-clone"),
+        (_, Intent::CloneAndPromote) => id!("action-clone-promote"),
+        (_, Intent::Duplicate) => id!("action-duplicate"),
+        (_, Intent::NewSnapshot) => id!("action-snapshot"),
+        (_, Intent::Diff) => id!("action-diff"),
+        (_, Intent::Mark) => id!("action-mark"),
+        (_, Intent::Unlock) => id!("action-unlock"),
+        (_, Intent::Import) => id!("action-import"),
+        (_, Intent::Rewind) => id!("action-rewind"),
+        (_, Intent::Filter) => id!("action-filter"),
+        (_, Intent::Palette) => id!("action-commands"),
+        (_, Intent::Help) => id!("action-help"),
+        (Context::Help | Context::Log, Intent::Up | Intent::Down) => id!("action-scroll"),
+        (_, Intent::Primary | Intent::Up | Intent::Down) => id!("action-select"),
+        (_, Intent::PageUp | Intent::PageDown | Intent::First | Intent::Last) => {
+            id!("action-move")
+        }
+        (_, Intent::Redraw) => id!("action-redraw"),
+        (_, Intent::RevertCommandLine) => id!("action-revert"),
+        (_, Intent::Shell) => id!("action-shell"),
+        (_, Intent::InheritDefault) => id!("action-inherit"),
+        (_, Intent::Layout) => id!("action-keyboard-layout"),
+        (_, Intent::Reveal) => id!("action-show-typed"),
+        (_, Intent::Segment) => id!("action-segment"),
     }
 }
 
-/// The bindings of `context` shown in the footer, in order: (key, what it
-/// does).
-pub fn bindings(context: Context) -> Vec<(&'static str, &'static str)> {
+/// The bindings of `context` shown in the toolbar, in order: (intent, key,
+/// what it does).
+pub fn bindings(context: Context) -> Vec<(Intent, String, Id)> {
     let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
     KEYMAP
         .iter()
         .filter(|binding| binding.scope.contains(context))
         .filter(|binding| !(idle && binding.intent == Intent::Primary))
-        .filter_map(|binding| Some((binding.footer?, describe(context, binding.intent))))
+        .filter_map(|binding| {
+            let key = match binding.footer {
+                Footer::Hidden => return None,
+                Footer::Key => key_name(binding.code, binding.modifiers),
+                Footer::Keys(id) => text::get(id),
+            };
+            Some((binding.intent, key, describe(context, binding.intent)))
+        })
         .collect()
 }
 
@@ -493,55 +534,81 @@ pub const TOOLBAR: usize = 5;
 /// The space between toolbar items.
 pub const TOOLBAR_GAP: usize = 3;
 
-/// The toolbar of `context` for a screen `width` columns wide, as (key,
-/// what): at most [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the
-/// most important first; then `? more`, which opens help with every key,
-/// wherever help can be opened.
-pub fn footer(context: Context, width: usize) -> Vec<(&'static str, &'static str)> {
+/// An action of the toolbar.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Tool {
+    /// Its key.
+    pub key: String,
+    /// What it does, as a title.
+    pub label: String,
+    /// Whether it is `? More`, which opens help with every key.
+    pub is_more: bool,
+}
+
+impl Tool {
+    /// The columns it takes: its key, a space and its label.
+    pub fn width(&self) -> usize {
+        self.key.chars().count() + 1 + self.label.chars().count()
+    }
+}
+
+/// The toolbar of `context` for a screen `width` columns wide: at most
+/// [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the most important
+/// first; then `? More`, which opens help with every key, wherever help can
+/// be opened.
+pub fn footer(context: Context, width: usize) -> Vec<Tool> {
     let all = bindings(context);
-    let more = all.iter().any(|(key, _)| *key == "?");
-    let mut used = if more {
-        "? More".len() + TOOLBAR_GAP
-    } else {
-        0
-    };
+    let more = all
+        .iter()
+        .find(|(intent, ..)| *intent == Intent::Help)
+        .map(|(_, key, _)| Tool {
+            key: key.clone(),
+            label: text::title(id!("action-more")),
+            is_more: true,
+        });
+    let mut used = more.as_ref().map_or(0, |more| more.width() + TOOLBAR_GAP);
     let mut shown = Vec::new();
-    for (key, help) in all.into_iter().filter(|(key, _)| *key != "?") {
-        let length = key.len() + 1 + help.len();
+    for (_, key, what) in all
+        .into_iter()
+        .filter(|(intent, ..)| *intent != Intent::Help)
+    {
+        let tool = Tool {
+            key,
+            label: text::title(what),
+            is_more: false,
+        };
         let gap = if shown.is_empty() { 0 } else { TOOLBAR_GAP };
-        if shown.len() == TOOLBAR || used + gap + length > width {
+        if shown.len() == TOOLBAR || used + gap + tool.width() > width {
             break;
         }
-        used += gap + length;
-        shown.push((key, help));
+        used += gap + tool.width();
+        shown.push(tool);
     }
-    if more && "? More".len() <= width {
-        shown.push(("?", "more"));
-    }
+    shown.extend(more.filter(|more| more.width() <= width));
     shown
 }
 
 /// The name of a key, as the help view shows it.
 pub fn key_name(code: KeyCode, modifiers: KeyModifiers) -> String {
     let name = match code {
-        KeyCode::Enter => "Enter".to_owned(),
-        KeyCode::Esc => "Esc".to_owned(),
-        KeyCode::Tab => "Tab".to_owned(),
-        KeyCode::Up => "Up".to_owned(),
-        KeyCode::Down => "Down".to_owned(),
-        KeyCode::Left => "Left".to_owned(),
-        KeyCode::Right => "Right".to_owned(),
-        KeyCode::PageUp => "PgUp".to_owned(),
-        KeyCode::PageDown => "PgDn".to_owned(),
-        KeyCode::Home => "Home".to_owned(),
-        KeyCode::End => "End".to_owned(),
-        KeyCode::F(n) => format!("F{n}"),
-        KeyCode::Char(' ') => "Space".to_owned(),
+        KeyCode::Enter => text!("key-enter"),
+        KeyCode::Esc => text!("key-esc"),
+        KeyCode::Tab => text!("key-tab"),
+        KeyCode::Up => text!("key-up"),
+        KeyCode::Down => text!("key-down"),
+        KeyCode::Left => text!("key-left"),
+        KeyCode::Right => text!("key-right"),
+        KeyCode::PageUp => text!("key-page-up"),
+        KeyCode::PageDown => text!("key-page-down"),
+        KeyCode::Home => text!("key-home"),
+        KeyCode::End => text!("key-end"),
+        KeyCode::F(number) => text!("key-function", number = number),
+        KeyCode::Char(' ') => text!("key-space"),
         KeyCode::Char(c) => c.to_string(),
         other => format!("{other:?}"),
     };
     if modifiers.contains(KeyModifiers::CONTROL) {
-        format!("Ctrl-{}", name.to_ascii_uppercase())
+        text!("key-ctrl", key = name.to_uppercase())
     } else {
         name
     }
@@ -549,7 +616,7 @@ pub fn key_name(code: KeyCode, modifiers: KeyModifiers) -> String {
 
 /// Every binding of `context` for the help view, the keys of one intent
 /// together: (keys, what they do).
-pub fn help(context: Context) -> Vec<(String, &'static str)> {
+pub fn help(context: Context) -> Vec<(String, Id)> {
     let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
     for binding in KEYMAP
         .iter()

@@ -13,6 +13,7 @@ use super::filter::Ranked;
 use super::keymap::Context;
 use super::theme::Theme;
 use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
+use crate::text::{self, Id, id};
 
 /// The views (`docs/dev/menu-design/information-architecture.md`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,12 +63,12 @@ impl Sort {
         }
     }
 
-    /// Its name.
-    pub fn as_str(self) -> &'static str {
+    /// Its name in the catalogue.
+    pub fn id(self) -> Id {
         match self {
-            Sort::Name => "name",
-            Sort::Creation => "creation",
-            Sort::Size => "size",
+            Sort::Name => id!("sort-name"),
+            Sort::Creation => id!("sort-creation"),
+            Sort::Size => id!("sort-size"),
         }
     }
 }
@@ -322,7 +323,8 @@ impl Model {
         refilter(&mut self.kernels, kernels.iter().map(String::as_str));
         let pools = self.pool_rows();
         refilter(&mut self.pools, pools.iter().map(String::as_str));
-        refilter(&mut self.recovery, RECOVERY.iter().map(|(label, _)| *label));
+        let tools: Vec<String> = RECOVERY.iter().map(|(tool, _)| text::get(*tool)).collect();
+        refilter(&mut self.recovery, tools.iter().map(String::as_str));
         if let Some(diff) = &mut self.diff {
             diff.refilter();
         }
@@ -518,15 +520,16 @@ impl Model {
     }
 }
 
-/// The recovery tools: what the list shows and what it does.
-pub const RECOVERY: &[(&str, RecoveryTool)] = &[
-    ("Recovery shell", RecoveryTool::Shell),
-    ("Chroot into the selected environment", RecoveryTool::Chroot),
-    ("Log", RecoveryTool::Log),
-    ("Pools and volumes", RecoveryTool::Pools),
-    ("Firmware setup", RecoveryTool::FirmwareSetup),
-    ("Reboot", RecoveryTool::Reboot),
-    ("Power off", RecoveryTool::PowerOff),
+/// The recovery tools: what the list shows (the title of the message) and
+/// what it does.
+pub const RECOVERY: &[(Id, RecoveryTool)] = &[
+    (id!("tool-shell"), RecoveryTool::Shell),
+    (id!("tool-chroot"), RecoveryTool::Chroot),
+    (id!("tool-log"), RecoveryTool::Log),
+    (id!("tool-pools"), RecoveryTool::Pools),
+    (id!("tool-firmware-setup"), RecoveryTool::FirmwareSetup),
+    (id!("tool-reboot"), RecoveryTool::Reboot),
+    (id!("tool-power-off"), RecoveryTool::PowerOff),
 ];
 
 /// A recovery tool.

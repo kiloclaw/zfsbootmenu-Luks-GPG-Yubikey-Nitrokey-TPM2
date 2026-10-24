@@ -38,6 +38,7 @@ pub mod menu;
 mod model;
 mod quiet;
 pub mod terminal;
+pub mod text;
 mod update;
 mod view;
 

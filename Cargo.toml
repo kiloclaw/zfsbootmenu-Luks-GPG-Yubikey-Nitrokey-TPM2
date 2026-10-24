@@ -69,6 +69,10 @@ swash = { version = "=0.2.10", default-features = false, features = ["std", "sca
 # Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled when the image is
 # built, and their dead keys through a compose table.
 kbvm = { version = "=0.1.7", default-features = false, features = ["compose"] }
+# The message catalogue of the menu (REFACTOR-ROADMAP.md, R5 step 2): Project Fluent's bundle, already built for
+# `uucore`, and its language identifiers.
+fluent-bundle = "0.16"
+unic-langid = "0.9"
 
 # Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }

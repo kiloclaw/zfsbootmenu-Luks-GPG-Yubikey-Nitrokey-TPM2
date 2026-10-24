@@ -1,6 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use super::*;
+use crate::text::id;
 
 fn press(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     KeyEvent::new(code, modifiers)
@@ -134,50 +135,96 @@ fn releases_do_nothing() {
     assert_eq!(input(Main, release), None);
 }
 
+/// The toolbar of `context` at `width` columns, as (key, label).
+fn toolbar(context: Context, width: usize) -> Vec<(String, String)> {
+    footer(context, width)
+        .into_iter()
+        .map(|tool| (tool.key, tool.label))
+        .collect()
+}
+
+/// `pairs` as owned strings.
+fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(key, label)| ((*key).to_owned(), (*label).to_owned()))
+        .collect()
+}
+
 #[test]
 fn the_toolbar_shows_five_whole_actions_then_more() {
     assert_eq!(
-        footer(Main, 80),
-        [
-            ("Enter", "boot"),
-            ("k", "kernels"),
-            ("s", "snapshots"),
-            ("e", "edit"),
-            ("d", "default"),
-            ("?", "more"),
-        ]
+        toolbar(Main, 80),
+        owned(&[
+            ("Enter", "Boot"),
+            ("k", "Kernels"),
+            ("s", "Snapshots"),
+            ("e", "Edit"),
+            ("d", "Default"),
+            ("?", "More"),
+        ])
     );
     assert_eq!(
-        footer(Main, 40),
-        [("Enter", "boot"), ("k", "kernels"), ("?", "more")]
+        toolbar(Main, 40),
+        owned(&[("Enter", "Boot"), ("k", "Kernels"), ("?", "More")])
     );
-    assert_eq!(footer(Snapshots, 30), [("Enter", "choose"), ("?", "more")]);
-    assert_eq!(footer(Main, 5), []);
-    assert!(
-        footer(Context::Choose, 80)
-            .iter()
-            .all(|(key, _)| *key != "?")
+    assert_eq!(
+        toolbar(Snapshots, 30),
+        owned(&[("Enter", "Choose"), ("?", "More")])
+    );
+    assert_eq!(toolbar(Main, 5), []);
+    assert!(footer(Context::Choose, 80).iter().all(|tool| !tool.is_more));
+    assert_eq!(
+        toolbar(Context::Diff, 80)[1],
+        ("Left/Right".to_owned(), "Files/Packages".to_owned())
     );
 }
 
 #[test]
 fn help_lists_every_key_of_an_intent_together() {
     let help = help(Main);
+    let has = |keys: &str, what| help.contains(&(keys.to_owned(), what));
 
-    assert!(help.contains(&("Enter".to_owned(), "boot")));
-    assert!(help.contains(&("b".to_owned(), "boot")));
-    assert!(help.contains(&("Esc, Ctrl-C".to_owned(), "back")));
-    assert!(help.contains(&("?, F1".to_owned(), "help")));
-    assert!(help.contains(&("Up, Ctrl-P".to_owned(), "select")));
+    assert!(has("Enter", id!("action-boot")));
+    assert!(has("b", id!("action-boot")));
+    assert!(has("Esc, Ctrl-C", id!("action-back")));
+    assert!(has("?, F1", id!("action-help")));
+    assert!(has("Up, Ctrl-P", id!("action-select")));
     assert_eq!(key_name(KeyCode::Char(' '), NONE), "Space");
     assert_eq!(key_name(KeyCode::F(1), NONE), "F1");
+    assert_eq!(key_name(KeyCode::PageDown, NONE), "PgDn");
 }
 
 #[test]
 fn the_classic_bindings_of_a_view_are_listed() {
     let main = classic_bindings(Main);
 
-    assert!(main.contains(&("MOD+K".to_owned(), "kernels")));
-    assert!(main.contains(&("MOD+R".to_owned(), "shell")));
+    assert!(main.contains(&("MOD+K".to_owned(), id!("action-kernels"))));
+    assert!(main.contains(&("MOD+R".to_owned(), id!("action-shell"))));
     assert_eq!(classic_bindings(Context::Help), []);
+}
+
+#[test]
+fn every_action_has_a_title() {
+    let contexts = [
+        Context::Startup,
+        Main,
+        Snapshots,
+        Kernels,
+        Context::Pools,
+        Context::Recovery,
+        Context::Log,
+        Context::Help,
+        Context::Diff,
+        Context::Packages,
+        Context::Choose,
+        Context::Text,
+    ];
+    for context in contexts {
+        for binding in KEYMAP {
+            let what = describe(context, binding.intent);
+            let title = crate::text::title(what);
+            assert!(!title.ends_with(".title"), "{what:?} has no title");
+        }
+    }
 }

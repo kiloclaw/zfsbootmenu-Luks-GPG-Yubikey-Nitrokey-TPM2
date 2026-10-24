@@ -12,6 +12,7 @@ use crate::menu::format::fit;
 use crate::menu::model::{DiffView, Model, Segment};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::world::{Change, ChangeKind};
+use crate::text::text;
 
 /// From this width the preview is to the right of the list.
 const WIDE: u16 = 100;
@@ -49,12 +50,12 @@ fn segments(theme: Theme, diff: &DiffView) -> Line<'static> {
     let packages = diff
         .packages
         .as_ref()
-        .map_or_else(|| "none".to_owned(), |p| p.changes.len().to_string());
+        .map_or_else(|| text!("value-none"), |p| p.changes.len().to_string());
     let files = diff.changes.len().to_string();
     let mut spans = Vec::new();
     for (segment, label, count) in [
-        (Segment::Files, "Files", files),
-        (Segment::Packages, "Packages", packages),
+        (Segment::Files, text!("segment-files"), files),
+        (Segment::Packages, text!("segment-packages"), packages),
     ] {
         if !spans.is_empty() {
             spans.push(Span::raw("   "));
@@ -112,8 +113,9 @@ fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff: &DiffView
         })
         .collect();
     let since = diff.from.name();
-    let header = format!("Changes since {since}");
-    let empty = ("No Changes", "Nothing changed since the snapshot.");
+    let header = text!("view-changes.since", snapshot = since);
+    let (title, hint) = (text!("changes-none"), text!("changes-none.text"));
+    let empty = (title.as_str(), hint.as_str());
     let total = (header.as_str(), diff.changes.len());
     lists::render(model, frame, area, total, &diff.list, rows, empty);
 }
@@ -121,11 +123,11 @@ fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff: &DiffView
 /// The preview of the selected change: its text diff, or why there is none.
 fn render_preview(theme: Theme, frame: &mut Frame<'_>, area: Rect, diff: &DiffView) {
     let Some(change) = diff.selected() else {
-        let block = lists::block(theme, "Preview");
+        let block = lists::block(theme, &text!("preview-title"));
         frame.render_widget(block, area);
         return;
     };
-    let block = lists::counted(theme, "Preview", kind_word(change.kind));
+    let block = lists::counted(theme, &text!("preview-title"), &kind_word(change.kind));
     let lines = preview_lines(theme, change);
     let paragraph = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
@@ -134,12 +136,12 @@ fn render_preview(theme: Theme, frame: &mut Frame<'_>, area: Rect, diff: &DiffVi
 }
 
 /// What happened, in a word.
-fn kind_word(kind: ChangeKind) -> &'static str {
+fn kind_word(kind: ChangeKind) -> String {
     match kind {
-        ChangeKind::Removed => "removed",
-        ChangeKind::Created => "created",
-        ChangeKind::Modified => "modified",
-        ChangeKind::Renamed => "renamed",
+        ChangeKind::Removed => text!("change-removed"),
+        ChangeKind::Created => text!("change-created"),
+        ChangeKind::Modified => text!("change-modified"),
+        ChangeKind::Renamed => text!("change-renamed"),
     }
 }
 
@@ -147,16 +149,10 @@ fn kind_word(kind: ChangeKind) -> &'static str {
 fn preview_lines(theme: Theme, change: &Change) -> Vec<Line<'static>> {
     let mut lines = vec![Line::styled(change.path.clone(), theme.style(Role::Title))];
     let note = match (change.kind, &change.renamed_to) {
-        (ChangeKind::Created, _) => {
-            Some("Created after the snapshot: there is nothing to restore.".to_owned())
-        }
-        (ChangeKind::Removed, _) => {
-            Some("Removed since the snapshot: restoring brings it back.".to_owned())
-        }
-        (ChangeKind::Renamed, Some(to)) => Some(format!(
-            "Renamed to {to}: restoring brings back the old name."
-        )),
-        _ if change.preview.is_empty() => Some("A binary file: no text to show.".to_owned()),
+        (ChangeKind::Created, _) => Some(text!("preview-created")),
+        (ChangeKind::Removed, _) => Some(text!("preview-removed")),
+        (ChangeKind::Renamed, Some(to)) => Some(text!("preview-renamed", to = to.as_str())),
+        _ if change.preview.is_empty() => Some(text!("preview-binary")),
         _ => None,
     };
     if let Some(note) = note {

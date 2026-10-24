@@ -5,6 +5,7 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Context, Intent, describe};
+use crate::text::{Id, text};
 use Context::{Kernels, Main, Pools, Snapshots};
 
 /// The classic bindings of the `fzf` menu: a letter with `Alt` or `Ctrl`,
@@ -75,12 +76,12 @@ pub(super) fn classic(context: Context, event: KeyEvent) -> Option<Intent> {
 }
 
 /// The classic bindings of `context`, as (`MOD+K`, what it does).
-pub fn classic_bindings(context: Context) -> Vec<(String, &'static str)> {
+pub fn classic_bindings(context: Context) -> Vec<(String, Id)> {
     CLASSIC
         .iter()
         .filter_map(|(letter, meanings)| {
             let (_, intent) = meanings.iter().find(|(view, _)| *view == context)?;
-            let key = format!("MOD+{}", letter.to_ascii_uppercase());
+            let key = text!("key-classic", letter = letter.to_uppercase().to_string());
             Some((key, describe(context, *intent)))
         })
         .collect()
