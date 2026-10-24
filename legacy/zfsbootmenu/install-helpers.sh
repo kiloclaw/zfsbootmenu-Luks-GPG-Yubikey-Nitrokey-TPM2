@@ -549,6 +549,37 @@ install_zbm_keyboard_layouts() {
   return 0
 }
 
+# Images with the Rust runtime let the recovery shell's line editor take
+# characters beyond ASCII, which the console on the display types with its
+# keyboard layouts (ROADMAP.md #19): readline keeps their bytes (/etc/inputrc),
+# and the C.UTF-8 character set of the build host's C library, when it has
+# one, makes them characters. Runs after create_zbm_profiles.
+#
+# prints: nothing
+# returns: 0
+
+install_zbm_shell_input() {
+  local ctype
+
+  [ "${ZBM_RUNTIME}" = "rust" ] || return 0
+
+  cat > "${BUILDROOT}/etc/inputrc" <<-EOF
+	set input-meta on
+	set output-meta on
+	set convert-meta off
+	EOF
+
+  for ctype in /usr/lib/locale/C.utf8/LC_CTYPE /usr/lib/locale/C.UTF-8/LC_CTYPE; do
+    [ -f "${ctype}" ] || continue
+    if zbm_install_file "${ctype}" "/usr/lib/locale/C.utf8/LC_CTYPE"; then
+      echo "export LC_CTYPE=C.UTF-8" >> "${BUILDROOT}/etc/profile"
+    fi
+    break
+  done
+
+  return 0
+}
+
 install_zbm_osver() {
   local build_date
   [ -r "${zfsbootmenu_module_root}/zbm-release" ] || return 0

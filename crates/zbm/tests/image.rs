@@ -200,6 +200,8 @@ const TEXTS: &[&str] = &[
     "libexec/hooks/early-setup.d/30-console-autosize.sh",
     "libexec/hooks/boot-sel.d/99-zbm-shadow.sh",
     "usr/share/zfsbootmenu/layouts/layouts",
+    "etc/inputrc",
+    "etc/profile",
 ];
 
 /// What the dracut module installed: every path, and the texts of [`TEXTS`].
@@ -363,6 +365,8 @@ fn dracut_images_start_the_selected_runtime() {
     );
 
     assert!(!legacy.exists("usr/share/zfsbootmenu/layouts"));
+    assert!(!legacy.exists("etc/inputrc"));
+    assert!(!legacy.text("etc/profile").contains("LC_CTYPE"));
 
     let mut rust_settings = settings.to_vec();
     rust_settings.push(("zfsbootmenu_runtime", "rust"));
@@ -428,6 +432,20 @@ fn dracut_images_start_the_selected_runtime() {
             .any(|warning| warning.contains("unable to compile every keyboard layout")),
         "{:?}",
         rust.warnings
+    );
+    // The recovery shell's line editor keeps characters beyond ASCII, and
+    // they are characters where the machine has the C.UTF-8 character set.
+    assert_eq!(
+        rust.text("etc/inputrc"),
+        "set input-meta on\nset output-meta on\nset convert-meta off\n"
+    );
+    let utf8 = std::path::Path::new("/usr/lib/locale/C.utf8/LC_CTYPE").exists();
+    assert_eq!(rust.exists("usr/lib/locale/C.utf8/LC_CTYPE"), utf8);
+    let profile = rust.text("etc/profile");
+    assert_eq!(
+        profile.ends_with("export LC_CTYPE=C.UTF-8\n"),
+        utf8,
+        "{profile}"
     );
     // zbm is zluks, which also closes the LUKS mappings before booting.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");

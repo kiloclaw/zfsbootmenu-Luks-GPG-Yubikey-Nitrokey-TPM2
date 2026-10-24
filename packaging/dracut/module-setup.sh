@@ -262,4 +262,5 @@ install() {
   fi
 
   install_zbm_keyboard_layouts
+  install_zbm_shell_input
 }

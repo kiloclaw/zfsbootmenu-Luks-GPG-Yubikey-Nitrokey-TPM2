@@ -128,7 +128,9 @@ with the dead keys of the `en_US.UTF-8` compose rules. The console types with th
 `zbm.keyboard_layout`: Shift, Caps Lock, AltGr and dead keys as XKB defines them, and Ctrl with a key of a non-Latin
 layout gives the US letter. `zbm console layout <name>` switches layouts while it runs. Images built without the XKB
 data (`xkb-data` or `xkeyboard-config`) and the compose rules (`libx11-data` or `libX11`) warn and keep the US layout;
-the build container installs both, so rebuild it. New dependency: `kbvm`, chosen over `xkbcommon-rs`.
+the build container installs both, so rebuild it. The recovery shell's prompt takes those characters too: Rust images
+get `/etc/inputrc` with 8-bit input and output for readline, and the build host's `C.UTF-8` character set, when its C
+library has one, with `LC_CTYPE=C.UTF-8`. New dependency: `kbvm`, chosen over `xkbcommon-rs`.
 
 ### TrueType fonts on the console on the display
 

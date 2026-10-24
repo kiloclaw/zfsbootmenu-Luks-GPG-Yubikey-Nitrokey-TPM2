@@ -343,8 +343,8 @@ Following a boot
   the layouts ``us`` and ``de`` (``zfsbootmenu_keyboard_layouts``): the console must start with ``us``;
   ``/libexec/zbm console layout de`` typed in the shell must answer ``keyboard: de``; then, typed into ``cat`` (in the
   image's C locale the shell's line editor may take ``ê`` for Meta keys), the keys of ``y`` and ``z`` must type
-  ``zy`` and the dead circumflex and ``e`` must add ``ê``; the same command for ``us``, typed with the German layout,
-  must switch back. After ``kill -9`` of the
+  ``zy`` and the dead circumflex and ``e`` must add ``ê``, and the same keys after ``echo`` at the shell's prompt must
+  show and print ``zyê``; the same command for ``us``, typed with the German layout, must switch back. After ``kill -9`` of the
   console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
   kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's
   message that the console ended. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start

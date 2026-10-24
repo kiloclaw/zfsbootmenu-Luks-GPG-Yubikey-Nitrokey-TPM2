@@ -305,9 +305,12 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
        `y`, `z` and a dead circumflex typed on the German layout into `cat`, and the switch back typed with it.
      - Left for later: the menu's `Ctrl-K` asking the console for the layout (R5, with the unlock dialog; on the
        console the menu then stops translating by key position), `Global.KeyboardLayouts` in `generate-zbm`, the
-       compose key (`Multi_key`), keyboards with their own layouts, and characters beyond ASCII at the recovery
-       shell's prompt: in the image's C locale its line editor may take their bytes for Meta keys (the first VM run
-       lost `ê` there, which `cat` on the same console typed).
+       compose key (`Multi_key`), and keyboards with their own layouts.
+     - The recovery shell's prompt takes characters beyond ASCII: the first VM run lost `ê` there, which `cat` on the
+       same console typed, as readline in the image's C locale may take their bytes for Meta keys. Rust images get
+       `/etc/inputrc` (8-bit input and output) and, where the build host's C library has it, the character set of
+       `C.UTF-8` (`LC_CTYPE`, 360 KB) with `LC_CTYPE=C.UTF-8` in `/etc/profile`; `runtime-rust-console` checks `ê`
+       at the prompt (19 checks).
   5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
 - **Done when:**
   - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;

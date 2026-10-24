@@ -13,7 +13,8 @@
 //!   The console draws with the image's TrueType font, anti-aliased. It
 //!   starts with the image's first keyboard layout, `us`; switched to `de`
 //!   from the shell (`zbm console layout`, step 4), the keys of `y` and `z`
-//!   swap and the dead circumflex composes `ê`.
+//!   swap and the dead circumflex composes `ê`, in `cat` and at the shell's
+//!   prompt.
 //! - On `simpledrm` (`vga=0x318`), with `zbm.console_font=psf`: the console
 //!   draws with a console font; the countdown runs out, the console hands
 //!   the display back, and the boot environment boots.
@@ -82,6 +83,21 @@ const GERMAN_KEYS: &[&str] = &[
     "e",
     "ret",
     "ctrl-d",
+];
+
+/// The same keys typed at the shell's prompt, after `echo`: its line editor
+/// must keep `ê` (`/etc/inputrc`, and `C.UTF-8` where the image has it).
+const ECHO_KEYS: &[&str] = &[
+    "e",
+    "c",
+    "h",
+    "o",
+    "spc",
+    "y",
+    "z",
+    "grave_accent",
+    "e",
+    "ret",
 ];
 
 /// The console's message when it starts, in the kernel log and its mirror.
@@ -319,24 +335,7 @@ fn check_layouts(
         switched.is_some(),
         "virtio: zbm console layout de switches the console to the German layout",
     );
-    let german: Vec<String> = GERMAN_KEYS.iter().map(|&name| name.to_owned()).collect();
-    press_keys(vm, monitor, &german, pace.pause)?;
-    let swapped = wait_screen(mirror, r"(?m)^zy", pace.patience.min(30))?;
-    test.check(
-        swapped.is_some(),
-        "virtio: keys type on the German layout: the keys of y and z swap",
-    );
-    let composed = wait_screen(mirror, r"(?m)^zyê\s*$", pace.patience.min(10))?;
-    test.check(
-        composed.is_some(),
-        "virtio: the dead circumflex then e types ê",
-    );
-    if composed.is_none() {
-        test.note(&format!(
-            "virtio: the console shows: {}",
-            last_screen(mirror)
-        ));
-    }
+    check_german(test, vm, mirror, monitor, pace)?;
     let back = format!("{LAYOUT}us\n");
     let names = german_key_names(&back).ok_or_else(|| Error::Setup(back.clone()))?;
     press_keys(vm, monitor, &names, pace.pause)?;
@@ -371,6 +370,48 @@ pub(super) fn check_font(
         font.ends_with(extension),
         &format!("{name}: it draws with a {extension} font ({font})"),
     );
+    Ok(())
+}
+
+/// Keys typed on the German layout, into `cat` and at the shell's prompt.
+fn check_german(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    mirror: &Path,
+    monitor: &Monitor,
+    pace: Pace,
+) -> Result<()> {
+    let german: Vec<String> = GERMAN_KEYS.iter().map(|&name| name.to_owned()).collect();
+    press_keys(vm, monitor, &german, pace.pause)?;
+    let swapped = wait_screen(mirror, r"(?m)^zy", pace.patience.min(30))?;
+    test.check(
+        swapped.is_some(),
+        "virtio: keys type on the German layout: the keys of y and z swap",
+    );
+    let composed = wait_screen(mirror, r"(?m)^zyê\s*$", pace.patience.min(10))?;
+    test.check(
+        composed.is_some(),
+        "virtio: the dead circumflex then e types ê",
+    );
+    if composed.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
+    let at_prompt: Vec<String> = ECHO_KEYS.iter().map(|&name| name.to_owned()).collect();
+    press_keys(vm, monitor, &at_prompt, pace.pause)?;
+    let echoed = wait_screen(mirror, r"> echo zyê\s*\n\s*zyê\s*\n", pace.patience.min(30))?;
+    test.check(
+        echoed.is_some(),
+        "virtio: the shell's line editor takes ê typed at its prompt",
+    );
+    if echoed.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
     Ok(())
 }
 
