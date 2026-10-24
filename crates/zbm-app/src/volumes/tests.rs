@@ -70,8 +70,12 @@ fn without_cryptsetup_nothing_is_unlocked() {
 }
 
 #[test]
-fn an_open_volume_is_reported_open_under_its_default_name() {
+fn an_open_volume_is_reported_open_under_the_name_recorded() {
     let fake = machine();
+    fake.files.file(
+        "/zfsbootmenu/luks-mappings",
+        "luks-1111-aaaa\t/dev/sda2\t\n",
+    );
     let open = Action::Open {
         device: "/dev/sda2".into(),
         name: String::new(),
@@ -147,9 +151,11 @@ fn the_causes_of_an_error_are_listed_outermost_first() {
 #[test]
 fn an_unlocking_run_reports_the_volumes_skipped_and_how_it_ended() {
     let fake = machine();
-    fake.files.file("/zfsbootmenu/luks-skipped", "/dev/sdb2\n");
+    fake.files.file("/zfsbootmenu/luks-skipped", "/dev/sda9\n");
+    // An empty passphrase skips the volume.
+    fake.console.secret(b"");
 
-    let events = act(&fake, &Action::UnlockAll);
+    let events = act_in_app(&fake, &Action::UnlockAll);
 
     assert_eq!(
         events[0],

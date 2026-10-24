@@ -46,7 +46,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R2 | Done | `zbm-platform`, the ZFS port on JSON, the `zbm-crypt` adapters, uutils in images, adapters only, the LUKS device suites in Rust |
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
-| R4 | In progress | Application layer: steps 1 and 2 of 5 done (the vocabulary in `zbm-app`, the snapshot read from the machine, the LUKS use cases and the start-up events) |
+| R4 | In progress | Application layer: steps 1 to 3 of 5 done (the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter) |
 | R5 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -782,7 +782,11 @@ builds after the core tasks.
    Answering the prompts of `zbm-luks` (`Prompter`, and the passphrase read from the console) and of `zbm-pool`
    (`Operator`) through `UnlockRequested` and `ImportProblem` needs the menu to answer them, so it moves to R5, with
    import and booting, which need port package C below `zbm-app`.
-3. The applets as thin front ends over `zbm-app`, with the `check-deps` rule that no front end imports an adapter.
+3. **Done.** `zluks unlock`, `open` and `close` perform `UnlockAll`, `Open` and `Close` through `App::act`, command
+   for command as before (the use cases read the state files to report what changed, and run nothing more); `status`
+   and `list` stay displays of the front end. `zbm-startup` moved to the orchestration layer, beside `zbm-boot`,
+   whose prompts and recovery it uses: it runs the start-up stages, and `zfsbootmenu-init` is its front end.
+   `check-deps` now refuses a front end that depends on an adapter (`NOT_THROUGH`), and none does.
 4. The `zbm debug` reports and `zbm-debug(8)`.
 5. Shadow mode over the use cases, the key sources of encryption roots among them, and the VM tests without a
    difference.

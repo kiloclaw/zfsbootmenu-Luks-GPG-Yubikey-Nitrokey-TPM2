@@ -25,8 +25,8 @@ dependencies that exist.
 
 | Layer | Crates | Purpose |
 | --- | --- | --- |
-| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm-startup`, `zbm` | The menus, the console on the display, the start-up program and the multi-call binary |
-| orchestration | `zbm-boot`, `generate-zbm` | Start-up and boot; image generation |
+| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm` | The menus, the console on the display and the multi-call binary, whose applets start the programs |
+| orchestration | `zbm-boot`, `zbm-startup`, `generate-zbm` | Start-up and boot; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool` | LUKS volumes and key methods, pool import, kernel command lines of boot environments |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
@@ -42,7 +42,7 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm-coreutils` → `zbm-platform`
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
-- `zbm` → `zbm-startup`
+- `zbm-startup` → `zbm-boot`
 
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
 
@@ -105,15 +105,19 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `zpool import` with typed options, host IDs, and the retry loop of the start-up stage as a state machine
   (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its `Operator` port.
   `zbm-kcl` handles the kernel command lines stored on boot environments.
-- **application**: `zbm-app` is what front ends talk to: they read a `Snapshot`, send an `Action` to
-  `App::perform`, and get `Event`s back or an `AppError` with the cause.
+- **application**: `zbm-app` is what front ends talk to: they read the `model::Snapshot` of the machine
+  (`App::snapshot`), send a `model::Action` to `App::act`, and get `model::Event`s back, the last of them the
+  outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`; a `Sink` receives the
+  events of start-up's stages.
 - **orchestration**: `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, and the prompts and recovery
   contract (`Recovery`) the start-up stages use; pool import runs through `zbm-pool`, with these prompts as its
-  `Operator`. `generate-zbm` assembles images.
-- **front ends**: `zbm` dispatches applets by the name it was called with. `zbm-startup` is the start-up program: a
-  list of `Step` values, one per `Stage` (modules, host ID, device wait, early hooks, LUKS unlocking, pool import),
-  run in order by `run_steps`, which skips stages an earlier run finished; the recovery shell; and the start-up
-  hooks (`preinit`). `zbm-tui` is the new menu in the Elm
+  `Operator`. `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host ID,
+  device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an earlier
+  run finished and sends their events; the recovery shell; and the start-up hooks (`preinit`). `generate-zbm`
+  assembles images.
+- **front ends**: `zbm` dispatches applets by the name it was called with; `zfsbootmenu-init` runs `zbm-startup`,
+  and `zluks` performs its actions through `zbm-app`. No front end uses an adapter crate (`check-deps`,
+  `NOT_THROUGH`). `zbm-tui` is the new menu in the Elm
   architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
   placeholder it replaces.
 - **test support**: `zbm-testkit` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,

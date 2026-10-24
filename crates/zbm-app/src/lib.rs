@@ -43,6 +43,7 @@ pub use model::Encryption;
 pub use pilot::SnapshotError;
 pub use read::stage_name;
 pub use unlock::UnlockRequest;
+pub use volumes::{NO_CRYPTSETUP, device_not_found};
 pub use zbm_crypt::OpenOptions;
 pub use zbm_luks::pilot::UnlockFailed;
 

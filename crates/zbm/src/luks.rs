@@ -2,14 +2,14 @@
 //! over SSH, and in the test build the operations the LUKS unit suites call.
 
 use std::path::Path;
-use zbm_config::spec::cmdline::luks::LUKS_KEY;
 
+use zbm_app::model::{Action, Event, Outcome};
+use zbm_app::{App, NO_CRYPTSETUP, device_not_found};
 use zbm_boot::prompt::{ConsolePrompter, colorize};
-use zbm_luks::device::{describe_device, is_block_device, is_open, resolve_device};
-use zbm_luks::mappings::Origin;
+use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::{Luks, Settings, Unlocker};
-use zbm_platform::RealSystem;
+use zbm_platform::{Context, RealSystem};
 
 use crate::Io;
 
@@ -71,46 +71,71 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
     let prompter = ConsolePrompter::new(system);
-    let mut session = Unlocker::new(Luks {
+    let luks = Luks {
         system,
         settings: &settings,
         prompter: &prompter,
-    });
-    run_zluks(&mut session, args, io)
+    };
+    run_zluks(luks, args, io)
 }
 
-/// The commands of `zluks` in a session.
-pub fn run_zluks(session: &mut Unlocker<'_>, args: &[String], io: &mut Io) -> i32 {
-    if !session.available() {
-        let _ = writeln!(
-            io.stderr,
-            "ERROR: cryptsetup is not available in this image"
-        );
-        return 1;
+/// The action of a `zluks` command that `zbm-app` performs, if it is one;
+/// `None` for the other commands, and for `open` without a device.
+fn app_action(command: &str, rest: &[String]) -> Option<Action> {
+    match command {
+        "unlock" => Some(Action::UnlockAll),
+        "open" => rest.first().map(|device| Action::Open {
+            device: device.clone(),
+            name: rest.get(1).cloned().unwrap_or_default(),
+        }),
+        "close" => Some(Action::Close(rest.first().cloned())),
+        _ => None,
     }
+}
+
+/// Performs `action` through `zbm-app`; the exit status of `zluks`. A failure
+/// that came before any volume was touched is said on standard error, as
+/// the legacy script said it; the others are in the log.
+fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
+    let app = App::new(Context::new(luks.system)).with_luks(luks);
+    match app.act(action).last() {
+        Some(Event::Finished(Outcome::Done(_))) => 0,
+        Some(Event::Finished(Outcome::Failed { why, .. })) => {
+            let not_found = match action {
+                Action::Open { device, .. } => Some(device_not_found(device)),
+                _ => None,
+            };
+            let said = why
+                .first()
+                .filter(|reason| *reason == NO_CRYPTSETUP || not_found.as_ref() == Some(*reason));
+            if let Some(reason) = said {
+                let _ = writeln!(io.stderr, "ERROR: {reason}");
+            }
+            1
+        }
+        _ => 1,
+    }
+}
+
+/// The commands of `zluks` with the LUKS ports `luks`: unlocking, opening
+/// and closing through `zbm-app`, the lists here.
+pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
     let command = args.first().map_or("unlock", String::as_str);
     let rest = args.get(1..).unwrap_or_default();
-    let status = |ok: bool| if ok { 0 } else { 1 };
+    if let Some(action) = app_action(command, rest) {
+        return perform(luks, &action, io);
+    }
+    let mut session = Unlocker::new(luks);
+    if !session.available() {
+        let _ = writeln!(io.stderr, "ERROR: {NO_CRYPTSETUP}");
+        return 1;
+    }
+    let session = &mut session;
     match command {
-        "unlock" => status(session.unlock_all().is_ok()),
         "open" => {
-            let Some(spec) = rest.first() else {
-                let _ = io.stderr.write_all(USAGE.as_bytes());
-                return 1;
-            };
-            let system = *session.system();
-            let Some(device) = resolve_device(&system, spec) else {
-                let _ = writeln!(io.stderr, "ERROR: device '{spec}' not found");
-                return 1;
-            };
-            let name = rest.get(1).map_or("", String::as_str);
-            let key = session.option(&LUKS_KEY).unwrap_or_default();
-            let opened = session.open_device(name, &device, &key, "", Origin::Configured);
-            session.forget_secrets();
-            session.settle();
-            status(opened.is_ok())
+            let _ = io.stderr.write_all(USAGE.as_bytes());
+            1
         }
-        "close" => status(session.close_all(rest.first().map(String::as_str)).is_ok()),
         "status" => {
             print_status(session, io);
             0
@@ -204,7 +229,8 @@ pub mod seams {
     use std::path::{Path, PathBuf};
     use std::time::Duration;
 
-    use zbm_luks::device::OpenCheck;
+    use zbm_luks::device::{OpenCheck, resolve_device};
+    use zbm_luks::mappings::Origin;
     use zbm_luks::unlocker::{Answer, PromptRequest, Prompter};
     use zbm_platform::files::Files;
     use zbm_platform::{KernelLog, System};
@@ -351,15 +377,15 @@ mod tests {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        let mut session = Unlocker::new(Luks {
+        let luks = Luks {
             system: fake.system(),
             settings: &settings,
             prompter: &NoPrompts,
-        });
+        };
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
         let code = run_zluks(
-            &mut session,
+            luks,
             &args,
             &mut Io {
                 stdout: &mut stdout,
@@ -457,14 +483,30 @@ mod tests {
             (1, "ERROR: device 'LABEL=none' not found\n")
         );
         let fake = FakeSystem::new();
-        assert_eq!(
-            call(&fake, &["status"]),
-            (
-                1,
-                String::new(),
-                "ERROR: cryptsetup is not available in this image\n".to_owned()
-            )
+        let unavailable = (
+            1,
+            String::new(),
+            "ERROR: cryptsetup is not available in this image\n".to_owned(),
         );
+        for args in [
+            &["status"][..],
+            &["unlock"],
+            &["close"],
+            &["open"],
+            &["open", "/dev/x"],
+        ] {
+            assert_eq!(call(&fake, args), unavailable, "{args:?}");
+        }
+    }
+
+    #[test]
+    fn unlock_open_and_close_report_their_outcome_as_the_exit_status() {
+        let fake = machine();
+        assert_eq!(call(&fake, &["close"]), (0, String::new(), String::new()));
+        assert_eq!(call(&fake, &["open", "/dev/sda2", "a1"]).0, 0);
+        fake.runner.respond_program("cryptsetup", 2, "");
+        let (code, stdout, stderr) = call(&fake, &["open", "/dev/sdb2", "b1"]);
+        assert_eq!((code, stdout.as_str(), stderr.as_str()), (1, "", ""));
     }
 
     #[test]

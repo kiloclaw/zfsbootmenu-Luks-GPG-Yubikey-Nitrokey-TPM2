@@ -6,14 +6,19 @@
 use std::collections::BTreeSet;
 
 use zbm_config::spec::cmdline::luks::LUKS_KEY;
-use zbm_luks::device::{default_name, resolve_device};
+use zbm_luks::device::resolve_device;
 use zbm_luks::mappings::{Mapping, Origin};
 use zbm_luks::unlocker::{Luks, Unlocker};
 
 use crate::model::{Action, Event, Outcome, UnlockOutcome};
 
-/// What `zbm-luks` says when it cannot work at all.
-const NO_CRYPTSETUP: &str = "cryptsetup is not available in this image";
+/// Why a LUKS action fails at once in an image without `cryptsetup`.
+pub const NO_CRYPTSETUP: &str = "cryptsetup is not available in this image";
+
+/// Why [`Action::Open`] fails when the device `spec` names is not there.
+pub fn device_not_found(spec: &str) -> String {
+    format!("device '{spec}' not found")
+}
 
 /// The reasons an error gives, outermost first.
 fn causes(error: &dyn std::error::Error) -> Vec<String> {
@@ -51,6 +56,21 @@ fn recorded(session: &Unlocker<'_>) -> Vec<Mapping> {
     session.mappings().read().unwrap_or_default()
 }
 
+/// The devices recorded as skipped now. Reading the state files runs no
+/// program, so the runs do what `zluks` did before them, command for command.
+fn skipped(session: &Unlocker<'_>) -> BTreeSet<String> {
+    let path = &session.settings().skipped;
+    session
+        .system()
+        .files
+        .read_to_string(path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Performs a volume action with `luks`; `None` for other actions.
 pub(crate) fn perform(luks: Luks<'_>, action: &Action) -> Option<Vec<Event>> {
     Some(match action {
@@ -71,7 +91,7 @@ fn unlock_all(luks: Luks<'_>) -> Vec<Event> {
         .into_iter()
         .map(|mapping| mapping.name)
         .collect();
-    let devices = session.discover_devices();
+    let skipped_before = skipped(&session);
     let result = session.unlock_all();
     let mut events: Vec<Event> = recorded(&session)
         .into_iter()
@@ -81,16 +101,12 @@ fn unlock_all(luks: Luks<'_>) -> Vec<Event> {
             outcome: UnlockOutcome::Opened,
         })
         .collect();
-    let store = session.mappings();
-    events.extend(
-        devices
-            .iter()
-            .filter(|device| store.is_skipped(device))
-            .map(|device| Event::UnlockFinished {
-                volume: device.clone(),
-                outcome: UnlockOutcome::Skipped,
-            }),
-    );
+    events.extend(skipped(&session).difference(&skipped_before).map(|device| {
+        Event::UnlockFinished {
+            volume: device.clone(),
+            outcome: UnlockOutcome::Skipped,
+        }
+    }));
     events.push(match result {
         Ok(summary) => Event::Finished(Outcome::Done(format!(
             "unlocked {} LUKS volumes, {} not opened",
@@ -110,15 +126,20 @@ fn open(luks: Luks<'_>, spec: &str, name: &str) -> Vec<Event> {
     let Some(device) = resolve_device(&system, spec) else {
         return vec![failed(
             &format!("unable to open {spec}"),
-            vec![format!("device '{spec}' not found")],
+            vec![device_not_found(spec)],
         )];
     };
     let key = session.option(&LUKS_KEY).unwrap_or_default();
     let opened = session.open_device(name, &device, &key, "", Origin::Configured);
     session.forget_secrets();
     session.settle();
+    // The name the run recorded, without asking cryptsetup again.
     let volume = if name.is_empty() {
-        default_name(&system, &device)
+        recorded(&session)
+            .into_iter()
+            .rev()
+            .find(|mapping| mapping.device == device)
+            .map_or_else(|| device.clone(), |mapping| mapping.name)
     } else {
         name.to_owned()
     };
@@ -145,7 +166,9 @@ fn open(luks: Luks<'_>, spec: &str, name: &str) -> Vec<Event> {
 
 /// Closes the mappings ZFSBootMenu opened, or the one named `only`.
 fn close(luks: Luks<'_>, only: Option<&str>) -> Vec<Event> {
-    let mut session = Unlocker::new(luks);
+    let Some(mut session) = session(luks) else {
+        return unavailable();
+    };
     match session.close_all(only) {
         Ok(()) => vec![Event::Finished(Outcome::Done(match only {
             Some(name) => format!("closed {name}"),

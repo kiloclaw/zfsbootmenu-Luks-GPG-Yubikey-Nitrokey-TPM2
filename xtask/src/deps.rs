@@ -81,13 +81,13 @@ pub const LAYERS: &[Layer] = &[
     Layer {
         name: "orchestration",
         purpose: "Start-up and boot; image generation",
-        crates: &["zbm-boot", "generate-zbm"],
+        crates: &["zbm-boot", "zbm-startup", "generate-zbm"],
     },
     Layer {
         name: "front ends",
-        purpose: "The menus, the console on the display, the start-up program and the \
-                  multi-call binary",
-        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm-startup", "zbm"],
+        purpose: "The menus, the console on the display and the multi-call binary, whose \
+                  applets start the programs",
+        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm"],
     },
 ];
 
@@ -97,8 +97,13 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm-coreutils", "zbm-platform"),
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
-    ("zbm", "zbm-startup"),
+    ("zbm-startup", "zbm-boot"),
 ];
+
+/// Layers whose crates may not use the crates of another, lower layer:
+/// (from, to). Front ends reach the system through `zbm-app` and the domain
+/// crates, never through an adapter (REFACTOR-ROADMAP.md, R4).
+pub const NOT_THROUGH: &[(&str, &str)] = &[("front ends", "adapters")];
 
 /// Crates that only tests may use.
 pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
@@ -252,7 +257,12 @@ fn edge_problem(
             Some("test support crates may only be development dependencies")
         }
         (_, Place::TestSupport) | (Place::TestSupport, Place::Layer(_)) => None,
-        (Place::Layer(from), Place::Layer(to)) if to < from => None,
+        (Place::Layer(from), Place::Layer(to)) if to < from => {
+            let name = |index: usize| LAYERS.get(index).map_or("", |layer| layer.name);
+            NOT_THROUGH
+                .contains(&(name(from), name(to)))
+                .then_some("front ends may not use adapters: go through zbm-app")
+        }
         (Place::Layer(from), Place::Layer(to)) if to == from => {
             if SAME_LAYER.contains(&(from_name, to_name)) {
                 None
@@ -470,6 +480,21 @@ mod tests {
             problems_of(&normal),
             ["zbm-luks -> insta: third-party crate not allowed in THIRD_PARTY"]
         );
+    }
+
+    #[test]
+    fn front_ends_go_through_the_application_layer() {
+        let menu = package("zbm-tui", &[("zbm-zfs", DependencyKind::Normal, true)]);
+        let startup = package(
+            "zbm-startup",
+            &[("zbm-tools", DependencyKind::Normal, true)],
+        );
+
+        assert_eq!(
+            problems_of(&menu),
+            ["zbm-tui -> zbm-zfs: front ends may not use adapters: go through zbm-app"]
+        );
+        assert_eq!(problems_of(&startup), Vec::<String>::new());
     }
 
     #[test]
