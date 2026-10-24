@@ -93,6 +93,11 @@ off, and so that a change to the runtime adds its entry in the same commit.
   encrypted boot environments and runs `load-key.d` hooks (R5 step 1 of `REFACTOR-ROADMAP.md`); the legacy runtime is
   unchanged.
   **Rust:** nothing to port; documentation only.
+- [x] `fcaeb71`: `install_zbm_core` (`install-helpers.sh`) installs neither `bin/zfsbootmenu` nor `bin/zbm` in images
+  with the Rust runtime: `/bin/zfsbootmenu` is a link to `/libexec/zbm`, the menu of R5 step 3, and `/bin/zbm` a
+  script that runs `/libexec/zbm zfsbootmenu`. Legacy images are unchanged; the image tests' recordings changed only
+  for the Rust images.
+  **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over.
 
 ## Legacy limitations the Rust runtime must not copy
 
