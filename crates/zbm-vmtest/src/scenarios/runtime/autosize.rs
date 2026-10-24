@@ -196,8 +196,7 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, edid: bool) -> Result<Vm<
         format!("virtio-vga,edid={edid},xres=3840,yres=2400"),
     ]);
     let mut vm = Vm::start(test, name, &machine)?;
-    super::escape_countdown(&mut vm)?;
-    vm.shell_ready()?;
+    super::escape_to_shell(&mut vm)?;
     Ok(vm)
 }
 

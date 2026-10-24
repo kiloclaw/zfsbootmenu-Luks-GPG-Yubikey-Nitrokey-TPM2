@@ -415,11 +415,12 @@ install_zbm_core() {
   ret=0
   for cdir in lib libexec bin; do
     for cfile in "${zfsbootmenu_module_root}/${cdir}"/*; do
-      # The Rust runtime starts with zbm, and zbm is zluks; the shell
-      # libraries and the other tools stay, for hooks and the recovery shell
+      # The Rust runtime starts with zbm, and zbm is zluks and the menu; the
+      # shell libraries and the other tools stay, for hooks and the recovery
+      # shell
       if [ "${ZBM_RUNTIME}" = "rust" ]; then
         case "${cdir}/${cfile##*/}" in
-          libexec/zfsbootmenu-init|bin/zluks) continue ;;
+          libexec/zfsbootmenu-init|bin/zluks|bin/zfsbootmenu|bin/zbm) continue ;;
         esac
       fi
       zbm_install_file "${cfile}" "/${cdir}/${cfile##*/}" || ret=$?
@@ -428,6 +429,10 @@ install_zbm_core() {
 
   if [ "${ZBM_RUNTIME}" = "rust" ]; then
     ln -sf /libexec/zbm "${BUILDROOT}/bin/zluks" || ret=$?
+    ln -sf /libexec/zbm "${BUILDROOT}/bin/zfsbootmenu" || ret=$?
+    # zbm is the menu's other name; run under it, /libexec/zbm lists its commands
+    printf '#!/bin/sh\nexec /libexec/zbm zfsbootmenu "$@"\n' > "${BUILDROOT}/bin/zbm" || ret=$?
+    chmod 755 "${BUILDROOT}/bin/zbm" || ret=$?
     return $ret
   fi
 

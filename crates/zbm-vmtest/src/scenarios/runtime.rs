@@ -167,6 +167,14 @@ fn escape_countdown(vm: &mut Vm<'_>) -> Result<()> {
     vm.send("\x1b")
 }
 
+/// Escapes the countdown and opens the recovery shell from the menu of the
+/// Rust runtime.
+fn escape_to_shell(vm: &mut Vm<'_>) -> Result<()> {
+    escape_countdown(vm)?;
+    crate::boot::shell_from_menu(vm)?;
+    vm.shell_ready()
+}
+
 /// What the serial console of `vm` showed so far, without escape sequences
 /// and carriage returns.
 fn serial_text(vm: &Vm<'_>) -> Result<String> {
@@ -184,6 +192,31 @@ mod tests {
         assert_eq!(parse_runtime("legacy").unwrap(), ZbmRuntime::Legacy);
         assert_eq!(parse_runtime("rust").unwrap(), ZbmRuntime::Rust);
         assert!(parse_runtime("record").is_err());
+    }
+
+    #[test]
+    fn escaping_the_countdown_opens_the_shell_from_the_menu() {
+        use crate::record::Test;
+        use crate::testing::{Step, cleanup, scripted, settings};
+
+        let settings = settings("runtime-escape");
+        let test = Test::new(&settings, "runtime-rust-pilot").unwrap();
+        let script = vec![
+            Step::Say("Booting tplain/ROOT/be in 30 seconds\r\n"),
+            Step::Keys("\x1b"),
+            Step::Say("\x1b[1;3HBOOT ENVIRONMENTS\r\n"),
+            Step::Keys("!\r"),
+            Step::Say("zfsbootmenu ~ > "),
+            Step::Hear("stty -echo cols 250; export PS1='zbm# ' PS2=''"),
+            Step::Hear("true; echo RC=$?"),
+            Step::Say("RC=0\r\n"),
+        ];
+        let (mut vm, guest) = scripted(&test, script);
+
+        escape_to_shell(&mut vm).unwrap();
+
+        assert_eq!(guest.finish(), Vec::<String>::new());
+        cleanup(&settings);
     }
 
     #[test]

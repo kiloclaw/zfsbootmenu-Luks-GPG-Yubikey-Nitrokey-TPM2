@@ -584,7 +584,9 @@ set-up with a pure function, which lists what it cannot handle yet:
 Package A of Phase 6 removed the import options (`zbm.import_policy`, `zbm.prefer`, `zbm.force_import`,
 `zbm.wait_for`) and `zbm.hookroot` from the list, once their VM tests passed against the Rust image, and package B
 the LUKS volumes. Step 1 of R5 (`REFACTOR-ROADMAP.md`) removed locked encryption roots and `load-key.d` hooks: the
-runtime loads keys in the legacy order, with the key-source cache for boots chosen in the menu. Only the menu is left.
+runtime loads keys in the legacy order, with the key-source cache for boots chosen in the menu. Step 3 added the menu
+(`/bin/zfsbootmenu`, the `zfsbootmenu` applet of `zbm`), so the list is empty in every Rust image; an image without
+the menu program would still list the menu.
 
 Hooks themselves are not on the list: every image installs the bundled hooks (console set-up in `early-setup.d`, LUKS
 closing and xHCI unbinding in `teardown.d`), so the Phase 5 runtime already runs the `early-setup.d`, `boot-sel.d` and
@@ -595,9 +597,9 @@ with an environment is small, and leaving it out would leave the console unset a
 If the list is not empty, the runtime logs each item as an error and opens the recovery shell with the message
 `not supported by this build of ZFSBootMenu yet`, from which the user can boot by hand or switch to the legacy image.
 The LUKS configuration is checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import
-would unlock them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opens the recovery
-shell with the same message, and keeps doing so, importing pools again between shells as the legacy loop does. Phase 6
-removes items from the list as the packages arrive.
+would unlock them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opened
+the recovery shell with the same message, and kept doing so, importing pools again between shells as the legacy loop
+does. Since R5 step 3 that loop runs the menu program and then the recovery shell, as the legacy loop does.
 
 Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
 recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and

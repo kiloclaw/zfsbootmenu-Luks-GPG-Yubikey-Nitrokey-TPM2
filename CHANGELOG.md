@@ -114,11 +114,26 @@ runs the `load-key.d` hooks, then loads the key from the passphrase prompt (`key
 the image, or, for a `passphrase` key, from the prompt. When the key cannot be loaded it opens the recovery shell
 with `unable to load key for <boot environment>`. The countdown's boot does not copy keys from a key source
 (`org.zfsbootmenu:keysource`), as in the legacy runtime; the code that does, for boots chosen in the menu, is in
-place for the menu. Only the menu is still refused.
+place for the menu.
+
+### The new menu in Rust images
+
+Images with the Rust runtime (`zfsbootmenu_runtime=rust`) start the new menu where the legacy runtime starts the
+`fzf` menu: with `zbm.show`, without a default boot environment, and when a key stops the countdown. It runs as
+`/bin/zfsbootmenu` (and `zbm`), so it also opens over SSH and from the recovery shell, and takes over from a menu
+already running, as the legacy one does. It lists the boot environments with their kernels; Enter boots the selected
+one, loading its key (from its key source, as boots chosen in the legacy menu do) and asking for a passphrase on the
+console when it needs one. A locked environment is listed as locked, and its key asked for when it boots, rather than
+before the menu shows. The recovery shell (`!`, then Enter) leaves the menu; after it, pools that became importable
+are imported and the menu opens again. Reboot, power off and the firmware setup export the pools imported read/write
+first. The rest of the menu (snapshots, kernels, the command line editor, pools and LUKS volumes) still answers
+"not available yet" on the real machine; R5 steps 4 to 6 bring them. `fzf` stays in Rust images for the recovery
+shell's tools (`logs`, `zsnapshots`, the help pages) until they are ported. The boot environment list of the
+refactoring pilots (`zbm-menu-pilot`) is gone; the menu replaces it.
 
 ### The new menu's text in a message catalogue
 
-Every string of the new menu (`zbm-tui`, not yet in images) comes from a Project Fluent catalogue,
+Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,
 `crates/zbm-tui/locales/en/menu.ftl`, so that translations (ROADMAP.md #18) need no change of the code;
 `cargo xtask lint` keeps literals out of the menu's code. `zbm-tui --demo --language pseudo` shows the menu in a
 pseudo-language, accented and a third longer, as the snapshot tests draw it. See `docs/dev/menu-design/text.md`.

@@ -1,14 +1,13 @@
 //! The scenarios that end in a shell: `skip-recover` and `oldzfs`.
 
-use crate::boot::{Boot, Follow, follow_boot, prompt};
+use crate::boot::{Follow, ask_menu_for_shell, follow_boot, prompt};
 use crate::error::Result;
 use crate::expect::regex;
 use crate::images::{Image, hostid_arg};
 use crate::pyfmt;
 use crate::qemu::Machine;
 use crate::record::Test;
-use crate::settings::{PW, PW_OTHER, ZbmRuntime};
-use crate::text::clean;
+use crate::settings::{PW, PW_OTHER};
 use crate::vm::Vm;
 
 use super::healthy::{Expect, expect_healthy};
@@ -50,9 +49,6 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
         ..Follow::default()
     };
     let boot = follow_boot(&mut vm, follow)?;
-    if test.settings().runtime == ZbmRuntime::Rust {
-        return after_the_shell_without_menu(test, &boot);
-    }
     test.check(
         boot.has_prompt("menu"),
         "the boot menu lists tank's boot environment after the shell",
@@ -69,46 +65,25 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
     expect_healthy(test, &boot, expect)
 }
 
-/// What the Rust runtime does after the recovery shell, as it has no menu
-/// yet (R5 step 3): it imports the pools the shell made importable and
-/// opens the shell again, where the legacy runtime shows the menu.
-pub(super) fn after_the_shell_without_menu(test: &Test, boot: &Boot) -> Result<()> {
-    test.check(
-        boot.has_prompt("refused"),
-        "the Rust runtime opened the recovery shell again, where the legacy one shows the menu",
-    );
-    let pools = boot.pools();
-    test.check(
-        pools.get("tank") == Some("ONLINE"),
-        &format!(
-            "ZFSBootMenu imported tank after the shell: {}",
-            pools.show("tank")
-        ),
-    );
-    Ok(())
-}
-
 /// Skips every LUKS prompt until ZFSBootMenu gives up; returns the number
 /// of prompts skipped and what ended them: 1 the import retry loop, 2 the
-/// emergency shell. The Rust runtime opens the shell where the legacy one
-/// shows the menu without a boot environment; that counts as the emergency
-/// shell.
+/// emergency shell. Where the legacy menu finds no boot environment and
+/// opens the shell, the menu of the Rust runtime says so and waits: the
+/// test opens the shell from it, which counts as the emergency shell.
 pub(super) fn skip_prompts(vm: &mut Vm<'_>) -> Result<(usize, usize)> {
     let patterns = [
         prompt::LUKS,
         prompt::RETRY,
         prompt::EMERGENCY,
-        prompt::REFUSED,
+        prompt::NO_ENVIRONMENTS,
     ];
     let mut skipped = 0;
     loop {
         let index = vm.expect(&patterns, 1800)?;
         if index == 3 {
-            let reason = clean(&vm.group(1));
-            vm.test().step(&format!(
-                "the Rust runtime cannot handle this yet: {}",
-                reason.trim()
-            ));
+            vm.test()
+                .step("the menu found no boot environment; opening the shell from it");
+            ask_menu_for_shell(vm)?;
             return Ok((skipped, 2));
         }
         if index > 0 {

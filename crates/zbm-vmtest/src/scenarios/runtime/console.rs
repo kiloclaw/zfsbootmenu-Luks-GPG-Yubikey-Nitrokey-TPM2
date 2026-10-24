@@ -24,6 +24,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::boot::prompt;
 use crate::error::{Error, Result};
 use crate::expect::regex;
 use crate::images::{Image, ImageSpec, zbm_image};
@@ -448,8 +449,9 @@ fn check_fallback(
     Ok(())
 }
 
-/// Escape typed during the countdown opens the recovery shell on the
-/// console, which runs on its pseudo-terminal and takes typed commands.
+/// Escape typed during the countdown opens the menu on the console, and
+/// `!` then Enter its recovery shell, which runs on the console's
+/// pseudo-terminal and takes typed commands.
 fn check_shell(
     test: &Test,
     vm: &mut Vm<'_>,
@@ -459,10 +461,19 @@ fn check_shell(
 ) -> Result<()> {
     thread::sleep(pace.pause * 2);
     (monitor.key)(vm, "esc")?;
+    let menu = wait_screen(mirror, prompt::NEW_MENU, pace.patience.min(60))?;
+    test.check(
+        menu.is_some(),
+        "virtio: Escape typed on the keyboard opens the menu on the console",
+    );
+    thread::sleep(pace.pause * 2);
+    (monitor.key)(vm, "shift-1")?;
+    thread::sleep(pace.pause);
+    (monitor.key)(vm, "ret")?;
     let shell = wait_screen(mirror, "emergency shell", pace.patience.min(60))?;
     test.check(
         shell.is_some(),
-        "virtio: Escape typed on the keyboard opens the recovery shell on the console",
+        "virtio: the menu opens the recovery shell on the console",
     );
     if shell.is_none() {
         test.note(&format!(

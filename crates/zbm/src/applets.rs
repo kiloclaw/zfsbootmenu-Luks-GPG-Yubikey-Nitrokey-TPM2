@@ -4,7 +4,8 @@
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 
-use zbm_platform::{RealSystem, TracedRunner};
+use zbm_config::conf::Conf;
+use zbm_platform::{RealSystem, System, TracedRunner};
 use zbm_startup::autosize::{self, Outcome};
 use zbm_startup::preinit;
 use zbm_startup::program::{Modes, Startup, is_on};
@@ -130,6 +131,19 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
 
     // trap '' SIGINT
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
+    on_console(io, |system, conf, _| {
+        Startup::new(system, conf).run(modes, None)
+    })
+}
+
+/// Runs `program` on the real system with the control terminal as its
+/// console and the image's configuration, as `zfsbootmenu-init` and the
+/// menu run; every program it runs goes to the journal (`zbm debug
+/// commands`). It gets `io` back, for its messages.
+pub(crate) fn on_console(
+    io: &mut Io,
+    program: impl FnOnce(System<'_>, &Conf, &mut Io) -> i32,
+) -> i32 {
     let real = RealSystem::new();
     let terminal = match real.terminal() {
         Ok(terminal) => terminal,
@@ -142,9 +156,8 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
         return give_up(io, zbm_config::conf::PATH);
     };
-    // Every program start-up runs goes to the journal (`zbm debug commands`).
     let traced = TracedRunner::new(system.runner, system.clock);
-    Startup::new(system.with_runner(&traced), &conf).run(modes, None)
+    program(system.with_runner(&traced), &conf, io)
 }
 
 /// `console-autosize`: the early-setup hook `30-console-autosize` of the Rust

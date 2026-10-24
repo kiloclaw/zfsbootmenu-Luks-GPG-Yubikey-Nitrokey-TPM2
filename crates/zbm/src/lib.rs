@@ -15,6 +15,7 @@ pub mod debug;
 pub mod fonts;
 pub mod layouts;
 pub mod luks;
+pub mod menu;
 pub mod menu_demo;
 pub mod pilot;
 pub mod report;
@@ -108,10 +109,10 @@ const SHADOW: Applet = Applet {
     run: shadow::run,
 };
 
-const MENU_PILOT: Applet = Applet {
-    name: "zbm-menu-pilot",
-    summary: "the boot environment list of the refactored menu (pilot)",
-    run: pilot::menu::run,
+const MENU: Applet = Applet {
+    name: "zfsbootmenu",
+    summary: "the menu: boot environments, booting and the recovery shell",
+    run: menu::run,
 };
 
 /// The commands `zbm` provides.
@@ -125,7 +126,7 @@ pub const APPLETS: &[Applet] = &[
     CONSOLE_FONTS,
     KEYBOARD_LAYOUTS,
     CONSOLE,
-    MENU_PILOT,
+    MENU,
     DEBUG,
     REPORT,
     SHADOW,
@@ -143,7 +144,7 @@ pub const APPLETS: &[Applet] = &[
     CONSOLE_FONTS,
     KEYBOARD_LAYOUTS,
     CONSOLE,
-    MENU_PILOT,
+    MENU,
     DEBUG,
     REPORT,
     SHADOW,
@@ -345,7 +346,7 @@ mod tests {
             "console-fonts",
             "keyboard-layouts",
             "console",
-            "zbm-menu-pilot",
+            "zfsbootmenu",
             "debug",
             "report",
             "shadow",

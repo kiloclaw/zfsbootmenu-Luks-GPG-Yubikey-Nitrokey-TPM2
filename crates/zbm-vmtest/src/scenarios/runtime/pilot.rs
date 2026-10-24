@@ -1,24 +1,19 @@
-//! `runtime-rust-pilot`: the pilots of `REFACTOR-ROADMAP.md` (R0) in the
-//! Rust image, on the serial console of the recovery shell: the menu with
-//! `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS volume
-//! formatted in the VM.
+//! `runtime-rust-pilot`: the first pilot of `REFACTOR-ROADMAP.md` (R0) in
+//! the Rust image, on the serial console of the recovery shell: `zluks
+//! --pilot open` on a LUKS volume formatted in the VM. The second, the
+//! boot environment list, gave way to the menu itself (R5 step 3), which
+//! the other scenarios drive.
 
-use std::thread;
-use std::time::{Duration, Instant};
-
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::qemu::Machine;
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
-use crate::vm::{Sh, Vm};
+use crate::vm::Vm;
 
 /// The key of the pilot's LUKS volume.
 const PILOT_KEY: &str = "zbm-pilot-key-1234";
 
-/// The frame statistics the menu pilot prints.
-const STATS: &str = r"(\d+) frames, mean ([\d.]+) ms, slowest ([\d.]+) ms\r*\n";
-
-/// Runs the pilots.
+/// Runs the pilot.
 ///
 /// # Errors
 ///
@@ -29,104 +24,10 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let machine =
         Machine::boot(&image, super::ESCAPE_APPEND).with_disks([super::disk(settings, 0)?]);
     let mut vm = Vm::start(test, "boot", &machine)?;
-    super::escape_countdown(&mut vm)?;
-    vm.shell_ready()?;
-    menu(&mut vm, "vt100", Some("80x24"))?;
-    menu(&mut vm, "linux", None)?;
+    super::escape_to_shell(&mut vm)?;
     unlock(&mut vm)?;
     vm.kill();
     Ok(())
-}
-
-/// The size of the serial log so far, in bytes, after what the VM sent in
-/// the last second.
-fn serial_bytes(vm: &mut Vm<'_>) -> u64 {
-    thread::sleep(Duration::from_secs(1));
-    vm.console().bytes_read()
-}
-
-/// The menu pilot on the serial console with `TERM=term`; types `be` and
-/// chooses the match.
-fn menu(vm: &mut Vm<'_>, term: &str, size: Option<&str>) -> Result<()> {
-    let test = vm.test();
-    let option = size.map_or_else(String::new, |size| format!(" --size {size}"));
-    vm.sendline(&format!(
-        "TERM={term} /libexec/zbm zbm-menu-pilot --stats{option}"
-    ))?;
-    // Ratatui moves the cursor over blank cells instead of writing spaces, so
-    // the screen is matched word by word, and compared without spaces.
-    let index = vm.expect(&["environments", r"zbm-menu-pilot: [^\r\n]*"], 120)?;
-    if index == 1 {
-        test.check(
-            false,
-            &format!("TERM={term}: the menu starts ({})", vm.group(0)),
-        );
-        return Ok(());
-    }
-    vm.expect1(r"\[Ctrl-U\]", 60)?;
-    let screen = vm.before().replace(' ', "");
-    test.check(
-        screen.contains("tplain/ROOT/be"),
-        &format!("TERM={term}: the boot environment is listed"),
-    );
-    let ascii = term == "vt100";
-    let borders = if ascii { "ASCII" } else { "line-drawing" };
-    test.check(
-        screen.contains("+Bootenvironments") == ascii,
-        &format!("TERM={term}: {borders} borders"),
-    );
-    choose(vm, term)?;
-    vm.sh_with("true", Sh::default().quiet()).map(drop)
-}
-
-/// Types the filter `be` in the menu pilot, chooses the match and records
-/// the frame statistics.
-fn choose(vm: &mut Vm<'_>, term: &str) -> Result<()> {
-    let test = vm.test();
-    thread::sleep(Duration::from_secs(1));
-    let before = serial_bytes(vm);
-    for key in ["b", "e"] {
-        vm.send(key)?;
-        thread::sleep(Duration::from_secs(1));
-    }
-    let typed = serial_bytes(vm).saturating_sub(before);
-    let start = Instant::now();
-    vm.send("\r")?;
-    vm.expect1(r"chosen: (\S+)\r*\n", 60)?;
-    let chosen = vm.group(1);
-    vm.expect1(STATS, 60)?;
-    let (frames, mean, slowest) = stats(&vm.group(1), &vm.group(2), &vm.group(3))?;
-    test.check(
-        chosen == "tplain/ROOT/be",
-        &format!("TERM={term}: Enter chooses tplain/ROOT/be ({chosen})"),
-    );
-    test.note(&format!(
-        "TERM={term}: {frames} frames, mean {mean} ms, slowest {slowest} ms; \
-         two filter keys took {typed} serial bytes; Enter to answer {:.2} s",
-        start.elapsed().as_secs_f64()
-    ));
-    Ok(())
-}
-
-/// The frame statistics as Python writes them: the frames as an integer,
-/// the times as floats.
-fn stats(frames: &str, mean: &str, slowest: &str) -> Result<(u64, String, String)> {
-    let bad = || Error::Setup(format!("bad frame statistics: {frames} {mean} {slowest}"));
-    let float = |text: &str| text.parse::<f64>().map(py_float).map_err(|_| bad());
-    let frames = frames.parse::<u64>().map_err(|_| bad())?;
-    Ok((frames, float(mean)?, float(slowest)?))
-}
-
-/// A float as Python's `str` writes it in the range the statistics use:
-/// the shortest digits that read back the same, with at least one
-/// decimal.
-fn py_float(value: f64) -> String {
-    let text = value.to_string();
-    if text.contains(['.', 'e', 'N', 'i']) {
-        text
-    } else {
-        format!("{text}.0")
-    }
 }
 
 /// Formats a LUKS volume on a loop device and writes the key files.

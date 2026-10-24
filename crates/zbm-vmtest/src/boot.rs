@@ -16,8 +16,11 @@ use crate::error::Result;
 use crate::pyfmt;
 use crate::record::Test;
 use crate::settings::{PW, ZFSKEY};
-use crate::text::clean;
 use crate::vm::Vm;
+
+mod menu;
+
+pub use menu::{ask_menu_for_shell, shell_from_menu};
 
 /// The prompts and messages a boot shows, by kind.
 pub mod prompt {
@@ -39,15 +42,19 @@ pub mod prompt {
     pub const KEYLOAD: &str = r"unable to load key";
     /// Nothing to boot.
     pub const EMERGENCY: &str = r"Dropping to an emergency shell";
-    /// The boot menu.
-    pub const MENU: &str = r"edit kcl";
+    /// The boot menu: the legacy one's header, or the panel of the new one
+    /// (R5 step 3).
+    pub const MENU: &str = r"edit kcl|BOOT\s*ENVIRONMENTS";
+    /// The panel of the new menu. Ratatui moves the cursor over blank cells
+    /// instead of writing spaces, and the console drops escape sequences,
+    /// so words may have no space between them.
+    pub const NEW_MENU: &str = r"BOOT\s*ENVIRONMENTS";
+    /// The new menu found no boot environment.
+    pub const NO_ENVIRONMENTS: &str = r"No\s*Boot\s*Environments";
     /// The boot environment asks for a LUKS passphrase.
     pub const BE_ASK: &str = r"Please enter passphrase for disk|Enter passphrase for /dev/";
     /// The boot environment asks for its ZFS key.
     pub const BE_ZFSKEY: &str = r"(?:Enter passphrase for|Encrypted ZFS password for) [a-z]+/ROOT";
-    /// The Rust runtime cannot handle something yet: the logged reason, or
-    /// the recovery shell's banner without one.
-    pub const REFUSED: &str = r"not supported by this build of ZFSBootMenu yet(?:: ([^\r\n]*))?";
 }
 
 /// The kinds of prompts [`follow_boot`] answers or acts on.
@@ -71,8 +78,6 @@ pub enum Kind {
     KeyLoad,
     /// [`prompt::EMERGENCY`].
     Emergency,
-    /// [`prompt::REFUSED`].
-    Refused,
     /// [`prompt::MENU`].
     Menu,
 }
@@ -89,7 +94,6 @@ impl Kind {
             Kind::Status => prompt::STATUS,
             Kind::KeyLoad => prompt::KEYLOAD,
             Kind::Emergency => prompt::EMERGENCY,
-            Kind::Refused => prompt::REFUSED,
             Kind::Menu => prompt::MENU,
         }
     }
@@ -110,7 +114,7 @@ impl Kind {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Boot {
     /// The prompts and events, in order: `luks`, `zfskey`, `tpm2pin`, `gpg`,
-    /// `menu`, `emergency`, `refused`, `keyload-failed`, `be-zfskey`,
+    /// `menu`, `emergency`, `keyload-failed`, `be-zfskey`,
     /// `be-luks-prompt`, `be-panic`, `be-emergency`.
     pub prompts: Vec<String>,
     /// ZFSBootMenu's pool status.
@@ -322,7 +326,6 @@ pub fn follow_boot(vm: &mut Vm<'_>, mut follow: Follow<'_>) -> Result<Boot> {
         Kind::Status,
         Kind::KeyLoad,
         Kind::Emergency,
-        Kind::Refused,
     ];
     if follow.menu {
         kinds.push(Kind::Menu);
@@ -338,7 +341,7 @@ pub fn follow_boot(vm: &mut Vm<'_>, mut follow: Follow<'_>) -> Result<Boot> {
         }
     }
     reports(vm, &mut boot)?;
-    if follow.no_be || boot.has_prompt("refused") {
+    if follow.no_be {
         return Ok(boot);
     }
     follow_be(vm, &mut boot, timeout)?;
@@ -369,10 +372,6 @@ fn on_prompt(
         Kind::KeyLoad => {
             boot.prompts.push("keyload-failed".into());
             return Ok(Next::Stop);
-        }
-        Kind::Refused => {
-            refused(vm, boot)?;
-            return Ok(Next::Reports);
         }
         Kind::Menu => {
             boot.prompts.push("menu".into());
@@ -425,24 +424,6 @@ fn answer(vm: &mut Vm<'_>, boot: &mut Boot, follow: &mut Follow<'_>, kind: Kind)
         .step(&format!("prompt {} -> {shown}", kind.name()));
     thread::sleep(Duration::from_millis(500));
     vm.sendline(&reply)
-}
-
-/// The Rust runtime opened the recovery shell instead of booting: runs the
-/// teardown hooks there, as ZFSBootMenu runs them before booting, so that
-/// the imported pools and the LUKS mappings are still checked; the boot
-/// environment is not.
-fn refused(vm: &mut Vm<'_>, boot: &mut Boot) -> Result<()> {
-    boot.prompts.push("refused".into());
-    let reason = clean(&vm.group(1));
-    vm.test().step(&format!(
-        "the Rust runtime cannot handle this yet: {}",
-        reason.trim()
-    ));
-    vm.shell_ready()?;
-    vm.test()
-        .step("running the teardown hooks in the recovery shell");
-    vm.sendline(r#"for h in /libexec/hooks/teardown.d/*; do [ -x "$h" ] && "$h"; done"#)?;
-    vm.expect1(prompt::STATUS, 600)
 }
 
 /// Reads the status and teardown reports of the test hooks.

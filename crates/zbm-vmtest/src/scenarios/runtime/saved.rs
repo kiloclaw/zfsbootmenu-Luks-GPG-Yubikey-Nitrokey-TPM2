@@ -71,8 +71,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let second =
         Machine::boot(&image, &format!("{}{SAVE}", super::ESCAPE_APPEND)).with_disks(disks()?);
     let mut vm = Vm::start(test, "restart", &second)?;
-    super::escape_countdown(&mut vm)?;
-    vm.shell_ready()?;
+    super::escape_to_shell(&mut vm)?;
     let (code, listed) = vm.sh_show("/libexec/zbm debug saved")?;
     test.check(code == 0, "zbm debug saved lists the saved logs");
     let boots = saved_boots(&listed);

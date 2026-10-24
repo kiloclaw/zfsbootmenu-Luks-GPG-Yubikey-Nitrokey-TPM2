@@ -1,9 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use super::healthy::{Expect, cmdline, expect_healthy};
-use super::recover::{
-    after_the_shell_without_menu, answer_prompts, imported, skip_prompts, unlock,
-};
+use super::recover::{answer_prompts, imported, skip_prompts, unlock};
 use super::setup::{crypttab_lines, crypttab_text};
 use super::*;
 use crate::boot::Boot;
@@ -267,22 +265,26 @@ fn skipped_prompts_end_in_the_emergency_shell() {
 }
 
 #[test]
-fn a_refusal_of_the_rust_runtime_counts_as_the_emergency_shell() {
-    let settings = settings("complex-skip-refused");
+fn a_menu_without_boot_environments_opens_the_shell() {
+    let settings = settings("complex-skip-menu");
     let test = Test::new(&settings, "complex-skip-recover").unwrap();
     let script = vec![
         Step::Say("Passphrase (leave empty to skip): "),
         Step::Hear(""),
-        Step::Say("not supported by this build of ZFSBootMenu yet: \x1b[1mskipped\x1b[0m \r\n"),
+        Step::Say("\x1b[1;1H BOOT ENVIRONMENTS \x1b[3;3HNo Boot Environments\x1b[4;3H"),
+        Step::Keys("!\r"),
     ];
     let (mut vm, guest) = scripted(&test, script);
 
     let ended = skip_prompts(&mut vm).unwrap();
 
-    guest.finish();
+    assert_eq!(guest.finish(), Vec::<String>::new());
     assert_eq!(ended, (1, 2));
     let steps = std::fs::read_to_string(test.dir().join("steps.log")).unwrap();
-    assert!(steps.contains("] the Rust runtime cannot handle this yet: skipped\n"));
+    assert!(
+        steps.contains("] menu -> ! Enter: the recovery shell\n"),
+        "{steps}"
+    );
     cleanup(&settings);
 }
 
@@ -335,25 +337,4 @@ fn only_mixed_and_parts_online_count_as_imported() {
                 tank\tFAULTED\nmixed2 DEGRADED";
 
     assert_eq!(imported(list).unwrap(), ["mixed", "parts"]);
-}
-
-#[test]
-fn without_a_menu_the_rust_runtime_imports_tank_and_opens_the_shell_again() {
-    let settings = settings("complex-without-menu");
-    let test = Test::new(&settings, "complex-skip-recover").unwrap();
-    let imported = Boot {
-        prompts: vec!["refused".into()],
-        zbm_status: "  pool: tank\n state: ONLINE\n".into(),
-        ..Boot::default()
-    };
-    after_the_shell_without_menu(&test, &imported).unwrap();
-    after_the_shell_without_menu(&test, &Boot::default()).unwrap();
-
-    let results: Vec<bool> = checks(&test)
-        .iter()
-        .map(|line| line.starts_with("ok"))
-        .collect();
-    assert_eq!(results, [true, true, false, false]);
-    assert!(checks(&test)[3].contains("ZFSBootMenu imported tank after the shell: None"));
-    cleanup(&settings);
 }

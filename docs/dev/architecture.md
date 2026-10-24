@@ -133,8 +133,11 @@ template for the phases that follow.
 - **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::Unlock`) →
   `zbm-luks::pilot` (`KeyChain`, `KeyFile`) → `zbm-crypt` (`Cryptsetup::open`) → `zbm-platform`
   (`TracedRunner`) → `cryptsetup`. Every step is a span in the journal (`--journal FILE`).
-- **The menu:** `zbm-menu-pilot [--demo]` → `zbm-app` (`App::snapshot`) → `zbm-tui` (`terminal::run`, `update`,
-  `view`). It prints the boot environment chosen and boots nothing.
+- **The menu:** the boot environment list, `zbm-menu-pilot`, which printed the boot environment chosen and booted
+  nothing. The menu itself replaced it in R5 step 3: `/bin/zfsbootmenu` (`zbm zfsbootmenu`) →
+  `zbm-startup` (`Startup::menu`: the lock, the setup hooks) → `zbm-tui` (`menu::session::Session` on
+  `menu::machine::RealMachine`, `menu::terminal::run`) → `zbm-app` (`App::snapshot`, `App::act`,
+  `App::act_on_console`) → `zbm-boot`.
 
 ## Changing a dependency
 

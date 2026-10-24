@@ -1,7 +1,8 @@
 //! `runtime-RUNTIME-signals`: the signal dispositions of an early-setup
 //! hook, of fzf in the menu and of the recovery shell, on the console. The
 //! legacy run records them in `signals.json`; the Rust run must reproduce
-//! those of the hook and the shell (the menu is package E).
+//! those of the hook and the shell; its menu runs no fzf, and opens the
+//! shell from its recovery tools.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -213,6 +214,8 @@ fn observe(vm: &mut Vm<'_>, runtime: ZbmRuntime) -> Result<Dispositions> {
             .step("menu: waiting for fzf, then CTRL+R for the recovery shell");
         thread::sleep(Duration::from_secs(15));
         vm.send("\x12")?;
+    } else {
+        crate::boot::shell_from_menu(vm)?;
     }
     vm.shell_ready()?;
     let (_, out) = vm.sh_show(SHELL_COMMAND)?;
@@ -264,7 +267,7 @@ fn verify(test: &Test, runtime: ZbmRuntime, result: &Dispositions) -> Result<()>
                 );
             }
         }
-        test.note("fzf runs in the menu, which arrives with package E");
+        test.note("the menu of the Rust runtime runs no fzf");
     }
     Ok(())
 }

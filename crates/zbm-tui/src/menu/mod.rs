@@ -7,6 +7,7 @@
 //! - [`keymap`]: the key map;
 //! - [`Model`], [`update`](fn@update) and [`view`](fn@view): the Elm
 //!   architecture of the prototype;
+//! - [`machine`]: what the menu runs on, and [`session`]: the menu on it;
 //! - [`demo`]: a fake machine that answers the actions, for
 //!   `zbm-tui --demo`;
 //! - [`terminal`] and [`display`]: the menu on a terminal, or on the
@@ -19,7 +20,9 @@ pub mod filter;
 pub mod format;
 pub mod keyboard;
 pub mod keymap;
+pub mod machine;
 pub mod model;
+pub mod session;
 pub mod terminal;
 pub mod theme;
 pub mod update;

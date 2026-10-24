@@ -142,8 +142,7 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, gpu: bool) -> Result<Vm<'
         ]);
     }
     let mut vm = Vm::start(test, name, &machine)?;
-    super::escape_countdown(&mut vm)?;
-    vm.shell_ready()?;
+    super::escape_to_shell(&mut vm)?;
     Ok(vm)
 }
 

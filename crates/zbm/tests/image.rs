@@ -447,8 +447,11 @@ fn dracut_images_start_the_selected_runtime() {
         utf8,
         "{profile}"
     );
-    // zbm is zluks, which also closes the LUKS mappings before booting.
+    // zbm is zluks, which also closes the LUKS mappings before booting, and
+    // the menu, under both of its names.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
+    assert_eq!(rust.entries["bin/zfsbootmenu"], "link /libexec/zbm");
+    assert_eq!(rust.entries["bin/zbm"], "file 755");
     let hook = rust.text(teardown);
     assert!(hook.starts_with("#!/bin/bash\n"), "{hook}");
     assert!(hook.contains("\n/bin/zluks close\nexit 0\n"), "{hook}");

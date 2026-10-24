@@ -1,7 +1,7 @@
 //! Helpers for the harness's own tests: a guest that plays a script on a
 //! console, and tests in a scratch work directory.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::thread::{self, JoinHandle};
 
@@ -17,6 +17,9 @@ pub enum Step {
     Say(&'static str),
     /// The guest reads a line, which must be this.
     Hear(&'static str),
+    /// The guest reads key presses, as many bytes as these, which must be
+    /// these.
+    Keys(&'static str),
 }
 
 /// A guest playing a script on the other end of a console.
@@ -39,6 +42,14 @@ impl Guest {
                         reader.read_line(&mut line).unwrap();
                         if line.trim_end_matches('\n') != expected {
                             mismatches.push(format!("heard {line:?}, expected {expected:?}"));
+                        }
+                    }
+                    Step::Keys(expected) => {
+                        let mut keys = vec![0; expected.len()];
+                        reader.read_exact(&mut keys).unwrap();
+                        if keys != expected.as_bytes() {
+                            let keys = String::from_utf8_lossy(&keys);
+                            mismatches.push(format!("pressed {keys:?}, expected {expected:?}"));
                         }
                     }
                 }

@@ -6,7 +6,8 @@
 //! hooks. Before booting, the runtime lists what it still cannot handle with
 //! [`unsupported`] and, if the list is not empty, logs each item and opens
 //! the recovery shell (see "The minimal runtime of Phase 5" in
-//! `crates/DESIGN.md`). Only the menu is left; it comes in R5.
+//! `crates/DESIGN.md`). Only the menu is left, in an image without the menu
+//! program; R5 adds it to images.
 
 use std::fmt;
 
@@ -22,6 +23,8 @@ pub struct Facts {
     pub bootfs: Option<String>,
     /// Whether a key was pressed during the countdown.
     pub countdown_interrupted: bool,
+    /// Whether the image has the menu program.
+    pub has_menu: bool,
 }
 
 /// One thing the runtime cannot handle yet.
@@ -41,9 +44,12 @@ impl fmt::Display for Unsupported {
 }
 
 /// Everything in `options` and `facts` that the runtime cannot handle yet:
-/// the menu.
+/// the menu, when the image has none.
 pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     let mut list = Vec::new();
+    if facts.has_menu {
+        return list;
+    }
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
     if !options
@@ -117,6 +123,11 @@ mod tests {
             unsupported(&options(""), &interrupted),
             [Unsupported::Menu("a key was pressed during the countdown")]
         );
+        let with_menu = Facts {
+            has_menu: true,
+            ..no_bootfs
+        };
+        assert_eq!(unsupported(&options("zbm.show"), &with_menu), []);
     }
 
     #[test]

@@ -119,8 +119,7 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str) -> Result<Vm<'t>> {
             .extend(["-vga", "none", "-device", "virtio-vga"].map(String::from));
     }
     let mut vm = Vm::start(test, name, &machine)?;
-    super::escape_countdown(&mut vm)?;
-    vm.shell_ready()?;
+    super::escape_to_shell(&mut vm)?;
     Ok(vm)
 }
 

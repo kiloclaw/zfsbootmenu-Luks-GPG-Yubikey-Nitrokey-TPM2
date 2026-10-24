@@ -188,15 +188,31 @@ fn a_pool_block_ends_at_the_next_pool() {
 }
 
 #[test]
-fn a_refusal_is_its_logged_reason_or_the_bare_shell_banner() {
-    let refused = crate::expect::regex(prompt::REFUSED).unwrap();
-    let logged = "not supported by this build of ZFSBootMenu yet: the menu (zbm.show)\r\n";
-    let reason = refused
-        .captures(logged)
-        .unwrap()
-        .get(1)
-        .map(|group| group.as_str());
-    assert_eq!(reason, Some("the menu (zbm.show)"));
-    let banner = "emergency shell: not supported by this build of ZFSBootMenu yet\r\n";
-    assert!(refused.captures(banner).unwrap().get(1).is_none());
+fn the_new_menu_is_recognized_without_its_spaces() {
+    let menu = crate::expect::regex(prompt::MENU).unwrap();
+    let new = crate::expect::regex(prompt::NEW_MENU).unwrap();
+    let none = crate::expect::regex(prompt::NO_ENVIRONMENTS).unwrap();
+    for screen in ["┌ BOOT ENVIRONMENTS ─", "BOOTENVIRONMENTS"] {
+        assert!(menu.is_match(screen) && new.is_match(screen), "{screen:?}");
+    }
+    assert!(menu.is_match("[CTRL+E] edit kcl"));
+    assert!(!new.is_match("[CTRL+E] edit kcl"));
+    assert!(none.is_match("NoBoot Environments"));
+    assert!(!none.is_match("No boot environment"));
+}
+
+#[test]
+fn the_shell_is_asked_of_the_new_menu() {
+    let settings = crate::testing::settings("boot-menu-shell");
+    let test = Test::new(&settings, "runtime-rust-boot").unwrap();
+    let script = vec![
+        Step::Say("\x1b[2J\x1b[1;1H BOOT\x1b[1;7HENVIRONMENTS \r\n"),
+        Step::Keys("!\r"),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    shell_from_menu(&mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    crate::testing::cleanup(&settings);
 }

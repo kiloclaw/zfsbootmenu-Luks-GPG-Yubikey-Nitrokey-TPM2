@@ -123,7 +123,8 @@ fn the_console_shows_takes_keys_and_falls_back() {
         &mirror,
         "\x0czbm console: on /dev/dri/card0: 1280x800 display, DejaVuSansMono.ttf 10x20 cells, \
          128x40, keyboard us\n\
-         \x0cBooting tplain/ROOT/be in 29 seconds\n\x0cemergency shell\n\x0c# tty\n/dev/pts/0\n\
+         \x0cBooting tplain/ROOT/be in 29 seconds\n\x0c BOOT ENVIRONMENTS \n\
+         \x0cemergency shell\n\x0c# tty\n/dev/pts/0\n\
          \x0c# layout de\nkeyboard: de\n\x0c# cat\nzyê\nzyê\n\
          \x0czfsbootmenu / > echo zyê\nzyê\n\x0c# layout us\nkeyboard: us\n",
     )
@@ -135,13 +136,13 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 14, "{checks:?}");
+    assert_eq!(checks.len(), 15, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
     );
-    assert!(checks[4].contains("1280x800 display"), "{checks:?}");
-    assert!(checks[5].contains("DejaVuSansMono.ttf"), "{checks:?}");
+    assert!(checks[5].contains("1280x800 display"), "{checks:?}");
+    assert!(checks[6].contains("DejaVuSansMono.ttf"), "{checks:?}");
     cleanup(&settings);
 }
 
@@ -159,7 +160,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 19, "{checks:?}");
+    assert_eq!(checks.len(), 20, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

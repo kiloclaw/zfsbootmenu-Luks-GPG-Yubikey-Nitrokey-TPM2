@@ -2,11 +2,13 @@
 //!
 //! [`Startup::run`] runs the start-up stages that have not run (all of them
 //! when forced), marks the start-up done, and on the console counts down and
-//! boots the default boot environment. The Phase 5 runtime has no menu: where
-//! the legacy program starts the menu, it says what it cannot do and opens the
-//! recovery shell, and it keeps doing so, importing pools again between shells
-//! as the legacy loop does. See "Modes of the start-up program" and "The
+//! boots the default boot environment. Then, as the legacy loop does, it runs
+//! the menu program ([`menu`]) and the recovery shell after it, importing
+//! pools again between rounds. In an image without the menu program, it says
+//! what it cannot do instead. See "Modes of the start-up program" and "The
 //! minimal runtime of Phase 5" in `crates/DESIGN.md`.
+
+pub mod menu;
 
 use std::path::{Path, PathBuf};
 
@@ -26,6 +28,7 @@ use zbm_config::spec::cmdline::{SAVE_LOGS, SKIP_HOOKS};
 use zbm_platform::{Installed, System};
 use zbm_pool::{BootfsPreference, Build, PoolRef, Requirement, RetryDelay};
 use zbm_state::State;
+use zbm_tools::programs;
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::shell::Shell;
@@ -183,11 +186,12 @@ impl<'a> Startup<'a> {
     }
 
     /// The countdown and the automatic boot of `bootfs`. Where the legacy
-    /// program would show the menu, it logs why it cannot; the recovery loop
-    /// that follows opens the shell.
+    /// program would show the menu, the loop that follows does; without the
+    /// menu program, this logs why it cannot.
     fn countdown(&self, bootfs: Option<&str>) {
         let mut facts = Facts {
             bootfs: bootfs.map(str::to_owned),
+            has_menu: menu::has_menu(&self.system),
             ..Facts::default()
         };
         let timeout = self.options.menu_timeout_seconds();
@@ -256,14 +260,20 @@ impl<'a> Startup<'a> {
         }
     }
 
-    /// The loop of the legacy program, without the menu: the recovery shell,
-    /// then pools that became importable in it are imported read-only, and
-    /// unhealthy ones restricted.
+    /// The loop of the legacy program: the menu program and the recovery
+    /// shell, then pools that became importable in them are imported
+    /// read-only, and unhealthy ones restricted. Without the menu program,
+    /// the shell says that the menu is not supported.
     fn recovery_loop(&self, rounds: Option<usize>) {
         let mut round = 0;
         while rounds.is_none_or(|rounds| round < rounds) {
             round += 1;
-            self.shell().emergency_shell(support::MESSAGE);
+            if menu::has_menu(&self.system) {
+                let _ = programs::applet(self.system.runner, menu::MENU, &[], &[]);
+                self.shell().emergency_shell("");
+            } else {
+                self.shell().emergency_shell(support::MESSAGE);
+            }
 
             let settings = self.import_settings();
             let pool = settings

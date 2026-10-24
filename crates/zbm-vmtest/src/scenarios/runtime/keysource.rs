@@ -11,8 +11,8 @@
 //!   `/zfsbootmenu/.keys` and unlocks the boot environment with it.
 //!
 //! With the legacy runtime, shadow mode must compare where the key came
-//! from without a difference each time. The Rust runtime boots only from
-//! the countdown, as it has no menu yet.
+//! from without a difference each time. The menu of the Rust runtime shows
+//! the boot environment locked and asks for the key when it boots.
 
 use crate::boot::{Follow, Kind, follow_boot};
 use crate::error::Result;
@@ -54,8 +54,8 @@ const BOOTS: [Boot; 2] = [
     },
 ];
 
-/// Boots `tkeys`'s boot environment from the countdown, then, with the
-/// legacy runtime, from the menu.
+/// Boots `tkeys`'s boot environment from the countdown, then from the
+/// menu.
 ///
 /// # Errors
 ///
@@ -63,11 +63,7 @@ const BOOTS: [Boot; 2] = [
 pub(super) fn run(test: &Test, runtime: ZbmRuntime) -> Result<()> {
     let settings = test.settings();
     let image = super::image(settings, "auto", runtime, None)?;
-    let boots = match runtime {
-        ZbmRuntime::Legacy => &BOOTS[..],
-        ZbmRuntime::Rust => &BOOTS[..1],
-    };
-    for boot in boots {
+    for boot in &BOOTS {
         let machine =
             Machine::boot(&image, boot.append).with_disks(vec![super::disk(settings, 2)?]);
         let mut vm = Vm::start(test, boot.label, &machine)?;

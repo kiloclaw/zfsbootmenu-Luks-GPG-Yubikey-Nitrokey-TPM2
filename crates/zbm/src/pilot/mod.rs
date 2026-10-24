@@ -1,8 +1,7 @@
-//! The front ends of the pilots of REFACTOR-ROADMAP.md (R0), which run the
-//! refactored layers beside today's code:
-//!
-//! - [`zluks`]: `zluks --pilot open`, a LUKS volume opened with a key file;
-//! - [`menu`]: `zbm-menu-pilot`, the boot environment list of the new menu.
+//! The front end of the first pilot of REFACTOR-ROADMAP.md (R0), which
+//! runs the refactored layers beside today's code: [`zluks`], `zluks
+//! --pilot open`, a LUKS volume opened with a key file. The second pilot,
+//! the boot environment list of the new menu, gave way to the menu itself
+//! (R5 step 3).
 
-pub mod menu;
 pub mod zluks;

@@ -35,17 +35,16 @@
 
 mod boot;
 pub mod model;
-pub mod pilot;
 mod read;
 mod unlock;
 mod volumes;
 
 pub use boot::kernel_version;
 pub use model::Encryption;
-pub use pilot::SnapshotError;
 pub use read::stage_name;
 pub use unlock::UnlockRequest;
 pub use volumes::{NO_CRYPTSETUP, device_not_found};
+pub use zbm_boot::BootError;
 pub use zbm_boot::boot::BootSettings;
 pub use zbm_boot::recovery::Recovery;
 pub use zbm_crypt::OpenOptions;
@@ -117,6 +116,15 @@ impl Sink for Vec<model::Event> {
     fn send(&mut self, event: model::Event) {
         self.push(event);
     }
+}
+
+/// Why the machine could not be read.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SnapshotError {
+    /// ZFS could not answer.
+    #[error(transparent)]
+    Zfs(#[from] zbm_zfs::ZfsError),
 }
 
 /// Why an [`Action`] failed.
@@ -309,17 +317,6 @@ impl<'a> App<'a> {
         }
     }
 
-    /// Reads the machine for the menu pilot: its boot environments.
-    ///
-    /// # Errors
-    ///
-    /// [`AppError::Snapshot`] when `zfs` or `zpool` fails or prints something
-    /// unexpected.
-    pub fn pilot_snapshot(&self) -> Result<pilot::Snapshot, AppError> {
-        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
-        Ok(pilot::read(&zfs)?)
-    }
-
     /// Reads the machine: what every view of the menu reads. What the
     /// application was not given (options, a LUKS session, the state and
     /// layout directories) stays empty.
@@ -390,7 +387,6 @@ mod tests {
         fake.runner.respond_program("zpool", 0, "");
         fake.runner.respond_program("zfs", 0, "");
         let app = App::new(Context::new(fake.system()));
-        assert!(app.pilot_snapshot().unwrap().boot_environments.is_empty());
         let snapshot = app.snapshot().unwrap();
         assert!(snapshot.environments.is_empty() && snapshot.volumes.is_empty());
     }

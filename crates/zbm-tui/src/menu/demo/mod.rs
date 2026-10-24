@@ -10,7 +10,7 @@ mod health;
 mod session;
 mod storage;
 
-pub use session::Session;
+pub use crate::menu::session::Session;
 
 use zbm_platform::secret::Secret;
 
