@@ -72,6 +72,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
   `/usr/share/zfsbootmenu/layouts`; the online help of `zfsbootmenu(7)` describes `zbm.keyboard_layout` and the build
   option. Legacy images are unchanged.
   **Rust:** done; `crates/zbm/tests/image.rs` checks the layouts of Rust images and their absence from legacy ones.
+- [x] `459c402`: images with `zfsbootmenu_runtime=rust` let the recovery shell's line editor take characters beyond
+  ASCII: `install_zbm_shell_input`, which the dracut module and the mkinitcpio hook call, writes `/etc/inputrc` (8-bit
+  input and output) and installs the build host's `C.UTF-8` character set, when it has one, with
+  `LC_CTYPE=C.UTF-8` in `/etc/profile`. Legacy images are unchanged.
+  **Rust:** done; `crates/zbm/tests/image.rs` checks both runtimes' images, and `runtime-rust-console` types `ê` at
+  the prompt.
 
 ## Legacy limitations the Rust runtime must not copy
 
