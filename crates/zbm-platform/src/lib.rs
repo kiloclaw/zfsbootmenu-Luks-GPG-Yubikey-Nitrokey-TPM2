@@ -95,6 +95,15 @@ pub struct System<'a> {
     pub environment: &'a dyn Environment,
 }
 
+impl<'a> System<'a> {
+    /// This system with `runner` for its programs, such as a
+    /// [`TracedRunner`] over its own, so that the journal records each one.
+    #[must_use]
+    pub fn with_runner(self, runner: &'a dyn Runner) -> System<'a> {
+        System { runner, ..self }
+    }
+}
+
 impl System<'_> {
     /// Sends this thread's kernel log messages to this system's files, for
     /// process `self.processes.id()`, until the returned guard is dropped.
@@ -234,6 +243,17 @@ mod tests {
         assert!(system.files.exists(std::path::Path::new("/proc/self")));
         let _log = system.kernel_log("x", std::path::Path::new("/nonexistent"));
         assert!(!zbm_trace::enabled(zbm_trace::Level::Error));
+    }
+
+    #[test]
+    fn a_system_can_take_another_runner() {
+        let real = RealSystem::default();
+        let terminal = real.terminal().unwrap();
+        let system = real.with_console(&terminal);
+        let traced = TracedRunner::new(system.runner, system.clock);
+        let traced_system = system.with_runner(&traced);
+        assert!(std::ptr::addr_eq(traced_system.runner, &raw const traced));
+        assert!(std::ptr::addr_eq(traced_system.files, system.files));
     }
 
     #[test]

@@ -219,4 +219,34 @@ mod tests {
         assert_eq!(call(&files, &[]).0, USAGE);
         assert_eq!(call(&files, &["frobnicate"]).2, USAGE_TEXT);
     }
+
+    #[test]
+    fn the_reports_of_the_state_directory_are_reached_by_name() {
+        let files = FakeFiles::new();
+        files
+            .file(
+                "/zfsbootmenu/zbm.cmdline",
+                "zbm.timeout=5
+",
+            )
+            .file("/zfsbootmenu/journal.jsonl", "");
+
+        assert!(call(&files, &["config"]).1.starts_with(
+            "command line: zbm.timeout=5
+"
+        ));
+        assert_eq!(
+            call(&files, &["state"]).1,
+            "== zbm.cmdline (14 bytes)\nzbm.timeout=5\n"
+        );
+        assert_eq!(
+            call(&files, &["commands"]).1,
+            "0 commands, 0 failed or did not start, 0 ms in all\n"
+        );
+        assert_eq!(call(&files, &["journal"]).0, 1);
+        assert_eq!(
+            call(&files, &["journal", "--level", "loud"]),
+            (USAGE, String::new(), USAGE_TEXT.to_owned())
+        );
+    }
 }

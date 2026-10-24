@@ -127,3 +127,29 @@ fn the_commands_say_how_they_ended() {
          2 commands, 1 failed or did not start, 12 ms in all\n"
     );
 }
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a command of any adapter would do; this one is the start-up's import"
+)]
+fn the_commands_of_a_traced_runner_are_read_back_from_the_journal() {
+    let fake = zbm_testkit::fakes::FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner.respond_program("zpool", 0, "");
+    let base = Path::new("/zfsbootmenu");
+    {
+        let _log = zbm_platform::KernelLog::new(&fake.files, "4", base, 1).install();
+        let system = fake.system();
+        let traced = zbm_platform::TracedRunner::new(system.runner, system.clock);
+        let system = system.with_runner(&traced);
+        let command = zbm_platform::Command::new("zpool").args(["import", "-N", "tank"]);
+        let _ = system.runner.run(&command);
+    }
+
+    let ran = commands(&records(&fake.files, base));
+
+    assert_eq!(ran.len(), 1, "{ran:?}");
+    assert_eq!(ran[0].line, "zpool import -N tank");
+    assert_eq!(ran[0].status, Some(0));
+}

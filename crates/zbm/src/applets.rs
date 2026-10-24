@@ -4,7 +4,7 @@
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 
-use zbm_platform::RealSystem;
+use zbm_platform::{RealSystem, TracedRunner};
 use zbm_startup::autosize::{self, Outcome};
 use zbm_startup::preinit;
 use zbm_startup::program::{Modes, Startup, is_on};
@@ -142,7 +142,9 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     let Ok(conf) = preinit::read_conf(&system, Path::new("/")) else {
         return give_up(io, zbm_config::conf::PATH);
     };
-    Startup::new(system, &conf).run(modes, None)
+    // Every program start-up runs goes to the journal (`zbm debug commands`).
+    let traced = TracedRunner::new(system.runner, system.clock);
+    Startup::new(system.with_runner(&traced), &conf).run(modes, None)
 }
 
 /// `console-autosize`: the early-setup hook `30-console-autosize` of the Rust
