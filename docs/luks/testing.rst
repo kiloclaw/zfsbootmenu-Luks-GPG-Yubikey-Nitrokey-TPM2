@@ -301,10 +301,12 @@ Following a boot
   * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook, of ``fzf`` in
     the menu and of the recovery shell, on the console. The legacy run records them; the Rust run must reproduce
     those of the hook and the shell (its menu arrives with package E).
-  * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only: ZFSBootMenu asks once for the key
-    source's passphrase, copies the key file from it and boots the boot environment, and shadow mode compares where
-    the key came from (``key source``) without a difference. The Rust runtime does not load keys yet, and the boot
-    environment itself is not followed, as its initramfs has no key file.
+  * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only, booted twice. From the countdown, which
+    skips key sources, ZFSBootMenu asks for the boot environment's own passphrase; from the menu (``zbm.show``), it
+    asks for the key source's passphrase instead, copies the key file from it and unlocks the boot environment with
+    it. Each time, shadow mode compares where the key came from (``key source``) without a difference. The Rust
+    runtime does not load keys yet, and the boot environment itself is not followed, as its initramfs has no key
+    file.
 
 * ``runtime-rust-pilot`` runs the pilots of ``REFACTOR-ROADMAP.md`` in the Rust image, from the recovery shell on the
   serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the

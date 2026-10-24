@@ -47,7 +47,7 @@ fn with_format(keylocation: &str, keysource: &str, keyformat: &str) -> FakeSyste
 
 /// Where the key of `tank/ROOT/be` comes from on `fake`.
 fn source(fake: &FakeSystem) -> Option<KeySource> {
-    key_source(&fake.runner, &fake.files, "tank/ROOT/be").map(|(root, source)| {
+    key_source(&fake.runner, &fake.files, "tank/ROOT/be", BootPath::Menu).map(|(root, source)| {
         assert_eq!(root, "tank/ROOT");
         source
     })
@@ -70,13 +70,21 @@ fn a_key_file_in_the_image_comes_first() {
 }
 
 #[test]
-fn a_missing_key_file_is_copied_from_an_encrypted_key_source() {
+fn a_missing_key_file_is_copied_from_an_encrypted_key_source_from_the_menu() {
     let fake = machine("file:///etc/zfs/tank.key", "tank/keys");
 
     assert_eq!(
         source(&fake),
         Some(KeySource::Keysource("tank/keys".into()))
     );
+    let countdown = key_source(
+        &fake.runner,
+        &fake.files,
+        "tank/ROOT/be",
+        BootPath::Countdown,
+    );
+    assert_eq!(countdown, Some(("tank/ROOT".into(), KeySource::Prompt)));
+    assert_eq!(BootPath::default(), BootPath::Countdown);
 }
 
 #[test]
@@ -102,7 +110,10 @@ fn an_unencrypted_filesystem_has_no_key() {
     fake.runner
         .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
 
-    assert_eq!(key_source(&fake.runner, &fake.files, "tank/ROOT/be"), None);
+    assert_eq!(
+        key_source(&fake.runner, &fake.files, "tank/ROOT/be", BootPath::Menu),
+        None
+    );
 }
 
 #[test]

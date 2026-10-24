@@ -242,7 +242,7 @@ pub fn key_source(
     {
         return None;
     }
-    let (root, rust) = keys::key_source(system.runner, system.files, &selected.be)?;
+    let (root, rust) = keys::key_source(system.runner, system.files, &selected.be, selected.path)?;
     Some(Comparison {
         decision: "key source",
         legacy: legacy_key_source(system, state, &root, &selected.be).to_string(),

@@ -4,7 +4,8 @@
 //! 1. `keylocation=prompt`: the passphrase prompt;
 //! 2. a `file://` key that exists in ZFSBootMenu's own file system: that file;
 //! 3. a key source (`org.zfsbootmenu:keysource`) that names an encrypted
-//!    filesystem: the key file copied from it into `/zfsbootmenu/.keys`;
+//!    filesystem: the key file copied from it into `/zfsbootmenu/.keys`, for
+//!    a boot chosen in the menu; the countdown's boot skips key sources;
 //! 4. a `passphrase` key: the passphrase prompt;
 //! 5. otherwise nothing ZFSBootMenu can load it with.
 //!
@@ -21,6 +22,17 @@ use zbm_config::spec::properties::KEYSOURCE;
 use zbm_platform::{Files, Runner};
 
 use crate::boot::{encryption_root, zfs_value};
+
+/// How the boot was chosen, which decides whether key sources are tried.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum BootPath {
+    /// The countdown ran out and booted the default boot environment; key
+    /// sources are not tried.
+    #[default]
+    Countdown,
+    /// The boot environment was chosen in the menu; key sources are tried.
+    Menu,
+}
 
 /// Where the key of an encryption root comes from.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,20 +86,28 @@ pub fn key_file(keylocation: &str) -> Option<&str> {
     (!file.is_empty()).then_some(file)
 }
 
-/// The encryption root of `fs` and where its key would come from; `None`
-/// when `fs` is not encrypted.
-pub fn key_source(runner: &dyn Runner, files: &dyn Files, fs: &str) -> Option<(String, KeySource)> {
+/// The encryption root of `fs` and where its key would come from on a boot
+/// chosen by `path`; `None` when `fs` is not encrypted.
+pub fn key_source(
+    runner: &dyn Runner,
+    files: &dyn Files,
+    fs: &str,
+    path: BootPath,
+) -> Option<(String, KeySource)> {
     let root = encryption_root(runner, fs)?;
     let keylocation = zfs_value(runner, "keylocation", &root).unwrap_or_else(|| "prompt".into());
     if keylocation == "prompt" {
         return Some((root, KeySource::Prompt));
     }
     if let Some(file) = key_file(&keylocation) {
-        let path = format!("/{file}");
-        if files.exists(Path::new(&path)) {
-            return Some((root, KeySource::File(path)));
+        let in_image = format!("/{file}");
+        if files.exists(Path::new(&in_image)) {
+            return Some((root, KeySource::File(in_image)));
         }
-        if let Some(source) = keysource(runner, fs) {
+        let source = (path == BootPath::Menu)
+            .then(|| keysource(runner, fs))
+            .flatten();
+        if let Some(source) = source {
             return Some((root, KeySource::Keysource(source)));
         }
     }

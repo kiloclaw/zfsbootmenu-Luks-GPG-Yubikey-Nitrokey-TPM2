@@ -15,7 +15,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use zbm_boot::shadow::{Selected, compare, efivar};
+use zbm_boot::shadow::{Selected, boot_path, compare, efivar};
 use zbm_config::args::{Args, CmdlineDir};
 use zbm_config::spec::cmdline::SHADOW;
 use zbm_platform::ReadOnlyRunner;
@@ -61,11 +61,9 @@ pub fn check(system: &System<'_>, base: Option<&Path>, io: &mut Io) -> i32 {
         runner: &runner,
         ..*system
     };
-    let report = compare(
-        &reading,
-        &state,
-        &Selected::from_environment(system.environment),
-    );
+    let mut selected = Selected::from_environment(system.environment);
+    selected.path = boot_path(system.files, system.processes.id());
+    let report = compare(&reading, &state, &selected);
     let _ = io.stdout.write_all(report.text().as_bytes());
     zbm_trace::notice!("{}", report.summary());
     if report.differences() > 0

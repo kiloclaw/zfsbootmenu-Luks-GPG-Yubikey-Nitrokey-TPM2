@@ -799,7 +799,8 @@ builds after the core tasks.
    `secrets` tests find no secret with start-up's commands in the journal.
 5. **Built; VM tests to run.** The Rust code decides where the key of an encryption root comes from
    (`zbm_boot::keys::key_source`: the prompt, a key file in the image, or a key file copied from
-   `org.zfsbootmenu:keysource`, in the legacy order) and shadow mode compares it (`key source`). The LUKS mapping
+   `org.zfsbootmenu:keysource`, in the legacy order; key sources only for a boot chosen in the menu, as the
+   countdown's boot skips them) and shadow mode compares it (`key source`). The LUKS mapping
    names that shadow mode expects are those the unlock use cases give (`zbm_luks::device::mapping_name`, a detached
    header included). The use cases of import and booting arrive in R5 with port package C, and shadow mode covers
    them then. A new VM test, `runtime-legacy-keysource`, boots a boot environment whose key comes from its key

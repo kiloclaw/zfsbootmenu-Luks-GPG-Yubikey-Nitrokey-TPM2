@@ -25,7 +25,7 @@ const FOREIGN: [u8; 4] = [0xef, 0xbe, 0xad, 0xde];
 const POOLS: [&str; 2] = ["tplain", "tforeign"];
 
 /// The passphrase in the key file of `tkeys`'s boot environment.
-const BE_KEY: &str = "tkeys-be-key";
+pub(super) const BE_KEY: &str = "tkeys-be-key";
 
 /// Creates the pools in the recovery shell.
 ///

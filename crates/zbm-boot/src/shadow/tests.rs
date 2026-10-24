@@ -139,6 +139,7 @@ fn the_kernel_is_the_newest_unless_the_property_says_otherwise() {
         kernel: kernel.to_owned(),
         initramfs: initramfs.to_owned(),
         mountpoint: "/mnt/be".to_owned(),
+        path: BootPath::Countdown,
     };
 
     let newest = kernel(
@@ -260,10 +261,11 @@ fn keyed_machine() -> FakeSystem {
     fake
 }
 
-/// The selection of `tank/ROOT/be`.
+/// The selection of `tank/ROOT/be`, in the menu.
 fn selected_be() -> Selected {
     Selected {
         be: "tank/ROOT/be".to_owned(),
+        path: BootPath::Menu,
         ..Selected::default()
     }
 }
@@ -290,6 +292,56 @@ fn the_key_source_is_the_one_the_legacy_runtime_cached_the_key_from() {
         key_source(&system, &state, &selected_be()).unwrap().legacy,
         "file /etc/zfs/tank.key"
     );
+}
+
+#[test]
+fn the_countdown_s_boot_skips_key_sources_in_both_runtimes() {
+    let fake = keyed_machine();
+    let state = state(&fake);
+    let countdown = Selected {
+        path: BootPath::Countdown,
+        ..selected_be()
+    };
+
+    let same = key_source(&fake.system(), &state, &countdown).unwrap();
+
+    assert_eq!(
+        (same.legacy.as_str(), same.rust.as_str()),
+        ("prompt", "prompt")
+    );
+}
+
+/// Writes `/proc/<pid>/stat` for each process, with its name and parent.
+fn processes(fake: &FakeSystem, list: &[(u32, &str, u32)]) {
+    for (pid, name, parent) in list {
+        fake.files.file(
+            format!("/proc/{pid}/stat"),
+            format!("{pid} ({name}) S {parent} {pid} {pid} 0 -1\n"),
+        );
+    }
+}
+
+#[test]
+fn a_boot_is_the_menu_s_when_the_legacy_menu_runs_its_hooks() {
+    let hooks = [
+        (40, "zbm", 39),
+        (39, "99-zbm-shadow.", 38),
+        (38, "zfsbootmenu-run", 37),
+    ];
+    let menu = FakeSystem::new();
+    processes(&menu, &hooks);
+    processes(&menu, &[(37, "zfsbootmenu", 2), (2, "zfsbootmenu-ini", 1)]);
+    assert_eq!(boot_path(&menu.files, 40), BootPath::Menu);
+
+    let countdown = FakeSystem::new();
+    processes(&countdown, &hooks);
+    processes(&countdown, &[(37, "zfsbootmenu-ini", 1)]);
+    assert_eq!(boot_path(&countdown.files, 40), BootPath::Countdown);
+
+    let odd = FakeSystem::new();
+    processes(&odd, &[(5, "a (b) c", 1)]);
+    assert_eq!(boot_path(&odd.files, 5), BootPath::Countdown);
+    assert_eq!(boot_path(&FakeSystem::new().files, 5), BootPath::Countdown);
 }
 
 #[test]

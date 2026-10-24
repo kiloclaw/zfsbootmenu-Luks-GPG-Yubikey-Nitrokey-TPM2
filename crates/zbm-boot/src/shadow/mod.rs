@@ -23,8 +23,12 @@ pub mod efivar;
 
 use std::fmt::Write as _;
 
-use zbm_platform::System;
+use std::path::Path;
+
+use zbm_platform::{Files, System};
 use zbm_state::State;
+
+pub use crate::keys::BootPath;
 
 pub use decisions::{boot_environment, host_id, kernel, key_source, luks_mappings, pools};
 
@@ -39,6 +43,8 @@ pub struct Selected {
     pub initramfs: String,
     /// `ZBM_SELECTED_MOUNTPOINT`: where it is mounted.
     pub mountpoint: String,
+    /// Whether it was chosen in the menu or by the countdown ([`boot_path`]).
+    pub path: BootPath,
 }
 
 impl Selected {
@@ -50,8 +56,50 @@ impl Selected {
             kernel: get("ZBM_SELECTED_KERNEL"),
             initramfs: get("ZBM_SELECTED_INITRAMFS"),
             mountpoint: get("ZBM_SELECTED_MOUNTPOINT"),
+            path: BootPath::default(),
         }
     }
+}
+
+/// The name of the legacy menu's process, `/bin/zfsbootmenu`.
+const MENU: &str = "zfsbootmenu";
+
+/// The parent and the name of process `pid`, from `/proc/<pid>/stat`.
+fn parent_and_name(files: &dyn Files, pid: u32) -> Option<(u32, String)> {
+    let stat = files
+        .read_to_string(&Path::new("/proc").join(pid.to_string()).join("stat"))
+        .ok()?;
+    // pid (name) state ppid ...; the name may hold spaces and parentheses.
+    let open = stat.find('(')?;
+    let close = stat.rfind(')')?;
+    let name = stat.get(open + 1..close)?.to_owned();
+    let parent = stat
+        .get(close + 1..)?
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()?;
+    Some((parent, name))
+}
+
+/// How the legacy runtime chose the boot that runs the `boot-sel.d` hooks of
+/// process `pid`: in the menu when the legacy menu is among its ancestors,
+/// else by the countdown of the start-up program.
+pub fn boot_path(files: &dyn Files, pid: u32) -> BootPath {
+    let mut current = pid;
+    for _ in 0..32 {
+        let Some((parent, name)) = parent_and_name(files, current) else {
+            break;
+        };
+        if name == MENU {
+            return BootPath::Menu;
+        }
+        if parent <= 1 {
+            break;
+        }
+        current = parent;
+    }
+    BootPath::Countdown
 }
 
 /// One decision, as each runtime made it.

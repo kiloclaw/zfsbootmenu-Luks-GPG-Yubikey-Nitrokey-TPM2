@@ -27,7 +27,7 @@ legacy runtime has chosen a boot environment and before it loads the kernel. Ima
 | LUKS mappings | the mappings in `luks-mappings` | the crypttab name, or `luks-<UUID>` for volumes discovery found |
 | default boot environment | the `bootfs` the start-up stage chose | `zbm_pool::choose_bootfs` |
 | kernel | `ZBM_SELECTED_KERNEL` and `ZBM_SELECTED_INITRAMFS` | the kernel `org.zfsbootmenu:kernel` and the version order choose |
-| key source | where the key of the selected boot environment's encryption root came from: `prompt`, `file <path>` when the key file is in the image, or `keysource <filesystem>` when it made `/zfsbootmenu/.keys/<filesystem>` to copy the key file from `org.zfsbootmenu:keysource` | the same order, decided by `zbm_boot::keys::key_source` without loading anything |
+| key source | where the key of the selected boot environment's encryption root came from: `prompt`, `file <path>` when the key file is in the image, or `keysource <filesystem>` when it made `/zfsbootmenu/.keys/<filesystem>` to copy the key file from `org.zfsbootmenu:keysource` | the same order, decided by `zbm_boot::keys::key_source` without loading anything; key sources only for a boot chosen in the menu, as the countdown's boot skips them (the hook's ancestors tell which: the legacy menu is `/bin/zfsbootmenu`) |
 
 The LUKS mapping names are the ones the unlock use cases of `zbm-app` give (`zbm_luks::device::mapping_name`), a
 detached header (`header=`) included. The key source is left out for an unencrypted boot environment and when the
