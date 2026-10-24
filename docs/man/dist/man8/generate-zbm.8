@@ -149,6 +149,14 @@ Enable debug output
 Print ZFSBootMenu version and quit.
 .UNINDENT
 .UNINDENT
+.SH ENVIRONMENT
+.sp
+\fBSOURCE_DATE_EPOCH\fP
+.INDENT 0.0
+.INDENT 3.5
+When set, images are built to be reproducible: \fBdracut\fP gets \fB\-\-reproducible\fP, and \fBmkinitcpio\fP and \fBobjcopy\fP use the variable for the times they record, so two builds from the same files give the same bytes. Only the Rust \fBgenerate\-zbm\fP passes \fB\-\-reproducible\fP\&.
+.UNINDENT
+.UNINDENT
 .SH SEE ALSO
 .sp
 \fI\%generate\-zbm(5)\fP \fI\%zfsbootmenu(7)\fP

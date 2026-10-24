@@ -118,6 +118,15 @@ columns). `zbm.autosize=<pixels>` asks for a height. ZFSBootMenu images include 
 the EDID is there only in images that add one (`add_drivers+=" i915 "`, for instance); see `zbm.autosize` in
 `zfsbootmenu(7)`. Images with the legacy runtime are unchanged.
 
+### Reproducible images
+
+ROADMAP.md #5. With `SOURCE_DATE_EPOCH` set, two builds of the same tree in the same build container give the same
+bytes: the Rust `generate-zbm` passes `--reproducible` to dracut, `objcopy` stamps the EFI bundle with that time, and
+the image's `BUILD_ID` is that day. The build container takes the variable from its environment (`zbm-builder.sh`
+passes it on) and builds `zbm` with its work directory remapped. Set it to the time of the last commit:
+`SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"`. A CI job builds the release image twice, from checkouts in
+different directories, and compares the bytes.
+
 ### Keyboard layouts on the console on the display
 
 Step 4 of ROADMAP.md #19. Images with the Rust runtime carry keyboard layouts for the console of `zbm.console=drm`:

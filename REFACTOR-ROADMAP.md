@@ -1006,7 +1006,7 @@ the plan yet; each would be added to a phase when it is adopted.
     it, and log it as `legacy/RUNTIME-CHANGES.md` does today.
 17. **A reproducibility check:** build the images twice in different directories and compare them, with build paths
     removed from the binaries (`--remap-path-prefix`), keeping the identical-image guarantee of PORT-ROADMAP phase 3.
-    This is ROADMAP.md #5.
+    This is ROADMAP.md #5. Done: the CI job `reproducible` builds the release image twice and compares the bytes.
 18. **Metrics for rules 2 and 4:** debt columns for public functions of domain crates that take a raw string, and for
     public items without a doc example, ratcheted like the others.
 

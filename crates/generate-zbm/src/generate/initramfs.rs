@@ -65,6 +65,11 @@ impl Generator<'_, '_, '_> {
             if !self.debug {
                 words.push("-q".to_owned());
             }
+            // Fixed file times and order in the archive, with SOURCE_DATE_EPOCH
+            // (ROADMAP.md #5); the Perl program does not pass it
+            if self.context.reproducible {
+                words.push("--reproducible".to_owned());
+            }
             &GLOBAL_DRACUT_FLAGS
         };
         words.extend(self.flags(flags_key)?);

@@ -279,6 +279,12 @@ if [ -d "${BUILD_DIRECTORY}/hooks" ]; then
 fi
 
 # Make `/build` the working directory so relative paths in configs make sense
+# Reproducible images (ROADMAP.md #5): the build container honours the
+# caller's SOURCE_DATE_EPOCH
+if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+  RUNTIME_ARGS+=( "-e" "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" )
+fi
+
 exec "${PODMAN}" run \
   --rm -w "/build" "${RUNTIME_ARGS[@]}" \
   "${BUILD_IMG}" "${BUILD_ARGS[@]}" "$@"

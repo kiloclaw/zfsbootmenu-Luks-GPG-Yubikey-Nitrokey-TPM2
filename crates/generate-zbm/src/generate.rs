@@ -53,6 +53,10 @@ pub struct Context<'a> {
     pub posixly_correct: bool,
     /// `$TMPDIR`.
     pub tmpdir: Option<PathBuf>,
+    /// Whether `SOURCE_DATE_EPOCH` is set: images are then built to be
+    /// reproducible (`dracut --reproducible`; `mkinitcpio` and `objcopy`
+    /// read the variable themselves).
+    pub reproducible: bool,
     /// The hostid the SPL module uses.
     pub spl_hostid: PathBuf,
     /// The system hostid.
@@ -83,6 +87,8 @@ impl<'a> Context<'a> {
             program,
             posixly_correct: std::env::var_os("POSIXLY_CORRECT").is_some(),
             tmpdir: std::env::var_os("TMPDIR").map(PathBuf::from),
+            reproducible: std::env::var_os("SOURCE_DATE_EPOCH")
+                .is_some_and(|epoch| !epoch.is_empty()),
             spl_hostid: PathBuf::from("/sys/module/spl/parameters/spl_hostid"),
             etc_hostid: PathBuf::from("/etc/hostid"),
             os_release: PathBuf::from("/etc/os-release"),

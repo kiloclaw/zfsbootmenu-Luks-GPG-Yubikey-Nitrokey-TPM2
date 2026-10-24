@@ -131,6 +131,11 @@ Usage: $0 [options]
 
   -- <arguments>
       Additional arguments to the generate-zbm binary
+
+  ENVIRONMENT:
+  SOURCE_DATE_EPOCH
+     When set, the images are reproducible: built twice from one
+     source tree and container image, they are the same bytes
 EOF
 }
 
@@ -430,6 +435,10 @@ elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   if [ -n "${ZBM_CARGO_FEATURES}" ]; then
     FEATURES=( --features "${ZBM_CARGO_FEATURES}" )
   fi
+  # The binaries name no path of this run's random work directory, so that
+  # images are reproducible (ROADMAP.md #5); the sources are always at /zbm
+  RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }--remap-path-prefix=${CARGO_TARGET_DIR}=/target"
+  export RUSTFLAGS
   ( cd /zbm && cargo build --release --locked --offline "${FEATURES[@]}" \
       --bin zbm --bin generate-zbm ) || error "failed to build the Rust programs"
 

@@ -143,6 +143,14 @@ options. The options are:
 
   The environment variable or default can be overridden with the `-t` option.
 
+- `$SOURCE_DATE_EPOCH`, when set, makes the images reproducible: two builds of
+  the same tree in the same container image give the same bytes, wherever the
+  tree and the build root are. Set it to the time of the tree's last commit,
+  `SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"`. The Rust `generate-zbm`
+  then passes `--reproducible` to dracut (mkinitcpio and `objcopy` read the
+  variable themselves), and the image's `BUILD_ID` is that day.
+  `zbm-builder.sh` passes the variable on when it is set.
+
 A couple of additional arguments may only be set from the command line:
 
 - `-e <statement>` provides a statement that will be evaluated via `yq-go eval`

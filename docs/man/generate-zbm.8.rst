@@ -87,6 +87,15 @@ Where noted, command-line options supersede options in the :doc:`generate-zbm(5)
 
   Print ZFSBootMenu version and quit.
 
+ENVIRONMENT
+===========
+
+**SOURCE_DATE_EPOCH**
+
+  When set, images are built to be reproducible: **dracut** gets **--reproducible**, and **mkinitcpio** and
+  **objcopy** use the variable for the times they record, so two builds from the same files give the same bytes.
+  Only the Rust **generate-zbm** passes **--reproducible**.
+
 SEE ALSO
 ========
 

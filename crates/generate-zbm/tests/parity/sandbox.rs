@@ -69,6 +69,13 @@ const FAKE_UNAME: &str = r#"#!/bin/sh
 exit 0
 "#;
 
+/// The real objcopy, with a fixed time for the PE header, so that both
+/// programs' bundles are identical; the generators themselves run without
+/// `SOURCE_DATE_EPOCH`, which makes the Rust one build reproducibly.
+const OBJCOPY: &str = r#"#!/bin/sh
+PATH=/usr/bin:/bin SOURCE_DATE_EPOCH=0 exec objcopy "$@"
+"#;
+
 fn fake_programs() -> Vec<(&'static str, String)> {
     vec![
         (
@@ -86,6 +93,7 @@ fn fake_programs() -> Vec<(&'static str, String)> {
         ("mount", logging_script(FAKE_MOUNT)),
         ("umount", logging_script("")),
         ("uname", FAKE_UNAME.to_owned()),
+        ("objcopy", OBJCOPY.to_owned()),
     ]
 }
 
@@ -206,7 +214,7 @@ impl Sandbox {
             .env("TMPDIR", format!("{root}/tmp"))
             .env("HOME", &root)
             .env("LC_ALL", "C")
-            .env("SOURCE_DATE_EPOCH", "0")
+            .env_remove("SOURCE_DATE_EPOCH")
             .env("ZBM_FAKE_LOG", format!("{root}/calls.log"))
             .env_remove("POSIXLY_CORRECT");
         for (key, value) in case.env {

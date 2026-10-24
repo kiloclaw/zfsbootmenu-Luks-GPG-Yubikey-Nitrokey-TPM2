@@ -104,6 +104,57 @@ jobs:
             /tmp/zbm-build/build/*
             !/tmp/zbm-build/build/*.EFI
 
+  reproducible:
+    name: Reproducible release image
+    # ROADMAP.md #5: the release image, built twice from checkouts in different directories with SOURCE_DATE_EPOCH
+    # set from the last commit, must be the same bytes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: first
+
+      - uses: actions/checkout@v7
+        with:
+          path: second/checkout
+
+      - name: Create the build container
+        run: docker build -t localhost/zbm-builder first/packaging/container
+
+      - name: Build the release image twice
+        run: |
+          epoch="$( git -C first log -1 --format=%ct )"
+          for tree in first second/checkout; do
+            src="${PWD}/${tree}"
+            out="${RUNNER_TEMP}/${tree%%/*}"
+            mkdir -p "${out}/dracut.conf.d"
+            cp "${src}"/config/zfsbootmenu/release.conf.d/*.conf "${out}/dracut.conf.d/"
+            docker run --rm -v "${src}:/zbm" -v "${out}:/build" --entrypoint /bin/bash localhost/zbm-builder -c '
+              echo "zfsbootmenu_module_root=/zbm/legacy/zfsbootmenu" > /zbm/config/zfsbootmenu/dracut.conf.d/zbm_modroot.conf
+              yq-go e ".Global.DracutFlags += [\"--no-early-microcode\"]" /zbm/config/zbm-builder/config.yaml > /build/config.yaml
+            '
+            docker run --rm -e "SOURCE_DATE_EPOCH=${epoch}" -v "${src}:/zbm" -v "${out}:/build" \
+              localhost/zbm-builder -- --debug
+          done
+          sudo chown -R "$(id -u):$(id -g)" "${RUNNER_TEMP}/first" "${RUNNER_TEMP}/second"
+
+      - name: Compare the two builds
+        run: |
+          status=0
+          for file in initramfs-bootmenu.img vmlinuz-bootmenu vmlinuz.EFI; do
+            if cmp "${RUNNER_TEMP}/first/build/${file}" "${RUNNER_TEMP}/second/build/${file}"; then
+              echo "identical: ${file}"
+            else
+              status=1
+            fi
+          done
+          # On a difference, say whether the contents differ too, or only the archives
+          if [ "${status}" -ne 0 ]; then
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends dracut-core
+            first/scripts/dev/compare-images.sh "${RUNNER_TEMP}/first/build" "${RUNNER_TEMP}/second/build" || true
+          fi
+          exit "${status}"
+
   generators:
     name: Compare the Perl and Rust generators
     runs-on: ubuntu-latest

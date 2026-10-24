@@ -1,5 +1,6 @@
 //! Configuration keys that only the Rust program reads, so the Perl program
-//! has nothing to compare: `Global.ConsoleFont`.
+//! has nothing to compare: `Global.ConsoleFont`, and reproducible images
+//! with `SOURCE_DATE_EPOCH` (ROADMAP.md #5).
 
 use crate::fixtures::COMPONENTS;
 use crate::sandbox::{Case, run_rust};
@@ -62,4 +63,21 @@ fn another_font_stops_before_anything_is_built() {
         run.stdout
     );
     assert!(!run.log.contains("dracut"), "{}", run.log);
+}
+
+#[test]
+fn with_source_date_epoch_dracut_builds_a_reproducible_image() {
+    let mut case = Case::new(COMPONENTS, ARGS);
+    case.env = &[("SOURCE_DATE_EPOCH", "1700000000")];
+    let reproducible = run_rust(&case);
+    case.env = &[("SOURCE_DATE_EPOCH", "")];
+    let empty = run_rust(&case);
+
+    assert_eq!(reproducible.code, 0, "{}", reproducible.stdout);
+    assert!(
+        reproducible.log.contains(" [--reproducible]"),
+        "{}",
+        reproducible.log
+    );
+    assert!(!empty.log.contains("--reproducible"), "{}", empty.log);
 }

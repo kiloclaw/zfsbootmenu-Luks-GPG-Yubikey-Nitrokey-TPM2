@@ -30,7 +30,7 @@ developer who knows the code: **Small** is under a week, **Medium** a few weeks,
 
 In October 2026, on branch `claude/zbm-refactor`:
 
-- **Done:** #20 (console fonts as 256-glyph subsets, and Spleen).
+- **Done:** #5 (reproducible images) and #20 (console fonts as 256-glyph subsets, and Spleen).
 - **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
   the menu side of #4 ([boot health](docs/dev/menu-design/boot-health.md),
   [unlocking](docs/dev/menu-design/unlocking.md)).
@@ -51,7 +51,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | 2 | [Unlock with whatever arrives first](#2-unlock-with-whatever-arrives-first) | 3 | Medium | Proposed |
 | 3 | [Parallel startup](#3-parallel-startup) | 3 | Medium | Proposed |
 | 4 | [Clear unlock errors](#4-clear-unlock-errors) | 2 | Medium | Prototyped |
-| 5 | [Reproducible images](#5-reproducible-images) | 1 | Small | Proposed |
+| 5 | [Reproducible images](#5-reproducible-images) | Done | Small | Done |
 | 6 | [Check the boot environment's ZFS before booting](#6-check-the-boot-environments-zfs-before-booting) | 2 | Small | Prototyped |
 | 7 | [Boot counting with automatic fallback, and boot once](#7-boot-counting-with-automatic-fallback-and-boot-once) | 2 | Medium | Prototyped |
 | 8 | [Locked menu](#8-locked-menu) | 2 | Medium | Proposed |
@@ -103,16 +103,6 @@ dropped (`zbm_sys::wipe`), and reach programs only on standard input; the journa
   everything that is left before `kexec`.
 - **Done when:** a test unlocks volumes with a known passphrase and key file, then searches process memory, command
   lines, environments and tmpfs for them and finds nothing.
-
-### 5. Reproducible images
-
-- **Why:** the same source and build container should give the same bytes, so that anyone can check a published image
-  and sign it. Today two builds from the same tree have identical contents but different bytes, because the initramfs
-  records timestamps.
-- **How:** set `SOURCE_DATE_EPOCH` from the last commit and pass dracut's `--reproducible` option; check the EFI bundle
-  that `objcopy` writes for timestamps. `generate-zbm` is Rust now, so the change goes there. Build paths are removed
-  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md).
-- **Done when:** CI builds the release image twice, in different directories, and the two images are identical.
 
 ### 9. Saved boot log and bug-report bundle
 
@@ -568,6 +558,23 @@ of the port, which R5 builds, brings the Rust `kexec` path to every image.
   that ZFSBootMenu's TPM tokens no longer unseal after the extension.
 
 ## Done
+
+### 5. Reproducible images
+
+**Status:** done. With `SOURCE_DATE_EPOCH` set, the Rust `generate-zbm` passes `--reproducible` to dracut,
+`objcopy` stamps the EFI bundle with that time, the image's `BUILD_ID` is its day, and the build container builds
+`zbm` with its random work directory remapped (`--remap-path-prefix`). Two release builds in the build container,
+from checkouts in different directories five minutes apart, gave the same bytes for the initramfs, the kernel and the
+EFI bundle; without the variable they differed only in the archive's file times and the bundle's PE time stamp. The
+CI job `reproducible` (`build.yml`) builds and compares them on pull requests and on master.
+
+- **Why:** the same source and build container should give the same bytes, so that anyone can check a published image
+  and sign it. Today two builds from the same tree have identical contents but different bytes, because the initramfs
+  records timestamps.
+- **How:** set `SOURCE_DATE_EPOCH` from the last commit and pass dracut's `--reproducible` option; check the EFI bundle
+  that `objcopy` writes for timestamps. `generate-zbm` is Rust now, so the change goes there. Build paths are removed
+  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md).
+- **Done when:** CI builds the release image twice, in different directories, and the two images are identical.
 
 ### 20. Console fonts: Spleen and 256-glyph subsets
 

@@ -584,7 +584,14 @@ install_zbm_osver() {
   local build_date
   [ -r "${zfsbootmenu_module_root}/zbm-release" ] || return 0
   zbm_install_file "${zfsbootmenu_module_root}/zbm-release" "/etc/zbm-release"
-  if build_date="$(date '+%Y-%m-%d')"; then
+  # The day of SOURCE_DATE_EPOCH, when set, so that reproducible builds give
+  # the same file (ROADMAP.md #5)
+  if [ -n "${SOURCE_DATE_EPOCH}" ]; then
+    build_date="$(date -u -d "@${SOURCE_DATE_EPOCH}" '+%Y-%m-%d')" || build_date=""
+  else
+    build_date="$(date '+%Y-%m-%d')" || build_date=""
+  fi
+  if [ -n "${build_date}" ]; then
     cat >> "${BUILDROOT}/etc/zbm-release" <<-EOF
 	BUILD_ID="${build_date}"
 	EOF
