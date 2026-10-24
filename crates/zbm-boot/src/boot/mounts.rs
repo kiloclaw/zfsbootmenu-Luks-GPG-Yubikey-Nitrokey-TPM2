@@ -13,8 +13,7 @@ use super::zfs::{locked_root, substituted};
 use crate::error::BootError;
 use crate::kernels;
 
-/// The state directory of a boot environment (`be_location`), created if
-/// needed.
+/// The state directory of a boot environment, created if needed.
 pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
     zbm_trace::debug!("fs set to {fs}");
     match state.environment(fs) {
@@ -30,10 +29,9 @@ pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
 /// How the output of `mount` reaches the user.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Noise {
-    /// Error messages go to the console, as in `kexec_kernel`.
+    /// Error messages go to the console, as when booting.
     Shown,
-    /// Error messages are captured and dropped, as `$( mount_zfs ... 2>&1 )`
-    /// in `find_be_kernels` drops them.
+    /// Error messages are captured and dropped, as when looking for kernels.
     Hidden,
 }
 
@@ -47,8 +45,10 @@ impl Noise {
     }
 }
 
-/// Mounts `fs` read-only on its mount point in the state directory, as
-/// `mount_zfs` does, and returns the mount point.
+/// Mounts `fs` read-only on its mount point in the state directory, and
+/// returns the mount point. A locked boot environment is not mounted; one
+/// whose `mountpoint` is not `legacy`, and that is not a snapshot, is mounted
+/// with `zfsutil`.
 pub fn mount_zfs(
     system: &System<'_>,
     state: &State<'_>,
@@ -97,8 +97,8 @@ pub(super) fn umount(runner: &dyn Runner, path: &Path) {
     let _ = Mount::new(runner).unmount(path, Shown::Console);
 }
 
-/// Unmounts everything below `mountpoint`, deepest first, as
-/// `recursive_umount` does when `umount -R` fails.
+/// Unmounts `mountpoint` and everything below it with `umount -R`; when that
+/// fails, unmounts each mount point that starts with it, deepest first.
 ///
 /// # Errors
 ///
@@ -141,13 +141,13 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     }
 }
 
-/// Whether the machine booted with UEFI (`is_efi_system`).
+/// Whether the machine booted with UEFI: `/sys/firmware/efi` exists.
 fn is_efi_system(system: &System<'_>) -> bool {
     system.files.is_dir(Path::new("/sys/firmware/efi"))
 }
 
-/// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`), as
-/// `mount_efivarfs` does. Does nothing without UEFI.
+/// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`) on
+/// `/sys/firmware/efi/efivars`. Does nothing without UEFI.
 pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
     let location = "/sys/firmware/efi/efivars";
     if !is_efi_system(system) {

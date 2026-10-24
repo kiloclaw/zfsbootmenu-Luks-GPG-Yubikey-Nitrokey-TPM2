@@ -67,9 +67,9 @@ impl Unlocker<'_> {
             .is_ok_and(|metadata| metadata.kind == FileKind::CharDevice)
     }
 
-    /// Whether a TPM2 is available (`luks_have_tpm2`). A TPM that is not a
-    /// device (a simulator) always is; otherwise the drivers are loaded once,
-    /// and the device is given a moment to appear.
+    /// Whether a TPM2 is available. A TPM that is not a device (a simulator)
+    /// always is; otherwise the drivers are loaded once, and the device is
+    /// given a moment to appear.
     pub fn have_tpm2(&mut self) -> bool {
         let Some(device) = self.settings().tpm2_tcti.strip_prefix("device:") else {
             return true;
@@ -99,8 +99,8 @@ impl Unlocker<'_> {
         self.tpm2_device_present(device)
     }
 
-    /// Whether the TPM refuses PIN-protected objects after too many wrong PINs
-    /// (`luks_tpm2_in_lockout`).
+    /// Whether the TPM refuses PIN-protected objects after too many wrong
+    /// PINs.
     pub fn tpm2_in_lockout(&self) -> bool {
         self.system().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
     }

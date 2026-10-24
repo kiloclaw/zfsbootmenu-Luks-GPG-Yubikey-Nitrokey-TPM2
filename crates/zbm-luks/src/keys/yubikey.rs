@@ -1,5 +1,5 @@
 //! YubiKey HMAC-SHA1 challenge-response in the style of yubikey-luks:
-//! `luks_try_ykchalresp` and `ykchalresp_present`.
+//! finding a YubiKey and opening a volume with its response.
 //!
 //! The typed passphrase (or its SHA-256, with `ykchalresp-hash`) is the
 //! challenge, and the response (after the challenge, with
@@ -15,8 +15,8 @@ use crate::error::LuksError;
 use crate::unlocker::{Key, Unlocker, Wait};
 
 impl Unlocker<'_> {
-    /// Whether a YubiKey is connected (`ykchalresp_present`); without `ykinfo`
-    /// in the image, `ykchalresp` itself reports a missing key.
+    /// Whether a YubiKey is connected; without `ykinfo` in the image,
+    /// `ykchalresp` itself reports a missing key.
     pub fn ykchalresp_present(&self) -> bool {
         if !self.system().command_exists("ykinfo") {
             return true;

@@ -1,8 +1,9 @@
 //! The kernel command line of a boot environment, and the `kexec` commands.
 //!
-//! The Rust counterparts of `load_be_cmdline` (with `validate_cmdline_cache`
-//! and `get_spl_hostid`), `find_root_prefix`, the device tree lookup of
-//! `kexec_kernel`, and the `kexec` commands it runs.
+//! The command line is assembled from the user's override, a cache or the
+//! boot environment's own settings, with the host ID when it applies. This
+//! module also finds the prefix of the `root=` argument and the device tree,
+//! and builds the `kexec` commands that load and run the kernel.
 
 use std::path::{Path, PathBuf};
 
@@ -26,9 +27,8 @@ fn here(text: &str) -> String {
     format!("{}\n", text.trim_end_matches('\n'))
 }
 
-/// Whether the command line cache `path` can be used, as
-/// `validate_cmdline_cache` decides: it exists and was written after the user
-/// declined to resume from hibernation, if they did.
+/// Whether the command line cache `path` can be used: it exists and was
+/// written after the user declined to resume from hibernation, if they did.
 fn cache_is_valid(files: &dyn Files, state: &State, path: &Path) -> bool {
     let Ok(metadata) = files.metadata(path) else {
         return false;
@@ -39,12 +39,11 @@ fn cache_is_valid(files: &dyn Files, state: &State, path: &Path) -> bool {
     }
 }
 
-/// The command line of `dataset` booted with `kernel` (may be empty), as
-/// `load_be_cmdline` assembles it: the user's override, a valid cache, or the
-/// boot environment's own command line (a kernel's `.kcl` file, or
-/// `org.zfsbootmenu:commandline` with `%{parent}` expanded) without `root=`,
-/// with `noresume` and the host ID when they apply. A computed command line is
-/// cached, as the legacy function caches it.
+/// The command line of `dataset` booted with `kernel` (may be empty): the
+/// user's override, a valid cache, or the boot environment's own command line
+/// (a kernel's `.kcl` file, or `org.zfsbootmenu:commandline` with `%{parent}`
+/// expanded) without `root=`, with `noresume` and the host ID when they apply.
+/// A computed command line is written to the cache.
 pub fn be_cmdline(
     files: &dyn Files,
     source: &dyn CommandLineSource,
@@ -270,9 +269,9 @@ fn unquote(raw: &str) -> Option<String> {
 }
 
 /// The prefix of the `root=` argument for the boot environment mounted at
-/// `mnt`, as `find_root_prefix` chooses it: `org.zfsbootmenu:rootprefix`
-/// (`property`, `None` when it could not be read), or the prefix of the
-/// distribution named in `ID` or `ID_LIKE` of its `os-release`, or `root=zfs:`.
+/// `mnt`: `org.zfsbootmenu:rootprefix` (`property`, `None` when it could not
+/// be read), or the prefix of the distribution named in `ID` or `ID_LIKE` of
+/// its `os-release`, or `root=zfs:`.
 pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> String {
     if let Some(prefix) = property.filter(|prefix| *prefix != "-") {
         return prefix.to_owned();
@@ -282,7 +281,8 @@ pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> Str
 
 /// The prefix of the `root=` argument for the distribution named in `ID` or
 /// `ID_LIKE` of the `os-release` of the boot environment mounted at `mnt`, if
-/// `find_root_prefix` knows it.
+/// it is one with a known prefix: Void, Ubuntu, Debian, Devuan, Chimera, Arch,
+/// Artix, CachyOS, Gentoo or Alpine.
 pub fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
     let mut id = String::new();
     let mut id_like = String::new();
@@ -312,9 +312,9 @@ pub fn os_release_prefix(files: &dyn Files, mnt: &Path) -> Option<String> {
     None
 }
 
-/// The device tree of `kernel` in the boot environment mounted at `mnt`, as
-/// `kexec_kernel` finds it from `org.zfsbootmenu:devicetree` (`property`): an
-/// absolute path, in which `%{kernel}` is the kernel's version, or a file in
+/// The device tree of `kernel` in the boot environment mounted at `mnt`, from
+/// `org.zfsbootmenu:devicetree` (`property`): an absolute path, in which
+/// `%{kernel}` is the kernel's version, or a file in
 /// `/boot/dtbs/dtbs-<version>/`. `None` when the property is unset or the file
 /// does not exist.
 pub fn devicetree(
@@ -327,8 +327,8 @@ pub fn devicetree(
     files.is_file(&candidate).then_some(candidate)
 }
 
-/// The file `kexec_kernel` tries as the device tree of `kernel` for the value
-/// of `org.zfsbootmenu:devicetree`, or `None` when the property is unset.
+/// The file to try as the device tree of `kernel` for the value of
+/// `org.zfsbootmenu:devicetree`, or `None` when the property is unset.
 pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<PathBuf> {
     if property.is_empty() || property == "-" {
         return None;
@@ -352,7 +352,8 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
 /// legacy script continues the quoted argument on an indented line.
 const SEPARATOR: &str = "           ";
 
-/// What `kexec_kernel` passes to `kexec -l`.
+/// What the boot passes to `kexec -l`: the kernel, initramfs, device tree
+/// and command line.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct KexecLoad<'a> {
     /// Where the boot environment is mounted.

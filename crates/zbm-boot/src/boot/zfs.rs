@@ -37,8 +37,8 @@ pub(crate) fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> O
     ok.then_some(value)
 }
 
-/// The encryption root of `fs` (a snapshot counts as its filesystem), as
-/// `be_has_encroot` finds it.
+/// The encryption root of `fs` (a snapshot counts as its filesystem), or
+/// `None` when its pool does not use encryption or `fs` is not encrypted.
 pub fn encryption_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     // ${1%@*}
     let fs = fs.rsplit_once('@').map_or(fs, |(fs, _)| fs);
@@ -61,8 +61,8 @@ pub fn encryption_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     (encroot != "-").then_some(encroot)
 }
 
-/// The encryption root of `fs` if its key is not loaded, as `be_is_locked`
-/// decides.
+/// The encryption root of `fs` if its key is not loaded: its `keystatus` is
+/// `unavailable`.
 pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     if fs.is_empty() {
         zbm_trace::error!("fs is undefined");
@@ -80,7 +80,7 @@ pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
     (keystatus == "unavailable").then_some(encroot)
 }
 
-/// Whether `pool` is imported read-write (`is_writable`).
+/// Whether `pool` is imported read-write: its `readonly` property is `off`.
 pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
     if pool.is_empty() {
         zbm_trace::error!("pool is undefined");
@@ -98,7 +98,7 @@ pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
     readonly == "off"
 }
 
-/// Exports `pool` (`export_pool`).
+/// Exports `pool` with `zpool export`.
 ///
 /// # Errors
 ///

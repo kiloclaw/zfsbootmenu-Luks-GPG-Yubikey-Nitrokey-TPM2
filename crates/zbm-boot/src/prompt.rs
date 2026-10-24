@@ -1,9 +1,8 @@
 //! Colours and the timed prompt.
 //!
-//! The Rust counterpart of `timed_prompt`, and the colours of `zbm-core`. The
-//! prompt draws centred lines with `tput`, as the legacy function does, so the
-//! terminal gets the same sequences; `tput`'s output is captured and written
-//! to the console, so tests see it.
+//! The timed prompt, and the colours of `zbm-core`. The prompt draws centred
+//! lines with `tput`; `tput`'s output is captured and written to the console,
+//! so tests see it.
 
 use std::time::Duration;
 
@@ -14,8 +13,8 @@ use zbm_tools::terminal;
 pub use zbm_core::color::{colorize, decolorize};
 
 /// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`. The start-up
-/// writes only positive numbers; anything else answers at once, as
-/// `timed_prompt` does with a delay that is not a number.
+/// writes only positive numbers; a value that is not a number is read as 0,
+/// which answers at once.
 pub fn retry_delay(value: &str) -> i64 {
     match value {
         "" => 5,
@@ -84,7 +83,8 @@ impl TimedPrompt {
         self.message(line)
     }
 
-    /// Shows the prompt and waits, as `timed_prompt` does.
+    /// Shows the prompt and waits for RETURN or ESCAPE until the delay runs
+    /// out.
     pub fn run(self, system: &System<'_>) -> Answer {
         let (delay, infinite) = match self.delay {
             Some(0) => return Answer::Continue,
@@ -189,7 +189,8 @@ pub fn tput(system: &System<'_>, args: &[&str]) {
     let _ = system.console.write(&output);
 }
 
-/// The timed prompts of the LUKS code, drawn as `timed_prompt` draws them.
+/// The timed prompts of the LUKS code, drawn on the console as
+/// [`TimedPrompt`]s.
 pub struct ConsolePrompter<'a> {
     system: System<'a>,
 }

@@ -1,5 +1,5 @@
-//! Finding and running hooks: `zfsbootmenu-run-hooks`, `import_zbm_hooks` and
-//! the start-up stage `init.d/40-early-hooks`.
+//! Finding and running the hooks of a stage, for the boot and for the
+//! early-setup hooks of the start-up stage `init.d/40-early-hooks`.
 //!
 //! `zfsbootmenu-run-hooks` runs `"/libexec/hooks/${stage}"/*` in the order the
 //! glob gives (by name, in the C locale; names starting with a dot are left

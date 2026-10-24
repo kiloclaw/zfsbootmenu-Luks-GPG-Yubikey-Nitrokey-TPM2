@@ -1,5 +1,5 @@
-//! Finding LUKS volumes: `luks_resolve_device`, `luks_device_present`,
-//! `luks_is_open`, `luks_default_name` and `luks_describe_device`.
+//! Finding LUKS volumes: resolving a device specification to its device,
+//! telling whether a volume is open, and naming and describing volumes.
 
 use std::path::{Path, PathBuf};
 
@@ -51,11 +51,11 @@ fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
     Devices::new(system.runner).find(key, value)
 }
 
-/// The device node a device specification names, as `luks_resolve_device`
-/// finds it: `/dev/...`, `UUID=`, `PARTUUID=`, `LABEL=`, `PARTLABEL=`, `ID=`,
-/// `PATH=` (the key in any case), a bare LUKS UUID or `luks-<UUID>`. Returns
-/// the canonical path of the block device, or `None` (after logging an error
-/// for a specification it does not understand).
+/// The device node a device specification names: `/dev/...`, `UUID=`,
+/// `PARTUUID=`, `LABEL=`, `PARTLABEL=`, `ID=`, `PATH=` (the key in any case),
+/// a bare LUKS UUID or `luks-<UUID>`. Returns the canonical path of the block
+/// device, or `None` (after logging an error for a specification it does not
+/// understand).
 pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
     if spec.is_empty() {
         return None;
@@ -115,7 +115,7 @@ pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
     is_block_device(files, &device).then(|| canonical(files, &device))
 }
 
-/// Whether the device a specification names exists (`luks_device_present`).
+/// Whether the device a specification names exists.
 pub fn device_present(system: &System<'_>, spec: &str) -> bool {
     resolve_device(system, spec).is_some()
 }
@@ -131,7 +131,7 @@ pub enum OpenCheck {
     Markers(PathBuf),
 }
 
-/// Whether something holds `device` (`luks_is_open`).
+/// Whether something holds `device`.
 pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
     let Ok(device) = files.canonicalize(Path::new(device)) else {
         return false;
@@ -154,8 +154,8 @@ pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
     }
 }
 
-/// The default mapping name of a LUKS device (`luks_default_name`):
-/// `luks-<UUID>`, or `luks-<device name>` when the UUID cannot be read.
+/// The default mapping name of a LUKS device: `luks-<UUID>`, or
+/// `luks-<device name>` when the UUID cannot be read.
 pub fn default_name(system: &System<'_>, device: &str) -> String {
     match Cryptsetup::new(system.runner).luks_uuid(device) {
         Some(uuid) if !uuid.is_empty() => format!("luks-{uuid}"),
@@ -175,8 +175,8 @@ pub fn mapping_name(system: &System<'_>, name: &str, header: &str) -> String {
     }
 }
 
-/// A short description of a device for prompts (`luks_describe_device`): the
-/// device, its label or partition label in quotes, and its size.
+/// A short description of a device for prompts: the device, its label or
+/// partition label in quotes, and its size.
 pub fn describe_device(system: &System<'_>, device: &str) -> String {
     let devices = Devices::new(system.runner);
     let size = devices.size(device);

@@ -1,10 +1,9 @@
 //! Booting a boot environment.
 //!
-//! The Rust counterparts of `mount_zfs`, `find_be_kernels`, `select_kernel`,
-//! `kexec_kernel` and the helpers they use (`be_has_encroot`, `be_is_locked`,
-//! `is_writable`, `export_pool`, `recursive_umount`, `mount_efivarfs`), for
-//! the default boot of the Phase 5 runtime: read-only mounts, no key loading
-//! (a locked encryption root is not supported yet).
+//! Mounting a boot environment, finding its kernels, choosing one and
+//! booting it with `kexec`, with the ZFS questions, mounts and unmounts this
+//! needs. This is the default boot of the Phase 5 runtime: read-only mounts,
+//! no key loading (a locked encryption root is not supported yet).
 //!
 //! The code is split by what it works on: `zfs` asks ZFS about datasets and
 //! pools, `mounts` mounts and unmounts, `discovery` finds the kernels of a

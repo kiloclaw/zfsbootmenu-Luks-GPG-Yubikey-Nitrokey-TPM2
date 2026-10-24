@@ -48,8 +48,8 @@ impl Default for BootSettings {
     }
 }
 
-/// The root prefix of `fs` mounted at `mnt`, with the messages of
-/// `find_root_prefix`.
+/// The root prefix of `fs` mounted at `mnt`, with a debug message naming
+/// where it came from.
 fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
     zbm_trace::debug!("zfsbe_fs set to {fs}");
     zbm_trace::debug!("zfsbe_mnt set to {}", mnt.display());
@@ -67,11 +67,11 @@ fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
     "root=zfs:".to_owned()
 }
 
-/// Boots `selected` as `kexec_kernel` does: mounts it, runs the `boot-sel.d`
-/// hooks, loads the kernel with its command line, unmounts it, exports the
-/// pools imported read-write, runs the `teardown.d` hooks, has the console
-/// on the display hand the display back, and executes the kernel. Returns
-/// only if that fails, after telling the user.
+/// Boots `selected`: mounts it, runs the `boot-sel.d` hooks, loads the kernel
+/// with its command line, unmounts it, exports the pools imported read-write,
+/// runs the `teardown.d` hooks, has the console on the display hand the
+/// display back, and executes the kernel. Returns only if that fails, after
+/// telling the user.
 pub fn kexec_kernel(
     system: &System<'_>,
     state: &State<'_>,

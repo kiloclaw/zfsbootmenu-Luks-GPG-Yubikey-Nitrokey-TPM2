@@ -1,5 +1,6 @@
-//! Unlocking volumes: `luks_open_device`, `luks_wait_device`,
-//! `luks_discover_devices` and `luks_may_hold_zfs`; unlocking them all is
+//! Unlocking volumes: opening one volume with the first key method that
+//! works, waiting for a missing device, finding every LUKS device and telling
+//! whether a mapping might hold ZFS; unlocking them all is
 //! [`Unlocker::unlock_all`].
 
 use std::collections::BTreeSet;
@@ -76,10 +77,10 @@ impl Unlocker<'_> {
         Opened::Unlocked(method)
     }
 
-    /// Unlocks one volume (`luks_open_device`), trying in order: a key script,
-    /// a key file (decrypting a GnuPG key file), LUKS2 tokens, passphrases that
-    /// unlocked other volumes, YubiKey challenge-response, and the passphrase
-    /// prompt. `name` is the mapping name (empty for the default), `keyspec`
+    /// Unlocks one volume, trying in order: a key script, a key file
+    /// (decrypting a GnuPG key file), LUKS2 tokens, passphrases that unlocked
+    /// other volumes, YubiKey challenge-response, and the passphrase prompt.
+    /// `name` is the mapping name (empty for the default), `keyspec`
     /// the key file specification (may be empty), `options` the crypttab
     /// options and `origin` how the volume was found.
     ///
@@ -253,9 +254,8 @@ impl Unlocker<'_> {
         }
     }
 
-    /// Waits for the device of a specification (`luks_wait_device`); a
-    /// missing device is skipped at once with `nofail`, and otherwise when the
-    /// user says so.
+    /// Waits for the device of a specification; a missing device is skipped
+    /// at once with `nofail`, and otherwise when the user says so.
     pub fn wait_device(&self, spec: &str, nofail: bool) -> Option<String> {
         let system = *self.system();
         loop {
@@ -289,7 +289,7 @@ impl Unlocker<'_> {
         }
     }
 
-    /// Every LUKS block device on the machine (`luks_discover_devices`).
+    /// Every LUKS block device on the machine.
     pub fn discover_devices(&self) -> Vec<String> {
         let system = self.system();
         let output = Devices::new(system.runner).luks_devices();
@@ -304,8 +304,8 @@ impl Unlocker<'_> {
         devices.into_iter().collect()
     }
 
-    /// Whether an open mapping might hold a ZFS vdev (`luks_may_hold_zfs`):
-    /// unknown contents (or a partitioned device) count as maybe.
+    /// Whether an open mapping might hold a ZFS vdev: unknown contents (or a
+    /// partitioned device) count as maybe.
     pub fn may_hold_zfs(&self, name: &str) -> bool {
         let kind = Devices::new(self.system().runner).content_type(&self.mapper(name));
         kind.is_empty() || kind == "zfs_member"

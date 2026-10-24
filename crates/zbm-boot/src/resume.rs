@@ -1,4 +1,4 @@
-//! The resume check: `has_resume_device` and `resume_prompt`.
+//! The resume check: finding a suspend partition and asking the user.
 //!
 //! Importing a pool read-write and then resuming from hibernation, whose
 //! image still holds the pool's old state, can destroy the pool. Before a
@@ -17,7 +17,8 @@ use crate::prompt::{colorize, tput};
 /// module.
 pub const SUSPEND_TYPES: [&str; 3] = ["suspend", "swsuspend", "swsupend"];
 
-/// Whether a block device holds a hibernation image (`has_resume_device`).
+/// Whether a block device holds a hibernation image: a partition of one of
+/// the [`SUSPEND_TYPES`].
 pub fn has_resume_device(system: &System<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
         let found = Devices::new(system.runner).has_type(kind);
@@ -28,7 +29,7 @@ pub fn has_resume_device(system: &System<'_>) -> bool {
     })
 }
 
-/// The warning `resume_prompt` shows for `pool`.
+/// The warning shown before a read-write import of `pool`.
 fn warning(pool: &str) -> String {
     format!(
         "WARNING!!!
@@ -77,9 +78,9 @@ pub enum ResumeChoice {
     Dangerous,
 }
 
-/// Whether `pool` may be imported read-write as far as hibernation goes, as
-/// `resume_prompt` decides: yes without a suspend partition, or when the user
-/// already chose `noresume`; otherwise the user decides. `NORESUME` records
+/// Whether `pool` may be imported read-write as far as hibernation goes: yes
+/// without a suspend partition, or when the user already chose `noresume`;
+/// otherwise the user decides. `NORESUME` records
 /// the choice in the state directory, so the boot environment's command line
 /// gets `noresume`; `DANGEROUS` goes on without it.
 ///

@@ -54,9 +54,10 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 ### Next
 
-- **R4**, the application layer: `zbm-app` with the `Snapshot`, `Action` and event lists of
-  `docs/dev/menu-design/interfaces.md`, the applets as thin front ends over it, the `zbm debug` reports, and shadow
-  mode for the key sources of encryption roots.
+- **R5**, the new menu: the menu of `zbm-tui` on the application layer, with booting moved into Rust (import, key
+  loading with `zbm_boot::keys`, `kexec`), so that the Rust runtime boots locked encryption roots and the `complex`
+  VM tests pass on it.
+- **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
 
@@ -100,7 +101,7 @@ What the finished phases left open, and the phase that takes it:
 | The build options are read by the shell scripts of the dracut module and the mkinitcpio hook | R3 | R6 |
 | The release each option appeared in | R3 | Not planned: the table would have to guess |
 | Debt in crates no phase has refactored yet: `zbm-kcl` and `zbm-state` (two long functions, two long files), success flags in `generate-zbm`, `zbm-kcl` and `zbm-zfs` (8), doc lines naming legacy functions (161, most in `zbm-luks`, `zbm-boot` and `generate-zbm`) | R1 to R3 | The phase that next changes each crate; R9 at the latest, when the legacy code they name is gone |
-| Line coverage below the 80% of new crates: `zbm` 79%, `xtask` 78%, `zbm-vmtest` 60% (its scenarios run only in VMs) | R0, R3 | Ratcheted; never lowered |
+| Line coverage below the 80% of new crates: `xtask` 78%, `zbm-vmtest` 61% (its scenarios run only in VMs) | R0, R3 | Ratcheted; never lowered |
 | `zbm-menu`, an empty crate | R0 | R5, which builds the menu in `zbm-tui` |
 
 ## Where the code stands
@@ -1298,6 +1299,28 @@ and fixtures of OpenZFS 2.2 and 2.3 (they need images with those versions).
   Rust harness. A test that cannot go on records why as a failed check and still writes its result. The harness is
   unit tested against scripted consoles; its scenarios run only in VMs, so the crate starts at 60% line coverage,
   below the 80% of new crates, as its baseline.
+
+### Done in R4
+
+- `zbm-app` (application): the vocabulary of `docs/dev/menu-design/interfaces.md` (`Snapshot`, `Action`, `Event`
+  and their parts) in `zbm_app::model`, which the menu prototype imports; `App::snapshot` reads the pools, the boot
+  environments, the LUKS volumes, the start-up stages, the keyboard layouts and the journal's warnings; `App::act`
+  performs `UnlockAll`, `Open` and `Close` as runs of `zbm-luks`, with an `UnlockFinished` event per volume and a
+  `Finished` outcome; start-up's stage runner sends `StageStarted` and `StageFinished` to a `Sink`.
+- `zluks unlock`, `open` and `close` go through `App::act`, command for command as before. `zbm-startup` moved to
+  the orchestration layer, and `check-deps` refuses a front end that depends on an adapter (`NOT_THROUGH`).
+- `zbm debug` gained `config`, `state`, `journal`, `commands`, `luks` and `pools`, read-only and without key
+  material, documented in `zbm-debug(8)`; they replace `ztrace` and `zlogtail` for the Rust runtime.
+  `zfsbootmenu-init` runs its programs through the traced runner (`System::with_runner`), so the journal records
+  start-up's commands, which `runtime-rust-saved` checks on a real image.
+- `zbm_boot::keys` decides where the key of an encryption root comes from, in the legacy order and with the legacy
+  rule that only a boot chosen in the menu tries `org.zfsbootmenu:keysource`; shadow mode compares it (`key
+  source`), finding the boot's path from the hook's ancestors, and names LUKS volumes with the same function as the
+  unlock use cases (`zbm_luks::device::mapping_name`). The VM test `runtime-legacy-keysource` boots a boot
+  environment whose key comes from its key source, from the countdown and from the menu.
+- Verified on 7a25250: every legacy VM test reports zero shadow differences; the Rust `keys`, `runtime`, `secrets`
+  and `layouts` tests and both LUKS unit suites pass. The `complex` tests on the Rust runtime still fail their boot
+  environment checks, as the Rust runtime does not unlock locked encryption roots until R5.
 
 ### Done in D
 

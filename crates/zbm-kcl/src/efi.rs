@@ -1,5 +1,5 @@
-//! Finding where a new `.cmdline` section of an EFI image can go, as
-//! `find_cmdline_gap` does.
+//! Finding where a new `.cmdline` section of an EFI image can go: at the
+//! address of the old one, if the space before the next section is enough.
 
 /// The address of the `.cmdline` section, as upper-case hex digits, and the
 /// space up to the next section, from the section table that `objdump -h -w

@@ -1,6 +1,6 @@
-//! GnuPG-encrypted key files: `luks_is_gpg_keyfile`, `luks_gpg_setup`,
-//! `luks_gpg_cleanup`, `luks_gpg_card_status`, `luks_gpg_recipients`,
-//! `luks_gpg_secret_key`, `luks_gpg_have_key` and `luks_gpg_decrypt`.
+//! GnuPG-encrypted key files: recognizing one, setting up a private GnuPG
+//! home, finding the card or secret key a key file is encrypted to, and
+//! decrypting it.
 //!
 //! The key file is decrypted with a private GnuPG home that holds the image's
 //! public keys. A key file encrypted to a public key is decrypted by a smart
@@ -18,8 +18,7 @@ use zbm_platform::secret::Secret;
 
 use crate::unlocker::{Unlocker, Wait};
 
-/// Whether a key file is GnuPG-encrypted (`luks_is_gpg_keyfile`): the `gpg`
-/// option, or the name.
+/// Whether a key file is GnuPG-encrypted: the `gpg` option, or the name.
 pub fn is_gpg_keyfile(path: &str, options: &str) -> bool {
     options.split(',').any(|option| option == "gpg")
         || [".gpg", ".asc", ".pgp"]
@@ -30,10 +29,9 @@ pub fn is_gpg_keyfile(path: &str, options: &str) -> bool {
 pub use zbm_crypt::gpg::{SecretKey, parse_card_status, parse_recipients, parse_secret_key};
 
 impl Unlocker<'_> {
-    /// Creates a private GnuPG home with the image's public keys
-    /// (`luks_gpg_setup`); it is cleaned up when dropped (`luks_gpg_cleanup`).
-    /// The home is in `/run`, with a short path, because the agent's sockets
-    /// must fit in a `sockaddr_un`.
+    /// Creates a private GnuPG home with the image's public keys; it is
+    /// cleaned up when dropped. The home is in `/run`, with a short path,
+    /// because the agent's sockets must fit in a `sockaddr_un`.
     pub fn gpg_setup(&self) -> Option<GnupgHome<'_>> {
         let system = self.system();
         if !system.command_exists("gpg") {
@@ -74,16 +72,15 @@ impl Unlocker<'_> {
     }
 
     /// Whether a secret key for any of `recipients` is available, after
-    /// reading any card that is plugged in (`luks_gpg_have_key`).
+    /// reading any card that is plugged in.
     pub fn gpg_have_key(&self, home: &GnupgHome<'_>, recipients: &[String]) -> bool {
         let _ = home.card_status();
         recipients.iter().any(|id| home.secret_key(id).is_some())
     }
 
-    /// Decrypts a GnuPG-encrypted key file for the volume `description`
-    /// (`luks_gpg_decrypt`). Card PINs are asked for only once the card is
-    /// known to hold a matching key, with the attempts left, so no attempt is
-    /// wasted.
+    /// Decrypts a GnuPG-encrypted key file for the volume `description`.
+    /// Card PINs are asked for only once the card is known to hold a matching
+    /// key, with the attempts left, so no attempt is wasted.
     pub fn gpg_decrypt(&self, file: &str, description: &str) -> Option<Secret> {
         let Some(home) = self.gpg_setup() else {
             zbm_trace::warn!("GnuPG is not available to decrypt {file}");

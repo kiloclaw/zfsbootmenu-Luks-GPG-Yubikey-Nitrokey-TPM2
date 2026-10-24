@@ -13,9 +13,8 @@ use super::zfs::zfs_value;
 use crate::error::BootError;
 use crate::kernels::{self, Kernel};
 
-/// Finds the kernels of `fs` and records them in its kernel list, as
-/// `find_be_kernels` does, with the command line files next to them in the
-/// command line cache.
+/// Finds the kernels of `fs` and records them in its kernel list, and copies
+/// the command line files next to them into the command line cache.
 ///
 /// # Errors
 ///
@@ -123,8 +122,8 @@ fn cache_kernel_kcl(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &str,
     }
 }
 
-/// The kernel to boot from the kernel list of `fs`, as `select_kernel`
-/// chooses it: the last one, or the last one `org.zfsbootmenu:kernel` matches.
+/// The kernel to boot from the kernel list of `fs`: the last one, or the last
+/// one `org.zfsbootmenu:kernel` matches.
 pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option<Kernel> {
     if fs.is_empty() {
         zbm_trace::error!("zfsbe is undefined");

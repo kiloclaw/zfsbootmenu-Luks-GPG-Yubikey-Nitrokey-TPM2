@@ -1,4 +1,4 @@
-//! LUKS2 token listing: `luks_list_tokens`.
+//! LUKS2 token listing: the ID and type of each token on a volume.
 //!
 //! The tokens and their fields come from `zbm_crypt::Cryptsetup`, which reads
 //! the JSON metadata of `cryptsetup luksDump --dump-json-metadata` with
@@ -10,8 +10,8 @@ use zbm_crypt::Cryptsetup;
 pub use zbm_crypt::Token;
 use zbm_platform::System;
 
-/// The LUKS2 tokens of a device or detached header (`luks_list_tokens`): the
-/// ID and type of each, from the JSON metadata when cryptsetup can print it.
+/// The LUKS2 tokens of a device or detached header: the ID and type of each,
+/// from the JSON metadata when cryptsetup can print it.
 ///
 /// The JSON metadata is the reliable source: with systemd's token plugins
 /// installed, cryptsetup 2.8 (systemd 261) prints the text of every token

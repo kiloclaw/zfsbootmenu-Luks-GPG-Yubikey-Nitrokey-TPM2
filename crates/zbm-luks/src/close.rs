@@ -1,5 +1,5 @@
-//! Closing volumes before booting: `luks_pools_on_device` and
-//! `luks_close_all`.
+//! Closing volumes before booting: finding the pools on a mapping, then
+//! exporting them and closing the mappings ZFSBootMenu opened.
 //!
 //! Pools must be exported before the mappings under them close; closing a
 //! mapping makes the kernel wipe its volume key before the boot environment's
@@ -26,8 +26,7 @@ pub fn is_on(device: &str, target: &str) -> bool {
 }
 
 impl Unlocker<'_> {
-    /// The imported pools with a vdev on `device` or one of its partitions
-    /// (`luks_pools_on_device`).
+    /// The imported pools with a vdev on `device` or one of its partitions.
     pub fn pools_on_device(&self, device: &str) -> Vec<String> {
         let system = self.system();
         let Ok(target) = system.files.canonicalize(Path::new(device)) else {
@@ -47,8 +46,8 @@ impl Unlocker<'_> {
     }
 
     /// Exports the pools on, and closes, the mappings ZFSBootMenu opened: all
-    /// of them, or only `only` (`luks_close_all`). Mappings that cannot be
-    /// closed stay recorded.
+    /// of them, or only `only`. Mappings that cannot be closed stay
+    /// recorded.
     ///
     /// # Errors
     ///

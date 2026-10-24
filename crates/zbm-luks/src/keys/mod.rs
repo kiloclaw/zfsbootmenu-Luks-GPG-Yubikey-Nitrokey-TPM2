@@ -65,9 +65,8 @@ impl Target<'_> {
 }
 
 impl Unlocker<'_> {
-    /// Whether cryptsetup's token plugin for `kind` is installed
-    /// (`luks_have_token_plugin`); never when the settings force ZFSBootMenu's
-    /// own implementations.
+    /// Whether cryptsetup's token plugin for `kind` is installed; never when
+    /// the settings force ZFSBootMenu's own implementations.
     pub fn have_token_plugin(&self, kind: &str) -> bool {
         if !self.settings().token_plugins {
             return false;
@@ -100,9 +99,8 @@ impl Unlocker<'_> {
         Cryptsetup::new(self.system().runner).without_udev(self.dm_disable_udev)
     }
 
-    /// Opens a volume through cryptsetup's token plugin
-    /// (`luks_open_token_plugin`); cryptsetup reads a PIN from standard
-    /// input, followed by a newline.
+    /// Opens a volume through cryptsetup's token plugin; cryptsetup reads a
+    /// PIN from standard input, followed by a newline.
     ///
     /// # Errors
     ///

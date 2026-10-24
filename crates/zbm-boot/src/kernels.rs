@@ -1,12 +1,11 @@
 //! Kernels and initramfs images of a boot environment.
 //!
-//! The Rust counterparts of `find_be_kernels`, `find_be_initramfs` and
-//! `select_kernel`: the kernels are the files `/boot/{vmlinux,vmlinuz,linux,
-//! linuz,kernel}` and `/boot/<name>-*` of the mounted boot environment, in the
-//! order `sort -V` gives their paths, each with the first initramfs found by
-//! the legacy search; kernels without an initramfs are left out. The default
-//! kernel is the last one, or the last one whose path matches the regular
-//! expression in `org.zfsbootmenu:kernel`.
+//! The kernels are the files `/boot/{vmlinux,vmlinuz,linux,linuz,kernel}` and
+//! `/boot/<name>-*` of the mounted boot environment, in the order `sort -V`
+//! gives their paths, each with the first initramfs [`find_initramfs`] finds;
+//! kernels without an initramfs are left out. The default kernel is the last
+//! one, or the last one whose path matches the regular expression in
+//! `org.zfsbootmenu:kernel`.
 //!
 //! The order is that of uutils' `sort -V` ([`version_sort`], in
 //! `zbm_types::version`, from `uucore`), the coreutils of ZFSBootMenu's
@@ -20,8 +19,8 @@ use zbm_platform::files::Files;
 pub use zbm_tools::programs::bash_regex_match;
 pub use zbm_types::version::version_sort;
 
-/// The kernel file names `find_be_kernels` looks for in `/boot`, each also
-/// followed by `-` and anything.
+/// The kernel file names looked for in `/boot`, each also followed by `-` and
+/// anything.
 const KERNEL_NAMES: [&str; 5] = ["vmlinux", "vmlinuz", "linux", "linuz", "kernel"];
 
 /// A kernel of a boot environment, with paths relative to its root, as a line
@@ -57,8 +56,9 @@ impl Kernel {
 }
 
 /// The kernel files of a boot environment mounted at `mnt`, as full paths in
-/// version order: what the glob of `find_be_kernels` finds and `[ -e ]`
-/// accepts, piped through `sort -V`.
+/// version order: the entries of `/boot` that exist and are named `vmlinux`,
+/// `vmlinuz`, `linux`, `linuz` or `kernel`, alone or followed by `-` and
+/// anything, sorted as `sort -V` sorts them.
 pub fn kernel_files(files: &dyn Files, mnt: &Path) -> Vec<String> {
     let boot = mnt.join("boot");
     let names = files.read_dir(&boot).unwrap_or_default();
@@ -81,8 +81,10 @@ pub fn kernel_files(files: &dyn Files, mnt: &Path) -> Vec<String> {
     found
 }
 
-/// The initramfs of the kernel at `kernel` (a full path), as
-/// `find_be_initramfs` searches for it, or `None`.
+/// The initramfs of the kernel at `kernel` (a full path), or `None`: the first
+/// file that exists in the kernel's directory among names made of `initramfs`
+/// or `initrd`, the kernel's file name or its version (from the first `-` on),
+/// and `.img` with or without a compression suffix, tried in a fixed order.
 pub fn find_initramfs(files: &dyn Files, kernel: &Path) -> Option<PathBuf> {
     if !files.exists(kernel) {
         return None;
@@ -118,14 +120,13 @@ pub fn find_initramfs(files: &dyn Files, kernel: &Path) -> Option<PathBuf> {
         .find(|path| files.exists(path))
 }
 
-/// A path relative to the mount point `mnt`, with one leading `/`, as
-/// `find_be_kernels` strips the mount point.
+/// A path relative to the mount point `mnt`, with one leading `/`.
 fn relative(path: &str, mnt: &str) -> String {
     let rest = path.strip_prefix(mnt).unwrap_or(path);
     format!("/{}", rest.strip_prefix('/').unwrap_or(rest))
 }
 
-/// What `find_be_kernels` finds in a boot environment mounted at `mnt`.
+/// The kernels and command line files of a boot environment.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Discovery {
     /// The kernels with an initramfs, in version order.
@@ -158,9 +159,9 @@ pub fn discover(files: &dyn Files, dataset: &str, mnt: &Path) -> Discovery {
     discovery
 }
 
-/// The kernel `select_kernel` chooses: the last one, or the last one whose
-/// kernel path matches `property`, the value of `org.zfsbootmenu:kernel` (`-`
-/// when unset). `None` without kernels.
+/// The kernel to boot: the last one, or the last one whose kernel path matches
+/// `property`, the value of `org.zfsbootmenu:kernel` (`-` when unset). `None`
+/// without kernels.
 pub fn select<'a>(
     runner: &dyn Runner,
     kernels: &'a [Kernel],

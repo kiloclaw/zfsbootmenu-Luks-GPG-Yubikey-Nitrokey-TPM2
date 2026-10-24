@@ -1,4 +1,5 @@
-//! Key files: `luks_find_keyfile` and `luks_release_keyfile`.
+//! Key files: finding a volume's key file, on a key device when it names
+//! one, and releasing the key device afterwards.
 //!
 //! A key file is a path in the image, or `path:device` for a file on another
 //! device, such as a USB stick, which is mounted read-only for as long as the
@@ -111,8 +112,7 @@ impl Unlocker<'_> {
         found
     }
 
-    /// Unmounts and removes a key device's mount point
-    /// (`luks_release_keyfile`).
+    /// Unmounts and removes a key device's mount point.
     pub fn release_keyfile(&self, found: &FoundKey) {
         let Some(mount) = &found.mount else {
             return;

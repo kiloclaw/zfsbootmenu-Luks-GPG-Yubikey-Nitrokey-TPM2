@@ -1,4 +1,4 @@
-//! clevis tokens: `luks_try_clevis_token`.
+//! clevis tokens: opening a volume with the key a clevis token recovers.
 //!
 //! The token's JWE is decrypted as `clevis luks pass` does, but from the token
 //! JSON: clevis finds the token of a key slot by parsing `cryptsetup luksDump`
@@ -15,7 +15,7 @@ use zbm_crypt::Token;
 use zbm_crypt::clevis::Clevis;
 
 impl Unlocker<'_> {
-    /// Opens a volume with a clevis token (`luks_try_clevis_token`).
+    /// Opens a volume with a clevis token.
     ///
     /// # Errors
     ///

@@ -1,5 +1,5 @@
-//! systemd-fido2 tokens: `luks_have_fido2_device`, `luks_fido2_native` and
-//! `luks_try_fido2_token`.
+//! systemd-fido2 tokens: finding a FIDO2 device and opening a volume with
+//! its token, through cryptsetup's plugin or `fido2-assert`.
 //!
 //! Without cryptsetup's plugin, `fido2-assert` computes the FIDO2
 //! hmac-secret of the token's credential and salt; as in systemd, the LUKS
@@ -21,7 +21,7 @@ use zbm_crypt::fido2::{Assertion, Fido2};
 pub use zbm_crypt::fido2::{last_line, listed_devices};
 
 impl Unlocker<'_> {
-    /// Whether a FIDO2 (HID) device is connected (`luks_have_fido2_device`).
+    /// Whether a FIDO2 (HID) device is connected.
     pub fn have_fido2_device(&self) -> bool {
         let files = self.system().files;
         let names = files.read_dir(Path::new("/dev")).unwrap_or_default();
@@ -34,7 +34,7 @@ impl Unlocker<'_> {
     }
 
     /// Computes the LUKS passphrase of a systemd-fido2 token with
-    /// `fido2-assert` (`luks_fido2_native`).
+    /// `fido2-assert`.
     pub fn fido2_native(&self, token: &Token) -> Outcome {
         let system = self.system();
         if !system.command_exists("fido2-assert") || !system.command_exists("fido2-token") {

@@ -61,8 +61,8 @@ pub struct Settings {
     pub retry_delay: String,
     /// How to tell whether a volume is open.
     pub open_check: OpenCheck,
-    /// Whether text is coloured (the unit suites replace `colorize` with
-    /// plain text).
+    /// Whether text is coloured; the unit suites turn it off, as they expect
+    /// plain text.
     pub colors: bool,
     /// The device-mapper directory.
     pub mapper: PathBuf,
@@ -128,7 +128,7 @@ impl Settings {
     }
 }
 
-/// A `timed_prompt` of the LUKS code: a message, what RETURN and ESCAPE do,
+/// A timed prompt of the LUKS code: a message, what RETURN and ESCAPE do,
 /// and the countdown "Retrying in NN seconds".
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PromptRequest {
@@ -164,8 +164,8 @@ impl PromptRequest {
     }
 }
 
-/// Shows timed prompts. The start-up program draws them as `timed_prompt`
-/// does; the unit suites record and answer them.
+/// Shows timed prompts. The start-up program draws them on the console, with
+/// a countdown; the unit suites record and answer them.
 pub trait Prompter {
     /// Shows the prompt and returns what the user did: RETURN or letting the
     /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
@@ -248,7 +248,7 @@ impl<'a> Unlocker<'a> {
     }
 
     /// Drops every secret of the run, which wipes it, and forgets the key
-    /// devices that were missing (`luks_forget_secrets`).
+    /// devices that were missing.
     pub fn forget_secrets(&mut self) {
         self.gpg_plain.clear();
         self.passphrases.clear();
@@ -256,10 +256,9 @@ impl<'a> Unlocker<'a> {
         self.keydev_absent.clear();
     }
 
-    /// Whether `cryptsetup` can be used (`luks_available`). Without
-    /// device-mapper's `udev` rules nothing acknowledges libdevmapper's
-    /// `udev` cookie and `cryptsetup` waits forever, so it is told to manage
-    /// the device nodes itself.
+    /// Whether `cryptsetup` can be used. Without device-mapper's `udev` rules
+    /// nothing acknowledges libdevmapper's `udev` cookie and `cryptsetup`
+    /// waits forever, so it is told to manage the device nodes itself.
     pub fn available(&mut self) -> bool {
         let system = self.system();
         if !system.command_exists("cryptsetup") {
@@ -300,12 +299,12 @@ impl<'a> Unlocker<'a> {
         CmdlineDir::new(self.system().files, &self.settings().base)
     }
 
-    /// The value of a ZFSBootMenu command line option (`get_zbm_arg`).
+    /// The value of a ZFSBootMenu command line option.
     pub fn option(&self, spec: &OptionSpec) -> Option<String> {
         self.options().lookup(spec, &mut Vec::new())
     }
 
-    /// `colorize`, or plain text where the suites expect it.
+    /// `text` in `color`, or plain when [`Settings::colors`] is off.
     pub fn paint(&self, color: &str, text: &str) -> String {
         if self.settings().colors {
             colorize(color, text)
@@ -335,9 +334,8 @@ impl<'a> Unlocker<'a> {
         self.luks.prompter.timed_prompt(request)
     }
 
-    /// Asks for a secret with echo off (`luks_read_secret`); `None` when the
-    /// input ends. Echo goes off before the prompt appears, so no keystroke
-    /// can echo.
+    /// Asks for a secret with echo off; `None` when the input ends. Echo goes
+    /// off before the prompt appears, so no keystroke can echo.
     pub fn read_secret(&self, prompt: &str) -> Option<Secret> {
         let console = self.system().console;
         console.set_echo(false);
@@ -350,8 +348,7 @@ impl<'a> Unlocker<'a> {
     }
 
     /// Seconds to wait for a security key, smart card or key device
-    /// (`luks_token_wait`, `zbm.luks_token_wait`): up to six digits, 10
-    /// otherwise.
+    /// (`zbm.luks_token_wait`): up to six digits, 10 otherwise.
     pub fn token_wait(&self) -> u64 {
         self.option(&LUKS_TOKEN_WAIT)
             .filter(|wait| (1..=6).contains(&wait.len()))
@@ -360,14 +357,14 @@ impl<'a> Unlocker<'a> {
             .unwrap_or(10)
     }
 
-    /// Whether LUKS2 tokens may be tried (`zbm.luks_tokens`, on by default),
-    /// as `get_zbm_bool 1 zbm.luks_tokens` decides.
+    /// Whether LUKS2 tokens may be tried: on unless `zbm.luks_tokens` turns
+    /// it off.
     pub fn tokens_enabled(&self) -> bool {
         self.options().enabled(&LUKS_TOKENS, &mut Vec::new())
     }
 
     /// Waits up to `seconds` for `present` to hold, showing `message`, unless
-    /// the user presses a key (`luks_wait_for`).
+    /// the user presses a key.
     pub fn wait_for(&self, seconds: u64, message: &str, mut present: impl FnMut() -> bool) -> Wait {
         if present() {
             return Wait::Present;
@@ -399,8 +396,8 @@ impl<'a> Unlocker<'a> {
         Wait::TimedOut
     }
 
-    /// `cryptsetup open --type luks --key-file=<key> <args> <device> <name>`
-    /// (`luks_cryptsetup_open`); logs the output when it fails.
+    /// `cryptsetup open --type luks --key-file=<key> <args> <device> <name>`;
+    /// logs the output when it fails.
     ///
     /// # Errors
     ///
