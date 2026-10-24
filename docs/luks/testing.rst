@@ -242,7 +242,8 @@ Following a boot
     and every pool imported; the key can be loaded there.
   * ``complex-skip-recover``: every passphrase prompt skipped; only the mirrors with unencrypted halves import
     (``DEGRADED``), so ZFSBootMenu finds no boot environment and opens its emergency shell; ``zluks unlock`` opens the
-    volumes there, and after the shell ZFSBootMenu imports ``tank`` and boots it from its menu.
+    volumes there, and after the shell ZFSBootMenu imports ``tank`` and boots it from its menu. The Rust runtime, which
+    has no menu yet, imports ``tank`` and opens the shell again instead.
   * ``complex-oldzfs``: an image with an older ZFS unlocks the volumes and imports the pools without unsupported
     active features, but not the RAIDZ2 pool with ``raidz_expansion`` active, so it boots nothing; ``zpool import``
     names the unsupported feature.

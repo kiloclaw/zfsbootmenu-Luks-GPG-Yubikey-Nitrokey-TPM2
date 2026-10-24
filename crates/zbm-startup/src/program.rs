@@ -182,7 +182,9 @@ impl<'a> Startup<'a> {
         context.bootfs.map(|dataset| dataset.to_string())
     }
 
-    /// The countdown and the automatic boot of `bootfs`.
+    /// The countdown and the automatic boot of `bootfs`. Where the legacy
+    /// program would show the menu, it logs why it cannot; the recovery loop
+    /// that follows opens the shell.
     fn countdown(&self, bootfs: Option<&str>) {
         let mut facts = Facts {
             bootfs: bootfs.map(str::to_owned),
@@ -190,17 +192,13 @@ impl<'a> Startup<'a> {
         };
         let timeout = self.options.menu_timeout_seconds();
         let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
-            let _ = self
-                .shell()
-                .refuse(&support::unsupported(&self.options, &facts));
+            log_unsupported(&support::unsupported(&self.options, &facts));
             return;
         };
 
         if self.count_down(bootfs, timeout.unwrap_or_default()) == Answer::Escape {
             facts.countdown_interrupted = true;
-            let _ = self
-                .shell()
-                .refuse(&support::unsupported(&self.options, &facts));
+            log_unsupported(&support::unsupported(&self.options, &facts));
             return;
         }
         // Someone took over over SSH: do not boot.
@@ -285,6 +283,13 @@ impl<'a> Startup<'a> {
                 }
             }
         }
+    }
+}
+
+/// Logs each item of `list` as an error.
+fn log_unsupported(list: &[support::Unsupported]) {
+    for item in list {
+        zbm_trace::error!("{}: {item}", support::MESSAGE);
     }
 }
 

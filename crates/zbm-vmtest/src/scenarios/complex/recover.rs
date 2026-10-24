@@ -1,13 +1,13 @@
 //! The scenarios that end in a shell: `skip-recover` and `oldzfs`.
 
-use crate::boot::{Follow, follow_boot, prompt};
+use crate::boot::{Boot, Follow, follow_boot, prompt};
 use crate::error::Result;
 use crate::expect::regex;
 use crate::images::{Image, hostid_arg};
 use crate::pyfmt;
 use crate::qemu::Machine;
 use crate::record::Test;
-use crate::settings::{PW, PW_OTHER};
+use crate::settings::{PW, PW_OTHER, ZbmRuntime};
 use crate::text::clean;
 use crate::vm::Vm;
 
@@ -50,6 +50,9 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
         ..Follow::default()
     };
     let boot = follow_boot(&mut vm, follow)?;
+    if test.settings().runtime == ZbmRuntime::Rust {
+        return after_the_shell_without_menu(test, &boot);
+    }
     test.check(
         boot.has_prompt("menu"),
         "the boot menu lists tank's boot environment after the shell",
@@ -64,6 +67,25 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
         readonly: &["mixed", "parts"],
     };
     expect_healthy(test, &boot, expect)
+}
+
+/// What the Rust runtime does after the recovery shell, as it has no menu
+/// yet (R5 step 3): it imports the pools the shell made importable and
+/// opens the shell again, where the legacy runtime shows the menu.
+fn after_the_shell_without_menu(test: &Test, boot: &Boot) -> Result<()> {
+    test.check(
+        boot.has_prompt("refused"),
+        "the Rust runtime opened the recovery shell again, where the legacy one shows the menu",
+    );
+    let pools = boot.pools();
+    test.check(
+        pools.get("tank") == Some("ONLINE"),
+        &format!(
+            "ZFSBootMenu imported tank after the shell: {}",
+            pools.show("tank")
+        ),
+    );
+    Ok(())
 }
 
 /// Skips every LUKS prompt until ZFSBootMenu gives up; returns the number

@@ -45,8 +45,9 @@ pub mod prompt {
     pub const BE_ASK: &str = r"Please enter passphrase for disk|Enter passphrase for /dev/";
     /// The boot environment asks for its ZFS key.
     pub const BE_ZFSKEY: &str = r"(?:Enter passphrase for|Encrypted ZFS password for) [a-z]+/ROOT";
-    /// The Rust runtime cannot handle something yet.
-    pub const REFUSED: &str = r"not supported by this build of ZFSBootMenu yet: ([^\r\n]*)";
+    /// The Rust runtime cannot handle something yet: the logged reason, or
+    /// the recovery shell's banner without one.
+    pub const REFUSED: &str = r"not supported by this build of ZFSBootMenu yet(?:: ([^\r\n]*))?";
 }
 
 /// The kinds of prompts [`follow_boot`] answers or acts on.

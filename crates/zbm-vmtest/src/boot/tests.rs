@@ -186,3 +186,17 @@ fn a_pool_block_ends_at_the_next_pool() {
     assert_eq!(pool_block(status, "tsingle"), " tsingle ONLINE");
     assert_eq!(pool_block(status, "y"), "");
 }
+
+#[test]
+fn a_refusal_is_its_logged_reason_or_the_bare_shell_banner() {
+    let refused = crate::expect::regex(prompt::REFUSED).unwrap();
+    let logged = "not supported by this build of ZFSBootMenu yet: the menu (zbm.show)\r\n";
+    let reason = refused
+        .captures(logged)
+        .unwrap()
+        .get(1)
+        .map(|group| group.as_str());
+    assert_eq!(reason, Some("the menu (zbm.show)"));
+    let banner = "emergency shell: not supported by this build of ZFSBootMenu yet\r\n";
+    assert!(refused.captures(banner).unwrap().get(1).is_none());
+}

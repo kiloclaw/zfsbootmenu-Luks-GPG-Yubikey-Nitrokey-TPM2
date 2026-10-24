@@ -205,8 +205,9 @@ fn the_countdown_can_be_interrupted() {
         "{}: the menu (a key was pressed during the countdown)",
         support::MESSAGE
     )));
-    // The refusal and the loop each open the shell.
-    assert_eq!(shells(&fake).len(), 2);
+    // The refusal is logged; only the loop opens the shell, so that leaving
+    // it imports the pools again before the next one.
+    assert_eq!(shells(&fake).len(), 1);
 }
 
 #[test]
@@ -219,7 +220,7 @@ fn what_the_minimal_runtime_refuses() {
     let fake = machine();
     startup(&fake, "zbm.show").run(console, Some(0));
     assert!(fake.kmsg().contains("the menu (zbm.show)"));
-    assert_eq!(shells(&fake).len(), 1);
+    assert_eq!(shells(&fake).len(), 0);
 }
 
 #[test]
