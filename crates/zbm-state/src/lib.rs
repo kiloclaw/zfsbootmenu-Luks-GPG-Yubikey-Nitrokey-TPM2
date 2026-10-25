@@ -135,8 +135,9 @@ impl<'a> State<'a> {
     }
 
     /// The process ID of the console on the display (`zbm console`,
-    /// ROADMAP.md #19), while it holds the display: the supervisor writes
-    /// it, and the console removes it once it handed the display back.
+    /// ROADMAP.md #19), while it holds the display: the console writes it
+    /// once it can take requests, and removes it once it handed the
+    /// display back.
     pub fn console_pid(&self) -> Option<u32> {
         self.read_line("console")?.parse().ok()
     }
@@ -150,6 +151,24 @@ impl<'a> State<'a> {
     pub fn clear_console(&self) {
         self.remove("console");
         self.remove("console-layout");
+    }
+
+    /// The process ID of the console that handed the display back before
+    /// `kexec` and relays on the kernel console: when `kexec` fails, it is
+    /// asked to take the display again (`zbm console reattach`).
+    pub fn released_console_pid(&self) -> Option<u32> {
+        self.read_line("console-released")?.parse().ok()
+    }
+
+    /// Records the console with process ID `pid` as one that handed the
+    /// display back.
+    pub fn set_released_console(&self, pid: u32) -> Result<()> {
+        self.write("console-released", format!("{pid}\n").as_bytes())
+    }
+
+    /// Records that no console waits to take the display again.
+    pub fn clear_released_console(&self) {
+        self.remove("console-released");
     }
 
     /// The keyboard layout the console on the display types with.

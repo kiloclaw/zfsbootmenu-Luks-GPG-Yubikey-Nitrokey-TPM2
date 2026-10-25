@@ -33,6 +33,11 @@ fn markers_and_locks() {
 
     assert_eq!(state.console_pid(), None);
     state.set_console(42).unwrap();
+    assert_eq!(state.released_console_pid(), None);
+    state.set_released_console(43).unwrap();
+    assert_eq!(state.released_console_pid(), Some(43));
+    state.clear_released_console();
+    assert_eq!(state.released_console_pid(), None);
     assert_eq!(files.text("/zfsbootmenu/console").unwrap(), "42\n");
     assert_eq!(state.console_pid(), Some(42));
     state.set_console_layout("de").unwrap();

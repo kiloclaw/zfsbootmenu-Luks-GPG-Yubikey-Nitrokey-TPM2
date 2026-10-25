@@ -113,8 +113,10 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             return crate::USAGE;
         }
     };
-    // trap '' SIGINT; the USR1 trap of a takeover
+    // trap '' SIGINT; the USR1 trap of a takeover; and SIGQUIT, which Bash
+    // ignores
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
+    let _ = zbm_sys::discard_signal(Signal::Quit);
     let _ = zbm_sys::record_signals(&[Signal::User1, Signal::Terminate, Signal::Hangup]);
     on_console(io, |system, conf, io| {
         menu(system, conf, on_terminal, countdown).unwrap_or_else(|error| {

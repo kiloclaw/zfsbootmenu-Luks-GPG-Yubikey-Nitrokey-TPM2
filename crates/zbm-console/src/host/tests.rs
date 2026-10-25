@@ -132,7 +132,7 @@ fn a_layout_asked_for_reaches_the_keyboards() {
 fn the_relay_carries_both_ways_until_the_programs_are_gone() {
     let (mut master, mut program) = UnixStream::pair().unwrap();
     let (mut terminal, mut user) = UnixStream::pair().unwrap();
-    let relay = std::thread::spawn(move || relay(&mut master, &mut terminal));
+    let relay = std::thread::spawn(move || relay(&mut master, &mut terminal, None));
 
     program.write_all(b"Booting\r\n").unwrap();
     let mut shown = [0_u8; 9];
@@ -142,7 +142,7 @@ fn the_relay_carries_both_ways_until_the_programs_are_gone() {
     program.read_exact(&mut typed).unwrap();
     drop(program);
 
-    relay.join().unwrap().unwrap();
+    assert_eq!(relay.join().unwrap().unwrap(), Relayed::Hangup);
     assert_eq!((&shown, &typed), (b"Booting\r\n", b"y"));
 }
 
@@ -152,5 +152,172 @@ fn the_relay_ends_when_the_console_closes() {
     let (mut terminal, user) = UnixStream::pair().unwrap();
     drop(user);
 
-    relay(&mut master, &mut terminal).unwrap();
+    assert_eq!(
+        relay(&mut master, &mut terminal, None).unwrap(),
+        Relayed::Hangup
+    );
+}
+
+#[test]
+fn keys_come_before_a_flood_of_output() {
+    let (master, mut program) = UnixStream::pair().unwrap();
+    let (keyboard, mut typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let timeout = Duration::from_millis(10);
+
+    program.write_all(&[b'y'; 4096]).unwrap();
+    typing
+        .write_all(&[event(29, 1), event(46, 1)].concat())
+        .unwrap();
+
+    let Input::Keys(keys) = host.wait(timeout).unwrap() else {
+        panic!("the keys were not served first");
+    };
+    assert_eq!(keys.len(), 1);
+    assert!(keys[0].ctrl);
+    assert!(matches!(host.wait(timeout).unwrap(), Input::Output(_)));
+}
+
+#[test]
+fn typing_to_a_program_that_reads_nothing_does_not_block() {
+    let (master, mut program) = UnixStream::pair().unwrap();
+    let (keyboard, typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let timeout = Duration::from_millis(10);
+
+    // Far more than a socket's buffer: the rest waits in the host.
+    let chunk = vec![b'k'; 64 * 1024];
+    let mut sends = 0;
+    while host.outgoing.is_empty() && sends < 1000 {
+        host.send(&chunk).unwrap();
+        sends += 1;
+    }
+    assert!(!host.outgoing.is_empty());
+    program.write_all(b"out").unwrap();
+    assert_eq!(host.wait(timeout).unwrap(), Input::Output(b"out".to_vec()));
+
+    program.set_nonblocking(true).unwrap();
+    let mut taken = 0;
+    let mut sink = vec![0_u8; 64 * 1024];
+    for _ in 0..10_000 {
+        match program.read(&mut sink) {
+            Ok(length) => taken += length,
+            Err(_) if host.outgoing.is_empty() => break,
+            Err(_) => {
+                let _ = host.wait(timeout).unwrap();
+            }
+        }
+    }
+    assert!(host.outgoing.is_empty());
+    assert!(taken > 64 * 1024 && taken <= sends * chunk.len());
+    drop(typing);
+}
+
+#[test]
+fn a_keyboard_that_goes_away_leaves_the_host_running() {
+    let (master, mut program) = UnixStream::pair().unwrap();
+    let (keyboard, typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let timeout = Duration::from_millis(10);
+
+    drop(typing);
+
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    program.write_all(b"still").unwrap();
+    assert_eq!(
+        host.wait(timeout).unwrap(),
+        Input::Output(b"still".to_vec())
+    );
+}
+
+#[test]
+fn queued_bytes_are_written_as_the_other_side_takes_them() {
+    let mut outgoing = Outgoing::default();
+    let mut taken = Vec::new();
+
+    outgoing.push(b"abc");
+    outgoing.push(&vec![b'x'; OUTGOING]);
+    outgoing.flush(&mut taken).unwrap();
+    assert_eq!(taken.len(), OUTGOING);
+    assert!(outgoing.is_empty());
+    outgoing.push(b"y");
+    assert!(outgoing.flush(&mut Failing(9)).is_err());
+    outgoing.flush(&mut taken).unwrap();
+
+    outgoing.push(b"z");
+    let mut full: &mut [u8] = &mut [];
+    outgoing.flush(&mut full).unwrap();
+    assert!(!outgoing.is_empty());
+}
+
+impl Write for Failing {
+    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+        Err(io::Error::from_raw_os_error(self.0))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn the_relay_serves_the_user_before_a_flood() {
+    let (mut master, mut program) = UnixStream::pair().unwrap();
+    let (mut terminal, mut user) = UnixStream::pair().unwrap();
+    let flood = std::thread::spawn(move || {
+        let mut typed = [0_u8; 1];
+        program.set_nonblocking(true).unwrap();
+        loop {
+            let _ = program.write(&[b'y'; 1024]);
+            if program.read(&mut typed).is_ok() {
+                break typed;
+            }
+        }
+    });
+    let drain = std::thread::spawn(move || {
+        user.write_all(b"\x03").unwrap();
+        let mut sink = vec![0_u8; 64 * 1024];
+        while user.read(&mut sink).is_ok_and(|length| length > 0) {}
+    });
+
+    relay(&mut master, &mut terminal, None).unwrap();
+
+    assert_eq!(&flood.join().unwrap(), b"\x03");
+    drop(terminal);
+    drain.join().unwrap();
+}
+
+#[test]
+fn a_terminal_left_raw_gets_its_modes_back() {
+    let (_master, slave) = open_pty().unwrap();
+    let modes = Modes::save(&slave).unwrap();
+    let mut raw = termios::tcgetattr(&slave).unwrap();
+    raw.make_raw();
+    termios::tcsetattr(&slave, OptionalActions::Now, &raw).unwrap();
+
+    modes.restore().unwrap();
+
+    let restored = termios::tcgetattr(&slave).unwrap();
+    assert!(restored.local_modes.contains(termios::LocalModes::ISIG));
+    assert!(restored.local_modes.contains(termios::LocalModes::ECHO));
+    assert!(Modes::save(File::open("/dev/null").unwrap()).is_none());
+}
+
+#[test]
+fn the_relay_ends_when_the_display_is_asked_for_again() {
+    let (mut master, _program) = UnixStream::pair().unwrap();
+    let (mut terminal, _user) = UnixStream::pair().unwrap();
+    let asked = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&asked);
+    let relay = std::thread::spawn(move || relay(&mut master, &mut terminal, Some(&flag)));
+
+    std::thread::sleep(Duration::from_millis(50));
+    asked.store(true, Ordering::SeqCst);
+
+    assert_eq!(relay.join().unwrap().unwrap(), Relayed::Reattach);
+    assert!(!asked.load(Ordering::SeqCst));
 }

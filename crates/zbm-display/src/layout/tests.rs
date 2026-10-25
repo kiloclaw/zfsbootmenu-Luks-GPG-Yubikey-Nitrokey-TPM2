@@ -52,7 +52,10 @@ fn typed(layout: &mut Layout, codes: &[u16]) -> String {
         } else {
             code
         };
-        text.extend(layout.key(code, 1).and_then(|typed| typed.char));
+        if let Some(typed) = layout.key(code, 1) {
+            text.extend(typed.before);
+            text.extend(typed.char);
+        }
         assert_eq!(layout.key(code, 0), None);
         if let Some(held) = held {
             layout.key(held, 0);
@@ -108,12 +111,13 @@ fn a_layout_types_its_characters() {
 fn dead_keys_compose_with_the_next_key() {
     let mut layout = german();
 
-    // ^ then e, ^ then space, ´ (Shift ´ is `) then a, ^ then x
+    // ^ then e, ^ then space, ´ (Shift ´ is `) then a, ^ then x, which
+    // types both, as the kernel's keymap does
     let text = typed(
         &mut layout,
         &[41, 18, 41, 57, 13, 30, 0, 42, 13, 18, 41, 45],
     );
-    assert_eq!(text, "ê^áèx");
+    assert_eq!(text, "ê^áè^x");
     let mut plain = Layout::from_keymap("de", keymap("de").as_bytes()).unwrap();
     assert_eq!(typed(&mut plain, &[41, 18]), "e");
     let rules = dead_keys();
@@ -164,4 +168,31 @@ fn a_decoder_takes_a_layout_with_the_keys_held() {
     assert_eq!(decoder.feed(42, 1), None);
     decoder.set_layout(None);
     assert_eq!(decoder.feed(44, 1).unwrap().key, Key::Char('Z'));
+}
+
+#[test]
+fn an_accent_that_does_not_combine_is_typed_before_the_key() {
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(german()));
+    let mut presses = Vec::new();
+
+    for (code, value) in [(41, 1), (41, 0), (45, 1), (45, 0), (41, 1), (18, 1)] {
+        decoder.feed_into(code, value, &mut presses);
+    }
+
+    let keys: Vec<Key> = presses.iter().map(|press| press.key).collect();
+    assert_eq!(keys, [Key::Char('^'), Key::Char('x'), Key::Char('ê')]);
+}
+
+#[test]
+fn caps_lock_of_a_layout_is_known() {
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(german()));
+    assert!(!decoder.is_caps_lock());
+
+    decoder.feed(58, 1);
+    decoder.feed(58, 0);
+
+    assert!(decoder.is_caps_lock());
+    assert_eq!(decoder.feed(30, 1).unwrap().key, Key::Char('A'));
 }

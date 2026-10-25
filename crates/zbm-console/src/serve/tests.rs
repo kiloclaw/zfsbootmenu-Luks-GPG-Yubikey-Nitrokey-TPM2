@@ -56,7 +56,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             &places,
             (&mut grid, layouts),
             terminals,
-            Requests::default(),
+            &Requests::default(),
         );
         served.map(|()| asked)
     });

@@ -15,8 +15,13 @@
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
 //!             [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
+//! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
 //! ```
+//!
+//! `zbm console reattach`, when `kexec` failed after the hand-over, has the
+//! console take the display again, so that the error and the menu after it
+//! are shown.
 //!
 //! Keys are translated with the image's first keyboard layout, or the one
 //! `--layout` names (ROADMAP.md #19, step 4); `zbm console layout` names
@@ -38,7 +43,7 @@ use zbm_display::outline::Outline;
 use zbm_platform::Files;
 use zbm_startup::autosize::FONTS;
 
-use zbm_console::serve::{Layouts, Places, Released, Settings, release, serve};
+use zbm_console::serve::{Layouts, Places, Released, Settings, reattach, release, serve};
 use zbm_platform::RealFiles;
 
 use crate::{Io, USAGE};
@@ -48,6 +53,7 @@ const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
+       zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
 ";
 
@@ -126,10 +132,11 @@ pub fn console_grid(
     })
 }
 
-/// `zbm console`, or `zbm console release`.
+/// `zbm console`, or `zbm console release`, `reattach` or `layout`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     match args.first().map(String::as_str) {
         Some("release") => return run_release(args.get(1..).unwrap_or(&[]), io),
+        Some("reattach") => return run_reattach(args.get(1..).unwrap_or(&[]), io),
         Some("layout") => return crate::layouts::run_switch(args.get(1..).unwrap_or(&[]), io),
         _ => {}
     }
@@ -173,6 +180,26 @@ fn run_release(args: &[String], io: &mut Io) -> i32 {
         Ok(Released::Done) => 0,
         Ok(Released::Late) => {
             let _ = writeln!(io.stderr, "zbm console: the display was not handed back");
+            1
+        }
+        Err(error) => {
+            let _ = writeln!(io.stderr, "zbm console: {error}");
+            1
+        }
+    }
+}
+
+/// `zbm console reattach`: asks the console that handed the display back
+/// to take it again, and waits until it did. Nothing to do without one.
+fn run_reattach(args: &[String], io: &mut Io) -> i32 {
+    let Some(timeout) = parse_release(args) else {
+        let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
+        return USAGE;
+    };
+    match reattach(&Places::system().base, timeout) {
+        Ok(true) => 0,
+        Ok(false) => {
+            let _ = writeln!(io.stderr, "zbm console: the display was not taken again");
             1
         }
         Err(error) => {
@@ -236,8 +263,10 @@ mod tests {
         // No console runs on the machine of the tests: nothing to hand back.
         assert_eq!(run(&args("release --timeout 10"), &mut io), 0);
         assert_eq!(run(&args("release --now"), &mut io), USAGE);
+        assert_eq!(run(&args("reattach --timeout 10"), &mut io), 0);
+        assert_eq!(run(&args("reattach --now"), &mut io), USAGE);
         let text = String::from_utf8_lossy(&stderr).into_owned();
-        assert_eq!(text.matches("Usage: zbm console").count(), 2, "{text}");
+        assert_eq!(text.matches("Usage: zbm console").count(), 3, "{text}");
     }
 
     #[test]

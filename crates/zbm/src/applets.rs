@@ -129,8 +129,10 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
         modes.rerun = Rerun::All;
     }
 
-    // trap '' SIGINT
+    // trap '' SIGINT; and Bash, which ran it, ignores SIGQUIT (Ctrl-\\)
+    // while the programs it starts get the default action
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
+    let _ = zbm_sys::discard_signal(Signal::Quit);
     on_console(io, |system, conf, _| {
         let startup = Startup::new(system, conf);
         // On the console at boot, the stages run in the menu's start-up

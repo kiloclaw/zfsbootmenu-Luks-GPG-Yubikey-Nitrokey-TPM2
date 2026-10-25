@@ -3,8 +3,10 @@
 //!
 //! - `zbm debug saved` lists the saved boots and their files;
 //! - `zbm debug save` saves this boot's logs now;
-//! - after the start-up program crashes, the supervisor saves them, with
-//!   the crash report, when `zbm.save_logs` asks for it.
+//! - after the start-up program crashes, the supervisor has `zbm debug save
+//!   --after-crash` save them, with the crash report, when `zbm.save_logs`
+//!   asks for it: in a process of its own, since probing devices and
+//!   mounting the partition can hang, which process 1 must not.
 //!
 //! The commands use the partition `zbm.save_logs` names, or the ESP when it
 //! is not given; the supervisor saves only when it is.
@@ -51,6 +53,14 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
                 1
             }
         },
+        // The supervisor, after a crash, with the kernel log as standard
+        // error: only when the command line asks for it.
+        ["save", "--after-crash"] => {
+            if let Some(message) = after_crash_in(system, base) {
+                let _ = writeln!(io.stderr, "<3>ZFSBootMenu: {message}");
+            }
+            0
+        }
         ["save"] => match saved_logs::save(system, base, &destination) {
             Ok(saved) => {
                 let _ = writeln!(io.stdout, "saved {} on {}", saved.directory, saved.device);
@@ -79,12 +89,6 @@ pub fn after_crash_in(system: &System<'_>, base: &Path) -> Option<String> {
         Ok(saved) => format!("logs saved in {} on {}", saved.directory, saved.device),
         Err(error) => format!("unable to save the logs: {error}"),
     })
-}
-
-/// [`after_crash_in`] on the machine.
-pub fn after_crash(base: &Path) -> Option<String> {
-    let real = RealSystem::new();
-    after_crash_in(&real.with_console(&NoConsole), base)
 }
 
 #[cfg(test)]
@@ -193,6 +197,23 @@ mod tests {
         assert_eq!(
             told.as_deref(),
             Some("unable to save the logs: LABEL=none: no such partition")
+        );
+    }
+
+    #[test]
+    fn after_a_crash_the_command_tells_the_kernel_log_only_when_asked() {
+        let quiet = machine("quiet\n");
+        assert_eq!(
+            call(&quiet, &["save", "--after-crash"]),
+            (0, String::new(), String::new())
+        );
+
+        let asked = machine("zbm.save_logs\n");
+        let (code, _, told) = call(&asked, &["save", "--after-crash"]);
+        assert_eq!(code, 0);
+        assert!(
+            told.starts_with("<3>ZFSBootMenu: logs saved in EFI/zfsbootmenu/logs/"),
+            "{told}"
         );
     }
 }

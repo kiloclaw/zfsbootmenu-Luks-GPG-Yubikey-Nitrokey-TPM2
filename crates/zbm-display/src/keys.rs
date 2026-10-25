@@ -60,6 +60,16 @@ pub struct KeyPress {
     pub alt: bool,
 }
 
+impl KeyPress {
+    /// What wiped key presses are overwritten with.
+    pub const BLANK: KeyPress = KeyPress {
+        key: Key::Char('\0'),
+        shift: false,
+        ctrl: false,
+        alt: false,
+    };
+}
+
 /// The characters of the keys that type one, by key code: unshifted and
 /// shifted.
 const CHARACTERS: &[(u16, char, char)] = &[
@@ -148,9 +158,24 @@ fn special(code: u16, shift: bool) -> Option<Key> {
 /// `KEY_CAPSLOCK`.
 const CAPS_LOCK: u16 = 58;
 
+/// How many keys can be down at once without the list of them growing,
+/// which would leave a copy in freed memory.
+const DOWN: usize = 32;
+
+/// Removes `code` from `codes` without leaving a copy of the last code in
+/// the spare capacity: the codes of the keys down tell a passphrase.
+fn remove_code(codes: &mut Vec<u16>, code: u16) {
+    if let Some(index) = codes.iter().position(|&down| down == code) {
+        codes.remove(index);
+        if let Some(spare) = codes.spare_capacity_mut().first_mut() {
+            spare.write(0);
+        }
+    }
+}
+
 /// Turns key events into key presses, keeping the modifiers held and Caps
 /// Lock.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Decoder {
     /// The modifier keys held, by key code, on the US layout.
     held: Vec<u16>,
@@ -159,12 +184,82 @@ pub struct Decoder {
     layout: Option<Layout>,
     /// The keys down, by key code, which a new layout takes over.
     down: Vec<u16>,
+    /// The accent typed before the last press, from a dead key.
+    accent: Option<char>,
+}
+
+impl Default for Decoder {
+    fn default() -> Decoder {
+        Decoder {
+            held: Vec::with_capacity(DOWN),
+            caps_lock: false,
+            layout: None,
+            down: Vec::with_capacity(DOWN),
+            accent: None,
+        }
+    }
+}
+
+impl Drop for Decoder {
+    fn drop(&mut self) {
+        zbm_sys::wipe_values(&mut self.down, 0);
+    }
 }
 
 impl Decoder {
     /// A decoder with nothing held.
     pub fn new() -> Decoder {
         Decoder::default()
+    }
+
+    /// Whether Caps Lock is on.
+    pub fn is_caps_lock(&self) -> bool {
+        self.layout
+            .as_ref()
+            .map_or(self.caps_lock, Layout::is_caps_lock)
+    }
+
+    /// Takes `now_down`, the keys down as the device reports them, as the
+    /// keys held after events were lost: keys released meanwhile are
+    /// released, modifiers and Caps Lock pressed meanwhile count.
+    pub fn resync(&mut self, now_down: &[u16]) {
+        let released: Vec<u16> = self
+            .down
+            .iter()
+            .copied()
+            .filter(|code| !now_down.contains(code))
+            .collect();
+        for code in released {
+            let _ = self.feed(code, 0);
+        }
+        for &code in now_down {
+            if self.down.contains(&code) {
+                continue;
+            }
+            if let Some(layout) = &mut self.layout {
+                layout.hold(code);
+            } else if modifier(code).is_some() {
+                self.held.push(code);
+            } else if code == CAPS_LOCK {
+                self.caps_lock = !self.caps_lock;
+            }
+            self.down.push(code);
+        }
+    }
+
+    /// Adds to `presses` what a key event types: key `code`, released (0),
+    /// pressed (1) or repeated (2). An accent that the key does not
+    /// combine with comes first, as on the kernel's keymap.
+    pub fn feed_into(&mut self, code: u16, value: i32, presses: &mut Vec<KeyPress>) {
+        if let Some(press) = self.feed(code, value) {
+            if let Some(accent) = self.accent.take() {
+                presses.push(KeyPress {
+                    key: Key::Char(accent),
+                    ..press
+                });
+            }
+            presses.push(press);
+        }
     }
 
     /// Translates keys with `layout` from now on, or on the US layout; the
@@ -189,13 +284,15 @@ impl Decoder {
 
     /// The press of a key event: key `code`, released (0), pressed (1) or
     /// repeated (2); `None` for releases and the modifiers themselves.
+    /// An accent typed before the press is kept for [`Decoder::feed_into`].
     pub fn feed(&mut self, code: u16, value: i32) -> Option<KeyPress> {
-        self.down.retain(|&down| down != code);
+        remove_code(&mut self.down, code);
         if value != 0 {
             self.down.push(code);
         }
         if let Some(layout) = &mut self.layout {
             let typed = layout.key(code, value)?;
+            self.accent = typed.before;
             let key = match (special(code, typed.shift), typed.char) {
                 (Some(key), _) => key,
                 // Ctrl and Alt with a key of a layout not in Latin letters
@@ -213,7 +310,7 @@ impl Decoder {
             });
         }
         if modifier(code).is_some() {
-            self.held.retain(|&held| held != code);
+            remove_code(&mut self.held, code);
             if value != 0 {
                 self.held.push(code);
             }
@@ -321,5 +418,49 @@ mod tests {
         decoder.feed(56, 0);
         assert_eq!(decoder.feed(37, 2), Some(plain(Key::Char('k'))));
         assert_eq!(decoder.feed(37, 0), None);
+    }
+
+    #[test]
+    fn keys_lost_with_dropped_events_are_resynchronised() {
+        let mut decoder = Decoder::new();
+        decoder.feed(42, 1);
+        decoder.feed(30, 1);
+
+        // Shift and A were released while events were lost, Ctrl and Caps
+        // Lock pressed.
+        decoder.resync(&[29, CAPS_LOCK]);
+
+        let press = press(&mut decoder, 48).unwrap();
+        assert_eq!(press.key, Key::Char('B'));
+        assert!(press.ctrl && !press.shift);
+        assert!(decoder.is_caps_lock());
+        decoder.resync(&[29, CAPS_LOCK]);
+        assert!(decoder.is_caps_lock());
+    }
+
+    #[test]
+    fn released_keys_are_removed_in_place() {
+        let mut codes = Vec::with_capacity(4);
+        codes.extend([5, 6, 7]);
+        let allocation = codes.as_ptr();
+
+        remove_code(&mut codes, 5);
+        remove_code(&mut codes, 9);
+
+        assert_eq!(codes, [6, 7]);
+        assert_eq!(codes.as_ptr(), allocation);
+        assert_eq!(Decoder::new().down.capacity(), DOWN);
+    }
+
+    #[test]
+    fn the_us_layout_has_no_accents_to_type_first() {
+        let mut decoder = Decoder::new();
+        let mut presses = Vec::new();
+
+        decoder.feed_into(30, 1, &mut presses);
+        decoder.feed_into(30, 0, &mut presses);
+
+        assert_eq!(presses, [plain(Key::Char('a'))]);
+        assert_eq!(KeyPress::BLANK.key, Key::Char('\0'));
     }
 }

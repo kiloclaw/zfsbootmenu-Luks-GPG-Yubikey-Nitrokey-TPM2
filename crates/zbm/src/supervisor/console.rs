@@ -42,15 +42,16 @@ pub struct Attached {
 }
 
 impl Attached {
-    /// Starts the console `program` on a new pseudo-terminal, and records
-    /// it in the state directory `base`. The start-up options ask for it
-    /// only when the control terminal is a virtual terminal
-    /// (`zbm_startup::console::from_image`).
+    /// Starts the console `program` on a new pseudo-terminal; it records
+    /// itself in the state directory (`zbm console`), so that a console
+    /// that ended at once is not recorded after it cleared it. The
+    /// start-up options ask for it only when the control terminal is a
+    /// virtual terminal (`zbm_startup::console::from_image`).
     ///
     /// # Errors
     ///
     /// When the pseudo-terminal or the console cannot be had.
-    pub fn start(program: &Program, base: &Path) -> io::Result<Attached> {
+    pub fn start(program: &Program) -> io::Result<Attached> {
         let keyboard = keyboard_mode(TERMINAL).ok();
         let (master, slave) = zbm_console::host::open_pty()?;
         let child = Command::new(&program.path)
@@ -58,10 +59,6 @@ impl Attached {
             .stdin(Stdio::from(master))
             .spawn()?;
         let pid = child.id();
-        let files = RealFiles;
-        let state = State::new(&files, base);
-        let _ = state.create();
-        let _ = state.set_console(pid);
         Ok(Attached {
             pid,
             slave,
@@ -95,6 +92,11 @@ impl Attached {
             .stdout(Stdio::from(self.slave.try_clone()?))
             .stderr(Stdio::from(self.slave.try_clone()?));
         Ok(command)
+    }
+
+    /// The programs' side of the terminal.
+    pub fn terminal(&self) -> &File {
+        &self.slave
     }
 
     /// Writes `text` on the console's terminal, as the programs would.
@@ -142,7 +144,7 @@ mod tests {
         let dir = TempDir::new("zbm-supervisor-console");
         let missing = dir.join("missing");
 
-        assert!(Attached::start(&program(missing.to_str().unwrap(), &[]), dir.path()).is_err());
+        assert!(Attached::start(&program(missing.to_str().unwrap(), &[])).is_err());
         assert!(!dir.join("console").exists());
     }
 

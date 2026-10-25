@@ -7,11 +7,11 @@
 //! image needs no XKB data, only the layouts it offers.
 
 use kbvm::lookup::LookupTable;
-use kbvm::state_machine::{self, Direction, StateMachine};
+use kbvm::state_machine::{self, Direction, Event, StateMachine};
 use kbvm::xkb::Context;
 use kbvm::xkb::compose::{ComposeTable, FeedResult, State as ComposeState};
 use kbvm::xkb::diagnostic::Diagnostic;
-use kbvm::{Components, Keycode, ModifierMask};
+use kbvm::{Components, Keycode, Keysym, ModifierMask, syms};
 
 pub mod compile;
 
@@ -42,6 +42,10 @@ pub struct Typed {
     /// The character, or `None` for a key that types none, a dead key or a
     /// modifier.
     pub char: Option<char>,
+    /// The character typed before `char`: the accent of a dead key that
+    /// the key does not combine with, which the kernel's keymap types
+    /// too.
+    pub before: Option<char>,
     /// Whether Shift was held.
     pub shift: bool,
     /// Whether Ctrl was held.
@@ -67,7 +71,15 @@ pub struct Layout {
     state: state_machine::State,
     components: Components,
     dead_keys: Option<(ComposeTable, ComposeState)>,
+    /// The dead key that started the sequence being composed.
+    dead: Option<Keysym>,
+    /// The state machine's events, kept to be wiped: they tell the keys.
+    events: Vec<Event>,
 }
+
+/// How many events of the state machine one key makes, at most, as far as
+/// the vector is allocated ahead.
+const EVENTS: usize = 16;
 
 impl std::fmt::Debug for Layout {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -97,6 +109,8 @@ impl Layout {
             lookup: builder.build_lookup_table(),
             components: Components::default(),
             dead_keys: None,
+            dead: None,
+            events: Vec::with_capacity(EVENTS),
         })
     }
 
@@ -127,14 +141,19 @@ impl Layout {
 
     /// Key `code` pressed or released, through the state machine alone.
     fn feed(&mut self, code: u16, down: bool) {
-        let mut events = Vec::new();
         let direction = if down { Direction::Down } else { Direction::Up };
         let keycode = Keycode::from_evdev(u32::from(code));
         self.machine
-            .handle_key(&mut self.state, &mut events, keycode, direction);
-        for event in events {
+            .handle_key(&mut self.state, &mut self.events, keycode, direction);
+        for &event in &self.events {
             self.components.apply_event(event);
         }
+        zbm_sys::wipe_values(&mut self.events, Event::KeyUp(Keycode::from_evdev(0)));
+    }
+
+    /// Whether Caps Lock is on.
+    pub fn is_caps_lock(&self) -> bool {
+        self.components.mods_locked.contains(ModifierMask::LOCK)
     }
 
     /// Key `code` held down already when this layout took over from
@@ -157,6 +176,7 @@ impl Layout {
         let mods = self.components.mods;
         let mut typed = Typed {
             char: None,
+            before: None,
             shift: mods.contains(ModifierMask::SHIFT),
             ctrl: mods.contains(ModifierMask::CONTROL),
             alt: mods.contains(ModifierMask::ALT),
@@ -175,13 +195,34 @@ impl Layout {
         }
         typed.char = match &mut self.dead_keys {
             Some((table, state)) => match table.feed(state, symbol.keysym()) {
-                Some(FeedResult::Pending) => None,
-                Some(FeedResult::Composed { string, .. }) => single(string),
-                Some(FeedResult::Aborted) | None => symbol.char(),
+                Some(FeedResult::Pending) => {
+                    self.dead.get_or_insert(symbol.keysym());
+                    None
+                }
+                Some(FeedResult::Composed { string, .. }) => {
+                    self.dead = None;
+                    single(string)
+                }
+                Some(FeedResult::Aborted) => {
+                    typed.before = self.dead.take().and_then(|dead| accent(table, dead));
+                    symbol.char()
+                }
+                None => symbol.char(),
             },
             None => symbol.char(),
         };
         Some(typed)
+    }
+}
+
+/// The character that dead key `dead` types alone, as it does followed by
+/// the space bar.
+fn accent(table: &ComposeTable, dead: Keysym) -> Option<char> {
+    let mut state = table.create_state();
+    table.feed(&mut state, dead)?;
+    match table.feed(&mut state, syms::space)? {
+        FeedResult::Composed { string, .. } => single(string),
+        FeedResult::Pending | FeedResult::Aborted => None,
     }
 }
 

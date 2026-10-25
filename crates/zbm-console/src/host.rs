@@ -22,7 +22,7 @@ use alacritty_terminal::event::WindowSize;
 use rustix::pty::{OpenptFlags, grantpt, openpt, ptsname, unlockpt};
 use rustix::termios::{self, OptionalActions, Winsize};
 use zbm_display::input::Keyboards;
-use zbm_sys::console::first_readable;
+use zbm_sys::console::{Ready, Watch, wait_ready};
 
 use crate::run::{Host, Input};
 
@@ -47,8 +47,87 @@ pub fn read_output(master: &mut impl Read) -> io::Result<Input> {
         Err(error) if error.raw_os_error() == Some(rustix::io::Errno::IO.raw_os_error()) => {
             Ok(Input::Hangup)
         }
-        Err(error) if error.kind() == io::ErrorKind::Interrupted => Ok(Input::Nothing),
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock
+            ) =>
+        {
+            Ok(Input::Nothing)
+        }
         Err(error) => Err(error),
+    }
+}
+
+/// How much typed text waits for the programs, at most: what is typed
+/// beyond it while they read nothing is lost, as the kernel's terminal
+/// loses it.
+const OUTGOING: usize = 64 * 1024;
+
+/// What was typed for the programs and not yet taken by the terminal. The
+/// controlling side of the pseudo-terminal does not block, so that a
+/// program that reads nothing cannot stop the console; the bytes wait here
+/// and are wiped: they may be a passphrase.
+#[derive(Debug)]
+pub struct Outgoing {
+    bytes: Vec<u8>,
+}
+
+impl Default for Outgoing {
+    fn default() -> Outgoing {
+        Outgoing {
+            bytes: Vec::with_capacity(OUTGOING),
+        }
+    }
+}
+
+impl Drop for Outgoing {
+    fn drop(&mut self) {
+        zbm_sys::wipe_vec(&mut self.bytes);
+    }
+}
+
+impl Outgoing {
+    /// Whether nothing waits.
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    /// Queues `bytes`, as much as there is room for.
+    pub fn push(&mut self, bytes: &[u8]) {
+        let room = OUTGOING.saturating_sub(self.bytes.len());
+        self.bytes
+            .extend_from_slice(bytes.get(..room.min(bytes.len())).unwrap_or(&[]));
+    }
+
+    /// Writes what waits to `master`, as much as it takes now.
+    ///
+    /// # Errors
+    ///
+    /// When `master` cannot be written other than for want of room.
+    pub fn flush(&mut self, master: &mut impl Write) -> io::Result<()> {
+        let mut written = 0;
+        let outcome = loop {
+            let Some(rest) = self.bytes.get(written..).filter(|rest| !rest.is_empty()) else {
+                break Ok(());
+            };
+            match master.write(rest) {
+                Ok(0) => break Ok(()),
+                Ok(length) => written += length,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => break Ok(()),
+                Err(error) => break Err(error),
+            }
+        };
+        if written > 0 {
+            self.bytes.drain(..written);
+            // Draining moved the rest down; the old bytes behind it are
+            // overwritten.
+            for slot in self.bytes.spare_capacity_mut() {
+                slot.write(0);
+            }
+        }
+        outcome
     }
 }
 
@@ -99,6 +178,7 @@ pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards) + 'h>;
 /// back and the request for another keyboard layout.
 pub struct RealHost<'h, M> {
     master: M,
+    outgoing: Outgoing,
     keyboards: Keyboards,
     release: Arc<AtomicBool>,
     layout: Option<(Arc<AtomicBool>, Switch<'h>)>,
@@ -115,10 +195,12 @@ impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
 
 impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// A host on `master`, with keys from `keyboards`; `release` is set
-    /// when the display must be handed back.
+    /// when the display must be handed back. `master` stops blocking.
     pub fn new(master: M, keyboards: Keyboards, release: Arc<AtomicBool>) -> RealHost<'h, M> {
+        let _ = rustix::io::ioctl_fionbio(&master, true);
         RealHost {
             master,
+            outgoing: Outgoing::default(),
             keyboards,
             release,
             layout: None,
@@ -133,9 +215,30 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         self
     }
 
-    /// The controlling side of the pseudo-terminal, given back.
+    /// The keyboard layout keys are translated with.
+    pub fn keyboard_layout(&self) -> &str {
+        self.keyboards.layout()
+    }
+
+    /// The controlling side of the pseudo-terminal, given back; what was
+    /// typed and not taken is dropped.
     pub fn into_master(self) -> M {
         self.master
+    }
+
+    /// Keys from the first keyboard that has some: the keyboards come
+    /// before the programs' output, so that Ctrl-C reaches a program that
+    /// floods the terminal.
+    fn keys(&mut self, ready: &[Ready]) -> io::Result<Option<Input>> {
+        let Some(index) = ready.iter().position(|ready| ready.is_ready()) else {
+            return Ok(None);
+        };
+        let presses = self.keyboards.read_device(index)?;
+        Ok(Some(if presses.is_empty() {
+            Input::Nothing
+        } else {
+            Input::Keys(presses)
+        }))
     }
 
     /// Gives the keyboards the layout asked for, if one was.
@@ -154,21 +257,71 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             return Ok(Input::Release);
         }
         self.switch_layout();
-        let mut fds = vec![self.master.as_fd().as_raw_fd()];
-        fds.extend(self.keyboards.fds());
-        match first_readable(&fds, Some(timeout))? {
-            None if self.release.load(Ordering::SeqCst) => Ok(Input::Release),
-            None => {
-                self.switch_layout();
-                Ok(Input::Nothing)
-            }
-            Some(0) => read_output(&mut self.master),
-            Some(index) => Ok(Input::Keys(self.keyboards.read_device(index - 1)?)),
+        let mut watches: Vec<Watch> = self
+            .keyboards
+            .fds()
+            .into_iter()
+            .map(|fd| Watch { fd, write: false })
+            .collect();
+        watches.push(Watch {
+            fd: self.master.as_fd().as_raw_fd(),
+            write: !self.outgoing.is_empty(),
+        });
+        let ready = wait_ready(&watches, Some(timeout))?;
+        let (master, keyboards) = match ready.split_last() {
+            Some((master, keyboards)) => (*master, keyboards),
+            None => (Ready::default(), &[][..]),
+        };
+        if master.write {
+            self.outgoing.flush(&mut self.master)?;
         }
+        if let Some(keys) = self.keys(keyboards)? {
+            return Ok(keys);
+        }
+        if master.read || master.closed {
+            return read_output(&mut self.master);
+        }
+        if self.release.load(Ordering::SeqCst) {
+            return Ok(Input::Release);
+        }
+        if !master.write {
+            // Nothing happened for a while: a keyboard may have come.
+            self.keyboards.rescan();
+            self.switch_layout();
+        }
+        Ok(Input::Nothing)
     }
 
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
-        self.master.write_all(bytes)
+        self.outgoing.push(bytes);
+        self.outgoing.flush(&mut self.master)
+    }
+}
+
+/// The modes of a terminal, saved to be restored: a program killed in raw
+/// mode leaves its terminal raw, without Ctrl-C or echo.
+#[derive(Debug)]
+pub struct Modes {
+    terminal: OwnedFd,
+    saved: termios::Termios,
+}
+
+impl Modes {
+    /// The modes of `terminal` now; `None` when it is not a terminal.
+    pub fn save(terminal: impl AsFd) -> Option<Modes> {
+        let saved = termios::tcgetattr(&terminal).ok()?;
+        let terminal = terminal.as_fd().try_clone_to_owned().ok()?;
+        Some(Modes { terminal, saved })
+    }
+
+    /// Gives the terminal the saved modes back.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be changed.
+    pub fn restore(&self) -> io::Result<()> {
+        termios::tcsetattr(&self.terminal, OptionalActions::Now, &self.saved)
+            .map_err(io::Error::from)
     }
 }
 
@@ -203,14 +356,28 @@ impl Drop for Raw {
     }
 }
 
+/// Why the relay on the kernel console ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Relayed {
+    /// The programs are gone, or the kernel console closed.
+    Hangup,
+    /// The display was asked for again: `kexec` failed after the hand-over.
+    Reattach,
+}
+
 /// Relays between the programs on `master` and `terminal`, the kernel
-/// console, until the programs are gone: what they write is shown there,
-/// what is typed there reaches them. The programs get the console's size.
+/// console, until the programs are gone, or until `reattach`, when given,
+/// is set: what they write is shown there, what is typed there reaches
+/// them. The programs get the console's size.
 ///
 /// # Errors
 ///
 /// When one side cannot be read or written.
-pub fn relay<M, T>(master: &mut M, terminal: &mut T) -> io::Result<()>
+pub fn relay<M, T>(
+    master: &mut M,
+    terminal: &mut T,
+    reattach: Option<&AtomicBool>,
+) -> io::Result<Relayed>
 where
     M: Read + Write + AsFd,
     T: Read + Write + AsFd,
@@ -218,39 +385,86 @@ where
     if let Ok(size) = termios::tcgetwinsize(&*terminal) {
         let _ = termios::tcsetwinsize(&*master, size);
     }
+    let _ = rustix::io::ioctl_fionbio(&*master, true);
     let raw = Raw::new(&*terminal);
-    let fds = [master.as_fd().as_raw_fd(), terminal.as_fd().as_raw_fd()];
-    let mut typed = vec![0_u8; CHUNK];
+    let mut sides = Sides {
+        master,
+        terminal,
+        outgoing: Outgoing::default(),
+        typed: vec![0_u8; CHUNK],
+    };
+    // With a request to wait for, the relay looks for it every tick.
+    let timeout = reattach.map(|_| crate::run::TICK);
     let outcome = loop {
-        match first_readable(&fds, None) {
-            Ok(Some(0)) => match read_output(master) {
-                Ok(Input::Output(bytes)) => {
-                    if let Err(error) = terminal.write_all(&bytes) {
-                        break Err(error);
-                    }
-                }
-                Ok(Input::Hangup) => break Ok(()),
-                Ok(_) => {}
-                Err(error) => break Err(error),
-            },
-            Ok(Some(_)) => match terminal.read(&mut typed) {
-                Ok(0) => break Ok(()),
-                Ok(length) => {
-                    let sent = master.write_all(typed.get(..length).unwrap_or(&[]));
-                    zbm_sys::wipe(&mut typed);
-                    if let Err(error) = sent {
-                        break Err(error);
-                    }
-                }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => break Err(error),
-            },
+        if reattach.is_some_and(|asked| asked.swap(false, Ordering::SeqCst)) {
+            break Ok(Relayed::Reattach);
+        }
+        match sides.step(timeout) {
             Ok(None) => {}
+            Ok(Some(relayed)) => break Ok(relayed),
             Err(error) => break Err(error),
         }
     };
     drop(raw);
     outcome
+}
+
+/// The two sides of the relay, and what was typed for the programs.
+struct Sides<'s, M, T> {
+    master: &'s mut M,
+    terminal: &'s mut T,
+    outgoing: Outgoing,
+    typed: Vec<u8>,
+}
+
+impl<M, T> Sides<'_, M, T>
+where
+    M: Read + Write + AsFd,
+    T: Read + Write + AsFd,
+{
+    /// Waits at most `timeout` (`None`: without limit) and carries what
+    /// one side has to the other; `Some` when the relay ends.
+    fn step(&mut self, timeout: Option<Duration>) -> io::Result<Option<Relayed>> {
+        // What is typed comes first, so that Ctrl-C reaches a program that
+        // floods the terminal.
+        let watches = [
+            Watch {
+                fd: self.terminal.as_fd().as_raw_fd(),
+                write: false,
+            },
+            Watch {
+                fd: self.master.as_fd().as_raw_fd(),
+                write: !self.outgoing.is_empty(),
+            },
+        ];
+        let ready = wait_ready(&watches, timeout)?;
+        let (from_user, from_programs) = (
+            ready.first().copied().unwrap_or_default(),
+            ready.get(1).copied().unwrap_or_default(),
+        );
+        if from_programs.write {
+            self.outgoing.flush(self.master)?;
+        }
+        if from_user.is_ready() {
+            match self.terminal.read(&mut self.typed) {
+                Ok(0) => return Ok(Some(Relayed::Hangup)),
+                Ok(length) => {
+                    self.outgoing.push(self.typed.get(..length).unwrap_or(&[]));
+                    zbm_sys::wipe(&mut self.typed);
+                    self.outgoing.flush(self.master)?;
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error),
+            }
+        } else if from_programs.read || from_programs.closed {
+            match read_output(self.master)? {
+                Input::Output(bytes) => self.terminal.write_all(&bytes)?,
+                Input::Hangup => return Ok(Some(Relayed::Hangup)),
+                _ => {}
+            }
+        }
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

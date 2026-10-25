@@ -7,8 +7,8 @@
     reason = "the input devices are this module's system interface: it opens them and reads sysfs"
 )]
 
-use std::fs::File;
-use std::io::{self, Read as _};
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read as _, Write as _};
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -16,8 +16,30 @@ use std::time::Duration;
 use crate::keys::{Decoder, KeyPress};
 use crate::layout::Layout;
 
+/// `EV_SYN`: the end of a group of events, or the news that some were lost.
+const EV_SYN: u16 = 0;
+
+/// `SYN_REPORT`: the end of a group of events.
+const SYN_REPORT: u16 = 0;
+
+/// `SYN_DROPPED`: the device's queue overflowed and events were lost.
+const SYN_DROPPED: u16 = 3;
+
 /// `EV_KEY`: an event of a key or button.
 const EV_KEY: u16 = 1;
+
+/// `EV_LED`: a light of the keyboard, written to the device.
+const EV_LED: u16 = 0x11;
+
+/// `LED_CAPSL`: the Caps Lock light.
+const LED_CAPSL: u16 = 1;
+
+/// How many events are read at once.
+const EVENTS: usize = 32;
+
+/// How many presses are kept between reads: one read makes at most two of
+/// each event, a dead key's accent and the key.
+const PENDING: usize = 2 * EVENTS;
 
 /// The size of `struct input_event` on 64-bit Linux: a `struct timeval` of
 /// two 64-bit fields, then the type, the code and the value.
@@ -46,12 +68,7 @@ const BLANK_EVENT: InputEvent = InputEvent {
 };
 
 /// What wiped key presses are overwritten with.
-const BLANK_PRESS: KeyPress = KeyPress {
-    key: crate::keys::Key::Char('\0'),
-    shift: false,
-    ctrl: false,
-    alt: false,
-};
+const BLANK_PRESS: KeyPress = KeyPress::BLANK;
 
 /// The events in `bytes`, as read from an input device; a partial event at
 /// the end is left out.
@@ -113,12 +130,49 @@ pub trait KeySource {
     fn next(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>>;
 }
 
-/// The keyboards' input devices, read together.
+/// An open keyboard.
+#[derive(Debug)]
+struct Device {
+    file: File,
+    /// Where it was opened, to know it when looking for new keyboards.
+    path: Option<PathBuf>,
+    /// Events were lost: the rest of the group is skipped and the keys
+    /// down are read from the device at its end.
+    lost: bool,
+}
+
+/// Opens the input device at `path`, for writing as well when it may be,
+/// to set its lights.
+fn open_device(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .or_else(|_| File::open(path))
+        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))
+}
+
+/// The record of an `EV_LED` event and the `SYN_REPORT` after it.
+fn led_records(code: u16, on: bool) -> Vec<u8> {
+    let mut records = vec![0_u8; 16];
+    records.extend_from_slice(&EV_LED.to_ne_bytes());
+    records.extend_from_slice(&code.to_ne_bytes());
+    records.extend_from_slice(&i32::from(on).to_ne_bytes());
+    records.resize(2 * EVENT_SIZE, 0);
+    records
+}
+
+/// The keyboards' input devices, read together. A keyboard that goes away
+/// is dropped; one that comes is found by [`Keyboards::rescan`].
 #[derive(Debug)]
 pub struct Keyboards {
-    devices: Vec<File>,
+    devices: Vec<Device>,
+    /// Where to look for keyboards: `/sys` and `/dev`.
+    places: Option<(PathBuf, PathBuf)>,
     decoder: Decoder,
     pending: Vec<KeyPress>,
+    /// The state of Caps Lock the lights show.
+    caps_light: bool,
 }
 
 impl Keyboards {
@@ -126,31 +180,77 @@ impl Keyboards {
     ///
     /// # Errors
     ///
-    /// When there is none, or one cannot be opened.
+    /// When there is none, or none can be opened.
     pub fn open(sysfs: &Path, dev: &Path) -> io::Result<Keyboards> {
         let paths = keyboards(sysfs, dev);
-        if paths.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "no keyboard found"));
+        let mut found = Keyboards::from_files(Vec::new());
+        found.places = Some((sysfs.to_owned(), dev.to_owned()));
+        let mut failed = None;
+        for path in paths {
+            match open_device(&path) {
+                Ok(file) => found.devices.push(Device {
+                    file,
+                    path: Some(path),
+                    lost: false,
+                }),
+                Err(error) => failed = Some(error),
+            }
         }
-        let devices = paths
-            .iter()
-            .map(|path| {
-                File::open(path).map_err(|error| {
-                    io::Error::new(error.kind(), format!("{}: {error}", path.display()))
-                })
-            })
-            .collect::<io::Result<Vec<File>>>()?;
-        Ok(Keyboards::from_files(devices))
+        match failed {
+            Some(error) if found.devices.is_empty() => Err(error),
+            None if found.devices.is_empty() => {
+                Err(io::Error::new(io::ErrorKind::NotFound, "no keyboard found"))
+            }
+            _ => Ok(found),
+        }
     }
 
     /// Keyboards read from `devices`, open input devices or, in tests,
     /// anything that gives their records.
     pub fn from_files(devices: Vec<File>) -> Keyboards {
         Keyboards {
-            devices,
+            devices: devices
+                .into_iter()
+                .map(|file| Device {
+                    file,
+                    path: None,
+                    lost: false,
+                })
+                .collect(),
+            places: None,
             decoder: Decoder::new(),
-            pending: Vec::new(),
+            pending: Vec::with_capacity(PENDING),
+            caps_light: false,
         }
+    }
+
+    /// Opens the keyboards that came since they were opened, or since the
+    /// last look: plugged in, or found late by the kernel. Returns how many.
+    pub fn rescan(&mut self) -> usize {
+        let Some((sysfs, dev)) = &self.places else {
+            return 0;
+        };
+        let mut added = 0;
+        for path in keyboards(sysfs, dev) {
+            let known = self
+                .devices
+                .iter()
+                .any(|device| device.path.as_ref() == Some(&path));
+            if !known && let Ok(file) = open_device(&path) {
+                self.devices.push(Device {
+                    file,
+                    path: Some(path),
+                    lost: false,
+                });
+                added += 1;
+            }
+        }
+        added
+    }
+
+    /// How many keyboards are open.
+    pub fn count(&self) -> usize {
+        self.devices.len()
     }
 
     /// Translates keys with `layout` from now on, or on the US layout.
@@ -165,43 +265,118 @@ impl Keyboards {
 
     /// The open devices, for a caller that waits on them with other files.
     pub fn fds(&self) -> Vec<i32> {
-        self.devices.iter().map(AsRawFd::as_raw_fd).collect()
+        self.devices
+            .iter()
+            .map(|device| device.file.as_raw_fd())
+            .collect()
+    }
+
+    /// Stops reading the device at `index`, which went away.
+    pub fn drop_device(&mut self, index: usize) {
+        if index < self.devices.len() {
+            self.devices.remove(index);
+        }
+    }
+
+    /// The presses pending, handed over; the next ones go to a new vector
+    /// of the same capacity, so that none grows and leaves a copy.
+    fn take_pending(&mut self) -> Vec<KeyPress> {
+        std::mem::replace(&mut self.pending, Vec::with_capacity(PENDING))
+    }
+
+    /// The keys down on every keyboard, as the kernel knows them.
+    fn keys_down(&self) -> Vec<u16> {
+        let mut down: Vec<u16> = self
+            .devices
+            .iter()
+            .filter_map(|device| zbm_sys::console::keys_down(device.file.as_raw_fd()).ok())
+            .flatten()
+            .collect();
+        down.sort_unstable();
+        down.dedup();
+        down
+    }
+
+    /// Turns the events of the device at `index` into presses.
+    fn take_events(&mut self, index: usize, events: &[InputEvent]) {
+        for event in events {
+            let Some(device) = self.devices.get_mut(index) else {
+                return;
+            };
+            match (event.kind, event.code) {
+                (EV_SYN, SYN_DROPPED) => device.lost = true,
+                (EV_SYN, SYN_REPORT) if device.lost => {
+                    device.lost = false;
+                    let down = self.keys_down();
+                    self.decoder.resync(&down);
+                }
+                _ if device.lost => {}
+                (EV_KEY, code) if self.pending.len() + 2 <= PENDING => {
+                    self.decoder.feed_into(code, event.value, &mut self.pending);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Lights Caps Lock on every keyboard when the console's Caps Lock
+    /// changed: the kernel does not, while the console reads the keys.
+    fn show_caps_lock(&mut self) {
+        let on = self.decoder.is_caps_lock();
+        if on == self.caps_light {
+            return;
+        }
+        self.caps_light = on;
+        let records = led_records(LED_CAPSL, on);
+        for device in &mut self.devices {
+            let _ = device.file.write_all(&records);
+        }
     }
 
     /// Reads the events of the device at `index`, which has some, and
-    /// returns the presses among them, with any still pending.
+    /// returns the presses among them, with any still pending. A device
+    /// that went away (`ENODEV`, or any other error, or the end of its
+    /// records) is dropped: the keys come from the others.
     ///
     /// # Errors
     ///
-    /// When the device cannot be read.
+    /// None at present; kept for the callers that wait on devices.
     pub fn read_device(&mut self, index: usize) -> io::Result<Vec<KeyPress>> {
-        let mut buffer = [0_u8; EVENT_SIZE * 32];
-        if let Some(device) = self.devices.get_mut(index) {
-            let read = device.read(&mut buffer);
-            let length = read.as_ref().map_or(0, |length| *length);
-            let mut events = parse_events(buffer.get(..length).unwrap_or(&[]));
-            for event in &events {
-                if event.kind == EV_KEY
-                    && let Some(press) = self.decoder.feed(event.code, event.value)
-                {
-                    self.pending.push(press);
-                }
+        let mut buffer = [0_u8; EVENT_SIZE * EVENTS];
+        let Some(device) = self.devices.get_mut(index) else {
+            return Ok(self.take_pending());
+        };
+        match device.file.read(&mut buffer) {
+            Ok(0) => self.drop_device(index),
+            Ok(length) => {
+                let mut events = parse_events(buffer.get(..length).unwrap_or(&[]));
+                self.take_events(index, &events);
+                // The key codes of a passphrase tell it as well as its bytes.
+                zbm_sys::wipe_values(&mut events, BLANK_EVENT);
+                self.show_caps_lock();
             }
-            // The key codes of a passphrase tell it as well as its bytes.
-            zbm_sys::wipe(&mut buffer);
-            zbm_sys::wipe_values(&mut events, BLANK_EVENT);
-            read?;
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock
+                ) => {}
+            Err(_) => self.drop_device(index),
         }
-        Ok(std::mem::take(&mut self.pending))
+        zbm_sys::wipe(&mut buffer);
+        Ok(self.take_pending())
     }
 }
 
 impl KeySource for Keyboards {
     fn next(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
-        if self.pending.is_empty()
-            && let Some(index) = zbm_sys::console::first_readable(&self.fds(), Some(timeout))?
-        {
-            self.pending = self.read_device(index)?;
+        if self.pending.is_empty() {
+            match zbm_sys::console::first_readable(&self.fds(), Some(timeout))? {
+                Some(index) => self.pending = self.read_device(index)?,
+                // Nothing typed for a while: a keyboard may have come.
+                None => {
+                    self.rescan();
+                }
+            }
         }
         let press = (!self.pending.is_empty()).then(|| self.pending.remove(0));
         if self.pending.is_empty() {
@@ -303,11 +478,7 @@ mod tests {
             bytes.extend(event(kind, code, value));
         }
         std::fs::write(root.join("events"), bytes).unwrap();
-        let mut keyboards = Keyboards {
-            devices: vec![File::open(root.join("events")).unwrap()],
-            decoder: Decoder::new(),
-            pending: Vec::new(),
-        };
+        let mut keyboards = Keyboards::from_files(vec![File::open(root.join("events")).unwrap()]);
 
         let first = keyboards.next(Duration::ZERO).unwrap().unwrap();
         let second = keyboards.next(Duration::ZERO).unwrap().unwrap();
@@ -315,6 +486,99 @@ mod tests {
         assert_eq!(first.key, crate::keys::Key::Char('A'));
         assert_eq!(second.key, crate::keys::Key::Char('B'));
         assert_eq!(keyboards.next(Duration::ZERO).unwrap(), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn socket_keyboards() -> (Keyboards, std::os::unix::net::UnixStream) {
+        let (device, typing) = std::os::unix::net::UnixStream::pair().unwrap();
+        let file = File::from(std::os::fd::OwnedFd::from(device));
+        (Keyboards::from_files(vec![file]), typing)
+    }
+
+    #[test]
+    fn a_keyboard_that_goes_away_is_dropped() {
+        let (mut keyboards, typing) = socket_keyboards();
+        assert_eq!(keyboards.count(), 1);
+        drop(typing);
+
+        assert_eq!(keyboards.read_device(0).unwrap(), []);
+        assert_eq!(keyboards.count(), 0);
+        assert_eq!(keyboards.read_device(3).unwrap(), []);
+        assert_eq!(keyboards.next(Duration::ZERO).unwrap(), None);
+        assert_eq!(keyboards.rescan(), 0);
+    }
+
+    #[test]
+    fn caps_lock_lights_the_keyboards() {
+        use std::io::Write as _;
+        let (mut keyboards, mut typing) = socket_keyboards();
+
+        typing.write_all(&event(EV_KEY, 58, 1)).unwrap();
+        assert_eq!(keyboards.read_device(0).unwrap(), []);
+
+        let mut lit = [0_u8; 2 * EVENT_SIZE];
+        typing.read_exact(&mut lit).unwrap();
+        assert_eq!(lit.to_vec(), led_records(LED_CAPSL, true));
+        assert_eq!(
+            parse_events(&lit),
+            [
+                InputEvent {
+                    kind: EV_LED,
+                    code: LED_CAPSL,
+                    value: 1
+                },
+                BLANK_EVENT
+            ]
+        );
+        typing.write_all(&event(EV_KEY, 30, 1)).unwrap();
+        let presses = keyboards.read_device(0).unwrap();
+        assert_eq!(presses[0].key, crate::keys::Key::Char('A'));
+    }
+
+    #[test]
+    fn events_lost_are_skipped_and_the_keys_resynchronised() {
+        use std::io::Write as _;
+        let (mut keyboards, mut typing) = socket_keyboards();
+        let mut records = event(EV_KEY, 42, 1);
+        // The release of Shift is lost with the events after it, up to the
+        // end of the group; the keys down are then read from the device.
+        for (kind, code, value) in [
+            (EV_SYN, SYN_DROPPED, 0),
+            (EV_KEY, 30, 1),
+            (EV_SYN, SYN_REPORT, 0),
+            (EV_KEY, 48, 1),
+        ] {
+            records.extend(event(kind, code, value));
+        }
+        typing.write_all(&records).unwrap();
+
+        let presses = keyboards.read_device(0).unwrap();
+
+        assert_eq!(presses.len(), 1);
+        assert_eq!(presses[0].key, crate::keys::Key::Char('b'));
+    }
+
+    #[test]
+    fn keyboards_that_come_later_are_found() {
+        let root = std::env::temp_dir().join(format!("zbm-display-hotplug-{}", std::process::id()));
+        let add = |name: &str| {
+            let caps = root
+                .join("sys/class/input")
+                .join(name)
+                .join("device/capabilities");
+            std::fs::create_dir_all(&caps).unwrap();
+            std::fs::write(caps.join("key"), AT_KEYBOARD).unwrap();
+            std::fs::create_dir_all(root.join("dev/input")).unwrap();
+            std::fs::write(root.join("dev/input").join(name), b"").unwrap();
+        };
+        add("event1");
+        let mut keyboards = Keyboards::open(&root.join("sys"), &root.join("dev")).unwrap();
+
+        assert_eq!(keyboards.rescan(), 0);
+        add("event2");
+        assert_eq!(keyboards.rescan(), 1);
+        assert_eq!(keyboards.count(), 2);
+        assert_eq!(keyboards.fds().len(), 2);
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

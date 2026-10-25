@@ -70,6 +70,8 @@ pub enum Signal {
     Hangup,
     /// `SIGINT`, sent by the terminal on Ctrl-C.
     Interrupt,
+    /// `SIGQUIT`, sent by the terminal on Ctrl-\\.
+    Quit,
     /// `SIGUSR1`, which tells a running menu to give way to another instance.
     User1,
     /// `SIGPIPE`, sent when writing to a pipe that nobody reads.
@@ -79,9 +81,10 @@ pub enum Signal {
 }
 
 /// Every [`Signal`].
-const SIGNALS: [Signal; 5] = [
+const SIGNALS: [Signal; 6] = [
     Signal::Hangup,
     Signal::Interrupt,
+    Signal::Quit,
     Signal::User1,
     Signal::Pipe,
     Signal::Terminate,
@@ -94,6 +97,7 @@ impl Signal {
         match self {
             Signal::Hangup => 1,
             Signal::Interrupt => 2,
+            Signal::Quit => 3,
             Signal::User1 => 10,
             Signal::Pipe => 13,
             Signal::Terminate => 15,
@@ -105,6 +109,7 @@ impl Signal {
         match self {
             Signal::Hangup => "HUP",
             Signal::Interrupt => "INT",
+            Signal::Quit => "QUIT",
             Signal::User1 => "USR1",
             Signal::Pipe => "PIPE",
             Signal::Terminate => "TERM",
@@ -124,10 +129,13 @@ extern "C" fn record(signum: c_int) {
     RECEIVED.store(signum, Ordering::SeqCst);
 }
 
+extern "C" fn discard(_: c_int) {}
+
 fn set_handler(signal: Signal, handler: usize) -> std::io::Result<()> {
     // SAFETY: `signal` only changes the disposition of the given signal. The
-    // handler is `SIG_DFL`, `SIG_IGN` or `record`, which has the C ABI and only
-    // performs an async-signal-safe atomic store.
+    // handler is `SIG_DFL`, `SIG_IGN`, `record`, which has the C ABI and only
+    // performs an async-signal-safe atomic store, or `discard`, which does
+    // nothing.
     let previous = unsafe { signal_ffi(signal.number(), handler) };
     if previous == SIG_ERR {
         Err(std::io::Error::last_os_error())
@@ -162,6 +170,13 @@ pub fn restore_default_sigpipe() -> std::io::Result<()> {
 /// starts inherit the ignored disposition.
 pub fn ignore_signal(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, SIG_IGN)
+}
+
+/// Discards `signal` in this process, as Bash does with `SIGQUIT`: it is
+/// caught and nothing happens. Unlike an ignored signal, programs this
+/// process starts get the default action back.
+pub fn discard_signal(signal: Signal) -> std::io::Result<()> {
+    set_handler(signal, discard as extern "C" fn(c_int) as usize)
 }
 
 /// Restores the default action of `signal` in this process.
@@ -382,6 +397,21 @@ mod tests {
         restore_default(Signal::Interrupt).unwrap();
         assert_ne!(inherited & interrupt, 0, "{inherited:x}");
         assert_eq!(restored & interrupt, 0, "{restored:x}");
+    }
+
+    #[test]
+    fn a_discarded_signal_is_survived_and_not_inherited() {
+        let _guard = PROCESSES.lock().unwrap();
+        let quit = 1 << (Signal::Quit.number() - 1);
+        discard_signal(Signal::Quit).unwrap();
+        // Caught by `discard`, which does nothing: the tests go on.
+        let raised = send_signal(std::process::id(), Signal::Quit);
+        let inherited = ignored_mask(&mut std::process::Command::new("grep"));
+        restore_default(Signal::Quit).unwrap();
+        assert!(raised.is_ok());
+        assert_eq!(inherited & quit, 0, "{inherited:x}");
+        assert_eq!(Signal::Quit.name(), "QUIT");
+        assert_eq!(Signal::from_number(3), Some(Signal::Quit));
     }
 
     #[test]

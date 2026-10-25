@@ -139,7 +139,7 @@ pub fn kexec_kernel(
     tear_down(system, settings, &hook_env, &mnt);
     save_logs(system, state, settings.save_logs.as_ref());
     hand_over(system, state);
-    execute(system, fs, kernel);
+    execute(system, state, fs, kernel);
 }
 
 /// The variables the hooks of the boot get: those of `settings`, then the
@@ -328,6 +328,14 @@ fn hand_over(system: &System<'_>, state: &State<'_>) {
     }
 }
 
+/// Has the console that handed the display over take it again when
+/// `kexec` failed, to show the error and the menu after it.
+fn take_back(system: &System<'_>, state: &State<'_>) {
+    if state.released_console_pid().is_some() {
+        let _ = programs::reattach_console(system.runner);
+    }
+}
+
 /// The kernel's file that drops clean caches.
 const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
 
@@ -348,7 +356,7 @@ pub fn wipe_before_kexec(system: &System<'_>) {
 
 /// Tells the user which kernel boots and executes it. Returns only if that
 /// fails, after telling the user.
-fn execute(system: &System<'_>, fs: &str, kernel: &str) {
+fn execute(system: &System<'_>, state: &State<'_>, fs: &str, kernel: &str) {
     wipe_before_kexec(system);
     let booting = format!(
         "\nBooting {} for {} ...\n\n",
@@ -359,6 +367,7 @@ fn execute(system: &System<'_>, fs: &str, kernel: &str) {
 
     let (_, output) = substituted(kexec::execute(system.runner));
     // Only a failed kexec returns.
+    take_back(system, state);
     zbm_trace::error!("kexec -e -i failed!");
     zbm_trace::error!("{}", output);
     TimedPrompt::new()
@@ -393,6 +402,27 @@ mod tests {
             .map(|call| call.display())
             .collect();
         assert_eq!(calls, ["/libexec/zbm console release"]);
+    }
+
+    #[test]
+    fn after_a_failed_kexec_the_console_takes_the_display_again() {
+        let fake = FakeSystem::new();
+        let system = fake.system();
+        let state = State::new(system.files, "/zfsbootmenu");
+
+        take_back(&system, &state);
+        assert!(fake.runner.calls().is_empty());
+
+        state.create().unwrap();
+        state.set_released_console(42).unwrap();
+        take_back(&system, &state);
+        let calls: Vec<String> = fake
+            .runner
+            .calls()
+            .iter()
+            .map(|call| call.display())
+            .collect();
+        assert_eq!(calls, ["/libexec/zbm console reattach"]);
     }
 
     #[test]

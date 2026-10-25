@@ -103,8 +103,10 @@ pub fn run(
                     host.send(&replies)?;
                 }
             }
-            Input::Keys(presses) => {
-                type_keys(host, &presses, console.is_application_cursor())?;
+            Input::Keys(mut presses) => {
+                let typed = type_keys(host, &presses, console.is_application_cursor());
+                zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
+                typed?;
             }
             Input::Hangup => return Ok(Ended::Hangup),
             Input::Release => return Ok(Ended::Released),

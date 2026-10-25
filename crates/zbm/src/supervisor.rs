@@ -25,9 +25,13 @@
 mod console;
 
 use std::io::Write;
+use std::os::fd::AsFd;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Duration;
+
+use zbm_console::host::Modes;
+use zbm_platform::RealFiles;
 
 use zbm_sys::{Ended, Signal};
 use zbm_trace::crash::{Reason, Report};
@@ -146,7 +150,7 @@ impl Supervisor {
     /// the programs run on the supervisor's terminal.
     fn start_console(&self, events: &mut dyn FnMut(Event)) -> Option<Attached> {
         let program = self.console.as_ref()?;
-        match Attached::start(program, &self.base) {
+        match Attached::start(program) {
             Ok(attached) => {
                 events(Event::Console(format!("started {}", attached.pid)));
                 Some(attached)
@@ -211,36 +215,81 @@ impl Supervisor {
 
     /// Runs the start-up program and restarts it after a recovery shell each
     /// time it ends, `rounds` times (without end with `None`), calling
-    /// `events` for each step.
+    /// `events` for each step. A round that panics is logged and the next
+    /// one starts: process 1 must not end.
     pub fn run(&self, rounds: Option<usize>, events: &mut dyn FnMut(Event)) {
         let _ = zbm_sys::ignore_signal(Signal::Interrupt);
         let mut attached = self.start_console(events);
         let mut round = 0;
-        let mut resume: &[&str] = &[];
-        let mut report: Option<PathBuf>;
         while rounds.is_none_or(|rounds| round < rounds) {
+            let resume = round > 0;
             round += 1;
-            if let Some(pid) = self.spawn(&self.startup, resume, false, attached.as_ref()) {
-                events(Event::Started(pid));
-                let status = self.wait_for(pid, &mut attached, events).unwrap_or(-1);
-                events(Event::Ended(status));
-                self.error(&format!(
-                    "zfsbootmenu-init ended unexpectedly (wait status {status}); \
-                     starting a recovery shell"
-                ));
-                report = self.crash_report(pid, status);
-                if let Some(path) = &report {
-                    self.error(&format!("crash report: {}", path.display()));
-                }
-                if let Some(saved) = crate::saved::after_crash(&self.base) {
-                    self.error(&saved);
-                }
-            } else {
-                events(Event::Failed(self.startup.path.display().to_string()));
-                report = None;
+            let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.round(resume, &mut attached, events);
+            }));
+            if ran.is_err() {
+                self.error("the supervisor failed in this round; starting again");
+                std::thread::sleep(self.retry);
             }
-            resume = &["--resume"];
-            self.recovery_shell(report.as_deref(), &mut attached, events);
+        }
+    }
+
+    /// One round: the start-up program (with `--resume` after the first),
+    /// then, when it ends, the recovery shell.
+    fn round(&self, resume: bool, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
+        let extra: &[&str] = if resume { &["--resume"] } else { &[] };
+        let modes = self.modes(attached.as_ref());
+        let report = if let Some(pid) = self.spawn(&self.startup, extra, false, attached.as_ref()) {
+            events(Event::Started(pid));
+            let status = self.wait_for(pid, attached, events).unwrap_or(-1);
+            events(Event::Ended(status));
+            self.error(&format!(
+                "zfsbootmenu-init ended unexpectedly (wait status {status}); \
+                 starting a recovery shell"
+            ));
+            let report = self.crash_report(pid, status);
+            if let Some(path) = &report {
+                self.error(&format!("crash report: {}", path.display()));
+            }
+            self.save_logs();
+            report
+        } else {
+            events(Event::Failed(self.startup.path.display().to_string()));
+            None
+        };
+        if let Some(modes) = &modes {
+            let _ = modes.restore();
+        }
+        self.recovery_shell(report.as_deref(), attached, events);
+    }
+
+    /// The modes of the terminal the programs run on, to give back to the
+    /// recovery shell when the start-up program is killed in raw mode.
+    fn modes(&self, attached: Option<&Attached>) -> Option<Modes> {
+        match attached {
+            Some(console) => Modes::save(console.terminal()),
+            None => Modes::save(std::io::stdin().as_fd()),
+        }
+    }
+
+    /// After a crash, has `zbm debug save --after-crash` save the logs on
+    /// the partition `zbm.save_logs` names, when the command line asks for
+    /// it. It runs as a process of its own, not waited for: probing devices
+    /// and mounting the partition may hang, which process 1 must not.
+    fn save_logs(&self) {
+        if crate::saved::destination(&RealFiles, &self.base).is_none() {
+            return;
+        }
+        let mut command = Command::new(&self.startup.path);
+        command
+            .args(["debug", "save", "--after-crash"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null());
+        if let Ok(kmsg) = std::fs::OpenOptions::new().append(true).open(&self.log) {
+            command.stderr(kmsg);
+        }
+        if let Err(error) = command.spawn() {
+            self.error(&format!("unable to save the logs: {error}"));
         }
     }
 
@@ -309,6 +358,9 @@ impl Supervisor {
             ));
         }
         message.push('\n');
+        // A program killed while it drew leaves the cursor hidden, and its
+        // screen up.
+        message.insert_str(0, "\x1b[?1049l\x1b[?25h");
         match attached {
             Some(console) => {
                 // The terminal turns each line feed into a new line.

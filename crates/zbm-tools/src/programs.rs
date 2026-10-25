@@ -106,6 +106,16 @@ pub fn release_console(runner: &dyn Runner) -> io::Result<Output> {
     runner.run(&on_console(Command::new(ZBM).args(["console", "release"])))
 }
 
+/// Asks the console that handed the display back before `kexec` to take
+/// it again, once `kexec` failed (`zbm console reattach`).
+///
+/// # Errors
+///
+/// The error that kept it from starting.
+pub fn reattach_console(runner: &dyn Runner) -> io::Result<Output> {
+    runner.run(&on_console(Command::new(ZBM).args(["console", "reattach"])))
+}
+
 /// The kernel log as `dmesg` prints it, with its timestamps; empty when it
 /// cannot be read.
 pub fn kernel_log(runner: &dyn Runner) -> String {

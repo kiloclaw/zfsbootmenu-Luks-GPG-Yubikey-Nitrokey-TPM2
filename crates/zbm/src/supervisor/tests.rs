@@ -361,10 +361,8 @@ fn with_a_console_the_programs_and_the_message_go_to_its_terminal() {
         panic!("{events:?}");
     };
     let pid = started.strip_prefix("started ").unwrap().to_owned();
-    assert_eq!(
-        std::fs::read_to_string(dir.join("console")).unwrap(),
-        format!("{pid}\n")
-    );
+    // The console records itself (`zbm console`); this one does not.
+    assert!(!dir.join("console").exists());
     assert_eq!(events.last(), Some(&Event::Shell));
     std::thread::sleep(Duration::from_millis(200));
     let _ = std::process::Command::new("kill").arg(&pid).status();
@@ -374,4 +372,66 @@ fn with_a_console_the_programs_and_the_message_go_to_its_terminal() {
         text.contains("type 'exit' to start it again\r\n"),
         "{text:?}"
     );
+}
+
+#[test]
+fn after_a_crash_the_logs_are_saved_by_a_process_of_its_own_when_asked() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let calls = dir.join("calls");
+    let startup = dir.write_executable(
+        "startup",
+        format!("#!/bin/sh\necho \"$*\" >> {}\n", calls.display()),
+    );
+    let supervisor = supervisor_in(&dir, startup);
+
+    supervisor.run(Some(1), &mut |_| {});
+    dir.write("zbm.cmdline", "zbm.save_logs\n");
+    supervisor.run(Some(1), &mut |_| {});
+    let _ = zbm_sys::restore_default(Signal::Interrupt);
+    // The saving process is not waited for.
+    let mut text = String::new();
+    for _ in 0..100 {
+        text = std::fs::read_to_string(&calls).unwrap_or_default();
+        if text.lines().count() == 3 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let _ = zbm_sys::wait_any();
+
+    assert_eq!(text, "\n\ndebug save --after-crash\n");
+}
+
+#[test]
+fn the_recovery_shell_gets_the_terminal_s_modes_back() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let modes = dir.join("modes");
+    let startup = dir.write_executable("startup", "#!/bin/sh\nstty raw -echo\nkill -9 $$\n");
+    let mut supervisor = supervisor_in(&dir, startup);
+    supervisor.shell = Program {
+        path: dir.write_executable(
+            "shell",
+            format!("#!/bin/sh\nstty -a > {}\n", modes.display()),
+        ),
+        args: Vec::new(),
+    };
+    let (mut master, slave) = zbm_console::host::open_pty().unwrap();
+    let reader = std::thread::spawn(move || {
+        let mut shown = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut master, &mut shown);
+        shown
+    });
+    let mut attached = Some(Attached::for_tests(0, slave));
+
+    supervisor.round(false, &mut attached, &mut |_| {});
+    let _ = zbm_sys::restore_default(Signal::Interrupt);
+    drop(attached);
+
+    let shown = String::from_utf8_lossy(&reader.join().unwrap()).into_owned();
+    let text = std::fs::read_to_string(&modes).unwrap();
+    let flags: Vec<&str> = text.split_whitespace().collect();
+    assert!(flags.contains(&"isig") && flags.contains(&"echo"), "{text}");
+    assert!(shown.contains("\x1b[?25h"), "{shown:?}");
 }

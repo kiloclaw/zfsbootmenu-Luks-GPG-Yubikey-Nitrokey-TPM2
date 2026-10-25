@@ -17,7 +17,7 @@ use std::os::fd::AsFd as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use zbm_display::display::{Display, Screen as _, first_card};
@@ -28,7 +28,7 @@ use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::RealFiles;
 use zbm_state::State;
 
-use crate::host::{RealHost, Switch, relay, set_size};
+use crate::host::{RealHost, Relayed, Switch, relay, set_size};
 use crate::run::{Ended, run};
 use crate::screen::Console;
 
@@ -225,6 +225,11 @@ pub fn serve(
         release: crate::release::on_request()?,
         layout: crate::release::on_layout_request()?,
     };
+    // The console records itself, once it can take requests: a console
+    // that ended before is never waited for by `zbm console release`.
+    let state = State::new(&RealFiles, &places.base);
+    let _ = state.create();
+    let _ = state.set_console(std::process::id());
     let mut master = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let vt = active_terminal(&places.sys, &places.dev).unwrap_or_else(|| places.dev.join("tty0"));
     let mut terminal = OpenOptions::new()
@@ -238,7 +243,7 @@ pub fn serve(
         terminal: &mut terminal,
         vt: &vt,
     };
-    serve_on(settings, places, (grid, layouts), console, requests)
+    serve_on(settings, places, (grid, layouts), console, &requests)
 }
 
 /// The programs' terminal and the kernel console's.
@@ -255,7 +260,9 @@ pub struct Terminals<'t> {
 /// Runs the console on the display, with the font's grid and the keyboard
 /// layouts of `fonts`, until the programs are gone, or until `requests`
 /// asks for the display back; then relays on the kernel console, as it
-/// does at once when it cannot use the display.
+/// does at once when it cannot use the display. Relaying after the
+/// hand-over, it takes the display again when asked (`zbm console
+/// reattach`, after `kexec` failed), with the layout it had.
 ///
 /// # Errors
 ///
@@ -265,28 +272,73 @@ pub fn serve_on(
     places: &Places,
     fonts: (MakeGrid<'_>, Layouts<'_>),
     terminals: Terminals<'_>,
-    requests: Requests,
+    requests: &Requests,
 ) -> io::Result<()> {
     let Terminals {
         master,
         terminal,
         vt,
     } = terminals;
-    let text = match on_display(settings, places, fonts, master, vt, requests) {
-        Ok((Ended::Hangup, _)) => return Ok(()),
-        Ok((Ended::Released, text)) => {
+    let (grid, Layouts { mut first, load }) = fonts;
+    let state = State::new(&RealFiles, &places.base);
+    loop {
+        let layouts = Layouts {
+            first: first.take(),
+            load: &mut *load,
+        };
+        let shown = on_display(
+            settings,
+            places,
+            (&mut *grid, layouts),
+            master,
+            vt,
+            requests,
+        );
+        let Some((text, released)) = after_display(settings, places, shown) else {
+            return Ok(());
+        };
+        if let Some(layout) = released.as_deref().filter(|&layout| layout != "us") {
+            first = load(layout).ok();
+        }
+        // Recorded as released before the record that tells the hand-over
+        // is done goes, so that a failed `kexec` finds the console.
+        let reattach = released.is_some().then(|| {
+            requests.release.store(false, Ordering::SeqCst);
+            let _ = state.set_released_console(std::process::id());
+            &*requests.release
+        });
+        state.clear_console();
+        let _ = terminal.write_all(format!("\x1b[H\x1b[J{}\n", text.trim_end()).as_bytes());
+        let relayed = relay(master, terminal, reattach);
+        state.clear_released_console();
+        if relayed? == Relayed::Hangup {
+            return Ok(());
+        }
+        places.log(6, "taking the display again");
+        let _ = state.set_console(std::process::id());
+    }
+}
+
+/// What follows the console on the display, which `shown` tells: `None`
+/// when the programs are gone; otherwise the screen's text, for the kernel
+/// console, and the keyboard layout when the display was handed back.
+fn after_display(
+    settings: &Settings,
+    places: &Places,
+    shown: io::Result<(Ended, String, String)>,
+) -> Option<(String, Option<String>)> {
+    match shown {
+        Ok((Ended::Hangup, ..)) => None,
+        Ok((Ended::Released, text, layout)) => {
             places.log(6, "handed the display back");
             settings.mirror_line(RELEASED);
-            text
+            Some((text, Some(layout)))
         }
         Err(error) => {
             places.log(4, &format!("{error}; going on on the kernel console"));
-            String::new()
+            Some((String::new(), None))
         }
-    };
-    State::new(&RealFiles, &places.base).clear_console();
-    let _ = terminal.write_all(format!("\x1b[H\x1b[J{}\n", text.trim_end()).as_bytes());
-    relay(master, terminal)
+    }
 }
 
 /// How the console started: on which card and display, with which font
@@ -332,15 +384,16 @@ fn announce(settings: &Settings, places: &Places, started: &Started) {
 
 /// Draws the programs on `master` on the display, with the virtual
 /// terminal `vt` taken over, until they are gone or `requests` asks for
-/// the display back; returns why, and the screen's last text.
+/// the display back; returns why, the screen's last text and the keyboard
+/// layout.
 fn on_display(
     settings: &Settings,
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
     master: &mut File,
     vt: &Path,
-    requests: Requests,
-) -> io::Result<(Ended, String)> {
+    requests: &Requests,
+) -> io::Result<(Ended, String, String)> {
     let card = match &settings.card {
         Some(card) => card.clone(),
         None => first_card(&places.dev)
@@ -384,11 +437,13 @@ fn on_display(
     let switch: Switch<'_> = Box::new(|keyboards: &mut Keyboards| {
         switch_layout(places, &mut *load, keyboards);
     });
-    let mut host = RealHost::new(&mut *master, keyboards, requests.release)
-        .with_layouts(requests.layout, switch);
+    let mut host = RealHost::new(&mut *master, keyboards, Arc::clone(&requests.release))
+        .with_layouts(Arc::clone(&requests.layout), switch);
     let ended = run(&mut console, &mut display, &mut host, &mut shown)?;
+    let layout = host.keyboard_layout().to_owned();
+    drop(host);
     drop(taken);
-    Ok((ended, console.text()))
+    Ok((ended, console.text(), layout))
 }
 
 /// What became of a request to hand the display back.
@@ -418,6 +473,23 @@ pub fn release(base: &Path, timeout: Duration) -> io::Result<Released> {
     } else {
         Ok(Released::Late)
     }
+}
+
+/// `zbm console reattach`, after a failed `kexec`: asks the console that
+/// handed the display back to take it again, and waits at most `timeout`
+/// until it did. Returns whether it did; without such a console there is
+/// nothing to do, and it is `true`.
+///
+/// # Errors
+///
+/// When the request cannot be sent.
+pub fn reattach(base: &Path, timeout: Duration) -> io::Result<bool> {
+    let files = RealFiles;
+    let state = State::new(&files, base);
+    let Some(pid) = state.released_console_pid() else {
+        return Ok(true);
+    };
+    crate::release::request(pid, timeout, &mut || state.console_pid().is_some())
 }
 
 /// What became of a request for a keyboard layout.

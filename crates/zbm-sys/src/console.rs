@@ -9,6 +9,13 @@ use std::time::Duration;
 
 use super::{POLLIN, PollFd, poll};
 
+/// `POLLOUT`: room to write.
+const POLLOUT: i16 = 4;
+
+/// `POLLERR`, `POLLHUP` and `POLLNVAL`: the file has an error, was hung up
+/// or is not open.
+const POLL_CLOSED: i16 = 0x08 | 0x10 | 0x20;
+
 unsafe extern "C" {
     // `int ioctl(int fd, unsigned long request, ...)` in glibc. musl takes an
     // `int` request, which arrives in the same register for these small
@@ -55,12 +62,59 @@ fn checked(result: c_int) -> io::Result<()> {
     }
 }
 
-/// Runs an `ioctl` of the virtual terminal whose argument is an `int`
-/// passed by value: `KDSETMODE` or `KDSKBMODE`.
+/// Runs an `ioctl` of the virtual terminal whose argument is passed by
+/// value: `KDSETMODE` or `KDSKBMODE`. The kernel reads it as an
+/// `unsigned long`, so it is passed as one: an `int` in a variadic call
+/// leaves the upper half of the register undefined.
 fn set_mode(fd: i32, request: c_ulong, value: c_int) -> io::Result<()> {
+    let value = c_ulong::try_from(value).map_err(|_| io::Error::from_raw_os_error(EINVAL))?;
     // SAFETY: these requests take their argument by value; the kernel reads
     // nothing from this process's memory.
     checked(unsafe { ioctl(fd, request, value) })
+}
+
+/// `EINVAL`, the same on every Linux architecture.
+const EINVAL: i32 = 22;
+
+/// The size of the bitmap of keys down that an input device reports: one
+/// bit for each key code up to `KEY_MAX` (`0x2ff`).
+pub const KEY_BITMAP: usize = 0x300 / 8;
+
+/// `EVIOCGKEY(KEY_BITMAP)`: the keys down on an input device
+/// (`linux/input.h`), an `_IOR('E', 0x18, len)`.
+const EVIOCGKEY: c_ulong = 2 << 30 | (KEY_BITMAP as c_ulong) << 16 | 0x45 << 8 | 0x18;
+
+/// The key codes held down on the input device open as `fd`, as the kernel
+/// knows them now: after events were dropped, what a reader of the device
+/// resynchronises from.
+///
+/// # Errors
+///
+/// When `fd` is not an input device.
+pub fn keys_down(fd: i32) -> io::Result<Vec<u16>> {
+    let mut bitmap = [0_u8; KEY_BITMAP];
+    // SAFETY: `EVIOCGKEY(KEY_BITMAP)` writes at most `KEY_BITMAP` bytes to
+    // the address it is given, which is `bitmap`, alive for the call.
+    checked(unsafe { ioctl(fd, EVIOCGKEY, bitmap.as_mut_ptr()) })?;
+    let down = codes_of(&bitmap);
+    // Which keys are down tells a passphrase being typed.
+    crate::wipe(&mut bitmap);
+    Ok(down)
+}
+
+/// The key codes whose bits are set in `bitmap`, lowest first.
+fn codes_of(bitmap: &[u8]) -> Vec<u16> {
+    let mut codes = Vec::new();
+    for (index, &byte) in bitmap.iter().enumerate() {
+        for bit in 0..8_u16 {
+            if byte >> bit & 1 == 1
+                && let Ok(base) = u16::try_from(index * 8)
+            {
+                codes.push(base + bit);
+            }
+        }
+    }
+    codes
 }
 
 /// Sets what the virtual terminal open as `fd` shows.
@@ -99,23 +153,55 @@ pub fn set_keyboard_mode(fd: i32, mode: KeyboardMode) -> io::Result<()> {
     set_mode(fd, KDSKBMODE, mode.0)
 }
 
-/// Waits until one of `fds` has data to read, for at most `timeout`
-/// (`None`: without limit); returns the index of the first that has, or
-/// `None` when the time ran out.
+/// A file to wait on: for data to read, and for room to write when
+/// `write` is set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Watch {
+    /// The file.
+    pub fd: i32,
+    /// Whether to wait for room to write as well.
+    pub write: bool,
+}
+
+/// What a file waited on is ready for.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Ready {
+    /// It has data to read.
+    pub read: bool,
+    /// It has room to write.
+    pub write: bool,
+    /// It has an error, was hung up or is not open: a read tells which.
+    pub closed: bool,
+}
+
+impl Ready {
+    /// Whether the file is ready for anything.
+    pub fn is_ready(self) -> bool {
+        self.read || self.write || self.closed
+    }
+}
+
+/// Waits until one of `watches` is ready, for at most `timeout` (`None`:
+/// without limit); returns what each is ready for, all `Ready::default()`
+/// when the time ran out.
 ///
 /// # Errors
 ///
 /// When `poll` fails other than by a signal.
-pub fn first_readable(fds: &[i32], timeout: Option<Duration>) -> io::Result<Option<usize>> {
+pub fn wait_ready(watches: &[Watch], timeout: Option<Duration>) -> io::Result<Vec<Ready>> {
     let timeout = timeout.map_or(-1, |timeout| {
         let millis = timeout.as_nanos().div_ceil(1_000_000);
         c_int::try_from(millis).unwrap_or(c_int::MAX)
     });
-    let mut entries: Vec<PollFd> = fds
+    let mut entries: Vec<PollFd> = watches
         .iter()
-        .map(|&fd| PollFd {
-            fd,
-            events: POLLIN,
+        .map(|watch| PollFd {
+            fd: watch.fd,
+            events: if watch.write {
+                POLLIN | POLLOUT
+            } else {
+                POLLIN
+            },
             revents: 0,
         })
         .collect();
@@ -125,13 +211,33 @@ pub fn first_readable(fds: &[i32], timeout: Option<Duration>) -> io::Result<Opti
         // across the call.
         let ready = unsafe { poll(entries.as_mut_ptr(), count, timeout) };
         if ready >= 0 {
-            return Ok(entries.iter().position(|entry| entry.revents != 0));
+            return Ok(entries
+                .iter()
+                .map(|entry| Ready {
+                    read: entry.revents & POLLIN != 0,
+                    write: entry.revents & POLLOUT != 0,
+                    closed: entry.revents & POLL_CLOSED != 0,
+                })
+                .collect());
         }
         let error = io::Error::last_os_error();
         if error.kind() != io::ErrorKind::Interrupted {
             return Err(error);
         }
     }
+}
+
+/// Waits until one of `fds` has data to read, for at most `timeout`
+/// (`None`: without limit); returns the index of the first that has, or
+/// `None` when the time ran out.
+///
+/// # Errors
+///
+/// When `poll` fails other than by a signal.
+pub fn first_readable(fds: &[i32], timeout: Option<Duration>) -> io::Result<Option<usize>> {
+    let watches: Vec<Watch> = fds.iter().map(|&fd| Watch { fd, write: false }).collect();
+    let ready = wait_ready(&watches, timeout)?;
+    Ok(ready.iter().position(|ready| ready.is_ready()))
 }
 
 #[cfg(test)]
@@ -151,6 +257,46 @@ mod tests {
         assert!(set_display_mode(fd, DisplayMode::Text).is_err());
         assert!(keyboard_mode(fd).is_err());
         assert!(set_keyboard_mode(fd, KeyboardMode::OFF).is_err());
+        let negative = set_keyboard_mode(fd, KeyboardMode(-1)).unwrap_err();
+        assert_eq!(negative.raw_os_error(), Some(EINVAL));
+        assert!(keys_down(fd).is_err());
+    }
+
+    #[test]
+    fn the_keys_down_are_read_from_the_bitmap() {
+        let mut bitmap = [0_u8; KEY_BITMAP];
+        bitmap[0] = 0b10;
+        bitmap[3] = 0b100;
+        bitmap[KEY_BITMAP - 1] = 0x80;
+
+        assert_eq!(codes_of(&bitmap), [1, 26, 0x2ff]);
+        assert_eq!(EVIOCGKEY, 0x8060_4518);
+    }
+
+    #[test]
+    fn files_are_ready_to_read_to_write_or_closed() {
+        let (mut a, a_end) = UnixStream::pair().unwrap();
+        let (b, b_end) = UnixStream::pair().unwrap();
+        let watches = [
+            Watch {
+                fd: a_end.as_raw_fd(),
+                write: false,
+            },
+            Watch {
+                fd: b_end.as_raw_fd(),
+                write: true,
+            },
+        ];
+
+        let ready = wait_ready(&watches, Some(Duration::ZERO)).unwrap();
+        assert_eq!(ready[0], Ready::default());
+        assert!(ready[1].write && !ready[1].read && ready[1].is_ready());
+        a.write_all(b"x").unwrap();
+        drop(b);
+        let ready = wait_ready(&watches, None).unwrap();
+        assert!(ready[0].read && !ready[0].write);
+        assert!(ready[1].closed);
+        assert!(!Ready::default().is_ready());
     }
 
     #[test]
