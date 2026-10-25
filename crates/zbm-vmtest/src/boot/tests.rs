@@ -188,17 +188,26 @@ fn a_pool_block_ends_at_the_next_pool() {
 }
 
 #[test]
-fn the_new_menu_is_recognized_without_its_spaces() {
-    let menu = crate::expect::regex(prompt::MENU).unwrap();
-    let new = crate::expect::regex(prompt::NEW_MENU).unwrap();
-    let none = crate::expect::regex(prompt::NO_ENVIRONMENTS).unwrap();
-    for screen in ["┌ BOOT ENVIRONMENTS ─", "BOOTENVIRONMENTS"] {
-        assert!(menu.is_match(screen) && new.is_match(screen), "{screen:?}");
-    }
-    assert!(menu.is_match("[CTRL+E] edit kcl"));
-    assert!(!new.is_match("[CTRL+E] edit kcl"));
-    assert!(none.is_match("NoBoot Environments"));
-    assert!(!none.is_match("No boot environment"));
+fn the_new_menu_is_recognized_on_the_screen_where_its_text_lacks_letters() {
+    let settings = crate::testing::settings("boot-menu-screen");
+    let test = Test::new(&settings, "runtime-rust-keysource").unwrap();
+    // The start-up view, then the main view drawn over it: the letters that
+    // did not change are not sent again.
+    let script = vec![
+        Step::Say("\x1b[2J\x1b[1;1H STARTING ZFSBOOTMENU \r\n"),
+        Step::Say("\x1b[1;2HBOOT E\x1b[1;9HVIRONMEN\x1b[1;18HS    \r\n"),
+        Step::Hear(""),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    let index = vm
+        .expect(&["ENVIRONMENTS", prompt::NEW_MENU, prompt::MENU], 10)
+        .unwrap();
+    assert_eq!(index, 1);
+    vm.sendline("").unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    crate::testing::cleanup(&settings);
 }
 
 #[test]

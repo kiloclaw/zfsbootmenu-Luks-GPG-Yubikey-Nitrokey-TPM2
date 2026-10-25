@@ -461,7 +461,9 @@ fn check_shell(
 ) -> Result<()> {
     thread::sleep(pace.pause * 2);
     (monitor.key)(vm, "esc")?;
-    let menu = wait_screen(mirror, prompt::NEW_MENU, pace.patience.min(60))?;
+    // The mirror holds whole screens: the pattern is matched on them.
+    let panel = prompt::NEW_MENU.trim_start_matches(crate::expect::SCREEN);
+    let menu = wait_screen(mirror, panel, pace.patience.min(60))?;
     test.check(
         menu.is_some(),
         "virtio: Escape typed on the keyboard opens the menu on the console",

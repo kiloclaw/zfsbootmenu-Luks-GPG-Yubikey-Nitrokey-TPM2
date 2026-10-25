@@ -58,6 +58,70 @@ pub fn earliest(patterns: &[Regex], text: &str, from: usize) -> Option<Found> {
     best
 }
 
+/// The prefix of a pattern that is matched against the screen the console
+/// shows rather than against its text. A full-screen program redraws only
+/// the cells that change, so its words may be incomplete in the text: a
+/// letter that was on the screen at that place already is not sent again.
+pub const SCREEN: &str = "screen:";
+
+/// What a pattern is matched against: the console's text, or its screen.
+#[derive(Clone, Debug)]
+pub enum Matcher {
+    /// The text, as it arrived.
+    Text(Regex),
+    /// The screen ([`SCREEN`]).
+    Screen(Regex),
+}
+
+impl Matcher {
+    /// `pattern` compiled, for the screen when it starts with [`SCREEN`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Pattern`] when it is not a valid regular expression.
+    pub fn new(pattern: &str) -> Result<Matcher> {
+        Ok(match pattern.strip_prefix(SCREEN) {
+            Some(pattern) => Matcher::Screen(regex(pattern)?),
+            None => Matcher::Text(regex(pattern)?),
+        })
+    }
+}
+
+/// The first match of a text pattern of `matchers` in `text` that starts
+/// at `from` or later; its index is that of the matcher.
+pub fn earliest_text(matchers: &[Matcher], text: &str, from: usize) -> Option<Found> {
+    let (indexes, patterns): (Vec<usize>, Vec<Regex>) = matchers
+        .iter()
+        .enumerate()
+        .filter_map(|(index, matcher)| match matcher {
+            Matcher::Text(regex) => Some((index, regex.clone())),
+            Matcher::Screen(_) => None,
+        })
+        .unzip();
+    let mut found = earliest(&patterns, text, from)?;
+    found.index = indexes.get(found.index).copied()?;
+    Some(found)
+}
+
+/// The first screen pattern of `matchers` that `screen` matches.
+pub fn on_screen(matchers: &[Matcher], screen: &str) -> Option<Found> {
+    matchers.iter().enumerate().find_map(|(index, matcher)| {
+        let Matcher::Screen(regex) = matcher else {
+            return None;
+        };
+        let captures = regex.captures(screen)?;
+        Some(Found {
+            index,
+            start: 0,
+            end: 0,
+            groups: captures
+                .iter()
+                .map(|group| group.map(|group| group.as_str().to_owned()))
+                .collect(),
+        })
+    })
+}
+
 /// `pattern` compiled.
 ///
 /// # Errors

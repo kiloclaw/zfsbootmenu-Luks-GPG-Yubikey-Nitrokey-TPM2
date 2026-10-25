@@ -8,10 +8,8 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use regex::Regex;
-
 use crate::error::{Error, Result};
-use crate::expect::{self, Found};
+use crate::expect::{self, Found, Matcher};
 use crate::text::{Decoder, clean};
 
 /// The least time between two searches of the text while waiting, so that
@@ -59,7 +57,7 @@ pub struct Console {
     writer: Box<dyn Write + Send>,
     state: State,
     reader: Option<JoinHandle<()>>,
-    patterns: HashMap<String, Regex>,
+    patterns: HashMap<String, Matcher>,
     before: String,
     found: Found,
 }
@@ -121,7 +119,9 @@ impl Console {
     /// Waits up to `timeout` for one of `patterns` (regular expressions);
     /// returns the index of the one that matched. The text up to the end of
     /// the match is consumed: [`Console::before`] holds what came before it,
-    /// [`Console::group`] its groups.
+    /// [`Console::group`] its groups. A pattern that starts with
+    /// [`expect::SCREEN`] is matched against the screen, once no pattern
+    /// matches the text; its match consumes all the text.
     ///
     /// # Errors
     ///
@@ -135,9 +135,17 @@ impl Console {
         let mut guard = lock(&self.state);
         loop {
             let from = expect::search_start(&guard.text, searched);
-            if let Some(found) = expect::earliest(&regexes, &guard.text, from) {
+            if let Some(found) = expect::earliest_text(&regexes, &guard.text, from) {
                 self.before = guard.text[..found.start].to_owned();
                 guard.text.drain(..found.end);
+                let index = found.index;
+                self.found = found;
+                return Ok(index);
+            }
+            // What the screen shows takes all the text so far.
+            let screen = guard.screen.screen().contents();
+            if let Some(found) = expect::on_screen(&regexes, &screen) {
+                self.before = std::mem::take(&mut guard.text);
                 let index = found.index;
                 self.found = found;
                 return Ok(index);
@@ -191,16 +199,16 @@ impl Console {
         Ok(())
     }
 
-    fn compile(&mut self, patterns: &[&str]) -> Result<Vec<Regex>> {
+    fn compile(&mut self, patterns: &[&str]) -> Result<Vec<Matcher>> {
         patterns
             .iter()
             .map(|&pattern| {
-                if let Some(regex) = self.patterns.get(pattern) {
-                    return Ok(regex.clone());
+                if let Some(matcher) = self.patterns.get(pattern) {
+                    return Ok(matcher.clone());
                 }
-                let regex = expect::regex(pattern)?;
-                self.patterns.insert(pattern.to_owned(), regex.clone());
-                Ok(regex)
+                let matcher = Matcher::new(pattern)?;
+                self.patterns.insert(pattern.to_owned(), matcher.clone());
+                Ok(matcher)
             })
             .collect()
     }

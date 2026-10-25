@@ -42,15 +42,13 @@ pub mod prompt {
     pub const KEYLOAD: &str = r"unable to load key";
     /// Nothing to boot.
     pub const EMERGENCY: &str = r"Dropping to an emergency shell";
-    /// The boot menu: the legacy one's header, or the panel of the new one
-    /// (R5 step 3).
-    pub const MENU: &str = r"edit kcl|BOOT\s*ENVIRONMENTS";
-    /// The panel of the new menu. Ratatui moves the cursor over blank cells
-    /// instead of writing spaces, and the console drops escape sequences,
-    /// so words may have no space between them.
-    pub const NEW_MENU: &str = r"BOOT\s*ENVIRONMENTS";
-    /// The new menu found no boot environment.
-    pub const NO_ENVIRONMENTS: &str = r"No\s*Boot\s*Environments";
+    /// The boot menu of the legacy runtime.
+    pub const MENU: &str = r"edit kcl";
+    /// The new menu, on the screen: it redraws only the cells that change,
+    /// so its text may lack letters.
+    pub const NEW_MENU: &str = r"screen:BOOT ENVIRONMENTS";
+    /// The new menu found no boot environment, on the screen.
+    pub const NO_ENVIRONMENTS: &str = r"screen:No Boot Environments";
     /// The boot environment asks for a LUKS passphrase.
     pub const BE_ASK: &str = r"Please enter passphrase for disk|Enter passphrase for /dev/";
     /// The boot environment asks for its ZFS key.
@@ -80,6 +78,8 @@ pub enum Kind {
     Emergency,
     /// [`prompt::MENU`].
     Menu,
+    /// [`prompt::NEW_MENU`].
+    NewMenu,
 }
 
 impl Kind {
@@ -95,6 +95,7 @@ impl Kind {
             Kind::KeyLoad => prompt::KEYLOAD,
             Kind::Emergency => prompt::EMERGENCY,
             Kind::Menu => prompt::MENU,
+            Kind::NewMenu => prompt::NEW_MENU,
         }
     }
 
@@ -328,14 +329,16 @@ pub fn follow_boot(vm: &mut Vm<'_>, mut follow: Follow<'_>) -> Result<Boot> {
         Kind::Emergency,
     ];
     if follow.menu {
-        kinds.push(Kind::Menu);
+        kinds.extend([Kind::Menu, Kind::NewMenu]);
     }
     loop {
         let patterns: Vec<&str> = kinds.iter().map(|kind| kind.pattern()).collect();
         let kind = kinds[vm.expect(&patterns, timeout)?];
         match on_prompt(vm, &mut boot, &mut follow, kind)? {
             Next::Wait => {}
-            Next::WaitWithoutMenu => kinds.retain(|&known| known != Kind::Menu),
+            Next::WaitWithoutMenu => {
+                kinds.retain(|&known| !matches!(known, Kind::Menu | Kind::NewMenu));
+            }
             Next::Reports => break,
             Next::Stop => return Ok(boot),
         }
@@ -373,7 +376,7 @@ fn on_prompt(
             boot.prompts.push("keyload-failed".into());
             return Ok(Next::Stop);
         }
-        Kind::Menu => {
+        Kind::Menu | Kind::NewMenu => {
             boot.prompts.push("menu".into());
             vm.test().step("boot menu -> Enter");
             thread::sleep(Duration::from_secs(2));
