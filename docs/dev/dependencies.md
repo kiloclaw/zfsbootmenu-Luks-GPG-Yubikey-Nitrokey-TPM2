@@ -87,6 +87,7 @@ Used by the developer tools `xtask` and `zbm-vmtest` (the VM test harness), neve
 | `regex` | `zbm-vmtest` | The patterns the scenarios wait for on the console, as `pexpect` matched them |
 | `regex-automata`, `regex-syntax`, `aho-corasick`, `memchr` | (`regex`) | Its dependencies |
 | `thiserror` | `zbm-vmtest` | Its error enum |
+| `rustix` | `zbm-vmtest` | `flock` on each test image, so that harness processes run in parallel build it once; already in the workspace for `zbm-console` |
 
 ## Agreed, not used yet
 

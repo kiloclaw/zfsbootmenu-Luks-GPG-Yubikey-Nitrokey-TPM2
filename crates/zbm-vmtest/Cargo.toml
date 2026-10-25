@@ -13,6 +13,8 @@ publish.workspace = true
 
 [dependencies]
 regex.workspace = true
+# flock: harness processes run in parallel build each image once
+rustix = { workspace = true, features = ["fs"] }
 serde_json.workspace = true
 thiserror.workspace = true
 vt100.workspace = true

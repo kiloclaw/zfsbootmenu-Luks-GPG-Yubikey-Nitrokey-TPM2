@@ -2251,6 +2251,7 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "regex",
+ "rustix",
  "serde_json",
  "thiserror",
  "vt100",

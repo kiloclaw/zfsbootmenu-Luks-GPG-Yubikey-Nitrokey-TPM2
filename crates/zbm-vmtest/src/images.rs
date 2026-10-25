@@ -2,7 +2,7 @@
 //! ZFSBootMenu images from this checkout.
 
 use std::fmt::Write as _;
-use std::fs;
+use std::fs::{self, File};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -230,7 +230,8 @@ fn generate_config(spec: &ImageSpec) -> String {
 /// inputs, the checkout's sources that go into images among them. The
 /// build runs the checkout's `packaging/container/build-init.sh`, so
 /// changes to it need no new build container. `zbm`'s debug file is left
-/// in `build/debug/<build ID>.debug`.
+/// in `build/debug/<build ID>.debug`. Harness processes run in parallel
+/// build an image one at a time: the others wait, then reuse it.
 ///
 /// # Errors
 ///
@@ -244,6 +245,7 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     } else if settings.shadow {
         conf.push_str("\nzfsbootmenu_shadow=\"yes\"");
     }
+    let _lock = lock_image(&settings.work.join("zbm"), &variant)?;
     let dir = settings.work.join("zbm").join(&variant);
     let build = dir.join("build");
     let image = Image {
@@ -281,6 +283,18 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     }
     fs::write(&stamp_path, stamp).map_err(Error::io("writing the image's inputs"))?;
     Ok(image)
+}
+
+/// Waits for, then holds, the lock of the image `variant` in `images`,
+/// until the file returned is dropped. The kernel releases it when the
+/// process ends.
+fn lock_image(images: &Path, variant: &str) -> Result<File> {
+    fs::create_dir_all(images).map_err(Error::io("creating the image directory"))?;
+    let path = images.join(format!("{variant}.lock"));
+    let file = File::create(&path).map_err(Error::io("creating the image's lock"))?;
+    rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
+        .map_err(|errno| Error::io(format!("locking {}", path.display()))(errno.into()))?;
+    Ok(file)
 }
 
 /// What an image with `spec` and the dracut configuration `conf` is built

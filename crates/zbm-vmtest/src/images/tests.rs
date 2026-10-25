@@ -157,3 +157,28 @@ fn the_host_id_argument_is_that_of_the_test_images() {
     ));
     cleanup(&settings);
 }
+
+#[test]
+fn a_second_process_waits_for_the_image_being_built() {
+    let settings = settings("lock");
+    let images = settings.work.join("zbm");
+    let held = lock_image(&images, "auto").unwrap();
+    let waiting = {
+        let images = images.clone();
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            drop(lock_image(&images, "auto").unwrap());
+            start.elapsed()
+        })
+    };
+    // Another image is not held up.
+    drop(lock_image(&images, "auto-rust").unwrap());
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    drop(held);
+    let waited = waiting.join().unwrap();
+    assert!(
+        waited >= std::time::Duration::from_millis(200),
+        "{waited:?}"
+    );
+    cleanup(&settings);
+}

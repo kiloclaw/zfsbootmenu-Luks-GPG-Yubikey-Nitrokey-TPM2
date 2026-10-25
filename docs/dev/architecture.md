@@ -66,7 +66,7 @@ Third-party crates:
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `fluent-bundle`, `nucleo-matcher`, `ratatui`, `unic-langid`
 - `zbm-types`: `thiserror`, `uucore`
-- `zbm-vmtest`: `regex`, `serde_json`, `thiserror`, `vt100`
+- `zbm-vmtest`: `regex`, `rustix`, `serde_json`, `thiserror`, `vt100`
 - `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 
 Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as development dependencies.
