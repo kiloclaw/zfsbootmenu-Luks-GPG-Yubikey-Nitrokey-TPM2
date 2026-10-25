@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::{Boot, Follow, check_be, check_teardown, follow_boot};
+use crate::boot::{Boot, Follow, check_be, check_teardown, dialogs, follow_boot};
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
@@ -316,7 +316,7 @@ fn boot(test: &Test, files: &Files, scenario: &str, uuid: &str) -> Result<Boot> 
 
 /// Inserts the stick while ZFSBootMenu waits for it.
 fn usblate(test: &Test, vm: &mut Vm<'_>, stick: &Path) -> Result<Boot> {
-    vm.expect1("Insert the key device", 2400)?;
+    vm.expect(&["Insert the key device", dialogs::KEY_DEVICE], 2400)?;
     test.step("ZFSBootMenu waits for the key device");
     thread::sleep(Duration::from_secs(1));
     vm.hotplug_usb(stick, "usb0")?;
@@ -333,7 +333,7 @@ fn usblate(test: &Test, vm: &mut Vm<'_>, stick: &Path) -> Result<Boot> {
 
 /// Lets ZFSBootMenu wait for a stick that never arrives.
 fn nostick(test: &Test, vm: &mut Vm<'_>) -> Result<Boot> {
-    vm.expect1("Insert the key device", 2400)?;
+    vm.expect(&["Insert the key device", dialogs::KEY_DEVICE], 2400)?;
     test.step("ZFSBootMenu waits for the key device, which never arrives");
     let boot = follow_boot(vm, Follow::default())?;
     test.check(

@@ -178,6 +178,60 @@ impl Console {
         }
     }
 
+    /// The screen once it stayed the same for `settle`, or as it is after
+    /// `timeout`: a dialog drawn whole, not the part of it that arrived
+    /// when a pattern matched.
+    pub fn settled_screen(&self, settle: Duration, timeout: Duration) -> String {
+        let deadline = Instant::now() + timeout;
+        let mut shown = self.screen();
+        let mut since = Instant::now();
+        while since.elapsed() < settle && Instant::now() < deadline {
+            thread::sleep(SEARCH_INTERVAL);
+            let now = self.screen();
+            if now != shown {
+                shown = now;
+                since = Instant::now();
+            }
+        }
+        shown
+    }
+
+    /// Waits up to `timeout` until the screen shows something other than
+    /// `before`: a dialog acted on was typed into, closed or asked again.
+    /// No text is consumed: what came meanwhile is for the next match.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Timeout`] when the screen did not change in time,
+    /// [`Error::Eof`] when the console closed meanwhile.
+    pub fn wait_for_change(&mut self, before: &str, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        let mut guard = lock(&self.state);
+        loop {
+            if guard.screen.screen().contents() != before {
+                return Ok(());
+            }
+            let now = Instant::now();
+            if guard.eof || now >= deadline {
+                let patterns = vec!["a change of the screen".to_owned()];
+                let tail = tail(&guard.text);
+                return Err(if guard.eof {
+                    Error::Eof { patterns, tail }
+                } else {
+                    Error::Timeout {
+                        patterns,
+                        seconds: timeout.as_secs(),
+                        tail,
+                    }
+                });
+            }
+            let searched = guard.text.len();
+            drop(guard);
+            thread::sleep(SEARCH_INTERVAL.min(deadline - now));
+            guard = wait_for_more(&self.state, searched, deadline);
+        }
+    }
+
     /// Waits up to `timeout` for the console to close. What it showed
     /// until then is [`Console::before`].
     ///

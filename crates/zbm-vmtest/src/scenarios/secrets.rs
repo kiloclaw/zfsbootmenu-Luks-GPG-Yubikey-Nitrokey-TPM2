@@ -9,7 +9,9 @@
 //! Scenarios:
 //!
 //! - `setup`: creates the volume and the pool in the recovery shell;
-//! - `passphrase`: the passphrase is typed at ZFSBootMenu's prompt;
+//! - `passphrase`: the passphrase is typed at ZFSBootMenu's prompt, in the
+//!   unlock dialog of the start-up view, which reads keys into buffers it
+//!   wipes;
 //! - `keyfile`: `zbm.luks_key` names the key file on a FAT USB stick: no
 //!   prompt.
 //!
@@ -23,7 +25,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::boot::prompt;
+use crate::boot::{dialogs, prompt};
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
@@ -174,16 +176,18 @@ fn unlock(test: &Test, scenario: &str, uuid: &str) -> Result<()> {
         ..Machine::boot(&image, &append).with_disks([disk(settings, false)?])
     };
     let mut vm = Vm::start(test, scenario, &machine)?;
-    let first = vm.expect(&[prompt::LUKS, "ZBMTEST-SECRETS-BEGIN"], 1800)?;
+    let patterns = [prompt::LUKS, dialogs::LUKS, "ZBMTEST-SECRETS-BEGIN"];
+    let first = vm.expect(&patterns, 1800)?;
+    let asked = first < 2;
     if scenario == "passphrase" {
-        test.check(first == 0, "ZFSBootMenu asks for the passphrase");
-        if first == 0 {
+        test.check(asked, "ZFSBootMenu asks for the passphrase");
+        if asked {
             vm.sendline(PASSPHRASE)?;
             vm.expect1("ZBMTEST-SECRETS-BEGIN", 1800)?;
         }
     } else {
         test.check(
-            first == 1,
+            !asked,
             "no passphrase prompt: the key file on the stick was used",
         );
     }

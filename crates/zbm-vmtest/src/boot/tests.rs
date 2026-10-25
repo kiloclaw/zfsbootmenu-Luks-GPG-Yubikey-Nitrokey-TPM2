@@ -1,7 +1,8 @@
 use pretty_assertions::assert_eq;
 
 use super::*;
-use crate::settings::ZFSKEY;
+use crate::record::Test;
+use crate::settings::{PW, ZFSKEY};
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
 const STATUS: &str = "ZBMTEST-STATUS-BEGIN\r\n\
@@ -65,6 +66,55 @@ fn a_boot_is_followed_from_the_prompts_to_the_boot_environment() {
             .map(String::as_str),
         Some("active")
     );
+    cleanup(&settings);
+}
+
+/// The start-up view: the stages, and the dialog `lines` over them.
+fn view(lines: &str) -> String {
+    format!("\x1b[2J\x1b[H STARTING ZFSBOOTMENU\r\n{lines}")
+}
+
+#[test]
+fn the_dialogs_of_the_start_up_view_are_answered_once_each() {
+    let settings = settings("boot-dialogs");
+    let test = Test::new(&settings, "keys-lockout").unwrap();
+    let pin = view("│ TPM2 PIN:            │\r\n");
+    let wrong = view("│ Wrong PIN.           │\r\n│ TPM2 PIN:            │\r\n");
+    let luks = view(
+        "│ The TPM is locked    │\r\n│ against PIN guessing.│\r\n\
+         │ Passphrase:          │\r\n",
+    );
+    let import = view("│ Its devices may not be there yet │\r\n");
+    let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
+    let script = vec![
+        Step::Say(leak(pin)),
+        Step::Hear("0000"),
+        // Typed into, the dialog no longer asks; it closes.
+        Step::Say("\x1b[2;12H••••"),
+        Step::Say(leak(view("Unlocking /dev/vda2 ...\r\n"))),
+        Step::Say(leak(wrong)),
+        Step::Hear("9999"),
+        Step::Say(leak(luks)),
+        Step::Hear(PW),
+        Step::Say(leak(import)),
+        Step::Keys("!"),
+        Step::Say(leak(view(""))),
+        Step::Say(STATUS),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+    let follow = Follow {
+        no_be: true,
+        ..Follow::default()
+    }
+    .answer(Kind::Tpm2Pin, &["0000", "9999"])
+    .on(Kind::Retry, |vm| vm.send("!"));
+    let boot = follow_boot(&mut vm, follow).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(boot.prompts, ["tpm2pin", "tpm2pin", "luks"]);
+    assert!(boot.has_shown("locked against PIN guessing"));
+    assert!(boot.has_shown("Wrong PIN."));
+    assert!(!boot.has_shown("Its devices"));
     cleanup(&settings);
 }
 

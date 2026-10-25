@@ -200,8 +200,10 @@ fn lockout(test: &Test, tpm: &Swtpm) -> Result<()> {
         .answer(Kind::Gpg, &["gpgpass"]);
     let boot = follow_boot(&mut vm, follow)?;
     let log = read_log(&vm.serial_log())?;
+    // The start-up view says it in the dialog that asks next.
+    let lockout = "locked against PIN guessing";
     test.check(
-        log.contains("locked against PIN guessing"),
+        log.contains(lockout) || boot.has_shown(lockout),
         "ZFSBootMenu explains the TPM lockout",
     );
     test.check(

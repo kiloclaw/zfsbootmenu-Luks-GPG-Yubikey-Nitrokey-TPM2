@@ -1,6 +1,6 @@
 //! The scenarios that end in a shell: `skip-recover` and `oldzfs`.
 
-use crate::boot::{Follow, ask_menu_for_shell, follow_boot, prompt};
+use crate::boot::{Follow, ask_menu_for_shell, dialogs, follow_boot, prompt};
 use crate::error::Result;
 use crate::expect::regex;
 use crate::images::{Image, hostid_arg};
@@ -65,32 +65,36 @@ pub(super) fn skip_recover(test: &Test, auto: &Image) -> Result<()> {
     expect_healthy(test, &boot, expect)
 }
 
-/// Skips every LUKS prompt until ZFSBootMenu gives up; returns the number
-/// of prompts skipped and what ended them: 1 the import retry loop, 2 the
-/// emergency shell. Where the legacy menu finds no boot environment and
-/// opens the shell, the menu of the Rust runtime says so and waits: the
-/// test opens the shell from it, which counts as the emergency shell.
+/// Skips every LUKS prompt, on the console or in the start-up view, until
+/// ZFSBootMenu gives up; returns the number of prompts skipped and what
+/// ended them: 1 the import retry loop, 2 the emergency shell. Where the
+/// legacy menu finds no boot environment and opens the shell, the menu of
+/// the Rust runtime says so and waits: the test opens the shell from it,
+/// which counts as the emergency shell.
 pub(super) fn skip_prompts(vm: &mut Vm<'_>) -> Result<(usize, usize)> {
     let patterns = [
         prompt::LUKS,
         prompt::RETRY,
         prompt::EMERGENCY,
         prompt::NO_ENVIRONMENTS,
+        dialogs::LUKS,
+        dialogs::RETRY,
     ];
     let mut skipped = 0;
     loop {
-        let index = vm.expect(&patterns, 1800)?;
-        if index == 3 {
-            vm.test()
-                .step("the menu found no boot environment; opening the shell from it");
-            ask_menu_for_shell(vm)?;
-            return Ok((skipped, 2));
-        }
-        if index > 0 {
-            return Ok((skipped, index));
+        match vm.expect(&patterns, 1800)? {
+            0 => vm.sendline("")?,
+            3 => {
+                vm.test()
+                    .step("the menu found no boot environment; opening the shell from it");
+                ask_menu_for_shell(vm)?;
+                return Ok((skipped, 2));
+            }
+            4 => dialogs::reply(vm, "")?,
+            5 => return Ok((skipped, 1)),
+            index => return Ok((skipped, index)),
         }
         skipped += 1;
-        vm.sendline("")?;
     }
 }
 
@@ -156,18 +160,26 @@ pub(super) fn oldzfs(test: &Test) -> Result<()> {
     Ok(())
 }
 
-/// Answers the LUKS prompts (the passphrase, the other one, then the
-/// passphrase) until ZFSBootMenu gives up; returns what ended them: 1 the
-/// import retry loop, 2 the emergency shell.
+/// Answers the LUKS prompts, on the console or in the start-up view (the
+/// passphrase, the other one, then the passphrase) until ZFSBootMenu gives
+/// up; returns what ended them: 1 the import retry loop, 2 the emergency
+/// shell.
 pub(super) fn answer_prompts(vm: &mut Vm<'_>) -> Result<usize> {
-    let patterns = [prompt::LUKS, prompt::RETRY, prompt::EMERGENCY];
+    let patterns = [
+        prompt::LUKS,
+        prompt::RETRY,
+        prompt::EMERGENCY,
+        dialogs::LUKS,
+        dialogs::RETRY,
+    ];
     let mut answers = [PW, PW_OTHER].into_iter();
     loop {
-        let index = vm.expect(&patterns, 1800)?;
-        if index > 0 {
-            return Ok(index);
+        match vm.expect(&patterns, 1800)? {
+            0 => vm.sendline(answers.next().unwrap_or(PW))?,
+            3 => dialogs::reply(vm, answers.next().unwrap_or(PW))?,
+            4 => return Ok(1),
+            index => return Ok(index),
         }
-        vm.sendline(answers.next().unwrap_or(PW))?;
     }
 }
 

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::{Boot, Follow, Kind, check_be, check_teardown, follow_boot};
+use crate::boot::{Boot, Follow, Kind, check_be, check_teardown, dialogs, follow_boot};
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
@@ -121,7 +121,7 @@ fn drive(vm: &mut Vm<'_>, runtime: ZbmRuntime, scenario: &str) -> Result<()> {
         follow = follow.on(Kind::Retry, move |vm| vm.hotplug_disk(&path, "d0"));
     }
     if scenario == "waitfor" {
-        vm.expect1("required devices are missing", 1200)?;
+        vm.expect(&["required devices are missing", dialogs::DEVICES], 1200)?;
         test.step("ZFSBootMenu waits for d0; plugging it in");
         thread::sleep(Duration::from_secs(2));
         vm.hotplug_disk(&d0(test.settings())?, "d0")?;
@@ -141,9 +141,10 @@ fn drive(vm: &mut Vm<'_>, runtime: ZbmRuntime, scenario: &str) -> Result<()> {
 /// `strict`: the pool of another host is not imported.
 fn strict(vm: &mut Vm<'_>) -> Result<()> {
     let test = vm.test();
-    let index = vm.expect(&["Unable to import", "ZBMTEST-STATUS-BEGIN"], 1200)?;
+    let patterns = ["Unable to import", dialogs::RETRY, "ZBMTEST-STATUS-BEGIN"];
+    let index = vm.expect(&patterns, 1200)?;
     test.check(
-        index == 0,
+        index < 2,
         "the strict policy does not import a pool of another host",
     );
     vm.kill();

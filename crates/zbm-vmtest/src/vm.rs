@@ -209,6 +209,24 @@ impl<'t> Vm<'t> {
         self.expect(&[pattern], seconds).map(drop)
     }
 
+    /// The screen once it stayed the same for a moment: a dialog drawn
+    /// whole.
+    pub fn settled_screen(&self) -> String {
+        self.console
+            .settled_screen(Duration::from_millis(300), Duration::from_secs(10))
+    }
+
+    /// Waits up to `seconds` until the screen shows something other than
+    /// `before`: a dialog acted on was typed into, closed or asked again.
+    ///
+    /// # Errors
+    ///
+    /// See [`Console::wait_for_change`].
+    pub fn wait_for_change(&mut self, before: &str, seconds: u64) -> Result<()> {
+        self.console
+            .wait_for_change(before, Duration::from_secs(seconds))
+    }
+
     /// Waits up to `seconds` for the machine to stop.
     ///
     /// # Errors

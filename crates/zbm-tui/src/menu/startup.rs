@@ -205,13 +205,17 @@ where
                 Some(key) => Message::Key(key),
                 None => Message::Tick(ms),
             };
+            // The dialog answered closes at once on the screen, before
+            // what the answer starts.
             if let Some(answer) = self.step(message).into_iter().find(is_answer) {
+                self.draw()?;
                 return Ok(answer);
             }
             if let Some(answer) = check() {
                 if let Some(model) = self.model.as_mut() {
                     model.dialog = None;
                 }
+                self.draw()?;
                 return Ok(answer);
             }
             if self.model().dialog.is_none() {
