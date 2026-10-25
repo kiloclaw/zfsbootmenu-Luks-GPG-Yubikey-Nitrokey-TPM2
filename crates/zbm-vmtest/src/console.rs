@@ -19,6 +19,11 @@ const SEARCH_INTERVAL: Duration = Duration::from_millis(10);
 /// How much of the console an error message shows.
 const TAIL: usize = 300;
 
+/// How long the screen stays the same before a screen pattern matches it:
+/// a screen being redrawn still shows parts of what it replaces, such as
+/// the last lines of a dialog that closes.
+const SCREEN_SETTLE: Duration = Duration::from_millis(300);
+
 /// The size of the terminal emulator's screen. It must be the size the
 /// machine believes its terminal has, or what it draws lands elsewhere.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -128,7 +133,9 @@ impl Console {
     /// the match is consumed: [`Console::before`] holds what came before it,
     /// [`Console::group`] its groups. A pattern that starts with
     /// [`expect::SCREEN`] is matched against the screen, once no pattern
-    /// matches the text; its match consumes all the text.
+    /// matches the text and the screen stayed the same for a moment, so
+    /// that what a redraw did not reach yet does not match; its match
+    /// consumes all the text.
     ///
     /// # Errors
     ///
@@ -139,6 +146,7 @@ impl Console {
         let regexes = self.compile(patterns)?;
         let deadline = Instant::now() + timeout;
         let mut searched = 0;
+        let mut settling = Settling::default();
         let mut guard = lock(&self.state);
         loop {
             let from = expect::search_start(&guard.text, searched);
@@ -149,15 +157,21 @@ impl Console {
                 self.found = found;
                 return Ok(index);
             }
-            // What the screen shows takes all the text so far.
+            // What the screen shows, once it stays the same, takes all the
+            // text so far.
             let screen = guard.screen.screen().contents();
-            if let Some(found) = expect::on_screen(&regexes, &screen) {
-                self.before = std::mem::take(&mut guard.text);
-                let index = found.index;
-                self.found = found;
-                return Ok(index);
+            match expect::on_screen(&regexes, &screen) {
+                Some(found) if settling.has_settled(screen) || guard.eof => {
+                    self.before = std::mem::take(&mut guard.text);
+                    let index = found.index;
+                    self.found = found;
+                    return Ok(index);
+                }
+                Some(_) => {}
+                None => settling = Settling::default(),
             }
             searched = guard.text.len();
+            let read = guard.bytes;
             let now = Instant::now();
             if guard.eof || now >= deadline {
                 let tail = tail(&guard.text);
@@ -174,26 +188,13 @@ impl Console {
             }
             drop(guard);
             thread::sleep(SEARCH_INTERVAL.min(deadline - now));
-            guard = wait_for_more(&self.state, searched, deadline);
+            // A screen that matched is looked at again, text or not.
+            guard = if settling.is_pending() {
+                lock(&self.state)
+            } else {
+                wait_for_more(&self.state, read, deadline)
+            };
         }
-    }
-
-    /// The screen once it stayed the same for `settle`, or as it is after
-    /// `timeout`: a dialog drawn whole, not the part of it that arrived
-    /// when a pattern matched.
-    pub fn settled_screen(&self, settle: Duration, timeout: Duration) -> String {
-        let deadline = Instant::now() + timeout;
-        let mut shown = self.screen();
-        let mut since = Instant::now();
-        while since.elapsed() < settle && Instant::now() < deadline {
-            thread::sleep(SEARCH_INTERVAL);
-            let now = self.screen();
-            if now != shown {
-                shown = now;
-                since = Instant::now();
-            }
-        }
-        shown
     }
 
     /// Waits up to `timeout` until the screen shows something other than
@@ -225,10 +226,10 @@ impl Console {
                     }
                 });
             }
-            let searched = guard.text.len();
+            let read = guard.bytes;
             drop(guard);
             thread::sleep(SEARCH_INTERVAL.min(deadline - now));
-            guard = wait_for_more(&self.state, searched, deadline);
+            guard = wait_for_more(&self.state, read, deadline);
         }
     }
 
@@ -319,11 +320,34 @@ impl Drop for Console {
     }
 }
 
-/// Waits until the console has more text than `len`, closes, or the
-/// deadline passes.
-fn wait_for_more(state: &State, len: usize, deadline: Instant) -> MutexGuard<'_, Shared> {
+/// The screen that a screen pattern matched, and since when it shows.
+#[derive(Default)]
+struct Settling(Option<(String, Instant)>);
+
+impl Settling {
+    /// Notes `screen`, which a screen pattern matches; whether it showed
+    /// for [`SCREEN_SETTLE`] already.
+    fn has_settled(&mut self, screen: String) -> bool {
+        let since = match self.0.take() {
+            Some((shown, since)) if shown == screen => since,
+            _ => Instant::now(),
+        };
+        self.0 = Some((screen, since));
+        since.elapsed() >= SCREEN_SETTLE
+    }
+
+    /// Whether a screen that matched waits to settle.
+    fn is_pending(&self) -> bool {
+        self.0.is_some()
+    }
+}
+
+/// Waits until the console sent more than `read` bytes, closes, or the
+/// deadline passes. Bytes that only move the cursor or erase change the
+/// screen without adding text.
+fn wait_for_more(state: &State, read: u64, deadline: Instant) -> MutexGuard<'_, Shared> {
     let mut guard = lock(state);
-    while guard.text.len() == len && !guard.eof {
+    while guard.bytes == read && !guard.eof {
         let Some(left) = deadline.checked_duration_since(Instant::now()) else {
             break;
         };

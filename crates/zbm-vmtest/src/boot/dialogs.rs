@@ -4,15 +4,16 @@
 //! the screen, as the view redraws only the cells that change.
 //!
 //! A dialog stays on the screen until it is answered or goes on by itself,
-//! so a test that acts on one notes the screen once the dialog is drawn
-//! whole ([`Vm::settled_screen`](crate::vm::Vm::settled_screen)), then
-//! waits for it to change
-//! ([`Vm::wait_for_change`](crate::vm::Vm::wait_for_change)) before it
-//! looks for the next prompt. The unlock dialogs match only while their
-//! field is empty: typed into, they no longer do. Asked again, a dialog
-//! comes back empty, with what went wrong or the tries left, so that its
-//! screen differs from the one answered even when the harness missed the
-//! screens between.
+//! so a test that acts on one notes the screen it matched, then waits for
+//! it to change ([`Vm::wait_for_change`](crate::vm::Vm::wait_for_change))
+//! before it looks for the next prompt. What is typed into an unlock
+//! dialog does not show: the first change is the dialog closing, which the
+//! serial console brings in pieces. A screen pattern matches only once the
+//! screen stays the same for a moment, so the last lines of a dialog that
+//! closes are not taken for one that asks again. Asked again, a dialog
+//! comes back with what went wrong or the tries left, so that its screen
+//! differs from the one answered even when the harness missed the screens
+//! between.
 
 use crate::error::Result;
 use crate::vm::Vm;
@@ -50,7 +51,7 @@ pub const CLOSE: u64 = 600;
 ///
 /// When the console closed, or the screen did not change in time.
 pub fn reply(vm: &mut Vm<'_>, reply: &str) -> Result<()> {
-    let shown = vm.settled_screen();
+    let shown = vm.console().screen();
     vm.sendline(reply)?;
     vm.wait_for_change(&shown, CLOSE)
 }
@@ -96,7 +97,8 @@ mod tests {
     #[test]
     fn an_unlock_dialog_matches_only_while_its_field_is_empty() {
         assert!(matches(LUKS, &dialog("")));
-        assert!(!matches(LUKS, &dialog("•••")));
+        // Revealed, what was typed shows.
+        assert!(!matches(LUKS, &dialog("pw")));
         assert!(!matches(TPM2PIN, &dialog("")));
     }
 

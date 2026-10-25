@@ -209,13 +209,6 @@ impl<'t> Vm<'t> {
         self.expect(&[pattern], seconds).map(drop)
     }
 
-    /// The screen once it stayed the same for a moment: a dialog drawn
-    /// whole.
-    pub fn settled_screen(&self) -> String {
-        self.console
-            .settled_screen(Duration::from_millis(300), Duration::from_secs(10))
-    }
-
     /// Waits up to `seconds` until the screen shows something other than
     /// `before`: a dialog acted on was typed into, closed or asked again.
     ///
@@ -324,7 +317,6 @@ impl<'t> Vm<'t> {
         if self.expect(&patterns, 1800)? == 1 {
             self.test
                 .step("the start-up view asks to import again -> Esc");
-            let _ = self.settled_screen();
         }
         self.send("\x1b")?;
         self.shell_ready()

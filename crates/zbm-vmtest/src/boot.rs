@@ -413,7 +413,7 @@ fn on_prompt(
     follow: &mut Follow<'_>,
     (kind, dialog): (Kind, Option<&str>),
 ) -> Result<Next> {
-    let shown = dialog.map(|_| vm.settled_screen());
+    let shown = dialog.map(|_| vm.console().screen());
     match kind {
         Kind::Status => return Ok(Next::Reports),
         Kind::KeyLoad | Kind::MenuKeyLoad => {

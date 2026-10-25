@@ -4,6 +4,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use crate::console::{Console, Size};
 use crate::record::Test;
@@ -20,6 +21,8 @@ pub enum Step {
     /// The guest reads key presses, as many bytes as these, which must be
     /// these.
     Keys(&'static str),
+    /// The guest is busy for this many milliseconds.
+    Pause(u64),
 }
 
 /// A guest playing a script on the other end of a console.
@@ -44,6 +47,7 @@ impl Guest {
                             mismatches.push(format!("heard {line:?}, expected {expected:?}"));
                         }
                     }
+                    Step::Pause(ms) => thread::sleep(Duration::from_millis(ms)),
                     Step::Keys(expected) => {
                         let mut keys = vec![0; expected.len()];
                         reader.read_exact(&mut keys).unwrap();

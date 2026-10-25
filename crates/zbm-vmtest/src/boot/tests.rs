@@ -119,6 +119,35 @@ fn the_dialogs_of_the_start_up_view_are_answered_once_each() {
 }
 
 #[test]
+fn a_dialog_that_closes_in_pieces_is_not_answered_again() {
+    let settings = settings("boot-dialog-pieces");
+    let test = Test::new(&settings, "layouts-parity").unwrap();
+    let luks = view("│ Unlock luks-1        │\r\n│ Passphrase:          │\r\n");
+    let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
+    let script = vec![
+        Step::Say(leak(luks)),
+        Step::Hear(PW),
+        // What was typed does not show. The dialog closes over the serial
+        // console a line at a time: its field shows a moment longer.
+        Step::Say("\x1b[2;1H\x1b[2K"),
+        Step::Pause(100),
+        Step::Say("\x1b[3;1H\x1b[2K"),
+        Step::Pause(100),
+        Step::Say(STATUS),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+    let follow = Follow {
+        no_be: true,
+        ..Follow::default()
+    };
+    let boot = follow_boot(&mut vm, follow).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(boot.prompts, ["luks"]);
+    cleanup(&settings);
+}
+
+#[test]
 fn the_common_checks_read_the_reports() {
     let settings = settings("boot-checks");
     let test = Test::new(&settings, "layouts-main").unwrap();
