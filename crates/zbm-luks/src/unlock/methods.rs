@@ -12,6 +12,7 @@ use std::path::Path;
 
 use zbm_tools::programs;
 
+use crate::ask::VolumeRef;
 use crate::config::Options;
 use crate::error::LuksError;
 use crate::keys::Target;
@@ -217,14 +218,18 @@ fn outcome(opened: bool, volume: &Volume<'_>) -> Tried {
 /// decrypts it if it is a GnuPG key file, and opens the volume with it.
 fn open_with_keyfile(session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
     let (device, keyspec) = (volume.device, volume.keyspec);
-    let found = session.find_keyfile(keyspec);
+    let named = VolumeRef {
+        name: volume.name,
+        device,
+    };
+    let found = session.find_keyfile(keyspec, named);
     let Some(path) = &found.path else {
         session.release_keyfile(&found);
         return Tried::NotOpened;
     };
     let target = volume.target();
     let opened = if volume.options.gpg || is_gpg_keyfile(path, "") {
-        match session.gpg_decrypt(path, device) {
+        match session.gpg_decrypt(path, named) {
             Some(plain) => {
                 zbm_trace::info!("unlocking {device} with GnuPG key file {keyspec}");
                 let opened = session

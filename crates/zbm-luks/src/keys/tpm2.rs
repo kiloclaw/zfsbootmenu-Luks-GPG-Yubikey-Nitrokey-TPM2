@@ -19,6 +19,7 @@ use zbm_platform::secret::Secret;
 use zbm_tools::modules::Modules;
 
 use super::{Outcome, Target};
+use crate::ask::{SecretKind, SecretRequest, Told, VolumeRef};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
 use crate::error::{LuksError, TokenFailure};
 use crate::unlocker::{Key, Unlocker};
@@ -105,15 +106,15 @@ impl Unlocker<'_> {
         self.system().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
     }
 
-    fn tpm2_lockout_message(&self) {
-        self.say(&self.paint(
-            "red",
-            "The TPM is locked against PIN guessing after too many wrong PINs.\n",
-        ));
-        self.say(&self.paint(
-            "red",
-            "Use another unlock method; the lockout clears by itself over time.\n",
-        ));
+    /// Says that the TPM is in lockout, after `before` on the console.
+    fn tpm2_lockout_message(&self, before: &str) {
+        let locked = "The TPM is locked against PIN guessing after too many wrong PINs.\n";
+        self.tell_with(Told::Refused, locked, || {
+            self.say(before);
+            self.say(&self.paint("red", locked));
+        });
+        let other = "Use another unlock method; the lockout clears by itself over time.\n";
+        self.tell(Told::Refused, Some("red"), other);
     }
 
     /// Unseals a systemd-tpm2 token with tpm2-tools, as systemd does.
@@ -249,8 +250,7 @@ impl Unlocker<'_> {
             return self.try_tpm2_without_pin(target, id, token).map_err(failed);
         }
         if self.tpm2_in_lockout() {
-            self.say("\n");
-            self.tpm2_lockout_message();
+            self.tpm2_lockout_message("\n");
             zbm_trace::warn!(
                 "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}"
             );
@@ -299,7 +299,7 @@ impl Unlocker<'_> {
             loop {
                 let pin = match cached {
                     Some(pin) => pin.clone(),
-                    None => self.ask_tpm2_pin(device, &mut asked)?,
+                    None => self.ask_tpm2_pin(target, &mut asked)?,
                 };
                 if self.tpm2_open_with_pin(target, id, token, &pin)? {
                     if cached.is_none() {
@@ -310,33 +310,47 @@ impl Unlocker<'_> {
                 }
                 drop(pin);
                 if self.tpm2_in_lockout() {
-                    self.tpm2_lockout_message();
+                    self.tpm2_lockout_message("");
                     return Err(TokenFailure::Lockout);
                 }
                 // A cached PIN is only ever tried once.
                 if cached.is_some() {
                     break;
                 }
-                self.say(&self.paint(
-                    "red",
-                    "The TPM did not release the key (wrong PIN or changed PCRs).\n",
-                ));
+                let refused = "The TPM did not release the key (wrong PIN or changed PCRs).\n";
+                self.tell(Told::Refused, Some("red"), refused);
             }
         }
         Err(TokenFailure::NotReleased)
     }
 
-    /// Asks for the PIN of the TPM2 token of `device`, the `asked`th time.
-    fn ask_tpm2_pin(&self, device: &str, asked: &mut u32) -> Result<Secret, TokenFailure> {
+    /// Asks for the PIN of the TPM2 token of `target`, the `asked`th time.
+    fn ask_tpm2_pin(&self, target: Target<'_>, asked: &mut u32) -> Result<Secret, TokenFailure> {
         const TRIES: u32 = 3;
         *asked += 1;
         if *asked > TRIES {
             return Err(TokenFailure::TooManyTries);
         }
-        self.say("\n");
+        let device = target.device;
+        let request = SecretRequest {
+            volume: VolumeRef {
+                name: target.name,
+                device,
+            },
+            kind: SecretKind::Tpm2Pin,
+            attempt: *asked,
+            tries: Some(TRIES),
+            opened_elsewhere: None,
+        };
         let line = format!("Unlock {} with the TPM\n", self.paint("yellow", device));
-        self.say(&self.paint("cyan", &line));
-        self.read_secret("TPM2 PIN (leave empty to use another method): ")
+        let asked = self.ask(&request, || {
+            self.say("\n");
+            self.say(&self.paint("cyan", &line));
+            self.read_secret("TPM2 PIN (leave empty to use another method): ")
+                .into()
+        });
+        asked
+            .secret()
             .filter(|pin| !pin.is_empty())
             .ok_or(TokenFailure::NoPin)
     }

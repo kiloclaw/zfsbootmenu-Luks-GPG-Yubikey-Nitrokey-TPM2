@@ -357,10 +357,11 @@ mod tests {
 
     #[test]
     fn luks_prompts_count_down_from_their_delay() {
-        use zbm_luks::unlocker::{PromptRequest, Prompter};
+        use zbm_luks::unlocker::{PromptRequest, Prompter, Subject};
         let fake = setup();
         fake.console.timeout().keys(&[0x1b]);
         let request = PromptRequest {
+            subject: Subject::Missing("LABEL=x".to_owned()),
             delay: Some("5".to_owned()),
             message: "LUKS device LABEL=x is missing".to_owned(),
             on_return: "retry now".to_owned(),

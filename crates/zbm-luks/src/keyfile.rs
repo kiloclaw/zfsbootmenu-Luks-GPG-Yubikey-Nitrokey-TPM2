@@ -10,6 +10,7 @@ use std::path::Path;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 
+use crate::ask::{Awaited, VolumeRef, WaitRequest};
 use crate::device::{device_present, resolve_device};
 use crate::unlocker::{Unlocker, Wait};
 
@@ -35,7 +36,7 @@ impl Unlocker<'_> {
     /// Finds the key file of a key file specification. A missing key device
     /// is waited for once per run, as security keys are, but not when the
     /// import loop retries.
-    pub fn find_keyfile(&mut self, spec: &str) -> FoundKey {
+    pub fn find_keyfile(&mut self, spec: &str, volume: VolumeRef<'_>) -> FoundKey {
         if spec.is_empty() {
             return FoundKey::default();
         }
@@ -49,7 +50,7 @@ impl Unlocker<'_> {
             }
             return found;
         };
-        match self.key_device(device_spec, file) {
+        match self.key_device(device_spec, file, volume) {
             Some(device) => self.mount_key_device(&device, file),
             None => FoundKey::default(),
         }
@@ -57,8 +58,14 @@ impl Unlocker<'_> {
 
     /// The device of the key device specification `device_spec`, waiting
     /// for it once per run (USB storage often appears a few seconds after
-    /// boot); `None`, remembered, when it does not come.
-    fn key_device(&mut self, device_spec: &str, file: &str) -> Option<String> {
+    /// boot) for the key file of `volume`; `None`, remembered, when it does
+    /// not come.
+    fn key_device(
+        &mut self,
+        device_spec: &str,
+        file: &str,
+        volume: VolumeRef<'_>,
+    ) -> Option<String> {
         let system = *self.system();
         if let Some(device) = resolve_device(&system, device_spec) {
             return Some(device);
@@ -72,8 +79,16 @@ impl Unlocker<'_> {
                     self.paint("yellow", device_spec)
                 ),
             );
-            let wait = self.token_wait();
-            let waited = self.wait_for(wait, &message, || device_present(&system, device_spec));
+            let request = WaitRequest {
+                volume,
+                awaited: Awaited::KeyDevice {
+                    spec: device_spec.to_owned(),
+                    file: file.to_owned(),
+                },
+                seconds: self.token_wait(),
+                present: &|| device_present(&system, device_spec),
+            };
+            let waited = self.await_device(&request, &message);
             if waited == Wait::Present {
                 device = resolve_device(&system, device_spec);
             }
@@ -142,7 +157,7 @@ impl Unlocker<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{NoPrompts, log};
+    use crate::testing::{NoPrompts, VOLUME, log};
     use crate::unlocker::{Luks, Settings};
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
@@ -202,14 +217,20 @@ mod tests {
         fake.files.file("/etc/k", "key").dir("/etc/dir.key");
         with_session(&fake, false, |session| {
             assert_eq!(
-                session.find_keyfile("/etc/k").path.as_deref(),
+                session.find_keyfile("/etc/k", VOLUME).path.as_deref(),
                 Some("/etc/k")
             );
             // A directory passes `[ -r ]` and fails in cryptsetup.
-            assert!(session.find_keyfile("/etc/dir.key").path.is_some());
-            assert_eq!(session.find_keyfile("/missing"), FoundKey::default());
-            assert_eq!(session.find_keyfile("/missing:"), FoundKey::default());
-            assert_eq!(session.find_keyfile(""), FoundKey::default());
+            assert!(session.find_keyfile("/etc/dir.key", VOLUME).path.is_some());
+            assert_eq!(
+                session.find_keyfile("/missing", VOLUME),
+                FoundKey::default()
+            );
+            assert_eq!(
+                session.find_keyfile("/missing:", VOLUME),
+                FoundKey::default()
+            );
+            assert_eq!(session.find_keyfile("", VOLUME), FoundKey::default());
         });
         assert_eq!(
             crate::testing::warnings(&fake),
@@ -238,8 +259,8 @@ mod tests {
         });
         fake.runner.respond_program("mount", 0, "");
         let found = with_session(&fake, false, |session| {
-            let found = session.find_keyfile("/keys/a.key:LABEL=KEYS");
-            let missing = session.find_keyfile("/keys/b.key:LABEL=KEYS");
+            let found = session.find_keyfile("/keys/a.key:LABEL=KEYS", VOLUME);
+            let missing = session.find_keyfile("/keys/b.key:LABEL=KEYS", VOLUME);
             assert!(missing.path.is_none() && missing.mount.is_some());
             session.release_keyfile(&missing);
             session.release_keyfile(&found);
@@ -265,12 +286,21 @@ mod tests {
             .file("/zfsbootmenu/cmdline.d/zbm.luks_token_wait", "2");
         fake.console.timeout().timeout();
         with_session(&fake, false, |session| {
-            assert_eq!(session.find_keyfile("/k:LABEL=NONE"), FoundKey::default());
+            assert_eq!(
+                session.find_keyfile("/k:LABEL=NONE", VOLUME),
+                FoundKey::default()
+            );
             // The second volume on the same stick does not wait again.
-            assert_eq!(session.find_keyfile("/l:LABEL=NONE"), FoundKey::default());
+            assert_eq!(
+                session.find_keyfile("/l:LABEL=NONE", VOLUME),
+                FoundKey::default()
+            );
             session.forget_secrets();
             fake.console.push(ConsoleInput::Key(b'x'));
-            assert_eq!(session.find_keyfile("/k:LABEL=NONE"), FoundKey::default());
+            assert_eq!(
+                session.find_keyfile("/k:LABEL=NONE", VOLUME),
+                FoundKey::default()
+            );
         });
         let output = fake.console.output_text();
         assert_eq!(output.matches("Insert the key device").count(), 2);
@@ -278,7 +308,10 @@ mod tests {
         // Import retries never wait.
         let fake = FakeSystem::new();
         with_session(&fake, true, |session| {
-            assert_eq!(session.find_keyfile("/k:LABEL=NONE"), FoundKey::default());
+            assert_eq!(
+                session.find_keyfile("/k:LABEL=NONE", VOLUME),
+                FoundKey::default()
+            );
         });
         assert_eq!(fake.console.output_text(), "");
         assert_eq!(
@@ -293,7 +326,10 @@ mod tests {
         fake.files.block_device("/dev/sdb1");
         fake.runner.respond_program("mount", 32, "");
         with_session(&fake, false, |session| {
-            assert_eq!(session.find_keyfile("/k:/dev/sdb1"), FoundKey::default());
+            assert_eq!(
+                session.find_keyfile("/k:/dev/sdb1", VOLUME),
+                FoundKey::default()
+            );
         });
         assert!(
             !fake

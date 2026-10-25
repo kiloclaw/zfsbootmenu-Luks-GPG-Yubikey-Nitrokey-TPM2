@@ -226,6 +226,7 @@ fn log_is_empty(fake: &FakeSystem, base: &str) -> bool {
 #[should_panic(expected = "unexpected timed prompt")]
 fn no_prompt_may_be_shown_while_reading() {
     let request = PromptRequest {
+        subject: zbm_luks::unlocker::Subject::Missing(String::new()),
         delay: None,
         message: String::new(),
         on_return: String::new(),

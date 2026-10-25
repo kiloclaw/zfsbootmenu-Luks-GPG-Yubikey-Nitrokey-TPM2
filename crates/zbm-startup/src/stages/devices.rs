@@ -30,8 +30,37 @@ pub fn device_path(device: &str) -> Option<String> {
 }
 
 /// Waits for the devices of `zbm.wait_for` (`wait_for`, separated by commas),
-/// asking every `retry_delay` seconds, until all exist or the user cancels.
+/// asking on the console every `retry_delay` seconds, until all exist or the
+/// user cancels.
 pub fn stage(system: &System<'_>, wait_for: &str, delay: &str) {
+    stage_with(system, wait_for, delay, &mut |seconds| {
+        missing_prompt(system, seconds)
+    });
+}
+
+/// The prompt that says devices are missing, on the console: RETURN or the
+/// time running out looks again, ESCAPE stops waiting.
+pub fn missing_prompt(system: &System<'_>, delay: i64) -> Answer {
+    TimedPrompt::new()
+        .delay(delay)
+        .on_escape("to cancel")
+        .message("")
+        .message(colorize("red", "One or more required devices are missing"))
+        .prompt(|seconds| {
+            let seconds = colorize("yellow", &format!("{seconds:02}"));
+            format!("retrying in {seconds} seconds")
+        })
+        .run(system)
+}
+
+/// [`stage`] with `prompt` saying that devices are missing, given the delay
+/// in seconds.
+pub fn stage_with(
+    system: &System<'_>,
+    wait_for: &str,
+    delay: &str,
+    prompt: &mut dyn FnMut(i64) -> Answer,
+) {
     if wait_for.is_empty() {
         return;
     }
@@ -50,17 +79,7 @@ pub fn stage(system: &System<'_>, wait_for: &str, delay: &str) {
         if missing.is_empty() {
             return;
         }
-        let answer = TimedPrompt::new()
-            .delay(retry_delay(delay))
-            .on_escape("to cancel")
-            .message("")
-            .message(colorize("red", "One or more required devices are missing"))
-            .prompt(|seconds| {
-                let seconds = colorize("yellow", &format!("{seconds:02}"));
-                format!("retrying in {seconds} seconds")
-            })
-            .run(system);
-        if answer == Answer::Escape {
+        if prompt(retry_delay(delay)) == Answer::Escape {
             for device in missing {
                 zbm_trace::error!("required device '{device}' not found");
             }

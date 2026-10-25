@@ -34,6 +34,7 @@ use zbm_state::State;
 use zbm_tools::programs;
 use zbm_zfs::{Stderr, ZpoolCommand};
 
+use crate::front::{ConsoleFront, Front};
 use crate::shell::Shell;
 use crate::stages;
 use crate::step::{Rerun, Step, StepContext, run_steps};
@@ -182,11 +183,22 @@ impl<'a> Startup<'a> {
         ]
     }
 
-    /// Runs the stages that `rerun` selects, and returns the default boot
-    /// environment the import found.
+    /// Runs the stages that `rerun` selects on the plain console, and
+    /// returns the default boot environment the import found.
     fn run_stages(&self, rerun: Rerun) -> Option<String> {
-        let mut shell = self.shell();
-        let mut context = StepContext::new(&self.system, &self.state, &mut shell);
+        let mut front = ConsoleFront::new(self.system, &self.state);
+        self.run_stages_on(&self.system, &mut front, rerun)
+    }
+
+    /// Runs the stages that `rerun` selects with `front`, their programs on
+    /// `system`, and returns the default boot environment the import found.
+    fn run_stages_on(
+        &self,
+        system: &System<'_>,
+        front: &mut dyn Front,
+        rerun: Rerun,
+    ) -> Option<String> {
+        let mut context = StepContext::new(system, &self.state, front);
         run_steps(&self.steps(), &mut context, rerun);
         context.bootfs.map(|dataset| dataset.to_string())
     }

@@ -25,14 +25,13 @@
 //! fake.files.dir("/zfsbootmenu");
 //! let system = fake.system();
 //! let state = State::new(&fake.files, "/zfsbootmenu");
-//! let mut recovery = zbm_startup::step::NoRecovery;
-//! let mut context = StepContext::new(&system, &state, &mut recovery);
+//! let mut front = zbm_startup::step::NoRecovery;
+//! let mut context = StepContext::new(&system, &state, &mut front);
 //! let steps: Vec<Box<dyn Step>> = vec![Box::new(Hello)];
 //! run_steps(&steps, &mut context, Rerun::Pending);
 //! assert_eq!(state.finished_stages(), ["20-hostid"]);
 //! ```
 
-use zbm_app::Sink;
 use zbm_app::model::{Event, StageState};
 use zbm_boot::error::BootError;
 use zbm_boot::recovery::Recovery;
@@ -40,19 +39,20 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::{DatasetName, Stage};
 
-/// What a step runs with: the system, the state directory, the recovery shell,
+use crate::front::Front;
+
+/// What a step runs with: the system, the state directory, the front end,
 /// and what earlier steps found.
 pub struct StepContext<'c, 'a> {
-    /// The system.
+    /// The system the stages' programs run on.
     pub system: &'c System<'a>,
     /// The state directory.
     pub state: &'c State<'a>,
-    /// The recovery shell and late LUKS unlocking.
-    pub recovery: &'c mut dyn Recovery,
+    /// What the stages need from the person at the console: prompts, the
+    /// recovery shell, LUKS unlocking, and where their events go.
+    pub front: &'c mut dyn Front,
     /// The default boot environment, once pool import found one.
     pub bootfs: Option<DatasetName>,
-    /// Where the stages' events go, when a front end shows them.
-    pub events: Option<&'c mut dyn Sink>,
 }
 
 impl<'c, 'a> StepContext<'c, 'a> {
@@ -60,14 +60,13 @@ impl<'c, 'a> StepContext<'c, 'a> {
     pub fn new(
         system: &'c System<'a>,
         state: &'c State<'a>,
-        recovery: &'c mut dyn Recovery,
+        front: &'c mut dyn Front,
     ) -> StepContext<'c, 'a> {
         StepContext {
             system,
             state,
-            recovery,
+            front,
             bootfs: None,
-            events: None,
         }
     }
 }
@@ -107,16 +106,12 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
         }
         zbm_trace::info!("running init stage {stage}");
         let name = zbm_app::stage_name(stage);
-        if let Some(events) = context.events.as_mut() {
-            events.send(Event::StageStarted(name.to_owned()));
-        }
+        context.front.send(Event::StageStarted(name.to_owned()));
         step.run(context);
-        if let Some(events) = context.events.as_mut() {
-            events.send(Event::StageFinished {
-                stage: name.to_owned(),
-                state: StageState::Done,
-            });
-        }
+        context.front.send(Event::StageFinished {
+            stage: name.to_owned(),
+            state: StageState::Done,
+        });
         if let Err(error) = context.state.finish_stage(stage.as_str()) {
             zbm_trace::error!("{}", error.to_string());
         }
@@ -162,19 +157,17 @@ mod tests {
         fake.files.dir("/zfsbootmenu");
         let system = fake.system();
         let state = State::new(&fake.files, "/zfsbootmenu");
-        let mut recovery = NoRecovery;
-        let mut events: Vec<Event> = Vec::new();
+        let mut front = crate::testing::Recording::default();
         let steps: Vec<Box<dyn Step>> = vec![
             Box::new(Nothing(Stage::Modules)),
             Box::new(Nothing(Stage::ImportPools)),
         ];
 
-        let mut context = StepContext::new(&system, &state, &mut recovery);
-        context.events = Some(&mut events);
+        let mut context = StepContext::new(&system, &state, &mut front);
         run_steps(&steps, &mut context, Rerun::Pending);
 
         assert_eq!(
-            events,
+            front.events,
             [
                 Event::StageStarted("Loading kernel modules".into()),
                 Event::StageFinished {

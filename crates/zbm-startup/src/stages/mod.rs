@@ -9,12 +9,11 @@ pub mod modules;
 
 use std::path::Path;
 
-use zbm_boot::import;
-use zbm_boot::prompt::tput;
+use zbm_boot::hooks::executable_hooks;
+use zbm_platform::System;
 use zbm_pool::ImportSettings;
-use zbm_types::Stage;
+use zbm_types::{HookStage, Stage};
 
-use crate::shell::{Attempt, zluks_unlock};
 use crate::step::{Step, StepContext};
 
 /// `init.d/10-kmods`: loads `spl` and `zfs`.
@@ -26,7 +25,7 @@ impl Step for Modules {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) {
-        modules::stage(context.system.runner, context.recovery);
+        modules::stage(context.system.runner, context.front.recovery());
     }
 }
 
@@ -60,7 +59,10 @@ impl Step for DeviceWait<'_> {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) {
-        devices::stage(context.system, self.wait_for, self.retry_delay);
+        let (system, front) = (context.system, &mut *context.front);
+        devices::stage_with(system, self.wait_for, self.retry_delay, &mut |delay| {
+            front.devices_missing(system, delay)
+        });
     }
 }
 
@@ -80,20 +82,28 @@ impl Step for EarlyHooks<'_> {
         Stage::EarlyHooks
     }
 
+    /// The hooks run with the console, which a front end that draws on it
+    /// hands over only when there are hooks to run.
     fn run(&self, context: &mut StepContext<'_, '_>) {
-        hooks::early_stage_in(
-            context.system,
+        let system = context.system;
+        hooks::prepare_early_stage(
+            system,
             context.state,
             self.root,
             self.hook_root,
             self.skip.as_deref(),
         );
+        let mut run = |system: &System<'_>| hooks::run_early_stage(system, self.root);
+        if executable_hooks(system.files, self.root, HookStage::EarlySetup).is_empty() {
+            run(system);
+        } else {
+            context.front.with_console(system, &mut run);
+        }
     }
 }
 
-/// `init.d/45-luks-unlock`: unlocks LUKS volumes with `zluks unlock`, when
-/// the image has `cryptsetup`. A hook may have provided key files or unlocked
-/// volumes itself.
+/// `init.d/45-luks-unlock`: unlocks LUKS volumes through the front end
+/// ([`crate::front::Front::unlock_luks`]).
 pub struct LuksUnlock;
 
 impl Step for LuksUnlock {
@@ -102,11 +112,7 @@ impl Step for LuksUnlock {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) {
-        let system = context.system;
-        if system.command_exists("cryptsetup") {
-            let _ = zluks_unlock(system, Attempt::First);
-            tput(system, &["clear"]);
-        }
+        context.front.unlock_luks(context.system);
     }
 }
 
@@ -123,12 +129,9 @@ impl Step for ImportPools {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) {
-        let imported = import::stage(
-            context.system,
-            context.state,
-            &self.settings,
-            context.recovery,
-        );
+        let imported = context
+            .front
+            .import(context.system, context.state, &self.settings);
         context.bootfs = imported.bootfs;
     }
 }

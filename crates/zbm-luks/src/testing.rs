@@ -6,6 +6,7 @@ use std::path::Path;
 
 use zbm_platform::{Installed, KernelLog};
 
+use crate::ask::VolumeRef;
 use crate::unlocker::{Answer, PromptRequest, Prompter};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
@@ -35,6 +36,12 @@ pub fn legacy_function(library: &str, name: &str) -> String {
     let end = start + text[start..].find("\n}\n").unwrap() + 3;
     text[start..end].to_owned()
 }
+
+/// The volume the tests unlock, for the requests that name it.
+pub const VOLUME: VolumeRef<'static> = VolumeRef {
+    name: "luks-test",
+    device: "/dev/sda",
+};
 
 /// A prompter for code that must not show a timed prompt.
 pub struct NoPrompts;

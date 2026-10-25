@@ -95,15 +95,15 @@ fn tokens_are_on_unless_turned_off() {
 fn waiting_ends_with_the_device_or_a_key() {
     let fake = FakeSystem::new();
     fake.console.timeout().timeout();
-    let mut checks = 0;
+    let checks = std::cell::Cell::new(0);
     with_session(&fake, |session| {
-        let waited = session.wait_for(5, "Insert it", || {
-            checks += 1;
-            checks == 3
+        let waited = session.wait_for(5, "Insert it", &|| {
+            checks.set(checks.get() + 1);
+            checks.get() == 3
         });
         assert_eq!(waited, Wait::Present);
     });
-    assert_eq!(checks, 3);
+    assert_eq!(checks.get(), 3);
     assert_eq!(fake.clock.now(), Duration::from_secs(2));
     assert_eq!(
         fake.console.output_text(),
@@ -115,18 +115,18 @@ fn waiting_ends_with_the_device_or_a_key() {
     let fake = FakeSystem::new();
     fake.console.keys(b"x");
     with_session(&fake, |session| {
-        assert_eq!(session.wait_for(5, "m", || false), Wait::Skipped);
+        assert_eq!(session.wait_for(5, "m", &|| false), Wait::Skipped);
     });
     let fake = FakeSystem::new();
     fake.console.push(ConsoleInput::End);
     with_session(&fake, |session| {
-        assert_eq!(session.wait_for(3, "m", || false), Wait::TimedOut);
+        assert_eq!(session.wait_for(3, "m", &|| false), Wait::TimedOut);
     });
     assert_eq!(fake.clock.now(), Duration::from_secs(3));
     // Without time to wait, only the first check counts.
     let fake = FakeSystem::new();
     with_session(&fake, |session| {
-        assert_eq!(session.wait_for(0, "m", || false), Wait::TimedOut);
+        assert_eq!(session.wait_for(0, "m", &|| false), Wait::TimedOut);
     });
     assert_eq!(fake.console.output_text(), "");
 }
@@ -240,6 +240,10 @@ fn prompts_go_to_the_prompter() {
         prompter: &prompts,
     });
     let request = PromptRequest {
+        subject: Subject::Retry {
+            name: "root".to_owned(),
+            device: "/dev/sda".to_owned(),
+        },
         delay: None,
         message: "Unable to unlock LUKS volume /dev/sda".to_owned(),
         on_return: "try again".to_owned(),
@@ -253,6 +257,7 @@ fn prompts_go_to_the_prompter() {
 #[test]
 fn prompts_record_their_legacy_arguments() {
     let request = PromptRequest {
+        subject: Subject::Missing("x".to_owned()),
         delay: Some("5".to_owned()),
         message: "LUKS device x is missing".to_owned(),
         on_return: "retry now".to_owned(),

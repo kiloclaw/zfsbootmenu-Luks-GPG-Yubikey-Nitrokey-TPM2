@@ -9,6 +9,7 @@
 use zbm_platform::secret::Secret;
 
 use super::Target;
+use crate::ask::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 use crate::config::YubiKey;
 use crate::crypto::{hex, sha256};
 use crate::error::LuksError;
@@ -48,7 +49,7 @@ impl Unlocker<'_> {
         let mut attempt = 0;
         while attempt < tries || tries == 0 {
             attempt += 1;
-            let key = match self.ykchalresp_key(device, yubikey) {
+            let key = match self.ykchalresp_key(target, yubikey, (attempt, tries)) {
                 Attempt::Key(key) => key,
                 Attempt::NoResponse => continue,
                 Attempt::Stop => return Err(failed()),
@@ -62,33 +63,25 @@ impl Unlocker<'_> {
                 zbm_trace::info!("unlocked {device} with YubiKey challenge-response");
                 return Ok(());
             }
-            self.say(&self.paint("red", "No key available with this passphrase.\n"));
+            let wrong = "No key available with this passphrase.\n";
+            self.tell(Told::Refused, Some("red"), wrong);
         }
         Err(failed())
     }
 
-    /// One attempt's LUKS passphrase from the YubiKey.
-    fn ykchalresp_key(&self, device: &str, yubikey: &YubiKey) -> Attempt {
-        let message = self.paint(
-            "cyan",
-            &format!("Insert the YubiKey for {}", self.paint("yellow", device)),
-        );
-        let waited = self.wait_for(self.token_wait(), &message, || self.ykchalresp_present());
-        if waited != Wait::Present {
-            zbm_trace::info!("no YubiKey present for {device}");
-            return Attempt::Stop;
-        }
-        self.say("\n");
-        let line = format!(
-            "Unlock {} with YubiKey challenge-response (slot {})\n",
-            self.paint("yellow", device),
-            yubikey.slot
-        );
-        self.say(&self.paint("cyan", &line));
-        let Some(pass) = self
-            .read_secret("Passphrase (leave empty to use another method): ")
-            .filter(|pass| !pass.is_empty())
-        else {
+    /// One attempt's LUKS passphrase from the YubiKey, the attempt `attempt`
+    /// of `tries` (0: without limit).
+    fn ykchalresp_key(
+        &self,
+        target: Target<'_>,
+        yubikey: &YubiKey,
+        (attempt, tries): (u64, u64),
+    ) -> Attempt {
+        let volume = VolumeRef {
+            name: target.name,
+            device: target.device,
+        };
+        let Some(pass) = self.ykchalresp_passphrase(volume, yubikey, (attempt, tries)) else {
             return Attempt::Stop;
         };
         let challenge = if yubikey.hash {
@@ -96,11 +89,15 @@ impl Unlocker<'_> {
         } else {
             pass
         };
-        self.say(&self.paint("yellow", "Touch the YubiKey if it blinks.\n"));
+        self.tell(
+            Told::Touch,
+            Some("yellow"),
+            "Touch the YubiKey if it blinks.\n",
+        );
         let response = zbm_crypt::yubikey::YubiKey::new(self.system().runner)
             .response(yubikey.slot, &challenge);
         let Some(response) = response else {
-            self.say(&self.paint("red", "The YubiKey did not respond.\n"));
+            self.tell(Told::Refused, Some("red"), "The YubiKey did not respond.\n");
             return Attempt::NoResponse;
         };
         Attempt::Key(if yubikey.concat {
@@ -110,6 +107,54 @@ impl Unlocker<'_> {
         } else {
             response
         })
+    }
+}
+
+impl Unlocker<'_> {
+    /// Waits for the YubiKey of `volume`, then asks for the passphrase it
+    /// turns into the key, the attempt `attempt` of `tries` (0: without
+    /// limit); `None` when no YubiKey comes or the passphrase is left
+    /// empty.
+    fn ykchalresp_passphrase(
+        &self,
+        volume: VolumeRef<'_>,
+        yubikey: &YubiKey,
+        (attempt, tries): (u64, u64),
+    ) -> Option<Secret> {
+        let device = volume.device;
+        let message = self.paint(
+            "cyan",
+            &format!("Insert the YubiKey for {}", self.paint("yellow", device)),
+        );
+        let request = WaitRequest {
+            volume,
+            awaited: Awaited::YubiKey,
+            seconds: self.token_wait(),
+            present: &|| self.ykchalresp_present(),
+        };
+        if self.await_device(&request, &message) != Wait::Present {
+            zbm_trace::info!("no YubiKey present for {device}");
+            return None;
+        }
+        let line = format!(
+            "Unlock {} with YubiKey challenge-response (slot {})\n",
+            self.paint("yellow", device),
+            yubikey.slot
+        );
+        let request = SecretRequest {
+            volume,
+            kind: SecretKind::YubiKeyPassphrase(yubikey.slot.to_string()),
+            attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
+            tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),
+            opened_elsewhere: None,
+        };
+        let asked = self.ask(&request, || {
+            self.say("\n");
+            self.say(&self.paint("cyan", &line));
+            self.read_secret("Passphrase (leave empty to use another method): ")
+                .into()
+        });
+        asked.secret().filter(|pass| !pass.is_empty())
     }
 }
 

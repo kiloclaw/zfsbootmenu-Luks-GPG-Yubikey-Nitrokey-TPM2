@@ -12,6 +12,7 @@ use std::path::Path;
 use zbm_platform::files::FileKind;
 
 use super::{Outcome, Target};
+use crate::ask::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
 use crate::unlocker::{Key, Unlocker, Wait};
@@ -19,6 +20,9 @@ use zbm_crypt::Token;
 use zbm_crypt::fido2::{Assertion, Fido2};
 
 pub use zbm_crypt::fido2::{last_line, listed_devices};
+
+/// How many times the PIN of a security key is asked for.
+const FIDO2_TRIES: u32 = 3;
 
 impl Unlocker<'_> {
     /// Whether a FIDO2 (HID) device is connected.
@@ -73,10 +77,8 @@ impl Unlocker<'_> {
                     pin: *pin,
                 };
                 if up {
-                    self.say(&self.paint(
-                        "yellow",
-                        &format!("Touch the security key {device} when it blinks.\n"),
-                    ));
+                    let touch = format!("Touch the security key {device} when it blinks.\n");
+                    self.tell(Told::Touch, Some("yellow"), &touch);
                 }
                 let random = system
                     .files
@@ -116,8 +118,16 @@ impl Unlocker<'_> {
                 self.paint("yellow", device)
             ),
         );
-        let waited = self.wait_for(self.token_wait(), &message, || self.have_fido2_device());
-        if waited != Wait::Present {
+        let request = WaitRequest {
+            volume: VolumeRef {
+                name: target.name,
+                device,
+            },
+            awaited: Awaited::SecurityKey,
+            seconds: self.token_wait(),
+            present: &|| self.have_fido2_device(),
+        };
+        if self.await_device(&request, &message) != Wait::Present {
             zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
             return Err(failed(TokenFailure::NoDevice));
         }
@@ -125,8 +135,11 @@ impl Unlocker<'_> {
             "Unlock {} with a FIDO2 security key\n",
             self.paint("yellow", device)
         );
-        self.say("\n");
-        self.say(&self.paint("cyan", &heading));
+        let plain = format!("Unlock {device} with a FIDO2 security key");
+        self.tell_with(Told::Working, &plain, || {
+            self.say("\n");
+            self.say(&self.paint("cyan", &heading));
+        });
         if self.have_token_plugin("systemd-fido2") {
             self.fido2_plugin_open(target, id, token).map_err(failed)?;
         } else {
@@ -160,7 +173,8 @@ impl Unlocker<'_> {
         let touch = token.flag("fido2-up-required") != Some(false);
         let touch_message = || {
             if touch {
-                self.say(&self.paint("yellow", "Touch the security key when it blinks.\n"));
+                let text = "Touch the security key when it blinks.\n";
+                self.tell(Told::Touch, Some("yellow"), text);
             }
         };
         if token.flag("fido2-clientPin-required") != Some(true) {
@@ -169,16 +183,31 @@ impl Unlocker<'_> {
                 .open_token_plugin(target, id, None)
                 .map_err(|_| TokenFailure::NotReleased);
         }
-        for _ in 0..3 {
-            let pin = self
-                .read_secret("Security key PIN (leave empty to use another method): ")
+        for attempt in 1..=FIDO2_TRIES {
+            let request = SecretRequest {
+                volume: VolumeRef {
+                    name: target.name,
+                    device: target.device,
+                },
+                kind: SecretKind::Fido2Pin,
+                attempt,
+                tries: Some(FIDO2_TRIES),
+                opened_elsewhere: None,
+            };
+            let asked = self.ask(&request, || {
+                self.read_secret("Security key PIN (leave empty to use another method): ")
+                    .into()
+            });
+            let pin = asked
+                .secret()
                 .filter(|pin| !pin.is_empty())
                 .ok_or(TokenFailure::NoPin)?;
             touch_message();
             if self.open_token_plugin(target, id, Some(&pin)).is_ok() {
                 return Ok(());
             }
-            self.say(&self.paint("red", "The security key did not release the key.\n"));
+            let refused = "The security key did not release the key.\n";
+            self.tell(Told::Refused, Some("red"), refused);
         }
         Err(TokenFailure::TooManyTries)
     }

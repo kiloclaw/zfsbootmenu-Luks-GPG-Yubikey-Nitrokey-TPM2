@@ -25,10 +25,14 @@
 pub mod autosize;
 pub mod console;
 pub mod error;
+pub mod front;
 pub mod preinit;
 pub mod program;
 pub mod shell;
 pub mod stages;
 pub mod step;
+
+#[cfg(test)]
+mod testing;
 
 pub use error::StartupError;

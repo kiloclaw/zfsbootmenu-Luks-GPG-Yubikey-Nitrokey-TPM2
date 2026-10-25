@@ -157,12 +157,29 @@ pub fn early_stage_in(
     hook_root: &str,
     skip: Option<&str>,
 ) {
+    prepare_early_stage(system, state, root, hook_root, skip);
+    run_early_stage(system, root);
+}
+
+/// What comes before the `early-setup.d` hooks below `root` run: the hooks
+/// of `zbm.hookroot` are imported, and those of `zbm.skip_hooks` skipped.
+pub fn prepare_early_stage(
+    system: &System<'_>,
+    state: &State<'_>,
+    root: &Path,
+    hook_root: &str,
+    skip: Option<&str>,
+) {
     if !hook_root.is_empty() {
         let _ = import_hooks(system, state, root, hook_root);
     }
     if let Some(skip) = skip {
         skip_hooks(system.files, root, skip);
     }
+}
+
+/// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
+pub fn run_early_stage(system: &System<'_>, root: &Path) {
     tput(system, &["clear"]);
     run_stage(system, root, HookStage::EarlySetup, true, &[]);
 }

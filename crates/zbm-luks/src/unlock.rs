@@ -10,13 +10,14 @@ use std::time::Duration;
 use zbm_platform::console::Timed;
 use zbm_tools::devices::Devices;
 
+use crate::ask::{Asked, SecretKind, SecretRequest, Told, VolumeRef};
 use crate::config::Options;
 use crate::device::{
     canonical, describe_device, is_block_device, is_open, mapping_name, resolve_device,
 };
 use crate::error::LuksError;
 use crate::mappings::Origin;
-use crate::unlocker::{Answer, Key, PromptRequest, Unlocker};
+use crate::unlocker::{Answer, Key, PromptRequest, Subject, Unlocker};
 
 /// The key method that opened a volume.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -147,21 +148,30 @@ impl Unlocker<'_> {
         origin: Origin,
     ) -> Result<Opened, LuksError> {
         let description = describe_device(self.system(), device);
+        let volume = VolumeRef { name, device };
         let mut prompt = PassphrasePrompt::new(options.tries);
         let mut next = prompt.start();
         loop {
             next = match next {
                 Next::Ask { attempt } => {
-                    self.show_passphrase_prompt(&description, attempt);
-                    let passphrase = match self.read_passphrase(device)? {
-                        Read::Passphrase(passphrase) => passphrase,
-                        Read::Elsewhere => return Ok(Opened::Elsewhere),
+                    let asked = self.passphrase(volume, &description, attempt, options.tries);
+                    let passphrase = match asked {
+                        Asked::Secret(passphrase) => passphrase,
+                        Asked::Elsewhere => {
+                            zbm_trace::info!("{device} was unlocked elsewhere");
+                            return Ok(Opened::Elsewhere);
+                        }
+                        Asked::Ended => {
+                            return Err(LuksError::NoConsole {
+                                device: device.to_owned(),
+                            });
+                        }
                     };
                     if passphrase.is_empty() {
                         zbm_trace::info!("skipping LUKS volume {device} at user request");
                         return Err(self.skipped(device));
                     }
-                    self.say(&format!("Unlocking {device} ...\n"));
+                    self.tell(Told::Working, None, &format!("Unlocking {device} ...\n"));
                     if self
                         .cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args)
                         .is_ok()
@@ -178,13 +188,37 @@ impl Unlocker<'_> {
                     zbm_trace::warn!("failed to unlock {device} (attempt {attempt})");
                     prompt.failed()
                 }
-                Next::AskRetry => prompt.retry(self.ask_retry(&description)),
+                Next::AskRetry => prompt.retry(self.ask_retry(volume, &description)),
                 Next::GiveUp => {
                     zbm_trace::warn!("giving up on LUKS volume {device}");
                     return Err(self.skipped(device));
                 }
             };
         }
+    }
+
+    /// Asks for the passphrase of `volume`, attempt `attempt` of `tries` (0:
+    /// without limit); on the console, at `description`.
+    fn passphrase(
+        &self,
+        volume: VolumeRef<'_>,
+        description: &str,
+        attempt: u64,
+        tries: u64,
+    ) -> Asked {
+        let device = volume.device;
+        let elsewhere = || self.is_device_open(device);
+        let request = SecretRequest {
+            volume,
+            kind: SecretKind::Passphrase,
+            attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
+            tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),
+            opened_elsewhere: Some(&elsewhere),
+        };
+        self.ask(&request, || {
+            self.show_passphrase_prompt(description, attempt);
+            self.read_passphrase(device)
+        })
     }
 
     /// Draws the prompt for attempt `attempt` at `description`.
@@ -200,41 +234,36 @@ impl Unlocker<'_> {
         self.say("Passphrase (leave empty to skip): ");
     }
 
-    /// Reads a passphrase, noticing when `device` is opened elsewhere
-    /// meanwhile; echo is on again afterwards.
-    ///
-    /// # Errors
-    ///
-    /// [`LuksError::NoConsole`] when the console has no more input.
-    fn read_passphrase(&self, device: &str) -> Result<Read, LuksError> {
+    /// Reads a passphrase on the console, noticing when `device` is opened
+    /// elsewhere meanwhile; echo is on again afterwards. [`Asked::Ended`]
+    /// when the console has no more input.
+    fn read_passphrase(&self, device: &str) -> Asked {
         let console = self.system().console;
         let read = loop {
             match console.read_secret_within(Duration::from_secs(2)) {
-                Ok(Timed::Read(passphrase)) => break Ok(Read::Passphrase(passphrase)),
-                Ok(Timed::TimedOut) if self.is_device_open(device) => {
-                    zbm_trace::info!("{device} was unlocked elsewhere");
-                    break Ok(Read::Elsewhere);
-                }
+                Ok(Timed::Read(passphrase)) => break Asked::Secret(passphrase),
+                Ok(Timed::TimedOut) if self.is_device_open(device) => break Asked::Elsewhere,
                 Ok(Timed::TimedOut) => {}
-                Ok(Timed::Ended) | Err(_) => {
-                    // Nothing more can be done interactively.
-                    break Err(LuksError::NoConsole {
-                        device: device.to_owned(),
-                    });
-                }
+                // Nothing more can be done interactively.
+                Ok(Timed::Ended) | Err(_) => break Asked::Ended,
             }
         };
         console.set_echo(true);
         self.say("\n");
-        if read.is_err() {
+        if matches!(read, Asked::Ended) {
             zbm_trace::warn!("no console available to unlock {device}");
         }
         read
     }
 
-    /// Asks whether to try `description` again after a failed round.
-    fn ask_retry(&self, description: &str) -> Answer {
+    /// Asks whether to try `volume`, at `description`, again after a failed
+    /// round.
+    fn ask_retry(&self, volume: VolumeRef<'_>, description: &str) -> Answer {
         let request = PromptRequest {
+            subject: Subject::Retry {
+                name: volume.name.to_owned(),
+                device: volume.device.to_owned(),
+            },
             delay: None,
             message: format!("Unable to unlock LUKS volume {description}"),
             on_return: "try again".to_owned(),
@@ -275,6 +304,7 @@ impl Unlocker<'_> {
                 delay => delay.to_owned(),
             };
             let request = PromptRequest {
+                subject: Subject::Missing(spec.to_owned()),
                 delay: Some(delay),
                 message: format!("LUKS device {spec} is missing"),
                 on_return: "retry now".to_owned(),
@@ -333,13 +363,6 @@ pub mod prompt;
 use methods::{Tried, Volume, key_methods};
 use prompt::{Next, PassphrasePrompt};
 
-/// What reading a passphrase got.
-enum Read {
-    /// A passphrase; empty skips the volume.
-    Passphrase(zbm_platform::Secret),
-    /// Nothing: another program opened the volume meanwhile.
-    Elsewhere,
-}
 /// Logs the messages of a configuration step.
 fn log_all(messages: &[zbm_trace::Message]) {
     for message in messages {

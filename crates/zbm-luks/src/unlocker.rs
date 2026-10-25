@@ -23,6 +23,7 @@ use zbm_platform::{Environment, System};
 use zbm_tools::{Shown, terminal, udev};
 pub use zbm_types::Answer;
 
+use crate::ask::{Asked, SecretRequest, Tell, Told, WaitRequest};
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
 use crate::error::LuksError;
@@ -128,10 +129,28 @@ impl Settings {
     }
 }
 
+/// What a timed prompt of the LUKS code is about.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Subject {
+    /// A round of passphrases did not open a volume: RETURN tries again,
+    /// ESCAPE skips it.
+    Retry {
+        /// The name of its mapping.
+        name: String,
+        /// Its device.
+        device: String,
+    },
+    /// A device of the configuration is missing: RETURN looks again,
+    /// ESCAPE skips it.
+    Missing(String),
+}
+
 /// A timed prompt of the LUKS code: a message, what RETURN and ESCAPE do,
 /// and the countdown "Retrying in NN seconds".
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PromptRequest {
+    /// What it is about, for a front end that shows it otherwise.
+    pub subject: Subject,
     /// `-d`: the delay, as the legacy code passes it; `None` for the default.
     pub delay: Option<String>,
     /// `-m`: the message, shown in red.
@@ -164,12 +183,34 @@ impl PromptRequest {
     }
 }
 
-/// Shows timed prompts. The start-up program draws them on the console, with
-/// a countdown; the unit suites record and answer them.
+/// What the LUKS code asks of the person at the console (see
+/// [`crate::ask`]). The start-up program answers on the console or with the
+/// menu's dialogs; the unit suites record and answer the timed prompts.
+/// Every request but the timed prompt comes with the plain console prompt
+/// as a closure, which the defaults run.
 pub trait Prompter {
     /// Shows the prompt and returns what the user did: RETURN or letting the
     /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
     fn timed_prompt(&self, request: &PromptRequest) -> Answer;
+
+    /// Asks for a secret; `console` asks on the plain console.
+    fn ask_secret(
+        &self,
+        _request: &SecretRequest<'_>,
+        console: &mut dyn FnMut() -> Asked,
+    ) -> Asked {
+        console()
+    }
+
+    /// Waits for a device; `console` waits on the plain console.
+    fn wait(&self, _request: &WaitRequest<'_>, console: &mut dyn FnMut() -> Wait) -> Wait {
+        console()
+    }
+
+    /// Says something along the way; `console` says it on the plain console.
+    fn tell(&self, _tell: Tell<'_>, console: &mut dyn FnMut()) {
+        console();
+    }
 }
 
 /// How [`Unlocker::wait_for`] ended.
@@ -334,8 +375,40 @@ impl<'a> Unlocker<'a> {
         self.luks.prompter.timed_prompt(request)
     }
 
-    /// Asks for a secret with echo off; `None` when the input ends. Echo goes
-    /// off before the prompt appears, so no keystroke can echo.
+    /// Asks for a secret through the prompter; `console` is the plain
+    /// console prompt.
+    pub fn ask(&self, request: &SecretRequest<'_>, mut console: impl FnMut() -> Asked) -> Asked {
+        self.luks.prompter.ask_secret(request, &mut console)
+    }
+
+    /// Waits for a device through the prompter; on the plain console, with
+    /// `message` ([`Unlocker::wait_for`]).
+    pub fn await_device(&self, request: &WaitRequest<'_>, message: &str) -> Wait {
+        let present = request.present;
+        let mut console = || self.wait_for(request.seconds, message, present);
+        self.luks.prompter.wait(request, &mut console)
+    }
+
+    /// Says `text` (a line, with its newline) through the prompter; on the
+    /// plain console, in `color` when given.
+    pub fn tell(&self, told: Told, color: Option<&str>, text: &str) {
+        let shown = color.map_or_else(|| text.to_owned(), |color| self.paint(color, text));
+        self.tell_with(told, text, || self.say(&shown));
+    }
+
+    /// Says `text` through the prompter; `console` says it on the plain
+    /// console.
+    pub fn tell_with(&self, told: Told, text: &str, mut console: impl FnMut()) {
+        let tell = Tell {
+            told,
+            text: text.trim_end_matches('\n'),
+        };
+        self.luks.prompter.tell(tell, &mut console);
+    }
+
+    /// Asks for a secret on the console with echo off; `None` when the input
+    /// ends. Echo goes off before the prompt appears, so no keystroke can
+    /// echo.
     pub fn read_secret(&self, prompt: &str) -> Option<Secret> {
         let console = self.system().console;
         console.set_echo(false);
@@ -363,9 +436,9 @@ impl<'a> Unlocker<'a> {
         self.options().enabled(&LUKS_TOKENS, &mut Vec::new())
     }
 
-    /// Waits up to `seconds` for `present` to hold, showing `message`, unless
-    /// the user presses a key.
-    pub fn wait_for(&self, seconds: u64, message: &str, mut present: impl FnMut() -> bool) -> Wait {
+    /// Waits on the console up to `seconds` for `present` to hold, showing
+    /// `message`, unless the user presses a key.
+    pub fn wait_for(&self, seconds: u64, message: &str, present: &dyn Fn() -> bool) -> Wait {
         if present() {
             return Wait::Present;
         }

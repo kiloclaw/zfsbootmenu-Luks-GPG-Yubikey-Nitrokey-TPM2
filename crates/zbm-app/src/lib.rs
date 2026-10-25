@@ -106,18 +106,6 @@ impl std::fmt::Display for Event {
     }
 }
 
-/// Where events go: a front end that shows them, or a list.
-pub trait Sink {
-    /// Receives `event`.
-    fn send(&mut self, event: model::Event);
-}
-
-impl Sink for Vec<model::Event> {
-    fn send(&mut self, event: model::Event) {
-        self.push(event);
-    }
-}
-
 /// Why the machine could not be read.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
