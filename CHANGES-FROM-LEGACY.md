@@ -4,6 +4,42 @@ What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=r
 Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
 [REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md); step 7 completes it as the migration guide for the switch.
 
+## Start-up (R5 step 4)
+
+Start-up runs on the menu's start-up view when the image has the menu and the terminal can run it (`TERM` set, and not
+`dumb`); otherwise it keeps the console of the legacy program, prompts included. `zluks` in the recovery shell and
+over SSH is unchanged.
+
+### Start-up shows its stages
+
+- **Before:** the stages' messages and the output of the programs they run scrolled by on the console.
+- **Now:** the start-up view lists the stages, the one running and the ones done, and what takes a while
+  (`Unlocking /dev/sda2 ...`) below them. What the stages' programs print goes to the log (`zlogtail`, saved logs,
+  `zbm report`) instead of the screen. `early-setup.d` hooks and the recovery shell get the console as before; the view
+  comes back after them.
+- **Why:** start-up and the menu are one screen, and a dialog can ask without the text of other programs around it.
+
+### Unlocking asks in a dialog
+
+- **Before:** console prompts, such as `Passphrase (leave empty to skip):`, `TPM2 PIN (leave empty to use another
+  method):` and `Key file passphrase (leave empty to use another method):`, with what went wrong in red lines above
+  them, and `Insert the key device ...` while waiting for a key device.
+- **Now:** the unlock dialog of the volume, which names its device, the tries left and what went wrong last (a wrong
+  passphrase, a TPM that locked itself against PIN guessing), and the keyboard layout. Enter with nothing typed skips
+  the volume's passphrase or moves on from a PIN, as before; Escape does the same; Ctrl-R shows what is typed. While a key device or security key is awaited, the dialog shows the
+  seconds left: Enter looks again at once, Escape stops waiting.
+- **Why:** the dialog says which volume asks, and why it asks again, where the console said it in lines that scrolled.
+
+### The timed prompts are questions
+
+- **Before:** red lines that counted down, with RETURN and ESCAPE: `Unable to import <pool>, retrying in <n>
+  seconds`, `LUKS device <device> is missing`, `One or more required devices are missing`, and the warning about
+  unsupported pool features.
+- **Now:** questions with a title, what happened, the countdown and two buttons: Enter does what RETURN did (try or
+  look again, go on), Escape what ESCAPE did (the recovery shell, skip, stop waiting). They go on by themselves after
+  the same delays, `zbm.retry_delay` included.
+- **Why:** the choice and its time limit are on the screen, not in the help.
+
 ## The menu (R5 step 3)
 
 The `fzf` menu is replaced by the new menu, designed in [docs/dev/menu-design](docs/dev/menu-design/README.md). It

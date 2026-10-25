@@ -133,6 +133,18 @@ shell's tools (`logs`, `zsnapshots`, the help pages) until they are ported. The 
 refactoring pilots (`zbm-menu-pilot`) is gone; the menu replaces it. `CHANGES-FROM-LEGACY.md` lists what behaves
 differently from the legacy menu, and why.
 
+### Start-up in the new menu
+
+In Rust images, start-up now runs on the new menu's start-up view, when the terminal can run the menu: the stages
+show as they run, and what they ask is asked in the menu's dialogs instead of console prompts. The unlock dialog asks
+for the passphrase, TPM2 PIN or GnuPG passphrase of a LUKS volume, names its device, the tries left and what went
+wrong last, and waits for a key device or security key with the seconds left; the import retries, missing devices and
+unsupported pool features are questions that go on by themselves after the same delays as the console prompts. LUKS
+volumes are unlocked in the start-up program, which reads the keys typed into buffers it wipes, so that no copy of a
+passphrase stays in its memory. What the stages' programs print goes to the log rather than the screen; hooks and the
+recovery shell still get the console. On a terminal that cannot run the menu, start-up keeps the console prompts.
+`CHANGES-FROM-LEGACY.md` lists what changes.
+
 ### The new menu's text in a message catalogue
 
 Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,

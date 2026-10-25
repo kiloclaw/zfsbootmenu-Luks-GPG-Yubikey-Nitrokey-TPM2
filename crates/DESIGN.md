@@ -50,7 +50,7 @@ A boot runs these processes:
 PID 1   zbm, as zfsbootmenu-init --supervise   the supervisor: never exits, reaps every child
 └── zfsbootmenu-init                           start-up sequence, countdown, automatic boot
     ├── early-setup.d, setup.d, ... hooks      shell scripts, unchanged
-    ├── zluks unlock                           LUKS unlocking, in its own process
+    ├── zluks unlock                           LUKS unlocking without the menu, in its own process
     ├── zfsbootmenu                            the menu (also started over SSH or from the recovery shell)
     │   └── fzf                                draws a screen
     │       └── zfsbootmenu-preview, -help,    started by fzf for previews and key bindings
@@ -175,7 +175,7 @@ The runtime keeps the legacy process structure, for three reasons:
 | Start-up | `zfsbootmenu-init` | The start-up sequence, the countdown and the automatic boot, then the loop of menu and recovery shell, as in `libexec/zfsbootmenu-init`. Its modes are described below. |
 | Menu | `zfsbootmenu` | The menu loop of `bin/zfsbootmenu`. Holds `/zfsbootmenu/active`. |
 | `fzf` callbacks | `zfsbootmenu-preview`, `zfsbootmenu-help`, `zfsbootmenu-diff`, `zlogtail`, `ztrace`, `zfunc` | Short-lived; read the configuration, the state directory and ZFS, draw or act, and exit. |
-| LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. The start-up program runs it as its own process, so that passphrases leave memory when it ends, as the legacy subshell in `init.d/45-luks-unlock` ensures. |
+| LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, so that passphrases leave memory when it ends, as the legacy subshell in `init.d/45-luks-unlock` ensures. On the menu's start-up view, the start-up program unlocks itself, asking in the view's dialogs (below, and [Secrets](#secrets)). |
 | Recovery shell | `bash -i` | Unchanged. The recovery commands it offers are applets. |
 
 #### Modes of the start-up program
@@ -189,6 +189,16 @@ The runtime keeps the legacy process structure, for three reasons:
 - **Stages only** (`ZFSBOOTMENU_CONSOLE` not set): run the stages that have not run and exit. `zfsbootmenu` starts it
   this way when it finds no `initialized` marker.
 - **Forced** (`ZFSBOOTMENU_FORCE_INIT` set to yes, y, true, t or 1, in any case): run every stage again.
+
+On the console, the stages run on the menu's start-up view when the image has the menu (`/bin/zfsbootmenu`) and the
+terminal can run it (`TERM` set, and not `dumb`), except after `--resume` (REFACTOR-ROADMAP.md, R5 step 4). The view
+shows the stages as they run, and its dialogs answer what they ask: the secrets and devices of LUKS volumes (the
+`Prompter` of `zbm-luks`), the retries of the import (the `Operator` of `zbm-pool`) and the devices `zbm.wait_for`
+names, with the timeouts of the console prompts. LUKS volumes are unlocked in the start-up program, not by
+`zluks unlock`. The stages' programs run off the console, what they print going to the log
+(`zbm_platform::QuietRunner`); `early-setup.d` hooks and the recovery shell get the console, which the view hands
+over and takes back. The view closes before the countdown, which the menu shows. Otherwise, the stages run on the
+plain console, as in the legacy program (`zbm_startup::front::ConsoleFront`).
 
 The legacy script runs each executable file in `/libexec/init.d` and then removes its permissions, so a stage runs
 once unless forced. The Rust image has no such files; the stages that have finished are listed in
@@ -490,11 +500,16 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   authorization value goes to it as `hex:<value>`.
 - **Out of a program,** a secret is captured from standard output into a `Secret` (`Stream::CaptureSecret`), for
   example the output of `gpg --decrypt`, `tpm2_unseal`, `fido2-assert`, `ykchalresp` and `clevis decrypt`.
-- **From the user,** a secret is read from the console with echo off, directly into a `Secret`.
+- **From the user,** a secret is read from the console with echo off, directly into a `Secret`. In the start-up
+  view, the unlock dialog types it into a `Secret`. The view reads the terminal itself (`zbm_tui::menu::term_keys`)
+  rather than through the terminal library's event reader, which keeps the last bytes it read in a buffer of its
+  own, and wipes the bytes and the keys it decoded. The menu still reads keys through the library, as it asks for no
+  secret yet; it moves to the same reader before it does (R5 step 6, LUKS volumes from the menu).
 - **Derived values** (the SHA-256 authorization value of a TPM2 PIN, systemd's PBKDF2-salted PIN) are computed in the
   process instead of by `sha256sum` and `openssl`.
-- **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end; the run is a
-  process of its own, so nothing remains in the memory of the start-up program.
+- **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end. On the plain
+  console the run is a process of its own (`zluks unlock`); on the start-up view it runs in the start-up program,
+  where the dropped secrets are wiped (decision 11).
 - **Before `kexec`,** which leaves memory as it is, the start-up program drops the clean page cache (key files read
   from key devices) and warns if it still holds a secret (`zbm_boot::boot::wipe_before_kexec`). With `init_on_free=1`
   on its command line, the kernel zeroes every page it frees, so what ended processes and closed pipes left behind is
@@ -625,7 +640,7 @@ These choices shape the later phases and are the points to review:
 3. **Every applet reads `/etc/zfsbootmenu.conf` itself,** like the legacy scripts, so a menu started over SSH works
    as one started on the console.
 4. **Applets keep the legacy names, arguments and subcommands,** so `fzf` bindings, documentation and habits stay
-   valid; LUKS unlocking at start-up is `zluks unlock`.
+   valid; LUKS unlocking at start-up is `zluks unlock` on the plain console (decision 11).
 5. **The compatibility library covers every function** of the three legacy libraries, checked by a test.
 6. **Secrets never touch files the runtime creates,** which is stricter than the legacy code but invisible to users.
 7. **The LUKS unit suites drive the Rust code through a test build of `zbm`** with the same seams as the legacy
@@ -635,3 +650,9 @@ These choices shape the later phases and are the points to review:
 9. **Kernels follow the version order of GNU coreutils,** where the legacy images disagree with each other.
 10. **No third-party crates in the runtime** so far: SHA-256 and PBKDF2 for the TPM2 PIN are small enough to write and
     test against `sha256sum` and `openssl kdf`, and wiping memory uses the C library's `explicit_bzero`.
+11. **On the menu's start-up view, the start-up program unlocks LUKS volumes itself** (R5 step 4), where it ran
+    `zluks unlock` as a process of its own so that secrets left memory when it ended. The secrets are typed into the
+    view's dialogs, in the start-up program, and a second process would need a second terminal program or a protocol
+    for every dialog. They stay in `Secret`s, which are wiped when the unlocking run drops them, and the view reads
+    keys into buffers it wipes (see [Secrets](#secrets)), so the start-up program holds no copy afterwards; the VM
+    test `secrets-passphrase` searches its memory before `kexec`. The plain console keeps `zluks unlock`.

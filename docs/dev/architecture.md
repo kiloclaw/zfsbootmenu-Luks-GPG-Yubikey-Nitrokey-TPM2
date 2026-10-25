@@ -108,16 +108,18 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `zbm-kcl` handles the kernel command lines stored on boot environments.
 - **application**: `zbm-app` is what front ends talk to: they read the `model::Snapshot` of the machine
   (`App::snapshot`), send a `model::Action` to `App::act`, and get `model::Event`s back, the last of them the
-  outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`; a `Sink` receives the
-  events of start-up's stages.
+  outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
+  end answers through the `Prompter` it passes.
 - **orchestration**: `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, and the prompts and recovery
   contract (`Recovery`) the start-up stages use; pool import runs through `zbm-pool`, with these prompts as its
   `Operator`. `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host ID,
   device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an earlier
-  run finished and sends their events; the recovery shell; and the start-up hooks (`preinit`). `generate-zbm`
+  run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the plain
+  console (`ConsoleFront`) or the menu's start-up view; the recovery shell; and the start-up hooks (`preinit`). `generate-zbm`
   assembles images.
 - **front ends**: `zbm` dispatches applets by the name it was called with; `zfsbootmenu-init` runs `zbm-startup`,
-  and `zluks` performs its actions through `zbm-app`. No front end uses an adapter crate (`check-deps`,
+  on the menu's start-up view (`zbm::startup::MenuFront` over `zbm_tui::menu::startup`) when the terminal can run
+  the menu, and `zluks` performs its actions through `zbm-app`. No front end uses an adapter crate (`check-deps`,
   `NOT_THROUGH`). `zbm-tui` is the new menu in the Elm
   architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
   placeholder it replaces.

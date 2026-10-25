@@ -47,7 +47,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 | In progress | Steps 1 to 3 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view |
+| R5 | In progress | Steps 1 to 3 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view. Step 4, start-up in the menu, is built and waits for its VM run |
 | R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -56,7 +56,7 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 ### Next
 
 - **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 4, start-up
-  inside the menu, is next.
+  inside the menu, is built and waits for its VM run; step 5 is next.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -854,8 +854,16 @@ builds after the core tasks.
    tools until R5 step 6 and R6 port them; the start-up view shows the stages, done, until step 4 runs them inside
    the menu. The images of `910ce63` pass every VM test on the Rust runtime (the `runtime`, `complex`, `keys`,
    `secrets`, `layouts` and `firmware` groups; the harness fixes after them change no image).
-4. **Start-up inside the menu**: the `Prompter` and `Operator` answered by dialogs, with the plain console
-   fallback.
+4. **Start-up inside the menu** (built; waits for its VM run): with the menu in the image and a terminal that can
+   run it, `zfsbootmenu-init --console` runs the stages on the start-up view (`zbm::startup::MenuFront`, a
+   `zbm_startup::front::Front`), and its dialogs answer the `Prompter` of `zbm-luks` (secrets, waits for devices, the
+   timed prompts), the `Operator` of `zbm-pool` (import retries, unsupported features) and the `zbm.wait_for` wait.
+   LUKS volumes are unlocked in the start-up program (decision 11 of `crates/DESIGN.md`), and the view reads keys
+   into buffers it wipes (`zbm_tui::menu::term_keys`), as a pty run found the terminal library's reader keeping a
+   typed passphrase in memory. The stages' programs run off the console (`QuietRunner`); hooks and the recovery
+   shell get it. Without the menu or such a terminal, the plain console of R3 remains, unchanged, so the LUKS unit
+   suites and `zluks` see no difference. The VM harness answers the dialogs (`zbm_vmtest::boot::dialogs`) as it
+   answers the console prompts, so the same tests run on both runtimes.
 5. **Snapshots and package D**: diff, clone, rollback and set default, and the command palette.
 6. **The rest of the menu**: kernels and the command line editor, pools and LUKS volumes from the menu, recovery
    tools, help, power.

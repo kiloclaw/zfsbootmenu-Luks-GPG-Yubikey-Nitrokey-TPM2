@@ -199,7 +199,12 @@ Images and boot environment
 
 Following a boot
   The harness answers prompts (LUKS passphrases, ZFS keys, TPM2 PINs, GnuPG passphrases) and records them, so tests
-  check exactly which prompts appeared. It hot-plugs disks and USB sticks through the QEMU monitor.
+  check exactly which prompts appeared. It hot-plugs disks and USB sticks through the QEMU monitor. Rust images ask at
+  start-up in the dialogs of the menu's start-up view rather than on the console; the harness answers them as it
+  answers the console prompts, so a test checks the same prompts on both runtimes. It finds a dialog on the screen
+  (its field still empty, for the unlock dialog), notes the screen once it has settled, types the answer and waits
+  for the screen to change before it looks for the next prompt (``zbm_vmtest::boot::dialogs``). What a dialog said,
+  such as the TPM lockout, is recorded with it.
 
 ``layouts``: main vdev layouts
   Pools are created in ZFSBootMenu's recovery shell with ``compatibility=openzfs-2.4-linux`` (except one), data is
@@ -243,8 +248,8 @@ Following a boot
     and every pool imported; the key can be loaded there.
   * ``complex-skip-recover``: every passphrase prompt skipped; only the mirrors with unencrypted halves import
     (``DEGRADED``), so ZFSBootMenu finds no boot environment and opens its emergency shell; ``zluks unlock`` opens the
-    volumes there, and after the shell ZFSBootMenu imports ``tank`` and boots it from its menu. The Rust runtime, which
-    has no menu yet, imports ``tank`` and opens the shell again instead.
+    volumes there, and after the shell ZFSBootMenu imports ``tank`` and boots it from its menu. The menu of the Rust
+    runtime says it found no boot environment instead of opening the shell, and the test opens the shell from it.
   * ``complex-oldzfs``: an image with an older ZFS unlocks the volumes and imports the pools without unsupported
     active features, but not the RAIDZ2 pool with ``raidz_expansion`` active, so it boots nothing; ``zpool import``
     names the unsupported feature.
@@ -366,12 +371,12 @@ Following a boot
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
   passphrase and a key file, both unlike anything else in memory, and the pool ``tsecret`` on it. The other two boot a
   Rust image built with the ``secret-test`` feature, with ``init_on_free=1`` and ``zbm.luks=UUID=``: ``passphrase``
-  types the passphrase at the prompt; ``keyfile`` names the key file on a FAT USB stick (``zbm.luks_key``), and no
-  prompt may appear. A teardown hook runs just before ``kexec``: ``zbm debug secrets`` searches the memory of every
-  other process, their command lines and environments, and every file on the file systems in memory, for both
-  secrets, given in hexadecimal. It must search and find nothing, and the kernel must say that it zeroes freed memory
-  (``heap free:on``). The test notes how the image's kernel lets secrets be kept (``Secret`` with ``memfd_secret``,
-  else ``Locked``).
+  types the passphrase into the unlock dialog of the start-up view, which reads keys into buffers it wipes; ``keyfile``
+  names the key file on a FAT USB stick (``zbm.luks_key``), and no prompt may appear. A teardown hook runs just before
+  ``kexec``: ``zbm debug secrets`` searches the memory of every other process, their command lines and environments, and
+  every file on the file systems in memory, for both secrets, given in hexadecimal. It must search and find nothing, and
+  the kernel must say that it zeroes freed memory (``heap free:on``). The test notes how the image's kernel lets secrets
+  be kept (``Secret`` with ``memfd_secret``, else ``Locked``).
 
 * ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
   FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The
