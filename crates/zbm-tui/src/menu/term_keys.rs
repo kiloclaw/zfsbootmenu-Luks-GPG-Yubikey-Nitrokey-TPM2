@@ -13,7 +13,7 @@
 use std::fs::File;
 use std::io::{self, Read as _};
 use std::os::fd::{AsFd as _, AsRawFd as _};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::crossterm::terminal;
@@ -26,9 +26,15 @@ const ESCAPE: u8 = 0x1b;
 /// How much is read at once.
 const BUFFER: usize = 256;
 
-/// How long the rest of a key's sequence may take to come after its
-/// beginning; without it, `ESC` alone is the Escape key.
-const ESCAPE_WAIT: Duration = Duration::from_millis(25);
+/// How long the rest of a key's sequence may take to come after its last
+/// byte on a virtual console, where the kernel writes the bytes of a key at
+/// once; then `ESC` alone is the Escape key.
+pub const CONSOLE_ESCAPE_WAIT: Duration = Duration::from_millis(25);
+
+/// The same on other terminals, such as a serial console reached through
+/// the network, which may deliver a sequence in pieces. An arrow key read
+/// as Escape there would skip the volume of an unlock dialog.
+pub const SERIAL_ESCAPE_WAIT: Duration = Duration::from_millis(100);
 
 /// A key press decoded, or `None` for bytes that name no key, and how many
 /// bytes it took.
@@ -244,30 +250,67 @@ pub struct TerminalKeys {
     /// The keys decoded, and the next one to give.
     keys: Vec<KeyEvent>,
     next: usize,
+    /// How long the rest of a sequence may take
+    /// ([`CONSOLE_ESCAPE_WAIT`], [`SERIAL_ESCAPE_WAIT`]).
+    escape_wait: Duration,
+    /// When the last bytes came.
+    last_read: Option<Instant>,
 }
 
 impl TerminalKeys {
-    /// The keys of the terminal, which goes into raw mode.
+    /// The keys of the terminal, which goes into raw mode; the rest of a
+    /// key's sequence may take `escape_wait` to come.
     ///
     /// # Errors
     ///
     /// When standard input cannot be used, or raw mode set.
-    pub fn new() -> io::Result<TerminalKeys> {
+    pub fn new(escape_wait: Duration) -> io::Result<TerminalKeys> {
         let input = File::from(io::stdin().as_fd().try_clone_to_owned()?);
-        let mut keys = TerminalKeys::on(input);
+        let mut keys = TerminalKeys::on(input, escape_wait);
         keys.take()?;
         Ok(keys)
     }
 
     /// The keys read from `input`, whose mode this leaves alone.
-    pub fn on(input: File) -> TerminalKeys {
+    pub fn on(input: File, escape_wait: Duration) -> TerminalKeys {
         TerminalKeys {
             input,
             raw: false,
             pending: Vec::with_capacity(2 * BUFFER),
             keys: Vec::new(),
             next: 0,
+            escape_wait,
+            last_read: None,
         }
+    }
+
+    /// Reads and decodes what comes within `timeout`. The start of a
+    /// sequence is decoded alone, as the Escape key, only once nothing more
+    /// came for the escape wait, however short `timeout` is.
+    ///
+    /// # Errors
+    ///
+    /// When the input cannot be read, or ended.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the key reader is the terminal's adapter; gaps between bytes are wall-clock time"
+    )]
+    fn fill(&mut self, timeout: Duration) -> io::Result<()> {
+        let since = self.last_read.map(|at| at.elapsed());
+        let wait = match since {
+            Some(since) if !self.pending.is_empty() => {
+                self.escape_wait.saturating_sub(since).min(timeout)
+            }
+            _ => timeout,
+        };
+        if self.read(wait)? {
+            self.last_read = Some(Instant::now());
+        }
+        let waited = self
+            .last_read
+            .is_none_or(|at| at.elapsed() >= self.escape_wait);
+        self.decode(waited);
+        Ok(())
     }
 
     /// Reads what came within `timeout`: whether anything did.
@@ -312,6 +355,7 @@ impl TerminalKeys {
     fn forget_all(&mut self) {
         self.forget();
         zbm_sys::wipe_vec(&mut self.pending);
+        self.last_read = None;
     }
 }
 
@@ -320,14 +364,7 @@ impl Keys for TerminalKeys {
     fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
         if self.next >= self.keys.len() {
             self.forget();
-            let wait = if self.pending.is_empty() {
-                timeout
-            } else {
-                ESCAPE_WAIT.min(timeout)
-            };
-            let more = self.read(wait)?;
-            // Without more, a sequence that is not whole is all that comes.
-            self.decode(!more);
+            self.fill(timeout)?;
         }
         let key = self.keys.get(self.next).copied();
         if key.is_some() {
@@ -350,6 +387,13 @@ impl Keys for TerminalKeys {
         terminal::enable_raw_mode()?;
         self.raw = true;
         Ok(())
+    }
+
+    /// The terminal's size, as the kernel knows it: what `stty` set on a
+    /// serial console, the font's grid on a virtual console.
+    fn size(&mut self) -> Option<(u16, u16)> {
+        let size = terminal::window_size().ok()?;
+        Some((size.columns, size.rows))
     }
 }
 

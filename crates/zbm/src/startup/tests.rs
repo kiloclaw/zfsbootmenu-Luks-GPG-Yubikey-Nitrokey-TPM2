@@ -337,3 +337,11 @@ fn start_up_keeps_the_plain_console_without_a_terminal_or_a_menu() {
     assert_eq!(run_in_menu(&startup, fake.system(), &conf(), modes), None);
     assert!(fake.runner.calls().is_empty());
 }
+
+#[test]
+fn keys_may_come_in_pieces_off_the_virtual_console() {
+    assert_eq!(escape_wait("/dev/tty1"), CONSOLE_ESCAPE_WAIT);
+    for remote in ["/dev/ttyS0", "/dev/hvc0", "/dev/ttyAMA0"] {
+        assert_eq!(escape_wait(remote), SERIAL_ESCAPE_WAIT, "{remote}");
+    }
+}

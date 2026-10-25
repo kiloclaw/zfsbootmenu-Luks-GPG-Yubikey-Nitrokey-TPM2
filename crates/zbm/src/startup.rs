@@ -19,6 +19,7 @@ mod prompts;
 use std::cell::{Cell, RefCell};
 use std::io;
 use std::path::Path;
+use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
 use zbm_app::{App, BootError, Recovery};
@@ -34,6 +35,7 @@ use zbm_startup::shell::Shell;
 use zbm_state::State;
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::startup::StartupScreen;
+use zbm_tui::menu::term_keys::{CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT};
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
 use zbm_types::Answer;
@@ -289,8 +291,10 @@ pub fn run_in_menu(
     if !capabilities.interactive || !has_menu(&system) {
         return None;
     }
+    let escape_wait = escape_wait(&ZbmOptions::from_conf(conf).control_term);
     let open = |snapshot, theme| {
-        terminal::startup_view(snapshot, theme, terminal::size(crate::menu::FALLBACK_SIZE))
+        let size = terminal::size(crate::menu::FALLBACK_SIZE);
+        terminal::startup_view(snapshot, theme, size, escape_wait)
     };
     run_on(
         startup,
@@ -299,6 +303,19 @@ pub fn run_in_menu(
         (modes, None),
         (Theme::new(capabilities), &open),
     )
+}
+
+/// How long the rest of a key's sequence may take on the control terminal
+/// `control_term`: little on a virtual console, whose keys the kernel
+/// writes at once, or the console on the display (`zbm.console=drm`), which
+/// runs on one; longer on a serial console, which may be reached through
+/// the network.
+fn escape_wait(control_term: &str) -> Duration {
+    if zbm_startup::preinit::is_virtual_console(control_term) {
+        CONSOLE_ESCAPE_WAIT
+    } else {
+        SERIAL_ESCAPE_WAIT
+    }
 }
 
 /// [`run_in_menu`] on the view `open` opens with `theme`, the recovery

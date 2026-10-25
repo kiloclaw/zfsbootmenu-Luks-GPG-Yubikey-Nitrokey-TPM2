@@ -128,7 +128,10 @@ fn hand_over<M: Machine>(session: &mut Session<M>, terminal: &mut Screen) -> io:
 }
 
 /// The start-up view of `snapshot` on standard output, of `size` (columns
-/// and rows), with the keys of the terminal.
+/// and rows) until the terminal says otherwise, with the keys of the
+/// terminal, the rest of whose sequences may take `escape_wait`
+/// ([`super::term_keys::CONSOLE_ESCAPE_WAIT`],
+/// [`super::term_keys::SERIAL_ESCAPE_WAIT`]).
 ///
 /// # Errors
 ///
@@ -137,8 +140,9 @@ pub fn startup_view(
     snapshot: Snapshot,
     theme: Theme,
     size: (u16, u16),
+    escape_wait: Duration,
 ) -> io::Result<Box<dyn StartupScreen>> {
-    let keys = TerminalKeys::new()?;
+    let keys = TerminalKeys::new(escape_wait)?;
     let (columns, rows) = size;
     let backend = QuietBackend::new(
         CrosstermBackend::new(io::stdout()),

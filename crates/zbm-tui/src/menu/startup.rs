@@ -14,18 +14,19 @@ use std::time::Duration;
 use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::crossterm::event::KeyEvent;
-use ratatui::layout::Position;
+use ratatui::layout::{Position, Rect, Size};
 
 use super::model::Model;
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::view::view;
 use super::world::{Action, Event, Snapshot};
+use crate::quiet::QuietBackend;
 
 /// How long the view waits for a key before time passes for its dialog.
 pub const TICK: Duration = Duration::from_millis(200);
 
-/// The keys of the terminal the view draws on, and its mode.
+/// The keys of the terminal the view draws on, its mode and its size.
 pub trait Keys {
     /// The next key pressed within `timeout`; `None` when none was.
     ///
@@ -47,6 +48,24 @@ pub trait Keys {
     ///
     /// When its mode cannot be set.
     fn take(&mut self) -> io::Result<()>;
+
+    /// The terminal's size now, in columns and rows, if it can be measured.
+    /// It changes when a program that had the terminal changed the console
+    /// font, as `30-console-autosize` does, or when its window was resized.
+    fn size(&mut self) -> Option<(u16, u16)>;
+}
+
+/// A backend that is told the size of the terminal it draws on, as the
+/// view measures it ([`Keys::size`]).
+pub trait Resize: Backend {
+    /// Records the terminal's new size.
+    fn set_size(&mut self, size: Size);
+}
+
+impl<B: Backend> Resize for QuietBackend<B> {
+    fn set_size(&mut self, size: Size) {
+        QuietBackend::set_size(self, size);
+    }
 }
 
 /// The start-up view, as start-up's front end uses it: on a terminal
@@ -113,7 +132,7 @@ where
     result.map_err(io::Error::other)
 }
 
-impl<B: Backend, K: Keys> StartupView<B, K>
+impl<B: Resize, K: Keys> StartupView<B, K>
 where
     B::Error: Send + Sync + 'static,
 {
@@ -162,14 +181,33 @@ where
         actions
     }
 
-    /// Draws the start-up view, unless start-up is over: the menu draws the
-    /// main view.
+    /// Draws the start-up view in the terminal's size now, unless start-up
+    /// is over: the menu draws the main view.
     fn draw(&mut self) -> io::Result<()> {
-        let Some(model) = self.model.as_ref().filter(|model| !model.started) else {
+        if self.model.as_ref().is_none_or(|model| model.started) {
+            return Ok(());
+        }
+        self.fit()?;
+        let Some(model) = self.model.as_ref() else {
             return Ok(());
         };
         drawn(self.terminal.draw(|frame| view(model, frame)))?;
         Ok(())
+    }
+
+    /// Follows the terminal's size, when it changed since the last frame.
+    fn fit(&mut self) -> io::Result<()> {
+        let Some((columns, rows)) = self.keys.size().filter(|&(c, r)| c > 0 && r > 0) else {
+            return Ok(());
+        };
+        let area = Rect::new(0, 0, columns, rows);
+        if self.terminal.get_frame().area() == area {
+            return Ok(());
+        }
+        self.terminal
+            .backend_mut()
+            .set_size(Size::new(columns, rows));
+        drawn(self.terminal.resize(area))
     }
 
     /// Shows `event`: a stage started or ended, a volume opened.
@@ -257,7 +295,7 @@ where
     }
 }
 
-impl<B: Backend, K: Keys> StartupScreen for StartupView<B, K>
+impl<B: Resize, K: Keys> StartupScreen for StartupView<B, K>
 where
     B::Error: Send + Sync + 'static,
 {

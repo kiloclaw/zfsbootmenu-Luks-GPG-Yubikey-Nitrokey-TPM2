@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -11,12 +11,13 @@ use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::world::{Method, Question, Stage, StageState};
 
-/// Keys typed in advance (`None`: a tick passes without one), and what was
-/// done to the terminal's mode.
+/// Keys typed in advance (`None`: a tick passes without one), what was
+/// done to the terminal's mode, and the terminal's size, when known.
 #[derive(Clone, Default)]
 struct Scripted {
     keys: Rc<RefCell<VecDeque<Option<KeyEvent>>>>,
     modes: Rc<RefCell<Vec<&'static str>>>,
+    size: Rc<Cell<Option<(u16, u16)>>>,
 }
 
 impl Scripted {
@@ -53,6 +54,16 @@ impl Keys for Scripted {
     fn take(&mut self) -> io::Result<()> {
         self.modes.borrow_mut().push("take");
         Ok(())
+    }
+
+    fn size(&mut self) -> Option<(u16, u16)> {
+        self.size.get()
+    }
+}
+
+impl Resize for TestBackend {
+    fn set_size(&mut self, size: Size) {
+        self.resize(size.width, size.height);
     }
 }
 
@@ -210,4 +221,49 @@ fn the_terminal_is_handed_over_and_given_back() {
         *keys.modes.borrow(),
         ["release", "take", "release", "take", "release"]
     );
+}
+
+/// The width and height of what the terminal of `view` shows, and the
+/// width of the start-up box's top line.
+fn drawn_size(view: &StartupView<TestBackend, Scripted>) -> (u16, u16, usize) {
+    let area = view.terminal().backend().buffer().area;
+    let text = shown(view);
+    let top = text
+        .lines()
+        .find(|line| line.contains("STARTING ZFSBOOTMENU"))
+        .map_or(0, |line| line.chars().count());
+    (area.width, area.height, top)
+}
+
+#[test]
+fn the_view_follows_the_terminal_after_a_hand_over_and_as_time_passes() {
+    let keys = Scripted::default();
+    let mut view = view(&keys);
+    assert_eq!(drawn_size(&view), (80, 25, 80));
+
+    // A hook made the console font smaller: more columns and rows.
+    keys.size.set(Some((100, 30)));
+    view.suspend(&mut || {}).unwrap();
+    assert_eq!(drawn_size(&view), (100, 30, 100));
+
+    // The window shrank while a dialog waits.
+    keys.ticks(2);
+    let mut ticks = 0;
+    let answer = view
+        .ask(&unlock_requested(Some(10)), &mut || {
+            ticks += 1;
+            if ticks == 1 {
+                keys.size.set(Some((60, 20)));
+            }
+            (ticks == 2).then_some(Action::Answer(Answer::Continue))
+        })
+        .unwrap();
+    assert_eq!(answer, Action::Answer(Answer::Continue));
+    assert_eq!(drawn_size(&view), (60, 20, 60));
+
+    // A size the terminal cannot tell changes nothing.
+    keys.size.set(Some((0, 0)));
+    view.send(Event::Progress("Importing pools".into()))
+        .unwrap();
+    assert_eq!(drawn_size(&view), (60, 20, 60));
 }

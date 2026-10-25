@@ -102,17 +102,37 @@ fn a_sequence_that_is_not_whole_waits_for_the_rest_or_is_the_escape_key() {
     assert_eq!(keys, [plain(KeyCode::Char('a')), plain(KeyCode::Esc)]);
 }
 
-/// Keys read from a pipe, and its other end.
-fn piped() -> (TerminalKeys, io::PipeWriter) {
+/// Keys read from a pipe, the rest of whose sequences may take
+/// `escape_wait`, and the pipe's other end.
+fn piped(escape_wait: Duration) -> (TerminalKeys, io::PipeWriter) {
     let (reader, writer) = io::pipe().unwrap();
     let input = File::from(std::os::fd::OwnedFd::from(reader));
-    (TerminalKeys::on(input), writer)
+    (TerminalKeys::on(input, escape_wait), writer)
+}
+
+/// How long the tests wait for a key at once.
+const TICK: Duration = Duration::from_millis(10);
+
+/// The next key, asked for tick after tick for up to a second, and how long
+/// it took to come.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the reader waits on the wall clock, so the test measures it there"
+)]
+fn next_key(keys: &mut TerminalKeys) -> (Option<KeyEvent>, Duration) {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(1) {
+        if let Some(key) = keys.key(TICK).unwrap() {
+            return (Some(key), start.elapsed());
+        }
+    }
+    (None, start.elapsed())
 }
 
 #[test]
 fn keys_are_read_as_they_come_and_escape_alone_after_a_moment() {
-    let (mut keys, mut writer) = piped();
-    let tick = Duration::from_millis(10);
+    let (mut keys, mut writer) = piped(CONSOLE_ESCAPE_WAIT);
+    let tick = TICK;
     assert_eq!(keys.key(tick).unwrap(), None);
 
     writer.write_all(b"pw\r\x1b").unwrap();
@@ -121,7 +141,7 @@ fn keys_are_read_as_they_come_and_escape_alone_after_a_moment() {
     assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Enter)));
     // Escape is held back while the rest of a sequence may come.
     assert_eq!(keys.pending, [ESCAPE]);
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Esc)));
+    assert_eq!(next_key(&mut keys).0, Some(plain(KeyCode::Esc)));
     assert!(keys.pending.is_empty());
 
     writer.write_all(b"\x1b[").unwrap();
@@ -141,9 +161,30 @@ fn keys_are_read_as_they_come_and_escape_alone_after_a_moment() {
 }
 
 #[test]
+fn escape_waits_for_the_rest_of_a_sequence_however_short_the_tick() {
+    // Off the console, the rest of a sequence may come in another piece.
+    let (mut keys, mut writer) = piped(Duration::from_secs(5));
+    writer.write_all(b"\x1b").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), None);
+    assert_eq!(keys.key(TICK).unwrap(), None);
+    writer.write_all(b"[A").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), Some(plain(KeyCode::Up)));
+
+    // Escape alone comes once the wait is over, counted from its byte.
+    for wait in [CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT] {
+        let (mut keys, mut writer) = piped(wait);
+        writer.write_all(b"\x1b").unwrap();
+        let (key, took) = next_key(&mut keys);
+        assert_eq!(key, Some(plain(KeyCode::Esc)));
+        assert!(took >= wait, "Escape after {took:?}, before {wait:?}");
+    }
+    assert!(SERIAL_ESCAPE_WAIT > CONSOLE_ESCAPE_WAIT);
+}
+
+#[test]
 fn the_keys_read_are_wiped_once_given() {
-    let (mut keys, mut writer) = piped();
-    let tick = Duration::from_millis(10);
+    let (mut keys, mut writer) = piped(CONSOLE_ESCAPE_WAIT);
+    let tick = TICK;
     writer.write_all(b"secret").unwrap();
     for _ in 0..6 {
         assert!(keys.key(tick).unwrap().is_some());
