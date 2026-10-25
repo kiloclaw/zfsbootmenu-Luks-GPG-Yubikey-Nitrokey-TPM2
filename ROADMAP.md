@@ -101,9 +101,21 @@ the `kexec` path of its images.
 - **How:**
   - **Opt-in drivers.** The drivers are `amdgpu` for AMD GPUs from GCN on, and `i915` and `xe` for Intel graphics.
     `generate-zbm` adds them when asked, for example with `Kernel.GraphicsDrivers: amdgpu i915 xe`, for dracut and
-    mkinitcpio alike, and drops `nomodeset` from the image's command line. Host-only builds include only the firmware
-    files of the machine's own GPU: `amdgpu` firmware for every chip is tens of megabytes, and one chip needs a few.
-    Release images stay without the drivers.
+    mkinitcpio alike, and drops `nomodeset` from the image's command line. Release images stay without the drivers.
+  - **Model selection.** `amdgpu` firmware for every chip is tens of megabytes, and one chip needs a few files, so
+    the image takes only the firmware of the GPUs it is for:
+    - host-only builds find the machine's GPUs by their PCI IDs in sysfs, with nothing to configure;
+    - other builds name chip families after the driver, such as `Kernel.GraphicsDrivers: amdgpu:gfx12 i915`, for an
+      image built on another machine or meant for several;
+    - a table in `generate-zbm` maps PCI IDs to families and families to firmware files, since the driver lists
+      every file it may load (`modinfo -F firmware`) but not which chip needs which. A test checks the table against
+      the firmware list of the build's kernel, so that a new kernel's files are noticed;
+    - `generate-zbm` reports the GPUs and firmware it chose, and fails when a named family is unknown or its files
+      are missing, rather than building an image whose display stays dark.
+    The first families are those of the machines below, the AMD Radeon RX 9060 XT (RDNA 4) among them.
+  - **Choosing a GPU at boot.** With integrated and discrete graphics, `zbm.gpu=` names the GPU the console and the
+    menu draw on, by PCI address (`zbm.gpu=0000:03:00.0`) or vendor (`amd`, `intel`), and the others are not
+    touched; without it they use the first GPU with a connected display.
   - **Load before the first prompt.** At start-up the drivers load before anything is asked, so the console does not
     change mode under a passphrase field.
   - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
@@ -113,6 +125,9 @@ the `kexec` path of its images.
     all. Other GPUs stay on the firmware framebuffer, and the log says why.
   - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come
     back.
+  - **Order.** Make and model selection come first, as they need no hardware to test: unit tests with a fake sysfs
+    and firmware list, and the image size measured. Choosing a GPU at boot and the hand-back follow, tested on the
+    machines below.
   - **What stays out.** `radeon` (AMD GPUs before GCN) and NVIDIA's drivers: the proprietary driver cannot ship in the
     image, and `nouveau` is not tested.
 - **Done when:**
@@ -122,6 +137,9 @@ the `kexec` path of its images.
   - On real hardware, each listed machine (Intel Gen 9 and Xe graphics, an AMD APU, an AMD RDNA graphics card) boots
     twenty times in a row through `kexec`, with a working display both in ZFSBootMenu and in the booted system.
   - Image size and the time to the menu are measured against an image without the drivers.
+  - A host-only image for one GPU holds only that chip's firmware; an image naming a family holds that family's;
+    unit tests cover the PCI ID and family tables, an unknown family and missing firmware files.
+  - On a machine with two GPUs, `zbm.gpu=` puts the console on the one named and leaves the other alone.
 
 ### 19. Own console in Rust
 
