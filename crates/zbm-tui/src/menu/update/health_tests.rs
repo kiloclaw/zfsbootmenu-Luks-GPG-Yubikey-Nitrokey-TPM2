@@ -56,6 +56,26 @@ fn a_failed_check_asks_before_booting() {
 }
 
 #[test]
+fn a_boot_from_the_palette_asks_too() {
+    let mut session = started();
+
+    session.key(KeyCode::Char(':'));
+    session.type_text("Boot tank/ROOT/debian");
+    session.key(KeyCode::Enter);
+
+    assert_eq!(session.actions, []);
+    let Some(Dialog::Choose { title, .. }) = &session.model().dialog else {
+        panic!("no sheet: {:?}", session.model().dialog);
+    };
+    assert_eq!(title, "tank/ROOT/debian May Not Boot");
+    session.key(KeyCode::Enter);
+    assert!(matches!(
+        session.actions.as_slice(),
+        [Action::Boot { environment, .. }] if environment.as_str() == "tank/ROOT/debian"
+    ));
+}
+
+#[test]
 fn a_warning_does_not_stop_a_boot_and_cancel_closes_the_sheet() {
     let mut session = started();
     session.key(KeyCode::Down);

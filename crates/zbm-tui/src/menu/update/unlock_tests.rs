@@ -67,6 +67,24 @@ fn a_changed_pcr_asks_for_the_passphrase_and_says_why() {
 }
 
 #[test]
+fn the_session_keeps_no_secret_typed() {
+    let mut session = tpm_changed();
+    session.type_text("demo");
+    session.key(KeyCode::Enter);
+
+    let unlocks: Vec<&Action> = session
+        .actions
+        .iter()
+        .filter(|action| matches!(action, Action::Unlock { .. }))
+        .collect();
+    assert_eq!(unlocks.len(), 1, "{:?}", session.actions);
+    assert!(matches!(
+        unlocks[0],
+        Action::Unlock { volume, secret: None, .. } if volume == "luks-zroot-a"
+    ));
+}
+
+#[test]
 fn the_key_is_sealed_again_once_the_name_is_typed() {
     let mut session = tpm_changed();
     session.type_text("demo");

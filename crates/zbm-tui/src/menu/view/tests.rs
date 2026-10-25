@@ -148,3 +148,47 @@ fn on_the_console_the_banner_leads_with_what_boots_and_when() {
     assert_eq!(find(&buffer, 24, "Kernels").fg, Color::Gray);
     assert_eq!(find(&buffer, 24, "k Kernels").fg, Color::Cyan);
 }
+
+#[test]
+fn the_log_scrolls_to_its_last_entry_when_lines_wrap() {
+    let mut model = started(Capabilities::FULL).model().clone();
+    model.snapshot.log.entries = (0..30)
+        .map(|n| crate::menu::world::LogEntry {
+            level: crate::menu::world::Level::Info,
+            text: format!("entry {n:02} {}", "long words that wrap ".repeat(5)),
+        })
+        .collect();
+    model.screen = Screen::Log;
+    model.scroll = 29;
+
+    let text = screen(&model, 80, 25);
+
+    assert!(text.contains("entry 29"), "{text}");
+    assert!(!text.contains("entry 28"), "{text}");
+}
+
+#[test]
+fn the_command_line_wraps_where_the_cursor_goes() {
+    let mut model = started(Capabilities::FULL).model().clone();
+    let environment = model.snapshot.environments[0].name.clone();
+    // 78 characters on 76 columns: a word wrap would move all of `quietly`.
+    let text = format!("{} quietly", "x".repeat(70));
+    model.editor = Some(crate::menu::model::Editor {
+        text: text.clone(),
+        environment,
+        kernel: None,
+    });
+    model.screen = Screen::CommandLine;
+
+    let mut terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
+    terminal.draw(|frame| view(&model, frame)).unwrap();
+    let cursor = terminal.get_cursor_position().unwrap();
+    let buffer = terminal.backend().buffer();
+
+    let shown = screen(&model, 80, 25);
+    // The character before the cursor is the last one typed.
+    let before = &buffer[(cursor.x - 1, cursor.y)];
+    assert_eq!(before.symbol(), "y", "cursor at {cursor:?}\n{shown}");
+    assert_eq!(screens::wrapped("", 5).len(), 1);
+    assert_eq!(screens::wrapped("abcdefg", 3).len(), 3);
+}

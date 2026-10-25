@@ -163,6 +163,11 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
   start-up, and the keys read and the digests of secrets are wiped.
 - The menu keeps the selected environment and snapshot when the machine's lists change, rather than the row they
   were on, so a key no longer acts on what moved into their place.
+- Rust images, menu: a boot chosen in the command palette shows the "may not boot" sheet as the lists do; the log
+  scrolls to its last entry when lines wrap, and opens at its top from the palette and the recovery tools; the cursor
+  of the command line editor follows the line once it wraps; a key sequence split on a serial console reached
+  through the network is no longer taken for Escape in the main menu, which reads keys as start-up does; the menu
+  keeps no secret typed at an unlock dialog.
 - Rust images, console on the display (`zbm.console=drm`): Ctrl-C reaches a program that floods the screen; unplugging
   a keyboard, such as a YubiKey with OTP enabled, no longer ends the console, and keyboards plugged in later are used;
   a program that reads nothing cannot stop the console; Caps Lock lights its light, lost key events no longer leave

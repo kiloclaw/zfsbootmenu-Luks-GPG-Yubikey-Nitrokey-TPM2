@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use zbm_config::args::ZbmArgs;
 use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
@@ -25,13 +27,13 @@ fn started(status: u8) -> FakeSystem {
 }
 
 /// A menu that ends at once, having seen the machine.
-fn ended(session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
+fn ended(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
     assert!(session.model().snapshot.environments.is_empty());
     Ok(String::new())
 }
 
 /// A menu whose terminal cannot be used.
-fn no_terminal(_session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
+fn no_terminal(_session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
     Err(io::Error::other("not a terminal"))
 }
 
@@ -51,7 +53,7 @@ fn the_menu_runs_on_the_machine_and_says_why_it_could_not() {
 }
 
 /// A menu that checks that it counts down, then ends.
-fn counting(session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
+fn counting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
     let snapshot = &session.model().snapshot;
     assert_eq!(snapshot.bootfs, Some("tank/ROOT/void".parse().unwrap()));
     assert_eq!(snapshot.timeout, zbm_tui::menu::world::Timeout::Seconds(10));
@@ -59,7 +61,7 @@ fn counting(session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
 }
 
 /// A menu that checks that it waits for the user, then ends.
-fn waiting(session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
+fn waiting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
     assert_eq!(
         session.model().snapshot.timeout,
         zbm_tui::menu::world::Timeout::Wait

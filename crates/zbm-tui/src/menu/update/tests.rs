@@ -390,3 +390,13 @@ fn a_new_snapshot_keeps_the_selection_by_name() {
     assert!(chosen.is_some());
     assert_eq!(model.selected_environment().map(|e| e.name.clone()), chosen);
 }
+
+#[test]
+fn a_screen_opened_from_the_palette_starts_at_its_top() {
+    let mut model = started().model().clone();
+    model.scroll = 7;
+
+    let _ = super::dialogs::follow(&mut model, crate::menu::model::Then::Open(Screen::Log));
+
+    assert_eq!((model.screen, model.scroll), (Screen::Log, 0));
+}

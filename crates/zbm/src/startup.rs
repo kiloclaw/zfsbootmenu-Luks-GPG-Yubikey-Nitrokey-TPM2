@@ -324,7 +324,7 @@ fn fits((columns, rows): (u16, u16)) -> bool {
 /// writes at once, or the console on the display (`zbm.console=drm`), which
 /// runs on one; longer on a serial console, which may be reached through
 /// the network.
-fn escape_wait(control_term: &str) -> Duration {
+pub(crate) fn escape_wait(control_term: &str) -> Duration {
     if zbm_startup::preinit::is_virtual_console(control_term) {
         CONSOLE_ESCAPE_WAIT
     } else {

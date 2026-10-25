@@ -20,11 +20,24 @@ const START_TICKS: usize = 50;
 pub struct Session<M = FakeMachine> {
     model: Option<Model>,
     machine: M,
-    /// The actions the menu asked for, in order.
+    /// The actions the menu asked for, in order, without their secrets:
+    /// the session lasts until `kexec`, longer than a secret may.
     pub actions: Vec<Action>,
     /// Actions that take the console, waiting for the front end to hand it
     /// over ([`Session::console_action`]).
     console: VecDeque<Action>,
+}
+
+/// `action` as the session records it: an unlock without the secret typed.
+fn recorded(action: &Action) -> Action {
+    match action {
+        Action::Unlock { volume, method, .. } => Action::Unlock {
+            volume: volume.clone(),
+            method: *method,
+            secret: None,
+        },
+        other => other.clone(),
+    }
 }
 
 impl<M: Machine> Session<M> {
@@ -55,7 +68,7 @@ impl<M: Machine> Session<M> {
         let (model, actions) = update(model, message);
         self.model = Some(model);
         for action in actions {
-            self.actions.push(action.clone());
+            self.actions.push(recorded(&action));
             if self.machine.needs_console(&action) {
                 self.console.push_back(action);
             } else {

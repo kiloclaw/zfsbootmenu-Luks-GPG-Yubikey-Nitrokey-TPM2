@@ -7,6 +7,7 @@
 
 use std::io;
 use std::path::Path;
+use std::time::Duration;
 
 use zbm_app::{App, BootSettings, Recovery};
 use zbm_config::conf::Conf;
@@ -28,12 +29,13 @@ use crate::{Io, layouts};
 /// The size to draw in when the terminal reports none.
 pub(crate) const FALLBACK_SIZE: (u16, u16) = (80, 24);
 
-/// Runs the menu until it ends; why it ended.
-type Run = fn(Session<RealMachine<'_, '_>>) -> io::Result<String>;
+/// Runs the menu until it ends, the rest of a key's sequence taking up to
+/// the duration given; why it ended.
+type Run = fn(Session<RealMachine<'_, '_>>, Duration) -> io::Result<String>;
 
 /// The menu on the terminal.
-fn on_terminal(session: Session<RealMachine<'_, '_>>) -> io::Result<String> {
-    terminal::run(session, terminal::size(FALLBACK_SIZE), None)
+fn on_terminal(session: Session<RealMachine<'_, '_>>, escape_wait: Duration) -> io::Result<String> {
+    terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
 }
 
 /// The menu over the machine `system` reaches.
@@ -76,7 +78,8 @@ impl Menu for Terminal<'_, '_> {
         let environment = self.system.environment;
         let capabilities = Capabilities::detect(|name| environment.var(name));
         let session = Session::on(machine, Theme::new(capabilities));
-        if let Err(error) = (self.run)(session) {
+        let escape_wait = crate::startup::escape_wait(&self.options.control_term);
+        if let Err(error) = (self.run)(session, escape_wait) {
             self.error = Some(error.to_string());
         }
     }

@@ -147,18 +147,20 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     };
     let block = lists::block(theme, &header);
     let inner = block.inner(area);
-    let lines = vec![
-        Line::from(editor.text.clone()),
+    let width = usize::from(inner.width.max(1));
+    // The line wraps at the last column, not between words, so that the
+    // cursor is where the next character goes.
+    let mut lines = wrapped(&editor.text, width);
+    lines.extend([
         Line::default(),
         Line::styled(text!("command-line-hint"), theme.style(Role::Muted)),
-    ];
+    ]);
     frame.render_widget(
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
             .block(block),
         area,
     );
-    let width = usize::from(inner.width.max(1));
     let length = editor.text.chars().count();
     let (row, column) = (length / width, length % width);
     let row = u16::try_from(row).unwrap_or(u16::MAX);
@@ -167,6 +169,19 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         inner.x.saturating_add(column),
         inner.y.saturating_add(row),
     ));
+}
+
+/// `text` in lines of `width` characters, the last one shorter; one empty
+/// line for no text.
+pub(super) fn wrapped(text: &str, width: usize) -> Vec<Line<'static>> {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return vec![Line::default()];
+    }
+    chars
+        .chunks(width.max(1))
+        .map(|chunk| Line::from(chunk.iter().collect::<String>()))
+        .collect()
 }
 
 /// Pools, then LUKS volumes: the name, then the state right-aligned.
@@ -273,6 +288,9 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .log
         .entries
         .iter()
+        // The scroll counts entries, which may wrap to several rows: the
+        // first shown is the entry scrolled to, so the last can be reached.
+        .skip(model.scroll)
         .map(|entry| {
             let (glyph, word, role) = match entry.level {
                 Level::Info => (" ", text!("log-info"), Role::Muted),
@@ -294,7 +312,7 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let paragraph = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
         .block(block);
-    frame.render_widget(paragraph.scroll((scrolled(model.scroll), 0)), area);
+    frame.render_widget(paragraph, area);
 }
 
 /// Help: the keys of the view it was opened from, then the classic

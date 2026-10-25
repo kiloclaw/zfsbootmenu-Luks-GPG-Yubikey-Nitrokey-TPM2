@@ -161,7 +161,8 @@ fn main() -> ExitCode {
     }
     let session = Session::new(&arguments.options, Theme::new(capabilities));
     let size = terminal::size(arguments.size.unwrap_or((80, 24)));
-    match terminal::run(session, size, keys) {
+    let escape_wait = zbm_tui::menu::term_keys::CONSOLE_ESCAPE_WAIT;
+    match terminal::run(session, size, keys, escape_wait) {
         Ok(why) => {
             println!("zbm-tui demo: {why}");
             ExitCode::SUCCESS

@@ -259,6 +259,7 @@ fn recovery(model: &mut Model, intent: Intent) -> Vec<Action> {
             .unwrap_or_default(),
         RecoveryTool::Log => {
             model.screen = Screen::Log;
+            model.scroll = 0;
             Vec::new()
         }
         RecoveryTool::Pools => {

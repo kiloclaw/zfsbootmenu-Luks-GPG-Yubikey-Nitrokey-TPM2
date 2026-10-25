@@ -84,9 +84,12 @@ pub(super) fn palette(model: &mut Model, input: Input) -> Vec<Action> {
                 .matches
                 .get(palette.selected)
                 .and_then(|r| items.get(r.index));
-            return chosen
-                .map(|item| dialogs::follow(model, item.then.clone()))
-                .unwrap_or_default();
+            // A boot from here is checked as from the lists: it may not boot.
+            return match chosen.map(|item| item.then.clone()) {
+                Some(Then::Act(boot @ Action::Boot { .. })) => super::screens::guarded(model, boot),
+                Some(then) => dialogs::follow(model, then),
+                None => Vec::new(),
+            };
         }
         Input::Intent(Intent::Up) => palette.selected = palette.selected.saturating_sub(1),
         Input::Intent(Intent::Down) => palette.selected = (palette.selected + 1).min(last),

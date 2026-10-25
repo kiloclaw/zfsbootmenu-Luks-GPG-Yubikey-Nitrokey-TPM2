@@ -61,7 +61,10 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
     match then {
         Then::Act(action) => return vec![action],
         Then::Confirm { .. } => model.dialog = Some(confirm(then)),
-        Then::Open(screen) => model.screen = screen,
+        Then::Open(screen) => {
+            model.screen = screen;
+            model.scroll = 0;
+        }
         Then::Focus(environment, screen) => screens::focus(model, environment, screen),
     }
     Vec::new()
