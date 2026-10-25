@@ -98,6 +98,14 @@ off, and so that a change to the runtime adds its entry in the same commit.
   script that runs `/libexec/zbm zfsbootmenu`. Legacy images are unchanged; the image tests' recordings changed only
   for the Rust images.
   **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over.
+- [x] `12e4071`: `module-setup.sh` wrote `embedded_kcl` to `/etc/zfsbootmenu.conf` between double quotes, so `$`,
+  backticks and backslashes in it were expanded when the file was sourced, and a double quote broke the file. It is now
+  written between single quotes, each quote as `'\''`, and keeps every character.
+  **Rust:** done; `Conf::parse` reads the quoted value (a unit test with every special character), and
+  `crates/zbm/tests/image.rs` checks the line in both runtimes' images.
+- [x] `12e4071`: in images with `zfsbootmenu_runtime=rust`, `/bin/zbm` runs the command it is given (`zbm debug
+  crash`, `zbm report`) and the menu otherwise; legacy images are unchanged.
+  **Rust:** done; `crates/zbm/tests/image.rs` runs the wrapper with and without a command.
 
 ## Legacy limitations the Rust runtime must not copy
 
