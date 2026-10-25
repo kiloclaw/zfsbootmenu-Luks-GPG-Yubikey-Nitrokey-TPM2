@@ -61,8 +61,10 @@ const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
 /// which the test reads.
 const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
 
-/// Typed on the kernel console then: the kernel log, on the serial console.
-const LOG: &str = "dmesg > /dev/ttyS0\n";
+/// Typed on the kernel console then: the supervisor's line of the kernel
+/// log, on the serial console. The whole log can take longer than the test
+/// waits to cross the serial line.
+const LOG: &str = "dmesg | grep display.ended > /dev/ttyS0\n";
 
 /// Typed in the recovery shell, with a layout's name: switches the
 /// console's keyboard layout.

@@ -78,8 +78,9 @@ Variable                 Meaning
 ``ZBMTEST_RUNTIME``      ``docker`` or ``podman`` (default: ``docker`` when installed)
 ``ZBMTEST_ACCEL``        ``kvm`` or ``tcg`` (default: ``kvm`` when */dev/kvm* is usable)
 ``ZBMTEST_REUSE``        ``1`` reuses ZFSBootMenu test images built earlier in the work directory from the same
-                         inputs (crypttab, embedded files, configuration); after a change to the code in the
-                         images, run once without it
+                         inputs: crypttab, embedded files, configuration, and the checkout's sources that go into
+                         images (the crates without their tests, ``legacy/``, ``packaging/``, the guest hooks,
+                         ``Cargo.lock``); an image built from other sources is built again
 ``ZBMTEST_OLD_KERNEL``,  kernel and initramfs of a ZFSBootMenu image with an older ZFS, for the ``oldzfs`` tests;
 ``ZBMTEST_OLD_INITRD``   those tests are skipped when unset, and pass the test images' host ID with ``spl_hostid=``
 ``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,

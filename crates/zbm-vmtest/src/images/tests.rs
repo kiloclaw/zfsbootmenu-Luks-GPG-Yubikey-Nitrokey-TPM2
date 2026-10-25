@@ -119,8 +119,14 @@ fn an_image_built_from_the_same_inputs_is_reused() {
     fs::write(build.join("initramfs-bootmenu.img"), "").unwrap();
     fs::write(build.join("vmlinuz.EFI"), "").unwrap();
     let conf = "zfsbootmenu_luks_token_plugins=\"no\"\nzfsbootmenu_runtime=\"rust\"";
-    let stamp = format!("{}conf+ {conf}\n", spec.stamp());
-    fs::write(settings.work.join("zbm/keys-native-rust/inputs.txt"), stamp).unwrap();
+    let stamp_path = settings.work.join("zbm/keys-native-rust/inputs.txt");
+    // Recorded without the sources, as before they were inputs: built anew.
+    fs::write(&stamp_path, format!("{}conf+ {conf}\n", spec.stamp())).unwrap();
+    assert!(zbm_image(&settings, &spec).is_err());
+    fs::create_dir_all(&build).unwrap();
+    fs::write(build.join("initramfs-bootmenu.img"), "").unwrap();
+    fs::write(build.join("vmlinuz.EFI"), "").unwrap();
+    fs::write(&stamp_path, inputs(&settings, &spec, conf)).unwrap();
 
     let image = zbm_image(&settings, &spec).unwrap();
 

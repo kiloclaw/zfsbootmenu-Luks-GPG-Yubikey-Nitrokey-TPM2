@@ -6,7 +6,8 @@
 //! - `ZBMTEST_IMAGE`: the build container image (`localhost/zbm-builder`);
 //! - `ZBMTEST_RUNTIME`: `docker` or `podman` (`docker` when installed);
 //! - `ZBMTEST_ACCEL`: `kvm` or `tcg` (`kvm` when `/dev/kvm` is usable);
-//! - `ZBMTEST_REUSE`: `1` reuses images built from the same inputs;
+//! - `ZBMTEST_REUSE`: `1` reuses images built from the same inputs, the
+//!   checkout's sources among them;
 //! - `ZBMTEST_ZBM_RUNTIME`: `legacy` (the default) or `rust`, the runtime
 //!   of the images;
 //! - `ZBMTEST_SHADOW`: `0` builds legacy images without shadow mode;

@@ -227,9 +227,10 @@ fn generate_config(spec: &ImageSpec) -> String {
 
 /// Builds a ZFSBootMenu test image with the build container from the
 /// checkout, unless `ZBMTEST_REUSE=1` and it was built from the same
-/// inputs. The build runs the checkout's
-/// `packaging/container/build-init.sh`, so changes to it need no new build
-/// container. `zbm`'s debug file is left in `build/debug/<build ID>.debug`.
+/// inputs, the checkout's sources that go into images among them. The
+/// build runs the checkout's `packaging/container/build-init.sh`, so
+/// changes to it need no new build container. `zbm`'s debug file is left
+/// in `build/debug/<build ID>.debug`.
 ///
 /// # Errors
 ///
@@ -252,7 +253,7 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
         debug: build.join("debug"),
     };
     let stamp_path = dir.join("inputs.txt");
-    let stamp = format!("{}conf+ {conf}\n", spec.stamp());
+    let stamp = inputs(settings, spec, &conf);
     let built = image.initrd.exists() && (!spec.efi || image.efi.exists());
     if settings.reuse && built && fs::read_to_string(&stamp_path).ok().as_deref() == Some(&stamp) {
         return Ok(image);
@@ -280,6 +281,16 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     }
     fs::write(&stamp_path, stamp).map_err(Error::io("writing the image's inputs"))?;
     Ok(image)
+}
+
+/// What an image with `spec` and the dracut configuration `conf` is built
+/// from, as recorded beside it: its inputs and the checkout's sources.
+fn inputs(settings: &Settings, spec: &ImageSpec, conf: &str) -> String {
+    format!(
+        "{}conf+ {conf}\nsources {}\n",
+        spec.stamp(),
+        source::fingerprint(&settings.repo)
+    )
 }
 
 /// Fills a fresh build directory.
@@ -339,6 +350,8 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     }
     Ok(())
 }
+
+mod source;
 
 #[cfg(test)]
 mod tests;
