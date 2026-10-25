@@ -286,12 +286,26 @@ impl Model {
         model
     }
 
-    /// Recomputes the lists after the snapshot, a filter or the sort order
-    /// changed. The selected environment and snapshot stay selected while
-    /// they match; other selections stay in range.
+    /// Takes the machine's new `snapshot`, keeping the environment and the
+    /// snapshot selected by name wherever the new lists put them.
+    pub fn replace_snapshot(&mut self, snapshot: Snapshot) {
+        self.refresh_with(Some(snapshot));
+    }
+
+    /// Recomputes the lists after a filter or the sort order changed. The
+    /// selected environment and snapshot stay selected while they match;
+    /// other selections stay in range.
     pub fn refresh(&mut self) {
+        self.refresh_with(None);
+    }
+
+    /// [`Model::refresh`], with `new` in place of the snapshot when given.
+    fn refresh_with(&mut self, new: Option<Snapshot>) {
         let environment = self.selected_environment().map(|e| e.name.to_string());
         let snapshot = self.selected_snapshot().map(|s| s.name.name().to_owned());
+        if let Some(new) = new {
+            self.snapshot = new;
+        }
         let names = self.environment_order();
         let labels: Vec<String> = names
             .iter()

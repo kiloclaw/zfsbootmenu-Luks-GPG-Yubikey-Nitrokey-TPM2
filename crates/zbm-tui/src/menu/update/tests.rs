@@ -369,3 +369,24 @@ fn a_new_filter_selects_the_best_match() {
         .map(|e| e.name.as_str());
     assert_eq!(selected, Some("zroot/ROOT/ubuntu"));
 }
+
+/// A new snapshot from the machine keeps the environment selected, even
+/// when another one now sorts into its place: Enter must not boot that one.
+#[test]
+fn a_new_snapshot_keeps_the_selection_by_name() {
+    let mut session = started();
+    session.key(KeyCode::Down);
+    let model = session.model().clone();
+    let chosen = model.selected_environment().map(|e| e.name.clone());
+    let mut snapshot = model.snapshot.clone();
+    let mut newcomer = snapshot.environments[0].clone();
+    newcomer.name = "zroot/ROOT/aaa".parse().unwrap();
+    newcomer.is_default = false;
+    snapshot.environments.insert(0, newcomer);
+
+    let event = crate::menu::world::Event::Changed(snapshot);
+    let (model, _) = super::update(model, super::Message::Event(Box::new(event)));
+
+    assert!(chosen.is_some());
+    assert_eq!(model.selected_environment().map(|e| e.name.clone()), chosen);
+}

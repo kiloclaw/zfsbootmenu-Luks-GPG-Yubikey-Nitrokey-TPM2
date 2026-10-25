@@ -11,8 +11,7 @@ pub(super) fn apply(model: &mut Model, event: Event) {
     match event {
         Event::Progress(what) => model.progress = Some(what),
         Event::Changed(snapshot) => {
-            model.snapshot = snapshot;
-            model.refresh();
+            model.replace_snapshot(snapshot);
             start(model);
         }
         Event::UnlockRequested {
