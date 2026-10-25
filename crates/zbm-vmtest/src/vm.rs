@@ -14,6 +14,10 @@ use crate::record::Test;
 use crate::settings::PW;
 use crate::swtpm::Swtpm;
 
+/// The columns of the recovery shell's terminal, so that what commands
+/// print does not wrap.
+const SHELL_COLUMNS: u16 = 250;
+
 /// How long QEMU may take to open its serial console socket.
 const START_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -311,7 +315,12 @@ impl<'t> Vm<'t> {
         // A shell prepared before shows its own prompt.
         self.expect(&["zfsbootmenu", "zbm# "], 600)?;
         thread::sleep(Duration::from_secs(3));
-        self.sendline("stty -echo cols 250; export PS1='zbm# ' PS2=''")?;
+        self.sendline(&format!(
+            "stty -echo cols {SHELL_COLUMNS}; export PS1='zbm# ' PS2=''"
+        ))?;
+        // The terminal stays that wide after the shell: a menu opened from
+        // it, or after it, draws in 250 columns.
+        self.console.set_columns(SHELL_COLUMNS);
         thread::sleep(Duration::from_secs(2));
         self.sh_with("true", Sh::default().quiet()).map(drop)
     }

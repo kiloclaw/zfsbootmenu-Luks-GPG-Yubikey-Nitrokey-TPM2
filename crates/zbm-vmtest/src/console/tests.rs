@@ -134,6 +134,47 @@ fn the_screen_shows_text_drawn_with_cursor_movements() {
     assert_eq!(screen.lines().nth(2), Some("done"));
 }
 
+/// A frame of `cols` columns on 25 lines: a title at the top left, a word
+/// at its right edge, a key bar at the bottom.
+fn frame(cols: u16) -> Vec<u8> {
+    let right = cols - 2;
+    format!("\x1b[2J\x1b[1;1HBOOT ENVIRONMENTS\x1b[1;{right}Hend\x1b[25;1HEnter Boot").into_bytes()
+}
+
+#[test]
+fn the_screen_has_the_lines_of_a_serial_console_after_pre_init() {
+    let (mut console, mut vm, _log) = console();
+
+    vm.write_all(&frame(80)).unwrap();
+    console.expect(&["Enter Boot"], SECOND).unwrap();
+
+    let screen = console.screen();
+    let lines: Vec<&str> = screen.lines().collect();
+    assert_eq!(
+        lines.first().copied(),
+        Some(format!("{:<77}end", "BOOT ENVIRONMENTS").as_str())
+    );
+    assert_eq!(lines.get(24).copied(), Some("Enter Boot"));
+}
+
+#[test]
+fn a_frame_as_wide_as_the_shell_s_terminal_lands_whole_once_the_screen_is() {
+    let (mut console, mut vm, _log) = console();
+
+    console.set_columns(250);
+    vm.write_all(&frame(250)).unwrap();
+    console.expect(&["Enter Boot"], SECOND).unwrap();
+
+    let screen = console.screen();
+    let first = screen.lines().next().unwrap_or_default();
+    assert!(
+        first.starts_with("BOOT ENVIRONMENTS") && first.ends_with("end"),
+        "{first}"
+    );
+    assert_eq!(first.chars().count(), 250);
+    assert_eq!(screen.lines().nth(24), Some("Enter Boot"));
+}
+
 #[test]
 fn what_is_sent_reaches_the_virtual_machine() {
     let (mut console, mut vm, _log) = console();

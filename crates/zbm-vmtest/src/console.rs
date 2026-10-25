@@ -19,7 +19,8 @@ const SEARCH_INTERVAL: Duration = Duration::from_millis(10);
 /// How much of the console an error message shows.
 const TAIL: usize = 300;
 
-/// The size of the terminal emulator's screen.
+/// The size of the terminal emulator's screen. It must be the size the
+/// machine believes its terminal has, or what it draws lands elsewhere.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Size {
     /// Lines.
@@ -29,8 +30,10 @@ pub struct Size {
 }
 
 impl Default for Size {
+    /// The size ZFSBootMenu gives a serial console at pre-init: 25 lines of
+    /// 80 columns, the defaults of `zbm.lines` and `zbm.columns`.
     fn default() -> Size {
-        Size { rows: 24, cols: 80 }
+        Size { rows: 25, cols: 80 }
     }
 }
 
@@ -47,6 +50,11 @@ struct Shared {
 }
 
 type State = Arc<(Mutex<Shared>, Condvar)>;
+
+/// `count`, at least one.
+fn non_zero(count: u16) -> NonZeroU16 {
+    NonZeroU16::new(count).unwrap_or(NonZeroU16::MIN)
+}
 
 fn lock(state: &State) -> MutexGuard<'_, Shared> {
     state.0.lock().unwrap_or_else(PoisonError::into_inner)
@@ -71,8 +79,7 @@ impl Console {
         log: impl Write + Send + 'static,
         size: Size,
     ) -> Console {
-        let rows = NonZeroU16::new(size.rows).unwrap_or(NonZeroU16::MIN);
-        let cols = NonZeroU16::new(size.cols).unwrap_or(NonZeroU16::MIN);
+        let (rows, cols) = (non_zero(size.rows), non_zero(size.cols));
         let state: State = Arc::new((
             Mutex::new(Shared {
                 text: String::new(),
@@ -231,6 +238,14 @@ impl Console {
     /// The text the screen shows, line by line.
     pub fn screen(&self) -> String {
         lock(&self.state).screen.screen().contents()
+    }
+
+    /// Gives the screen `cols` columns, after the machine was told that its
+    /// terminal has them.
+    pub fn set_columns(&self, cols: u16) {
+        let mut guard = lock(&self.state);
+        let (rows, _) = guard.screen.screen().size();
+        guard.screen.set_size(rows, non_zero(cols));
     }
 
     /// The number of bytes the console sent so far.
