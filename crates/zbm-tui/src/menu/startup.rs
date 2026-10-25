@@ -1,0 +1,286 @@
+//! Start-up on a terminal (REFACTOR-ROADMAP.md, R5 step 4): the start-up
+//! view, drawn as the stages run, and the dialogs of what start-up asks.
+//!
+//! Start-up runs its stages itself, one after another, and shows their
+//! events with [`StartupView::send`]. When it needs an answer, it asks
+//! [`StartupView::ask`], which shows the dialog and reads keys until the
+//! dialog gives one: start-up waits for it, as it waits at a console
+//! prompt. The view never draws the main view; the menu does, once start-up
+//! is over.
+
+use std::io;
+use std::time::Duration;
+
+use ratatui::Terminal;
+use ratatui::backend::Backend;
+use ratatui::crossterm::event::KeyEvent;
+use ratatui::layout::Position;
+
+use super::model::Model;
+use super::theme::Theme;
+use super::update::{Message, update};
+use super::view::view;
+use super::world::{Action, Event, Snapshot};
+
+/// How long the view waits for a key before time passes for its dialog.
+pub const TICK: Duration = Duration::from_millis(200);
+
+/// The keys of the terminal the view draws on, and its mode.
+pub trait Keys {
+    /// The next key pressed within `timeout`; `None` when none was.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be read.
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>>;
+
+    /// Gives the terminal back to programs, as it was before the view.
+    ///
+    /// # Errors
+    ///
+    /// When its mode cannot be set.
+    fn release(&mut self) -> io::Result<()>;
+
+    /// Takes the terminal again, after [`Keys::release`].
+    ///
+    /// # Errors
+    ///
+    /// When its mode cannot be set.
+    fn take(&mut self) -> io::Result<()>;
+}
+
+/// The start-up view, as start-up's front end uses it: on a terminal
+/// ([`StartupView`]), or scripted in tests.
+pub trait StartupScreen {
+    /// The machine as the view shows it.
+    fn snapshot(&self) -> &Snapshot;
+
+    /// Shows `event`: a stage started or ended, a volume opened, what
+    /// start-up is doing.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be drawn on.
+    fn send(&mut self, event: Event) -> io::Result<()>;
+
+    /// Shows the dialog `event` opens, and returns its answer
+    /// ([`StartupView::ask`]).
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be read or drawn on.
+    fn ask(
+        &mut self,
+        event: &Event,
+        check: &mut dyn FnMut() -> Option<Action>,
+    ) -> io::Result<Action>;
+
+    /// Hands the terminal over to `run`, then draws the view again.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be handed over or drawn on again.
+    fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()>;
+
+    /// Ends the view.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be given back.
+    fn close(self: Box<Self>) -> io::Result<()>;
+}
+
+/// The start-up view on a terminal.
+pub struct StartupView<B: Backend, K: Keys> {
+    model: Option<Model>,
+    terminal: Terminal<B>,
+    keys: K,
+}
+
+/// Whether `action` answers a dialog of start-up.
+fn is_answer(action: &Action) -> bool {
+    matches!(
+        action,
+        Action::Unlock { .. } | Action::SkipUnlock(_) | Action::Answer(_)
+    )
+}
+
+/// A result of the backend `B`, with its error as an I/O error.
+fn drawn<T, E>(result: Result<T, E>) -> io::Result<T>
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    result.map_err(io::Error::other)
+}
+
+impl<B: Backend, K: Keys> StartupView<B, K>
+where
+    B::Error: Send + Sync + 'static,
+{
+    /// The view of `snapshot`, drawn on `terminal`, which `keys` reads.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be drawn on.
+    pub fn new(
+        terminal: Terminal<B>,
+        keys: K,
+        snapshot: Snapshot,
+        theme: Theme,
+    ) -> io::Result<StartupView<B, K>> {
+        let mut view = StartupView {
+            model: Some(Model::new(snapshot, theme)),
+            terminal,
+            keys,
+        };
+        drawn(view.terminal.clear())?;
+        view.draw()?;
+        Ok(view)
+    }
+
+    /// The menu the view draws.
+    #[allow(
+        clippy::unreachable,
+        reason = "step takes the model by value and puts it back before returning"
+    )]
+    pub fn model(&self) -> &Model {
+        self.model.as_ref().unwrap_or_else(|| unreachable!())
+    }
+
+    /// The terminal, for the tests that read what it shows.
+    pub fn terminal(&self) -> &Terminal<B> {
+        &self.terminal
+    }
+
+    /// `message`; the actions it asked for.
+    fn step(&mut self, message: Message) -> Vec<Action> {
+        let Some(model) = self.model.take() else {
+            return Vec::new();
+        };
+        let (model, actions) = update(model, message);
+        self.model = Some(model);
+        actions
+    }
+
+    /// Draws the start-up view, unless start-up is over: the menu draws the
+    /// main view.
+    fn draw(&mut self) -> io::Result<()> {
+        let Some(model) = self.model.as_ref().filter(|model| !model.started) else {
+            return Ok(());
+        };
+        drawn(self.terminal.draw(|frame| view(model, frame)))?;
+        Ok(())
+    }
+
+    /// Shows `event`: a stage started or ended, a volume opened.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be drawn on.
+    pub fn send(&mut self, event: Event) -> io::Result<()> {
+        let _ = self.step(Message::Event(Box::new(event)));
+        self.draw()
+    }
+
+    /// Shows the dialog `event` opens and reads keys until it gives an
+    /// answer: [`Action::Unlock`], [`Action::SkipUnlock`] or
+    /// [`Action::Answer`]. `check` is asked as keys come and time passes,
+    /// and ends the dialog with its answer when it has one, such as a
+    /// device that appeared. A dialog closed without an answer opens again,
+    /// as start-up still waits for one.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be read or drawn on.
+    pub fn ask(
+        &mut self,
+        event: &Event,
+        check: &mut dyn FnMut() -> Option<Action>,
+    ) -> io::Result<Action> {
+        let ms = u64::try_from(TICK.as_millis()).unwrap_or(u64::MAX);
+        let _ = self.step(Message::Event(Box::new(event.clone())));
+        loop {
+            self.draw()?;
+            let message = match self.keys.key(TICK)? {
+                Some(key) => Message::Key(key),
+                None => Message::Tick(ms),
+            };
+            if let Some(answer) = self.step(message).into_iter().find(is_answer) {
+                return Ok(answer);
+            }
+            if let Some(answer) = check() {
+                if let Some(model) = self.model.as_mut() {
+                    model.dialog = None;
+                }
+                return Ok(answer);
+            }
+            if self.model().dialog.is_none() {
+                let _ = self.step(Message::Event(Box::new(event.clone())));
+            }
+        }
+    }
+
+    /// Leaves the terminal as it was before the view: cleared, with the
+    /// cursor at the top and shown.
+    fn give_back(&mut self) -> io::Result<()> {
+        drawn(self.terminal.clear())?;
+        drawn(self.terminal.set_cursor_position(Position::ORIGIN))?;
+        drawn(self.terminal.show_cursor())?;
+        self.keys.release()
+    }
+
+    /// Hands the terminal over to `run`, such as hooks or the recovery
+    /// shell, and draws the view again afterwards.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be handed over or drawn on again.
+    pub fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()> {
+        self.give_back()?;
+        run();
+        self.keys.take()?;
+        drawn(self.terminal.clear())?;
+        self.draw()
+    }
+
+    /// Ends the view: start-up is over.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be given back.
+    pub fn close(mut self) -> io::Result<()> {
+        self.give_back()
+    }
+}
+
+impl<B: Backend, K: Keys> StartupScreen for StartupView<B, K>
+where
+    B::Error: Send + Sync + 'static,
+{
+    fn snapshot(&self) -> &Snapshot {
+        &self.model().snapshot
+    }
+
+    fn send(&mut self, event: Event) -> io::Result<()> {
+        StartupView::send(self, event)
+    }
+
+    fn ask(
+        &mut self,
+        event: &Event,
+        check: &mut dyn FnMut() -> Option<Action>,
+    ) -> io::Result<Action> {
+        StartupView::ask(self, event, check)
+    }
+
+    fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()> {
+        StartupView::suspend(self, run)
+    }
+
+    fn close(self: Box<Self>) -> io::Result<()> {
+        StartupView::close(*self)
+    }
+}
+
+#[cfg(test)]
+mod tests;

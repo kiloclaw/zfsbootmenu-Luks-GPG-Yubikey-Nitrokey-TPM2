@@ -2,7 +2,7 @@
 //! ([`Event`]).
 
 use zbm_platform::secret::Secret;
-use zbm_types::{DatasetName, ImportPolicy, PoolName, SnapshotName};
+use zbm_types::{Answer, DatasetName, ImportPolicy, PoolName, SnapshotName};
 
 use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
 
@@ -86,8 +86,11 @@ pub enum Action {
         /// The secret typed, for typed methods.
         secret: Option<Secret>,
     },
-    /// Leave a volume locked.
+    /// Leave a volume locked, or try its next key method.
     SkipUnlock(String),
+    /// Answer what start-up asked ([`Event::Asked`]): go on
+    /// ([`Answer::Continue`]), or stop ([`Answer::Escape`]).
+    Answer(Answer),
     /// Unlock every LUKS volume the configuration and discovery find, with
     /// their key methods and prompts, as start-up does (`zluks unlock`).
     UnlockAll,
@@ -160,7 +163,22 @@ pub enum Event {
         /// Why this method is asked, when another one failed or the last
         /// try was wrong: `the TPM kept the key: …`.
         notice: Option<Notice>,
+        /// For a method with nothing to type: how many seconds start-up
+        /// waits for its device.
+        wait: Option<u64>,
     },
+    /// Start-up asks whether to go on, counting `seconds` down when it
+    /// does so by itself.
+    Asked {
+        /// What it asks.
+        question: Question,
+        /// The seconds until it goes on by itself; `None`: it waits.
+        seconds: Option<u64>,
+    },
+    /// What start-up is doing that may take a while, for people:
+    /// `Unlocking /dev/sda2 ...`, `Touch the security key when it blinks.`
+    /// The next event replaces it.
+    Progress(String),
     /// A volume was opened without its TPM2 key, which the TPM kept: the
     /// menu offers to seal it again.
     ResealOffered(String),
@@ -187,6 +205,36 @@ pub enum Event {
     Finished(Outcome),
     /// The menu ends: the machine boots, powers off or opens the shell.
     Leaving(String),
+}
+
+/// What start-up asks, besides secrets: [`Answer::Continue`] goes on, as
+/// when the time runs out, and [`Answer::Escape`] stops.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Question {
+    /// No passphrase opened a volume this round: try again, or skip it.
+    RetryUnlock {
+        /// The volume.
+        volume: String,
+    },
+    /// A LUKS device of the configuration is missing: look again, or skip
+    /// it.
+    MissingVolume {
+        /// The device, as the configuration names it.
+        device: String,
+    },
+    /// Devices of `zbm.wait_for` are missing: look again, or stop waiting.
+    MissingDevices,
+    /// A pool did not import, or none did: try again, or open the recovery
+    /// shell.
+    ImportFailed {
+        /// The pool start-up wanted, if one.
+        pool: Option<String>,
+    },
+    /// A pool has features this build of ZFS does not support: go on.
+    Unsupported {
+        /// What to do about it.
+        advice: String,
+    },
 }
 
 /// How an action ended.

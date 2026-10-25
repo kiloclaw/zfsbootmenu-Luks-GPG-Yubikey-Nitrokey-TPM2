@@ -19,6 +19,7 @@ mod health;
 mod lists;
 mod main_view;
 mod packages;
+mod question;
 mod screens;
 mod status;
 mod unlock;
@@ -42,7 +43,7 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     frame
         .buffer_mut()
         .set_style(area, model.theme.style(Role::Text));
-    let notification = u16::from(model.notification.is_some());
+    let notification = u16::from(model.notification.is_some() || model.progress.is_some());
     let [top, body, note, bottom] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(5),
@@ -54,6 +55,8 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     render_screen(model, frame, body);
     if let Some(outcome) = &model.notification {
         frame.render_widget(Paragraph::new(notification_line(model, outcome)), note);
+    } else if let Some(what) = &model.progress {
+        frame.render_widget(Paragraph::new(progress_line(model, what)), note);
     }
     frame.render_widget(Paragraph::new(footer(model, bottom.width)), bottom);
     dialogs::render(model, frame, body);
@@ -73,6 +76,19 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         Screen::Help(context) => screens::help(model, frame, area, context),
         Screen::Diff => diff::render(model, frame, area),
     }
+}
+
+/// The notification line while start-up does something that may take a
+/// while.
+fn progress_line<'a>(model: &Model, what: &'a str) -> Line<'a> {
+    let theme = model.theme;
+    Line::from(vec![
+        Span::styled(
+            format!(" {} ", theme.glyph(Glyph::Running)),
+            theme.style(Role::Accent),
+        ),
+        Span::styled(what, theme.style(Role::Text)),
+    ])
 }
 
 /// The notification line (rule 10): the outcome of the last action, with a

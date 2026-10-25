@@ -7,7 +7,7 @@ mod diff;
 mod prompt;
 
 pub use self::diff::{DiffView, Segment};
-pub use self::prompt::Prompt;
+pub use self::prompt::{Asking, Prompt};
 
 use super::filter::Ranked;
 use super::keymap::Context;
@@ -130,6 +130,8 @@ pub enum Then {
 pub enum Dialog {
     /// A volume asks for a secret, or waits for a device.
     Unlock(Prompt),
+    /// Start-up asks whether to go on.
+    Question(Asking),
     /// A choice among actions.
     Choose {
         /// The title.
@@ -236,6 +238,8 @@ pub struct Model {
     pub started: bool,
     /// The outcome of the last action.
     pub notification: Option<Outcome>,
+    /// What start-up is doing that may take a while, until its next event.
+    pub progress: Option<String>,
     /// Why the menu ends, once it does.
     pub leaving: Option<String>,
     /// The key presses so far, for the measures of the core tasks.
@@ -270,6 +274,7 @@ impl Model {
             countdown: None,
             started: false,
             notification: None,
+            progress: None,
             leaving: None,
             keys: 0,
             scroll: 0,
@@ -443,7 +448,9 @@ impl Model {
     pub fn context(&self) -> Context {
         match &self.dialog {
             Some(Dialog::Unlock(_) | Dialog::Confirm { .. }) => return Context::Text,
-            Some(Dialog::Choose { .. } | Dialog::Error { .. }) => return Context::Choose,
+            Some(Dialog::Choose { .. } | Dialog::Error { .. } | Dialog::Question(_)) => {
+                return Context::Choose;
+            }
             None => {}
         }
         if self.palette.is_some()

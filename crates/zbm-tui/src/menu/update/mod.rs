@@ -152,6 +152,9 @@ fn back(model: &mut Model) {
 /// the default environment, the one asked for once, or the fallback of a
 /// default that used up its boot tries. It never asks: nobody may be there.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
+    if model.dialog.is_some() {
+        return dialogs::count_down(model, ms);
+    }
     let Some(left) = model.countdown else {
         return Vec::new();
     };
@@ -187,6 +190,8 @@ pub(crate) fn show_failure(model: &mut Model, outcome: &Outcome) {
 
 #[cfg(test)]
 mod health_tests;
+#[cfg(test)]
+mod question_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

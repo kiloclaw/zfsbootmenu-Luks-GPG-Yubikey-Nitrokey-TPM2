@@ -305,6 +305,22 @@ impl<'a> App<'a> {
         }
     }
 
+    /// The keyboard layouts secrets can be typed with, and whether keys
+    /// come from the machine's own keyboard; it reads no pool, so start-up
+    /// can ask it before any is imported. Without the state and layout
+    /// directories, none.
+    pub fn keyboard(&self) -> model::Keyboard {
+        let (Some(layouts), Some(base)) = (self.layouts, self.base) else {
+            return model::Keyboard::default();
+        };
+        let files = self.context.files();
+        let state = zbm_state::State::new(files, base);
+        let console = self
+            .options
+            .map_or("", |options| options.control_term.as_str());
+        read::keyboard(files, layouts, &state, console)
+    }
+
     /// Reads the machine: what every view of the menu reads. What the
     /// application was not given (options, a LUKS session, the state and
     /// layout directories) stays empty.
@@ -322,16 +338,7 @@ impl<'a> App<'a> {
             .wall()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |time| time.as_secs());
-        let keyboard = match (self.layouts, self.base) {
-            (Some(layouts), Some(base)) => {
-                let state = zbm_state::State::new(files, base);
-                let console = self
-                    .options
-                    .map_or("", |options| options.control_term.as_str());
-                read::keyboard(files, layouts, &state, console)
-            }
-            _ => model::Keyboard::default(),
-        };
+        let keyboard = self.keyboard();
         let state = self.base.map(|base| zbm_state::State::new(files, base));
         let startup = state.as_ref().map(read::startup).unwrap_or_default();
         let bootfs = state

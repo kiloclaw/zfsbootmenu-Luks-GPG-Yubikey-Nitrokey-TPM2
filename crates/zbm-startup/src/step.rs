@@ -101,11 +101,17 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
             .finished_stages()
             .iter()
             .any(|done| done == stage.as_str());
+        let name = zbm_app::stage_name(stage);
         if finished && rerun == Rerun::Pending {
+            // An earlier run did it: a front end that shows the stages
+            // shows it done.
+            context.front.send(Event::StageFinished {
+                stage: name.to_owned(),
+                state: StageState::Done,
+            });
             continue;
         }
         zbm_trace::info!("running init stage {stage}");
-        let name = zbm_app::stage_name(stage);
         context.front.send(Event::StageStarted(name.to_owned()));
         step.run(context);
         context.front.send(Event::StageFinished {

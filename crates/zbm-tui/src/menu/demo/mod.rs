@@ -148,6 +148,7 @@ impl FakeMachine {
                 method,
                 tries_left: None,
                 notice,
+                wait: None,
             });
         }
         if stage == data::IMPORT_STAGE && !self.import_asked {
@@ -296,6 +297,7 @@ impl FakeMachine {
                 method: Method::Passphrase,
                 tries_left: None,
                 notice: Some(notice),
+                wait: None,
             }];
         }
         self.wrong(volume, method)
@@ -337,6 +339,7 @@ impl FakeMachine {
             method,
             tries_left,
             notice: Some(notice),
+            wait: None,
         }]
     }
 

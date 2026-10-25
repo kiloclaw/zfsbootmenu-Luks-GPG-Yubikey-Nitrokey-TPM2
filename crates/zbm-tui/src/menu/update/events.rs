@@ -1,13 +1,15 @@
 //! What the machine's events do to the menu.
 
-use crate::menu::model::{Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
+use crate::menu::model::{Asking, Choice, Dialog, DiffView, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Event, Outcome, Stage, StageState, Target, UnlockOutcome};
 use crate::text::text;
 use zbm_types::ImportPolicy;
 
 /// Applies an event.
 pub(super) fn apply(model: &mut Model, event: Event) {
+    model.progress = None;
     match event {
+        Event::Progress(what) => model.progress = Some(what),
         Event::Changed(snapshot) => {
             model.snapshot = snapshot;
             model.refresh();
@@ -18,9 +20,14 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             method,
             tries_left,
             notice,
+            wait,
         } => {
-            let prompt = Prompt::new(volume, method, tries_left, notice);
+            let prompt = Prompt::new(volume, method, tries_left, notice).waiting(wait);
             model.dialog = Some(Dialog::Unlock(prompt));
+        }
+        Event::Asked { question, seconds } => {
+            let left = seconds.map(|seconds| seconds.saturating_mul(1000));
+            model.dialog = Some(Dialog::Question(Asking { question, left }));
         }
         Event::ResealOffered(volume) => {
             if let Some(then) = super::unlock::reseal(model, &volume) {

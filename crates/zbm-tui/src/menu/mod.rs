@@ -23,6 +23,7 @@ pub mod keymap;
 pub mod machine;
 pub mod model;
 pub mod session;
+pub mod startup;
 pub mod terminal;
 pub mod theme;
 pub mod update;

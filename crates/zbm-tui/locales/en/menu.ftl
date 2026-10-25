@@ -136,6 +136,34 @@ quoted-ascii = "{ $text }"
 startup-title = Starting ZFSBootMenu
 # The stage that runs, of all of them.
 startup-step = { $current } of { $total }
+# The questions start-up asks: Enter goes on, as when the time runs out, Esc
+# stops.
+question-unlock = No passphrase opened it.
+    .title = { $volume } Did Not Open
+question-missing-volume = The LUKS device { $device } is not there yet.
+    .title = { $device } Is Missing
+question-missing-devices = A device that zbm.wait_for names is not there yet.
+    .title = Devices Are Missing
+question-import = Its devices may not be there yet, or another host may hold it.
+question-import-none =
+    .title = No Pool Imported
+question-unsupported = A pool has features this build of ZFS does not support, so it stays read-only.
+    .title = Unsupported Features
+question-retrying = { $seconds ->
+        [one] Trying again in { $seconds } second.
+       *[other] Trying again in { $seconds } seconds.
+    }
+question-looking = { $seconds ->
+        [one] Looking again in { $seconds } second.
+       *[other] Looking again in { $seconds } seconds.
+    }
+question-continuing = { $seconds ->
+        [one] Continuing in { $seconds } second.
+       *[other] Continuing in { $seconds } seconds.
+    }
+button-try-again = Try Again
+button-look-again = Look Again
+button-stop-waiting = Stop Waiting
 
 ## Snapshots, kernels and the command line.
 
@@ -388,7 +416,19 @@ method-yubikey = YubiKey
 method-gnupg = key file passphrase
     .label = Key file passphrase
 method-key-device = key device
+method-fido2-pin = security key PIN
+    .label = Security key PIN
+method-yubikey-passphrase = YubiKey passphrase
+    .label = Passphrase
+method-openpgp-card = OpenPGP card
+method-openpgp-card-pin = card PIN
+    .label = Card PIN
 unlock-waiting = Waiting for the { $method }: touch it, or plug it in.
+# How long start-up still waits for the device.
+unlock-wait-left = { $seconds ->
+        [one] { $seconds } second left
+       *[other] { $seconds } seconds left
+    }
 unlock-tries-left = { $count ->
         [one] { $count } try left
        *[other] { $count } tries left

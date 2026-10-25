@@ -24,6 +24,10 @@ pub(crate) fn method_name(method: Method) -> Id {
         Method::YubiKey => id!("method-yubikey"),
         Method::GnupgKeyFile => id!("method-gnupg"),
         Method::KeyDevice => id!("method-key-device"),
+        Method::Fido2Pin => id!("method-fido2-pin"),
+        Method::YubiKeyPassphrase => id!("method-yubikey-passphrase"),
+        Method::OpenPgpCard => id!("method-openpgp-card"),
+        Method::OpenPgpCardPin => id!("method-openpgp-card-pin"),
     }
 }
 
@@ -38,6 +42,9 @@ fn method_label(method: Method) -> Id {
         Method::Passphrase => id!("method-passphrase.label"),
         Method::Tpm2Pin => id!("method-tpm2-pin.label"),
         Method::GnupgKeyFile => id!("method-gnupg.label"),
+        Method::Fido2Pin => id!("method-fido2-pin.label"),
+        Method::YubiKeyPassphrase => id!("method-yubikey-passphrase.label"),
+        Method::OpenPgpCardPin => id!("method-openpgp-card-pin.label"),
         other => method_name(other),
     }
 }
@@ -104,6 +111,13 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
         body.push(Line::styled(
             notice.text().to_owned(),
             theme.style(Role::Warning),
+        ));
+    }
+    if let Some(wait) = prompt.wait {
+        let seconds = wait.div_ceil(1000);
+        body.push(Line::styled(
+            text!("unlock-wait-left", seconds = seconds),
+            theme.style(Role::Muted),
         ));
     }
     if let Some(left) = prompt.tries_left {

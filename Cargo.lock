@@ -1954,6 +1954,7 @@ dependencies = [
  "zbm-display",
  "zbm-luks",
  "zbm-platform",
+ "zbm-pool",
  "zbm-startup",
  "zbm-state",
  "zbm-sys",

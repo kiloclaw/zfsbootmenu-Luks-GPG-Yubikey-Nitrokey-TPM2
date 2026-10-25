@@ -18,6 +18,7 @@ zbm-console.workspace = true
 zbm-core.workspace = true
 zbm-display.workspace = true
 zbm-luks.workspace = true
+zbm-pool.workspace = true
 zbm-platform.workspace = true
 zbm-state.workspace = true
 zbm-sys.workspace = true

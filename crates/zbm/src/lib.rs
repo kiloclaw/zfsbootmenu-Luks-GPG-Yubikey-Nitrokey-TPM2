@@ -23,6 +23,7 @@ pub mod saved;
 #[cfg(any(test, feature = "secret-test"))]
 pub mod secret_search;
 pub mod shadow;
+pub mod startup;
 pub mod supervisor;
 
 /// The program's output streams.

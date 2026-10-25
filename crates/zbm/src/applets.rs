@@ -132,7 +132,16 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     // trap '' SIGINT
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
     on_console(io, |system, conf, _| {
-        Startup::new(system, conf).run(modes, None)
+        let startup = Startup::new(system, conf);
+        // On the console at boot, the stages run in the menu's start-up
+        // view when the terminal can run it; resumed, they are done.
+        if modes.console
+            && !modes.resume
+            && let Some(status) = crate::startup::run_in_menu(&startup, system, conf, modes)
+        {
+            return status;
+        }
+        startup.run(modes, None)
     })
 }
 

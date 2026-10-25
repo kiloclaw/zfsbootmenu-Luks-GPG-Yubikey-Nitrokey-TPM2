@@ -1,10 +1,10 @@
 //! Dialogs: choosing, confirming, errors; unlocking is in `unlock`.
 
-use zbm_types::{ImportPolicy, PoolName};
+use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Choice, Dialog, Model, Then};
+use crate::menu::model::{Asking, Choice, Dialog, Model, Then};
 use crate::menu::world::{Action, Outcome};
 use crate::text::text;
 
@@ -140,6 +140,7 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
     };
     match dialog {
         Dialog::Unlock(prompt) => super::unlock::prompt(model, input, prompt),
+        Dialog::Question(asking) => answer(model, input, asking),
         Dialog::Choose {
             title,
             lines,
@@ -159,6 +160,39 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
             }
             Vec::new()
         }
+    }
+}
+
+/// A question of start-up: `Enter` goes on, `Esc` stops.
+fn answer(model: &mut Model, input: Input, asking: Asking) -> Vec<Action> {
+    match input {
+        Input::Intent(Intent::Primary) => vec![Action::Answer(Answer::Continue)],
+        Input::Intent(Intent::Back) => vec![Action::Answer(Answer::Escape)],
+        _ => {
+            model.dialog = Some(Dialog::Question(asking));
+            Vec::new()
+        }
+    }
+}
+
+/// Counts the time of start-up's dialog down by `ms`: when it runs out,
+/// a question goes on and a volume stops waiting for its device.
+pub(super) fn count_down(model: &mut Model, ms: u64) -> Vec<Action> {
+    let left = match &mut model.dialog {
+        Some(Dialog::Question(asking)) => &mut asking.left,
+        Some(Dialog::Unlock(prompt)) => &mut prompt.wait,
+        _ => return Vec::new(),
+    };
+    let Some(time) = left.as_mut() else {
+        return Vec::new();
+    };
+    *time = time.saturating_sub(ms);
+    if *time > 0 {
+        return Vec::new();
+    }
+    match model.dialog.take() {
+        Some(Dialog::Unlock(prompt)) => vec![Action::SkipUnlock(prompt.volume)],
+        _ => vec![Action::Answer(Answer::Continue)],
     }
 }
 

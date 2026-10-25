@@ -14,7 +14,9 @@ mod unlock;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-pub use self::action::{Action, Event, Outcome, RESTORE_SNAPSHOT, SAFETY_SNAPSHOT, UnlockOutcome};
+pub use self::action::{
+    Action, Event, Outcome, Question, RESTORE_SNAPSHOT, SAFETY_SNAPSHOT, UnlockOutcome,
+};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
@@ -260,6 +262,14 @@ pub enum Method {
     GnupgKeyFile,
     /// A key file on a device that has to be plugged in.
     KeyDevice,
+    /// The PIN of a FIDO2 security key.
+    Fido2Pin,
+    /// The passphrase YubiKey challenge-response turns into the key.
+    YubiKeyPassphrase,
+    /// The OpenPGP security key or card a GnuPG key file is encrypted to.
+    OpenPgpCard,
+    /// The PIN of that card.
+    OpenPgpCardPin,
 }
 
 impl Method {
@@ -274,6 +284,10 @@ impl Method {
             Method::YubiKey => "YubiKey",
             Method::GnupgKeyFile => "key file passphrase",
             Method::KeyDevice => "key device",
+            Method::Fido2Pin => "security key PIN",
+            Method::YubiKeyPassphrase => "YubiKey passphrase",
+            Method::OpenPgpCard => "OpenPGP card",
+            Method::OpenPgpCardPin => "card PIN",
         }
     }
 
@@ -281,7 +295,12 @@ impl Method {
     pub fn is_typed(self) -> bool {
         matches!(
             self,
-            Method::Passphrase | Method::Tpm2Pin | Method::GnupgKeyFile
+            Method::Passphrase
+                | Method::Tpm2Pin
+                | Method::GnupgKeyFile
+                | Method::Fido2Pin
+                | Method::YubiKeyPassphrase
+                | Method::OpenPgpCardPin
         )
     }
 }
@@ -420,6 +439,10 @@ mod tests {
             Method::YubiKey,
             Method::GnupgKeyFile,
             Method::KeyDevice,
+            Method::Fido2Pin,
+            Method::YubiKeyPassphrase,
+            Method::OpenPgpCard,
+            Method::OpenPgpCardPin,
         ];
         let kinds = [
             PackageKind::Installed,
@@ -438,7 +461,14 @@ mod tests {
         let typed: Vec<Method> = methods.into_iter().filter(|m| m.is_typed()).collect();
         assert_eq!(
             typed,
-            [Method::Passphrase, Method::Tpm2Pin, Method::GnupgKeyFile]
+            [
+                Method::Passphrase,
+                Method::Tpm2Pin,
+                Method::GnupgKeyFile,
+                Method::Fido2Pin,
+                Method::YubiKeyPassphrase,
+                Method::OpenPgpCardPin
+            ]
         );
     }
 }

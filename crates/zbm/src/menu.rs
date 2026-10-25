@@ -26,7 +26,7 @@ use crate::applets::on_console;
 use crate::{Io, layouts};
 
 /// The size to draw in when the terminal reports none.
-const FALLBACK_SIZE: (u16, u16) = (80, 24);
+pub(crate) const FALLBACK_SIZE: (u16, u16) = (80, 24);
 
 /// Runs the menu until it ends; why it ended.
 type Run = fn(Session<RealMachine<'_, '_>>) -> io::Result<String>;

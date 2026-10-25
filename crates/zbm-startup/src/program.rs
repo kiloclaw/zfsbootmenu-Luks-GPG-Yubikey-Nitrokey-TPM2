@@ -133,10 +133,30 @@ impl<'a> Startup<'a> {
     /// otherwise it returns only after `rounds` rounds of the recovery loop
     /// (never, with `None`).
     pub fn run(&self, modes: Modes, rounds: Option<usize>) -> i32 {
+        self.run_with(modes, rounds, None)
+    }
+
+    /// [`Startup::run`], with the stages on `stages` when given: their
+    /// programs on its system, and what they ask through its front end,
+    /// such as the menu's start-up view, which they finish with. Otherwise
+    /// they run on the plain console.
+    pub fn run_with(
+        &self,
+        modes: Modes,
+        rounds: Option<usize>,
+        stages: Option<(&System<'_>, &mut dyn Front)>,
+    ) -> i32 {
         let _ = self.state.create();
         boot::mount_efivarfs(&self.system, "ro");
 
-        let bootfs = self.run_stages(modes.rerun);
+        let bootfs = match stages {
+            Some((system, front)) => {
+                let bootfs = self.run_stages_on(system, front, modes.rerun);
+                front.finish();
+                bootfs
+            }
+            None => self.run_stages(modes.rerun),
+        };
         if let Err(error) = self.state.mark_initialized() {
             zbm_trace::error!("{}", error.to_string());
         }

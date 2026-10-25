@@ -52,6 +52,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     match &model.dialog {
         Some(Dialog::Unlock(prompt)) => super::unlock::render(model, frame, area, prompt),
+        Some(Dialog::Question(asking)) => super::question::render(theme, frame, area, asking),
         Some(Dialog::Choose {
             title,
             lines,

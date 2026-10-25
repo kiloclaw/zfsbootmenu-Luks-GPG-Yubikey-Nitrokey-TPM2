@@ -46,6 +46,10 @@ pub trait Front {
         state: &State<'_>,
         settings: &ImportSettings,
     ) -> Imported;
+
+    /// The stages are over: a front end that draws on the console gives it
+    /// back, for the countdown and the menu.
+    fn finish(&mut self) {}
 }
 
 /// The plain console: the prompts of the legacy start-up program, `zluks
