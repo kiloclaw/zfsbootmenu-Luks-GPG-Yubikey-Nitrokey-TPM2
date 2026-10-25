@@ -105,7 +105,7 @@ mod tests {
         fake.files
             .file("/zfsbootmenu/zbm.cmdline", "zbm.console=drm\n")
             .dir("/zfsbootmenu");
-        let conf = |term: &str| Conf::parse(&format!("export control_term=\"{term}\"\n")).unwrap();
+        let conf = |term: &str| Conf::parse(&format!("export control_term=\"{term}\"\n"));
 
         let system = fake.system();
         assert_eq!(

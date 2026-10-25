@@ -37,7 +37,7 @@ impl Menu for Locked<'_, '_> {
 
 fn conf() -> Conf {
     let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(""));
-    Conf::parse(&options.conf("/zfsbootmenu")).unwrap()
+    Conf::parse(&options.conf("/zfsbootmenu"))
 }
 
 /// A machine whose start-up is over, with `/dev/zfs` and the default boot
@@ -158,6 +158,21 @@ fn another_menu_is_asked_to_end_and_waited_for() {
 }
 
 #[test]
+fn a_lock_whose_process_is_gone_is_stale() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    // The menu that held it was killed (SIGKILL) and left it.
+    state.set_active(77).unwrap();
+    fake.processes.end(77);
+    let startup = Startup::new(fake.system(), &conf());
+    let mut menu = Recorded::default();
+    assert_eq!(startup.menu(&mut menu), 0);
+    assert_eq!(menu.shown.len(), 1);
+    assert!(fake.processes.signals().is_empty());
+    assert!(!state.is_active());
+}
+
+#[test]
 fn the_menu_program_is_found_when_executable() {
     let fake = FakeSystem::new();
     assert!(!has_menu(&fake.system()));
@@ -219,4 +234,55 @@ fn the_menu_counts_down_the_first_time_and_the_program_does_not() {
         .collect();
     assert_eq!(menus, [format!("{MENU} --countdown"), MENU.to_owned()]);
     assert!(!fake.console.output_text().contains("Booting"));
+}
+
+/// The calls of the menu program, as command lines.
+fn menu_calls(fake: &FakeSystem) -> Vec<String> {
+    fake.runner
+        .calls()
+        .iter()
+        .filter(|call| call.program() == MENU)
+        .map(zbm_platform::Command::display)
+        .collect()
+}
+
+#[test]
+fn start_up_counts_down_itself_when_the_menu_cannot_start() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    for stage in zbm_types::Stage::ALL {
+        state.finish_stage(stage.as_str()).unwrap();
+    }
+    fake.files.file_with_mode(MENU, "", 0o755);
+    // zfs list failed: the menu could not read the machine.
+    fake.runner
+        .respond_program(MENU, u8::try_from(FAILED).unwrap(), "");
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    Startup::new(fake.system(), &conf()).run(console, Some(2));
+    assert_eq!(
+        menu_calls(&fake),
+        [format!("{MENU} --countdown"), MENU.to_owned()]
+    );
+    let shown = fake.console.output_text();
+    assert!(shown.contains("Booting"), "{shown}");
+}
+
+#[test]
+fn after_another_instance_was_seen_nothing_boots_by_itself() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    for stage in zbm_types::Stage::ALL {
+        state.finish_stage(stage.as_str()).unwrap();
+    }
+    fake.files.file_with_mode(MENU, "", 0o755);
+    state.set_active(77).unwrap();
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    Startup::new(fake.system(), &conf()).run(console, Some(1));
+    assert_eq!(menu_calls(&fake), [MENU.to_owned()]);
 }

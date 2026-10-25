@@ -48,6 +48,15 @@ pub fn is_on(value: &str) -> bool {
     )
 }
 
+/// What the first round of the recovery loop does.
+enum FirstRound<'b> {
+    /// The menu counts down to booting the environment, if any; start-up
+    /// counts down itself when the menu cannot start.
+    Countdown(Option<&'b str>),
+    /// The menu opens without counting down.
+    Menu,
+}
+
 /// How the start-up program runs.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Modes {
@@ -169,12 +178,18 @@ impl<'a> Startup<'a> {
         if !modes.resume && !has_menu {
             self.countdown(bootfs.as_deref());
         }
-        if self.state.is_active() {
+        // Legacy never boots by itself once it saw another instance.
+        let taken = self.state.is_active();
+        if taken {
             self.shell()
                 .emergency_shell("an active instance is already running");
         }
-        let first: &[&str] = if modes.resume { &[] } else { &["--countdown"] };
-        self.recovery_loop(rounds, first);
+        let first = if modes.resume || taken {
+            FirstRound::Menu
+        } else {
+            FirstRound::Countdown(bootfs.as_deref())
+        };
+        self.recovery_loop(rounds, &first);
         0
     }
 
@@ -292,24 +307,40 @@ impl<'a> Startup<'a> {
                 hooks: self.hooks.clone(),
                 env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
                 save_logs: self.save_logs(),
+                command_line: None,
             };
             let mut shell = self.shell();
             boot::kexec_kernel(system, &self.state, &settings, &selected, &mut shell);
         }
     }
 
-    /// The loop of the legacy program: the menu program, with `first` the
-    /// first time, and the recovery shell, then pools that became
+    /// The loop of the legacy program: the menu program, as `first` says
+    /// the first time, and the recovery shell, then pools that became
     /// importable in them are imported read-only, and unhealthy ones
     /// restricted. Without the menu program, the shell says that the menu
     /// is not supported.
-    fn recovery_loop(&self, rounds: Option<usize>, first: &[&str]) {
+    fn recovery_loop(&self, rounds: Option<usize>, first: &FirstRound<'_>) {
         let mut round = 0;
         while rounds.is_none_or(|rounds| round < rounds) {
             round += 1;
             if menu::has_menu(&self.system) {
-                let args = if round == 1 { first } else { &[] };
-                let _ = programs::applet(self.system.runner, menu::MENU, args, &[]);
+                let countdown = match first {
+                    FirstRound::Countdown(bootfs) if round == 1 => Some(*bootfs),
+                    _ => None,
+                };
+                let args: &[&str] = if countdown.is_some() {
+                    &["--countdown"]
+                } else {
+                    &[]
+                };
+                let ran = programs::applet(self.system.runner, menu::MENU, args, &[]);
+                let failed = ran.is_ok_and(|output| output.status.code() == Some(menu::FAILED));
+                if let Some(bootfs) = countdown.filter(|_| failed) {
+                    // The menu could not read the machine or use the
+                    // terminal: the automatic boot must not depend on it.
+                    zbm_trace::warn!("the menu could not start; counting down without it");
+                    self.countdown(bootfs);
+                }
                 self.shell().emergency_shell("");
             } else {
                 self.shell().emergency_shell(support::MESSAGE);

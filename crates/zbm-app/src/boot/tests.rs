@@ -101,29 +101,33 @@ fn kernels_are_found_with_the_one_the_property_names() {
 }
 
 #[test]
-fn a_boot_writes_the_command_line_and_executes_the_chosen_kernel() {
+fn a_typed_command_line_boots_once_without_root_and_with_noresume() {
     let fake = machine();
+    State::new(&fake.files, "/zfsbootmenu")
+        .set_noresume()
+        .unwrap();
     let mut shells = Shells::default();
     let events = with_boot(&fake, |boot| {
         boot.boot(
             &BE.parse().unwrap(),
             Some("6.1.10"),
-            Some("quiet single"),
+            Some("root=zfs:tank/other quiet resume=/dev/sda2 single"),
             false,
             &mut shells,
         )
     });
 
-    assert_eq!(
-        fake.files.text("/zfsbootmenu/cmdline").as_deref(),
-        Some("quiet\nsingle\n")
-    );
+    // Nothing is written down for later boots.
+    assert_eq!(fake.files.text("/zfsbootmenu/cmdline"), None);
     let loaded = lines(&fake);
+    let load = loaded
+        .iter()
+        .find(|line| line.starts_with("kexec -a -l") && line.contains("vmlinuz-6.1.10"))
+        .unwrap_or_else(|| panic!("{loaded:#?}"));
+    assert!(load.contains("quiet single noresume"), "{load}");
     assert!(
-        loaded
-            .iter()
-            .any(|line| line.starts_with("kexec -a -l") && line.contains("vmlinuz-6.1.10")),
-        "{loaded:#?}"
+        !load.contains("tank/other") && !load.contains("resume=/dev/sda2"),
+        "{load}"
     );
     // The fake's kexec -e returns: the boot failed.
     assert!(matches!(

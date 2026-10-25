@@ -47,12 +47,14 @@ struct Terminal<'s, 'a> {
     error: Option<String>,
 }
 
-/// Whether another instance asked this one to end: `SIGUSR1` to it, or
-/// `SIGTERM` when it ran no child.
+/// Whether the menu must end: another instance asked it to (`SIGUSR1` to
+/// it, or `SIGTERM` when it ran no child), or its terminal went away
+/// (`SIGHUP`, a dropped SSH session). It then returns and gives up the
+/// `active` lock, as the legacy EXIT trap did.
 fn is_taken_over() -> bool {
     matches!(
         zbm_sys::received_signal(),
-        Some(Signal::User1 | Signal::Terminate)
+        Some(Signal::User1 | Signal::Terminate | Signal::Hangup)
     )
 }
 
@@ -113,11 +115,11 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     };
     // trap '' SIGINT; the USR1 trap of a takeover
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
-    let _ = zbm_sys::record_signals(&[Signal::User1, Signal::Terminate]);
+    let _ = zbm_sys::record_signals(&[Signal::User1, Signal::Terminate, Signal::Hangup]);
     on_console(io, |system, conf, io| {
         menu(system, conf, on_terminal, countdown).unwrap_or_else(|error| {
             let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
-            1
+            zbm_startup::program::menu::FAILED
         })
     })
 }

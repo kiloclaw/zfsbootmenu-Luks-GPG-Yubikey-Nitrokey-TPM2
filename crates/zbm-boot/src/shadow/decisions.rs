@@ -30,7 +30,7 @@ fn configuration(files: &dyn Files) -> Conf {
     files
         .read_to_string(Path::new(conf::PATH))
         .ok()
-        .and_then(|text| Conf::parse(&text).ok())
+        .map(|text| Conf::parse(&text))
         .unwrap_or_default()
 }
 

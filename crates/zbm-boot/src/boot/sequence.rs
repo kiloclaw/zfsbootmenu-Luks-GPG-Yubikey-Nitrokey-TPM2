@@ -35,6 +35,9 @@ pub struct BootSettings {
     /// `zbm.save_logs`: where the logs of this boot are saved before the
     /// kernel starts, if anywhere (ROADMAP.md #9).
     pub save_logs: Option<Destination>,
+    /// A command line typed in the menu for this boot only, in place of the
+    /// boot environment's `org.zfsbootmenu:commandline`.
+    pub command_line: Option<String>,
 }
 
 impl Default for BootSettings {
@@ -44,6 +47,7 @@ impl Default for BootSettings {
             hooks: PathBuf::from(hooks::HOOKS),
             env: Vec::new(),
             save_logs: None,
+            command_line: None,
         }
     }
 }
@@ -173,8 +177,8 @@ fn run_boot_sel_hooks(
     );
 }
 
-/// The command line of `fs` booted with `kernel`, after logging the messages
-/// of its assembly.
+/// The command line of `fs` booted with `kernel`, or the one typed for this
+/// boot, after logging the messages of its assembly.
 fn command_line(
     system: &System<'_>,
     state: &State<'_>,
@@ -184,15 +188,25 @@ fn command_line(
 ) -> String {
     let mut messages = Vec::new();
     let zfs = ZfsCommand::new(system.runner);
-    let cli_args = commandline::be_cmdline(
-        system.files,
-        &zfs,
-        state,
-        fs,
-        kernel,
-        settings.set_hostid,
-        &mut messages,
-    );
+    let cli_args = match &settings.command_line {
+        Some(line) => commandline::edited_cmdline(
+            system.files,
+            &zfs,
+            state,
+            (fs, line),
+            settings.set_hostid,
+            &mut messages,
+        ),
+        None => commandline::be_cmdline(
+            system.files,
+            &zfs,
+            state,
+            fs,
+            kernel,
+            settings.set_hostid,
+            &mut messages,
+        ),
+    };
     for message in &messages {
         message.emit();
     }

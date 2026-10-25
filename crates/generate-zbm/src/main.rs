@@ -4,10 +4,13 @@
 use std::io::Write;
 
 fn main() {
-    // Like the Perl program, end quietly on a closed pipe, and handle SIGINT and
-    // SIGTERM by unmounting the boot partition and exiting with status 1 (child
-    // programs still receive the signals).
-    let _ = zbm_sys::restore_default_sigpipe();
+    // A closed pipe (`generate-zbm | less`, quit early) only makes writes fail,
+    // and the program goes on to its end, as the Perl one does with its output
+    // buffered on the pipe: dying there could leave the old image renamed to
+    // its backup and the new one not in place. SIGPIPE stays ignored, as the
+    // standard library sets it; programs it starts get the default action
+    // back. SIGINT and SIGTERM unmount the boot partition and exit with status
+    // 1 (child programs still receive them).
     let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
 
     let mut args = std::env::args();

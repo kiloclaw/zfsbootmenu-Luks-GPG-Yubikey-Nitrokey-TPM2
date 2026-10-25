@@ -11,7 +11,6 @@ use zbm_boot::boot::{self as kexec, BootSettings};
 use zbm_boot::kernels::Kernel;
 use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
 use zbm_boot::recovery::Recovery;
-use zbm_config::kcl;
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::DatasetName;
@@ -119,12 +118,12 @@ impl Boot<'_, '_> {
                 vec![format!("it has no kernel {version}")],
             );
         };
-        if let Some(line) = command_line
-            && let Err(error) = self.state.set_cmdline_override(&kcl::tokenize(line))
-        {
-            return failed(format!("unable to boot {fs}"), vec![error.to_string()]);
-        }
-        kexec::kexec_kernel(self.system, self.state, self.settings, &selected, recovery);
+        // The typed line is for this boot only: nothing is written down.
+        let settings = BootSettings {
+            command_line: command_line.map(str::to_owned),
+            ..self.settings.clone()
+        };
+        kexec::kexec_kernel(self.system, self.state, &settings, &selected, recovery);
         failed(
             format!("unable to boot {fs}"),
             vec!["the kernel could not be executed".to_owned()],

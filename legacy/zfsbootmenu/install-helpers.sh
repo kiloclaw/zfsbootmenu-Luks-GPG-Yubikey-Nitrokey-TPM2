@@ -430,8 +430,15 @@ install_zbm_core() {
   if [ "${ZBM_RUNTIME}" = "rust" ]; then
     ln -sf /libexec/zbm "${BUILDROOT}/bin/zluks" || ret=$?
     ln -sf /libexec/zbm "${BUILDROOT}/bin/zfsbootmenu" || ret=$?
-    # zbm is the menu's other name; run under it, /libexec/zbm lists its commands
-    printf '#!/bin/sh\nexec /libexec/zbm zfsbootmenu "$@"\n' > "${BUILDROOT}/bin/zbm" || ret=$?
+    # zbm is the menu's other name; with a command (zbm debug crash, zbm
+    # report) it runs that command of /libexec/zbm, which lists them
+    cat > "${BUILDROOT}/bin/zbm" <<'EOF' || ret=$?
+#!/bin/sh
+case "${1:-}" in
+  ""|-*) exec /libexec/zbm zfsbootmenu "$@" ;;
+  *) exec /libexec/zbm "$@" ;;
+esac
+EOF
     chmod 755 "${BUILDROOT}/bin/zbm" || ret=$?
     return $ret
   fi

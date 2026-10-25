@@ -114,6 +114,48 @@ fn command_lines_come_from_the_property_and_are_cached() {
 }
 
 #[test]
+fn a_typed_command_line_stands_in_for_the_property_for_one_boot() {
+    let files = FakeFiles::new();
+    files.dir("/zfsbootmenu/environments/tank/ROOT/void/kcl");
+    let properties = Properties(vec![
+        ("tank/ROOT", "zswap.enabled=1"),
+        ("tank/ROOT/void", "ro quiet"),
+    ]);
+    let state = State::new(&files, "/zfsbootmenu");
+    state.set_noresume().unwrap();
+    files.file(
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/boot:vmlinuz-6.1.kcl",
+        "from the kernel\n",
+    );
+    let mut log = Vec::new();
+    let typed = |line: &str, log: &mut Vec<Message>| {
+        edited_cmdline(
+            &files,
+            &properties,
+            &state,
+            ("tank/ROOT/void", line),
+            false,
+            log,
+        )
+    };
+
+    // %{parent} is the parent's line; root= and resume= are ZFSBootMenu's.
+    assert_eq!(
+        typed(
+            "%{parent} root=zfs:tank/other resume=/dev/x single",
+            &mut log
+        ),
+        "zswap.enabled=1 single noresume"
+    );
+    assert_eq!(typed("", &mut log), "quiet loglevel=4 noresume");
+    // Nothing is cached or kept for the next boot.
+    assert_eq!(state.cmdline_override(), None);
+    assert!(!files.exists(Path::new(
+        "/zfsbootmenu/environments/tank/ROOT/void/kcl/default.kcl"
+    )));
+}
+
+#[test]
 fn kernel_command_lines_and_defaults() {
     let (files, properties) = setup();
     let state = State::new(&files, "/zfsbootmenu");

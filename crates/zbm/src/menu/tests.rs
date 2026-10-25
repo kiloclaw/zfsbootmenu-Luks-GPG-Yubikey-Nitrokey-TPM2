@@ -8,7 +8,7 @@ use super::*;
 /// `tank/ROOT/void`.
 fn conf() -> Conf {
     let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(""));
-    Conf::parse(&options.conf("/zfsbootmenu")).unwrap()
+    Conf::parse(&options.conf("/zfsbootmenu"))
 }
 
 /// A machine whose start-up is over, with no pools; `zfs` and `zpool` exit

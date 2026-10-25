@@ -251,10 +251,13 @@ install() {
   create_zbm_traceconf
 
   # Embed a kernel command line in the initramfs; create_zbm_conf writes the
-  # file anew, so this comes after it
+  # file anew, so this comes after it. Single quotes keep every character as
+  # typed (a quote in it is written '\''), so that sourcing the file and the
+  # Rust runtime's parser read the same value.
   # shellcheck disable=SC2154
   if [ -n "${embedded_kcl}" ]; then
-    echo "export embedded_kcl=\"${embedded_kcl}\"" >> "${initdir}/etc/zfsbootmenu.conf"
+    printf "export embedded_kcl='%s'\n" "${embedded_kcl//\'/\'\\\'\'}" \
+      >> "${initdir}/etc/zfsbootmenu.conf"
   fi
 
   if command -v setfont >/dev/null 2>&1; then

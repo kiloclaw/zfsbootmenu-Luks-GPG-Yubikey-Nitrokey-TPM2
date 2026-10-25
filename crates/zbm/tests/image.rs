@@ -202,7 +202,12 @@ const TEXTS: &[&str] = &[
     "usr/share/zfsbootmenu/layouts/layouts",
     "etc/inputrc",
     "etc/profile",
+    "bin/zbm",
 ];
+
+/// Texts of [`TEXTS`] kept only when they are this short: `bin/zbm` is a
+/// wrapper in Rust images and the whole legacy menu in legacy ones.
+const SHORT: &[&str] = &["bin/zbm"];
 
 /// What the dracut module installed: every path, and the texts of [`TEXTS`].
 #[derive(Debug, Deserialize, Serialize)]
@@ -245,7 +250,8 @@ impl Image {
             .iter()
             .filter_map(|name| {
                 let text = std::fs::read_to_string(root.join(name)).ok()?;
-                Some(((*name).to_owned(), text.replace(zbm, ZBM)))
+                let is_short = text.len() < 1024 || !SHORT.contains(name);
+                is_short.then(|| ((*name).to_owned(), text.replace(zbm, ZBM)))
             })
             .collect();
         let fonts = std::fs::read_dir(root.join(FONTS))
@@ -360,7 +366,7 @@ fn dracut_images_start_the_selected_runtime() {
     );
     // The embedded command line survives the configuration file being written.
     assert!(
-        conf.contains("export embedded_kcl=\"zbm.timeout=3\"\n"),
+        conf.contains("export embedded_kcl='zbm.timeout=3'\n"),
         "{conf}"
     );
 
@@ -452,11 +458,36 @@ fn dracut_images_start_the_selected_runtime() {
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
     assert_eq!(rust.entries["bin/zfsbootmenu"], "link /libexec/zbm");
     assert_eq!(rust.entries["bin/zbm"], "file 755");
+    zbm_wrapper_runs_the_menu_or_a_command(rust.text("bin/zbm"));
     let hook = rust.text(teardown);
     assert!(hook.starts_with("#!/bin/bash\n"), "{hook}");
     assert!(hook.contains("\n/bin/zluks close\nexit 0\n"), "{hook}");
     assert!(!hook.contains("luks_close_all"), "{hook}");
     assert_eq!(rust.entries[teardown], "file 755");
+}
+
+/// `/bin/zbm` (`wrapper`) runs the menu, with its options, or the command
+/// it is given (`zbm debug crash`, as the supervisor's message says).
+fn zbm_wrapper_runs_the_menu_or_a_command(wrapper: &str) {
+    let dir = TempDir::new("zbm-wrapper");
+    let zbm = dir.write_executable("zbm", "#!/bin/sh\necho \"$@\"\n");
+    let script = wrapper.replace("/libexec/zbm", &zbm.to_string_lossy());
+    for (args, called) in [
+        (&[][..], "zfsbootmenu"),
+        (&["--countdown"], "zfsbootmenu --countdown"),
+        (&["debug", "crash"], "debug crash"),
+        (&["report"], "report"),
+    ] {
+        let output = std::process::Command::new("sh")
+            .args(["-c", &script, "zbm"])
+            .args(args)
+            .output()
+            .expect("sh runs");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{called}\n")
+        );
+    }
 }
 
 #[test]

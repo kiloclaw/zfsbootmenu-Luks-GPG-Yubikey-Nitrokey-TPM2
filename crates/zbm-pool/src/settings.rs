@@ -180,8 +180,7 @@ mod tests {
              export zbm_require_pool='only'\n\
              export zbm_prefer_bootfs='tank/ROOT/a'\n\
              export zbm_retry_delay='7'\n",
-        )
-        .unwrap();
+        );
         let settings = ImportSettings::from_conf(&conf);
         assert_eq!(settings.policy, ImportPolicy::Hostid);
         assert_eq!(settings.prefer_pool, PoolRef::new("tank"));

@@ -395,6 +395,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             hooks: hooks.to_path_buf(),
             env: Vec::new(),
             save_logs: None,
+            command_line: None,
         };
         kexec_kernel(system, state, &settings, &selected, shells);
         String::new()

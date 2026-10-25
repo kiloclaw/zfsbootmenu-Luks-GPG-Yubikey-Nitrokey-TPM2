@@ -26,18 +26,23 @@ pub const DEFAULT_BASE: &str = "/zfsbootmenu";
 /// Where an embedded command line goes.
 const EMBEDDED_KCL: &str = "etc/cmdline.d/zfsbootmenu.conf";
 
-/// Reads `/etc/zfsbootmenu.conf` below `root`.
+/// Reads `/etc/zfsbootmenu.conf` below `root`; a line it cannot read is
+/// skipped with a warning.
 ///
 /// # Errors
 ///
-/// When the file cannot be read or parsed.
+/// When the file cannot be read.
 pub fn read_conf(system: &System<'_>, root: &Path) -> Result<Conf> {
     let path = root.join(conf::PATH.trim_start_matches('/'));
     let text = system
         .files
         .read_to_string(&path)
         .map_err(|error| Error::io(format!("unable to read {}", path.display()), error))?;
-    Conf::parse(&text)
+    let conf = Conf::parse(&text);
+    for skipped in conf.skipped() {
+        zbm_trace::warn!("{skipped}");
+    }
+    Ok(conf)
 }
 
 /// The state directory the configuration names (`BASE`), or the default.
@@ -228,7 +233,7 @@ export embedded_kcl=\"rd.hostonly=0\"
             fake.files.text("/zfsbootmenu/cmdline").as_deref(),
             options.kcl_override.as_deref()
         );
-        let conf = Conf::parse(&fake.files.text("/etc/zfsbootmenu.conf").unwrap()).unwrap();
+        let conf = Conf::parse(&fake.files.text("/etc/zfsbootmenu.conf").unwrap());
         assert_eq!(conf.get("zbm_prefer_pool"), Some("tank"));
         assert_eq!(conf.get("zbm_require_pool"), Some("yes"));
         assert_eq!(conf.get("control_term"), Some("/dev/ttyS0"));

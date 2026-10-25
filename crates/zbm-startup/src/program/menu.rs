@@ -22,6 +22,10 @@ use super::{Modes, Startup};
 /// Where the image installs the menu program.
 pub const MENU: &str = "/bin/zfsbootmenu";
 
+/// The exit status of the menu program when it could not read the machine
+/// or use the terminal: start-up then counts down without it.
+pub const FAILED: i32 = 1;
+
 /// Whether the image has the menu program.
 pub fn has_menu(system: &System<'_>) -> bool {
     system
@@ -90,6 +94,7 @@ impl Startup<'_> {
             hooks: self.hooks.clone(),
             env,
             save_logs: self.save_logs(),
+            command_line: None,
         };
         menu.show(&settings, &mut self.shell());
         0
@@ -124,6 +129,7 @@ impl Startup<'_> {
 
     /// Asks the menu holding the lock to end: `SIGUSR1` to it, then `SIGTERM`
     /// to its deepest child, so that what it waits for returns.
+    /// A lock whose process is gone (it was killed) is stale: it is removed.
     fn take_over(&self) {
         let Some(pid) = self.state.active_pid() else {
             return;
@@ -131,7 +137,11 @@ impl Startup<'_> {
         let processes = self.system.processes;
         zbm_trace::info!("Stopping active zfsbootmenu with a PID of {pid}");
         zbm_trace::debug!("sending USR1 to {pid}");
-        let _ = processes.signal(pid, Signal::User1);
+        if processes.signal(pid, Signal::User1).is_err() {
+            zbm_trace::info!("no process {pid}: removing its stale lock");
+            self.state.clear_active();
+            return;
+        }
         let child = deepest_child(self.system.files, pid);
         zbm_trace::debug!("killing child process {child}");
         let _ = processes.signal(child, Signal::Terminate);

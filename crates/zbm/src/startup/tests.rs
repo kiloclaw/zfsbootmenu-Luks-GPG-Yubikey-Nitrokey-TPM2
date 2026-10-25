@@ -268,7 +268,7 @@ fn late_volumes_are_unlocked_only_with_cryptsetup_and_fail_unless_one_opens() {
 /// The configuration of a machine with the default boot environment.
 fn conf() -> Conf {
     let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(""));
-    Conf::parse(&options.conf("/zfsbootmenu")).unwrap()
+    Conf::parse(&options.conf("/zfsbootmenu"))
 }
 
 /// A machine with one pool, `tank`, and a terminal that can run the menu.

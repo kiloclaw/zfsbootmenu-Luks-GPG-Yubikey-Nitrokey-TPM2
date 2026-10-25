@@ -65,6 +65,9 @@ const ECHILD: i32 = 10;
 /// The signals ZFSBootMenu handles or sends.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Signal {
+    /// `SIGHUP`, sent when the terminal goes away, such as a dropped SSH
+    /// session.
+    Hangup,
     /// `SIGINT`, sent by the terminal on Ctrl-C.
     Interrupt,
     /// `SIGUSR1`, which tells a running menu to give way to another instance.
@@ -76,7 +79,8 @@ pub enum Signal {
 }
 
 /// Every [`Signal`].
-const SIGNALS: [Signal; 4] = [
+const SIGNALS: [Signal; 5] = [
+    Signal::Hangup,
     Signal::Interrupt,
     Signal::User1,
     Signal::Pipe,
@@ -88,6 +92,7 @@ impl Signal {
     /// architecture.
     pub fn number(self) -> i32 {
         match self {
+            Signal::Hangup => 1,
             Signal::Interrupt => 2,
             Signal::User1 => 10,
             Signal::Pipe => 13,
@@ -98,6 +103,7 @@ impl Signal {
     /// The name Perl uses for the signal, as in `$SIG{INT}`.
     pub fn name(self) -> &'static str {
         match self {
+            Signal::Hangup => "HUP",
             Signal::Interrupt => "INT",
             Signal::User1 => "USR1",
             Signal::Pipe => "PIPE",
@@ -407,6 +413,9 @@ mod tests {
         assert_eq!(Signal::Terminate.name(), "TERM");
         assert_eq!(Signal::from_number(15), Some(Signal::Terminate));
         assert_eq!(Signal::from_number(9), None);
+        assert_eq!(Signal::Hangup.number(), 1);
+        assert_eq!(Signal::Hangup.name(), "HUP");
+        assert_eq!(Signal::from_number(1), Some(Signal::Hangup));
     }
 
     #[test]

@@ -8,7 +8,7 @@ use zbm_types::Stage;
 /// The configuration the start-up would write for `cmdline`.
 fn conf(cmdline: &str) -> Conf {
     let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(cmdline));
-    Conf::parse(&options.conf("/zfsbootmenu")).unwrap()
+    Conf::parse(&options.conf("/zfsbootmenu"))
 }
 
 /// A machine with one pool and one boot environment with a kernel.

@@ -551,6 +551,7 @@
           "ter-v32b.psf": 256
         },
         "texts": {
+          "bin/zbm": "#!/bin/sh\ncase \"${1:-}\" in\n  \"\"|-*) exec /libexec/zbm zfsbootmenu \"$@\" ;;\n  *) exec /libexec/zbm \"$@\" ;;\nesac\n",
           "etc/inputrc": "set input-meta on\nset output-meta on\nset convert-meta off\n",
           "etc/profile": "export PATH=/zbm/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport TERM=linux\nexport HOME=/root\nexport LC_CTYPE=C.UTF-8\n",
           "etc/zfsbootmenu.conf": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"rust\"\n",

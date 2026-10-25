@@ -86,6 +86,38 @@ takes over from a menu already running.
   the recovery tools, of which the shell is the first. As before, leaving the shell imports the pools that became
   importable in it and opens the menu again.
 
+### An edited command line is for one boot
+
+- **Before:** the edited line was saved in `/zfsbootmenu/cmdline` and used for every later boot of any environment
+  until Ctrl-T cleared it.
+- **Now:** the edited line boots once, in place of the environment's `org.zfsbootmenu:commandline`: `%{parent}` in it
+  stands for the parent's line, `root=` is ZFSBootMenu's, and `noresume` and the host ID are added when they apply,
+  as for the environment's own line. Nothing is saved, so there is nothing to clear.
+- **Why:** the menu says the edit is for this boot only, and a line saved after a failed boot should not decide the
+  next one.
+
+### When the menu cannot start
+
+- **Before:** the countdown of the start-up program booted the default environment before the menu ran, so a menu
+  that could not read the machine did not stop the automatic boot.
+- **Now:** the menu counts down itself; if it cannot start (it cannot read the pools, or use the terminal), the
+  start-up program counts down without it, as before the menu existed. After it found another instance running, it
+  never boots by itself, as the legacy program did not.
+- **Why:** the automatic boot must not depend on the menu.
+
+### A menu killed by a hang-up
+
+- **Before:** the EXIT trap removed the lock of the running menu (`/zfsbootmenu/active`) on any exit.
+- **Now:** a hang-up (`SIGHUP`, a dropped SSH session) ends the menu as `SIGTERM` does, and it removes its lock; a
+  lock left by a process that no longer exists (it was killed outright) is removed by the next instance instead of
+  waited for.
+
+### `zbm` with a command
+
+- **Before:** `zbm` was the menu's other name.
+- **Now:** it still is, and `zbm <command>` runs that command of the Rust program (`zbm debug crash`, `zbm report`),
+  as the messages of the runtime say.
+
 ### `fzf`
 
 The menu no longer uses `fzf`. Rust images still install it, for the tools of the recovery shell that are not ported

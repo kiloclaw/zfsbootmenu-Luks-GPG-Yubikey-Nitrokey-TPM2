@@ -10,10 +10,9 @@
 //!
 //! The parser accepts exactly the shell syntax those writers produce, and gives
 //! each variable the value sourcing the file would give it. A line that needs
-//! more of the shell (a command, an expansion, a glob) is an error rather than
-//! a guess.
-
-use zbm_platform::error::{Error, Result};
+//! more of the shell (a command, an expansion, a glob) is skipped rather than
+//! guessed at, and [`Conf::skipped`] names it: the legacy runtime sources the
+//! file with Bash, so one odd line must not cost the whole configuration.
 
 /// Where the configuration is.
 pub const PATH: &str = "/etc/zfsbootmenu.conf";
@@ -28,16 +27,13 @@ const GUARD_SET: &str = "readonly _ETC_ZFSBOOTMENU_CONF=1";
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Conf {
     vars: Vec<(String, String)>,
+    skipped: Vec<String>,
 }
 
 impl Conf {
-    /// Reads the text of the file.
-    ///
-    /// # Errors
-    ///
-    /// An invalid-input error naming the line that needs more of the shell
-    /// than an assignment.
-    pub fn parse(text: &str) -> Result<Conf> {
+    /// Reads the text of the file; a line that needs more of the shell than
+    /// an assignment is skipped, and [`Conf::skipped`] names it.
+    pub fn parse(text: &str) -> Conf {
         let mut conf = Conf::default();
         for (index, line) in text.lines().enumerate() {
             let line = line.trim_matches([' ', '\t']);
@@ -50,15 +46,17 @@ impl Conf {
             });
             match assignment {
                 Some((name, value)) if is_name(name) => conf.set(name, value),
-                _ => {
-                    return Err(Error::invalid(format!(
-                        "{PATH} line {}: cannot read '{line}'",
-                        index + 1
-                    )));
-                }
+                _ => conf
+                    .skipped
+                    .push(format!("{PATH} line {}: cannot read '{line}'", index + 1)),
             }
         }
-        Ok(conf)
+        conf
+    }
+
+    /// The lines that were skipped, each with what is wrong with it.
+    pub fn skipped(&self) -> &[String] {
+        &self.skipped
     }
 
     /// Sets a variable; a later assignment replaces an earlier one, as in the
@@ -140,7 +138,7 @@ mod tests {
     use zbm_types::ImportPolicy;
 
     fn parse(text: &str) -> Conf {
-        Conf::parse(text).unwrap()
+        Conf::parse(text)
     }
 
     #[test]
@@ -191,6 +189,17 @@ mod tests {
     }
 
     #[test]
+    fn an_embedded_command_line_keeps_every_character() {
+        // What module-setup.sh writes for: quiet a="b c" x=$y it's \ `id`
+        let conf = parse("export embedded_kcl='quiet a=\"b c\" x=$y it'\\''s \\ `id`'\n");
+        assert_eq!(
+            conf.get("embedded_kcl"),
+            Some("quiet a=\"b c\" x=$y it's \\ `id`")
+        );
+        assert!(conf.skipped().is_empty());
+    }
+
+    #[test]
     fn rejects_what_needs_more_of_the_shell() {
         for line in [
             "export BASE='/zfsbootmenu",
@@ -210,12 +219,16 @@ mod tests {
             "reboot",
             "readonly OTHER=1",
         ] {
-            let error = Conf::parse(&format!("export OK=1\n{line}\n")).unwrap_err();
+            let conf = Conf::parse(&format!("export OK=1\n{line}\nexport LAST=2\n"));
             assert_eq!(
-                error.to_string(),
-                format!("/etc/zfsbootmenu.conf line 2: cannot read '{line}'"),
+                conf.skipped(),
+                [format!(
+                    "/etc/zfsbootmenu.conf line 2: cannot read '{line}'"
+                )],
                 "{line}"
             );
+            // The lines around it count.
+            assert_eq!((conf.get("OK"), conf.get("LAST")), (Some("1"), Some("2")));
         }
     }
 
@@ -351,7 +364,7 @@ mod tests {
         for case in 0..40 {
             let values = values(&mut rng);
             let text = format!("{header}{}", options(&values).conf(&values[13]));
-            let conf = Conf::parse(&text).unwrap();
+            let conf = Conf::parse(&text);
             let shell: Vec<(String, String)> = parity.legacy(format!("{values:?}"), || {
                 let dir = TempDir::new("zbm-conf");
                 // Only the variables of the file: the rest is this process's environment.

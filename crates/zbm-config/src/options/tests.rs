@@ -231,7 +231,7 @@ fn options_survive_the_configuration_file() {
     for _ in 0..50 {
         let cmdline = rng.join(PIECES, 8);
         let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&cmdline));
-        let conf = crate::conf::Conf::parse(&options.conf("/zfsbootmenu")).unwrap();
+        let conf = crate::conf::Conf::parse(&options.conf("/zfsbootmenu"));
         let read = ZbmOptions::from_conf(&conf);
         let expected = ZbmOptions {
             lines: None,

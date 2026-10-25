@@ -145,6 +145,22 @@ passphrase stays in its memory. What the stages' programs print goes to the log 
 recovery shell still get the console. On a terminal that cannot run the menu, start-up keeps the console prompts.
 `CHANGES-FROM-LEGACY.md` lists what changes.
 
+### Fixes from the review of the Rust port
+
+- Rust images: a command line edited in the menu boots once, in place of the environment's own, without `root=` and
+  with `noresume` and the host ID where they apply; it is no longer saved for every later boot.
+- Rust images: when the menu cannot start, start-up counts down and boots without it; a hang-up (a dropped SSH
+  session) ends the menu and removes its lock, and a lock left by a killed menu no longer blocks the next one; after
+  another instance was seen, nothing boots by itself. `zbm debug crash` and `zbm report` run instead of the menu.
+- Both runtimes: a command line embedded in the image (`embedded_kcl`) keeps quotes, `$` and backslashes as written;
+  a line of `/etc/zfsbootmenu.conf` the Rust runtime cannot read is skipped with a warning instead of costing the
+  whole file.
+- `generate-zbm` piped into a pager that is quit early no longer dies between renaming the old image to its backup
+  and installing the new one.
+- The VM tests rebuild the test boot environment when its files or the build container change, cover `config/`,
+  `vendor/` and the build container in the image check, build each image once when run in parallel, report tests
+  that did not run as `SKIP`, and fail a shadow-mode boot without a summary.
+
 ### The new menu's text in a message catalogue
 
 Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,

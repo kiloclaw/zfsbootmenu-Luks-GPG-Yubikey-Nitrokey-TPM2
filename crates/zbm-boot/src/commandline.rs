@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_config::kcl;
-use zbm_config::parent::{CommandLineSource, read_kcl_contents};
+use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
 use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
 use zbm_state::State;
@@ -72,6 +72,70 @@ pub fn be_cmdline(
         // printf "%s\n" "${args}" > "${cache}"; a failure is not reported
         let _ = files.write(cache, format!("{args}\n").as_bytes());
     }
+    let assembled = kcl::assemble(&here(&args));
+    log.push(Message::debug(format!(
+        "assembled commandline: '{assembled}'"
+    )));
+    assembled
+}
+
+/// A command line typed for one boot in place of the property of its boot
+/// environment `dataset`, as if set there: `%{parent}` in it stands for
+/// the command line of the parent dataset.
+struct Typed<'a> {
+    source: &'a dyn CommandLineSource,
+    dataset: &'a str,
+    line: &'a str,
+}
+
+impl CommandLineSource for Typed<'_> {
+    fn commandline(&self, filesystem: &str) -> Option<String> {
+        if filesystem == self.dataset {
+            return Some(self.line.to_owned());
+        }
+        self.source.commandline(filesystem)
+    }
+
+    fn inherited_source(&self, filesystem: &str) -> Option<String> {
+        if filesystem == self.dataset {
+            return Some(String::new());
+        }
+        self.source.inherited_source(filesystem)
+    }
+}
+
+/// The command line of `dataset` booted with `line`, which the user typed
+/// for this boot in place of its `org.zfsbootmenu:commandline`: `%{parent}`
+/// expanded, without `root=`, with `noresume` and the host ID when they
+/// apply, as its own would be. Nothing is written down, so the next boot
+/// uses the boot environment's own command line again; neither a kernel's
+/// `.kcl` file nor the cache takes the typed line's place.
+pub fn edited_cmdline(
+    files: &dyn Files,
+    source: &dyn CommandLineSource,
+    state: &State,
+    (dataset, line): (&str, &str),
+    set_hostid: bool,
+    log: &mut Vec<Message>,
+) -> String {
+    log.push(Message::debug(format!(
+        "using the command line typed for this boot of {dataset}"
+    )));
+    let typed = Typed {
+        source,
+        dataset,
+        line,
+    };
+    let value = read_kcl_prop(&typed, dataset, log).unwrap_or_default();
+    let args = kcl::tokenize(&here(&value))
+        .trim_end_matches('\n')
+        .to_owned();
+    let args = if args.is_empty() {
+        DEFAULT_ARGS.to_owned()
+    } else {
+        args
+    };
+    let args = edited_args(files, state, dataset, set_hostid, &args, log);
     let assembled = kcl::assemble(&here(&args));
     log.push(Message::debug(format!(
         "assembled commandline: '{assembled}'"
