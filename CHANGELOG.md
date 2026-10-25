@@ -163,6 +163,17 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
   start-up, and the keys read and the digests of secrets are wiped.
 - The menu keeps the selected environment and snapshot when the machine's lists change, rather than the row they
   were on, so a key no longer acts on what moved into their place.
+- Rust images, console on the display (`zbm.console=drm`): Ctrl-C reaches a program that floods the screen; unplugging
+  a keyboard, such as a YubiKey with OTP enabled, no longer ends the console, and keyboards plugged in later are used;
+  a program that reads nothing cannot stop the console; Caps Lock lights its light, lost key events no longer leave
+  a modifier held, and a dead key followed by a key it does not combine with types both, as the kernel's keymap does;
+  the keys typed are wiped; a console that ended at once no longer delays each boot by 3 seconds; after a failed
+  `kexec` the console takes the display again (`zbm console reattach`) to show the error.
+- Rust images, process 1: logs saved after a crash (`zbm.save_logs`) are saved by a process of its own, so a hung
+  device cannot stop the supervisor; `Ctrl-\` no longer kills start-up or the menu, as with the legacy runtime; the
+  recovery shell after a crash gets a usable terminal (echo, Ctrl-C, the cursor) back.
+- Shadow mode kills a command still running when its 5-second budget ends, so a hung `blkid` or `zpool status` no
+  longer holds up a legacy boot.
 - The VM tests rebuild the test boot environment when its files or the build container change, cover `config/`,
   `vendor/` and the build container in the image check, build each image once when run in parallel, report tests
   that did not run as `SKIP`, and fail a shadow-mode boot without a summary.

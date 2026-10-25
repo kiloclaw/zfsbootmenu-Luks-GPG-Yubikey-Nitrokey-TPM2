@@ -14,7 +14,9 @@
 //!   starts with the image's first keyboard layout, `us`; switched to `de`
 //!   from the shell (`zbm console layout`, step 4), the keys of `y` and `z`
 //!   swap and the dead circumflex composes `ê`, in `cat` and at the shell's
-//!   prompt.
+//!   prompt. Ctrl-C typed while `yes` floods the console stops it. Handed
+//!   back from the shell (`zbm console release`), the display is taken
+//!   again (`zbm console reattach`), as after a failed `kexec`.
 //! - On `simpledrm` (`vga=0x318`), with `zbm.console_font=psf`: the console
 //!   draws with a console font; the countdown runs out, the console hands
 //!   the display back, and the boot environment boots.
@@ -65,6 +67,20 @@ const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
 /// log, on the serial console. The whole log can take longer than the test
 /// waits to cross the serial line.
 const LOG: &str = "dmesg | grep display.ended > /dev/ttyS0\n";
+
+/// Typed in the recovery shell: floods the console, until Ctrl-C.
+const FLOOD: &str = "yes\n";
+
+/// Typed after Ctrl-C: a line on the serial console, which the test reads.
+const FLOOD_DONE: &str = "echo zbm-flood-ok > /dev/ttyS0\n";
+
+/// Typed in the recovery shell: hands the display back, as before `kexec`.
+const RELEASE: &str = "/libexec/zbm console release\n";
+
+/// Typed on the kernel console then: takes the display again, as after a
+/// failed `kexec`; then a line the console's screen shows.
+const REATTACH: &str = "/libexec/zbm console reattach\n";
+const AGAIN: &str = "echo zbm-reattached\n";
 
 /// Typed in the recovery shell, with a layout's name: switches the
 /// console's keyboard layout.
@@ -308,9 +324,60 @@ pub(super) fn check_console(
         &format!("virtio: the console draws it in colour, anti-aliased ({colours:?} colours)"),
     );
     check_shell(test, vm, mirror, monitor, pace)?;
+    check_flood(test, vm, monitor, pace)?;
     check_font(test, "virtio", mirror, ".ttf", pace)?;
     check_layouts(test, vm, mirror, monitor, pace)?;
+    check_reattach(test, vm, mirror, monitor, pace)?;
     check_fallback(test, vm, mirror, monitor, pace)
+}
+
+/// Ctrl-C typed while a program floods the console stops it: the keys come
+/// before the program's output.
+fn check_flood(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Result<()> {
+    type_text(vm, monitor, FLOOD, pace.pause)?;
+    thread::sleep(pace.pause * 3);
+    (monitor.key)(vm, "ctrl-c")?;
+    thread::sleep(pace.pause * 2);
+    type_text(vm, monitor, FLOOD_DONE, pace.pause)?;
+    let stopped = vm.expect(&["zbm-flood-ok"], pace.patience.min(60)).is_ok();
+    test.check(
+        stopped,
+        "virtio: Ctrl-C typed while yes floods the console stops it",
+    );
+    Ok(())
+}
+
+/// The display handed back from the shell, then taken again, as after a
+/// failed `kexec`: what is typed afterwards shows on the console's screen.
+fn check_reattach(
+    test: &Test,
+    vm: &mut Vm<'_>,
+    mirror: &Path,
+    monitor: &Monitor,
+    pace: Pace,
+) -> Result<()> {
+    type_text(vm, monitor, RELEASE, pace.pause)?;
+    let released = wait_screen(mirror, RELEASED, pace.patience.min(30))?;
+    test.check(
+        released.is_some(),
+        "virtio: zbm console release hands the display back",
+    );
+    thread::sleep(pace.pause * 2);
+    type_text(vm, monitor, REATTACH, pace.pause)?;
+    thread::sleep(pace.pause * 3);
+    type_text(vm, monitor, AGAIN, pace.pause)?;
+    let again = wait_screen(mirror, r"(?m)^zbm-reattached", pace.patience.min(30))?;
+    test.check(
+        again.is_some(),
+        "virtio: zbm console reattach takes the display again",
+    );
+    if again.is_none() {
+        test.note(&format!(
+            "virtio: the console shows: {}",
+            last_screen(mirror)
+        ));
+    }
+    Ok(())
 }
 
 /// The keyboard layouts: the console starts with the image's first, and

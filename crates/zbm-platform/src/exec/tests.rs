@@ -207,3 +207,33 @@ fn display_joins_program_and_arguments() {
     assert_eq!(command.program(), "zfs");
     assert_eq!(command.get_args().len(), 3);
 }
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the test measures that the program was stopped in real time"
+)]
+fn a_program_past_its_time_is_killed() {
+    let started = std::time::Instant::now();
+    let output = SystemRunner
+        .run(
+            &Command::new("sleep")
+                .arg("30")
+                .timeout(Duration::from_millis(100)),
+        )
+        .unwrap();
+
+    assert_eq!(output.status.signal(), Some(Signal::Kill.number()));
+    assert!(started.elapsed() < Duration::from_secs(10));
+
+    let quick = SystemRunner
+        .run(&Command::shell("echo done").timeout(Duration::from_secs(30)))
+        .unwrap();
+    assert_eq!(quick.stdout_text(), "done\n");
+    assert!(quick.status.is_success());
+    let limited = Command::new("x")
+        .timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(9));
+    assert_eq!(limited.get_timeout(), Some(Duration::from_secs(5)));
+    assert_eq!(Command::new("x").get_timeout(), None);
+}

@@ -19,6 +19,8 @@ use std::ffi::{OsStr, OsString};
 use std::io::{self, Read, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::Duration;
 
 use crate::secret::Secret;
 pub use zbm_sys::Signal;
@@ -63,6 +65,7 @@ pub struct Command {
     merge_stderr: bool,
     env: Vec<(OsString, Option<OsString>)>,
     default_signals: Vec<Signal>,
+    timeout: Option<Duration>,
 }
 
 impl Command {
@@ -79,6 +82,7 @@ impl Command {
             merge_stderr: false,
             env: Vec::new(),
             default_signals: Vec::new(),
+            timeout: None,
         }
     }
 
@@ -155,6 +159,19 @@ impl Command {
     pub fn default_signal(mut self, signal: Signal) -> Command {
         self.default_signals.push(signal);
         self
+    }
+
+    /// Kills the program (`SIGKILL`) when it runs longer than `timeout`, as
+    /// `timeout -s KILL` does; the shorter of two limits holds.
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Command {
+        self.timeout = Some(self.timeout.map_or(timeout, |old| old.min(timeout)));
+        self
+    }
+
+    /// How long the program may run, if that is limited.
+    pub fn get_timeout(&self) -> Option<Duration> {
+        self.timeout
     }
 
     /// The signals the program starts with the default action of.
@@ -458,9 +475,15 @@ impl Runner for SystemRunner {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return not_found(command),
             Err(error) => return Err(error),
         };
+        let watchdog = command
+            .timeout
+            .map(|timeout| Watchdog::start(child.id(), timeout));
         let (stdout, stderr) = communicate(command, &mut child);
         // Wait before reporting a read error, so that no child is left behind.
-        let status = child.wait()?;
+        let status = match &watchdog {
+            Some(watchdog) => watchdog.wait(&mut child)?,
+            None => child.wait()?,
+        };
 
         let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
         match stdout.transpose()? {
@@ -470,6 +493,57 @@ impl Runner for SystemRunner {
         }
         output.stderr = stderr.transpose()?.unwrap_or_default();
         Ok(output)
+    }
+}
+
+/// Kills a child that runs past its time. The kill and the collection of
+/// the child happen under one lock, so that the signal never reaches
+/// another process that got the child's ID once it was collected.
+struct Watchdog {
+    /// Whether the child was collected.
+    collected: Arc<Mutex<bool>>,
+    /// Ends the watchdog early, when the child ended in time.
+    done: mpsc::Sender<()>,
+}
+
+impl Watchdog {
+    /// How often a child that closed its output is looked at until it ends.
+    const POLL: Duration = Duration::from_millis(5);
+
+    /// Watches the child `pid`, which may run for `timeout`.
+    fn start(pid: u32, timeout: Duration) -> Watchdog {
+        let collected = Arc::new(Mutex::new(false));
+        let (done, ended) = mpsc::channel::<()>();
+        let watched = Arc::clone(&collected);
+        std::thread::spawn(move || {
+            if ended.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout) {
+                let collected = watched
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if !*collected {
+                    let _ = zbm_sys::send_signal(pid, Signal::Kill);
+                }
+            }
+        });
+        Watchdog { collected, done }
+    }
+
+    /// Waits for `child` to end, collecting it under the lock.
+    fn wait(&self, child: &mut std::process::Child) -> io::Result<std::process::ExitStatus> {
+        loop {
+            {
+                let mut collected = self
+                    .collected
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if let Some(status) = child.try_wait()? {
+                    *collected = true;
+                    let _ = self.done.send(());
+                    return Ok(status);
+                }
+            }
+            std::thread::sleep(Self::POLL);
+        }
     }
 }
 

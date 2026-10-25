@@ -91,10 +91,32 @@ fn secrets_and_a_spent_budget_are_refused_and_the_console_is_not_read() {
     let calls = fake.runner.calls();
     assert_eq!(fake.runner.lines(), ["cryptsetup status v"]);
     assert_eq!(calls[0].get_stdin(), &Input::Null);
+    // A command still running when the budget ends is killed.
+    assert_eq!(calls[0].get_timeout(), Some(Duration::from_secs(3)));
     assert!(
         after
             .unwrap_err()
             .to_string()
             .starts_with("the time budget is spent")
     );
+}
+
+#[test]
+fn a_command_gets_what_is_left_of_the_budget() {
+    let fake = FakeSystem::new();
+    let runner = ReadOnlyRunner::new(&fake.runner, &fake.clock, Duration::from_secs(5));
+
+    fake.clock.advance(Duration::from_secs(2));
+    runner.run(&Command::new("blkid")).unwrap();
+    runner
+        .run(
+            &Command::new("zpool")
+                .arg("status")
+                .timeout(Duration::from_secs(1)),
+        )
+        .unwrap();
+
+    let calls = fake.runner.calls();
+    assert_eq!(calls[0].get_timeout(), Some(Duration::from_secs(3)));
+    assert_eq!(calls[1].get_timeout(), Some(Duration::from_secs(1)));
 }

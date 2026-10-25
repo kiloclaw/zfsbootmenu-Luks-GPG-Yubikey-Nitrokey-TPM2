@@ -212,7 +212,9 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
      - `zbm console` (an applet): the display, the keyboards and the virtual terminal shown now, taken in that
        order, so that a missing card or keyboard leaves the virtual terminal alone; without them it relays at once.
        `zbm console release` sends the request and waits until the console removed its process ID from the state
-       directory.
+       directory. The console records that ID itself, once it can take requests. When `kexec` fails after the
+       hand-over, `zbm console reattach` has the console, which relays on the kernel console meanwhile, take the
+       display again.
      - The supervisor, with `zbm.console=drm` and a virtual terminal as its control terminal, opens the
        pseudo-terminal, starts the console on it and runs the start-up program and the recovery shell on the other
        side in sessions of their own (`setsid -c`). If the console ends, it gives the virtual terminal back (text
@@ -222,8 +224,11 @@ fonts with `zbm.console_font=psf`); it falls back to the kernel console when it 
        (`zbm.console_mirror`): on `virtio_gpu`, the countdown in colour, Escape and a command typed on QEMU's
        keyboard, the shell on the pseudo-terminal, and the kernel console taking keys after the console is killed;
        on `simpledrm`, the hand-over and the boot of the boot environment.
-     - Left for later: keyboards plugged in after the console started, and a console that comes back after it
-       ended.
+     - Keys come before the programs' output, so that Ctrl-C reaches a program that floods the terminal; typed
+       bytes wait in a wiped queue when the programs read nothing. A keyboard that goes away is dropped, and one
+       plugged in later is opened when nothing else happens for a moment; after events were lost
+       (`SYN_DROPPED`) the keys held are read back from the device, and Caps Lock lights the keyboards' light.
+     - Left for later: a console that comes back after it ended.
   3. **Done.** TrueType fonts at the size `zbm console-autosize` computes, for full
      Unicode without a 512-glyph subset (#18).
      - `zbm_display::outline`: a TrueType or OpenType font through `swash` (hinted, rasterized as coverage), sized

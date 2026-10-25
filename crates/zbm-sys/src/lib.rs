@@ -72,6 +72,8 @@ pub enum Signal {
     Interrupt,
     /// `SIGQUIT`, sent by the terminal on Ctrl-\\.
     Quit,
+    /// `SIGKILL`, which cannot be caught: for a program past its time.
+    Kill,
     /// `SIGUSR1`, which tells a running menu to give way to another instance.
     User1,
     /// `SIGPIPE`, sent when writing to a pipe that nobody reads.
@@ -81,10 +83,11 @@ pub enum Signal {
 }
 
 /// Every [`Signal`].
-const SIGNALS: [Signal; 6] = [
+const SIGNALS: [Signal; 7] = [
     Signal::Hangup,
     Signal::Interrupt,
     Signal::Quit,
+    Signal::Kill,
     Signal::User1,
     Signal::Pipe,
     Signal::Terminate,
@@ -98,6 +101,7 @@ impl Signal {
             Signal::Hangup => 1,
             Signal::Interrupt => 2,
             Signal::Quit => 3,
+            Signal::Kill => 9,
             Signal::User1 => 10,
             Signal::Pipe => 13,
             Signal::Terminate => 15,
@@ -110,6 +114,7 @@ impl Signal {
             Signal::Hangup => "HUP",
             Signal::Interrupt => "INT",
             Signal::Quit => "QUIT",
+            Signal::Kill => "KILL",
             Signal::User1 => "USR1",
             Signal::Pipe => "PIPE",
             Signal::Terminate => "TERM",
@@ -442,7 +447,9 @@ mod tests {
         assert_eq!(Signal::Interrupt.name(), "INT");
         assert_eq!(Signal::Terminate.name(), "TERM");
         assert_eq!(Signal::from_number(15), Some(Signal::Terminate));
-        assert_eq!(Signal::from_number(9), None);
+        assert_eq!(Signal::from_number(9), Some(Signal::Kill));
+        assert_eq!(Signal::Kill.name(), "KILL");
+        assert_eq!(Signal::from_number(31), None);
         assert_eq!(Signal::Hangup.number(), 1);
         assert_eq!(Signal::Hangup.name(), "HUP");
         assert_eq!(Signal::from_number(1), Some(Signal::Hangup));

@@ -24,7 +24,8 @@ pub const BASH_MATCH: &str = "[[ $1 =~ $2 ]]";
 /// commands of [`ALLOWED`] (and Bash's regular expression match,
 /// [`BASH_MATCH`]), never with a secret on standard input and never with the
 /// console (it gets `/dev/null` instead), and refuses everything else, and
-/// every command once its time budget is spent.
+/// every command once its time budget is spent; a command still running
+/// when it ends is killed.
 ///
 /// ```
 /// use std::time::Duration;
@@ -98,12 +99,16 @@ impl Runner for ReadOnlyRunner<'_> {
         if matches!(command.get_stdin(), Input::Secret(_)) {
             return refuse("a read-only command reads no secret");
         }
-        if self.clock.now() >= self.deadline {
+        let now = self.clock.now();
+        if now >= self.deadline {
             return refuse("the time budget is spent");
         }
-        if matches!(command.get_stdin(), Input::Inherit) {
-            return self.inner.run(&command.clone().stdin(Input::Null));
+        // A command that hangs, such as `blkid` on a dead disk, is killed
+        // when the budget ends: shadow mode must not hold up the boot.
+        let mut bounded = command.clone().timeout(self.deadline.saturating_sub(now));
+        if matches!(bounded.get_stdin(), Input::Inherit) {
+            bounded = bounded.stdin(Input::Null);
         }
-        self.inner.run(command)
+        self.inner.run(&bounded)
     }
 }
