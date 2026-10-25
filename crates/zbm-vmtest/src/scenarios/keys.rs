@@ -170,9 +170,8 @@ fn tokens(test: &Test, scenario: &str) -> Result<()> {
 /// Sets the TPM's dictionary-attack parameters: `tries` wrong PINs before
 /// the lockout, `seconds` for the recovery and the lockout.
 fn dictionary_lockout(settings: &Settings, tries: &str, seconds: &str) -> Result<()> {
-    let port = swtpm::port(2600, 300);
     let pid_file = settings.disks(GROUP).join("swtpm-lock.pid");
-    swtpm::start_tcp(&tpm_dir(settings), port, &pid_file, "startup-clear")?;
+    let port = swtpm::start_tcp(&tpm_dir(settings), &pid_file, "startup-clear")?;
     let result = run_host(Command::new("tpm2_dictionarylockout").args([
         "-T",
         &swtpm::tcti(port),

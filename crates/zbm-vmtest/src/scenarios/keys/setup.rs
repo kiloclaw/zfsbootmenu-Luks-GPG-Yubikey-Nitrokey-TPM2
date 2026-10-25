@@ -74,9 +74,8 @@ fn host_prepare(test: &Test) -> Result<()> {
         .args(["--tpm2", "--tpmstate"])
         .arg(&tpm)
         .arg("--overwrite"))?;
-    let port = swtpm::port(2500, 500);
     let pid_file = settings.disks(GROUP).join("swtpm.pid");
-    swtpm::start_tcp(&tpm, port, &pid_file, "not-need-init,startup-clear")?;
+    let port = swtpm::start_tcp(&tpm, &pid_file, "not-need-init,startup-clear")?;
     let tcti = swtpm::tcti(port);
     let mut loops = Vec::new();
     let result = (0..4).try_for_each(|index| prepare_volume(test, &tcti, index, &mut loops));
