@@ -304,3 +304,29 @@ fn after_a_key_the_menu_could_not_load_its_error_is_closed_for_the_shell() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     crate::testing::cleanup(&settings);
 }
+
+#[test]
+fn the_recovery_shell_opens_from_the_import_retry_on_the_console_or_in_the_view() {
+    let settings = crate::testing::settings("boot-recovery-shell");
+    let shell = [
+        Step::Keys("\x1b"),
+        Step::Say("zfsbootmenu ~ > "),
+        Step::Hear("stty -echo cols 250; export PS1='zbm# ' PS2=''"),
+        Step::Hear("true; echo RC=$?"),
+        Step::Say("RC=0\r\n"),
+    ];
+    let question =
+        view("│ Its devices may not be there yet │\r\n│ Trying again in 3 seconds. │\r\n");
+    let retries: [&'static str; 2] = [
+        "Unable to import tank, retrying in 5 seconds\r\n",
+        Box::leak(question.into_boxed_str()),
+    ];
+    for (n, retry) in retries.into_iter().enumerate() {
+        let test = Test::new(&settings, &format!("complex-setup-{n}")).unwrap();
+        let script = [&[Step::Say(retry)][..], &shell].concat();
+        let (mut vm, guest) = scripted(&test, script);
+        vm.recovery_shell().unwrap();
+        assert_eq!(guest.finish(), Vec::<String>::new());
+    }
+    crate::testing::cleanup(&settings);
+}

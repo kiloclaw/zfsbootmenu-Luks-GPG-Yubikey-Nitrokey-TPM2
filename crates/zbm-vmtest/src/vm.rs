@@ -312,13 +312,20 @@ impl<'t> Vm<'t> {
         Ok(())
     }
 
-    /// From the import retry loop, opens the recovery shell and prepares it.
+    /// From the import retry loop, opens the recovery shell and prepares it:
+    /// Escape at the retry prompt on the console, or at the question of the
+    /// start-up view (Rust images with the menu), once it is drawn.
     ///
     /// # Errors
     ///
     /// When the loop or the shell does not appear.
     pub fn recovery_shell(&mut self) -> Result<()> {
-        self.expect1("Unable to import", 1800)?;
+        let patterns = [crate::boot::prompt::RETRY, crate::boot::dialogs::RETRY];
+        if self.expect(&patterns, 1800)? == 1 {
+            self.test
+                .step("the start-up view asks to import again -> Esc");
+            let _ = self.settled_screen();
+        }
         self.send("\x1b")?;
         self.shell_ready()
     }
