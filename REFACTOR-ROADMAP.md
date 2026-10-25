@@ -852,7 +852,8 @@ builds after the core tasks.
    first time with `--countdown`, so the countdown runs in the menu. The R0 menu pilot is gone, and
    `CHANGES-FROM-LEGACY.md` starts with what the menu changes. `fzf` stays in Rust images for the recovery shell's
    tools until R5 step 6 and R6 port them; the start-up view shows the stages, done, until step 4 runs them inside
-   the menu.
+   the menu. The images of `910ce63` pass every VM test on the Rust runtime (the `runtime`, `complex`, `keys`,
+   `secrets`, `layouts` and `firmware` groups; the harness fixes after them change no image).
 4. **Start-up inside the menu**: the `Prompter` and `Operator` answered by dialogs, with the plain console
    fallback.
 5. **Snapshots and package D**: diff, clone, rollback and set default, and the command palette.
