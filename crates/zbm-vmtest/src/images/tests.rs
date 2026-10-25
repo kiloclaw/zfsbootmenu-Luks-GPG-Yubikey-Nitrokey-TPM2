@@ -151,10 +151,29 @@ fn the_host_id_argument_is_that_of_the_test_images() {
     let settings = settings("hostid");
 
     assert_eq!(hostid_arg(&settings).unwrap(), "spl_hostid=0x00bab10c");
-    assert!(matches!(
-        build_be(&settings, false),
-        Err(Error::Build { .. })
-    ));
+    assert!(matches!(build_be(&settings), Err(Error::Build { .. })));
+    cleanup(&settings);
+}
+
+#[test]
+fn the_boot_environment_is_built_again_when_its_inputs_change() {
+    let settings = settings("be");
+    let payload = settings.work.join("payload");
+    fs::create_dir_all(&payload).unwrap();
+    fs::write(payload.join("kver"), "7.3.1-zbm\n").unwrap();
+    // Built before its inputs were recorded: built again.
+    assert!(matches!(build_be(&settings), Err(Error::Build { .. })));
+
+    let be = settings.repo.join("tests/luks/vm/be");
+    fs::create_dir_all(&be).unwrap();
+    fs::write(be.join("init.sh"), "echo BE-INIT-START\n").unwrap();
+    let stamp = format!("be {}\ncontainer \n", source::fingerprint_of(&be));
+    fs::write(settings.work.join("payload-inputs.txt"), stamp).unwrap();
+    build_be(&settings).unwrap();
+    assert_eq!(be_kver(&settings).unwrap(), "7.3.1-zbm");
+
+    fs::write(be.join("init.sh"), "echo BE-INIT-START; echo BE-NEW\n").unwrap();
+    assert!(matches!(build_be(&settings), Err(Error::Build { .. })));
     cleanup(&settings);
 }
 
@@ -162,17 +181,17 @@ fn the_host_id_argument_is_that_of_the_test_images() {
 fn a_second_process_waits_for_the_image_being_built() {
     let settings = settings("lock");
     let images = settings.work.join("zbm");
-    let held = lock_image(&images, "auto").unwrap();
+    let held = lock(&images, "auto").unwrap();
     let waiting = {
         let images = images.clone();
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            drop(lock_image(&images, "auto").unwrap());
+            drop(lock(&images, "auto").unwrap());
             start.elapsed()
         })
     };
     // Another image is not held up.
-    drop(lock_image(&images, "auto-rust").unwrap());
+    drop(lock(&images, "auto-rust").unwrap());
     std::thread::sleep(std::time::Duration::from_millis(200));
     drop(held);
     let waited = waiting.join().unwrap();

@@ -2,7 +2,7 @@
 
 use super::*;
 use zbm_testkit::legacy::perl;
-use zbm_testkit::{Rng, TempDir, have_program, parity};
+use zbm_testkit::{Rng, TempDir, can_run, have_program, parity};
 
 #[test]
 fn words() {
@@ -52,8 +52,10 @@ fn perl_glob(pattern: &str, cwd: &std::path::Path) -> String {
 #[test]
 fn matches_file_glob() {
     let mut parity = parity!("matches_file_glob");
-    if parity.mode().needs_legacy() && !have_program("perl") {
-        eprintln!("skipped: perl is missing");
+    if !can_run(
+        !parity.mode().needs_legacy() || have_program("perl"),
+        "perl",
+    ) {
         return;
     }
     let dir = TempDir::new("generate-zbm-glob-parity");

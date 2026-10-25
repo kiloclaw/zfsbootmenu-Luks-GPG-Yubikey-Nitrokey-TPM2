@@ -27,6 +27,8 @@ pub struct Outcome {
     pub passed: usize,
     /// The checks that failed.
     pub failures: Vec<String>,
+    /// Why parts of it did not run, if they did not.
+    pub skipped: Vec<String>,
     /// How long it ran.
     pub seconds: u64,
 }
@@ -39,6 +41,7 @@ impl Outcome {
             "passed": self.passed,
             "failed": self.failures.len(),
             "failures": self.failures,
+            "skipped": self.skipped,
             "seconds": self.seconds,
             "zfs": ZFS_VERSION,
         });
@@ -53,10 +56,17 @@ impl Outcome {
             .iter()
             .filter_map(|failure| failure.as_str().map(str::to_owned))
             .collect();
+        let skipped = value["skipped"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|reason| reason.as_str().map(str::to_owned))
+            .collect();
         Some(Outcome {
             test: value["test"].as_str()?.to_owned(),
             passed: usize::try_from(value["passed"].as_u64()?).ok()?,
             failures,
+            skipped,
             seconds: value["seconds"].as_u64().unwrap_or_default(),
         })
     }
@@ -65,6 +75,18 @@ impl Outcome {
     pub fn is_pass(&self) -> bool {
         self.failures.is_empty()
     }
+
+    /// The verdict: `FAIL` when a check failed, `SKIP` when nothing was
+    /// checked because the test did not run, `PASS` otherwise.
+    pub fn verdict(&self) -> &'static str {
+        if !self.is_pass() {
+            "FAIL"
+        } else if self.passed == 0 && !self.skipped.is_empty() {
+            "SKIP"
+        } else {
+            "PASS"
+        }
+    }
 }
 
 /// What a test has recorded so far.
@@ -72,6 +94,9 @@ struct Tally {
     log: File,
     passed: usize,
     failures: Vec<String>,
+    skipped: Vec<String>,
+    /// The machines started from images with shadow mode, by label.
+    shadow_boots: Vec<String>,
 }
 
 /// One test.
@@ -107,6 +132,8 @@ impl Test {
                 log,
                 passed: 0,
                 failures: Vec::new(),
+                skipped: Vec::new(),
+                shadow_boots: Vec::new(),
             }),
         };
         test.step(&format!(
@@ -161,6 +188,24 @@ impl Test {
         self.step(&format!("note - {message}"));
     }
 
+    /// Records that a part of the test, or all of it, did not run, and
+    /// why: a test that checked nothing for this reason is `SKIP`, not
+    /// `PASS`.
+    pub fn skip(&self, reason: &str) {
+        self.step(&format!("skip - {reason}"));
+        self.tally.borrow_mut().skipped.push(reason.to_owned());
+    }
+
+    /// Records that the machine `label` boots an image with shadow mode:
+    /// a boot of it that reaches the boot environment must print the
+    /// shadow summary.
+    pub fn expect_shadow(&self, label: &str) {
+        let mut tally = self.tally.borrow_mut();
+        if !tally.shadow_boots.iter().any(|known| known == label) {
+            tally.shadow_boots.push(label.to_owned());
+        }
+    }
+
     /// Records the lines of `text` that are not blank, indented.
     pub fn show(&self, text: &str) {
         for line in text.lines().filter(|line| !line.trim().is_empty()) {
@@ -171,6 +216,16 @@ impl Test {
     /// Checks the shadow mode summaries on the serial consoles of the test:
     /// the Rust code decided as the legacy runtime did on every boot.
     fn shadow(&self) {
+        let boots = self.tally.borrow().shadow_boots.clone();
+        for label in missing_summaries(&self.dir, &boots) {
+            self.check(
+                false,
+                &format!(
+                    "shadow mode: the boot {label} reached the boot environment \
+                     without a shadow summary"
+                ),
+            );
+        }
         let Some(summary) = shadow_summary(&self.dir) else {
             return;
         };
@@ -183,7 +238,7 @@ impl Test {
             summary.decisions.join(", ")
         };
         self.check(
-            summary.differences == 0,
+            summary.differences == 0 && !summary.decisions.is_empty(),
             &format!(
                 "shadow mode: {} differences in {} boots (compared: {compared})",
                 summary.differences, summary.boots
@@ -195,17 +250,27 @@ impl Test {
     /// the verdict.
     pub fn finish(&self) -> Outcome {
         self.shadow();
+        let checked = {
+            let tally = self.tally.borrow();
+            tally.passed > 0 || !tally.failures.is_empty() || !tally.skipped.is_empty()
+        };
+        if !checked {
+            self.check(false, "the test made a check");
+        }
         let outcome = {
             let tally = self.tally.borrow();
             Outcome {
                 test: self.name.clone(),
                 passed: tally.passed,
                 failures: tally.failures.clone(),
+                skipped: tally.skipped.clone(),
                 seconds: self.start.elapsed().as_secs(),
             }
         };
         fs::write(self.dir.join("result.json"), outcome.to_json()).ok();
-        if outcome.is_pass() {
+        if outcome.verdict() == "SKIP" {
+            self.step(&format!("SKIP: {}", outcome.skipped.join("; ")));
+        } else if outcome.is_pass() {
             self.step("PASS");
         } else {
             let failures = crate::pyfmt::list(&outcome.failures);
@@ -224,6 +289,23 @@ struct ShadowSummary {
     decisions: Vec<String>,
     /// The other `ZBM-SHADOW:` lines, each once: the differences.
     lines: Vec<String>,
+}
+
+/// The labels of `boots` whose serial console shows the boot environment
+/// starting (`BE-INIT-START`) without a shadow summary before it.
+fn missing_summaries(dir: &Path, boots: &[String]) -> Vec<String> {
+    static SUMMARY: OnceLock<Regex> = OnceLock::new();
+    let summary =
+        SUMMARY.get_or_init(|| Regex::new(SHADOW_SUMMARY).unwrap_or_else(|_| unreachable!()));
+    boots
+        .iter()
+        .filter(|label| {
+            let log = dir.join(format!("serial-{label}.log"));
+            let text = fs::read(log).map(|bytes| clean(&String::from_utf8_lossy(&bytes)));
+            text.is_ok_and(|text| text.contains("BE-INIT-START") && !summary.is_match(&text))
+        })
+        .cloned()
+        .collect()
 }
 
 /// The shadow mode reports in the `serial-*.log` files of `dir`, if any.

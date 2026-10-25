@@ -3,7 +3,7 @@
 use super::*;
 use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
 use zbm_testkit::legacy::path;
-use zbm_testkit::{Rng, have_program, parity};
+use zbm_testkit::{Rng, can_run, have_program, parity};
 
 fn args(list: &[&str]) -> Vec<String> {
     list.iter().map(|arg| (*arg).to_owned()).collect()
@@ -171,8 +171,10 @@ fn comparable(perl: &str) -> String {
 #[test]
 fn matches_getopt_long() {
     let mut parity = parity!("matches_getopt_long");
-    if parity.mode().needs_legacy() && !have_program("perl") {
-        eprintln!("skipped: perl is missing");
+    if !can_run(
+        !parity.mode().needs_legacy() || have_program("perl"),
+        "perl",
+    ) {
         return;
     }
     let pieces = [

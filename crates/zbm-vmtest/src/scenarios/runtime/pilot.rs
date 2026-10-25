@@ -56,8 +56,8 @@ fn unlock(vm: &mut Vm<'_>) -> Result<()> {
     let test = vm.test();
     let (rc, out) = vm.sh_show("command -v losetup && command -v cryptsetup")?;
     if rc != 0 {
-        test.note(&format!(
-            "pilot 1 skipped: the image lacks losetup or cryptsetup ({out})"
+        test.skip(&format!(
+            "pilot 1: the image lacks losetup or cryptsetup ({out})"
         ));
         return Ok(());
     }

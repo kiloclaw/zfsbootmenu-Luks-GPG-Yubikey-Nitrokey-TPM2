@@ -57,6 +57,8 @@ pub struct Machine {
     pub tpm: Option<PathBuf>,
     /// Other arguments.
     pub extra: Vec<String>,
+    /// Whether its image runs shadow mode before each boot.
+    pub shadow: bool,
 }
 
 impl Default for Machine {
@@ -72,6 +74,7 @@ impl Default for Machine {
             net: None,
             tpm: None,
             extra: Vec::new(),
+            shadow: false,
         }
     }
 }
@@ -79,7 +82,10 @@ impl Default for Machine {
 impl Machine {
     /// A machine that boots `image` with the command line `append`.
     pub fn boot(image: &Image, append: &str) -> Machine {
-        Machine::kernel(&image.kernel, &image.initrd, append)
+        Machine {
+            shadow: image.shadow,
+            ..Machine::kernel(&image.kernel, &image.initrd, append)
+        }
     }
 
     /// A machine that boots `kernel` and `initrd` with `append`.

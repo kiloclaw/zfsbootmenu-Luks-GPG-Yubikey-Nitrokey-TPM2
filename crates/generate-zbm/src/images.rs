@@ -133,7 +133,7 @@ pub fn prune_versions(
 mod tests {
     use super::*;
     use zbm_testkit::legacy::{path, perl};
-    use zbm_testkit::{Rng, have_program, parity};
+    use zbm_testkit::{Rng, can_run, have_program, parity};
 
     fn files(list: &[&str]) -> Vec<String> {
         list.iter().map(|f| (*f).to_owned()).collect()
@@ -207,8 +207,10 @@ mod tests {
     #[test]
     fn pruning_matches_generate_zbm() {
         let mut parity = parity!("pruning_matches_generate_zbm");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
+        if !can_run(
+            !parity.mode().needs_legacy() || have_program("perl"),
+            "perl",
+        ) {
             return;
         }
         let versions = ["1.0", "1.10", "2.0", "2.1", "3.0.0+dev", "3.0.0"];

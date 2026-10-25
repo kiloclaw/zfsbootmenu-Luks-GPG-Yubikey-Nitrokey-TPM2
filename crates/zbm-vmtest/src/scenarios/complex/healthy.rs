@@ -23,6 +23,28 @@ pub(super) struct Expect<'a> {
 }
 
 /// The state `states` gives `pool`, ONLINE by default.
+/// How deep `line` is indented.
+fn indent(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// The states of the devices of the vdev `vdev` in `zpool status -P`
+/// output: the device lines indented below it, up to the next line that
+/// is not one. Empty without the vdev.
+pub(super) fn vdev_members<'a>(status: &'a str, vdev: &str) -> Vec<&'a str> {
+    let mut lines = status
+        .lines()
+        .skip_while(|line| line.split_whitespace().next() != Some(vdev));
+    let Some(header) = lines.next() else {
+        return Vec::new();
+    };
+    let depth = indent(header);
+    lines
+        .take_while(|line| indent(line) > depth && line.trim_start().starts_with("/dev/"))
+        .map(|line| line.split_whitespace().nth(1).unwrap_or_default())
+        .collect()
+}
+
 fn state_of<'a>(states: &[(&str, &'a str)], pool: &str) -> &'a str {
     states
         .iter()
@@ -64,10 +86,13 @@ pub(super) fn expect_healthy(test: &Test, boot: &Boot, expect: Expect<'_>) -> Re
             regex(r"spares\s*\n\s*/dev/mapper/\S+\s+AVAIL")?.is_match(status),
             "hot spare AVAIL",
         );
-        let raidz = regex(r"raidz2-0.*\n(?:\s+/dev/mapper/\S+\s+ONLINE.*\n){5}")?;
+        let members = vdev_members(status, "raidz2-0");
         test.check(
-            raidz.find_iter(status).count() == 1,
-            "raidz2-0 has five members after RAIDZ expansion",
+            members == ["ONLINE"; 5],
+            &format!(
+                "raidz2-0 has five members ONLINE after RAIDZ expansion: {}",
+                crate::pyfmt::list(&members)
+            ),
         );
     }
     check_teardown(test, boot, expect.readonly);

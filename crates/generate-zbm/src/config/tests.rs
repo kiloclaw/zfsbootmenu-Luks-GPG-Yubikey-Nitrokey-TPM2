@@ -2,7 +2,7 @@
 
 use super::*;
 use zbm_testkit::legacy::perl;
-use zbm_testkit::{Rng, TempDir, have_program, parity};
+use zbm_testkit::{Rng, TempDir, can_run, have_program, parity};
 
 #[test]
 fn plain_scalars_follow_the_core_schema() {
@@ -169,8 +169,10 @@ fn rust_view(yaml: &str) -> Option<String> {
 #[test]
 fn values_match_yaml_pp() {
     let mut parity = parity!("values_match_yaml_pp");
-    if parity.mode().needs_legacy() && !have_program("perl") {
-        eprintln!("skipped: perl is missing");
+    if !can_run(
+        !parity.mode().needs_legacy() || have_program("perl"),
+        "perl",
+    ) {
         return;
     }
     let scalars = [

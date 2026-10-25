@@ -301,7 +301,7 @@ fn check_features(test: &Test, boot: &Boot, name: &str, group: &Group) {
 fn oldzfs(test: &Test, name: &str) -> Result<()> {
     let settings = test.settings();
     let Some((kernel, initrd)) = &settings.old_image else {
-        test.note("ZBMTEST_OLD_KERNEL/ZBMTEST_OLD_INITRD not set; skipped");
+        test.skip("ZBMTEST_OLD_KERNEL and ZBMTEST_OLD_INITRD are not set");
         return Ok(());
     };
     let group = group(name)?;

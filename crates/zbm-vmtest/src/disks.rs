@@ -203,7 +203,8 @@ fn uuid_in_header(header: &[u8; 208]) -> Option<String> {
 ///
 /// When the boot environment or the file system cannot be built.
 pub fn payload_disk(settings: &Settings) -> Result<PathBuf> {
-    images::build_be(settings, false)?;
+    images::build_be(settings)?;
+    let _lock = images::lock(&settings.work, "payload")?;
     let image = settings.work.join("payload.img");
     let stamp = settings.work.join("payload/kver");
     let modified = |path: &Path| fs::metadata(path).and_then(|meta| meta.modified()).ok();

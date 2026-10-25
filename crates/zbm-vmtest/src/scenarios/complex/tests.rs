@@ -121,7 +121,8 @@ fn a_healthy_boot_passes_every_check_but_those_of_what_is_missing() {
         "ok   - tank shows its spares section",
         "ok   - cache vdev ONLINE",
         "ok   - hot spare AVAIL",
-        "ok   - raidz2-0 has five members after RAIDZ expansion",
+        "ok   - raidz2-0 has five members ONLINE after RAIDZ expansion: \
+         ['ONLINE', 'ONLINE', 'ONLINE', 'ONLINE', 'ONLINE']",
         "ok   - teardown exported pools and closed volumes (dm=[] pools=[] state=[])",
         "ok   - boot environment asked for the ZFS key of its encrypted root",
     ]
@@ -172,7 +173,8 @@ fn a_degraded_boot_skips_the_vdev_checks_of_tank() {
     assert_eq!(
         checks[10..15],
         [
-            "FAIL - raidz2-0 has five members after RAIDZ expansion",
+            "FAIL - raidz2-0 has five members ONLINE after RAIDZ expansion: \
+             ['ONLINE', 'ONLINE', 'ONLINE', 'ONLINE']",
             "FAIL - teardown exported pools and closed volumes \
              (dm=[] pools=[mixed parts] state=[])",
             "FAIL - boot environment asked for the ZFS key of its encrypted root",
@@ -337,4 +339,12 @@ fn only_mixed_and_parts_online_count_as_imported() {
                 tank\tFAULTED\nmixed2 DEGRADED";
 
     assert_eq!(imported(list).unwrap(), ["mixed", "parts"]);
+}
+
+#[test]
+fn the_members_of_a_vdev_are_counted_to_the_next_vdev() {
+    let six = status(6, "ONLINE");
+    assert_eq!(super::healthy::vdev_members(&six, "raidz2-0").len(), 6);
+    assert_eq!(super::healthy::vdev_members(&six, "mirror-1"), ["ONLINE"]);
+    assert!(super::healthy::vdev_members(&six, "raidz3-0").is_empty());
 }

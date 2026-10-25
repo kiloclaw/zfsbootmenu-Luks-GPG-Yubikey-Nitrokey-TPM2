@@ -23,13 +23,13 @@ use fixtures::{
     setup_backups,
 };
 use sandbox::{Case, STUB, Setup, compare, efi_tools, kernel_image, tools};
-use zbm_testkit::parity;
+use zbm_testkit::{can_run, parity};
 
 #[test]
 fn builds_images() {
     let mut parity = parity!("builds_images");
-    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
-        eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
+    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
+    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
         return;
     }
     compare(
@@ -88,8 +88,8 @@ fn builds_images() {
 #[test]
 fn keeps_versions() {
     let mut parity = parity!("keeps_versions");
-    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
-        eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
+    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
+    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
         return;
     }
     let versioned = "Global:
@@ -174,8 +174,7 @@ EFI:
 #[test]
 fn chooses_kernels() {
     let mut parity = parity!("chooses_kernels");
-    if parity.mode().needs_legacy() && !tools() {
-        eprintln!("skipped: perl or binutils is missing");
+    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
         return;
     }
     let args: &[&[&str]] = &[
@@ -261,8 +260,7 @@ Kernel:
 #[test]
 fn initramfs_generators() {
     let mut parity = parity!("initramfs_generators");
-    if parity.mode().needs_legacy() && !tools() {
-        eprintln!("skipped: perl or binutils is missing");
+    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
         return;
     }
     let cpio = "Global:
@@ -351,8 +349,7 @@ Components:
 #[test]
 fn configuration_states() {
     let mut parity = parity!("configuration_states");
-    if parity.mode().needs_legacy() && !tools() {
-        eprintln!("skipped: perl or binutils is missing");
+    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
         return;
     }
     let disabled =
@@ -406,8 +403,7 @@ fn configuration_states() {
 #[test]
 fn mounts_and_hooks() {
     let mut parity = parity!("mounts_and_hooks");
-    if parity.mode().needs_legacy() && !tools() {
-        eprintln!("skipped: perl or binutils is missing");
+    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
         return;
     }
     let config = "Global:
@@ -518,8 +514,8 @@ kill -KILL $$
 #[test]
 fn bundle_failures() {
     let mut parity = parity!("bundle_failures");
-    if (parity.mode().needs_legacy() && !tools()) || !efi_tools() {
-        eprintln!("skipped: perl, binutils or the systemd EFI stub is missing");
+    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
+    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
         return;
     }
     let config = "Global:

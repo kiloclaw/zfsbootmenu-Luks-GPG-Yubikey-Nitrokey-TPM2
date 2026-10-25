@@ -114,7 +114,7 @@ pub fn decide<'a>(name: Option<&str>, lines: impl IntoIterator<Item = &'a [u8]>)
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program, parity};
+    use zbm_testkit::{Rng, can_run, have_program, parity};
 
     #[test]
     fn names() {
@@ -160,8 +160,10 @@ mod tests {
     #[test]
     fn matches_perl_regexes() {
         let mut parity = parity!("matches_perl_regexes");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
+        if !can_run(
+            !parity.mode().needs_legacy() || have_program("perl"),
+            "perl",
+        ) {
             return;
         }
         let pieces = [

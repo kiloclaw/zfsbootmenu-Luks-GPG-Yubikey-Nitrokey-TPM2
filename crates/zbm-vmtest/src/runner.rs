@@ -51,7 +51,7 @@ pub fn run(settings: &Settings, program: &Path, tests: &[String]) -> Result<bool
     // Results older than this run are not reported: a test that failed
     // before it wrote one would otherwise show the last run's result.
     let started = SystemTime::now();
-    build_be(settings, false)?;
+    build_be(settings)?;
     payload_disk(settings)?;
     let mut all_passed = true;
     for test in tests {
@@ -108,7 +108,7 @@ pub fn summary(results: &[(String, Option<Outcome>)]) -> (String, usize) {
         };
         passed += outcome.passed;
         failed += outcome.failures.len();
-        let verdict = if outcome.is_pass() { "PASS" } else { "FAIL" };
+        let verdict = outcome.verdict();
         writeln!(
             text,
             "  {name:22} {verdict}  {:3} passed  {:2} failed  {:5} s",
@@ -137,19 +137,26 @@ mod tests {
         let pass = Outcome {
             test: "layouts-main".into(),
             passed: 61,
-            failures: Vec::new(),
             seconds: 412,
+            ..Outcome::default()
         };
         let fail = Outcome {
             test: "keys-plugin".into(),
             passed: 20,
             failures: vec!["x".into(), "y".into()],
             seconds: 98,
+            ..Outcome::default()
+        };
+        let skipped = Outcome {
+            test: "layouts-main-oldzfs".into(),
+            skipped: vec!["no old image".into()],
+            ..Outcome::default()
         };
         let results = vec![
             ("layouts-main".to_owned(), Some(pass)),
             ("keys-plugin".to_owned(), Some(fail)),
             ("keys-setup".to_owned(), None),
+            ("layouts-main-oldzfs".to_owned(), Some(skipped)),
         ];
 
         let (text, failed) = summary(&results);
@@ -160,6 +167,7 @@ mod tests {
             "  layouts-main           PASS   61 passed   0 failed    412 s\n\
              \x20 keys-plugin            FAIL   20 passed   2 failed     98 s\n\
              \x20 keys-setup             no result\n\
+             \x20 layouts-main-oldzfs    SKIP    0 passed   0 failed      0 s\n\
              \x20 total                         81 passed   3 failed\n"
         );
     }

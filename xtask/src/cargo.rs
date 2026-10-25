@@ -21,12 +21,19 @@ pub fn cargo(root: &Path) -> Program {
 /// the documentation tests, which nextest cannot run, under `cargo test
 /// --doc`. Without it everything runs under `cargo test`.
 ///
+/// Tests that need a tool (Perl, binutils, the systemd EFI stub) fail when
+/// it is missing (`ZBM_REQUIRE_TOOLS=1`) instead of passing by skipping.
+///
 /// # Errors
 ///
 /// When a test fails.
 pub fn test(root: &Path) -> Result<()> {
-    test_with(root, &[])
+    test_with(root, &[REQUIRE_TOOLS])
 }
+
+/// What makes the tests that need a tool fail without it
+/// (`zbm_testkit::can_run`).
+const REQUIRE_TOOLS: (&str, &str) = ("ZBM_REQUIRE_TOOLS", "1");
 
 /// Runs the tests as [`test()`] does, with the environment variables `env`.
 fn test_with(root: &Path, env: &[(&str, &str)]) -> Result<()> {
@@ -165,7 +172,7 @@ pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
 /// When a test fails.
 pub fn record_parity(root: &Path, check: bool) -> Result<()> {
     let mode = if check { "check" } else { "record" };
-    test_with(root, &[("ZBM_PARITY", mode)])?;
+    test_with(root, &[("ZBM_PARITY", mode), REQUIRE_TOOLS])?;
     if check {
         println!("record-parity: every recording matches the legacy code");
         return Ok(());

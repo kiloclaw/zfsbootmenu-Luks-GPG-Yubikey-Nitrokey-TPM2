@@ -53,7 +53,7 @@ pub fn next_offset(size: u128, offset: u128, alignment: u128) -> u128 {
 mod tests {
     use super::*;
     use zbm_platform::exec::{Command, Runner, SystemRunner};
-    use zbm_testkit::have_program;
+    use zbm_testkit::{can_run, have_program};
 
     const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 
@@ -77,8 +77,8 @@ mod tests {
 
     #[test]
     fn reads_the_systemd_stub() {
-        if !std::path::Path::new(STUB).is_file() || !have_program("objdump") {
-            eprintln!("skipped: the systemd EFI stub or objdump is missing");
+        let tools = std::path::Path::new(STUB).is_file() && have_program("objdump");
+        if !can_run(tools, "the systemd EFI stub or objdump") {
             return;
         }
         let private = SystemRunner

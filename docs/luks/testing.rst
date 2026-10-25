@@ -79,25 +79,30 @@ Variable                 Meaning
 ``ZBMTEST_RUNTIME``      ``docker`` or ``podman`` (default: ``docker`` when installed)
 ``ZBMTEST_ACCEL``        ``kvm`` or ``tcg`` (default: ``kvm`` when */dev/kvm* is usable)
 ``ZBMTEST_REUSE``        ``1`` reuses ZFSBootMenu test images built earlier in the work directory from the same
-                         inputs: crypttab, embedded files, configuration, and the checkout's sources that go into
-                         images (the crates without their tests, ``legacy/``, ``packaging/``, the guest hooks,
-                         ``Cargo.lock``); an image built from other sources is built again
+                         inputs: crypttab, embedded files, configuration, the build container's image ID, and the
+                         checkout's sources that go into images (the crates without their tests, ``legacy/``,
+                         ``packaging/``, ``config/``, the guest hooks, ``Cargo.lock``, ``.cargo/config.toml`` and
+                         the checksums of ``vendor/``); an image built from other sources is built again
 ``ZBMTEST_OLD_KERNEL``,  kernel and initramfs of a ZFSBootMenu image with an older ZFS, for the ``oldzfs`` tests;
 ``ZBMTEST_OLD_INITRD``   those tests are skipped when unset, and pass the test images' host ID with ``spl_hostid=``
 ``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
                          choose their runtime themselves
 ``ZBMTEST_SHADOW``       ``0`` builds legacy images without shadow mode. By default they run ``zbm shadow`` before
-                         each boot, and a test fails when a summary on its serial consoles reports differences
-                         (*docs/dev/shadow-mode.md*)
+                         each boot, and a test fails when a summary on its serial consoles reports differences or
+                         compared nothing, or when a boot of such an image reached the boot environment without a
+                         summary (*docs/dev/shadow-mode.md*)
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
 
 * ``steps.log``: every command, prompt and check;
 * ``serial-<boot>.log``: the serial console of each boot;
-* ``result.json``: the number of passed and failed checks and the failures;
+* ``result.json``: the number of passed and failed checks, the failures, and why parts did not run;
 * ``qemu-<boot>.log``: QEMU's own messages.
+
+A test that did not run, such as an ``oldzfs`` test without an older image, is ``SKIP`` in the summary, not
+``PASS``; one that ran without making a check fails.
 
 The harness is built as yourself and run as root; ``cargo xtask test vm [<test>...]`` does both, running the harness
 with ``sudo env ZBMTEST_...=...`` unless it already runs as root, so that the ``ZBMTEST_`` settings reach it with
@@ -192,11 +197,12 @@ Virtual-Machine Tests
 Images and boot environment
   The ZFSBootMenu images are built by the build container from the source tree, with test hooks that print
   ``zpool status``, ``zluks status`` and the state at teardown (devices still mapped, pools still imported). The test
-  boot environment is built by the container too: the Ubuntu kernel, a dracut initramfs with the ZFS 2.4.4 ``zfs``
-  module and systemd-cryptsetup, which unlocks the volumes with key files and ``rd.luks.uuid=``/``rd.luks.key=`` or
-  ``luks.*`` parameters (no crypttab), and a minimal root file system whose ``/sbin/init`` reports the kernel, the ZFS
-  version, the root file system, the device-mapper table, every pool's status and feature states, writes to the root
-  dataset, scrubs every pool and powers off.
+  boot environment is built by the container too, again whenever ``tests/luks/vm/be/`` or the build container
+  changes (``payload-inputs.txt`` in the work directory records what it was built from): the Ubuntu kernel, a dracut
+  initramfs with the ZFS 2.4.4 ``zfs`` module and systemd-cryptsetup, which unlocks the volumes with key files and
+  ``rd.luks.uuid=``/``rd.luks.key=`` or ``luks.*`` parameters (no crypttab), and a minimal root file system whose
+  ``/sbin/init`` reports the kernel, the ZFS version, the root file system, the device-mapper table, every pool's
+  status and feature states, writes to the root dataset, scrubs every pool and powers off.
 
 Following a boot
   The harness answers prompts (LUKS passphrases, ZFS keys, TPM2 PINs, GnuPG passphrases) and records them, so tests

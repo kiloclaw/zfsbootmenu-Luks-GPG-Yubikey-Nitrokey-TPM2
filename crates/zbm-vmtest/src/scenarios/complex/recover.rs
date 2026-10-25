@@ -11,7 +11,7 @@ use crate::settings::{PW, PW_OTHER};
 use crate::vm::Vm;
 
 use super::healthy::{Expect, expect_healthy};
-use super::{BASE, disks};
+use super::{BASE, LUKS_VOLUMES, disks};
 
 /// Every LUKS prompt skipped; the volumes are unlocked with zluks in the
 /// recovery shell and the boot continues.
@@ -115,7 +115,7 @@ pub(super) fn unlock(vm: &mut Vm<'_>) -> Result<(usize, String)> {
 pub(super) fn oldzfs(test: &Test) -> Result<()> {
     let settings = test.settings();
     let Some((kernel, initrd)) = &settings.old_image else {
-        test.note("ZBMTEST_OLD_KERNEL/ZBMTEST_OLD_INITRD not set; skipped");
+        test.skip("ZBMTEST_OLD_KERNEL and ZBMTEST_OLD_INITRD are not set");
         return Ok(());
     };
     let append = format!("{BASE} {}", hostid_arg(settings)?);
@@ -130,11 +130,15 @@ pub(super) fn oldzfs(test: &Test) -> Result<()> {
     } else {
         test.step("no boot environment found; ZFSBootMenu dropped to its emergency shell");
     }
-    test.check(
-        true,
-        "the older image unlocked the volumes and booted nothing",
-    );
     vm.shell_ready()?;
+    let (_, out) = vm.sh_show("cat /sys/block/dm-*/dm/uuid 2>/dev/null | grep -c '^CRYPT-'")?;
+    test.check(
+        out.trim() == LUKS_VOLUMES.to_string(),
+        &format!(
+            "the older image unlocked the {LUKS_VOLUMES} volumes and booted nothing ({})",
+            out.trim()
+        ),
+    );
     let (_, out) = vm.sh_show("zfs version; zpool list -H -o name,health,readonly")?;
     test.check(
         !regex(r"(?m)^tank\s")?.is_match(&out),

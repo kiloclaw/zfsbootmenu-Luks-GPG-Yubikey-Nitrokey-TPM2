@@ -515,6 +515,7 @@ fn follow_be(vm: &mut Vm<'_>, boot: &mut Boot, timeout: u64) -> Result<()> {
     if index != 0 {
         let event = ["", "be-luks-prompt", "", "be-panic", "be-emergency"][index];
         boot.prompts.push(event.into());
+        vm.stop_tpm();
         return Ok(());
     }
     vm.expect1("BE-INIT-DONE", timeout)?;

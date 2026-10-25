@@ -3,7 +3,7 @@
 use super::*;
 use crate::config::load;
 use zbm_testkit::legacy::perl;
-use zbm_testkit::{Rng, TempDir, have_program, parity};
+use zbm_testkit::{Rng, TempDir, can_run, have_program, parity};
 
 #[test]
 fn the_default_configuration() {
@@ -92,8 +92,10 @@ fn rust_dump(yaml: &str) -> Option<String> {
 #[test]
 fn matches_yaml_pp() {
     let mut parity = parity!("matches_yaml_pp");
-    if parity.mode().needs_legacy() && !have_program("perl") {
-        eprintln!("skipped: perl is missing");
+    if !can_run(
+        !parity.mode().needs_legacy() || have_program("perl"),
+        "perl",
+    ) {
         return;
     }
     let scalars = [

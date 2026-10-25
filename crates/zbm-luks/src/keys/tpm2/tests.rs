@@ -4,7 +4,7 @@ use crate::testing::{legacy_function, legacy_luks};
 use crate::unlocker::Settings;
 use zbm_platform::exec::{Input, Output, Status};
 use zbm_testkit::fakes::FakeSystem;
-use zbm_testkit::{have_program, parity, repo_root};
+use zbm_testkit::{can_run, have_program, parity, repo_root};
 
 fn fixture(name: &str) -> String {
     let path = repo_root()
@@ -39,8 +39,11 @@ fn legacy_auth(json: &str, pin: &str) -> String {
 #[test]
 fn authorization_values_match_the_legacy_derivation() {
     let mut parity = parity!("authorization_values_match_the_legacy_derivation");
-    if parity.mode().needs_legacy() && (!have_program("sha256sum") || !have_program("openssl")) {
-        eprintln!("skipped: the legacy derivation needs sha256sum and openssl");
+    let tools = have_program("sha256sum") && have_program("openssl");
+    if !can_run(
+        !parity.mode().needs_legacy() || tools,
+        "sha256sum or openssl",
+    ) {
         return;
     }
     let salted = fixture("token-tpm2-pin.json");

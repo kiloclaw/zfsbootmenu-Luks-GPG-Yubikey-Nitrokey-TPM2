@@ -116,7 +116,7 @@ pub fn sort_versions(versions: &mut [String]) {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program, parity};
+    use zbm_testkit::{Rng, can_run, have_program, parity};
 
     /// Perl's `versioncmp`: -1, 0 or 1.
     fn perl_cmp(a: &str, b: &str) -> i8 {
@@ -162,8 +162,10 @@ mod tests {
     #[test]
     fn matches_perl_on_generated_versions() {
         let mut parity = parity!("matches_perl_on_generated_versions");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
+        if !can_run(
+            !parity.mode().needs_legacy() || have_program("perl"),
+            "perl",
+        ) {
             return;
         }
         let mut rng = Rng::from_env(6);

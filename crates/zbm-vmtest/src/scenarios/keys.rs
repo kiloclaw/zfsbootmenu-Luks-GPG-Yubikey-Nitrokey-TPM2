@@ -192,7 +192,17 @@ fn dictionary_lockout(settings: &Settings, tries: &str, seconds: &str) -> Result
 fn lockout(test: &Test, tpm: &Swtpm) -> Result<()> {
     let settings = test.settings();
     dictionary_lockout(settings, "1", "3600")?;
-    let image = image(settings, false)?;
+    let checked = lockout_boot(test);
+    // The next tests need the TPM's usual settings, whatever happened.
+    let restored = tpm
+        .clear_lockout()
+        .and_then(|()| dictionary_lockout(settings, "32", "600"));
+    checked.and(restored)
+}
+
+/// The boot of [`lockout`]; its machine and software TPM stop on return.
+fn lockout_boot(test: &Test) -> Result<()> {
+    let image = image(test.settings(), false)?;
     let mut vm = start(test, "lockout", &image, true)?;
     let follow = Follow::default()
         .answer(Kind::Tpm2Pin, &["0000", "9999"])
@@ -214,8 +224,7 @@ fn lockout(test: &Test, tpm: &Swtpm) -> Result<()> {
         ),
     );
     boot_checks(test, &boot);
-    tpm.clear_lockout()?;
-    dictionary_lockout(settings, "32", "600")
+    Ok(())
 }
 
 /// The text of a serial log.

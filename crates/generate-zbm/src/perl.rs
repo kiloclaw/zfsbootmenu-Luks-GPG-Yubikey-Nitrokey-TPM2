@@ -200,7 +200,7 @@ pub fn decode_utf8_perlqq(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use zbm_testkit::legacy::perl;
-    use zbm_testkit::{Rng, have_program, parity};
+    use zbm_testkit::{Rng, can_run, have_program, parity};
 
     #[test]
     fn paths() {
@@ -233,8 +233,10 @@ mod tests {
     #[test]
     fn dumper_matches_perl() {
         let mut parity = parity!("dumper_matches_perl");
-        if parity.mode().needs_legacy() && !have_program("perl") {
-            eprintln!("skipped: perl is missing");
+        if !can_run(
+            !parity.mode().needs_legacy() || have_program("perl"),
+            "perl",
+        ) {
             return;
         }
         let pieces = ["a", "/b", "3.1.0", "'", "\\", "_1", " ", "x"];

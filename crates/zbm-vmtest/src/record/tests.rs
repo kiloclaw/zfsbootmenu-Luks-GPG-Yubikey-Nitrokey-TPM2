@@ -95,6 +95,61 @@ fn a_test_without_shadow_mode_reports_has_no_shadow_check() {
 }
 
 #[test]
+fn a_shadow_boot_that_reached_the_boot_environment_needs_a_summary() {
+    let settings = settings("shadow-missing");
+    let test = Test::new(&settings, "complex-healthy").unwrap();
+    test.expect_shadow("boot");
+    test.expect_shadow("setup");
+    fs::write(test.dir().join("serial-boot.log"), "BE-INIT-START\r\n").unwrap();
+    // A setup that never left the recovery shell prints no summary.
+    fs::write(test.dir().join("serial-setup.log"), "zbm# \r\n").unwrap();
+
+    let outcome = test.finish();
+
+    assert_eq!(
+        outcome.failures,
+        ["shadow mode: the boot boot reached the boot environment without a shadow summary"]
+    );
+    fs::remove_dir_all(settings.work).ok();
+}
+
+#[test]
+fn a_shadow_summary_that_compared_nothing_fails() {
+    let settings = settings("shadow-nothing");
+    let test = Test::new(&settings, "complex-healthy").unwrap();
+    let console = "ZBM-SHADOW: 0 differences in 0 decisions\r\nBE-INIT-START\r\n";
+    fs::write(test.dir().join("serial-boot.log"), console).unwrap();
+
+    let outcome = test.finish();
+
+    assert_eq!(
+        outcome.failures,
+        ["shadow mode: 0 differences in 1 boots (compared: nothing)"]
+    );
+    fs::remove_dir_all(settings.work).ok();
+}
+
+#[test]
+fn a_test_that_did_not_run_is_skipped_and_one_that_checked_nothing_fails() {
+    let settings = settings("skip");
+    let test = Test::new(&settings, "layouts-parity-oldzfs").unwrap();
+    test.skip("no old image");
+    let outcome = test.finish();
+    assert_eq!((outcome.verdict(), outcome.passed), ("SKIP", 0));
+    let written = fs::read_to_string(test.dir().join("result.json")).unwrap();
+    assert_eq!(Outcome::from_json(&written), Some(outcome));
+    let steps = fs::read_to_string(test.dir().join("steps.log")).unwrap();
+    assert!(steps.ends_with("SKIP: no old image\n"), "{steps}");
+
+    let test = Test::new(&settings, "layouts-main").unwrap();
+    test.note("nothing to see");
+    let outcome = test.finish();
+    assert_eq!(outcome.verdict(), "FAIL");
+    assert_eq!(outcome.failures, ["the test made a check"]);
+    fs::remove_dir_all(settings.work).ok();
+}
+
+#[test]
 fn shadow_lines_other_than_summaries_are_shown_once() {
     let text = "ZBM-SHADOW: a differs\nZBM-SHADOW: a differs\n\
                 ZBM-SHADOW: 0 differences in 1 decisions\n"

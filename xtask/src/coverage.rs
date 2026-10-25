@@ -214,6 +214,12 @@ pub fn check(all: &BTreeMap<String, Lines>, committed: &baseline::Baseline) -> R
         }
         improved |= committed.contains_key(name) && now > needed;
     }
+    // A crate the report lost would otherwise never be checked again.
+    for name in committed.keys() {
+        if all.get(name).and_then(|lines| lines.percent()).is_none() {
+            problems.push(format!("{name}: has a baseline but no code in the report"));
+        }
+    }
     if !problems.is_empty() {
         return Err(Error::Check {
             check: "coverage",
@@ -332,6 +338,20 @@ mod tests {
             "coverage found 2 problem(s)\n  \
              new: line coverage 79% is below 80%\n  \
              old: line coverage 59% is below 60%"
+        );
+    }
+
+    #[test]
+    fn a_crate_missing_from_the_report_fails() {
+        let committed = baseline::parse("crate line_coverage\nold 60\ngone 70\n").unwrap();
+        let mut all = BTreeMap::new();
+        all.insert("old".to_owned(), lines(100, 60));
+
+        let error = check(&all, &committed).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "coverage found 1 problem(s)\n  gone: has a baseline but no code in the report"
         );
     }
 

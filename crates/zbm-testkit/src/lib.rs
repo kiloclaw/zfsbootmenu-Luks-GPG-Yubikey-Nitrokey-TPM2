@@ -55,7 +55,7 @@ mod rng;
 pub mod zfs;
 pub mod zfs_script;
 
-pub use host::{TempDir, have_program, repo_root, write_executable};
+pub use host::{TempDir, can_run, have_program, repo_root, write_executable};
 pub use rng::Rng;
 
 /// A response function: returns the output for commands it handles and `None`

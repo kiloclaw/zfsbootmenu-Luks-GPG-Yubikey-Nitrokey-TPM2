@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
 use zbm_testkit::parity::Parity;
 use zbm_testkit::zfs_script::ZfsScript;
-use zbm_testkit::{TempDir, have_program, legacy, parity};
+use zbm_testkit::{TempDir, can_run, have_program, legacy, parity};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 const PROPERTY: &str = "org.zfsbootmenu:commandline";
@@ -371,8 +371,7 @@ fn editing_matches() {
 #[test]
 fn efi_image_cases_match() {
     let mut parity = parity!("efi_image_cases_match");
-    if !efi_tools() {
-        eprintln!("skipped: the systemd EFI stub, objcopy or objdump is missing");
+    if !can_run(efi_tools(), "the systemd EFI stub, objcopy or objdump") {
         return;
     }
     let images: &[(&str, Option<&[u8]>)] = &[
@@ -406,8 +405,7 @@ fn efi_image_cases_match() {
 #[test]
 fn streamed_efi_images_match() {
     let mut parity = parity!("streamed_efi_images_match");
-    if !efi_tools() {
-        eprintln!("skipped: the systemd EFI stub, objcopy or objdump is missing");
+    if !can_run(efi_tools(), "the systemd EFI stub, objcopy or objdump") {
         return;
     }
     let dir = TempDir::new("zbm-kcl-parity-stream");

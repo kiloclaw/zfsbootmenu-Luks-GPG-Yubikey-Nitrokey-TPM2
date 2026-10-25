@@ -29,6 +29,38 @@ pub fn have_program(program: &str) -> bool {
     })
 }
 
+/// Whether a test that needs `what` can run: `available` says whether it is
+/// there. Without it the test is skipped with a message, unless
+/// `ZBM_REQUIRE_TOOLS=1`, which `cargo xtask test` sets: there a missing
+/// tool fails the test, so that it never passes by skipping.
+///
+/// # Panics
+///
+/// When `what` is missing and `ZBM_REQUIRE_TOOLS=1`.
+pub fn can_run(available: bool, what: &str) -> bool {
+    let required = std::env::var_os("ZBM_REQUIRE_TOOLS").is_some_and(|value| value == "1");
+    can_run_if(available, what, required)
+}
+
+/// [`can_run`], where `required` says whether a missing tool fails.
+fn can_run_if(available: bool, what: &str, required: bool) -> bool {
+    if available {
+        return true;
+    }
+    assert!(
+        !required,
+        "{what} is missing, and ZBM_REQUIRE_TOOLS=1 requires it"
+    );
+    #[allow(
+        clippy::disallowed_macros,
+        reason = "the test harness shows a skipped test's standard error"
+    )]
+    {
+        eprintln!("skipped: {what} is missing");
+    }
+    false
+}
+
 /// Writes an executable file through a child process (`cat`), so that this
 /// process never has it open for writing.
 ///
@@ -109,6 +141,18 @@ impl Drop for TempDir {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_missing_tool_skips_unless_required() {
+        assert!(can_run_if(true, "perl", true));
+        assert!(!can_run_if(false, "perl", false));
+    }
+
+    #[test]
+    #[should_panic(expected = "perl is missing, and ZBM_REQUIRE_TOOLS=1 requires it")]
+    fn a_required_tool_that_is_missing_fails() {
+        can_run_if(false, "perl", true);
+    }
 
     #[test]
     fn temp_dir_is_removed() {

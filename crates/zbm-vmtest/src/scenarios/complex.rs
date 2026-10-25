@@ -57,6 +57,10 @@ mod setup;
 #[cfg(test)]
 mod tests;
 
+/// The LUKS volumes of the group: d0-d12, d14 and the partition zfsA of
+/// d15.
+const LUKS_VOLUMES: usize = 15;
+
 /// The disk group.
 const GROUP: &str = "complex";
 

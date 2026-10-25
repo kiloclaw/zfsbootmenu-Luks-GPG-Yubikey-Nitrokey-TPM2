@@ -73,17 +73,28 @@ pub fn hostid_arg(settings: &Settings) -> Result<String> {
 }
 
 /// Builds the ZFS test boot environment (kernel, initramfs, root file
-/// system) unless it exists, or when `force`.
+/// system) unless it was built from the same inputs: the files of
+/// `tests/luks/vm/be`, whose `init.sh` prints every `BE-` line the checks
+/// read, and the build container. Harness processes run in parallel build
+/// it once.
 ///
 /// # Errors
 ///
 /// [`Error::Build`] when the build fails.
-pub fn build_be(settings: &Settings, force: bool) -> Result<()> {
+pub fn build_be(settings: &Settings) -> Result<()> {
     hostid_file(settings)?;
-    if settings.work.join("payload/kver").exists() && !force {
+    let _lock = lock(&settings.work, "payload")?;
+    let be = settings.guest_files().join("be");
+    let stamp_path = settings.work.join("payload-inputs.txt");
+    let stamp = format!(
+        "be {}\ncontainer {}\n",
+        source::fingerprint_of(&be),
+        container_id(settings)
+    );
+    let built = settings.work.join("payload/kver").exists();
+    if built && fs::read_to_string(&stamp_path).ok().as_deref() == Some(&stamp) {
         return Ok(());
     }
-    let be = settings.guest_files().join("be");
     let output = container(
         settings,
         &["/out"],
@@ -99,7 +110,19 @@ pub fn build_be(settings: &Settings, force: bool) -> Result<()> {
             log,
         });
     }
-    Ok(())
+    fs::write(&stamp_path, stamp).map_err(Error::io("writing the boot environment's inputs"))
+}
+
+/// The ID of the build container image, so that what it built is built
+/// again with a new container; empty when it cannot be read.
+fn container_id(settings: &Settings) -> String {
+    Command::new(&settings.container)
+        .args(["image", "inspect", "--format", "{{.Id}}", &settings.image])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        .unwrap_or_default()
 }
 
 /// The kernel version of the test boot environment.
@@ -108,7 +131,7 @@ pub fn build_be(settings: &Settings, force: bool) -> Result<()> {
 ///
 /// When the boot environment cannot be built.
 pub fn be_kver(settings: &Settings) -> Result<String> {
-    build_be(settings, false)?;
+    build_be(settings)?;
     let kver = fs::read_to_string(settings.work.join("payload/kver")).map_err(Error::io(
         "reading the kernel version of the boot environment",
     ))?;
@@ -194,6 +217,9 @@ pub struct Image {
     pub efi: PathBuf,
     /// The directory of `zbm`'s debug file (`cargo xtask symbolize`).
     pub debug: PathBuf,
+    /// Whether it runs shadow mode before each boot (legacy images, unless
+    /// `ZBMTEST_SHADOW=0`).
+    pub shadow: bool,
 }
 
 /// The dracut configuration of an image.
@@ -239,13 +265,15 @@ fn generate_config(spec: &ImageSpec) -> String {
 pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     let mut variant = spec.variant.clone();
     let mut conf = spec.conf.clone();
-    if spec.runtime.unwrap_or(settings.runtime) == ZbmRuntime::Rust {
+    let rust = spec.runtime.unwrap_or(settings.runtime) == ZbmRuntime::Rust;
+    let shadow = !rust && settings.shadow;
+    if rust {
         variant.push_str("-rust");
         conf.push_str("\nzfsbootmenu_runtime=\"rust\"");
-    } else if settings.shadow {
+    } else if shadow {
         conf.push_str("\nzfsbootmenu_shadow=\"yes\"");
     }
-    let _lock = lock_image(&settings.work.join("zbm"), &variant)?;
+    let _lock = lock(&settings.work.join("zbm"), &variant)?;
     let dir = settings.work.join("zbm").join(&variant);
     let build = dir.join("build");
     let image = Image {
@@ -253,6 +281,7 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
         initrd: build.join("initramfs-bootmenu.img"),
         efi: build.join("vmlinuz.EFI"),
         debug: build.join("debug"),
+        shadow,
     };
     let stamp_path = dir.join("inputs.txt");
     let stamp = inputs(settings, spec, &conf);
@@ -285,12 +314,16 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     Ok(image)
 }
 
-/// Waits for, then holds, the lock of the image `variant` in `images`,
-/// until the file returned is dropped. The kernel releases it when the
-/// process ends.
-fn lock_image(images: &Path, variant: &str) -> Result<File> {
-    fs::create_dir_all(images).map_err(Error::io("creating the image directory"))?;
-    let path = images.join(format!("{variant}.lock"));
+/// Waits for, then holds, the lock `name` in `dir` (`<name>.lock`), until
+/// the file returned is dropped: what one harness process builds there,
+/// the others wait for. The kernel releases it when the process ends.
+///
+/// # Errors
+///
+/// [`Error::Io`] when the lock file cannot be made or locked.
+pub fn lock(dir: &Path, name: &str) -> Result<File> {
+    fs::create_dir_all(dir).map_err(Error::io("creating the directory of a lock"))?;
+    let path = dir.join(format!("{name}.lock"));
     let file = File::create(&path).map_err(Error::io("creating the image's lock"))?;
     rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
         .map_err(|errno| Error::io(format!("locking {}", path.display()))(errno.into()))?;
@@ -301,9 +334,10 @@ fn lock_image(images: &Path, variant: &str) -> Result<File> {
 /// from, as recorded beside it: its inputs and the checkout's sources.
 fn inputs(settings: &Settings, spec: &ImageSpec, conf: &str) -> String {
     format!(
-        "{}conf+ {conf}\nsources {}\n",
+        "{}conf+ {conf}\nsources {}\ncontainer {}\n",
         spec.stamp(),
-        source::fingerprint(&settings.repo)
+        source::fingerprint(&settings.repo),
+        container_id(settings)
     )
 }
 
