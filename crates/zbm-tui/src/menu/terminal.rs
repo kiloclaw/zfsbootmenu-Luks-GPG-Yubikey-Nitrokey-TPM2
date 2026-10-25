@@ -6,7 +6,7 @@ use std::io::{self, Write as _};
 use std::time::{Duration, Instant};
 
 use ratatui::backend::CrosstermBackend;
-use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::crossterm::terminal;
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::{Terminal, TerminalOptions, Viewport};
@@ -14,7 +14,8 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 use super::keymap::key_name;
 use super::machine::Machine;
 use super::session::Session;
-use super::startup::{Keys, StartupScreen, StartupView};
+use super::startup::{StartupScreen, StartupView};
+use super::term_keys::TerminalKeys;
 use super::theme::Theme;
 use super::view::view;
 use super::world::Snapshot;
@@ -124,57 +125,6 @@ fn hand_over<M: Machine>(session: &mut Session<M>, terminal: &mut Screen) -> io:
         terminal.clear()?;
     }
     Ok(())
-}
-
-/// The keys of the terminal on standard input; it is in raw mode while the
-/// start-up view has it.
-pub struct TerminalKeys {
-    raw: bool,
-}
-
-impl TerminalKeys {
-    /// The keys of the terminal, which goes into raw mode.
-    ///
-    /// # Errors
-    ///
-    /// When raw mode cannot be set.
-    pub fn new() -> io::Result<TerminalKeys> {
-        terminal::enable_raw_mode()?;
-        Ok(TerminalKeys { raw: true })
-    }
-}
-
-impl Keys for TerminalKeys {
-    /// The next key press; other events, such as a resize, count as time
-    /// passing.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
-        if !event::poll(timeout)? {
-            return Ok(None);
-        }
-        match event::read()? {
-            Event::Key(key) if key.kind != KeyEventKind::Release => Ok(Some(key)),
-            _ => Ok(None),
-        }
-    }
-
-    fn release(&mut self) -> io::Result<()> {
-        self.raw = false;
-        terminal::disable_raw_mode()
-    }
-
-    fn take(&mut self) -> io::Result<()> {
-        terminal::enable_raw_mode()?;
-        self.raw = true;
-        Ok(())
-    }
-}
-
-impl Drop for TerminalKeys {
-    fn drop(&mut self) {
-        if self.raw {
-            let _ = terminal::disable_raw_mode();
-        }
-    }
 }
 
 /// The start-up view of `snapshot` on standard output, of `size` (columns

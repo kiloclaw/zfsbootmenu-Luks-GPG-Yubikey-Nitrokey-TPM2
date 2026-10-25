@@ -2229,6 +2229,7 @@ dependencies = [
  "zbm-app",
  "zbm-display",
  "zbm-platform",
+ "zbm-sys",
  "zbm-testkit",
  "zbm-types",
 ]
