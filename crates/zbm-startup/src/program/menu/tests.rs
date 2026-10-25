@@ -196,3 +196,27 @@ fn the_loop_runs_the_menu_program_then_the_shell() {
             .contains(zbm_boot::support::MESSAGE)
     );
 }
+
+#[test]
+fn the_menu_counts_down_the_first_time_and_the_program_does_not() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    for stage in zbm_types::Stage::ALL {
+        state.finish_stage(stage.as_str()).unwrap();
+    }
+    fake.files.file_with_mode(MENU, "", 0o755);
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    Startup::new(fake.system(), &conf()).run(console, Some(2));
+    let menus: Vec<String> = fake
+        .runner
+        .calls()
+        .iter()
+        .filter(|call| call.program() == MENU)
+        .map(zbm_platform::Command::display)
+        .collect();
+    assert_eq!(menus, [format!("{MENU} --countdown"), MENU.to_owned()]);
+    assert!(!fake.console.output_text().contains("Booting"));
+}

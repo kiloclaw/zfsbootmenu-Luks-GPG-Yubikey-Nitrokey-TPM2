@@ -118,8 +118,9 @@ place for the menu.
 
 ### The new menu in Rust images
 
-Images with the Rust runtime (`zfsbootmenu_runtime=rust`) start the new menu where the legacy runtime starts the
-`fzf` menu: with `zbm.show`, without a default boot environment, and when a key stops the countdown. It runs as
+Images with the Rust runtime (`zfsbootmenu_runtime=rust`) start the new menu at the end of start-up, where the legacy
+runtime counts down and starts the `fzf` menu. The countdown runs in the menu, which shows the environments meanwhile;
+a key stops it. It runs as
 `/bin/zfsbootmenu` (and `zbm`), so it also opens over SSH and from the recovery shell, and takes over from a menu
 already running, as the legacy one does. It lists the boot environments with their kernels; Enter boots the selected
 one, loading its key (from its key source, as boots chosen in the legacy menu do) and asking for a passphrase on the
@@ -129,7 +130,8 @@ are imported and the menu opens again. Reboot, power off and the firmware setup 
 first. The rest of the menu (snapshots, kernels, the command line editor, pools and LUKS volumes) still answers
 "not available yet" on the real machine; R5 steps 4 to 6 bring them. `fzf` stays in Rust images for the recovery
 shell's tools (`logs`, `zsnapshots`, the help pages) until they are ported. The boot environment list of the
-refactoring pilots (`zbm-menu-pilot`) is gone; the menu replaces it.
+refactoring pilots (`zbm-menu-pilot`) is gone; the menu replaces it. `CHANGES-FROM-LEGACY.md` lists what behaves
+differently from the legacy menu, and why.
 
 ### The new menu's text in a message catalogue
 

@@ -5,7 +5,7 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 
-use crate::boot::{Follow, Kind, follow_boot};
+use crate::boot::{Follow, Kind, follow_boot, shell_after_keyload};
 use crate::error::{Error, Result};
 use crate::images::{Image, ImageSpec, zbm_image};
 use crate::qemu::Machine;
@@ -164,9 +164,9 @@ pub(super) fn badkey(test: &Test, auto: &Image) -> Result<()> {
     let boot = follow_boot(&mut vm, follow)?;
     test.check(
         boot.has_prompt("keyload-failed"),
-        "a wrong ZFS key ends in the recovery shell (root mount failure)",
+        "a wrong ZFS key ends in the recovery shell, or the menu's error",
     );
-    vm.shell_ready()?;
+    shell_after_keyload(&mut vm)?;
     let (_, out) = vm.sh_show("zluks status")?;
     test.check(
         out.matches("open").count() >= 15,

@@ -4,9 +4,12 @@
 //! when forced), marks the start-up done, and on the console counts down and
 //! boots the default boot environment. Then, as the legacy loop does, it runs
 //! the menu program ([`menu`]) and the recovery shell after it, importing
-//! pools again between rounds. In an image without the menu program, it says
-//! what it cannot do instead. See "Modes of the start-up program" and "The
-//! minimal runtime of Phase 5" in `crates/DESIGN.md`.
+//! pools again between rounds. When the image has the menu program, the menu
+//! counts down instead, showing the boot environments meanwhile
+//! (`zfsbootmenu --countdown`). In an image without it, the program says
+//! what it cannot do where the legacy one shows the menu. See "Modes of the
+//! start-up program" and "The minimal runtime of Phase 5" in
+//! `crates/DESIGN.md`.
 
 pub mod menu;
 
@@ -140,14 +143,17 @@ impl<'a> Startup<'a> {
             return 0;
         }
         let bootfs = bootfs.or_else(|| self.state.bootfs());
-        if !modes.resume {
+        // The menu counts down itself, showing the environments meanwhile.
+        let has_menu = menu::has_menu(&self.system);
+        if !modes.resume && !has_menu {
             self.countdown(bootfs.as_deref());
         }
         if self.state.is_active() {
             self.shell()
                 .emergency_shell("an active instance is already running");
         }
-        self.recovery_loop(rounds);
+        let first: &[&str] = if modes.resume { &[] } else { &["--countdown"] };
+        self.recovery_loop(rounds, first);
         0
     }
 
@@ -260,16 +266,18 @@ impl<'a> Startup<'a> {
         }
     }
 
-    /// The loop of the legacy program: the menu program and the recovery
-    /// shell, then pools that became importable in them are imported
-    /// read-only, and unhealthy ones restricted. Without the menu program,
-    /// the shell says that the menu is not supported.
-    fn recovery_loop(&self, rounds: Option<usize>) {
+    /// The loop of the legacy program: the menu program, with `first` the
+    /// first time, and the recovery shell, then pools that became
+    /// importable in them are imported read-only, and unhealthy ones
+    /// restricted. Without the menu program, the shell says that the menu
+    /// is not supported.
+    fn recovery_loop(&self, rounds: Option<usize>, first: &[&str]) {
         let mut round = 0;
         while rounds.is_none_or(|rounds| round < rounds) {
             round += 1;
             if menu::has_menu(&self.system) {
-                let _ = programs::applet(self.system.runner, menu::MENU, &[], &[]);
+                let args = if round == 1 { first } else { &[] };
+                let _ = programs::applet(self.system.runner, menu::MENU, args, &[]);
                 self.shell().emergency_shell("");
             } else {
                 self.shell().emergency_shell(support::MESSAGE);

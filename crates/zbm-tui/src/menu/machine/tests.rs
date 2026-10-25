@@ -5,6 +5,7 @@ use zbm_app::{App, BootError, Recovery};
 use zbm_platform::Context;
 use zbm_testkit::fakes::FakeSystem;
 
+use super::real::Countdown;
 use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::session::Session;
@@ -90,7 +91,8 @@ fn the_real_machine_opens_the_menu_and_reads_itself_again_after_an_action() {
     let mut shells = Shells::default();
     let stopped = Cell::new(false);
     let stop = || stopped.get();
-    let mut machine = RealMachine::new(app, fake.system(), &mut shells, &stop).unwrap();
+    let mut machine =
+        RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run).unwrap();
     assert_eq!(machine.snapshot().timeout, Timeout::Wait);
     assert!(matches!(machine.tick().as_slice(), [Event::Changed(_)]));
     assert!(machine.tick().is_empty());
@@ -133,5 +135,5 @@ fn a_machine_that_cannot_be_read_is_an_error() {
     let app = App::new(Context::new(fake.system()));
     let mut shells = Shells::default();
     let stop = || false;
-    assert!(RealMachine::new(app, fake.system(), &mut shells, &stop).is_err());
+    assert!(RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run).is_err());
 }

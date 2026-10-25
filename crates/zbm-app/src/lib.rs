@@ -344,10 +344,11 @@ impl<'a> App<'a> {
             }
             _ => model::Keyboard::default(),
         };
-        let startup = self
-            .base
-            .map(|base| read::startup(&zbm_state::State::new(files, base)))
-            .unwrap_or_default();
+        let state = self.base.map(|base| zbm_state::State::new(files, base));
+        let startup = state.as_ref().map(read::startup).unwrap_or_default();
+        let bootfs = state
+            .and_then(|state| state.bootfs())
+            .and_then(|name| name.parse().ok());
         Ok(model::Snapshot {
             startup,
             pools: read::pools(&zfs).map_err(SnapshotError::from)?,
@@ -363,6 +364,7 @@ impl<'a> App<'a> {
                 .unwrap_or_default(),
             keyboard,
             now,
+            bootfs,
             ..model::Snapshot::default()
         })
     }

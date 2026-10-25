@@ -22,10 +22,23 @@ pub struct RealMachine<'a, 'r> {
     sent: bool,
 }
 
+/// Whether the menu counts down before booting the environment start-up
+/// chose.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Countdown {
+    /// It counts down for the time the options give, as at the end of
+    /// start-up.
+    Run,
+    /// It waits for the user, as when it is opened again, over SSH or from
+    /// the recovery shell.
+    Skip,
+}
+
 impl<'a, 'r> RealMachine<'a, 'r> {
     /// The machine `app` reads, with the kernels of every environment whose
-    /// key is loaded. The menu waits for the user: the start-up program
-    /// counted down already. `stop` says when another instance took over.
+    /// key is loaded. With [`Countdown::Run`] and an environment chosen by
+    /// start-up, the menu counts down to booting it; otherwise it waits for
+    /// the user. `stop` says when another instance took over.
     ///
     /// # Errors
     ///
@@ -35,8 +48,9 @@ impl<'a, 'r> RealMachine<'a, 'r> {
         console: System<'a>,
         recovery: &'r mut dyn Recovery,
         stop: &'r dyn Fn() -> bool,
+        countdown: Countdown,
     ) -> Result<RealMachine<'a, 'r>, AppError> {
-        let snapshot = read(&app, console)?;
+        let snapshot = read(&app, console, countdown)?;
         Ok(RealMachine {
             app,
             console,
@@ -48,11 +62,14 @@ impl<'a, 'r> RealMachine<'a, 'r> {
     }
 }
 
-/// The machine as the menu shows it.
-fn read(app: &App<'_>, console: System<'_>) -> Result<Snapshot, AppError> {
+/// The machine as the menu shows it; the countdown only when it is to run
+/// and start-up chose an environment, as in the legacy start-up program.
+fn read(app: &App<'_>, console: System<'_>, countdown: Countdown) -> Result<Snapshot, AppError> {
     let mut snapshot = app.snapshot()?;
     app.read_kernels(&mut snapshot, console);
-    snapshot.timeout = Timeout::Wait;
+    if countdown == Countdown::Skip || snapshot.bootfs.is_none() {
+        snapshot.timeout = Timeout::Wait;
+    }
     Ok(snapshot)
 }
 
@@ -90,7 +107,7 @@ impl Machine for RealMachine<'_, '_> {
         };
         if (self.stop)() {
             events.push(Event::Leaving(String::new()));
-        } else if let Ok(snapshot) = read(&self.app, self.console) {
+        } else if let Ok(snapshot) = read(&self.app, self.console, Countdown::Skip) {
             self.snapshot = snapshot.clone();
             events.insert(0, Event::Changed(snapshot));
         }

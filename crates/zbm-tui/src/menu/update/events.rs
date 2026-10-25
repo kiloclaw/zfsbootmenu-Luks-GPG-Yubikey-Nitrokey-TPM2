@@ -97,12 +97,17 @@ pub(super) fn start(model: &mut Model) {
     model.screen = Screen::Main;
     model.countdown = model.timeout_ms();
     // What the countdown boots: the fallback of a default that used up its
-    // tries, else the environment the running system asked for once.
+    // tries, else the environment the running system asked for once, else
+    // the one start-up chose.
     let fallback = model.snapshot.fallback.as_ref().map(|f| f.target.clone());
     let target = match fallback {
         Some(Target::Environment(name)) => Some(name),
         Some(Target::Snapshot(_)) => None,
-        None => model.snapshot.next_boot.clone(),
+        None => model
+            .snapshot
+            .next_boot
+            .clone()
+            .or_else(|| model.snapshot.bootfs.clone()),
     };
     if let Some(name) = target {
         model.select_environment(&name);

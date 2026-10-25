@@ -32,3 +32,21 @@ pub fn ask_menu_for_shell(vm: &mut Vm<'_>) -> Result<()> {
     thread::sleep(Duration::from_secs(1));
     vm.send("\r")
 }
+
+/// Opens the recovery shell after a ZFS key could not be loaded: the
+/// legacy runtime and the Rust one without the menu are in it already;
+/// the menu shows the error, which Enter closes, then gives the shell.
+///
+/// # Errors
+///
+/// When the keys cannot be sent.
+pub fn shell_after_keyload(vm: &mut Vm<'_>) -> Result<()> {
+    let screen = vm.console().screen();
+    if screen.contains("unable to load key") && screen.contains("BOOT ENVIRONMENTS") {
+        vm.test().step("the menu shows the error -> Enter");
+        thread::sleep(Duration::from_secs(1));
+        vm.send("\r")?;
+        ask_menu_for_shell(vm)?;
+    }
+    vm.shell_ready()
+}

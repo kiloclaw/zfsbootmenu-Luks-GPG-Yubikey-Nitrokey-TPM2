@@ -5,7 +5,7 @@
 
 mod real;
 
-pub use real::RealMachine;
+pub use real::{Countdown, RealMachine};
 
 use super::world::{Action, Event, Snapshot};
 

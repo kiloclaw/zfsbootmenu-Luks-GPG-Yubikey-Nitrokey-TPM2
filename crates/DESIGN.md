@@ -599,7 +599,8 @@ If the list is not empty, the runtime logs each item as an error and opens the r
 The LUKS configuration is checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import
 would unlock them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opened
 the recovery shell with the same message, and kept doing so, importing pools again between shells as the legacy loop
-does. Since R5 step 3 that loop runs the menu program and then the recovery shell, as the legacy loop does.
+does. Since R5 step 3 that loop runs the menu program and then the recovery shell, as the legacy loop does, and the
+countdown runs in the menu (`zfsbootmenu --countdown`).
 
 Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
 recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and

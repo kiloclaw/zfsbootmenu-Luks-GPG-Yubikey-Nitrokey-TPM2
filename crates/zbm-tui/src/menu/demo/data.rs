@@ -82,6 +82,7 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
     Snapshot {
         next_boot: options.next_boot.then(|| dataset("tank/ROOT/arch")),
         fallback,
+        bootfs: Some(dataset("zroot/ROOT/void")),
         startup: STAGES
             .iter()
             .map(|name| Stage {

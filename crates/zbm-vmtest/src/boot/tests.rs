@@ -225,3 +225,32 @@ fn the_shell_is_asked_of_the_new_menu() {
     assert_eq!(guest.finish(), Vec::<String>::new());
     crate::testing::cleanup(&settings);
 }
+
+#[test]
+fn after_a_key_the_menu_could_not_load_its_error_is_closed_for_the_shell() {
+    let settings = crate::testing::settings("boot-menu-keyload");
+    let test = Test::new(&settings, "complex-badkey-rust").unwrap();
+    let script = vec![
+        Step::Say(
+            "\x1b[2J\x1b[1;1H BOOT ENVIRONMENTS \x1b[5;5H✗ unable to load key for tank/ROOT \r\n",
+        ),
+        Step::Hear(""),
+        Step::Keys("\r"),
+        Step::Keys("!\r"),
+        Step::Say("zfsbootmenu ~ > "),
+        Step::Hear("stty -echo cols 250; export PS1='zbm# ' PS2=''"),
+        Step::Hear("true; echo RC=$?"),
+        Step::Say("RC=0\r\n"),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    let index = vm
+        .expect(&[prompt::KEYLOAD, prompt::MENU_KEYLOAD], 10)
+        .unwrap();
+    assert!(index <= 1);
+    vm.sendline("").unwrap();
+    shell_after_keyload(&mut vm).unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    crate::testing::cleanup(&settings);
+}

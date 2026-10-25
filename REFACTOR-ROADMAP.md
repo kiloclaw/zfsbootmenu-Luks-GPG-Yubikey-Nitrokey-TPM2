@@ -47,7 +47,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 | In progress | Steps 1 and 2 of 7 done, step 3 under way: the Rust runtime loads keys and runs `load-key.d` hooks on the countdown's boot; the menu's text comes from a Fluent catalogue; the menu runs in Rust images and boots from its main view |
+| R5 | In progress | Steps 1 to 3 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view |
 | R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -55,8 +55,8 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 ### Next
 
-- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; the rest of step 3, the
-  countdown and the start-up view in the menu, is next.
+- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 4, start-up
+  inside the menu, is next.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -843,14 +843,16 @@ builds after the core tasks.
    catalogue, or a message nothing uses ([text.md](docs/dev/menu-design/text.md)). Left for step 3: the R0 pilot
    (`zbm_tui::view`), which step 3 replaces, and the English that the application layer still writes (check
    results, failure reasons, stage names).
-3. **The menu in the image**: the main view on the real machine, booting from it with key sources, and the
-   countdown and start-up views, replacing `fzf`. Done so far: `zbm-app` boots (`App::act_on_console`: the key with
-   key sources, the kernel, the command line, `kexec`; reboot, power off, the firmware setup) and reads kernels; the
-   menu runs on a `Machine` port, the fake one or `RealMachine` over `zbm-app`, and hands the console over to the
-   actions that need it; `/bin/zfsbootmenu` in Rust images is `zbm`'s `zfsbootmenu` applet, which `zbm-startup` runs
-   with the legacy program's lock, takeover and `setup.d` hooks, and the start-up loop runs it before the recovery
-   shell; the R0 menu pilot is gone. Left: the countdown and the start-up view inside the menu. `fzf` stays in Rust
-   images for the recovery shell's tools until R5 step 6 and R6 port them.
+3. **The menu in the image** (done): the main view on the real machine, booting from it with key sources, and the
+   countdown and start-up views, replacing `fzf`. `zbm-app` boots (`App::act_on_console`: the key with key sources,
+   the kernel, the command line, `kexec`; reboot, power off, the firmware setup) and reads kernels; the menu runs on
+   a `Machine` port, the fake one or `RealMachine` over `zbm-app`, and hands the console over to the actions that
+   need it. `/bin/zfsbootmenu` in Rust images is `zbm`'s `zfsbootmenu` applet, which `zbm-startup` runs with the
+   legacy program's lock, takeover and `setup.d` hooks; the start-up loop runs it before the recovery shell, the
+   first time with `--countdown`, so the countdown runs in the menu. The R0 menu pilot is gone, and
+   `CHANGES-FROM-LEGACY.md` starts with what the menu changes. `fzf` stays in Rust images for the recovery shell's
+   tools until R5 step 6 and R6 port them; the start-up view shows the stages, done, until step 4 runs them inside
+   the menu.
 4. **Start-up inside the menu**: the `Prompter` and `Operator` answered by dialogs, with the plain console
    fallback.
 5. **Snapshots and package D**: diff, clone, rollback and set default, and the command palette.

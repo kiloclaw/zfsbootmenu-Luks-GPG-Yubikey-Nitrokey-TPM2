@@ -17,7 +17,7 @@ use zbm_startup::program::Startup;
 use zbm_startup::program::menu::Menu;
 use zbm_sys::Signal;
 use zbm_tui::menu::caps::Capabilities;
-use zbm_tui::menu::machine::RealMachine;
+use zbm_tui::menu::machine::{Countdown, RealMachine};
 use zbm_tui::menu::session::Session;
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
@@ -42,6 +42,7 @@ struct Terminal<'s, 'a> {
     options: &'s ZbmOptions,
     base: &'s Path,
     run: Run,
+    countdown: Countdown,
     /// Why the menu could not run, if it could not.
     error: Option<String>,
 }
@@ -63,7 +64,7 @@ impl Menu for Terminal<'_, '_> {
             .with_layouts(Path::new(layouts::DIRECTORY))
             .with_boot(settings);
         let stop = is_taken_over;
-        let machine = match RealMachine::new(app, self.system, recovery, &stop) {
+        let machine = match RealMachine::new(app, self.system, recovery, &stop, self.countdown) {
             Ok(machine) => machine,
             Err(error) => {
                 self.error = Some(error.to_string());
@@ -81,7 +82,7 @@ impl Menu for Terminal<'_, '_> {
 
 /// The menu program on `system` with the configuration `conf`, the menu
 /// run by `run`: its exit status, or why the menu could not run.
-fn menu(system: System<'_>, conf: &Conf, run: Run) -> Result<i32, String> {
+fn menu(system: System<'_>, conf: &Conf, run: Run, countdown: Countdown) -> Result<i32, String> {
     let options = ZbmOptions::from_conf(conf);
     let base = preinit::base(conf);
     let mut menu = Terminal {
@@ -89,20 +90,32 @@ fn menu(system: System<'_>, conf: &Conf, run: Run) -> Result<i32, String> {
         options: &options,
         base: &base,
         run,
+        countdown,
         error: None,
     };
     let status = Startup::new(system, conf).menu(&mut menu);
     menu.error.map_or(Ok(status), Err)
 }
 
-/// `zfsbootmenu`: the menu. The exit status is 0 when the menu ended, 1
-/// when the machine could not be read or the terminal used.
-pub fn run(_args: &[String], io: &mut Io) -> i32 {
+/// `zfsbootmenu`: the menu. With `--countdown`, which the start-up program
+/// passes at the end of start-up, it counts down to booting the
+/// environment start-up chose. The exit status is 0 when the menu ended, 1
+/// when the machine could not be read or the terminal used, 2 for an
+/// unknown option.
+pub fn run(args: &[String], io: &mut Io) -> i32 {
+    let countdown = match args {
+        [] => Countdown::Skip,
+        [flag] if flag == "--countdown" => Countdown::Run,
+        _ => {
+            let _ = writeln!(io.stderr, "zfsbootmenu: unknown options {}", args.join(" "));
+            return crate::USAGE;
+        }
+    };
     // trap '' SIGINT; the USR1 trap of a takeover
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
     let _ = zbm_sys::record_signals(&[Signal::User1, Signal::Terminate]);
     on_console(io, |system, conf, io| {
-        menu(system, conf, on_terminal).unwrap_or_else(|error| {
+        menu(system, conf, on_terminal, countdown).unwrap_or_else(|error| {
             let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
             1
         })

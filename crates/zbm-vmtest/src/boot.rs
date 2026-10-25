@@ -20,7 +20,7 @@ use crate::vm::Vm;
 
 mod menu;
 
-pub use menu::{ask_menu_for_shell, shell_from_menu};
+pub use menu::{ask_menu_for_shell, shell_after_keyload, shell_from_menu};
 
 /// The prompts and messages a boot shows, by kind.
 pub mod prompt {
@@ -40,6 +40,9 @@ pub mod prompt {
     pub const STATUS: &str = r"ZBMTEST-STATUS-BEGIN";
     /// A ZFS key could not be loaded.
     pub const KEYLOAD: &str = r"unable to load key";
+    /// The new menu could not load a ZFS key: its error dialog, on the
+    /// screen.
+    pub const MENU_KEYLOAD: &str = r"screen:unable to load key";
     /// Nothing to boot.
     pub const EMERGENCY: &str = r"Dropping to an emergency shell";
     /// The boot menu of the legacy runtime.
@@ -74,6 +77,8 @@ pub enum Kind {
     Status,
     /// [`prompt::KEYLOAD`].
     KeyLoad,
+    /// [`prompt::MENU_KEYLOAD`].
+    MenuKeyLoad,
     /// [`prompt::EMERGENCY`].
     Emergency,
     /// [`prompt::MENU`].
@@ -93,6 +98,7 @@ impl Kind {
             Kind::Retry => prompt::RETRY,
             Kind::Status => prompt::STATUS,
             Kind::KeyLoad => prompt::KEYLOAD,
+            Kind::MenuKeyLoad => prompt::MENU_KEYLOAD,
             Kind::Emergency => prompt::EMERGENCY,
             Kind::Menu => prompt::MENU,
             Kind::NewMenu => prompt::NEW_MENU,
@@ -326,6 +332,7 @@ pub fn follow_boot(vm: &mut Vm<'_>, mut follow: Follow<'_>) -> Result<Boot> {
         Kind::Retry,
         Kind::Status,
         Kind::KeyLoad,
+        Kind::MenuKeyLoad,
         Kind::Emergency,
     ];
     if follow.menu {
@@ -372,7 +379,7 @@ fn on_prompt(
 ) -> Result<Next> {
     match kind {
         Kind::Status => return Ok(Next::Reports),
-        Kind::KeyLoad => {
+        Kind::KeyLoad | Kind::MenuKeyLoad => {
             boot.prompts.push("keyload-failed".into());
             return Ok(Next::Stop);
         }

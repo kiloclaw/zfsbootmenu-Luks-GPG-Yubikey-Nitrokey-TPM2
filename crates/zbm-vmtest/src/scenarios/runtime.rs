@@ -95,6 +95,10 @@ const ESCAPE_APPEND: &str = "console=ttyS0 zbm.timeout=30 loglevel=7";
 /// The countdown of `tplain`'s boot environment.
 const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 
+/// The countdown in the menu of the Rust runtime, on the screen: the menu
+/// redraws only the cells that change.
+const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
+
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`,
 /// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
@@ -162,7 +166,7 @@ fn disk(settings: &Settings, index: usize) -> Result<Disk> {
 
 /// Waits for the countdown of `tplain`'s boot environment and escapes it.
 fn escape_countdown(vm: &mut Vm<'_>) -> Result<()> {
-    vm.expect1(COUNTDOWN, 1200)?;
+    vm.expect(&[COUNTDOWN, MENU_COUNTDOWN], 1200)?;
     thread::sleep(Duration::from_secs(2));
     vm.send("\x1b")
 }
@@ -201,8 +205,9 @@ mod tests {
 
         let settings = settings("runtime-escape");
         let test = Test::new(&settings, "runtime-rust-pilot").unwrap();
+        // The menu's countdown: the space before "in" is a cursor move.
         let script = vec![
-            Step::Say("Booting tplain/ROOT/be in 30 seconds\r\n"),
+            Step::Say("\x1b[2;2HBooting tplain/ROOT/be\x1b[2;25Hin 30 s.\r\n"),
             Step::Keys("\x1b"),
             Step::Say("\x1b[1;3HBOOT ENVIRONMENTS\r\n"),
             Step::Keys("!\r"),

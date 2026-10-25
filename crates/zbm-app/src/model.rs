@@ -53,6 +53,9 @@ pub struct Snapshot {
     pub next_boot: Option<DatasetName>,
     /// The default environment used up its boot tries: what boots instead.
     pub fallback: Option<Fallback>,
+    /// The environment start-up chose to boot, the `bootfs` of the pool it
+    /// preferred: what the countdown boots.
+    pub bootfs: Option<DatasetName>,
     /// The keyboard layouts secrets can be typed with.
     pub keyboard: Keyboard,
 }
