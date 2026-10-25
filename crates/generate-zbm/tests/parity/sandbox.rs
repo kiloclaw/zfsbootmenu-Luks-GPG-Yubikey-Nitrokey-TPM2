@@ -119,6 +119,10 @@ pub(crate) struct Case {
     pub(crate) args: &'static [&'static str],
     pub(crate) env: &'static [(&'static str, &'static str)],
     pub(crate) setup: Setup,
+    /// Intended differences from the Perl program (CHANGELOG.md): each
+    /// text of its outcome that the Rust program changes on purpose, and
+    /// what it is instead.
+    pub(crate) differs: &'static [(&'static str, &'static str)],
 }
 
 impl Case {
@@ -128,6 +132,7 @@ impl Case {
             args,
             env: &[],
             setup: |_| {},
+            differs: &[],
         }
     }
 }
@@ -391,6 +396,8 @@ pub(crate) struct RustRun {
     pub(crate) stdout: String,
     /// The commands the fake programs logged.
     pub(crate) log: String,
+    /// The files the run left, as the comparisons describe them.
+    pub(crate) state: String,
 }
 
 /// Runs a case with the Rust program alone, for configuration keys that the
@@ -404,6 +411,7 @@ pub(crate) fn run_rust(case: &Case) -> RustRun {
         code: rust.status.shell_code(),
         stdout: rust_box.normalize(&rust.stdout_text(), &binary),
         log: rust_box.normalize(&log, &binary),
+        state: rust_box.state(&binary),
     }
 }
 
@@ -414,7 +422,12 @@ pub(crate) fn compare(parity: &mut Parity, case: &Case) -> Outcome {
         "args {:?}, env {:?}, config:\n{}",
         case.args, case.env, case.config
     );
-    let legacy: Outcome = parity.legacy(describe.clone(), || run_perl(case));
+    let mut legacy: Outcome = parity.legacy(describe.clone(), || run_perl(case));
+    for (legacy_text, rust_text) in case.differs {
+        for text in [&mut legacy.stdout, &mut legacy.log, &mut legacy.state] {
+            *text = text.replace(legacy_text, rust_text);
+        }
+    }
     let binary = env!("CARGO_BIN_EXE_generate-zbm").to_owned();
     let rust_box = Sandbox::new(case);
     let rust = rust_box.run(std::slice::from_ref(&binary), case);

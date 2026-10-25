@@ -128,6 +128,11 @@ pub static KERNEL_PREFIX: OptionSpec = OptionSpec {
 const KERNEL_PREFIX_DOC: &str = r"
 The prefix to use for the names of ZFSBootMenu images. By default, the prefix is extracted from
 the input kernel name.
+
+The initramfs images of separate components are named *initramfs* for the prefixes *vmlinuz* and
+*vmlinux*, and *initramfs-* followed by the rest of the prefix otherwise: *initramfs-linux-lts* for
+*vmlinuz-linux-lts*, *initramfs-zbm* for *zbm*. The images of two prefixes can then share an image
+directory.
 ";
 
 /// `Components.Enabled`: whether a separate kernel and initramfs are made.
@@ -170,7 +175,8 @@ pub static COMPONENTS_IMAGE_DIR: OptionSpec = OptionSpec {
 };
 
 const COMPONENTS_IMAGE_DIR_DOC: &str = r"
-The destination directory for separate initramfs and kernel images.
+The destination directory for separate initramfs and kernel images. It must be set when
+*Components.Enabled* is *true*.
 ";
 
 /// `Components.Versions`: whether images are versioned, and how many are kept.
@@ -241,7 +247,7 @@ pub static EFI_IMAGE_DIR: OptionSpec = OptionSpec {
 };
 
 const EFI_IMAGE_DIR_DOC: &str = r"
-The destination directory for unified EFI files.
+The destination directory for unified EFI files. It must be set when *EFI.Enabled* is *true*.
 ";
 
 /// `EFI.Versions`: whether images are versioned, and how many are kept.

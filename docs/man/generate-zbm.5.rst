@@ -124,6 +124,11 @@ Kernel
   The prefix to use for the names of ZFSBootMenu images. By default, the prefix is extracted from
   the input kernel name.
 
+  The initramfs images of separate components are named *initramfs* for the prefixes *vmlinuz* and
+  *vmlinux*, and *initramfs-* followed by the rest of the prefix otherwise: *initramfs-linux-lts* for
+  *vmlinuz-linux-lts*, *initramfs-zbm* for *zbm*. The images of two prefixes can then share an image
+  directory.
+
 .. END generated: kernel
 
 .. _config-components:
@@ -140,7 +145,8 @@ Components
 
 **ImageDir**
 
-  The destination directory for separate initramfs and kernel images.
+  The destination directory for separate initramfs and kernel images. It must be set when
+  *Components.Enabled* is *true*.
 
 **Versions**
 
@@ -167,7 +173,7 @@ EFI
 
 **ImageDir**
 
-  The destination directory for unified EFI files.
+  The destination directory for unified EFI files. It must be set when *EFI.Enabled* is *true*.
 
 **Versions**
 

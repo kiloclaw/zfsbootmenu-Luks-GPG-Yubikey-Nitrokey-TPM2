@@ -9,6 +9,53 @@ use std::collections::BTreeMap;
 
 use crate::version::{sort_versions, versioncmp};
 
+/// The files whose paths are `prefix` (a directory and the start of a
+/// name), a dash, anything, then `suffix`: what `glob("{prefix}-*{suffix}")`
+/// finds, without taking `prefix` as a pattern. White space, `*`, `?`,
+/// `[`, `{` and `~` in the directory or the image prefix are then plain
+/// characters, which the glob would split at or expand. Letters match in
+/// either case and the paths are sorted, as the glob does.
+pub fn on_disk(prefix: &str, suffix: &str) -> Vec<String> {
+    let (directory, start) = match prefix.rsplit_once('/') {
+        Some((directory, start)) => (directory, start),
+        None => ("", prefix),
+    };
+    let start = format!("{start}-");
+    let listing = if directory.is_empty() && prefix.starts_with('/') {
+        "/"
+    } else if directory.is_empty() {
+        "."
+    } else {
+        directory
+    };
+    let has = |name: &str, part: &str, at_start: bool| {
+        let range = if at_start {
+            name.get(..part.len())
+        } else {
+            name.len()
+                .checked_sub(part.len())
+                .and_then(|from| name.get(from..))
+        };
+        range.is_some_and(|piece| piece.eq_ignore_ascii_case(part))
+    };
+    let mut found: Vec<String> = std::fs::read_dir(listing)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| {
+            name.len() >= start.len() + suffix.len()
+                && has(name, &start, true)
+                && has(name, suffix, false)
+        })
+        .map(|name| match prefix.rsplit_once('/') {
+            Some((directory, _)) => format!("{directory}/{name}"),
+            None => name,
+        })
+        .collect();
+    found.sort_by(|a, b| crate::glob::compare_ignoring_case(a.as_bytes(), b.as_bytes()));
+    found
+}
+
 /// The highest revision among `files` that match `_<digits><suffix>` at the
 /// end, or 0 when none do.
 pub fn max_revision(files: &[String], suffix: &str) -> u64 {
@@ -67,7 +114,14 @@ fn version_of(file: &str, prefix: &str, suffix: &str) -> Option<String> {
             split = Some(index);
         }
     }
-    split.map(|index| after_dash[..index].to_owned())
+    let version = split.map(|index| &after_dash[..index])?;
+    // `vmlinuz-linux-lts-3.0_1` is not a version `lts-3.0` of the prefix
+    // `vmlinuz-linux`, but an image of the prefix `vmlinuz-linux-lts`:
+    // a word, a dash and more is another prefix's.
+    let other_prefix = version
+        .split_once('-')
+        .is_some_and(|(word, _)| word.chars().next().is_some_and(|c| c.is_ascii_alphabetic()));
+    (!other_prefix).then(|| version.to_owned())
 }
 
 /// Whether `keep` asks to keep some files. Perl tests this with `$keep gt 0`,
@@ -133,7 +187,7 @@ pub fn prune_versions(
 mod tests {
     use super::*;
     use zbm_testkit::legacy::{path, perl};
-    use zbm_testkit::{Rng, can_run, have_program, parity};
+    use zbm_testkit::{Rng, TempDir, can_run, have_program, parity};
 
     fn files(list: &[&str]) -> Vec<String> {
         list.iter().map(|f| (*f).to_owned()).collect()
@@ -157,6 +211,21 @@ mod tests {
         assert_eq!(group_versions(&odd, "/b/p", ".EFI")["1.2_3"], odd);
         assert_eq!(max_revision(&odd, ".EFI"), 4);
         assert_eq!(max_revision(&files(&["/b/p-1.0.EFI"]), ".EFI"), 0);
+    }
+
+    #[test]
+    fn the_images_of_a_longer_prefix_are_not_versions() {
+        let both = files(&[
+            "/b/vmlinuz-linux-3.0_1",
+            "/b/vmlinuz-linux-lts-3.0_1",
+            "/b/vmlinuz-linux-3.0-rc1_2",
+            "/b/vmlinuz-linux-dev_1",
+        ]);
+
+        let groups = group_versions(&both, "/b/vmlinuz-linux", "");
+
+        let versions: Vec<&String> = groups.keys().collect();
+        assert_eq!(versions, ["3.0", "3.0-rc1", "dev"]);
     }
 
     #[test]
@@ -252,5 +321,37 @@ mod tests {
                 "current {current}, keep {keep}, groups {groups:?}"
             );
         }
+    }
+
+    #[test]
+    fn images_on_disk_take_the_prefix_as_it_is() {
+        let dir = TempDir::new("generate-zbm-images");
+        let images = dir.join("my [zbm] {x}");
+        std::fs::create_dir_all(&images).unwrap();
+        for name in [
+            "vmlinuz-2_1",
+            "VMLINUZ-1_1",
+            "vmlinuz",
+            "vmlinuz-3_1.EFI",
+            "other-1_1",
+        ] {
+            std::fs::write(images.join(name), name).unwrap();
+        }
+        let prefix = format!("{}/vmlinuz", images.display());
+
+        let found = on_disk(&prefix, "");
+        let efi = on_disk(&prefix, ".efi");
+
+        let names: Vec<&str> = found
+            .iter()
+            .map(|path| path.rsplit('/').next().unwrap())
+            .collect();
+        assert_eq!(names, ["VMLINUZ-1_1", "vmlinuz-2_1", "vmlinuz-3_1.EFI"]);
+        assert!(found[0].starts_with(&images.display().to_string()));
+        assert_eq!(efi.len(), 1);
+        assert_eq!(
+            on_disk(&dir.join("none/vmlinuz").display().to_string(), ""),
+            Vec::<String>::new()
+        );
     }
 }

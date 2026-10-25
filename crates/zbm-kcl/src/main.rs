@@ -12,9 +12,13 @@ fn main() {
     let _ = zbm_sys::restore_default_sigpipe();
     let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
 
-    let mut args = std::env::args();
-    let argv0 = args.next().unwrap_or_else(|| "zbm-kcl".to_owned());
-    let args: Vec<String> = args.collect();
+    let (argv0, args) = match zbm_core::args::split(std::env::args_os(), "zbm-kcl") {
+        Ok(split) => split,
+        Err(message) => {
+            let _ = writeln!(std::io::stderr(), "{message}");
+            std::process::exit(2);
+        }
+    };
     let context = zbm_kcl::Context::from_environment(&argv0);
 
     let stdin = std::io::stdin();

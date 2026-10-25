@@ -549,7 +549,7 @@ fn matches_segment(name: &[u8], pattern: &[Token]) -> bool {
 
 /// `ci_compare`: compares names by their lower-case letters, as C `char`s, and
 /// then exactly.
-fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
+pub(crate) fn compare_ignoring_case(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
     // The bytes are compared as C `char`s, which are signed on some machines.
     let fold = |byte: Option<&u8>| -> i32 {
         byte.map_or(0, |byte| i32::from(byte.to_ascii_lowercase() as c_char))

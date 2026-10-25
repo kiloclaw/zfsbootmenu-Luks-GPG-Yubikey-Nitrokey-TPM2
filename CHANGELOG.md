@@ -157,6 +157,19 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
   whole file.
 - `generate-zbm` piped into a pager that is quit early no longer dies between renaming the old image to its backup
   and installing the new one.
+- `generate-zbm` (the Rust program; the Perl one is unchanged) installs images more safely:
+  - an image directory or kernel prefix with spaces or glob characters no longer makes versioned images rewrite
+    their first revision in place, and a new revision never replaces an existing file;
+  - each image is copied to a temporary file, written to the disk, then renamed, so a failed copy, a full ESP or a
+    power cut leaves the previous image as it was; a failed copy leaves no temporary file;
+  - **the initramfs of a kernel prefix other than `vmlinuz` is named after it**: `initramfs-linux-lts-*.img` for
+    `vmlinuz-linux-lts`, `initramfs-zbm-*.img` for the prefix `zbm`. With such a prefix, update the boot loader
+    entries that name the initramfs (`initramfs-bootmenu.img` and `initramfs-<version>_<revision>.img` before). The
+    images of two prefixes in one directory no longer replace each other, and pruning `vmlinuz-linux` no longer
+    removes the images of `vmlinuz-linux-lts`;
+  - `Components.Enabled` or `EFI.Enabled` without the section's `ImageDir` is an error, instead of installing in `/`;
+  - an argument that is not valid UTF-8 is refused with a message (status 2) instead of a panic, as by `zbm` and
+    `zbm-kcl`.
 - Rust images, start-up: an interactive crypttab key script and `fido2-assert` asking for a FIDO2 PIN get the console
   while they run; a terminal that sends CR LF for Enter presses it once; a terminal smaller than 52x20 keeps the
   console prompts; a key device that appears is used once udev settled; what is typed is no longer shown during

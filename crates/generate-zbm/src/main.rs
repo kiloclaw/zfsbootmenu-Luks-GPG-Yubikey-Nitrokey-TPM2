@@ -13,9 +13,13 @@ fn main() {
     // 1 (child programs still receive them).
     let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
 
-    let mut args = std::env::args();
-    let program = args.next().unwrap_or_else(|| "generate-zbm".to_owned());
-    let args: Vec<String> = args.collect();
+    let (program, args) = match zbm_core::args::split(std::env::args_os(), "generate-zbm") {
+        Ok(split) => split,
+        Err(message) => {
+            let _ = writeln!(std::io::stderr(), "{message}");
+            std::process::exit(2);
+        }
+    };
     let runner = zbm_platform::exec::SystemRunner;
     let context = generate_zbm::generate::Context::from_environment(&runner, program);
 

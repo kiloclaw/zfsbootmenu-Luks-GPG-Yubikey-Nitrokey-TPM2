@@ -59,21 +59,25 @@ fn builds_images() {
             ],
         ),
     );
+    // The initramfs of the prefix `zbm` is named after it (G3).
     compare(
         &mut parity,
-        &Case::new(
-            BASIC,
-            &[
-                "-c",
-                "{root}/config.yaml",
-                "-k",
-                "{root}/boot/linux-lts",
-                "-p",
-                "zbm",
-                "-v",
-                "9.9",
-            ],
-        ),
+        &Case {
+            differs: &[("initramfs-9.9_1.img", "initramfs-zbm-9.9_1.img")],
+            ..Case::new(
+                BASIC,
+                &[
+                    "-c",
+                    "{root}/config.yaml",
+                    "-k",
+                    "{root}/boot/linux-lts",
+                    "-p",
+                    "zbm",
+                    "-v",
+                    "9.9",
+                ],
+            )
+        },
     );
     // The boot partition is not mounted: it is mounted, and unmounted at the end.
     compare(
@@ -253,7 +257,10 @@ Kernel:
 ";
     compare(
         &mut parity,
-        &Case::new(configured, &["-c", "{root}/config.yaml", "-d"]),
+        &Case {
+            differs: &[("initramfs-bootmenu.img", "initramfs-kernel-bootmenu.img")],
+            ..Case::new(configured, &["-c", "{root}/config.yaml", "-d"])
+        },
     );
 }
 
@@ -477,6 +484,10 @@ kill -KILL $$
     let outcome = compare(
         &mut parity,
         &Case {
+            differs: &[(
+                "initramfs-bootmenu.img",
+                "initramfs-kernel it's-bootmenu.img",
+            )],
             setup: |sandbox| {
                 std::fs::create_dir_all(sandbox.path().join("my boot")).unwrap();
                 sandbox.dir.write(

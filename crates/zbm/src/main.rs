@@ -12,9 +12,13 @@ fn main() {
     // Secrets (ROADMAP.md #1): no core dump of the runtime, and no process but
     // root's may read its memory. A failure leaves it as it was.
     let _ = zbm_sys::memory::set_undumpable();
-    let mut args = std::env::args();
-    let argv0 = args.next().unwrap_or_else(|| "zbm".to_owned());
-    let args: Vec<String> = args.collect();
+    let (argv0, args) = match zbm_core::args::split(std::env::args_os(), "zbm") {
+        Ok(split) => split,
+        Err(message) => {
+            let _ = writeln!(std::io::stderr(), "{message}");
+            std::process::exit(2);
+        }
+    };
     // A panic leaves a crash report in the state directory (see
     // `zbm_platform::crash`); where that does not exist, as on a booted system,
     // only the standard message on standard error remains.
