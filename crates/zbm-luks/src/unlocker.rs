@@ -211,6 +211,15 @@ pub trait Prompter {
     fn tell(&self, _tell: Tell<'_>, console: &mut dyn FnMut()) {
         console();
     }
+
+    /// Runs `run`, whose program needs the console: an interactive key
+    /// script, or `fido2-assert` asking for its PIN. A front end that draws
+    /// on the console steps aside meanwhile and gives `run` the system whose
+    /// programs reach it; on the plain console `run` gets `None` and uses
+    /// the unlocking's own system. `run` must not ask the prompter anything.
+    fn on_console(&self, run: &mut dyn FnMut(Option<&System<'_>>)) {
+        run(None);
+    }
 }
 
 /// How [`Unlocker::wait_for`] ended.
@@ -381,12 +390,28 @@ impl<'a> Unlocker<'a> {
         self.luks.prompter.ask_secret(request, &mut console)
     }
 
+    /// Runs `run` with the system whose programs reach the console
+    /// ([`Prompter::on_console`]): a front end that draws on it steps aside.
+    pub fn with_console(&self, run: &mut dyn FnMut(&System<'_>)) {
+        let own = *self.system();
+        self.luks
+            .prompter
+            .on_console(&mut |system| run(system.unwrap_or(&own)));
+    }
+
     /// Waits for a device through the prompter; on the plain console, with
-    /// `message` ([`Unlocker::wait_for`]).
+    /// `message` ([`Unlocker::wait_for`]). A device that appeared meanwhile
+    /// is used once udev settled, so that its links and partitions are
+    /// there, whichever front end waited.
     pub fn await_device(&self, request: &WaitRequest<'_>, message: &str) -> Wait {
         let present = request.present;
+        let was_present = present();
         let mut console = || self.wait_for(request.seconds, message, present);
-        self.luks.prompter.wait(request, &mut console)
+        let waited = self.luks.prompter.wait(request, &mut console);
+        if waited == Wait::Present && !was_present {
+            self.settle();
+        }
+        waited
     }
 
     /// Says `text` (a line, with its newline) through the prompter; on the
@@ -462,7 +487,6 @@ impl<'a> Unlocker<'a> {
                 _ => {}
             }
             if present() {
-                self.settle();
                 return Wait::Present;
             }
         }

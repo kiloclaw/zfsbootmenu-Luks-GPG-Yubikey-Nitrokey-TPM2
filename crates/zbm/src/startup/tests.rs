@@ -345,3 +345,9 @@ fn keys_may_come_in_pieces_off_the_virtual_console() {
         assert_eq!(escape_wait(remote), SERIAL_ESCAPE_WAIT, "{remote}");
     }
 }
+
+#[test]
+fn a_terminal_too_small_for_the_view_keeps_the_plain_console() {
+    assert!(fits((80, 25)) && fits((52, 20)));
+    assert!(!fits((51, 25)) && !fits((80, 19)));
+}

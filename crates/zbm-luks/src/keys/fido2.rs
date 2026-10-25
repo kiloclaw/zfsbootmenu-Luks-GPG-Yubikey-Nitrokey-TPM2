@@ -80,18 +80,37 @@ impl Unlocker<'_> {
                     let touch = format!("Touch the security key {device} when it blinks.\n");
                     self.tell(Told::Touch, Some("yellow"), &touch);
                 }
-                let random = system
-                    .files
-                    .read_prefix(Path::new("/dev/urandom"), 32)
-                    .unwrap_or_default();
-                let challenge = base64_encode(&random);
-                if let Some(hmac) = fido2.hmac_secret(device, assertion, &challenge) {
+                if let Some(hmac) = self.fido2_assert(device, assertion) {
                     return Outcome::Key(hmac);
                 }
                 zbm_trace::debug!("fido2-assert on {device} (pin={pin}) did not produce a secret");
             }
         }
         Outcome::Failed
+    }
+
+    /// The hmac-secret of the security key `device` for `assertion`, with
+    /// a new challenge. `fido2-assert` asks for a PIN on the terminal
+    /// itself, so it then gets the console.
+    fn fido2_assert(
+        &self,
+        device: &str,
+        assertion: Assertion<'_>,
+    ) -> Option<zbm_platform::secret::Secret> {
+        let system = self.system();
+        let random = system
+            .files
+            .read_prefix(Path::new("/dev/urandom"), 32)
+            .unwrap_or_default();
+        let challenge = base64_encode(&random);
+        if !assertion.pin {
+            return Fido2::new(system.runner).hmac_secret(device, assertion, &challenge);
+        }
+        let mut hmac = None;
+        self.with_console(&mut |system| {
+            hmac = Fido2::new(system.runner).hmac_secret(device, assertion, &challenge);
+        });
+        hmac
     }
 
     /// Opens a volume with a systemd-fido2 token, waiting for the security
@@ -217,7 +236,7 @@ impl Unlocker<'_> {
 mod tests {
     use super::*;
     use crate::keys::handlers::TokenHandler;
-    use crate::keys::tests::with_session;
+    use crate::keys::tests::{with_prompter, with_session};
     use crate::unlocker::Settings;
     use zbm_platform::exec::Input;
     use zbm_platform::exec::{Output, Status};
@@ -285,10 +304,14 @@ mod tests {
             device: "/dev/sda",
             args: &args,
         };
-        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+        // The assertion with a PIN gets the console: fido2-assert asks there.
+        let prompts = crate::testing::Prompts::default();
+        let settings = Settings::new("/zfsbootmenu");
+        with_prompter(&fake, &settings, &prompts, |session| {
             let token = Token::from_export("0", &json).unwrap();
             assert_eq!(session.try_fido2_token(target, "0", &token), Ok(()));
         });
+        assert_eq!(prompts.consoles(), 1);
         let lines = fake.runner.lines();
         assert_eq!(
             lines[1..],

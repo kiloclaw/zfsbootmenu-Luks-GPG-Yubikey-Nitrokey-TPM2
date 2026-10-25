@@ -7,7 +7,7 @@ use zbm_platform::secret::Secret;
 
 use crate::menu::keyboard;
 use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Dialog, Model, Prompt, Then};
+use crate::menu::model::{Dialog, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Method, Outcome, PcrChange};
 use crate::text::{self, Id, id, text};
 
@@ -29,7 +29,12 @@ pub(super) fn prompt(model: &mut Model, input: Input, mut prompt: Prompt) -> Vec
             prompt.notice = None;
             prompt.tries_left = None;
         }
-        Input::Intent(Intent::Reveal) => prompt.revealed = !prompt.revealed,
+        // Shown, a secret would be copied into the text and cells drawn,
+        // which nothing wipes, in the start-up program that lives until
+        // the boot: start-up keeps it hidden.
+        Input::Intent(Intent::Reveal) if model.screen != Screen::Startup => {
+            prompt.revealed = !prompt.revealed;
+        }
         Input::Intent(Intent::Primary) => {
             let secret = prompt.method.is_typed().then_some(prompt.secret);
             return vec![Action::Unlock {

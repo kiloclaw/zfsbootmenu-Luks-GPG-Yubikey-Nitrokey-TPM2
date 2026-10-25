@@ -152,10 +152,12 @@ fn another_layout_translates_keys_and_clears_what_was_typed() {
     assert_eq!(prompt(&session).typed(), "Zürich");
     assert!(!screen(session.model(), 80, 25).contains("Zürich"));
 
+    // Start-up never shows what is typed: it would leave copies of the
+    // secret in memory nothing wipes.
     ctrl(&mut session, 'r');
 
-    assert!(prompt(&session).revealed);
-    assert!(screen(session.model(), 80, 25).contains("Passphrase: Zürich"));
+    assert!(!prompt(&session).revealed);
+    assert!(!screen(session.model(), 80, 25).contains("Zürich"));
     session.key(KeyCode::Backspace);
     assert_eq!(prompt(&session).typed(), "Züric");
     for _ in 0..3 {
@@ -223,7 +225,7 @@ fn a_serial_terminal_or_a_single_layout_is_not_translated() {
         assert_eq!(prompt.typed(), "y");
         let text = screen(&model, 80, 25);
         let line = if local {
-            "Keyboard: us ·"
+            "Keyboard: us"
         } else {
             "the terminal's own"
         };

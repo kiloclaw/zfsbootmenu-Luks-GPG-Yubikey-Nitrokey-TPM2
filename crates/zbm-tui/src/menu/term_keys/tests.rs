@@ -28,9 +28,11 @@ fn characters_and_control_characters_decode_as_the_terminal_library_does() {
             plain(KeyCode::Char('€')),
         ]
     );
+    // CR LF is one Enter; CR or LF alone is one too.
     assert_eq!(
-        keys(b"\r\n\t\x7f\x08\x12\x0b\x15\x1c\0"),
+        keys(b"\r\n\n\r\t\x7f\x08\x12\x0b\x15\x1c\0"),
         [
+            plain(KeyCode::Enter),
             plain(KeyCode::Enter),
             plain(KeyCode::Enter),
             plain(KeyCode::Tab),
@@ -193,4 +195,21 @@ fn the_keys_read_are_wiped_once_given() {
     assert_eq!(keys.key(tick).unwrap(), None);
     assert!(keys.keys.is_empty() && keys.next == 0);
     assert!(keys.pending.is_empty());
+}
+
+#[test]
+fn cr_lf_split_between_reads_is_one_enter() {
+    let (mut keys, mut writer) = piped(CONSOLE_ESCAPE_WAIT);
+    writer.write_all(b"pw\r").unwrap();
+    for _ in 0..3 {
+        assert!(keys.key(TICK).unwrap().is_some());
+    }
+    writer.write_all(b"\nx").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), Some(plain(KeyCode::Char('x'))));
+    assert_eq!(keys.key(TICK).unwrap(), None);
+    // The list of keys never grows past what it was made with.
+    writer.write_all(&[b'a'; 3 * BUFFER]).unwrap();
+    let capacity = keys.keys.capacity();
+    while keys.key(TICK).unwrap().is_some() {}
+    assert_eq!(keys.keys.capacity(), capacity);
 }

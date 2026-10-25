@@ -92,6 +92,49 @@ fn tokens_are_on_unless_turned_off() {
 }
 
 #[test]
+fn a_device_that_appears_is_used_once_udev_settled() {
+    let fake = FakeSystem::new();
+    fake.console.timeout();
+    let checks = std::cell::Cell::new(0);
+    with_session(&fake, |session| {
+        let present = || {
+            checks.set(checks.get() + 1);
+            checks.get() >= 3
+        };
+        let request = WaitRequest {
+            volume: crate::ask::VolumeRef {
+                name: "luks-1",
+                device: "/dev/vda2",
+            },
+            awaited: crate::ask::Awaited::KeyDevice {
+                spec: "LABEL=KEYS".to_owned(),
+                file: "/keys/luks.key".to_owned(),
+            },
+            seconds: 5,
+            present: &present,
+        };
+        assert_eq!(session.await_device(&request, "Insert it"), Wait::Present);
+    });
+    assert_eq!(fake.runner.lines(), ["udevadm settle"]);
+
+    // There at once: nothing to wait for.
+    let fake = FakeSystem::new();
+    with_session(&fake, |session| {
+        let request = WaitRequest {
+            volume: crate::ask::VolumeRef {
+                name: "luks-1",
+                device: "/dev/vda2",
+            },
+            awaited: crate::ask::Awaited::YubiKey,
+            seconds: 5,
+            present: &|| true,
+        };
+        assert_eq!(session.await_device(&request, "Insert it"), Wait::Present);
+    });
+    assert!(fake.runner.lines().is_empty());
+}
+
+#[test]
 fn waiting_ends_with_the_device_or_a_key() {
     let fake = FakeSystem::new();
     fake.console.timeout().timeout();
@@ -109,7 +152,8 @@ fn waiting_ends_with_the_device_or_a_key() {
         fake.console.output_text(),
         "Insert it\nWaiting 5 seconds; press any key to skip.\n"
     );
-    assert_eq!(fake.runner.lines(), ["udevadm settle"]);
+    // await_device settles, whichever front end waited.
+    assert!(fake.runner.lines().is_empty());
 
     // A key skips the wait; the end of the input waits a second each time.
     let fake = FakeSystem::new();

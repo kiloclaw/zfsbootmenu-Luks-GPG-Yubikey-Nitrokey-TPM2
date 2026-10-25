@@ -105,6 +105,33 @@ const K: [u32; 64] = [
 /// The size of a SHA-256 block.
 const BLOCK: usize = 64;
 
+/// A SHA-256 or HMAC-SHA256 result, wiped when dropped: the digests here are
+/// of secrets (a TPM2 PIN, a YubiKey passphrase, an HMAC key), and the
+/// start-up program that computes them lives until the boot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Digest([u8; 32]);
+
+impl Digest {
+    /// The bytes of the digest.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for Digest {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Drop for Digest {
+    fn drop(&mut self) {
+        zbm_sys::wipe(&mut self.0);
+    }
+}
+
 /// A SHA-256 computation.
 #[derive(Clone)]
 pub struct Sha256 {
@@ -162,15 +189,15 @@ impl Sha256 {
     }
 
     /// The hash of everything added.
-    pub fn finish(mut self) -> [u8; 32] {
+    pub fn finish(mut self) -> Digest {
         let bits = self.length.wrapping_mul(8);
         self.update(&[0x80]);
         while self.buffered != BLOCK - 8 {
             self.update(&[0]);
         }
         self.update(&bits.to_be_bytes());
-        let mut digest = [0; 32];
-        for (chunk, word) in digest.chunks_exact_mut(4).zip(self.state) {
+        let mut digest = Digest([0; 32]);
+        for (chunk, word) in digest.0.chunks_exact_mut(4).zip(self.state) {
             chunk.copy_from_slice(&word.to_be_bytes());
         }
         digest
@@ -225,7 +252,7 @@ fn compress(state: &mut [u32; 8], block: &[u8]) {
 }
 
 /// The SHA-256 hash of `data`.
-pub fn sha256(data: &[u8]) -> [u8; 32] {
+pub fn sha256(data: &[u8]) -> Digest {
     let mut hash = Sha256::new();
     hash.update(data);
     hash.finish()
@@ -241,7 +268,7 @@ impl Hmac {
     fn new(key: &[u8]) -> Hmac {
         let mut block = [0_u8; BLOCK];
         if key.len() > BLOCK {
-            block[..32].copy_from_slice(&sha256(key));
+            block[..32].copy_from_slice(sha256(key).as_bytes());
         } else {
             block[..key.len()].copy_from_slice(key);
         }
@@ -261,19 +288,18 @@ impl Hmac {
         Hmac { inner, outer }
     }
 
-    fn mac(&self, message: &[u8]) -> [u8; 32] {
+    fn mac(&self, message: &[u8]) -> Digest {
         let mut inner = self.inner.clone();
         inner.update(message);
-        let mut digest = inner.finish();
+        let digest = inner.finish();
         let mut outer = self.outer.clone();
-        outer.update(&digest);
-        zbm_sys::wipe(&mut digest);
+        outer.update(digest.as_bytes());
         outer.finish()
     }
 }
 
 /// HMAC-SHA256 of `message` with `key`.
-pub fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+pub fn hmac_sha256(key: &[u8], message: &[u8]) -> Digest {
     Hmac::new(key).mac(message)
 }
 
@@ -287,17 +313,15 @@ pub fn pbkdf2_hmac_sha256(password: &[u8], salt: &[u8], rounds: u32, length: usi
         let mut message = salt.to_vec();
         message.extend_from_slice(&index.to_be_bytes());
         let mut u = hmac.mac(&message);
-        let mut block = u;
+        let mut block = u.clone();
         for _ in 1..rounds {
-            u = hmac.mac(&u);
-            for (byte, add) in block.iter_mut().zip(u) {
+            u = hmac.mac(u.as_bytes());
+            for (byte, add) in block.0.iter_mut().zip(u.iter()) {
                 *byte ^= add;
             }
         }
         let take = (length - key.len()).min(block.len());
         key.push_bytes(&block[..take]);
-        zbm_sys::wipe(&mut u);
-        zbm_sys::wipe(&mut block);
         index += 1;
     }
     key

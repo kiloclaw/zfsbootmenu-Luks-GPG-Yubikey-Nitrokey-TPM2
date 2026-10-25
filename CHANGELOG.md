@@ -157,6 +157,10 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
   whole file.
 - `generate-zbm` piped into a pager that is quit early no longer dies between renaming the old image to its backup
   and installing the new one.
+- Rust images, start-up: an interactive crypttab key script and `fido2-assert` asking for a FIDO2 PIN get the console
+  while they run; a terminal that sends CR LF for Enter presses it once; a terminal smaller than 52x20 keeps the
+  console prompts; a key device that appears is used once udev settled; what is typed is no longer shown during
+  start-up, and the keys read and the digests of secrets are wiped.
 - The VM tests rebuild the test boot environment when its files or the build container change, cover `config/`,
   `vendor/` and the build container in the image check, build each image once when run in parallel, report tests
   that did not run as `SKIP`, and fail a shadow-mode boot without a summary.

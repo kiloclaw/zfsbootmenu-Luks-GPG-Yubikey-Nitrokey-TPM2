@@ -14,7 +14,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │ The TPM kept the key. PCR 0 (firmware code): │ │
 │ │ the firmware was updated to 1.21.            │ │
 │ │ ↑/↓ to use the TPM2 PIN instead              │ │
-│ │ Keyboard: us · Ctrl-K: layout · Ctrl-R: show │ │
+│ │ Keyboard: us · Ctrl-K: layout                │ │
 │ │                                              │ │
 │ │                         [ Skip ]  [ Unlock ] │ │
 │ └──────────────────────────────────────────────┘ │

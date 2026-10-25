@@ -11,9 +11,9 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │                                              │ │
 │ │ on /dev/nvme0n1p2                            │ │
 │ │                                              │ │
-│ │ Passphrase: Zürich                           │ │
+│ │ Passphrase:                                  │ │
 │ │ ↑/↓ to use the TPM2 PIN instead              │ │
-│ │ Keyboard: de · Ctrl-K: layout · Ctrl-R: hide │ │
+│ │ Keyboard: de · Ctrl-K: layout                │ │
 │ │                                              │ │
 │ │                         [ Skip ]  [ Unlock ] │ │
 │ └──────────────────────────────────────────────┘ │

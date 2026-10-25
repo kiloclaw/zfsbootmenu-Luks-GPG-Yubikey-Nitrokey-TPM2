@@ -5,6 +5,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 ┌ SSTÁRRTÍÑÑG ZFFSBÓÓÓTMMÉÑÚÚ ──────────── 3 óóf 5 ┐
 │ √  Load the ZFS module                           │
 │ √  Set the host ID                               │
+│ …  Unlock LUKS volumes                           │
 │ ┌──────────────────────────────────────────────┐ │
 │ │             ÚÚñlóóçk luks-zroot-a            │ │
 │ │                                              │ │
@@ -12,8 +13,7 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │                                              │ │
 │ │ TTPM2 PPÍÑ:                                  │ │
 │ │ ↑/↓ ttó ússé thhé ppásssphrráséé ííñsttéádd  │ │
-│ │ KKéýbbóárrd: us · ÇÇtrll-K: lááýóúút ·       │ │
-│ │ ÇÇtrll-R: shhów                              │ │
+│ │ KKéýbbóárrd: us · ÇÇtrll-K: lááýóúút         │ │
 │ │                                              │ │
 │ │                     [ SSkípp ]  [ ÚÚñlóóçk ] │ │
 │ └──────────────────────────────────────────────┘ │

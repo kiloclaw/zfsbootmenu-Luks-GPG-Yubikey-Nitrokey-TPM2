@@ -34,7 +34,7 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `?`, `F1` | help |
 | `Ctrl-L` | redraw the screen (for consoles that garbled it) |
 | `Ctrl-K` | in a text field: the next keyboard layout ([unlocking](unlocking.md)) |
-| `Ctrl-R` | in the unlock dialog: show what is typed, or hide it |
+| `Ctrl-R` | in the unlock dialog: show what is typed, or hide it (not during start-up) |
 
 ## Actions
 

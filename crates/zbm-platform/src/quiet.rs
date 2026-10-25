@@ -41,7 +41,9 @@ impl Runner for QuietRunner<'_> {
     fn run(&self, command: &Command) -> io::Result<Output> {
         let stdin = matches!(command.get_stdin(), Input::Inherit);
         let stdout = command.get_stdout() == Stream::Inherit;
-        let stderr = command.get_stderr() == Stream::Inherit && !command.merges_stderr();
+        // A command that merges its streams still has the shell's own
+        // messages on standard error, such as a program not found.
+        let stderr = command.get_stderr() == Stream::Inherit;
         if !(stdin || stdout || stderr) {
             return self.inner.run(command);
         }
@@ -104,6 +106,44 @@ mod tests {
         assert!(logged.contains("<6>ZFSBootMenu: sh: read:\n"), "{logged}");
         assert!(logged.contains("<6>ZFSBootMenu: sh: out\n"), "{logged}");
         assert!(logged.contains("<4>ZFSBootMenu: sh: err\n"), "{logged}");
+    }
+
+    /// A runner that answers with what the shell says on standard error,
+    /// and records the stream it was asked to put it in.
+    struct Shell(std::cell::Cell<Option<Stream>>);
+
+    impl Runner for Shell {
+        fn run(&self, command: &Command) -> io::Result<Output> {
+            self.0.set(Some(command.get_stderr()));
+            let mut output = Output::new(crate::exec::Status::exited(2), Vec::new());
+            output.stderr = b"sh: cannot open /x: No such file\n".to_vec();
+            Ok(output)
+        }
+    }
+
+    #[test]
+    fn the_shell_s_own_messages_of_a_merged_command_are_logged() {
+        let dir = TempDir::new("zbm-platform-quiet-merged");
+        let kmsg = dir.join("kmsg");
+        let log = KernelLog::new(&RealFiles, "7", dir.path(), 1).with_device(&kmsg);
+        let shell = Shell(std::cell::Cell::new(None));
+        let output = {
+            let _installed = log.install();
+            QuietRunner::new(&shell)
+                .run(
+                    &Command::new("cryptsetup")
+                        .merge_stderr()
+                        .stdout(Stream::Capture),
+                )
+                .unwrap()
+        };
+        assert_eq!(shell.0.get(), Some(Stream::Capture));
+        assert!(output.stderr.is_empty());
+        let logged = std::fs::read_to_string(&kmsg).unwrap();
+        assert!(
+            logged.contains("<4>ZFSBootMenu: cryptsetup: sh: cannot open /x"),
+            "{logged}"
+        );
     }
 
     #[test]

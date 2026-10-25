@@ -209,11 +209,21 @@ pub(crate) mod tests {
         settings: &Settings,
         body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
+        with_prompter(fake, settings, &NoPrompts, body)
+    }
+
+    /// [`with_session`] with `prompter`.
+    pub(crate) fn with_prompter<T>(
+        fake: &FakeSystem,
+        settings: &Settings,
+        prompter: &dyn crate::unlocker::Prompter,
+        body: impl FnOnce(&mut Unlocker<'_>) -> T,
+    ) -> T {
         let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
             settings,
-            prompter: &NoPrompts,
+            prompter,
         };
         body(&mut Unlocker::new(luks))
     }

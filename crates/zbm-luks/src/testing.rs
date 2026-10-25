@@ -58,6 +58,7 @@ impl Prompter for NoPrompts {
 pub struct Prompts {
     answers: RefCell<VecDeque<Answer>>,
     shown: RefCell<Vec<PromptRequest>>,
+    consoles: std::cell::Cell<usize>,
 }
 
 impl Prompts {
@@ -66,7 +67,13 @@ impl Prompts {
         Prompts {
             answers: RefCell::new(answers.iter().copied().collect()),
             shown: RefCell::new(Vec::new()),
+            consoles: std::cell::Cell::new(0),
         }
+    }
+
+    /// How many times a program was given the console.
+    pub fn consoles(&self) -> usize {
+        self.consoles.get()
     }
 
     /// The messages of the prompts shown.
@@ -86,6 +93,11 @@ impl Prompter for Prompts {
             .borrow_mut()
             .pop_front()
             .unwrap_or(Answer::Escape)
+    }
+
+    fn on_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
+        self.consoles.set(self.consoles.get() + 1);
+        run(None);
     }
 }
 

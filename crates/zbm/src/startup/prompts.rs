@@ -197,6 +197,13 @@ impl Prompter for MenuFront<'_> {
         }
     }
 
+    /// The view steps aside while `run`'s program has the console, with the
+    /// whole system rather than the quiet one of the stages.
+    fn on_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
+        let system = self.system;
+        self.hand_over(|| run(Some(&system)));
+    }
+
     /// What goes wrong is said by the next dialog; what takes a while
     /// shows until the next event.
     fn tell(&self, tell: Tell<'_>, _console: &mut dyn FnMut()) {

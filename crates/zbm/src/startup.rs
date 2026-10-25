@@ -294,6 +294,13 @@ pub fn run_in_menu(
     let escape_wait = escape_wait(&ZbmOptions::from_conf(conf).control_term);
     let open = |snapshot, theme| {
         let size = terminal::size(crate::menu::FALLBACK_SIZE);
+        if !fits(size) {
+            // Its dialogs would not show, while they wait for an answer.
+            return Err(io::Error::other(format!(
+                "the terminal ({}x{}) is smaller than the start-up view needs",
+                size.0, size.1
+            )));
+        }
         terminal::startup_view(snapshot, theme, size, escape_wait)
     };
     run_on(
@@ -303,6 +310,13 @@ pub fn run_in_menu(
         (modes, None),
         (Theme::new(capabilities), &open),
     )
+}
+
+/// Whether a terminal of `size` (columns, rows) shows the start-up view:
+/// smaller, start-up keeps the plain console.
+fn fits((columns, rows): (u16, u16)) -> bool {
+    let (width, height) = zbm_tui::menu::view::MINIMUM;
+    columns >= width && rows >= height
 }
 
 /// How long the rest of a key's sequence may take on the control terminal

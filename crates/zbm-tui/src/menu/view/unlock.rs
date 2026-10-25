@@ -7,7 +7,7 @@ use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 
 use super::dialogs::{Alert, Kind, alert};
-use crate::menu::model::{Model, Prompt};
+use crate::menu::model::{Model, Prompt, Screen};
 use crate::menu::theme::Role;
 use crate::menu::world::{Method, Notice};
 use crate::text::{self, Id, id, text};
@@ -165,19 +165,20 @@ fn other_methods(model: &Model, methods: &[Method], method: Method) -> Option<Li
 fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
     let theme = model.theme;
     let keyboard = &model.snapshot.keyboard;
-    let reveal = if prompt.revealed {
-        text!("unlock-hide")
-    } else {
-        text!("unlock-show")
-    };
     let dot = theme.dot();
+    // Start-up does not show what is typed (update::unlock).
+    let reveal = match (model.screen == Screen::Startup, prompt.revealed) {
+        (true, _) => String::new(),
+        (false, true) => format!("{dot}{}", text!("unlock-hide")),
+        (false, false) => format!("{dot}{}", text!("unlock-show")),
+    };
     if !keyboard.local {
-        let line = format!("{}{dot}{reveal}", text!("keyboard-terminal"));
+        let line = format!("{}{reveal}", text!("keyboard-terminal"));
         return Line::styled(line, theme.style(Role::Muted));
     }
     let layout = model.layout().unwrap_or(crate::menu::keyboard::CONSOLE);
     if keyboard.layouts.len() < 2 {
-        let line = format!("{}{dot}{reveal}", text!("keyboard-layout", layout = layout));
+        let line = format!("{}{reveal}", text!("keyboard-layout", layout = layout));
         return Line::styled(line, theme.style(Role::Muted));
     }
     let wrong = prompt.notice.as_ref().is_some_and(Notice::is_wrong_secret);
@@ -186,7 +187,7 @@ fn keyboard_line(model: &Model, prompt: &Prompt) -> Line<'static> {
         return Line::styled(line, theme.style(Role::Warning));
     }
     let line = format!(
-        "{}{dot}{}{dot}{reveal}",
+        "{}{dot}{}{reveal}",
         text!("keyboard-layout", layout = layout),
         text!("keyboard-change")
     );

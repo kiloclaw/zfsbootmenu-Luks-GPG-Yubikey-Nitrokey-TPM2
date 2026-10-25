@@ -302,3 +302,13 @@ fn a_device_is_waited_for_in_the_dialog_with_the_time_left() {
     seen.reply(Reply::Fail);
     assert_eq!(wait(device), Wait::TimedOut);
 }
+
+#[test]
+fn a_program_that_asks_on_the_console_gets_it_and_the_whole_system() {
+    let fake = FakeSystem::new();
+    let (front, seen) = front(&fake);
+    let mut given = false;
+    Prompter::on_console(&front, &mut |system| given = system.is_some());
+    assert!(given);
+    assert_eq!(seen.suspended(), 1);
+}

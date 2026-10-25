@@ -215,6 +215,11 @@ fn next(bytes: &[u8], last: bool) -> Option<Decoded> {
     if first == ESCAPE {
         return escape(bytes, last);
     }
+    // A terminal that sends CR LF for Enter (telnet, some console servers)
+    // presses it once.
+    if bytes.starts_with(b"\r\n") {
+        return Some((Some(plain(KeyCode::Enter)), 2));
+    }
     match control(first) {
         Some(key) => Some((Some(key), 1)),
         None => character(bytes, last),
@@ -255,6 +260,9 @@ pub struct TerminalKeys {
     escape_wait: Duration,
     /// When the last bytes came.
     last_read: Option<Instant>,
+    /// Whether the last byte decoded was a CR, whose LF may come in the
+    /// next read: then it is part of the same Enter.
+    after_cr: bool,
 }
 
 impl TerminalKeys {
@@ -277,10 +285,14 @@ impl TerminalKeys {
             input,
             raw: false,
             pending: Vec::with_capacity(2 * BUFFER),
-            keys: Vec::new(),
+            // Each key takes a byte at least, so the keys of what is
+            // pending fit without the list growing, which would leave a
+            // copy of them behind unwiped.
+            keys: Vec::with_capacity(2 * BUFFER),
             next: 0,
             escape_wait,
             last_read: None,
+            after_cr: false,
         }
     }
 
@@ -338,7 +350,16 @@ impl TerminalKeys {
     /// Decodes what was read, the start of a sequence too when `last`; the
     /// bytes decoded are wiped.
     fn decode(&mut self, last: bool) {
+        if self.after_cr && self.pending.first() == Some(&b'\n') {
+            self.pending.copy_within(1.., 0);
+            let end = self.pending.len() - 1;
+            zbm_sys::wipe(self.pending.get_mut(end..).unwrap_or_default());
+            self.pending.truncate(end);
+        }
         let used = decode(&self.pending, last, &mut self.keys);
+        if used > 0 {
+            self.after_cr = self.pending.get(used - 1) == Some(&b'\r');
+        }
         let rest = self.pending.len() - used;
         self.pending.copy_within(used.., 0);
         zbm_sys::wipe(self.pending.get_mut(rest..).unwrap_or_default());
@@ -356,6 +377,7 @@ impl TerminalKeys {
         self.forget();
         zbm_sys::wipe_vec(&mut self.pending);
         self.last_read = None;
+        self.after_cr = false;
     }
 }
 

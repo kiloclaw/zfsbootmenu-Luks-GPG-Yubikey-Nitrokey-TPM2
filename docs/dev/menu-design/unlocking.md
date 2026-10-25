@@ -54,7 +54,8 @@ or French keyboard then cannot be typed: `z` and `y`, `a` and `q`, and most symb
 - The chosen layout applies to every key, in every view, until the menu ends: the key labelled `/` on a German
   keyboard (`Shift-7`) still opens the search. Keys with `Ctrl` or `Alt` are not translated.
 - `Ctrl-R` shows what is typed, and hides it again. It is off at every prompt and never on by default: the user turns
-  it on, at a console they can see is not watched.
+  it on, at a console they can see is not watched. Start-up does not offer it: shown, the secret would be copied into
+  text and screen cells that nothing wipes, in the start-up program, which lives until the boot.
 - Over a serial console the terminal sends characters in its own layout, so nothing is translated, and the line says
   *“Keyboard: the terminal's own”*.
 

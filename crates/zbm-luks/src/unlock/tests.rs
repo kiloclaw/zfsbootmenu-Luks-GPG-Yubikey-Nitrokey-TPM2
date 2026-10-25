@@ -407,6 +407,8 @@ fn key_scripts_come_first() {
         ]
     );
     assert_eq!(*script.get_stdin(), Input::Inherit);
+    // It may ask on the console, which a front end hands it.
+    assert_eq!(prompts.consoles(), 1);
     assert_eq!(mappings(&fake), "ks-a\t/dev/loop1\t0\n");
     fake.assert_no_leak(b"secret1");
 }

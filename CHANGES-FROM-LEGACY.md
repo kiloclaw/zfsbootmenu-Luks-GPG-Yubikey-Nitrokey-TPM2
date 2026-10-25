@@ -7,8 +7,8 @@ Images with the legacy runtime, the default, are unchanged. The list grows with 
 ## Start-up (R5 step 4)
 
 Start-up runs on the menu's start-up view when the image has the menu and the terminal can run it (`TERM` set, and not
-`dumb`); otherwise it keeps the console of the legacy program, prompts included. `zluks` in the recovery shell and
-over SSH is unchanged.
+`dumb`) and is 52 columns by 20 lines at least; otherwise it keeps the console of the legacy program, prompts
+included. `zluks` in the recovery shell and over SSH is unchanged.
 
 ### Start-up shows its stages
 
@@ -26,8 +26,10 @@ over SSH is unchanged.
   them, and `Insert the key device ...` while waiting for a key device.
 - **Now:** the unlock dialog of the volume, which names its device, the tries left and what went wrong last (a wrong
   passphrase, a TPM that locked itself against PIN guessing), and the keyboard layout. Enter with nothing typed skips
-  the volume's passphrase or moves on from a PIN, as before; Escape does the same; Ctrl-R shows what is typed. While a key device or security key is awaited, the dialog shows the
-  seconds left: Enter looks again at once, Escape stops waiting.
+  the volume's passphrase or moves on from a PIN, as before; Escape does the same. What is typed is never shown during
+  start-up. While a key device or security key is awaited, the dialog shows the seconds left: Enter looks again at once,
+  Escape stops waiting. A crypttab key script and `fido2-assert` asking for a FIDO2 PIN get the console for the time
+  they run, as hooks do, so they can ask there.
 - **Why:** the dialog says which volume asks, and why it asks again, where the console said it in lines that scrolled.
 
 ### The timed prompts are questions

@@ -134,10 +134,14 @@ fn open_with_keyscript(
         ("CRYPTTAB_OPTIONS", volume.options_text),
         ("CRYPTTAB_TRIED", "0"),
     ]);
-    let printed = programs::key_script(session.system().runner, script, key, &env)
-        .ok()
-        .and_then(|output| output.secret)
-        .unwrap_or_default();
+    // The script may ask on the console, which it gets for the time.
+    let mut printed = None;
+    session.with_console(&mut |system| {
+        printed = programs::key_script(system.runner, script, key, &env)
+            .ok()
+            .and_then(|output| output.secret);
+    });
+    let printed = printed.unwrap_or_default();
     let target = volume.target();
     let opened = session.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args);
     if opened.is_ok() {
