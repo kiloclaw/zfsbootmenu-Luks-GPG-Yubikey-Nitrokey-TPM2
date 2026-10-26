@@ -128,3 +128,26 @@ fn a_command_that_cannot_start_is_reported_as_a_warning() {
     assert_eq!(lines[0]["level"], "WARN");
     assert_eq!(lines[0]["message"], "command could not start");
 }
+
+#[test]
+fn a_traced_runner_around_another_reports_each_command_once() {
+    let _serial = serial();
+    let clock = FakeClock::new();
+    let runner = FakeRunner::new();
+    let layer = JournalLayer::new(std::io::sink()).with_copy();
+    let lines = layer.lines();
+    let subscriber = tracing_subscriber::registry().with(layer);
+    tracing::subscriber::with_default(subscriber, || {
+        let inner = TracedRunner::new(&runner, &clock);
+        let outer = TracedRunner::new(&inner, &clock);
+        let _ = outer.run(&Command::new("zpool").arg("list"));
+        let _ = outer.run(&Command::new("zfs").arg("list"));
+    });
+
+    let lines = lines.take();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    for line in &lines {
+        assert_eq!(line["spans"].as_array().map(Vec::len), Some(1), "{line}");
+    }
+    assert_eq!(lines[1]["spans"][0]["line"], "zfs list");
+}

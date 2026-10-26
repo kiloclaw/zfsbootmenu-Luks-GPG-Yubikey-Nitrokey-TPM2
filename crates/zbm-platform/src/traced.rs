@@ -1,5 +1,6 @@
 //! The command journal: a runner that reports every program it runs.
 
+use std::cell::Cell;
 use std::io;
 use std::time::Duration;
 
@@ -23,6 +24,28 @@ pub struct TracedRunner<'a> {
     clock: &'a dyn Clock,
 }
 
+thread_local! {
+    /// Whether a traced runner of this thread runs a command now: one traced
+    /// runner around another then reports each command once, as the outer.
+    static TRACING: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Marks this thread as running a traced command until dropped.
+struct Tracing;
+
+impl Tracing {
+    /// `None` when this thread runs a traced command already.
+    fn start() -> Option<Tracing> {
+        (!TRACING.replace(true)).then_some(Tracing)
+    }
+}
+
+impl Drop for Tracing {
+    fn drop(&mut self) {
+        TRACING.set(false);
+    }
+}
+
 impl<'a> TracedRunner<'a> {
     /// A runner that reports the commands `inner` runs, timed by `clock`.
     pub fn new(inner: &'a dyn Runner, clock: &'a dyn Clock) -> TracedRunner<'a> {
@@ -32,6 +55,10 @@ impl<'a> TracedRunner<'a> {
 
 impl Runner for TracedRunner<'_> {
     fn run(&self, command: &Command) -> io::Result<Output> {
+        // A traced runner around this one reports the command already.
+        let Some(_tracing) = Tracing::start() else {
+            return self.inner.run(command);
+        };
         let program = command.program().to_string_lossy();
         let span = info_span!(
             "command",
