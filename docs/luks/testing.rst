@@ -590,11 +590,11 @@ Test                            Passed  Failed  Duration
 ``runtime-rust-autosize``       6       0       –
 ``runtime-rust-colours``        5       0       2 min
 ``runtime-rust-drm``            12      0       2 min
-``runtime-rust-console``        23      0       10 min
-``runtime-rust-console-start``  15      0       –
+``runtime-rust-console``        23      0       11 min
+``runtime-rust-console-start``  16      0       11 min
 ``runtime-rust-saved``          36      0       52 s
 ``runtime-rust-gpu``            25      0       3 min
-Total                           905     0
+Total                           906     0
 ==============================  ======  ======  ========
 
 Problems found and fixed

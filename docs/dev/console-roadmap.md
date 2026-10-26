@@ -120,7 +120,9 @@ needed are in `patches/`. C109 draws a test card with Terminus 8x14 and DejaVu S
 (`crates/zbm-console/src/screen/tests/reference/`); it showed that the bitmap fonts drew `?` for Braille and the
 Powerline arrows, which are now drawn for them too. `runtime-rust-console-start` checks `TERM` and `tput colors`,
 Ctrl-Left in brush's line editor, and colours 208 of the 256, true colour and the Linux palette in a screenshot.
-`vttest` is not in the images; the reference images and the unit tests of the terminal stand in for its screens.
+`vttest` is not in the images; the reference images and the unit tests of the terminal stand in for its screens. The
+console's VM tests (`runtime-rust-console`, `runtime-rust-console-start`, `runtime-rust-drm`, `runtime-rust-colours`)
+pass on `3138ebd` (26 October 2026, 60 checks with their setup).
 
 ## M3. A comfortable recovery shell
 
