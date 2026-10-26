@@ -369,3 +369,5 @@ fn a_wide_character_is_drawn_over_both_of_its_cells() {
     console.draw();
     assert!(colours(&mut console, 1, 0).contains(&red));
 }
+
+mod linux;

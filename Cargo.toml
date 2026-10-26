@@ -107,3 +107,5 @@ strip = false
 # Crates built with a change of ours until their authors release it (patches/README.md).
 [patch.crates-io]
 brush-parser = { path = "patches/brush-parser-0.4.0" }
+alacritty_terminal = { path = "patches/alacritty_terminal-0.26.0" }
+vte = { path = "patches/vte-0.15.0" }

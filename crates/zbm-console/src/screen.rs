@@ -15,7 +15,7 @@
 use std::cell::RefCell;
 use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use alacritty_terminal::Term;
 use alacritty_terminal::event::{Event, EventListener, WindowSize};
@@ -28,10 +28,12 @@ use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as 
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid, Neighbour, Text};
 
-use crate::colour;
+use crate::colour::{self, Shown};
 use crate::keys::{self, Flavour, Modes};
+pub use blink::BLINK;
 use scroll::Shift;
 
+mod blink;
 mod scroll;
 
 /// The events of the terminal, kept until the console handles them.
@@ -44,22 +46,6 @@ impl EventListener for Events {
     }
 }
 
-/// How long a blinking cursor is shown, and then hidden.
-pub const BLINK: Duration = Duration::from_millis(500);
-
-/// The blinking of the cursor: a timer that runs only while a blinking
-/// cursor is shown.
-#[derive(Debug, Default)]
-struct Blink {
-    /// When the cursor is shown or hidden next.
-    at: Option<Instant>,
-    /// Whether it is hidden now.
-    off: bool,
-    /// Whether the programs wrote since the last tick: the cursor is shown
-    /// again, as it is while they type.
-    fed: bool,
-}
-
 /// The terminal on the display.
 pub struct Console {
     term: Term<Events>,
@@ -70,7 +56,9 @@ pub struct Console {
     columns: u16,
     rows: u16,
     replies: Vec<u8>,
-    blink: Blink,
+    blink: blink::Cursor,
+    /// The blinking of text (SGR 5 and 6).
+    text_blink: blink::Text,
     /// A hash of each row as drawn, `None` where it is not known.
     drawn_rows: Vec<Option<u64>>,
     /// The terminal description the programs read keys through.
@@ -94,9 +82,13 @@ impl std::fmt::Debug for Console {
     }
 }
 
+/// The terminal's name, which XTVERSION reports with its version.
+pub const NAME: &str = "ZFSBootMenu";
+
 /// The terminal's settings: no scrollback, no clipboard, a blinking block
-/// for a cursor, which blinks as the Linux console's does, and the kitty
-/// keyboard protocol for the programs that ask for it.
+/// for a cursor, which blinks as the Linux console's does, the kitty
+/// keyboard protocol for the programs that ask for it, and ZFSBootMenu's
+/// name and version for those that ask who the terminal is.
 fn config() -> Config {
     Config {
         scrolling_history: 0,
@@ -106,6 +98,8 @@ fn config() -> Config {
             shape: CursorShape::Block,
             blinking: true,
         },
+        name: NAME.to_owned(),
+        version: zbm_core::version::ZBM_VERSION.to_owned(),
         ..Config::default()
     }
 }
@@ -127,7 +121,8 @@ impl Console {
             columns,
             rows,
             replies: Vec::new(),
-            blink: Blink::default(),
+            blink: blink::Cursor::default(),
+            text_blink: blink::Text::default(),
             drawn_rows: vec![None; usize::from(rows)],
             flavour: Flavour::Linux,
         };
@@ -172,39 +167,25 @@ impl Console {
     /// cursor blinks.
     pub fn deadline(&self) -> Option<Instant> {
         let sync = self.parser.sync_timeout().sync_timeout();
-        match (sync, self.blink.at) {
-            (Some(sync), Some(blink)) => Some(sync.min(blink)),
-            (sync, blink) => sync.or(blink),
-        }
+        [sync, self.blink.at, self.text_blink.at()]
+            .into_iter()
+            .flatten()
+            .min()
     }
 
     /// Ends a synchronized update whose time ran out at `now`, and blinks
-    /// the cursor when its time came.
+    /// the cursor and the text when their time came.
     pub fn tick(&mut self, now: Instant) {
         let sync = self.parser.sync_timeout().sync_timeout();
         if sync.is_some_and(|deadline| deadline <= now) {
             self.parser.stop_sync(&mut self.term);
             self.answer();
         }
-        self.time_blink(now);
-    }
-
-    /// Starts, stops or turns the cursor's blinking at `now`: it runs only
-    /// while a blinking cursor is shown, and starts shown after output.
-    fn time_blink(&mut self, now: Instant) {
+        // The cursor blinks while a blinking cursor is shown.
         let shape = self.term.renderable_content().cursor.shape;
-        if shape == CursorShape::Hidden || !self.term.cursor_style().blinking {
-            self.blink = Blink::default();
-            return;
-        }
-        let blink = &mut self.blink;
-        if std::mem::take(&mut blink.fed) || blink.at.is_none() {
-            blink.off = false;
-            blink.at = Some(now + BLINK);
-        } else if blink.at.is_some_and(|at| at <= now) {
-            blink.off = !blink.off;
-            blink.at = Some(now + BLINK);
-        }
+        let is_blinking = shape != CursorShape::Hidden && self.term.cursor_style().blinking;
+        self.blink.time(is_blinking, now);
+        self.text_blink.tick(now);
     }
 
     /// Turns the terminal's events into the answers the programs get.
@@ -270,6 +251,8 @@ impl Console {
 
     /// Draws what changed since the last call into the frame; returns how
     /// many cells were drawn, a scroll counting as one.
+    /// Blinking text shown or hidden draws the screen again, which draws
+    /// the rows that changed.
     pub fn draw(&mut self) -> usize {
         let damaged: Option<Vec<(usize, usize, usize)>> = match self.term.damage() {
             TermDamage::Full => None,
@@ -281,9 +264,29 @@ impl Console {
         };
         self.term.reset_damage();
         let cursor = self.drawn_cursor();
-        match damaged {
-            None => self.draw_screen(cursor),
-            Some(lines) => self.draw_lines(&lines, cursor),
+        let drawn = match damaged {
+            Some(lines) if !self.text_blink.has_turned() => self.draw_lines(&lines, cursor),
+            _ => self.draw_screen(cursor),
+        };
+        self.text_blink.follow(self.has_blinking_text());
+        drawn
+    }
+
+    /// Whether the screen shows blinking text (SGR 5 or 6).
+    fn has_blinking_text(&self) -> bool {
+        let grid = self.term.grid();
+        (0..grid.screen_lines()).any(|line| {
+            let row = &grid[Line(i32::try_from(line).unwrap_or(i32::MAX))];
+            (0..grid.columns()).any(|column| row[Column(column)].flags.contains(Flags::BLINK))
+        })
+    }
+
+    /// How the screen is shown now: reversed or not (DECSCNM), blinking
+    /// text shown or hidden.
+    fn shown(&self) -> Shown {
+        Shown {
+            reverse: self.term.mode().contains(TermMode::REVERSE_SCREEN),
+            blink_off: self.text_blink.is_off(),
         }
     }
 
@@ -351,8 +354,9 @@ impl Console {
     /// A hash of the row at `line` as it is drawn, the cursor included.
     fn row_hash(&self, line: usize, cursor: Option<Cursor>) -> u64 {
         let mut hasher = DefaultHasher::new();
+        let shown = self.shown();
         for column in 0..usize::from(self.columns) {
-            look(&self.term, line, column, cursor).hash(&mut hasher);
+            look(&self.term, (line, column), cursor, shown).hash(&mut hasher);
         }
         hasher.finish()
     }
@@ -384,7 +388,7 @@ impl Console {
         });
         let after = Some((column + span, width * i64::try_from(span).unwrap_or(1)));
         for (at, offset) in before.into_iter().chain(after) {
-            if let Some((c, style, ..)) = look(&self.term, line, at, None)
+            if let Some((c, style, ..)) = look(&self.term, (line, at), None, self.shown())
                 && c != ' '
             {
                 found.push(Neighbour {
@@ -413,7 +417,8 @@ impl Console {
         let (Ok(x), Ok(y)) = (u16::try_from(column), u16::try_from(line)) else {
             return;
         };
-        let Some((c, style, marks, shape)) = look(&self.term, line, column, cursor) else {
+        let shown = self.shown();
+        let Some((c, style, marks, shape)) = look(&self.term, (line, column), cursor, shown) else {
             return;
         };
         let is_wide = self
@@ -475,14 +480,14 @@ impl Console {
     }
 }
 
-/// What the cell of `term` at `line`, `column` shows: its character, its
-/// style, its combining marks, and the shape of `cursor` when it is over
-/// it.
+/// What the cell of `term` at (line, column) shows as the screen is
+/// `shown`: its character, its style, its combining marks, and the shape
+/// of `cursor` when it is over it.
 fn look(
     term: &Term<Events>,
-    line: usize,
-    column: usize,
+    (line, column): (usize, usize),
     cursor: Option<Cursor>,
+    shown: Shown,
 ) -> Option<(char, CellStyle, &[char], Option<CursorShape>)> {
     let row = i32::try_from(line).ok()?;
     let grid = term.grid();
@@ -494,10 +499,11 @@ fn look(
         .filter(|cursor| cursor.line == line && cursor.column == column)
         .map(|cursor| cursor.shape);
     let colours = term.colors();
+    let style = colour::shown(colour::style(colours, cell), cell.flags, shown);
     let style = if shape == Some(CursorShape::Block) {
-        colour::cursor(colours, cell)
+        colour::cursor(colours, style)
     } else {
-        colour::style(colours, cell)
+        style
     };
     let c = if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
         ' '

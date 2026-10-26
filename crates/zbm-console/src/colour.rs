@@ -106,17 +106,37 @@ pub fn style(colours: &Colors, cell: &Cell) -> CellStyle {
     }
 }
 
+/// How the screen is shown at a moment.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub struct Shown {
+    /// Whether it is reversed (DECSCNM): the colours of each cell swapped.
+    pub reverse: bool,
+    /// Whether blinking text is hidden.
+    pub blink_off: bool,
+}
+
+/// `style`, of a cell of `flags`, as the screen is `shown`.
+pub fn shown(mut style: CellStyle, flags: Flags, shown: Shown) -> CellStyle {
+    if shown.reverse {
+        std::mem::swap(&mut style.fg, &mut style.bg);
+    }
+    if shown.blink_off && flags.contains(Flags::BLINK) {
+        style.fg = style.bg;
+        style.decoration = Decoration::default();
+    }
+    style
+}
+
 /// The colour a program gave the cursor (OSC 12), until it reset it (OSC
 /// 112).
 pub fn cursor_colour(colours: &Colors) -> Option<Rgb> {
     colours[NamedColor::Cursor].map(rgb)
 }
 
-/// The style of the cursor drawn over `cell` as a block: its colours
-/// swapped, or the cursor's colour behind the character's background as
-/// text.
-pub fn cursor(colours: &Colors, cell: &Cell) -> CellStyle {
-    let style = style(colours, cell);
+/// The style of the cursor drawn as a block over a cell of `style`: its
+/// colours swapped, or the cursor's colour behind the character's
+/// background as text.
+pub fn cursor(colours: &Colors, style: CellStyle) -> CellStyle {
     CellStyle {
         fg: style.bg,
         bg: cursor_colour(colours).unwrap_or(style.fg),
@@ -193,7 +213,10 @@ mod tests {
         let dim = style(&colours, &cell(red, black, Flags::DIM));
         let hidden = style(&colours, &cell(red, black, Flags::HIDDEN));
         let underlined = style(&colours, &cell(red, black, Flags::DOUBLE_UNDERLINE));
-        let over_cursor = cursor(&colours, &cell(DEFAULT_FG, black, Flags::UNDERLINE));
+        let over_cursor = cursor(
+            &colours,
+            style(&colours, &cell(DEFAULT_FG, black, Flags::UNDERLINE)),
+        );
         let hidden_line = style(
             &colours,
             &cell(red, black, Flags::HIDDEN | Flags::STRIKEOUT),
@@ -223,7 +246,10 @@ mod tests {
             g: 0xff,
             b: 0,
         });
-        let green = cursor(&coloured, &cell(DEFAULT_FG, black, Flags::empty()));
+        let green = cursor(
+            &coloured,
+            style(&coloured, &cell(DEFAULT_FG, black, Flags::empty())),
+        );
         assert_eq!((green.fg, green.bg), (Rgb::BLACK, Rgb(0, 0xff, 0)));
         assert_eq!(cursor_colour(&colours), None);
     }

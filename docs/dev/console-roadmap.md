@@ -7,8 +7,9 @@ emulator such as Alacritty or xterm. Step 5 of #19, making it the default, comes
 
 Each item has an ID (`C1` to `C112`) that commits, tests and the CHANGELOG name. Priorities: **P1** users hit it today,
 or a full console needs it; **P2** the references have it; **P3** nice to have. Effort: **S** a day or less, **M** a few
-days, **L** a week or more. Items marked *vendor* need a patch to the vendored `alacritty_terminal` (the vendoring rules
-of [dependencies.md](dependencies.md) apply, and the patch is offered upstream).
+days, **L** a week or more. Items marked *vendor* need a patch to `alacritty_terminal` or `vte`, kept in `patches/` (the
+vendoring rules of [dependencies.md](dependencies.md) and [patches/README.md](../../patches/README.md) apply, and the
+patch is offered upstream).
 
 ## Where it stands
 
@@ -107,8 +108,7 @@ Goal: programs see a terminal that does what they ask.
 - **C18 Cursor colour** (P2, S), OSC 12 and 112.
 - **C19 Linux cursor size**, **C21 Linux palette** (`ESC ] P`, `ESC ] R`), **C22 Linux private sequences** of `setterm`
   (P2, S, *vendor*): what programs send to a terminal named `linux`, until C25 names it otherwise.
-- **C20 Blinking text** (P3, S, *vendor*), **C24 reverse screen** DECSCNM (P3, S, *vendor*), **C13 double-width and
-  double-height lines** (P3, M, *vendor*).
+- **C20 Blinking text** (P3, S, *vendor*), **C24 reverse screen** DECSCNM (P3, S, *vendor*).
 - **C109 Reference images** (P1, M). The terminal drawn in memory at three sizes and compared with images in the
   repository, as the menu's wireframes are compared with text: colours, attributes, cursor shapes, wide characters.
 
@@ -240,6 +240,9 @@ Goal: what desktop users expect, within the threat model.
   switch.
 - **C32 Hyperlinks** (P3, S) underlined; **C33 images** (P3, L, sixel or the kitty protocol); **C7 colour emoji**
   (P3, L); **C15 right-to-left text** (P3, L): last, if at all.
+- **C13 Double-width and double-height lines** (P3, M, *vendor*), DECDWL and DECDHL, which `vttest` shows. Moved from
+  M2: Alacritty's grid has no attributes for a line, so the patch must add one to its rows, and the console must draw
+  each face at twice its size, which doubles the glyphs it keeps.
 
 VM tests: QEMU's tablet device clicking in the menu; a selection pasted into the shell; Alt+F2 and back.
 
@@ -270,12 +273,12 @@ Goal: #19 step 5.
 | Milestone | Items |
 | --- | --- |
 | M1 | C2 C3 C4 C16 C17 C34 C35 C58 C59 C69 C70 C78 C90 C94 C108 |
-| M2 | C1 C5 C6 C8 C9 C10 C11 C12 C13 C18 C19 C20 C21 C22 C24 C25 C26 C27 C28 C29 C30 C109 |
+| M2 | C1 C5 C6 C8 C9 C10 C11 C12 C18 C19 C20 C21 C22 C24 C25 C26 C27 C28 C29 C30 C109 |
 | M3 | C23 C31 C36 C37 C38 C39 C40 C41 C42 C43 C44 C47 C52 C53 C54 C83 C84 C86 C87 C88 |
 | M4 | C60 C61 C62 C63 C64 C65 C66 C67 C68 C74 |
 | M5 | C71 C72 C73 C75 C76 C112 |
 | M6 | C77 C79 C80 C81 C82 C104 C105 C106 |
 | M7 | C45 C46 C89 C91 C92 C93 C95 C96 C97 C98 C99 C100 C110 |
-| M8 | C7 C15 C32 C33 C48 C49 C50 C51 C55 C56 C57 |
+| M8 | C7 C13 C15 C32 C33 C48 C49 C50 C51 C55 C56 C57 |
 | M9 | C85 C101 C102 C103 C107 C111 |
 | Left out | C14 |

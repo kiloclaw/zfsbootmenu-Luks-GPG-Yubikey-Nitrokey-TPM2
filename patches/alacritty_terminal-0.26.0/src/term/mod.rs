@@ -77,6 +77,7 @@ bitflags! {
         const REPORT_ALTERNATE_KEYS   = 1 << 20;
         const REPORT_ALL_KEYS_AS_ESC  = 1 << 21;
         const REPORT_ASSOCIATED_TEXT  = 1 << 22;
+        const REVERSE_SCREEN          = 1 << 23;
         const MOUSE_MODE              = Self::MOUSE_REPORT_CLICK.bits() | Self::MOUSE_MOTION.bits() | Self::MOUSE_DRAG.bits();
         const KITTY_KEYBOARD_PROTOCOL = Self::DISAMBIGUATE_ESC_CODES.bits()
                                       | Self::REPORT_EVENT_TYPES.bits()
@@ -327,6 +328,9 @@ pub struct Term<T> {
 
     /// Config directly for the terminal.
     config: Config,
+
+    /// The default colours the Linux console's `CSI 8 ]` set, if any.
+    linux_default: Option<(Color, Color)>,
 }
 
 /// Configuration options for the [`Term`].
@@ -351,6 +355,13 @@ pub struct Config {
 
     /// OSC52 support mode.
     pub osc52: Osc52,
+
+    /// The terminal's name, which XTVERSION reports.
+    pub name: String,
+
+    /// The terminal's version, which XTVERSION and the secondary device
+    /// attributes report.
+    pub version: String,
 }
 
 impl Default for Config {
@@ -362,6 +373,8 @@ impl Default for Config {
             vi_mode_cursor_style: Default::default(),
             kitty_keyboard: Default::default(),
             osc52: Default::default(),
+            name: String::from("alacritty"),
+            version: String::from(env!("CARGO_PKG_VERSION")),
         }
     }
 }
@@ -428,6 +441,7 @@ impl<T> Term<T> {
             event_proxy,
             damage,
             config,
+            linux_default: None,
             grid,
             tabs,
             inactive_keyboard_mode_stack: Default::default(),
@@ -1263,11 +1277,47 @@ impl<T: EventListener> Handler for Term<T> {
             },
             Some('>') => {
                 trace!("Reporting secondary device attributes");
-                let version = version_number(env!("CARGO_PKG_VERSION"));
+                let version = version_number(&self.config.version);
                 let text = format!("\x1b[>0;{version};1c");
                 self.event_proxy.send_event(Event::PtyWrite(text));
             },
             _ => debug!("Unsupported device attributes intermediate"),
+        }
+    }
+
+    #[inline]
+    fn report_version(&mut self) {
+        trace!("Reporting the terminal's name and version");
+        let Config { name, version, .. } = &self.config;
+        let text = format!("\x1bP>|{name}({version})\x1b\\");
+        self.event_proxy.send_event(Event::PtyWrite(text));
+    }
+
+    #[inline]
+    fn set_linux_cursor(&mut self, params: &[u16]) {
+        let size = params.first().copied().unwrap_or(0);
+        trace!("Setting the Linux console's cursor size {size}");
+        let shape = match size & 0x0f {
+            _ if size & 0x10 != 0 => CursorShape::Block,
+            0 => return self.set_cursor_style(None),
+            1 => CursorShape::Hidden,
+            2 | 3 => CursorShape::Underline,
+            _ => CursorShape::Block,
+        };
+        let blinking = self.config.default_cursor_style.blinking;
+        self.set_cursor_style(Some(CursorStyle { shape, blinking }));
+    }
+
+    #[inline]
+    fn linux_private(&mut self, params: &[u16]) {
+        match params.first() {
+            Some(8) => {
+                trace!("Making the current colours the default ones");
+                let template = &self.grid.cursor.template;
+                self.linux_default = Some((template.fg, template.bg));
+                self.terminal_attribute(Attr::Reset);
+            },
+            _ => debug!("Ignoring the Linux console's private sequence {params:?}"),
         }
     }
 
@@ -1848,6 +1898,7 @@ impl<T: EventListener> Handler for Term<T> {
         self.vi_mode_cursor = Default::default();
         self.keyboard_mode_stack = Default::default();
         self.inactive_keyboard_mode_stack = Default::default();
+        self.linux_default = None;
 
         // Preserve vi mode across resets.
         self.mode &= TermMode::VI;
@@ -1880,14 +1931,24 @@ impl<T: EventListener> Handler for Term<T> {
     #[inline]
     fn terminal_attribute(&mut self, attr: Attr) {
         trace!("Setting attribute: {attr:?}");
+        let (default_fg, default_bg) = self.linux_default.unwrap_or((
+            Color::Named(NamedColor::Foreground),
+            Color::Named(NamedColor::Background),
+        ));
         let cursor = &mut self.grid.cursor;
         match attr {
+            Attr::Foreground(Color::Named(NamedColor::Foreground)) => {
+                cursor.template.fg = default_fg
+            },
+            Attr::Background(Color::Named(NamedColor::Background)) => {
+                cursor.template.bg = default_bg
+            },
             Attr::Foreground(color) => cursor.template.fg = color,
             Attr::Background(color) => cursor.template.bg = color,
             Attr::UnderlineColor(color) => cursor.template.set_underline_color(color),
             Attr::Reset => {
-                cursor.template.fg = Color::Named(NamedColor::Foreground);
-                cursor.template.bg = Color::Named(NamedColor::Background);
+                cursor.template.fg = default_fg;
+                cursor.template.bg = default_bg;
                 cursor.template.flags = Flags::empty();
                 cursor.template.set_underline_color(None);
             },
@@ -1924,9 +1985,8 @@ impl<T: EventListener> Handler for Term<T> {
             Attr::CancelHidden => cursor.template.flags.remove(Flags::HIDDEN),
             Attr::Strike => cursor.template.flags.insert(Flags::STRIKEOUT),
             Attr::CancelStrike => cursor.template.flags.remove(Flags::STRIKEOUT),
-            _ => {
-                debug!("Term got unhandled attr: {attr:?}");
-            },
+            Attr::BlinkSlow | Attr::BlinkFast => cursor.template.flags.insert(Flags::BLINK),
+            Attr::CancelBlink => cursor.template.flags.remove(Flags::BLINK),
         }
     }
 
@@ -1934,6 +1994,12 @@ impl<T: EventListener> Handler for Term<T> {
     fn set_private_mode(&mut self, mode: PrivateMode) {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
+            PrivateMode::Unknown(5) => {
+                trace!("Setting the reverse screen");
+                self.mode.insert(TermMode::REVERSE_SCREEN);
+                self.mark_fully_damaged();
+                return;
+            },
             PrivateMode::Unknown(mode) => {
                 debug!("Ignoring unknown mode {mode} in set_private_mode");
                 return;
@@ -1997,6 +2063,12 @@ impl<T: EventListener> Handler for Term<T> {
     fn unset_private_mode(&mut self, mode: PrivateMode) {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
+            PrivateMode::Unknown(5) => {
+                trace!("Unsetting the reverse screen");
+                self.mode.remove(TermMode::REVERSE_SCREEN);
+                self.mark_fully_damaged();
+                return;
+            },
             PrivateMode::Unknown(mode) => {
                 debug!("Ignoring unknown mode {mode} in unset_private_mode");
                 return;
@@ -2084,6 +2156,7 @@ impl<T: EventListener> Handler for Term<T> {
                 NamedPrivateMode::SyncUpdate => ModeState::Reset,
                 NamedPrivateMode::ColumnMode => ModeState::NotSupported,
             },
+            PrivateMode::Unknown(5) => self.mode.contains(TermMode::REVERSE_SCREEN).into(),
             PrivateMode::Unknown(_) => ModeState::NotSupported,
         };
 
@@ -3289,6 +3362,76 @@ mod tests {
         term.title = Some("Test".into());
         term.set_title(None);
         assert_eq!(term.title, None);
+    }
+
+    /// Keeps what the terminal writes back to the programs.
+    #[derive(Clone, Default)]
+    struct Replies(std::rc::Rc<std::cell::RefCell<String>>);
+
+    impl EventListener for Replies {
+        fn send_event(&self, event: Event) {
+            if let Event::PtyWrite(text) = event {
+                self.0.borrow_mut().push_str(&text);
+            }
+        }
+    }
+
+    #[test]
+    fn version_reports_name_the_terminal() {
+        let replies = Replies::default();
+        let config =
+            Config { name: "Example".into(), version: "1.2.3".into(), ..Config::default() };
+        let mut term = Term::new(config, &TermSize::new(5, 5), replies.clone());
+        term.report_version();
+        term.identify_terminal(Some('>'));
+        assert_eq!(*replies.0.borrow(), "\x1bP>|Example(1.2.3)\x1b\\\x1b[>0;10203;1c");
+    }
+
+    #[test]
+    fn blinking_text_and_the_reverse_screen() {
+        let replies = Replies::default();
+        let mut term = Term::new(Config::default(), &TermSize::new(5, 5), replies.clone());
+        term.terminal_attribute(Attr::BlinkSlow);
+        term.input('a');
+        term.terminal_attribute(Attr::CancelBlink);
+        term.input('b');
+        assert!(term.grid[Line(0)][Column(0)].flags.contains(Flags::BLINK));
+        assert!(!term.grid[Line(0)][Column(1)].flags.contains(Flags::BLINK));
+
+        term.set_private_mode(PrivateMode::Unknown(5));
+        assert!(term.mode.contains(TermMode::REVERSE_SCREEN));
+        term.report_private_mode(PrivateMode::Unknown(5));
+        term.unset_private_mode(PrivateMode::Unknown(5));
+        assert!(!term.mode.contains(TermMode::REVERSE_SCREEN));
+        assert_eq!(*replies.0.borrow(), "\x1b[?5;1$y");
+    }
+
+    #[test]
+    fn linux_cursor_and_default_colours() {
+        let mut term = Term::new(Config::default(), &TermSize::new(5, 5), VoidListener);
+        term.set_linux_cursor(&[1]);
+        assert_eq!(term.cursor_style().shape, CursorShape::Hidden);
+        term.set_linux_cursor(&[2]);
+        assert_eq!(term.cursor_style().shape, CursorShape::Underline);
+        term.set_linux_cursor(&[0]);
+        assert_eq!(term.cursor_style(), term.config.default_cursor_style);
+
+        let red = Color::Named(NamedColor::Red);
+        let blue = Color::Named(NamedColor::Blue);
+        term.terminal_attribute(Attr::Foreground(red));
+        term.terminal_attribute(Attr::Background(blue));
+        term.linux_private(&[8]);
+        term.terminal_attribute(Attr::Bold);
+        term.terminal_attribute(Attr::Reset);
+        let template = &term.grid.cursor.template;
+        assert_eq!((template.fg, template.bg, template.flags), (red, blue, Flags::empty()));
+        term.terminal_attribute(Attr::Foreground(Color::Named(NamedColor::Green)));
+        term.terminal_attribute(Attr::Foreground(Color::Named(NamedColor::Foreground)));
+        assert_eq!(term.grid.cursor.template.fg, red);
+
+        term.reset_state();
+        term.terminal_attribute(Attr::Reset);
+        assert_eq!(term.grid.cursor.template.fg, Color::Named(NamedColor::Foreground));
     }
 
     #[test]

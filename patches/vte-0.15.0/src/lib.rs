@@ -430,7 +430,28 @@ impl<const OSC_RAW_BUF_SIZE: usize> Parser<OSC_RAW_BUF_SIZE> {
                 }
                 self.action_osc_put_param()
             },
-            _ => self.action_osc_put(byte),
+            _ => {
+                self.action_osc_put(byte);
+                if self.is_linux_palette() {
+                    self.osc_end(performer, byte);
+                    self.state = State::Ground
+                }
+            },
+        }
+    }
+
+    /// Whether the OSC string is one of the Linux console's palette
+    /// sequences, which have no terminator: `ESC ] P nrrggbb` sets colour n
+    /// and `ESC ] R` resets the palette.
+    #[inline(always)]
+    fn is_linux_palette(&self) -> bool {
+        if self.osc_num_params != 0 {
+            return false;
+        }
+        match self.osc_raw.first() {
+            Some(b'R') => self.osc_raw.len() == 1,
+            Some(b'P') => self.osc_raw.len() == 8,
+            _ => false,
         }
     }
 

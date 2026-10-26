@@ -14,6 +14,11 @@ cargo-fuzz = true
 [workspace]
 members = ["."]
 
+# The crates the workspace builds with a change of ours (../patches/README.md).
+[patch.crates-io]
+alacritty_terminal = { path = "../patches/alacritty_terminal-0.26.0" }
+vte = { path = "../patches/vte-0.15.0" }
+
 [dependencies]
 libfuzzer-sys = "0.4"
 zbm-boot = { path = "../crates/zbm-boot" }

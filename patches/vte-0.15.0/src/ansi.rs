@@ -706,6 +706,16 @@ pub trait Handler {
     /// Report current keyboard mode.
     fn report_keyboard_mode(&mut self) {}
 
+    /// Report the terminal's name and version (XTVERSION, `CSI > q`).
+    fn report_version(&mut self) {}
+
+    /// Set the Linux console's cursor (`CSI ? size ; change ; set c`).
+    fn set_linux_cursor(&mut self, _params: &[u16]) {}
+
+    /// Run one of the Linux console's private sequences (`CSI n ; m ]`),
+    /// such as 8, which makes the current colours the default ones.
+    fn linux_private(&mut self, _params: &[u16]) {}
+
     /// Push keyboard mode into the keyboard mode stack.
     fn push_keyboard_mode(&mut self, _mode: KeyboardModes) {}
 
@@ -1511,6 +1521,26 @@ where
                 }
             },
 
+            // The Linux console's palette: `P nrrggbb` sets colour n, `R`
+            // resets colours 0 to 15.
+            b"R" => {
+                for index in 0..16 {
+                    self.handler.reset_color(index);
+                }
+            },
+            linux if linux.len() == 8 && linux[0] == b'P' => {
+                let digits = str::from_utf8(&linux[1..]).ok();
+                let value = digits.and_then(|digits| u32::from_str_radix(digits, 16).ok());
+                match value {
+                    Some(value) => {
+                        let index = (value >> 24) as usize;
+                        let [_, r, g, b] = value.to_be_bytes();
+                        self.handler.set_color(index, Rgb { r, g, b });
+                    },
+                    None => unhandled(params),
+                }
+            },
+
             // Reset foreground color.
             b"110" => self.handler.reset_color(NamedColor::Foreground as usize),
 
@@ -1569,6 +1599,7 @@ where
                 }
             },
             ('C', []) | ('a', []) => handler.move_forward(next_param_or(1) as usize),
+            ('c', [b'?']) => handler.set_linux_cursor(&first_values(params)),
             ('c', intermediates) if next_param_or(0) == 0 => {
                 handler.identify_terminal(intermediates.first().map(|&i| i as char))
             },
@@ -1708,6 +1739,8 @@ where
                 let mode = next_param_or(0);
                 handler.report_private_mode(PrivateMode::new(mode));
             },
+            ('q', [b'>']) if next_param_or(0) == 0 => handler.report_version(),
+            (']', []) => handler.linux_private(&first_values(params)),
             ('q', [b' ']) => {
                 // DECSCUSR (CSI Ps SP q) -- Set Cursor Style.
                 let cursor_style_id = next_param_or(0);
@@ -1828,6 +1861,11 @@ where
 }
 
 #[inline]
+/// The first value of each of `params`, 0 for an empty one.
+fn first_values(params: &Params) -> Vec<u16> {
+    params.iter().map(|param| param.first().copied().unwrap_or(0)).collect()
+}
+
 fn attrs_from_sgr_parameters<H: Handler>(handler: &mut H, params: &mut ParamsIter<'_>) {
     while let Some(param) = params.next() {
         let attr = match param {
@@ -2046,9 +2084,23 @@ mod tests {
         identity_reported: bool,
         color: Option<Rgb>,
         reset_colors: Vec<usize>,
+        version_reported: bool,
+        linux: Vec<(char, Vec<u16>)>,
     }
 
     impl Handler for MockHandler {
+        fn report_version(&mut self) {
+            self.version_reported = true;
+        }
+
+        fn set_linux_cursor(&mut self, params: &[u16]) {
+            self.linux.push(('c', params.to_vec()));
+        }
+
+        fn linux_private(&mut self, params: &[u16]) {
+            self.linux.push((']', params.to_vec()));
+        }
+
         fn terminal_attribute(&mut self, attr: Attr) {
             self.attr = Some(attr);
         }
@@ -2088,8 +2140,38 @@ mod tests {
                 identity_reported: false,
                 color: None,
                 reset_colors: Vec::new(),
+                version_reported: false,
+                linux: Vec::new(),
             }
         }
+    }
+
+    #[test]
+    fn parse_linux_palette() {
+        let mut parser = Processor::<TestSyncHandler>::new();
+        let mut handler = MockHandler::default();
+
+        // No terminator: the bytes after them are text.
+        parser.advance(&mut handler, b"\x1b]P1a0b0c0x\x1b]Ry");
+        assert_eq!(handler.color, Some(Rgb { r: 0xa0, g: 0xb0, b: 0xc0 }));
+        assert_eq!(handler.reset_colors, (0..16).collect::<Vec<_>>());
+        assert_eq!(parser.state.preceding_char, Some('y'));
+    }
+
+    #[test]
+    fn parse_version_and_linux_private_sequences() {
+        let mut parser = Processor::<TestSyncHandler>::new();
+        let mut handler = MockHandler::default();
+
+        parser.advance(&mut handler, b"\x1b[>q");
+        assert!(handler.version_reported);
+        parser.advance(&mut handler, b"\x1b[?17;0;64c\x1b[8]\x1b[9;30]");
+        assert_eq!(handler.linux, [
+            ('c', vec![17, 0, 64]),
+            (']', vec![8]),
+            (']', vec![9, 30])
+        ]);
+        assert!(!handler.identity_reported);
     }
 
     #[test]
