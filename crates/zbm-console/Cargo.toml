@@ -20,6 +20,7 @@ zbm-sys.workspace = true
 zbm-types.workspace = true
 
 [dev-dependencies]
+insta.workspace = true
 pretty_assertions.workspace = true
 zbm-testkit.workspace = true
 

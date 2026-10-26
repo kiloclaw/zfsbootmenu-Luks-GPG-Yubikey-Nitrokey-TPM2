@@ -219,7 +219,7 @@ fn has_nextest(root: &Path) -> bool {
 /// When a test fails for another reason than a snapshot.
 pub fn bless(workspace: &Workspace) -> Result<()> {
     bless_program(workspace).run()?;
-    let changed = git_changes(&workspace.root, "*.snap")?;
+    let changed = git_changes(&workspace.root, "*.snap*")?;
     print!("{}", changes("bless", "snapshots", &changed));
     Ok(())
 }

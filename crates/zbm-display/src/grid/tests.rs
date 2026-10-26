@@ -264,3 +264,18 @@ fn the_glyphs_of_neighbours_reach_into_the_cell() {
         );
     }
 }
+
+#[test]
+fn a_console_font_without_a_shape_has_it_drawn() {
+    let mut grid = Grid::new(font(), 1);
+    let mut frame = Frame::new(24, 2);
+    // The font has no full block, no lower half and no Braille: drawn, not
+    // a question mark. A character it lacks that is not a shape stays `?`.
+    grid.draw(&mut frame, 0, 0, '█', style(false));
+    grid.draw(&mut frame, 1, 0, '▄', style(false));
+    grid.draw(&mut frame, 2, 0, 'é', style(false));
+    assert_eq!(
+        picture(&frame),
+        ["########........#.......", "#################......."]
+    );
+}

@@ -48,6 +48,8 @@ yaml-rust2 = { version = "0.13", default-features = false }
 # vendored when the first workspace crate uses it; until then these lines only fix the versions and features.
 crossterm = { version = "0.29", default-features = false, features = ["events"] }
 insta = "1"
+# PNG reference images of the console (zbm-testkit); already in the tree through the standard library.
+miniz_oxide = "0.8.9"
 nucleo-matcher = "0.3"
 pretty_assertions = "1"
 proptest = { version = "1", default-features = false, features = ["std"] }

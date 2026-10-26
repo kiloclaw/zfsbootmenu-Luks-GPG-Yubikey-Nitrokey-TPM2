@@ -182,10 +182,6 @@ impl Grid {
                 scale,
                 glyphs,
             } => {
-                let glyph = *glyphs
-                    .entry(c)
-                    .or_insert_with(|| font.glyph_for(c).or_else(|| font.glyph_for('?')));
-                let bitmap = glyph.and_then(|glyph| font.bitmap(glyph)).unwrap_or(&[]);
                 // A console font's glyph is one cell wide: centred across
                 // the span.
                 frame.fill(area, style.bg);
@@ -193,7 +189,21 @@ impl Grid {
                     x: area.x + (area.width - cell.width) / 2,
                     ..cell
                 };
-                draw_bitmap(frame, centred, (font.cell(), *scale), bitmap, style);
+                // A shape the font lacks, such as Braille in a font of 256
+                // glyphs, is drawn as with a TrueType font.
+                let shape = boxes::is_drawn(c) && font.glyph_for(c).is_none();
+                if let Some(mask) = shape
+                    .then(|| boxes::mask(c, cell.width, cell.height))
+                    .flatten()
+                {
+                    draw_mask(frame, centred, &mask, style);
+                } else {
+                    let glyph = *glyphs
+                        .entry(c)
+                        .or_insert_with(|| font.glyph_for(c).or_else(|| font.glyph_for('?')));
+                    let bitmap = glyph.and_then(|glyph| font.bitmap(glyph)).unwrap_or(&[]);
+                    draw_bitmap(frame, centred, (font.cell(), *scale), bitmap, style);
+                }
                 // A pixel of the font thick.
                 let lines = decor::Lines::thick(*scale);
                 decor::draw(frame, area, style.decoration, style.fg, lines);
@@ -299,29 +309,32 @@ pub fn blend(bg: Rgb, fg: Rgb, alpha: u8) -> Rgb {
 /// as [`boxes`] draws it, else the glyph of its face, a fallback font's or
 /// a replacement ([`Faces::drawn`]); the caller draws its decoration.
 fn draw_outline(frame: &mut Frame, area: Area, faces: &mut Faces, c: char, style: CellStyle) {
-    let (width, height) = (area.width, area.height);
-    let mask = boxes::mask(c, width, height);
+    if let Some(mask) = boxes::mask(c, area.width, area.height) {
+        draw_mask(frame, area, &mask, style);
+        return;
+    }
     // Borrowed from the cache, not copied: drawing a cell allocates
     // nothing.
-    let glyph = if mask.is_some() {
-        None
-    } else {
-        faces.drawn(style.face, c)
-    };
-    for y in 0..height {
-        for x in 0..width {
-            let coverage = if let Some(mask) = &mask {
-                let index = u64::from(y) * u64::from(width) + u64::from(x);
-                usize::try_from(index)
-                    .ok()
-                    .and_then(|index| mask.get(index))
-                    .copied()
-                    .unwrap_or(0)
-            } else {
-                glyph.map_or(0, |glyph| glyph.at(x, y))
-            };
+    let glyph = faces.drawn(style.face, c);
+    for y in 0..area.height {
+        for x in 0..area.width {
+            let coverage = glyph.map_or(0, |glyph| glyph.at(x, y));
             frame.set(area.x + x, area.y + y, blend(style.bg, style.fg, coverage));
         }
+    }
+}
+
+/// Draws the coverage `mask` of a shape, row by row, into `area`.
+fn draw_mask(frame: &mut Frame, area: Area, mask: &[u8], style: CellStyle) {
+    let width = usize::try_from(area.width).unwrap_or(0);
+    for (index, &coverage) in mask.iter().enumerate() {
+        let (Ok(x), Ok(y)) = (
+            u32::try_from(index % width.max(1)),
+            u32::try_from(index / width.max(1)),
+        ) else {
+            continue;
+        };
+        frame.set(area.x + x, area.y + y, blend(style.bg, style.fg, coverage));
     }
 }
 

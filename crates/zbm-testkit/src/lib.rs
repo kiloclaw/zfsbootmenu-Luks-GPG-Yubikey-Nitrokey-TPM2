@@ -18,6 +18,8 @@
 //! - [`Rng`] generates test inputs from a seed, so a failing generated case can
 //!   be reproduced.
 //! - [`TempDir`] is a scratch directory that is removed afterwards.
+//! - [`png`] writes drawn frames as PNG files, the reference images of
+//!   snapshot tests.
 
 #![cfg_attr(
     test,
@@ -50,6 +52,7 @@ mod host;
 pub mod legacy;
 pub mod machine;
 pub mod parity;
+pub mod png;
 pub mod redirect;
 mod rng;
 pub mod zfs;

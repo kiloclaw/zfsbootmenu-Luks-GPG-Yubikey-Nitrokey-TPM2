@@ -3896,6 +3896,7 @@ name = "zbm-console"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
+ "insta",
  "pretty_assertions",
  "rustix",
  "signal-hook 0.4.5",
@@ -4059,6 +4060,7 @@ version = "0.1.0"
 name = "zbm-testkit"
 version = "0.1.0"
 dependencies = [
+ "miniz_oxide 0.8.9",
  "pretty_assertions",
  "serde",
  "serde_json",

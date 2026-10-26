@@ -59,7 +59,7 @@ Third-party crates:
 - `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `swash`
-- `zbm-testkit`: `serde`, `serde_json`
+- `zbm-testkit`: `miniz_oxide`, `serde`, `serde_json`
 - `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
 - `zbm-startup`: `thiserror`

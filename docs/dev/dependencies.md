@@ -62,7 +62,8 @@ These are development dependencies only, allowed for every crate (`TEST_THIRD_PA
 
 | Crate | Why |
 | --- | --- |
-| `insta` | Snapshot tests: the menu's screens (`crates/zbm-tui/src/snapshots/`) |
+| `insta` | Snapshot tests: the menu's screens (`crates/zbm-tui/src/snapshots/`) and the console's reference images (`crates/zbm-console/src/screen/tests/reference/`) |
+| `miniz_oxide` | The compression of those images as PNG files (`zbm-testkit`); already vendored for `backtrace`, which `brush-shell` uses |
 | `proptest` | Property tests: parsing never panics, valid values round-trip (`zbm-types`) |
 | `pretty_assertions` | Readable diffs when an assertion of equality fails |
 | `serde`, `serde_json` | The golden files of the legacy results (`zbm_testkit::parity`, in `tests/golden/legacy/`); `serde`'s `derive` describes a test's recorded result |

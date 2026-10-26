@@ -1,0 +1,5 @@
+---
+source: crates/zbm-console/src/screen/tests/reference.rs
+extension: png
+snapshot_kind: binary
+---
