@@ -18,6 +18,8 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+use crate::error::{Error, Result};
+
 /// The LUKS passphrase of most test volumes.
 pub const PW: &str = "pw";
 
@@ -135,6 +137,31 @@ impl Settings {
     pub fn disks(&self, group: &str) -> PathBuf {
         self.work.join("disks").join(group)
     }
+
+    /// The kernel and initramfs of the image with an older ZFS, when both
+    /// variables are set.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Setup`] when either is not a file, such as a placeholder
+    /// copied as it was: QEMU would stop at once, before the test sees why.
+    pub fn old_image_files(&self) -> Result<Option<(&Path, &Path)>> {
+        let Some((kernel, initrd)) = &self.old_image else {
+            return Ok(None);
+        };
+        for (name, path) in [
+            ("ZBMTEST_OLD_KERNEL", kernel),
+            ("ZBMTEST_OLD_INITRD", initrd),
+        ] {
+            if !path.is_file() {
+                return Err(Error::Setup(format!(
+                    "{name}={} is not a file",
+                    path.display()
+                )));
+            }
+        }
+        Ok(Some((kernel, initrd)))
+    }
 }
 
 /// The checkout this crate was built from.
@@ -165,6 +192,7 @@ mod tests {
         assert_eq!(settings.runtime, ZbmRuntime::Legacy);
         assert!(settings.shadow && !settings.reuse);
         assert_eq!(settings.old_image, None);
+        assert_eq!(settings.old_image_files().unwrap(), None);
         assert!(settings.guest_files().ends_with("tests/luks/vm"));
     }
 
@@ -196,6 +224,17 @@ mod tests {
         assert!(settings.reuse && !settings.shadow);
         assert_eq!(settings.runtime.as_str(), "rust");
         assert_eq!(settings.old_image, Some(("/k".into(), "/i".into())));
+        let error = settings.old_image_files().unwrap_err().to_string();
+        assert_eq!(error, "ZBMTEST_OLD_KERNEL=/k is not a file");
         assert_eq!(settings.repo, PathBuf::from("/r"));
+        let file = PathBuf::from(env!("CARGO_MANIFEST_PATH"));
+        let found = Settings {
+            old_image: Some((file.clone(), file.clone())),
+            ..settings
+        };
+        assert_eq!(
+            found.old_image_files().unwrap(),
+            Some((file.as_path(), file.as_path()))
+        );
     }
 }

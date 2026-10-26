@@ -114,7 +114,7 @@ pub(super) fn unlock(vm: &mut Vm<'_>) -> Result<(usize, String)> {
 /// An image with an older ZFS refuses the ZFS 2.4.4 pools.
 pub(super) fn oldzfs(test: &Test) -> Result<()> {
     let settings = test.settings();
-    let Some((kernel, initrd)) = &settings.old_image else {
+    let Some((kernel, initrd)) = settings.old_image_files()? else {
         test.skip("ZBMTEST_OLD_KERNEL and ZBMTEST_OLD_INITRD are not set");
         return Ok(());
     };

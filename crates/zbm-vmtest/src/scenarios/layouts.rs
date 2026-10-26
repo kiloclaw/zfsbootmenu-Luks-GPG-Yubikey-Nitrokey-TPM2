@@ -300,7 +300,7 @@ fn check_features(test: &Test, boot: &Boot, name: &str, group: &Group) {
 /// Boots the pools of a group with an image with an older ZFS.
 fn oldzfs(test: &Test, name: &str) -> Result<()> {
     let settings = test.settings();
-    let Some((kernel, initrd)) = &settings.old_image else {
+    let Some((kernel, initrd)) = settings.old_image_files()? else {
         test.skip("ZBMTEST_OLD_KERNEL and ZBMTEST_OLD_INITRD are not set");
         return Ok(());
     };
