@@ -201,3 +201,45 @@ fn a_second_process_waits_for_the_image_being_built() {
     );
     cleanup(&settings);
 }
+
+#[test]
+fn each_process_boots_its_own_links_which_a_rebuild_leaves_alone() {
+    let settings = settings("links");
+    let images = settings.work.join("zbm");
+    let build = images.join("auto-rust/build");
+    fs::create_dir_all(&build).unwrap();
+    fs::write(build.join("vmlinuz-bootmenu"), "kernel 1").unwrap();
+    fs::write(build.join("initramfs-bootmenu.img"), "initrd 1").unwrap();
+    let built = Image {
+        kernel: build.join("vmlinuz-bootmenu"),
+        initrd: build.join("initramfs-bootmenu.img"),
+        efi: build.join("vmlinuz.EFI"),
+        debug: build.join("debug"),
+        shadow: false,
+    };
+    // The directory of a process that has ended (no PID is this large).
+    let ended = images.join("in-use/auto.4294967295");
+    fs::create_dir_all(&ended).unwrap();
+
+    let own = own_links(&built, &images, "auto-rust").unwrap();
+
+    let dir = images.join(format!("in-use/auto-rust.{}", std::process::id()));
+    assert_eq!(own.kernel, dir.join("vmlinuz-bootmenu"));
+    assert_eq!(own.initrd, dir.join("initramfs-bootmenu.img"));
+    // No EFI image was built: the path stays as it was.
+    assert_eq!(own.efi, built.efi);
+    assert!(!ended.exists());
+
+    // Another process rebuilds the variant: the links keep the old files.
+    fs::remove_dir_all(&build).unwrap();
+    fs::create_dir_all(&build).unwrap();
+    fs::write(build.join("vmlinuz-bootmenu"), "kernel 2").unwrap();
+    assert_eq!(fs::read_to_string(&own.kernel).unwrap(), "kernel 1");
+    assert_eq!(fs::read_to_string(&own.initrd).unwrap(), "initrd 1");
+
+    // This process's next build replaces its links.
+    let again = own_links(&built, &images, "auto-rust").unwrap();
+    assert_eq!(fs::read_to_string(&again.kernel).unwrap(), "kernel 2");
+    assert!(!again.initrd.exists());
+    cleanup(&settings);
+}

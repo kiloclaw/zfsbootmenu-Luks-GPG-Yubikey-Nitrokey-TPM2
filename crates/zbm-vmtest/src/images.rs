@@ -257,7 +257,10 @@ fn generate_config(spec: &ImageSpec) -> String {
 /// build runs the checkout's `packaging/container/build-init.sh`, so
 /// changes to it need no new build container. `zbm`'s debug file is left
 /// in `build/debug/<build ID>.debug`. Harness processes run in parallel
-/// build an image one at a time: the others wait, then reuse it.
+/// build an image one at a time: the others wait, then reuse it. Each
+/// boots its own hard links to the files ([`own_links`]), so that another
+/// process rebuilding the variant, which removes the build first, cannot
+/// take them away while its machines start.
 ///
 /// # Errors
 ///
@@ -287,7 +290,7 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     let stamp = inputs(settings, spec, &conf);
     let built = image.initrd.exists() && (!spec.efi || image.efi.exists());
     if settings.reuse && built && fs::read_to_string(&stamp_path).ok().as_deref() == Some(&stamp) {
-        return Ok(image);
+        return own_links(&image, &settings.work.join("zbm"), &variant);
     }
     prepare_build(settings, spec, &dir, &conf)?;
     let features = spec.features.as_deref();
@@ -311,7 +314,72 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
         });
     }
     fs::write(&stamp_path, stamp).map_err(Error::io("writing the image's inputs"))?;
-    Ok(image)
+    own_links(&image, &settings.work.join("zbm"), &variant)
+}
+
+/// The directory below `images` (`in-use/`) where each harness process
+/// keeps hard links to the images it boots.
+const IN_USE: &str = "in-use";
+
+/// Hard links to the files of `image`, built in `images`, in a directory of
+/// this process (`in-use/<variant>.<pid>`), which replace those of its last
+/// build of `variant`; one process runs its tests one after another, so
+/// none of its machines still needs them. A rebuild by another process
+/// writes new files and leaves these as they are. The directories of
+/// processes that have ended are removed. A file that cannot be linked is
+/// copied.
+///
+/// # Errors
+///
+/// [`Error::Io`] when the directory or a file cannot be made.
+pub fn own_links(image: &Image, images: &Path, variant: &str) -> Result<Image> {
+    let in_use = images.join(IN_USE);
+    remove_ended(&in_use);
+    let dir = in_use.join(format!("{variant}.{}", std::process::id()));
+    if dir.exists() {
+        fs::remove_dir_all(&dir).map_err(Error::io("removing the old links to an image"))?;
+    }
+    fs::create_dir_all(&dir).map_err(Error::io("creating the links to an image"))?;
+    let link = |file: &Path| -> Result<PathBuf> {
+        let Some(name) = file.file_name() else {
+            return Ok(file.to_path_buf());
+        };
+        if !file.exists() {
+            return Ok(file.to_path_buf());
+        }
+        let own = dir.join(name);
+        if fs::hard_link(file, &own).is_err() {
+            fs::copy(file, &own).map_err(Error::io("copying an image file"))?;
+        }
+        Ok(own)
+    };
+    Ok(Image {
+        kernel: link(&image.kernel)?,
+        initrd: link(&image.initrd)?,
+        efi: link(&image.efi)?,
+        debug: image.debug.clone(),
+        shadow: image.shadow,
+    })
+}
+
+/// Removes the directories of `in_use` whose process has ended.
+fn remove_ended(in_use: &Path) {
+    let Ok(entries) = fs::read_dir(in_use) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let pid = name
+            .to_string_lossy()
+            .rsplit_once('.')
+            .map(|(_, pid)| pid.to_owned());
+        let ended = pid
+            .filter(|pid| !pid.is_empty() && pid.bytes().all(|byte| byte.is_ascii_digit()))
+            .is_some_and(|pid| !Path::new("/proc").join(pid).exists());
+        if ended {
+            fs::remove_dir_all(entry.path()).ok();
+        }
+    }
 }
 
 /// Waits for, then holds, the lock `name` in `dir` (`<name>.lock`), until
