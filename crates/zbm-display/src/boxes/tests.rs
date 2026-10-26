@@ -98,7 +98,7 @@ fn blocks_fill_their_part_of_the_cell() {
 #[test]
 fn other_characters_are_left_to_the_font() {
     assert_eq!(mask('a', 8, 16), None);
-    assert_eq!(mask('╱', 8, 16), None);
+    assert_eq!(mask('\u{2577}', 8, 16).map(|mask| mask.len()), Some(128));
     assert_eq!(mask('■', 8, 16), None);
     assert_eq!(mask('─', 0, 0), Some(Vec::new()));
 }

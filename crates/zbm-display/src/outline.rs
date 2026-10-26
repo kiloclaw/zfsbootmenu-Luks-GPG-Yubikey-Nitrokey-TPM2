@@ -13,6 +13,8 @@ use swash::scale::{Render, ScaleContext, Source};
 use swash::zeno::Format;
 use swash::{CacheKey, FontRef};
 
+use crate::decor::Lines;
+
 /// A character rasterized: its coverage (0 to 255) per pixel, and where it
 /// sits in the cell.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -32,10 +34,13 @@ pub struct Glyph {
 impl Glyph {
     /// The coverage at `x`, `y` of the cell; 0 outside the glyph.
     pub fn at(&self, x: u32, y: u32) -> u8 {
-        let (gx, gy) = (
-            i64::from(x) - i64::from(self.left),
-            i64::from(y) - i64::from(self.top),
-        );
+        self.at_signed(i64::from(x), i64::from(y))
+    }
+
+    /// The coverage at `x`, `y` from the cell's top left corner, which may
+    /// lie left of it or above it; 0 outside the glyph.
+    pub fn at_signed(&self, x: i64, y: i64) -> u8 {
+        let (gx, gy) = (x - i64::from(self.left), y - i64::from(self.top));
         if gx < 0 || gy < 0 || gx >= i64::from(self.width) || gy >= i64::from(self.height) {
             return 0;
         }
@@ -79,6 +84,8 @@ pub struct Outline {
     cell: (u32, u32),
     /// The baseline, from the cell's top edge.
     baseline: i32,
+    /// Where the font puts underlines and strikeouts.
+    lines: Lines,
     glyphs: HashMap<char, Option<Glyph>>,
 }
 
@@ -89,6 +96,18 @@ impl std::fmt::Debug for Outline {
             .field("cell", &self.cell)
             .finish_non_exhaustive()
     }
+}
+
+/// The row `value` pixels below `baseline`, if it is in the cell's range.
+fn row_below(baseline: i32, value: f32) -> Option<u32> {
+    let rounded = value.round();
+    if !(-65_536.0..65_536.0).contains(&rounded) {
+        return None;
+    }
+    // The range check makes the conversion exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let offset = rounded as i32;
+    u32::try_from(baseline + offset).ok()
 }
 
 /// `value` rounded to a whole number of pixels, at least `least`.
@@ -131,6 +150,12 @@ impl Outline {
         #[allow(clippy::cast_precision_loss, reason = "cell heights are small")]
         let spare = (height as f32 - line_pixels).max(0.0) / 2.0;
         let baseline = i32::try_from(pixels(scaled.ascent + spare, 0)).unwrap_or(0);
+        // The offsets go up from the baseline to the lines' tops.
+        let lines = Lines {
+            thickness: pixels(scaled.stroke_size, 1),
+            underline: row_below(baseline, -scaled.underline_offset),
+            strikeout: row_below(baseline, -scaled.strikeout_offset),
+        };
         Ok(Outline {
             data,
             offset,
@@ -139,6 +164,7 @@ impl Outline {
             ppem,
             cell: (width, height),
             baseline,
+            lines,
             glyphs: HashMap::new(),
         })
     }
@@ -146,6 +172,11 @@ impl Outline {
     /// The cell, as (width, height) in pixels.
     pub fn cell(&self) -> (u32, u32) {
         self.cell
+    }
+
+    /// Where the font puts underlines and strikeouts in a cell.
+    pub fn lines(&self) -> Lines {
+        self.lines
     }
 
     /// The size in pixels per em.

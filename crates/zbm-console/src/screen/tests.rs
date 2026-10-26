@@ -348,3 +348,24 @@ fn a_scrolled_screen_is_moved_and_looks_as_if_drawn_anew() {
     assert_eq!(scrolled.text(), fresh.text());
     assert_eq!(differing(&mut scrolled, &mut fresh), 0);
 }
+
+#[test]
+fn a_wide_character_is_drawn_over_both_of_its_cells() {
+    let mut console = console();
+    let red = Rgb(0xaa, 0, 0);
+
+    console.feed("\x1b[41m中\x1b[0mx".as_bytes());
+    console.draw();
+
+    assert_eq!(console.text().lines().next(), Some("中x"));
+    // Terminus has no glyph for it: its question mark is drawn in the
+    // middle of the two cells, on their background.
+    for column in [0, 1] {
+        assert!(colours(&mut console, column, 0).contains(&red), "{column}");
+    }
+    assert!(!colours(&mut console, 2, 0).contains(&red));
+    // Drawing the second cell alone draws the character again.
+    console.feed(b"\x1b[1;2H");
+    console.draw();
+    assert!(colours(&mut console, 1, 0).contains(&red));
+}

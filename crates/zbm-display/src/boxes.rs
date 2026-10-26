@@ -4,8 +4,10 @@
 //! bars are made of them.
 //!
 //! Lines are light, heavy or double; rounded corners are drawn square and
-//! dashed lines solid, as the Linux console does; diagonals are left to
-//! the font.
+//! dashed lines solid, as the Linux console does. Diagonals, Braille,
+//! Powerline symbols and sextants are drawn as shapes too.
+
+mod symbols;
 
 /// How heavy a line is.
 const NONE: u8 = 0;
@@ -235,6 +237,14 @@ fn draw_block(mask: &mut Mask, c: u32) {
     }
 }
 
+/// Whether `c` is drawn as a shape by [`mask`] rather than by the font.
+pub fn is_drawn(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0x2500..=0x259f | 0x2800..=0x28ff | 0xe0b0..=0xe0b3 | 0xe0b8..=0xe0bf | 0x1fb00..=0x1fb3b
+    )
+}
+
 /// The coverage of `c` in a cell of `width` × `height` pixels, row by row,
 /// when it is a box drawing or block character this module draws.
 pub fn mask(c: char, width: u32, height: u32) -> Option<Vec<u8>> {
@@ -244,12 +254,13 @@ pub fn mask(c: char, width: u32, height: u32) -> Option<Vec<u8>> {
         0x2500..=0x257f => {
             let lines = BOXES.get(usize::try_from(code - 0x2500).ok()?).copied()?;
             if lines == 0 {
-                return None;
+                symbols::draw(&mut mask, code)?;
+            } else {
+                draw_lines(&mut mask, lines);
             }
-            draw_lines(&mut mask, lines);
         }
         0x2580..=0x259f => draw_block(&mut mask, code),
-        _ => return None,
+        _ => symbols::draw(&mut mask, code)?,
     }
     Some(mask.coverage)
 }

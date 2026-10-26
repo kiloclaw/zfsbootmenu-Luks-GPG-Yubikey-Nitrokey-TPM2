@@ -26,7 +26,7 @@ use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as TermRgb};
 use zbm_display::frame::{Area, Frame, Rgb};
-use zbm_display::grid::{CellStyle, Grid};
+use zbm_display::grid::{CellStyle, Grid, Neighbour, Text};
 
 use crate::colour;
 use crate::keys::{self, Flavour, Modes};
@@ -300,11 +300,13 @@ impl Console {
     }
 
     /// Draws the cells of `lines` (line, first and last column), and keeps
-    /// the hashes of their rows.
+    /// the hashes of their rows. The cells on either side are drawn again
+    /// too: what a glyph of the changed cells reaches into them changed.
     fn draw_lines(&mut self, lines: &[(usize, usize, usize)], cursor: Option<Cursor>) -> usize {
         let mut drawn = 0;
+        let last = usize::from(self.columns) - 1;
         for &(line, left, right) in lines {
-            for column in left..=right.min(usize::from(self.columns) - 1) {
+            for column in left.saturating_sub(1)..=right.saturating_add(1).min(last) {
                 self.draw_cell(line, column, cursor);
                 drawn += 1;
             }
@@ -355,16 +357,72 @@ impl Console {
         hasher.finish()
     }
 
+    /// The flags of the cell at `line`, `column`, if there is one.
+    fn flags(&self, line: usize, column: usize) -> Option<Flags> {
+        let grid = self.term.grid();
+        let row = i32::try_from(line).ok()?;
+        (line < grid.screen_lines() && column < grid.columns())
+            .then(|| grid[Line(row)][Column(column)].flags)
+    }
+
+    /// The characters next to the cells from `column`, `span` wide, whose
+    /// glyphs may reach into them: the one before, from the start of its
+    /// cells, and the one after.
+    fn neighbours(&self, line: usize, column: usize, span: usize) -> Vec<Neighbour> {
+        let (cell, _) = self.grid.cell();
+        let width = i64::from(cell);
+        let mut found = Vec::with_capacity(2);
+        let before = column.checked_sub(1).map(|left| {
+            let is_spacer = self
+                .flags(line, left)
+                .is_some_and(|flags| flags.contains(Flags::WIDE_CHAR_SPACER));
+            if is_spacer {
+                (left.saturating_sub(1), -2 * width)
+            } else {
+                (left, -width)
+            }
+        });
+        let after = Some((column + span, width * i64::try_from(span).unwrap_or(1)));
+        for (at, offset) in before.into_iter().chain(after) {
+            if let Some((c, style, ..)) = look(&self.term, line, at, None)
+                && c != ' '
+            {
+                found.push(Neighbour {
+                    c,
+                    fg: style.fg,
+                    offset,
+                });
+            }
+        }
+        found
+    }
+
     /// Draws the cell at `line`, `column`, with the cursor over it when it
-    /// is there.
+    /// is there. A wide character is drawn over both of its cells, from
+    /// either.
     fn draw_cell(&mut self, line: usize, column: usize, cursor: Option<Cursor>) {
+        let is_spacer = |flags: Option<Flags>| {
+            flags.is_some_and(|flags| flags.contains(Flags::WIDE_CHAR_SPACER))
+        };
+        let column = if column > 0 && is_spacer(self.flags(line, column)) {
+            column - 1
+        } else {
+            column
+        };
         let (Ok(x), Ok(y)) = (u16::try_from(column), u16::try_from(line)) else {
             return;
         };
         let Some((c, style, marks, shape)) = look(&self.term, line, column, cursor) else {
             return;
         };
-        self.grid.draw(&mut self.frame, x, y, c, style);
+        let is_wide = self
+            .flags(line, column)
+            .is_some_and(|flags| flags.contains(Flags::WIDE_CHAR));
+        let span = if is_wide { 2 } else { 1 };
+        let neighbours = self.neighbours(line, column, usize::from(span));
+        let text = Text { c, style, span };
+        self.grid
+            .draw_text(&mut self.frame, x, y, text, &neighbours);
         // Combining marks, such as the accent of an `e` followed by U+0301,
         // are drawn over the character they belong to.
         for &mark in marks {
@@ -372,7 +430,8 @@ impl Console {
         }
         if let Some(shape) = shape {
             let area = self.grid.area(x, y);
-            draw_cursor(&mut self.frame, area, shape, style.fg);
+            let colour = colour::cursor_colour(self.term.colors()).unwrap_or(style.fg);
+            draw_cursor(&mut self.frame, area, shape, colour);
         }
     }
 
@@ -425,7 +484,11 @@ fn look(
     cursor: Option<Cursor>,
 ) -> Option<(char, CellStyle, &[char], Option<CursorShape>)> {
     let row = i32::try_from(line).ok()?;
-    let cell = &term.grid()[Line(row)][Column(column)];
+    let grid = term.grid();
+    if line >= grid.screen_lines() || column >= grid.columns() {
+        return None;
+    }
+    let cell = &grid[Line(row)][Column(column)];
     let shape = cursor
         .filter(|cursor| cursor.line == line && cursor.column == column)
         .map(|cursor| cursor.shape);

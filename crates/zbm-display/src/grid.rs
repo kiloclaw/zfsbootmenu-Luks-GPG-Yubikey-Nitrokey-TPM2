@@ -24,6 +24,31 @@ pub struct CellStyle {
     pub decoration: Decoration,
 }
 
+/// What is drawn over a span of cells: a character and its style, over
+/// two cells for a wide one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Text {
+    /// The character.
+    pub c: char,
+    /// How it is drawn.
+    pub style: CellStyle,
+    /// How many cells it takes: 1, or 2 for a wide character.
+    pub span: u16,
+}
+
+/// A character next to the one drawn, whose glyph may reach into its
+/// cells, as italic and some wide letters do.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Neighbour {
+    /// The character.
+    pub c: char,
+    /// Its colour.
+    pub fg: Rgb,
+    /// Where its cell starts, in pixels from the left edge of the cells
+    /// drawn: negative on the left.
+    pub offset: i64,
+}
+
 /// What the characters are drawn with.
 #[derive(Debug)]
 enum Face {
@@ -112,7 +137,26 @@ impl Grid {
 
     /// Draws `c` in the cell at `column`, `row`.
     pub fn draw(&mut self, frame: &mut Frame, column: u16, row: u16, c: char, style: CellStyle) {
-        let area = self.area(column, row);
+        let text = Text { c, style, span: 1 };
+        self.draw_text(frame, column, row, text, &[]);
+    }
+
+    /// Draws `text` in the cells from `column`, `row`, with the parts of
+    /// the glyphs of `neighbours` that reach into them over it.
+    pub fn draw_text(
+        &mut self,
+        frame: &mut Frame,
+        column: u16,
+        row: u16,
+        text: Text,
+        neighbours: &[Neighbour],
+    ) {
+        let cell = self.area(column, row);
+        let area = Area {
+            width: cell.width * u32::from(text.span.max(1)),
+            ..cell
+        };
+        let Text { c, style, .. } = text;
         match &mut self.face {
             Face::Bitmap {
                 font,
@@ -123,15 +167,25 @@ impl Grid {
                     .entry(c)
                     .or_insert_with(|| font.glyph_for(c).or_else(|| font.glyph_for('?')));
                 let bitmap = glyph.and_then(|glyph| font.bitmap(glyph)).unwrap_or(&[]);
-                draw_bitmap(frame, area, (font.cell(), *scale), bitmap, style);
+                // A console font's glyph is one cell wide: centred across
+                // the span.
+                frame.fill(area, style.bg);
+                let centred = Area {
+                    x: area.x + (area.width - cell.width) / 2,
+                    ..cell
+                };
+                draw_bitmap(frame, centred, (font.cell(), *scale), bitmap, style);
                 // A pixel of the font thick.
-                decor::draw(frame, area, style.decoration, style.fg, *scale);
+                let lines = decor::Lines::thick(*scale);
+                decor::draw(frame, area, style.decoration, style.fg, lines);
             }
             Face::Outline(outline) => {
                 draw_outline(frame, area, outline, c, style);
-                // As thick as a light box line.
-                let thickness = area.width / 8;
-                decor::draw(frame, area, style.decoration, style.fg, thickness);
+                for &neighbour in neighbours {
+                    draw_overhang(frame, area, outline, neighbour);
+                }
+                let lines = outline.lines();
+                decor::draw(frame, area, style.decoration, style.fg, lines);
             }
         }
         frame.touch(area);
@@ -259,6 +313,34 @@ fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, s
     }
 }
 
+/// Blends into `area` the part of the glyph of `neighbour` that reaches
+/// into it. Shapes that [`boxes`] draws stay in their cells.
+fn draw_overhang(frame: &mut Frame, area: Area, outline: &mut Outline, neighbour: Neighbour) {
+    if boxes::is_drawn(neighbour.c) {
+        return;
+    }
+    let Some(glyph) = outline.glyph(neighbour.c) else {
+        return;
+    };
+    let from = neighbour.offset + i64::from(glyph.left);
+    let to = from + i64::from(glyph.width);
+    let (start, end) = (from.max(0), to.min(i64::from(area.width)));
+    for y in 0..area.height {
+        for x in start..end {
+            let coverage = glyph.at_signed(x - neighbour.offset, i64::from(y));
+            let Ok(x) = u32::try_from(x) else {
+                continue;
+            };
+            if coverage == 0 {
+                continue;
+            }
+            let (px, py) = (area.x + x, area.y + y);
+            let under = frame.pixel(px, py).unwrap_or(Rgb::BLACK);
+            frame.set(px, py, blend(under, neighbour.fg, coverage));
+        }
+    }
+}
+
 /// Whether the pixel at `x`, `y` of a glyph's bitmap is set.
 fn is_lit(bitmap: &[u8], row_bytes: usize, x: u32, y: u32) -> bool {
     let (Ok(x), Ok(y)) = (usize::try_from(x), usize::try_from(y)) else {
@@ -270,192 +352,4 @@ fn is_lit(bitmap: &[u8], row_bytes: usize, x: u32, y: u32) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    /// A PSF 2 font of 8×2 glyphs, with a table: `A` with its top row set,
-    /// `?` with its left column set, and `B` blank.
-    fn font() -> Font {
-        let mut bytes = vec![0x72, 0xb5, 0x4a, 0x86];
-        for field in [0_u32, 32, 1, 3, 2, 2, 8] {
-            bytes.extend_from_slice(&field.to_le_bytes());
-        }
-        bytes.extend_from_slice(&[0xff, 0x00, 0x80, 0x80, 0x00, 0x00]);
-        bytes.extend_from_slice(b"A\xff?\xffB\xff");
-        Font::parse(&bytes).unwrap()
-    }
-
-    const WHITE: Rgb = Rgb(255, 255, 255);
-
-    fn style(underline: bool) -> CellStyle {
-        CellStyle {
-            fg: WHITE,
-            bg: Rgb::BLACK,
-            decoration: Decoration::underlined(underline),
-        }
-    }
-
-    /// The rows of a frame as text: `#` for white, `.` for anything else.
-    fn picture(frame: &Frame) -> Vec<String> {
-        let (_, height) = frame.size();
-        (0..height)
-            .map(|y| {
-                frame
-                    .row(y)
-                    .unwrap()
-                    .iter()
-                    .map(|&p| if p == WHITE.xrgb() { '#' } else { '.' })
-                    .collect()
-            })
-            .collect()
-    }
-
-    #[test]
-    fn cells_are_the_font_s_scaled() {
-        let grid = Grid::new(font(), 2);
-
-        assert_eq!(grid.cell(), (16, 4));
-        assert_eq!(grid.dimensions((100, 9)), (6, 2));
-        let area = grid.area(1, 1);
-        assert_eq!((area.x, area.y, area.width, area.height), (16, 4, 16, 4));
-        assert_eq!(Grid::new(font(), 0).cell(), (8, 2));
-    }
-
-    #[test]
-    fn characters_are_drawn_from_their_glyph_or_a_question_mark() {
-        let mut grid = Grid::new(font(), 1);
-        let mut frame = Frame::new(24, 2);
-
-        grid.draw(&mut frame, 0, 0, 'A', style(false));
-        grid.draw(&mut frame, 1, 0, 'é', style(false));
-        grid.draw(&mut frame, 2, 0, 'B', style(true));
-
-        assert_eq!(
-            picture(&frame),
-            ["#########.......", "........#......."]
-                .iter()
-                .zip(["........", "########"])
-                .map(|(left, right)| format!("{left}{right}"))
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn a_doubled_font_draws_each_pixel_as_a_square() {
-        let mut grid = Grid::new(font(), 2);
-        let mut frame = Frame::new(16, 4);
-        frame.take_damage();
-
-        grid.draw(&mut frame, 0, 0, '?', style(false));
-
-        assert_eq!(
-            picture(&frame),
-            [
-                "##..............",
-                "##..............",
-                "##..............",
-                "##.............."
-            ]
-        );
-        assert!(frame.take_damage().is_some());
-    }
-
-    /// A grid of the image's TrueType font in cells 20 pixels high.
-    fn outline_grid() -> Grid {
-        let font = crate::outline::tests::DEJAVU.to_vec();
-        Grid::outline(Outline::new(font, 20).unwrap()).named("DejaVuSansMono.ttf")
-    }
-
-    /// The distinct colours of the cell at `column`, 0.
-    fn colours(frame: &Frame, grid: &Grid, column: u16) -> Vec<Rgb> {
-        let area = grid.area(column, 0);
-        let mut found = Vec::new();
-        for y in area.y..area.y + area.height {
-            for x in area.x..area.x + area.width {
-                let pixel = frame.pixel(x, y).unwrap();
-                if !found.contains(&pixel) {
-                    found.push(pixel);
-                }
-            }
-        }
-        found
-    }
-
-    #[test]
-    fn a_truetype_font_blends_its_characters_into_the_cell() {
-        let mut grid = outline_grid();
-        let (width, height) = grid.cell();
-        let mut frame = Frame::new(width * 4, height);
-
-        grid.draw(&mut frame, 0, 0, 'M', style(false));
-        grid.draw(&mut frame, 1, 0, '─', style(false));
-        grid.draw(&mut frame, 2, 0, ' ', style(true));
-        grid.draw(&mut frame, 3, 0, '\u{e000}', style(false));
-
-        assert_eq!((grid.name(), height), ("DejaVuSansMono.ttf", 20));
-        // Anti-aliased: more than the two colours of the cell.
-        assert!(colours(&frame, &grid, 0).len() > 2);
-        // The line crosses the whole cell, in full colour.
-        let line = frame.row(height / 2).unwrap();
-        assert!(
-            line[usize::try_from(width).unwrap()..usize::try_from(2 * width).unwrap()]
-                .iter()
-                .all(|&pixel| pixel == WHITE.xrgb())
-        );
-        // An underline at the bottom of an empty cell.
-        let bottom = frame.pixel(2 * width + 1, height - 1).unwrap();
-        assert_eq!(bottom, WHITE);
-        assert_eq!(frame.pixel(2 * width + 1, 0).unwrap(), Rgb::BLACK);
-        // A character the font lacks shows the replacement character.
-        assert!(colours(&frame, &grid, 3).len() > 1);
-        assert_eq!(Grid::new(font(), 1).name(), "psf");
-        assert!(format!("{grid:?}").contains("Outline"));
-    }
-
-    #[test]
-    fn colours_blend_by_coverage() {
-        assert_eq!(blend(Rgb::BLACK, WHITE, 0), Rgb::BLACK);
-        assert_eq!(blend(Rgb::BLACK, WHITE, 255), WHITE);
-        assert_eq!(
-            blend(Rgb(0, 100, 200), Rgb(200, 100, 0), 128),
-            Rgb(100, 100, 100)
-        );
-    }
-
-    #[test]
-    fn combining_marks_are_drawn_over_their_character() {
-        let mut grid = outline_grid();
-        let (width, height) = grid.cell();
-        let mut frame = Frame::new(width * 2, height);
-        grid.draw(&mut frame, 0, 0, 'e', style(false));
-        let before: Vec<u32> = (0..height)
-            .flat_map(|y| frame.row(y).unwrap().to_vec())
-            .collect();
-
-        grid.draw_mark(&mut frame, 0, 0, '\u{301}', WHITE);
-
-        let changed: Vec<(u32, u32)> = (0..height)
-            .flat_map(|y| (0..width * 2).map(move |x| (x, y)))
-            .filter(|&(x, y)| {
-                let index = usize::try_from(y * width * 2 + x).unwrap();
-                frame.pixel(x, y).unwrap().xrgb() != before[index]
-            })
-            .collect();
-        // The acute accent: above the e, inside its cell.
-        assert!(!changed.is_empty());
-        assert!(
-            changed.iter().all(|&(x, y)| x < width && y < height / 2),
-            "{changed:?}"
-        );
-
-        // A console font draws a mark it has, and nothing for one it lacks.
-        let mut bitmap = Grid::new(font(), 1);
-        let mut frame = Frame::new(16, 2);
-        bitmap.draw(&mut frame, 0, 0, 'B', style(false));
-        bitmap.draw_mark(&mut frame, 0, 0, 'A', WHITE);
-        bitmap.draw_mark(&mut frame, 1, 0, '\u{301}', WHITE);
-        assert_eq!(picture(&frame), ["########........", "................"]);
-    }
-}
+mod tests;

@@ -90,3 +90,16 @@ fn coverage_outside_a_glyph_is_nothing() {
     assert_eq!(pixels(0.2, 1), 1);
     assert_eq!(pixels(7.6, 1), 8);
 }
+
+#[test]
+fn the_font_places_its_underline_and_strikeout() {
+    let outline = Outline::new(DEJAVU.to_vec(), 20).unwrap();
+    let lines = outline.lines();
+    let (underline, strikeout) = (lines.underline.unwrap(), lines.strikeout.unwrap());
+
+    assert!(lines.thickness >= 1);
+    // Below the middle and above the bottom; the strikeout across the
+    // middle of lower-case letters, above the underline.
+    assert!(underline > 10 && underline < 20, "{lines:?}");
+    assert!(strikeout > 5 && strikeout < underline, "{lines:?}");
+}

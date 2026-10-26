@@ -7,7 +7,7 @@
 
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::term::color::Colors;
-use alacritty_terminal::vte::ansi::{Color, Rgb as TermRgb};
+use alacritty_terminal::vte::ansi::{Color, NamedColor, Rgb as TermRgb};
 use zbm_display::decor::{Decoration, Underline};
 use zbm_display::frame::Rgb;
 use zbm_display::grid::CellStyle;
@@ -104,13 +104,20 @@ pub fn style(colours: &Colors, cell: &Cell) -> CellStyle {
     }
 }
 
+/// The colour a program gave the cursor (OSC 12), until it reset it (OSC
+/// 112).
+pub fn cursor_colour(colours: &Colors) -> Option<Rgb> {
+    colours[NamedColor::Cursor].map(rgb)
+}
+
 /// The style of the cursor drawn over `cell` as a block: its colours
-/// swapped.
+/// swapped, or the cursor's colour behind the character's background as
+/// text.
 pub fn cursor(colours: &Colors, cell: &Cell) -> CellStyle {
     let style = style(colours, cell);
     CellStyle {
         fg: style.bg,
-        bg: style.fg,
+        bg: cursor_colour(colours).unwrap_or(style.fg),
         decoration: Decoration::default(),
     }
 }
@@ -120,7 +127,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use alacritty_terminal::vte::ansi::NamedColor;
 
     const DEFAULT_FG: Color = Color::Named(NamedColor::Foreground);
 
@@ -201,6 +207,17 @@ mod tests {
             (Rgb::BLACK, Rgb(0xaa, 0xaa, 0xaa))
         );
         assert_eq!(over_cursor.decoration, Decoration::default());
+
+        // A program's cursor colour (OSC 12) is the block's.
+        let mut coloured = Colors::default();
+        coloured[NamedColor::Cursor] = Some(TermRgb {
+            r: 0,
+            g: 0xff,
+            b: 0,
+        });
+        let green = cursor(&coloured, &cell(DEFAULT_FG, black, Flags::empty()));
+        assert_eq!((green.fg, green.bg), (Rgb::BLACK, Rgb(0, 0xff, 0)));
+        assert_eq!(cursor_colour(&colours), None);
     }
 
     #[test]
