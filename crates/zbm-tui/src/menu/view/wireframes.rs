@@ -62,7 +62,23 @@ fn options(locked: bool, foreign: bool) -> DemoOptions {
 fn wireframes() -> Vec<Wireframe> {
     let mut all = first_wireframes();
     all.extend(unlock_wireframes());
+    all.extend(naming_wireframes());
     all
+}
+
+/// The wireframes of naming a clone and a snapshot.
+fn naming_wireframes() -> Vec<Wireframe> {
+    use Key::{Char, Text};
+    let frame = |name, keys| Wireframe {
+        name,
+        options: options(false, false),
+        ticks: 50,
+        keys,
+    };
+    vec![
+        frame("clone-name", &[Char('s'), Char('o'), Char('c'), Text("-2")]),
+        frame("snapshot-name", &[Char('n')]),
+    ]
 }
 
 /// The wireframes of unlocking and of the packages since a snapshot.

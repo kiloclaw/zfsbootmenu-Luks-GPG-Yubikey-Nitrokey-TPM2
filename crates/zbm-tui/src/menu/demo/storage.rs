@@ -4,8 +4,8 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 use super::data::NOW;
 use crate::menu::world::{
-    Action, CommandLine, Environment, Event, Origin, Outcome, RESTORE_SNAPSHOT, SAFETY_SNAPSHOT,
-    Snapshot, SnapshotInfo,
+    Action, CommandLine, Environment, Event, Origin, Outcome, RESTORE_SNAPSHOT, Snapshot,
+    SnapshotInfo,
 };
 
 /// Applies an action on storage, and says what happened.
@@ -37,14 +37,11 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
         Action::SetDefaultEnvironment(name) => set_default(snapshot, &name),
         Action::SetDefaultKernel(name, version) => set_kernel(snapshot, &name, Some(&version)),
         Action::InheritDefaultKernel(name) => set_kernel(snapshot, &name, None),
-        Action::CreateSnapshot(name) => create(snapshot, &name, "manual"),
-        Action::Rollback {
-            snapshot: target,
-            safety,
-        } => rollback(snapshot, &target, safety),
-        Action::Clone(name) => copy(snapshot, &name, "clone"),
-        Action::Duplicate(name) => copy(snapshot, &name, "copy"),
-        Action::CloneAndPromote(name) => copy(snapshot, &name, "promoted"),
+        Action::CreateSnapshot(name) => create(snapshot, &name),
+        Action::Rollback(target) => rollback(snapshot, &target),
+        Action::Clone(name, new)
+        | Action::Duplicate(name, new)
+        | Action::CloneAndPromote(name, new) => copy(snapshot, &name, &new),
         Action::ResetBootTries(name) => reset_tries(snapshot, &name),
         Action::ImportReadWrite(pool) => writable(snapshot, &pool),
         Action::RewindCheckpoint(pool) => rewind(snapshot, &pool),
@@ -116,15 +113,19 @@ fn set_kernel(snapshot: &mut Snapshot, name: &DatasetName, version: Option<&str>
     Outcome::Done(format!("{what}{note}"))
 }
 
-fn create(snapshot: &mut Snapshot, name: &DatasetName, tag: &str) -> Outcome {
+fn create(snapshot: &mut Snapshot, snapshot_name: &SnapshotName) -> Outcome {
+    let name = snapshot_name.dataset();
     let note = make_writable(snapshot, &name.pool());
     let Some(environment) = environment(snapshot, name) else {
         return Outcome::Warning(format!("{name} is gone"));
     };
-    let count = environment.snapshots.len();
-    let Ok(snapshot_name) = format!("{name}@{tag}-{count}").parse::<SnapshotName>() else {
-        return Outcome::Warning(format!("no snapshot name for {name}"));
-    };
+    if environment
+        .snapshots
+        .iter()
+        .any(|s| &s.name == snapshot_name)
+    {
+        return Outcome::Warning(format!("{snapshot_name} exists"));
+    }
     environment.snapshots.insert(
         0,
         SnapshotInfo {
@@ -136,11 +137,8 @@ fn create(snapshot: &mut Snapshot, name: &DatasetName, tag: &str) -> Outcome {
     Outcome::Done(format!("{snapshot_name} created{note}"))
 }
 
-fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Outcome {
+fn rollback(snapshot: &mut Snapshot, target: &SnapshotName) -> Outcome {
     let name = target.dataset().clone();
-    if safety {
-        create(snapshot, &name, SAFETY_SNAPSHOT);
-    }
     let Some(environment) = environment(snapshot, &name) else {
         return Outcome::Warning(format!("{name} is gone"));
     };
@@ -153,9 +151,7 @@ fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Out
         return Outcome::Warning(format!("{target} is gone"));
     };
     let before = environment.snapshots.len();
-    environment
-        .snapshots
-        .retain(|s| s.created <= created || s.name.name().starts_with(SAFETY_SNAPSHOT));
+    environment.snapshots.retain(|s| s.created <= created);
     let destroyed = before - environment.snapshots.len();
     Outcome::Done(format!(
         "{name} rolled back to {}; {destroyed} newer snapshots destroyed",
@@ -163,7 +159,7 @@ fn rollback(snapshot: &mut Snapshot, target: &SnapshotName, safety: bool) -> Out
     ))
 }
 
-fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
+fn copy(snapshot: &mut Snapshot, name: &SnapshotName, new: &DatasetName) -> Outcome {
     let pool = name.pool();
     let note = make_writable(snapshot, &pool);
     let Some(source) = snapshot
@@ -174,10 +170,9 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
     else {
         return Outcome::Warning(format!("{} is gone", name.dataset()));
     };
-    let base = format!("{}-{suffix}", source.name);
-    let Ok(new) = base.parse::<DatasetName>() else {
-        return Outcome::Warning(format!("no name for a {suffix} of {name}"));
-    };
+    if snapshot.environments.iter().any(|e| &e.name == new) {
+        return Outcome::Warning(format!("{new} exists"));
+    }
     let command_line = CommandLine {
         origin: Origin::Inherited(source.name.clone()),
         ..source.command_line
@@ -198,7 +193,10 @@ fn copy(snapshot: &mut Snapshot, name: &SnapshotName, suffix: &str) -> Outcome {
 pub(super) fn restore(snapshot: &mut Snapshot, from: &SnapshotName, count: usize) -> Outcome {
     let environment = from.dataset();
     let note = make_writable(snapshot, &environment.pool());
-    let safety = create(snapshot, environment, RESTORE_SNAPSHOT);
+    let Ok(safety) = format!("{environment}@{RESTORE_SNAPSHOT}").parse::<SnapshotName>() else {
+        return Outcome::Warning(format!("no safety snapshot for {environment}"));
+    };
+    let safety = create(snapshot, &safety);
     let files = if count == 1 { "file" } else { "files" };
     match safety {
         Outcome::Done(_) => Outcome::Done(format!(

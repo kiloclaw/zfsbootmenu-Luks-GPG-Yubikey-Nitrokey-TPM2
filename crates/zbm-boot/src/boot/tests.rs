@@ -396,6 +396,7 @@ fn boot(machine: &Machine, parity: &mut Parity) {
             env: Vec::new(),
             save_logs: None,
             command_line: None,
+            import_policy: zbm_types::ImportPolicy::default(),
         };
         kexec_kernel(system, state, &settings, &selected, shells);
         String::new()

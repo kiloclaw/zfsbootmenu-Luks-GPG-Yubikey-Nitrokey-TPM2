@@ -351,6 +351,7 @@ button-rewind = Rewind
 button-force-import = Force Import
 button-restore = Restore
 button-reseal = Re-seal
+button-create = Create
 # Before what the user types to confirm a destructive action.
 confirm-type = Type { $name } to confirm:
 error-you-can = You can:
@@ -496,10 +497,23 @@ rollback = { $environment } goes back to { $snapshot }: every change since is lo
         [one] One newer snapshot is destroyed ({ $size }): { $newest }.
        *[other] { $count } newer snapshots are destroyed ({ $size }), the newest { $newest }.
     }
-    .safety = A safety snapshot { $safety } is taken first: roll back to it to undo.
+    .undo = It cannot be undone: to keep things as they are, clone the snapshot instead.
 promote = The clone takes over the snapshots of { $environment } up to { $snapshot }.
     .title = Clone and Promote { $snapshot }
     .depends = { $environment } then depends on the clone, and cannot be destroyed without it.
+
+## Naming a new snapshot or boot environment.
+
+# Before the name being typed.
+name-label = Name:
+name-snapshot = The snapshot keeps { $environment } as it is now.
+    .title = New Snapshot of { $environment }
+name-clone = The new boot environment shares the data of { $snapshot } until either changes.
+    .title = Clone { $snapshot }
+name-duplicate = The copy of { $snapshot } shares nothing with it, and takes its space again.
+    .title = Duplicate { $snapshot }
+name-taken = { $name } exists already: choose another name
+name-empty = type a name first
 
 ## Restoring files from a snapshot.
 

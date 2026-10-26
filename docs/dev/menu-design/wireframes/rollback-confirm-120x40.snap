@@ -21,8 +21,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │     autosnap_2026-10-08_dail│ zroot/ROOT/void goes back to pre-upgrade: every change   │         15 d ago     17 MiB │
 │     autosnap_2026-10-07_dail│ since is lost.                                           │         16 d ago     30 MiB │
 │     autosnap_2026-10-06_dail│ No newer snapshot is destroyed.                          │         17 d ago     43 MiB │
-│     autosnap_2026-10-05_dail│ A safety snapshot zroot/ROOT/void@before-rollback is     │         18 d ago     56 MiB │
-│     autosnap_2026-10-04_dail│ taken first: roll back to it to undo.                    │         19 d ago     69 MiB │
+│     autosnap_2026-10-05_dail│ It cannot be undone: to keep things as they are, clone   │         18 d ago     56 MiB │
+│     autosnap_2026-10-04_dail│ the snapshot instead.                                    │         19 d ago     69 MiB │
 │     autosnap_2026-10-03_dail│                                                          │         20 d ago     82 MiB │
 │     autosnap_2026-10-02_dail│ Type void to confirm: vo                                 │         21 d ago    4.0 MiB │
 │     autosnap_2026-10-01_dail│                                                          │         22 d ago     17 MiB │

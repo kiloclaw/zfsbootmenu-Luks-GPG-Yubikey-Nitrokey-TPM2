@@ -256,6 +256,25 @@ impl Zfs for ZfsCli<'_> {
         }
     }
 
+    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError> {
+        let args = [
+            "list",
+            "-H",
+            "-p",
+            "-t",
+            "snapshot",
+            "-o",
+            "name,used",
+            "-r",
+            dataset.as_str(),
+        ];
+        let output = self.run("zfs", &args)?;
+        text::snapshot_space(&output).map_err(|error| ZfsError::Output {
+            command: format!("zfs {}", args.join(" ")),
+            detail: error.to_string(),
+        })
+    }
+
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {
         self.one_property("zfs", dataset.as_str(), property)
     }

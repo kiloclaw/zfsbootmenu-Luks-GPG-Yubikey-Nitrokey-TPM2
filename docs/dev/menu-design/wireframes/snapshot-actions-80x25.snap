@@ -13,8 +13,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │     auto│                                                          │ 4.0 MiB │
 │     auto│ ▶ Boot a Temporary Clone                                 │  17 MiB │
 │     auto│   Roll Back to It…                                       │  30 MiB │
-│     auto│   Clone as a New Boot Environment                        │  43 MiB │
-│     auto│   Duplicate as an Independent Copy                       │  56 MiB │
+│     auto│   Clone as a New Boot Environment…                       │  43 MiB │
+│     auto│   Duplicate as an Independent Copy…                      │  56 MiB │
 │     auto│   Clone and Promote…                                     │  69 MiB │
 │     auto│   Show Differences to Now                                │  82 MiB │
 │     auto│   Chroot into It, Read-Only                              │ 4.0 MiB │

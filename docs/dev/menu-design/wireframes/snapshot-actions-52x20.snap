@@ -11,8 +11,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │ │                                              │ │
 │ │ ▶ Boot a Temporary Clone                     │ │
 │ │   Roll Back to It…                           │ │
-│ │   Clone as a New Boot Environment            │ │
-│ │   Duplicate as an Independent Copy           │ │
+│ │   Clone as a New Boot Environment…           │ │
+│ │   Duplicate as an Independent Copy…          │ │
 │ │   Clone and Promote…                         │ │
 │ │   Show Differences to Now                    │ │
 │ │   Chroot into It, Read-Only                  │ │

@@ -49,6 +49,10 @@ pub const NOT_TEXT: &[(&str, &str)] = &[
     ("display.rs", "device paths, and messages for developers"),
     ("display", "the display without a terminal, for developers"),
     ("terminal.rs", "the key log of the measures, for developers"),
+    (
+        "model/naming.rs",
+        "the names the legacy menu offers for new environments and snapshots",
+    ),
 ];
 
 /// One message or attribute of the catalogue.

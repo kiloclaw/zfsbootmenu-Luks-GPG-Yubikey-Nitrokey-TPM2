@@ -21,7 +21,7 @@ pub fn device_not_found(spec: &str) -> String {
 }
 
 /// The reasons an error gives, outermost first.
-fn causes(error: &dyn std::error::Error) -> Vec<String> {
+pub(crate) fn causes(error: &dyn std::error::Error) -> Vec<String> {
     let mut why = vec![error.to_string()];
     let mut source = error.source();
     while let Some(cause) = source {

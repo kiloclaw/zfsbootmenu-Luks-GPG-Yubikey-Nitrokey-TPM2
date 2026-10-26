@@ -99,11 +99,11 @@ impl Machine for RealMachine<'_, '_> {
         if action == Action::Shell {
             return vec![Event::Leaving(String::new())];
         }
-        let mut events = if action.needs_console() {
+        let mut events = if action.needs_console_on(&self.snapshot) {
             self.app
                 .act_on_console(&action, self.console, &mut *self.recovery)
         } else {
-            self.app.act(&action)
+            self.app.act_quietly(&action, self.console)
         };
         if (self.stop)() {
             events.push(Event::Leaving(String::new()));
@@ -114,7 +114,10 @@ impl Machine for RealMachine<'_, '_> {
         events
     }
 
+    /// Whether `action` takes the console: those that always do, and a
+    /// change that may ask about hibernation or for a key, on a pool
+    /// imported read-only or an environment that is locked.
     fn needs_console(&self, action: &Action) -> bool {
-        action.needs_console() && *action != Action::Shell
+        action.needs_console_on(&self.snapshot) && *action != Action::Shell
     }
 }

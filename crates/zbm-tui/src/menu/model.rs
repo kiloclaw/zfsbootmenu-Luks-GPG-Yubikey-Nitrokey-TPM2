@@ -4,10 +4,14 @@
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 mod diff;
+mod naming;
 mod prompt;
+mod sort;
 
 pub use self::diff::{DiffView, Segment};
+pub use self::naming::{Make, Naming, is_name_char, timestamp};
 pub use self::prompt::{Asking, Prompt};
+pub use self::sort::Sort;
 
 use super::filter::Ranked;
 use super::keymap::Context;
@@ -38,39 +42,6 @@ pub enum Screen {
     Help(Context),
     /// What changed since a snapshot.
     Diff,
-}
-
-/// How lists are sorted.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum Sort {
-    /// By name.
-    #[default]
-    Name,
-    /// Newest first.
-    Creation,
-    /// Largest first.
-    Size,
-}
-
-impl Sort {
-    /// The next order.
-    #[must_use]
-    pub fn next(self) -> Sort {
-        match self {
-            Sort::Name => Sort::Creation,
-            Sort::Creation => Sort::Size,
-            Sort::Size => Sort::Name,
-        }
-    }
-
-    /// Its name in the catalogue.
-    pub fn id(self) -> Id {
-        match self {
-            Sort::Name => id!("sort-name"),
-            Sort::Creation => id!("sort-creation"),
-            Sort::Size => id!("sort-size"),
-        }
-    }
 }
 
 /// A list's selection and filter.
@@ -118,6 +89,8 @@ pub enum Then {
         /// What has to be typed.
         name: String,
     },
+    /// Ask for the name of something new, then act.
+    Name(Naming),
     /// Open this screen.
     Open(Screen),
     /// Open the snapshots or kernels of an environment, or its command
@@ -156,6 +129,8 @@ pub enum Dialog {
         /// The action.
         action: Action,
     },
+    /// The name of something new.
+    Name(Naming),
     /// What failed, why, and the next steps.
     Error {
         /// What failed.
@@ -461,7 +436,9 @@ impl Model {
     /// The key map context of the focus.
     pub fn context(&self) -> Context {
         match &self.dialog {
-            Some(Dialog::Unlock(_) | Dialog::Confirm { .. }) => return Context::Text,
+            Some(Dialog::Unlock(_) | Dialog::Confirm { .. } | Dialog::Name(_)) => {
+                return Context::Text;
+            }
             Some(Dialog::Choose { .. } | Dialog::Error { .. } | Dialog::Question(_)) => {
                 return Context::Choose;
             }

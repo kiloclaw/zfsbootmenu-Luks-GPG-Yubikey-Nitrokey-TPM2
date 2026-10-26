@@ -69,7 +69,10 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
             "zroot/ROOT/old",
             &[("mountpoint", "/"), ("canmount", "off")],
         )
-        .bootfs("zroot", "zroot/ROOT/void");
+        .bootfs("zroot", "zroot/ROOT/void")
+        .snapshot("zroot/ROOT/arch@old", 100)
+        .snapshot("zroot/ROOT/arch@new", 200)
+        .snapshot("zroot/ROOT@all", 150);
 
     let environments = environments(&zfs).unwrap();
 
@@ -87,6 +90,12 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
         Origin::Inherited("zroot/ROOT".parse().unwrap())
     );
     assert!(void.kernels.is_empty() && void.snapshots.is_empty());
+    let taken: Vec<(String, u64)> = arch
+        .snapshots
+        .iter()
+        .map(|snapshot| (snapshot.name.name().to_owned(), snapshot.used))
+        .collect();
+    assert_eq!(taken, [("new".to_owned(), 4096), ("old".to_owned(), 4096)]);
     let none = command_line(&zfs, &"zroot/ROOT/gone".parse().unwrap());
     assert_eq!((none.value.as_str(), none.origin), ("", Origin::Default));
     assert_eq!(origin(&Source::Temporary), Origin::Local);

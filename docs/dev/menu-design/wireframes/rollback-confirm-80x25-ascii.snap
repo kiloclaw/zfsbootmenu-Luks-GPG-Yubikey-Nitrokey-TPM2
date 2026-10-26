@@ -13,8 +13,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 |     auto| zroot/ROOT/void goes back to pre-upgrade: every change   | 4.0 MiB |
 |     auto| since is lost.                                           |  17 MiB |
 |     auto| No newer snapshot is destroyed.                          |  30 MiB |
-|     auto| A safety snapshot zroot/ROOT/void@before-rollback is     |  43 MiB |
-|     auto| taken first: roll back to it to undo.                    |  56 MiB |
+|     auto| It cannot be undone: to keep things as they are, clone   |  43 MiB |
+|     auto| the snapshot instead.                                    |  56 MiB |
 |     auto|                                                          |  69 MiB |
 |     auto| Type void to confirm: vo                                 |  82 MiB |
 |     auto|                                                          | 4.0 MiB |

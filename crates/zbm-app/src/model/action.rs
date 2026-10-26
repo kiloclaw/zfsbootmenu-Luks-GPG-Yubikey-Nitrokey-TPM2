@@ -6,10 +6,6 @@ use zbm_types::{Answer, DatasetName, ImportPolicy, PoolName, SnapshotName};
 
 use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
 
-/// The name of the safety snapshot a rollback takes first, so that it can
-/// be undone: `<environment>@before-rollback`.
-pub const SAFETY_SNAPSHOT: &str = "before-rollback";
-
 /// The name of the safety snapshot restoring files takes first:
 /// `<environment>@before-restore`.
 pub const RESTORE_SNAPSHOT: &str = "before-restore";
@@ -38,22 +34,18 @@ pub enum Action {
     SetDefaultKernel(DatasetName, String),
     /// Let an environment inherit its default kernel again.
     InheritDefaultKernel(DatasetName),
-    /// Take a snapshot.
-    CreateSnapshot(DatasetName),
-    /// Roll an environment back to a snapshot, after a safety snapshot
-    /// ([`SAFETY_SNAPSHOT`]) when `safety` is set.
-    Rollback {
-        /// The snapshot.
-        snapshot: SnapshotName,
-        /// Whether to take a safety snapshot first.
-        safety: bool,
-    },
-    /// Clone a snapshot into a new environment.
-    Clone(SnapshotName),
-    /// Clone a snapshot and promote the clone.
-    CloneAndPromote(SnapshotName),
-    /// Copy a snapshot into an independent environment.
-    Duplicate(SnapshotName),
+    /// Take the snapshot named.
+    CreateSnapshot(SnapshotName),
+    /// Roll an environment back to a snapshot, destroying the newer ones:
+    /// ZFS keeps none of them, so nothing taken first could undo it.
+    Rollback(SnapshotName),
+    /// Clone a snapshot into the new environment named.
+    Clone(SnapshotName, DatasetName),
+    /// Clone a snapshot into the new environment named, and promote the
+    /// clone.
+    CloneAndPromote(SnapshotName, DatasetName),
+    /// Copy a snapshot into the new, independent environment named.
+    Duplicate(SnapshotName, DatasetName),
     /// The differences between a snapshot and another one or the live
     /// filesystem.
     Diff(SnapshotName, Option<SnapshotName>),
@@ -128,6 +120,60 @@ impl Action {
                 | Action::PowerOff
                 | Action::FirmwareSetup
         )
+    }
+
+    /// Whether the action changes a pool: package D, which imports the
+    /// pool read/write first and loads the environment's key.
+    pub fn is_change(&self) -> bool {
+        matches!(
+            self,
+            Action::SetDefaultEnvironment(_)
+                | Action::CreateSnapshot(_)
+                | Action::Rollback(_)
+                | Action::Clone(..)
+                | Action::CloneAndPromote(..)
+                | Action::Duplicate(..)
+                | Action::Diff(..)
+        )
+    }
+
+    /// The environment a change works on, whose pool it writes and whose
+    /// key it loads.
+    pub fn changed_environment(&self) -> Option<&DatasetName> {
+        match self {
+            Action::SetDefaultEnvironment(environment) => Some(environment),
+            Action::CreateSnapshot(snapshot)
+            | Action::Rollback(snapshot)
+            | Action::Clone(snapshot, _)
+            | Action::CloneAndPromote(snapshot, _)
+            | Action::Duplicate(snapshot, _)
+            | Action::Diff(snapshot, _) => Some(snapshot.dataset()),
+            _ => None,
+        }
+    }
+
+    /// Whether the action takes the console on the machine `snapshot`
+    /// describes: those of [`Action::needs_console`], and a change whose
+    /// pool is imported read-only or whose environment is locked, as the
+    /// read/write import may ask about hibernation and the key may be
+    /// asked for.
+    pub fn needs_console_on(&self, snapshot: &super::Snapshot) -> bool {
+        if self.needs_console() {
+            return true;
+        }
+        let Some(environment) = self.changed_environment() else {
+            return false;
+        };
+        let pool = environment.pool();
+        let read_only = snapshot
+            .pools
+            .iter()
+            .any(|known| known.name == pool && !known.writable);
+        let locked = snapshot.environments.iter().any(|known| {
+            known.name.as_str() == environment.as_str()
+                && known.encryption == super::Encryption::Locked
+        });
+        read_only || locked
     }
 }
 

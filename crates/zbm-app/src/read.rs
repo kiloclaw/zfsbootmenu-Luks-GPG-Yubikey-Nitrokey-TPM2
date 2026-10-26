@@ -3,9 +3,10 @@
 //! log (R4 of REFACTOR-ROADMAP.md).
 //!
 //! What the runtime cannot read yet stays empty: the kernels of a boot
-//! environment, its checks and boot tries, and the snapshots, which are
-//! loaded on demand, arrive with R5 and port package C; the stages of
-//! start-up arrive as events (R4.2).
+//! environment, its checks and boot tries arrive with R5 and port package
+//! C; the stages of start-up arrive as events (R4.2). The snapshots of
+//! each environment are read with it, two listings each; the performance
+//! test of R5 step 7 decides whether they load on demand instead.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -22,7 +23,7 @@ use zbm_zfs::{Source, Zfs, ZfsError};
 use crate::Encryption;
 use crate::model::{
     CommandLine, Environment, Health, Keyboard, Level, Log, LogEntry, Method, Origin, Pool,
-    Timeout, Volume, VolumeState,
+    SnapshotInfo, Timeout, Volume, VolumeState,
 };
 
 /// The property that holds a boot environment's command line.
@@ -98,6 +99,28 @@ fn command_line(zfs: &dyn Zfs, dataset: &DatasetName) -> CommandLine {
     }
 }
 
+/// The snapshots of `environment` itself, newest first, with the space
+/// each holds; none when they cannot be listed.
+fn snapshots(zfs: &dyn Zfs, environment: &DatasetName) -> Vec<SnapshotInfo> {
+    let listed = zfs.snapshots(environment).unwrap_or_default();
+    let space: std::collections::BTreeMap<_, _> = zfs
+        .snapshot_space(environment)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let mut found: Vec<SnapshotInfo> = listed
+        .into_iter()
+        .filter(|snapshot| snapshot.name.dataset() == environment)
+        .map(|snapshot| SnapshotInfo {
+            used: space.get(&snapshot.name).copied().unwrap_or_default(),
+            created: snapshot.creation,
+            name: snapshot.name,
+        })
+        .collect();
+    found.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created));
+    found
+}
+
 /// The boot environments: filesystems mounted at `/` that can be mounted,
 /// each with whether it is its pool's `bootfs`, its encryption and its
 /// command line.
@@ -128,7 +151,7 @@ pub fn environments(zfs: &dyn Zfs) -> Result<Vec<Environment>, ZfsError> {
                 encryption,
                 kernels: Vec::new(),
                 command_line: command_line(zfs, &dataset.name),
-                snapshots: Vec::new(),
+                snapshots: snapshots(zfs, &dataset.name),
                 checks: Vec::new(),
                 tries: None,
                 name: dataset.name,

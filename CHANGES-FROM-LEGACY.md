@@ -4,6 +4,56 @@ What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=r
 Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
 [REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md); step 7 completes it as the migration guide for the switch.
 
+## Snapshots and changes (R5 step 5)
+
+The snapshots view and the main view make the changes of the legacy menu: a new default, a snapshot, a rollback, a
+clone (promoted or not), an independent copy, and the differences since a snapshot. Each imports its pool read/write
+first and loads the environment's key, as before, with the same commands.
+
+### The changes run in the menu
+
+- **Before:** each change cleared the screen, printed what it did, and asked on the console: the name, the
+  hibernation question of a read/write import, a passphrase.
+- **Now:** a change on a pool imported read/write, in an environment whose key is loaded, runs inside the menu, which
+  says how it went in its notification line, or in an error dialog with the reasons. Otherwise the menu hands the
+  console over, as for a boot, and the hibernation question and passphrase prompts are those of before.
+- **Why:** the usual change needs no question, and the menu shows the result where it shows everything else.
+
+### New names are typed in a dialog
+
+- **Before:** `New boot environment name` or `New snapshot name` on the console, filled with `<environment>_NEW` or
+  the time (`%Y-%m-%d-%H%M%S`); characters outside `[a-zA-Z0-9-_.:]` were removed after Enter, with a message.
+- **Now:** a dialog with the same name filled in, which only takes those characters, and refuses a name the menu knows
+  already. The time of a snapshot's name is in UTC, as the image has no time zone.
+- **Why:** the name is part of the action, and what can be typed is what can be used.
+
+### Rollback has no safety snapshot
+
+- **Before:** typing `ROLLBACK` confirmed the rollback, which destroys the newer snapshots.
+- **Now:** typing the environment's name confirms it, and the confirmation counts the snapshots destroyed and their
+  size. The menu's design had a safety snapshot taken first; ZFS destroys it with the other newer snapshots, so there
+  is none, and the confirmation says to clone the snapshot instead to keep things as they are.
+- **Why:** the name says which environment loses its changes.
+
+### A pool that may not be written
+
+- **Before:** `org.zfsbootmenu:readonly` or a degraded pool showed `Operation prohibited` for ten seconds.
+- **Now:** the change fails with an error dialog that says why: the property's value, or that the pool is degraded.
+- **Why:** the reason stays on the screen until it is read.
+
+### Clones leave encryption properties out
+
+- **Before:** a clone was given every property set on its environment, `keylocation` and `keyformat` included, which
+  ZFS refuses on a clone when the environment is its own encryption root.
+- **Now:** the clone gets the other properties; it shares the key of its origin's encryption root, as every clone does.
+- **Why:** cloning an environment that is its own encryption root failed.
+
+### A new default needs no key
+
+- **Before:** setting the default loaded the key of the pool's root dataset first, which could ask for a passphrase.
+- **Now:** only the pool is imported read/write; `zpool set bootfs` needs no key.
+- **Why:** the passphrase was asked for nothing.
+
 ## Start-up (R5 step 4)
 
 Start-up runs on the menu's start-up view when the image has the menu and the terminal can run it (`TERM` set, and not

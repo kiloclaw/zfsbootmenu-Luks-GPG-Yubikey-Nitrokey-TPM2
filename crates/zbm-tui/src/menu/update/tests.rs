@@ -144,18 +144,52 @@ fn t4_a_rollback_needs_the_name_typed() {
 
     assert_eq!(refused, []);
     let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
-    assert_eq!(
-        session.actions,
-        [Action::Rollback {
-            snapshot,
-            safety: true
-        }]
-    );
+    assert_eq!(session.actions, [Action::Rollback(snapshot)]);
     let done = matches!(
         &session.model().notification,
         Some(Outcome::Done(text)) if text.contains("rolled back")
     );
     assert!(done);
+}
+
+#[test]
+fn new_environments_and_snapshots_are_named_first() {
+    let mut session = started();
+    session.key(KeyCode::Char('s'));
+    session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Char('c'));
+    session.key(KeyCode::Backspace);
+    session.key(KeyCode::Backspace);
+    session.type_text("/X @");
+    session.key(KeyCode::Enter);
+
+    let snapshot: zbm_types::SnapshotName = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
+    assert_eq!(
+        session.actions,
+        [Action::Clone(
+            snapshot,
+            "zroot/ROOT/void_NX".parse().unwrap()
+        )]
+    );
+
+    // A name the menu knows is refused; an empty one too.
+    session.key(KeyCode::Char('c'));
+    session.key(KeyCode::Backspace);
+    session.key(KeyCode::Backspace);
+    session.type_text("X");
+    session.key(KeyCode::Enter);
+    assert_eq!(session.actions.len(), 1);
+    let refused = matches!(
+        &session.model().notification,
+        Some(Outcome::Warning(text)) if text.contains("exists already")
+    );
+    assert!(refused);
+    session.key(KeyCode::Esc);
+    session.key(KeyCode::Char('n'));
+    let Some(Dialog::Name(naming)) = &session.model().dialog else {
+        panic!("no name dialog for a snapshot");
+    };
+    assert!(naming.full_name().starts_with("zroot/ROOT/void@20"));
 }
 
 #[test]

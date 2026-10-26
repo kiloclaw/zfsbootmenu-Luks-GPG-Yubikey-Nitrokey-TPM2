@@ -125,7 +125,10 @@ fn main(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Pools => model.screen = Screen::Pools,
         Intent::ReadWrite => return vec![Action::ImportReadWrite(name.pool())],
         Intent::Chroot => return vec![Action::Chroot(name.to_string())],
-        Intent::NewSnapshot => return vec![Action::CreateSnapshot(name)],
+        Intent::NewSnapshot => {
+            let then = super::snapshots::new_snapshot(model, name);
+            return dialogs::follow(model, then);
+        }
         Intent::Shell => return vec![Action::Shell],
         Intent::RevertCommandLine => {
             model.edited.retain(|(edited, _)| *edited != name);

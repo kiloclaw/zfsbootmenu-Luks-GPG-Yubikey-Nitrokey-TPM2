@@ -53,6 +53,21 @@ pub enum BootError {
         /// The pool.
         pool: String,
     },
+    /// The pool may not be imported read/write: its
+    /// `org.zfsbootmenu:readonly` property forbids it, or it is degraded.
+    #[error("{pool} may not be imported read/write: {reason}")]
+    ReadWriteProhibited {
+        /// The pool.
+        pool: String,
+        /// Why, for people.
+        reason: String,
+    },
+    /// The pool's properties could not be read.
+    #[error("unable to read the properties of {pool}")]
+    PoolProperty {
+        /// The pool.
+        pool: String,
+    },
     /// `cryptsetup` is not in the image.
     #[error("cryptsetup is not available")]
     NoCryptsetup,

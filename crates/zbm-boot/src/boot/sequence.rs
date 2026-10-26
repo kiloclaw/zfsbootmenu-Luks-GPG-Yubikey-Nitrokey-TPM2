@@ -9,7 +9,7 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
-use zbm_types::HookStage;
+use zbm_types::{HookStage, ImportPolicy};
 use zbm_zfs::ZfsCommand;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
@@ -39,6 +39,8 @@ pub struct BootSettings {
     /// A command line typed in the menu for this boot only, in place of the
     /// boot environment's `org.zfsbootmenu:commandline`.
     pub command_line: Option<String>,
+    /// `zbm.import_policy`: a read/write import forces (`-f`) with `force`.
+    pub import_policy: ImportPolicy,
 }
 
 impl Default for BootSettings {
@@ -49,6 +51,7 @@ impl Default for BootSettings {
             env: Vec::new(),
             save_logs: None,
             command_line: None,
+            import_policy: ImportPolicy::default(),
         }
     }
 }

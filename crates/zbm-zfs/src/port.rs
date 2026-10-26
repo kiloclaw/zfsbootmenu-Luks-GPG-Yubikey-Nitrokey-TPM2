@@ -112,6 +112,15 @@ pub trait Zfs {
     /// [`ZfsError`]s when `zfs list` fails.
     fn snapshots(&self, dataset: &DatasetName) -> Result<Vec<Snapshot>, ZfsError>;
 
+    /// The space each snapshot of `dataset` and its descendants holds on
+    /// its own (`used`), in bytes.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError::Missing`] when `dataset` does not exist, and other
+    /// [`ZfsError`]s when `zfs list` fails.
+    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError>;
+
     /// A property of `dataset`, with its source.
     ///
     /// # Errors

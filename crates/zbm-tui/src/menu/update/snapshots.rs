@@ -1,13 +1,13 @@
 //! The snapshots view: the actions on a snapshot, with a typed confirmation
 //! for those that lose data.
 
-use zbm_types::SnapshotName;
+use zbm_types::{DatasetName, SnapshotName};
 
 use super::dialogs;
 use crate::menu::format::{age, size};
 use crate::menu::keymap::Intent;
-use crate::menu::model::{Choice, Model, Then};
-use crate::menu::world::{Action, SAFETY_SNAPSHOT, SnapshotInfo};
+use crate::menu::model::{Choice, Make, Model, Naming, Then};
+use crate::menu::world::{Action, SnapshotInfo};
 use crate::text::text;
 
 /// How many marked snapshots a diff compares.
@@ -21,12 +21,11 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
         return Vec::new();
     }
     if intent == Intent::NewSnapshot {
-        return model
-            .focus
-            .clone()
-            .map(Action::CreateSnapshot)
-            .into_iter()
-            .collect();
+        let Some(environment) = model.focus.clone() else {
+            return Vec::new();
+        };
+        let then = new_snapshot(model, environment);
+        return dialogs::follow(model, then);
     }
     let Some(snapshot) = model.selected_snapshot().cloned() else {
         return Vec::new();
@@ -44,9 +43,9 @@ pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
         Intent::Diff => Then::Act(diff(model, &name)),
         Intent::Boot => Then::Act(Action::BootSnapshot(name)),
         Intent::Rollback => rollback(model, &snapshot),
-        Intent::Clone => Then::Act(Action::Clone(name)),
-        Intent::Duplicate => Then::Act(Action::Duplicate(name)),
-        Intent::CloneAndPromote => promote(&name),
+        Intent::Clone => clone(model, &name),
+        Intent::Duplicate => duplicate(model, &snapshot),
+        Intent::CloneAndPromote => promote(model, &name),
         Intent::Chroot => Then::Act(Action::Chroot(name.to_string())),
         _ => return Vec::new(),
     };
@@ -85,15 +84,9 @@ fn actions(model: &Model, snapshot: &SnapshotInfo) -> crate::menu::model::Dialog
             Then::Act(Action::BootSnapshot(name.clone())),
         ),
         choice(text!("snapshot-roll-back"), rollback(model, snapshot)),
-        choice(
-            text!("snapshot-clone"),
-            Then::Act(Action::Clone(name.clone())),
-        ),
-        choice(
-            text!("snapshot-duplicate"),
-            Then::Act(Action::Duplicate(name.clone())),
-        ),
-        choice(text!("snapshot-promote"), promote(name)),
+        choice(text!("snapshot-clone"), clone(model, name)),
+        choice(text!("snapshot-duplicate"), duplicate(model, snapshot)),
+        choice(text!("snapshot-promote"), promote(model, name)),
         choice(
             text!("snapshot-diff"),
             Then::Act(Action::Diff(name.clone(), None)),
@@ -149,26 +142,55 @@ fn rollback(model: &Model, snapshot: &SnapshotInfo) -> Then {
                 .map_or("", |s| s.name.name())
         ));
     }
-    let safety = format!("{environment}@{SAFETY_SNAPSHOT}");
-    lines.push(text!("rollback.safety", safety = safety));
+    lines.push(text!("rollback.undo"));
     Then::Confirm {
-        action: Action::Rollback {
-            snapshot: snapshot.name.clone(),
-            safety: true,
-        },
+        action: Action::Rollback(snapshot.name.clone()),
         title: text!("rollback.title", environment = environment_name),
         lines,
         name: environment.last_component().to_owned(),
     }
 }
 
-/// The confirmation of a clone and promote.
-fn promote(name: &SnapshotName) -> Then {
+/// The name of a new snapshot of `environment`.
+pub(super) fn new_snapshot(model: &Model, environment: DatasetName) -> Then {
+    let shown = environment.to_string();
+    Then::Name(Naming::new(
+        Make::Snapshot(environment),
+        model.snapshot.now,
+        text!("name-snapshot.title", environment = shown.as_str()),
+        vec![text!("name-snapshot", environment = shown)],
+    ))
+}
+
+/// The name of a clone of `name`.
+fn clone(model: &Model, name: &SnapshotName) -> Then {
+    Then::Name(Naming::new(
+        Make::Clone(name.clone()),
+        model.snapshot.now,
+        text!("name-clone.title", snapshot = name.name()),
+        vec![text!("name-clone", snapshot = name.to_string())],
+    ))
+}
+
+/// The name of an independent copy of `snapshot`.
+fn duplicate(model: &Model, snapshot: &SnapshotInfo) -> Then {
+    let name = &snapshot.name;
+    Then::Name(Naming::new(
+        Make::Duplicate(name.clone()),
+        model.snapshot.now,
+        text!("name-duplicate.title", snapshot = name.name()),
+        vec![text!("name-duplicate", snapshot = name.to_string())],
+    ))
+}
+
+/// The name of a clone of `name` that is promoted: what promoting does.
+fn promote(model: &Model, name: &SnapshotName) -> Then {
     let environment = name.dataset();
-    Then::Confirm {
-        action: Action::CloneAndPromote(name.clone()),
-        title: text!("promote.title", snapshot = name.name()),
-        lines: vec![
+    Then::Name(Naming::new(
+        Make::Promote(name.clone()),
+        model.snapshot.now,
+        text!("promote.title", snapshot = name.name()),
+        vec![
             text!(
                 "promote",
                 environment = environment.to_string(),
@@ -176,6 +198,5 @@ fn promote(name: &SnapshotName) -> Then {
             ),
             text!("promote.depends", environment = environment.to_string()),
         ],
-        name: environment.last_component().to_owned(),
-    }
+    ))
 }

@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹        Snapshots  tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────── 400 ┐
+│ ▶   pre-upgrade              12 h ago    1.1 GiB │
+│     autosnap_2026-10-22_…     1 d ago     17 MiB │
+│     autosnap_2026-10-21_…     2 d ago     30 MiB │
+│ ┌──────────────────────────────────────────────┐ │
+│ │               Clone pre-upgrade              │ │
+│ │                                              │ │
+│ │ The new boot environment shares the data of  │ │
+│ │ zroot/ROOT/void@pre-upgrade until either     │ │
+│ │ changes.                                     │ │
+│ │                                              │ │
+│ │ Name: zroot/ROOT/void_NEW-2                  │ │
+│ │                                              │ │
+│ │                       [ Cancel ]  [ Create ] │ │
+│ └──────────────────────────────────────────────┘ │
+│     autosnap_2026-10-09_…    14 d ago    4.0 MiB │
+│     autosnap_2026-10-08_…    15 d ago     17 MiB │
+└──────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

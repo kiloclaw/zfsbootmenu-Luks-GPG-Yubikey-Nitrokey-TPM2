@@ -1,0 +1,28 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ‹ Boot Environments               Snapshots     tank DEGRADED · 3/3 open · ! 1
+┌ SNAPSHOTS BY CREATION ────────────────────────────────────────────────── 400 ┐
+│ ▶   pre-upgrade                                          12 h ago    1.1 GiB │
+│     autosnap_2026-10-22_daily                             1 d ago     17 MiB │
+│     autosnap_2026-10-21_daily                             2 d ago     30 MiB │
+│     autosnap_2026-10-20_daily                             3 d ago     43 MiB │
+│     autosnap_2026-10-19_daily                             4 d ago     56 MiB │
+│     autosnap_2026-10-18_daily                             5 d ago     69 MiB │
+│     auto┌──────────────────────────────────────────────────────────┐  82 MiB │
+│     auto│                     Clone pre-upgrade                    │ 4.0 MiB │
+│     auto│                                                          │  17 MiB │
+│     auto│ The new boot environment shares the data of              │  30 MiB │
+│     auto│ zroot/ROOT/void@pre-upgrade until either changes.        │  43 MiB │
+│     auto│                                                          │  56 MiB │
+│     auto│ Name: zroot/ROOT/void_NEW-2                              │  69 MiB │
+│     auto│                                                          │  82 MiB │
+│     auto│                                   [ Cancel ]  [ Create ] │ 4.0 MiB │
+│     auto└──────────────────────────────────────────────────────────┘  17 MiB │
+│     autosnap_2026-10-07_daily                            16 d ago     30 MiB │
+│     autosnap_2026-10-06_daily                            17 d ago     43 MiB │
+│     autosnap_2026-10-05_daily                            18 d ago     56 MiB │
+│     autosnap_2026-10-04_daily                            19 d ago     69 MiB │
+│     autosnap_2026-10-03_daily                            20 d ago     82 MiB │
+└──────────────────────────────────────────────────────────────────────────────┘
+ Enter Confirm   Esc Cancel   Up/Down Select

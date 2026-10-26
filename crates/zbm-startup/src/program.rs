@@ -313,6 +313,7 @@ impl<'a> Startup<'a> {
                 env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
                 save_logs: self.save_logs(),
                 command_line: None,
+                import_policy: self.options.import_policy,
             };
             let mut shell = self.shell();
             boot::kexec_kernel(system, &self.state, &settings, &selected, &mut shell);

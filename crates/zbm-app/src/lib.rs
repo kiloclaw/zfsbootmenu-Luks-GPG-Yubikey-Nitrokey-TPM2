@@ -34,6 +34,7 @@
 //! ```
 
 mod boot;
+mod changes;
 pub mod model;
 mod read;
 mod unlock;
@@ -256,6 +257,7 @@ impl<'a> App<'a> {
             model::Action::Reboot => boot::reset(&system, &pools(), "b"),
             model::Action::PowerOff => boot::reset(&system, &pools(), "o"),
             model::Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
+            change if change.is_change() => self.change(change, &system, true),
             model::Action::Boot {
                 environment,
                 kernel,
@@ -281,6 +283,42 @@ impl<'a> App<'a> {
             }
             other => self.act(other),
         }
+    }
+
+    /// Performs `action` without taking the console, as
+    /// [`App::act`] does, and the changes of package D
+    /// ([`model::Action::is_change`]) whose pool is writable and whose key
+    /// is loaded; one that would have to ask for something fails, so the
+    /// front end performs those with [`App::act_on_console`] when
+    /// [`model::Action::needs_console_on`] says so. `console` is the front
+    /// end's whole system; nothing is written to its console.
+    pub fn act_quietly(&self, action: &model::Action, console: System<'_>) -> Vec<model::Event> {
+        if !action.is_change() {
+            return self.act(action);
+        }
+        let system = console.with_runner(self.context.runner());
+        self.change(action, &system, false)
+    }
+
+    /// Performs the change `action` on `system`, asking on its console
+    /// when `asks`.
+    fn change(&self, action: &model::Action, system: &System<'_>, asks: bool) -> Vec<model::Event> {
+        let (Some(base), Some(settings)) = (self.base, self.boot) else {
+            return self.act(action);
+        };
+        let state = zbm_state::State::new(system.files, base);
+        let zfs = zbm_zfs::ZfsCli::new(system.runner);
+        let mut needs = changes::OnMachine {
+            system,
+            state: &state,
+            settings,
+            asks,
+        };
+        let mut changes = changes::Changes {
+            zfs: &zfs,
+            needs: &mut needs,
+        };
+        changes.perform(action).unwrap_or_else(|| self.act(action))
     }
 
     /// Fills in the kernels of the environments of `snapshot` whose keys are
@@ -421,5 +459,58 @@ mod tests {
         assert!(!snapshot.keyboard.local);
         assert_eq!(snapshot.log.count(model::Level::Warning), 1);
         assert!(snapshot.volumes.is_empty() && snapshot.now > 0);
+    }
+
+    /// A recovery that opens no shell.
+    struct NoShell;
+
+    impl Recovery for NoShell {
+        fn unlock_late(&mut self) -> Result<(), zbm_boot::BootError> {
+            Err(zbm_boot::BootError::NoCryptsetup)
+        }
+
+        fn emergency_shell(&mut self, _message: &str) {}
+    }
+
+    #[test]
+    fn changes_run_quietly_or_on_the_console() {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        fake.runner
+            .respond("zpool get -H -o value readonly tank", 0, "off\n");
+        fake.runner
+            .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+        let settings = BootSettings::default();
+        let app = App::new(Context::new(fake.system()))
+            .with_base(Path::new("/zfsbootmenu"))
+            .with_boot(&settings);
+        let take = model::Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap());
+        let is_done = |events: &[model::Event]| {
+            matches!(
+                events.last(),
+                Some(model::Event::Finished(model::Outcome::Done(_)))
+            )
+        };
+
+        assert!(is_done(&app.act_quietly(&take, fake.system())));
+        assert!(is_done(&app.act_on_console(
+            &take,
+            fake.system(),
+            &mut NoShell
+        )));
+        let taken = fake
+            .runner
+            .lines()
+            .into_iter()
+            .filter(|line| line == "zfs snapshot tank/ROOT/be@new")
+            .count();
+        assert_eq!(taken, 2);
+
+        // Without the state directory, or for other actions, as act does.
+        let bare = App::new(Context::new(fake.system()));
+        assert!(!is_done(&bare.act_quietly(&take, fake.system())));
+        assert!(!is_done(
+            &app.act_quietly(&model::Action::Reboot, fake.system())
+        ));
     }
 }

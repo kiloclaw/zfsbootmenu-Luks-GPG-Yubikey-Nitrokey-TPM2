@@ -97,6 +97,7 @@ impl Startup<'_> {
             env,
             save_logs: self.save_logs(),
             command_line: None,
+            import_policy: self.options.import_policy,
         };
         menu.show(&settings, &mut self.shell());
         0

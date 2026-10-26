@@ -452,6 +452,15 @@ impl Zfs for FakeZfs {
             .collect())
     }
 
+    /// Every snapshot holds 4 KiB of its own.
+    fn snapshot_space(&self, dataset: &DatasetName) -> Result<Vec<(SnapshotName, u64)>, ZfsError> {
+        Ok(self
+            .snapshots(dataset)?
+            .into_iter()
+            .map(|snapshot| (snapshot.name, 4096))
+            .collect())
+    }
+
     fn property(&self, dataset: &DatasetName, property: &str) -> Result<Property, ZfsError> {
         self.record(format!("property {dataset} {property}"));
         let state = self.state.borrow();

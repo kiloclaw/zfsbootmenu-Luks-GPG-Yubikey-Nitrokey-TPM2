@@ -11,7 +11,7 @@ use ratatui::widgets::{
 
 use super::lists;
 use crate::menu::format::{capitalised, fit};
-use crate::menu::model::{Choice, Dialog, Model, Then};
+use crate::menu::model::{Choice, Dialog, Model, Naming, Then};
 use crate::menu::theme::{Glyph, Role, Theme};
 use crate::menu::update::palette_items;
 use crate::menu::world::Action;
@@ -66,6 +66,7 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             typed,
             action,
         }) => confirm(theme, frame, area, (title, lines, name, typed, action)),
+        Some(Dialog::Name(naming)) => name(theme, frame, area, naming),
         Some(Dialog::Error { what, why, next }) => error(theme, frame, area, (what, why, next)),
         None => palette(model, frame, area),
     }
@@ -233,14 +234,15 @@ fn actions(
     frame.render_widget(row, cancel);
 }
 
-/// The line of an action: title case, `…` and red when it asks first.
+/// The line of an action: title case, `…` when it asks for more first,
+/// and red when that is a confirmation.
 fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
     let label = choice.label.clone();
-    if matches!(choice.then, Then::Confirm { .. }) {
-        let text = format!("{label}{}", theme.glyph(Glyph::Ellipsis));
-        Line::styled(text, theme.style(Role::Danger))
-    } else {
-        Line::from(label)
+    let more = format!("{label}{}", theme.glyph(Glyph::Ellipsis));
+    match choice.then {
+        Then::Confirm { .. } => Line::styled(more, theme.style(Role::Danger)),
+        Then::Name(_) => Line::from(more),
+        _ => Line::from(label),
     }
 }
 
@@ -248,7 +250,7 @@ fn action_line(theme: Theme, choice: &Choice) -> Line<'static> {
 fn verb(action: &Action) -> String {
     match action {
         Action::Rollback { .. } => text!("button-roll-back"),
-        Action::CloneAndPromote(_) => text!("button-promote"),
+        Action::CloneAndPromote(..) => text!("button-promote"),
         Action::RewindCheckpoint(_) => text!("button-rewind"),
         Action::Import(..) => text!("button-force-import"),
         Action::RestoreFiles { .. } => text!("button-restore"),
@@ -295,6 +297,39 @@ fn confirm(
             body,
             buttons,
             danger: true,
+        },
+    );
+}
+
+/// The name of something new: what will happen, the name after its
+/// prefix, then **Cancel** and **Create**, disabled while the name is
+/// empty.
+fn name(theme: Theme, frame: &mut Frame<'_>, area: Rect, naming: &Naming) {
+    let mut body = body_lines(theme, &naming.lines);
+    body.push(Line::default());
+    body.push(Line::from(vec![
+        Span::raw(format!("{} ", text!("name-label"))),
+        Span::styled(naming.prefix.clone(), theme.style(Role::Muted)),
+        Span::styled(naming.typed.clone(), theme.style(Role::Title)),
+    ]));
+    let create = if naming.action().is_some() {
+        Kind::Default
+    } else {
+        Kind::Disabled
+    };
+    let buttons = vec![
+        (text!("button-cancel"), Kind::Normal),
+        (text!("button-create"), create),
+    ];
+    alert(
+        theme,
+        frame,
+        area,
+        Alert {
+            title: naming.title.clone(),
+            body,
+            buttons,
+            danger: false,
         },
     );
 }

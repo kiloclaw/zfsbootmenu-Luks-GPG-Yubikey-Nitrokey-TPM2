@@ -259,3 +259,70 @@ fn a_failed_send_fails_the_copy() {
         "{error}"
     );
 }
+
+#[test]
+fn own_properties_in_json_and_the_space_of_snapshots() {
+    let runner = FakeRunner::new();
+    runner.respond(
+        "zfs get -j -p -o name,property,value,source -s local,received all fixture/ROOT/void",
+        0,
+        r#"{"datasets":{"fixture/ROOT/void":{"name":"fixture/ROOT/void","properties":{
+            "mountpoint":{"value":"/","source":{"type":"LOCAL","data":"-"}},
+            "compression":{"value":"zstd","source":{"type":"RECEIVED","data":"-"}}}}}}"#,
+    );
+    runner.respond(
+        "zfs list -H -p -t snapshot -o name,used -r fixture/ROOT",
+        0,
+        "fixture/ROOT/void@a\t4096\nfixture/ROOT/void@b\t0\n",
+    );
+    runner.respond("zfs list -H -p -t snapshot -o name,used -r bad", 0, "x\n");
+    runner.respond(
+        "zfs get -j -p -o name,property,value,source creation fixture/ROOT/void@a",
+        0,
+        r#"{"datasets":{"fixture/ROOT/void@a":{"name":"fixture/ROOT/void@a","properties":{
+            "creation":{"value":"1700000000","source":{"type":"NONE","data":"-"}}}}}}"#,
+    );
+    let zfs = ZfsCli::with_format(&runner, Format::Json);
+
+    let mut own = zfs.own_properties(&dataset("fixture/ROOT/void")).unwrap();
+    own.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(own[0].0, "compression");
+    assert_eq!(own[0].1.source, Source::Received);
+    assert_eq!(own[1].1.value, "/");
+
+    let space = zfs.snapshot_space(&dataset("fixture/ROOT")).unwrap();
+    assert_eq!(
+        space,
+        [
+            (snapshot("fixture/ROOT/void@a"), 4096),
+            (snapshot("fixture/ROOT/void@b"), 0)
+        ]
+    );
+    assert!(matches!(
+        zfs.snapshot_space(&dataset("bad")),
+        Err(ZfsError::Output { .. })
+    ));
+    let creation = zfs
+        .snapshot_property(&snapshot("fixture/ROOT/void@a"), "creation")
+        .unwrap();
+    assert_eq!(creation.value, "1700000000");
+}
+
+/// A runner that cannot start anything.
+struct Broken;
+
+impl Runner for Broken {
+    fn run(&self, _command: &Command) -> io::Result<Output> {
+        Err(io::Error::from(io::ErrorKind::PermissionDenied))
+    }
+}
+
+#[test]
+fn a_change_that_cannot_start_names_its_program() {
+    let zfs = ZfsCli::with_format(&Broken, Format::Text);
+    let error = zfs.promote(&dataset("zroot/ROOT/void")).unwrap_err();
+    assert!(
+        matches!(&error, ZfsError::Start { program, .. } if program == "zfs"),
+        "{error}"
+    );
+}

@@ -130,11 +130,11 @@ fn copies_and_rollbacks_change_the_storage() {
     });
     let snapshot: zbm_types::SnapshotName = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
 
-    machine.apply(Action::Clone(snapshot.clone()));
-    machine.apply(Action::Rollback {
-        snapshot: snapshot.clone(),
-        safety: true,
-    });
+    machine.apply(Action::Clone(
+        snapshot.clone(),
+        "zroot/ROOT/void_NEW".parse().unwrap(),
+    ));
+    machine.apply(Action::Rollback(snapshot.clone()));
     let names: Vec<String> = machine
         .snapshot()
         .environments
@@ -143,12 +143,9 @@ fn copies_and_rollbacks_change_the_storage() {
         .collect();
     let void = &machine.snapshot().environments[0];
 
-    assert!(names.contains(&"zroot/ROOT/void-clone".to_owned()));
-    assert!(
-        void.snapshots
-            .iter()
-            .any(|s| s.name.name().starts_with("before-rollback"))
-    );
+    assert!(names.contains(&"zroot/ROOT/void_NEW".to_owned()));
+    let target = void.snapshots.iter().find(|s| s.name == snapshot).unwrap();
+    assert!(void.snapshots.iter().all(|s| s.created <= target.created));
     assert!(machine.snapshot().pools[0].writable);
 }
 

@@ -39,6 +39,7 @@ pub mod resume;
 pub mod saved_logs;
 pub mod shadow;
 pub mod support;
+pub mod writable;
 
 #[cfg(test)]
 mod testing;

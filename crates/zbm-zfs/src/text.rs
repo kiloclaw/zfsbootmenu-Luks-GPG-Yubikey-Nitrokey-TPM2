@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use zbm_types::PoolName;
+use zbm_types::{PoolName, SnapshotName};
 
 use crate::model::{
     Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
@@ -219,6 +219,29 @@ pub fn snapshots(text: &str) -> Result<Vec<Snapshot>, TextError> {
         .collect()
 }
 
+/// `zfs list -H -p -t snapshot -o name,used`.
+///
+/// # Errors
+///
+/// [`TextError`] for a line without two fields, an invalid name or a size
+/// that is not a number.
+pub fn snapshot_space(text: &str) -> Result<Vec<(SnapshotName, u64)>, TextError> {
+    rows(text)
+        .map(|(line, fields)| {
+            let [name, used] = fields.as_slice() else {
+                return Err(TextError::new(line, "not two fields"));
+            };
+            let name = name
+                .parse()
+                .map_err(|_| TextError::new(line, "invalid snapshot name"))?;
+            let used = used
+                .parse()
+                .map_err(|_| TextError::new(line, "invalid size"))?;
+            Ok((name, used))
+        })
+        .collect()
+}
+
 /// `zfs diff -F -H`: the change, the kind of file and the path of each
 /// line, and the new path of a rename.
 ///
@@ -307,6 +330,10 @@ mod tests {
         assert!(snapshots("tank@a\n").is_err());
         assert!(snapshots("tank\t1\n").is_err());
         assert!(snapshots("tank@a\tsoon\n").is_err());
+        assert_eq!(snapshot_space("tank@a\t512\n").unwrap()[0].1, 512);
+        assert!(snapshot_space("tank@a\n").is_err());
+        assert!(snapshot_space("tank\t1\n").is_err());
+        assert!(snapshot_space("tank@a\tbig\n").is_err());
         assert!(pool_names("tank\n\n").is_ok());
         assert!(pool_names("-tank\n").is_err());
     }

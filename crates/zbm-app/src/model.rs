@@ -14,9 +14,7 @@ mod unlock;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-pub use self::action::{
-    Action, Event, Outcome, Question, RESTORE_SNAPSHOT, SAFETY_SNAPSHOT, UnlockOutcome,
-};
+pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};

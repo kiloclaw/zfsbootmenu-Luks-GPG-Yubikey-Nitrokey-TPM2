@@ -865,7 +865,14 @@ builds after the core tasks.
    shell get it. Without the menu or such a terminal, the plain console of R3 remains, unchanged, so the LUKS unit
    suites and `zluks` see no difference. The VM harness answers the dialogs (`zbm_vmtest::boot::dialogs`) as it
    answers the console prompts, so the same tests run on both runtimes.
-5. **Snapshots and package D**: diff, clone, rollback and set default, and the command palette.
+5. **Snapshots and package D** (in progress): diff, clone, rollback and set default, and the command palette. Done so
+   far: the ZFS port makes the changes with the legacy command lines (`zbm_zfs::Zfs`, and `FakeZfs` for tests);
+   `zbm_boot::writable::set_rw_pool` imports a pool read/write as the legacy runtime does; `zbm-app` performs the
+   changes (`changes.rs`), in the menu when nothing has to be asked and on the console otherwise
+   (`Action::needs_console_on`); the menu names new snapshots and environments in a dialog, and reads each
+   environment's snapshots with it. The rollback's safety snapshot of the prototype is gone: `zfs rollback -r`
+   destroys it ([CHANGES-FROM-LEGACY.md](CHANGES-FROM-LEGACY.md)). Left: VM tests of each change through the menu,
+   the diff's previews and packages, and the command palette's entries for the changes.
 6. **The rest of the menu**: kernels and the command line editor, pools and LUKS volumes from the menu, recovery
    tools, help, power.
 7. **The exit**: `CHANGES-FROM-LEGACY.md`, the generated key binding section, the 10,000-snapshot performance test,

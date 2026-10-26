@@ -4,7 +4,7 @@ use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Asking, Choice, Dialog, Model, Then};
+use crate::menu::model::{Asking, Choice, Dialog, Model, Naming, Then, is_name_char};
 use crate::menu::world::{Action, Outcome};
 use crate::text::text;
 
@@ -61,6 +61,7 @@ pub fn follow(model: &mut Model, then: Then) -> Vec<Action> {
     match then {
         Then::Act(action) => return vec![action],
         Then::Confirm { .. } => model.dialog = Some(confirm(then)),
+        Then::Name(naming) => model.dialog = Some(Dialog::Name(naming)),
         Then::Open(screen) => {
             model.screen = screen;
             model.scroll = 0;
@@ -157,6 +158,7 @@ pub(super) fn handle(model: &mut Model, input: Input) -> Vec<Action> {
             typed,
             action,
         } => confirmed(model, input, (title, lines, name, typed, action)),
+        Dialog::Name(naming) => named(model, input, naming),
         Dialog::Error { .. } => {
             if !matches!(input, Input::Intent(Intent::Primary | Intent::Back)) {
                 model.dialog = Some(dialog);
@@ -257,5 +259,45 @@ fn confirmed(
         typed,
         action,
     });
+    Vec::new()
+}
+
+/// Whether the menu knows `name` as an environment or a snapshot.
+fn is_taken(model: &Model, name: &str) -> bool {
+    model.snapshot.environments.iter().any(|environment| {
+        environment.name.as_str() == name
+            || environment
+                .snapshots
+                .iter()
+                .any(|snapshot| snapshot.name.to_string() == name)
+    })
+}
+
+/// The name dialog: only the characters a name may have are typed, and
+/// the action runs when the name is new.
+fn named(model: &mut Model, input: Input, mut naming: Naming) -> Vec<Action> {
+    match input {
+        Input::Type(c) if is_name_char(c) => naming.typed.push(c),
+        Input::Erase => {
+            naming.typed.pop();
+        }
+        Input::Clear => naming.typed.clear(),
+        Input::Intent(Intent::Back) => return Vec::new(),
+        Input::Intent(Intent::Primary) => {
+            let full = naming.full_name();
+            match naming.action() {
+                Some(_) if is_taken(model, &full) => {
+                    model.notification =
+                        Some(Outcome::Warning(text!("name-taken", name = full.as_str())));
+                }
+                Some(action) => return vec![action],
+                None => {
+                    model.notification = Some(Outcome::Warning(text!("name-empty")));
+                }
+            }
+        }
+        Input::Type(_) | Input::Intent(_) => {}
+    }
+    model.dialog = Some(Dialog::Name(naming));
     Vec::new()
 }
