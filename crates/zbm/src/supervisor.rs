@@ -38,6 +38,10 @@ use zbm_trace::crash::{Reason, Report};
 
 use self::console::Attached;
 
+/// How long the supervisor waits for the console to end once its terminal
+/// hung up.
+const CONSOLE_END: Duration = Duration::from_secs(5);
+
 /// A program and its arguments.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Program {
@@ -189,6 +193,43 @@ impl Supervisor {
         }
     }
 
+    /// Once the console's terminal hung up, the console has ended or is
+    /// ending: waits for it a moment (at most [`CONSOLE_END`]) and gives the
+    /// virtual terminal back to the kernel console, so that what starts next
+    /// runs there. Otherwise a program that ended with the terminal, and was
+    /// collected before the console, would be followed by a recovery shell
+    /// on the dead terminal, which ends at once.
+    fn settle_console(&self, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
+        let Some(pid) = attached
+            .as_ref()
+            .filter(|console| console.is_hung_up())
+            .map(|console| console.pid)
+        else {
+            return;
+        };
+        let start = std::time::Instant::now();
+        loop {
+            match zbm_sys::try_wait(pid) {
+                Ok(Some(status)) => {
+                    self.console_ended(pid, status, attached, events);
+                    return;
+                }
+                Ok(None) if start.elapsed() < CONSOLE_END => {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                _ => break,
+            }
+        }
+        if let Some(console) = attached.take() {
+            console.detach(&self.base);
+            self.error(
+                "the terminal of the console on the display hung up; \
+                 going on on the kernel console",
+            );
+            events(Event::Console("hung up".to_owned()));
+        }
+    }
+
     /// Waits until `pid` ends, reaping every other child that ends meanwhile,
     /// and returns its wait status (`None` if it is gone already). When the
     /// console is among them, the terminal goes back to the kernel console.
@@ -238,6 +279,7 @@ impl Supervisor {
     /// then, when it ends, the recovery shell.
     fn round(&self, resume: bool, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
         let extra: &[&str] = if resume { &["--resume"] } else { &[] };
+        self.settle_console(attached, events);
         let modes = self.modes(attached.as_ref());
         let report = if let Some(pid) = self.spawn(&self.startup, extra, false, attached.as_ref()) {
             events(Event::Started(pid));
@@ -349,6 +391,7 @@ impl Supervisor {
         attached: &mut Option<Attached>,
         events: &mut dyn FnMut(Event),
     ) {
+        self.settle_console(attached, events);
         let mut message =
             String::from("\nZFSBootMenu ended unexpectedly; type 'exit' to start it again\n");
         if let Some(report) = report {

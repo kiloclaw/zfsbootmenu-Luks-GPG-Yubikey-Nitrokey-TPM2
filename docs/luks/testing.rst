@@ -371,7 +371,8 @@ Following a boot
   ``zy`` and the dead circumflex and ``e`` must add ``ê``, and the same keys after ``echo`` at the shell's prompt must
   show and print ``zyê``; the same command for ``us``, typed with the German layout, must switch back. After ``kill -9`` of the
   console, a screenshot is kept (``virtio-fallback.ppm``) and noted with the console's last screen; the shell on the
-  kernel console must take ``echo zbm-back > /dev/ttyS0``, and ``dmesg > /dev/ttyS0`` must show the supervisor's
+  kernel console must take ``echo zbm-$(echo back) > /dev/ttyS0`` (the shell makes the line the test waits for, so
+  keys that reached something else cannot pass for it), and ``dmesg > /dev/ttyS0`` must show the supervisor's
   message that the console ended. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start
   must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the
   boot environment must boot.

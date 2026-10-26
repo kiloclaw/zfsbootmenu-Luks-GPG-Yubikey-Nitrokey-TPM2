@@ -435,3 +435,78 @@ fn the_recovery_shell_gets_the_terminal_s_modes_back() {
     assert!(flags.contains(&"isig") && flags.contains(&"echo"), "{text}");
     assert!(shown.contains("\x1b[?25h"), "{shown:?}");
 }
+
+/// A supervisor whose recovery shell writes `ran` to `shell-ran`.
+fn with_marking_shell(dir: &TempDir) -> Supervisor {
+    let startup = dir.write_executable("startup", "#!/bin/sh\n");
+    let mut supervisor = supervisor_in(dir, startup);
+    let marker = dir.join("shell-ran");
+    supervisor.shell = Program {
+        path: dir.write_executable(
+            "shell",
+            format!("#!/bin/sh\necho ran > {}\n", marker.display()),
+        ),
+        args: Vec::new(),
+    };
+    supervisor
+}
+
+#[test]
+#[allow(
+    clippy::zombie_processes,
+    reason = "the supervisor collects the console with waitpid"
+)]
+fn a_shell_after_the_console_ended_runs_on_the_kernel_console() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let supervisor = with_marking_shell(&dir);
+    // The console ended, closing its side of the terminal, and the start-up
+    // program, which lost the terminal with it, was collected first.
+    let console = std::process::Command::new("true").spawn().unwrap();
+    let (master, slave) = zbm_console::host::open_pty().unwrap();
+    drop(master);
+    let mut attached = Some(Attached::for_tests(console.id(), slave));
+    let mut events = Vec::new();
+
+    supervisor.recovery_shell(None, &mut attached, &mut |event| events.push(event));
+
+    assert!(attached.is_none());
+    assert_eq!(events, [Event::Console("ended 0".to_owned()), Event::Shell]);
+    // Not on the dead terminal, where it would have ended at once.
+    assert_eq!(
+        std::fs::read_to_string(dir.join("shell-ran")).unwrap(),
+        "ran\n"
+    );
+    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert!(
+        kmsg.contains("the console on the display ended (wait status 0)"),
+        "{kmsg}"
+    );
+}
+
+#[test]
+fn a_hung_up_terminal_is_given_up_even_if_its_console_is_not_collected() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let supervisor = with_marking_shell(&dir);
+    dir.write("console", "1\n");
+    let (master, slave) = zbm_console::host::open_pty().unwrap();
+    drop(master);
+    // Not a child of the supervisor: it cannot be waited for.
+    let mut attached = Some(Attached::for_tests(std::process::id(), slave));
+    let mut events = Vec::new();
+
+    supervisor.round(true, &mut attached, &mut |event| events.push(event));
+    let _ = zbm_sys::restore_default(Signal::Interrupt);
+
+    assert!(attached.is_none());
+    assert_eq!(events.first(), Some(&Event::Console("hung up".to_owned())));
+    assert_eq!(events.last(), Some(&Event::Shell));
+    assert!(!dir.join("console").exists());
+    assert!(dir.join("shell-ran").exists());
+    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert!(
+        kmsg.contains("hung up; going on on the kernel console"),
+        "{kmsg}"
+    );
+}

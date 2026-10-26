@@ -9,19 +9,25 @@
 //! the console sees the programs gone only when the supervisor is. If the
 //! console ends, the supervisor gives the virtual terminal back to the
 //! kernel console (text mode, the keyboard as it was), and the programs,
-//! which lose their terminal, go on there after the recovery shell.
+//! which lose their terminal, go on there after the recovery shell. A
+//! program that ended with the terminal may be collected before the
+//! console: the hung-up terminal tells the supervisor that the console is
+//! ending, and it waits for it before it starts anything else.
 //!
 //! Like the rest of the supervisor, this cannot panic.
 
 use std::fs::File;
 use std::io::{self, Write as _};
+use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use zbm_platform::RealFiles;
 use zbm_state::State;
 use zbm_sys::console::{
-    DisplayMode, KeyboardMode, keyboard_mode, set_display_mode, set_keyboard_mode,
+    DisplayMode, KeyboardMode, Watch, keyboard_mode, set_display_mode, set_keyboard_mode,
+    wait_ready,
 };
 
 use super::Program;
@@ -97,6 +103,17 @@ impl Attached {
     /// The programs' side of the terminal.
     pub fn terminal(&self) -> &File {
         &self.slave
+    }
+
+    /// Whether the terminal was hung up: the console closed its side,
+    /// which it does only as it ends. Programs started on it end at once.
+    pub fn is_hung_up(&self) -> bool {
+        let watch = Watch {
+            fd: self.slave.as_raw_fd(),
+            write: false,
+        };
+        wait_ready(&[watch], Some(Duration::ZERO))
+            .is_ok_and(|ready| ready.iter().any(|ready| ready.closed))
     }
 
     /// Writes `text` on the console's terminal, as the programs would.

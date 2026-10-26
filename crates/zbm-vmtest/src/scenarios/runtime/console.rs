@@ -60,8 +60,9 @@ const TTY: &str = "readlink /proc/self/fd/0\n";
 const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
 
 /// Typed on the kernel console afterwards: a line on the serial console,
-/// which the test reads.
-const BACK: &str = "echo zbm-back > /dev/ttyS0\n";
+/// which the test reads, made by the shell, so that keys that reached
+/// something else (the menu's command line, which a kernel prints) fail.
+const BACK: &str = "echo zbm-$(echo back) > /dev/ttyS0\n";
 
 /// Typed on the kernel console then: the supervisor's line of the kernel
 /// log, on the serial console. The whole log can take longer than the test

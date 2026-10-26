@@ -15,8 +15,10 @@
 
 pub mod console;
 pub mod memory;
+mod process;
 mod stack;
 
+pub use process::{Ended, try_wait, wait_any};
 pub use stack::{MAX_FRAMES, return_addresses};
 
 use std::ffi::{c_int, c_ulong, c_void};
@@ -213,34 +215,6 @@ pub fn restore_in_child(process: &mut std::process::Command, signals: &[Signal])
     }
 }
 
-/// How a child process ended, as `waitpid` reports it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Ended {
-    /// The process ID.
-    pub pid: u32,
-    /// The raw wait status.
-    pub status: i32,
-}
-
-/// Waits for any child of this process to end, as process 1 must, so that
-/// orphans are reaped too. Returns `None` when the process has no children.
-pub fn wait_any() -> std::io::Result<Option<Ended>> {
-    let mut status: c_int = 0;
-    loop {
-        // SAFETY: `status` is a valid, writable `int` for the duration of the call.
-        let pid = unsafe { waitpid(-1, &mut status, 0) };
-        if let Ok(pid) = u32::try_from(pid) {
-            return Ok(Some(Ended { pid, status }));
-        }
-        let error = std::io::Error::last_os_error();
-        match error.raw_os_error() {
-            Some(ECHILD) => return Ok(None),
-            _ if error.kind() == std::io::ErrorKind::Interrupted => {}
-            _ => return Err(error),
-        }
-    }
-}
-
 /// Catches the given signals and records them instead of ending the process.
 ///
 /// A caught signal does not interrupt the program: system calls are restarted,
@@ -378,7 +352,7 @@ mod tests {
     /// Held by every test that starts processes or changes dispositions, so that
     /// `wait_any` cannot collect another test's child and dispositions do not
     /// change under another test.
-    static PROCESSES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    pub(crate) static PROCESSES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn ignored_mask(process: &mut std::process::Command) -> u64 {
         let output = process
@@ -417,23 +391,6 @@ mod tests {
         assert_eq!(inherited & quit, 0, "{inherited:x}");
         assert_eq!(Signal::Quit.name(), "QUIT");
         assert_eq!(Signal::from_number(3), Some(Signal::Quit));
-    }
-
-    #[test]
-    #[allow(
-        clippy::zombie_processes,
-        reason = "wait_any collects the child, which is what the test checks"
-    )]
-    fn waiting_for_any_child() {
-        let _guard = PROCESSES.lock().unwrap();
-        let child = std::process::Command::new("sh")
-            .args(["-c", "exit 3"])
-            .spawn()
-            .unwrap();
-        let ended = wait_any().unwrap().unwrap();
-        assert_eq!(ended.pid, child.id());
-        assert_eq!((ended.status >> 8) & 0xff, 3);
-        assert_eq!(wait_any().unwrap(), None);
     }
 
     #[test]
