@@ -424,7 +424,8 @@ Following a boot
 Results
 -------
 
-Latest run: 20 October 2026, with software emulation (TCG). The build container image was Ubuntu 26.10 with
+Latest run of every test with the legacy runtime: 20 October 2026, with software emulation (TCG); with the Rust
+runtime, see below. The build container image was Ubuntu 26.10 with
 Linux 7.3.0-9-generic, OpenZFS 2.4.4 (``zfs-2.4.4-1ubuntu4``), cryptsetup 2.8.7, systemd 261 and dracut 112. The
 ``oldzfs`` tests used a ZFSBootMenu image built on Ubuntu 24.04 with OpenZFS 2.2.2 and Linux 6.8.
 
@@ -506,48 +507,72 @@ Total                       740     0
 Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), on
-22 October 2026, and ``runtime-rust-pilot``, which exists only for the Rust image. The ``complex`` tests fail because their boot pool's root is a locked ZFS encryption root, which the
-Rust runtime does not handle yet: it refuses to boot and opens the recovery shell. In ``complex-degraded`` and the two
-hot-plug tests, every LUKS, import and teardown check passes and only the boot environment's checks fail; the same
-holds for ``complex-healthy`` and ``complex-crypttab``, rerun later that day. ``complex-badkey`` and
-``complex-skip-recover`` ended without a result; they need a rerun. The ``oldzfs`` tests were skipped, as no
-OpenZFS 2.2 image was given.
+The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), and the
+``runtime`` tests of both runtimes, from 25 to 27 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), up to four lanes at
+a time. The build container image was the same as above. The ``oldzfs`` tests used an image that
+``tests/luks/vm/old-image.sh`` built on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2). Tests that a later change
+touched ran again on rebuilt images, and the table lists the last run of each; durations are with KVM, which is several
+times faster than the software emulation of the table above.
 
 ==============================  ======  ======  ========
 Test                            Passed  Failed  Duration
 ==============================  ======  ======  ========
-``layouts-main-rust``           44      0       11 min
-``layouts-parity-rust``         37      0       11 min
-``complex-setup-rust``          19      0       6 min
-``complex-healthy-rust``        13      14      6 min
-``complex-crypttab-rust``       13      13      8 min
-``complex-degraded-rust``       9       13      4 min
-``complex-hotplug-rust``        13      13      4 min
-``complex-hotplug-auto-rust``   13      13      5 min
-``keys-setup-rust``             9       0       3 min
-``keys-plugin-rust``            13      0       5 min
-``keys-native-rust``            13      0       6 min
-``keys-lockout-rust``           13      0       6 min
-``keys-notpm-rust``             13      0       5 min
+``layouts-main-rust``           44      0       2 min
+``layouts-parity-rust``         37      0       2 min
+``layouts-parity-oldzfs-rust``  16      0       3 min
+``complex-setup-rust``          19      0       2 min
+``complex-healthy-rust``        37      0       2 min
+``complex-crypttab-rust``       36      0       3 min
+``complex-degraded-rust``       30      0       1 min
+``complex-hotplug-rust``        36      0       2 min
+``complex-hotplug-auto-rust``   36      0       3 min
+``complex-badkey-rust``         4       0       27 s
+``complex-skip-recover-rust``   40      0       2 min
+``complex-oldzfs-rust``         4       0       3 min
+``keys-setup-rust``             9       0       47 s
+``keys-plugin-rust``            13      0       2 min
+``keys-native-rust``            13      0       2 min
+``keys-lockout-rust``           13      0       27 s
+``keys-notpm-rust``             13      0       24 s
 ``firmware-setup-rust``         3       0       2 min
-``firmware-boot-rust``          14      0       5 min
-``firmware-usbkey-rust``        14      0       5 min
-``firmware-usblate-rust``       14      0       5 min
-``firmware-nostick-rust``       14      0       3 min
-``procedures-rust``             78      0       27 min
-``runtime-setup``               3       0       2 min
-``runtime-rust``                15      0       4 min
-``runtime-rust-hostid``         15      0       5 min
-``runtime-rust-strict``         2       0       2 min
-``runtime-rust-force``          3       0       2 min
-``runtime-rust-prefer``         16      0       5 min
-``runtime-rust-late``           15      0       6 min
-``runtime-rust-waitfor``        15      0       6 min
-``runtime-rust-hooks``          13      0       5 min
+``firmware-boot-rust``          14      0       2 min
+``firmware-usbkey-rust``        14      0       2 min
+``firmware-usblate-rust``       14      0       16 s
+``firmware-nostick-rust``       14      0       23 s
+``procedures-rust``             78      0       12 min
+``secrets-setup-rust``          2       0       9 s
+``secrets-passphrase-rust``     4       0       2 min
+``secrets-keyfile-rust``        4       0       10 s
+``runtime-setup``               4       0       2 min
+``runtime-legacy``              16      0       39 s
+``runtime-rust``                15      0       39 s
+``runtime-legacy-hooks``        14      0       39 s
+``runtime-rust-hooks``          13      0       39 s
+``runtime-legacy-keysource``    7       0       11 s
+``runtime-rust-keysource``      4       0       11 s
+``runtime-legacy-signals``      3       0       2 min
 ``runtime-rust-signals``        9       0       2 min
-``runtime-rust-pilot``          13      0       1 min
-Total                           454     90
+``runtime-legacy-hostid``       16      0       39 s
+``runtime-rust-hostid``         15      0       39 s
+``runtime-legacy-strict``       2       0       2 s
+``runtime-rust-strict``         2       0       2 s
+``runtime-legacy-force``        4       0       5 s
+``runtime-rust-force``          3       0       5 s
+``runtime-legacy-prefer``       17      0       42 s
+``runtime-rust-prefer``         16      0       42 s
+``runtime-legacy-late``         16      0       49 s
+``runtime-rust-late``           15      0       49 s
+``runtime-legacy-waitfor``      16      0       49 s
+``runtime-rust-waitfor``        15      0       49 s
+``runtime-rust-pilot``          7       0       13 s
+``runtime-rust-crash``          7       0       2 min
+``runtime-rust-autosize``       6       0       –
+``runtime-rust-colours``        5       0       2 min
+``runtime-rust-drm``            12      0       2 min
+``runtime-rust-console``        23      0       10 min
+``runtime-rust-saved``          36      0       52 s
+``runtime-rust-gpu``            25      0       3 min
+Total                           890     0
 ==============================  ======  ======  ========
 
 Problems found and fixed

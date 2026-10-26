@@ -47,7 +47,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 | In progress | Steps 1 to 3 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view. Step 4, start-up in the menu, is built and waits for its VM run |
+| R5 | In progress | Steps 1 to 4 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view; start-up runs inside the menu, through every VM test of the Rust images. Step 5, snapshots, is next |
 | R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -55,8 +55,8 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 
 ### Next
 
-- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 4, start-up
-  inside the menu, is built and waits for its VM run; step 5 is next.
+- **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 5, snapshots and
+  package D, is next.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -102,7 +102,7 @@ What the finished phases left open, and the phase that takes it:
 | --- | --- | --- |
 | The menu timeout is the text of `/etc/zfsbootmenu.conf` (`+5`); it becomes a type when the menu counts it down | R1 | R5 |
 | The start-up's pool import and `zbm-boot` run `zfs` and `zpool` with the legacy command lines rather than the typed port, so that their parity recordings compare | R2, R3 | R5, where behaviour may change, or R9, when parity ends |
-| Fixtures of OpenZFS 2.2 and 2.3, and the two `oldzfs` VM tests, which need images with an older ZFS | R2 | When such images exist ([proposal](#proposals-for-later) 10) |
+| Fixtures of OpenZFS 2.2 and 2.3; the two `oldzfs` VM tests run, and pass, with the OpenZFS 2.2 image `tests/luks/vm/old-image.sh` builds | R2 | When the fixtures are recorded from such images ([proposal](#proposals-for-later) 10) |
 | Warnings for deprecated option names, a change of behaviour | R3 | R5 |
 | The build options are read by the shell scripts of the dracut module and the mkinitcpio hook | R3 | R6 |
 | The release each option appeared in | R3 | Not planned: the table would have to guess |
@@ -854,7 +854,8 @@ builds after the core tasks.
    tools until R5 step 6 and R6 port them; the start-up view shows the stages, done, until step 4 runs them inside
    the menu. The images of `910ce63` pass every VM test on the Rust runtime (the `runtime`, `complex`, `keys`,
    `secrets`, `layouts` and `firmware` groups; the harness fixes after them change no image).
-4. **Start-up inside the menu** (built; waits for its VM run): with the menu in the image and a terminal that can
+4. **Start-up inside the menu** (done; every VM test of the Rust images passes with it, 25 to 27 October 2026,
+   `docs/luks/testing.rst`): with the menu in the image and a terminal that can
    run it, `zfsbootmenu-init --console` runs the stages on the start-up view (`zbm::startup::MenuFront`, a
    `zbm_startup::front::Front`), and its dialogs answer the `Prompter` of `zbm-luks` (secrets, waits for devices, the
    timed prompts), the `Operator` of `zbm-pool` (import retries, unsupported features) and the `zbm.wait_for` wait.
