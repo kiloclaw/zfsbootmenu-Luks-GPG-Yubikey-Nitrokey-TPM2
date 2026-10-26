@@ -43,7 +43,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             terminal: &mut terminal,
             vt: &vt,
         };
-        let mut grid = |_| {
+        let mut grid = |_, _| {
             asked = true;
             Err(io::Error::other("no font"))
         };
@@ -268,7 +268,7 @@ fn the_start_is_announced_with_the_font_and_the_layout() {
 fn without_a_virtual_terminal_the_console_cannot_serve() {
     let dir = TempDir::new("zbm-console-novt");
     let places = places(&dir);
-    let mut grid = |_| Err(io::Error::other("no font"));
+    let mut grid = |_, _| Err(io::Error::other("no font"));
     let layouts = Layouts {
         first: None,
         names: Vec::new(),

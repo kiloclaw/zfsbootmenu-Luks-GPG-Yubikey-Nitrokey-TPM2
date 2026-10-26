@@ -22,7 +22,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use zbm_display::display::{Display, Screen as _, first_card};
-use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
 use zbm_display::layout::Layout;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
@@ -93,6 +92,9 @@ pub struct Settings {
     pub repeat: Option<(u32, u32)>,
     /// The lines of scrollback (`zbm.console_scrollback`).
     pub scrollback: usize,
+    /// The colour scheme (`zbm.console_palette`); the Linux console's
+    /// otherwise.
+    pub scheme: Option<&'static crate::scheme::Scheme>,
 }
 
 impl Settings {
@@ -107,8 +109,9 @@ impl Settings {
     }
 }
 
-/// Gives the font's grid for a display of a size in pixels.
-pub type MakeGrid<'g> = &'g mut dyn FnMut((u32, u32)) -> io::Result<Grid>;
+/// Gives the font's grid for a display of a size in pixels, in cells as
+/// high as asked, or as at the start.
+pub type MakeGrid<'g> = crate::host::Fonts<'g>;
 
 /// Loads a keyboard layout of the image by name.
 pub type LoadLayout<'l> = &'l mut dyn FnMut(&str) -> Result<Layout, String>;
@@ -390,7 +393,7 @@ fn console_for(
             console.frame_mut().damage_all();
             Ok(console)
         }
-        _ => Ok(Console::new(grid(size)?, size)),
+        _ => Ok(Console::new(grid(size, None)?, size)),
     }
 }
 
@@ -414,9 +417,10 @@ fn on_display(
     };
     let mut display = Display::open(&card)?;
     let size = display.size();
-    let mut console = console_for(kept, grid, size)?
+    let mut console = console_for(kept, &mut *grid, size)?
         .with_flavour(settings.flavour)
-        .with_scrollback(settings.scrollback);
+        .with_scrollback(settings.scrollback)
+        .with_scheme(settings.scheme.unwrap_or(&crate::scheme::LINUX));
     let Layouts { first, names, load } = layouts;
     let keyboards = open_keyboards(settings, places, first);
     let taken = VirtualTerminal::take(vt)?;
@@ -430,6 +434,7 @@ fn on_display(
         keyboard: keyboards.layout().to_owned(),
     };
     announce(settings, places, &started);
+    let _ = State::new(&RealFiles, &places.base).set_console_font(&console.font_text());
     let mut mirror = settings
         .mirror
         .as_deref()
@@ -437,7 +442,7 @@ fn on_display(
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch = layouts::switcher(places, names, load);
-    let mut host = real_host(&mut *master, keyboards, requests, places, switch);
+    let mut host = real_host(&mut *master, keyboards, requests, places, switch).with_fonts(grid);
     let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
@@ -518,7 +523,7 @@ pub fn reattach(base: &Path, timeout: Duration) -> io::Result<bool> {
     crate::release::request(pid, timeout, &mut || state.console_pid().is_some())
 }
 
-/// What became of a request for a keyboard layout.
+/// What became of a request for a keyboard layout, or a font's size.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Switched {
     /// The console took it, and types with this layout now: the one asked
@@ -556,7 +561,10 @@ pub fn request_layout(base: &Path, name: &str, timeout: Duration) -> io::Result<
     }
 }
 
+mod font;
 mod layouts;
+
+pub use font::request_font;
 
 #[cfg(test)]
 mod tests;

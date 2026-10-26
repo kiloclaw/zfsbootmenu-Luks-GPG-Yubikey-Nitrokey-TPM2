@@ -11,11 +11,14 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use alacritty_terminal::event::WindowSize;
 use zbm_display::display::Screen;
+use zbm_display::grid::Grid;
 use zbm_display::keys::KeyPress;
 
 use crate::keys;
 use crate::screen::Console;
+use crate::screen::zoom::Zoom;
 use crate::typing::{Preview, Taken, Typing};
 
 /// How long the loop waits when nothing is due, so that a request to hand
@@ -90,6 +93,61 @@ pub trait Host {
         let _ = text;
         Err(io::ErrorKind::Unsupported.into())
     }
+
+    /// The grid of the image's fonts for a display of `pixels`, in cells
+    /// `height` pixels high, or as at the start without one. A host without
+    /// fonts has none.
+    fn grid(&mut self, pixels: (u32, u32), height: Option<u16>) -> Option<Grid> {
+        let _ = (pixels, height);
+        None
+    }
+
+    /// The font's size `zbm console font` asked for, if it did.
+    fn font_request(&mut self) -> Option<Zoom> {
+        None
+    }
+
+    /// Tells the programs that the terminal is `size` now, in the font
+    /// described by `font`, and answers a request for it.
+    ///
+    /// # Errors
+    ///
+    /// When the programs' terminal cannot be told.
+    fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {
+        let _ = (font, size);
+        Ok(())
+    }
+}
+
+/// How many sizes a step up or down tries.
+const ZOOM_TRIES: usize = 8;
+
+/// Changes the font's size when the keys or `zbm console font` asked for
+/// it: the console draws in the grid the host makes, says which on its
+/// bar, and the programs are told their new size.
+fn zoom(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
+    let Some(zoom) = console.take_zoom().or_else(|| host.font_request()) else {
+        return Ok(());
+    };
+    let pixels = console.pixels();
+    let current = console.grid().cell().1;
+    let grid = zoom
+        .heights(current)
+        .into_iter()
+        .take(ZOOM_TRIES)
+        .filter_map(|height| host.grid(pixels, height))
+        .find(|grid| zoom.is_met_by(grid, pixels, current));
+    let is_new = grid.is_some();
+    if let Some(grid) = grid {
+        console.set_grid(grid);
+    }
+    let font = console.font_text();
+    if is_new {
+        console.set_notice(&font);
+    } else {
+        console.set_notice(&format!("No other size: {font}"));
+    }
+    host.font_shown(&font, &console.window_size())
 }
 
 /// Why the loop ended.
@@ -190,6 +248,7 @@ pub fn run(
         if let Some(ended) = take(console, host, &mut typing, input)? {
             return Ok(ended);
         }
+        zoom(console, host)?;
         let now = Instant::now();
         console.tick(now);
         if is_output && now.duration_since(*burst.get_or_insert(now)) < BURST {

@@ -5,7 +5,6 @@ use alacritty_terminal::Term;
 use alacritty_terminal::grid::Dimensions as _;
 use alacritty_terminal::index::{Column, Line, Point};
 use alacritty_terminal::term::cell::Flags;
-use alacritty_terminal::term::color::Colors;
 use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor};
 use zbm_display::decor::Decoration;
 use zbm_display::faces::FontFace;
@@ -14,7 +13,7 @@ use zbm_display::grid::CellStyle;
 
 use super::seek::Overlay;
 use super::{Cursor, Events};
-use crate::colour::{self, Shown};
+use crate::colour::{self, Shown, Table};
 
 /// What the cell of `term` at (line, column) shows as the screen is
 /// `shown`: its character, its style, its combining marks, and the shape
@@ -34,7 +33,7 @@ pub(super) fn look<'a>(
         return None;
     }
     let cell = &grid[Line(row)][Column(column)];
-    let colours = term.colors();
+    let colours = Table::new(term.colors(), shown.scheme);
     // The search bar and the label, in the default colours reversed.
     let size = (grid.screen_lines(), grid.columns());
     if let Some(c) = overlay.char_at((line, column), size) {
@@ -92,7 +91,7 @@ fn previewed(cursor: Option<Cursor>, (line, column): (usize, usize)) -> Option<c
 
 /// The style of the search bar and the label: the default colours
 /// reversed.
-fn reversed(colours: &Colors) -> CellStyle {
+fn reversed(colours: Table<'_>) -> CellStyle {
     let named = |name| colour::resolve(colours, Color::Named(name), false);
     CellStyle {
         fg: named(NamedColor::Background),
@@ -103,7 +102,7 @@ fn reversed(colours: &Colors) -> CellStyle {
 }
 
 /// `style` in a match found: black on yellow.
-fn found(colours: &Colors, style: CellStyle) -> CellStyle {
+fn found(colours: Table<'_>, style: CellStyle) -> CellStyle {
     CellStyle {
         fg: colour::by_index(colours, 0),
         bg: colour::by_index(colours, 3),

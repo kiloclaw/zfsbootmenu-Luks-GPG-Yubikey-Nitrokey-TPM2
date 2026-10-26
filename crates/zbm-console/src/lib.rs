@@ -29,6 +29,7 @@ pub mod mirror;
 pub mod relay;
 pub mod release;
 pub mod run;
+pub mod scheme;
 pub mod screen;
 pub mod serve;
 pub mod typing;

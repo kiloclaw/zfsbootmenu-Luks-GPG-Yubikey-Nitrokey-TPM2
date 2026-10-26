@@ -53,12 +53,24 @@ fn markers_and_locks() {
     assert_eq!(state.secret_prompt_pid(), Some(44));
     state.clear_secret_prompt();
     assert_eq!(state.secret_prompt_pid(), None);
+    assert_eq!(state.console_font_request(), None);
+    state.request_console_font("32").unwrap();
+    assert!(state.has_console_font_request());
+    assert_eq!(state.console_font_request().as_deref(), Some("32"));
+    state.clear_console_font_request();
+    assert!(!state.has_console_font_request());
+    state.set_console_font("ter-v32b.psf 16x32, 80x25").unwrap();
+    assert_eq!(
+        state.console_font().as_deref(),
+        Some("ter-v32b.psf 16x32, 80x25")
+    );
     let saved = state.save_scrollback(b"$ ls\n").unwrap();
     assert_eq!(saved, Path::new("/zfsbootmenu/console-scrollback.txt"));
     assert_eq!(files.read_to_string(&saved).unwrap(), "$ ls\n");
     state.clear_console();
     assert_eq!(state.console_pid(), None);
     assert_eq!(state.console_layout(), None);
+    assert_eq!(state.console_font(), None);
 
     files.file("/zfsbootmenu/have_errors", "");
     assert!(state.has_errors() && !state.has_warnings());

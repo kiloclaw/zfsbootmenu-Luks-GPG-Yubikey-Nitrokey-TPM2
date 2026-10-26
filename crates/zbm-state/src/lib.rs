@@ -155,6 +155,7 @@ impl<'a> State<'a> {
     pub fn clear_console(&self) {
         self.remove("console");
         self.remove("console-layout");
+        self.remove("console-font");
     }
 
     /// The process ID of the console that handed the display back before
@@ -207,6 +208,41 @@ impl<'a> State<'a> {
     /// it came too late.
     pub fn clear_console_layout_request(&self) {
         self.remove("console-layout-request");
+    }
+
+    /// The font the console on the display draws with: its name, its
+    /// cells' size and how many.
+    pub fn console_font(&self) -> Option<String> {
+        self.read_line("console-font")
+            .filter(|font| !font.is_empty())
+    }
+
+    /// Records the font the console draws with.
+    pub fn set_console_font(&self, font: &str) -> Result<()> {
+        self.write("console-font", format!("{font}\n").as_bytes())
+    }
+
+    /// Asks the console for the font's size `size` (`zbm console font`);
+    /// the console takes the request.
+    pub fn request_console_font(&self, size: &str) -> Result<()> {
+        self.write("console-font-request", format!("{size}\n").as_bytes())
+    }
+
+    /// Whether a request for a font's size waits for the console.
+    pub fn has_console_font_request(&self) -> bool {
+        self.files.exists(&self.path("console-font-request"))
+    }
+
+    /// The font's size asked for, while the request waits.
+    pub fn console_font_request(&self) -> Option<String> {
+        self.read_line("console-font-request")
+            .filter(|size| !size.is_empty())
+    }
+
+    /// Removes the request for a font's size: the console took it, or it
+    /// came too late.
+    pub fn clear_console_font_request(&self) {
+        self.remove("console-font-request");
     }
 
     /// The process ID of the program that shows a secret prompt now (a

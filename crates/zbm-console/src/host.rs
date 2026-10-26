@@ -21,10 +21,19 @@ use std::time::{Duration, Instant};
 use alacritty_terminal::event::WindowSize;
 use rustix::pty::{OpenptFlags, grantpt, openpt, ptsname, unlockpt};
 use rustix::termios::{self, OptionalActions, Winsize};
+use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
 use zbm_sys::console::{Ready, Watch, wait_ready};
 
 use crate::run::{Host, Input};
+use crate::screen::zoom::Zoom;
+use state::StateDir;
+
+mod state;
+
+/// Makes the grid of the image's fonts for a display of a size in pixels,
+/// in cells as high as asked, or as at the start.
+pub type Fonts<'f> = &'f mut dyn FnMut((u32, u32), Option<u16>) -> io::Result<Grid>;
 
 /// How much is read at once.
 pub(crate) const CHUNK: usize = 16 * 1024;
@@ -212,25 +221,13 @@ pub struct RealHost<'h, M> {
     devices: Option<File>,
     /// Until when keyboards are looked for on every tick.
     rescan_until: Option<Instant>,
-    /// Where a program of the runtime says that it shows a secret prompt.
-    secret_prompt: Option<SecretPrompt>,
-}
-
-/// The record of a secret prompt in the runtime's state directory, which
-/// counts while the process that wrote it lives.
-#[derive(Debug)]
-struct SecretPrompt {
-    base: std::path::PathBuf,
-}
-
-impl SecretPrompt {
-    /// Whether a living process records a secret prompt.
-    fn is_open(&self) -> bool {
-        let state = zbm_state::State::new(&zbm_platform::RealFiles, &self.base);
-        state
-            .secret_prompt_pid()
-            .is_some_and(|pid| std::path::Path::new(&format!("/proc/{pid}")).exists())
-    }
+    /// The runtime's state directory: secret prompts, the scrollback
+    /// saved and the font's size asked for.
+    state: Option<StateDir>,
+    /// Makes the grids of the image's fonts.
+    fonts: Option<Fonts<'h>>,
+    /// The font's size `zbm console font` asked for.
+    font_request: Option<Zoom>,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -256,7 +253,9 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             wake: None,
             devices: None,
             rescan_until: None,
-            secret_prompt: None,
+            state: None,
+            fonts: None,
+            font_request: None,
         }
     }
 
@@ -264,9 +263,17 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// runtime's state directory `base`, and saves the scrollback there.
     #[must_use]
     pub fn with_state(mut self, base: &std::path::Path) -> Self {
-        self.secret_prompt = Some(SecretPrompt {
+        self.state = Some(StateDir {
             base: base.to_owned(),
         });
+        self
+    }
+
+    /// The host, which makes grids of the image's fonts with `fonts` when
+    /// the font's size changes.
+    #[must_use]
+    pub fn with_fonts(mut self, fonts: Fonts<'h>) -> Self {
+        self.fonts = Some(fonts);
         self
     }
 
@@ -365,12 +372,15 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         }
     }
 
-    /// Gives the keyboards the layout asked for, if one was.
-    fn switch_layout(&mut self) {
+    /// Takes the requests that came: gives the keyboards the layout asked
+    /// for, if one was, and keeps the font's size asked for.
+    fn take_requests(&mut self) {
         if let Some((requested, switch)) = &mut self.layout
             && requested.swap(false, Ordering::SeqCst)
         {
             switch(&mut self.keyboards, Change::Requested);
+            let asked = self.state.as_ref().and_then(StateDir::font_request);
+            self.font_request = asked.or(self.font_request);
         }
     }
 }
@@ -384,7 +394,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             }
             return Ok(Input::Release);
         }
-        self.switch_layout();
+        self.take_requests();
         let (watches, count) = self.watches();
         let ready = wait_ready(&watches, Some(timeout))?;
         let (keyboards, rest) = ready.split_at(count.min(ready.len()));
@@ -406,7 +416,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             // Nothing happened for a while: a keyboard may have come.
             self.keyboards.rescan();
         }
-        self.switch_layout();
+        self.take_requests();
         Ok(Input::Nothing)
     }
 
@@ -436,11 +446,23 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     }
 
     fn save_scrollback(&mut self, text: &[u8]) -> io::Result<std::path::PathBuf> {
-        let base = self.secret_prompt.as_ref().map(|marker| &marker.base);
-        let base = base.ok_or(io::ErrorKind::Unsupported)?;
-        zbm_state::State::new(&zbm_platform::RealFiles, base)
-            .save_scrollback(text)
-            .map_err(io::Error::other)
+        let state = self.state.as_ref().ok_or(io::ErrorKind::Unsupported)?;
+        state.save_scrollback(text)
+    }
+
+    fn grid(&mut self, pixels: (u32, u32), height: Option<u16>) -> Option<Grid> {
+        self.fonts.as_mut()?(pixels, height).ok()
+    }
+
+    fn font_request(&mut self) -> Option<Zoom> {
+        self.font_request.take()
+    }
+
+    fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {
+        if let Some(state) = &self.state {
+            state.font_shown(font);
+        }
+        set_size(&self.master, size)
     }
 
     fn is_secret(&self) -> bool {
@@ -453,9 +475,9 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         });
         is_password
             || self
-                .secret_prompt
+                .state
                 .as_ref()
-                .is_some_and(SecretPrompt::is_open)
+                .is_some_and(StateDir::is_secret_prompt_open)
     }
 }
 

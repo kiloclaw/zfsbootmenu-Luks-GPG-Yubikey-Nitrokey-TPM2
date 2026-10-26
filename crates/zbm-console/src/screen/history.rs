@@ -70,9 +70,11 @@ impl Console {
     }
 
     /// Takes `press` when it is the console's: Shift+PgUp and Shift+PgDn
-    /// scroll the programs' main screen, and the keys of search and vi
-    /// mode (`seek`). Any other key is given back, for the programs.
+    /// scroll the programs' main screen, and the keys of the font's size
+    /// (`zoom`) and of search and vi mode (`seek`). Any other key is given
+    /// back, for the programs.
     pub fn take_key(&mut self, press: KeyPress) -> Option<KeyPress> {
+        let press = self.take_zoom_key(press)?;
         let press = self.take_seek_key(press)?;
         let is_main_screen = !self.term.mode().contains(TermMode::ALT_SCREEN);
         let scroll = match press.key {

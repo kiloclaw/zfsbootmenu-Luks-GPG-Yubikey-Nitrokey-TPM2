@@ -1,9 +1,10 @@
-//! How a cell of the terminal is drawn: its colours in the Linux console's
-//! palette, and the 256 colours and true colour beyond it.
+//! How a cell of the terminal is drawn: its colours in the colour scheme,
+//! by default the Linux console's, and the 256 colours and true colour
+//! beyond it.
 //!
-//! The defaults are the console's (grey on black), and bold draws the eight
-//! base colours bright as the console does, so that programs written for
-//! the kernel console look the same on this one.
+//! The defaults are the scheme's (grey on black for the console's), and
+//! bold draws the eight base colours bright as the console does, so that
+//! programs written for the kernel console look the same on this one.
 
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::term::color::Colors;
@@ -14,33 +15,61 @@ use zbm_display::frame::Rgb;
 use zbm_display::grid::CellStyle;
 use zbm_display::palette;
 
+use crate::scheme::{LINUX, Scheme};
+
 /// The pixels of an RGB colour of the terminal.
 fn rgb(colour: TermRgb) -> Rgb {
     Rgb(colour.r, colour.g, colour.b)
 }
 
+/// The terminal's colours: those the programs set (OSC 4, 10, 11, 12),
+/// else the scheme's.
+#[derive(Clone, Copy)]
+pub struct Table<'a> {
+    /// The colours the programs set.
+    pub set: &'a Colors,
+    /// The colour scheme.
+    pub scheme: &'static Scheme,
+}
+
+impl std::fmt::Debug for Table<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Table")
+            .field("scheme", &self.scheme.name)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> Table<'a> {
+    /// The table of the colours `set`, in `scheme`.
+    pub fn new(set: &'a Colors, scheme: &'static Scheme) -> Table<'a> {
+        Table { set, scheme }
+    }
+}
+
 /// The colour numbered `index` in the terminal's table: what a program set
-/// with OSC 4, else the palette's (0 to 255), the defaults (256 and 257)
+/// with OSC 4, else the scheme's (0 to 255), the defaults (256 and 257)
 /// and the dim colours (259 to 266, 268). Bold default text is the
-/// console's bright white (267).
-pub fn by_index(colours: &Colors, index: usize) -> Rgb {
-    if let Some(colour) = colours[index] {
+/// scheme's (267), bright white in the console's.
+pub fn by_index(colours: Table<'_>, index: usize) -> Rgb {
+    if let Some(colour) = colours.set[index] {
         return rgb(colour);
     }
-    let named = |number: usize| u8::try_from(number).map_or(Rgb::BLACK, palette::indexed);
+    let scheme = colours.scheme;
+    let named = |number: usize| u8::try_from(number).map_or(Rgb::BLACK, |n| scheme.indexed(n));
     match index {
         0..=255 => named(index),
-        256 | 258 => palette::FOREGROUND,
-        267 => named(15),
-        257 => palette::BACKGROUND,
+        256 | 258 => scheme.foreground,
+        267 => scheme.bold,
+        257 => scheme.background,
         259..=266 => palette::dim(named(index - 259)),
-        _ => palette::dim(palette::FOREGROUND),
+        _ => palette::dim(scheme.foreground),
     }
 }
 
 /// The pixels of `colour` in the terminal's table `colours`; `bold`
 /// brightens the eight base colours.
-pub fn resolve(colours: &Colors, colour: Color, bold: bool) -> Rgb {
+pub fn resolve(colours: Table<'_>, colour: Color, bold: bool) -> Rgb {
     match colour {
         Color::Spec(colour) => rgb(colour),
         Color::Indexed(number) if bold && number < 8 => by_index(colours, usize::from(number) + 8),
@@ -68,7 +97,7 @@ fn underline(flags: Flags) -> Underline {
 
 /// The lines drawn under and through `cell`, the underline in the colour
 /// SGR 58 gave it; none when it is hidden.
-fn decoration(colours: &Colors, cell: &Cell) -> Decoration {
+fn decoration(colours: Table<'_>, cell: &Cell) -> Decoration {
     let flags = cell.flags;
     if flags.contains(Flags::HIDDEN) {
         return Decoration::default();
@@ -84,7 +113,7 @@ fn decoration(colours: &Colors, cell: &Cell) -> Decoration {
 
 /// How `cell` is drawn: its colours, with bold, dim, inverse and hidden
 /// as the console draws them, and its underline and strikeout.
-pub fn style(colours: &Colors, cell: &Cell) -> CellStyle {
+pub fn style(colours: Table<'_>, cell: &Cell) -> CellStyle {
     let flags = cell.flags;
     let bold = flags.contains(Flags::BOLD);
     let mut fg = resolve(colours, cell.fg, bold);
@@ -107,12 +136,24 @@ pub fn style(colours: &Colors, cell: &Cell) -> CellStyle {
 }
 
 /// How the screen is shown at a moment.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Shown {
     /// Whether it is reversed (DECSCNM): the colours of each cell swapped.
     pub reverse: bool,
     /// Whether blinking text is hidden.
     pub blink_off: bool,
+    /// The colour scheme.
+    pub scheme: &'static Scheme,
+}
+
+impl Default for Shown {
+    fn default() -> Shown {
+        Shown {
+            reverse: false,
+            blink_off: false,
+            scheme: &LINUX,
+        }
+    }
 }
 
 /// `style`, of a cell of `flags`, as the screen is `shown`.
@@ -129,14 +170,14 @@ pub fn shown(mut style: CellStyle, flags: Flags, shown: Shown) -> CellStyle {
 
 /// The colour a program gave the cursor (OSC 12), until it reset it (OSC
 /// 112).
-pub fn cursor_colour(colours: &Colors) -> Option<Rgb> {
-    colours[NamedColor::Cursor].map(rgb)
+pub fn cursor_colour(colours: Table<'_>) -> Option<Rgb> {
+    colours.set[NamedColor::Cursor].map(rgb)
 }
 
 /// The style of the cursor drawn as a block over a cell of `style`: its
 /// colours swapped, or the cursor's colour behind the character's
 /// background as text.
-pub fn cursor(colours: &Colors, style: CellStyle) -> CellStyle {
+pub fn cursor(colours: Table<'_>, style: CellStyle) -> CellStyle {
     CellStyle {
         fg: style.bg,
         bg: cursor_colour(colours).unwrap_or(style.fg),
@@ -150,6 +191,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    fn linux(colours: &Colors) -> Table<'_> {
+        Table::new(colours, &LINUX)
+    }
 
     const DEFAULT_FG: Color = Color::Named(NamedColor::Foreground);
 
@@ -165,7 +210,7 @@ mod tests {
     #[test]
     fn colours_are_the_console_s_with_256_and_true_colour() {
         let colours = Colors::default();
-        let named = |name| resolve(&colours, Color::Named(name), false);
+        let named = |name| resolve(linux(&colours), Color::Named(name), false);
 
         assert_eq!(named(NamedColor::Foreground), Rgb(0xaa, 0xaa, 0xaa));
         assert_eq!(named(NamedColor::Background), Rgb::BLACK);
@@ -173,12 +218,12 @@ mod tests {
         assert_eq!(named(NamedColor::DimRed), Rgb(0x55, 0, 0));
         assert_eq!(named(NamedColor::DimForeground), Rgb(0x55, 0x55, 0x55));
         assert_eq!(named(NamedColor::Cursor), Rgb(0xaa, 0xaa, 0xaa));
-        let bold = resolve(&colours, DEFAULT_FG, true);
+        let bold = resolve(linux(&colours), DEFAULT_FG, true);
         assert_eq!(bold, Rgb(0xff, 0xff, 0xff));
         let spec = Color::Spec(TermRgb { r: 1, g: 2, b: 3 });
-        assert_eq!(resolve(&colours, spec, true), Rgb(1, 2, 3));
+        assert_eq!(resolve(linux(&colours), spec, true), Rgb(1, 2, 3));
         assert_eq!(
-            resolve(&colours, Color::Indexed(196), false),
+            resolve(linux(&colours), Color::Indexed(196), false),
             Rgb(255, 0, 0)
         );
     }
@@ -187,20 +232,20 @@ mod tests {
     fn bold_brightens_the_base_colours_and_a_program_s_colours_win() {
         let mut colours = Colors::default();
         assert_eq!(
-            resolve(&colours, Color::Indexed(2), true),
+            resolve(linux(&colours), Color::Indexed(2), true),
             Rgb(0x55, 0xff, 0x55)
         );
         assert_eq!(
-            resolve(&colours, Color::Named(NamedColor::Blue), true),
+            resolve(linux(&colours), Color::Named(NamedColor::Blue), true),
             Rgb(0x55, 0x55, 0xff)
         );
         assert_eq!(
-            resolve(&colours, Color::Indexed(100), true),
+            resolve(linux(&colours), Color::Indexed(100), true),
             palette::indexed(100)
         );
 
         colours[4] = Some(TermRgb { r: 9, g: 9, b: 9 });
-        assert_eq!(by_index(&colours, 4), Rgb(9, 9, 9));
+        assert_eq!(by_index(linux(&colours), 4), Rgb(9, 9, 9));
     }
 
     #[test]
@@ -209,16 +254,16 @@ mod tests {
         let red = Color::Named(NamedColor::Red);
         let black = Color::Named(NamedColor::Background);
 
-        let inverse = style(&colours, &cell(red, black, Flags::INVERSE));
-        let dim = style(&colours, &cell(red, black, Flags::DIM));
-        let hidden = style(&colours, &cell(red, black, Flags::HIDDEN));
-        let underlined = style(&colours, &cell(red, black, Flags::DOUBLE_UNDERLINE));
+        let inverse = style(linux(&colours), &cell(red, black, Flags::INVERSE));
+        let dim = style(linux(&colours), &cell(red, black, Flags::DIM));
+        let hidden = style(linux(&colours), &cell(red, black, Flags::HIDDEN));
+        let underlined = style(linux(&colours), &cell(red, black, Flags::DOUBLE_UNDERLINE));
         let over_cursor = cursor(
-            &colours,
-            style(&colours, &cell(DEFAULT_FG, black, Flags::UNDERLINE)),
+            linux(&colours),
+            style(linux(&colours), &cell(DEFAULT_FG, black, Flags::UNDERLINE)),
         );
         let hidden_line = style(
-            &colours,
+            linux(&colours),
             &cell(red, black, Flags::HIDDEN | Flags::STRIKEOUT),
         );
 
@@ -234,7 +279,7 @@ mod tests {
         );
         assert_eq!(over_cursor.decoration, Decoration::default());
         // Bold and italic text asks for its face.
-        let face = |flags| style(&colours, &cell(red, black, flags)).face;
+        let face = |flags| style(linux(&colours), &cell(red, black, flags)).face;
         assert_eq!(face(Flags::BOLD | Flags::ITALIC), FontFace::BoldItalic);
         assert_eq!(face(Flags::ITALIC), FontFace::Italic);
         assert_eq!(face(Flags::empty()), FontFace::Regular);
@@ -247,11 +292,11 @@ mod tests {
             b: 0,
         });
         let green = cursor(
-            &coloured,
-            style(&coloured, &cell(DEFAULT_FG, black, Flags::empty())),
+            linux(&coloured),
+            style(linux(&coloured), &cell(DEFAULT_FG, black, Flags::empty())),
         );
         assert_eq!((green.fg, green.bg), (Rgb::BLACK, Rgb(0, 0xff, 0)));
-        assert_eq!(cursor_colour(&colours), None);
+        assert_eq!(cursor_colour(linux(&colours)), None);
     }
 
     #[test]
@@ -266,13 +311,13 @@ mod tests {
             (Flags::empty(), Underline::None),
         ];
         for (flags, kind) in kinds {
-            let drawn = style(&colours, &cell(DEFAULT_FG, black, flags));
+            let drawn = style(linux(&colours), &cell(DEFAULT_FG, black, flags));
             assert_eq!(drawn.decoration.underline, kind, "{flags:?}");
         }
 
         let mut coloured = cell(DEFAULT_FG, black, Flags::UNDERLINE | Flags::STRIKEOUT);
         coloured.set_underline_color(Some(Color::Indexed(1)));
-        let drawn = style(&colours, &coloured);
+        let drawn = style(linux(&colours), &coloured);
         assert_eq!(drawn.decoration.underline_colour, Some(Rgb(0xaa, 0, 0)));
         assert!(drawn.decoration.strikeout);
     }

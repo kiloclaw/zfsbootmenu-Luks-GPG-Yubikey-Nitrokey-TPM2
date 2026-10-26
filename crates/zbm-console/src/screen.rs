@@ -30,8 +30,9 @@ use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as 
 use zbm_display::frame::Frame;
 use zbm_display::grid::{Grid, Neighbour, Text};
 
-use crate::colour::{self, Shown};
+use crate::colour::{self, Shown, Table};
 use crate::keys::{self, Flavour, Modes};
+use crate::scheme::{LINUX, Scheme};
 use crate::typing::Preview;
 pub use blink::BLINK;
 use look::{draw_cursor, look};
@@ -42,6 +43,7 @@ mod history;
 mod look;
 mod scroll;
 pub(super) mod seek;
+pub mod zoom;
 
 /// The events of the terminal, kept until the console handles them.
 #[derive(Clone, Default)]
@@ -83,6 +85,10 @@ pub struct Console {
     seek: seek::Seek,
     /// What was drawn over the screen.
     overlay: seek::Overlay,
+    /// The change of the font's size asked for with the keys.
+    zoom: Option<zoom::Zoom>,
+    /// The colour scheme.
+    scheme: &'static Scheme,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -158,6 +164,8 @@ impl Console {
             secret: false,
             seek: seek::Seek::default(),
             overlay: seek::Overlay::default(),
+            zoom: None,
+            scheme: &LINUX,
         };
         console.draw();
         console
@@ -230,7 +238,8 @@ impl Console {
                 Event::PtyWrite(text) => text,
                 Event::TextAreaSizeRequest(format) => format(self.window_size()),
                 Event::ColorRequest(index, format) => {
-                    let colour = colour::by_index(self.term.colors(), index);
+                    let colours = Table::new(self.term.colors(), self.scheme);
+                    let colour = colour::by_index(colours, index);
                     format(TermRgb {
                         r: colour.0,
                         g: colour.1,
@@ -326,6 +335,7 @@ impl Console {
         Shown {
             reverse: self.term.mode().contains(TermMode::REVERSE_SCREEN),
             blink_off: self.text_blink.is_off(),
+            scheme: self.scheme,
         }
     }
 
@@ -501,7 +511,8 @@ impl Console {
         }
         if let Some(shape) = shape {
             let area = self.grid.area(x, y);
-            let colour = colour::cursor_colour(self.term.colors()).unwrap_or(style.fg);
+            let colours = Table::new(self.term.colors(), self.scheme);
+            let colour = colour::cursor_colour(colours).unwrap_or(style.fg);
             draw_cursor(&mut self.frame, area, shape, colour);
         }
     }

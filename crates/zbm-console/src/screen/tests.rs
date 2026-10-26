@@ -395,3 +395,4 @@ fn what_is_being_typed_is_drawn_underlined_at_the_cursor() {
 }
 mod history;
 mod seek;
+mod zoom;

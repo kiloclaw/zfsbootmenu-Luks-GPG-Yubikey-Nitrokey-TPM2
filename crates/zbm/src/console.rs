@@ -14,10 +14,12 @@
 //! ```text
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
 //!             [--numlock on|off] [--repeat <delay>,<rate>]
-//!             [--scrollback <lines>] [--mirror <file>]
+//!             [--scrollback <lines>] [--palette <name>] [--large]
+//!             [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
+//! zbm console font [<pixels>|+|-|default]
 //! ```
 //!
 //! `zbm console reattach`, when `kexec` failed after the hand-over, has the
@@ -37,6 +39,17 @@
 //! oblique and bold oblique faces where the image has them, and the
 //! fallback fonts of the image (`fonts/fallback/`, in name order) for the
 //! characters it lacks; `--psf` draws with that console font itself.
+//! Ctrl+Alt+`=` and Ctrl+Alt+`-` make the cells larger and smaller, and
+//! Ctrl+Alt+`0` gives them their first size again; `zbm console font`
+//! says which font the console draws with, or asks for a size: a height
+//! in pixels, the next one up (`+`) or down (`-`), or the first
+//! (`default`).
+//!
+//! `--palette` names the colour scheme: `linux`, the Linux console's, by
+//! default, `high-contrast`, `solarized-dark`, `solarized-light` or
+//! `tango`. `--large` draws cells twice as high, or half again as high
+//! when that would leave fewer than 40 columns, in the high-contrast
+//! scheme unless `--palette` names another.
 //!
 //! `--mirror` writes the screen's text to a file or device after each
 //! change, after a form feed, for the VM tests.
@@ -51,7 +64,11 @@ use zbm_display::outline::Outline;
 use zbm_platform::Files;
 use zbm_startup::autosize::FONTS;
 
-use zbm_console::serve::{Layouts, Places, Released, Settings, reattach, release, serve};
+use zbm_console::scheme::{HIGH_CONTRAST, Scheme};
+use zbm_console::screen::zoom::Zoom;
+use zbm_console::serve::{
+    Layouts, Places, Released, Settings, Switched, reattach, release, request_font, serve,
+};
 use zbm_platform::RealFiles;
 
 use crate::{Io, USAGE};
@@ -60,10 +77,11 @@ use crate::{Io, USAGE};
 const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--numlock on|off] [--repeat <delay>,<rate>] [--scrollback <lines>]
-                   [--mirror <file>]
+                   [--palette <name>] [--large] [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
+       zbm console font [<pixels>|+|-|default]
 ";
 
 /// The lines of scrollback the console keeps by default: about 9 MB on a
@@ -77,7 +95,7 @@ pub const MAX_SCROLLBACK: usize = 100_000;
 const RELEASE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// What the command line asks for.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Options {
     /// The DRM card; the first otherwise.
     pub card: Option<PathBuf>,
@@ -95,6 +113,11 @@ pub struct Options {
     pub scrollback: Option<usize>,
     /// Where to write the screen's text.
     pub mirror: Option<PathBuf>,
+    /// The colour scheme asked for.
+    pub scheme: Option<&'static Scheme>,
+    /// Whether to draw large text, in the high-contrast scheme unless
+    /// another is asked for.
+    pub large: bool,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -120,6 +143,8 @@ pub fn parse(args: &[String]) -> Option<Options> {
                     Some(args.next()?.parse().ok().filter(|&n| n <= MAX_SCROLLBACK)?);
             }
             "--psf" => options.psf = true,
+            "--palette" => options.scheme = Some(zbm_console::scheme::by_name(args.next()?)?),
+            "--large" => options.large = true,
             _ => return None,
         }
     }
@@ -180,7 +205,9 @@ fn faces(files: &dyn Files, fonts: &Path, regular: Outline, height: u32) -> Face
 /// The grid the console draws with on a display of `size`, from the
 /// image's fonts below `root`: the TrueType font in cells as high as the
 /// console font `zbm console-autosize` would choose, or that console font
-/// itself, with `--psf` or when the image has no TrueType font.
+/// itself, with `--psf` or when the image has no TrueType font. A `height`
+/// asked for while the console runs comes before `--height`: the console
+/// font nearest it, or the TrueType font in cells that high.
 ///
 /// # Errors
 ///
@@ -190,8 +217,13 @@ pub fn console_grid(
     root: &Path,
     options: &Options,
     size: (u32, u32),
+    height: Option<u16>,
 ) -> io::Result<Grid> {
-    let bitmap = crate::menu_demo::grid(files, root, options.height, size)?;
+    if options.large && height.is_none() {
+        return large_grid(files, root, options, size);
+    }
+    let asked = height.or(options.height);
+    let bitmap = crate::menu_demo::grid(files, root, asked, size)?;
     if options.psf {
         return Ok(bitmap);
     }
@@ -199,11 +231,41 @@ pub fn console_grid(
     let Ok(data) = files.read(&fonts.join(TTF)) else {
         return Ok(bitmap);
     };
-    let height = bitmap.cell().1;
+    let height = height.map_or(bitmap.cell().1, u32::from);
     Ok(match Outline::new(data, height) {
         Ok(outline) => Grid::faces(faces(files, &fonts, outline, height)).named(TTF),
         Err(_) => bitmap,
     })
+}
+
+/// The fewest columns large text may leave.
+const LARGE_COLUMNS: u16 = 40;
+
+/// The grid of large text on a display of `size`: cells twice as high as
+/// the console would choose, or half again as high when that leaves fewer
+/// than [`LARGE_COLUMNS`], or as high when that does too.
+fn large_grid(
+    files: &dyn Files,
+    root: &Path,
+    options: &Options,
+    size: (u32, u32),
+) -> io::Result<Grid> {
+    let normal = Options {
+        large: false,
+        ..options.clone()
+    };
+    let base = console_grid(files, root, &normal, size, None)?;
+    let height = base.cell().1;
+    for larger in [height * 2, height * 3 / 2] {
+        let Ok(larger) = u16::try_from(larger) else {
+            continue;
+        };
+        let grid = console_grid(files, root, &normal, size, Some(larger))?;
+        if grid.dimensions(size).0 >= LARGE_COLUMNS {
+            return Ok(grid);
+        }
+    }
+    Ok(base)
 }
 
 /// `zbm console`, or `zbm console release`, `reattach` or `layout`.
@@ -212,6 +274,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         Some("release") => return run_release(args.get(1..).unwrap_or(&[]), io),
         Some("reattach") => return run_reattach(args.get(1..).unwrap_or(&[]), io),
         Some("layout") => return crate::layouts::run_switch(args.get(1..).unwrap_or(&[]), io),
+        Some("font") => return run_font(args.get(1..).unwrap_or(&[]), io),
         _ => {}
     }
     let Some(options) = parse(args) else {
@@ -226,13 +289,16 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         num_lock: options.num_lock,
         repeat: options.repeat,
         scrollback: options.scrollback.unwrap_or(SCROLLBACK),
+        scheme: options
+            .scheme
+            .or_else(|| options.large.then_some(&HIGH_CONTRAST)),
     };
     let places = Places::system();
     // The screen and its history stay out of swap.
     if let Err(error) = zbm_sys::memory::lock_all_memory() {
         places.log(5, &format!("memory not locked: {error}"));
     }
-    let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
+    let mut grid = |size, height| console_grid(&files, Path::new("/"), &options, size, height);
     let directory = Path::new(crate::layouts::DIRECTORY);
     let mut warn = |text: String| places.log(4, &text);
     let first = crate::layouts::first(&files, directory, options.layout.as_deref(), &mut warn);
@@ -292,6 +358,40 @@ fn run_reattach(args: &[String], io: &mut Io) -> i32 {
     }
 }
 
+/// How long `zbm console font` waits for the console.
+const FONT_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// `zbm console font`: says which font the console draws with, or asks it
+/// for a size.
+fn run_font(args: &[String], io: &mut Io) -> i32 {
+    let base = Places::system().base;
+    let size = match args {
+        [] => {
+            let state = zbm_state::State::new(&RealFiles, &base);
+            let font = state.console_font();
+            let font = font.as_deref().unwrap_or("none, no console on the display");
+            let _ = writeln!(io.stdout, "font: {font}");
+            return 0;
+        }
+        [size] if Zoom::parse(size).is_some() => size,
+        _ => {
+            let _ = writeln!(io.stderr, "Usage: zbm console font [<pixels>|+|-|default]");
+            return USAGE;
+        }
+    };
+    let failure = match request_font(&base, size, FONT_TIMEOUT) {
+        Ok(Switched::Done(font)) => {
+            let _ = writeln!(io.stdout, "font: {font}");
+            return 0;
+        }
+        Ok(Switched::NoConsole) => "no console on the display".to_owned(),
+        Ok(Switched::Late) => "the console did not answer".to_owned(),
+        Err(error) => error.to_string(),
+    };
+    let _ = writeln!(io.stderr, "zbm console: {failure}");
+    1
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -317,6 +417,8 @@ mod tests {
                 repeat: None,
                 scrollback: None,
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
+                scheme: None,
+                large: false,
             })
         );
         let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();
@@ -326,6 +428,17 @@ mod tests {
         assert_eq!(parse(&args("--repeat fast")), None);
         assert_eq!(parse(&args("--scrollback 0")).unwrap().scrollback, Some(0));
         assert_eq!(parse(&args("--scrollback 100001")), None);
+        let look = parse(&args("--palette tango --large")).unwrap();
+        assert_eq!(look.scheme.map(|scheme| scheme.name), Some("tango"));
+        assert!(look.large);
+        assert_eq!(parse(&args("--palette rainbow")), None);
+        // The names `zbm.console_palette` takes are the console's.
+        let palettes = zbm_config::spec::cmdline::PALETTES;
+        let schemes: Vec<&str> = zbm_console::scheme::SCHEMES
+            .iter()
+            .map(|scheme| scheme.name)
+            .collect();
+        assert_eq!(palettes, schemes);
         assert_eq!(parse(&[]), Some(Options::default()));
         assert!(parse(&args("--psf")).unwrap().psf);
         let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;
@@ -373,7 +486,8 @@ mod tests {
             psf: true,
             ..Options::default()
         };
-        let grid = |options: &Options| console_grid(&files, Path::new("/"), options, (1280, 800));
+        let grid =
+            |options: &Options| console_grid(&files, Path::new("/"), options, (1280, 800), None);
 
         // Without a TrueType font, the console font.
         let bitmap = grid(&options).unwrap();
@@ -387,6 +501,12 @@ mod tests {
         assert_eq!(grid(&psf).unwrap().name(), "ter-v20b.psf");
 
         assert_eq!(outline.font_count(), 1);
+        // A height asked for while the console runs: the TrueType font in
+        // cells that high; the console font nearest it, here doubled.
+        let asked = console_grid(&files, Path::new("/"), &options, (1280, 800), Some(32));
+        assert_eq!(asked.unwrap().cell().1, 32);
+        let asked = console_grid(&files, Path::new("/"), &psf, (1280, 800), Some(32));
+        assert_eq!(asked.unwrap().cell().1, 40);
 
         // Its faces and fallback fonts, those that are fonts.
         files.file(fonts.join(STYLED[0].1), dejavu.as_slice());
@@ -395,6 +515,17 @@ mod tests {
         files.file(fallback.join("a.ttf"), "not a font");
         assert_eq!(grid(&options).unwrap().font_count(), 3);
         assert_eq!(grid(&psf).unwrap().font_count(), 1);
+
+        // Large text: cells twice as high, or half again as high on a
+        // display too narrow for that.
+        let large = Options {
+            large: true,
+            ..Options::default()
+        };
+        let large_grid = |size| console_grid(&files, Path::new("/"), &large, size, None);
+        assert_eq!(large_grid((1280, 800)).unwrap().cell().1, 40);
+        assert_eq!(large_grid((700, 500)).unwrap().cell().1, 30);
+        assert_eq!(large_grid((400, 300)).unwrap().cell().1, 20);
 
         // A file that is no font leaves the console font.
         files.file(fonts.join(TTF), "not a font");

@@ -58,6 +58,11 @@ struct FakeHost {
     /// Where the scrollback is saved; it cannot be, without.
     save_in: Option<PathBuf>,
     saved: Vec<u8>,
+    /// Whether it makes grids of Terminus 8×14, scaled to the height.
+    has_fonts: bool,
+    font_request: Option<Zoom>,
+    /// The fonts and sizes the programs were told.
+    fonts_shown: Vec<(String, u16, u16)>,
 }
 
 impl FakeHost {
@@ -71,6 +76,9 @@ impl FakeHost {
             next_layouts: 0,
             save_in: None,
             saved: Vec::new(),
+            has_fonts: false,
+            font_request: None,
+            fonts_shown: Vec::new(),
         }
     }
 }
@@ -109,6 +117,22 @@ impl Host for FakeHost {
             .ok_or(io::ErrorKind::ReadOnlyFilesystem)?;
         self.saved = text.to_vec();
         Ok(path)
+    }
+
+    fn grid(&mut self, _: (u32, u32), height: Option<u16>) -> Option<Grid> {
+        let scale = height.map_or(1, |height| u32::from(height) / 14).max(1);
+        self.has_fonts
+            .then(|| Grid::new(Font::parse(TER_V14B).unwrap(), scale).named("ter"))
+    }
+
+    fn font_request(&mut self) -> Option<Zoom> {
+        self.font_request.take()
+    }
+
+    fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {
+        self.fonts_shown
+            .push((font.to_owned(), size.num_cols, size.num_lines));
+        Ok(())
     }
 }
 
@@ -402,4 +426,53 @@ fn ctrl_shift_s_saves_the_scrollback_and_says_where() {
     let mut host = FakeHost::new(script());
     run(&mut console, &mut screen, &mut host, None).unwrap();
     assert!(console.text().contains("\nNot saved: read-only filesystem"));
+}
+
+#[test]
+fn ctrl_alt_keys_and_requests_change_the_font_s_size() {
+    let ctrl_alt = |c| KeyPress {
+        ctrl: true,
+        alt: true,
+        ..press(Key::Char(c))
+    };
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    // 40×10 cells of 8×14: twice as large leaves 20×5, enough.
+    let mut console = console();
+    let script = vec![
+        Input::Keys(vec![ctrl_alt('=')]),
+        Input::Keys(vec![ctrl_alt('=')]),
+        Input::Keys(vec![ctrl_alt('0')]),
+    ];
+    let mut host = FakeHost::new(script);
+    host.has_fonts = true;
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    let shown: Vec<(&str, u16, u16)> = host
+        .fonts_shown
+        .iter()
+        .map(|(font, columns, rows)| (font.as_str(), *columns, *rows))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("ter 16x28, 20x5", 20, 5),
+            ("ter 16x28, 20x5", 20, 5),
+            ("ter 8x14, 40x10", 40, 10),
+        ]
+    );
+    assert!(host.sent.is_empty());
+
+    // A request, without fonts: the font stays, and the bar says so.
+    let mut console = self::console();
+    let mut host = FakeHost::new(vec![Input::Nothing]);
+    host.font_request = Some(Zoom::Height(28));
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert_eq!(host.fonts_shown.len(), 1);
+    assert!(
+        console
+            .text()
+            .ends_with("\nNo other size: psf 8x14, 40x10\n")
+    );
 }

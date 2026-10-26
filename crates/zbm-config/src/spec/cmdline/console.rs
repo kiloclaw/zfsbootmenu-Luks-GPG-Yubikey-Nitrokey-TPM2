@@ -127,6 +127,22 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   ``/zfsbootmenu/console-scrollback.txt``, which **zbm report** adds to its report. None of these
   keys is the console's at a secret prompt or in a full-screen program.
 
+**zbm.console_palette=linux**
+
+  The colour scheme: **linux**, the Linux console's grey on black; **high-contrast**, white on black
+  with bright colours; **solarized-dark**; **solarized-light**; or **tango**.
+
+**zbm.console_large=on**
+
+  Large text in high contrast: cells twice as high as they would be, or half again as high when that
+  leaves fewer than 40 columns, in the **high-contrast** scheme unless **zbm.console_palette** names
+  another.
+
+Ctrl+Alt+= and Ctrl+Alt+- make the text larger and smaller while the console runs, and Ctrl+Alt+0
+gives it its first size again; the programs are told the new size. **zbm console font** says which
+font the console draws with, and **zbm console font** *pixels*, **+**, **-** or **default** asks for
+a size.
+
 Ctrl+Shift+U, then a code point in hexadecimal and Space or Enter, types any character; Escape
 cancels it. While a dead key or a code point waits for its next key, the console shows it at the
 cursor, except at a prompt that does not echo, such as a passphrase prompt.
@@ -205,6 +221,44 @@ pub static CONSOLE_SCROLLBACK: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.console"),
     deprecation: None,
     examples: &["zbm.console_scrollback=0", "zbm.console_scrollback=10000"],
+};
+
+/// The colour schemes of the console on the display.
+pub const PALETTES: &[&str] = &[
+    "linux",
+    "high-contrast",
+    "solarized-dark",
+    "solarized-light",
+    "tango",
+];
+
+/// `zbm.console_palette`: the colour scheme of the console on the display.
+pub static CONSOLE_PALETTE: OptionSpec = OptionSpec {
+    name: "zbm.console_palette",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(PALETTES),
+    default: Some("linux"),
+    summary: "The colour scheme of the console on the display",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_palette=solarized-dark"],
+};
+
+/// `zbm.console_large`: large text and high contrast on the console on
+/// the display.
+pub static CONSOLE_LARGE: OptionSpec = OptionSpec {
+    name: "zbm.console_large",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["on", "off"]),
+    default: Some("off"),
+    summary: "Large text in high contrast on the console on the display",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_large=on"],
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text

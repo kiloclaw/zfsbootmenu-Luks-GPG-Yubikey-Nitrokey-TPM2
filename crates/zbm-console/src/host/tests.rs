@@ -378,3 +378,52 @@ fn a_host_without_a_state_directory_saves_nothing() {
     let error = host.save_scrollback(b"x").unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::Unsupported);
 }
+
+#[test]
+fn a_font_request_is_taken_with_the_layout_s_signal_and_answered() {
+    let dir = zbm_testkit::TempDir::new("zbm-console-host");
+    let (master, _program) = open_pty().unwrap();
+    let keyboards = Keyboards::from_files(Vec::new());
+    let requested = Arc::new(AtomicBool::new(false));
+    let mut grids = Vec::new();
+    let mut fonts = |pixels: (u32, u32), height: Option<u16>| {
+        grids.push((pixels, height));
+        Err(io::Error::other("no font"))
+    };
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)))
+        .with_layouts(Arc::clone(&requested), Box::new(|_: &mut Keyboards, _| {}))
+        .with_state(dir.path())
+        .with_fonts(&mut fonts);
+    let state = zbm_state::State::new(&zbm_platform::RealFiles, dir.path());
+    let timeout = Duration::from_millis(10);
+
+    state.request_console_font("+").unwrap();
+    // Not until the signal comes.
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    assert_eq!(host.font_request(), None);
+    requested.store(true, Ordering::SeqCst);
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    assert_eq!(host.font_request(), Some(Zoom::Bigger));
+    assert_eq!(host.font_request(), None);
+    assert!(host.grid((640, 480), Some(32)).is_none());
+    // Answered: the font recorded, the request gone, the size told.
+    let size = WindowSize {
+        num_lines: 25,
+        num_cols: 80,
+        cell_width: 8,
+        cell_height: 16,
+    };
+    host.font_shown("ter-v16b.psf 8x16, 80x25", &size).unwrap();
+    assert!(!state.has_console_font_request());
+    assert_eq!(
+        state.console_font().as_deref(),
+        Some("ter-v16b.psf 8x16, 80x25")
+    );
+    // One that cannot be read asks for nothing.
+    state.request_console_font("huge").unwrap();
+    requested.store(true, Ordering::SeqCst);
+    host.wait(timeout).unwrap();
+    assert_eq!(host.font_request(), Some(Zoom::Height(0)));
+    drop(host);
+    assert_eq!(grids, [((640, 480), Some(32))]);
+}

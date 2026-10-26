@@ -3,15 +3,18 @@
 //! height of `zbm.autosize=<pixels>`, the console fonts instead of the
 //! TrueType font (`zbm.console_font=psf`), the keyboard layout
 //! (`zbm.keyboard_layout`), Num Lock (`zbm.numlock`), the key repeat
-//! (`zbm.keyboard_repeat`), and the mirror of the VM tests.
+//! (`zbm.keyboard_repeat`), the scrollback (`zbm.console_scrollback`), the
+//! colour scheme (`zbm.console_palette`), large text
+//! (`zbm.console_large`), and the mirror of the VM tests.
 
 use std::path::Path;
 
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
+use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, CONSOLE_MIRROR, CONSOLE_SCROLLBACK, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT,
-    KEYBOARD_LAYOUT, KEYBOARD_REPEAT, NUM_LOCK,
+    AUTOSIZE, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE, CONSOLE_SCROLLBACK, DISPLAY_CONSOLE,
+    DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT, KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
 };
 use zbm_platform::System;
 
@@ -42,32 +45,42 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
     {
         arguments.extend(["--layout".to_owned(), layout.trim().to_owned()]);
     }
-    if let Some(num_lock) = args
-        .lookup(&NUM_LOCK, &mut messages)
-        .filter(|value| matches!(value.trim(), "on" | "off"))
-    {
-        arguments.extend(["--numlock".to_owned(), num_lock.trim().to_owned()]);
+    for (spec, flag, is_valid) in VALUES {
+        if let Some(value) = args
+            .lookup(spec, &mut messages)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| is_valid(value))
+        {
+            arguments.extend([flag.to_owned(), value]);
+        }
     }
-    if let Some(repeat) = args
-        .lookup(&KEYBOARD_REPEAT, &mut messages)
-        .filter(|value| crate::console::repeat(value).is_some())
-    {
-        arguments.extend(["--repeat".to_owned(), repeat.trim().to_owned()]);
-    }
-    if let Some(lines) = args
-        .lookup(&CONSOLE_SCROLLBACK, &mut messages)
-        .filter(|lines| lines.trim().parse::<u32>().is_ok())
-    {
-        arguments.extend(["--scrollback".to_owned(), lines.trim().to_owned()]);
-    }
-    if let Some(mirror) = args
-        .lookup(&CONSOLE_MIRROR, &mut messages)
-        .filter(|mirror| !mirror.trim().is_empty())
-    {
-        arguments.extend(["--mirror".to_owned(), mirror.trim().to_owned()]);
+    let large = args.lookup(&CONSOLE_LARGE, &mut messages);
+    if large.as_deref().map(str::trim) == Some("on") {
+        arguments.push("--large".to_owned());
     }
     Some(arguments)
 }
+
+/// Whether a value is one the console takes.
+type IsValid = fn(&str) -> bool;
+
+/// The options with a value that the console gets as they are, with its
+/// argument for each, when the value is right.
+const VALUES: [(&OptionSpec, &str, IsValid); 5] = [
+    (&NUM_LOCK, "--numlock", |value| {
+        matches!(value, "on" | "off")
+    }),
+    (&KEYBOARD_REPEAT, "--repeat", |value| {
+        repeat(value).is_some()
+    }),
+    (&CONSOLE_SCROLLBACK, "--scrollback", |value| {
+        value.parse::<u32>().is_ok()
+    }),
+    (&CONSOLE_PALETTE, "--palette", |value| {
+        PALETTES.contains(&value)
+    }),
+    (&CONSOLE_MIRROR, "--mirror", |value| !value.is_empty()),
+];
 
 /// The key repeat that `value` (`250,30`) asks for: the delay and the
 /// period in milliseconds, from a delay in milliseconds and a rate a
@@ -140,6 +153,14 @@ mod tests {
                 "zbm.console=drm zbm.numlock=on zbm.keyboard_repeat=250,30 zbm.console_scrollback=0"
             ),
             words("console --numlock on --repeat 250,30 --scrollback 0")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.console_palette=tango zbm.console_large=on"),
+            words("console --palette tango --large")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.console_palette=rainbow zbm.console_large=off"),
+            words("console")
         );
         // Wrong values are left out: the console keeps the keyboards' own.
         assert_eq!(

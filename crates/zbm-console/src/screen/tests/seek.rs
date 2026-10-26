@@ -176,7 +176,7 @@ fn the_match_is_drawn_black_on_yellow_until_output_comes() {
     type_keys(&mut console, "12");
     console.take_key(plain(Key::Enter));
     console.draw();
-    let yellow = colour::by_index(console.term.colors(), 3);
+    let yellow = colour::by_index(Table::new(console.term.colors(), console.scheme), 3);
     // `line 12` is on the fourth row: `1` is in its sixth column.
     assert!(colours(&mut console, 6, 3).contains(&yellow));
     assert_eq!(colours(&mut console, 1, 3), before);
