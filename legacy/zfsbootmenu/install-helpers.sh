@@ -466,7 +466,7 @@ install_zbm_docs() {
 }
 
 install_zbm_fonts() {
-  local font fonts subsets family
+  local font fonts subsets family face faces order
 
   fonts="${zfsbootmenu_module_root}/fonts"
   [ -d "${fonts}" ] || return 1
@@ -513,12 +513,34 @@ install_zbm_fonts() {
   done
 
   # The console on the display of the Rust runtime draws with a TrueType
-  # font (zbm.console=drm, ROADMAP.md #19)
+  # font (zbm.console=drm, ROADMAP.md #19), its bold and oblique faces
+  # unless zfsbootmenu_console_faces=regular, and the fallback fonts of
+  # zfsbootmenu_console_fallback_fonts for what it lacks
   if [ "${ZBM_RUNTIME}" = "rust" ] && [ -f "${zfsbootmenu_module_root}/fonts/dejavu/DejaVuSansMono.ttf" ]; then
-    zbm_install_file "${zfsbootmenu_module_root}/fonts/dejavu/DejaVuSansMono.ttf" \
-      "/usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf"
+    faces=( DejaVuSansMono.ttf )
+    # shellcheck disable=SC2154
+    if [ "${zfsbootmenu_console_faces:-all}" != "regular" ]; then
+      faces+=( DejaVuSansMono-Bold.ttf DejaVuSansMono-Oblique.ttf DejaVuSansMono-BoldOblique.ttf )
+    fi
+    for face in "${faces[@]}"; do
+      [ -f "${zfsbootmenu_module_root}/fonts/dejavu/${face}" ] || continue
+      zbm_install_file "${zfsbootmenu_module_root}/fonts/dejavu/${face}" \
+        "/usr/share/zfsbootmenu/fonts/${face}"
+    done
     zbm_install_file "${zfsbootmenu_module_root}/fonts/dejavu/LICENSE" \
       "/usr/share/zfsbootmenu/fonts/LICENSE.dejavu"
+
+    # Numbered, so that the console tries them in the order given
+    order=0
+    # shellcheck disable=SC2154
+    for font in ${zfsbootmenu_console_fallback_fonts}; do
+      if [ ! -f "${font}" ]; then
+        zbm_warn "fallback font ${font} not found; leaving it out"
+        continue
+      fi
+      order=$(( order + 1 ))
+      zbm_install_file "${font}" "/usr/share/zfsbootmenu/fonts/fallback/$( printf '%02d' "${order}" )-${font##*/}"
+    done
   fi
 
   [ -n "${subsets}" ] && rm -rf "${subsets}"

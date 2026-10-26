@@ -28,8 +28,10 @@
 //! the layout and the others of the image, or switches to another.
 //!
 //! The console draws with the image's TrueType font, in cells as high as
-//! the console font `zbm console-autosize` would choose; `--psf` draws with
-//! that console font itself.
+//! the console font `zbm console-autosize` would choose, with its bold,
+//! oblique and bold oblique faces where the image has them, and the
+//! fallback fonts of the image (`fonts/fallback/`, in name order) for the
+//! characters it lacks; `--psf` draws with that console font itself.
 //!
 //! `--mirror` writes the screen's text to a file or device after each
 //! change, after a form feed, for the VM tests.
@@ -38,6 +40,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use zbm_display::faces::{Faces, FontFace};
 use zbm_display::grid::Grid;
 use zbm_display::outline::Outline;
 use zbm_platform::Files;
@@ -105,6 +108,44 @@ pub fn parse_release(args: &[String]) -> Option<Duration> {
 /// The image's TrueType font, in its fonts directory.
 pub const TTF: &str = "DejaVuSansMono.ttf";
 
+/// The TrueType font's other faces, in its fonts directory, when the image
+/// has them.
+pub const STYLED: [(FontFace, &str); 3] = [
+    (FontFace::Bold, "DejaVuSansMono-Bold.ttf"),
+    (FontFace::Italic, "DejaVuSansMono-Oblique.ttf"),
+    (FontFace::BoldItalic, "DejaVuSansMono-BoldOblique.ttf"),
+];
+
+/// The directory below the fonts directory with the fallback fonts.
+pub const FALLBACK: &str = "fallback";
+
+/// The regular TrueType font `regular`, sized to cells `height` pixels
+/// high, with the faces and fallback fonts of the fonts directory `fonts`
+/// that can be read.
+fn faces(files: &dyn Files, fonts: &Path, regular: Outline, height: u32) -> Faces {
+    let load = |path: &Path| {
+        files
+            .read(path)
+            .ok()
+            .and_then(|data| Outline::new(data, height).ok())
+    };
+    let mut faces = Faces::new(regular);
+    for (face, name) in STYLED {
+        if let Some(outline) = load(&fonts.join(name)) {
+            faces = faces.with_face(face, outline);
+        }
+    }
+    let directory = fonts.join(FALLBACK);
+    let mut names = files.read_dir(&directory).unwrap_or_default();
+    names.sort();
+    for name in names {
+        if let Some(outline) = load(&directory.join(name)) {
+            faces = faces.with_fallback(outline);
+        }
+    }
+    faces
+}
+
 /// The grid the console draws with on a display of `size`, from the
 /// image's fonts below `root`: the TrueType font in cells as high as the
 /// console font `zbm console-autosize` would choose, or that console font
@@ -123,11 +164,13 @@ pub fn console_grid(
     if options.psf {
         return Ok(bitmap);
     }
-    let Ok(data) = files.read(&root.join(FONTS).join(TTF)) else {
+    let fonts = root.join(FONTS);
+    let Ok(data) = files.read(&fonts.join(TTF)) else {
         return Ok(bitmap);
     };
-    Ok(match Outline::new(data, bitmap.cell().1) {
-        Ok(outline) => Grid::outline(outline).named(TTF),
+    let height = bitmap.cell().1;
+    Ok(match Outline::new(data, height) {
+        Ok(outline) => Grid::faces(faces(files, &fonts, outline, height)).named(TTF),
         Err(_) => bitmap,
     })
 }
@@ -293,6 +336,16 @@ mod tests {
         assert_eq!(outline.name(), TTF);
         assert_eq!(outline.cell().1, 20);
         assert_eq!(grid(&psf).unwrap().name(), "ter-v20b.psf");
+
+        assert_eq!(outline.font_count(), 1);
+
+        // Its faces and fallback fonts, those that are fonts.
+        files.file(fonts.join(STYLED[0].1), dejavu.as_slice());
+        let fallback = fonts.join(FALLBACK);
+        files.file(fallback.join("b.ttf"), dejavu.as_slice());
+        files.file(fallback.join("a.ttf"), "not a font");
+        assert_eq!(grid(&options).unwrap().font_count(), 3);
+        assert_eq!(grid(&psf).unwrap().font_count(), 1);
 
         // A file that is no font leaves the console font.
         files.file(fonts.join(TTF), "not a font");

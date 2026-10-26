@@ -3,6 +3,9 @@
 
 use super::{Deprecation, Doc, OptionSpec, Reader, Source, Value};
 
+mod console;
+pub use console::{CONSOLE_FACES, CONSOLE_FALLBACK_FONTS, CONSOLE_FONT};
+
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
     &MODULE_ROOT,
@@ -11,6 +14,8 @@ pub static ALL: &[&OptionSpec] = &[
     &ZBM,
     &BRUSH,
     &CONSOLE_FONT,
+    &CONSOLE_FACES,
+    &CONSOLE_FALLBACK_FONTS,
     &KEYBOARD_LAYOUTS,
     &GRAPHICS_DRIVERS,
     &GRAPHICS_FIRMWARE,
@@ -156,31 +161,6 @@ runtime runs its recovery shell, its hooks and SSH logins with (see **zbm.shell*
 installed in the image as */usr/bin/brush*. When unspecified, **brush** is looked for next to
 **zbm**, where **make install** puts it. Without it, the image is built with a warning, and the
 shell of the *rust* runtime is Bash. The *legacy* runtime does not use **brush**.
-";
-
-/// `zfsbootmenu_console_font`: the console font family of the image.
-pub static CONSOLE_FONT: OptionSpec = OptionSpec {
-    name: "zfsbootmenu_console_font",
-    aliases: &[],
-    source: Source::BuildOption,
-    value: Value::Choice(&["terminus", "spleen"]),
-    default: Some("terminus"),
-    summary: "The console font family of the image: terminus or spleen",
-    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
-    doc: Doc::Entry {
-        heading: "**zfsbootmenu_console_font=terminus**",
-        body: CONSOLE_FONT_DOC,
-    },
-    deprecation: None,
-    examples: &["zfsbootmenu_console_font=spleen"],
-};
-
-const CONSOLE_FONT_DOC: &str = r"
-Select the console fonts of the image: *terminus*, the default, or *spleen*, Spleen 2.2.0 in cells
-of 8x16, 12x24, 16x32 and 32x64, with its licence as
-*/usr/share/zfsbootmenu/fonts/LICENSE.spleen*. Only the *rust* runtime loads Spleen: an image with
-the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
-sets this variable from *Global.ConsoleFont* when its configuration has that key.
 ";
 
 /// `zfsbootmenu_keyboard_layouts`: the keyboard layouts of the console on

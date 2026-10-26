@@ -37,6 +37,7 @@
 pub mod boxes;
 pub mod decor;
 pub mod display;
+pub mod faces;
 pub mod frame;
 pub mod grid;
 pub mod input;

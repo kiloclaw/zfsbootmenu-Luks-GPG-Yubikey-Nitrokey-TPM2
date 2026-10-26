@@ -10,6 +10,7 @@ use zbm_types::psf::Font;
 
 use crate::boxes;
 use crate::decor::{self, Decoration};
+use crate::faces::{Faces, FontFace};
 use crate::frame::{Area, Frame, Rgb};
 use crate::outline::Outline;
 
@@ -22,6 +23,8 @@ pub struct CellStyle {
     pub bg: Rgb,
     /// The lines drawn under or through it.
     pub decoration: Decoration,
+    /// Its face: bold, italic, both or neither. Console fonts have one.
+    pub face: FontFace,
 }
 
 /// What is drawn over a span of cells: a character and its style, over
@@ -44,6 +47,8 @@ pub struct Neighbour {
     pub c: char,
     /// Its colour.
     pub fg: Rgb,
+    /// Its face.
+    pub face: FontFace,
     /// Where its cell starts, in pixels from the left edge of the cells
     /// drawn: negative on the left.
     pub offset: i64,
@@ -60,9 +65,9 @@ enum Face {
         /// the font's whole table.
         glyphs: HashMap<char, Option<usize>>,
     },
-    /// A TrueType or OpenType font, with box drawing and block characters
+    /// TrueType or OpenType fonts, with box drawing and block characters
     /// drawn to fill their cells ([`boxes`]).
-    Outline(Box<Outline>),
+    Outline(Box<Faces>),
 }
 
 /// A font, which draws characters into cells of a frame.
@@ -88,8 +93,13 @@ impl Grid {
 
     /// Draws with the TrueType or OpenType font `outline`.
     pub fn outline(outline: Outline) -> Grid {
+        Grid::faces(Faces::new(outline))
+    }
+
+    /// Draws with the TrueType or OpenType `faces`.
+    pub fn faces(faces: Faces) -> Grid {
         Grid {
-            face: Face::Outline(Box::new(outline)),
+            face: Face::Outline(Box::new(faces)),
             name: "ttf".to_owned(),
         }
     }
@@ -106,6 +116,15 @@ impl Grid {
         &self.name
     }
 
+    /// How many fonts the grid draws with: its faces and fallback fonts,
+    /// or the one console font.
+    pub fn font_count(&self) -> usize {
+        match &self.face {
+            Face::Bitmap { .. } => 1,
+            Face::Outline(faces) => faces.count(),
+        }
+    }
+
     /// The cell on the frame, as (width, height) in pixels.
     pub fn cell(&self) -> (u32, u32) {
         match &self.face {
@@ -113,7 +132,7 @@ impl Grid {
                 let (width, height) = font.cell();
                 (width * scale, height * scale)
             }
-            Face::Outline(outline) => outline.cell(),
+            Face::Outline(faces) => faces.regular().cell(),
         }
     }
 
@@ -179,12 +198,12 @@ impl Grid {
                 let lines = decor::Lines::thick(*scale);
                 decor::draw(frame, area, style.decoration, style.fg, lines);
             }
-            Face::Outline(outline) => {
-                draw_outline(frame, area, outline, c, style);
+            Face::Outline(faces) => {
+                draw_outline(frame, area, faces, c, style);
                 for &neighbour in neighbours {
-                    draw_overhang(frame, area, outline, neighbour);
+                    draw_overhang(frame, area, faces, neighbour);
                 }
-                let lines = outline.lines();
+                let lines = faces.regular().lines();
                 decor::draw(frame, area, style.decoration, style.fg, lines);
             }
         }
@@ -216,8 +235,8 @@ impl Grid {
                     }
                 }
             }
-            Face::Outline(outline) => {
-                let Some(glyph) = outline.glyph(mark) else {
+            Face::Outline(faces) => {
+                let Some(glyph) = faces.glyph(FontFace::Regular, mark) else {
                     return;
                 };
                 // Marks sit where the font puts them over the character
@@ -276,25 +295,18 @@ pub fn blend(bg: Rgb, fg: Rgb, alpha: u8) -> Rgb {
     Rgb(mix(bg.0, fg.0), mix(bg.1, fg.1), mix(bg.2, fg.2))
 }
 
-/// Draws `c` from `outline` into `area`: a box drawing or block character
-/// as [`boxes`] draws it, else the font's glyph, else its replacement
-/// character or `?`; the caller draws its decoration.
-fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, style: CellStyle) {
+/// Draws `c` from `faces` into `area`: a box drawing or block character
+/// as [`boxes`] draws it, else the glyph of its face, a fallback font's or
+/// a replacement ([`Faces::drawn`]); the caller draws its decoration.
+fn draw_outline(frame: &mut Frame, area: Area, faces: &mut Faces, c: char, style: CellStyle) {
     let (width, height) = (area.width, area.height);
     let mask = boxes::mask(c, width, height);
+    // Borrowed from the cache, not copied: drawing a cell allocates
+    // nothing.
     let glyph = if mask.is_some() {
         None
     } else {
-        let fallback = if outline.glyph(c).is_some() {
-            c
-        } else if outline.glyph('\u{fffd}').is_some() {
-            '\u{fffd}'
-        } else {
-            '?'
-        };
-        // Borrowed from the cache, not copied: drawing a cell allocates
-        // nothing.
-        outline.glyph(fallback)
+        faces.drawn(style.face, c)
     };
     for y in 0..height {
         for x in 0..width {
@@ -315,11 +327,11 @@ fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, s
 
 /// Blends into `area` the part of the glyph of `neighbour` that reaches
 /// into it. Shapes that [`boxes`] draws stay in their cells.
-fn draw_overhang(frame: &mut Frame, area: Area, outline: &mut Outline, neighbour: Neighbour) {
+fn draw_overhang(frame: &mut Frame, area: Area, faces: &mut Faces, neighbour: Neighbour) {
     if boxes::is_drawn(neighbour.c) {
         return;
     }
-    let Some(glyph) = outline.glyph(neighbour.c) else {
+    let Some(glyph) = faces.glyph(neighbour.face, neighbour.c) else {
         return;
     };
     let from = neighbour.offset + i64::from(glyph.left);

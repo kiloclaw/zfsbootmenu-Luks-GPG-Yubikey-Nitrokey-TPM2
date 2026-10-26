@@ -21,6 +21,7 @@ fn style(underline: bool) -> CellStyle {
         fg: WHITE,
         bg: Rgb::BLACK,
         decoration: Decoration::underlined(underline),
+        face: FontFace::Regular,
     }
 }
 
@@ -241,6 +242,7 @@ fn the_glyphs_of_neighbours_reach_into_the_cell() {
     let m = Neighbour {
         c: 'M',
         fg: WHITE,
+        face: FontFace::Regular,
         offset: half,
     };
     grid.draw_text(&mut frame, 0, 0, blank, &[m]);

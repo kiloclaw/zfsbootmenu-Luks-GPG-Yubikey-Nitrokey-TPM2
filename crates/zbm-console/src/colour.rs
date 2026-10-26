@@ -9,6 +9,7 @@ use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::term::color::Colors;
 use alacritty_terminal::vte::ansi::{Color, NamedColor, Rgb as TermRgb};
 use zbm_display::decor::{Decoration, Underline};
+use zbm_display::faces::FontFace;
 use zbm_display::frame::Rgb;
 use zbm_display::grid::CellStyle;
 use zbm_display::palette;
@@ -101,6 +102,7 @@ pub fn style(colours: &Colors, cell: &Cell) -> CellStyle {
         fg,
         bg,
         decoration: decoration(colours, cell),
+        face: FontFace::of(bold, flags.contains(Flags::ITALIC)),
     }
 }
 
@@ -119,6 +121,7 @@ pub fn cursor(colours: &Colors, cell: &Cell) -> CellStyle {
         fg: style.bg,
         bg: cursor_colour(colours).unwrap_or(style.fg),
         decoration: Decoration::default(),
+        face: style.face,
     }
 }
 
@@ -207,6 +210,11 @@ mod tests {
             (Rgb::BLACK, Rgb(0xaa, 0xaa, 0xaa))
         );
         assert_eq!(over_cursor.decoration, Decoration::default());
+        // Bold and italic text asks for its face.
+        let face = |flags| style(&colours, &cell(red, black, flags)).face;
+        assert_eq!(face(Flags::BOLD | Flags::ITALIC), FontFace::BoldItalic);
+        assert_eq!(face(Flags::ITALIC), FontFace::Italic);
+        assert_eq!(face(Flags::empty()), FontFace::Regular);
 
         // A program's cursor colour (OSC 12) is the block's.
         let mut coloured = Colors::default();

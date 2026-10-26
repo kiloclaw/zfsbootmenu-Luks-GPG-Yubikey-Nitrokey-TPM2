@@ -582,6 +582,22 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   the *legacy* runtime warns and keeps Terminus, as it does for any other value. **generate-zbm**
   sets this variable from *Global.ConsoleFont* when its configuration has that key.
 
+**zfsbootmenu_console_faces=all**
+
+  Select the faces of DejaVu Sans Mono that images with the *rust* runtime include for the console on
+  the display (**zbm.console=drm**): *all*, the default, adds the bold, oblique and bold oblique faces
+  to the regular one, so that the console draws bold and italic text as programs ask; *regular* leaves
+  them out, which makes the image about 840 KB smaller, and the console draws all text upright, bold
+  text bright.
+
+**zfsbootmenu_console_fallback_fonts="<path> ..."**
+
+  List TrueType or OpenType fonts of the build host, separated by spaces, that the console on the
+  display of images with the *rust* runtime draws the characters with that DejaVu Sans Mono lacks,
+  such as Chinese, Japanese or Korean ones: the console tries them in the order given, and draws a
+  replacement character only when none has the character. They are installed in
+  */usr/share/zfsbootmenu/fonts/fallback/*; a font that is missing is left out with a warning.
+
 **zfsbootmenu_keyboard_layouts="de us"**
 
   In images with the *rust* runtime, the keyboard layouts of the console on the display

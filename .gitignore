@@ -8,8 +8,10 @@ tests/stubs/local.*
 build
 hostid
 zpool.cache
-# ...but the recordings of the parity tests are kept
+# ...but the recordings of the parity tests are kept, and the source modules
+# named build
 !/tests/golden/**
+!/crates/*/src/**/build
 
 # Rust build output
 /target/

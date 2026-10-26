@@ -20,6 +20,7 @@ use ratatui::style::{Color, Modifier};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 use zbm_display::decor::Decoration;
 use zbm_display::display::{Display, Screen, first_card};
+use zbm_display::faces::FontFace;
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
@@ -98,6 +99,10 @@ pub fn cell_style(cell: &Cell) -> CellStyle {
             strikeout: modifiers.contains(Modifier::CROSSED_OUT),
             ..Decoration::underlined(modifiers.contains(Modifier::UNDERLINED))
         },
+        face: FontFace::of(
+            modifiers.contains(Modifier::BOLD),
+            modifiers.contains(Modifier::ITALIC),
+        ),
     }
 }
 

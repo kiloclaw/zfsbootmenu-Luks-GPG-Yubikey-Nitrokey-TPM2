@@ -390,6 +390,7 @@ impl Console {
                 found.push(Neighbour {
                     c,
                     fg: style.fg,
+                    face: style.face,
                     offset,
                 });
             }
