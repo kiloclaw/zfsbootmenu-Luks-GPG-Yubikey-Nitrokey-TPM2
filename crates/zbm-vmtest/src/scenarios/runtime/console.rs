@@ -522,7 +522,7 @@ fn check_fallback(
 /// Escape typed during the countdown opens the menu on the console, and
 /// `!` then Enter its recovery shell, which runs on the console's
 /// pseudo-terminal and takes typed commands.
-fn check_shell(
+pub(super) fn check_shell(
     test: &Test,
     vm: &mut Vm<'_>,
     mirror: &Path,

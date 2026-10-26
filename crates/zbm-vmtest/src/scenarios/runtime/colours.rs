@@ -198,7 +198,7 @@ fn describe(found: Option<usize>) -> String {
 
 /// The width, the height and the pixels of a binary PPM image (`P6`) of
 /// 8-bit samples, as QEMU's `screendump` writes it.
-fn parse_ppm(ppm: &[u8]) -> Option<(usize, usize, &[u8])> {
+pub(super) fn parse_ppm(ppm: &[u8]) -> Option<(usize, usize, &[u8])> {
     let mut rest = ppm.strip_prefix(b"P6")?;
     let mut numbers = [0_usize; 3];
     for number in &mut numbers {

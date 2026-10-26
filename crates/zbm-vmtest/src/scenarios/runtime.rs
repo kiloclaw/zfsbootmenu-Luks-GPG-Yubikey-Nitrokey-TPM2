@@ -35,6 +35,9 @@
 //! - `rust-console` (`console`): the runtime on the console on the display
 //!   (`zbm.console=drm`): keys, the recovery shell, the fall-back to the
 //!   kernel console, and the hand-over before `kexec`.
+//! - `rust-console-start` (`console_start`): the console's start without a
+//!   keyboard, in the kernel console's mode, and what it shows: the cursor,
+//!   the keypad, `/dev/console`, the screen across the hand-over.
 //! - `rust-crash` (`crash`): a hook runs `zbm debug panic` in an image
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
@@ -76,6 +79,7 @@ mod autosize;
 mod boot;
 mod colours;
 mod console;
+mod console_start;
 mod crash;
 mod drm;
 mod gpu;
@@ -104,7 +108,8 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
-/// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`, `rust-gpu`,
+/// `rust-colours`, `rust-drm`, `rust-console`, `rust-console-start`,
+/// `rust-saved`, `rust-gpu`,
 /// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
@@ -121,6 +126,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-colours" => colours::run(test),
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
+        "rust-console-start" => console_start::run(test),
         "rust-saved" => saved::run(test),
         "rust-gpu" => gpu::run(test),
         "legacy-keysource" => keysource::run(test, ZbmRuntime::Legacy),

@@ -380,6 +380,19 @@ Following a boot
   must name a ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the
   boot environment must boot.
 
+* ``runtime-rust-console-start`` checks how the console on the display starts and what it shows
+  (``docs/dev/console-roadmap.md``, M1), with the image of ``runtime-rust-console`` and the drivers of a USB keyboard
+  (``xhci_pci``, ``usbhid``, ``hid_generic``). It boots on a virtio GPU without a keyboard (``i8042.nokbd`` leaves the
+  machine's PS/2 keyboard out), the kernel console at 800x600, below the display's preferred mode
+  (``video=Virtual-1:800x600``), with the mirror kept as ``mirror-start.txt``. The countdown must show, and the
+  console's start must name an 800x600 display. A USB keyboard is then plugged in (``device_add usb-kbd``), and Escape
+  typed on it must open the menu and the recovery shell, as in ``runtime-rust-console``. In the shell, a screenshot
+  after ``printf '\e[H\e[2J\e[2 q'`` (a steady block) must have more pixels of the cursor's grey than one after the
+  same with ``\e[6 q`` (a steady bar) (``cursor-block.ppm``, ``cursor-bar.ppm``); with Num Lock pressed, ``echo zbm-``
+  and the keypad's 4 and 2 must print ``zbm-42``; ``echo zbm-$(echo console) > /dev/console`` must show
+  ``zbm-console`` on the console; and after ``echo zbm-$(echo kept)``, ``zbm console release`` and ``zbm console
+  reattach``, a screen after the hand-over must show ``zbm-kept`` again, without it being typed.
+
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
   passphrase and a key file, both unlike anything else in memory, and the pool ``tsecret`` on it. The other two boot a

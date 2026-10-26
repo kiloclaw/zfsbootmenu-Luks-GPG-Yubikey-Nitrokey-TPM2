@@ -165,10 +165,15 @@ fn output(
             .current_encoder()
             .and_then(|encoder| card.get_encoder(encoder).ok()?.crtc());
         let current_crtc = current.and_then(crtc_index);
-        // The mode shown now, kept when the connector offers it.
+        // The mode shown now, kept when the connector offers it: the same
+        // size and refresh, whatever flags the kernel console's copy has.
         let current_mode = current
             .and_then(|crtc| card.get_crtc(crtc).ok()?.mode())
-            .and_then(|shown| info.modes().iter().position(|&mode| mode == shown));
+            .and_then(|shown| {
+                info.modes().iter().position(|mode| {
+                    mode.size() == shown.size() && mode.vrefresh() == shown.vrefresh()
+                })
+            });
         let possible_crtcs = info
             .encoders()
             .iter()
