@@ -16,6 +16,10 @@
           "i915/tgl_dmc.bin.zst",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "xe\n",
+          "blacklist xe\n"
         ]
       ]
     }

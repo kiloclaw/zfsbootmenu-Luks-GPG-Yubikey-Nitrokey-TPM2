@@ -391,11 +391,20 @@ Following a boot
   disks; in the recovery shell, ``/libexec/zbm debug saved`` must list one saved boot, with a journal that is not
   empty and the kernel log, and ``/libexec/zbm report`` must write a report. After the machine stops, the host reads
   the disk with ``mtype``: the saved journal must be the first boot's (it holds ``running init stage``) and must have
-  been saved after the teardown hooks ran (it names ``teardown.d``), and the report's ``report.txt`` must show the
+  been saved once the kernel was loaded and before the teardown hooks ran (it names ``kexec`` and not
+  ``teardown.d``), and the report's ``report.txt`` must show the
   versions, the pool ``tplain`` and no LUKS volume, beside this boot's journal. In the same recovery shell, the
   reports of ``zbm-debug(8)`` must end with 0 and show this boot's start-up: ``config`` the option
   ``zbm.save_logs=LABEL=ZBMLOGS``, ``state`` the state directory without the journal, ``journal`` the init stages,
   ``commands`` the pool import and a summary, ``pools`` the pool ``tplain`` and ``luks`` no LUKS volume.
+
+* ``runtime-rust-gpu`` checks that the image's graphics drivers load before anything is asked, for the GPUs
+  ``zbm.gpu`` chooses (ROADMAP.md #17). The image takes ``virtio_gpu`` and ``bochs``, the drivers of QEMU's virtual
+  GPUs, through ``zfsbootmenu_graphics_drivers``; the machine has QEMU's standard VGA and a virtio GPU at
+  ``0000:00:09.0``. Without ``zbm.gpu``, both GPUs must have their driver, loaded before the countdown appears on the
+  serial console. With ``zbm.gpu=0000:00:09.0``, only the virtio GPU has a driver, and the standard VGA a driver
+  override that no driver matches. With ``zbm.gpu=off``, neither GPU has a driver, which also shows that udev did not
+  load them before ZFSBootMenu, and the log says why.
 
 Results
 -------

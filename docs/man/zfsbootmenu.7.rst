@@ -242,6 +242,18 @@ These options are set on the kernel command line when booting the initramfs or U
     the image lacks leaves the first, and an image without layouts reads keys on the US layout.
     **zbm console layout** *name* switches layouts while the console runs.
 
+**zbm.gpu=0000:03:00.0**
+
+  In images with graphics drivers (*Kernel.GraphicsDrivers* of **generate-zbm**), which only the
+  *rust* runtime takes, choose the GPU they drive. The drivers load before anything is asked, so the
+  display does not change mode under a passphrase prompt, and the console on the display
+  (**zbm.console=drm**) draws on that GPU's first connected display. A PCI address, as **lspci -D**
+  shows it (*0000:03:00.0*, or *03:00.0* for domain 0), names one GPU; **amd** or **intel** names
+  the GPUs of a vendor. The other GPUs are left alone: no driver takes them, and they keep what the
+  firmware showed. Without this option, the drivers take every GPU they can, and the console draws on
+  the first with a connected display. **zbm.gpu=off** loads no graphics driver for this boot, for a
+  GPU that does not come back after ZFSBootMenu: the console stays on the firmware's framebuffer.
+
 **zbm.save_logs**
 
   In images built with the Rust runtime, save the logs of each boot on an EFI system partition, which
@@ -555,9 +567,11 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
 
   In images with the *rust* runtime, graphics drivers to add, of *amdgpu*, *i915* and *xe*, with
   the firmware **zfsbootmenu_graphics_firmware** names; **generate-zbm** sets both from
-  *Kernel.GraphicsDrivers*. The image takes them even though the *omit_drivers* list of
-  ZFSBootMenu's **dracut** configuration names them and *drm*, which they need. An image with the
-  *legacy* runtime fails to build with this option set.
+  *Kernel.GraphicsDrivers*. *virtio_gpu* and *bochs*, the drivers of QEMU's virtual GPUs, need no
+  firmware. The runtime loads the drivers before anything is asked, for the GPUs **zbm.gpu** chooses
+  (see **zfsbootmenu(7)**), and the image keeps udev from loading them first. The image takes them
+  even though the *omit_drivers* list of ZFSBootMenu's **dracut** configuration names them and
+  *drm*, which they need. An image with the *legacy* runtime fails to build with this option set.
 
 **zfsbootmenu_graphics_firmware="amdgpu/gc_12_0_0_me.bin ..."**
 

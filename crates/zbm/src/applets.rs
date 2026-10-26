@@ -73,6 +73,11 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     };
     let options = preinit::saved_options(&system, Path::new("/"), &conf);
     preinit::prepare(&system, Path::new("/"), &options);
+    // The graphics drivers, before the console on the display and anything
+    // that asks (ROADMAP.md #17)
+    let kcl = preinit::saved_commandline(&system, Path::new("/"), &conf);
+    let gpu = zbm_startup::graphics::option(&kcl);
+    zbm_startup::graphics::load(&system, Path::new("/"), gpu.as_deref());
 
     // https://busybox.net/FAQ.html#job_control: the shell opens the terminal
     // after `setsid`, so it becomes the session's controlling terminal.

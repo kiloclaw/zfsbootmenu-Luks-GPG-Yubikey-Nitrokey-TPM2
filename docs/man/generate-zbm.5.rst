@@ -135,8 +135,9 @@ Kernel
   console runs at the display's own resolution instead of on the framebuffer the firmware left
   behind. The drivers are *amdgpu* for AMD GPUs from GCN 3 on, *i915* for Intel graphics up to
   Meteor Lake and *xe* for Intel graphics from Lunar Lake on. Only images with the Rust runtime take
-  them. Not finished: the runtime does not yet hand the GPU back before it boots a kernel, so the
-  booted system may find it unusable (see ROADMAP.md, item 17).
+  them; they load before anything is asked, and **zbm.gpu** on the command line chooses the GPU they
+  drive, or none (see **zfsbootmenu(7)**). Not finished: the runtime does not yet hand the GPU back
+  before it boots a kernel, so the booted system may find it unusable (see ROADMAP.md, item 17).
 
   A driver named alone is for the GPUs of the build machine, found by their PCI IDs; for an AMD GPU
   that **amdgpu** drives while the image is built, its exact chip is read from the driver. After a

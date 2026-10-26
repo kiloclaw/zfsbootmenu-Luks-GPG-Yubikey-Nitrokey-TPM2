@@ -43,6 +43,9 @@
 //!   FAT disk before `kexec`; after a restart, `zbm debug saved` lists them
 //!   and `zbm report` writes a report beside them (ROADMAP.md #9); the
 //!   other reports of `zbm-debug(8)` read the restart's start-up.
+//! - `rust-gpu` (`gpu`): the image's graphics drivers load before the
+//!   countdown, for the GPUs `zbm.gpu` chooses, on QEMU's standard VGA and
+//!   a virtio GPU (ROADMAP.md #17).
 //! - `legacy-keysource` (`keysource`): the boot environment of `tkeys`
 //!   (d2) takes its key from its key source; shadow mode compares where
 //!   the key came from. `rust-keysource`: its countdown boot with the Rust
@@ -75,6 +78,7 @@ mod colours;
 mod console;
 mod crash;
 mod drm;
+mod gpu;
 mod host;
 mod keysource;
 mod pilot;
@@ -100,7 +104,7 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
-/// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`,
+/// `rust-colours`, `rust-drm`, `rust-console`, `rust-saved`, `rust-gpu`,
 /// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
 /// # Errors
@@ -118,6 +122,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
         "rust-saved" => saved::run(test),
+        "rust-gpu" => gpu::run(test),
         "legacy-keysource" => keysource::run(test, ZbmRuntime::Legacy),
         "rust-keysource" => keysource::run(test, ZbmRuntime::Rust),
         _ => {

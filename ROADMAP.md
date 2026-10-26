@@ -90,8 +90,9 @@ These touch code that is already Rust. Each is added as a change of its own, for
 provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust-colours` add `virtio_gpu` to their
 images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
 (`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
-list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot, loading before the first prompt, the
-hand-back before `kexec`, the list of known-good GPUs and the VM test remain. The Rust runtime owns the `kexec` path
+list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot and loading before the first prompt
+are done too (`zbm_startup::graphics`, VM test `runtime-rust-gpu`). The hand-back before `kexec`, the list of
+known-good GPUs and the tests on real hardware remain. The Rust runtime owns the `kexec` path
 of its images.
 
 - **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
@@ -131,6 +132,11 @@ of its images.
     touched; without it they use the first GPU with a connected display.
   - **Load before the first prompt.** At start-up the drivers load before anything is asked, so the console does not
     change mode under a passphrase field.
+    *Done.* The image keeps udev from loading them (`modprobe.d`) and lists them in
+    `/etc/zfsbootmenu/graphics-drivers`; `zfsbootmenu-preinit` loads them before the supervisor starts the console on
+    the display, waits up to 10 s for each chosen GPU's DRM card, and passes the console that card (`--card`).
+    `zbm.gpu` takes a PCI address, `amd`, `intel` or `off`; GPUs it leaves out get a driver override no driver matches.
+    The VM test `runtime-rust-gpu` runs it on QEMU's standard VGA and a virtio GPU.
   - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
     shutdown path, and resets the PCI function where it supports a reset. The booted kernel then finds the GPU as at
     power-on.

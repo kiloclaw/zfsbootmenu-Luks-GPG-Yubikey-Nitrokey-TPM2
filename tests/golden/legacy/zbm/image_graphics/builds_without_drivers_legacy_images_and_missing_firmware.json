@@ -17,6 +17,10 @@
           "i915/tgl_dmc.bin.zst",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "",
+          ""
         ]
       ]
     },
@@ -36,6 +40,10 @@
           "i915/tgl_dmc.bin.zst",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "",
+          ""
         ]
       ]
     },
@@ -50,6 +58,10 @@
           "i915/tgl_dmc.bin.zst",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "amdgpu\n",
+          "blacklist amdgpu\n"
         ]
       ]
     },
@@ -69,6 +81,10 @@
           "i915/tgl_dmc.bin.zst",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "",
+          ""
         ]
       ]
     }

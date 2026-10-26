@@ -51,13 +51,21 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
 
 /// The arguments of the console the image below `root` starts, from the
 /// command line that start-up saved; `None` for the kernel console, and
-/// when the control terminal is not a virtual console.
+/// when the control terminal is not a virtual console. In an image with
+/// graphics drivers, the console draws on the card of the GPU `zbm.gpu`
+/// chooses (`--card`, [`crate::graphics::console_card`]).
 pub fn from_image(system: &System<'_>, root: &Path, conf: &Conf) -> Option<Vec<String>> {
     let options = preinit::saved_options(system, root, conf);
     if !preinit::is_virtual_console(&options.control_term) {
         return None;
     }
-    arguments(&preinit::saved_commandline(system, root, conf))
+    let kcl = preinit::saved_commandline(system, root, conf);
+    let mut arguments = arguments(&kcl)?;
+    let gpu = crate::graphics::option(&kcl);
+    if let Some(card) = crate::graphics::console_card(system.files, root, gpu.as_deref()) {
+        arguments.extend(["--card".to_owned(), card.display().to_string()]);
+    }
+    Some(arguments)
 }
 
 #[cfg(test)]
@@ -115,6 +123,40 @@ mod tests {
         assert_eq!(
             from_image(&system, Path::new("/"), &conf("/dev/ttyS0")),
             None
+        );
+    }
+
+    #[test]
+    fn with_graphics_drivers_the_console_draws_on_the_chosen_gpu() {
+        let fake = FakeSystem::new();
+        let gpu = |address: &str, vendor: &str, card: &str, status: &str| {
+            let dir = format!("/sys/bus/pci/devices/{address}");
+            fake.files
+                .file(format!("{dir}/class"), "0x030000\n")
+                .file(format!("{dir}/vendor"), format!("{vendor}\n"))
+                .file(format!("{dir}/device"), "0x1234\n")
+                .dir(format!("{dir}/drm/{card}"))
+                .file(format!("/sys/class/drm/{card}-HDMI-A-1/status"), status);
+        };
+        gpu("0000:00:02.0", "0x8086", "card0", "connected\n");
+        gpu("0000:03:00.0", "0x1002", "card1", "connected\n");
+        fake.files
+            .file("/etc/zfsbootmenu/graphics-drivers", "amdgpu i915\n")
+            .file("/zfsbootmenu/zbm.cmdline", "zbm.console=drm\nzbm.gpu=amd\n");
+        let conf = Conf::parse("export control_term=\"/dev/tty1\"\n");
+
+        let system = fake.system();
+        assert_eq!(
+            from_image(&system, Path::new("/"), &conf),
+            words("console --card /dev/dri/card1")
+        );
+
+        // Without zbm.gpu, the first GPU with a display.
+        fake.files
+            .file("/zfsbootmenu/zbm.cmdline", "zbm.console=drm\n");
+        assert_eq!(
+            from_image(&system, Path::new("/"), &conf),
+            words("console --card /dev/dri/card0")
         );
     }
 }

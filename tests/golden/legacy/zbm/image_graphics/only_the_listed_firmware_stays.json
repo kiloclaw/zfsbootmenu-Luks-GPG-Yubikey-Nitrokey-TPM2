@@ -15,6 +15,10 @@
           "i915/kbl_dmc_ver1_04.bin.xz",
           "rtl_nic/rtl8168h-2.fw",
           "xe/lnl_guc_70.bin.zst"
+        ],
+        [
+          "amdgpu i915\n",
+          "blacklist amdgpu\nblacklist i915\n"
         ]
       ]
     }

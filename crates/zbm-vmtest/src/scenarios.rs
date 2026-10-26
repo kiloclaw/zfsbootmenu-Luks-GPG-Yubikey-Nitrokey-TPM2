@@ -72,6 +72,7 @@ pub const ALL: &[&str] = &[
     "runtime-rust-drm",
     "runtime-rust-console",
     "runtime-rust-saved",
+    "runtime-rust-gpu",
     "secrets-setup",
     "secrets-passphrase",
     "secrets-keyfile",

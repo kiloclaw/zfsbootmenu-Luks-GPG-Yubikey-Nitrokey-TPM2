@@ -617,7 +617,9 @@ zbm_unomit_drivers() {
 # which generate-zbm sets from Kernel.GraphicsDrivers. The drivers are
 # installed with every firmware file they list; then the files of their
 # firmware directories that zfsbootmenu_graphics_firmware does not name are
-# removed, keeping the targets of the links it names. ZFSBootMenu's dracut
+# removed, keeping the targets of the links it names. The image lists the
+# drivers in /etc/zfsbootmenu/graphics-drivers and keeps udev from loading
+# them (modprobe.d), since the runtime loads them. ZFSBootMenu's dracut
 # configuration omits the graphics drivers and drm (omit_drivers), so they
 # are installed with that list cut for this call only. dracut runs this from
 # installkernel, where nothing installs the drivers later and puts the
@@ -647,6 +649,8 @@ install_zbm_graphics() {
       amdgpu) dirs+=( amdgpu ) ;;
       i915) dirs+=( i915 ) ;;
       xe) dirs+=( xe i915 ) ;;
+      # The virtual GPUs of QEMU, for virtual machines and the VM tests
+      virtio_gpu|bochs) ;;
       *)
         zbm_error "unknown graphics driver '${driver}'"
         return 1
@@ -666,6 +670,14 @@ install_zbm_graphics() {
       return 1
     }
   done
+
+  # The runtime loads the drivers itself, before anything is asked, for the
+  # GPUs zbm.gpu chooses (zbm_startup::graphics); udev must not load them first
+  mkdir -p "${BUILDROOT}/etc/zfsbootmenu" "${BUILDROOT}/etc/modprobe.d"
+  echo "${zfsbootmenu_graphics_drivers}" > "${BUILDROOT}/etc/zfsbootmenu/graphics-drivers"
+  for driver in ${zfsbootmenu_graphics_drivers}; do
+    echo "blacklist ${driver}"
+  done > "${BUILDROOT}/etc/modprobe.d/zfsbootmenu-graphics.conf"
 
   # shellcheck disable=SC2154
   [ -n "${zfsbootmenu_graphics_firmware}" ] || return 0

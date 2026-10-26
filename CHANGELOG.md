@@ -224,9 +224,14 @@ building when a name is unknown, the machine has no GPU for a driver named alone
 a GPU. The dracut module and the mkinitcpio hook install the drivers past the `omit_drivers` of ZFSBootMenu's dracut
 configuration and remove the firmware files nobody asked for (`zfsbootmenu_graphics_drivers`,
 `zfsbootmenu_graphics_firmware`). In a test build on Linux 6.8, `amdgpu` and `i915` with the firmware of two AMD
-chips and one Intel platform made the uncompressed image 9 MB larger; with all their firmware, 32 MB larger. Not
-finished: the runtime does not yet hand the GPU back before `kexec`, so images with these drivers may leave the
-booted system without a display. Release images are unchanged.
+chips and one Intel platform made the uncompressed image 9 MB larger; with all their firmware, 32 MB larger. The runtime loads the drivers itself, before anything is asked, so that the display does not change mode under a
+passphrase prompt: the image keeps udev from loading them, and `zfsbootmenu-preinit` loads them before the console
+on the display starts, which draws on the first GPU with a connected display. `zbm.gpu=` chooses the GPU they drive
+(a PCI address, `amd` or `intel`); the others get a driver override no driver matches and stay as the firmware left
+them. `zbm.gpu=off` loads none for one boot. The VM test `runtime-rust-gpu` checks this on QEMU's virtual GPUs, whose
+drivers (`virtio_gpu`, `bochs`) the build option `zfsbootmenu_graphics_drivers` also takes. Not finished: the
+runtime does not yet hand the GPU back before `kexec`, so images with these drivers may leave the booted system
+without a display. Release images are unchanged.
 
 ### Console font on high-density (HiDPI) displays
 

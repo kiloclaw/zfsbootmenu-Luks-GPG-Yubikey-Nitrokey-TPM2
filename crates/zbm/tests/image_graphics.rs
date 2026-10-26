@@ -35,9 +35,10 @@ const FIRMWARE: &[&str] = &[
     "rtl_nic/rtl8168h-2.fw",
 ];
 
-/// The result of a run: exit status, standard output, standard error and
-/// the firmware files left in the image.
-type Run = (i32, String, String, Vec<String>);
+/// The result of a run: exit status, standard output, standard error, the
+/// firmware files left in the image, and the image's list of drivers and
+/// its modprobe.d file for them.
+type Run = (i32, String, String, Vec<String>, [String; 2]);
 
 /// Runs `install_zbm_graphics` with the build style, runtime and settings,
 /// on an image with [`FIRMWARE`].
@@ -74,6 +75,7 @@ fn run(parity: &mut Parity, style: &str, runtime: &str, settings: &[(&str, &str)
             }
         }
         files.sort();
+        let read = |path: &str| std::fs::read_to_string(image.join(path)).unwrap_or_default();
         (
             output.status.shell_code(),
             output.stdout_text(),
@@ -81,6 +83,10 @@ fn run(parity: &mut Parity, style: &str, runtime: &str, settings: &[(&str, &str)
                 .stderr_text()
                 .replace(&image.path().display().to_string(), "<image>"),
             files,
+            [
+                read("etc/zfsbootmenu/graphics-drivers"),
+                read("etc/modprobe.d/zfsbootmenu-graphics.conf"),
+            ],
         )
     })
 }
@@ -97,9 +103,13 @@ fn only_the_listed_firmware_stays() {
         ),
     ];
 
-    let (code, stdout, stderr, files) = run(&mut parity, "dracut", "rust", &settings);
+    let (code, stdout, stderr, files, [drivers, modprobe]) =
+        run(&mut parity, "dracut", "rust", &settings);
 
     assert_eq!(code, 0, "{stderr}");
+    // The runtime loads the drivers; udev must not.
+    assert_eq!(drivers, "amdgpu i915\n");
+    assert_eq!(modprobe, "blacklist amdgpu\nblacklist i915\n");
     assert_eq!(
         stdout,
         "instmods -c amdgpu (omit: ^radeon$|^nvidia$|^nouveau$|^intel_ish_ipc$)\n\
@@ -137,7 +147,7 @@ fn mkinitcpio_adds_the_drivers_and_xe_keeps_its_display_firmware() {
         ),
     ];
 
-    let (code, stdout, _, files) = run(&mut parity, "mkinitcpio", "rust", &settings);
+    let (code, stdout, _, files, _) = run(&mut parity, "mkinitcpio", "rust", &settings);
 
     assert_eq!(code, 0);
     assert_eq!(stdout, "add_module xe\n");
@@ -161,11 +171,12 @@ fn builds_without_drivers_legacy_images_and_missing_firmware() {
     let mut parity = parity!("builds_without_drivers_legacy_images_and_missing_firmware");
     let drivers = ("zfsbootmenu_graphics_drivers", "amdgpu");
 
-    let (code, stdout, stderr, files) = run(&mut parity, "dracut", "rust", &[]);
+    let (code, stdout, stderr, files, written) = run(&mut parity, "dracut", "rust", &[]);
     assert_eq!((code, stdout.as_str(), stderr.as_str()), (0, "", ""));
+    assert_eq!(written, [String::new(), String::new()]);
     assert_eq!(files.len(), FIRMWARE.len() + 1);
 
-    let (code, stdout, stderr, _) = run(&mut parity, "dracut", "legacy", &[drivers]);
+    let (code, stdout, stderr, _, _) = run(&mut parity, "dracut", "legacy", &[drivers]);
     assert_eq!((code, stdout.as_str()), (1, ""));
     assert_eq!(
         stderr,
@@ -173,7 +184,7 @@ fn builds_without_drivers_legacy_images_and_missing_firmware() {
     );
 
     let firmware = ("zfsbootmenu_graphics_firmware", "amdgpu/gc_11_0_0_me.bin");
-    let (code, _, stderr, files) = run(&mut parity, "dracut", "rust", &[drivers, firmware]);
+    let (code, _, stderr, files, _) = run(&mut parity, "dracut", "rust", &[drivers, firmware]);
     assert_eq!(code, 1);
     assert_eq!(
         stderr,
@@ -184,7 +195,7 @@ fn builds_without_drivers_legacy_images_and_missing_firmware() {
         "{files:?}"
     );
 
-    let (code, _, stderr, _) = run(
+    let (code, _, stderr, _, _) = run(
         &mut parity,
         "dracut",
         "rust",

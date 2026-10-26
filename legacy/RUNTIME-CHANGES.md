@@ -112,6 +112,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
   fail to build with the option set; without it, every image is unchanged.
   **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over.
   `crates/zbm/tests/image_graphics.rs` covers the helper.
+- [x] (this commit): `install_zbm_graphics` also writes `/etc/zfsbootmenu/graphics-drivers` and
+  `/etc/modprobe.d/zfsbootmenu-graphics.conf`, which keeps udev from loading the graphics drivers, since the Rust
+  runtime loads them for the GPUs `zbm.gpu` chooses; it takes `virtio_gpu` and `bochs` too. Images without
+  `zfsbootmenu_graphics_drivers` are unchanged.
+  **Rust:** done; `zbm_startup::graphics` loads them, and `crates/zbm/tests/image_graphics.rs` and the VM test
+  `runtime-rust-gpu` cover it.
 
 ## Legacy limitations the Rust runtime must not copy
 

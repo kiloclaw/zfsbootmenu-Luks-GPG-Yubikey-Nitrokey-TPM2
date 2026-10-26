@@ -26,6 +26,7 @@ pub mod autosize;
 pub mod console;
 pub mod error;
 pub mod front;
+pub mod graphics;
 pub mod preinit;
 pub mod program;
 pub mod shell;

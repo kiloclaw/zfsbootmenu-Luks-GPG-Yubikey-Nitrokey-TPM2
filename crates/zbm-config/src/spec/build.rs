@@ -210,9 +210,11 @@ pub static GRAPHICS_DRIVERS: OptionSpec = OptionSpec {
 const GRAPHICS_DRIVERS_DOC: &str = r"
 In images with the *rust* runtime, graphics drivers to add, of *amdgpu*, *i915* and *xe*, with
 the firmware **zfsbootmenu_graphics_firmware** names; **generate-zbm** sets both from
-*Kernel.GraphicsDrivers*. The image takes them even though the *omit_drivers* list of
-ZFSBootMenu's **dracut** configuration names them and *drm*, which they need. An image with the
-*legacy* runtime fails to build with this option set.
+*Kernel.GraphicsDrivers*. *virtio_gpu* and *bochs*, the drivers of QEMU's virtual GPUs, need no
+firmware. The runtime loads the drivers before anything is asked, for the GPUs **zbm.gpu** chooses
+(see **zfsbootmenu(7)**), and the image keeps udev from loading them first. The image takes them
+even though the *omit_drivers* list of ZFSBootMenu's **dracut** configuration names them and
+*drm*, which they need. An image with the *legacy* runtime fails to build with this option set.
 ";
 
 /// `zfsbootmenu_graphics_firmware`: the firmware of the graphics drivers.
