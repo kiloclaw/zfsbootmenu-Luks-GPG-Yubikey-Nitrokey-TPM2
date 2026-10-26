@@ -29,6 +29,10 @@ for card in /sys/class/drm/card*; do
   case "${card##*/}" in *-*) continue ;; esac
   [ -e "${card}/device/driver" ] || continue
   driver="$($bb readlink -f "${card}/device/driver")"
+  # virtio_gpu makes its card on the PCI device, which virtio-pci drives
+  for sub in "${card}"/device/virtio*/driver; do
+    [ -e "${sub}" ] && driver="$($bb readlink -f "${sub}")"
+  done
   drm="${drm}${card##*/}=${driver##*/} "
 done
 echo "BE-DRM: ${drm}"
