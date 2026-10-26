@@ -270,7 +270,9 @@ These options are set on the kernel command line when booting the initramfs or U
   survive the boot and a restart: the runtime journal, the crash reports and the kernel log go to a
   directory named for the time (UTC), such as */EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z*, once
   the selected kernel is loaded, before the teardown hooks (which may unbind a USB device the
-  partition is on), and after a program of the runtime crashes. The newest five stay.
+  partition is on), and after a program of the runtime crashes. The newest five stay. In images with
+  graphics drivers, the kernel log is written again last before *kexec*, with how the GPUs were
+  handed back (see **zbm.gpu_untested**), when the partition is still there.
   The partition is mounted only for the write, and must be FAT, with the *vfat* module in the image.
   With no value, or **esp**, it is the partition the boot loader loaded ZFSBootMenu from (systemd's
   EFI stub records it in ZFSBootMenu's EFI bundles), or else the machine's only EFI system partition;

@@ -237,7 +237,9 @@ and resets its PCI function where the device has a reset, so that the booted ker
 kernel log says how each GPU was handed back. When `kexec` fails, the drivers take the GPUs again, so the console can
 show the error. The drivers take only GPUs known to come back after this, listed by PCI ID: for now QEMU's virtual
 GPUs, until real ones pass twenty boots in a row; the others stay on the firmware's framebuffer, with the reason in
-the kernel log, and `zbm.gpu_untested` on the command line loads their drivers to try them. Not finished: runs on
+the kernel log, and `zbm.gpu_untested` on the command line loads their drivers to try them. With `zbm.save_logs`,
+the saved kernel log is written again after the hand-back, so that the booted system can read how each GPU was
+handed back. Not finished: runs on
 real hardware. Release images are unchanged.
 
 ### Console font on high-density (HiDPI) displays

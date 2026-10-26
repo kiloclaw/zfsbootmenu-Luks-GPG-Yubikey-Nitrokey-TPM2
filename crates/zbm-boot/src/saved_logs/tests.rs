@@ -275,3 +275,44 @@ fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
     assert!(!fake.files.exists(&logs.join("2025-12-01T00-00-00Z")));
     assert!(fake.files.exists(&logs.join("2025-12-02T00-00-00Z")));
 }
+
+#[test]
+fn the_kernel_log_of_a_saved_boot_is_written_again_with_what_came_after() {
+    let fake = machine();
+    let system = fake.system();
+    let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+    let dir = Path::new(MOUNT_POINT).join(&saved.directory);
+    // What the kernel logged since the save is not in the saved copy.
+    fake.files.file(dir.join("kernel.log"), "stale\n");
+
+    update_kernel_log(&system, &saved).unwrap();
+
+    assert_eq!(
+        fake.files.text(dir.join("kernel.log")).as_deref(),
+        Some("[    0.000000] Linux version\n")
+    );
+    assert_eq!(
+        fake.files.text(dir.join("journal.jsonl")).as_deref(),
+        Some("{\"message\":\"boot\"}\n")
+    );
+
+    let gone = Saved {
+        directory: format!("{DIRECTORY}/2020-01-01T00-00-00Z"),
+        ..saved.clone()
+    };
+    let error = update_kernel_log(&system, &gone).unwrap_err();
+    assert!(
+        error.to_string().contains("the saved boot is gone"),
+        "{error}"
+    );
+
+    fake.runner.respond(
+        "mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs",
+        32,
+        "",
+    );
+    assert_eq!(
+        update_kernel_log(&system, &saved),
+        Err(SaveError::Mount("/dev/vda1".to_owned()))
+    );
+}

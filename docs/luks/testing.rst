@@ -418,6 +418,8 @@ Following a boot
   ``kexec``, the kernel log on the serial console (which a teardown hook of the image turns on again) must say that
   both GPUs were handed back, unbound from ``virtio-pci`` and ``bochs-drm``, and the environment's ``BE-DRM`` line
   must name a card for each, with ``virtio_gpu`` and ``bochs`` (the test boot environment's initramfs has both).
+  That boot saves its logs on a FAT disk (``zbm.save_logs=LABEL=ZBMGPULOGS``), and the kernel log saved there must
+  hold the hand-back, which comes after the save.
 
 Results
 -------

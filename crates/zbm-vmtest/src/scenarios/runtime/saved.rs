@@ -204,7 +204,7 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
 }
 
 /// The file `inner` of the FAT disk image `image`.
-fn mtype(image: &Path, inner: &str) -> Result<String> {
+pub(super) fn mtype(image: &Path, inner: &str) -> Result<String> {
     let path: PathBuf = image.to_owned();
     crate::disks::run(
         Command::new("mtype")

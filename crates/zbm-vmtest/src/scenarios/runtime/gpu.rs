@@ -20,12 +20,17 @@
 //! ZFSBootMenu hands both GPUs back, unbound from their drivers (a teardown
 //! hook of the image turns kernel messages on the serial console on again,
 //! to show it), and the environment's kernel brings up both displays with
-//! its own drivers (`BE-DRM`).
+//! its own drivers (`BE-DRM`). It saves its logs on a FAT disk
+//! (`zbm.save_logs`), whose saved kernel log must hold the hand-back, which
+//! comes after the save.
+
+use std::process::Command;
 
 use crate::boot::{Follow, follow_boot};
-use crate::error::Result;
+use crate::disks::vfat_disk;
+use crate::error::{Error, Result};
 use crate::images::{Image, ImageSpec, zbm_image};
-use crate::qemu::Machine;
+use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
@@ -71,8 +76,15 @@ const PRINTK_HOOK: (&str, &str) = (
     "#!/bin/sh\necho 7 > /proc/sys/kernel/printk\n",
 );
 
+/// The label of the FAT disk the boot that boots the environment saves its
+/// logs on.
+const LOGS_LABEL: &str = "ZBMGPULOGS";
+
 /// The command line of the boot that boots the environment.
-const KEXEC_APPEND: &str = "console=ttyS0 zbm.timeout=3 loglevel=7";
+const KEXEC_APPEND: &str = "console=ttyS0 zbm.timeout=3 loglevel=7 zbm.save_logs=LABEL=ZBMGPULOGS";
+
+/// Where the saved logs are on the disk.
+const SAVED: &str = "EFI/zfsbootmenu/logs";
 
 /// A boot: its label, the `zbm.gpu` option, and the drivers the two GPUs
 /// must have.
@@ -138,7 +150,11 @@ fn machine(test: &Test, image: &Image, append: &str) -> Result<Machine> {
 /// The countdown boots the environment: both GPUs are handed back before
 /// `kexec`, and its kernel brings up both displays.
 fn check_kexec(test: &Test, image: &Image) -> Result<()> {
-    let mut vm = Vm::start(test, "kexec", &machine(test, image, KEXEC_APPEND)?)?;
+    let dir = test.settings().disks("runtime");
+    std::fs::create_dir_all(&dir).map_err(Error::io(format!("creating {}", dir.display())))?;
+    let logs = vfat_disk(&dir.join("gpu-logs.img"), LOGS_LABEL, &[], "64M", 512)?;
+    let machine = machine(test, image, KEXEC_APPEND)?.with_disks([Disk::new(logs.clone(), "logs")]);
+    let mut vm = Vm::start(test, "kexec", &machine)?;
     let follow = Follow {
         timeout: Some(1200),
         ..Follow::default()
@@ -162,7 +178,31 @@ fn check_kexec(test: &Test, image: &Image) -> Result<()> {
         &format!("kexec: the environment's kernel brought up both displays ({drm})"),
     );
     vm.kill();
+    let saved = saved_kernel_log(&logs)?;
+    test.check(
+        saved.contains(&format!("graphics: handed {VIRTIO} (1af4:")),
+        "kexec: the saved kernel log holds the hand-back",
+    );
     Ok(())
+}
+
+/// The kernel log saved on the FAT disk `image`, of its first saved boot.
+fn saved_kernel_log(image: &std::path::Path) -> Result<String> {
+    let listed = crate::disks::run(
+        Command::new("mdir")
+            .env("MTOOLS_SKIP_CHECK", "1")
+            .args(["-b", "-i"])
+            .arg(image)
+            .arg(format!("::/{SAVED}")),
+    )?;
+    let Some(boot) = listed
+        .lines()
+        .filter_map(|line| line.trim_end_matches('/').rsplit('/').next())
+        .find(|name| name.starts_with(|c: char| c.is_ascii_digit()))
+    else {
+        return Ok(String::new());
+    };
+    super::saved::mtype(image, &format!("{SAVED}/{boot}/kernel.log"))
 }
 
 fn start<'t>(test: &'t Test, image: &Image, boot: &Boot) -> Result<Vm<'t>> {

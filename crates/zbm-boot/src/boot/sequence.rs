@@ -21,7 +21,7 @@ use crate::kernels::Kernel;
 use crate::keys::{self, BootPath, Clear, KeyLoad};
 use crate::prompt::{TimedPrompt, colorize, tput};
 use crate::recovery::Recovery;
-use crate::saved_logs::{self, Destination};
+use crate::saved_logs::{self, Destination, Saved};
 
 /// What booting needs besides the kernel.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -139,10 +139,10 @@ pub fn kexec_kernel(
 
     // The logs are saved before the teardown hooks, which may take away
     // the partition they go to (`90-xhci-unbind` and an ESP on USB).
-    save_logs(system, state, settings.save_logs.as_ref());
+    let saved = save_logs(system, state, settings.save_logs.as_ref());
     tear_down(system, settings, &hook_env, &mnt);
     hand_over(system, state);
-    execute(system, state, fs, kernel);
+    execute(system, state, (fs, kernel), saved.as_ref());
 }
 
 /// The variables the hooks of the boot get: those of `settings`, then the
@@ -312,13 +312,32 @@ fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &s
 /// Saves the logs of this boot to `destination`, if given, once the kernel
 /// is loaded and before the teardown hooks, which may unbind the device the
 /// partition is on; a failure is logged and the boot goes on.
-pub fn save_logs(system: &System<'_>, state: &State<'_>, destination: Option<&Destination>) {
-    let Some(destination) = destination else {
+pub fn save_logs(
+    system: &System<'_>,
+    state: &State<'_>,
+    destination: Option<&Destination>,
+) -> Option<Saved> {
+    match saved_logs::save(system, state.base(), destination?) {
+        Ok(saved) => {
+            zbm_trace::info!("saved the logs on {} in {}", saved.device, saved.directory);
+            Some(saved)
+        }
+        Err(error) => {
+            zbm_trace::warn!("unable to save the logs: {error}");
+            None
+        }
+    }
+}
+
+/// Writes the kernel log again into the logs `saved` for this boot, if any,
+/// so that they keep how the GPUs were handed back, which comes after them
+/// and which the next kernel would not see. A failure is logged.
+fn keep_hand_back(system: &System<'_>, saved: Option<&Saved>) {
+    let Some(saved) = saved else {
         return;
     };
-    match saved_logs::save(system, state.base(), destination) {
-        Ok(saved) => zbm_trace::info!("saved the logs on {} in {}", saved.device, saved.directory),
-        Err(error) => zbm_trace::warn!("unable to save the logs: {error}"),
+    if let Err(error) = saved_logs::update_kernel_log(system, saved) {
+        zbm_trace::warn!("unable to add the GPUs' hand-back to the saved logs: {error}");
     }
 }
 
@@ -357,9 +376,15 @@ pub fn wipe_before_kexec(system: &System<'_>) {
     }
 }
 
-/// Tells the user which kernel boots and executes it. Returns only if that
-/// fails, after telling the user.
-fn execute(system: &System<'_>, state: &State<'_>, fs: &str, kernel: &str) {
+/// Tells the user which kernel (`kernel` of `fs`) boots and executes it,
+/// after handing the GPUs back, and keeping how in the logs `saved` for
+/// this boot. Returns only if that fails, after telling the user.
+fn execute(
+    system: &System<'_>,
+    state: &State<'_>,
+    (fs, kernel): (&str, &str),
+    saved: Option<&Saved>,
+) {
     wipe_before_kexec(system);
     let booting = format!(
         "\nBooting {} for {} ...\n\n",
@@ -369,6 +394,9 @@ fn execute(system: &System<'_>, state: &State<'_>, fs: &str, kernel: &str) {
     let _ = system.console.write(booting.as_bytes());
     // The GPUs last, as a display shows nothing once its GPU is handed back
     let gpus = graphics::hand_back(system, Path::new("/"));
+    if !gpus.is_empty() {
+        keep_hand_back(system, saved);
+    }
 
     let (_, output) = substituted(kexec::execute(system.runner));
     // Only a failed kexec returns.
@@ -456,6 +484,45 @@ mod tests {
         assert!(fake.files.exists(std::path::Path::new(
             "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log"
         )));
+    }
+
+    #[test]
+    fn the_hand_back_goes_into_the_logs_saved_for_the_boot() {
+        let fake = FakeSystem::new();
+        fake.runner
+            .respond("dmesg", 0, "[   42.0] ZFSBootMenu: graphics: handed back\n");
+        fake.files
+            .dir("/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z");
+        let system = fake.system();
+        let _log =
+            zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
+                .install();
+
+        keep_hand_back(&system, None);
+        assert!(fake.runner.lines().is_empty());
+
+        let saved = Saved {
+            device: "/dev/vda1".to_owned(),
+            directory: "EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z".to_owned(),
+            files: Vec::new(),
+        };
+        keep_hand_back(&system, Some(&saved));
+        assert!(
+            fake.files
+                .text("/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log")
+                .is_some_and(|log| log.contains("handed back"))
+        );
+
+        fake.runner.respond(
+            "mount -t vfat -o rw,noatime /dev/vda1 /run/zbm-saved-logs",
+            32,
+            "",
+        );
+        keep_hand_back(&system, Some(&saved));
+        assert!(
+            fake.kmsg()
+                .contains("unable to add the GPUs' hand-back to the saved logs")
+        );
     }
 
     #[test]

@@ -354,6 +354,31 @@ fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String
     Ok(written)
 }
 
+/// Writes the kernel log again into the boot `saved`, with what was logged
+/// since the save, such as how the GPUs were handed back right before
+/// `kexec`, which comes after the teardown hooks and so after the save.
+///
+/// # Errors
+///
+/// When the partition cannot be mounted, as when a teardown hook took its
+/// device away, or the saved boot is gone.
+pub fn update_kernel_log(system: &System<'_>, saved: &Saved) -> Result<(), SaveError> {
+    with_mounted(system, &saved.device, |root| {
+        let dir = root.join(&saved.directory);
+        if !system.files.is_dir(&dir) {
+            return Err(SaveError::Write(
+                dir.display().to_string(),
+                "the saved boot is gone".to_owned(),
+            ));
+        }
+        write(
+            system.files,
+            &dir.join(KERNEL_LOG),
+            kernel_log(system.runner).as_bytes(),
+        )
+    })
+}
+
 /// The boots saved on `destination`, oldest first, and its device.
 ///
 /// # Errors
