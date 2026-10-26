@@ -392,7 +392,12 @@ Following a boot
   same with ``\e[6 q`` (a steady bar) (``cursor-block.ppm``, ``cursor-bar.ppm``); with Num Lock pressed, ``echo zbm-``
   and the keypad's 4 and 2 must print ``zbm-42``; ``echo zbm-$(echo console) > /dev/console`` must show
   ``zbm-console`` on the console; and after ``echo zbm-$(echo kept)``, ``zbm console release`` and ``zbm console
-  reattach``, a screen after the hand-over must show ``zbm-kept`` again, without it being typed.
+  reattach``, a screen after the hand-over must show ``zbm-kept`` again, without it being typed. Then what M2 made of
+  the console: ``echo zbm-$TERM-$(tput colors)`` must print ``zbm-xterm-256color-256``; ``echo second``, Ctrl-Left
+  and ``first-`` must print ``first-second``, the cursor moved back a word in brush's line editor; and a screenshot
+  after a bar in colour 208 of the 256, in the true colour (1, 2, 3) and in colour 1 set by the Linux palette sequence
+  ``\e]P1123456`` must have pixels of exactly (255, 135, 0), (1, 2, 3) and (0x12, 0x34, 0x56)
+  (``colours-256.ppm``).
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
@@ -584,10 +589,10 @@ Test                            Passed  Failed  Duration
 ``runtime-rust-colours``        5       0       2 min
 ``runtime-rust-drm``            12      0       2 min
 ``runtime-rust-console``        23      0       10 min
-``runtime-rust-console-start``  10      0       6 min
+``runtime-rust-console-start``  15      0       –
 ``runtime-rust-saved``          36      0       52 s
 ``runtime-rust-gpu``            25      0       3 min
-Total                           900     0
+Total                           905     0
 ==============================  ======  ======  ========
 
 Problems found and fixed

@@ -323,6 +323,33 @@ The console of `zbm.console=drm` (milestone M1 of `docs/dev/console-roadmap.md`)
 - what hooks and tools write to `/dev/console` shows on the console, not on the kernel console it hides;
 - after a failed `kexec`, the console takes the display again with the screen it had, not a blank one.
 
+### The console on the display: a terminal of its own
+
+The console of `zbm.console=drm` (milestone M2 of `docs/dev/console-roadmap.md`) is now a terminal that programs can
+use fully:
+
+- programs on it run with `TERM=xterm-256color` and `COLORTERM=truecolor` when the image has that terminfo entry,
+  which Rust images now include, and see 256 colours and true colour; `/etc/profile` keeps that `TERM` for login
+  shells on the console;
+- Ctrl, Alt and Shift with the cursor keys, Home, End, Page Up and Down and the function keys send xterm's
+  sequences, so that Ctrl-Left moves back a word in the recovery shell; the keypad's application mode, new line mode
+  and the kitty keyboard protocol work for the programs that ask for them;
+- characters two cells wide, such as Chinese or Japanese, are drawn across both cells, and glyphs that reach beyond
+  their cell are not cut;
+- bold, italic and bold italic text is drawn with DejaVu Sans Mono's own faces, about 840 KB in the image, which
+  `zfsbootmenu_console_faces=regular` leaves out; `zfsbootmenu_console_fallback_fonts` adds fonts for the characters
+  DejaVu lacks;
+- underlines and strikeout sit where the font puts them; Braille, the diagonals of box drawing, the Powerline arrows
+  and the sextants are drawn to fill their cells, also with the bitmap console fonts; the cursor takes the colour
+  programs give it (OSC 12);
+- what programs send to a terminal named `linux` works: the palette (`setterm`'s `ESC ] P`), the cursor size, and
+  `CSI 8 ]`, which makes the current colours the default ones; blinking text blinks, and the reverse screen (`setterm
+  --reverse`) swaps the colours; XTVERSION answers `ZFSBootMenu` and its version.
+
+The last items needed changes to `alacritty_terminal` and `vte`, which the build takes from `patches/` until their
+authors release them. Double-width and double-height lines (DECDWL, DECDHL) are left for later. A test card drawn
+with three fonts is compared with reference images in the repository.
+
 ### The console on the display: quieter, cleaner, accents
 
 Five fixes to the console of `zbm.console=drm`:

@@ -42,6 +42,22 @@ brush 0.4 runs ZFSBootMenu's own shell libraries, which the recovery shell and h
 feature of Bash: a script given on standard input fails where a `$(` substitution spans lines (a script file works).
 Its parser had a bug with `case` patterns inside `$( )`, which the image's brush has a fix for (`patches/README.md`).
 
+## The console on the display
+
+Only Rust images have the console of `zbm.console=drm`, which draws the terminal through DRM in place of the kernel
+console.
+
+### Programs see an xterm
+
+- **Before:** programs ran with `TERM=linux`, the kernel console's description: 8 colours, and no Ctrl or Alt with the
+  cursor keys.
+- **Now:** on the console on the display, programs run with `TERM=xterm-256color` and `COLORTERM=truecolor` when the
+  image has that terminfo entry, which Rust images include, else with `TERM=linux`. `ZBM_CONSOLE=drm` tells them
+  they run there; the menu reads it to keep the console's look. The kernel console, serial lines and SSH keep their
+  `TERM`.
+- **Why:** the console draws 256 colours and true colour, and sends xterm's key sequences, as programs then expect;
+  the recovery tools' chroot environments have the same entry.
+
 ## Snapshots and changes (R5 step 5)
 
 The snapshots view and the main view make the changes of the legacy menu: a new default, a snapshot, a rollback, a

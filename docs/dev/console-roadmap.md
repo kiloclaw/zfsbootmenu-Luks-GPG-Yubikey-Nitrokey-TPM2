@@ -16,10 +16,10 @@ patch is offered upstream).
 | Area | What works |
 | --- | --- |
 | Display | A DRM dumb buffer on the output the kernel console shows, in the mode it shows; only damaged areas copied, a scrolled screen moved; handed back before `kexec`, taken again with its screen when `kexec` fails (`zbm console release`, `reattach`) |
-| Text | The image's PSF fonts, doubled where `zbm console-autosize` says; DejaVu Sans Mono through `swash`, hinted and anti-aliased; box drawing and block characters drawn to fill their cells; combining marks; five kinds of underline in their own colour, strikeout |
-| Colour | 16, 256 and true colour; bold drawn bright; dim, inverse, hidden; palette changes by OSC 4 |
-| Terminal | Alacritty's state machine: alternate screen, scroll regions, character sets, synchronized updates; answers for cursor position, device attributes, colours and size; block, underline, bar and hollow cursors, blinking; one frame per burst of output |
-| Keys | XKB layouts through `kbvm` with dead keys; the Linux console's key sequences; cursor key mode (DECCKM); the keypad and Num Lock; Caps Lock and Num Lock lights; keyboards found when plugged in, none needed to start; keys read back after lost events |
+| Text | The image's PSF fonts, doubled where `zbm console-autosize` says; DejaVu Sans Mono through `swash`, hinted and anti-aliased, with its bold, oblique and bold oblique faces and fallback fonts; wide characters across two cells; glyphs reaching into the next cell; box drawing, block, Braille, Powerline and sextant characters drawn to fill their cells; combining marks; five kinds of underline in their own colour, strikeout, at the font's positions; blinking text |
+| Colour | 16, 256 and true colour; bold drawn bright; dim, inverse, hidden; palette changes by OSC 4 and the Linux console's `ESC ] P`; the cursor's colour (OSC 12); the reverse screen (DECSCNM) |
+| Terminal | Alacritty's state machine, patched for the Linux console's own sequences: alternate screen, scroll regions, character sets, synchronized updates; answers for cursor position, device attributes, its name and version (XTVERSION), colours and size; block, underline, bar and hollow cursors, blinking, and the Linux cursor sizes; one frame per burst of output |
+| Keys | XKB layouts through `kbvm` with dead keys; xterm's key sequences with modifiers (`TERM=xterm-256color`), or the Linux console's; cursor key mode (DECCKM), the application keypad, new line mode, the kitty keyboard protocol; the keypad and Num Lock; Caps Lock and Num Lock lights; keyboards found when plugged in, none needed to start; keys read back after lost events |
 | Processes | A pseudo-terminal with sessions and job control (`setsid -c`); `/dev/console` on it (`TIOCCONS`); `zbm console layout`; the relay on the kernel console after the hand-over; a mirror of the screen's text for the VM tests |
 | Secrets | Typed bytes, the programs' output and the screen wiped; no scrollback; no clipboard (OSC 52); the process cannot be dumped |
 | Power | Woken by requests' signals and an inotify watch on `/dev/input`; asleep otherwise |
@@ -114,6 +114,13 @@ Goal: programs see a terminal that does what they ask.
 
 VM tests: `vttest` screens read through the mirror; `tput colors` and a 256-colour bar in a screenshot; Ctrl-Left in
 the recovery shell's readline.
+
+Done: every item but C13, which moved to M8. The patches to `vte` and `alacritty_terminal` that C19 to C24 and C30
+needed are in `patches/`. C109 draws a test card with Terminus 8x14 and DejaVu Sans Mono at 20 and 32 pixels
+(`crates/zbm-console/src/screen/tests/reference/`); it showed that the bitmap fonts drew `?` for Braille and the
+Powerline arrows, which are now drawn for them too. `runtime-rust-console-start` checks `TERM` and `tput colors`,
+Ctrl-Left in brush's line editor, and colours 208 of the 256, true colour and the Linux palette in a screenshot.
+`vttest` is not in the images; the reference images and the unit tests of the terminal stand in for its screens.
 
 ## M3. A comfortable recovery shell
 

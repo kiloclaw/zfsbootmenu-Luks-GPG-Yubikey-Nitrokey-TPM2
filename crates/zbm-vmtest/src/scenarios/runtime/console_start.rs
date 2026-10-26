@@ -16,6 +16,14 @@
 //! - What is written to `/dev/console` shows on the console (C78).
 //! - Handed back and taken again, the console shows the screen it had
 //!   (C90).
+//!
+//! And what M2 made of it, a terminal of its own:
+//!
+//! - Programs on it see `TERM=xterm-256color`, and `tput colors` says 256
+//!   (C25).
+//! - A 256-colour and a true colour bar show in their exact colours, and a
+//!   Linux palette sequence changes colour 1 (C21), in a screenshot.
+//! - Ctrl-Left moves back a word in brush's line editor (C26).
 
 use std::fs;
 use std::path::Path;
@@ -68,6 +76,25 @@ const KEPT: &str = "echo zbm-$(echo kept)\n";
 const RELEASE: &str = "/libexec/zbm console release\n";
 const REATTACH: &str = "/libexec/zbm console reattach\n";
 
+/// Typed in the recovery shell: the terminal description and its colours.
+const TERM: &str = "echo zbm-$TERM-$(tput colors)\n";
+
+/// Typed in the recovery shell: a bar of colour 208 of the 256, of the
+/// true colour (1, 2, 3), and of colour 1 after the Linux palette made it
+/// (0x12, 0x34, 0x56), without the cursor.
+const BAR_256: &str = "printf '\\e[H\\e[2J\\e[?25l\\e[48;5;208m    \\e[48;2;1;2;3m    \
+    \\e]P1123456\\e[41m    \\e[0m'\n";
+
+/// Typed in the recovery shell: the palette and the cursor back.
+const RESTORE: &str = "printf '\\e]R\\e[?25h\\e[H\\e[2J'\n";
+
+/// The colours of [`BAR_256`].
+const BAR_COLOURS: [(&str, [u8; 3]); 3] = [
+    ("colour 208", [255, 135, 0]),
+    ("true colour", [1, 2, 3]),
+    ("colour 1 of the Linux palette", [0x12, 0x34, 0x56]),
+];
+
 /// What the console writes to its mirror once it handed the display back.
 const RELEASED: &str = "zbm console: handed the display back";
 
@@ -115,6 +142,9 @@ pub(super) fn run(test: &Test) -> Result<()> {
         shown.is_some(),
         "a line written to /dev/console shows on the console",
     );
+    check_terminal(test, &vm, &mirror)?;
+    check_word_left(test, &vm, &mirror)?;
+    check_colours(test, &vm)?;
     check_kept(test, &vm, &mirror)?;
     vm.kill();
     Ok(())
@@ -143,6 +173,9 @@ pub(super) fn names(text: &str) -> Option<Vec<String>> {
             '\'' => Some("apostrophe".to_owned()),
             '\\' => Some("backslash".to_owned()),
             '[' => Some("bracket_left".to_owned()),
+            ']' => Some("bracket_right".to_owned()),
+            ';' => Some("semicolon".to_owned()),
+            '?' => Some("shift-slash".to_owned()),
             '_' => Some("shift-minus".to_owned()),
             _ => key_names(&c.to_string())?.pop(),
         })
@@ -227,6 +260,55 @@ fn check_keypad(test: &Test, vm: &Vm<'_>, mirror: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Programs see the console's own terminal description, of 256 colours.
+fn check_terminal(test: &Test, vm: &Vm<'_>, mirror: &Path) -> Result<()> {
+    type_text(vm, TERM)?;
+    let shown = wait_screen(mirror, r"(?m)^zbm-xterm-256color-256\s*$", 30)?;
+    test.check(
+        shown.is_some(),
+        "programs on the console see TERM=xterm-256color and 256 colours",
+    );
+    if shown.is_none() {
+        test.note(&format!("the console shows: {}", last_screen(mirror)));
+    }
+    Ok(())
+}
+
+/// Ctrl-Left moves back over the word typed last: `echo second`, then
+/// `first-` typed before `second`.
+fn check_word_left(test: &Test, vm: &Vm<'_>, mirror: &Path) -> Result<()> {
+    type_text(vm, "echo second")?;
+    sendkey(vm, "ctrl-left")?;
+    thread::sleep(PACE.pause / 5);
+    type_text(vm, "first-\n")?;
+    let shown = wait_screen(mirror, r"(?m)^first-second\s*$", 30)?;
+    test.check(
+        shown.is_some(),
+        "Ctrl-Left moves back a word in the recovery shell's line editor",
+    );
+    if shown.is_none() {
+        test.note(&format!("the console shows: {}", last_screen(mirror)));
+    }
+    Ok(())
+}
+
+/// The bar of [`BAR_256`] shows each of its colours exactly.
+fn check_colours(test: &Test, vm: &Vm<'_>) -> Result<()> {
+    type_text(vm, BAR_256)?;
+    thread::sleep(PACE.pause * 3);
+    let path = test.dir().join("colours-256.ppm");
+    screendump(vm, &path)?;
+    let ppm = fs::read(&path).unwrap_or_default();
+    for (name, colour) in BAR_COLOURS {
+        let count = count_pixels(&ppm, colour);
+        test.check(
+            count.is_some_and(|count| count > 0),
+            &format!("the console draws {name} exactly ({count:?} pixels)"),
+        );
+    }
+    type_text(vm, RESTORE)
+}
+
 /// The first screen after the last line `marker` of the mirror's `text`
 /// that matches `pattern`.
 pub(super) fn screen_after(text: &str, marker: &str, pattern: &regex::Regex) -> Option<String> {
@@ -282,7 +364,18 @@ mod tests {
         assert_eq!(keys[10], "bracket_left");
         assert_eq!(keys.last().unwrap(), "ret");
         assert!(names("€").is_none());
-        for text in [BRUSH, BLOCK, BAR, DEV_CONSOLE, KEPT, RELEASE, REATTACH] {
+        for text in [
+            BRUSH,
+            BLOCK,
+            BAR,
+            DEV_CONSOLE,
+            KEPT,
+            RELEASE,
+            REATTACH,
+            TERM,
+            BAR_256,
+            RESTORE,
+        ] {
             assert!(names(text).is_some(), "{text}");
         }
     }
