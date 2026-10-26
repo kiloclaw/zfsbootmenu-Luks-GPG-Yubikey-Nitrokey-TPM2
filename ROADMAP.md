@@ -180,7 +180,9 @@ of its images.
 `zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
 fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
 `kexec`. It types with the image's keyboard layouts, compiled from XKB data with `kbvm`, dead keys included, and
-`zbm console layout` switches them. Step 5 makes it the default, after the cutover.
+`zbm console layout` switches them. Step 5 makes it the default, after the cutover. What it lacks to be a full
+console, and the order to add it in, is planned in [docs/dev/console-roadmap.md](docs/dev/console-roadmap.md) (112
+items in nine milestones; step 5 is its last).
 
 - **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
   best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),

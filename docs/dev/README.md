@@ -10,6 +10,7 @@ manual pages in `docs/man/`.
 | [tooling.md](tooling.md) | `cargo xtask`: lints, tests, dependency checks and code metrics |
 | [dependencies.md](dependencies.md) | Every third-party crate and why it is used |
 | [shadow-mode.md](shadow-mode.md) | Comparing the Rust code's decisions with the legacy runtime's on real machines |
+| [console-roadmap.md](console-roadmap.md) | What the console on the display (`zbm console`) lacks to be a full console, in nine milestones |
 | [threat-model.md](threat-model.md) | Attackers, assets, untrusted input, what must hold and what shows it, and the fuzz targets |
 
 The plans behind the code are in the repository root: [PORT-ROADMAP.md](../../PORT-ROADMAP.md) ports ZFSBootMenu to
