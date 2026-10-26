@@ -33,6 +33,10 @@ pub(super) struct Settings {
     /// `Global.ConsoleFont`, for the build option `zfsbootmenu_console_font`;
     /// the Perl program has no such key.
     pub(super) console_font: Option<String>,
+    /// `Kernel.GraphicsDrivers`, read before anything is built.
+    pub(super) graphics_requests: Vec<crate::gpu::Request>,
+    /// The graphics drivers and firmware, once the kernel is known.
+    pub(super) graphics: Option<crate::gpu::Selection>,
 }
 
 impl Generator<'_, '_, '_> {
@@ -137,6 +141,8 @@ impl Generator<'_, '_, '_> {
             cmdline: options.cmdline.clone(),
             version: String::new(),
             console_font: self.console_font()?,
+            graphics_requests: self.graphics_requests()?,
+            graphics: None,
         })
     }
 

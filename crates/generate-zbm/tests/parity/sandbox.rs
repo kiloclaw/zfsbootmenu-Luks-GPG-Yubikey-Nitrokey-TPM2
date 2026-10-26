@@ -36,6 +36,25 @@ const LOG_FONT: &str = r#"[ -z "$zfsbootmenu_console_font" ] \
   || echo "zfsbootmenu_console_font=$zfsbootmenu_console_font" >> "$ZBM_FAKE_LOG"
 "#;
 
+/// Logs the build options of the graphics drivers, which only the Rust
+/// program sets.
+const LOG_GRAPHICS: &str = r#"[ -z "$zfsbootmenu_graphics_drivers" ] \
+  || echo "zfsbootmenu_graphics_drivers=$zfsbootmenu_graphics_drivers" >> "$ZBM_FAKE_LOG"
+[ -z "$zfsbootmenu_graphics_firmware" ] \
+  || echo "zfsbootmenu_graphics_firmware=$zfsbootmenu_graphics_firmware" >> "$ZBM_FAKE_LOG"
+"#;
+
+/// modinfo prints the firmware a driver lists from `modinfo/<driver>` in the
+/// sandbox, which only the Rust program asks for.
+const FAKE_MODINFO: &str = r#"eval "module=\${$#}"
+if [ -f "$ZBM_PARITY_CWD/modinfo/$module" ]; then
+  cat "$ZBM_PARITY_CWD/modinfo/$module"
+else
+  echo "modinfo: ERROR: Module $module not found." >&2
+  exit 1
+fi
+"#;
+
 /// dracut writes the image named by its next-to-last argument, for the kernel
 /// version in its last.
 const FAKE_DRACUT: &str = r#"echo "dracut: building"
@@ -80,17 +99,18 @@ fn fake_programs() -> Vec<(&'static str, String)> {
     vec![
         (
             "dracut",
-            logging_script(&format!("{LOG_FONT}{FAKE_DRACUT}")),
+            logging_script(&format!("{LOG_FONT}{LOG_GRAPHICS}{FAKE_DRACUT}")),
         ),
         (
             "mkinitcpio",
-            logging_script(&format!("{LOG_FONT}{FAKE_MKINITCPIO}")),
+            logging_script(&format!("{LOG_FONT}{LOG_GRAPHICS}{FAKE_MKINITCPIO}")),
         ),
         (
             "mountpoint",
             logging_script("exit \"${FAKE_MOUNTPOINT_STATUS:-0}\"\n"),
         ),
         ("mount", logging_script(FAKE_MOUNT)),
+        ("modinfo", logging_script(FAKE_MODINFO)),
         ("umount", logging_script("")),
         ("uname", FAKE_UNAME.to_owned()),
         ("objcopy", OBJCOPY.to_owned()),

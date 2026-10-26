@@ -592,6 +592,149 @@ install_zbm_shell_input() {
   return 0
 }
 
+# The omit_drivers regular expression of dracut without the drivers named:
+# dracut leaves out the modules it matches, and the dependencies of others too
+# (drm, for every graphics driver). Newer dracut anchors each name (^drm$),
+# older dracut does not.
+#
+# arg1: the regular expression
+# argN: the drivers
+# prints: the regular expression without them
+
+zbm_unomit_drivers() {
+  local regex="|${1}|" name
+  shift
+  for name in "$@"; do
+    regex="${regex//"|^${name}\$|"/|}"
+    regex="${regex//"|${name}|"/|}"
+  done
+  regex="${regex#|}"
+  printf '%s' "${regex%|}"
+}
+
+# Graphics drivers and the firmware of the GPUs the image is for (ROADMAP.md
+# #17), from zfsbootmenu_graphics_drivers and zfsbootmenu_graphics_firmware,
+# which generate-zbm sets from Kernel.GraphicsDrivers. The drivers are
+# installed with every firmware file they list; then the files of their
+# firmware directories that zfsbootmenu_graphics_firmware does not name are
+# removed, keeping the targets of the links it names. ZFSBootMenu's dracut
+# configuration omits the graphics drivers and drm (omit_drivers), so they
+# are installed with that list cut for this call only. dracut runs this from
+# installkernel, where nothing installs the drivers later and puts the
+# removed files back. Only the Rust runtime takes graphics drivers.
+#
+# prints: nothing
+# returns: 0, or 1 if the drivers cannot be installed or none of the listed
+#          firmware is in the image
+
+install_zbm_graphics() {
+  local driver dir root file rel name target kept=0 removed=0 found
+  local -a dirs=() roots=() missing=()
+  # shellcheck disable=SC2154
+  local omit_drivers="${omit_drivers}"
+  local -A keep=() listed=()
+
+  # shellcheck disable=SC2154
+  [ -n "${zfsbootmenu_graphics_drivers}" ] || return 0
+
+  if [ "${ZBM_RUNTIME}" != "rust" ]; then
+    zbm_error "graphics drivers (zfsbootmenu_graphics_drivers) need zfsbootmenu_runtime=rust"
+    return 1
+  fi
+
+  for driver in ${zfsbootmenu_graphics_drivers}; do
+    case "${driver}" in
+      amdgpu) dirs+=( amdgpu ) ;;
+      i915) dirs+=( i915 ) ;;
+      xe) dirs+=( xe i915 ) ;;
+      *)
+        zbm_error "unknown graphics driver '${driver}'"
+        return 1
+        ;;
+    esac
+  done
+
+  # shellcheck disable=SC2086
+  omit_drivers="$( zbm_unomit_drivers "${omit_drivers}" ${zfsbootmenu_graphics_drivers} drm )"
+  for driver in ${zfsbootmenu_graphics_drivers}; do
+    case "${ZBM_BUILDSTYLE,,}" in
+      mkinitcpio) add_module "${driver}" ;;
+      dracut) hostonly='' instmods -c "${driver}" ;;
+      *) false ;;
+    esac || {
+      zbm_error "unable to install the graphics driver '${driver}'"
+      return 1
+    }
+  done
+
+  # shellcheck disable=SC2154
+  [ -n "${zfsbootmenu_graphics_firmware}" ] || return 0
+  for name in ${zfsbootmenu_graphics_firmware}; do
+    listed["${name}"]=1
+  done
+
+  # The firmware trees of the image; /lib may be a link to /usr/lib
+  for root in "${BUILDROOT}/usr/lib/firmware" "${BUILDROOT}/lib/firmware"; do
+    [ -d "${root}" ] || continue
+    [ "${#roots[@]}" -gt 0 ] && [ "${root}" -ef "${roots[0]}" ] && continue
+    roots+=( "${root}" )
+  done
+
+  # Keep the listed files, compressed or not, and what their links point to
+  for root in "${roots[@]}"; do
+    for dir in "${dirs[@]}"; do
+      [ -d "${root}/${dir}" ] || continue
+      while IFS= read -r -d '' file; do
+        rel="${file#"${root}"/}"
+        name="${rel%.zst}"
+        name="${name%.xz}"
+        [ -n "${listed["${name}"]}" ] || continue
+        keep["${file}"]=1
+        listed["${name}"]=found
+        [ -L "${file}" ] || continue
+        target="$( readlink -f "${file}" )" || continue
+        case "${target}" in
+          "${BUILDROOT}"/*) ;;
+          *) target="${BUILDROOT}${target}" ;;
+        esac
+        keep["${target}"]=1
+      done < <( find "${root}/${dir}" \( -type f -o -type l \) -print0 )
+    done
+  done
+
+  for root in "${roots[@]}"; do
+    for dir in "${dirs[@]}"; do
+      [ -d "${root}/${dir}" ] || continue
+      while IFS= read -r -d '' file; do
+        if [ -n "${keep["${file}"]}" ]; then
+          kept=$(( kept + 1 ))
+        elif rm -f "${file}"; then
+          removed=$(( removed + 1 ))
+        fi
+      done < <( find "${root}/${dir}" \( -type f -o -type l \) -print0 )
+    done
+  done
+
+  found=0
+  for name in "${!listed[@]}"; do
+    if [ "${listed["${name}"]}" = found ]; then
+      found=$(( found + 1 ))
+    else
+      missing+=( "${name}" )
+    fi
+  done
+
+  if [ "${found}" -eq 0 ]; then
+    zbm_error "none of the graphics firmware is in the image; is linux-firmware installed?"
+    return 1
+  fi
+  if [ "${#missing[@]}" -gt 0 ]; then
+    zbm_warn "graphics firmware not found, left out: $( printf '%s\n' "${missing[@]}" | sort | tr '\n' ' ' )"
+  fi
+  zbm_info "graphics drivers ${zfsbootmenu_graphics_drivers}: kept ${kept} firmware files, removed ${removed}"
+  return 0
+}
+
 install_zbm_osver() {
   local build_date
   [ -r "${zfsbootmenu_module_root}/zbm-release" ] || return 0

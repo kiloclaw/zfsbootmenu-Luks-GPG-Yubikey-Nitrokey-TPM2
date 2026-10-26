@@ -11,6 +11,8 @@ pub static ALL: &[&OptionSpec] = &[
     &ZBM,
     &CONSOLE_FONT,
     &KEYBOARD_LAYOUTS,
+    &GRAPHICS_DRIVERS,
+    &GRAPHICS_FIRMWARE,
     &SKIP_GCC_S,
     &LUKS,
     &LUKS_CRYPTTAB,
@@ -186,6 +188,55 @@ the machine that builds the image (*/usr/share/X11/xkb*, from *xkeyboard-config*
 rules (*/usr/share/X11/locale*, from *libX11*); the build warns about layouts it does not know and
 leaves them out. When unspecified, the image gets the layout of the build host's
 */etc/vconsole.conf* (*XKBLAYOUT*), then *us*, *de*, *fr* and *gb*.
+";
+
+/// `zfsbootmenu_graphics_drivers`: the graphics drivers of the image.
+pub static GRAPHICS_DRIVERS: OptionSpec = OptionSpec {
+    name: "zfsbootmenu_graphics_drivers",
+    aliases: &[],
+    source: Source::BuildOption,
+    value: Value::Text,
+    default: None,
+    summary: "The graphics drivers of the image",
+    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
+    doc: Doc::Entry {
+        heading: "**zfsbootmenu_graphics_drivers=\"amdgpu i915\"**",
+        body: GRAPHICS_DRIVERS_DOC,
+    },
+    deprecation: None,
+    examples: &["zfsbootmenu_graphics_drivers=\"amdgpu\""],
+};
+
+const GRAPHICS_DRIVERS_DOC: &str = r"
+In images with the *rust* runtime, graphics drivers to add, of *amdgpu*, *i915* and *xe*, with
+the firmware **zfsbootmenu_graphics_firmware** names; **generate-zbm** sets both from
+*Kernel.GraphicsDrivers*. The image takes them even though the *omit_drivers* list of
+ZFSBootMenu's **dracut** configuration names them and *drm*, which they need. An image with the
+*legacy* runtime fails to build with this option set.
+";
+
+/// `zfsbootmenu_graphics_firmware`: the firmware of the graphics drivers.
+pub static GRAPHICS_FIRMWARE: OptionSpec = OptionSpec {
+    name: "zfsbootmenu_graphics_firmware",
+    aliases: &[],
+    source: Source::BuildOption,
+    value: Value::Text,
+    default: None,
+    summary: "The firmware files of the graphics drivers to keep in the image",
+    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
+    doc: Doc::Entry {
+        heading: "**zfsbootmenu_graphics_firmware=\"amdgpu/gc_12_0_0_me.bin ...\"**",
+        body: GRAPHICS_FIRMWARE_DOC,
+    },
+    deprecation: None,
+    examples: &["zfsbootmenu_graphics_firmware=\"i915/kbl_dmc_ver1_04.bin\""],
+};
+
+const GRAPHICS_FIRMWARE_DOC: &str = r"
+The firmware files, as the drivers of **zfsbootmenu_graphics_drivers** list them, that the image
+keeps: the build removes every other file the drivers brought into their firmware directories
+(*amdgpu/*, *i915/*, *xe/*), and stops when none of these files is in the image. Without it, the
+image keeps all the firmware of the drivers, tens of megabytes for *amdgpu*.
 ";
 
 /// `zfsbootmenu_skip_gcc_s`: leaves `libgcc_s.so` out of the image.

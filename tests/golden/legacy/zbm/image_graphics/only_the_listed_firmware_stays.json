@@ -1,0 +1,22 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "dracut rust [(\"zfsbootmenu_graphics_drivers\", \"amdgpu i915\"), (\"zfsbootmenu_graphics_firmware\", \"amdgpu/gc_12_0_0_me.bin amdgpu/link.bin amdgpu/psp_14_0_2_sos.bin i915/kbl_dmc_ver1_04.bin amdgpu/gc_12_0_0_pfp.bin\")]",
+      "result": [
+        0,
+        "instmods -c amdgpu (omit: ^radeon$|^nvidia$|^nouveau$|^intel_ish_ipc$)\ninstmods -c i915 (omit: ^radeon$|^nvidia$|^nouveau$|^intel_ish_ipc$)\n",
+        "warning: graphics firmware not found, left out: amdgpu/gc_12_0_0_pfp.bin \ninfo: graphics drivers amdgpu i915: kept 5 firmware files, removed 2\n",
+        [
+          "amdgpu/gc_12_0_0_me.bin.zst",
+          "amdgpu/gc_12_0_1_me.bin.zst",
+          "amdgpu/link.bin",
+          "amdgpu/psp_14_0_2_sos.bin",
+          "i915/kbl_dmc_ver1_04.bin.xz",
+          "rtl_nic/rtl8168h-2.fw",
+          "xe/lnl_guc_70.bin.zst"
+        ]
+      ]
+    }
+  ]
+}

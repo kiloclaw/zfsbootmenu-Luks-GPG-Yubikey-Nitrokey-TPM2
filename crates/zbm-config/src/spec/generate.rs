@@ -30,6 +30,7 @@ pub static ALL: &[&OptionSpec] = &[
     &KERNEL_PATH,
     &KERNEL_VERSION,
     &KERNEL_PREFIX,
+    &KERNEL_GRAPHICS_DRIVERS,
     &COMPONENTS_ENABLED,
     &COMPONENTS_IMAGE_DIR,
     &COMPONENTS_VERSIONS,
@@ -133,6 +134,52 @@ The initramfs images of separate components are named *initramfs* for the prefix
 *vmlinux*, and *initramfs-* followed by the rest of the prefix otherwise: *initramfs-linux-lts* for
 *vmlinuz-linux-lts*, *initramfs-zbm* for *zbm*. The images of two prefixes can then share an image
 directory.
+";
+
+/// `Kernel.GraphicsDrivers`: the graphics drivers of the images and the GPUs
+/// they are for.
+pub static KERNEL_GRAPHICS_DRIVERS: OptionSpec = OptionSpec {
+    name: "Kernel.GraphicsDrivers",
+    aliases: &[],
+    source: Source::GenerateZbm(GenerateSection::Kernel),
+    value: Value::Text,
+    default: None,
+    summary: "The graphics drivers of the images and the GPUs they are for",
+    reader: Reader::Rust,
+    doc: Doc::Entry {
+        heading: "**GraphicsDrivers**",
+        body: KERNEL_GRAPHICS_DRIVERS_DOC,
+    },
+    deprecation: None,
+    examples: &[
+        "GraphicsDrivers: amdgpu",
+        "GraphicsDrivers: amdgpu:gfx12 i915:gen12",
+    ],
+};
+
+const KERNEL_GRAPHICS_DRIVERS_DOC: &str = r"
+Graphics drivers to add to the images, with the firmware of the GPUs they are for, so that the
+console runs at the display's own resolution instead of on the framebuffer the firmware left
+behind. The drivers are *amdgpu* for AMD GPUs from GCN 3 on, *i915* for Intel graphics up to
+Meteor Lake and *xe* for Intel graphics from Lunar Lake on. Only images with the Rust runtime take
+them. Not finished: the runtime does not yet hand the GPU back before it boots a kernel, so the
+booted system may find it unusable (see ROADMAP.md, item 17).
+
+A driver named alone is for the GPUs of the build machine, found by their PCI IDs; for an AMD GPU
+that **amdgpu** drives while the image is built, its exact chip is read from the driver. After a
+colon, a list of chips or families separated by commas builds for those instead, for an image
+meant for another machine or several: *amdgpu:gfx12*, *amdgpu:navi10,gfx9*. The families of
+*amdgpu* are *gfx8*, *gfx9*, *gfx10*, *gfx10.3*, *gfx11*, *gfx11.5* and *gfx12* (RDNA 4, such
+as the Radeon RX 9060 XT and 9070); those of *i915* are *gen9*, *gen11*, *gen12* and *gen12.7*;
+those of *xe* are *xe2* and *xe3*. An unknown name lists the known ones.
+
+**generate-zbm** reports the GPUs it chose and how many firmware files each takes. It takes only
+the files the build kernel's driver lists (**modinfo -F firmware**), and stops with an error,
+before building, when a driver, chip or family is unknown, when the build machine has no GPU for a
+driver named alone, or when the kernel lists no firmware for a chosen GPU. It passes the drivers
+and files to **dracut** or **mkinitcpio** as the build options **zfsbootmenu_graphics_drivers**
+and **zfsbootmenu_graphics_firmware** (see **zfsbootmenu(7)**), and removes *nomodeset* from
+**CommandLine**, which would keep the drivers from starting.
 ";
 
 /// `Components.Enabled`: whether a separate kernel and initramfs are made.

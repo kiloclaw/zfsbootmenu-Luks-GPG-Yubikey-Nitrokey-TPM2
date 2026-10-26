@@ -15,6 +15,7 @@
 )]
 
 mod fixtures;
+mod graphics;
 mod rust_only;
 mod sandbox;
 

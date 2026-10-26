@@ -211,6 +211,23 @@ Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,
 `cargo xtask lint` keeps literals out of the menu's code. `zbm-tui --demo --language pseudo` shows the menu in a
 pseudo-language, accented and a third longer, as the snapshot tests draw it. See `docs/dev/menu-design/text.md`.
 
+### Graphics drivers with the firmware of the GPUs an image is for (first step)
+
+ROADMAP.md #17, its first step. `Kernel.GraphicsDrivers` in the `generate-zbm` configuration adds `amdgpu`, `i915`
+or `xe` to images with the Rust runtime, with only the firmware of the GPUs they are for, instead of the tens of
+megabytes `amdgpu` lists for every chip. A driver named alone is for the build machine's GPUs, found by their PCI
+IDs in sysfs; for an AMD GPU that `amdgpu` drives during the build, the exact chip comes from the IP versions the
+driver shows. A driver followed by chips or families (`amdgpu:gfx12`, `i915:gen12,mtl`) is for those, for an image
+meant for another machine. `generate-zbm` reports the GPUs and the number of firmware files, takes only files the
+build kernel's driver lists (`modinfo -F firmware`), removes `nomodeset` from `Kernel.CommandLine`, and stops before
+building when a name is unknown, the machine has no GPU for a driver named alone, or the kernel lists no firmware for
+a GPU. The dracut module and the mkinitcpio hook install the drivers past the `omit_drivers` of ZFSBootMenu's dracut
+configuration and remove the firmware files nobody asked for (`zfsbootmenu_graphics_drivers`,
+`zfsbootmenu_graphics_firmware`). In a test build on Linux 6.8, `amdgpu` and `i915` with the firmware of two AMD
+chips and one Intel platform made the uncompressed image 9 MB larger; with all their firmware, 32 MB larger. Not
+finished: the runtime does not yet hand the GPU back before `kexec`, so images with these drivers may leave the
+booted system without a display. Release images are unchanged.
+
 ### Console font on high-density (HiDPI) displays
 
 In images built with `zfsbootmenu_runtime="rust"`, the early-setup hook `30-console-autosize` runs

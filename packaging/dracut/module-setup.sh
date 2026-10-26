@@ -40,6 +40,17 @@ installkernel() {
       instmods "${mod}"
     done
   fi
+
+  # Graphics drivers, with only the firmware of the GPUs the image is for.
+  # install, which dracut runs first, has sourced the helpers and chosen the
+  # runtime; a build of the kernel modules alone cannot take the drivers.
+  # shellcheck disable=SC2154
+  if [ -n "${zfsbootmenu_graphics_drivers}" ]; then
+    if ! type install_zbm_graphics >/dev/null 2>&1 || ! install_zbm_graphics; then
+      dfatal "Unable to install the graphics drivers"
+      exit 1
+    fi
+  fi
 }
 
 # The uutils multi-call binary, when the host has one: images then get their

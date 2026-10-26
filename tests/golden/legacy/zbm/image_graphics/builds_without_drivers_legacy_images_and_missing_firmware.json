@@ -1,0 +1,76 @@
+{
+  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
+  "cases": [
+    {
+      "input": "dracut rust []",
+      "result": [
+        0,
+        "",
+        "",
+        [
+          "amdgpu/gc_12_0_0_me.bin.zst",
+          "amdgpu/gc_12_0_1_me.bin.zst",
+          "amdgpu/link.bin",
+          "amdgpu/navi10_me.bin.zst",
+          "amdgpu/psp_14_0_2_sos.bin",
+          "i915/kbl_dmc_ver1_04.bin.xz",
+          "i915/tgl_dmc.bin.zst",
+          "rtl_nic/rtl8168h-2.fw",
+          "xe/lnl_guc_70.bin.zst"
+        ]
+      ]
+    },
+    {
+      "input": "dracut legacy [(\"zfsbootmenu_graphics_drivers\", \"amdgpu\")]",
+      "result": [
+        1,
+        "",
+        "error: graphics drivers (zfsbootmenu_graphics_drivers) need zfsbootmenu_runtime=rust\n",
+        [
+          "amdgpu/gc_12_0_0_me.bin.zst",
+          "amdgpu/gc_12_0_1_me.bin.zst",
+          "amdgpu/link.bin",
+          "amdgpu/navi10_me.bin.zst",
+          "amdgpu/psp_14_0_2_sos.bin",
+          "i915/kbl_dmc_ver1_04.bin.xz",
+          "i915/tgl_dmc.bin.zst",
+          "rtl_nic/rtl8168h-2.fw",
+          "xe/lnl_guc_70.bin.zst"
+        ]
+      ]
+    },
+    {
+      "input": "dracut rust [(\"zfsbootmenu_graphics_drivers\", \"amdgpu\"), (\"zfsbootmenu_graphics_firmware\", \"amdgpu/gc_11_0_0_me.bin\")]",
+      "result": [
+        1,
+        "instmods -c amdgpu (omit: ^radeon$|^nvidia$|^nouveau$|^i915$|^intel_ish_ipc$)\n",
+        "error: none of the graphics firmware is in the image; is linux-firmware installed?\n",
+        [
+          "i915/kbl_dmc_ver1_04.bin.xz",
+          "i915/tgl_dmc.bin.zst",
+          "rtl_nic/rtl8168h-2.fw",
+          "xe/lnl_guc_70.bin.zst"
+        ]
+      ]
+    },
+    {
+      "input": "dracut rust [(\"zfsbootmenu_graphics_drivers\", \"nouveau\")]",
+      "result": [
+        1,
+        "",
+        "error: unknown graphics driver 'nouveau'\n",
+        [
+          "amdgpu/gc_12_0_0_me.bin.zst",
+          "amdgpu/gc_12_0_1_me.bin.zst",
+          "amdgpu/link.bin",
+          "amdgpu/navi10_me.bin.zst",
+          "amdgpu/psp_14_0_2_sos.bin",
+          "i915/kbl_dmc_ver1_04.bin.xz",
+          "i915/tgl_dmc.bin.zst",
+          "rtl_nic/rtl8168h-2.fw",
+          "xe/lnl_guc_70.bin.zst"
+        ]
+      ]
+    }
+  ]
+}

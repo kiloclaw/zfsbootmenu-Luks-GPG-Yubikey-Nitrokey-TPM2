@@ -88,8 +88,11 @@ These touch code that is already Rust. Each is added as a change of its own, for
 
 **Status:** partly done. `zbm console-autosize` sizes the console font from the display's EDID when a graphics driver
 provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust-colours` add `virtio_gpu` to their
-images. The opt-in drivers, the hand-back before `kexec` and the list of known-good GPUs remain. The Rust runtime owns
-the `kexec` path of its images.
+images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
+(`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
+list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot, loading before the first prompt, the
+hand-back before `kexec`, the list of known-good GPUs and the VM test remain. The Rust runtime owns the `kexec` path
+of its images.
 
 - **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
   `config/zfsbootmenu/dracut.conf.d/omit-drivers.conf`), and the release images boot with `nomodeset`, because a GPU
@@ -113,6 +116,16 @@ the `kexec` path of its images.
     - `generate-zbm` reports the GPUs and firmware it chose, and fails when a named family is unknown or its files
       are missing, rather than building an image whose display stays dark.
     The first families are those of the machines below, the AMD Radeon RX 9060 XT (RDNA 4) among them.
+    *Done.* The table covers `amdgpu` from GCN 3 to RDNA 4 (families `gfx8` to `gfx12`), `i915` from Gen 9 to
+    Meteor Lake and `xe` for Lunar Lake, Battlemage and Panther Lake, with the PCI IDs of Linux 6.17 and `pci.ids`.
+    AMD chips from Navi 3x on name their firmware after IP versions, which the kernel reads from the GPU, so the
+    table holds groups of kin chips (`navi4x`: Navi 44 and 48); a host-only build where `amdgpu` runs reads the
+    versions from sysfs (`ip_discovery`) and takes one chip's files. A family whose newer chips the build kernel
+    does not know keeps the others. The dracut module installs the drivers in `installkernel`, past
+    `omit_drivers`, and removes the other firmware straight after, since dracut installs `add_drivers` after
+    every module and would bring the files back. Measured with dracut on Linux 6.8 (uncompressed, firmware
+    compressed): 22.2 MB without drivers, 31.1 MB with `amdgpu` and `i915` and the firmware of two chips, 54.0 MB
+    with all their firmware.
   - **Choosing a GPU at boot.** With integrated and discrete graphics, `zbm.gpu=` names the GPU the console and the
     menu draw on, by PCI address (`zbm.gpu=0000:03:00.0`) or vendor (`amd`, `intel`), and the others are not
     touched; without it they use the first GPU with a connected display.

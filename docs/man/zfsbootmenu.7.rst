@@ -551,6 +551,21 @@ In addition to standard configuration options for the dracut or mkinitcpio initr
   leaves them out. When unspecified, the image gets the layout of the build host's
   */etc/vconsole.conf* (*XKBLAYOUT*), then *us*, *de*, *fr* and *gb*.
 
+**zfsbootmenu_graphics_drivers="amdgpu i915"**
+
+  In images with the *rust* runtime, graphics drivers to add, of *amdgpu*, *i915* and *xe*, with
+  the firmware **zfsbootmenu_graphics_firmware** names; **generate-zbm** sets both from
+  *Kernel.GraphicsDrivers*. The image takes them even though the *omit_drivers* list of
+  ZFSBootMenu's **dracut** configuration names them and *drm*, which they need. An image with the
+  *legacy* runtime fails to build with this option set.
+
+**zfsbootmenu_graphics_firmware="amdgpu/gc_12_0_0_me.bin ..."**
+
+  The firmware files, as the drivers of **zfsbootmenu_graphics_drivers** list them, that the image
+  keeps: the build removes every other file the drivers brought into their firmware directories
+  (*amdgpu/*, *i915/*, *xe/*), and stops when none of these files is in the image. Without it, the
+  image keeps all the firmware of the drivers, tens of megabytes for *amdgpu*.
+
 **zfsbootmenu_skip_gcc_s=yes**
 
   The ZFSBootMenu module attempts to detect and install a copy of the library **libgcc_s.so** in its

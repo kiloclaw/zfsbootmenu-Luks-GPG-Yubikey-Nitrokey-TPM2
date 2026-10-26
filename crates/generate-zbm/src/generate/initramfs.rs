@@ -5,6 +5,7 @@ use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::{GLOBAL_DRACUT_FLAGS, GLOBAL_INIT_CPIO_FLAGS};
 use zbm_core::shell::quote;
 
+use super::graphics::build_options;
 use super::settings::Settings;
 use super::{Generator, Step, Stop};
 use crate::config::Value;
@@ -35,12 +36,7 @@ impl Generator<'_, '_, '_> {
         settings: &Settings,
     ) -> Step<String> {
         let output = format!("{dir}/zfsbootmenu.img");
-        let mut words: Vec<String> = Vec::new();
-        // The build option of the console fonts, for the dracut module or the
-        // mkinitcpio hook, which read it from the environment
-        if let Some(family) = &settings.console_font {
-            words.push(format!("zfsbootmenu_console_font={}", quote(family)));
-        }
+        let mut words = environment(settings);
         let flags_key = if settings.usecpio {
             words.extend([
                 "mkinitcpio".to_owned(),
@@ -102,4 +98,18 @@ impl Generator<'_, '_, '_> {
             None => Vec::new(),
         })
     }
+}
+
+/// The build options of the run, for the dracut module or the mkinitcpio hook,
+/// which read them from the environment: the console fonts and the graphics
+/// drivers.
+fn environment(settings: &Settings) -> Vec<String> {
+    let mut words = Vec::new();
+    if let Some(family) = &settings.console_font {
+        words.push(format!("zfsbootmenu_console_font={}", quote(family)));
+    }
+    if let Some(selection) = &settings.graphics {
+        words.extend(build_options(selection));
+    }
+    words
 }

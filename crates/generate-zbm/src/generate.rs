@@ -15,6 +15,7 @@
 //! and `install` (placing the images and pruning old ones).
 
 mod bundle;
+mod graphics;
 mod initramfs;
 mod install;
 mod kernels;
@@ -68,6 +69,9 @@ pub struct Context<'a> {
     pub dtb_dir: String,
     /// The EFI stubs tried when `EFI.Stub` is not set.
     pub default_stubs: Vec<String>,
+    /// The PCI devices, where `Kernel.GraphicsDrivers` finds the GPUs of
+    /// the build host.
+    pub pci_devices: PathBuf,
     /// Reports a signal that should end the generator.
     pub signal: &'a dyn Fn() -> Option<zbm_sys::Signal>,
 }
@@ -94,6 +98,7 @@ impl<'a> Context<'a> {
             os_release: PathBuf::from("/etc/os-release"),
             dtb_dir: "/boot/dtbs".to_owned(),
             default_stubs,
+            pci_devices: PathBuf::from("/sys/bus/pci/devices"),
             signal: &zbm_sys::received_signal,
         }
     }
@@ -337,6 +342,7 @@ impl Generator<'_, '_, '_> {
     fn build(&mut self, options: &Options, settings: &mut Settings, work: &WorkDir) -> Step<()> {
         let request = self.apply_defaults(options, settings)?;
         let kernel = self.choose_kernel(&options.bootdir, request)?;
+        self.choose_graphics(&kernel.version, settings)?;
 
         self.print(&format!(
             "Creating ZFSBootMenu {VERSION} from kernel {}\n",
