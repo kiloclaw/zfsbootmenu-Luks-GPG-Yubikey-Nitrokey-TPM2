@@ -102,6 +102,10 @@ fn dispatch(test: &Test, name: &str) -> Result<()> {
 ///
 /// [`Error::Io`] when the test's directory cannot be made.
 pub fn run(settings: &Settings, name: &str) -> Result<Outcome> {
+    // The tests of a group share its disks, which its setup recreates: a
+    // test waits while another harness process runs one of its group.
+    let group = name.split_once('-').map_or(name, |(group, _)| group);
+    let _disks = crate::images::lock(&settings.work.join("disks"), group)?;
     let test = Test::new(settings, name)?;
     if let Err(error) = dispatch(&test, name) {
         test.check(false, &format!("the test ran to its end: {error}"));

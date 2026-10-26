@@ -65,9 +65,11 @@ Running the Tests
 must run before the scenarios that use their disks (``complex-setup`` before ``complex-healthy`` and so on); a setup
 recreates its disks. The groups (``layouts``, ``complex``, ``keys``, ``firmware`` and ``procedures``) use separate
 disks, as does ``runtime``, so several ``zbm-vmtest run`` processes can run different groups at the same time, given the
-memory (4 GB per virtual machine) and processors. Set ``ZBMTEST_REUSE=1`` for parallel runs, so that one run does
-not rebuild a shared ZFSBootMenu image that another one boots. An image out of date is built by one run while the
-others wait for it (a lock file beside it), then reuse it.
+memory (4 GB per virtual machine) and processors. Tests of the same group in two processes do not run at once: a test
+waits while another process runs one of its group (a lock file, ``disks/<group>.lock``), so splitting a group over
+two runs saves no time. Each run boots its own links to the ZFSBootMenu images (``zbm/in-use``), so a run that
+rebuilds an image does not take it from another; an image out of date is built by one run while the others wait for
+it (a lock file beside it).
 
 Environment variables of the VM tests:
 
