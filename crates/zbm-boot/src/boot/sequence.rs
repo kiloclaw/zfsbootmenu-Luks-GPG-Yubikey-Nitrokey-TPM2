@@ -15,6 +15,7 @@ use zbm_zfs::ZfsCommand;
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
 use super::zfs::{export_writable_pools, substituted, zfs_value};
 use crate::commandline::{self, KexecLoad};
+use crate::graphics;
 use crate::hooks;
 use crate::kernels::Kernel;
 use crate::keys::{self, BootPath, Clear, KeyLoad};
@@ -366,9 +367,12 @@ fn execute(system: &System<'_>, state: &State<'_>, fs: &str, kernel: &str) {
         colorize("cyan", fs)
     );
     let _ = system.console.write(booting.as_bytes());
+    // The GPUs last, as a display shows nothing once its GPU is handed back
+    let gpus = graphics::hand_back(system, Path::new("/"));
 
     let (_, output) = substituted(kexec::execute(system.runner));
     // Only a failed kexec returns.
+    graphics::take_back(system, Path::new("/"), &gpus);
     take_back(system, state);
     zbm_trace::error!("kexec -e -i failed!");
     zbm_trace::error!("{}", output);

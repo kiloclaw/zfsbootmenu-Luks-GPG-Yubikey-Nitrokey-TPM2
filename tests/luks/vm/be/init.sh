@@ -23,6 +23,16 @@ while read -r dev mnt fs opts rest; do
   [ "${mnt}" = "/" ] && echo "BE-ROOT: ${dev} ${fs} ${opts%%,*}"
 done < /proc/mounts
 
+# The displays the kernel brought up, after ZFSBootMenu handed its GPUs back
+drm=""
+for card in /sys/class/drm/card*; do
+  case "${card##*/}" in *-*) continue ;; esac
+  [ -e "${card}/device/driver" ] || continue
+  driver="$($bb readlink -f "${card}/device/driver")"
+  drm="${drm}${card##*/}=${driver##*/} "
+done
+echo "BE-DRM: ${drm}"
+
 echo "BE-MAPPER: $($bb ls /dev/mapper | $bb tr '\n' ' ')"
 echo "BE-DMTABLE-BEGIN"
 /usr/sbin/dmsetup table 2>&1 | $bb sed 's/^/BE-DM| /'

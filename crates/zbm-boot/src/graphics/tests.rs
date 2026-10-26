@@ -267,3 +267,122 @@ fn a_value_not_understood_takes_every_gpu() {
     assert_eq!(fake.runner.lines(), ["modprobe amdgpu", "udevadm settle"]);
     assert!(fake.kmsg().contains("zbm.gpu=nvidia is not a PCI address"));
 }
+
+/// The GPU at `address` bound to `driver`, as sysfs links it.
+fn bound(fake: &FakeSystem, address: &str, driver: &str) {
+    let drivers = format!("/sys/bus/pci/drivers/{driver}");
+    fake.files
+        .dir(&drivers)
+        .symlink(format!("/sys/bus/pci/devices/{address}/driver"), &drivers);
+}
+
+#[test]
+fn before_kexec_the_gpus_of_the_drivers_are_unbound_and_reset() {
+    let fake = machine("amdgpu i915");
+    let _log = log(&fake);
+    // zbm.gpu left the Intel GPU alone: it has no driver.
+    bound(&fake, "0000:03:00.0", "amdgpu");
+    fake.files
+        .file("/sys/bus/pci/devices/0000:03:00.0/reset", "")
+        .file("/sys/bus/pci/devices/0000:03:00.0/reset_method", "bus\n");
+    // The network card's driver is not a graphics driver.
+    bound(&fake, "0000:04:00.0", "e1000e");
+
+    let gpus = hand_back(&fake.system(), Path::new(ROOT));
+
+    assert_eq!(
+        gpus.iter()
+            .map(|gpu| gpu.address.as_str())
+            .collect::<Vec<_>>(),
+        ["0000:03:00.0"]
+    );
+    assert_eq!(
+        fake.files
+            .text("/sys/bus/pci/drivers/amdgpu/unbind")
+            .as_deref(),
+        Some("0000:03:00.0")
+    );
+    assert_eq!(
+        fake.files
+            .text("/sys/bus/pci/devices/0000:03:00.0/reset")
+            .as_deref(),
+        Some("1")
+    );
+    assert!(
+        !fake
+            .files
+            .exists(Path::new("/sys/bus/pci/drivers/e1000e/unbind"))
+    );
+    let kmsg = fake.kmsg();
+    assert!(
+        kmsg.contains(
+            "graphics: handed 0000:03:00.0 (1002:7590) back: unbound from amdgpu; reset (bus)"
+        ),
+        "{kmsg}"
+    );
+}
+
+#[test]
+fn a_gpu_without_a_reset_or_that_stays_bound_is_said_so() {
+    let fake = machine("amdgpu i915");
+    let _log = log(&fake);
+    bound(&fake, "0000:00:02.0", "i915");
+    bound(&fake, "0000:03:00.0", "amdgpu");
+    fake.files.fail(
+        "/sys/bus/pci/drivers/amdgpu/unbind",
+        std::io::ErrorKind::PermissionDenied,
+    );
+
+    let gpus = hand_back(&fake.system(), Path::new(ROOT));
+
+    assert_eq!(gpus.len(), 1);
+    assert_eq!(gpus[0].address, "0000:00:02.0");
+    let kmsg = fake.kmsg();
+    assert!(
+        kmsg.contains("unbound from i915; it has no reset"),
+        "{kmsg}"
+    );
+    assert!(
+        kmsg.contains("unable to unbind 0000:03:00.0 (1002:7590) from amdgpu"),
+        "{kmsg}"
+    );
+}
+
+#[test]
+fn without_graphics_drivers_nothing_is_handed_back_or_taken() {
+    let fake = FakeSystem::new();
+    device(&fake, "0000:00:02.0", "0x030000", "0x8086", "0x4680");
+    bound(&fake, "0000:00:02.0", "i915");
+
+    assert!(hand_back(&fake.system(), Path::new(ROOT)).is_empty());
+    take_back(&fake.system(), Path::new(ROOT), &[]);
+
+    assert!(
+        !fake
+            .files
+            .exists(Path::new("/sys/bus/pci/drivers/i915/unbind"))
+    );
+    assert!(fake.runner.lines().is_empty());
+}
+
+#[test]
+fn after_a_failed_kexec_the_drivers_take_the_gpus_again() {
+    let fake = machine("amdgpu");
+    let _log = log(&fake);
+    fake.files.dir("/sys/bus/pci");
+    card(&fake, "0000:03:00.0", "card0", "connected");
+    let gpu = Gpu {
+        address: "0000:03:00.0".to_owned(),
+        vendor: 0x1002,
+        device: 0x7590,
+    };
+
+    take_back(&fake.system(), Path::new(ROOT), &[gpu]);
+
+    assert_eq!(
+        fake.files.text("/sys/bus/pci/drivers_probe").as_deref(),
+        Some("0000:03:00.0")
+    );
+    assert_eq!(fake.runner.lines(), ["udevadm settle"]);
+    assert!(fake.kmsg().contains("0000:03:00.0 (1002:7590) is card0"));
+}

@@ -15,7 +15,14 @@
 //!   standard VGA has a driver override that no driver matches;
 //! - `zbm.gpu=off`: neither GPU has a driver, which also shows that udev
 //!   did not load the drivers before ZFSBootMenu (`modprobe.d`).
+//!
+//! A fourth boot lets the countdown boot the environment: before `kexec`,
+//! ZFSBootMenu hands both GPUs back, unbound from their drivers (a teardown
+//! hook of the image turns kernel messages on the serial console on again,
+//! to show it), and the environment's kernel brings up both displays with
+//! its own drivers (`BE-DRM`).
 
+use crate::boot::{Follow, follow_boot};
 use crate::error::Result;
 use crate::images::{Image, ImageSpec, zbm_image};
 use crate::qemu::Machine;
@@ -57,6 +64,16 @@ const STATE: &str = "echo \"list: $(cat /etc/zfsbootmenu/graphics-drivers)\"; \
 const OVERRIDES: &str =
     "cat /sys/bus/pci/devices/*/driver_override 2>/dev/null | grep -v '^(null)$'";
 
+/// A teardown hook: kernel messages on the serial console again, which
+/// `zfsbootmenu-preinit` turned off, for those of the hand-back.
+const PRINTK_HOOK: (&str, &str) = (
+    "hooks/teardown.d/50-printk.sh",
+    "#!/bin/sh\necho 7 > /proc/sys/kernel/printk\n",
+);
+
+/// The command line of the boot that boots the environment.
+const KEXEC_APPEND: &str = "console=ttyS0 zbm.timeout=3 loglevel=7";
+
 /// A boot: its label, the `zbm.gpu` option, and the drivers the two GPUs
 /// must have.
 struct Boot {
@@ -97,6 +114,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
     let spec = ImageSpec {
         runtime: Some(ZbmRuntime::Rust),
         conf: "zfsbootmenu_graphics_drivers=\"virtio_gpu bochs\"".into(),
+        files: vec![(PRINTK_HOOK.0.to_owned(), PRINTK_HOOK.1.as_bytes().to_vec())],
         ..ImageSpec::new("auto-gpu-load")
     };
     let image = zbm_image(settings, &spec)?;
@@ -105,17 +123,51 @@ pub(super) fn run(test: &Test) -> Result<()> {
         check(test, &mut vm, boot)?;
         vm.kill();
     }
+    check_kexec(test, &image)
+}
+
+/// The machine with both GPUs, booted from `image` with `append`.
+fn machine(test: &Test, image: &Image, append: &str) -> Result<Machine> {
+    let mut machine = Machine::boot(image, append).with_disks([super::disk(test.settings(), 0)?]);
+    machine
+        .extra
+        .extend(["-device".into(), "virtio-gpu-pci,addr=0x9,id=gpu1".into()]);
+    Ok(machine)
+}
+
+/// The countdown boots the environment: both GPUs are handed back before
+/// `kexec`, and its kernel brings up both displays.
+fn check_kexec(test: &Test, image: &Image) -> Result<()> {
+    let mut vm = Vm::start(test, "kexec", &machine(test, image, KEXEC_APPEND)?)?;
+    let follow = Follow {
+        timeout: Some(1200),
+        ..Follow::default()
+    };
+    let boot = follow_boot(&mut vm, follow)?;
+    let serial = super::serial_text(&vm)?;
+    let be_start = serial.find("BE-INIT-START").unwrap_or(serial.len());
+    let before_kexec = &serial[..be_start];
+    test.check(
+        before_kexec.contains(&format!("graphics: handed {VIRTIO} (1af4:"))
+            && before_kexec.contains("back: unbound from virtio-pci"),
+        "kexec: the virtio GPU was unbound from its driver before kexec",
+    );
+    test.check(
+        before_kexec.contains("back: unbound from bochs"),
+        "kexec: the standard VGA was unbound from its driver before kexec",
+    );
+    let drm = boot.be_line("BE-DRM");
+    test.check(
+        drm.contains("=virtio_gpu") && drm.contains("=bochs"),
+        &format!("kexec: the environment's kernel brought up both displays ({drm})"),
+    );
+    vm.kill();
     Ok(())
 }
 
 fn start<'t>(test: &'t Test, image: &Image, boot: &Boot) -> Result<Vm<'t>> {
-    let settings = test.settings();
-    let mut machine = Machine::boot(image, &format!("{}{}", super::ESCAPE_APPEND, boot.option))
-        .with_disks([super::disk(settings, 0)?]);
-    machine
-        .extra
-        .extend(["-device".into(), "virtio-gpu-pci,addr=0x9,id=gpu1".into()]);
-    let mut vm = Vm::start(test, boot.label, &machine)?;
+    let append = format!("{}{}", super::ESCAPE_APPEND, boot.option);
+    let mut vm = Vm::start(test, boot.label, &machine(test, image, &append)?)?;
     super::escape_to_shell(&mut vm)?;
     Ok(vm)
 }

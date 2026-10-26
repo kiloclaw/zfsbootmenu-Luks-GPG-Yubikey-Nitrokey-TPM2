@@ -413,7 +413,10 @@ Following a boot
   countdown, as the order of the kernel log shows (``zfsbootmenu-preinit`` turns kernel messages on the console off
   first). With ``zbm.gpu=0000:00:09.0``, only the virtio GPU has a driver, and the standard VGA a driver
   override that no driver matches. With ``zbm.gpu=off``, neither GPU has a driver, which also shows that udev did not
-  load them before ZFSBootMenu, and the log says why.
+  load them before ZFSBootMenu, and the log says why. A fourth boot lets the countdown boot the environment: before
+  ``kexec``, the kernel log on the serial console (which a teardown hook of the image turns on again) must say that
+  both GPUs were handed back, unbound from ``virtio-pci`` and ``bochs-drm``, and the environment's ``BE-DRM`` line
+  must name a card for each, with ``virtio_gpu`` and ``bochs`` (the test boot environment's initramfs has both).
 
 Results
 -------

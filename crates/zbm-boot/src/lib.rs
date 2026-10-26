@@ -27,6 +27,7 @@
 pub mod boot;
 pub mod commandline;
 pub mod error;
+pub mod graphics;
 pub mod hooks;
 pub mod import;
 pub mod kernels;

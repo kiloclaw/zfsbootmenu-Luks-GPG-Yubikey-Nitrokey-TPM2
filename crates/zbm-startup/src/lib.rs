@@ -26,7 +26,7 @@ pub mod autosize;
 pub mod console;
 pub mod error;
 pub mod front;
-pub mod graphics;
+pub use zbm_boot::graphics;
 pub mod preinit;
 pub mod program;
 pub mod shell;

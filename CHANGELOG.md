@@ -231,9 +231,12 @@ passphrase prompt: the image keeps udev from loading them, and `zfsbootmenu-prei
 on the display starts, which draws on the first GPU with a connected display. `zbm.gpu=` chooses the GPU they drive
 (a PCI address, `amd` or `intel`); the others get a driver override no driver matches and stay as the firmware left
 them. `zbm.gpu=off` loads none for one boot. The VM test `runtime-rust-gpu` checks this on QEMU's virtual GPUs, whose
-drivers (`virtio_gpu`, `bochs`) the build option `zfsbootmenu_graphics_drivers` also takes. Not finished: the
-runtime does not yet hand the GPU back before `kexec`, so images with these drivers may leave the booted system
-without a display. Release images are unchanged.
+drivers (`virtio_gpu`, `bochs`) the build option `zfsbootmenu_graphics_drivers` also takes. Before `kexec`, the
+runtime hands each GPU its drivers took back: it unbinds the GPU from its driver, which runs the driver's removal,
+and resets its PCI function where the device has a reset, so that the booted kernel finds it as at power-on; the
+kernel log says how each GPU was handed back. When `kexec` fails, the drivers take the GPUs again, so the console can
+show the error. Not finished: the list of GPUs known to come back after this, and runs on real hardware. Release
+images are unchanged.
 
 ### Console font on high-density (HiDPI) displays
 

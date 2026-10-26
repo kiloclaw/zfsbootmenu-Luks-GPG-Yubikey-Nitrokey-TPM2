@@ -9,7 +9,8 @@
 //! ([`load`]): the other GPUs get a driver override that no driver
 //! matches, so that no driver takes them, and `zbm.gpu=off` loads none.
 //! The console then draws on the chosen GPU's first connected display
-//! ([`console_card`]).
+//! ([`console_card`]). Before `kexec` the GPUs are handed back
+//! ([`hand_back`]), and taken again if it fails ([`take_back`]).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -383,6 +384,9 @@ pub fn console_card(files: &dyn Files, root: &Path, value: Option<&str>) -> Opti
         .or_else(|| cards.first())?;
     Some(root.join("dev/dri").join(card))
 }
+
+mod hand_back;
+pub use hand_back::{hand_back, take_back};
 
 #[cfg(test)]
 mod tests;

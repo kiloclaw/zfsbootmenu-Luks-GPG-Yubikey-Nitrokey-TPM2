@@ -91,7 +91,7 @@ provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust
 images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
 (`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
 list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot and loading before the first prompt
-are done too (`zbm_startup::graphics`, VM test `runtime-rust-gpu`). The hand-back before `kexec`, the list of
+are done too (`zbm_boot::graphics`, VM test `runtime-rust-gpu`), and so is the hand-back before `kexec`. The list of
 known-good GPUs and the tests on real hardware remain. The Rust runtime owns the `kexec` path
 of its images.
 
@@ -140,6 +140,12 @@ of its images.
   - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
     shutdown path, and resets the PCI function where it supports a reset. The booted kernel then finds the GPU as at
     power-on.
+    *Done.* `zbm_boot::graphics::hand_back` runs after the console on the display handed the display back and the
+    "Booting" line, last before `kexec`: each GPU bound to a driver, of a vendor the image's drivers drive, is
+    unbound (`driver/unbind`) and reset (`reset`) where the kernel offers a method (`reset_method`), and the kernel
+    log says which. When `kexec` fails, `take_back` has the PCI bus probe them again (`drivers_probe`) and waits for
+    their cards, before the console takes the display again. `runtime-rust-gpu` boots the environment after both
+    QEMU GPUs were handed back, and its kernel brings up a display on each.
   - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at
     all. Other GPUs stay on the firmware framebuffer, and the log says why.
   - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come

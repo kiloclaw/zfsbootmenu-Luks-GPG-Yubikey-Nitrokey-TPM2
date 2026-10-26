@@ -2,7 +2,8 @@
 # Builds the test boot environment inside the ZFSBootMenu build container:
 #
 #   <out>/payload/boot/vmlinuz-<kver>          the container's Ubuntu kernel
-#   <out>/payload/boot/initramfs-<kver>.img    dracut, systemd, ZFS 2.4.4, crypt
+#   <out>/payload/boot/initramfs-<kver>.img    dracut, systemd, ZFS 2.4.4, crypt,
+#                                              QEMU's GPU drivers
 #   <out>/payload/rootfs/                      busybox root with zfs, zpool, dmsetup
 #
 # The initramfs contains /etc/zbmtest/be.key and be-other.key (the test LUKS
@@ -35,6 +36,7 @@ chmod 0644 "${out}/payload/boot/vmlinuz-${kver}"
 
 dracut --force --no-hostonly --no-early-microcode --kver "${kver}" \
   --add "systemd zfs crypt" --omit "plymouth network" \
+  --add-drivers "virtio_gpu bochs" \
   --install "/etc/zbmtest/be.key /etc/zbmtest/be-other.key" \
   "${out}/payload/boot/initramfs-${kver}.img"
 chmod 0644 "${out}/payload/boot/initramfs-${kver}.img"
