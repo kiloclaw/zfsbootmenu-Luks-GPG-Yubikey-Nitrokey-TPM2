@@ -521,7 +521,7 @@ Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), and the
-``runtime`` tests of both runtimes, from 25 to 27 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), up to four lanes at
+``runtime`` tests of both runtimes, from 25 to 28 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), up to four lanes at
 a time. The build container image was the same as above. The ``oldzfs`` tests used an image that
 ``tests/luks/vm/old-image.sh`` built on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2). Tests that a later change
 touched ran again on rebuilt images, and the table lists the last run of each; durations are with KVM, which is several
@@ -583,9 +583,10 @@ Test                            Passed  Failed  Duration
 ``runtime-rust-colours``        5       0       2 min
 ``runtime-rust-drm``            12      0       2 min
 ``runtime-rust-console``        23      0       10 min
+``runtime-rust-console-start``  10      0       6 min
 ``runtime-rust-saved``          36      0       52 s
 ``runtime-rust-gpu``            25      0       3 min
-Total                           890     0
+Total                           900     0
 ==============================  ======  ======  ========
 
 Problems found and fixed

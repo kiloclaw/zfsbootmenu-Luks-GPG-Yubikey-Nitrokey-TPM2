@@ -29,7 +29,8 @@ The console's VM tests (`runtime-rust-console`, `runtime-rust-drm`) pass on it (
 setup).
 
 M1 is done in `fb1615c` to `4ccdd30`, each item named in its commit; the fuzz target `console_output` ran five minutes
-without a finding. Its VM test, `runtime-rust-console-start`, and the console's others wait for the maintainer's run.
+without a finding. On `3c5d178`, its VM test `runtime-rust-console-start` passes (10 checks), with
+`runtime-rust-console` (23) and `runtime-rust-drm` (12) (28 October 2026, 49 checks with their setup).
 
 ## How the work runs
 
