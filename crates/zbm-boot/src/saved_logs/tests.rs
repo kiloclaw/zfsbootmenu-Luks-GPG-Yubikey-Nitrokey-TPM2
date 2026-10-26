@@ -232,3 +232,46 @@ fn a_file_that_cannot_be_written_is_named() {
         "{error}"
     );
 }
+
+#[test]
+fn the_boot_just_saved_stays_with_the_clock_behind() {
+    let fake = machine();
+    let logs = Path::new(MOUNT_POINT).join(DIRECTORY);
+    // Saved by a machine whose clock was ahead: they sort after this boot.
+    for day in 1..=5 {
+        let later = logs.join(format!("2027-01-0{day}T00-00-00Z"));
+        fake.files.file(later.join("journal.jsonl"), "later\n");
+    }
+    let system = fake.system();
+
+    let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
+
+    assert!(
+        fake.files
+            .exists(&Path::new(MOUNT_POINT).join(&saved.directory))
+    );
+    assert!(!fake.files.exists(&logs.join("2027-01-01T00-00-00Z")));
+    assert!(fake.files.exists(&logs.join("2027-01-02T00-00-00Z")));
+}
+
+#[test]
+fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
+    let fake = machine();
+    let logs = Path::new(MOUNT_POINT).join(DIRECTORY);
+    for day in 1..=6 {
+        let old = logs.join(format!("2025-12-0{day}T00-00-00Z"));
+        fake.files.file(old.join("journal.jsonl"), "old\n");
+    }
+    let dir = logs.join("2026-01-01T00-00-00Z");
+    fake.files
+        .fail(dir.join("kernel.log"), std::io::ErrorKind::StorageFull);
+    let system = fake.system();
+
+    let error = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
+
+    assert!(error.to_string().contains("kernel.log"), "{error}");
+    assert!(!fake.files.exists(&dir.join("journal.jsonl")));
+    assert!(!fake.files.exists(&dir));
+    assert!(!fake.files.exists(&logs.join("2025-12-01T00-00-00Z")));
+    assert!(fake.files.exists(&logs.join("2025-12-02T00-00-00Z")));
+}

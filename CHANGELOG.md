@@ -190,6 +190,14 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
 - Rust images, process 1: logs saved after a crash (`zbm.save_logs`) are saved by a process of its own, so a hung
   device cannot stop the supervisor; `Ctrl-\` no longer kills start-up or the menu, as with the legacy runtime; the
   recovery shell after a crash gets a usable terminal (echo, Ctrl-C, the cursor) back.
+- Rust images, logs and diagnostics: with ZFS before 2.3, a command line property written over several lines or
+  with tabs is read whole; saved logs (`zbm.save_logs`) are written before the teardown hooks, which may unbind a USB
+  device the partition is on, the boot just saved is never pruned when the clock is behind, and a boot not saved
+  whole is removed; without `loglevel`, errors and warnings reach the kernel log, as with the legacy runtime (4);
+  long messages are split into records the kernel takes instead of being dropped; `zbm debug crash` shows the latest
+  report; the hooks of a menu started over SSH get the variables of `/etc/zfsbootmenu.conf`; a LUKS mapping recorded
+  by `zluks` over SSH while start-up closes others is no longer forgotten (and left open at teardown); the journal
+  keeps no copy of its lines in memory.
 - Shadow mode kills a command still running when its 5-second budget ends, so a hung `blkid` or `zpool status` no
   longer holds up a legacy boot.
 - The VM tests rebuild the test boot environment when its files or the build container change, cover `config/`,

@@ -40,7 +40,7 @@ fn journal_of(command: &Command, status: u8, takes: Duration) -> Vec<Value> {
         advancing.advance(takes);
         Some(Ok(Output::new(Status::exited(status), "")))
     });
-    let layer = JournalLayer::new(std::io::sink());
+    let layer = JournalLayer::new(std::io::sink()).with_copy();
     let lines = layer.lines();
     let subscriber = tracing_subscriber::registry().with(layer);
     tracing::subscriber::with_default(subscriber, || {
@@ -115,7 +115,7 @@ fn a_command_that_cannot_start_is_reported_as_a_warning() {
     let clock = FakeClock::new();
     let runner = FakeRunner::new();
     runner.on(|_| Some(Err(std::io::Error::other("no such program"))));
-    let layer = JournalLayer::new(std::io::sink());
+    let layer = JournalLayer::new(std::io::sink()).with_copy();
     let lines = layer.lines();
     let subscriber = tracing_subscriber::registry().with(layer);
 

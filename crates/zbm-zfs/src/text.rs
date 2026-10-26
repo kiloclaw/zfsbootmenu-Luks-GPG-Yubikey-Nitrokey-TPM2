@@ -109,25 +109,55 @@ pub fn pools(text: &str) -> Result<Vec<Pool>, TextError> {
         .collect()
 }
 
+/// Whether `field` is what `zfs get` prints as a property's source.
+fn is_source(field: &str) -> bool {
+    matches!(field, "-" | "local" | "default" | "received" | "temporary")
+        || field.starts_with("inherited from ")
+}
+
 /// `zfs get` or `zpool get -H -p -o name,property,value,source`: the
-/// property of each name.
+/// property of each name. A value may hold tabs and line breaks, such as a
+/// command line written over several lines: a record ends at the first
+/// line whose last field is a source, and its value is everything between
+/// the property and the source.
 ///
 /// # Errors
 ///
-/// [`TextError`] for a line without four fields.
+/// [`TextError`] for a record without four fields.
 pub fn properties(text: &str) -> Result<Vec<(String, String, Property)>, TextError> {
-    rows(text)
-        .map(|(line, fields)| {
-            let [name, property, value, source] = fields.as_slice() else {
-                return Err(TextError::new(line, "not four fields"));
-            };
-            Ok((
-                (*name).to_owned(),
-                (*property).to_owned(),
-                Property::new(*value, Source::parse(source)),
-            ))
-        })
-        .collect()
+    let mut records = Vec::new();
+    let mut record = String::new();
+    for line in text.lines() {
+        if record.is_empty() && line.is_empty() {
+            continue;
+        }
+        if !record.is_empty() {
+            record.push('\n');
+        }
+        record.push_str(line);
+        let fields: Vec<&str> = record.split('\t').collect();
+        let (Some((source, rest)), true) = (fields.split_last(), fields.len() >= 4) else {
+            continue;
+        };
+        if !is_source(source) {
+            continue;
+        }
+        let (name, property, value) = match rest {
+            [name, property, value @ ..] => (*name, *property, value.join("\t")),
+            _ => continue,
+        };
+        records.push((
+            name.to_owned(),
+            property.to_owned(),
+            Property::new(value, Source::parse(source)),
+        ));
+        record.clear();
+    }
+    if record.is_empty() {
+        Ok(records)
+    } else {
+        Err(TextError::new(&record, "not four fields"))
+    }
 }
 
 /// `zfs list -H -p -o name,<properties>`: each dataset with `properties`, in
@@ -222,5 +252,25 @@ mod tests {
         let status = "  pool: tank\nconfig:\n\ttank  ONLINE\n\t  /dev/dm-3p1  ONLINE 0 0 0\n\
                       \t  /dev/vda2  ONLINE 0 0 0\nerrors: No known data errors\n";
         assert_eq!(status_devices(status), ["/dev/dm-3p1", "/dev/vda2"]);
+    }
+
+    #[test]
+    fn a_value_with_tabs_and_line_breaks_is_one_property() {
+        let text = "tank/a\torg.zfsbootmenu:commandline\tquiet\n\tloglevel=4\tx\tlocal\n\
+                    tank/b\tcanmount\ton\tdefault\n\
+                    tank/c\torg.zfsbootmenu:commandline\t-\t-\n";
+
+        let rows = properties(text).unwrap();
+
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].0, "tank/a");
+        assert_eq!(rows[0].2.value, "quiet\n\tloglevel=4\tx");
+        assert_eq!(rows[0].2.source, Source::Local);
+        assert_eq!(rows[1].2, Property::new("on", Source::Default));
+        assert_eq!(rows[2].2.value, "-");
+        let unfinished = properties("tank/a\tp\tvalue\n").unwrap_err();
+        assert_eq!(unfinished.reason, "not four fields");
+        assert!(is_source("inherited from tank"));
+        assert!(!is_source("loglevel=4"));
     }
 }

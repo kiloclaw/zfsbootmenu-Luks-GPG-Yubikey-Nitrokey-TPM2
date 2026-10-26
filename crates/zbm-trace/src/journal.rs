@@ -64,9 +64,16 @@ pub struct JournalLayer<W> {
     seq: AtomicU64,
     /// The bytes this layer may still write; `u64::MAX` for no limit.
     room: AtomicU64,
-    /// A copy of every line, for tests.
+    /// A copy of every line, for tests ([`JournalLayer::with_copy`]); none
+    /// is kept otherwise, as nothing reads it.
     copy: Lines,
+    /// Whether the copy is kept.
+    keeps_copy: bool,
 }
+
+/// The most [`crate::install`] writes to a journal, as the runtime's
+/// (`zbm_platform::log::JOURNAL_LIMIT`).
+pub const LIMIT: u64 = 4 << 20;
 
 impl<W: Write> JournalLayer<W> {
     /// A journal that writes to `writer`.
@@ -76,7 +83,16 @@ impl<W: Write> JournalLayer<W> {
             seq: AtomicU64::new(0),
             room: AtomicU64::new(u64::MAX),
             copy: Lines::default(),
+            keeps_copy: false,
         }
+    }
+
+    /// The same journal, keeping a copy of every line, parsed, that
+    /// [`JournalLayer::lines`] gives: for tests.
+    #[must_use]
+    pub fn with_copy(mut self) -> JournalLayer<W> {
+        self.keeps_copy = true;
+        self
     }
 
     /// The same journal, writing at most `bytes` bytes, so that a program
@@ -89,8 +105,8 @@ impl<W: Write> JournalLayer<W> {
         self
     }
 
-    /// A handle on the lines written so far, parsed, for tests and for
-    /// `zbm debug`.
+    /// A handle on the lines written so far, parsed, when the journal keeps
+    /// a copy ([`JournalLayer::with_copy`]); empty otherwise.
     pub fn lines(&self) -> Lines {
         self.copy.clone()
     }
@@ -127,7 +143,9 @@ impl<W: Write> JournalLayer<W> {
         let _ = writer.write_all(text.as_bytes());
         let _ = writer.flush();
         drop(writer);
-        self.copy.push(value);
+        if self.keeps_copy {
+            self.copy.push(value);
+        }
     }
 }
 
@@ -261,7 +279,7 @@ mod tests {
     /// Runs `report` with a journal and returns the text and parsed lines.
     fn journal(report: impl FnOnce()) -> (String, Vec<Value>) {
         let buffer = Buffer::default();
-        let layer = JournalLayer::new(buffer.clone());
+        let layer = JournalLayer::new(buffer.clone()).with_copy();
         let lines = layer.lines();
         let subscriber = tracing_subscriber::registry().with(layer);
         tracing::subscriber::with_default(subscriber, report);

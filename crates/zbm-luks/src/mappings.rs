@@ -127,11 +127,10 @@ impl<'a> MappingStore<'a> {
         }
     }
 
-    /// Records a mapping ZFSBootMenu opened, once. Concurrent sessions
-    /// (console and SSH) may record the same mapping at the same time, so a
-    /// lock (an atomic `mkdir`) is held across the check and the append;
-    /// after five seconds the lock counts as stale.
-    pub fn record(&self, name: &str, device: &str, origin: Origin) {
+    /// Runs `work` holding the lock of the record (an atomic `mkdir`), which
+    /// the console and SSH sessions share; after five seconds the lock
+    /// counts as stale and `work` runs anyway.
+    fn locked<T>(&self, work: impl FnOnce() -> T) -> T {
         let path = self.mappings;
         if let Some(parent) = path.parent() {
             let _ = self.files.create_dir_all(parent);
@@ -147,24 +146,53 @@ impl<'a> MappingStore<'a> {
             }
             self.clock.sleep(Duration::from_millis(100));
         }
-
-        let recorded = self.files.read(path).is_ok_and(|text| {
-            String::from_utf8_lossy(&text)
-                .split('\n')
-                .any(|line| line.starts_with(&format!("{name}\t")))
-        });
-        if !recorded {
-            let mapping = Mapping {
-                name: name.to_owned(),
-                device: device.to_owned(),
-                auto: origin.field().to_owned(),
-            };
-            let line = format!("{}\n", mapping.line());
-            if let Err(error) = self.files.append(path, line.as_bytes()) {
-                zbm_trace::error!("unable to write {}: {error}", path.display());
-            }
-        }
+        let done = work();
         let _ = self.files.remove_dir(lock);
+        done
+    }
+
+    /// Records a mapping ZFSBootMenu opened, once. Concurrent sessions
+    /// (console and SSH) may record the same mapping at the same time, so
+    /// the lock is held across the check and the append.
+    pub fn record(&self, name: &str, device: &str, origin: Origin) {
+        let path = self.mappings;
+        self.locked(|| {
+            let recorded = self.files.read(path).is_ok_and(|text| {
+                String::from_utf8_lossy(&text)
+                    .split('\n')
+                    .any(|line| line.starts_with(&format!("{name}\t")))
+            });
+            if !recorded {
+                let mapping = Mapping {
+                    name: name.to_owned(),
+                    device: device.to_owned(),
+                    auto: origin.field().to_owned(),
+                };
+                let line = format!("{}\n", mapping.line());
+                if let Err(error) = self.files.append(path, line.as_bytes()) {
+                    zbm_trace::error!("unable to write {}: {error}", path.display());
+                }
+            }
+        });
+    }
+
+    /// Forgets the mappings named `names`, which were closed. The record is
+    /// read again under the lock, so that a mapping another session
+    /// recorded meanwhile stays.
+    pub fn remove(&self, names: &[String]) {
+        if names.is_empty() {
+            return;
+        }
+        self.locked(|| {
+            let Some(mappings) = self.read() else {
+                return;
+            };
+            let kept: Vec<Mapping> = mappings
+                .into_iter()
+                .filter(|mapping| !names.contains(&mapping.name))
+                .collect();
+            self.write(&kept);
+        });
     }
 
     /// Whether the user skipped `device` in this boot.
@@ -265,6 +293,32 @@ mod tests {
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
             "a\t/dev/sda\t1\nab\t/dev/sdb\t0\n"
+        );
+        assert!(
+            !fake
+                .files
+                .exists(Path::new("/zfsbootmenu/luks-mappings.lock"))
+        );
+    }
+
+    #[test]
+    fn closed_mappings_are_forgotten_and_those_recorded_meanwhile_kept() {
+        let fake = FakeSystem::new();
+        with_session(&fake, |session| {
+            let store = session.mappings();
+            store.record("a", "/dev/sda", Origin::Discovered);
+            store.record("b", "/dev/sdb", Origin::Discovered);
+            // Read before another session records `c`; the removal reads
+            // the record again.
+            let before = store.read().unwrap();
+            store.record("c", "/dev/sdc", Origin::Configured);
+
+            store.remove(&[before[0].name.clone()]);
+            store.remove(&[]);
+        });
+        assert_eq!(
+            fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
+            "b\t/dev/sdb\t1\nc\t/dev/sdc\t0\n"
         );
         assert!(
             !fake

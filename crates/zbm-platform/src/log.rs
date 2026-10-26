@@ -25,7 +25,7 @@ pub const JOURNAL: &str = "journal.jsonl";
 
 /// The most a process writes to the journal, so that a menu left open for
 /// days cannot fill the memory file system.
-pub const JOURNAL_LIMIT: u64 = 4 << 20;
+pub const JOURNAL_LIMIT: u64 = zbm_trace::JOURNAL_LIMIT;
 
 /// Appends what is written to a file, through [`Files`]: each write is one
 /// append, so the lines of several processes do not mix.

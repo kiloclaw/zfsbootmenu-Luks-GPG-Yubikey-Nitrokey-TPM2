@@ -170,7 +170,7 @@ fn a_refused_key_file_leads_to_the_next_method() {
 fn each_attempt_is_traced_inside_the_unlock_span() {
     let fake = FakeSystem::new();
     let unlocker = KeyChain::new(vec![key_file(), Scripted::boxed("prompt", true)]);
-    let layer = JournalLayer::new(std::io::sink());
+    let layer = JournalLayer::new(std::io::sink()).with_copy();
     let lines = layer.lines();
     let subscriber = tracing_subscriber::registry().with(layer);
 

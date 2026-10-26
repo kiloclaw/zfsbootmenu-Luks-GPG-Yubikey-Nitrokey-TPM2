@@ -175,9 +175,11 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
             journal.contains("running init stage"),
             "the saved journal is the first boot's",
         );
+        // Saved once the kernel was loaded (`kexec -l`), and before the
+        // teardown hooks, which may take the partition away.
         test.check(
-            journal.contains("teardown.d"),
-            "the journal was saved after the teardown hooks, before kexec",
+            journal.contains("kexec") && !journal.contains("teardown.d"),
+            "the journal was saved after loading the kernel, before the teardown hooks",
         );
     }
     let Some(dir) = report_dir(written) else {

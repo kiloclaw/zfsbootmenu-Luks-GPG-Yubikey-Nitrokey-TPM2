@@ -28,7 +28,7 @@
 //! use zbm_trace::JournalLayer;
 //! use tracing_subscriber::layer::SubscriberExt;
 //!
-//! let journal = JournalLayer::new(Vec::new());
+//! let journal = JournalLayer::new(Vec::new()).with_copy();
 //! let lines = journal.lines();
 //! let subscriber = tracing_subscriber::registry().with(journal);
 //! tracing::subscriber::with_default(subscriber, || {
@@ -45,7 +45,7 @@ pub mod crash;
 mod journal;
 pub mod kmsg;
 
-pub use journal::{JournalLayer, Lines, REDACTED, is_secret_field};
+pub use journal::{JournalLayer, LIMIT as JOURNAL_LIMIT, Lines, REDACTED, is_secret_field};
 pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};
 pub use tracing::level_filters::LevelFilter;
 
@@ -73,6 +73,24 @@ pub struct Config {
     pub journal: Option<Box<dyn Write + Send>>,
 }
 
+/// The fields of events on standard error, as the default format writes them
+/// (`name=value`, the message alone), but with the value of a field named
+/// for a secret ([`is_secret_field`]) replaced by [`REDACTED`], as in the
+/// journal.
+fn redacted_fields() -> impl for<'w> tracing_subscriber::fmt::FormatFields<'w> + 'static {
+    use tracing_subscriber::field::MakeExt as _;
+    tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
+        if is_secret_field(field.name()) {
+            write!(writer, "{field}={REDACTED}")
+        } else if field.name() == "message" {
+            write!(writer, "{value:?}")
+        } else {
+            write!(writer, "{field}={value:?}")
+        }
+    })
+    .delimited(" ")
+}
+
 /// Installs the subscriber of a program for the rest of its life.
 ///
 /// # Errors
@@ -80,13 +98,64 @@ pub struct Config {
 /// [`InstallError`] when a subscriber is installed already.
 pub fn install(config: Config) -> Result<(), InstallError> {
     let stderr = tracing_subscriber::fmt::layer()
+        .fmt_fields(redacted_fields())
         .with_writer(std::io::stderr)
         .without_time()
         .with_target(false)
         .with_filter(config.stderr);
     tracing_subscriber::registry()
         .with(stderr)
-        .with(config.journal.map(JournalLayer::new))
+        .with(
+            config
+                .journal
+                .map(|journal| JournalLayer::new(journal).with_limit(journal::LIMIT)),
+        )
         .try_init()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use tracing_subscriber::layer::SubscriberExt as _;
+
+    use super::*;
+
+    /// Lines written to standard error, kept for the test.
+    #[derive(Clone, Default)]
+    struct Kept(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Kept {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn fields_named_for_secrets_are_redacted_on_standard_error() {
+        let kept = Kept::default();
+        let writer = kept.clone();
+        let layer = tracing_subscriber::fmt::layer()
+            .fmt_fields(redacted_fields())
+            .with_writer(move || writer.clone())
+            .without_time()
+            .with_ansi(false);
+        let subscriber = tracing_subscriber::registry().with(layer);
+
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::warn!(passphrase = "hunter2", device = "/dev/sda", "wrong key");
+        });
+
+        let text = String::from_utf8(kept.0.lock().unwrap().clone()).unwrap();
+        assert!(!text.contains("hunter2"), "{text}");
+        assert!(text.contains(&format!("passphrase={REDACTED}")), "{text}");
+        assert!(text.contains("wrong key passphrase="), "{text}");
+        assert!(text.contains("device=\"/dev/sda\""), "{text}");
+    }
 }

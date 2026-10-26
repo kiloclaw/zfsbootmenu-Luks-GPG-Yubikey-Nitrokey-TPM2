@@ -80,6 +80,10 @@ pub struct Startup<'a> {
     args: ZbmArgs,
     build: Build,
     hooks: PathBuf,
+    /// The variables of `/etc/zfsbootmenu.conf`, which the menu's hooks get
+    /// even when it was not started from a shell that sourced the file
+    /// (`ssh host zfsbootmenu`).
+    conf_vars: Vec<(String, String)>,
 }
 
 impl<'a> Startup<'a> {
@@ -107,6 +111,7 @@ impl<'a> Startup<'a> {
                 Build::Release
             },
             hooks: PathBuf::from(hooks::HOOKS),
+            conf_vars: conf.vars().to_vec(),
         }
     }
 

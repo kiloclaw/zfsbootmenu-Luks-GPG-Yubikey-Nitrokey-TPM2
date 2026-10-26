@@ -71,8 +71,14 @@ fn the_menu_runs_after_the_setup_hooks_with_the_lock_held() {
     let mut menu = Recorded::default();
     assert_eq!(startup.menu(&mut menu), 0);
 
-    let bootfs = vec![("BOOTFS".to_owned(), "tank/ROOT/void".to_owned())];
-    assert_eq!(menu.shown, [bootfs]);
+    // The hooks get the configuration's variables, then BOOTFS.
+    let [env] = menu.shown.as_slice() else {
+        panic!("{:?}", menu.shown);
+    };
+    let pair = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+    assert_eq!(env.last(), Some(&pair("BOOTFS", "tank/ROOT/void")));
+    assert!(env.contains(&pair("BASE", "/zfsbootmenu")), "{env:?}");
+    assert!(env.contains(&pair("loglevel", "4")), "{env:?}");
     let hook = fake
         .runner
         .calls()

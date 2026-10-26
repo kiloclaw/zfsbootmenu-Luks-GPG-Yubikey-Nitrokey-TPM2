@@ -75,7 +75,9 @@ impl Startup<'_> {
         zbm_trace::debug!("creating {}/active", self.state.base().display());
         let _active = Active(&self.state);
 
-        let mut env = Vec::new();
+        // The variables of `/etc/zfsbootmenu.conf`, as the legacy menu's
+        // hooks got them from the script that sourced it.
+        let mut env = self.conf_vars.clone();
         if let Some(bootfs) = self.state.bootfs() {
             zbm_trace::debug!("setting BOOTFS to {bootfs}");
             env.push(("BOOTFS".to_owned(), bootfs));

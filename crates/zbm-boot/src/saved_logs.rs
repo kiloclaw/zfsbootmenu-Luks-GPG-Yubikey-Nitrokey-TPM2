@@ -241,15 +241,25 @@ fn boots(files: &dyn Files, logs: &Path) -> Vec<String> {
     names
 }
 
-/// Removes the saved boots of `logs` but the newest [`KEEP`].
-fn prune(files: &dyn Files, logs: &Path) {
-    let names = boots(files, logs);
-    for name in names.iter().take(names.len().saturating_sub(KEEP)) {
-        let dir = logs.join(name);
-        for file in files.read_dir(&dir).unwrap_or_default() {
-            let _ = files.remove_file(&dir.join(file));
-        }
-        let _ = files.remove_dir(&dir);
+/// Removes the saved boot `dir` and its files.
+fn remove_boot(files: &dyn Files, dir: &Path) {
+    for file in files.read_dir(dir).unwrap_or_default() {
+        let _ = files.remove_file(&dir.join(file));
+    }
+    let _ = files.remove_dir(dir);
+}
+
+/// Removes the saved boots of `logs` but the newest [`KEEP`], counting
+/// `saved`, the boot just saved, which stays whatever its name: with the
+/// clock behind, it sorts before older ones.
+fn prune(files: &dyn Files, logs: &Path, saved: Option<&str>) {
+    let others: Vec<String> = boots(files, logs)
+        .into_iter()
+        .filter(|name| Some(name.as_str()) != saved)
+        .collect();
+    let keep = KEEP.saturating_sub(usize::from(saved.is_some()));
+    for name in others.iter().take(others.len().saturating_sub(keep)) {
+        remove_boot(files, &logs.join(name));
     }
 }
 
@@ -305,26 +315,43 @@ pub fn save(
             .files
             .create_dir_all(&dir)
             .map_err(|error| SaveError::Write(dir.display().to_string(), error.to_string()))?;
-        let mut written = Vec::new();
-        for file in state_files(system.files, base) {
-            if let Ok(contents) = system.files.read(&base.join(&file)) {
-                write(system.files, &dir.join(&file), &contents)?;
-                written.push(file);
-            }
+        let written = write_boot(system, base, &dir);
+        // A boot not saved whole is removed, and the old ones are pruned
+        // all the same: a full partition is the likely cause.
+        if written.is_err() {
+            remove_boot(system.files, &dir);
         }
-        write(
+        prune(
             system.files,
-            &dir.join(KERNEL_LOG),
-            kernel_log(system.runner).as_bytes(),
-        )?;
-        written.push(KERNEL_LOG.to_owned());
-        prune(system.files, &logs);
+            &logs,
+            written.is_ok().then_some(name.as_str()),
+        );
+        let written = written?;
         Ok(Saved {
             device: device.clone(),
             directory: format!("{DIRECTORY}/{name}"),
             files: written,
         })
     })
+}
+
+/// Writes the journal and the crash reports of `base` and the kernel log
+/// into `dir`; returns the names written.
+fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String>, SaveError> {
+    let mut written = Vec::new();
+    for file in state_files(system.files, base) {
+        if let Ok(contents) = system.files.read(&base.join(&file)) {
+            write(system.files, &dir.join(&file), &contents)?;
+            written.push(file);
+        }
+    }
+    write(
+        system.files,
+        &dir.join(KERNEL_LOG),
+        kernel_log(system.runner).as_bytes(),
+    )?;
+    written.push(KERNEL_LOG.to_owned());
+    Ok(written)
 }
 
 /// The boots saved on `destination`, oldest first, and its device.

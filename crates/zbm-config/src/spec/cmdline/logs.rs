@@ -27,8 +27,9 @@ pub static SAVE_LOGS: OptionSpec = OptionSpec {
 const SAVE_LOGS_DOC: &str = r"
 In images built with the Rust runtime, save the logs of each boot on an EFI system partition, which
 survive the boot and a restart: the runtime journal, the crash reports and the kernel log go to a
-directory named for the time (UTC), such as */EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z*, just
-before the selected kernel starts, and after a program of the runtime crashes. The newest five stay.
+directory named for the time (UTC), such as */EFI/zfsbootmenu/logs/2026-10-24T01-29-15Z*, once
+the selected kernel is loaded, before the teardown hooks (which may unbind a USB device the
+partition is on), and after a program of the runtime crashes. The newest five stay.
 The partition is mounted only for the write, and must be FAT, with the *vfat* module in the image.
 With no value, or **esp**, it is the partition the boot loader loaded ZFSBootMenu from (systemd's
 EFI stub records it in ZFSBootMenu's EFI bundles), or else the machine's only EFI system partition;

@@ -136,8 +136,10 @@ pub fn kexec_kernel(
     };
     log_loaded(&load, &output);
 
-    tear_down(system, settings, &hook_env, &mnt);
+    // The logs are saved before the teardown hooks, which may take away
+    // the partition they go to (`90-xhci-unbind` and an ESP on USB).
     save_logs(system, state, settings.save_logs.as_ref());
+    tear_down(system, settings, &hook_env, &mnt);
     hand_over(system, state);
     execute(system, state, fs, kernel);
 }
@@ -306,9 +308,9 @@ fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &s
     );
 }
 
-/// Saves the logs of this boot to `destination`, if given, last of all but
-/// the hand-over, so that they hold the teardown; a failure is logged and
-/// the boot goes on.
+/// Saves the logs of this boot to `destination`, if given, once the kernel
+/// is loaded and before the teardown hooks, which may unbind the device the
+/// partition is on; a failure is logged and the boot goes on.
 pub fn save_logs(system: &System<'_>, state: &State<'_>, destination: Option<&Destination>) {
     let Some(destination) = destination else {
         return;

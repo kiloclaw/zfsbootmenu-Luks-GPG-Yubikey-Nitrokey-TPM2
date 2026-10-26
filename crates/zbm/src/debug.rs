@@ -52,22 +52,27 @@ Usage: zbm debug crash [--list]   print the latest crash report, or list them
        zbm debug save             save this boot's logs there now
 ";
 
+/// When the crash report `name` was written, as its name tells:
+/// `crash-TIME-PID.txt`, then `crash-TIME-PID.N.txt` (N from 1) for the
+/// second and later reports of a process in the same second. Compared as
+/// numbers, not as text, where `-100` sorts before `-99` and `.2.txt`
+/// before `.txt`.
+fn report_order(name: &str) -> Option<(u64, u64, u64)> {
+    let stem = name.strip_prefix("crash-")?.strip_suffix(".txt")?;
+    let (time, rest) = stem.split_once('-')?;
+    let (pid, count) = rest.split_once('.').unwrap_or((rest, "0"));
+    Some((time.parse().ok()?, pid.parse().ok()?, count.parse().ok()?))
+}
+
 /// The crash reports in `base`, oldest first.
 pub fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
-    let mut reports: Vec<(u64, String)> = files
+    let mut reports: Vec<((u64, u64, u64), String)> = files
         .read_dir(base)
         .unwrap_or_default()
         .into_iter()
         .filter_map(|name| {
             let name = name.into_string().ok()?;
-            let time = name
-                .strip_prefix("crash-")?
-                .strip_suffix(".txt")?
-                .split('-')
-                .next()?
-                .parse()
-                .ok()?;
-            Some((time, name))
+            Some((report_order(&name)?, name))
         })
         .collect();
     reports.sort();
@@ -161,6 +166,35 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use zbm_testkit::fakes::FakeFiles;
+
+    #[test]
+    fn reports_are_ordered_by_time_process_and_number() {
+        let files = FakeFiles::new();
+        for name in [
+            "crash-100-77.1.txt",
+            "crash-100-77.txt",
+            "crash-100-100.txt",
+            "crash-100-99.txt",
+            "crash-99-5.txt",
+            "crash-100-77.10.txt",
+            "crash-100-77.2.txt",
+        ] {
+            files.file(Path::new(BASE).join(name), "");
+        }
+
+        assert_eq!(
+            crash_reports(&files, Path::new(BASE)),
+            [
+                "crash-99-5.txt",
+                "crash-100-77.txt",
+                "crash-100-77.1.txt",
+                "crash-100-77.2.txt",
+                "crash-100-77.10.txt",
+                "crash-100-99.txt",
+                "crash-100-100.txt",
+            ]
+        );
+    }
 
     fn call(files: &FakeFiles, args: &[&str]) -> (i32, String, String) {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();

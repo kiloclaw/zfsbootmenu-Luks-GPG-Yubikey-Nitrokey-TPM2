@@ -196,10 +196,18 @@ pub fn enabled(level: Level) -> bool {
     }
 }
 
-/// The log level as the legacy code reads it: an integer operand of `test`, or
-/// `None` when it is not one, in which case nothing is logged.
+/// The log level when none is set, as `${loglevel:-4}` gives it.
+pub const DEFAULT_LEVEL: i64 = 4;
+
+/// The log level as the legacy code reads it, `${loglevel:-4}`: 4 when it
+/// is empty or not set; else an integer operand of `test`, or `None` when it
+/// is not one, in which case nothing is logged.
 pub fn parse_level(loglevel: &str) -> Option<i64> {
-    loglevel.trim().parse().ok()
+    let loglevel = loglevel.trim();
+    if loglevel.is_empty() {
+        return Some(DEFAULT_LEVEL);
+    }
+    loglevel.parse().ok()
 }
 
 /// The kernel log lines of a message, as `kmsg-log-lib.sh` writes them.
@@ -208,17 +216,58 @@ pub fn parse_level(loglevel: &str) -> Option<i64> {
 /// `<7>ZBM:[pid]|`, and the last line carries the call site between the bars
 /// (`<7>ZBM:[pid]|trace|line`). Other levels are written as `<N>ZFSBootMenu:
 /// text`.
+///
+/// The kernel refuses a record longer than 992 bytes (`LOG_LINE_MAX`), so
+/// longer text, such as a command's output, is cut into several records of
+/// at most [`RECORD`] bytes, each with the prefix.
 pub fn kmsg_lines(level: Level, text: &str, pid: u32, trace: &str) -> Vec<String> {
     if level != Level::Debug {
-        return vec![format!("<{}>ZFSBootMenu: {text}", level.number())];
+        let prefix = format!("<{}>ZFSBootMenu: ", level.number());
+        return pieces(text, RECORD.saturating_sub(prefix.len()))
+            .map(|piece| format!("{prefix}{piece}"))
+            .collect();
     }
     let mut lines = text.split('\n').peekable();
     let mut records = Vec::new();
     while let Some(line) = lines.next() {
-        let trace = if lines.peek().is_none() { trace } else { "" };
-        records.push(format!("<7>ZBM:[{pid}]|{trace}|{line}"));
+        let last_line = lines.peek().is_none();
+        let room = RECORD.saturating_sub(format!("<7>ZBM:[{pid}]|{trace}|").len());
+        let mut parts = pieces(line, room).peekable();
+        while let Some(part) = parts.next() {
+            let trace = if last_line && parts.peek().is_none() {
+                trace
+            } else {
+                ""
+            };
+            records.push(format!("<7>ZBM:[{pid}]|{trace}|{part}"));
+        }
     }
     records
+}
+
+/// The longest record written to the kernel log, prefix included: below
+/// the kernel's 992 bytes.
+pub const RECORD: usize = 960;
+
+/// `text` in pieces of at most `size` bytes, cut between characters; one
+/// empty piece for no text.
+fn pieces(text: &str, size: usize) -> impl Iterator<Item = &str> {
+    let size = size.max(4);
+    let mut rest = Some(text);
+    std::iter::from_fn(move || {
+        let text = rest?;
+        if text.len() <= size {
+            rest = None;
+            return Some(text);
+        }
+        let mut cut = size;
+        while !text.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let (piece, after) = text.split_at(cut);
+        rest = Some(after);
+        Some(piece)
+    })
 }
 
 /// Where [`KmsgLayer`] writes: the kernel log device and the state directory.
@@ -423,157 +472,4 @@ macro_rules! debug {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-    use std::sync::{Arc, Mutex, PoisonError};
-    use tracing_subscriber::layer::SubscriberExt;
-
-    /// A sink that keeps what it is given.
-    #[derive(Clone, Default)]
-    struct Kept {
-        lines: Arc<Mutex<Vec<String>>>,
-        markers: Arc<Mutex<Vec<String>>>,
-    }
-
-    impl KmsgSink for Kept {
-        fn record(&self, line: &str) {
-            let mut lines = self.lines.lock().unwrap_or_else(PoisonError::into_inner);
-            lines.push(line.to_owned());
-        }
-
-        fn mark(&self, marker: &str) {
-            let mut markers = self.markers.lock().unwrap_or_else(PoisonError::into_inner);
-            markers.push(marker.to_owned());
-        }
-    }
-
-    impl Kept {
-        fn text(&self) -> String {
-            self.lines.lock().unwrap().concat()
-        }
-    }
-
-    fn with_layer(layer: KmsgLayer<Kept>, body: impl FnOnce()) {
-        let subscriber = tracing_subscriber::registry().with(layer);
-        tracing::subscriber::with_default(subscriber, body);
-    }
-
-    #[test]
-    fn levels_match_the_kernel_log() {
-        let numbers: Vec<i64> = [
-            Level::Error,
-            Level::Warning,
-            Level::Notice,
-            Level::Info,
-            Level::Debug,
-        ]
-        .iter()
-        .map(|level| level.number())
-        .collect();
-        assert_eq!(numbers, [3, 4, 5, 6, 7]);
-        assert_eq!(Message::warning("w").stderr_line(), "WARN: w");
-        assert_eq!(parse_level("+7"), Some(7));
-        assert_eq!(parse_level("high"), None);
-    }
-
-    #[test]
-    fn kernel_log_lines_follow_kmsg_log_lib() {
-        assert_eq!(
-            kmsg_lines(Level::Info, "hello", 7, "t"),
-            ["<6>ZFSBootMenu: hello"]
-        );
-        assert_eq!(
-            kmsg_lines(Level::Error, "a\nb", 7, "t"),
-            ["<3>ZFSBootMenu: a\nb"]
-        );
-        assert_eq!(
-            kmsg_lines(Level::Debug, "one\ntwo", 7, "f,1"),
-            ["<7>ZBM:[7]||one", "<7>ZBM:[7]|f,1|two"]
-        );
-        assert_eq!(kmsg_lines(Level::Debug, "", 7, "f,1"), ["<7>ZBM:[7]|f,1|"]);
-        assert_eq!(
-            kmsg_lines(Level::Debug, "x\n", 7, "f,1"),
-            ["<7>ZBM:[7]||x", "<7>ZBM:[7]|f,1|"]
-        );
-    }
-
-    #[test]
-    fn writes_records_and_markers_that_the_level_allows() {
-        let kept = Kept::default();
-
-        with_layer(KmsgLayer::new(kept.clone(), "6", 42), || {
-            crate::info!("importing tank");
-            crate::debug!("not shown");
-            crate::warn!("canmount=on set for 'tank/ROOT'");
-            crate::error!("unable to import a pool");
-            crate::notice!("note");
-            tracing::warn!("a journal event");
-            assert!(enabled(Level::Info) && !enabled(Level::Debug));
-        });
-
-        assert_eq!(
-            kept.text(),
-            "<6>ZFSBootMenu: importing tank\n\
-             <4>ZFSBootMenu: canmount=on set for 'tank/ROOT'\n\
-             <3>ZFSBootMenu: unable to import a pool\n\
-             <5>ZFSBootMenu: note\n"
-        );
-        assert_eq!(
-            *kept.markers.lock().unwrap(),
-            ["have_warnings", "have_errors"]
-        );
-    }
-
-    #[test]
-    fn debugging_output_names_the_caller() {
-        let kept = Kept::default();
-
-        let line = line!() + 2;
-        with_layer(KmsgLayer::new(kept.clone(), "7", 42), || {
-            crate::debug!("one\ntwo");
-            Message::debug("three").emit();
-        });
-
-        assert_eq!(
-            kept.text(),
-            format!(
-                "<7>ZBM:[42]||one\n<7>ZBM:[42]|crates/zbm-trace/src/kmsg.rs,{line}|two\n\
-                 <7>ZBM:[42]|crates/zbm-trace/src/kmsg.rs,{}|three\n",
-                line + 1
-            )
-        );
-    }
-
-    #[test]
-    fn labelled_lines_are_written_as_the_suites_expect() {
-        let kept = Kept::default();
-
-        with_layer(KmsgLayer::new(kept.clone(), "0", 42).labelled(), || {
-            Message::info("one").emit();
-            Message::warning("two\nlines").emit();
-            Message::notice("three").emit();
-            Message::error("four").emit();
-            crate::debug!("");
-            crate::debug!("five");
-        });
-
-        assert_eq!(
-            kept.text(),
-            "INFO: one\nWARN: two\nlines\nNOTICE: three\nERROR: four\nDEBUG: five\n"
-        );
-    }
-
-    #[test]
-    fn invalid_levels_write_nothing() {
-        let kept = Kept::default();
-
-        with_layer(KmsgLayer::new(kept.clone(), "loud", 1), || {
-            crate::error!("lost");
-            assert!(!enabled(Level::Error));
-        });
-
-        assert_eq!(kept.text(), "");
-        assert!(kept.markers.lock().unwrap().is_empty());
-    }
-}
+mod tests;

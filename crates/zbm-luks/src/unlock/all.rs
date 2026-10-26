@@ -9,7 +9,6 @@ use zbm_config::spec::cmdline::luks::{LUKS, LUKS_KEY};
 use crate::config::{Mode, Options, load_config};
 use crate::device::{is_block_device, resolve_device};
 use crate::error::LuksError;
-use crate::mappings::Mapping;
 use crate::unlocker::Unlocker;
 
 use super::UnlockSummary;
@@ -197,8 +196,7 @@ impl Unlocker<'_> {
         let Some(mappings) = self.mappings().read() else {
             return 0;
         };
-        let mut closed = 0;
-        let mut keep: Vec<Mapping> = Vec::new();
+        let mut closed: Vec<String> = Vec::new();
         for mapping in mappings {
             let name = mapping.name.as_str();
             if mapping.auto == "1"
@@ -210,14 +208,13 @@ impl Unlocker<'_> {
                     mapping.device
                 );
                 if self.cryptsetup_close(name).is_ok() {
-                    closed += 1;
+                    closed.push(mapping.name.clone());
                     continue;
                 }
                 zbm_trace::warn!("unable to close {name}");
             }
-            keep.push(mapping);
         }
-        self.mappings().write(&keep);
-        closed
+        self.mappings().remove(&closed);
+        i64::try_from(closed.len()).unwrap_or(i64::MAX)
     }
 }
