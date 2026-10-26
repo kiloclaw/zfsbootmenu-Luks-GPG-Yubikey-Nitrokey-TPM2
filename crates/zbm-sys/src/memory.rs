@@ -302,6 +302,11 @@ impl Drop for Pages {
 mod tests {
     use super::*;
 
+    /// Held by the tests that make regions: `cargo test` runs them side by
+    /// side in one process, where one dropping its regions would change
+    /// the count another reads ([`live_regions`]).
+    static REGIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn a_process_can_make_itself_undumpable() {
         // Each test runs in a process of its own under nextest; under `cargo
@@ -312,6 +317,9 @@ mod tests {
 
     #[test]
     fn regions_are_whole_pages_of_zeros_that_keep_what_is_written() {
+        let _regions = REGIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let page = page_size();
         let mut pages = Pages::new(10).unwrap();
         assert_eq!(pages.len(), page);
@@ -330,6 +338,9 @@ mod tests {
 
     #[test]
     fn anonymous_regions_are_locked_when_asked_and_allowed() {
+        let _regions = REGIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let unlocked = Pages::new_anonymous(1, false).unwrap();
         assert_eq!(unlocked.protection(), Protection::Unlocked);
         // A page is far below any limit on locked memory.
@@ -357,6 +368,9 @@ mod tests {
 
     #[test]
     fn regions_stay_out_of_core_dumps_and_child_processes() {
+        let _regions = REGIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let anonymous = Pages::new_anonymous(1, true).unwrap();
         let flags = vm_flags(anonymous.bytes().as_ptr() as usize);
         for flag in [" dd", " wf", " lo"] {
