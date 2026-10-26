@@ -910,8 +910,9 @@ builds after the core tasks.
    (`Action::needs_console_on`); the menu names new snapshots and environments in a dialog, and reads each
    environment's snapshots with it. The rollback's safety snapshot of the prototype is gone: `zfs rollback -r`
    destroys it ([CHANGES-FROM-LEGACY.md](CHANGES-FROM-LEGACY.md)). Every VM test of the Rust images passes on `57e74b1`
-   (27 October 2026, 779 checks; the `oldzfs` tests not run). Left: VM tests of each change through the menu,
-   the diff's previews and packages, and the command palette's entries for the changes.
+   (27 October 2026, 779 checks), and so do the two `oldzfs` tests with OpenZFS 2.2 (39 checks with their setup).
+   Left: VM tests of each change through the menu, the diff's previews and packages, and the command palette's
+   entries for the changes.
 6. **The rest of the menu**: kernels and the command line editor, pools and LUKS volumes from the menu, recovery
    tools, help, power.
 7. **The exit**: `CHANGES-FROM-LEGACY.md`, the generated key binding section, the 10,000-snapshot performance test
