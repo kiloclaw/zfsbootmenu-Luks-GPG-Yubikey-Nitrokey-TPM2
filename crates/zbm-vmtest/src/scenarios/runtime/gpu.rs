@@ -27,14 +27,22 @@ use crate::vm::Vm;
 const VIRTIO: &str = "0000:00:09.0";
 
 /// The drivers of the two GPUs, one line each: the standard VGA's (vendor
-/// 0x1234) and the virtio GPU's, or `none`.
+/// 0x1234) and the virtio GPU's, or `none`. The image has no `readlink`
+/// or `basename`, so Bash finds the driver's directory itself.
 const DRIVERS: &str = "for d in /sys/bus/pci/devices/*; do \
     [ \"$(cat $d/vendor)\" = 0x1234 ] || continue; \
-    if [ -e $d/driver ]; then echo \"vga $(basename $(readlink $d/driver))\"; \
-    else echo 'vga none'; fi; done; \
-    v=$(ls -d /sys/bus/pci/devices/0000:00:09.0/virtio*/driver 2>/dev/null | head -n 1); \
-    if [ -n \"$v\" ]; then echo \"virtio $(basename $(readlink $v))\"; \
-    else echo 'virtio none'; fi";
+    if [ -e $d/driver ]; then p=$(cd $d/driver && pwd -P); echo \"vga ${p##*/}\"; \
+    else echo 'vga none'; fi; done; v=none; \
+    for p in /sys/bus/pci/devices/0000:00:09.0/virtio*/driver; do \
+    [ -e \"$p\" ] && v=$(cd \"$p\" && pwd -P) && v=${v##*/}; done; \
+    echo \"virtio $v\"";
+
+/// ZFSBootMenu's messages in the kernel log about the graphics drivers, and
+/// the start-up program's first, in their order. `zfsbootmenu-preinit`
+/// turns kernel messages on the console off before it loads the drivers,
+/// so they are not on the serial console.
+const KERNEL_LOG: &str =
+    "dmesg | grep -E 'ZFSBootMenu: (graphics|zbm.gpu|running init stage)' | head -n 20";
 
 /// What the image holds for the drivers, and what the kernel has: the
 /// image's list of drivers, its modprobe.d file, the drivers loaded, and
@@ -139,10 +147,10 @@ fn check(test: &Test, vm: &mut Vm<'_>, boot: &Boot) -> Result<()> {
         overrides.contains("zfsbootmenu-none") == left_alone,
         &format!("{label}: a driver override only for a GPU zbm.gpu leaves alone"),
     );
-    let log = super::serial_text(vm)?;
+    let (_, log) = vm.sh_show(KERNEL_LOG)?;
     let loaded = log.find("graphics: loaded virtio_gpu");
-    // The countdown, not the kernel's "Booting paravirtualized kernel"
-    let countdown = log.find("tplain/ROOT/be in");
+    // The start-up program, whose start-up view shows the countdown
+    let startup = log.find("running init stage");
     if boot.virtio == "none" {
         test.check(loaded.is_none(), &format!("{label}: no driver loaded"));
         test.check(
@@ -152,9 +160,9 @@ fn check(test: &Test, vm: &mut Vm<'_>, boot: &Boot) -> Result<()> {
     } else {
         test.check(
             loaded
-                .zip(countdown)
-                .is_some_and(|(loaded, countdown)| loaded < countdown),
-            &format!("{label}: the drivers load before the countdown"),
+                .zip(startup)
+                .is_some_and(|(loaded, startup)| loaded < startup),
+            &format!("{label}: the drivers load before start-up and its countdown"),
         );
     }
     Ok(())
