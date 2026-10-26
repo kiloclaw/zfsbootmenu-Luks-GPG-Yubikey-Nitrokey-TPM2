@@ -4,6 +4,44 @@ What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=r
 Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
 [REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md); step 7 completes it as the migration guide for the switch.
 
+## The shell: brush
+
+Rust images include [brush](https://github.com/reubeno/brush), a shell compatible with Bash and written in Rust, and
+the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut's `/bin/sh` and `/bin/bash`.
+`zbm.shell=bash` on the command line brings Bash back for everything below.
+
+### The recovery shell is brush
+
+- **Before:** `bash -i`, with readline.
+- **Now:** `brush -i`, which reads the same `/root/.bashrc`: the prompt, the aliases, `help`, `PROMPT_COMMAND` and
+  the completions stay. On the console on the display and over SSH, its line editor is reedline, with history hints
+  and syntax colours; on a serial line, which may not answer the terminal queries of reedline, it is brush's basic
+  line editor. `BASH_VERSION` is still set, for scripts that check it, and `BRUSH_VERSION` names brush's version. The
+  history goes to `~/.brush_history`. When brush cannot start, or ends within five seconds, the supervisor opens
+  `bash -i` instead; `bash` typed in the shell starts Bash too.
+- **Why:** one shell, in Rust like the rest of the runtime, with a better line editor.
+
+### Hooks run on brush
+
+- **Before:** hooks ran as programs; a script without a `#!` line ran on Bash.
+- **Now:** a hook whose first line names Bash or `sh` (`#!/bin/bash`, `#!/bin/sh`, `#!/usr/bin/env bash`), or that has
+  no `#!` line, runs on brush. Other hooks (Python, programs) run as before.
+- **Why:** hooks see the shell the recovery shell has. A hook that does not work on brush can name another
+  interpreter, or the whole image can use Bash with `zbm.shell=bash`.
+
+### SSH logins get brush
+
+- **Before:** the login shell of an SSH session was Bash.
+- **Now:** an interactive SSH login hands over to brush, when the runtime chose it. Commands run over SSH
+  (`ssh host zfsbootmenu`) are unchanged.
+- **Why:** the same shell wherever the user types.
+
+### What brush does not do yet
+
+brush 0.4 runs ZFSBootMenu's own shell libraries, which the recovery shell and hooks source. It does not have every
+feature of Bash: a script given on standard input fails where a `$(` substitution spans lines (a script file works).
+Its parser had a bug with `case` patterns inside `$( )`, which the image's brush has a fix for (`patches/README.md`).
+
 ## Snapshots and changes (R5 step 5)
 
 The snapshots view and the main view make the changes of the legacy menu: a new default, a snapshot, a rollback, a

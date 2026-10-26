@@ -145,6 +145,16 @@ passphrase stays in its memory. What the stages' programs print goes to the log 
 recovery shell still get the console. On a terminal that cannot run the menu, start-up keeps the console prompts.
 `CHANGES-FROM-LEGACY.md` lists what changes.
 
+### brush, the shell of Rust images
+
+Rust images now include brush 0.4, a shell compatible with Bash and written in Rust, as `/usr/bin/brush`. The
+recovery shell, hooks written for Bash or `sh`, interactive SSH logins and the runtime's own short scripts run on it;
+`zbm.shell=bash` brings Bash back, and the recovery shell falls back to Bash when brush does not start. On serial
+lines brush uses its basic line editor. GNU Bash stays in every image as dracut's `/bin/sh`. The image's brush has a
+fix for a parser bug with `case` patterns inside `$( )` (`patches/`). `make install` and the build container build
+and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds about 2.8 MB to a compressed image
+(9.0 MB stripped). `CHANGES-FROM-LEGACY.md` lists what changes.
+
 ### Fixes from the review of the Rust port
 
 - Rust images: a command line edited in the menu boots once, in place of the environment's own, without `root=` and

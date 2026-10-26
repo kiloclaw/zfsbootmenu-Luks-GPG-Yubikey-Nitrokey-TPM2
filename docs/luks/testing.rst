@@ -386,7 +386,8 @@ Following a boot
   machine's PS/2 keyboard out), the kernel console at 800x600, below the display's preferred mode
   (``video=Virtual-1:800x600``), with the mirror kept as ``mirror-start.txt``. The countdown must show, and the
   console's start must name an 800x600 display. A USB keyboard is then plugged in (``device_add usb-kbd``), and Escape
-  typed on it must open the menu and the recovery shell, as in ``runtime-rust-console``. In the shell, a screenshot
+  typed on it must open the menu and the recovery shell, as in ``runtime-rust-console``; the shell must be brush
+  (``echo zbm-brush-$BRUSH_VERSION`` prints a version). In the shell, a screenshot
   after ``printf '\e[H\e[2J\e[2 q'`` (a steady block) must have more pixels of the cursor's grey than one after the
   same with ``\e[6 q`` (a steady bar) (``cursor-block.ppm``, ``cursor-bar.ppm``); with Num Lock pressed, ``echo zbm-``
   and the keypad's 4 and 2 must print ``zbm-42``; ``echo zbm-$(echo console) > /dev/console`` must show
