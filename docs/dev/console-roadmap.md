@@ -14,12 +14,12 @@ of [dependencies.md](dependencies.md) apply, and the patch is offered upstream).
 
 | Area | What works |
 | --- | --- |
-| Display | A DRM dumb buffer on the first connected output, in its preferred mode; only damaged areas copied; handed back before `kexec`, taken again when `kexec` fails (`zbm console release`, `reattach`) |
-| Text | The image's PSF fonts, doubled where `zbm console-autosize` says; DejaVu Sans Mono through `swash`, hinted and anti-aliased; box drawing and block characters drawn to fill their cells; combining marks |
-| Colour | 16, 256 and true colour; bold drawn bright; dim, inverse, hidden, one kind of underline; palette changes by OSC 4 |
-| Terminal | Alacritty's state machine: alternate screen, scroll regions, character sets, synchronized updates; answers for cursor position, device attributes, colours and size |
-| Keys | XKB layouts through `kbvm` with dead keys; the Linux console's key sequences; cursor key mode (DECCKM); Caps Lock light; keyboards found when plugged in; keys read back after lost events |
-| Processes | A pseudo-terminal with sessions and job control (`setsid -c`); `zbm console layout`; the relay on the kernel console after the hand-over; a mirror of the screen's text for the VM tests |
+| Display | A DRM dumb buffer on the output the kernel console shows, in the mode it shows; only damaged areas copied, a scrolled screen moved; handed back before `kexec`, taken again with its screen when `kexec` fails (`zbm console release`, `reattach`) |
+| Text | The image's PSF fonts, doubled where `zbm console-autosize` says; DejaVu Sans Mono through `swash`, hinted and anti-aliased; box drawing and block characters drawn to fill their cells; combining marks; five kinds of underline in their own colour, strikeout |
+| Colour | 16, 256 and true colour; bold drawn bright; dim, inverse, hidden; palette changes by OSC 4 |
+| Terminal | Alacritty's state machine: alternate screen, scroll regions, character sets, synchronized updates; answers for cursor position, device attributes, colours and size; block, underline, bar and hollow cursors, blinking; one frame per burst of output |
+| Keys | XKB layouts through `kbvm` with dead keys; the Linux console's key sequences; cursor key mode (DECCKM); the keypad and Num Lock; Caps Lock and Num Lock lights; keyboards found when plugged in, none needed to start; keys read back after lost events |
+| Processes | A pseudo-terminal with sessions and job control (`setsid -c`); `/dev/console` on it (`TIOCCONS`); `zbm console layout`; the relay on the kernel console after the hand-over; a mirror of the screen's text for the VM tests |
 | Secrets | Typed bytes, the programs' output and the screen wiped; no scrollback; no clipboard (OSC 52); the process cannot be dumped |
 | Power | Woken by requests' signals and an inotify watch on `/dev/input`; asleep otherwise |
 
@@ -27,6 +27,9 @@ Done in `9645a64`: D1 the console sleeps while idle; D2 the screen's text is bui
 characters are drawn without copying their glyphs; D4 output and screen are wiped; D5 combining marks are drawn.
 The console's VM tests (`runtime-rust-console`, `runtime-rust-drm`) pass on it (27 October 2026, 39 checks with their
 setup).
+
+M1 is done in `fb1615c` to `4ccdd30`, each item named in its commit; the fuzz target `console_output` ran five minutes
+without a finding. Its VM test, `runtime-rust-console-start`, and the console's others wait for the maintainer's run.
 
 ## How the work runs
 
@@ -71,6 +74,12 @@ Goal: what users hit today on real machines.
 
 VM tests: a USB keyboard added after start-up (`device_add usb-kbd`), two monitors with the second one current, the
 cursor shapes of `printf '\e[5 q'`, and a hook writing to `/dev/console`.
+
+Done: `runtime-rust-console-start` starts without a keyboard, in the kernel console's mode (800x600, below the
+preferred one), plugs a USB keyboard in, and checks the cursor's shapes, the keypad with Num Lock, `/dev/console` (from
+the shell, which writes there as a hook does) and the screen across the hand-over. Two monitors are left to unit tests
+(`output::choose`) and testers' machines: QEMU's virtio GPU without a display lights every output it has, so none is
+dark for the console to skip.
 
 ## M2. A real terminal
 

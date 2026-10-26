@@ -295,6 +295,24 @@ from), `state` (the files of `/zfsbootmenu`, without key files), `journal` (the 
 `commands` (each program the runtime ran, its exit status and how long it took), `luks` (the LUKS volumes, their
 state and key methods) and `pools` (the pools and boot environments). They only read, and print no key material.
 
+### The console on the display: starts reliably, draws correctly
+
+The console of `zbm.console=drm` (milestone M1 of `docs/dev/console-roadmap.md`):
+
+- it starts without a keyboard, and takes a USB keyboard when it enumerates, where the boot stayed on the kernel
+  console;
+- it draws on the output the kernel console shows, in the mode it shows, rather than on the first connected one in its
+  preferred mode: a closed laptop's panel stays dark, and the monitor neither flickers nor loses its signal;
+- the cursor takes the shapes programs ask for (block, underline, bar) and blinks, as on the Linux console;
+- text is drawn with five kinds of underline (single, double, curly, dotted, dashed), in the colour programs give them,
+  and struck out;
+- a program that writes a lot is drawn once per burst of output, and a scrolled screen is moved rather than drawn
+  again;
+- the keypad types digits with Num Lock and moves the cursor without it; Num Lock starts as the keyboard's light shows
+  it, and the light follows it;
+- what hooks and tools write to `/dev/console` shows on the console, not on the kernel console it hides;
+- after a failed `kexec`, the console takes the display again with the screen it had, not a blank one.
+
 ### The console on the display: quieter, cleaner, accents
 
 Five fixes to the console of `zbm.console=drm`:
