@@ -9,7 +9,8 @@ pub mod shell;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
 pub use console::{
-    AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT, VCONSOLE_FONT,
+    AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
+    KEYBOARD_REPEAT, NUM_LOCK, VCONSOLE_FONT,
 };
 pub use graphics::{GPU, GPU_UNTESTED};
 pub use logs::SAVE_LOGS;
@@ -39,6 +40,8 @@ pub static ALL: &[&OptionSpec] = &[
     &DISPLAY_CONSOLE,
     &DISPLAY_CONSOLE_FONT,
     &KEYBOARD_LAYOUT,
+    &NUM_LOCK,
+    &KEYBOARD_REPEAT,
     &CONSOLE_MIRROR,
     &GPU,
     &GPU_UNTESTED,

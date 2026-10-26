@@ -100,6 +100,23 @@ pub const KEY_BITMAP: usize = 0x300 / 8;
 /// (`linux/input.h`), an `_IOR('E', 0x18, len)`.
 const EVIOCGKEY: c_ulong = 2 << 30 | (KEY_BITMAP as c_ulong) << 16 | 0x45 << 8 | 0x18;
 
+/// `EVIOCSREP`: sets the delay and period of an input device's key repeat
+/// (`linux/input.h`), an `_IOW('E', 0x03, unsigned int[2])`.
+const EVIOCSREP: c_ulong = 1 << 30 | 8 << 16 | 0x45 << 8 | 0x03;
+
+/// Has the input device open as `fd` repeat a key held for `delay`
+/// milliseconds every `period` milliseconds.
+///
+/// # Errors
+///
+/// When `fd` is not an input device, or one that repeats no keys.
+pub fn set_key_repeat(fd: i32, delay: u32, period: u32) -> io::Result<()> {
+    let values = [delay, period];
+    // SAFETY: `EVIOCSREP` reads two `unsigned int`s from the address it is
+    // given, which is `values`, alive for the call.
+    checked(unsafe { ioctl(fd, EVIOCSREP, values.as_ptr()) }).map(drop)
+}
+
 /// The key codes held down on the input device open as `fd`, as the kernel
 /// knows them now: after events were dropped, what a reader of the device
 /// resynchronises from.
@@ -169,14 +186,27 @@ pub fn set_keyboard_mode(fd: i32, mode: KeyboardMode) -> io::Result<()> {
     set_mode(fd, KDSKBMODE, mode.0)
 }
 
-/// A file to wait on: for data to read, and for room to write when
-/// `write` is set.
+/// A file to wait on: for data to read unless `read` is off, for room to
+/// write when `write` is set, and always for an error or a hang-up.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Watch {
     /// The file.
     pub fd: i32,
-    /// Whether to wait for room to write as well.
+    /// Whether to wait for data to read.
+    pub read: bool,
+    /// Whether to wait for room to write.
     pub write: bool,
+}
+
+impl Watch {
+    /// Waits on `fd` for data to read.
+    pub fn read(fd: i32) -> Watch {
+        Watch {
+            fd,
+            read: true,
+            write: false,
+        }
+    }
 }
 
 /// What a file waited on is ready for.
@@ -213,11 +243,7 @@ pub fn wait_ready(watches: &[Watch], timeout: Option<Duration>) -> io::Result<Ve
         .iter()
         .map(|watch| PollFd {
             fd: watch.fd,
-            events: if watch.write {
-                POLLIN | POLLOUT
-            } else {
-                POLLIN
-            },
+            events: if watch.read { POLLIN } else { 0 } | if watch.write { POLLOUT } else { 0 },
             revents: 0,
         })
         .collect();
@@ -251,7 +277,7 @@ pub fn wait_ready(watches: &[Watch], timeout: Option<Duration>) -> io::Result<Ve
 ///
 /// When `poll` fails other than by a signal.
 pub fn first_readable(fds: &[i32], timeout: Option<Duration>) -> io::Result<Option<usize>> {
-    let watches: Vec<Watch> = fds.iter().map(|&fd| Watch { fd, write: false }).collect();
+    let watches: Vec<Watch> = fds.iter().map(|&fd| Watch::read(fd)).collect();
     let ready = wait_ready(&watches, timeout)?;
     Ok(ready.iter().position(|ready| ready.is_ready()))
 }
@@ -289,6 +315,7 @@ mod tests {
 
         assert_eq!(codes_of(&bitmap), [1, 26, 0x2ff]);
         assert_eq!(EVIOCGKEY, 0x8060_4518);
+        assert_eq!(EVIOCSREP, 0x4008_4503);
     }
 
     #[test]
@@ -296,12 +323,10 @@ mod tests {
         let (mut a, a_end) = UnixStream::pair().unwrap();
         let (b, b_end) = UnixStream::pair().unwrap();
         let watches = [
-            Watch {
-                fd: a_end.as_raw_fd(),
-                write: false,
-            },
+            Watch::read(a_end.as_raw_fd()),
             Watch {
                 fd: b_end.as_raw_fd(),
+                read: true,
                 write: true,
             },
         ];

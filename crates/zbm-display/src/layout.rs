@@ -38,6 +38,10 @@ impl std::error::Error for LayoutError {}
 /// What a key typed: its character, when it has one, and the modifiers
 /// held.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each modifier is held or not"
+)]
 pub struct Typed {
     /// The character, or `None` for a key that types none, a dead key or a
     /// modifier.
@@ -52,6 +56,8 @@ pub struct Typed {
     pub ctrl: bool,
     /// Whether Alt was held.
     pub alt: bool,
+    /// Whether the logo key was held (`Mod4`, Super).
+    pub logo: bool,
 }
 
 /// A context that reads no file and no environment variable: keymaps and
@@ -151,6 +157,13 @@ impl Layout {
         zbm_sys::wipe_values(&mut self.events, Event::KeyUp(Keycode::from_evdev(0)));
     }
 
+    /// The accent of the dead key typed last, while the sequence it starts
+    /// waits for its next key.
+    pub fn pending_accent(&self) -> Option<char> {
+        let (table, _) = self.dead_keys.as_ref()?;
+        accent(table, self.dead?)
+    }
+
     /// Whether Caps Lock is on.
     pub fn is_caps_lock(&self) -> bool {
         self.components.mods_locked.contains(ModifierMask::LOCK)
@@ -194,6 +207,7 @@ impl Layout {
             shift: mods.contains(ModifierMask::SHIFT),
             ctrl: mods.contains(ModifierMask::CONTROL),
             alt: mods.contains(ModifierMask::ALT),
+            logo: mods.contains(ModifierMask::MOD4),
         };
         let keycode = Keycode::from_evdev(u32::from(code));
         // The character, not the control character of Ctrl-k: the console
@@ -248,4 +262,4 @@ fn single(string: Option<&str>) -> Option<char> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

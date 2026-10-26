@@ -34,6 +34,7 @@ use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
 use crate::run::{Ended, Shown, run};
 use crate::screen::Console;
+pub use layouts::{next_layout, switch_layout};
 
 /// What the mirror gets once the display is handed back.
 pub const RELEASED: &str = "zbm console: handed the display back";
@@ -84,6 +85,12 @@ pub struct Settings {
     /// The terminal description the programs run with, which the keys
     /// follow.
     pub flavour: crate::keys::Flavour,
+    /// Num Lock at the start (`zbm.numlock`); as the keyboards' light shows
+    /// it otherwise.
+    pub num_lock: Option<bool>,
+    /// The key repeat (`zbm.keyboard_repeat`): the delay and the period, in
+    /// milliseconds; the keyboards' own otherwise.
+    pub repeat: Option<(u32, u32)>,
 }
 
 impl Settings {
@@ -108,6 +115,8 @@ pub type LoadLayout<'l> = &'l mut dyn FnMut(&str) -> Result<Layout, String>;
 pub struct Layouts<'l> {
     /// The layout it starts with; the US layout without one.
     pub first: Option<Layout>,
+    /// The image's layouts, which Super+Space goes through in order.
+    pub names: Vec<String>,
     /// Loads the layouts `zbm console layout` asks for.
     pub load: LoadLayout<'l>,
 }
@@ -159,28 +168,6 @@ fn watch_devices(dev: &Path) -> Option<File> {
     )
     .ok()?;
     Some(File::from(watch))
-}
-
-/// Takes the request for a keyboard layout in `places`' state directory,
-/// and gives `keyboards` the layout when `load` has it; the state records
-/// the layout they type with before the request goes, which tells the
-/// process that asked.
-pub fn switch_layout(places: &Places, load: LoadLayout<'_>, keyboards: &mut Keyboards) {
-    let state = State::new(&RealFiles, &places.base);
-    if let Some(name) = state.console_layout_request() {
-        match load(&name) {
-            Ok(layout) => {
-                keyboards.set_layout(Some(layout));
-                places.log(6, &format!("keyboard {name}"));
-            }
-            Err(error) => {
-                let kept = keyboards.layout();
-                places.log(4, &format!("{error}; keeping keyboard {kept}"));
-            }
-        }
-    }
-    let _ = state.set_console_layout(keyboards.layout());
-    state.clear_console_layout_request();
 }
 
 /// The console of the boot image: the programs on standard input, the
@@ -257,7 +244,12 @@ pub fn serve_on(
         terminal,
         vt,
     } = terminals;
-    let (grid, Layouts { mut first, load }) = fonts;
+    let (grid, layouts) = fonts;
+    let Layouts {
+        mut first,
+        names,
+        load,
+    } = layouts;
     let state = State::new(&RealFiles, &places.base);
     // The console's terminal while the display is handed back: the relay
     // keeps its screen up, which a failed `kexec` finds again.
@@ -265,6 +257,7 @@ pub fn serve_on(
     loop {
         let layouts = Layouts {
             first: first.take(),
+            names: names.clone(),
             load: &mut *load,
         };
         let shown = on_display(
@@ -363,15 +356,22 @@ fn announce(settings: &Settings, places: &Places, started: &Started) {
     settings.mirror_line(&format!("zbm console: {text}"));
 }
 
-/// The keyboards there are, typing with `layout`. A USB keyboard may
-/// enumerate after the console starts: it starts without one, and the
-/// host adds it when it comes.
-fn open_keyboards(places: &Places, layout: Option<Layout>) -> Keyboards {
+/// The keyboards there are, typing with `layout`, with Num Lock and the
+/// key repeat of `settings`. A USB keyboard may enumerate after the
+/// console starts: it starts without one, and the host adds it when it
+/// comes.
+fn open_keyboards(settings: &Settings, places: &Places, layout: Option<Layout>) -> Keyboards {
     let mut keyboards = Keyboards::find(&places.sys, &places.dev);
     if keyboards.count() == 0 {
         places.log(5, "no keyboard yet; waiting for one");
     }
     keyboards.set_layout(layout);
+    if let Some(on) = settings.num_lock {
+        keyboards.set_num_lock(on);
+    }
+    if let Some((delay, period)) = settings.repeat {
+        keyboards.set_repeat(delay, period);
+    }
     keyboards
 }
 
@@ -413,8 +413,8 @@ fn on_display(
     let mut display = Display::open(&card)?;
     let size = display.size();
     let mut console = console_for(kept, grid, size)?.with_flavour(settings.flavour);
-    let Layouts { first, load } = layouts;
-    let keyboards = open_keyboards(places, first);
+    let Layouts { first, names, load } = layouts;
+    let keyboards = open_keyboards(settings, places, first);
     let taken = VirtualTerminal::take(vt)?;
     set_size(&*master, &console.window_size())?;
     let started = Started {
@@ -432,9 +432,7 @@ fn on_display(
         .and_then(open_mirror)
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
-    let switch: Switch<'_> = Box::new(|keyboards: &mut Keyboards| {
-        switch_layout(places, &mut *load, keyboards);
-    });
+    let switch = layouts::switcher(places, names, load);
     let mut host = real_host(&mut *master, keyboards, requests, &places.dev, switch);
     let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
@@ -551,6 +549,8 @@ pub fn request_layout(base: &Path, name: &str, timeout: Duration) -> io::Result<
         Ok(Switched::Late)
     }
 }
+
+mod layouts;
 
 #[cfg(test)]
 mod tests;

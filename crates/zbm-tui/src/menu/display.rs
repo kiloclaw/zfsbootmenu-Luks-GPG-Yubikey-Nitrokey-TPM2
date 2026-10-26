@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use ratatui::backend::{Backend, ClearType, WindowSize};
 use ratatui::buffer::Cell;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MediaKeyCode};
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::style::{Color, Modifier};
 use ratatui::{Terminal, TerminalOptions, Viewport};
@@ -24,7 +24,7 @@ use zbm_display::faces::FontFace;
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
-use zbm_display::keys::{Key, KeyPress};
+use zbm_display::keys::{Key, KeyPress, Media};
 use zbm_display::palette;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 
@@ -126,6 +126,18 @@ pub fn key_event(press: KeyPress) -> KeyEvent {
         Key::Insert => KeyCode::Insert,
         Key::Delete => KeyCode::Delete,
         Key::F(number) => KeyCode::F(number),
+        Key::Print => KeyCode::PrintScreen,
+        Key::Pause => KeyCode::Pause,
+        Key::Menu => KeyCode::Menu,
+        Key::Media(media) => KeyCode::Media(match media {
+            Media::Mute => MediaKeyCode::MuteVolume,
+            Media::VolumeDown => MediaKeyCode::LowerVolume,
+            Media::VolumeUp => MediaKeyCode::RaiseVolume,
+            Media::PlayPause => MediaKeyCode::PlayPause,
+            Media::Stop => MediaKeyCode::Stop,
+            Media::Next => MediaKeyCode::TrackNext,
+            Media::Previous => MediaKeyCode::TrackPrevious,
+        }),
     };
     let mut modifiers = KeyModifiers::NONE;
     // A character already says whether Shift was held.
@@ -137,6 +149,9 @@ pub fn key_event(press: KeyPress) -> KeyEvent {
     }
     if press.alt {
         modifiers |= KeyModifiers::ALT;
+    }
+    if press.logo {
+        modifiers |= KeyModifiers::SUPER;
     }
     KeyEvent::new(code, modifiers)
 }

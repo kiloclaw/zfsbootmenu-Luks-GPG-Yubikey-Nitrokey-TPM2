@@ -2,7 +2,8 @@
 //! (`zbm.console=drm`, ROADMAP.md #19), and with which arguments: the font
 //! height of `zbm.autosize=<pixels>`, the console fonts instead of the
 //! TrueType font (`zbm.console_font=psf`), the keyboard layout
-//! (`zbm.keyboard_layout`), and the mirror of the VM tests.
+//! (`zbm.keyboard_layout`), Num Lock (`zbm.numlock`), the key repeat
+//! (`zbm.keyboard_repeat`), and the mirror of the VM tests.
 
 use std::path::Path;
 
@@ -10,6 +11,7 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::cmdline::{
     AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
+    KEYBOARD_REPEAT, NUM_LOCK,
 };
 use zbm_platform::System;
 
@@ -40,6 +42,18 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
     {
         arguments.extend(["--layout".to_owned(), layout.trim().to_owned()]);
     }
+    if let Some(num_lock) = args
+        .lookup(&NUM_LOCK, &mut messages)
+        .filter(|value| matches!(value.trim(), "on" | "off"))
+    {
+        arguments.extend(["--numlock".to_owned(), num_lock.trim().to_owned()]);
+    }
+    if let Some(repeat) = args
+        .lookup(&KEYBOARD_REPEAT, &mut messages)
+        .filter(|value| crate::console::repeat(value).is_some())
+    {
+        arguments.extend(["--repeat".to_owned(), repeat.trim().to_owned()]);
+    }
     if let Some(mirror) = args
         .lookup(&CONSOLE_MIRROR, &mut messages)
         .filter(|mirror| !mirror.trim().is_empty())
@@ -47,6 +61,16 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
         arguments.extend(["--mirror".to_owned(), mirror.trim().to_owned()]);
     }
     Some(arguments)
+}
+
+/// The key repeat that `value` (`250,30`) asks for: the delay and the
+/// period in milliseconds, from a delay in milliseconds and a rate a
+/// second; `None` when it is not two numbers, or the rate is 0.
+pub fn repeat(value: &str) -> Option<(u32, u32)> {
+    let (delay, rate) = value.trim().split_once(',')?;
+    let delay: u32 = delay.trim().parse().ok()?;
+    let rate: u32 = rate.trim().parse().ok().filter(|&rate| rate > 0)?;
+    Some((delay, 1000 / rate.min(1000)))
 }
 
 /// The arguments of the console the image below `root` starts, from the
@@ -105,6 +129,25 @@ mod tests {
             console("zbm.console=drm zbm.console_mirror= zbm.keyboard_layout="),
             words("console")
         );
+        assert_eq!(
+            console("zbm.console=drm zbm.numlock=on zbm.keyboard_repeat=250,30"),
+            words("console --numlock on --repeat 250,30")
+        );
+        // Wrong values are left out: the console keeps the keyboards' own.
+        assert_eq!(
+            console("zbm.console=drm zbm.numlock=yes zbm.keyboard_repeat=fast"),
+            words("console")
+        );
+    }
+
+    #[test]
+    fn the_key_repeat_is_a_delay_and_a_rate() {
+        assert_eq!(repeat("250,30"), Some((250, 33)));
+        assert_eq!(repeat(" 500 , 1 "), Some((500, 1000)));
+        assert_eq!(repeat("200,5000"), Some((200, 1)));
+        for wrong in ["", "250", "250,0", "a,30", "250,30,1", "-1,30"] {
+            assert_eq!(repeat(wrong), None, "{wrong}");
+        }
     }
 
     #[test]

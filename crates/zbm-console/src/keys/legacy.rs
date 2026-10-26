@@ -9,9 +9,26 @@ use zbm_display::keys::{Key, KeyPress};
 use super::{Flavour, Modes};
 
 /// The parameter of the modifiers held, as xterm sends it: 1, plus 1 for
-/// Shift, 2 for Alt and 4 for Ctrl.
+/// Shift, 2 for Alt, 4 for Ctrl and 8 for the logo key (xterm's Meta,
+/// kitty's Super).
 pub fn modifier_parameter(press: KeyPress) -> u8 {
-    1 + u8::from(press.shift) + 2 * u8::from(press.alt) + 4 * u8::from(press.ctrl)
+    1 + u8::from(press.shift)
+        + 2 * u8::from(press.alt)
+        + 4 * u8::from(press.ctrl)
+        + 8 * u8::from(press.logo)
+}
+
+/// F13 to F24 on xterm: F1 to F12 with Shift, as its terminal description
+/// has them (`kf13=\E[1;2P`).
+fn xterm_function(press: KeyPress) -> KeyPress {
+    match press.key {
+        Key::F(number @ 13..=24) => KeyPress {
+            key: Key::F(number - 12),
+            shift: true,
+            ..press
+        },
+        _ => press,
+    }
 }
 
 /// The final character of the keys sent as `ESC [ final` or `ESC O final`:
@@ -42,7 +59,11 @@ fn number_of(key: Key, flavour: Flavour) -> Option<u8> {
         Key::PageDown => 6,
         Key::F(5) if xterm => 15,
         Key::F(number @ 6..=10) => number + 11,
-        Key::F(number @ 11..=12) => number + 12,
+        // F13 and F14 follow on the Linux console (`kf13=\E[25~` in its
+        // terminal description), then F15 to F20; it has no F21 to F24.
+        Key::F(number @ 11..=14) => number + 12,
+        Key::F(number @ 15..=16) => number + 13,
+        Key::F(number @ 17..=20) => number + 14,
         _ => return None,
     })
 }
@@ -50,6 +71,10 @@ fn number_of(key: Key, flavour: Flavour) -> Option<u8> {
 /// Appends the sequence of `press`, a key that types nothing, to `out`.
 pub fn sequence(press: KeyPress, modes: Modes, out: &mut Vec<u8>) {
     let flavour = modes.flavour;
+    let press = match flavour {
+        Flavour::Xterm => xterm_function(press),
+        Flavour::Linux => press,
+    };
     let parameter = match flavour {
         Flavour::Xterm => modifier_parameter(press),
         Flavour::Linux => 1,

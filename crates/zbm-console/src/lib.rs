@@ -9,6 +9,8 @@
 //! - [`screen`]: Alacritty's terminal, drawn as pixels with the image's
 //!   console font ([`colour`]: in the console's palette and beyond);
 //! - [`keys`]: key presses as the bytes of xterm or the Linux console;
+//! - [`typing`]: the keys the console takes for itself (Super+Space,
+//!   Ctrl+Shift+U);
 //! - [`run`]: the loop between the terminal, the display and the keyboards,
 //!   on a [`run::Host`] that tests replace;
 //! - [`host`]: the real one;
@@ -29,3 +31,4 @@ pub mod release;
 pub mod run;
 pub mod screen;
 pub mod serve;
+pub mod typing;

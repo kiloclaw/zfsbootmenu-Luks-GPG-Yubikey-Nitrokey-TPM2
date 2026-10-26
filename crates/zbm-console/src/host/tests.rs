@@ -91,6 +91,7 @@ fn the_host_waits_on_the_programs_the_keyboards_and_the_release() {
         shift: false,
         ctrl: false,
         alt: false,
+        logo: false,
         keypad: false,
     };
     assert_eq!(host.wait(timeout).unwrap(), Input::Keys(vec![a]));
@@ -116,7 +117,9 @@ fn a_layout_asked_for_reaches_the_keyboards() {
     let mut switched = Vec::new();
     let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false))).with_layouts(
         Arc::clone(&requested),
-        Box::new(|keyboards: &mut Keyboards| switched.push(keyboards.layout().to_owned())),
+        Box::new(|keyboards: &mut Keyboards, change| {
+            switched.push((keyboards.layout().to_owned(), change));
+        }),
     );
     let timeout = Duration::from_millis(10);
 
@@ -124,9 +127,45 @@ fn a_layout_asked_for_reaches_the_keyboards() {
     requested.store(true, Ordering::SeqCst);
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    // Super+Space asks for the next one.
+    host.next_layout();
+    // Not a terminal: nothing is shown as it is typed.
+    assert!(!host.is_echoing());
+    assert_eq!(host.pending_accent(), None);
     drop(host);
 
-    assert_eq!(switched, ["us"]);
+    let us = "us".to_owned();
+    assert_eq!(
+        switched,
+        [(us.clone(), Change::Requested), (us, Change::Next)]
+    );
+}
+
+#[test]
+fn scroll_lock_holds_the_programs_output() {
+    let (master, mut program) = UnixStream::pair().unwrap();
+    let (keyboard, mut typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let timeout = Duration::from_millis(10);
+
+    typing
+        .write_all(&[event(70, 1), event(70, 0)].concat())
+        .unwrap();
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    program.write_all(b"held").unwrap();
+    for _ in 0..3 {
+        assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    }
+    // Typed text still goes out while output is held.
+    host.send(b"q").unwrap();
+    let mut sent = [0_u8; 1];
+    program.read_exact(&mut sent).unwrap();
+    typing
+        .write_all(&[event(70, 1), event(70, 0)].concat())
+        .unwrap();
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    assert_eq!(host.wait(timeout).unwrap(), Input::Output(b"held".to_vec()));
 }
 
 #[test]

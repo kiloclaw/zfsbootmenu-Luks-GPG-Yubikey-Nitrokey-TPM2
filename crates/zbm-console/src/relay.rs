@@ -128,12 +128,10 @@ where
         // What is typed comes first, so that Ctrl-C reaches a program that
         // floods the terminal.
         let watches = [
-            Watch {
-                fd: self.terminal.as_fd().as_raw_fd(),
-                write: false,
-            },
+            Watch::read(self.terminal.as_fd().as_raw_fd()),
             Watch {
                 fd: self.master.as_fd().as_raw_fd(),
+                read: true,
                 write: !self.outgoing.is_empty(),
             },
         ];

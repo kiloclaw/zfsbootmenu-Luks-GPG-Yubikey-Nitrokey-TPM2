@@ -15,6 +15,7 @@ use zbm_display::keys::KeyPress;
 
 use crate::keys;
 use crate::screen::Console;
+use crate::typing::{Preview, Taken, Typing};
 
 /// How long the loop waits when nothing is due, so that a request to hand
 /// the display back is seen soon.
@@ -59,6 +60,21 @@ pub trait Host {
     /// host is woken by what it waits for, requests included.
     fn idle(&self) -> Duration {
         TICK
+    }
+
+    /// Switches the keyboards to the image's next layout (Super+Space).
+    fn next_layout(&mut self) {}
+
+    /// The accent of a dead key typed, while it waits for its next key.
+    fn pending_accent(&self) -> Option<char> {
+        None
+    }
+
+    /// Whether the programs' terminal echoes what is typed: what is being
+    /// typed is shown at the cursor only then, never at a passphrase
+    /// prompt.
+    fn is_echoing(&self) -> bool {
+        false
     }
 }
 
@@ -137,6 +153,7 @@ pub fn run(
     show(console, &mut shown);
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
+    let mut typing = Typing::default();
     loop {
         if let Some(shown) = shown.as_deref_mut() {
             shown.flush();
@@ -155,7 +172,7 @@ pub fn run(
         };
         let input = host.wait(timeout)?;
         let is_output = matches!(input, Input::Output(_));
-        if let Some(ended) = take(console, host, input)? {
+        if let Some(ended) = take(console, host, &mut typing, input)? {
             return Ok(ended);
         }
         let now = Instant::now();
@@ -171,10 +188,42 @@ pub fn run(
     }
 }
 
+/// Takes `presses`: the console's own keys through `typing`, the rest to
+/// the programs; then shows what is being typed at the cursor, when the
+/// programs' terminal echoes.
+fn take_keys(
+    console: &mut Console,
+    host: &mut dyn Host,
+    typing: &mut Typing,
+    presses: &[KeyPress],
+) -> io::Result<()> {
+    let mut kept = Vec::with_capacity(presses.len());
+    for &press in presses {
+        match typing.take(press) {
+            Taken::Type(press) => kept.push(press),
+            Taken::NextLayout => host.next_layout(),
+            Taken::Nothing => {}
+        }
+    }
+    let typed = type_keys(host, &kept, console.key_modes());
+    zbm_sys::wipe_values(&mut kept, KeyPress::BLANK);
+    let preview = typing
+        .preview()
+        .or_else(|| host.pending_accent().map(Preview::of))
+        .filter(|_| host.is_echoing());
+    console.set_preview(preview);
+    typed
+}
+
 /// Takes `input`: output to the terminal, wiped once fed, with the
-/// answers it owes sent; keys to the programs. Returns why the loop ends,
-/// when it does.
-fn take(console: &mut Console, host: &mut dyn Host, input: Input) -> io::Result<Option<Ended>> {
+/// answers it owes sent; keys to the programs, those of the console
+/// through `typing`. Returns why the loop ends, when it does.
+fn take(
+    console: &mut Console,
+    host: &mut dyn Host,
+    typing: &mut Typing,
+    input: Input,
+) -> io::Result<Option<Ended>> {
     match input {
         Input::Output(mut bytes) => {
             console.feed(&bytes);
@@ -185,7 +234,7 @@ fn take(console: &mut Console, host: &mut dyn Host, input: Input) -> io::Result<
             }
         }
         Input::Keys(mut presses) => {
-            let typed = type_keys(host, &presses, console.key_modes());
+            let typed = take_keys(console, host, typing, &presses);
             zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
             typed?;
         }

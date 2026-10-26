@@ -225,3 +225,21 @@ fn num_lock_turns_the_keypad_of_a_layout_into_digits() {
     decoder.set_num_lock(false);
     assert_eq!(key(&mut decoder, 79), Some(Key::End));
 }
+
+#[test]
+fn the_accent_of_a_dead_key_waits_until_the_next_key() {
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(german()));
+    let mut presses = Vec::new();
+    assert_eq!(decoder.pending_accent(), None);
+    decoder.feed_into(41, 1, &mut presses);
+    decoder.feed_into(41, 0, &mut presses);
+    assert_eq!(decoder.pending_accent(), Some('^'));
+    decoder.feed_into(18, 1, &mut presses);
+    assert_eq!(decoder.pending_accent(), None);
+    assert_eq!(presses.len(), 1);
+    // The Super key of a layout is a modifier, as on the US one.
+    decoder.feed_into(125, 1, &mut presses);
+    decoder.feed_into(57, 1, &mut presses);
+    assert!(presses.last().is_some_and(|press| press.logo));
+}

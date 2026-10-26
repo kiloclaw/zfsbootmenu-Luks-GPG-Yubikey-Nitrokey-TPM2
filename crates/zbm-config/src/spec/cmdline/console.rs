@@ -97,7 +97,23 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   The console translates keys with the first of the image's keyboard layouts
   (*zfsbootmenu_keyboard_layouts*), dead keys included, or with the one this option names. A layout
   the image lacks leaves the first, and an image without layouts reads keys on the US layout.
-  **zbm console layout** *name* switches layouts while the console runs.
+  **zbm console layout** *name* switches layouts while the console runs, and Super+Space goes to the
+  image's next layout.
+
+**zbm.numlock=on**
+
+  The console turns Num Lock on (*on*) or off (*off*) when it starts; otherwise it starts as the
+  keyboards' light shows it. Scroll Lock holds the programs' output, as on the kernel console, until
+  it is pressed again.
+
+**zbm.keyboard_repeat=<delay>,<rate>**
+
+  A key held repeats after *delay* milliseconds, *rate* times a second, on every keyboard; otherwise
+  the keyboards keep the kernel's repeat.
+
+Ctrl+Shift+U, then a code point in hexadecimal and Space or Enter, types any character; Escape
+cancels it. While a dead key or a code point waits for its next key, the console shows it at the
+cursor, except at a prompt that does not echo, such as a passphrase prompt.
 "#;
 
 /// `zbm.console_font`: which fonts the console on the display draws with.
@@ -130,6 +146,34 @@ pub static KEYBOARD_LAYOUT: OptionSpec = OptionSpec {
         "zbm.keyboard_layout=de",
         "zbm.keyboard_layout=de(nodeadkeys)",
     ],
+};
+
+/// `zbm.numlock`: Num Lock when the console on the display starts.
+pub static NUM_LOCK: OptionSpec = OptionSpec {
+    name: "zbm.numlock",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["on", "off"]),
+    default: None,
+    summary: "Num Lock when the console on the display starts: on or off",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.numlock=on"],
+};
+
+/// `zbm.keyboard_repeat`: the key repeat of the console on the display.
+pub static KEYBOARD_REPEAT: OptionSpec = OptionSpec {
+    name: "zbm.keyboard_repeat",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Text,
+    default: None,
+    summary: "The key repeat of the console on the display: delay (ms) and rate a second",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.keyboard_repeat=250,30"],
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text

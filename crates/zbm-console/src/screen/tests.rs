@@ -9,7 +9,7 @@
 use std::time::{Duration, Instant};
 
 use pretty_assertions::assert_eq;
-use zbm_display::frame::Rgb;
+use zbm_display::frame::{Area, Rgb};
 use zbm_types::psf::Font;
 
 use super::*;
@@ -372,3 +372,24 @@ fn a_wide_character_is_drawn_over_both_of_its_cells() {
 
 mod linux;
 mod reference;
+
+#[test]
+fn what_is_being_typed_is_drawn_underlined_at_the_cursor() {
+    let mut console = console();
+    console.feed(b"ab");
+    console.draw();
+    let before = colours(&mut console, 2, 0);
+    let preview = crate::typing::Preview::of('^');
+    console.set_preview(Some(preview));
+    console.draw();
+    assert_eq!(console.preview(), Some(preview));
+    // The accent in the text's colour, on the cell's background, not the
+    // cursor's block.
+    assert_eq!(colours(&mut console, 2, 0), [Rgb::BLACK, GREY]);
+    assert_ne!(colours(&mut console, 2, 0), before);
+    // The text of the screen is the programs' alone.
+    assert_eq!(console.text().lines().next(), Some("ab"));
+    console.set_preview(None);
+    console.draw();
+    assert_eq!(colours(&mut console, 2, 0), before);
+}

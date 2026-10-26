@@ -1,6 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use super::*;
+use zbm_display::keys::Media;
 
 const LINUX: Modes = Modes {
     flavour: Flavour::Linux,
@@ -21,6 +22,7 @@ fn press(key: Key, shift: bool, ctrl: bool, alt: bool) -> KeyPress {
         shift,
         ctrl,
         alt,
+        logo: false,
         keypad: false,
     }
 }
@@ -41,6 +43,7 @@ fn ctrl(key: Key) -> KeyPress {
 
 fn keypad(key: Key) -> KeyPress {
     KeyPress {
+        logo: false,
         keypad: true,
         ..press(key, false, false, false)
     }
@@ -135,7 +138,27 @@ fn the_linux_console_s_sequences_ignore_modifiers() {
     assert_eq!(plain(Key::End), b"\x1b[4~");
     assert_eq!(plain(Key::PageUp), b"\x1b[5~");
     assert_eq!(bytes(ctrl(Key::PageDown), LINUX), b"\x1b[6~");
-    assert_eq!(plain(Key::F(13)), b"");
+    // F13 to F20 as the Linux console's terminal description has them;
+    // there is no F21, nor a sequence for Print or the media keys.
+    assert_eq!(plain(Key::F(13)), b"\x1b[25~");
+    assert_eq!(plain(Key::F(15)), b"\x1b[28~");
+    assert_eq!(plain(Key::F(17)), b"\x1b[31~");
+    assert_eq!(plain(Key::F(20)), b"\x1b[34~");
+    assert_eq!(plain(Key::F(21)), b"");
+    assert_eq!(plain(Key::Print), b"");
+    assert_eq!(plain(Key::Media(Media::Mute)), b"");
+}
+
+#[test]
+fn xterm_s_f13_to_f24_are_f1_to_f12_with_shift_and_the_logo_key_is_meta() {
+    let xterm = |press| bytes(press, XTERM);
+    assert_eq!(xterm(press(Key::F(13), false, false, false)), b"\x1b[1;2P");
+    assert_eq!(xterm(press(Key::F(24), false, false, false)), b"\x1b[24;2~");
+    let logo = KeyPress {
+        logo: true,
+        ..press(Key::Left, false, false, false)
+    };
+    assert_eq!(xterm(logo), b"\x1b[1;9D");
 }
 
 #[test]
@@ -303,4 +326,36 @@ fn images_with_xterm_s_description_get_its_keys() {
         Flavour::of_image(has("/usr/share/terminfo/l/linux")),
         Flavour::Linux
     );
+}
+
+#[test]
+fn the_kitty_protocol_names_keys_without_sequences_and_the_logo_key() {
+    let kitty = Modes {
+        kitty: DISAMBIGUATE,
+        ..XTERM
+    };
+    let plain = |key| bytes(press(key, false, false, false), kitty);
+    assert_eq!(plain(Key::Print), b"\x1b[57361u");
+    assert_eq!(plain(Key::Pause), b"\x1b[57362u");
+    assert_eq!(plain(Key::Menu), b"\x1b[57363u");
+    assert_eq!(plain(Key::F(13)), b"\x1b[57376u");
+    assert_eq!(plain(Key::F(24)), b"\x1b[57387u");
+    let media = [
+        (Media::PlayPause, 57430),
+        (Media::Stop, 57432),
+        (Media::Next, 57435),
+        (Media::Previous, 57436),
+        (Media::VolumeDown, 57438),
+        (Media::VolumeUp, 57439),
+        (Media::Mute, 57440),
+    ];
+    for (key, code) in media {
+        assert_eq!(plain(Key::Media(key)), format!("\x1b[{code}u").as_bytes());
+    }
+    // A character with the logo key held is a key, not text.
+    let logo = KeyPress {
+        logo: true,
+        ..press(Key::Char('l'), false, false, false)
+    };
+    assert_eq!(bytes(logo, kitty), b"\x1b[108;9u");
 }

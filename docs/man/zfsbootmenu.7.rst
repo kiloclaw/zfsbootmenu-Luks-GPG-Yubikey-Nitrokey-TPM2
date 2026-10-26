@@ -240,7 +240,23 @@ These options are set on the kernel command line when booting the initramfs or U
     The console translates keys with the first of the image's keyboard layouts
     (*zfsbootmenu_keyboard_layouts*), dead keys included, or with the one this option names. A layout
     the image lacks leaves the first, and an image without layouts reads keys on the US layout.
-    **zbm console layout** *name* switches layouts while the console runs.
+    **zbm console layout** *name* switches layouts while the console runs, and Super+Space goes to the
+    image's next layout.
+
+  **zbm.numlock=on**
+
+    The console turns Num Lock on (*on*) or off (*off*) when it starts; otherwise it starts as the
+    keyboards' light shows it. Scroll Lock holds the programs' output, as on the kernel console, until
+    it is pressed again.
+
+  **zbm.keyboard_repeat=<delay>,<rate>**
+
+    A key held repeats after *delay* milliseconds, *rate* times a second, on every keyboard; otherwise
+    the keyboards keep the kernel's repeat.
+
+  Ctrl+Shift+U, then a code point in hexadecimal and Space or Enter, types any character; Escape
+  cancels it. While a dead key or a code point waits for its next key, the console shows it at the
+  cursor, except at a prompt that does not echo, such as a passphrase prompt.
 
 **zbm.gpu=0000:03:00.0**
 

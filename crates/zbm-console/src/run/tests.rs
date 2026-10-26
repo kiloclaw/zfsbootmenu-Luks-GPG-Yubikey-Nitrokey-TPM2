@@ -52,6 +52,9 @@ struct FakeHost {
     script: VecDeque<Input>,
     sent: Vec<u8>,
     waited: Vec<Duration>,
+    echoing: bool,
+    accent: Option<char>,
+    next_layouts: usize,
 }
 
 impl FakeHost {
@@ -60,6 +63,9 @@ impl FakeHost {
             script: script.into(),
             sent: Vec::new(),
             waited: Vec::new(),
+            echoing: true,
+            accent: None,
+            next_layouts: 0,
         }
     }
 }
@@ -78,6 +84,18 @@ impl Host for FakeHost {
         self.sent.extend_from_slice(bytes);
         Ok(())
     }
+
+    fn next_layout(&mut self) {
+        self.next_layouts += 1;
+    }
+
+    fn pending_accent(&self) -> Option<char> {
+        self.accent
+    }
+
+    fn is_echoing(&self) -> bool {
+        self.echoing
+    }
 }
 
 fn press(key: Key) -> KeyPress {
@@ -86,6 +104,7 @@ fn press(key: Key) -> KeyPress {
         shift: false,
         ctrl: false,
         alt: false,
+        logo: false,
         keypad: false,
     }
 }
@@ -283,4 +302,55 @@ fn a_screen_the_mirror_could_not_take_is_tried_again_soon() {
     assert_eq!(host.waited[0], MIRROR_RETRY);
     assert_eq!(*host.waited.last().unwrap(), TICK);
     assert!(!slow.shown.is_empty());
+}
+
+#[test]
+fn the_console_takes_its_own_keys_and_shows_what_is_being_typed() {
+    let ctrl_shift_u = KeyPress {
+        ctrl: true,
+        shift: true,
+        ..press(Key::Char('U'))
+    };
+    let super_space = KeyPress {
+        logo: true,
+        ..press(Key::Char(' '))
+    };
+    let mut console = console();
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    let mut host = FakeHost::new(vec![Input::Keys(vec![ctrl_shift_u]), chars("4")]);
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    // A code point being typed shows at the cursor; nothing went out.
+    assert_eq!(
+        console.preview().map(|preview| preview.chars().to_vec()),
+        Some(vec!['u', '4'])
+    );
+    assert!(host.sent.is_empty());
+
+    let mut console = self::console();
+    let script = vec![
+        Input::Keys(vec![ctrl_shift_u]),
+        chars("41 "),
+        Input::Keys(vec![super_space]),
+    ];
+    let mut host = FakeHost::new(script);
+    host.accent = Some('^');
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert_eq!(host.sent, b"A");
+    assert_eq!(host.next_layouts, 1);
+    // The dead key's accent waits at the cursor.
+    assert_eq!(
+        console.preview().map(|preview| preview.chars().to_vec()),
+        Some(vec!['^'])
+    );
+
+    // At a prompt that does not echo, nothing is shown.
+    let mut console = self::console();
+    let mut host = FakeHost::new(vec![Input::Keys(vec![ctrl_shift_u]), chars("4")]);
+    host.echoing = false;
+    host.accent = Some('^');
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert_eq!(console.preview(), None);
 }

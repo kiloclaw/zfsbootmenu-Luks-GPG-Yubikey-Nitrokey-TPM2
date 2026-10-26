@@ -37,6 +37,9 @@ const LED_NUML: u16 = 0;
 /// `LED_CAPSL`: the Caps Lock light.
 const LED_CAPSL: u16 = 1;
 
+/// `LED_SCROLLL`: the Scroll Lock light.
+const LED_SCROLLL: u16 = 2;
+
 /// How many events are read at once.
 const EVENTS: usize = 32;
 
@@ -193,9 +196,12 @@ pub struct Keyboards {
     places: Option<(PathBuf, PathBuf)>,
     decoder: Decoder,
     pending: Vec<KeyPress>,
-    /// The states of Caps Lock and Num Lock the lights show; `None` when
-    /// a keyboard came that does not show them yet.
-    lights: Option<(bool, bool)>,
+    /// The states of Caps Lock, Num Lock and Scroll Lock the lights show;
+    /// `None` when a keyboard came that does not show them yet.
+    lights: Option<[bool; 3]>,
+    /// The key repeat asked for, in milliseconds: the delay and the period,
+    /// which keyboards that come later get too.
+    repeat: Option<(u32, u32)>,
 }
 
 impl Keyboards {
@@ -243,7 +249,7 @@ impl Keyboards {
         // Num Lock as the keyboards showed it: the firmware or the kernel
         // console may have turned it on.
         found.decoder.set_num_lock(num_lock);
-        found.lights = Some((false, num_lock));
+        found.lights = Some([false, num_lock, false]);
         (found, failed)
     }
 
@@ -262,7 +268,8 @@ impl Keyboards {
             places: None,
             decoder: Decoder::new(),
             pending: Vec::with_capacity(PENDING),
-            lights: Some((false, false)),
+            lights: Some([false; 3]),
+            repeat: None,
         }
     }
 
@@ -279,6 +286,9 @@ impl Keyboards {
                 .iter()
                 .any(|device| device.path.as_ref() == Some(&path));
             if !known && let Ok(file) = open_device(&path) {
+                if let Some((delay, period)) = self.repeat {
+                    let _ = zbm_sys::console::set_key_repeat(file.as_raw_fd(), delay, period);
+                }
                 self.devices.push(Device {
                     file,
                     path: Some(path),
@@ -298,6 +308,32 @@ impl Keyboards {
     /// How many keyboards are open.
     pub fn count(&self) -> usize {
         self.devices.len()
+    }
+
+    /// Turns Num Lock on or off, on every keyboard (`zbm.numlock`).
+    pub fn set_num_lock(&mut self, on: bool) {
+        self.decoder.set_num_lock(on);
+        self.show_locks();
+    }
+
+    /// Has the keyboards repeat a key held for `delay` milliseconds every
+    /// `period` milliseconds, those that come later too.
+    pub fn set_repeat(&mut self, delay: u32, period: u32) {
+        self.repeat = Some((delay, period));
+        for device in &self.devices {
+            let _ = zbm_sys::console::set_key_repeat(device.file.as_raw_fd(), delay, period);
+        }
+    }
+
+    /// Whether Scroll Lock is on: the programs' output is held.
+    pub fn is_scroll_lock(&self) -> bool {
+        self.decoder.is_scroll_lock()
+    }
+
+    /// The accent of the dead key typed last, while it waits for the key it
+    /// goes on.
+    pub fn pending_accent(&self) -> Option<char> {
+        self.decoder.pending_accent()
     }
 
     /// Translates keys with `layout` from now on, or on the US layout.
@@ -366,16 +402,23 @@ impl Keyboards {
         }
     }
 
-    /// Lights Caps Lock and Num Lock on every keyboard when the console's
-    /// changed: the kernel does not, while the console reads the keys.
+    /// Lights Caps Lock, Num Lock and Scroll Lock on every keyboard when
+    /// the console's changed: the kernel does not, while the console reads
+    /// the keys.
     fn show_locks(&mut self) {
-        let now = (self.decoder.is_caps_lock(), self.decoder.is_num_lock());
+        let decoder = &self.decoder;
+        let now = [
+            decoder.is_caps_lock(),
+            decoder.is_num_lock(),
+            decoder.is_scroll_lock(),
+        ];
         if self.lights == Some(now) {
             return;
         }
         self.lights = Some(now);
-        let mut records = led_records(LED_CAPSL, now.0);
-        records.extend(led_records(LED_NUML, now.1));
+        let mut records = led_records(LED_CAPSL, now[0]);
+        records.extend(led_records(LED_NUML, now[1]));
+        records.extend(led_records(LED_SCROLLL, now[2]));
         for device in &mut self.devices {
             let _ = device.file.write_all(&records);
         }

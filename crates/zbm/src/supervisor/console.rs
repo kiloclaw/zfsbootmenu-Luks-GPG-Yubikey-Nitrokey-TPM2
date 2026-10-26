@@ -137,10 +137,7 @@ impl Attached {
     /// Whether the terminal was hung up: the console closed its side,
     /// which it does only as it ends. Programs started on it end at once.
     pub fn is_hung_up(&self) -> bool {
-        let watch = Watch {
-            fd: self.slave.as_raw_fd(),
-            write: false,
-        };
+        let watch = Watch::read(self.slave.as_raw_fd());
         wait_ready(&[watch], Some(Duration::ZERO))
             .is_ok_and(|ready| ready.iter().any(|ready| ready.closed))
     }

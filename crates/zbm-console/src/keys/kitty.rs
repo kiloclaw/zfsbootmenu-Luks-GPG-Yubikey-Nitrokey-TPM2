@@ -13,7 +13,7 @@
 
 use std::io::Write as _;
 
-use zbm_display::keys::{Key, KeyPress};
+use zbm_display::keys::{Key, KeyPress, Media};
 
 use super::legacy::modifier_parameter;
 
@@ -26,6 +26,28 @@ pub const ALL_KEYS: u8 = 8;
 
 /// With [`ALL_KEYS`], the text a key types follows its modifiers.
 pub const TEXT: u8 = 16;
+
+/// The protocol's code of a key that has no sequence without it: F13 to
+/// F24, Print, Pause, Menu and the media keys, in the Unicode private use
+/// area.
+fn functional_code(key: Key) -> Option<u32> {
+    Some(match key {
+        Key::F(number @ 13..=24) => 57376 + u32::from(number - 13),
+        Key::Print => 57361,
+        Key::Pause => 57362,
+        Key::Menu => 57363,
+        Key::Media(media) => match media {
+            Media::PlayPause => 57430,
+            Media::Stop => 57432,
+            Media::Next => 57435,
+            Media::Previous => 57436,
+            Media::VolumeDown => 57438,
+            Media::VolumeUp => 57439,
+            Media::Mute => 57440,
+        },
+        _ => return None,
+    })
+}
 
 /// The code of a character key: the character, lower case for a letter
 /// typed with Shift.
@@ -52,7 +74,7 @@ fn write_key(out: &mut Vec<u8>, code: u32, parameter: u8, text: Option<char>) {
 pub fn encode(press: KeyPress, flags: u8, out: &mut Vec<u8>) -> Option<()> {
     let all = flags & ALL_KEYS != 0;
     let parameter = modifier_parameter(press);
-    let held = press.ctrl || press.alt;
+    let held = press.ctrl || press.alt || press.logo;
     let code = match press.key {
         Key::Char(c) => {
             if !all && !held {
@@ -78,7 +100,7 @@ pub fn encode(press: KeyPress, flags: u8, out: &mut Vec<u8>) -> Option<()> {
             );
             return Some(());
         }
-        _ => return None,
+        key => functional_code(key)?,
     };
     write_key(out, code, parameter, None);
     Some(())

@@ -49,6 +49,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
         };
         let layouts = Layouts {
             first: None,
+            names: Vec::new(),
             load: &mut |name: &str| Err(format!("{name}: not in this image")),
         };
         let served = serve_on(
@@ -257,6 +258,7 @@ fn the_start_is_announced_with_the_font_and_the_layout() {
     assert_eq!(state.console_layout().as_deref(), Some("de"));
     let layouts = Layouts {
         first: None,
+        names: Vec::new(),
         load: &mut |name: &str| Err(name.to_owned()),
     };
     assert_eq!(format!("{layouts:?}"), "Layouts { first: None, .. }");
@@ -269,6 +271,7 @@ fn without_a_virtual_terminal_the_console_cannot_serve() {
     let mut grid = |_| Err(io::Error::other("no font"));
     let layouts = Layouts {
         first: None,
+        names: Vec::new(),
         load: &mut |name: &str| Err(name.to_owned()),
     };
 
@@ -303,4 +306,38 @@ fn a_new_input_device_and_a_request_s_signal_wake_the_console() {
         }
     };
     assert!(woken > 0);
+}
+
+#[test]
+fn super_space_goes_to_the_image_s_next_layout() {
+    let dir = TempDir::new("zbm-console-next");
+    let places = places(&dir);
+    let mut keyboards = Keyboards::from_files(Vec::new());
+    let mut asked = Vec::new();
+    let names = ["de".to_owned(), "fr".to_owned()];
+    // Typing on the US layout, which is not among them: the first.
+    next_layout(
+        &places,
+        &names,
+        &mut |name: &str| {
+            asked.push(name.to_owned());
+            Err(format!("{name}: not in this image"))
+        },
+        &mut keyboards,
+    );
+    assert_eq!(asked, ["de"]);
+    assert_eq!(keyboards.layout(), "us");
+    let log = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert!(
+        log.contains("<4>ZFSBootMenu: console: de: not in this image"),
+        "{log}"
+    );
+    // Without layouts, nothing to switch to.
+    next_layout(
+        &places,
+        &[],
+        &mut |name: &str| Err(name.to_owned()),
+        &mut keyboards,
+    );
+    assert_eq!(keyboards.layout(), "us");
 }

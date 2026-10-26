@@ -25,15 +25,18 @@ use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as TermRgb};
-use zbm_display::frame::{Area, Frame, Rgb};
-use zbm_display::grid::{CellStyle, Grid, Neighbour, Text};
+use zbm_display::frame::Frame;
+use zbm_display::grid::{Grid, Neighbour, Text};
 
 use crate::colour::{self, Shown};
 use crate::keys::{self, Flavour, Modes};
+use crate::typing::Preview;
 pub use blink::BLINK;
+use look::{draw_cursor, look};
 use scroll::Shift;
 
 mod blink;
+mod look;
 mod scroll;
 
 /// The events of the terminal, kept until the console handles them.
@@ -63,14 +66,21 @@ pub struct Console {
     drawn_rows: Vec<Option<u64>>,
     /// The terminal description the programs read keys through.
     flavour: Flavour,
+    /// What is being typed, shown at the cursor.
+    preview: Option<Preview>,
+    /// Whether the screen must be drawn again as a whole: what it shows
+    /// besides the terminal changed.
+    redraw: bool,
 }
 
-/// The cursor as drawn: where, and its shape.
+/// The cursor as drawn: where, its shape (hidden while it blinks off),
+/// and what is being typed, shown from there.
 #[derive(Clone, Copy, Debug)]
 struct Cursor {
     line: usize,
     column: usize,
     shape: CursorShape,
+    preview: Option<Preview>,
 }
 
 impl std::fmt::Debug for Console {
@@ -125,6 +135,8 @@ impl Console {
             text_blink: blink::Text::default(),
             drawn_rows: vec![None; usize::from(rows)],
             flavour: Flavour::Linux,
+            preview: None,
+            redraw: false,
         };
         console.draw();
         console
@@ -264,8 +276,9 @@ impl Console {
         };
         self.term.reset_damage();
         let cursor = self.drawn_cursor();
+        let is_whole = self.text_blink.has_turned() | std::mem::take(&mut self.redraw);
         let drawn = match damaged {
-            Some(lines) if !self.text_blink.has_turned() => self.draw_lines(&lines, cursor),
+            Some(lines) if !is_whole => self.draw_lines(&lines, cursor),
             _ => self.draw_screen(cursor),
         };
         self.text_blink.follow(self.has_blinking_text());
@@ -290,15 +303,34 @@ impl Console {
         }
     }
 
+    /// What is shown at the cursor as it is typed.
+    pub fn preview(&self) -> Option<Preview> {
+        self.preview
+    }
+
+    /// Shows `preview` at the cursor, until it is `None`.
+    pub fn set_preview(&mut self, preview: Option<Preview>) {
+        if self.preview != preview {
+            self.preview = preview;
+            self.redraw = true;
+        }
+    }
+
     /// Where the cursor is drawn, and its shape: nowhere while it is
-    /// hidden, or blinked off.
+    /// hidden, or blinked off, unless something is being typed there.
     fn drawn_cursor(&self) -> Option<Cursor> {
         let cursor = self.term.renderable_content().cursor;
         let line = usize::try_from(cursor.point.line.0).ok()?;
-        (cursor.shape != CursorShape::Hidden && !self.blink.off).then_some(Cursor {
+        let is_shown = cursor.shape != CursorShape::Hidden && !self.blink.off;
+        (is_shown || self.preview.is_some()).then_some(Cursor {
             line,
             column: cursor.point.column.0,
-            shape: cursor.shape,
+            shape: if is_shown {
+                cursor.shape
+            } else {
+                CursorShape::Hidden
+            },
+            preview: self.preview,
         })
     }
 
@@ -477,75 +509,6 @@ impl Console {
                 text.trim_end().to_owned() + "\n"
             })
             .collect()
-    }
-}
-
-/// What the cell of `term` at (line, column) shows as the screen is
-/// `shown`: its character, its style, its combining marks, and the shape
-/// of `cursor` when it is over it.
-fn look(
-    term: &Term<Events>,
-    (line, column): (usize, usize),
-    cursor: Option<Cursor>,
-    shown: Shown,
-) -> Option<(char, CellStyle, &[char], Option<CursorShape>)> {
-    let row = i32::try_from(line).ok()?;
-    let grid = term.grid();
-    if line >= grid.screen_lines() || column >= grid.columns() {
-        return None;
-    }
-    let cell = &grid[Line(row)][Column(column)];
-    let shape = cursor
-        .filter(|cursor| cursor.line == line && cursor.column == column)
-        .map(|cursor| cursor.shape);
-    let colours = term.colors();
-    let style = colour::shown(colour::style(colours, cell), cell.flags, shown);
-    let style = if shape == Some(CursorShape::Block) {
-        colour::cursor(colours, style)
-    } else {
-        style
-    };
-    let c = if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
-        ' '
-    } else {
-        cell.c
-    };
-    Some((c, style, cell.zerowidth().unwrap_or_default(), shape))
-}
-
-/// Draws a cursor of `shape` other than the block, which swaps the cell's
-/// colours, over `area`, in `colour`: an underline, a bar on the left, or
-/// a hollow box, as thick as an eighth of the cell's width.
-fn draw_cursor(frame: &mut Frame, area: Area, shape: CursorShape, colour: Rgb) {
-    let thickness = (area.width / 8).max(1);
-    let bottom = Area {
-        y: area.y + area.height.saturating_sub(thickness),
-        height: thickness.min(area.height),
-        ..area
-    };
-    let left = Area {
-        width: thickness.min(area.width),
-        ..area
-    };
-    let parts = match shape {
-        CursorShape::Underline => vec![bottom],
-        CursorShape::Beam => vec![left],
-        CursorShape::HollowBlock => vec![
-            bottom,
-            left,
-            Area {
-                height: bottom.height,
-                ..area
-            },
-            Area {
-                x: area.x + area.width.saturating_sub(thickness),
-                ..left
-            },
-        ],
-        CursorShape::Block | CursorShape::Hidden => Vec::new(),
-    };
-    for part in parts {
-        frame.fill(part, colour);
     }
 }
 

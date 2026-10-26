@@ -170,9 +170,18 @@ pub fn set_size(master: impl AsFd, size: &WindowSize) -> io::Result<()> {
     termios::tcsetwinsize(master, winsize).map_err(io::Error::from)
 }
 
-/// What the console does when asked for another keyboard layout: takes
-/// the request and gives the keyboards the layout.
-pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards) + 'h>;
+/// Which keyboard layout is asked for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Change {
+    /// The one `zbm console layout` asked for.
+    Requested,
+    /// The image's next one (Super+Space).
+    Next,
+}
+
+/// What the console does when another keyboard layout is asked for: gives
+/// the keyboards the layout.
+pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards, Change) + 'h>;
 
 /// How long the loop waits when the host is woken by everything it waits
 /// for: once a minute is a safety net, not a poll.
@@ -294,22 +303,17 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// the wake-up and the device watch when it has them; and how many
     /// keyboards come first.
     fn watches(&self) -> (Vec<Watch>, usize) {
-        let mut watches: Vec<Watch> = self
-            .keyboards
-            .fds()
-            .into_iter()
-            .map(|fd| Watch { fd, write: false })
-            .collect();
+        let mut watches: Vec<Watch> = self.keyboards.fds().into_iter().map(Watch::read).collect();
         let count = watches.len();
+        // Scroll Lock holds the programs' output: it waits in the terminal,
+        // and they wait once it is full, as on the kernel console.
         watches.push(Watch {
             fd: self.master.as_fd().as_raw_fd(),
+            read: !self.keyboards.is_scroll_lock(),
             write: !self.outgoing.is_empty(),
         });
         for file in [&self.wake, &self.devices].into_iter().flatten() {
-            watches.push(Watch {
-                fd: file.as_raw_fd(),
-                write: false,
-            });
+            watches.push(Watch::read(file.as_raw_fd()));
         }
         (watches, count)
     }
@@ -336,7 +340,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         if let Some((requested, switch)) = &mut self.layout
             && requested.swap(false, Ordering::SeqCst)
         {
-            switch(&mut self.keyboards);
+            switch(&mut self.keyboards, Change::Requested);
         }
     }
 }
@@ -362,7 +366,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         if let Some(keys) = self.keys(keyboards)? {
             return Ok(keys);
         }
-        if master.read || master.closed {
+        if (master.read && !self.keyboards.is_scroll_lock()) || master.closed {
             return read_output(&mut self.master);
         }
         if self.release.load(Ordering::SeqCst) {
@@ -389,6 +393,21 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.outgoing.push(bytes);
         self.outgoing.flush(&mut self.master)
+    }
+
+    fn next_layout(&mut self) {
+        if let Some((_, switch)) = &mut self.layout {
+            switch(&mut self.keyboards, Change::Next);
+        }
+    }
+
+    fn pending_accent(&self) -> Option<char> {
+        self.keyboards.pending_accent()
+    }
+
+    fn is_echoing(&self) -> bool {
+        termios::tcgetattr(&self.master)
+            .is_ok_and(|modes| modes.local_modes.contains(termios::LocalModes::ECHO))
     }
 }
 

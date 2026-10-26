@@ -13,7 +13,7 @@
 //!
 //! ```text
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
-//!             [--mirror <file>]
+//!             [--numlock on|off] [--repeat <delay>,<rate>] [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
@@ -25,7 +25,10 @@
 //!
 //! Keys are translated with the image's first keyboard layout, or the one
 //! `--layout` names (ROADMAP.md #19, step 4); `zbm console layout` names
-//! the layout and the others of the image, or switches to another.
+//! the layout and the others of the image, or switches to another, as
+//! Super+Space does. `--numlock` turns Num Lock on or off at the start, and
+//! `--repeat` sets the keyboards' repeat: a delay in milliseconds and a
+//! rate a second.
 //!
 //! The console draws with the image's TrueType font, in cells as high as
 //! the console font `zbm console-autosize` would choose, with its bold,
@@ -54,7 +57,7 @@ use crate::{Io, USAGE};
 /// The usage text.
 const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
-                   [--mirror <file>]
+                   [--numlock on|off] [--repeat <delay>,<rate>] [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -74,6 +77,10 @@ pub struct Options {
     pub psf: bool,
     /// The keyboard layout asked for; the image's first otherwise.
     pub layout: Option<String>,
+    /// Num Lock at the start; as the keyboards show it otherwise.
+    pub num_lock: Option<bool>,
+    /// The key repeat: the delay and the period, in milliseconds.
+    pub repeat: Option<(u32, u32)>,
     /// Where to write the screen's text.
     pub mirror: Option<PathBuf>,
 }
@@ -88,6 +95,14 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--height" => options.height = Some(args.next()?.parse().ok()?),
             "--mirror" => options.mirror = Some(PathBuf::from(args.next()?)),
             "--layout" => options.layout = Some(args.next()?.clone()),
+            "--numlock" => {
+                options.num_lock = match args.next()?.as_str() {
+                    "on" => Some(true),
+                    "off" => Some(false),
+                    _ => return None,
+                };
+            }
+            "--repeat" => options.repeat = Some(zbm_startup::console::repeat(args.next()?)?),
             "--psf" => options.psf = true,
             _ => return None,
         }
@@ -192,6 +207,8 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         card: options.card.clone(),
         mirror: options.mirror.clone(),
         flavour: zbm_console::keys::Flavour::of_image(|path| files.exists(path)),
+        num_lock: options.num_lock,
+        repeat: options.repeat,
     };
     let places = Places::system();
     let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
@@ -201,6 +218,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     let mut load = |name: &str| crate::layouts::load(&files, directory, name);
     let layouts = Layouts {
         first,
+        names: crate::layouts::available(&files, directory),
         load: &mut load,
     };
     match serve(&settings, &places, &mut grid, layouts) {
@@ -274,9 +292,16 @@ mod tests {
                 height: Some(32),
                 psf: false,
                 layout: None,
+                num_lock: None,
+                repeat: None,
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
             })
         );
+        let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();
+        assert_eq!((keys.num_lock, keys.repeat), (Some(true), Some((250, 33))));
+        assert_eq!(parse(&args("--numlock off")).unwrap().num_lock, Some(false));
+        assert_eq!(parse(&args("--numlock yes")), None);
+        assert_eq!(parse(&args("--repeat fast")), None);
         assert_eq!(parse(&[]), Some(Options::default()));
         assert!(parse(&args("--psf")).unwrap().psf);
         let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;

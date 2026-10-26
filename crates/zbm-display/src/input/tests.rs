@@ -220,6 +220,6 @@ fn num_lock_starts_as_the_keyboards_show_it() {
     typing.write_all(&event(EV_KEY, 79, 1)).unwrap();
     let typed = keyboards.read_device(0).unwrap();
     assert_eq!(typed[0].key, crate::keys::Key::Char('1'));
-    assert_eq!(keyboards.lights, Some((false, true)));
+    assert_eq!(keyboards.lights, Some([false, true, false]));
     std::fs::remove_dir_all(&root).unwrap();
 }
