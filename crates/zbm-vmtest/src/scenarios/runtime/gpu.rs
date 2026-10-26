@@ -27,8 +27,8 @@ use crate::vm::Vm;
 const VIRTIO: &str = "0000:00:09.0";
 
 /// The drivers of the two GPUs, one line each: the standard VGA's (vendor
-/// 0x1234) and the virtio GPU's, or `none`. The image has no `readlink`
-/// or `basename`, so Bash finds the driver's directory itself.
+/// 0x1234) and the virtio GPU's, or `none`. The image has no `basename`,
+/// so Bash finds the name of the driver's directory itself.
 const DRIVERS: &str = "for d in /sys/bus/pci/devices/*; do \
     [ \"$(cat $d/vendor)\" = 0x1234 ] || continue; \
     if [ -e $d/driver ]; then p=$(cd $d/driver && pwd -P); echo \"vga ${p##*/}\"; \
