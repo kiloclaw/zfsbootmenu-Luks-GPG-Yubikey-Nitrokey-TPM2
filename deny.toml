@@ -34,6 +34,12 @@ allow = [
 # (REFACTOR-ROADMAP.md, "Decisions").
 exceptions = [
     { crate = "nucleo-matcher", allow = ["MPL-2.0"] },
+    # brush, the shell of the Rust images (REFACTOR-ROADMAP.md, "Decisions"), brings two permissive licences: the
+    # terminal database reader of its line editor (WTFPL), and the macro that names its version from git at build
+    # time (BSD-2-Clause), which no image contains.
+    { crate = "terminfo", allow = ["WTFPL"] },
+    { crate = "git-version", allow = ["BSD-2-Clause"] },
+    { crate = "git-version-macro", allow = ["BSD-2-Clause"] },
 ]
 
 [bans]

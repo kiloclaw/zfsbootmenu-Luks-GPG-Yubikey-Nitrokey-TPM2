@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "d17d20fa7d0088cf81f91c59c9453d81f90ee93a"
+  },
+  "path_in_vcs": "crates/normalize-path"
+}

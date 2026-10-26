@@ -85,9 +85,9 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "front ends",
-        purpose: "The menus, the console on the display and the multi-call binary, whose \
-                  applets start the programs",
-        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm"],
+        purpose: "The menus, the console on the display, the shell and the multi-call binary, \
+                  whose applets start the programs",
+        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm-brush", "zbm"],
     },
 ];
 
@@ -119,6 +119,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm", &["serde_json", "tracing"]),
     ("zbm-app", &["serde_json", "thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
+    ("zbm-brush", &["brush-shell"]),
     ("zbm-config", &["thiserror"]),
     (
         "zbm-console",

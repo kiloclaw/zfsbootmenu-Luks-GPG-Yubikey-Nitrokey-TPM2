@@ -1,0 +1,108 @@
+use alloc::vec::Vec;
+use core::mem::size_of_val;
+use core::slice;
+
+/// Sparse array of size `8⋅size_of::<usize>()`.  The space used is proportional to the number of
+/// elements set.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SparseArrayUsize<T> {
+    bitmap: usize,
+    array: Vec<T>,
+}
+
+#[inline(always)]
+fn map_index(bitmap: usize, virtual_index: usize) -> Option<usize> {
+    match bitmap & (1_usize << virtual_index) {
+        0 => None,
+        _ => Some(rank(bitmap, virtual_index)),
+    }
+}
+
+/// Returns the number of elements set in indexes preceding `virtual_index`.
+#[inline(always)]
+fn rank(bitmap: usize, virtual_index: usize) -> usize {
+    let mask = (1_usize << virtual_index) - 1;
+
+    (bitmap & mask).count_ones() as usize
+}
+
+impl<T> SparseArrayUsize<T> {
+    pub fn new() -> SparseArrayUsize<T> {
+        SparseArrayUsize { bitmap: 0, array: Vec::new() }
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&T> {
+        debug_assert!(index < 8 * size_of_val(&self.bitmap));
+
+        map_index(self.bitmap, index).map(|i| &self.array[i])
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        debug_assert!(index < 8 * size_of_val(&self.bitmap));
+
+        map_index(self.bitmap, index).map(move |i| &mut self.array[i])
+    }
+
+    #[inline]
+    pub fn first(&self) -> Option<&T> {
+        self.array.first()
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        self.array.pop()
+    }
+
+    #[cfg(feature = "rayon")]
+    pub(crate) fn as_slice(&self) -> &[T] {
+        self.array.as_slice()
+    }
+
+    pub fn set(&mut self, index: usize, value: T) {
+        debug_assert!(index < 8 * size_of_val(&self.bitmap));
+
+        match map_index(self.bitmap, index) {
+            Some(i) => self.array[i] = value,
+            None => {
+                let i = rank(self.bitmap, index);
+
+                self.bitmap |= 1 << index;
+                self.array.insert(i, value);
+            }
+        }
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        if let Some(i) = map_index(self.bitmap, index) {
+            self.bitmap ^= 1 << index;
+            self.array.remove(i);
+        }
+    }
+
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.bitmap.count_ones() as usize
+    }
+
+    pub fn iter(&self) -> slice::Iter<'_, T> {
+        self.array.iter()
+    }
+}
+
+impl<T: Clone> Clone for SparseArrayUsize<T> {
+    fn clone(&self) -> SparseArrayUsize<T> {
+        let len = self.array.len();
+        // Over-allocate by 1 because the common case is cloning to insert a
+        // new element. Cap at the bitmap width so we never allocate more than
+        // the maximum possible number of entries.
+        let cap = core::cmp::min(len + 1, 8 * size_of_val(&self.bitmap));
+        let mut array = Vec::with_capacity(cap);
+        array.extend_from_slice(&self.array);
+        SparseArrayUsize { bitmap: self.bitmap, array }
+    }
+}
+
+#[cfg(test)]
+mod test;

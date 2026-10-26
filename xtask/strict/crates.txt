@@ -3,6 +3,7 @@
 # finishes; a crate is never taken off the list.
 xtask
 zbm-app
+zbm-brush
 zbm-config
 zbm-console
 zbm-coreutils

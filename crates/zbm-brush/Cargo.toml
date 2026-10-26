@@ -1,0 +1,22 @@
+[package]
+name = "zbm-brush"
+description = "The shell of the Rust images: brush, a Bash-compatible shell in Rust, with its line editor chosen for the terminal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "brush"
+path = "src/main.rs"
+
+[dependencies]
+brush-shell.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true

@@ -21,6 +21,7 @@ publish = false
 generate-zbm = { path = "crates/generate-zbm" }
 zbm = { path = "crates/zbm" }
 zbm-app = { path = "crates/zbm-app" }
+zbm-brush = { path = "crates/zbm-brush" }
 zbm-boot = { path = "crates/zbm-boot" }
 zbm-config = { path = "crates/zbm-config" }
 zbm-core = { path = "crates/zbm-core" }
@@ -69,6 +70,9 @@ swash = { version = "=0.2.10", default-features = false, features = ["std", "sca
 # Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled when the image is
 # built, and their dead keys through a compose table.
 kbvm = { version = "=0.1.7", default-features = false, features = ["compose"] }
+# The shell of the Rust images (REFACTOR-ROADMAP.md, "Decisions"): brush, a Bash-compatible shell in Rust, with its
+# line editors. Its parser carries a patch of ours (patches/README.md).
+brush-shell = { version = "=0.4.0" }
 # The message catalogue of the menu (REFACTOR-ROADMAP.md, R5 step 2): Project Fluent's bundle, already built for
 # `uucore`, and its language identifiers.
 fluent-bundle = "0.16"
@@ -99,3 +103,7 @@ codegen-units = 1
 # `make install` strips what it installs.
 debug = "line-tables-only"
 strip = false
+
+# Crates built with a change of ours until their authors release it (patches/README.md).
+[patch.crates-io]
+brush-parser = { path = "patches/brush-parser-0.4.0" }

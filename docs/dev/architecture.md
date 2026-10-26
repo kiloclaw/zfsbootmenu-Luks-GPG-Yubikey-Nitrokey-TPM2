@@ -25,7 +25,7 @@ dependencies that exist.
 
 | Layer | Crates | Purpose |
 | --- | --- | --- |
-| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm` | The menus, the console on the display and the multi-call binary, whose applets start the programs |
+| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
 | orchestration | `zbm-startup`, `generate-zbm` | Start-up; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
@@ -54,6 +54,7 @@ Third-party crates:
 - `zbm`: `serde_json`, `tracing`
 - `zbm-app`: `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
+- `zbm-brush`: `brush-shell`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
