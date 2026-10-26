@@ -273,8 +273,6 @@ dependencies = [
 [[package]]
 name = "brush-builtins"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6eb8b0b70385d3c49e28e0f951dd9986393ecdee404cd6166902e685f83e4cf0"
 dependencies = [
  "brush-core",
  "brush-parser",

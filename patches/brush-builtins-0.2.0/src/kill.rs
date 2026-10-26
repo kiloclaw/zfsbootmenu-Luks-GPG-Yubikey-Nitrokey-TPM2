@@ -38,7 +38,8 @@ impl builtins::Command for KillCommand {
 
         // Try parsing the signal name (if specified).
         if let Some(signal_name) = &self.signal_name {
-            if let Ok(parsed_trap_signal) = TrapSignal::try_from(signal_name.as_str()) {
+            // A name or a number, as in bash (`kill -s 9`).
+            if let Ok(parsed_trap_signal) = signal_name.parse::<TrapSignal>() {
                 trap_signal = parsed_trap_signal;
             } else {
                 writeln!(
@@ -74,7 +75,8 @@ impl builtins::Command for KillCommand {
             // See if this is -sigspec syntax.
             if let Some(possible_sigspec) = arg.strip_prefix("-") {
                 // See if this is -sigspec syntax.
-                if let Ok(parsed_trap_signal) = TrapSignal::try_from(possible_sigspec) {
+                // A name or a number, as in bash (`kill -9`).
+                if let Ok(parsed_trap_signal) = possible_sigspec.parse::<TrapSignal>() {
                     trap_signal = parsed_trap_signal;
                 } else {
                     writeln!(

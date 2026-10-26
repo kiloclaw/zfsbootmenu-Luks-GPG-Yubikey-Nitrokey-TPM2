@@ -40,7 +40,9 @@ the runtime uses it wherever it used Bash. GNU Bash stays in the image as dracut
 
 brush 0.4 runs ZFSBootMenu's own shell libraries, which the recovery shell and hooks source. It does not have every
 feature of Bash: a script given on standard input fails where a `$(` substitution spans lines (a script file works).
-Its parser had a bug with `case` patterns inside `$( )`, which the image's brush has a fix for (`patches/README.md`).
+Its parser had a bug with `case` patterns inside `$( )`, and its `kill` did not take signal numbers (`kill -9`); the
+image's brush has fixes for both (`patches/README.md`). A command started with `&` runs inside brush rather than as a
+process of its own: `jobs` lists it, but `$!` is empty and `kill %1` does not stop it.
 
 ## The console on the display
 

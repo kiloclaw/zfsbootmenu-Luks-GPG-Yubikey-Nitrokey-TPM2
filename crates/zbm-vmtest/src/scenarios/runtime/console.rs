@@ -14,7 +14,8 @@
 //!   starts with the image's first keyboard layout, `us`; switched to `de`
 //!   from the shell (`zbm console layout`, step 4), the keys of `y` and `z`
 //!   swap and the dead circumflex composes `ê`, in `cat` and at the shell's
-//!   prompt. Ctrl-C typed while `yes` floods the console stops it. Handed
+//!   prompt. Ctrl-C typed while `od -v /dev/zero` floods the console stops
+//!   it. Handed
 //!   back from the shell (`zbm console release`), the display is taken
 //!   again (`zbm console reattach`), as after a failed `kexec`.
 //! - On `simpledrm` (`vga=0x318`), with `zbm.console_font=psf`: the console
@@ -55,25 +56,6 @@ const COUNTDOWN_COLOURS: usize = 8;
 /// Typed in the recovery shell: the shell's terminal (the image has no
 /// `tty`).
 const TTY: &str = "readlink /proc/self/fd/0\n";
-
-/// Typed in the recovery shell: ends the console.
-const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
-
-/// Typed on the kernel console afterwards: a line on the serial console,
-/// which the test reads, made by the shell, so that keys that reached
-/// something else (the menu's command line, which a kernel prints) fail.
-const BACK: &str = "echo zbm-$(echo back) > /dev/ttyS0\n";
-
-/// Typed on the kernel console then: the supervisor's line of the kernel
-/// log, on the serial console. The whole log can take longer than the test
-/// waits to cross the serial line.
-const LOG: &str = "dmesg | grep display.ended > /dev/ttyS0\n";
-
-/// Typed in the recovery shell: floods the console, until Ctrl-C.
-const FLOOD: &str = "yes\n";
-
-/// Typed after Ctrl-C: a line on the serial console, which the test reads.
-const FLOOD_DONE: &str = "echo zbm-flood-ok > /dev/ttyS0\n";
 
 /// Typed in the recovery shell: hands the display back, as before `kexec`.
 const RELEASE: &str = "/libexec/zbm console release\n";
@@ -122,9 +104,6 @@ const ECHO_KEYS: &[&str] = &[
 
 /// The console's message when it starts, in the kernel log and its mirror.
 const STARTED: &str = r"console: on (\S+): (\d+x\d+) display, (\S+) (\d+x\d+) cells";
-
-/// The supervisor's message when the console ended.
-const ENDED: &str = r"console on the display ended";
 
 /// How the test waits: the guest gets `pause` to settle between steps,
 /// and keys are typed 5 a `pause`; a boot may take `patience` seconds.
@@ -325,27 +304,11 @@ pub(super) fn check_console(
         &format!("virtio: the console draws it in colour, anti-aliased ({colours:?} colours)"),
     );
     check_shell(test, vm, mirror, monitor, pace)?;
-    check_flood(test, vm, monitor, pace)?;
+    fallback::check_flood(test, vm, monitor, pace)?;
     check_font(test, "virtio", mirror, ".ttf", pace)?;
     check_layouts(test, vm, mirror, monitor, pace)?;
     check_reattach(test, vm, mirror, monitor, pace)?;
-    check_fallback(test, vm, mirror, monitor, pace)
-}
-
-/// Ctrl-C typed while a program floods the console stops it: the keys come
-/// before the program's output.
-fn check_flood(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Result<()> {
-    type_text(vm, monitor, FLOOD, pace.pause)?;
-    thread::sleep(pace.pause * 3);
-    (monitor.key)(vm, "ctrl-c")?;
-    thread::sleep(pace.pause * 2);
-    type_text(vm, monitor, FLOOD_DONE, pace.pause)?;
-    let stopped = vm.expect(&["zbm-flood-ok"], pace.patience.min(60)).is_ok();
-    test.check(
-        stopped,
-        "virtio: Ctrl-C typed while yes floods the console stops it",
-    );
-    Ok(())
+    fallback::check_fallback(test, vm, mirror, monitor, pace)
 }
 
 /// The display handed back from the shell, then taken again, as after a
@@ -486,39 +449,6 @@ fn check_german(
     Ok(())
 }
 
-/// The console killed from its shell: the kernel console takes keys again,
-/// and the supervisor's message is in the kernel log.
-fn check_fallback(
-    test: &Test,
-    vm: &mut Vm<'_>,
-    mirror: &Path,
-    monitor: &Monitor,
-    pace: Pace,
-) -> Result<()> {
-    type_text(vm, monitor, KILL, pace.pause)?;
-    thread::sleep(pace.pause * 5);
-    let path = test.dir().join("virtio-fallback.ppm");
-    (monitor.dump)(vm, &path)?;
-    let colours = fs::read(&path).ok().and_then(|ppm| screen_colours(&ppm));
-    let screen = last_screen(mirror);
-    test.note(&format!(
-        "virtio: after the kill, {colours:?} colours on the display; the console showed: {screen}"
-    ));
-    type_text(vm, monitor, BACK, pace.pause)?;
-    let back = vm.expect(&["zbm-back"], pace.patience.min(30)).is_ok();
-    test.check(
-        back,
-        "virtio: once the console ended, a shell on the kernel console takes keys",
-    );
-    type_text(vm, monitor, LOG, pace.pause)?;
-    let ended = back && vm.expect(&[ENDED], pace.patience.min(30)).is_ok();
-    test.check(
-        ended,
-        "virtio: the supervisor logged that the console ended",
-    );
-    Ok(())
-}
-
 /// Escape typed during the countdown opens the menu on the console, and
 /// `!` then Enter its recovery shell, which runs on the console's
 /// pseudo-terminal and takes typed commands.
@@ -595,6 +525,8 @@ pub(super) fn check_handover(
     );
     Ok(())
 }
+
+mod fallback;
 
 #[cfg(test)]
 mod tests;

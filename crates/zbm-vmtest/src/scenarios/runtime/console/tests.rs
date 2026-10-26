@@ -1,5 +1,6 @@
 use pretty_assertions::assert_eq;
 
+use super::fallback::{BACK, KILL, LOG};
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
@@ -110,7 +111,7 @@ fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
     assert_eq!(spec.features, None);
 }
 
-const LOGGED: &str = "zbm-flood-ok\r\nzbm-back\r\n\
+const LOGGED: &str = "zbm-flood-ok\r\nzbm-back-/dev/console\r\n\
     [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
     going on on the kernel console\r\n";
 
