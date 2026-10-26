@@ -13,7 +13,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use alacritty_terminal::Term;
 use alacritty_terminal::event::{Event, EventListener, WindowSize};
@@ -22,8 +22,8 @@ use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
-use alacritty_terminal::vte::ansi::{CursorShape, Processor, Rgb as TermRgb};
-use zbm_display::frame::Frame;
+use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as TermRgb};
+use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::Grid;
 
 use crate::colour;
@@ -38,6 +38,22 @@ impl EventListener for Events {
     }
 }
 
+/// How long a blinking cursor is shown, and then hidden.
+pub const BLINK: Duration = Duration::from_millis(500);
+
+/// The blinking of the cursor: a timer that runs only while a blinking
+/// cursor is shown.
+#[derive(Debug, Default)]
+struct Blink {
+    /// When the cursor is shown or hidden next.
+    at: Option<Instant>,
+    /// Whether it is hidden now.
+    off: bool,
+    /// Whether the programs wrote since the last tick: the cursor is shown
+    /// again, as it is while they type.
+    fed: bool,
+}
+
 /// The terminal on the display.
 pub struct Console {
     term: Term<Events>,
@@ -48,6 +64,7 @@ pub struct Console {
     columns: u16,
     rows: u16,
     replies: Vec<u8>,
+    blink: Blink,
 }
 
 impl std::fmt::Debug for Console {
@@ -59,11 +76,16 @@ impl std::fmt::Debug for Console {
     }
 }
 
-/// The terminal's settings: no scrollback, and no clipboard.
+/// The terminal's settings: no scrollback, no clipboard, and a blinking
+/// block for a cursor, which blinks as the Linux console's does.
 fn config() -> Config {
     Config {
         scrolling_history: 0,
         osc52: Osc52::Disabled,
+        default_cursor_style: CursorStyle {
+            shape: CursorShape::Block,
+            blinking: true,
+        },
         ..Config::default()
     }
 }
@@ -85,6 +107,7 @@ impl Console {
             columns,
             rows,
             replies: Vec::new(),
+            blink: Blink::default(),
         };
         console.draw();
         console
@@ -109,19 +132,46 @@ impl Console {
     /// Takes what the programs wrote.
     pub fn feed(&mut self, bytes: &[u8]) {
         self.parser.advance(&mut self.term, bytes);
+        self.blink.fed = true;
         self.answer();
     }
 
-    /// When a synchronized update must end, if one is under way.
+    /// When the console must be woken: a synchronized update ends, or the
+    /// cursor blinks.
     pub fn deadline(&self) -> Option<Instant> {
-        self.parser.sync_timeout().sync_timeout()
+        let sync = self.parser.sync_timeout().sync_timeout();
+        match (sync, self.blink.at) {
+            (Some(sync), Some(blink)) => Some(sync.min(blink)),
+            (sync, blink) => sync.or(blink),
+        }
     }
 
-    /// Ends a synchronized update whose time ran out at `now`.
+    /// Ends a synchronized update whose time ran out at `now`, and blinks
+    /// the cursor when its time came.
     pub fn tick(&mut self, now: Instant) {
-        if self.deadline().is_some_and(|deadline| deadline <= now) {
+        let sync = self.parser.sync_timeout().sync_timeout();
+        if sync.is_some_and(|deadline| deadline <= now) {
             self.parser.stop_sync(&mut self.term);
             self.answer();
+        }
+        self.time_blink(now);
+    }
+
+    /// Starts, stops or turns the cursor's blinking at `now`: it runs only
+    /// while a blinking cursor is shown, and starts shown after output.
+    fn time_blink(&mut self, now: Instant) {
+        let shape = self.term.renderable_content().cursor.shape;
+        if shape == CursorShape::Hidden || !self.term.cursor_style().blinking {
+            self.blink = Blink::default();
+            return;
+        }
+        let blink = &mut self.blink;
+        if std::mem::take(&mut blink.fed) || blink.at.is_none() {
+            blink.off = false;
+            blink.at = Some(now + BLINK);
+        } else if blink.at.is_some_and(|at| at <= now) {
+            blink.off = !blink.off;
+            blink.at = Some(now + BLINK);
         }
     }
 
@@ -174,23 +224,24 @@ impl Console {
         };
         self.term.reset_damage();
         let cursor = self.term.renderable_content().cursor;
-        let cursor = (cursor.shape != CursorShape::Hidden).then_some(cursor.point);
+        let shown = cursor.shape != CursorShape::Hidden && !self.blink.off;
         let mut drawn = 0;
         for &(line, left, right) in &damaged {
             for column in left..=right.min(usize::from(self.columns) - 1) {
-                let at_cursor = cursor.is_some_and(|point| {
-                    point.line.0.try_into() == Ok(line) && point.column == Column(column)
-                });
-                self.draw_cell(line, column, at_cursor);
+                let at_cursor = shown
+                    && cursor.point.line.0.try_into() == Ok(line)
+                    && cursor.point.column == Column(column);
+                let shape = at_cursor.then_some(cursor.shape);
+                self.draw_cell(line, column, shape);
                 drawn += 1;
             }
         }
         drawn
     }
 
-    /// Draws the cell at `line`, `column`, with the block cursor over it
-    /// when `at_cursor`.
-    fn draw_cell(&mut self, line: usize, column: usize, at_cursor: bool) {
+    /// Draws the cell at `line`, `column`, with the cursor of `shape` over
+    /// it when given.
+    fn draw_cell(&mut self, line: usize, column: usize, cursor: Option<CursorShape>) {
         let (Ok(row), Ok(x), Ok(y)) = (
             i32::try_from(line),
             u16::try_from(column),
@@ -200,7 +251,7 @@ impl Console {
         };
         let cell = &self.term.grid()[Line(row)][Column(column)];
         let colours = self.term.colors();
-        let style = if at_cursor {
+        let style = if cursor == Some(CursorShape::Block) {
             colour::cursor(colours, cell)
         } else {
             colour::style(colours, cell)
@@ -215,6 +266,10 @@ impl Console {
         // are drawn over the character they belong to.
         for &mark in cell.zerowidth().unwrap_or_default() {
             self.grid.draw_mark(&mut self.frame, x, y, mark, style.fg);
+        }
+        if let Some(shape) = cursor {
+            let area = self.grid.area(x, y);
+            draw_cursor(&mut self.frame, area, shape, style.fg);
         }
     }
 
@@ -253,6 +308,42 @@ impl Console {
                 text.trim_end().to_owned() + "\n"
             })
             .collect()
+    }
+}
+
+/// Draws a cursor of `shape` other than the block, which swaps the cell's
+/// colours, over `area`, in `colour`: an underline, a bar on the left, or
+/// a hollow box, as thick as an eighth of the cell's width.
+fn draw_cursor(frame: &mut Frame, area: Area, shape: CursorShape, colour: Rgb) {
+    let thickness = (area.width / 8).max(1);
+    let bottom = Area {
+        y: area.y + area.height.saturating_sub(thickness),
+        height: thickness.min(area.height),
+        ..area
+    };
+    let left = Area {
+        width: thickness.min(area.width),
+        ..area
+    };
+    let parts = match shape {
+        CursorShape::Underline => vec![bottom],
+        CursorShape::Beam => vec![left],
+        CursorShape::HollowBlock => vec![
+            bottom,
+            left,
+            Area {
+                height: bottom.height,
+                ..area
+            },
+            Area {
+                x: area.x + area.width.saturating_sub(thickness),
+                ..left
+            },
+        ],
+        CursorShape::Block | CursorShape::Hidden => Vec::new(),
+    };
+    for part in parts {
+        frame.fill(part, colour);
     }
 }
 

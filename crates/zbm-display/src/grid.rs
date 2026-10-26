@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use zbm_types::psf::Font;
 
 use crate::boxes;
+use crate::decor::{self, Decoration};
 use crate::frame::{Area, Frame, Rgb};
 use crate::outline::Outline;
 
@@ -19,8 +20,8 @@ pub struct CellStyle {
     pub fg: Rgb,
     /// The colour around it.
     pub bg: Rgb,
-    /// Whether a line is drawn under it.
-    pub underline: bool,
+    /// The lines drawn under or through it.
+    pub decoration: Decoration,
 }
 
 /// What the characters are drawn with.
@@ -123,8 +124,15 @@ impl Grid {
                     .or_insert_with(|| font.glyph_for(c).or_else(|| font.glyph_for('?')));
                 let bitmap = glyph.and_then(|glyph| font.bitmap(glyph)).unwrap_or(&[]);
                 draw_bitmap(frame, area, (font.cell(), *scale), bitmap, style);
+                // A pixel of the font thick.
+                decor::draw(frame, area, style.decoration, style.fg, *scale);
             }
-            Face::Outline(outline) => draw_outline(frame, area, outline, c, style),
+            Face::Outline(outline) => {
+                draw_outline(frame, area, outline, c, style);
+                // As thick as a light box line.
+                let thickness = area.width / 8;
+                decor::draw(frame, area, style.decoration, style.fg, thickness);
+            }
         }
         frame.touch(area);
     }
@@ -193,9 +201,8 @@ fn draw_bitmap(
 ) {
     let row_bytes = usize::try_from(width.div_ceil(8)).unwrap_or(0);
     for y in 0..height {
-        let underline = style.underline && y + 1 == height;
         for x in 0..width {
-            let lit = underline || is_lit(bitmap, row_bytes, x, y);
+            let lit = is_lit(bitmap, row_bytes, x, y);
             let colour = if lit { style.fg } else { style.bg };
             for dy in 0..scale {
                 for dx in 0..scale {
@@ -217,7 +224,7 @@ pub fn blend(bg: Rgb, fg: Rgb, alpha: u8) -> Rgb {
 
 /// Draws `c` from `outline` into `area`: a box drawing or block character
 /// as [`boxes`] draws it, else the font's glyph, else its replacement
-/// character or `?`.
+/// character or `?`; the caller draws its decoration.
 fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, style: CellStyle) {
     let (width, height) = (area.width, area.height);
     let mask = boxes::mask(c, width, height);
@@ -235,17 +242,9 @@ fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, s
         // nothing.
         outline.glyph(fallback)
     };
-    // The underline: a line as thick as a light box line, at the bottom.
-    let underline = if style.underline {
-        (width / 8).max(1)
-    } else {
-        0
-    };
     for y in 0..height {
         for x in 0..width {
-            let coverage = if y + underline >= height {
-                255
-            } else if let Some(mask) = &mask {
+            let coverage = if let Some(mask) = &mask {
                 let index = u64::from(y) * u64::from(width) + u64::from(x);
                 usize::try_from(index)
                     .ok()
@@ -294,7 +293,7 @@ mod tests {
         CellStyle {
             fg: WHITE,
             bg: Rgb::BLACK,
-            underline,
+            decoration: Decoration::underlined(underline),
         }
     }
 

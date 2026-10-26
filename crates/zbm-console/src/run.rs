@@ -129,8 +129,9 @@ pub fn run(
             }
             Input::Hangup => return Ok(Ended::Hangup),
             Input::Release => return Ok(Ended::Released),
-            Input::Nothing => console.tick(Instant::now()),
+            Input::Nothing => {}
         }
+        console.tick(Instant::now());
         if console.draw() > 0 {
             screen.present(console.frame_mut())?;
             show(console, &mut shown);

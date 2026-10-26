@@ -54,6 +54,7 @@ fn bold_brightens_the_base_colours_and_the_other_modifiers_apply() {
         Modifier::DIM | Modifier::UNDERLINED,
     ));
     let plain = cell_style(&Cell::new("x"));
+    let crossed = cell_style(&cell(Color::Gray, Color::Black, Modifier::CROSSED_OUT));
 
     assert_eq!((bold.fg, bold.bg), (Rgb(0x55, 0xff, 0x55), Rgb::BLACK));
     assert_eq!(
@@ -65,7 +66,9 @@ fn bold_brightens_the_base_colours_and_the_other_modifiers_apply() {
         (Rgb::BLACK, Rgb(0xaa, 0xaa, 0xaa))
     );
     assert_eq!(dim.fg, Rgb(0x7f, 0x7f, 0x7f));
-    assert!(dim.underline && !plain.underline);
+    assert_eq!(dim.decoration, Decoration::underlined(true));
+    assert_eq!(plain.decoration, Decoration::default());
+    assert!(crossed.decoration.strikeout);
     assert_eq!((plain.fg, plain.bg), (Rgb(0xaa, 0xaa, 0xaa), Rgb::BLACK));
 }
 

@@ -1,7 +1,12 @@
 //! The terminal: text, colours, the cursor, the answers to the programs,
 //! and nothing kept beyond the screen.
 
-use std::time::Duration;
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the cursor's blinking is timed from a real instant"
+)]
+
+use std::time::{Duration, Instant};
 
 use pretty_assertions::assert_eq;
 use zbm_display::frame::Rgb;
@@ -105,7 +110,8 @@ fn modes_and_synchronized_updates() {
     console.feed(b"\x1b[?1h");
     assert!(console.is_application_cursor());
 
-    console.feed(b"\x1b[?2026hpartial");
+    // Without a cursor, nothing blinks: the deadline is the update's.
+    console.feed(b"\x1b[?25l\x1b[?2026hpartial");
     let deadline = console.deadline().unwrap();
     assert_eq!(console.text().lines().next(), Some(""));
     console.tick(deadline.checked_sub(Duration::from_millis(1)).unwrap());
@@ -174,4 +180,107 @@ fn wiping_leaves_nothing_of_the_screen_in_the_cells_or_the_pixels() {
     for column in 0..20 {
         assert_eq!(colours(&mut console, column, 0), [Rgb::BLACK]);
     }
+}
+
+/// The pixels of the cell at `column`, `row` as text: `#` for `colour`,
+/// `.` for anything else.
+fn cell_picture(console: &mut Console, column: u32, row: u32, colour: Rgb) -> Vec<String> {
+    let frame = console.frame_mut();
+    (row * 14..(row + 1) * 14)
+        .map(|y| {
+            (column * 8..(column + 1) * 8)
+                .map(|x| {
+                    if frame.pixel(x, y) == Some(colour) {
+                        '#'
+                    } else {
+                        '.'
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn the_cursor_takes_the_shape_programs_ask_for() {
+    let mut console = console();
+    // DECSCUSR 4: a steady underline.
+    console.feed(b"\x1b[4 q");
+    console.draw();
+    let underline = cell_picture(&mut console, 0, 0, GREY);
+    assert_eq!(underline[13], "########");
+    assert!(underline[..13].iter().all(|row| row == "........"));
+
+    // 6: a steady bar, on the left.
+    console.feed(b"\x1b[6 q");
+    console.draw();
+    let bar = cell_picture(&mut console, 0, 0, GREY);
+    assert!(bar.iter().all(|row| row == "#......."), "{bar:?}");
+
+    // 2: a steady block again.
+    console.feed(b"\x1b[2 q");
+    console.draw();
+    assert_eq!(colours(&mut console, 0, 0), [GREY]);
+}
+
+#[test]
+fn the_cursor_blinks_while_shown_and_shows_after_output() {
+    let mut console = console();
+    let start = Instant::now();
+    console.tick(start);
+    let first = console.deadline().unwrap();
+    assert_eq!(first, start + BLINK);
+    console.draw();
+    assert_eq!(colours(&mut console, 0, 0), [GREY]);
+
+    console.tick(first);
+    console.draw();
+    assert_eq!(colours(&mut console, 0, 0), [Rgb::BLACK]);
+    console.tick(first + BLINK);
+    console.draw();
+    assert_eq!(colours(&mut console, 0, 0), [GREY]);
+
+    // Output shows it again, and starts the blinking over.
+    console.tick(first + 2 * BLINK);
+    console.feed(b"x");
+    console.tick(first + 2 * BLINK);
+    console.draw();
+    assert_eq!(colours(&mut console, 1, 0), [GREY]);
+    assert_eq!(console.deadline(), Some(first + 3 * BLINK));
+
+    // A steady cursor, or a hidden one, stops the timer.
+    console.feed(b"\x1b[2 q");
+    console.tick(first + 3 * BLINK);
+    assert_eq!(console.deadline(), None);
+    console.feed(b"\x1b[1 q\x1b[?25l");
+    console.tick(first + 3 * BLINK);
+    assert_eq!(console.deadline(), None);
+}
+
+#[test]
+fn a_hollow_cursor_is_a_box() {
+    let mut frame = Frame::new(8, 4);
+    let area = Area {
+        x: 0,
+        y: 0,
+        width: 8,
+        height: 4,
+    };
+    draw_cursor(&mut frame, area, CursorShape::HollowBlock, GREY);
+    draw_cursor(&mut frame, area, CursorShape::Hidden, Rgb::BLACK);
+
+    let rows: Vec<String> = (0..4)
+        .map(|y| {
+            (0..8)
+                .map(|x| {
+                    if frame.pixel(x, y) == Some(GREY) {
+                        '#'
+                    } else {
+                        '.'
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    assert_eq!(rows, ["########", "#......#", "#......#", "########"]);
 }
