@@ -4,8 +4,10 @@
 //! The image takes `virtio_gpu` and `bochs`, the drivers of QEMU's virtual
 //! GPUs, which need no firmware, through the build option
 //! `zfsbootmenu_graphics_drivers`; the machine has QEMU's standard VGA,
-//! which `bochs` drives, and a virtio GPU at `0000:00:09.0`. Three boots,
-//! each escaping to the recovery shell:
+//! which `bochs` drives, and a virtio GPU at `0000:00:09.0`, one that is
+//! not a VGA (`virtio-gpu-pci`): QEMU leaves its standard VGA out when
+//! another VGA is added. The image must list the drivers and keep udev
+//! from loading them. Three boots, each escaping to the recovery shell:
 //!
 //! - without `zbm.gpu`: both drivers load, before the countdown, and each
 //!   GPU has its driver;
@@ -33,6 +35,15 @@ const DRIVERS: &str = "for d in /sys/bus/pci/devices/*; do \
     v=$(ls -d /sys/bus/pci/devices/0000:00:09.0/virtio*/driver 2>/dev/null | head -n 1); \
     if [ -n \"$v\" ]; then echo \"virtio $(basename $(readlink $v))\"; \
     else echo 'virtio none'; fi";
+
+/// What the image holds for the drivers, and what the kernel has: the
+/// image's list of drivers, its modprobe.d file, the drivers loaded, and
+/// the display controllers.
+const STATE: &str = "echo \"list: $(cat /etc/zfsbootmenu/graphics-drivers)\"; \
+    sed 's/^/modprobe.d: /' /etc/modprobe.d/zfsbootmenu-graphics.conf; \
+    grep -E '^(virtio_gpu|bochs) ' /proc/modules | sed 's/^/loaded: /'; \
+    for d in /sys/bus/pci/devices/*; do \
+    echo \"pci: ${d##*/} $(cat $d/class) $(cat $d/vendor) $(cat $d/device)\"; done | grep ' 0x03'";
 
 /// The driver overrides of the GPUs.
 const OVERRIDES: &str =
@@ -95,7 +106,7 @@ fn start<'t>(test: &'t Test, image: &Image, boot: &Boot) -> Result<Vm<'t>> {
         .with_disks([super::disk(settings, 0)?]);
     machine
         .extra
-        .extend(["-device".into(), "virtio-vga,addr=0x9,id=gpu1".into()]);
+        .extend(["-device".into(), "virtio-gpu-pci,addr=0x9,id=gpu1".into()]);
     let mut vm = Vm::start(test, boot.label, &machine)?;
     super::escape_to_shell(&mut vm)?;
     Ok(vm)
@@ -103,6 +114,16 @@ fn start<'t>(test: &'t Test, image: &Image, boot: &Boot) -> Result<Vm<'t>> {
 
 fn check(test: &Test, vm: &mut Vm<'_>, boot: &Boot) -> Result<()> {
     let label = boot.label;
+    let (_, state) = vm.sh_show(STATE)?;
+    test.check(
+        state.contains("list: virtio_gpu bochs"),
+        &format!("{label}: the image lists its graphics drivers"),
+    );
+    test.check(
+        state.contains("modprobe.d: blacklist virtio_gpu")
+            && state.contains("modprobe.d: blacklist bochs"),
+        &format!("{label}: the image keeps udev from loading them"),
+    );
     let (_, drivers) = vm.sh_show(DRIVERS)?;
     test.check(
         drivers.contains(&format!("vga {}", boot.vga)),
