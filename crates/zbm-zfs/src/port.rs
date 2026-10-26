@@ -4,9 +4,9 @@
 //! answer with `zbm_testkit::zfs::FakeZfs`, an in-memory model of pools and
 //! datasets.
 
-use zbm_types::{DatasetName, PoolName};
+use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-use crate::model::{Dataset, Pool, Property, Snapshot, Version};
+use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
 
 /// Why a ZFS operation failed.
 #[derive(Debug, thiserror::Error)]
@@ -133,4 +133,115 @@ pub trait Zfs {
     ///
     /// [`ZfsError`] when `zfs inherit` fails.
     fn inherit(&self, dataset: &DatasetName, property: &str) -> Result<(), ZfsError>;
+
+    /// Sets `property` of `pool` to `value`, such as `bootfs`.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zpool set` fails, for example on a pool imported
+    /// read-only.
+    fn set_pool_property(
+        &self,
+        pool: &PoolName,
+        property: &str,
+        value: &str,
+    ) -> Result<(), ZfsError>;
+
+    /// A property of `snapshot`, with its source.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError::Missing`] when the snapshot does not exist, and other
+    /// [`ZfsError`]s when `zfs get` fails.
+    fn snapshot_property(
+        &self,
+        snapshot: &SnapshotName,
+        property: &str,
+    ) -> Result<Property, ZfsError>;
+
+    /// The properties set on `dataset` itself or received with it, by name,
+    /// which a clone of it is given (`zfs get -s local,received all`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError::Missing`] when the dataset does not exist, and other
+    /// [`ZfsError`]s when `zfs get` fails.
+    fn own_properties(&self, dataset: &DatasetName) -> Result<Vec<(String, Property)>, ZfsError>;
+
+    /// Takes `snapshot`.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs snapshot` fails, for example because it
+    /// exists.
+    fn create_snapshot(&self, snapshot: &SnapshotName) -> Result<(), ZfsError>;
+
+    /// Rolls the filesystem of `snapshot` back to it, destroying the later
+    /// snapshots (`zfs rollback -r`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs rollback` fails, for example because a later
+    /// snapshot has clones.
+    fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError>;
+
+    /// Clones `snapshot` as `target`, with `properties` set on it.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs clone` fails, for example because `target`
+    /// exists.
+    fn clone_snapshot(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError>;
+
+    /// Promotes the clone `dataset`, so that it no longer depends on its
+    /// origin (`zfs promote`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs promote` fails.
+    fn promote(&self, dataset: &DatasetName) -> Result<(), ZfsError>;
+
+    /// Copies `snapshot` into the new filesystem `target`, independent of
+    /// it, with `properties` set on it: a raw send with its properties into
+    /// a receive that does not mount it (`zfs send -p -w | zfs recv -u`),
+    /// through `mbuffer` when the image has it. An encrypted snapshot stays
+    /// encrypted with the same key, and `target` becomes an encryption
+    /// root.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when the send or the receive fails.
+    fn send_receive(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError>;
+
+    /// Makes the encryption root `dataset` inherit the key of its parent's
+    /// encryption root (`zfs change-key -i`), whose key must be loaded.
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs change-key` fails.
+    fn inherit_key(&self, dataset: &DatasetName) -> Result<(), ZfsError>;
+
+    /// The paths that differ between `from` and `to`, or the filesystem of
+    /// `from` when `to` is `None`, which must be mounted then (`zfs diff -F
+    /// -H`).
+    ///
+    /// # Errors
+    ///
+    /// [`ZfsError`] when `zfs diff` fails, for example because a snapshot
+    /// does not exist or the filesystem is not mounted.
+    fn diff(
+        &self,
+        from: &SnapshotName,
+        to: Option<&SnapshotName>,
+    ) -> Result<Vec<Difference>, ZfsError>;
 }

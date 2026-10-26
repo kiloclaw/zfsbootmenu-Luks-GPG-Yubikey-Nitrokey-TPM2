@@ -6,7 +6,9 @@ use std::collections::BTreeMap;
 
 use zbm_types::PoolName;
 
-use crate::model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
+use crate::model::{
+    Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
+};
 
 /// What was wrong with a line of output.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -217,6 +219,68 @@ pub fn snapshots(text: &str) -> Result<Vec<Snapshot>, TextError> {
         .collect()
 }
 
+/// `zfs diff -F -H`: the change, the kind of file and the path of each
+/// line, and the new path of a rename.
+///
+/// # Errors
+///
+/// [`TextError`] for a line with an unknown change or kind, or without the
+/// fields of its change.
+pub fn differences(text: &str) -> Result<Vec<Difference>, TextError> {
+    rows(text)
+        .map(|(line, fields)| {
+            let (change, file_type, path, renamed_to) = match fields.as_slice() {
+                [change, file_type, path] => (change, file_type, path, None),
+                [change, file_type, path, to] => (change, file_type, path, Some(*to)),
+                _ => return Err(TextError::new(line, "not three or four fields")),
+            };
+            let change =
+                DiffChange::parse(change).ok_or_else(|| TextError::new(line, "unknown change"))?;
+            let mut chars = file_type.chars();
+            let (Some(file_type), None) = (chars.next(), chars.next()) else {
+                return Err(TextError::new(line, "unknown kind of file"));
+            };
+            if (change == DiffChange::Renamed) != renamed_to.is_some() {
+                return Err(TextError::new(line, "a rename has a new path, and only it"));
+            }
+            Ok(Difference {
+                change,
+                file_type,
+                path: unescape(path),
+                renamed_to: renamed_to.map(unescape),
+            })
+        })
+        .collect()
+}
+
+/// A path as `zfs diff` prints it, where each byte that is not printable,
+/// a space or a backslash is `\` and four octal digits.
+fn unescape(path: &str) -> String {
+    let mut rest = path.as_bytes();
+    let mut decoded = Vec::with_capacity(rest.len());
+    while let Some((&first, after)) = rest.split_first() {
+        let code = after
+            .get(..4)
+            .filter(|digits| first == b'\\' && digits.iter().all(|d| (b'0'..=b'7').contains(d)))
+            .and_then(|digits| {
+                digits.iter().try_fold(0_u8, |code, digit| {
+                    code.checked_mul(8)?.checked_add(digit - b'0')
+                })
+            });
+        match code {
+            Some(byte) => {
+                decoded.push(byte);
+                rest = after.get(4..).unwrap_or_default();
+            }
+            None => {
+                decoded.push(first);
+                rest = after;
+            }
+        }
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,5 +336,34 @@ mod tests {
         assert_eq!(unfinished.reason, "not four fields");
         assert!(is_source("inherited from tank"));
         assert!(!is_source("loglevel=4"));
+    }
+
+    #[test]
+    fn differences_decode_paths_and_renames() {
+        let text = "M\t/\t/mnt/etc\n\
+                    +\tF\t/mnt/etc/new\\0040file\n\
+                    R\tF\t/mnt/a\t/mnt/b\\0134c\n\
+                    -\t@\t/mnt/caf\\0303\\0251\n";
+
+        let found = differences(text).unwrap();
+
+        assert_eq!(found.len(), 4);
+        assert_eq!(found[0].change, DiffChange::Modified);
+        assert_eq!(found[0].file_type, '/');
+        assert_eq!(found[1].path, "/mnt/etc/new file");
+        assert_eq!(found[2].change, DiffChange::Renamed);
+        assert_eq!(found[2].renamed_to.as_deref(), Some("/mnt/b\\c"));
+        assert_eq!(found[3].path, "/mnt/caf\u{e9}");
+        assert_eq!(found[3].change, DiffChange::Removed);
+        assert_eq!(unescape("a\\9999\\01"), "a\\9999\\01");
+        for wrong in [
+            "M\tF\n",
+            "X\tF\t/a\n",
+            "M\tFF\t/a\n",
+            "R\tF\t/a\n",
+            "M\tF\t/a\t/b\n",
+        ] {
+            assert!(differences(wrong).is_err(), "{wrong:?}");
+        }
     }
 }

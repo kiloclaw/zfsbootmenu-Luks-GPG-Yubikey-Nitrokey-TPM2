@@ -29,7 +29,9 @@ pub mod text;
 
 pub use cli::{Format, ZfsCli};
 
-pub use model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
+pub use model::{
+    Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
+};
 pub use port::{Zfs, ZfsError};
 
 /// Where the error messages of a text-mode `zfs` or `zpool` run go.

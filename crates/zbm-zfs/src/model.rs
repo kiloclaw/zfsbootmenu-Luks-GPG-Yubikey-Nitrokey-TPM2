@@ -170,6 +170,49 @@ pub struct Snapshot {
     pub creation: u64,
 }
 
+/// What happened to a path between a snapshot and what `zfs diff` compares
+/// it with: the first column of `zfs diff -H`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiffChange {
+    /// `-`: removed since the snapshot.
+    Removed,
+    /// `+`: created since.
+    Created,
+    /// `M`: modified since.
+    Modified,
+    /// `R`: renamed since.
+    Renamed,
+}
+
+impl DiffChange {
+    /// The change of the mark `zfs diff` prints.
+    pub fn parse(mark: &str) -> Option<DiffChange> {
+        match mark {
+            "-" => Some(DiffChange::Removed),
+            "+" => Some(DiffChange::Created),
+            "M" => Some(DiffChange::Modified),
+            "R" => Some(DiffChange::Renamed),
+            _ => None,
+        }
+    }
+}
+
+/// A path that `zfs diff -F -H` reports.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Difference {
+    /// What happened to it.
+    pub change: DiffChange,
+    /// The kind of file, as `zfs diff -F` marks it: `F` a file, `/` a
+    /// directory, `@` a symbolic link, `B` and `C` devices, `|` a pipe, `=` a
+    /// socket.
+    pub file_type: char,
+    /// The path, with the escapes of `zfs diff` decoded: absolute, under
+    /// the directory where the filesystem is mounted.
+    pub path: String,
+    /// Where a renamed path went.
+    pub renamed_to: Option<String>,
+}
+
 /// The version of ZFS: the tools and the kernel module.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Version {

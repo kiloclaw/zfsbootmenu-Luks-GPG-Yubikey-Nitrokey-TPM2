@@ -7,10 +7,10 @@
 
 use std::cell::OnceCell;
 
-use zbm_platform::exec::{Command, Runner, Stream};
-use zbm_types::{DatasetName, PoolName};
+use zbm_platform::exec::{Command, Input, Runner, Stream};
+use zbm_types::{DatasetName, PoolName, SnapshotName};
 
-use crate::model::{Dataset, Pool, Property, Snapshot, Version};
+use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
 use crate::port::{Zfs, ZfsError};
 use crate::{json, text};
 
@@ -59,27 +59,45 @@ impl<'a> ZfsCli<'a> {
         })
     }
 
-    /// Runs `program` with `args` and returns its standard output.
+    /// Runs `program` with `args` and returns its standard output. A
+    /// message that something does not exist is [`ZfsError::Missing`], for
+    /// the last argument.
     fn run(&self, program: &str, args: &[&str]) -> Result<String, ZfsError> {
-        let command = Command::new(program)
-            .args(args.iter().copied())
+        self.run_command(
+            Command::new(program).args(args.iter().copied()),
+            args.last().copied(),
+        )
+    }
+
+    /// Runs a change: as [`ZfsCli::run`], but every failure is
+    /// [`ZfsError::Failed`], as the missing name could be any argument.
+    fn change(&self, program: &str, args: &[&str]) -> Result<(), ZfsError> {
+        self.run_command(Command::new(program).args(args.iter().copied()), None)
+            .map(drop)
+    }
+
+    /// Runs `command` with its output captured; a failure whose message says
+    /// that something does not exist is [`ZfsError::Missing`] for `missing`.
+    fn run_command(&self, command: Command, missing: Option<&str>) -> Result<String, ZfsError> {
+        let command = command
+            .stdin(Input::Null)
             .stdout(Stream::Capture)
             .stderr(Stream::Capture);
         let output = self
             .runner
             .run(&command)
             .map_err(|source| ZfsError::Start {
-                program: program.to_owned(),
+                program: command.program().to_string_lossy().into_owned(),
                 source,
             })?;
         if output.status.is_success() {
             return Ok(output.stdout_text());
         }
         let message = output.stderr_text().trim().to_owned();
-        if message.contains("does not exist") || message.contains("no such pool") {
-            return Err(ZfsError::Missing(
-                args.last().copied().unwrap_or_default().to_owned(),
-            ));
+        if let Some(name) = missing
+            && (message.contains("does not exist") || message.contains("no such pool"))
+        {
+            return Err(ZfsError::Missing(name.to_owned()));
         }
         Err(ZfsError::Failed {
             command: command.display(),
@@ -133,6 +151,26 @@ impl<'a> ZfsCli<'a> {
 
 /// The pool properties [`Zfs::pools`] lists.
 const POOL_COLUMNS: &str = "name,health,readonly,bootfs,guid";
+
+/// The raw send of a snapshot (`$1`) into a receive (the other arguments),
+/// through `mbuffer` when the image has it, as the legacy runtime
+/// duplicates a snapshot. The names are arguments, never part of the
+/// script; `pipefail` makes a failed send fail the copy.
+const SEND_RECEIVE: &str = "set -o pipefail
+snapshot=\"$1\"; shift
+if command -v mbuffer >/dev/null 2>&1; then
+  zfs send -p -w \"$snapshot\" | mbuffer -q | zfs recv \"$@\"
+else
+  zfs send -p -w \"$snapshot\" | zfs recv \"$@\"
+fi";
+
+/// `-o name=value` for each of `properties`.
+fn property_options(properties: &[(String, String)]) -> Vec<String> {
+    properties
+        .iter()
+        .flat_map(|(name, value)| ["-o".to_owned(), format!("{name}={value}")])
+        .collect()
+}
 
 impl Zfs for ZfsCli<'_> {
     fn version(&self) -> Result<Version, ZfsError> {
@@ -231,5 +269,104 @@ impl Zfs for ZfsCli<'_> {
     fn inherit(&self, dataset: &DatasetName, property: &str) -> Result<(), ZfsError> {
         self.run("zfs", &["inherit", property, dataset.as_str()])
             .map(drop)
+    }
+
+    fn set_pool_property(
+        &self,
+        pool: &PoolName,
+        property: &str,
+        value: &str,
+    ) -> Result<(), ZfsError> {
+        let assignment = format!("{property}={value}");
+        self.change("zpool", &["set", &assignment, pool.as_str()])
+    }
+
+    fn snapshot_property(
+        &self,
+        snapshot: &SnapshotName,
+        property: &str,
+    ) -> Result<Property, ZfsError> {
+        self.one_property("zfs", &snapshot.to_string(), property)
+    }
+
+    fn own_properties(&self, dataset: &DatasetName) -> Result<Vec<(String, Property)>, ZfsError> {
+        let args = [
+            "get",
+            "-o",
+            "name,property,value,source",
+            "-s",
+            "local,received",
+            "all",
+            dataset.as_str(),
+        ];
+        let rows = match self.format() {
+            Format::Json => self.listing("zfs", &args, json::properties_of)?,
+            Format::Text => self.listing("zfs", &args, text::properties)?,
+        };
+        Ok(rows
+            .into_iter()
+            .filter(|(name, _, _)| name == dataset.as_str())
+            .map(|(_, property, value)| (property, value))
+            .collect())
+    }
+
+    fn create_snapshot(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
+        self.change("zfs", &["snapshot", &snapshot.to_string()])
+    }
+
+    fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
+        self.change("zfs", &["rollback", "-r", &snapshot.to_string()])
+    }
+
+    fn clone_snapshot(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError> {
+        let options = property_options(properties);
+        let snapshot = snapshot.to_string();
+        let mut args = vec!["clone"];
+        args.extend(options.iter().map(String::as_str));
+        args.extend([snapshot.as_str(), target.as_str()]);
+        self.change("zfs", &args)
+    }
+
+    fn promote(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
+        self.change("zfs", &["promote", dataset.as_str()])
+    }
+
+    fn send_receive(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError> {
+        let command = Command::new("bash")
+            .args(["-c", SEND_RECEIVE, "zfs-send-receive"])
+            .arg(snapshot.to_string())
+            .arg("-u")
+            .args(property_options(properties))
+            .arg(target.as_str());
+        self.run_command(command, None).map(drop)
+    }
+
+    fn inherit_key(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
+        self.change("zfs", &["change-key", "-i", dataset.as_str()])
+    }
+
+    fn diff(
+        &self,
+        from: &SnapshotName,
+        to: Option<&SnapshotName>,
+    ) -> Result<Vec<Difference>, ZfsError> {
+        let from_text = from.to_string();
+        let to_text = to.map_or_else(|| from.dataset().to_string(), ToString::to_string);
+        let args = ["diff", "-F", "-H", from_text.as_str(), to_text.as_str()];
+        let output = self.run_command(Command::new("zfs").args(args), None)?;
+        text::differences(&output).map_err(|error| ZfsError::Output {
+            command: format!("zfs {}", args.join(" ")),
+            detail: error.to_string(),
+        })
     }
 }

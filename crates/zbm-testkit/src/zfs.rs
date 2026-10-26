@@ -26,7 +26,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use zbm_types::{DatasetName, PoolName, SnapshotName};
-use zbm_zfs::{Dataset, Health, Pool, Property, Snapshot, Source, Version, Zfs, ZfsError};
+use zbm_zfs::{
+    Dataset, Difference, Health, Pool, Property, Snapshot, Source, Version, Zfs, ZfsError,
+};
+
+mod changes;
 
 /// The defaults of the native properties the fake knows.
 const DEFAULTS: &[(&str, &str)] = &[
@@ -60,6 +64,11 @@ struct State {
     pools: BTreeMap<PoolName, FakePool>,
     datasets: BTreeMap<DatasetName, BTreeMap<String, String>>,
     snapshots: BTreeMap<SnapshotName, u64>,
+    /// The snapshot each clone was made from.
+    origins: BTreeMap<DatasetName, SnapshotName>,
+    differences: BTreeMap<(SnapshotName, Option<SnapshotName>), Vec<Difference>>,
+    /// The changes planned to fail, by operation, with their messages.
+    failures: BTreeMap<String, String>,
     calls: Vec<String>,
 }
 
@@ -196,6 +205,46 @@ impl FakeZfs {
     #[must_use]
     pub fn busy(self, pool: &str) -> FakeZfs {
         self.with_pool(pool, |fake| fake.busy = true)
+    }
+
+    /// Makes the filesystem `dataset` a clone of `snapshot`.
+    #[must_use]
+    pub fn origin(self, dataset: &str, snapshot: &str) -> FakeZfs {
+        self.state
+            .borrow_mut()
+            .origins
+            .insert(name(dataset), name(snapshot));
+        self
+    }
+
+    /// What `diff` answers for `from` and `to`; nothing differs otherwise.
+    #[must_use]
+    pub fn differences(self, from: &str, to: Option<&str>, found: &[Difference]) -> FakeZfs {
+        self.state
+            .borrow_mut()
+            .differences
+            .insert((name(from), to.map(name)), found.to_vec());
+        self
+    }
+
+    /// Makes the change `operation`, such as `rollback`, fail with
+    /// `message`.
+    #[must_use]
+    pub fn failing(self, operation: &str, message: &str) -> FakeZfs {
+        self.state
+            .borrow_mut()
+            .failures
+            .insert(operation.to_owned(), message.to_owned());
+        self
+    }
+
+    /// The snapshot `dataset` was cloned from, if it is a clone.
+    pub fn origin_of(&self, dataset: &str) -> Option<String> {
+        let state = self.state.borrow();
+        state
+            .origins
+            .get(&name::<DatasetName>(dataset))
+            .map(ToString::to_string)
     }
 
     fn with_pool(self, pool: &str, change: impl FnOnce(&mut FakePool)) -> FakeZfs {
@@ -433,6 +482,103 @@ impl Zfs for FakeZfs {
         local.remove(property);
         Ok(())
     }
+
+    fn set_pool_property(
+        &self,
+        pool: &PoolName,
+        property: &str,
+        value: &str,
+    ) -> Result<(), ZfsError> {
+        self.record(format!("set_pool_property {pool} {property}={value}"));
+        changes::set_pool_property(&mut self.state.borrow_mut(), pool, property, value)
+    }
+
+    fn snapshot_property(
+        &self,
+        snapshot: &SnapshotName,
+        property: &str,
+    ) -> Result<Property, ZfsError> {
+        self.record(format!("snapshot_property {snapshot} {property}"));
+        let state = self.state.borrow();
+        let creation = state
+            .snapshots
+            .get(snapshot)
+            .ok_or_else(|| ZfsError::Missing(snapshot.to_string()))?;
+        Ok(match property {
+            "creation" => Property::new(creation.to_string(), Source::None),
+            _ => FakeZfs::resolve(&state, snapshot.dataset(), property),
+        })
+    }
+
+    fn own_properties(&self, dataset: &DatasetName) -> Result<Vec<(String, Property)>, ZfsError> {
+        self.record(format!("own_properties {dataset}"));
+        changes::own_properties(&self.state.borrow(), dataset)
+    }
+
+    fn create_snapshot(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
+        self.record(format!("create_snapshot {snapshot}"));
+        changes::create_snapshot(&mut self.state.borrow_mut(), snapshot)
+    }
+
+    fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
+        self.record(format!("rollback {snapshot}"));
+        changes::rollback(&mut self.state.borrow_mut(), snapshot)
+    }
+
+    fn clone_snapshot(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError> {
+        self.record(format!(
+            "clone_snapshot {snapshot} {target} {}",
+            shown(properties)
+        ));
+        changes::clone_snapshot(&mut self.state.borrow_mut(), snapshot, target, properties)
+    }
+
+    fn promote(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
+        self.record(format!("promote {dataset}"));
+        changes::promote(&mut self.state.borrow_mut(), dataset)
+    }
+
+    fn send_receive(
+        &self,
+        snapshot: &SnapshotName,
+        target: &DatasetName,
+        properties: &[(String, String)],
+    ) -> Result<(), ZfsError> {
+        self.record(format!(
+            "send_receive {snapshot} {target} {}",
+            shown(properties)
+        ));
+        changes::send_receive(&mut self.state.borrow_mut(), snapshot, target, properties)
+    }
+
+    fn inherit_key(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
+        self.record(format!("inherit_key {dataset}"));
+        changes::inherit_key(&mut self.state.borrow_mut(), dataset)
+    }
+
+    fn diff(
+        &self,
+        from: &SnapshotName,
+        to: Option<&SnapshotName>,
+    ) -> Result<Vec<Difference>, ZfsError> {
+        let shown = to.map_or_else(|| "-".to_owned(), ToString::to_string);
+        self.record(format!("diff {from} {shown}"));
+        changes::diff(&self.state.borrow(), from, to)
+    }
+}
+
+/// `properties` as a call shows them: `name=value,...`.
+fn shown(properties: &[(String, String)]) -> String {
+    properties
+        .iter()
+        .map(|(property, value)| format!("{property}={value}"))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[cfg(test)]

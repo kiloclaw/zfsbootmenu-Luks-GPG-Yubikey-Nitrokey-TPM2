@@ -183,3 +183,228 @@ fn pools_are_exported_with_their_datasets_unless_busy() {
         ]
     );
 }
+
+fn snapshot(text: &str) -> SnapshotName {
+    text.parse().unwrap()
+}
+
+fn snapshot_names(zfs: &FakeZfs, of: &str) -> Vec<String> {
+    zfs.snapshots(&dataset(of))
+        .unwrap()
+        .into_iter()
+        .map(|found| found.name.to_string())
+        .collect()
+}
+
+#[test]
+fn snapshots_are_taken_and_rolled_back_to() {
+    let zfs = machine().snapshot("zroot/ROOT/void@second", 150);
+    let first = snapshot("zroot/ROOT/void@first");
+
+    zfs.create_snapshot(&snapshot("zroot/ROOT/void@third"))
+        .unwrap();
+    assert_eq!(
+        zfs.snapshot_property(&snapshot("zroot/ROOT/void@third"), "creation")
+            .unwrap()
+            .value,
+        "201"
+    );
+    let again = zfs.create_snapshot(&snapshot("zroot/ROOT/void@third"));
+    assert!(again.unwrap_err().to_string().contains("already exists"));
+    assert!(zfs.create_snapshot(&snapshot("zroot/none@x")).is_err());
+    zfs.rollback(&first).unwrap();
+
+    assert_eq!(
+        snapshot_names(&zfs, "zroot/ROOT/void"),
+        ["zroot/ROOT/void@first"]
+    );
+    assert_eq!(snapshot_names(&zfs, "zroot/home"), ["zroot/home@x"]);
+    assert!(matches!(
+        zfs.snapshot_property(&snapshot("zroot/ROOT/void@second"), "creation"),
+        Err(ZfsError::Missing(_))
+    ));
+    assert_eq!(
+        zfs.snapshot_property(&first, "mountpoint").unwrap().value,
+        "/"
+    );
+    assert_eq!(
+        zfs.calls()[..2],
+        [
+            "create_snapshot zroot/ROOT/void@third",
+            "snapshot_property zroot/ROOT/void@third creation",
+        ]
+    );
+}
+
+#[test]
+fn changes_fail_on_read_only_pools_and_as_planned() {
+    let zfs = machine().read_only("zroot");
+    let first = snapshot("zroot/ROOT/void@first");
+
+    let error = zfs.create_snapshot(&snapshot("zroot/ROOT/void@new"));
+    assert!(error.unwrap_err().to_string().contains("pool is read-only"));
+    assert!(zfs.rollback(&first).is_err());
+    let pool: PoolName = "zroot".parse().unwrap();
+    assert!(
+        zfs.set_pool_property(&pool, "bootfs", "zroot/home")
+            .is_err()
+    );
+
+    let zfs = machine().failing("rollback", "cannot rollback: busy");
+    let error = zfs.rollback(&first).unwrap_err();
+    assert!(
+        matches!(error, ZfsError::Failed { message, .. } if message == "cannot rollback: busy")
+    );
+}
+
+#[test]
+fn clones_depend_on_their_origin_until_promoted() {
+    let zfs = machine().snapshot("zroot/ROOT/void@second", 150);
+    let first = snapshot("zroot/ROOT/void@first");
+    let copy = dataset("zroot/ROOT/void_NEW");
+    let options = vec![
+        ("mountpoint".to_owned(), "/".to_owned()),
+        ("canmount".to_owned(), "noauto".to_owned()),
+    ];
+
+    zfs.clone_snapshot(&first, &copy, &options).unwrap();
+    assert!(zfs.clone_snapshot(&first, &copy, &[]).is_err());
+    assert!(
+        zfs.clone_snapshot(&first, &dataset("zroot/none/x"), &[])
+            .is_err()
+    );
+    assert_eq!(
+        zfs.origin_of("zroot/ROOT/void_NEW").as_deref(),
+        Some("zroot/ROOT/void@first")
+    );
+    assert_eq!(
+        zfs.property(&copy, "canmount").unwrap(),
+        Property::new("noauto", Source::Local)
+    );
+    // A later snapshot without clones goes; one with a clone stays.
+    zfs.rollback(&first).unwrap();
+    let held = machine()
+        .snapshot("zroot/ROOT/void@second", 150)
+        .origin("zroot/home", "zroot/ROOT/void@second");
+    assert!(
+        held.rollback(&first)
+            .unwrap_err()
+            .to_string()
+            .contains("dependent clones")
+    );
+
+    zfs.promote(&copy).unwrap();
+
+    assert_eq!(
+        snapshot_names(&zfs, "zroot/ROOT/void_NEW"),
+        ["zroot/ROOT/void_NEW@first"]
+    );
+    assert_eq!(zfs.origin_of("zroot/ROOT/void_NEW"), None);
+    assert_eq!(
+        zfs.origin_of("zroot/ROOT/void").as_deref(),
+        Some("zroot/ROOT/void_NEW@first")
+    );
+    assert!(zfs.promote(&copy).is_err());
+    assert_eq!(
+        zfs.calls()[0],
+        "clone_snapshot zroot/ROOT/void@first zroot/ROOT/void_NEW mountpoint=/,canmount=noauto"
+    );
+}
+
+#[test]
+fn copies_are_independent_encryption_roots_until_they_inherit_the_key() {
+    let zfs = FakeZfs::new()
+        .pool("zroot")
+        .filesystem(
+            "zroot/ROOT",
+            &[("encryptionroot", "zroot/ROOT"), ("keystatus", "available")],
+        )
+        .filesystem(
+            "zroot/ROOT/void",
+            &[("mountpoint", "/"), ("encryptionroot", "zroot/ROOT")],
+        )
+        .snapshot("zroot/ROOT/void@first", 100);
+    let copy = dataset("zroot/ROOT/copy");
+    let options = vec![("canmount".to_owned(), "noauto".to_owned())];
+
+    zfs.send_receive(&snapshot("zroot/ROOT/void@first"), &copy, &options)
+        .unwrap();
+
+    assert_eq!(
+        snapshot_names(&zfs, "zroot/ROOT/copy"),
+        ["zroot/ROOT/copy@first"]
+    );
+    assert_eq!(
+        zfs.property(&copy, "encryptionroot").unwrap().value,
+        "zroot/ROOT/copy"
+    );
+    assert_eq!(zfs.property(&copy, "mountpoint").unwrap().value, "/");
+    let own: Vec<String> = zfs
+        .own_properties(&copy)
+        .unwrap()
+        .into_iter()
+        .map(|(name, property)| format!("{name}={}", property.value))
+        .collect();
+    assert_eq!(own, ["canmount=noauto", "mountpoint=/"]);
+    assert_eq!(zfs.origin_of("zroot/ROOT/copy"), None);
+
+    zfs.inherit_key(&copy).unwrap();
+    assert_eq!(
+        zfs.property(&copy, "encryptionroot").unwrap().value,
+        "zroot/ROOT"
+    );
+    assert!(zfs.inherit_key(&copy).is_err());
+    assert!(
+        zfs.send_receive(&snapshot("zroot/ROOT/void@first"), &copy, &[])
+            .is_err()
+    );
+    assert!(matches!(
+        zfs.own_properties(&dataset("zroot/x")),
+        Err(ZfsError::Missing(_))
+    ));
+}
+
+#[test]
+fn bootfs_and_differences() {
+    let changed = Difference {
+        change: zbm_zfs::DiffChange::Modified,
+        file_type: 'F',
+        path: "/etc/fstab".to_owned(),
+        renamed_to: None,
+    };
+    let zfs = machine()
+        .differences(
+            "zroot/ROOT/void@first",
+            None,
+            std::slice::from_ref(&changed),
+        )
+        .pool("tank");
+    let pool: PoolName = "zroot".parse().unwrap();
+    let first = snapshot("zroot/ROOT/void@first");
+
+    zfs.set_pool_property(&pool, "bootfs", "zroot/home")
+        .unwrap();
+    zfs.set_pool_property(&pool, "comment", "hi").unwrap();
+    assert!(
+        zfs.set_pool_property(&pool, "bootfs", "zroot/none")
+            .is_err()
+    );
+    assert!(zfs.set_pool_property(&pool, "bootfs", "tank").is_err());
+    let none: PoolName = "none".parse().unwrap();
+    assert!(zfs.set_pool_property(&none, "comment", "x").is_err());
+
+    assert_eq!(zfs.pools().unwrap()[1].bootfs, Some(dataset("zroot/home")));
+    assert_eq!(zfs.pool_property(&pool, "comment").unwrap().value, "hi");
+    assert_eq!(zfs.diff(&first, None).unwrap(), [changed]);
+    assert_eq!(
+        zfs.diff(&first, Some(&snapshot("zroot/home@x"))).unwrap(),
+        []
+    );
+    assert!(zfs.diff(&snapshot("zroot/home@none"), None).is_err());
+    assert!(
+        zfs.diff(&first, Some(&snapshot("zroot/home@none")))
+            .is_err()
+    );
+    let failing = machine().failing("diff", "not mounted");
+    assert!(failing.diff(&first, None).is_err());
+}
