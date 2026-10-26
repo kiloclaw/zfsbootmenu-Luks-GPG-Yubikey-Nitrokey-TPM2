@@ -75,7 +75,7 @@ pub fn is_read_only(command: &Command) -> bool {
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect();
     let first = args.first().map_or("", String::as_str);
-    if name == "bash" {
+    if crate::shell::is_shell(std::path::Path::new(name)) {
         return args
             .get(..2)
             .is_some_and(|start| start == ["-c", BASH_MATCH]);

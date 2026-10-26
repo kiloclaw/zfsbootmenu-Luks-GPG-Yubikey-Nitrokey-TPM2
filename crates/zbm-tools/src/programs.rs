@@ -7,9 +7,9 @@
 )]
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use zbm_platform::{BASH_MATCH, Command, Input, Output, Runner, Signal, Stream};
+use zbm_platform::{BASH_MATCH, Command, Input, Output, Runner, Signal, Stream, shell};
 
 /// The `errno` of a file the kernel cannot run.
 const ENOEXEC: i32 = 8;
@@ -24,19 +24,47 @@ fn on_console(command: Command) -> Command {
 
 /// Runs the hook `hook` on the console with `env`, as Bash runs
 /// `"${_hook}"`: its exit status is ignored, and a script the kernel cannot
-/// run (no `#!` line) runs with `bash`.
+/// run (no `#!` line) runs with `bash`. Where the runtime chose a shell
+/// ([`zbm_platform::shell`]), a hook written for the shell runs on it,
+/// whatever its `#!` line names.
 pub fn run_hook(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)]) {
+    let shell = hook_shell(shell::chosen(), hook);
+    run_hook_with(runner, hook, env, shell.as_deref());
+}
+
+/// The `shell` chosen, if any, when `hook` is written for it.
+fn hook_shell(shell: Option<PathBuf>, hook: &Path) -> Option<PathBuf> {
+    shell.filter(|_| first_line(hook).is_some_and(|line| shell::is_shell_script(&line)))
+}
+
+/// Runs `hook` with `env`: on `shell` when given, else as the kernel runs it,
+/// with `bash` for a script without a `#!` line.
+fn run_hook_with(runner: &dyn Runner, hook: &Path, env: &[(&str, &str)], shell: Option<&Path>) {
     let with_env = |command: Command| {
         on_console(
             env.iter()
                 .fold(command, |command, (key, value)| command.env(key, value)),
         )
     };
+    if let Some(shell) = shell {
+        let _ = runner.run(&with_env(Command::new(shell).arg(hook)));
+        return;
+    }
     if let Err(error) = runner.run(&with_env(Command::new(hook)))
         && error.raw_os_error() == Some(ENOEXEC)
     {
         let _ = runner.run(&with_env(Command::new("bash").arg(hook)));
     }
+}
+
+/// The first line of the file at `path`, from its first 256 bytes; `None`
+/// when it cannot be read.
+fn first_line(path: &Path) -> Option<String> {
+    use std::io::Read as _;
+    let mut start = [0_u8; 256];
+    let length = std::fs::File::open(path).ok()?.read(&mut start).ok()?;
+    let text = String::from_utf8_lossy(start.get(..length)?);
+    Some(text.lines().next().unwrap_or_default().to_owned())
 }
 
 /// Runs a crypttab key script with its argument `key` and `env`
@@ -62,14 +90,16 @@ pub fn key_script(
     runner.run(&command)
 }
 
-/// Runs an interactive Bash on the console (`/bin/bash -i`), which Ctrl-C
-/// reaches with its default action.
+/// Runs an interactive shell on the console, the one the runtime chose
+/// ([`zbm_platform::shell`]) or Bash (`/bin/bash -i`), which Ctrl-C reaches
+/// with its default action.
 ///
 /// # Errors
 ///
-/// The error that kept Bash from starting.
+/// The error that kept the shell from starting.
 pub fn interactive_shell(runner: &dyn Runner) -> io::Result<Output> {
-    let command = on_console(Command::new("/bin/bash").arg("-i")).default_signal(Signal::Interrupt);
+    let program = shell::chosen().unwrap_or_else(|| shell::BASH.into());
+    let command = on_console(Command::new(program).arg("-i")).default_signal(Signal::Interrupt);
     runner.run(&command)
 }
 
@@ -172,11 +202,13 @@ pub fn edit(runner: &dyn Runner, editor: &str, file: &Path) -> io::Result<Output
 }
 
 /// Whether `text` matches the extended regular expression `pattern`, as
-/// Bash's `[[ text =~ pattern ]]` decides it. Bash runs the match
-/// ([`BASH_MATCH`]), so the regular expressions mean exactly what they mean
-/// to the legacy code; `None` if Bash cannot be run.
+/// Bash's `[[ text =~ pattern ]]` decides it. The shell runs the match
+/// ([`BASH_MATCH`]): the one the runtime chose, else Bash, so the regular
+/// expressions mean what they mean to the legacy code; `None` if it cannot
+/// be run.
 pub fn bash_regex_match(runner: &dyn Runner, text: &str, pattern: &str) -> Option<bool> {
-    let command = Command::new("bash")
+    let program = shell::chosen().unwrap_or_else(|| "bash".into());
+    let command = Command::new(program)
         .args(["-c", BASH_MATCH, "bash", text, pattern])
         .stdin(Input::Null)
         .stdout(Stream::Null)
@@ -233,6 +265,34 @@ mod tests {
             [("ZBM_SELECTED_BE".into(), Some("tank".into()))]
         );
         assert_eq!(calls[1].get_stdout(), Stream::Inherit);
+    }
+
+    #[test]
+    fn hooks_for_the_shell_run_on_the_shell_the_runtime_chose() {
+        let dir = zbm_testkit::TempDir::new("zbm-tools-hooks");
+        let bash = dir.write("bash-hook", "#!/bin/bash\necho hi\n");
+        let python = dir.write("python-hook", "#!/usr/bin/python3\nprint('hi')\n");
+        let runner = FakeRunner::new();
+        let brush = || Some(PathBuf::from("/usr/bin/brush"));
+
+        run_hook_with(&runner, &bash, &[], hook_shell(brush(), &bash).as_deref());
+        run_hook_with(
+            &runner,
+            &python,
+            &[],
+            hook_shell(brush(), &python).as_deref(),
+        );
+
+        assert_eq!(
+            runner.lines(),
+            [
+                format!("/usr/bin/brush {}", bash.display()),
+                python.display().to_string()
+            ]
+        );
+        assert_eq!(first_line(&dir.join("missing")), None);
+        // Without a chosen shell, as in these tests, hooks run as before.
+        assert_eq!(shell::chosen(), None);
     }
 
     #[test]

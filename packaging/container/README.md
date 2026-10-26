@@ -225,8 +225,9 @@ For trees that contain the Rust crates, the entrypoint then builds `zbm` and
 the Rust `generate-zbm` with the container's `cargo`, offline from the
 dependencies vendored in the tree, in a temporary directory (set
 `CARGO_TARGET_DIR` to keep the build between runs). It installs `zbm` as
-`/usr/libexec/zfsbootmenu/zbm`, where the dracut module finds it; images
-include it, but the legacy runtime they boot does not use it yet.
+`/usr/libexec/zfsbootmenu/zbm`, where the dracut module finds it, and
+`brush`, the shell of the Rust runtime, as `/usr/libexec/zfsbootmenu/brush`;
+images include `zbm`, but the legacy runtime they boot does not use it.
 
 Before these passes, the entrypoint writes
 

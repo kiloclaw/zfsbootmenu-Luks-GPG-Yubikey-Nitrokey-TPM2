@@ -9,6 +9,7 @@ pub static ALL: &[&OptionSpec] = &[
     &HOOK_ROOT,
     &RUNTIME,
     &ZBM,
+    &BRUSH,
     &CONSOLE_FONT,
     &KEYBOARD_LAYOUTS,
     &GRAPHICS_DRIVERS,
@@ -130,6 +131,31 @@ which is installed in the image as */libexec/zbm*. When unspecified, a default o
 */usr/libexec/zfsbootmenu/zbm* is assumed, which is where **make install** puts it. The *legacy*
 runtime does not use **zbm**; when it is not found, the image is built without it. The *rust*
 runtime cannot be built without it.
+";
+
+/// `zfsbootmenu_brush`: the shell of the Rust runtime.
+pub static BRUSH: OptionSpec = OptionSpec {
+    name: "zfsbootmenu_brush",
+    aliases: &[],
+    source: Source::BuildOption,
+    value: Value::Text,
+    default: None,
+    summary: "The brush program, the shell of the Rust runtime",
+    reader: Reader::Shell("the dracut module and the mkinitcpio hook"),
+    doc: Doc::Entry {
+        heading: "**zfsbootmenu_brush=<path>**",
+        body: BRUSH_DOC,
+    },
+    deprecation: None,
+    examples: &[r#"zfsbootmenu_brush="/usr/local/libexec/zfsbootmenu/brush""#],
+};
+
+const BRUSH_DOC: &str = r"
+Set this variable to override the default **<path>** of **brush**, the shell that the *rust*
+runtime runs its recovery shell, its hooks and SSH logins with (see **zbm.shell**), which is
+installed in the image as */usr/bin/brush*. When unspecified, **brush** is looked for next to
+**zbm**, where **make install** puts it. Without it, the image is built with a warning, and the
+shell of the *rust* runtime is Bash. The *legacy* runtime does not use **brush**.
 ";
 
 /// `zfsbootmenu_console_font`: the console font family of the image.

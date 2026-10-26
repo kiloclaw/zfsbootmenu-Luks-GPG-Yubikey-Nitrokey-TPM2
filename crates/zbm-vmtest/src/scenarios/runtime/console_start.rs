@@ -9,7 +9,7 @@
 //! - Without a keyboard, the console starts: the countdown shows (C34).
 //! - It keeps the mode the kernel console shows, 800x600 (C59).
 //! - The keyboard plugged in later types: Escape opens the menu, which
-//!   opens the recovery shell on the console (C34).
+//!   opens the recovery shell on the console (C34), which is brush.
 //! - The cursor takes the shape asked for: a steady bar shows fewer pixels
 //!   of the cursor's colour than a steady block (C16).
 //! - With Num Lock, the keypad types digits (C35).
@@ -53,6 +53,9 @@ const GREY: [u8; 3] = [0xaa, 0xaa, 0xaa];
 /// block, then for a steady bar.
 const BLOCK: &str = "printf '\\e[H\\e[2J\\e[2 q'\n";
 const BAR: &str = "printf '\\e[H\\e[2J\\e[6 q'\n";
+
+/// Typed in the recovery shell: brush names its version.
+const BRUSH: &str = "echo zbm-brush-$BRUSH_VERSION\n";
 
 /// Typed in the recovery shell: a line written to `/dev/console`, which
 /// shows on the console only when it goes there; the typed line itself
@@ -101,6 +104,9 @@ pub(super) fn run(test: &Test) -> Result<()> {
         key: sendkey,
     };
     check_shell(test, &mut vm, &mirror, &monitor, PACE)?;
+    type_text(&vm, BRUSH)?;
+    let brush = wait_screen(&mirror, r"(?m)^zbm-brush-\d+\.\d+\.\d+\s*$", 30)?;
+    test.check(brush.is_some(), "the recovery shell is brush");
     check_cursor(test, &vm)?;
     check_keypad(test, &vm, &mirror)?;
     type_text(&vm, DEV_CONSOLE)?;
@@ -130,13 +136,14 @@ fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {
 }
 
 /// QEMU's names of the keys that type `text` on the US layout, with the
-/// characters of `printf`'s escapes.
+/// characters of `printf`'s escapes and of variable names.
 pub(super) fn names(text: &str) -> Option<Vec<String>> {
     text.chars()
         .map(|c| match c {
             '\'' => Some("apostrophe".to_owned()),
             '\\' => Some("backslash".to_owned()),
             '[' => Some("bracket_left".to_owned()),
+            '_' => Some("shift-minus".to_owned()),
             _ => key_names(&c.to_string())?.pop(),
         })
         .collect()
@@ -275,7 +282,7 @@ mod tests {
         assert_eq!(keys[10], "bracket_left");
         assert_eq!(keys.last().unwrap(), "ret");
         assert!(names("€").is_none());
-        for text in [BLOCK, BAR, DEV_CONSOLE, KEPT, RELEASE, REATTACH] {
+        for text in [BRUSH, BLOCK, BAR, DEV_CONSOLE, KEPT, RELEASE, REATTACH] {
             assert!(names(text).is_some(), "{text}");
         }
     }

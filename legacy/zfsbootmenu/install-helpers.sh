@@ -565,7 +565,9 @@ install_zbm_keyboard_layouts() {
 # characters beyond ASCII, which the console on the display types with its
 # keyboard layouts (ROADMAP.md #19): readline keeps their bytes (/etc/inputrc),
 # and the C.UTF-8 character set of the build host's C library, when it has
-# one, makes them characters. Runs after create_zbm_profiles.
+# one, makes them characters. Where the image has brush, the login shell of
+# an SSH session, Bash, hands over to it when the runtime chose it (the
+# shell file of the state directory). Runs after create_zbm_profiles.
 #
 # prints: nothing
 # returns: 0
@@ -588,6 +590,17 @@ install_zbm_shell_input() {
     fi
     break
   done
+
+  [ -x "${BUILDROOT}/usr/bin/brush" ] || return 0
+  cat >> "${BUILDROOT}/root/.bashrc" <<-'EOF'
+
+	# SSH logins get the shell that the runtime chose (zbm.shell)
+	if [ -n "${SSH_CONNECTION}" ] && [ -z "${BRUSH_VERSION}" ] \
+	  && shopt -q login_shell 2>/dev/null \
+	  && [ "$( cat "${BASE:-/zfsbootmenu}/shell" 2>/dev/null )" = /usr/bin/brush ]; then
+	  exec /usr/bin/brush
+	fi
+	EOF
 
   return 0
 }
@@ -977,14 +990,16 @@ zbm_install_executable_as() {
 # Check the runtime selected with zfsbootmenu_runtime and install zbm, the
 # Rust runtime program, from zfsbootmenu_zbm. The legacy runtime is the
 # default; its images include zbm at /libexec/zbm when it is found, but do not
-# use it. The Rust runtime (zfsbootmenu_runtime=rust) needs zbm. Sets
-# ZBM_RUNTIME for create_zbm_conf and the start-up hooks.
+# use it. The Rust runtime (zfsbootmenu_runtime=rust) needs zbm, and installs
+# brush, its shell, from zfsbootmenu_brush (by default next to zbm) as
+# /usr/bin/brush; without brush its shell is Bash. Sets ZBM_RUNTIME for
+# create_zbm_conf and the start-up hooks.
 #
 # prints: nothing
-# returns: 0 unless the setting is wrong or zbm cannot be installed
+# returns: 0 unless the setting is wrong or zbm or brush cannot be installed
 
 install_zbm_runtime() {
-  local runtime zbm
+  local runtime zbm brush
 
   # shellcheck disable=SC2154
   runtime="${zfsbootmenu_runtime:-legacy}"
@@ -1014,6 +1029,18 @@ install_zbm_runtime() {
 
   if ! zbm_install_executable_as "${zbm}" "/libexec/zbm"; then
     zbm_error "failed to install ${zbm}"
+    return 1
+  fi
+
+  [ "${ZBM_RUNTIME}" = "rust" ] || return 0
+  # shellcheck disable=SC2154
+  brush="${zfsbootmenu_brush:-${zbm%/*}/brush}"
+  if [ ! -x "${brush}" ]; then
+    zbm_warn "brush not found at ${brush}; the shell of the Rust runtime is Bash"
+    return 0
+  fi
+  if ! zbm_install_executable_as "${brush}" "/usr/bin/brush"; then
+    zbm_error "failed to install ${brush}"
     return 1
   fi
   return 0

@@ -58,6 +58,9 @@ pub struct Supervisor {
     pub startup: Program,
     /// The recovery shell.
     pub shell: Program,
+    /// The shell run when `shell` cannot start, or fails within
+    /// five seconds: Bash behind brush, so that a shell always opens.
+    pub fallback: Option<Program>,
     /// How long to wait before trying again when the shell cannot start.
     pub retry: Duration,
     /// Where messages go, normally `/dev/kmsg`.
@@ -87,19 +90,30 @@ pub enum Event {
     Console(String),
 }
 
+/// A recovery shell that fails sooner than this did not open: the fallback
+/// runs instead.
+const QUICK_FAILURE: Duration = Duration::from_secs(5);
+
 impl Supervisor {
     /// The supervisor of the boot image: `zbm` runs the start-up program on
-    /// the console, and the shell is `/bin/bash -i`.
+    /// the console, and the shell is the one the runtime chose
+    /// ([`zbm_platform::shell`]), with `-i`, or `/bin/bash -i`. Bash is the
+    /// fallback of any other shell.
     pub fn new(zbm: PathBuf) -> Supervisor {
+        let interactive = |path: PathBuf| Program {
+            path,
+            args: vec!["-i".to_owned()],
+        };
+        let bash = PathBuf::from(zbm_platform::shell::BASH);
+        let shell = zbm_platform::shell::chosen().unwrap_or_else(|| bash.clone());
+        let fallback = (shell != bash).then(|| interactive(bash));
         Supervisor {
             startup: Program {
                 path: zbm,
                 args: vec!["zfsbootmenu-init".to_owned(), "--console".to_owned()],
             },
-            shell: Program {
-                path: PathBuf::from("/bin/bash"),
-                args: vec!["-i".to_owned()],
-            },
+            shell: interactive(shell),
+            fallback,
             retry: Duration::from_secs(10),
             log: PathBuf::from("/dev/kmsg"),
             base: PathBuf::from(crate::debug::BASE),
@@ -428,15 +442,60 @@ impl Supervisor {
             }
         }
         loop {
-            if let Some(pid) = self.spawn(&self.shell, &[], true, attached.as_ref()) {
-                self.wait_for(pid, attached, events);
-                events(Event::Shell);
-                return;
+            match self.run_shell(&self.shell, attached, events) {
+                Opened::Yes => return,
+                Opened::Failed => {}
+                Opened::NotStarted => {
+                    events(Event::Failed(self.shell.path.display().to_string()));
+                }
             }
-            events(Event::Failed(self.shell.path.display().to_string()));
+            if let Some(fallback) = &self.fallback {
+                self.error(&format!(
+                    "{} did not open; starting {}",
+                    self.shell.path.display(),
+                    fallback.path.display()
+                ));
+                match self.run_shell(fallback, attached, events) {
+                    Opened::Yes | Opened::Failed => return,
+                    Opened::NotStarted => {
+                        events(Event::Failed(fallback.path.display().to_string()));
+                    }
+                }
+            }
             std::thread::sleep(self.retry);
         }
     }
+
+    /// Runs `shell` until it ends.
+    fn run_shell(
+        &self,
+        shell: &Program,
+        attached: &mut Option<Attached>,
+        events: &mut dyn FnMut(Event),
+    ) -> Opened {
+        let start = std::time::Instant::now();
+        let Some(pid) = self.spawn(shell, &[], true, attached.as_ref()) else {
+            return Opened::NotStarted;
+        };
+        let status = self.wait_for(pid, attached, events);
+        events(Event::Shell);
+        let failed = status.is_none_or(|status| status != 0);
+        if failed && start.elapsed() < QUICK_FAILURE {
+            Opened::Failed
+        } else {
+            Opened::Yes
+        }
+    }
+}
+
+/// What became of a recovery shell.
+enum Opened {
+    /// It ran, and the user left it.
+    Yes,
+    /// It started, but failed at once.
+    Failed,
+    /// It could not start.
+    NotStarted,
 }
 
 #[cfg(test)]

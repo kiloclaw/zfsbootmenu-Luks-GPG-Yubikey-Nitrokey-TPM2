@@ -65,6 +65,7 @@ pub mod process;
 mod quiet;
 mod read_only;
 pub mod secret;
+pub mod shell;
 mod traced;
 
 pub use clock::{Clock, SystemClock};

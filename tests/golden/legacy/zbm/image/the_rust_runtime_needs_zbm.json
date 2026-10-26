@@ -14,6 +14,14 @@
       "result": [
         0,
         "add_binary $ZBM /libexec/zbm\nruntime=rust\n",
+        "warning: brush not found at $DIR/brush; the shell of the Rust runtime is Bash\n"
+      ]
+    },
+    {
+      "input": "dracut [(\"zfsbootmenu_zbm\", \"$ZBM\"), (\"zfsbootmenu_brush\", \"$ZBM\"), (\"zfsbootmenu_runtime\", \"rust\")]",
+      "result": [
+        0,
+        "inst_binary $ZBM /libexec/zbm\ninst_binary $ZBM /usr/bin/brush\nruntime=rust\n",
         ""
       ]
     }

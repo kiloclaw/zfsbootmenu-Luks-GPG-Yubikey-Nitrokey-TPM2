@@ -440,7 +440,7 @@ elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }--remap-path-prefix=${CARGO_TARGET_DIR}=/target"
   export RUSTFLAGS
   ( cd /zbm && cargo build --release --locked --offline "${FEATURES[@]}" \
-      --bin zbm --bin generate-zbm ) || error "failed to build the Rust programs"
+      --bin zbm --bin brush --bin generate-zbm ) || error "failed to build the Rust programs"
 
   # Images carry zbm without its debug information, which goes to
   # ${ZBMOUTPUT}/debug/<build ID>.debug, where "cargo xtask symbolize" finds it
@@ -452,6 +452,9 @@ elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   fi
   install -m 0755 -D "${ZBMWORKDIR}/zbm" /usr/libexec/zfsbootmenu/zbm \
     || error "unable to install zbm"
+  # brush, the shell of the Rust runtime, which crash reports do not name
+  install -m 0755 -s -D "${CARGO_TARGET_DIR}/release/brush" /usr/libexec/zfsbootmenu/brush \
+    || error "unable to install brush"
 
   if [ "${GENERATOR:-rust}" = rust ]; then
     genzbm="${CARGO_TARGET_DIR}/release/generate-zbm"

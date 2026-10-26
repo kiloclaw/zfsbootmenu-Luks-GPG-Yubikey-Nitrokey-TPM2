@@ -12,7 +12,9 @@
 //! asks nothing.
 
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::os::unix::process::CommandExt as _;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The option that chooses brush's line editor.
 pub const BACKEND: &str = "--input-backend";
@@ -52,7 +54,33 @@ pub fn arguments(args: &[OsString], terminal: Option<&Path>) -> Option<Vec<OsStr
     Some(changed)
 }
 
+/// The terminal that `link`, standard input's entry in `/proc/self/fd`,
+/// names, when standard input `is_terminal`.
+pub fn terminal_of(link: &Path, is_terminal: bool) -> Option<PathBuf> {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the shell reads where its own standard input comes from"
+    )]
+    let target = std::fs::read_link(link);
+    is_terminal.then_some(target.ok()).flatten()
+}
+
+/// The restart of this program, `exe`, that [`arguments`] asks for, with
+/// the name it was started by; `None` when it needs none.
+pub fn restart(exe: &Path, args: &[OsString], terminal: Option<&Path>) -> Option<Command> {
+    let changed = arguments(args, terminal)?;
+    let (program, rest) = changed.split_first()?;
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the shell replaces itself, which no Runner does"
+    )]
+    let mut command = Command::new(exe);
+    command.arg0(program).args(rest);
+    Some(command)
+}
+
 #[cfg(test)]
+#[allow(clippy::disallowed_methods, reason = "the tests make a link to read")]
 mod tests {
     use pretty_assertions::assert_eq;
 
@@ -100,5 +128,32 @@ mod tests {
         );
         assert_eq!(arguments(&words(&["brush", "-i"]), None), None);
         assert_eq!(arguments(&[], serial), None);
+    }
+
+    #[test]
+    fn a_serial_line_restarts_the_shell_with_the_basic_editor() {
+        let args = words(&["-brush", "-l"]);
+        let exe = Path::new("/proc/self/exe");
+
+        let command = restart(exe, &args, Some(Path::new("/dev/ttyS0"))).unwrap();
+
+        assert_eq!(command.get_program(), exe);
+        let rest: Vec<&OsStr> = command.get_args().collect();
+        assert_eq!(rest, [BACKEND, BASIC, "-l"]);
+        assert!(restart(exe, &args, Some(Path::new("/dev/tty1"))).is_none());
+    }
+
+    #[test]
+    fn the_terminal_is_where_standard_input_points() {
+        let dir = std::env::temp_dir().join(format!("zbm-brush-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let link = dir.join("0");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink("/dev/ttyS0", &link).unwrap();
+
+        assert_eq!(terminal_of(&link, true), Some(PathBuf::from("/dev/ttyS0")));
+        assert_eq!(terminal_of(&link, false), None);
+        assert_eq!(terminal_of(&dir.join("missing"), true), None);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

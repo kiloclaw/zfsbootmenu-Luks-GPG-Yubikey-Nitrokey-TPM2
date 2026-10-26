@@ -9,13 +9,14 @@ BINDIR=$(PREFIX)/bin
 LIBEXECDIR=$(PREFIX)/libexec/zfsbootmenu
 EXAMPLES=$(PREFIX)/share/examples/zfsbootmenu
 
-# The Rust programs: zbm, the runtime that boot images include, and the host
-# tools generate-zbm and zbm-kcl. Their dependencies are vendored, so the build
+# The Rust programs: zbm, the runtime that boot images include, brush, the
+# shell of their recovery shell and hooks, and the host tools generate-zbm and
+# zbm-kcl. Their dependencies are vendored, so the build
 # needs no network.
 CARGO=cargo
 CARGO_TARGET_DIR=target
 CARGO_FLAGS=--release --locked
-RUST_PROGRAMS=zbm generate-zbm zbm-kcl
+RUST_PROGRAMS=zbm brush generate-zbm zbm-kcl
 # Release builds keep line tables for crash reports; installed programs are
 # stripped unless INSTALL_STRIP is empty (for packages that split debug files)
 INSTALL_STRIP=-s
@@ -41,6 +42,7 @@ tools-rust: zbm-release rust
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/generate-zbm" "$(DESTDIR)/$(BINDIR)/generate-zbm"
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm-kcl" "$(DESTDIR)/$(BINDIR)/zbm-kcl"
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm" "$(DESTDIR)/$(LIBEXECDIR)/zbm"
+	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/brush" "$(DESTDIR)/$(LIBEXECDIR)/brush"
 
 tools-legacy: zbm-release
 	install -m 0755 -t "$(DESTDIR)/$(BINDIR)" -D legacy/bin/*

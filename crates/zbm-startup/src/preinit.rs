@@ -184,6 +184,28 @@ pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOption
     options
 }
 
+/// Chooses the shell of the runtime's programs ([`zbm_platform::shell`]):
+/// brush when the image below `root` has it and the saved command line of
+/// `conf` does not ask for Bash (`zbm.shell=bash`); Bash otherwise. The
+/// choice is also written to `shell` in the state directory, for the SSH
+/// logins, which do not descend from the supervisor.
+pub fn shell(system: &System<'_>, root: &Path, conf: &Conf) -> &'static str {
+    let kcl = saved_commandline(system, root, conf);
+    let wanted = zbm_config::args::Args::lookup(
+        &ZbmArgs::from_kcl(&kcl),
+        &zbm_config::spec::cmdline::SHELL,
+        &mut Vec::new(),
+    );
+    let brush = root.join(zbm_platform::shell::BRUSH.trim_start_matches('/'));
+    let shell = zbm_platform::shell::choose(wanted.as_deref(), system.files.is_file(&brush));
+    let base = base(conf);
+    let path = root
+        .join(base.strip_prefix("/").unwrap_or(&base))
+        .join("shell");
+    let _ = system.files.write(&path, format!("{shell}\n").as_bytes());
+    shell
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,5 +295,26 @@ export embedded_kcl=\"rd.hostonly=0\"
     fn a_missing_configuration_is_an_error() {
         let fake = FakeSystem::new();
         assert!(parse_commandline(&fake.system(), Path::new("/")).is_err());
+    }
+
+    #[test]
+    fn brush_is_the_shell_where_the_image_has_it_and_bash_is_not_asked_for() {
+        let without = setup("quiet");
+        let system = without.system();
+        let conf = read_conf(&system, Path::new("/")).unwrap();
+        parse_commandline(&system, Path::new("/")).unwrap();
+        assert_eq!(shell(&system, Path::new("/"), &conf), "/bin/bash");
+
+        without.files.file("/usr/bin/brush", "");
+        assert_eq!(shell(&system, Path::new("/"), &conf), "/usr/bin/brush");
+        let saved = system.files.read_to_string(Path::new("/zfsbootmenu/shell"));
+        assert_eq!(saved.unwrap(), "/usr/bin/brush\n");
+
+        let asked = setup("quiet zbm.shell=bash");
+        asked.files.file("/usr/bin/brush", "");
+        let system = asked.system();
+        let conf = read_conf(&system, Path::new("/")).unwrap();
+        parse_commandline(&system, Path::new("/")).unwrap();
+        assert_eq!(shell(&system, Path::new("/"), &conf), "/bin/bash");
     }
 }

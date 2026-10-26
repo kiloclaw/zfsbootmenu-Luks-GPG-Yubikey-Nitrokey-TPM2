@@ -45,6 +45,7 @@ fn restarts_the_program_after_a_shell() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
@@ -90,6 +91,7 @@ fn a_program_killed_by_a_signal_leaves_a_crash_report() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
@@ -137,6 +139,7 @@ fn a_program_that_lost_its_terminal_did_not_crash() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
@@ -174,6 +177,7 @@ fn a_crash_report_the_program_wrote_is_named() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
@@ -208,6 +212,7 @@ fn without_a_console_the_programs_run_on_the_supervisor_s_terminal() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: Some(Program {
@@ -246,6 +251,7 @@ fn programs_that_cannot_start_are_logged() {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
@@ -276,6 +282,7 @@ fn supervisor_in(dir: &TempDir, startup: PathBuf) -> Supervisor {
         },
         retry: Duration::from_millis(10),
         redirect_console: false,
+        fallback: None,
         log: dir.write("kmsg", ""),
         base: dir.path().to_owned(),
         console: None,
@@ -516,4 +523,46 @@ fn a_hung_up_terminal_is_given_up_even_if_its_console_is_not_collected() {
         kmsg.contains("hung up; going on on the kernel console"),
         "{kmsg}"
     );
+}
+
+#[test]
+fn bash_opens_when_the_shell_fails_at_once_or_cannot_start() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let mut supervisor = with_marking_shell(&dir);
+    supervisor.fallback = Some(supervisor.shell.clone());
+    supervisor.shell = Program {
+        path: dir.write_executable("brush", "#!/bin/sh\nexit 1\n"),
+        args: Vec::new(),
+    };
+    let mut events = Vec::new();
+
+    supervisor.recovery_shell(None, &mut None, &mut |event| events.push(event));
+
+    assert_eq!(events, [Event::Shell, Event::Shell]);
+    assert_eq!(
+        std::fs::read_to_string(dir.join("shell-ran")).unwrap(),
+        "ran\n"
+    );
+    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
+    assert!(kmsg.contains("brush did not open; starting"), "{kmsg}");
+
+    std::fs::remove_file(dir.join("shell-ran")).unwrap();
+    supervisor.shell.path = dir.join("missing");
+    let mut events = Vec::new();
+    supervisor.recovery_shell(None, &mut None, &mut |event| events.push(event));
+    let _ = zbm_sys::restore_default(Signal::Interrupt);
+    assert!(matches!(
+        events.as_slice(),
+        [Event::Failed(_), Event::Shell]
+    ));
+    assert!(dir.join("shell-ran").exists());
+}
+
+#[test]
+fn without_a_chosen_shell_the_recovery_shell_is_bash() {
+    let supervisor = Supervisor::new(PathBuf::from("/libexec/zbm"));
+    assert_eq!(supervisor.shell.path, PathBuf::from("/bin/bash"));
+    assert_eq!(supervisor.shell.args, ["-i"]);
+    assert_eq!(supervisor.fallback, None);
 }

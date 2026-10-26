@@ -30,8 +30,18 @@ fn give_up(io: &mut Io, what: &str) -> i32 {
         io.stderr,
         "\x1b[0;31mWARNING: {what} was not sourced; unable to proceed\x1b[0m"
     );
-    let error = std::process::Command::new("/bin/bash").exec();
-    let _ = writeln!(io.stderr, "zbm: unable to start /bin/bash: {error}");
+    // The shell the runtime chose, then Bash if that one does not start.
+    if let Some(shell) = zbm_platform::shell::chosen() {
+        let error = std::process::Command::new(&shell).exec();
+        let _ = writeln!(
+            io.stderr,
+            "zbm: unable to start {}: {error}",
+            shell.display()
+        );
+    }
+    let bash = zbm_platform::shell::BASH;
+    let error = std::process::Command::new(bash).exec();
+    let _ = writeln!(io.stderr, "zbm: unable to start {bash}: {error}");
     1
 }
 
@@ -57,7 +67,8 @@ pub fn parse_commandline(_args: &[String], io: &mut Io) -> i32 {
 /// the console, then replaces this process with the supervisor in a new
 /// session on the control terminal. The supervisor starts with the variables
 /// of `/etc/zfsbootmenu.conf` and `/etc/profile` exported, as the legacy
-/// start-up program sources them, so every program it starts sees them.
+/// start-up program sources them, so every program it starts sees them, and
+/// with the shell chosen for them in `ZBM_SHELL` ([`zbm_platform::shell`]).
 pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     let real = RealSystem::new();
     let terminal = match real.terminal() {
@@ -83,12 +94,16 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
         zbm_startup::graphics::load(&system, Path::new("/"), gpu.as_deref(), untested);
     }
 
+    // The shell of the runtime's programs (`zbm.shell`), for them all
+    let shell = preinit::shell(&system, Path::new("/"), &conf);
+
     // https://busybox.net/FAQ.html#job_control: the shell opens the terminal
     // after `setsid`, so it becomes the session's controlling terminal.
     let script = "tty=$1; shift; source /etc/zfsbootmenu.conf; source /etc/profile; \
                   exec \"$@\" <\"${tty}\" >\"${tty}\" 2>&1";
     let error = std::process::Command::new("setsid")
-        .args(["bash", "-c", script, "zfsbootmenu-preinit"])
+        .args([shell, "-c", script, "zfsbootmenu-preinit"])
+        .env(zbm_platform::shell::ENV, shell)
         .arg(&options.control_term)
         .arg(zbm())
         .args(["zfsbootmenu-init", "--supervise"])

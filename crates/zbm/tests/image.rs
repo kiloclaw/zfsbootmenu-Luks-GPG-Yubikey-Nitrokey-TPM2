@@ -25,6 +25,8 @@ dinfo() { echo "dinfo: $*" >&2; }
 msg2() { echo "msg2: $*" >&2; }
 derror() { echo "derror: $*" >&2; }
 error() { echo "error: $*" >&2; }
+dwarning() { echo "dwarning: $*" >&2; }
+warning() { echo "warning: $*" >&2; }
 "#;
 
 /// What `install` and `dracut_install` call the `zbm` program that exists.
@@ -59,10 +61,12 @@ fn install(parity: &mut Parity, style: &str, settings: &[(&str, &str)]) -> (i32,
                  echo \"runtime=${ZBM_RUNTIME}\"; return $rc; }",
             )
             .call("check", &[], b"");
+        let dir = dir.path().to_string_lossy().into_owned();
+        let plain = |text: String| text.replace(&zbm, ZBM).replace(&dir, "$DIR");
         (
             output.status.shell_code(),
-            output.stdout_text().replace(&zbm, ZBM),
-            output.stderr_text().replace(&zbm, ZBM),
+            plain(output.stdout_text()),
+            plain(output.stderr_text()),
         )
     })
 }
@@ -126,13 +130,28 @@ fn the_rust_runtime_needs_zbm() {
         stderr,
         "derror: zfsbootmenu_runtime=rust: zbm not found at /nonexistent/zbm\n"
     );
-    let (code, stdout, _) = install(
+    // Without brush, the shell is Bash.
+    let (code, stdout, stderr) = install(
         &mut parity,
         "mkinitcpio",
         &[("zfsbootmenu_runtime", "Rust"), ("zfsbootmenu_zbm", ZBM)],
     );
     assert_eq!(code, 0);
     assert_eq!(stdout, "add_binary $ZBM /libexec/zbm\nruntime=rust\n");
+    assert_eq!(
+        stderr,
+        "warning: brush not found at $DIR/brush; the shell of the Rust runtime is Bash\n"
+    );
+    let brush = [("zfsbootmenu_brush", ZBM), ("zfsbootmenu_runtime", "rust")];
+    let (_, stdout, _) = install(
+        &mut parity,
+        "dracut",
+        &[("zfsbootmenu_zbm", ZBM), brush[0], brush[1]],
+    );
+    assert_eq!(
+        stdout,
+        "inst_binary $ZBM /libexec/zbm\ninst_binary $ZBM /usr/bin/brush\nruntime=rust\n"
+    );
 }
 
 #[test]
@@ -202,6 +221,7 @@ const TEXTS: &[&str] = &[
     "usr/share/zfsbootmenu/layouts/layouts",
     "etc/inputrc",
     "etc/profile",
+    "root/.bashrc",
     "bin/zbm",
 ];
 
@@ -296,6 +316,8 @@ fn dracut_install(parity: &mut Parity, settings: &[(&str, &str)]) -> Image {
         // The real zbm, which makes the console fonts of Rust images.
         let real = env!("CARGO_BIN_EXE_zbm");
         let zbm = dir.write_executable("zbm", format!("#!/bin/sh\nexec {real} \"$@\"\n"));
+        // brush, next to zbm, where the helpers look for it.
+        dir.write_executable("brush", "#!/bin/sh\n");
         let zbm = zbm.to_string_lossy().into_owned();
         let initdir = TempDir::new("zbm-dracut");
         std::fs::create_dir_all(initdir.join("etc/cmdline.d")).unwrap();
@@ -370,6 +392,9 @@ fn dracut_images_start_the_selected_runtime() {
         "{conf}"
     );
 
+    // Only Rust images have brush.
+    assert!(!legacy.exists("usr/bin/brush"));
+    assert!(!legacy.text("root/.bashrc").contains("brush"));
     assert!(!legacy.exists("usr/share/zfsbootmenu/layouts"));
     assert!(!legacy.exists("etc/inputrc"));
     assert!(!legacy.text("etc/profile").contains("LC_CTYPE"));
@@ -389,6 +414,10 @@ fn dracut_images_start_the_selected_runtime() {
     );
     assert!(!hooks.contains("zfsbootmenu-preinit.sh\n"), "{hooks}");
     assert!(rust.exists("libexec/zbm"));
+    // brush, and the SSH logins that hand over to it.
+    assert_eq!(rust.entries["usr/bin/brush"], "file 755");
+    let bashrc = rust.text("root/.bashrc");
+    assert!(bashrc.contains("\n  exec /usr/bin/brush\n"), "{bashrc}");
     // The Rust start-up program replaces the legacy one; the shell libraries
     // stay for hooks and the recovery shell.
     assert!(!rust.exists("libexec/zfsbootmenu-init"));

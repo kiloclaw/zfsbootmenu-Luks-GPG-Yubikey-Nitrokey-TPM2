@@ -361,7 +361,9 @@ impl Zfs for ZfsCli<'_> {
         target: &DatasetName,
         properties: &[(String, String)],
     ) -> Result<(), ZfsError> {
-        let command = Command::new("bash")
+        // The shell the runtime chose (brush in Rust images), else Bash.
+        let shell = zbm_platform::shell::chosen().unwrap_or_else(|| "bash".into());
+        let command = Command::new(shell)
             .args(["-c", SEND_RECEIVE, "zfs-send-receive"])
             .arg(snapshot.to_string())
             .arg("-u")
