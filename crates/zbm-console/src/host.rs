@@ -212,6 +212,25 @@ pub struct RealHost<'h, M> {
     devices: Option<File>,
     /// Until when keyboards are looked for on every tick.
     rescan_until: Option<Instant>,
+    /// Where a program of the runtime says that it shows a secret prompt.
+    secret_prompt: Option<SecretPrompt>,
+}
+
+/// The record of a secret prompt in the runtime's state directory, which
+/// counts while the process that wrote it lives.
+#[derive(Debug)]
+struct SecretPrompt {
+    base: std::path::PathBuf,
+}
+
+impl SecretPrompt {
+    /// Whether a living process records a secret prompt.
+    fn is_open(&self) -> bool {
+        let state = zbm_state::State::new(&zbm_platform::RealFiles, &self.base);
+        state
+            .secret_prompt_pid()
+            .is_some_and(|pid| std::path::Path::new(&format!("/proc/{pid}")).exists())
+    }
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -237,7 +256,18 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             wake: None,
             devices: None,
             rescan_until: None,
+            secret_prompt: None,
         }
+    }
+
+    /// The host, which reads the record of a secret prompt in the
+    /// runtime's state directory `base`.
+    #[must_use]
+    pub fn with_state(mut self, base: &std::path::Path) -> Self {
+        self.secret_prompt = Some(SecretPrompt {
+            base: base.to_owned(),
+        });
+        self
     }
 
     /// The host, woken when `wake` becomes readable, as a request's signal
@@ -405,9 +435,19 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         self.keyboards.pending_accent()
     }
 
-    fn is_echoing(&self) -> bool {
-        termios::tcgetattr(&self.master)
-            .is_ok_and(|modes| modes.local_modes.contains(termios::LocalModes::ECHO))
+    fn is_secret(&self) -> bool {
+        let modes = termios::tcgetattr(&self.master).map(|modes| modes.local_modes);
+        // Lines read without echo: `read -s`, `getpass`, `cryptsetup`; a
+        // line editor or a full screen program reads keys without either.
+        let is_password = modes.is_ok_and(|modes| {
+            modes.contains(termios::LocalModes::ICANON)
+                && !modes.contains(termios::LocalModes::ECHO)
+        });
+        is_password
+            || self
+                .secret_prompt
+                .as_ref()
+                .is_some_and(SecretPrompt::is_open)
     }
 }
 

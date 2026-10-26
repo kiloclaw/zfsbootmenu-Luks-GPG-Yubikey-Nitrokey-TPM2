@@ -17,6 +17,7 @@ use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::{Position, Rect, Size};
 
 use super::model::Model;
+use super::secret::{Marker, is_asking_secret};
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::view::view;
@@ -114,6 +115,9 @@ pub struct StartupView<B: Backend, K: Keys> {
     model: Option<Model>,
     terminal: Terminal<B>,
     keys: K,
+    /// Where the view records its secret prompts for the console on the
+    /// display, if anywhere.
+    marker: Option<Marker>,
 }
 
 /// Whether `action` answers a dialog of start-up.
@@ -151,10 +155,19 @@ where
             model: Some(Model::new(snapshot, theme)),
             terminal,
             keys,
+            marker: None,
         };
         drawn(view.terminal.clear())?;
         view.draw()?;
         Ok(view)
+    }
+
+    /// The view, which records its secret prompts with `marker` for the
+    /// console on the display.
+    #[must_use]
+    pub fn with_marker(mut self, marker: Marker) -> StartupView<B, K> {
+        self.marker = Some(marker);
+        self
     }
 
     /// The menu the view draws.
@@ -192,6 +205,9 @@ where
             return Ok(());
         };
         drawn(self.terminal.draw(|frame| view(model, frame)))?;
+        if let Some(marker) = &mut self.marker {
+            marker.show(is_asking_secret(model));
+        }
         Ok(())
     }
 
@@ -265,6 +281,9 @@ where
     /// Leaves the terminal as it was before the view: cleared, with the
     /// cursor at the top and shown.
     fn give_back(&mut self) -> io::Result<()> {
+        if let Some(marker) = &mut self.marker {
+            marker.show(false);
+        }
         drawn(self.terminal.clear())?;
         drawn(self.terminal.set_cursor_position(Position::ORIGIN))?;
         drawn(self.terminal.show_cursor())?;

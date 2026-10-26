@@ -10,8 +10,8 @@ use std::path::Path;
 use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, CONSOLE_MIRROR, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
-    KEYBOARD_REPEAT, NUM_LOCK,
+    AUTOSIZE, CONSOLE_MIRROR, CONSOLE_SCROLLBACK, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT,
+    KEYBOARD_LAYOUT, KEYBOARD_REPEAT, NUM_LOCK,
 };
 use zbm_platform::System;
 
@@ -53,6 +53,12 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
         .filter(|value| crate::console::repeat(value).is_some())
     {
         arguments.extend(["--repeat".to_owned(), repeat.trim().to_owned()]);
+    }
+    if let Some(lines) = args
+        .lookup(&CONSOLE_SCROLLBACK, &mut messages)
+        .filter(|lines| lines.trim().parse::<u32>().is_ok())
+    {
+        arguments.extend(["--scrollback".to_owned(), lines.trim().to_owned()]);
     }
     if let Some(mirror) = args
         .lookup(&CONSOLE_MIRROR, &mut messages)
@@ -130,8 +136,10 @@ mod tests {
             words("console")
         );
         assert_eq!(
-            console("zbm.console=drm zbm.numlock=on zbm.keyboard_repeat=250,30"),
-            words("console --numlock on --repeat 250,30")
+            console(
+                "zbm.console=drm zbm.numlock=on zbm.keyboard_repeat=250,30 zbm.console_scrollback=0"
+            ),
+            words("console --numlock on --repeat 250,30 --scrollback 0")
         );
         // Wrong values are left out: the console keeps the keyboards' own.
         assert_eq!(

@@ -12,6 +12,7 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use super::keymap::key_name;
 use super::machine::Machine;
+use super::secret::{Marker, is_asking_secret};
 use super::session::Session;
 use super::startup::{Keys as _, StartupScreen, StartupView};
 use super::term_keys::TerminalKeys;
@@ -63,9 +64,12 @@ pub fn run<M: Machine>(
     terminal.clear()?;
     let start = Instant::now();
     let mut last_tick = Instant::now();
+    // The console on the display keeps nothing while a secret is typed.
+    let mut marker = Marker::new(std::path::Path::new(zbm_state::BASE));
     let why = loop {
         fit(&mut terminal, &mut input)?;
         terminal.draw(|frame| view(session.model(), frame))?;
+        marker.show(is_asking_secret(session.model()));
         if let Some(why) = session.leaving() {
             // The last frame stays a moment, unless it says nothing.
             if !why.is_empty() {
@@ -153,7 +157,10 @@ pub fn startup_view(
     );
     let viewport = Viewport::Fixed(Rect::new(0, 0, columns, rows));
     let terminal = Terminal::with_options(backend, TerminalOptions { viewport })?;
-    Ok(Box::new(StartupView::new(terminal, keys, snapshot, theme)?))
+    let marker = Marker::new(std::path::Path::new(zbm_state::BASE));
+    Ok(Box::new(
+        StartupView::new(terminal, keys, snapshot, theme)?.with_marker(marker),
+    ))
 }
 
 /// The size to draw in: the terminal's, else `fallback`.

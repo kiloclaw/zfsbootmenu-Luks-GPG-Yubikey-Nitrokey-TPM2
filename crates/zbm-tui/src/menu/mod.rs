@@ -22,6 +22,7 @@ pub mod keyboard;
 pub mod keymap;
 pub mod machine;
 pub mod model;
+pub mod secret;
 pub mod session;
 pub mod startup;
 pub mod term_keys;

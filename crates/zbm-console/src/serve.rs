@@ -91,6 +91,8 @@ pub struct Settings {
     /// The key repeat (`zbm.keyboard_repeat`): the delay and the period, in
     /// milliseconds; the keyboards' own otherwise.
     pub repeat: Option<(u32, u32)>,
+    /// The lines of scrollback (`zbm.console_scrollback`).
+    pub scrollback: usize,
 }
 
 impl Settings {
@@ -412,7 +414,9 @@ fn on_display(
     };
     let mut display = Display::open(&card)?;
     let size = display.size();
-    let mut console = console_for(kept, grid, size)?.with_flavour(settings.flavour);
+    let mut console = console_for(kept, grid, size)?
+        .with_flavour(settings.flavour)
+        .with_scrollback(settings.scrollback);
     let Layouts { first, names, load } = layouts;
     let keyboards = open_keyboards(settings, places, first);
     let taken = VirtualTerminal::take(vt)?;
@@ -433,7 +437,7 @@ fn on_display(
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch = layouts::switcher(places, names, load);
-    let mut host = real_host(&mut *master, keyboards, requests, &places.dev, switch);
+    let mut host = real_host(&mut *master, keyboards, requests, places, switch);
     let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
@@ -446,21 +450,23 @@ fn on_display(
 }
 
 /// The host of the loop on the display: the programs' terminal `master`,
-/// the keyboards and the requests, woken by them and by new devices below
-/// `dev` where the system allows.
+/// the keyboards and the requests, woken by them and by new devices in
+/// `places` where the system allows, with the records of secret prompts in
+/// its state directory.
 fn real_host<'h>(
     master: &'h mut File,
     keyboards: Keyboards,
     requests: &Requests,
-    dev: &Path,
+    places: &Places,
     switch: Switch<'h>,
 ) -> RealHost<'h, &'h mut File> {
     let mut host = RealHost::new(master, keyboards, Arc::clone(&requests.release))
-        .with_layouts(Arc::clone(&requests.layout), switch);
+        .with_layouts(Arc::clone(&requests.layout), switch)
+        .with_state(&places.base);
     if let Some(wake) = requests.wake.as_deref().and_then(|fd| fd.try_clone().ok()) {
         host = host.with_wake(File::from(wake));
     }
-    if let Some(devices) = watch_devices(dev) {
+    if let Some(devices) = watch_devices(&places.dev) {
         host = host.with_device_watch(devices);
     }
     host

@@ -13,7 +13,8 @@
 //!
 //! ```text
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
-//!             [--numlock on|off] [--repeat <delay>,<rate>] [--mirror <file>]
+//!             [--numlock on|off] [--repeat <delay>,<rate>]
+//!             [--scrollback <lines>] [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
@@ -28,7 +29,8 @@
 //! the layout and the others of the image, or switches to another, as
 //! Super+Space does. `--numlock` turns Num Lock on or off at the start, and
 //! `--repeat` sets the keyboards' repeat: a delay in milliseconds and a
-//! rate a second.
+//! rate a second. `--scrollback` sets the lines of history kept for
+//! Shift+PgUp (2000; 0 keeps none), never while a secret prompt is open.
 //!
 //! The console draws with the image's TrueType font, in cells as high as
 //! the console font `zbm console-autosize` would choose, with its bold,
@@ -57,11 +59,19 @@ use crate::{Io, USAGE};
 /// The usage text.
 const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
-                   [--numlock on|off] [--repeat <delay>,<rate>] [--mirror <file>]
+                   [--numlock on|off] [--repeat <delay>,<rate>] [--scrollback <lines>]
+                   [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
 ";
+
+/// The lines of scrollback the console keeps by default: about 9 MB on a
+/// display of 192 columns.
+pub const SCROLLBACK: usize = 2000;
+
+/// The most lines of scrollback that may be asked for.
+pub const MAX_SCROLLBACK: usize = 100_000;
 
 /// How long `zbm console release` waits by default.
 const RELEASE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -81,6 +91,8 @@ pub struct Options {
     pub num_lock: Option<bool>,
     /// The key repeat: the delay and the period, in milliseconds.
     pub repeat: Option<(u32, u32)>,
+    /// The lines of scrollback; [`SCROLLBACK`] otherwise.
+    pub scrollback: Option<usize>,
     /// Where to write the screen's text.
     pub mirror: Option<PathBuf>,
 }
@@ -103,6 +115,10 @@ pub fn parse(args: &[String]) -> Option<Options> {
                 };
             }
             "--repeat" => options.repeat = Some(zbm_startup::console::repeat(args.next()?)?),
+            "--scrollback" => {
+                options.scrollback =
+                    Some(args.next()?.parse().ok().filter(|&n| n <= MAX_SCROLLBACK)?);
+            }
             "--psf" => options.psf = true,
             _ => return None,
         }
@@ -209,8 +225,13 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         flavour: zbm_console::keys::Flavour::of_image(|path| files.exists(path)),
         num_lock: options.num_lock,
         repeat: options.repeat,
+        scrollback: options.scrollback.unwrap_or(SCROLLBACK),
     };
     let places = Places::system();
+    // The screen and its history stay out of swap.
+    if let Err(error) = zbm_sys::memory::lock_all_memory() {
+        places.log(5, &format!("memory not locked: {error}"));
+    }
     let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
     let directory = Path::new(crate::layouts::DIRECTORY);
     let mut warn = |text: String| places.log(4, &text);
@@ -294,6 +315,7 @@ mod tests {
                 layout: None,
                 num_lock: None,
                 repeat: None,
+                scrollback: None,
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
             })
         );
@@ -302,6 +324,8 @@ mod tests {
         assert_eq!(parse(&args("--numlock off")).unwrap().num_lock, Some(false));
         assert_eq!(parse(&args("--numlock yes")), None);
         assert_eq!(parse(&args("--repeat fast")), None);
+        assert_eq!(parse(&args("--scrollback 0")).unwrap().scrollback, Some(0));
+        assert_eq!(parse(&args("--scrollback 100001")), None);
         assert_eq!(parse(&[]), Some(Options::default()));
         assert!(parse(&args("--psf")).unwrap().psf);
         let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;

@@ -4104,6 +4104,7 @@ dependencies = [
  "zbm-app",
  "zbm-display",
  "zbm-platform",
+ "zbm-state",
  "zbm-sys",
  "zbm-testkit",
  "zbm-types",

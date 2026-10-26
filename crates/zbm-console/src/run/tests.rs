@@ -52,7 +52,7 @@ struct FakeHost {
     script: VecDeque<Input>,
     sent: Vec<u8>,
     waited: Vec<Duration>,
-    echoing: bool,
+    secret: bool,
     accent: Option<char>,
     next_layouts: usize,
 }
@@ -63,7 +63,7 @@ impl FakeHost {
             script: script.into(),
             sent: Vec::new(),
             waited: Vec::new(),
-            echoing: true,
+            secret: false,
             accent: None,
             next_layouts: 0,
         }
@@ -93,8 +93,8 @@ impl Host for FakeHost {
         self.accent
     }
 
-    fn is_echoing(&self) -> bool {
-        self.echoing
+    fn is_secret(&self) -> bool {
+        self.secret
     }
 }
 
@@ -349,7 +349,7 @@ fn the_console_takes_its_own_keys_and_shows_what_is_being_typed() {
     // At a prompt that does not echo, nothing is shown.
     let mut console = self::console();
     let mut host = FakeHost::new(vec![Input::Keys(vec![ctrl_shift_u]), chars("4")]);
-    host.echoing = false;
+    host.secret = true;
     host.accent = Some('^');
     run(&mut console, &mut screen, &mut host, None).unwrap();
     assert_eq!(console.preview(), None);

@@ -205,6 +205,23 @@ impl<'a> State<'a> {
         self.remove("console-layout-request");
     }
 
+    /// The process ID of the program that shows a secret prompt now (a
+    /// passphrase, a PIN): the console on the display keeps no scrollback
+    /// and shows nothing typed while it is there.
+    pub fn secret_prompt_pid(&self) -> Option<u32> {
+        self.read_line("secret-prompt")?.parse().ok()
+    }
+
+    /// Records that process `pid` shows a secret prompt.
+    pub fn set_secret_prompt(&self, pid: u32) -> Result<()> {
+        self.write("secret-prompt", format!("{pid}\n").as_bytes())
+    }
+
+    /// Records that no secret prompt is shown.
+    pub fn clear_secret_prompt(&self) {
+        self.remove("secret-prompt");
+    }
+
     /// The default boot environment (`bootfs`), if one is recorded.
     pub fn bootfs(&self) -> Option<String> {
         self.read_line("bootfs").filter(|bootfs| !bootfs.is_empty())

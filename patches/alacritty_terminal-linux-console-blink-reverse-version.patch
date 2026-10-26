@@ -61,7 +61,27 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
              grid,
              tabs,
              inactive_keyboard_mode_stack: Default::default(),
-@@ -1263,7 +1277,7 @@
+@@ -651,6 +665,19 @@
+         &mut self.grid
+     }
+ 
++    /// Overwrites with blank cells the lines of history beyond the `keep`
++    /// nearest the screen, of both screens: dropping them, as a smaller
++    /// history or a clear does, frees their memory without clearing it.
++    pub fn wipe_history(&mut self, keep: usize) {
++        let blank = Cell::default();
++        for grid in [&mut self.grid, &mut self.inactive_grid] {
++            for index in keep..grid.history_size() {
++                let line = Line(-1 - i32::try_from(index).unwrap_or(i32::MAX - 1));
++                grid[line].reset(&blank);
++            }
++        }
++    }
++
+     /// Resize terminal to new dimensions.
+     pub fn resize<S: Dimensions>(&mut self, size: S) {
+         let old_cols = self.columns();
+@@ -1263,7 +1290,7 @@
              },
              Some('>') => {
                  trace!("Reporting secondary device attributes");
@@ -70,7 +90,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
                  let text = format!("\x1b[>0;{version};1c");
                  self.event_proxy.send_event(Event::PtyWrite(text));
              },
-@@ -1272,6 +1286,42 @@
+@@ -1272,6 +1299,42 @@
      }
  
      #[inline]
@@ -113,7 +133,21 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
      fn report_keyboard_mode(&mut self) {
          if !self.config.kitty_keyboard {
              return;
-@@ -1848,6 +1898,7 @@
+@@ -1803,6 +1866,13 @@
+                 self.selection = None;
+             },
+             ansi::ClearMode::Saved if self.history_size() > 0 => {
++                // Overwritten first: clearing alone keeps the lines' memory
++                // as it was, for reuse.
++                let blank = Cell::default();
++                for index in 0..self.grid.history_size() {
++                    let line = Line(-1 - i32::try_from(index).unwrap_or(i32::MAX - 1));
++                    self.grid[line].reset(&blank);
++                }
+                 self.grid.clear_history();
+ 
+                 self.vi_mode_cursor.point.line =
+@@ -1848,6 +1918,7 @@
          self.vi_mode_cursor = Default::default();
          self.keyboard_mode_stack = Default::default();
          self.inactive_keyboard_mode_stack = Default::default();
@@ -121,7 +155,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
  
          // Preserve vi mode across resets.
          self.mode &= TermMode::VI;
-@@ -1880,14 +1931,24 @@
+@@ -1880,14 +1951,24 @@
      #[inline]
      fn terminal_attribute(&mut self, attr: Attr) {
          trace!("Setting attribute: {attr:?}");
@@ -148,7 +182,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
                  cursor.template.flags = Flags::empty();
                  cursor.template.set_underline_color(None);
              },
-@@ -1924,9 +1985,8 @@
+@@ -1924,9 +2005,8 @@
              Attr::CancelHidden => cursor.template.flags.remove(Flags::HIDDEN),
              Attr::Strike => cursor.template.flags.insert(Flags::STRIKEOUT),
              Attr::CancelStrike => cursor.template.flags.remove(Flags::STRIKEOUT),
@@ -160,7 +194,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
          }
      }
  
-@@ -1934,6 +1994,12 @@
+@@ -1934,6 +2014,12 @@
      fn set_private_mode(&mut self, mode: PrivateMode) {
          let mode = match mode {
              PrivateMode::Named(mode) => mode,
@@ -173,7 +207,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
              PrivateMode::Unknown(mode) => {
                  debug!("Ignoring unknown mode {mode} in set_private_mode");
                  return;
-@@ -1997,6 +2063,12 @@
+@@ -1997,6 +2083,12 @@
      fn unset_private_mode(&mut self, mode: PrivateMode) {
          let mode = match mode {
              PrivateMode::Named(mode) => mode,
@@ -186,7 +220,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
              PrivateMode::Unknown(mode) => {
                  debug!("Ignoring unknown mode {mode} in unset_private_mode");
                  return;
-@@ -2084,6 +2156,7 @@
+@@ -2084,6 +2176,7 @@
                  NamedPrivateMode::SyncUpdate => ModeState::Reset,
                  NamedPrivateMode::ColumnMode => ModeState::NotSupported,
              },
@@ -194,7 +228,7 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
              PrivateMode::Unknown(_) => ModeState::NotSupported,
          };
  
-@@ -3291,6 +3364,76 @@
+@@ -3291,6 +3384,97 @@
          assert_eq!(term.title, None);
      }
  
@@ -208,6 +242,27 @@ diff -ru a/src/term/mod.rs b/src/term/mod.rs
 +                self.0.borrow_mut().push_str(&text);
 +            }
 +        }
++    }
++
++    #[test]
++    fn history_beyond_what_is_kept_is_wiped() {
++        let size = TermSize::new(5, 2);
++        let config = Config { scrolling_history: 10, ..Config::default() };
++        let mut term = Term::new(config, &size, VoidListener);
++        for c in ['a', 'b', 'c', 'd', 'e'] {
++            term.input(c);
++            term.carriage_return();
++            term.linefeed();
++        }
++        assert_eq!(term.grid.history_size(), 4);
++        term.wipe_history(1);
++        let first = |term: &Term<VoidListener>, line| term.grid[Line(line)][Column(0)].c;
++        assert_eq!(first(&term, -1), 'd');
++        for line in -4..-1 {
++            assert_eq!(first(&term, line), ' ');
++        }
++        term.wipe_history(0);
++        assert_eq!(first(&term, -1), ' ');
 +    }
 +
 +    #[test]

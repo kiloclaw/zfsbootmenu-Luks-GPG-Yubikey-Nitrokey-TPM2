@@ -665,6 +665,19 @@ impl<T> Term<T> {
         &mut self.grid
     }
 
+    /// Overwrites with blank cells the lines of history beyond the `keep`
+    /// nearest the screen, of both screens: dropping them, as a smaller
+    /// history or a clear does, frees their memory without clearing it.
+    pub fn wipe_history(&mut self, keep: usize) {
+        let blank = Cell::default();
+        for grid in [&mut self.grid, &mut self.inactive_grid] {
+            for index in keep..grid.history_size() {
+                let line = Line(-1 - i32::try_from(index).unwrap_or(i32::MAX - 1));
+                grid[line].reset(&blank);
+            }
+        }
+    }
+
     /// Resize terminal to new dimensions.
     pub fn resize<S: Dimensions>(&mut self, size: S) {
         let old_cols = self.columns();
@@ -1853,6 +1866,13 @@ impl<T: EventListener> Handler for Term<T> {
                 self.selection = None;
             },
             ansi::ClearMode::Saved if self.history_size() > 0 => {
+                // Overwritten first: clearing alone keeps the lines' memory
+                // as it was, for reuse.
+                let blank = Cell::default();
+                for index in 0..self.grid.history_size() {
+                    let line = Line(-1 - i32::try_from(index).unwrap_or(i32::MAX - 1));
+                    self.grid[line].reset(&blank);
+                }
                 self.grid.clear_history();
 
                 self.vi_mode_cursor.point.line =
@@ -3374,6 +3394,27 @@ mod tests {
                 self.0.borrow_mut().push_str(&text);
             }
         }
+    }
+
+    #[test]
+    fn history_beyond_what_is_kept_is_wiped() {
+        let size = TermSize::new(5, 2);
+        let config = Config { scrolling_history: 10, ..Config::default() };
+        let mut term = Term::new(config, &size, VoidListener);
+        for c in ['a', 'b', 'c', 'd', 'e'] {
+            term.input(c);
+            term.carriage_return();
+            term.linefeed();
+        }
+        assert_eq!(term.grid.history_size(), 4);
+        term.wipe_history(1);
+        let first = |term: &Term<VoidListener>, line| term.grid[Line(line)][Column(0)].c;
+        assert_eq!(first(&term, -1), 'd');
+        for line in -4..-1 {
+            assert_eq!(first(&term, line), ' ');
+        }
+        term.wipe_history(0);
+        assert_eq!(first(&term, -1), ' ');
     }
 
     #[test]

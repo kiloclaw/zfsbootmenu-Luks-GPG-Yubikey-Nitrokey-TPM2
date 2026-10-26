@@ -70,11 +70,12 @@ pub trait Host {
         None
     }
 
-    /// Whether the programs' terminal echoes what is typed: what is being
-    /// typed is shown at the cursor only then, never at a passphrase
-    /// prompt.
-    fn is_echoing(&self) -> bool {
-        false
+    /// Whether a secret prompt is open: a program of the runtime says so,
+    /// or the programs' terminal reads lines without echoing them, as
+    /// password prompts do. Nothing being typed is shown then, and no
+    /// scrollback kept. A host that cannot tell says there is one.
+    fn is_secret(&self) -> bool {
+        true
     }
 }
 
@@ -171,6 +172,7 @@ pub fn run(
             })
         };
         let input = host.wait(timeout)?;
+        console.set_secret(host.is_secret());
         let is_output = matches!(input, Input::Output(_));
         if let Some(ended) = take(console, host, &mut typing, input)? {
             return Ok(ended);
@@ -200,17 +202,20 @@ fn take_keys(
     let mut kept = Vec::with_capacity(presses.len());
     for &press in presses {
         match typing.take(press) {
-            Taken::Type(press) => kept.push(press),
+            Taken::Type(press) => kept.extend(console.take_key(press)),
             Taken::NextLayout => host.next_layout(),
             Taken::Nothing => {}
         }
+    }
+    if !kept.is_empty() {
+        console.scroll_to_bottom();
     }
     let typed = type_keys(host, &kept, console.key_modes());
     zbm_sys::wipe_values(&mut kept, KeyPress::BLANK);
     let preview = typing
         .preview()
         .or_else(|| host.pending_accent().map(Preview::of))
-        .filter(|_| host.is_echoing());
+        .filter(|_| !host.is_secret());
     console.set_preview(preview);
     typed
 }

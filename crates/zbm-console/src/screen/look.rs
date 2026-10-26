@@ -22,7 +22,9 @@ pub(super) fn look(
     cursor: Option<Cursor>,
     shown: Shown,
 ) -> Option<(char, CellStyle, &[char], Option<CursorShape>)> {
-    let row = i32::try_from(line).ok()?;
+    // The line shown on row `line`, above the screen while scrolled back.
+    let offset = i32::try_from(term.grid().display_offset()).ok()?;
+    let row = i32::try_from(line).ok()? - offset;
     let grid = term.grid();
     if line >= grid.screen_lines() || column >= grid.columns() {
         return None;

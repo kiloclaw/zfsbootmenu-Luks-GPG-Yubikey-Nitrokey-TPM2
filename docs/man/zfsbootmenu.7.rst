@@ -254,6 +254,14 @@ These options are set on the kernel command line when booting the initramfs or U
     A key held repeats after *delay* milliseconds, *rate* times a second, on every keyboard; otherwise
     the keyboards keep the kernel's repeat.
 
+  **zbm.console_scrollback=2000**
+
+    The console keeps this many lines that scrolled off the screen, which Shift+PgUp and Shift+PgDn
+    show; 0 keeps none. While a passphrase or PIN prompt is open, it keeps none, and the lines it had
+    are overwritten. The menu tells the console about its prompts; a program that reads a line
+    without echoing it, such as **cryptsetup** or **zluks**, is taken for one. Typing shows the screen
+    again.
+
   Ctrl+Shift+U, then a code point in hexadecimal and Space or Enter, types any character; Escape
   cancels it. While a dead key or a code point waits for its next key, the console shows it at the
   cursor, except at a prompt that does not echo, such as a passphrase prompt.

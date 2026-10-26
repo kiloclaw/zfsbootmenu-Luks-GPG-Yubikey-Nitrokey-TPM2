@@ -28,6 +28,7 @@ unsafe extern "C" {
     ) -> *mut c_void;
     fn munmap(addr: *mut c_void, len: usize) -> c_int;
     fn mlock(addr: *const c_void, len: usize) -> c_int;
+    fn mlockall(flags: c_int) -> c_int;
     fn madvise(addr: *mut c_void, len: usize, advice: c_int) -> c_int;
     fn ftruncate(fd: c_int, length: i64) -> c_int;
     fn close(fd: c_int) -> c_int;
@@ -55,6 +56,27 @@ pub fn set_undumpable() -> io::Result<()> {
     // SAFETY: `prctl(PR_SET_DUMPABLE, 0)` reads no memory of the caller; the
     // argument is passed as a whole register.
     if unsafe { prctl(PR_SET_DUMPABLE, 0 as c_long) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+/// `MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT`: the pages the process has and
+/// will have, as they are first used.
+const LOCK_ALL: c_int = 1 | 2 | 4;
+
+/// Keeps all of the process's memory, now and later, out of swap, page by
+/// page as it is first used: what the console on the display keeps of the
+/// screen and its history.
+///
+/// # Errors
+///
+/// When the kernel refuses: without `CAP_IPC_LOCK`, beyond
+/// `RLIMIT_MEMLOCK`, or before Linux 4.4.
+pub fn lock_all_memory() -> io::Result<()> {
+    // SAFETY: `mlockall` reads no memory of the caller.
+    if unsafe { mlockall(LOCK_ALL) } == 0 {
         Ok(())
     } else {
         Err(io::Error::last_os_error())

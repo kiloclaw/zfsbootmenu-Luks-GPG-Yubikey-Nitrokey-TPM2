@@ -129,8 +129,8 @@ fn a_layout_asked_for_reaches_the_keyboards() {
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
     // Super+Space asks for the next one.
     host.next_layout();
-    // Not a terminal: nothing is shown as it is typed.
-    assert!(!host.is_echoing());
+    // Not a terminal, nor a recorded prompt: no secret prompt.
+    assert!(!host.is_secret());
     assert_eq!(host.pending_accent(), None);
     drop(host);
 

@@ -6,11 +6,13 @@
 //! reaches the display (`Frame::take_damage`), so that a firmware
 //! framebuffer, which is slow to write, keeps up with a shell.
 //!
-//! There is no scrollback: what scrolls off the screen is gone, so a
-//! passphrase shown by mistake does not stay in memory, and the answers the
-//! terminal owes the programs (cursor position, device attributes, colours)
-//! are kept apart for the caller to write back. When the terminal is
-//! dropped, its cells and the pixels drawn from them are wiped.
+//! What scrolls off the screen is kept for Shift+PgUp only as far as the
+//! scrollback allows (`history`), and none while a secret prompt is open,
+//! so that a passphrase shown by mistake does not stay in memory; the
+//! answers the terminal owes the programs (cursor position, device
+//! attributes, colours) are kept apart for the caller to write back. When
+//! the terminal is dropped, its cells, its history and the pixels drawn
+//! from them are wiped.
 
 use std::cell::RefCell;
 use std::hash::{DefaultHasher, Hash as _, Hasher as _};
@@ -36,6 +38,7 @@ use look::{draw_cursor, look};
 use scroll::Shift;
 
 mod blink;
+mod history;
 mod look;
 mod scroll;
 
@@ -71,6 +74,10 @@ pub struct Console {
     /// Whether the screen must be drawn again as a whole: what it shows
     /// besides the terminal changed.
     redraw: bool,
+    /// The lines of history kept while no secret prompt is open.
+    scrollback: usize,
+    /// Whether a secret prompt is open.
+    secret: bool,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -95,7 +102,8 @@ impl std::fmt::Debug for Console {
 /// The terminal's name, which XTVERSION reports with its version.
 pub const NAME: &str = "ZFSBootMenu";
 
-/// The terminal's settings: no scrollback, no clipboard, a blinking block
+/// The terminal's settings: no scrollback until one is asked for, no
+/// clipboard, a blinking block
 /// for a cursor, which blinks as the Linux console's does, the kitty
 /// keyboard protocol for the programs that ask for it, and ZFSBootMenu's
 /// name and version for those that ask who the terminal is.
@@ -137,6 +145,8 @@ impl Console {
             flavour: Flavour::Linux,
             preview: None,
             redraw: false,
+            scrollback: 0,
+            secret: false,
         };
         console.draw();
         console
@@ -320,7 +330,11 @@ impl Console {
     /// hidden, or blinked off, unless something is being typed there.
     fn drawn_cursor(&self) -> Option<Cursor> {
         let cursor = self.term.renderable_content().cursor;
-        let line = usize::try_from(cursor.point.line.0).ok()?;
+        // On the display, below the history shown while scrolled back.
+        let offset = i32::try_from(self.term.grid().display_offset()).unwrap_or(0);
+        let line = usize::try_from(cursor.point.line.0 + offset)
+            .ok()
+            .filter(|&line| line < self.screen_rows())?;
         let is_shown = cursor.shape != CursorShape::Hidden && !self.blink.off;
         (is_shown || self.preview.is_some()).then_some(Cursor {
             line,
@@ -396,7 +410,7 @@ impl Console {
     /// The flags of the cell at `line`, `column`, if there is one.
     fn flags(&self, line: usize, column: usize) -> Option<Flags> {
         let grid = self.term.grid();
-        let row = i32::try_from(line).ok()?;
+        let row = self.viewport_line(line);
         (line < grid.screen_lines() && column < grid.columns())
             .then(|| grid[Line(row)][Column(column)].flags)
     }
@@ -476,7 +490,9 @@ impl Console {
     /// Wipes what the terminal shows and the pixels drawn from it: the
     /// screen is cleared, its cells reset, the frame painted black.
     pub fn wipe(&mut self) {
-        self.feed(b"\x1b[0m\x1b[H\x1b[2J\x1b[3J");
+        // Clearing the screen moves it into the history, which goes after.
+        self.feed(b"\x1b[0m\x1b[H\x1b[2J");
+        self.wipe_history();
         zbm_sys::wipe_vec(&mut self.replies);
         self.drawn_rows.fill(None);
         let (width, height) = self.frame.size();
@@ -491,13 +507,13 @@ impl Console {
         );
     }
 
-    /// The text of the screen, one line per row, without trailing spaces,
-    /// combining marks after their characters.
+    /// The text of the screen as shown, one line per row, without trailing
+    /// spaces, combining marks after their characters.
     pub fn text(&self) -> String {
         let grid = self.term.grid();
         (0..grid.screen_lines())
             .map(|line| {
-                let row = &grid[Line(i32::try_from(line).unwrap_or(i32::MAX))];
+                let row = &grid[Line(self.viewport_line(line))];
                 let text: String = (0..grid.columns())
                     .map(|column| &row[Column(column)])
                     .filter(|cell| !cell.flags.contains(Flags::WIDE_CHAR_SPACER))

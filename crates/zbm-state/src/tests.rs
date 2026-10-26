@@ -48,6 +48,11 @@ fn markers_and_locks() {
     state.clear_console_layout_request();
     assert!(!state.has_console_layout_request());
     assert_eq!(state.console_layout_request(), None);
+    assert_eq!(state.secret_prompt_pid(), None);
+    state.set_secret_prompt(44).unwrap();
+    assert_eq!(state.secret_prompt_pid(), Some(44));
+    state.clear_secret_prompt();
+    assert_eq!(state.secret_prompt_pid(), None);
     state.clear_console();
     assert_eq!(state.console_pid(), None);
     assert_eq!(state.console_layout(), None);
