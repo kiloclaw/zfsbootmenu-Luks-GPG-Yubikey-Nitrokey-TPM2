@@ -124,6 +124,35 @@ impl Frame {
         }
     }
 
+    /// Moves the rows from `top`, `height` of them, by `by` rows, up when
+    /// `up` and down otherwise, within those rows: a scrolled screen is
+    /// moved rather than drawn again. The rows the move uncovers keep
+    /// their pixels, for the caller to draw.
+    pub fn shift_rows(&mut self, top: u32, height: u32, by: u32, up: bool) {
+        let height = height.min(self.height.saturating_sub(top));
+        if by == 0 || by >= height {
+            return;
+        }
+        let row = |rows: u32| usize::try_from(u64::from(rows) * u64::from(self.width)).ok();
+        let (Some(start), Some(length), Some(moved)) = (row(top), row(height), row(by)) else {
+            return;
+        };
+        let Some(rows) = self.pixels.get_mut(start..start + length) else {
+            return;
+        };
+        if up {
+            rows.copy_within(moved.., 0);
+        } else {
+            rows.copy_within(..length - moved, moved);
+        }
+        self.touch(Area {
+            x: 0,
+            y: top,
+            width: self.width,
+            height,
+        });
+    }
+
     /// Records that `area` changed.
     pub(crate) fn touch(&mut self, area: Area) {
         let clipped = Area {
@@ -217,5 +246,38 @@ mod tests {
             height: 2,
         });
         assert_eq!(frame.take_damage(), None);
+    }
+
+    #[test]
+    fn rows_are_moved_within_their_band() {
+        let mut frame = Frame::new(2, 5);
+        for y in 0..5 {
+            frame.fill(
+                Area {
+                    x: 0,
+                    y,
+                    width: 2,
+                    height: 1,
+                },
+                Rgb(u8::try_from(y).unwrap(), 0, 0),
+            );
+        }
+        frame.take_damage();
+        let column =
+            |frame: &Frame| -> Vec<u8> { (0..5).map(|y| frame.pixel(1, y).unwrap().0).collect() };
+
+        frame.shift_rows(1, 3, 1, true);
+        assert_eq!(column(&frame), [0, 2, 3, 3, 4]);
+        assert_eq!(
+            frame.take_damage().map(|area| (area.y, area.height)),
+            Some((1, 3))
+        );
+        frame.shift_rows(0, 5, 2, false);
+        assert_eq!(column(&frame), [0, 2, 0, 2, 3]);
+        // Nothing to move, or more than there is.
+        frame.shift_rows(0, 5, 0, true);
+        frame.shift_rows(3, 9, 2, true);
+        assert_eq!(frame.take_damage().map(|area| area.height), Some(5));
+        assert_eq!(column(&frame), [0, 2, 0, 2, 3]);
     }
 }

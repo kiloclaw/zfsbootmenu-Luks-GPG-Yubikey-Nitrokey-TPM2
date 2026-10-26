@@ -170,7 +170,13 @@ fn a_synchronized_update_is_drawn_when_its_time_runs_out() {
         presented: 0,
         broken: false,
     };
-    let mut host = FakeHost::new(vec![output("\x1b[?2026hlate"), Input::Nothing]);
+    // The first wait ends the burst; the second lets the update's time run
+    // out.
+    let mut host = FakeHost::new(vec![
+        output("\x1b[?2026hlate"),
+        Input::Nothing,
+        Input::Nothing,
+    ]);
     let mut last = String::new();
 
     run(
@@ -199,4 +205,32 @@ fn a_display_that_fails_ends_the_loop() {
 
     assert_eq!(error.to_string(), "no display");
     assert_eq!(screen.size(), (320, 140));
+}
+
+#[test]
+fn output_that_keeps_coming_is_drawn_once() {
+    let mut console = console();
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    let mut script: Vec<Input> = (0..20).map(|n| output(&format!("line {n}\r\n"))).collect();
+    script.extend([Input::Nothing, Input::Hangup]);
+    let mut host = FakeHost::new(script);
+    let mut texts = Vec::new();
+
+    run(
+        &mut console,
+        &mut screen,
+        &mut host,
+        Some(&mut |text| {
+            texts.push(text.to_owned());
+        }),
+    )
+    .unwrap();
+
+    // The first frame, and one for the twenty reads: they came within a
+    // burst, as the fake host gives them at once.
+    assert_eq!(screen.presented, 2, "{texts:?}");
+    assert!(texts.last().unwrap().contains("line 19"));
 }

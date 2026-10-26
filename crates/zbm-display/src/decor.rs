@@ -5,7 +5,7 @@
 use crate::frame::{Area, Frame, Rgb};
 
 /// How a cell is underlined.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum Underline {
     /// Not at all.
     #[default]
@@ -23,7 +23,7 @@ pub enum Underline {
 }
 
 /// The lines over a cell, and their colour.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct Decoration {
     /// The underline.
     pub underline: Underline,

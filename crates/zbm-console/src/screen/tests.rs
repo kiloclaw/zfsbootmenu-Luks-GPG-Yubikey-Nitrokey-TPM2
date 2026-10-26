@@ -284,3 +284,58 @@ fn a_hollow_cursor_is_a_box() {
         .collect();
     assert_eq!(rows, ["########", "#......#", "#......#", "########"]);
 }
+
+/// Every pixel of `console`'s frame.
+fn pixels(console: &mut Console) -> Vec<Rgb> {
+    let frame = console.frame_mut();
+    let (width, height) = frame.size();
+    (0..height)
+        .flat_map(|y| (0..width).map(move |x| (x, y)))
+        .map(|(x, y)| frame.pixel(x, y).unwrap())
+        .collect()
+}
+
+/// How many pixels of `one` and `other` differ.
+fn differing(one: &mut Console, other: &mut Console) -> usize {
+    let theirs = pixels(other);
+    pixels(one)
+        .iter()
+        .zip(&theirs)
+        .filter(|(mine, theirs)| mine != theirs)
+        .count()
+}
+
+#[test]
+fn a_scrolled_screen_is_moved_and_looks_as_if_drawn_anew() {
+    let mut scrolled = console();
+    let mut fresh = console();
+    let mut text = Vec::new();
+    for line in 0..8 {
+        text.extend_from_slice(format!("\x1b[3{}mline {line}\r\n", line % 8).as_bytes());
+    }
+    for line in text.split_inclusive(|&byte| byte == b'\n') {
+        scrolled.feed(line);
+        scrolled.draw();
+    }
+    // One more line: the screen scrolls by one, and only the rows that
+    // came, the last line and the cursor's, are drawn.
+    scrolled.feed(b"\x1b[0mlast\r\n");
+    let drawn = scrolled.draw();
+    assert!(drawn <= 1 + 2 * 20, "{drawn} cells drawn");
+
+    fresh.feed(&text);
+    fresh.feed(b"\x1b[0mlast\r\n");
+    fresh.draw();
+    assert_eq!(scrolled.text(), fresh.text());
+    assert_eq!(differing(&mut scrolled, &mut fresh), 0);
+
+    // Back down by one, as a reverse index at the top does.
+    scrolled.feed(b"\x1b[H\x1bM");
+    assert!(scrolled.draw() <= 1 + 2 * 20);
+    let mut fresh = console();
+    fresh.feed(&text);
+    fresh.feed(b"\x1b[0mlast\r\n\x1b[H\x1bM");
+    fresh.draw();
+    assert_eq!(scrolled.text(), fresh.text());
+    assert_eq!(differing(&mut scrolled, &mut fresh), 0);
+}

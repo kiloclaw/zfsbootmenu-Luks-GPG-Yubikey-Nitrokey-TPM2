@@ -14,7 +14,7 @@ use crate::frame::{Area, Frame, Rgb};
 use crate::outline::Outline;
 
 /// How a cell is drawn.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CellStyle {
     /// The colour of the character.
     pub fg: Rgb,

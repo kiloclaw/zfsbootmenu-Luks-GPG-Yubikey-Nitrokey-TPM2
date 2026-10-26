@@ -1,9 +1,10 @@
 //! The terminal: Alacritty's state machine fed with what the programs
 //! write, its cells drawn as pixels with the image's console font.
 //!
-//! Only what changed is drawn again (Alacritty's damage), and only the
-//! area drawn reaches the display (`Frame::take_damage`), so that a
-//! firmware framebuffer, which is slow to write, keeps up with a shell.
+//! Only what changed is drawn again (Alacritty's damage), a scrolled
+//! screen is moved rather than drawn (`scroll`), and only the area drawn
+//! reaches the display (`Frame::take_damage`), so that a firmware
+//! framebuffer, which is slow to write, keeps up with a shell.
 //!
 //! There is no scrollback: what scrolls off the screen is gone, so a
 //! passphrase shown by mistake does not stay in memory, and the answers the
@@ -12,6 +13,7 @@
 //! dropped, its cells and the pixels drawn from them are wiped.
 
 use std::cell::RefCell;
+use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -24,9 +26,12 @@ use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as TermRgb};
 use zbm_display::frame::{Area, Frame, Rgb};
-use zbm_display::grid::Grid;
+use zbm_display::grid::{CellStyle, Grid};
 
 use crate::colour;
+use scroll::Shift;
+
+mod scroll;
 
 /// The events of the terminal, kept until the console handles them.
 #[derive(Clone, Default)]
@@ -65,6 +70,16 @@ pub struct Console {
     rows: u16,
     replies: Vec<u8>,
     blink: Blink,
+    /// A hash of each row as drawn, `None` where it is not known.
+    drawn_rows: Vec<Option<u64>>,
+}
+
+/// The cursor as drawn: where, and its shape.
+#[derive(Clone, Copy, Debug)]
+struct Cursor {
+    line: usize,
+    column: usize,
+    shape: CursorShape,
 }
 
 impl std::fmt::Debug for Console {
@@ -108,6 +123,7 @@ impl Console {
             rows,
             replies: Vec::new(),
             blink: Blink::default(),
+            drawn_rows: vec![None; usize::from(rows)],
         };
         console.draw();
         console
@@ -212,62 +228,108 @@ impl Console {
     }
 
     /// Draws what changed since the last call into the frame; returns how
-    /// many cells were drawn.
+    /// many cells were drawn, a scroll counting as one.
     pub fn draw(&mut self) -> usize {
-        let damaged: Vec<(usize, usize, usize)> = match self.term.damage() {
-            TermDamage::Full => (0..usize::from(self.rows))
-                .map(|line| (line, 0, usize::from(self.columns) - 1))
-                .collect(),
-            TermDamage::Partial(lines) => lines
-                .map(|bounds| (bounds.line, bounds.left, bounds.right))
-                .collect(),
+        let damaged: Option<Vec<(usize, usize, usize)>> = match self.term.damage() {
+            TermDamage::Full => None,
+            TermDamage::Partial(lines) => Some(
+                lines
+                    .map(|bounds| (bounds.line, bounds.left, bounds.right))
+                    .collect(),
+            ),
         };
         self.term.reset_damage();
+        let cursor = self.drawn_cursor();
+        match damaged {
+            None => self.draw_screen(cursor),
+            Some(lines) => self.draw_lines(&lines, cursor),
+        }
+    }
+
+    /// Where the cursor is drawn, and its shape: nowhere while it is
+    /// hidden, or blinked off.
+    fn drawn_cursor(&self) -> Option<Cursor> {
         let cursor = self.term.renderable_content().cursor;
-        let shown = cursor.shape != CursorShape::Hidden && !self.blink.off;
+        let line = usize::try_from(cursor.point.line.0).ok()?;
+        (cursor.shape != CursorShape::Hidden && !self.blink.off).then_some(Cursor {
+            line,
+            column: cursor.point.column.0,
+            shape: cursor.shape,
+        })
+    }
+
+    /// Draws the cells of `lines` (line, first and last column), and keeps
+    /// the hashes of their rows.
+    fn draw_lines(&mut self, lines: &[(usize, usize, usize)], cursor: Option<Cursor>) -> usize {
         let mut drawn = 0;
-        for &(line, left, right) in &damaged {
+        for &(line, left, right) in lines {
             for column in left..=right.min(usize::from(self.columns) - 1) {
-                let at_cursor = shown
-                    && cursor.point.line.0.try_into() == Ok(line)
-                    && cursor.point.column == Column(column);
-                let shape = at_cursor.then_some(cursor.shape);
-                self.draw_cell(line, column, shape);
+                self.draw_cell(line, column, cursor);
                 drawn += 1;
+            }
+            let hash = self.row_hash(line, cursor);
+            if let Some(row) = self.drawn_rows.get_mut(line) {
+                *row = Some(hash);
             }
         }
         drawn
     }
 
-    /// Draws the cell at `line`, `column`, with the cursor of `shape` over
-    /// it when given.
-    fn draw_cell(&mut self, line: usize, column: usize, cursor: Option<CursorShape>) {
-        let (Ok(row), Ok(x), Ok(y)) = (
-            i32::try_from(line),
-            u16::try_from(column),
-            u16::try_from(line),
-        ) else {
+    /// Draws the whole screen, which changed as a whole: the rows drawn are
+    /// moved first when it scrolled, then the rows that differ are drawn.
+    fn draw_screen(&mut self, cursor: Option<Cursor>) -> usize {
+        let rows = usize::from(self.rows);
+        let next: Vec<u64> = (0..rows).map(|line| self.row_hash(line, cursor)).collect();
+        let shift = scroll::best_shift(&self.drawn_rows, &next);
+        let (_, cell) = self.grid.cell();
+        let pixels = |rows: usize| u32::try_from(rows).unwrap_or(u32::MAX).saturating_mul(cell);
+        match shift {
+            Shift::None => {}
+            Shift::Up(by) => self.frame.shift_rows(0, pixels(rows), pixels(by), true),
+            Shift::Down(by) => self.frame.shift_rows(0, pixels(rows), pixels(by), false),
+        }
+        scroll::shift_hashes(&mut self.drawn_rows, shift);
+        let mut drawn = usize::from(shift != Shift::None);
+        for (line, &hash) in next.iter().enumerate() {
+            if self.drawn_rows.get(line) == Some(&Some(hash)) {
+                continue;
+            }
+            for column in 0..usize::from(self.columns) {
+                self.draw_cell(line, column, cursor);
+                drawn += 1;
+            }
+            if let Some(row) = self.drawn_rows.get_mut(line) {
+                *row = Some(hash);
+            }
+        }
+        drawn
+    }
+
+    /// A hash of the row at `line` as it is drawn, the cursor included.
+    fn row_hash(&self, line: usize, cursor: Option<Cursor>) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for column in 0..usize::from(self.columns) {
+            look(&self.term, line, column, cursor).hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    /// Draws the cell at `line`, `column`, with the cursor over it when it
+    /// is there.
+    fn draw_cell(&mut self, line: usize, column: usize, cursor: Option<Cursor>) {
+        let (Ok(x), Ok(y)) = (u16::try_from(column), u16::try_from(line)) else {
             return;
         };
-        let cell = &self.term.grid()[Line(row)][Column(column)];
-        let colours = self.term.colors();
-        let style = if cursor == Some(CursorShape::Block) {
-            colour::cursor(colours, cell)
-        } else {
-            colour::style(colours, cell)
-        };
-        let c = if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
-            ' '
-        } else {
-            cell.c
+        let Some((c, style, marks, shape)) = look(&self.term, line, column, cursor) else {
+            return;
         };
         self.grid.draw(&mut self.frame, x, y, c, style);
         // Combining marks, such as the accent of an `e` followed by U+0301,
         // are drawn over the character they belong to.
-        for &mark in cell.zerowidth().unwrap_or_default() {
+        for &mark in marks {
             self.grid.draw_mark(&mut self.frame, x, y, mark, style.fg);
         }
-        if let Some(shape) = cursor {
+        if let Some(shape) = shape {
             let area = self.grid.area(x, y);
             draw_cursor(&mut self.frame, area, shape, style.fg);
         }
@@ -278,6 +340,7 @@ impl Console {
     pub fn wipe(&mut self) {
         self.feed(b"\x1b[0m\x1b[H\x1b[2J\x1b[3J");
         zbm_sys::wipe_vec(&mut self.replies);
+        self.drawn_rows.fill(None);
         let (width, height) = self.frame.size();
         self.frame.fill(
             zbm_display::frame::Area {
@@ -309,6 +372,34 @@ impl Console {
             })
             .collect()
     }
+}
+
+/// What the cell of `term` at `line`, `column` shows: its character, its
+/// style, its combining marks, and the shape of `cursor` when it is over
+/// it.
+fn look(
+    term: &Term<Events>,
+    line: usize,
+    column: usize,
+    cursor: Option<Cursor>,
+) -> Option<(char, CellStyle, &[char], Option<CursorShape>)> {
+    let row = i32::try_from(line).ok()?;
+    let cell = &term.grid()[Line(row)][Column(column)];
+    let shape = cursor
+        .filter(|cursor| cursor.line == line && cursor.column == column)
+        .map(|cursor| cursor.shape);
+    let colours = term.colors();
+    let style = if shape == Some(CursorShape::Block) {
+        colour::cursor(colours, cell)
+    } else {
+        colour::style(colours, cell)
+    };
+    let c = if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+        ' '
+    } else {
+        cell.c
+    };
+    Some((c, style, cell.zerowidth().unwrap_or_default(), shape))
 }
 
 /// Draws a cursor of `shape` other than the block, which swaps the cell's
