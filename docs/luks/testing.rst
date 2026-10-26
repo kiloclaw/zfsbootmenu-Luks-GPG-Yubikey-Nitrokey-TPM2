@@ -86,7 +86,10 @@ Variable                 Meaning
                          ``packaging/``, ``config/``, the guest hooks, ``Cargo.lock``, ``.cargo/config.toml`` and
                          the checksums of ``vendor/``); an image built from other sources is built again
 ``ZBMTEST_OLD_KERNEL``,  kernel and initramfs of a ZFSBootMenu image with an older ZFS, for the ``oldzfs`` tests;
-``ZBMTEST_OLD_INITRD``   those tests are skipped when unset, and pass the test images' host ID with ``spl_hostid=``
+``ZBMTEST_OLD_INITRD``   those tests are skipped when unset, and pass the test images' host ID with ``spl_hostid=``.
+                         ``tests/luks/vm/old-image.sh [directory]`` builds one in an ``ubuntu:24.04`` container (Linux
+                         6.8, OpenZFS 2.2, the legacy runtime of the checkout): *vmlinuz-bootmenu* and
+                         *initramfs-bootmenu.img* in the directory, by default */var/tmp/zbm-luks-test/old*
 ``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
                          choose their runtime themselves
