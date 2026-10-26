@@ -91,6 +91,7 @@ fn the_host_waits_on_the_programs_the_keyboards_and_the_release() {
         shift: false,
         ctrl: false,
         alt: false,
+        keypad: false,
     };
     assert_eq!(host.wait(timeout).unwrap(), Input::Keys(vec![a]));
     host.send(b"in").unwrap();

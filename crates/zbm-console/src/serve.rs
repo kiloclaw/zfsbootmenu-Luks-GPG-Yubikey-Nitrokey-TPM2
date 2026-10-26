@@ -81,6 +81,9 @@ pub struct Settings {
     /// Where to write the screen's text, after a form feed, for the VM
     /// tests.
     pub mirror: Option<PathBuf>,
+    /// The terminal description the programs run with, which the keys
+    /// follow.
+    pub flavour: crate::keys::Flavour,
 }
 
 impl Settings {
@@ -409,7 +412,7 @@ fn on_display(
     };
     let mut display = Display::open(&card)?;
     let size = display.size();
-    let mut console = console_for(kept, grid, size)?;
+    let mut console = console_for(kept, grid, size)?.with_flavour(settings.flavour);
     let Layouts { first, load } = layouts;
     let keyboards = open_keyboards(places, first);
     let taken = VirtualTerminal::take(vt)?;

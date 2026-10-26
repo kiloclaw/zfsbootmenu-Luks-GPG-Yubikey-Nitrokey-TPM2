@@ -29,6 +29,7 @@ use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 
 use crate::colour;
+use crate::keys::{self, Flavour, Modes};
 use scroll::Shift;
 
 mod scroll;
@@ -72,6 +73,8 @@ pub struct Console {
     blink: Blink,
     /// A hash of each row as drawn, `None` where it is not known.
     drawn_rows: Vec<Option<u64>>,
+    /// The terminal description the programs read keys through.
+    flavour: Flavour,
 }
 
 /// The cursor as drawn: where, and its shape.
@@ -91,12 +94,14 @@ impl std::fmt::Debug for Console {
     }
 }
 
-/// The terminal's settings: no scrollback, no clipboard, and a blinking
-/// block for a cursor, which blinks as the Linux console's does.
+/// The terminal's settings: no scrollback, no clipboard, a blinking block
+/// for a cursor, which blinks as the Linux console's does, and the kitty
+/// keyboard protocol for the programs that ask for it.
 fn config() -> Config {
     Config {
         scrolling_history: 0,
         osc52: Osc52::Disabled,
+        kitty_keyboard: true,
         default_cursor_style: CursorStyle {
             shape: CursorShape::Block,
             blinking: true,
@@ -124,6 +129,7 @@ impl Console {
             replies: Vec::new(),
             blink: Blink::default(),
             drawn_rows: vec![None; usize::from(rows)],
+            flavour: Flavour::Linux,
         };
         console.draw();
         console
@@ -227,9 +233,34 @@ impl Console {
         std::mem::take(&mut self.replies)
     }
 
-    /// Whether the cursor keys send their application sequences (DECCKM).
-    pub fn is_application_cursor(&self) -> bool {
-        self.term.mode().contains(TermMode::APP_CURSOR)
+    /// Has the keys sent as the terminal description `flavour` describes
+    /// them, which the programs run with.
+    #[must_use]
+    pub fn with_flavour(mut self, flavour: Flavour) -> Console {
+        self.flavour = flavour;
+        self
+    }
+
+    /// What the terminal's modes ask of the keys: the cursor keys
+    /// (DECCKM), the keypad (DECKPAM), Enter (LNM) and the kitty keyboard
+    /// protocol.
+    pub fn key_modes(&self) -> Modes {
+        let mode = *self.term.mode();
+        let kitty = [
+            (TermMode::DISAMBIGUATE_ESC_CODES, keys::DISAMBIGUATE),
+            (TermMode::REPORT_ALL_KEYS_AS_ESC, keys::ALL_KEYS),
+            (TermMode::REPORT_ASSOCIATED_TEXT, keys::TEXT),
+        ]
+        .into_iter()
+        .filter(|(flag, _)| mode.contains(*flag))
+        .fold(0, |flags, (_, bit)| flags | bit);
+        Modes {
+            flavour: self.flavour,
+            application_cursor: mode.contains(TermMode::APP_CURSOR),
+            application_keypad: mode.contains(TermMode::APP_KEYPAD),
+            new_line: mode.contains(TermMode::LINE_FEED_NEW_LINE),
+            kitty,
+        }
     }
 
     /// The frame drawn on.

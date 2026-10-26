@@ -79,6 +79,7 @@ fn key_presses_become_the_events_the_menu_takes() {
         shift,
         ctrl,
         alt,
+        keypad: false,
     };
 
     assert_eq!(
@@ -234,6 +235,7 @@ fn press(key: Key) -> KeyPress {
         shift: false,
         ctrl: false,
         alt: false,
+        keypad: false,
     }
 }
 

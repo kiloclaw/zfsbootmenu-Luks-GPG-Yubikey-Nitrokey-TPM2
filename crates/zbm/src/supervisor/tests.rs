@@ -566,3 +566,28 @@ fn without_a_chosen_shell_the_recovery_shell_is_bash() {
     assert_eq!(supervisor.shell.args, ["-i"]);
     assert_eq!(supervisor.fallback, None);
 }
+
+#[test]
+fn programs_on_the_console_get_its_terminal_description() {
+    let (_master, slave) = zbm_console::host::open_pty().unwrap();
+    let attached = Attached::for_tests(0, slave);
+    let program = Program {
+        path: PathBuf::from("/bin/sh"),
+        args: Vec::new(),
+    };
+
+    let command = attached.command(&program, &[]).unwrap();
+
+    let vars: Vec<(String, String)> = command
+        .get_envs()
+        .filter_map(|(key, value)| Some((key.to_str()?.to_owned(), value?.to_str()?.to_owned())))
+        .collect();
+    let get = |name: &str| {
+        vars.iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+    };
+    assert_eq!(get("TERM"), Some("xterm-256color"));
+    assert_eq!(get("COLORTERM"), Some("truecolor"));
+    assert_eq!(get(super::console::MARKER), Some("drm"));
+}

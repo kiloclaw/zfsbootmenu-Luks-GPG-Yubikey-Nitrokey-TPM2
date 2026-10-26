@@ -92,6 +92,7 @@ fn a_card_that_cannot_be_opened_is_said_so() {
     let settings = Settings {
         card: Some(dir.join("dri/card9")),
         mirror: None,
+        ..Settings::default()
     };
 
     without_display(&dir, settings);
@@ -107,6 +108,7 @@ fn the_mirror_gets_lines_of_their_own() {
     let settings = Settings {
         card: None,
         mirror: Some(mirror.clone()),
+        ..Settings::default()
     };
 
     settings.mirror_line(RELEASED);
@@ -232,6 +234,7 @@ fn the_start_is_announced_with_the_font_and_the_layout() {
     let settings = Settings {
         card: None,
         mirror: Some(mirror.clone()),
+        ..Settings::default()
     };
     let started = Started {
         card: PathBuf::from("/dev/dri/card0"),

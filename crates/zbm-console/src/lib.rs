@@ -8,7 +8,7 @@
 //!
 //! - [`screen`]: Alacritty's terminal, drawn as pixels with the image's
 //!   console font ([`colour`]: in the console's palette and beyond);
-//! - [`keys`]: key presses as the bytes the Linux console sends;
+//! - [`keys`]: key presses as the bytes of xterm or the Linux console;
 //! - [`run`]: the loop between the terminal, the display and the keyboards,
 //!   on a [`run::Host`] that tests replace;
 //! - [`host`]: the real one;

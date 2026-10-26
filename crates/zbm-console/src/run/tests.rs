@@ -86,6 +86,7 @@ fn press(key: Key) -> KeyPress {
         shift: false,
         ctrl: false,
         alt: false,
+        keypad: false,
     }
 }
 

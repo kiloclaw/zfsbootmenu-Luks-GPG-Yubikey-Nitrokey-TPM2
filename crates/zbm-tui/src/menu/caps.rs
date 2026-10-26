@@ -74,7 +74,12 @@ impl Capabilities {
                 let locale = locale.to_ascii_lowercase();
                 locale.contains("utf-8") || locale.contains("utf8")
             });
-        let line_drawing = !old && (term == "linux" || utf8);
+        // The console on the display (`zbm console`) runs its programs
+        // with xterm's description; it draws lines whatever the locale, and
+        // its palette is the Linux console's.
+        let drm_console = var("ZBM_CONSOLE").is_some();
+        let linux = term == "linux" || drm_console;
+        let line_drawing = !old && (linux || utf8);
         let no_colour = var("NO_COLOR").is_some();
         let colours = if no_colour || old {
             Colours::Monochrome
@@ -85,7 +90,7 @@ impl Capabilities {
             colours,
             line_drawing,
             interactive: true,
-            console: term == "linux" && colours == Colours::Sixteen,
+            console: linux && colours == Colours::Sixteen,
         }
     }
 
@@ -142,6 +147,15 @@ mod tests {
                 Capabilities::ASCII,
             ),
             ("vt220", vec![("TERM", "vt220")], Capabilities::ASCII),
+            (
+                "the console on the display",
+                vec![
+                    ("TERM", "xterm-256color"),
+                    ("ZBM_CONSOLE", "drm"),
+                    ("LANG", "C"),
+                ],
+                Capabilities::CONSOLE,
+            ),
             (
                 "NO_COLOR",
                 vec![("TERM", "linux"), ("NO_COLOR", "")],

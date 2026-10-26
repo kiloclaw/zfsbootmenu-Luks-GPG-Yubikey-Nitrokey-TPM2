@@ -72,14 +72,10 @@ pub enum Ended {
 }
 
 /// Sends what `presses` type, then wipes it: it may be a passphrase.
-fn type_keys(
-    host: &mut dyn Host,
-    presses: &[KeyPress],
-    application_cursor: bool,
-) -> io::Result<()> {
+fn type_keys(host: &mut dyn Host, presses: &[KeyPress], modes: keys::Modes) -> io::Result<()> {
     let mut typed = Vec::with_capacity(16 * presses.len());
     for &press in presses {
-        keys::encode(press, application_cursor, &mut typed);
+        keys::encode(press, modes, &mut typed);
     }
     let sent = host.send(&typed);
     zbm_sys::wipe_vec(&mut typed);
@@ -189,7 +185,7 @@ fn take(console: &mut Console, host: &mut dyn Host, input: Input) -> io::Result<
             }
         }
         Input::Keys(mut presses) => {
-            let typed = type_keys(host, &presses, console.is_application_cursor());
+            let typed = type_keys(host, &presses, console.key_modes());
             zbm_sys::wipe_values(&mut presses, KeyPress::BLANK);
             typed?;
         }

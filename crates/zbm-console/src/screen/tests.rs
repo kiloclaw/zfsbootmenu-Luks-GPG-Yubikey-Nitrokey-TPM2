@@ -106,9 +106,18 @@ fn the_programs_get_their_answers() {
 #[test]
 fn modes_and_synchronized_updates() {
     let mut console = console();
-    assert!(!console.is_application_cursor());
-    console.feed(b"\x1b[?1h");
-    assert!(console.is_application_cursor());
+    assert_eq!(console.key_modes(), crate::keys::Modes::default());
+    // DECCKM, DECKPAM, LNM, and the kitty protocol's flags 1, 8 and 16 of
+    // 31, which the terminal keeps.
+    console.feed(b"\x1b[?1h\x1b=\x1b[20h\x1b[>31u");
+    let modes = console.key_modes();
+    assert!(modes.application_cursor && modes.application_keypad && modes.new_line);
+    assert_eq!(modes.kitty, 1 | 8 | 16);
+    console.feed(b"\x1b[<u\x1b>\x1b[20l\x1b[?1l");
+    assert_eq!(console.key_modes(), crate::keys::Modes::default());
+    let console = console.with_flavour(crate::keys::Flavour::Xterm);
+    assert_eq!(console.key_modes().flavour, crate::keys::Flavour::Xterm);
+    let mut console = console;
 
     // Without a cursor, nothing blinks: the deadline is the update's.
     console.feed(b"\x1b[?25l\x1b[?2026hpartial");

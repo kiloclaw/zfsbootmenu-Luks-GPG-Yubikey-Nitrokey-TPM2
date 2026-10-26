@@ -49,6 +49,10 @@ pub enum Key {
 
 /// A key pressed, with the modifiers held.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each modifier is held or not, and each key on the keypad or not"
+)]
 pub struct KeyPress {
     /// The key.
     pub key: Key,
@@ -58,6 +62,9 @@ pub struct KeyPress {
     pub ctrl: bool,
     /// Whether Alt was held.
     pub alt: bool,
+    /// Whether the key is on the keypad, which programs may ask to send
+    /// sequences of its own (application keypad mode).
+    pub keypad: bool,
 }
 
 impl KeyPress {
@@ -67,6 +74,7 @@ impl KeyPress {
         shift: false,
         ctrl: false,
         alt: false,
+        keypad: false,
     };
 }
 
@@ -116,6 +124,12 @@ const KEYPAD: &[(u16, char, Option<Key>)] = &[
     (82, '0', Some(Key::Insert)),
     (83, '.', Some(Key::Delete)),
 ];
+
+/// Whether key `code` is on the keypad: its digits and point, its
+/// operators and its Enter.
+fn is_keypad(code: u16) -> bool {
+    keypad(code).is_some() || matches!(code, 55 | 74 | 78 | 96 | 98)
+}
 
 /// The keypad key of `code`, if it is one: its digit, and its key without
 /// Num Lock.
@@ -306,6 +320,7 @@ impl Decoder {
             if let Some(accent) = self.accent.take() {
                 presses.push(KeyPress {
                     key: Key::Char(accent),
+                    keypad: false,
                     ..press
                 });
             }
@@ -368,6 +383,7 @@ impl Decoder {
                 shift: typed.shift,
                 ctrl: typed.ctrl,
                 alt: typed.alt,
+                keypad: is_keypad(code),
             });
         }
         if modifier(code).is_some() {
@@ -395,6 +411,7 @@ impl Decoder {
             shift,
             ctrl: self.is_held(Modifier::Ctrl),
             alt: self.is_held(Modifier::Alt),
+            keypad: is_keypad(code),
         })
     }
 
@@ -442,6 +459,7 @@ mod tests {
             shift: false,
             ctrl: false,
             alt: false,
+            keypad: false,
         }
     }
 
@@ -543,6 +561,10 @@ mod tests {
         assert_eq!(key(&mut decoder, 76), Some(Key::Char('5')));
         assert_eq!(key(&mut decoder, 83), Some(Key::Char('.')));
         assert_eq!(key(&mut decoder, 78), Some(Key::Char('+')));
+        assert!(press(&mut decoder, 78).unwrap().keypad);
+        assert!(press(&mut decoder, 96).unwrap().keypad);
+        assert!(!press(&mut decoder, 28).unwrap().keypad);
+        assert!(!press(&mut decoder, 102).unwrap().keypad);
 
         decoder.set_num_lock(false);
         assert_eq!(key(&mut decoder, 82), Some(Key::Insert));

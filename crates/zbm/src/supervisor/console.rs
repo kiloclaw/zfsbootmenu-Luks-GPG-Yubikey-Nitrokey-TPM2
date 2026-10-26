@@ -32,6 +32,7 @@ use zbm_sys::console::{
 };
 
 use super::Program;
+use zbm_console::keys::Flavour;
 
 /// The supervisor's terminal: its standard input.
 const TERMINAL: i32 = 0;
@@ -46,7 +47,15 @@ pub struct Attached {
     /// The keyboard mode the virtual terminal had, if the supervisor's
     /// terminal is one.
     keyboard: Option<KeyboardMode>,
+    /// The terminal description the programs run with, as the console
+    /// sends keys for it.
+    flavour: Flavour,
 }
+
+/// The variable that tells programs they run on the console on the
+/// display, whose palette is the Linux console's and which draws lines
+/// whatever the locale (the menu's capabilities).
+pub const MARKER: &str = "ZBM_CONSOLE";
 
 impl Attached {
     /// Starts the console `program` on a new pseudo-terminal; it records
@@ -70,6 +79,7 @@ impl Attached {
             pid,
             slave,
             keyboard,
+            flavour: Flavour::of_image(|path| path.exists()),
         })
     }
 
@@ -80,6 +90,7 @@ impl Attached {
             pid,
             slave,
             keyboard: None,
+            flavour: Flavour::Xterm,
         }
     }
 
@@ -97,7 +108,12 @@ impl Attached {
             .args(extra)
             .stdin(Stdio::from(self.slave.try_clone()?))
             .stdout(Stdio::from(self.slave.try_clone()?))
-            .stderr(Stdio::from(self.slave.try_clone()?));
+            .stderr(Stdio::from(self.slave.try_clone()?))
+            .env("TERM", self.flavour.term())
+            .env(MARKER, "drm");
+        if self.flavour == Flavour::Xterm {
+            command.env("COLORTERM", "truecolor");
+        }
         Ok(command)
     }
 
@@ -186,6 +202,7 @@ mod tests {
             pid: 1,
             slave,
             keyboard: Some(KeyboardMode::OFF),
+            flavour: Flavour::Linux,
         };
         State::new(&RealFiles, dir.path()).set_console(1).unwrap();
 

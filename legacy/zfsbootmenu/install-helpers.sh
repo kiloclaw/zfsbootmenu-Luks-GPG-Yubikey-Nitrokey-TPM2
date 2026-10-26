@@ -565,15 +565,19 @@ install_zbm_keyboard_layouts() {
 # characters beyond ASCII, which the console on the display types with its
 # keyboard layouts (ROADMAP.md #19): readline keeps their bytes (/etc/inputrc),
 # and the C.UTF-8 character set of the build host's C library, when it has
-# one, makes them characters. Where the image has brush, the login shell of
-# an SSH session, Bash, hands over to it when the runtime chose it (the
-# shell file of the state directory). Runs after create_zbm_profiles.
+# one, makes them characters. The console on the display runs its programs
+# with xterm's terminal description when the image has it: it is copied from
+# the build host, and /etc/profile keeps it for the programs on the console
+# (ZBM_CONSOLE), which it otherwise sets to linux. Where the image has brush,
+# the login shell of an SSH session, Bash, hands over to it when the runtime
+# chose it (the shell file of the state directory). Runs after
+# create_zbm_profiles.
 #
 # prints: nothing
 # returns: 0
 
 install_zbm_shell_input() {
-  local ctype
+  local ctype terminfo
 
   [ "${ZBM_RUNTIME}" = "rust" ] || return 0
 
@@ -587,6 +591,16 @@ install_zbm_shell_input() {
     [ -f "${ctype}" ] || continue
     if zbm_install_file "${ctype}" "/usr/lib/locale/C.utf8/LC_CTYPE"; then
       echo "export LC_CTYPE=C.UTF-8" >> "${BUILDROOT}/etc/profile"
+    fi
+    break
+  done
+
+  for terminfo in /etc/terminfo /lib/terminfo /usr/share/terminfo; do
+    [ -f "${terminfo}/x/xterm-256color" ] || continue
+    if zbm_install_file "${terminfo}/x/xterm-256color" "${terminfo}/x/xterm-256color"; then
+      cat >> "${BUILDROOT}/etc/profile" <<-'EOF'
+	[ "${ZBM_CONSOLE}" = drm ] && export TERM=xterm-256color
+	EOF
     fi
     break
   done

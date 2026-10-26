@@ -144,12 +144,13 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
         return USAGE;
     };
+    let files = RealFiles;
     let settings = Settings {
         card: options.card.clone(),
         mirror: options.mirror.clone(),
+        flavour: zbm_console::keys::Flavour::of_image(|path| files.exists(path)),
     };
     let places = Places::system();
-    let files = RealFiles;
     let mut grid = |size| console_grid(&files, Path::new("/"), &options, size);
     let directory = Path::new(crate::layouts::DIRECTORY);
     let mut warn = |text: String| places.log(4, &text);

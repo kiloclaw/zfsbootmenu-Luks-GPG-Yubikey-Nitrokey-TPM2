@@ -478,10 +478,18 @@ fn dracut_images_start_the_selected_runtime() {
     assert_eq!(rust.exists("usr/lib/locale/C.utf8/LC_CTYPE"), utf8);
     let profile = rust.text("etc/profile");
     assert_eq!(
-        profile.ends_with("export LC_CTYPE=C.UTF-8\n"),
+        profile.contains("\nexport LC_CTYPE=C.UTF-8\n"),
         utf8,
         "{profile}"
     );
+    // Programs on the console keep xterm's description, if the host has it.
+    let xterm = ["/etc", "/lib", "/usr/share"]
+        .map(|dir| format!("{dir}/terminfo/x/xterm-256color"))
+        .into_iter()
+        .find(|path| std::path::Path::new(path).is_file());
+    let kept = "[ \"${ZBM_CONSOLE}\" = drm ] && export TERM=xterm-256color\n";
+    assert_eq!(profile.ends_with(kept), xterm.is_some(), "{profile}");
+    assert!(xterm.is_none_or(|path| rust.exists(path.trim_start_matches('/'))));
     // zbm is zluks, which also closes the LUKS mappings before booting, and
     // the menu, under both of its names.
     assert_eq!(rust.entries["bin/zluks"], "link /libexec/zbm");
