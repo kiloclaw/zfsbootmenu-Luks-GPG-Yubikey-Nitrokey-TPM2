@@ -120,7 +120,7 @@ fn the_boot_loader_names_the_esp_it_loaded_from() {
     assert_eq!(found, Ok("/dev/vdb1".to_owned()));
     let lines = fake.runner.lines();
     assert!(
-        lines.contains(&"mountpoint -q /sys/firmware/efi/efivars".to_owned()),
+        lines.contains(&"mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro".to_owned()),
         "{lines:?}"
     );
 }
@@ -277,30 +277,34 @@ fn a_boot_not_saved_whole_is_removed_and_old_ones_pruned() {
 }
 
 #[test]
-fn the_kernel_log_of_a_saved_boot_is_written_again_with_what_came_after() {
+fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
     let fake = machine();
     let system = fake.system();
     let saved = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap();
     let dir = Path::new(MOUNT_POINT).join(&saved.directory);
-    // What the kernel logged since the save is not in the saved copy.
-    fake.files.file(dir.join("kernel.log"), "stale\n");
+    // What was logged since the save is not in the saved copies.
+    fake.files.file(dir.join("kernel.log"), "stale\n").file(
+        "/zfsbootmenu/journal.jsonl",
+        "{\"message\":\"boot\"}\n{\"message\":\"graphics: handed back\"}\n",
+    );
 
-    update_kernel_log(&system, &saved).unwrap();
+    update_logs(&system, Path::new("/zfsbootmenu"), &saved).unwrap();
 
     assert_eq!(
         fake.files.text(dir.join("kernel.log")).as_deref(),
         Some("[    0.000000] Linux version\n")
     );
-    assert_eq!(
-        fake.files.text(dir.join("journal.jsonl")).as_deref(),
-        Some("{\"message\":\"boot\"}\n")
+    assert!(
+        fake.files
+            .text(dir.join("journal.jsonl"))
+            .is_some_and(|journal| journal.ends_with("handed back\"}\n"))
     );
 
     let gone = Saved {
         directory: format!("{DIRECTORY}/2020-01-01T00-00-00Z"),
         ..saved.clone()
     };
-    let error = update_kernel_log(&system, &gone).unwrap_err();
+    let error = update_logs(&system, Path::new("/zfsbootmenu"), &gone).unwrap_err();
     assert!(
         error.to_string().contains("the saved boot is gone"),
         "{error}"
@@ -312,7 +316,7 @@ fn the_kernel_log_of_a_saved_boot_is_written_again_with_what_came_after() {
         "",
     );
     assert_eq!(
-        update_kernel_log(&system, &saved),
+        update_logs(&system, Path::new("/zfsbootmenu"), &saved),
         Err(SaveError::Mount("/dev/vda1".to_owned()))
     );
 }

@@ -329,14 +329,15 @@ pub fn save_logs(
     }
 }
 
-/// Writes the kernel log again into the logs `saved` for this boot, if any,
-/// so that they keep how the GPUs were handed back, which comes after them
-/// and which the next kernel would not see. A failure is logged.
-fn keep_hand_back(system: &System<'_>, saved: Option<&Saved>) {
+/// Writes the kernel log and the journal again into the logs `saved` for
+/// this boot, if any, so that they keep how the GPUs were handed back, which
+/// comes after them and which the next kernel would not see. A failure is
+/// logged.
+fn keep_hand_back(system: &System<'_>, state: &State<'_>, saved: Option<&Saved>) {
     let Some(saved) = saved else {
         return;
     };
-    if let Err(error) = saved_logs::update_kernel_log(system, saved) {
+    if let Err(error) = saved_logs::update_logs(system, state.base(), saved) {
         zbm_trace::warn!("unable to add the GPUs' hand-back to the saved logs: {error}");
     }
 }
@@ -395,7 +396,7 @@ fn execute(
     // The GPUs last, as a display shows nothing once its GPU is handed back
     let gpus = graphics::hand_back(system, Path::new("/"));
     if !gpus.is_empty() {
-        keep_hand_back(system, saved);
+        keep_hand_back(system, state, saved);
     }
 
     let (_, output) = substituted(kexec::execute(system.runner));
@@ -498,7 +499,8 @@ mod tests {
             zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
                 .install();
 
-        keep_hand_back(&system, None);
+        let state = State::new(system.files, "/zfsbootmenu");
+        keep_hand_back(&system, &state, None);
         assert!(fake.runner.lines().is_empty());
 
         let saved = Saved {
@@ -506,7 +508,7 @@ mod tests {
             directory: "EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z".to_owned(),
             files: Vec::new(),
         };
-        keep_hand_back(&system, Some(&saved));
+        keep_hand_back(&system, &state, Some(&saved));
         assert!(
             fake.files
                 .text("/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log")
@@ -518,7 +520,7 @@ mod tests {
             32,
             "",
         );
-        keep_hand_back(&system, Some(&saved));
+        keep_hand_back(&system, &state, Some(&saved));
         assert!(
             fake.kmsg()
                 .contains("unable to add the GPUs' hand-back to the saved logs")

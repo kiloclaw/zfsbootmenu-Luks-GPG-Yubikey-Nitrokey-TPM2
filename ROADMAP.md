@@ -143,8 +143,8 @@ of its images.
     *Done.* `zbm_boot::graphics::hand_back` runs after the console on the display handed the display back and the
     "Booting" line, last before `kexec`: each GPU bound to a driver, of a vendor the image's drivers drive, is
     unbound (`driver/unbind`) and reset (`reset`) where the kernel offers a method (`reset_method`), and the kernel
-    log says which; with `zbm.save_logs`, the saved kernel log is written again after it, for the booted system to
-    read. When `kexec` fails, `take_back` has the PCI bus probe them again (`drivers_probe`) and waits for
+    log says which; with `zbm.save_logs`, the saved kernel log and journal are written again after it, for the booted
+    system to read. When `kexec` fails, `take_back` has the PCI bus probe them again (`drivers_probe`) and waits for
     their cards, before the console takes the display again. `runtime-rust-gpu` boots the environment after both
     QEMU GPUs were handed back, and its kernel brings up a display on each.
   - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at

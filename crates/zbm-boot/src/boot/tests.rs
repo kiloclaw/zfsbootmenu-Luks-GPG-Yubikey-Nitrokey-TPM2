@@ -488,20 +488,23 @@ fn efivarfs_is_mounted_or_remounted() {
     assert!(fake.kmsg().contains("efivarfs unsupported"));
 
     fake.files.dir("/sys/firmware/efi/efivars");
-    fake.runner
-        .respond("mountpoint -q /sys/firmware/efi/efivars", 1, "");
     mount_efivarfs(&fake.system(), "ro");
+    assert_eq!(
+        fake.runner.lines(),
+        ["mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro"]
+    );
+
+    // Mounted already, as the kernel's mount table says: remounted.
     let fake2 = FakeSystem::new();
     let _log_fake2 = fake_log(&fake2);
-    fake2.files.dir("/sys/firmware/efi/efivars");
+    fake2.files.dir("/sys/firmware/efi/efivars").file(
+        "/proc/self/mounts",
+        "proc /proc proc rw 0 0\nefivarfs /sys/firmware/efi/efivars efivarfs ro 0 0\n",
+    );
     mount_efivarfs(&fake2.system(), "rw");
     assert_eq!(
-        fake.runner.lines()[1],
-        "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro"
-    );
-    assert_eq!(
-        fake2.runner.lines()[1],
-        "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,rw"
+        fake2.runner.lines(),
+        ["mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,rw"]
     );
 }
 

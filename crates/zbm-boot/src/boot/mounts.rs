@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::{Runner, System};
+use zbm_platform::{Files, Runner, System};
 use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
@@ -146,6 +146,16 @@ fn is_efi_system(system: &System<'_>) -> bool {
     system.files.is_dir(Path::new("/sys/firmware/efi"))
 }
 
+/// Whether something is mounted on `path`, as the kernel's table of this
+/// process's mounts says; the images have no `mountpoint` program.
+pub fn is_mount_point(files: &dyn Files, path: &str) -> bool {
+    files
+        .read_to_string(Path::new("/proc/self/mounts"))
+        .unwrap_or_default()
+        .lines()
+        .any(|line| line.split_whitespace().nth(1) == Some(path))
+}
+
 /// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`) on
 /// `/sys/firmware/efi/efivars`. Does nothing without UEFI.
 pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
@@ -155,7 +165,7 @@ pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
         return;
     }
     let mount = Mount::new(system.runner);
-    let mounted = mount.is_mountpoint(location);
+    let mounted = is_mount_point(system.files, location);
     let options = if mounted {
         zbm_trace::debug!("remounting '{location}' '{mode}'");
         format!("remount,{mode}")

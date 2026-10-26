@@ -167,9 +167,8 @@ fn loader_partuuid(system: &System<'_>) -> Option<String> {
     if !system.files.is_dir(Path::new("/sys/firmware/efi")) {
         return None;
     }
-    let mount = Mount::new(system.runner);
-    if !mount.is_mountpoint(efivars) {
-        let _ = mount.efivarfs(efivars, "ro");
+    if !crate::boot::is_mount_point(system.files, efivars) {
+        let _ = Mount::new(system.runner).efivarfs(efivars, "ro");
     }
     let bytes = system.files.read(Path::new(LOADER_DEVICE)).ok()?;
     let units: Vec<u16> = bytes
@@ -354,15 +353,17 @@ fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String
     Ok(written)
 }
 
-/// Writes the kernel log again into the boot `saved`, with what was logged
-/// since the save, such as how the GPUs were handed back right before
-/// `kexec`, which comes after the teardown hooks and so after the save.
+/// Writes the kernel log and the journal of the state directory `base`
+/// again into the boot `saved`, with what was logged since the save, such
+/// as how the GPUs were handed back right before `kexec`, which comes after
+/// the teardown hooks and so after the save. The journal holds the info
+/// messages that the kernel log leaves out at the default `loglevel=4`.
 ///
 /// # Errors
 ///
 /// When the partition cannot be mounted, as when a teardown hook took its
 /// device away, or the saved boot is gone.
-pub fn update_kernel_log(system: &System<'_>, saved: &Saved) -> Result<(), SaveError> {
+pub fn update_logs(system: &System<'_>, base: &Path, saved: &Saved) -> Result<(), SaveError> {
     with_mounted(system, &saved.device, |root| {
         let dir = root.join(&saved.directory);
         if !system.files.is_dir(&dir) {
@@ -370,6 +371,9 @@ pub fn update_kernel_log(system: &System<'_>, saved: &Saved) -> Result<(), SaveE
                 dir.display().to_string(),
                 "the saved boot is gone".to_owned(),
             ));
+        }
+        if let Ok(journal) = system.files.read(&base.join(JOURNAL)) {
+            write(system.files, &dir.join(JOURNAL), &journal)?;
         }
         write(
             system.files,

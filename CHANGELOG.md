@@ -189,7 +189,9 @@ recovery shell still get the console. On a terminal that cannot run the menu, st
   `kexec` the console takes the display again (`zbm console reattach`) to show the error.
 - Rust images, process 1: logs saved after a crash (`zbm.save_logs`) are saved by a process of its own, so a hung
   device cannot stop the supervisor; `Ctrl-\` no longer kills start-up or the menu, as with the legacy runtime; the
-  recovery shell after a crash gets a usable terminal (echo, Ctrl-C, the cursor) back; when the console on the
+  recovery shell after a crash gets a usable terminal (echo, Ctrl-C, the cursor) back; the EFI variables are made
+  writable for `efibootmgr` in the recovery shell again, as the images have no `mountpoint` program to tell whether
+  they were mounted; each command the menu runs is recorded once in the journal, not twice; when the console on the
   display ends, the recovery shell opens on the kernel console every time, where it could open on the console's dead
   terminal and end at once, leaving the menu to take the keys typed for the shell.
 - Rust images, logs and diagnostics: with ZFS before 2.3, a command line property written over several lines or
@@ -238,8 +240,8 @@ kernel log says how each GPU was handed back. When `kexec` fails, the drivers ta
 show the error. The drivers take only GPUs known to come back after this, listed by PCI ID: for now QEMU's virtual
 GPUs, until real ones pass twenty boots in a row; the others stay on the firmware's framebuffer, with the reason in
 the kernel log, and `zbm.gpu_untested` on the command line loads their drivers to try them. With `zbm.save_logs`,
-the saved kernel log is written again after the hand-back, so that the booted system can read how each GPU was
-handed back. Not finished: runs on
+the saved kernel log and journal are written again after the hand-back, so that the booted system can read how each
+GPU was handed back (the journal has it at any `loglevel`). Not finished: runs on
 real hardware. Release images are unchanged.
 
 ### Console font on high-density (HiDPI) displays

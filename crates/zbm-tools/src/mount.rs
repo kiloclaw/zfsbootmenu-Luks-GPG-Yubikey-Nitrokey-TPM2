@@ -101,14 +101,6 @@ impl<'a> Mount<'a> {
         self.runner.run(&shown(command, Shown::Console))
     }
 
-    /// Whether `path` is a mount point (`mountpoint -q PATH`).
-    pub fn is_mountpoint(&self, path: &str) -> bool {
-        let command = Command::new("mountpoint").args(["-q", path]);
-        self.runner
-            .run(&shown(command, Shown::Hidden).stdin(Input::Inherit))
-            .is_ok_and(|output| output.status.is_success())
-    }
-
     /// Unmounts `path` (`umount PATH`).
     ///
     /// # Errors
@@ -156,7 +148,6 @@ mod tests {
         mount
             .efivarfs("/sys/firmware/efi/efivars", "remount,rw")
             .unwrap();
-        assert!(!mount.is_mountpoint("/sys/firmware/efi/efivars"));
         mount.unmount(mnt, Shown::Console).unwrap();
         mount.unmount(mnt, Shown::Hidden).unwrap();
         mount.unmount_recursive(mnt).unwrap();
@@ -169,7 +160,6 @@ mod tests {
                 "mount -o ro /dev/sdb1 /tmp/luks-key.1-0",
                 "mount -r tank/hooks /.external_hooks",
                 "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,rw",
-                "mountpoint -q /sys/firmware/efi/efivars",
                 "umount /zfsbootmenu/mnt",
                 "umount /zfsbootmenu/mnt",
                 "umount -R /zfsbootmenu/mnt",
@@ -180,7 +170,7 @@ mod tests {
         assert_eq!(calls[1].get_stderr(), Stream::Inherit);
         assert_eq!(calls[2].get_stdout(), Stream::Null);
         assert_eq!(calls[3].get_stdout(), Stream::Inherit);
-        assert_eq!(calls[6].get_stdout(), Stream::Inherit);
-        assert_eq!(*calls[7].get_stdin(), Input::Null);
+        assert_eq!(calls[5].get_stdout(), Stream::Inherit);
+        assert_eq!(*calls[6].get_stdin(), Input::Null);
     }
 }
