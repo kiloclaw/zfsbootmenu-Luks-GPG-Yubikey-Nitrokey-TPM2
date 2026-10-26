@@ -163,8 +163,9 @@ Goal: a shell flooding the console keeps up on the slowest framebuffer.
 - **C73 Several clip rectangles** (P2, S) per frame instead of their union (`Frame::take_damage`).
 - **C75 Frames at the refresh rate** (P3, S) at most.
 - **C76 Warm and lean** (P3, S): rasterize ASCII and the menu's characters at start; no allocation per frame.
-- **C112 Benchmarks** (P2, S): time to the first frame, `cat` of a large file, the image's size, each against the
-  kernel console, recorded in `docs/luks/testing.rst`.
+- **C112 Benchmarks** (P2, S): time to the first frame, `cat` of a large file and a scrolling flood, against the
+  kernel console: B9 of the [benchmarks](../../REFACTOR-ROADMAP.md#benchmarks), with the image's size (B1) and
+  memory (B8), recorded in `docs/luks/testing.rst`.
 
 ## M6. The kernel console's place
 

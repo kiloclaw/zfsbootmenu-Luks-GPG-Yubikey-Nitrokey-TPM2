@@ -47,7 +47,7 @@ In October 2026, on branch `claude/zbm-refactor`:
 | R3 | Done | `zbm-pool`, `zbm-startup`, the `zbm-luks` unlocker, `zbm-config` and the generated man page sections, the size rules, the VM harness in Rust |
 | D | In progress | Design, prototype and wireframes done; the usability sessions and the review of the design remain |
 | R4 | Done | Application layer: the vocabulary in `zbm-app`, the snapshot, the LUKS use cases and start-up events, `zluks` over `zbm-app` and no front end on an adapter, the `zbm debug` reports and `zbm-debug(8)`, key sources decided in Rust and compared by shadow mode with zero differences |
-| R5 | In progress | Steps 1 to 4 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view; start-up runs inside the menu, through every VM test of the Rust images. Step 5, snapshots, is next |
+| R5 | In progress | Steps 1 to 4 of 7 done: the Rust runtime loads keys and runs `load-key.d` hooks; the menu's text comes from a Fluent catalogue; the menu runs in Rust images, counts down and boots from its main view; start-up runs inside the menu, through every VM test of the Rust images. Step 5, snapshots, is in progress |
 | R6 to R9 | Not started | Two built-in hooks of R6 were done early |
 
 The [record of finished work](#record-of-finished-work) says what each phase did; [What the pilots
@@ -56,7 +56,9 @@ taught](#what-the-pilots-taught) lists what R0's pilots changed in the plan.
 ### Next
 
 - **R5**, the new menu, in the [seven steps](#r5-the-new-menu-10-to-12-weeks) of its plan; step 5, snapshots and
-  package D, is next.
+  package D, is under way.
+- **[Benchmarks](#benchmarks)**: `cargo xtask bench` and the `bench-*` VM scenarios, then a baseline of the legacy
+  runtime and the Rust runtime of today on the maintainer's machine.
 - **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
 - **The exit of D**, alongside: the usability sessions on the prototype (at least five people, one on a serial
   console), which the maintainer runs; the review of the design documents; decision 8.
@@ -571,6 +573,42 @@ Parity with the legacy code stays the safety net until the cutover, but without 
 3. Where a refactor changes behaviour on purpose, the golden file is updated and the change listed in
    `CHANGES-FROM-LEGACY.md`.
 
+### Benchmarks
+
+The goals say the Rust runtime is faster where it matters and no slower anywhere; these benchmarks turn that into
+numbers, measured against the legacy runtime on the same machine. Until they run, no speed claim is made.
+
+| # | What | How it is measured | Compared with | Budget |
+| --- | --- | --- | --- | --- |
+| B1 | Image size: the EFI image and the initramfs, and their parts (`zbm`, fonts, keyboard layouts, uutils) | `generate-zbm` builds both images from one configuration; `cargo xtask bench size` lists the parts | The legacy image | Set from the first baseline; a rise of more than 10% needs a reason in the record |
+| B2 | Time to the menu: from the kernel's start to the countdown's first frame | Kernel log timestamps and the journal's spans, in a VM with KVM | The legacy countdown; the kernel console and `zbm console` | No slower than legacy |
+| B3 | Time to boot: from QEMU's start to `BE-INIT-START`, with the stage times from the journal (modules, host ID, unlocking, import, menu, `kexec`) | The countdown boot of a `runtime` test, five runs, median and spread | The legacy image | No slower than legacy; the stages show where time goes |
+| B4 | Key to screen: the time from a key to the redrawn screen, for moving the selection, typing a filter, opening the snapshots and opening a dialog | In process on the fake machine (`zbm-tui`), and end to end over the serial console in a VM | `fzf` and its previews in the legacy menu | A frame (16 ms) in process; legacy's median end to end |
+| B5 | Many snapshots: 100, 1,000 and 10,000 snapshots of one environment; opening the snapshots view, filtering, scrolling, and memory | A pool built by the VM test, and in process with `FakeZfs`; R5's performance test | The legacy menu | Matching and redraw within a frame at 10,000; decides whether snapshots load on demand |
+| B6 | Bytes per redraw over a serial console, for the same actions as B4 | The bytes the serial console receives in a VM, at 80×24 | The legacy menu | Each action's redraw within 100 ms at 115200 baud (1,150 bytes) |
+| B7 | Processes started: during start-up, per menu action and per boot | The command journal (`TracedRunner`) and `/proc` counts in a VM | The legacy runtime, from `bash -x` traces | Fewer than legacy for every action; none for moving the selection |
+| B8 | Memory: the peak resident memory of start-up, the menu and `zbm console` | `/proc/<pid>/status` sampled in a VM | `bash` and `fzf` in the legacy image | Set from the first baseline |
+| B9 | The console on the display: time to its first frame, `cat` of a 10 MB file, and a scrolling flood, on `simpledrm` and `virtio_gpu` | VM tests with the console's mirror and timestamps ([console roadmap](docs/dev/console-roadmap.md) C112) | The kernel console | No slower than the kernel console once M5 of the console roadmap is done |
+| B10 | Unlocking: the time from Enter to the volume open, without the key derivation, which is measured on its own (`cryptsetup benchmark`) | The `secrets` and `keys` VM tests' journal spans | The legacy runtime | The overhead, not the derivation, no slower than legacy |
+| B11 | Scale: start-up with 4 pools, 24 devices and 12 LUKS volumes | A `complex` VM layout grown for the benchmark | The legacy runtime | No slower than legacy |
+| B12 | Building: the time to build an image with `generate-zbm`, and `cargo xtask test` | On the build machine and in the build container | The Perl `generate-zbm`; the 20-second goal of G8 | No slower than the Perl tool; `cargo xtask test` under a minute |
+
+How they run:
+
+- **Two harnesses.** `cargo xtask bench` runs what needs no VM (B1, B4 and B5 in process, B12) and writes
+  `target/bench.json`; `zbm-vmtest` gets `bench-*` scenarios for the rest, which write `bench.json` next to each test's
+  `result.json`, and `zbm-vmtest compare` compares two runs benchmark by benchmark.
+- **What gates and what is recorded.** Counts do not vary between runs (B6's bytes, B7's processes, B1's sizes, the
+  frames and allocations of B4 and B5 in process), so they are checked in CI against budgets, like the coverage and
+  metrics ratchets. Times vary, so they are recorded with their median and spread over five runs, and only compared
+  on the same machine.
+- **Where the results go.** `docs/luks/testing.rst` gets a Benchmarks table per run: the machine, the commits of both
+  runtimes, and each benchmark's median and spread. A change that makes a time more than 10% worse on the same machine
+  names the cause in the record or is fixed.
+- **When.** A baseline of the legacy runtime and the Rust runtime of today; then at the exit of R5 (with R5's
+  performance test), of R6 and of R9's beta, and for B9 at M5 and M9 of the console roadmap. The maintainer runs the
+  VM benchmarks with KVM, as the VM tests.
+
 ## Using uutils coreutils
 
 The build container's images already contain uutils (Ubuntu 26.10 made it the default). The refactor makes it the
@@ -876,7 +914,8 @@ builds after the core tasks.
    the diff's previews and packages, and the command palette's entries for the changes.
 6. **The rest of the menu**: kernels and the command line editor, pools and LUKS volumes from the menu, recovery
    tools, help, power.
-7. **The exit**: `CHANGES-FROM-LEGACY.md`, the generated key binding section, the 10,000-snapshot performance test,
+7. **The exit**: `CHANGES-FROM-LEGACY.md`, the generated key binding section, the 10,000-snapshot performance test
+   and the other [benchmarks](#benchmarks) of the menu (B2 to B8),
    the hostile-names fuzz target, the 52×20 pseudo-language fit, and the usability sessions.
 
 The plan in full:
@@ -951,6 +990,8 @@ model and menu design pages.
 - Delete `legacy/`, the golden files recorded from it that no longer guard anything, and the compatibility shims.
 - An independent security review of the Rust runtime against the [threat model](#threat-model); its findings are
   fixed or accepted in writing before the legacy runtime is removed.
+- The [benchmarks](#benchmarks) run on the beta's images: none is worse than the legacy runtime's without a reason
+  recorded.
 - **Exit:** the tree contains Rust, the packaging shims, documentation and user hook examples only; the security
   review is done.
 
