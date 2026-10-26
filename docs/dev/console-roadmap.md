@@ -25,6 +25,8 @@ of [dependencies.md](dependencies.md) apply, and the patch is offered upstream).
 
 Done in `9645a64`: D1 the console sleeps while idle; D2 the screen's text is built only for the mirror; D3 TrueType
 characters are drawn without copying their glyphs; D4 output and screen are wiped; D5 combining marks are drawn.
+The console's VM tests (`runtime-rust-console`, `runtime-rust-drm`) pass on it (27 October 2026, 39 checks with their
+setup).
 
 ## How the work runs
 
