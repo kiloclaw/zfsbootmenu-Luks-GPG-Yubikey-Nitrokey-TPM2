@@ -5,6 +5,8 @@
 //! clearing it.
 
 use alacritty_terminal::grid::{Dimensions as _, Scroll};
+use alacritty_terminal::index::{Column, Line};
+use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::{Config, TermMode};
 use zbm_display::keys::{Key, KeyPress};
 
@@ -38,7 +40,7 @@ impl Console {
         }
         self.secret = secret;
         if secret {
-            self.term.scroll_display(Scroll::Bottom);
+            self.end_seek();
         }
         self.apply_history();
     }
@@ -68,9 +70,10 @@ impl Console {
     }
 
     /// Takes `press` when it is the console's: Shift+PgUp and Shift+PgDn
-    /// scroll the programs' main screen. Any other key is given back, for
-    /// the programs.
+    /// scroll the programs' main screen, and the keys of search and vi
+    /// mode (`seek`). Any other key is given back, for the programs.
     pub fn take_key(&mut self, press: KeyPress) -> Option<KeyPress> {
+        let press = self.take_seek_key(press)?;
         let is_main_screen = !self.term.mode().contains(TermMode::ALT_SCREEN);
         let scroll = match press.key {
             Key::PageUp => Scroll::PageUp,
@@ -89,6 +92,31 @@ impl Console {
         if self.is_scrolled_back() {
             self.term.scroll_display(Scroll::Bottom);
         }
+    }
+
+    /// The text of the history and the screen, one line per row, without
+    /// trailing spaces or empty lines at the end.
+    pub(super) fn scrollback_text(&self) -> String {
+        let grid = self.term.grid();
+        let mut text = String::new();
+        for line in grid.topmost_line().0..=grid.bottommost_line().0 {
+            let row = &grid[Line(line)];
+            let start = text.len();
+            for column in 0..grid.columns() {
+                let cell = &row[Column(column)];
+                if !cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                    text.push(cell.c);
+                    text.extend(cell.zerowidth().unwrap_or_default());
+                }
+            }
+            let end = start + text.get(start..).unwrap_or_default().trim_end().len();
+            text.truncate(end);
+            text.push('\n');
+        }
+        let end = text.trim_end().len();
+        text.truncate(end);
+        text.push('\n');
+        text
     }
 
     /// The screen line that row `row` of the display shows: above the

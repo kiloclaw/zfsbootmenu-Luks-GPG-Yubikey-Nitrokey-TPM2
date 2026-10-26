@@ -119,6 +119,14 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   without echoing it, such as **cryptsetup** or **zluks**, is taken for one. Typing shows the screen
   again.
 
+  Ctrl+Shift+Space starts vi mode: the keys move a cursor over the screen and the scrollback as in
+  vi (h, j, k, l, w, b, e, 0, $, g, G, H, M, L, Ctrl+U, Ctrl+D, PgUp, PgDn), and none reach the
+  programs; Escape or q ends it. Ctrl+Shift+F and Ctrl+Shift+B, or / and ? in vi mode, search down
+  and up for the text typed, shown on the last row, and Enter keeps the match; n and N find the next
+  match and the one before. Ctrl+Shift+S saves the scrollback in
+  ``/zfsbootmenu/console-scrollback.txt``, which **zbm report** adds to its report. None of these
+  keys is the console's at a secret prompt or in a full-screen program.
+
 Ctrl+Shift+U, then a code point in hexadecimal and Space or Enter, types any character; Escape
 cancels it. While a dead key or a code point waits for its next key, the console shows it at the
 cursor, except at a prompt that does not echo, such as a passphrase prompt.

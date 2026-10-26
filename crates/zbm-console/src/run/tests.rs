@@ -55,6 +55,9 @@ struct FakeHost {
     secret: bool,
     accent: Option<char>,
     next_layouts: usize,
+    /// Where the scrollback is saved; it cannot be, without.
+    save_in: Option<PathBuf>,
+    saved: Vec<u8>,
 }
 
 impl FakeHost {
@@ -66,6 +69,8 @@ impl FakeHost {
             secret: false,
             accent: None,
             next_layouts: 0,
+            save_in: None,
+            saved: Vec::new(),
         }
     }
 }
@@ -95,6 +100,15 @@ impl Host for FakeHost {
 
     fn is_secret(&self) -> bool {
         self.secret
+    }
+
+    fn save_scrollback(&mut self, text: &[u8]) -> io::Result<PathBuf> {
+        let path = self
+            .save_in
+            .clone()
+            .ok_or(io::ErrorKind::ReadOnlyFilesystem)?;
+        self.saved = text.to_vec();
+        Ok(path)
     }
 }
 
@@ -353,4 +367,39 @@ fn the_console_takes_its_own_keys_and_shows_what_is_being_typed() {
     host.accent = Some('^');
     run(&mut console, &mut screen, &mut host, None).unwrap();
     assert_eq!(console.preview(), None);
+}
+
+#[test]
+fn ctrl_shift_s_saves_the_scrollback_and_says_where() {
+    let ctrl_shift_s = KeyPress {
+        ctrl: true,
+        shift: true,
+        ..press(Key::Char('S'))
+    };
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    let script = || {
+        vec![
+            output("$ ls\r\nboot\r\n$ "),
+            Input::Keys(vec![ctrl_shift_s]),
+        ]
+    };
+    let mut console = console();
+    let mut host = FakeHost::new(script());
+    host.save_in = Some(PathBuf::from("/zfsbootmenu/console-scrollback.txt"));
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert_eq!(host.saved, b"$ ls\nboot\n$\n");
+    assert!(host.sent.is_empty());
+    let text = console.text();
+    assert!(
+        text.ends_with("\nSaved in /zfsbootmenu/console-scrollback\n"),
+        "{text:?}"
+    );
+
+    let mut console = self::console();
+    let mut host = FakeHost::new(script());
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert!(console.text().contains("\nNot saved: read-only filesystem"));
 }

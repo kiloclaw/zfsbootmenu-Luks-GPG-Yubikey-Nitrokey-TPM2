@@ -345,3 +345,36 @@ fn a_host_woken_by_its_requests_and_devices_sleeps_long() {
     );
     assert!(start.elapsed() >= Duration::from_millis(40));
 }
+
+#[test]
+fn the_state_directory_records_secret_prompts_and_keeps_the_scrollback() {
+    let dir = zbm_testkit::TempDir::new("zbm-console-host");
+    let (master, _program) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(Vec::new());
+    let release = Arc::new(AtomicBool::new(false));
+    let mut host = RealHost::new(master, keyboards, release).with_state(dir.path());
+    let state = zbm_state::State::new(&zbm_platform::RealFiles, dir.path());
+
+    assert!(!host.is_secret());
+    // A living process records a prompt: this one.
+    state.set_secret_prompt(std::process::id()).unwrap();
+    assert!(host.is_secret());
+    // One that is gone does not count.
+    state.set_secret_prompt(u32::MAX).unwrap();
+    assert!(!host.is_secret());
+
+    let saved = host.save_scrollback(b"$ zpool status\n").unwrap();
+    assert_eq!(saved, dir.join("console-scrollback.txt"));
+    assert_eq!(std::fs::read(&saved).unwrap(), b"$ zpool status\n");
+    std::fs::remove_dir_all(dir.path()).unwrap();
+    assert!(host.save_scrollback(b"x").is_err());
+}
+
+#[test]
+fn a_host_without_a_state_directory_saves_nothing() {
+    let (master, _program) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(Vec::new());
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let error = host.save_scrollback(b"x").unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+}

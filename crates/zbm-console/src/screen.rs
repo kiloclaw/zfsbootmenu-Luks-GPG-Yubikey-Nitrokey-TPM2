@@ -41,6 +41,7 @@ mod blink;
 mod history;
 mod look;
 mod scroll;
+pub(super) mod seek;
 
 /// The events of the terminal, kept until the console handles them.
 #[derive(Clone, Default)]
@@ -78,6 +79,10 @@ pub struct Console {
     scrollback: usize,
     /// Whether a secret prompt is open.
     secret: bool,
+    /// Search and vi mode.
+    seek: seek::Seek,
+    /// What was drawn over the screen.
+    overlay: seek::Overlay,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -103,8 +108,8 @@ impl std::fmt::Debug for Console {
 pub const NAME: &str = "ZFSBootMenu";
 
 /// The terminal's settings: no scrollback until one is asked for, no
-/// clipboard, a blinking block
-/// for a cursor, which blinks as the Linux console's does, the kitty
+/// clipboard, a blinking block for a cursor, which blinks as the Linux
+/// console's does, and a steady one in vi mode, the kitty
 /// keyboard protocol for the programs that ask for it, and ZFSBootMenu's
 /// name and version for those that ask who the terminal is.
 fn config() -> Config {
@@ -116,6 +121,10 @@ fn config() -> Config {
             shape: CursorShape::Block,
             blinking: true,
         },
+        vi_mode_cursor_style: Some(CursorStyle {
+            shape: CursorShape::Block,
+            blinking: false,
+        }),
         name: NAME.to_owned(),
         version: zbm_core::version::ZBM_VERSION.to_owned(),
         ..Config::default()
@@ -147,6 +156,8 @@ impl Console {
             redraw: false,
             scrollback: 0,
             secret: false,
+            seek: seek::Seek::default(),
+            overlay: seek::Overlay::default(),
         };
         console.draw();
         console
@@ -182,6 +193,7 @@ impl Console {
     pub fn feed(&mut self, bytes: &[u8]) {
         self.parser.advance(&mut self.term, bytes);
         self.blink.fed = true;
+        self.forget_match();
         self.answer();
     }
 
@@ -286,7 +298,11 @@ impl Console {
         };
         self.term.reset_damage();
         let cursor = self.drawn_cursor();
-        let is_whole = self.text_blink.has_turned() | std::mem::take(&mut self.redraw);
+        let overlay = self.overlay();
+        let is_new_overlay = overlay != self.overlay;
+        self.overlay = overlay;
+        let is_whole =
+            self.text_blink.has_turned() | std::mem::take(&mut self.redraw) | is_new_overlay;
         let drawn = match damaged {
             Some(lines) if !is_whole => self.draw_lines(&lines, cursor),
             _ => self.draw_screen(cursor),
@@ -402,7 +418,7 @@ impl Console {
         let mut hasher = DefaultHasher::new();
         let shown = self.shown();
         for column in 0..usize::from(self.columns) {
-            look(&self.term, (line, column), cursor, shown).hash(&mut hasher);
+            look(&self.term, (line, column), cursor, shown, &self.overlay).hash(&mut hasher);
         }
         hasher.finish()
     }
@@ -434,7 +450,8 @@ impl Console {
         });
         let after = Some((column + span, width * i64::try_from(span).unwrap_or(1)));
         for (at, offset) in before.into_iter().chain(after) {
-            if let Some((c, style, ..)) = look(&self.term, (line, at), None, self.shown())
+            if let Some((c, style, ..)) =
+                look(&self.term, (line, at), None, self.shown(), &self.overlay)
                 && c != ' '
             {
                 found.push(Neighbour {
@@ -464,7 +481,9 @@ impl Console {
             return;
         };
         let shown = self.shown();
-        let Some((c, style, marks, shape)) = look(&self.term, (line, column), cursor, shown) else {
+        let Some((c, style, marks, shape)) =
+            look(&self.term, (line, column), cursor, shown, &self.overlay)
+        else {
             return;
         };
         let is_wide = self
@@ -493,6 +512,7 @@ impl Console {
         // Clearing the screen moves it into the history, which goes after.
         self.feed(b"\x1b[0m\x1b[H\x1b[2J");
         self.wipe_history();
+        self.seek = seek::Seek::default();
         zbm_sys::wipe_vec(&mut self.replies);
         self.drawn_rows.fill(None);
         let (width, height) = self.frame.size();
@@ -511,15 +531,19 @@ impl Console {
     /// spaces, combining marks after their characters.
     pub fn text(&self) -> String {
         let grid = self.term.grid();
+        let size = (grid.screen_lines(), grid.columns());
+        let overlay = self.overlay();
         (0..grid.screen_lines())
             .map(|line| {
                 let row = &grid[Line(self.viewport_line(line))];
                 let text: String = (0..grid.columns())
-                    .map(|column| &row[Column(column)])
-                    .filter(|cell| !cell.flags.contains(Flags::WIDE_CHAR_SPACER))
-                    .flat_map(|cell| {
-                        std::iter::once(cell.c)
-                            .chain(cell.zerowidth().unwrap_or_default().iter().copied())
+                    .map(|column| (column, &row[Column(column)]))
+                    .filter(|(_, cell)| !cell.flags.contains(Flags::WIDE_CHAR_SPACER))
+                    .flat_map(|(column, cell)| {
+                        let over = overlay.char_at((line, column), size);
+                        let marks = cell.zerowidth().unwrap_or_default();
+                        let marks = if over.is_some() { &[][..] } else { marks };
+                        std::iter::once(over.unwrap_or(cell.c)).chain(marks.iter().copied())
                     })
                     .collect();
                 text.trim_end().to_owned() + "\n"

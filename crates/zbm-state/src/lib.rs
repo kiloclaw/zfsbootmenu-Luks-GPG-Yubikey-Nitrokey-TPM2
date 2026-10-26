@@ -20,6 +20,10 @@ use zbm_platform::files::Files;
 /// The state directory of the boot image (`BASE`).
 pub const BASE: &str = "/zfsbootmenu";
 
+/// The file of the state directory that the console on the display saves
+/// its scrollback in, for `zbm report`.
+pub const SCROLLBACK: &str = "console-scrollback.txt";
+
 /// The value `read -r` gives a variable from the first line of `text`: the
 /// line without the spaces and tabs around it.
 fn read_first_line(text: &str) -> &str {
@@ -220,6 +224,13 @@ impl<'a> State<'a> {
     /// Records that no secret prompt is shown.
     pub fn clear_secret_prompt(&self) {
         self.remove("secret-prompt");
+    }
+
+    /// Saves `text`, the console's scrollback, in [`SCROLLBACK`]; returns
+    /// its path.
+    pub fn save_scrollback(&self, text: &[u8]) -> Result<PathBuf> {
+        self.replace(SCROLLBACK, text)?;
+        Ok(self.path(SCROLLBACK))
     }
 
     /// The default boot environment (`bootfs`), if one is recorded.

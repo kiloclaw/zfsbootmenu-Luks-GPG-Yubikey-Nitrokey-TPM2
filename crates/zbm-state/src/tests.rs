@@ -53,6 +53,9 @@ fn markers_and_locks() {
     assert_eq!(state.secret_prompt_pid(), Some(44));
     state.clear_secret_prompt();
     assert_eq!(state.secret_prompt_pid(), None);
+    let saved = state.save_scrollback(b"$ ls\n").unwrap();
+    assert_eq!(saved, Path::new("/zfsbootmenu/console-scrollback.txt"));
+    assert_eq!(files.read_to_string(&saved).unwrap(), "$ ls\n");
     state.clear_console();
     assert_eq!(state.console_pid(), None);
     assert_eq!(state.console_layout(), None);

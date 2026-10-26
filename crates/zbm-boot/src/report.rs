@@ -9,7 +9,9 @@
 //!   and the crash reports;
 //! - `journal.jsonl`, the runtime journal, whose secret fields are written
 //!   as `[redacted]`, and the crash reports;
-//! - `kernel.log`, the kernel log.
+//! - `kernel.log`, the kernel log;
+//! - `console-scrollback.txt`, the console's scrollback, when it was saved
+//!   with Ctrl+Shift+S.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -224,6 +226,7 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
     ];
     let mut copied = crash_reports(system.files, base);
     copied.push("journal.jsonl".to_owned());
+    copied.push(zbm_state::SCROLLBACK.to_owned());
     for name in copied {
         if let Ok(contents) = system.files.read(&base.join(&name)) {
             files.push((name, contents));

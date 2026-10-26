@@ -261,7 +261,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     }
 
     /// The host, which reads the record of a secret prompt in the
-    /// runtime's state directory `base`.
+    /// runtime's state directory `base`, and saves the scrollback there.
     #[must_use]
     pub fn with_state(mut self, base: &std::path::Path) -> Self {
         self.secret_prompt = Some(SecretPrompt {
@@ -433,6 +433,14 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
 
     fn pending_accent(&self) -> Option<char> {
         self.keyboards.pending_accent()
+    }
+
+    fn save_scrollback(&mut self, text: &[u8]) -> io::Result<std::path::PathBuf> {
+        let base = self.secret_prompt.as_ref().map(|marker| &marker.base);
+        let base = base.ok_or(io::ErrorKind::Unsupported)?;
+        zbm_state::State::new(&zbm_platform::RealFiles, base)
+            .save_scrollback(text)
+            .map_err(io::Error::other)
     }
 
     fn is_secret(&self) -> bool {

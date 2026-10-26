@@ -38,7 +38,10 @@ fn shift_page_up_shows_the_lines_that_scrolled_off() {
     assert_eq!(console.take_key(shift(Key::PageUp)), None);
     assert!(console.is_scrolled_back());
     console.draw();
-    assert_eq!(console.text(), "line 4\nline 5\nline 6\nline 7\nline 8\n");
+    assert_eq!(
+        console.text(),
+        "line 4         [5/8]\nline 5\nline 6\nline 7\nline 8\n"
+    );
     assert_eq!(console.take_key(shift(Key::PageDown)), None);
     assert!(!console.is_scrolled_back());
     let _ = console.take_key(shift(Key::PageUp));
@@ -72,7 +75,7 @@ fn a_secret_prompt_wipes_the_scrollback_and_keeps_none() {
     let _ = console.take_key(shift(Key::PageUp));
     let _ = console.take_key(shift(Key::PageUp));
     let text = console.text();
-    assert!(text.starts_with("line 11\n"), "{text:?}");
+    assert!(text.starts_with("line 11        [6/6]\n"), "{text:?}");
     assert!(!text.contains("line 10"));
 }
 

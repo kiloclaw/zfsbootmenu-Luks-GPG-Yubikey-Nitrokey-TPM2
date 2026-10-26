@@ -394,3 +394,4 @@ fn what_is_being_typed_is_drawn_underlined_at_the_cursor() {
     assert_eq!(colours(&mut console, 2, 0), before);
 }
 mod history;
+mod seek;

@@ -8,6 +8,7 @@
 )]
 
 use std::io;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use zbm_display::display::Screen;
@@ -76,6 +77,18 @@ pub trait Host {
     /// scrollback kept. A host that cannot tell says there is one.
     fn is_secret(&self) -> bool {
         true
+    }
+
+    /// Saves `text`, the console's scrollback, for `zbm report`; returns
+    /// where.
+    ///
+    /// # Errors
+    ///
+    /// When it cannot be written; always for a host without a state
+    /// directory.
+    fn save_scrollback(&mut self, text: &[u8]) -> io::Result<PathBuf> {
+        let _ = text;
+        Err(io::ErrorKind::Unsupported.into())
     }
 }
 
@@ -209,6 +222,15 @@ fn take_keys(
     }
     if !kept.is_empty() {
         console.scroll_to_bottom();
+    }
+    if let Some(text) = console.take_save() {
+        let mut bytes = text.into_bytes();
+        let notice = match host.save_scrollback(&bytes) {
+            Ok(path) => format!("Saved in {}", path.display()),
+            Err(error) => format!("Not saved: {error}"),
+        };
+        zbm_sys::wipe_vec(&mut bytes);
+        console.set_notice(&notice);
     }
     let typed = type_keys(host, &kept, console.key_modes());
     zbm_sys::wipe_values(&mut kept, KeyPress::BLANK);
