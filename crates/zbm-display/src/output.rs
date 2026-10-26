@@ -22,6 +22,9 @@ pub struct ConnectorDesc {
     /// The CRTC it is scanned out by now, as an index into the device's
     /// CRTCs: the kernel console's.
     pub current_crtc: Option<usize>,
+    /// The mode that CRTC shows now, as an index into `modes`, when the
+    /// connector offers it.
+    pub current_mode: Option<usize>,
     /// The CRTCs its encoders can use, by index.
     pub possible_crtcs: Vec<usize>,
 }
@@ -37,38 +40,56 @@ pub struct Choice {
     pub crtc: usize,
 }
 
-/// The first connected connector that has a mode and a CRTC, in its
-/// preferred mode, else its largest, on the CRTC the kernel console uses,
-/// else the first it can use.
+/// The output the kernel console shows, else the first connected one:
+/// the first connected connector that has a mode and a CRTC and is scanned
+/// out now, else the first that has a mode and a CRTC. A closed laptop's
+/// panel is then left dark when the kernel console is on another monitor.
+///
+/// Its mode is the one shown now, so that the monitor neither flickers nor
+/// loses its signal; else its preferred mode, else its largest. Its CRTC is
+/// the one that scans it out, else the first it can use.
 pub fn choose(connectors: &[ConnectorDesc]) -> Option<Choice> {
-    connectors
-        .iter()
-        .enumerate()
-        .find_map(|(index, connector)| {
-            if !connector.connected {
-                return None;
-            }
-            let mode = connector
+    let usable = || {
+        connectors
+            .iter()
+            .enumerate()
+            .filter_map(|(index, connector)| choice(index, connector))
+    };
+    usable()
+        .find(|choice| {
+            connectors
+                .get(choice.connector)
+                .is_some_and(|connector| connector.current_crtc.is_some())
+        })
+        .or_else(|| usable().next())
+}
+
+/// The connector at `index`, its mode and CRTC, when it is connected and
+/// has both.
+fn choice(index: usize, connector: &ConnectorDesc) -> Option<Choice> {
+    if !connector.connected {
+        return None;
+    }
+    let mode = connector
+        .current_mode
+        .filter(|&mode| mode < connector.modes.len())
+        .or_else(|| connector.modes.iter().position(|mode| mode.preferred))
+        .or_else(|| {
+            let area = |mode: &ModeDesc| u32::from(mode.width) * u32::from(mode.height);
+            let largest = connector.modes.iter().map(area).max()?;
+            connector
                 .modes
                 .iter()
-                .position(|mode| mode.preferred)
-                .or_else(|| {
-                    let area = |mode: &ModeDesc| u32::from(mode.width) * u32::from(mode.height);
-                    let largest = connector.modes.iter().map(area).max()?;
-                    connector
-                        .modes
-                        .iter()
-                        .position(|mode| area(mode) == largest)
-                })?;
-            let crtc = connector
-                .current_crtc
-                .or_else(|| connector.possible_crtcs.first().copied())?;
-            Some(Choice {
-                connector: index,
-                mode,
-                crtc,
-            })
-        })
+                .position(|mode| area(mode) == largest)
+        })?;
+    let crtc = connector
+        .current_crtc
+        .or_else(|| connector.possible_crtcs.first().copied())?;
+    Some(Choice {
+        connector: index,
+        mode,
+        crtc,
+    })
 }
 
 #[cfg(test)]
@@ -97,6 +118,7 @@ mod tests {
             modes: vec![mode(3840, 2400, false), mode(1920, 1200, true)],
             current_crtc: Some(1),
             possible_crtcs: vec![0, 1],
+            ..ConnectorDesc::default()
         };
 
         assert_eq!(
@@ -116,6 +138,7 @@ mod tests {
             modes: vec![mode(1024, 768, false), mode(1280, 800, false)],
             current_crtc: None,
             possible_crtcs: vec![2, 0],
+            ..ConnectorDesc::default()
         };
         let no_crtc = ConnectorDesc {
             connected: true,
@@ -137,5 +160,45 @@ mod tests {
             })
         );
         assert_eq!(choose(&[no_crtc, no_mode]), None);
+    }
+    #[test]
+    fn the_output_shown_now_wins_in_the_mode_it_shows() {
+        // A closed laptop's panel, connected but dark, and the monitor the
+        // kernel console is on, at a mode below its preferred one.
+        let panel = ConnectorDesc {
+            connected: true,
+            modes: vec![mode(2880, 1800, true)],
+            possible_crtcs: vec![0, 1],
+            ..ConnectorDesc::default()
+        };
+        let monitor = ConnectorDesc {
+            connected: true,
+            modes: vec![mode(3840, 2160, true), mode(1920, 1080, false)],
+            current_crtc: Some(1),
+            current_mode: Some(1),
+            possible_crtcs: vec![0, 1],
+        };
+
+        assert_eq!(
+            choose(&[panel.clone(), monitor]),
+            Some(Choice {
+                connector: 1,
+                mode: 1,
+                crtc: 1
+            })
+        );
+        // With nothing shown, the first; a mode out of range is ignored.
+        let odd = ConnectorDesc {
+            current_mode: Some(7),
+            ..panel.clone()
+        };
+        assert_eq!(
+            choose(&[odd, panel]),
+            Some(Choice {
+                connector: 0,
+                mode: 0,
+                crtc: 0
+            })
+        );
     }
 }

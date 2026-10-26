@@ -418,6 +418,18 @@ fn announce(settings: &Settings, places: &Places, started: &Started) {
     settings.mirror_line(&format!("zbm console: {text}"));
 }
 
+/// The keyboards there are, typing with `layout`. A USB keyboard may
+/// enumerate after the console starts: it starts without one, and the
+/// host adds it when it comes.
+fn open_keyboards(places: &Places, layout: Option<Layout>) -> Keyboards {
+    let mut keyboards = Keyboards::find(&places.sys, &places.dev);
+    if keyboards.count() == 0 {
+        places.log(5, "no keyboard yet; waiting for one");
+    }
+    keyboards.set_layout(layout);
+    keyboards
+}
+
 /// Draws the programs on `master` on the display, with the virtual
 /// terminal `vt` taken over, until they are gone or `requests` asks for
 /// the display back; returns why, the screen's last text and the keyboard
@@ -438,9 +450,8 @@ fn on_display(
     let mut display = Display::open(&card)?;
     let size = display.size();
     let grid = grid(size)?;
-    let mut keyboards = Keyboards::open(&places.sys, &places.dev)?;
     let Layouts { first, load } = layouts;
-    keyboards.set_layout(first);
+    let keyboards = open_keyboards(places, first);
     let taken = VirtualTerminal::take(vt)?;
     let started = Started {
         card: card.clone(),

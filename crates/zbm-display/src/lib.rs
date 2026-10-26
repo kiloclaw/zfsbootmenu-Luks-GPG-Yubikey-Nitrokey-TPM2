@@ -7,9 +7,10 @@
 //! - [`frame`]: pixels in memory, and the area drawn since they were shown;
 //! - [`grid`]: text on them, with the image's console fonts
 //!   (`zbm_types::psf`), at the size `zbm console-autosize` chooses;
-//! - [`display`]: a DRM dumb buffer on the first connected output, which
-//!   works with any DRM driver, `simpledrm` on the firmware's framebuffer
-//!   included, and gives the output back when dropped;
+//! - [`display`]: a DRM dumb buffer on the output the kernel console
+//!   shows, in its mode ([`output`]), which works with any DRM driver,
+//!   `simpledrm` on the firmware's framebuffer included, and gives the
+//!   output back when dropped;
 //! - [`palette`]: the console's colours, and the 256 of xterm;
 //! - [`input`] and [`keys`]: key presses from the keyboards' input devices,
 //!   with a [`layout`] compiled from XKB data, or on the US layout;

@@ -107,8 +107,9 @@ fn context(what: &str) -> impl FnOnce(io::Error) -> io::Error + '_ {
 }
 
 impl Display {
-    /// Takes the first connected output of the card at `path`, in its
-    /// preferred mode, and shows a black buffer on it.
+    /// Takes the output of the card at `path` that [`choose`] picks, the
+    /// one the kernel console shows in the mode it shows, and shows a black
+    /// buffer on it.
     ///
     /// # Errors
     ///
@@ -160,10 +161,14 @@ fn output(
             .get_connector(handle, false)
             .map_err(context("connector"))?;
         let crtc_index = |crtc: crtc::Handle| crtcs.iter().position(|&c| c == crtc);
-        let current_crtc = info
+        let current = info
             .current_encoder()
-            .and_then(|encoder| card.get_encoder(encoder).ok()?.crtc())
-            .and_then(crtc_index);
+            .and_then(|encoder| card.get_encoder(encoder).ok()?.crtc());
+        let current_crtc = current.and_then(crtc_index);
+        // The mode shown now, kept when the connector offers it.
+        let current_mode = current
+            .and_then(|crtc| card.get_crtc(crtc).ok()?.mode())
+            .and_then(|shown| info.modes().iter().position(|&mode| mode == shown));
         let possible_crtcs = info
             .encoders()
             .iter()
@@ -175,6 +180,7 @@ fn output(
             connected: info.state() == connector::State::Connected,
             modes: info.modes().iter().map(|mode| mode_desc(*mode)).collect(),
             current_crtc,
+            current_mode,
             possible_crtcs,
         });
         infos.push(info);
