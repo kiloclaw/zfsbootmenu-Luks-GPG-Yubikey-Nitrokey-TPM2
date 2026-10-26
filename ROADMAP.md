@@ -91,8 +91,8 @@ provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust
 images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
 (`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
 list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot and loading before the first prompt
-are done too (`zbm_boot::graphics`, VM test `runtime-rust-gpu`), and so is the hand-back before `kexec`. The list of
-known-good GPUs and the tests on real hardware remain. The Rust runtime owns the `kexec` path
+are done too (`zbm_boot::graphics`, VM test `runtime-rust-gpu`), and so are the hand-back before `kexec` and the
+list of known-good GPUs, which holds QEMU's GPUs until real hardware passes. The tests on real hardware remain. The Rust runtime owns the `kexec` path
 of its images.
 
 - **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
@@ -148,6 +148,10 @@ of its images.
     QEMU GPUs were handed back, and its kernel brings up a display on each.
   - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at
     all. Other GPUs stay on the firmware framebuffer, and the log says why.
+    *Done* as a list of PCI vendor and device IDs (`zbm_boot::graphics::known`), which holds QEMU's standard VGA and
+    virtio GPU, the VM test's; a real GPU joins it once it passes the twenty boots below. `zbm.gpu_untested` loads
+    the drivers for the other GPUs, to try one; the kernel log names each GPU as known, tried or left on the
+    firmware's framebuffer.
   - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come
     back.
   - **Order.** Make and model selection come first, as they need no hardware to test: unit tests with a fake sysfs

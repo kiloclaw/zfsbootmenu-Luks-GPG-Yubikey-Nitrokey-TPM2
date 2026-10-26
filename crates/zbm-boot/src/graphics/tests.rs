@@ -112,7 +112,7 @@ fn an_image_without_graphics_drivers_does_nothing() {
     let fake = FakeSystem::new();
     device(&fake, "0000:03:00.0", "0x030000", "0x1002", "0x7590");
 
-    load(&fake.system(), Path::new(ROOT), Some("amd"));
+    load(&fake.system(), Path::new(ROOT), Some("amd"), true);
 
     assert!(fake.runner.lines().is_empty());
     assert!(overridden(&fake).is_empty());
@@ -126,7 +126,7 @@ fn every_gpu_of_the_drivers_is_taken_without_zbm_gpu() {
     card(&fake, "0000:00:02.0", "card0", "disconnected");
     card(&fake, "0000:03:00.0", "card1", "connected");
 
-    load(&fake.system(), Path::new(ROOT), None);
+    load(&fake.system(), Path::new(ROOT), None, true);
 
     // The drivers load in the order of the GPUs' addresses.
     assert_eq!(
@@ -152,7 +152,7 @@ fn zbm_gpu_keeps_the_drivers_from_the_other_gpus() {
     let _log = log(&fake);
     card(&fake, "0000:00:02.0", "card0", "connected");
 
-    load(&fake.system(), Path::new(ROOT), Some("intel"));
+    load(&fake.system(), Path::new(ROOT), Some("intel"), true);
 
     assert_eq!(
         fake.runner.lines(),
@@ -177,7 +177,7 @@ fn zbm_gpu_off_loads_no_driver() {
     let fake = machine("amdgpu");
     let _log = log(&fake);
 
-    load(&fake.system(), Path::new(ROOT), Some("off"));
+    load(&fake.system(), Path::new(ROOT), Some("off"), true);
 
     assert!(fake.runner.lines().is_empty());
     assert!(overridden(&fake).is_empty());
@@ -193,7 +193,7 @@ fn a_gpu_zbm_gpu_does_not_find_loads_nothing() {
     let fake = machine("amdgpu");
     let _log = log(&fake);
 
-    load(&fake.system(), Path::new(ROOT), Some("0000:05:00.0"));
+    load(&fake.system(), Path::new(ROOT), Some("0000:05:00.0"), true);
 
     assert!(fake.runner.lines().is_empty());
     let kmsg = fake.kmsg();
@@ -216,7 +216,7 @@ fn a_gpu_without_a_card_is_waited_for_then_reported() {
         "modprobe: ERROR: could not insert 'amdgpu'\n",
     );
 
-    load(&fake.system(), Path::new(ROOT), Some("03:00.0"));
+    load(&fake.system(), Path::new(ROOT), Some("03:00.0"), true);
 
     let kmsg = fake.kmsg();
     assert!(
@@ -262,7 +262,7 @@ fn a_value_not_understood_takes_every_gpu() {
     let _log = log(&fake);
     card(&fake, "0000:03:00.0", "card1", "connected");
 
-    load(&fake.system(), Path::new(ROOT), Some("nvidia"));
+    load(&fake.system(), Path::new(ROOT), Some("nvidia"), true);
 
     assert_eq!(fake.runner.lines(), ["modprobe amdgpu", "udevadm settle"]);
     assert!(fake.kmsg().contains("zbm.gpu=nvidia is not a PCI address"));
@@ -385,4 +385,59 @@ fn after_a_failed_kexec_the_drivers_take_the_gpus_again() {
     );
     assert_eq!(fake.runner.lines(), ["udevadm settle"]);
     assert!(fake.kmsg().contains("0000:03:00.0 (1002:7590) is card0"));
+}
+
+#[test]
+fn only_gpus_known_to_come_back_get_a_driver() {
+    let fake = FakeSystem::new();
+    let _log = log(&fake);
+    fake.files
+        .file(format!("/{DRIVERS}"), "amdgpu virtio_gpu bochs\n");
+    device(&fake, "0000:00:01.0", "0x030000", "0x1234", "0x1111");
+    device(&fake, "0000:03:00.0", "0x030000", "0x1002", "0x7590");
+    card(&fake, "0000:00:01.0", "card0", "connected");
+
+    load(&fake.system(), Path::new(ROOT), None, false);
+
+    assert_eq!(fake.runner.lines(), ["modprobe bochs", "udevadm settle"]);
+    assert_eq!(
+        overridden(&fake),
+        ["/sys/bus/pci/devices/0000:03:00.0/driver_override zfsbootmenu-none"]
+    );
+    let kmsg = fake.kmsg();
+    assert!(
+        kmsg.contains("graphics: 0000:00:01.0 (1234:1111) is a QEMU standard VGA"),
+        "{kmsg}"
+    );
+    assert!(
+        kmsg.contains(
+            "graphics: 0000:03:00.0 (1002:7590) is not known to come back after kexec; \
+             it stays on the firmware's framebuffer (zbm.gpu_untested tries its driver)"
+        ),
+        "{kmsg}"
+    );
+}
+
+#[test]
+fn zbm_gpu_untested_loads_the_drivers_of_the_other_gpus() {
+    let fake = machine("amdgpu");
+    let _log = log(&fake);
+
+    load(&fake.system(), Path::new(ROOT), Some("amd"), false);
+    assert!(fake.runner.lines().is_empty());
+
+    load(&fake.system(), Path::new(ROOT), Some("amd"), true);
+    assert_eq!(fake.runner.lines(), ["modprobe amdgpu", "udevadm settle"]);
+    assert!(
+        fake.kmsg()
+            .contains("its driver loads for zbm.gpu_untested")
+    );
+}
+
+#[test]
+fn zbm_gpu_untested_is_read_from_the_command_line() {
+    assert!(!is_untested_allowed("zbm.gpu=amd"));
+    assert!(is_untested_allowed("zbm.gpu_untested"));
+    assert!(is_untested_allowed("zbm.gpu_untested=1"));
+    assert!(!is_untested_allowed("zbm.gpu_untested=0"));
 }

@@ -79,7 +79,8 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
         let _log = system.kernel_log(&options.loglevel, &preinit::base(&conf));
         let kcl = preinit::saved_commandline(&system, Path::new("/"), &conf);
         let gpu = zbm_startup::graphics::option(&kcl);
-        zbm_startup::graphics::load(&system, Path::new("/"), gpu.as_deref());
+        let untested = zbm_startup::graphics::is_untested_allowed(&kcl);
+        zbm_startup::graphics::load(&system, Path::new("/"), gpu.as_deref(), untested);
     }
 
     // https://busybox.net/FAQ.html#job_control: the shell opens the terminal

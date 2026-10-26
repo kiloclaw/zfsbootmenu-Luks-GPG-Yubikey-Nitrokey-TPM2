@@ -235,8 +235,10 @@ drivers (`virtio_gpu`, `bochs`) the build option `zfsbootmenu_graphics_drivers` 
 runtime hands each GPU its drivers took back: it unbinds the GPU from its driver, which runs the driver's removal,
 and resets its PCI function where the device has a reset, so that the booted kernel finds it as at power-on; the
 kernel log says how each GPU was handed back. When `kexec` fails, the drivers take the GPUs again, so the console can
-show the error. Not finished: the list of GPUs known to come back after this, and runs on real hardware. Release
-images are unchanged.
+show the error. The drivers take only GPUs known to come back after this, listed by PCI ID: for now QEMU's virtual
+GPUs, until real ones pass twenty boots in a row; the others stay on the firmware's framebuffer, with the reason in
+the kernel log, and `zbm.gpu_untested` on the command line loads their drivers to try them. Not finished: runs on
+real hardware. Release images are unchanged.
 
 ### Console font on high-density (HiDPI) displays
 

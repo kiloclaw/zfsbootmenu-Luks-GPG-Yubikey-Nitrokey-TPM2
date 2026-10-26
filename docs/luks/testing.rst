@@ -409,7 +409,8 @@ Following a boot
   GPUs, through ``zfsbootmenu_graphics_drivers``; the machine has QEMU's standard VGA and a virtio GPU at
   ``0000:00:09.0`` that is not a VGA (``virtio-gpu-pci``), since QEMU leaves its standard VGA out when another VGA
   is added. Each boot first shows the image's list of drivers and its ``modprobe.d`` file, which must keep udev
-  from loading them, the drivers loaded and the display controllers. Without ``zbm.gpu``, both GPUs must have their driver, loaded before the start-up program and its
+  from loading them, the drivers loaded and the display controllers. The log must name the virtio GPU as known to
+  come back after ``kexec``. Without ``zbm.gpu``, both GPUs must have their driver, loaded before the start-up program and its
   countdown, as the order of the kernel log shows (``zfsbootmenu-preinit`` turns kernel messages on the console off
   first). With ``zbm.gpu=0000:00:09.0``, only the virtio GPU has a driver, and the standard VGA a driver
   override that no driver matches. With ``zbm.gpu=off``, neither GPU has a driver, which also shows that udev did not

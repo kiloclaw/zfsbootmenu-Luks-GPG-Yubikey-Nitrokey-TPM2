@@ -250,9 +250,19 @@ These options are set on the kernel command line when booting the initramfs or U
   (**zbm.console=drm**) draws on that GPU's first connected display. A PCI address, as **lspci -D**
   shows it (*0000:03:00.0*, or *03:00.0* for domain 0), names one GPU; **amd** or **intel** names
   the GPUs of a vendor. The other GPUs are left alone: no driver takes them, and they keep what the
-  firmware showed. Without this option, the drivers take every GPU they can, and the console draws on
-  the first with a connected display. **zbm.gpu=off** loads no graphics driver for this boot, for a
+  firmware showed. Without this option, the drivers take every GPU they can that is known to come back
+  after ZFSBootMenu (see **zbm.gpu_untested**), and the console draws on the first with a connected
+  display. **zbm.gpu=off** loads no graphics driver for this boot, for a
   GPU that does not come back after ZFSBootMenu: the console stays on the firmware's framebuffer.
+
+**zbm.gpu_untested**
+
+  A GPU that one kernel set up does not always start again under the kernel ZFSBootMenu boots, even
+  after ZFSBootMenu handed it back (unbound from its driver and reset). The graphics drivers
+  therefore take only the GPUs known to come back, by PCI vendor and device ID; the others stay on
+  the firmware's framebuffer, and the kernel log says why. **zbm.gpu_untested** loads the drivers for
+  them too, to try a GPU: if the booted system then has a display, twenty boots in a row, report the
+  GPU (**lspci -nn**) so that it can join the list.
 
 **zbm.save_logs**
 

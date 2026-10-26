@@ -211,6 +211,10 @@ fn check(test: &Test, vm: &mut Vm<'_>, boot: &Boot) -> Result<()> {
         );
     } else {
         test.check(
+            log.contains("graphics: 0000:00:09.0 (1af4:1050) is a virtio GPU"),
+            &format!("{label}: the virtio GPU is known to come back after kexec"),
+        );
+        test.check(
             loaded
                 .zip(startup)
                 .is_some_and(|(loaded, startup)| loaded < startup),

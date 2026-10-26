@@ -9,14 +9,16 @@
 //! ([`load`]): the other GPUs get a driver override that no driver
 //! matches, so that no driver takes them, and `zbm.gpu=off` loads none.
 //! The console then draws on the chosen GPU's first connected display
-//! ([`console_card`]). Before `kexec` the GPUs are handed back
-//! ([`hand_back`]), and taken again if it fails ([`take_back`]).
+//! ([`console_card`]). Only GPUs known to come back after `kexec` get a
+//! driver, unless `zbm.gpu_untested` asks for the others too. Before
+//! `kexec` the GPUs are handed back ([`hand_back`]), and taken again if it
+//! fails ([`take_back`]).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use zbm_config::args::{Args, ZbmArgs};
-use zbm_config::spec::cmdline::GPU;
+use zbm_config::spec::cmdline::{GPU, GPU_UNTESTED};
 use zbm_platform::{Files, System};
 use zbm_tools::modules::Modules;
 use zbm_tools::{Shown, udev};
@@ -96,6 +98,12 @@ impl Choice {
 /// The value of `zbm.gpu` on the command line `kcl`.
 pub fn option(kcl: &str) -> Option<String> {
     ZbmArgs::from_kcl(kcl).lookup(&GPU, &mut Vec::new())
+}
+
+/// Whether the command line `kcl` has the graphics drivers take GPUs not
+/// known to come back after `kexec` (`zbm.gpu_untested`).
+pub fn is_untested_allowed(kcl: &str) -> bool {
+    ZbmArgs::from_kcl(kcl).enabled(&GPU_UNTESTED, &mut Vec::new())
 }
 
 /// A PCI address with its domain, `0000:03:00.0`, from one with or without
@@ -251,10 +259,11 @@ fn is_connected(files: &dyn Files, root: &Path, card: &str) -> bool {
 }
 
 /// Loads the image's graphics drivers for the GPUs `zbm.gpu` (`value`)
-/// chooses, after keeping the others from them, and waits until each
-/// chosen GPU has its DRM card. Does nothing in an image without graphics
-/// drivers; what goes wrong is logged, and start-up goes on.
-pub fn load(system: &System<'_>, root: &Path, value: Option<&str>) {
+/// chooses and known to come back after `kexec` (all of them with
+/// `untested`), after keeping the others from them, and waits until each
+/// has its DRM card. Does nothing in an image without graphics drivers;
+/// what goes wrong is logged, and start-up goes on.
+pub fn load(system: &System<'_>, root: &Path, value: Option<&str>, untested: bool) {
     let drivers = image_drivers(system.files, root);
     if drivers.is_empty() {
         return;
@@ -283,12 +292,44 @@ pub fn load(system: &System<'_>, root: &Path, value: Option<&str>) {
         );
         return;
     }
-    for gpu in drivable.iter().filter(|gpu| !chosen.contains(gpu)) {
+    let taken = known_of(&chosen, untested);
+    for gpu in drivable.iter().filter(|gpu| !taken.contains(gpu)) {
         leave_alone(system.files, root, gpu);
     }
-    load_drivers(system, &drivers, &chosen);
-    wait_for_cards(system, root, &chosen);
+    if taken.is_empty() {
+        return;
+    }
+    load_drivers(system, &drivers, &taken);
+    wait_for_cards(system, root, &taken);
     udev::settle(system.runner, Shown::Hidden);
+}
+
+/// The GPUs of `chosen` the drivers take: those known to come back after
+/// `kexec`, or all of them when `untested`; says why of each other.
+fn known_of(chosen: &[Gpu], untested: bool) -> Vec<Gpu> {
+    let mut taken = Vec::new();
+    for gpu in chosen {
+        match known::known_name(gpu) {
+            Some(name) => {
+                zbm_trace::info!("graphics: {} is a {name}", gpu.describe());
+                taken.push(gpu.clone());
+            }
+            None if untested => {
+                zbm_trace::warn!(
+                    "graphics: {} is not known to come back after kexec; \
+                     its driver loads for zbm.gpu_untested",
+                    gpu.describe()
+                );
+                taken.push(gpu.clone());
+            }
+            None => zbm_trace::warn!(
+                "graphics: {} is not known to come back after kexec; it stays on \
+                 the firmware's framebuffer (zbm.gpu_untested tries its driver)",
+                gpu.describe()
+            ),
+        }
+    }
+    taken
 }
 
 /// Keeps every driver from `gpu`.
@@ -386,6 +427,7 @@ pub fn console_card(files: &dyn Files, root: &Path, value: Option<&str>) -> Opti
 }
 
 mod hand_back;
+mod known;
 pub use hand_back::{hand_back, take_back};
 
 #[cfg(test)]
