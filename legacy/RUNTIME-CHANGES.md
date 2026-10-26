@@ -106,6 +106,12 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `12e4071`: in images with `zfsbootmenu_runtime=rust`, `/bin/zbm` runs the command it is given (`zbm debug
   crash`, `zbm report`) and the menu otherwise; legacy images are unchanged.
   **Rust:** done; `crates/zbm/tests/image.rs` runs the wrapper with and without a command.
+- [x] `51e7d4a`: `install_zbm_graphics` in `install-helpers.sh`, run by the dracut module's `installkernel` and the
+  mkinitcpio hook, installs the graphics drivers of `zfsbootmenu_graphics_drivers` past dracut's `omit_drivers` and
+  removes the firmware `zfsbootmenu_graphics_firmware` does not name (ROADMAP.md #17). Images with the legacy runtime
+  fail to build with the option set; without it, every image is unchanged.
+  **Rust:** nothing to port; the image build stays in the dracut module until R6, which carries it over.
+  `crates/zbm/tests/image_graphics.rs` covers the helper.
 
 ## Legacy limitations the Rust runtime must not copy
 
