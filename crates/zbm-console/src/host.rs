@@ -16,7 +16,7 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use alacritty_terminal::event::WindowSize;
 use rustix::pty::{OpenptFlags, grantpt, openpt, ptsname, unlockpt};
@@ -174,6 +174,21 @@ pub fn set_size(master: impl AsFd, size: &WindowSize) -> io::Result<()> {
 /// the request and gives the keyboards the layout.
 pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards) + 'h>;
 
+/// How long the loop waits when the host is woken by everything it waits
+/// for: once a minute is a safety net, not a poll.
+pub const IDLE: Duration = Duration::from_secs(60);
+
+/// How long the keyboards are looked for on every tick after a device
+/// appeared: its keys may be described in sysfs a moment after its node.
+const RESCAN_WINDOW: Duration = Duration::from_secs(2);
+
+/// Reads `file` until it has nothing more, which acknowledges a wake-up or
+/// the news of a device.
+fn drain(file: &mut File) {
+    let mut buffer = [0_u8; 512];
+    while matches!(file.read(&mut buffer), Ok(length) if length > 0) {}
+}
+
 /// The pseudo-terminal, the keyboards, the request to hand the display
 /// back and the request for another keyboard layout.
 pub struct RealHost<'h, M> {
@@ -182,6 +197,12 @@ pub struct RealHost<'h, M> {
     keyboards: Keyboards,
     release: Arc<AtomicBool>,
     layout: Option<(Arc<AtomicBool>, Switch<'h>)>,
+    /// Readable when a request's signal came.
+    wake: Option<File>,
+    /// Readable when a device appeared in `/dev/input`.
+    devices: Option<File>,
+    /// Until when keyboards are looked for on every tick.
+    rescan_until: Option<Instant>,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -204,7 +225,35 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             keyboards,
             release,
             layout: None,
+            wake: None,
+            devices: None,
+            rescan_until: None,
         }
+    }
+
+    /// The host, woken when `wake` becomes readable, as a request's signal
+    /// makes it, rather than looking for requests on every tick.
+    #[must_use]
+    pub fn with_wake(mut self, wake: File) -> Self {
+        self.wake = Some(wake);
+        self
+    }
+
+    /// The host, which looks for new keyboards when `devices`, an inotify
+    /// watch on `/dev/input`, becomes readable, rather than on every tick.
+    #[must_use]
+    pub fn with_device_watch(mut self, devices: File) -> Self {
+        self.devices = Some(devices);
+        self
+    }
+
+    /// Whether keyboards are looked for on every tick: without a watch on
+    /// the devices, or for a moment after one appeared.
+    fn is_rescanning(&self) -> bool {
+        self.devices.is_none()
+            || self
+                .rescan_until
+                .is_some_and(|until| Instant::now() < until)
     }
 
     /// The host, which runs `switch` when `requested` is set: a keyboard
@@ -241,6 +290,47 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         }))
     }
 
+    /// What the host waits on: the keyboards, the programs' terminal, and
+    /// the wake-up and the device watch when it has them; and how many
+    /// keyboards come first.
+    fn watches(&self) -> (Vec<Watch>, usize) {
+        let mut watches: Vec<Watch> = self
+            .keyboards
+            .fds()
+            .into_iter()
+            .map(|fd| Watch { fd, write: false })
+            .collect();
+        let count = watches.len();
+        watches.push(Watch {
+            fd: self.master.as_fd().as_raw_fd(),
+            write: !self.outgoing.is_empty(),
+        });
+        for file in [&self.wake, &self.devices].into_iter().flatten() {
+            watches.push(Watch {
+                fd: file.as_raw_fd(),
+                write: false,
+            });
+        }
+        (watches, count)
+    }
+
+    /// Takes the wake-up and the news of devices that `extra`, the
+    /// readiness of the files after the programs' terminal, report; looks
+    /// for keyboards when a device appeared.
+    fn take_wake_ups(&mut self, extra: &[Ready]) {
+        let mut extra = extra.iter().copied();
+        let woken = self.wake.is_some() && extra.next().is_some_and(Ready::is_ready);
+        let appeared = self.devices.is_some() && extra.next().is_some_and(Ready::is_ready);
+        if woken && let Some(wake) = &mut self.wake {
+            drain(wake);
+        }
+        if appeared && let Some(devices) = &mut self.devices {
+            drain(devices);
+            self.keyboards.rescan();
+            self.rescan_until = Some(Instant::now() + RESCAN_WINDOW);
+        }
+    }
+
     /// Gives the keyboards the layout asked for, if one was.
     fn switch_layout(&mut self) {
         if let Some((requested, switch)) = &mut self.layout
@@ -254,24 +344,18 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
 impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn wait(&mut self, timeout: Duration) -> io::Result<Input> {
         if self.release.load(Ordering::SeqCst) {
+            // The request's wake-up is taken with it.
+            if let Some(wake) = &mut self.wake {
+                drain(wake);
+            }
             return Ok(Input::Release);
         }
         self.switch_layout();
-        let mut watches: Vec<Watch> = self
-            .keyboards
-            .fds()
-            .into_iter()
-            .map(|fd| Watch { fd, write: false })
-            .collect();
-        watches.push(Watch {
-            fd: self.master.as_fd().as_raw_fd(),
-            write: !self.outgoing.is_empty(),
-        });
+        let (watches, count) = self.watches();
         let ready = wait_ready(&watches, Some(timeout))?;
-        let (master, keyboards) = match ready.split_last() {
-            Some((master, keyboards)) => (*master, keyboards),
-            None => (Ready::default(), &[][..]),
-        };
+        let (keyboards, rest) = ready.split_at(count.min(ready.len()));
+        let master = rest.first().copied().unwrap_or_default();
+        self.take_wake_ups(rest.get(1..).unwrap_or_default());
         if master.write {
             self.outgoing.flush(&mut self.master)?;
         }
@@ -284,12 +368,22 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         if self.release.load(Ordering::SeqCst) {
             return Ok(Input::Release);
         }
-        if !master.write {
+        if !master.write && self.is_rescanning() {
             // Nothing happened for a while: a keyboard may have come.
             self.keyboards.rescan();
-            self.switch_layout();
         }
+        self.switch_layout();
         Ok(Input::Nothing)
+    }
+
+    /// [`IDLE`] when requests wake the host and new devices are watched,
+    /// else the tick that looks for them.
+    fn idle(&self) -> Duration {
+        if self.wake.is_some() && !self.is_rescanning() {
+            IDLE
+        } else {
+            crate::run::TICK
+        }
     }
 
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
@@ -458,7 +552,11 @@ where
             }
         } else if from_programs.read || from_programs.closed {
             match read_output(self.master)? {
-                Input::Output(bytes) => self.terminal.write_all(&bytes)?,
+                Input::Output(mut bytes) => {
+                    let written = self.terminal.write_all(&bytes);
+                    zbm_sys::wipe_vec(&mut bytes);
+                    written?;
+                }
                 Input::Hangup => return Ok(Some(Relayed::Hangup)),
                 _ => {}
             }

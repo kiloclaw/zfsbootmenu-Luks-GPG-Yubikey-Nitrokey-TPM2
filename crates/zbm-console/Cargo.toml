@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 alacritty_terminal.workspace = true
-rustix.workspace = true
+rustix = { workspace = true, features = ["fs"] }
 signal-hook.workspace = true
 zbm-display.workspace = true
 zbm-platform.workspace = true

@@ -13,8 +13,9 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write as _};
-use std::os::fd::AsFd as _;
+use std::os::fd::{AsFd as _, OwnedFd};
 use std::os::unix::fs::OpenOptionsExt as _;
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -184,6 +185,38 @@ pub struct Requests {
     pub release: Arc<AtomicBool>,
     /// Set when another keyboard layout is asked for.
     pub layout: Arc<AtomicBool>,
+    /// Readable when either request came, so that the console waits on it
+    /// instead of looking for requests on every tick.
+    pub wake: Option<Arc<OwnedFd>>,
+}
+
+/// A descriptor that becomes readable when `zbm console release` or
+/// `layout` signals this process: the signals' handlers write to it.
+///
+/// # Errors
+///
+/// When the socket or the handlers cannot be had.
+fn wake_on_requests() -> io::Result<OwnedFd> {
+    let (wake, alarm) = UnixStream::pair()?;
+    wake.set_nonblocking(true)?;
+    alarm.set_nonblocking(true)?;
+    signal_hook::low_level::pipe::register(signal_hook::consts::SIGUSR1, alarm.try_clone()?)?;
+    signal_hook::low_level::pipe::register(signal_hook::consts::SIGUSR2, alarm)?;
+    Ok(OwnedFd::from(wake))
+}
+
+/// An inotify watch on the input devices below `dev`, readable when one
+/// appears; `None` where the kernel has no inotify.
+fn watch_devices(dev: &Path) -> Option<File> {
+    use rustix::fs::inotify::{CreateFlags, WatchFlags, add_watch, init};
+    let watch = init(CreateFlags::CLOEXEC | CreateFlags::NONBLOCK).ok()?;
+    add_watch(
+        &watch,
+        dev.join("input"),
+        WatchFlags::CREATE | WatchFlags::ATTRIB,
+    )
+    .ok()?;
+    Some(File::from(watch))
 }
 
 /// Takes the request for a keyboard layout in `places`' state directory,
@@ -221,9 +254,12 @@ pub fn serve(
     grid: MakeGrid<'_>,
     layouts: Layouts<'_>,
 ) -> io::Result<()> {
+    // The flags first: the handlers run in the order they were registered,
+    // so a request is recorded before the console wakes for it.
     let requests = Requests {
         release: crate::release::on_request()?,
         layout: crate::release::on_layout_request()?,
+        wake: wake_on_requests().ok().map(Arc::new),
     };
     // The console records itself, once it can take requests: a console
     // that ended before is never waited for by `zbm console release`.
@@ -429,21 +465,40 @@ fn on_display(
         .as_deref()
         .and_then(open_mirror)
         .map(Mirror::new);
-    let mut shown = |text: &str| {
-        if let Some(mirror) = &mut mirror {
-            mirror.show(text);
-        }
-    };
+    let mut show = mirror
+        .as_mut()
+        .map(|mirror| move |text: &str| mirror.show(text));
+    let shown = show.as_mut().map(|show| show as &mut dyn FnMut(&str));
     let switch: Switch<'_> = Box::new(|keyboards: &mut Keyboards| {
         switch_layout(places, &mut *load, keyboards);
     });
-    let mut host = RealHost::new(&mut *master, keyboards, Arc::clone(&requests.release))
-        .with_layouts(Arc::clone(&requests.layout), switch);
-    let ended = run(&mut console, &mut display, &mut host, &mut shown)?;
+    let mut host = real_host(&mut *master, keyboards, requests, &places.dev, switch);
+    let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
     drop(taken);
     Ok((ended, console.text(), layout))
+}
+
+/// The host of the loop on the display: the programs' terminal `master`,
+/// the keyboards and the requests, woken by them and by new devices below
+/// `dev` where the system allows.
+fn real_host<'h>(
+    master: &'h mut File,
+    keyboards: Keyboards,
+    requests: &Requests,
+    dev: &Path,
+    switch: Switch<'h>,
+) -> RealHost<'h, &'h mut File> {
+    let mut host = RealHost::new(master, keyboards, Arc::clone(&requests.release))
+        .with_layouts(Arc::clone(&requests.layout), switch);
+    if let Some(wake) = requests.wake.as_deref().and_then(|fd| fd.try_clone().ok()) {
+        host = host.with_wake(File::from(wake));
+    }
+    if let Some(devices) = watch_devices(dev) {
+        host = host.with_device_watch(devices);
+    }
+    host
 }
 
 /// What became of a request to hand the display back.

@@ -133,3 +133,45 @@ fn the_console_is_at_least_one_cell() {
     assert_eq!(console.size(), (1, 1));
     assert!(format!("{console:?}").starts_with("Console"));
 }
+
+#[test]
+fn a_combining_mark_is_drawn_over_its_character() {
+    let dejavu = include_bytes!("../../../../legacy/zfsbootmenu/fonts/dejavu/DejaVuSansMono.ttf");
+    let outline = zbm_display::outline::Outline::new(dejavu.to_vec(), 20).unwrap();
+    let grid = Grid::outline(outline);
+    let (width, height) = grid.cell();
+    let mut plain = Console::new(grid, (width * 4, height * 2));
+    let outline = zbm_display::outline::Outline::new(dejavu.to_vec(), 20).unwrap();
+    let mut accented = Console::new(Grid::outline(outline), (width * 4, height * 2));
+
+    plain.feed(b"e");
+    accented.feed("e\u{301}".as_bytes());
+    plain.draw();
+    accented.draw();
+
+    let pixels = |console: &mut Console| -> Vec<u32> {
+        let frame = console.frame_mut();
+        (0..height)
+            .flat_map(|y| frame.row(y).unwrap()[..usize::try_from(width).unwrap()].to_vec())
+            .collect()
+    };
+    assert_ne!(pixels(&mut plain), pixels(&mut accented));
+    // The mark belongs to the e, in the screen's text too.
+    assert_eq!(accented.text().lines().next(), Some("e\u{301}"));
+}
+
+#[test]
+fn wiping_leaves_nothing_of_the_screen_in_the_cells_or_the_pixels() {
+    let mut console = console();
+    console.feed(b"\x1b[31mzpool secret\r\nline two\x1b[6n");
+    console.draw();
+    assert!(console.text().contains("secret"));
+
+    console.wipe();
+
+    assert!(console.text().trim().is_empty());
+    assert!(console.take_replies().is_empty());
+    for column in 0..20 {
+        assert_eq!(colours(&mut console, column, 0), [Rgb::BLACK]);
+    }
+}

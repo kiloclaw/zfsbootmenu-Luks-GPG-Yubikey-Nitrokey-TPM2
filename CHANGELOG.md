@@ -295,6 +295,19 @@ from), `state` (the files of `/zfsbootmenu`, without key files), `journal` (the 
 `commands` (each program the runtime ran, its exit status and how long it took), `luks` (the LUKS volumes, their
 state and key methods) and `pools` (the pools and boot environments). They only read, and print no key material.
 
+### The console on the display: quieter, cleaner, accents
+
+Five fixes to the console of `zbm.console=drm`:
+
+- it sleeps while nothing happens: `zbm console release` and `layout` wake it through their signals, and new keyboards
+  through an inotify watch on `/dev/input`, where it woke five times a second and read sysfs each time;
+- the screen's text, which only the VM tests' mirror reads, is no longer built after every frame;
+- a TrueType character is drawn from the font's cache without copying its pixels for each cell;
+- what the programs wrote is wiped once drawn or relayed, and the terminal's cells and pixels when the console ends or
+  hands the display back;
+- combining marks (`e` followed by U+0301) are drawn over their character, centred on its cell, and kept in the
+  screen's text.
+
 ### Keyboard layouts on the console on the display
 
 Step 4 of ROADMAP.md #19. Images with the Rust runtime carry keyboard layouts for the console of `zbm.console=drm`:

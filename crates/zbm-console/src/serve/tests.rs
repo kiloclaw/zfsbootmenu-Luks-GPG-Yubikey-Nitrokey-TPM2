@@ -314,3 +314,31 @@ fn without_a_virtual_terminal_the_console_cannot_serve() {
 
     assert!(error.to_string().contains("dev/tty0"), "{error}");
 }
+
+#[test]
+fn a_new_input_device_and_a_request_s_signal_wake_the_console() {
+    let dir = TempDir::new("zbm-console-watch");
+    std::fs::create_dir_all(dir.join("dev/input")).unwrap();
+    let mut devices = watch_devices(&dir.join("dev")).unwrap();
+    let mut buffer = [0_u8; 256];
+    assert!(devices.read(&mut buffer).is_err(), "nothing appeared yet");
+    dir.write("dev/input/event7", "");
+    assert!(devices.read(&mut buffer).unwrap() > 0);
+    assert!(watch_devices(&dir.join("none")).is_none());
+
+    let mut wake = File::from(wake_on_requests().unwrap());
+    assert!(wake.read(&mut buffer).is_err(), "no request yet");
+    let me = rustix::process::Pid::from_raw(i32::try_from(std::process::id()).unwrap()).unwrap();
+    // The flags first, as the console registers them.
+    let _flag = crate::release::on_layout_request().unwrap();
+    rustix::process::kill_process(me, rustix::process::Signal::USR2).unwrap();
+    let start = std::time::Instant::now();
+    let woken = loop {
+        match wake.read(&mut buffer) {
+            Ok(length) => break length,
+            Err(_) if start.elapsed() < Duration::from_secs(5) => std::thread::yield_now(),
+            Err(error) => panic!("no wake-up: {error}"),
+        }
+    };
+    assert!(woken > 0);
+}

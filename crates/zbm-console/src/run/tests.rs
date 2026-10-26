@@ -112,9 +112,14 @@ fn output_is_shown_keys_are_typed_and_answers_sent() {
     ]);
     let mut texts = Vec::new();
 
-    let ended = run(&mut console, &mut screen, &mut host, &mut |text| {
-        texts.push(text.to_owned());
-    })
+    let ended = run(
+        &mut console,
+        &mut screen,
+        &mut host,
+        Some(&mut |text| {
+            texts.push(text.to_owned());
+        }),
+    )
     .unwrap();
 
     assert_eq!(ended, Ended::Hangup);
@@ -141,9 +146,14 @@ fn a_passphrase_typed_reaches_the_program_and_nothing_else() {
     ]);
     let mut texts = Vec::new();
 
-    let ended = run(&mut console, &mut screen, &mut host, &mut |text| {
-        texts.push(text.to_owned());
-    })
+    let ended = run(
+        &mut console,
+        &mut screen,
+        &mut host,
+        Some(&mut |text| {
+            texts.push(text.to_owned());
+        }),
+    )
     .unwrap();
 
     assert_eq!(ended, Ended::Released);
@@ -163,9 +173,14 @@ fn a_synchronized_update_is_drawn_when_its_time_runs_out() {
     let mut host = FakeHost::new(vec![output("\x1b[?2026hlate"), Input::Nothing]);
     let mut last = String::new();
 
-    run(&mut console, &mut screen, &mut host, &mut |text| {
-        text.clone_into(&mut last);
-    })
+    run(
+        &mut console,
+        &mut screen,
+        &mut host,
+        Some(&mut |text| {
+            text.clone_into(&mut last);
+        }),
+    )
     .unwrap();
 
     assert!(last.starts_with("late"), "{last:?}");
@@ -180,7 +195,7 @@ fn a_display_that_fails_ends_the_loop() {
     };
     let mut host = FakeHost::new(Vec::new());
 
-    let error = run(&mut console, &mut screen, &mut host, &mut |_| {}).unwrap_err();
+    let error = run(&mut console, &mut screen, &mut host, None).unwrap_err();
 
     assert_eq!(error.to_string(), "no display");
     assert_eq!(screen.size(), (320, 140));

@@ -8,7 +8,8 @@
 //! There is no scrollback: what scrolls off the screen is gone, so a
 //! passphrase shown by mistake does not stay in memory, and the answers the
 //! terminal owes the programs (cursor position, device attributes, colours)
-//! are kept apart for the caller to write back.
+//! are kept apart for the caller to write back. When the terminal is
+//! dropped, its cells and the pixels drawn from them are wiped.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -210,9 +211,32 @@ impl Console {
             cell.c
         };
         self.grid.draw(&mut self.frame, x, y, c, style);
+        // Combining marks, such as the accent of an `e` followed by U+0301,
+        // are drawn over the character they belong to.
+        for &mark in cell.zerowidth().unwrap_or_default() {
+            self.grid.draw_mark(&mut self.frame, x, y, mark, style.fg);
+        }
     }
 
-    /// The text of the screen, one line per row, without trailing spaces.
+    /// Wipes what the terminal shows and the pixels drawn from it: the
+    /// screen is cleared, its cells reset, the frame painted black.
+    pub fn wipe(&mut self) {
+        self.feed(b"\x1b[0m\x1b[H\x1b[2J\x1b[3J");
+        zbm_sys::wipe_vec(&mut self.replies);
+        let (width, height) = self.frame.size();
+        self.frame.fill(
+            zbm_display::frame::Area {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            },
+            zbm_display::frame::Rgb::BLACK,
+        );
+    }
+
+    /// The text of the screen, one line per row, without trailing spaces,
+    /// combining marks after their characters.
     pub fn text(&self) -> String {
         let grid = self.term.grid();
         (0..grid.screen_lines())
@@ -221,11 +245,20 @@ impl Console {
                 let text: String = (0..grid.columns())
                     .map(|column| &row[Column(column)])
                     .filter(|cell| !cell.flags.contains(Flags::WIDE_CHAR_SPACER))
-                    .map(|cell| cell.c)
+                    .flat_map(|cell| {
+                        std::iter::once(cell.c)
+                            .chain(cell.zerowidth().unwrap_or_default().iter().copied())
+                    })
                     .collect();
                 text.trim_end().to_owned() + "\n"
             })
             .collect()
+    }
+}
+
+impl Drop for Console {
+    fn drop(&mut self) {
+        self.wipe();
     }
 }
 

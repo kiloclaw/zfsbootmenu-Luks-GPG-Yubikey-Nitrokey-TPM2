@@ -321,3 +321,59 @@ fn the_relay_ends_when_the_display_is_asked_for_again() {
     assert_eq!(relay.join().unwrap().unwrap(), Relayed::Reattach);
     assert!(!asked.load(Ordering::SeqCst));
 }
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a request comes from another thread after a while"
+)]
+fn a_host_woken_by_its_requests_and_devices_sleeps_long() {
+    let (master, _program) = UnixStream::pair().unwrap();
+    let (keyboard, _typing) = UnixStream::pair().unwrap();
+    let (wake, mut alarm) = UnixStream::pair().unwrap();
+    let (devices, mut appeared) = UnixStream::pair().unwrap();
+    wake.set_nonblocking(true).unwrap();
+    devices.set_nonblocking(true).unwrap();
+    let release = Arc::new(AtomicBool::new(false));
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let host = RealHost::new(master, keyboards, Arc::clone(&release))
+        .with_wake(File::from(OwnedFd::from(wake)));
+    // Without a watch on the devices, it still looks for keyboards.
+    assert_eq!(host.idle(), crate::run::TICK);
+    let mut host = host.with_device_watch(File::from(OwnedFd::from(devices)));
+    assert_eq!(host.idle(), IDLE);
+
+    // A device appeared: keyboards are looked for on every tick a while.
+    appeared.write_all(b"event").unwrap();
+    assert_eq!(host.wait(IDLE).unwrap(), Input::Nothing);
+    assert_eq!(host.idle(), crate::run::TICK);
+    host.rescan_until = Some(Instant::now());
+    assert_eq!(host.idle(), IDLE);
+
+    // A request's signal wakes it at once, long before the time runs out.
+    let signal = std::thread::spawn({
+        let release = Arc::clone(&release);
+        move || {
+            std::thread::sleep(Duration::from_millis(50));
+            release.store(true, Ordering::SeqCst);
+            alarm.write_all(b"x").unwrap();
+            alarm
+        }
+    });
+    let start = Instant::now();
+    assert_eq!(host.wait(IDLE).unwrap(), Input::Release);
+    assert!(start.elapsed() < Duration::from_secs(5));
+    let mut alarm = signal.join().unwrap();
+    // Asked again before the next wait: it is taken at once, with its
+    // wake-up.
+    alarm.write_all(b"x").unwrap();
+    assert_eq!(host.wait(IDLE).unwrap(), Input::Release);
+    // The wake-up was taken: the next wait does not return at once.
+    release.store(false, Ordering::SeqCst);
+    let start = Instant::now();
+    assert_eq!(
+        host.wait(Duration::from_millis(50)).unwrap(),
+        Input::Nothing
+    );
+    assert!(start.elapsed() >= Duration::from_millis(40));
+}

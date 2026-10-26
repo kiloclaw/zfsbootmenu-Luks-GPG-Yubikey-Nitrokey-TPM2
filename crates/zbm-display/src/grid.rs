@@ -128,6 +128,58 @@ impl Grid {
         }
         frame.touch(area);
     }
+
+    /// Draws the combining mark `mark` in `colour` over what the cell at
+    /// `column`, `row` holds, centred across it; nothing when the font has
+    /// no glyph for it, as a replacement character would hide the cell.
+    pub fn draw_mark(&mut self, frame: &mut Frame, column: u16, row: u16, mark: char, colour: Rgb) {
+        let area = self.area(column, row);
+        match &mut self.face {
+            // Not through the cache of `draw`, which keeps `?` for a
+            // character the font lacks; marks are rare.
+            Face::Bitmap { font, scale, .. } => {
+                let glyph = font.glyph_for(mark);
+                let Some(bitmap) = glyph.and_then(|glyph| font.bitmap(glyph)) else {
+                    return;
+                };
+                let (width, height) = font.cell();
+                let row_bytes = usize::try_from(width.div_ceil(8)).unwrap_or(0);
+                for y in 0..height {
+                    for x in (0..width).filter(|&x| is_lit(bitmap, row_bytes, x, y)) {
+                        for (dx, dy) in
+                            (0..*scale).flat_map(|dx| (0..*scale).map(move |dy| (dx, dy)))
+                        {
+                            frame.set(area.x + x * *scale + dx, area.y + y * *scale + dy, colour);
+                        }
+                    }
+                }
+            }
+            Face::Outline(outline) => {
+                let Some(glyph) = outline.glyph(mark) else {
+                    return;
+                };
+                // Marks sit where the font puts them over the character
+                // before; across the cell, they are centred on it.
+                // Pixel `gx` of the glyph goes to `shift + gx` in the cell;
+                // `Glyph::at` takes cell coordinates offset by `left`.
+                let shift = i64::from(area.width.saturating_sub(glyph.width) / 2);
+                for y in 0..area.height {
+                    for x in 0..area.width {
+                        let source = i64::from(x) - shift + i64::from(glyph.left);
+                        let coverage =
+                            u32::try_from(source).map_or(0, |source| glyph.at(source, y));
+                        if coverage == 0 {
+                            continue;
+                        }
+                        let (px, py) = (area.x + x, area.y + y);
+                        let under = frame.pixel(px, py).unwrap_or(Rgb::BLACK);
+                        frame.set(px, py, blend(under, colour, coverage));
+                    }
+                }
+            }
+        }
+        frame.touch(area);
+    }
 }
 
 /// Draws a console font's `bitmap` of a glyph `cell` pixels large, each
@@ -179,7 +231,9 @@ fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, s
         } else {
             '?'
         };
-        outline.glyph(fallback).cloned()
+        // Borrowed from the cache, not copied: drawing a cell allocates
+        // nothing.
+        outline.glyph(fallback)
     };
     // The underline: a line as thick as a light box line, at the bottom.
     let underline = if style.underline {
@@ -199,7 +253,7 @@ fn draw_outline(frame: &mut Frame, area: Area, outline: &mut Outline, c: char, s
                     .copied()
                     .unwrap_or(0)
             } else {
-                glyph.as_ref().map_or(0, |glyph| glyph.at(x, y))
+                glyph.map_or(0, |glyph| glyph.at(x, y))
             };
             frame.set(area.x + x, area.y + y, blend(style.bg, style.fg, coverage));
         }
@@ -369,5 +423,40 @@ mod tests {
             blend(Rgb(0, 100, 200), Rgb(200, 100, 0), 128),
             Rgb(100, 100, 100)
         );
+    }
+
+    #[test]
+    fn combining_marks_are_drawn_over_their_character() {
+        let mut grid = outline_grid();
+        let (width, height) = grid.cell();
+        let mut frame = Frame::new(width * 2, height);
+        grid.draw(&mut frame, 0, 0, 'e', style(false));
+        let before: Vec<u32> = (0..height)
+            .flat_map(|y| frame.row(y).unwrap().to_vec())
+            .collect();
+
+        grid.draw_mark(&mut frame, 0, 0, '\u{301}', WHITE);
+
+        let changed: Vec<(u32, u32)> = (0..height)
+            .flat_map(|y| (0..width * 2).map(move |x| (x, y)))
+            .filter(|&(x, y)| {
+                let index = usize::try_from(y * width * 2 + x).unwrap();
+                frame.pixel(x, y).unwrap().xrgb() != before[index]
+            })
+            .collect();
+        // The acute accent: above the e, inside its cell.
+        assert!(!changed.is_empty());
+        assert!(
+            changed.iter().all(|&(x, y)| x < width && y < height / 2),
+            "{changed:?}"
+        );
+
+        // A console font draws a mark it has, and nothing for one it lacks.
+        let mut bitmap = Grid::new(font(), 1);
+        let mut frame = Frame::new(16, 2);
+        bitmap.draw(&mut frame, 0, 0, 'B', style(false));
+        bitmap.draw_mark(&mut frame, 0, 0, 'A', WHITE);
+        bitmap.draw_mark(&mut frame, 1, 0, '\u{301}', WHITE);
+        assert_eq!(picture(&frame), ["########........", "................"]);
     }
 }
