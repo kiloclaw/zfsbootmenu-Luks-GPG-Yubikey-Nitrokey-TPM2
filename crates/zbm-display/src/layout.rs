@@ -156,6 +156,20 @@ impl Layout {
         self.components.mods_locked.contains(ModifierMask::LOCK)
     }
 
+    /// Whether Num Lock is on.
+    pub fn is_num_lock(&self) -> bool {
+        self.components.mods_locked.contains(ModifierMask::NUM_LOCK)
+    }
+
+    /// Turns Num Lock on or off, as its key does: the state machine keeps
+    /// the locks, and would undo one set beside it.
+    pub fn set_num_lock(&mut self, on: bool) {
+        if self.is_num_lock() != on {
+            self.feed(crate::keys::NUM_LOCK, true);
+            self.feed(crate::keys::NUM_LOCK, false);
+        }
+    }
+
     /// Key `code` held down already when this layout took over from
     /// another, so that a modifier held then still counts.
     pub fn hold(&mut self, code: u16) {

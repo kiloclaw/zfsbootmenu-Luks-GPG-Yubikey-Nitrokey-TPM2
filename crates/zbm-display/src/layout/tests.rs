@@ -196,3 +196,32 @@ fn caps_lock_of_a_layout_is_known() {
     assert!(decoder.is_caps_lock());
     assert_eq!(decoder.feed(30, 1).unwrap().key, Key::Char('A'));
 }
+
+#[test]
+fn num_lock_turns_the_keypad_of_a_layout_into_digits() {
+    let mut decoder = Decoder::new();
+    decoder.set_layout(Some(german()));
+    let key = |decoder: &mut Decoder, code| {
+        let press = decoder.feed(code, 1).map(|press| press.key);
+        decoder.feed(code, 0);
+        press
+    };
+
+    assert!(!decoder.is_num_lock());
+    assert_eq!(key(&mut decoder, 72), Some(Key::Up));
+    assert_eq!(key(&mut decoder, 83), Some(Key::Delete));
+
+    key(&mut decoder, crate::keys::NUM_LOCK);
+    assert!(decoder.is_num_lock());
+    assert_eq!(key(&mut decoder, 72), Some(Key::Char('8')));
+    // The German keypad has a comma for its decimal point.
+    assert_eq!(key(&mut decoder, 83), Some(Key::Char(',')));
+
+    // Num Lock stays across a change of layout, both ways.
+    decoder.set_layout(None);
+    assert!(decoder.is_num_lock());
+    decoder.set_layout(Some(german()));
+    assert!(decoder.is_num_lock());
+    decoder.set_num_lock(false);
+    assert_eq!(key(&mut decoder, 79), Some(Key::End));
+}

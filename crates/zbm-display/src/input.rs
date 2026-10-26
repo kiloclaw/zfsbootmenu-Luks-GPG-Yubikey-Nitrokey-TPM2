@@ -31,6 +31,9 @@ const EV_KEY: u16 = 1;
 /// `EV_LED`: a light of the keyboard, written to the device.
 const EV_LED: u16 = 0x11;
 
+/// `LED_NUML`: the Num Lock light.
+const LED_NUML: u16 = 0;
+
 /// `LED_CAPSL`: the Caps Lock light.
 const LED_CAPSL: u16 = 1;
 
@@ -119,6 +122,25 @@ pub fn keyboards(sysfs: &Path, dev: &Path) -> Vec<PathBuf> {
     found
 }
 
+/// Whether the Num Lock light of the input device at `device`
+/// (`/dev/input/event3`) is lit, as sysfs tells it
+/// (`class/input/event3/device/input3::numlock/brightness`).
+fn is_num_lock_lit(sysfs: &Path, device: &Path) -> bool {
+    let Some(name) = device.file_name() else {
+        return false;
+    };
+    let parent = sysfs.join("class/input").join(name).join("device");
+    std::fs::read_dir(parent)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with("::numlock"))
+        .any(|entry| {
+            std::fs::read_to_string(entry.path().join("brightness"))
+                .is_ok_and(|brightness| brightness.trim() != "0")
+        })
+}
+
 /// Where key presses come from.
 pub trait KeySource {
     /// The next key press, waiting at most `timeout`; `None` when the time
@@ -171,8 +193,9 @@ pub struct Keyboards {
     places: Option<(PathBuf, PathBuf)>,
     decoder: Decoder,
     pending: Vec<KeyPress>,
-    /// The state of Caps Lock the lights show.
-    caps_light: bool,
+    /// The states of Caps Lock and Num Lock the lights show; `None` when
+    /// a keyboard came that does not show them yet.
+    lights: Option<(bool, bool)>,
 }
 
 impl Keyboards {
@@ -205,7 +228,9 @@ impl Keyboards {
         let mut found = Keyboards::from_files(Vec::new());
         found.places = Some((sysfs.to_owned(), dev.to_owned()));
         let mut failed = None;
+        let mut num_lock = false;
         for path in keyboards(sysfs, dev) {
+            num_lock |= is_num_lock_lit(sysfs, &path);
             match open_device(&path) {
                 Ok(file) => found.devices.push(Device {
                     file,
@@ -215,6 +240,10 @@ impl Keyboards {
                 Err(error) => failed = Some(error),
             }
         }
+        // Num Lock as the keyboards showed it: the firmware or the kernel
+        // console may have turned it on.
+        found.decoder.set_num_lock(num_lock);
+        found.lights = Some((false, num_lock));
         (found, failed)
     }
 
@@ -233,7 +262,7 @@ impl Keyboards {
             places: None,
             decoder: Decoder::new(),
             pending: Vec::with_capacity(PENDING),
-            caps_light: false,
+            lights: Some((false, false)),
         }
     }
 
@@ -257,6 +286,11 @@ impl Keyboards {
                 });
                 added += 1;
             }
+        }
+        if added > 0 {
+            // The new keyboards show the locks as the others do.
+            self.lights = None;
+            self.show_locks();
         }
         added
     }
@@ -332,15 +366,16 @@ impl Keyboards {
         }
     }
 
-    /// Lights Caps Lock on every keyboard when the console's Caps Lock
+    /// Lights Caps Lock and Num Lock on every keyboard when the console's
     /// changed: the kernel does not, while the console reads the keys.
-    fn show_caps_lock(&mut self) {
-        let on = self.decoder.is_caps_lock();
-        if on == self.caps_light {
+    fn show_locks(&mut self) {
+        let now = (self.decoder.is_caps_lock(), self.decoder.is_num_lock());
+        if self.lights == Some(now) {
             return;
         }
-        self.caps_light = on;
-        let records = led_records(LED_CAPSL, on);
+        self.lights = Some(now);
+        let mut records = led_records(LED_CAPSL, now.0);
+        records.extend(led_records(LED_NUML, now.1));
         for device in &mut self.devices {
             let _ = device.file.write_all(&records);
         }
@@ -366,7 +401,7 @@ impl Keyboards {
                 self.take_events(index, &events);
                 // The key codes of a passphrase tell it as well as its bytes.
                 zbm_sys::wipe_values(&mut events, BLANK_EVENT);
-                self.show_caps_lock();
+                self.show_locks();
             }
             Err(error)
                 if matches!(

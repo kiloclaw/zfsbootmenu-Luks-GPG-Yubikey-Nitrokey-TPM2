@@ -125,11 +125,13 @@ fn caps_lock_lights_the_keyboards() {
     typing.write_all(&event(EV_KEY, 58, 1)).unwrap();
     assert_eq!(keyboards.read_device(0).unwrap(), []);
 
-    let mut lit = [0_u8; 2 * EVENT_SIZE];
+    let mut lit = [0_u8; 4 * EVENT_SIZE];
     typing.read_exact(&mut lit).unwrap();
-    assert_eq!(lit.to_vec(), led_records(LED_CAPSL, true));
+    let mut both = led_records(LED_CAPSL, true);
+    both.extend(led_records(LED_NUML, false));
+    assert_eq!(lit.to_vec(), both);
     assert_eq!(
-        parse_events(&lit),
+        parse_events(&lit[..2 * EVENT_SIZE]),
         [
             InputEvent {
                 kind: EV_LED,
@@ -191,5 +193,33 @@ fn keyboards_that_come_later_are_found() {
     assert_eq!(keyboards.rescan(), 1);
     assert_eq!(keyboards.count(), 2);
     assert_eq!(keyboards.fds().len(), 2);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn num_lock_starts_as_the_keyboards_show_it() {
+    let root = std::env::temp_dir().join(format!("zbm-display-numlock-{}", std::process::id()));
+    let device = root.join("sys/class/input/event4/device");
+    std::fs::create_dir_all(device.join("capabilities")).unwrap();
+    std::fs::write(device.join("capabilities/key"), AT_KEYBOARD).unwrap();
+    std::fs::create_dir_all(device.join("input4::numlock")).unwrap();
+    std::fs::create_dir_all(device.join("input4::capslock")).unwrap();
+    std::fs::write(device.join("input4::capslock/brightness"), "1\n").unwrap();
+    std::fs::create_dir_all(root.join("dev/input")).unwrap();
+    std::fs::write(root.join("dev/input/event4"), b"").unwrap();
+    let (sys, dev) = (root.join("sys"), root.join("dev"));
+
+    std::fs::write(device.join("input4::numlock/brightness"), "0\n").unwrap();
+    assert!(!Keyboards::find(&sys, &dev).decoder.is_num_lock());
+    std::fs::write(device.join("input4::numlock/brightness"), "1\n").unwrap();
+    let mut keyboards = Keyboards::find(&sys, &dev);
+    assert!(keyboards.decoder.is_num_lock());
+    // The keypad types digits, and the lights stay as they are.
+    let (device, mut typing) = std::os::unix::net::UnixStream::pair().unwrap();
+    keyboards.devices[0].file = File::from(std::os::fd::OwnedFd::from(device));
+    typing.write_all(&event(EV_KEY, 79, 1)).unwrap();
+    let typed = keyboards.read_device(0).unwrap();
+    assert_eq!(typed[0].key, crate::keys::Key::Char('1'));
+    assert_eq!(keyboards.lights, Some((false, true)));
     std::fs::remove_dir_all(&root).unwrap();
 }

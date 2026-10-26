@@ -96,7 +96,35 @@ const CHARACTERS: &[(u16, char, char)] = &[
     (53, '/', '?'),
     (55, '*', '*'),
     (57, ' ', ' '),
+    (74, '-', '-'),
+    (78, '+', '+'),
+    (98, '/', '/'),
 ];
+
+/// The keys of the keypad that Num Lock turns into digits, by key code:
+/// the digit, and the key they are without Num Lock (none for 5).
+const KEYPAD: &[(u16, char, Option<Key>)] = &[
+    (71, '7', Some(Key::Home)),
+    (72, '8', Some(Key::Up)),
+    (73, '9', Some(Key::PageUp)),
+    (75, '4', Some(Key::Left)),
+    (76, '5', None),
+    (77, '6', Some(Key::Right)),
+    (79, '1', Some(Key::End)),
+    (80, '2', Some(Key::Down)),
+    (81, '3', Some(Key::PageDown)),
+    (82, '0', Some(Key::Insert)),
+    (83, '.', Some(Key::Delete)),
+];
+
+/// The keypad key of `code`, if it is one: its digit, and its key without
+/// Num Lock.
+fn keypad(code: u16) -> Option<(char, Option<Key>)> {
+    KEYPAD
+        .iter()
+        .find(|(c, ..)| *c == code)
+        .map(|&(_, digit, key)| (digit, key))
+}
 
 /// The letters, by key code, in the rows of the keyboard.
 const LETTERS: &[(u16, &str)] = &[(16, "qwertyuiop"), (30, "asdfghjkl"), (44, "zxcvbnm")];
@@ -158,6 +186,9 @@ fn special(code: u16, shift: bool) -> Option<Key> {
 /// `KEY_CAPSLOCK`.
 const CAPS_LOCK: u16 = 58;
 
+/// `KEY_NUMLOCK`.
+pub const NUM_LOCK: u16 = 69;
+
 /// How many keys can be down at once without the list of them growing,
 /// which would leave a copy in freed memory.
 const DOWN: usize = 32;
@@ -180,6 +211,7 @@ pub struct Decoder {
     /// The modifier keys held, by key code, on the US layout.
     held: Vec<u16>,
     caps_lock: bool,
+    num_lock: bool,
     /// The layout, unless it is the US layout of this module's tables.
     layout: Option<Layout>,
     /// The keys down, by key code, which a new layout takes over.
@@ -193,6 +225,7 @@ impl Default for Decoder {
         Decoder {
             held: Vec::with_capacity(DOWN),
             caps_lock: false,
+            num_lock: false,
             layout: None,
             down: Vec::with_capacity(DOWN),
             accent: None,
@@ -219,6 +252,22 @@ impl Decoder {
             .map_or(self.caps_lock, Layout::is_caps_lock)
     }
 
+    /// Whether Num Lock is on: the keypad types digits.
+    pub fn is_num_lock(&self) -> bool {
+        self.layout
+            .as_ref()
+            .map_or(self.num_lock, Layout::is_num_lock)
+    }
+
+    /// Turns Num Lock on or off, as the keyboards' light showed it when the
+    /// console took them over.
+    pub fn set_num_lock(&mut self, on: bool) {
+        self.num_lock = on;
+        if let Some(layout) = &mut self.layout {
+            layout.set_num_lock(on);
+        }
+    }
+
     /// Takes `now_down`, the keys down as the device reports them, as the
     /// keys held after events were lost: keys released meanwhile are
     /// released, modifiers and Caps Lock pressed meanwhile count.
@@ -242,6 +291,8 @@ impl Decoder {
                 self.held.push(code);
             } else if code == CAPS_LOCK {
                 self.caps_lock = !self.caps_lock;
+            } else if code == NUM_LOCK {
+                self.num_lock = !self.num_lock;
             }
             self.down.push(code);
         }
@@ -263,13 +314,16 @@ impl Decoder {
     }
 
     /// Translates keys with `layout` from now on, or on the US layout; the
-    /// keys down stay down.
+    /// keys down stay down, and Num Lock as it was.
     pub fn set_layout(&mut self, layout: Option<Layout>) {
+        let num_lock = self.is_num_lock();
         self.layout = layout;
+        self.num_lock = num_lock;
         if let Some(layout) = &mut self.layout {
             for &code in &self.down {
                 layout.hold(code);
             }
+            layout.set_num_lock(num_lock);
         }
     }
 
@@ -293,8 +347,15 @@ impl Decoder {
         if let Some(layout) = &mut self.layout {
             let typed = layout.key(code, value)?;
             self.accent = typed.before;
+            let num_lock = layout.is_num_lock();
             let key = match (special(code, typed.shift), typed.char) {
                 (Some(key), _) => key,
+                // The keypad: what the layout types with Num Lock (a comma
+                // on some), the arrows and the rest without.
+                (None, c) if keypad(code).is_some() => match (num_lock, c) {
+                    (true, Some(c)) => Key::Char(c),
+                    _ => keypad(code)?.1?,
+                },
                 // Ctrl and Alt with a key of a layout not in Latin letters
                 // take the key's US letter, as `Ctrl-C` needs
                 (None, Some(c)) if (typed.ctrl || typed.alt) && !c.is_ascii() => {
@@ -323,6 +384,10 @@ impl Decoder {
             self.caps_lock ^= value == 1;
             return None;
         }
+        if code == NUM_LOCK {
+            self.num_lock ^= value == 1;
+            return None;
+        }
         let shift = self.is_held(Modifier::Shift);
         let key = self.key(code, shift)?;
         Some(KeyPress {
@@ -337,6 +402,13 @@ impl Decoder {
     fn key(&self, code: u16, shift: bool) -> Option<Key> {
         if let Some(key) = special(code, shift) {
             return Some(key);
+        }
+        if let Some((digit, key)) = keypad(code) {
+            return if self.num_lock {
+                Some(Key::Char(digit))
+            } else {
+                key
+            };
         }
         if let Some(&(_, plain, shifted)) = CHARACTERS.iter().find(|(c, ..)| *c == code) {
             return Some(Key::Char(if shift { shifted } else { plain }));
@@ -450,6 +522,33 @@ mod tests {
         assert_eq!(codes, [6, 7]);
         assert_eq!(codes.as_ptr(), allocation);
         assert_eq!(Decoder::new().down.capacity(), DOWN);
+    }
+
+    #[test]
+    fn the_keypad_types_digits_with_num_lock_and_moves_without() {
+        let mut decoder = Decoder::new();
+        let key = |decoder: &mut Decoder, code| press(decoder, code).map(|press| press.key);
+
+        assert_eq!(key(&mut decoder, 71), Some(Key::Home));
+        assert_eq!(key(&mut decoder, 83), Some(Key::Delete));
+        assert_eq!(key(&mut decoder, 76), None);
+        assert_eq!(key(&mut decoder, 98), Some(Key::Char('/')));
+        assert_eq!(key(&mut decoder, 74), Some(Key::Char('-')));
+        assert!(!decoder.is_num_lock());
+
+        decoder.feed(NUM_LOCK, 1);
+        decoder.feed(NUM_LOCK, 0);
+        assert!(decoder.is_num_lock());
+        assert_eq!(key(&mut decoder, 71), Some(Key::Char('7')));
+        assert_eq!(key(&mut decoder, 76), Some(Key::Char('5')));
+        assert_eq!(key(&mut decoder, 83), Some(Key::Char('.')));
+        assert_eq!(key(&mut decoder, 78), Some(Key::Char('+')));
+
+        decoder.set_num_lock(false);
+        assert_eq!(key(&mut decoder, 82), Some(Key::Insert));
+        // Num Lock pressed while events were lost counts.
+        decoder.resync(&[NUM_LOCK]);
+        assert!(decoder.is_num_lock());
     }
 
     #[test]
