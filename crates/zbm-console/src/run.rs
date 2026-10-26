@@ -86,18 +86,45 @@ fn type_keys(
     sent
 }
 
+/// How long the loop waits at most while the text of a screen waits to be
+/// written to the mirror: it is tried again then.
+pub const MIRROR_RETRY: Duration = Duration::from_millis(50);
+
+/// What gets the text of the screen after each frame: the VM tests'
+/// mirror, or any function of the text.
+pub trait Shown {
+    /// Takes the text of the screen.
+    fn show(&mut self, text: &str);
+
+    /// Writes what is left of the screens taken.
+    fn flush(&mut self) {}
+
+    /// Whether some of the screens taken is still left to write: the loop
+    /// tries again soon.
+    fn is_pending(&self) -> bool {
+        false
+    }
+}
+
+impl<F: FnMut(&str)> Shown for F {
+    fn show(&mut self, text: &str) {
+        self(text);
+    }
+}
+
 /// Gives the text of the screen to `shown`, when there is one: building
 /// it for nothing would cost a frame's worth of work, and leave a copy of
 /// the screen in freed memory.
-fn show(console: &Console, shown: &mut Option<&mut dyn FnMut(&str)>) {
+fn show(console: &Console, shown: &mut Option<&mut dyn Shown>) {
     if let Some(shown) = shown {
-        shown(&console.text());
+        shown.show(&console.text());
     }
 }
 
 /// Runs `console` on `screen` with `host` until the programs are gone or
 /// the display must be handed back. After each frame, `shown`, if given,
-/// gets the text of the screen. What the programs wrote is wiped once
+/// gets the text of the screen; what it could not write is tried again
+/// every [`MIRROR_RETRY`]. What the programs wrote is wiped once
 /// drawn: it may hold a secret they echoed. Output that keeps coming is
 /// read for up to [`BURST`] before it is drawn.
 ///
@@ -108,20 +135,26 @@ pub fn run(
     console: &mut Console,
     screen: &mut dyn Screen,
     host: &mut dyn Host,
-    mut shown: Option<&mut dyn FnMut(&str)>,
+    mut shown: Option<&mut dyn Shown>,
 ) -> io::Result<Ended> {
     screen.present(console.frame_mut())?;
     show(console, &mut shown);
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
     loop {
+        if let Some(shown) = shown.as_deref_mut() {
+            shown.flush();
+        }
+        let idle = if shown.as_deref().is_some_and(Shown::is_pending) {
+            host.idle().min(MIRROR_RETRY)
+        } else {
+            host.idle()
+        };
         let timeout = if burst.is_some() {
             Duration::ZERO
         } else {
-            console.deadline().map_or(host.idle(), |deadline| {
-                deadline
-                    .saturating_duration_since(Instant::now())
-                    .min(host.idle())
+            console.deadline().map_or(idle, |deadline| {
+                deadline.saturating_duration_since(Instant::now()).min(idle)
             })
         };
         let input = host.wait(timeout)?;

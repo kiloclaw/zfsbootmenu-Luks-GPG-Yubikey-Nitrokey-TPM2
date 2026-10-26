@@ -51,6 +51,7 @@ impl Screen for FakeScreen {
 struct FakeHost {
     script: VecDeque<Input>,
     sent: Vec<u8>,
+    waited: Vec<Duration>,
 }
 
 impl FakeHost {
@@ -58,12 +59,14 @@ impl FakeHost {
         FakeHost {
             script: script.into(),
             sent: Vec::new(),
+            waited: Vec::new(),
         }
     }
 }
 
 impl Host for FakeHost {
     fn wait(&mut self, timeout: Duration) -> io::Result<Input> {
+        self.waited.push(timeout);
         let input = self.script.pop_front().unwrap_or(Input::Hangup);
         if input == Input::Nothing {
             std::thread::sleep(timeout);
@@ -116,7 +119,7 @@ fn output_is_shown_keys_are_typed_and_answers_sent() {
         &mut console,
         &mut screen,
         &mut host,
-        Some(&mut |text| {
+        Some(&mut |text: &str| {
             texts.push(text.to_owned());
         }),
     )
@@ -150,7 +153,7 @@ fn a_passphrase_typed_reaches_the_program_and_nothing_else() {
         &mut console,
         &mut screen,
         &mut host,
-        Some(&mut |text| {
+        Some(&mut |text: &str| {
             texts.push(text.to_owned());
         }),
     )
@@ -183,7 +186,7 @@ fn a_synchronized_update_is_drawn_when_its_time_runs_out() {
         &mut console,
         &mut screen,
         &mut host,
-        Some(&mut |text| {
+        Some(&mut |text: &str| {
             text.clone_into(&mut last);
         }),
     )
@@ -223,7 +226,7 @@ fn output_that_keeps_coming_is_drawn_once() {
         &mut console,
         &mut screen,
         &mut host,
-        Some(&mut |text| {
+        Some(&mut |text: &str| {
             texts.push(text.to_owned());
         }),
     )
@@ -233,4 +236,50 @@ fn output_that_keeps_coming_is_drawn_once() {
     // burst, as the fake host gives them at once.
     assert_eq!(screen.presented, 2, "{texts:?}");
     assert!(texts.last().unwrap().contains("line 19"));
+}
+
+/// A mirror whose line is full for its first `full` tries.
+struct Slow {
+    full: usize,
+    shown: Vec<String>,
+}
+
+impl Shown for Slow {
+    fn show(&mut self, text: &str) {
+        self.shown.push(text.to_owned());
+    }
+
+    fn flush(&mut self) {
+        self.full = self.full.saturating_sub(1);
+    }
+
+    fn is_pending(&self) -> bool {
+        self.full > 0
+    }
+}
+
+#[test]
+fn a_screen_the_mirror_could_not_take_is_tried_again_soon() {
+    let mut console = console();
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    // A hidden cursor: nothing blinks, and the loop would sleep.
+    let mut host = FakeHost::new(vec![
+        output("\x1b[?25l"),
+        Input::Nothing,
+        Input::Nothing,
+        Input::Nothing,
+    ]);
+    let mut slow = Slow {
+        full: 3,
+        shown: Vec::new(),
+    };
+
+    run(&mut console, &mut screen, &mut host, Some(&mut slow)).unwrap();
+
+    assert_eq!(host.waited[0], MIRROR_RETRY);
+    assert_eq!(*host.waited.last().unwrap(), TICK);
+    assert!(!slow.shown.is_empty());
 }

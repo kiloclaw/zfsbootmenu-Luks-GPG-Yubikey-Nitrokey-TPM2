@@ -6,7 +6,8 @@
 //! `Ctrl-C` and job control work as on the kernel console.
 //!
 //! The supervisor keeps the programs' side open between programs, so that
-//! the console sees the programs gone only when the supervisor is. If the
+//! the console sees the programs gone only when the supervisor is, and has
+//! what is written to `/dev/console` go there (`TIOCCONS`). If the
 //! console ends, the supervisor gives the virtual terminal back to the
 //! kernel console (text mode, the keyboard as it was), and the programs,
 //! which lose their terminal, go on there after the recovery shell. A
@@ -26,8 +27,8 @@ use std::time::Duration;
 use zbm_platform::RealFiles;
 use zbm_state::State;
 use zbm_sys::console::{
-    DisplayMode, KeyboardMode, Watch, keyboard_mode, set_display_mode, set_keyboard_mode,
-    wait_ready,
+    DisplayMode, KeyboardMode, Watch, keyboard_mode, redirect_console, set_display_mode,
+    set_keyboard_mode, wait_ready,
 };
 
 use super::Program;
@@ -98,6 +99,18 @@ impl Attached {
             .stdout(Stdio::from(self.slave.try_clone()?))
             .stderr(Stdio::from(self.slave.try_clone()?));
         Ok(command)
+    }
+
+    /// Has what programs write to `/dev/console` go to the console's
+    /// terminal. The kernel undoes it when the console ends, which hangs
+    /// the terminal up.
+    ///
+    /// # Errors
+    ///
+    /// When the kernel refuses: the process may not, or another terminal
+    /// has `/dev/console` already.
+    pub fn redirect_console(&self) -> io::Result<()> {
+        redirect_console(self.slave.as_raw_fd())
     }
 
     /// The programs' side of the terminal.
@@ -193,5 +206,11 @@ mod tests {
 
         attached.detach(dir.path());
         assert!(!dir.join("console").exists());
+    }
+
+    #[test]
+    fn dev_console_goes_only_to_a_terminal() {
+        let attached = Attached::for_tests(1, File::open("/dev/null").unwrap());
+        assert!(attached.redirect_console().is_err());
     }
 }

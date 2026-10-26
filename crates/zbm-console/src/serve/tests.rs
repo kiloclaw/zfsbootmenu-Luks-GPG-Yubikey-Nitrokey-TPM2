@@ -157,47 +157,6 @@ fn the_hand_over_is_asked_for_and_waited_on() {
     );
 }
 
-/// A writer that takes at most `room` bytes, then would block.
-struct Narrow {
-    written: Vec<u8>,
-    room: usize,
-}
-
-impl io::Write for Narrow {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if self.room == 0 {
-            return Err(io::ErrorKind::WouldBlock.into());
-        }
-        let taken = bytes.len().min(self.room);
-        self.written.extend_from_slice(&bytes[..taken]);
-        self.room -= taken;
-        Ok(taken)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[test]
-fn the_mirror_ends_with_the_screen_shown_when_the_line_was_full() {
-    let mut mirror = Mirror::new(Narrow {
-        written: Vec::new(),
-        room: 3,
-    });
-
-    mirror.show("one");
-    mirror.show("two");
-    mirror.show("three");
-    assert_eq!(mirror.get_ref().written, b"\x0con");
-    // The line takes more: the screen begun ends, then the latest follows.
-    mirror.out.room = 100;
-    mirror.show("three");
-    assert_eq!(mirror.get_ref().written, b"\x0cone\x0cthree");
-    mirror.show("three");
-    assert_eq!(mirror.get_ref().written, b"\x0cone\x0cthree");
-}
-
 /// The German layout, from the XKB data of the machine (`xkb-data`).
 fn german(name: &str) -> Result<Layout, String> {
     let xkb = Path::new(zbm_display::layout::compile::XKB);

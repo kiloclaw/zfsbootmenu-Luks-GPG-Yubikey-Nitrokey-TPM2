@@ -29,8 +29,10 @@ use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::RealFiles;
 use zbm_state::State;
 
-use crate::host::{RealHost, Relayed, Switch, relay, set_size};
-use crate::run::{Ended, run};
+use crate::host::{RealHost, Switch, set_size};
+use crate::mirror::{Mirror, open_mirror};
+use crate::relay::{Relayed, relay};
+use crate::run::{Ended, Shown, run};
 use crate::screen::Console;
 
 /// What the mirror gets once the display is handed back.
@@ -90,69 +92,6 @@ impl Settings {
         {
             let _ = mirror.write_all(format!("\x0c{line}\n").as_bytes());
         }
-    }
-}
-
-/// Opens the mirror at `path` without blocking: when it cannot take a
-/// screen, as a serial port whose line is full, the console goes on and
-/// writes the rest later.
-fn open_mirror(path: &Path) -> Option<File> {
-    let mirror = OpenOptions::new().append(true).open(path).ok()?;
-    rustix::io::ioctl_fionbio(&mirror, true).ok()?;
-    Some(mirror)
-}
-
-/// The screens written to the mirror, each after a form feed. A screen is
-/// written whole, even across calls; of the screens that come meanwhile,
-/// only the latest is written, so that the mirror always ends with the
-/// screen shown.
-#[derive(Debug)]
-pub struct Mirror<W> {
-    out: W,
-    /// What is left to write of the screen being written.
-    pending: Vec<u8>,
-    /// The latest screen, not written yet.
-    next: Option<String>,
-    /// The latest screen taken.
-    last: String,
-}
-
-impl<W: io::Write> Mirror<W> {
-    /// A mirror writing to `out`.
-    pub fn new(out: W) -> Mirror<W> {
-        Mirror {
-            out,
-            pending: Vec::new(),
-            next: None,
-            last: String::new(),
-        }
-    }
-
-    /// Takes the screen `text`, and writes what `out` takes now.
-    pub fn show(&mut self, text: &str) {
-        if text != self.last {
-            text.clone_into(&mut self.last);
-            self.next = Some(format!("\x0c{text}"));
-        }
-        loop {
-            if self.pending.is_empty() {
-                match self.next.take() {
-                    Some(screen) => self.pending = screen.into_bytes(),
-                    None => return,
-                }
-            }
-            match self.out.write(&self.pending) {
-                Ok(0) | Err(_) => return,
-                Ok(written) => {
-                    self.pending.drain(..written.min(self.pending.len()));
-                }
-            }
-        }
-    }
-
-    /// What it writes to.
-    pub fn get_ref(&self) -> &W {
-        &self.out
     }
 }
 
@@ -317,6 +256,9 @@ pub fn serve_on(
     } = terminals;
     let (grid, Layouts { mut first, load }) = fonts;
     let state = State::new(&RealFiles, &places.base);
+    // The console's terminal while the display is handed back: the relay
+    // keeps its screen up, which a failed `kexec` finds again.
+    let mut kept = None;
     loop {
         let layouts = Layouts {
             first: first.take(),
@@ -326,9 +268,9 @@ pub fn serve_on(
             settings,
             places,
             (&mut *grid, layouts),
-            master,
-            vt,
+            (&mut *master, vt),
             requests,
+            &mut kept,
         );
         let Some((text, released)) = after_display(settings, places, shown) else {
             return Ok(());
@@ -345,7 +287,7 @@ pub fn serve_on(
         });
         state.clear_console();
         let _ = terminal.write_all(format!("\x1b[H\x1b[J{}\n", text.trim_end()).as_bytes());
-        let relayed = relay(master, terminal, reattach);
+        let relayed = relay(master, terminal, reattach, kept.as_mut());
         state.clear_released_console();
         if relayed? == Relayed::Hangup {
             return Ok(());
@@ -430,17 +372,35 @@ fn open_keyboards(places: &Places, layout: Option<Layout>) -> Keyboards {
     keyboards
 }
 
+/// The console's terminal for a display of `size`: the one `kept` from
+/// before the hand-over, whose screen the relay kept up, drawn whole on the
+/// new buffer; else a new one, in the font `grid` gives.
+fn console_for(
+    kept: &mut Option<Console>,
+    grid: MakeGrid<'_>,
+    size: (u32, u32),
+) -> io::Result<Console> {
+    match kept.take() {
+        Some(mut console) if console.pixels() == size => {
+            console.frame_mut().damage_all();
+            Ok(console)
+        }
+        _ => Ok(Console::new(grid(size)?, size)),
+    }
+}
+
 /// Draws the programs on `master` on the display, with the virtual
 /// terminal `vt` taken over, until they are gone or `requests` asks for
 /// the display back; returns why, the screen's last text and the keyboard
-/// layout.
+/// layout. The console's terminal is `kept` when the display is handed
+/// back, for when it is taken again after a failed `kexec`.
 fn on_display(
     settings: &Settings,
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
-    master: &mut File,
-    vt: &Path,
+    (master, vt): (&mut File, &Path),
     requests: &Requests,
+    kept: &mut Option<Console>,
 ) -> io::Result<(Ended, String, String)> {
     let card = match &settings.card {
         Some(card) => card.clone(),
@@ -449,37 +409,26 @@ fn on_display(
     };
     let mut display = Display::open(&card)?;
     let size = display.size();
-    let grid = grid(size)?;
+    let mut console = console_for(kept, grid, size)?;
     let Layouts { first, load } = layouts;
     let keyboards = open_keyboards(places, first);
     let taken = VirtualTerminal::take(vt)?;
+    set_size(&*master, &console.window_size())?;
     let started = Started {
         card: card.clone(),
         display: size,
-        font: grid.name().to_owned(),
-        cell: grid.cell(),
-        grid: (0, 0),
+        font: console.grid().name().to_owned(),
+        cell: console.grid().cell(),
+        grid: console.size(),
         keyboard: keyboards.layout().to_owned(),
     };
-    let mut console = Console::new(grid, size);
-    set_size(&*master, &console.window_size())?;
-    announce(
-        settings,
-        places,
-        &Started {
-            grid: console.size(),
-            ..started
-        },
-    );
+    announce(settings, places, &started);
     let mut mirror = settings
         .mirror
         .as_deref()
         .and_then(open_mirror)
         .map(Mirror::new);
-    let mut show = mirror
-        .as_mut()
-        .map(|mirror| move |text: &str| mirror.show(text));
-    let shown = show.as_mut().map(|show| show as &mut dyn FnMut(&str));
+    let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch: Switch<'_> = Box::new(|keyboards: &mut Keyboards| {
         switch_layout(places, &mut *load, keyboards);
     });
@@ -488,7 +437,11 @@ fn on_display(
     let layout = host.keyboard_layout().to_owned();
     drop(host);
     drop(taken);
-    Ok((ended, console.text(), layout))
+    let text = console.text();
+    if ended == Ended::Released {
+        *kept = Some(console);
+    }
+    Ok((ended, text, layout))
 }
 
 /// The host of the loop on the display: the programs' terminal `master`,

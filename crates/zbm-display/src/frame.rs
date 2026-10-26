@@ -166,6 +166,17 @@ impl Frame {
         self.damage = Some(self.damage.map_or(clipped, |damage| damage.union(clipped)));
     }
 
+    /// Records that the whole frame is to be presented, as on a new
+    /// display.
+    pub fn damage_all(&mut self) {
+        self.damage = Some(Area {
+            x: 0,
+            y: 0,
+            width: self.width,
+            height: self.height,
+        });
+    }
+
     /// The area drawn since the last call, which presenting copies to the
     /// display; `None` when nothing changed.
     pub fn take_damage(&mut self) -> Option<Area> {
@@ -203,6 +214,8 @@ mod tests {
         };
         assert_eq!(frame.take_damage(), Some(all));
         assert_eq!(frame.take_damage(), None);
+        frame.damage_all();
+        assert_eq!(frame.take_damage(), Some(all));
     }
 
     #[test]

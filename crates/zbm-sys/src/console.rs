@@ -62,15 +62,31 @@ fn checked(result: c_int) -> io::Result<()> {
     }
 }
 
-/// Runs an `ioctl` of the virtual terminal whose argument is passed by
-/// value: `KDSETMODE` or `KDSKBMODE`. The kernel reads it as an
-/// `unsigned long`, so it is passed as one: an `int` in a variadic call
+/// Runs an `ioctl` of a terminal whose argument, if it has one, is passed
+/// by value: `KDSETMODE`, `KDSKBMODE` or `TIOCCONS`. The kernel reads it as
+/// an `unsigned long`, so it is passed as one: an `int` in a variadic call
 /// leaves the upper half of the register undefined.
 fn set_mode(fd: i32, request: c_ulong, value: c_int) -> io::Result<()> {
     let value = c_ulong::try_from(value).map_err(|_| io::Error::from_raw_os_error(EINVAL))?;
-    // SAFETY: these requests take their argument by value; the kernel reads
-    // nothing from this process's memory.
+    // SAFETY: these requests take their argument by value, or none; the
+    // kernel reads nothing from this process's memory.
     checked(unsafe { ioctl(fd, request, value) })
+}
+
+/// `TIOCCONS`: writes to `/dev/console` go to this terminal
+/// (`asm-generic/ioctls.h`, which x86 and Arm use).
+const TIOCCONS: c_ulong = 0x541D;
+
+/// Has what programs write to `/dev/console` go to the terminal open as
+/// `fd` instead of the kernel console; the kernel undoes it when that
+/// terminal is hung up.
+///
+/// # Errors
+///
+/// When `fd` is not a terminal, the process may not (`EPERM`), or another
+/// terminal has it already (`EBUSY`).
+pub fn redirect_console(fd: i32) -> io::Result<()> {
+    set_mode(fd, TIOCCONS, 0)
 }
 
 /// `EINVAL`, the same on every Linux architecture.
@@ -260,6 +276,8 @@ mod tests {
         let negative = set_keyboard_mode(fd, KeyboardMode(-1)).unwrap_err();
         assert_eq!(negative.raw_os_error(), Some(EINVAL));
         assert!(keys_down(fd).is_err());
+        // Not a terminal: `/dev/console` is left where it is.
+        assert!(redirect_console(fd).is_err());
     }
 
     #[test]

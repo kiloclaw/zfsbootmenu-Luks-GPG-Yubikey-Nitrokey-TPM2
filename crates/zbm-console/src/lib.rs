@@ -11,8 +11,9 @@
 //! - [`keys`]: key presses as the bytes the Linux console sends;
 //! - [`run`]: the loop between the terminal, the display and the keyboards,
 //!   on a [`run::Host`] that tests replace;
-//! - [`host`]: the real one, and the relay that carries the terminal over
-//!   to the kernel console once the display is handed back.
+//! - [`host`]: the real one;
+//! - [`relay`]: the relay that carries the terminal over to the kernel
+//!   console once the display is handed back.
 //!
 //! Before `kexec`, `zbm console release` asks it to hand the display, the
 //! keyboards and the virtual terminal back; it then relays between the
@@ -22,6 +23,8 @@
 pub mod colour;
 pub mod host;
 pub mod keys;
+pub mod mirror;
+pub mod relay;
 pub mod release;
 pub mod run;
 pub mod screen;

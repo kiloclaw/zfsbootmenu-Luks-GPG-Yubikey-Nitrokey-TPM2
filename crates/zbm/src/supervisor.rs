@@ -66,6 +66,10 @@ pub struct Supervisor {
     pub base: PathBuf,
     /// The console on the display, if one is wanted (`zbm console`).
     pub console: Option<Program>,
+    /// Whether what programs write to `/dev/console` goes to the console's
+    /// terminal (`TIOCCONS`): off in tests, where it would take the
+    /// machine's console.
+    pub redirect_console: bool,
 }
 
 /// What happened, for the log and for tests.
@@ -100,6 +104,7 @@ impl Supervisor {
             log: PathBuf::from("/dev/kmsg"),
             base: PathBuf::from(crate::debug::BASE),
             console: None,
+            redirect_console: true,
         }
     }
 
@@ -157,6 +162,15 @@ impl Supervisor {
         match Attached::start(program) {
             Ok(attached) => {
                 events(Event::Console(format!("started {}", attached.pid)));
+                // What hooks and tools write to `/dev/console` shows on the
+                // console, not on the kernel console it hides.
+                if self.redirect_console
+                    && let Err(error) = attached.redirect_console()
+                {
+                    self.error(&format!(
+                        "/dev/console stays on the kernel console: {error}"
+                    ));
+                }
                 Some(attached)
             }
             Err(error) => {

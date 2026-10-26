@@ -129,6 +129,16 @@ impl Console {
         console
     }
 
+    /// The font's grid the cells are drawn with.
+    pub fn grid(&self) -> &Grid {
+        &self.grid
+    }
+
+    /// The size of the frame in pixels: width and height.
+    pub fn pixels(&self) -> (u32, u32) {
+        self.frame.size()
+    }
+
     /// The size in cells: columns and rows.
     pub fn size(&self) -> (u16, u16) {
         (self.columns, self.rows)
