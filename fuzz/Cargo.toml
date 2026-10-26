@@ -18,7 +18,9 @@ members = ["."]
 libfuzzer-sys = "0.4"
 zbm-boot = { path = "../crates/zbm-boot" }
 zbm-config = { path = "../crates/zbm-config" }
+zbm-console = { path = "../crates/zbm-console" }
 zbm-crypt = { path = "../crates/zbm-crypt" }
+zbm-display = { path = "../crates/zbm-display" }
 zbm-luks = { path = "../crates/zbm-luks" }
 zbm-pool = { path = "../crates/zbm-pool" }
 zbm-startup = { path = "../crates/zbm-startup" }
@@ -63,6 +65,13 @@ bench = false
 [[bin]]
 name = "display_data"
 path = "fuzz_targets/display_data.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "console_output"
+path = "fuzz_targets/console_output.rs"
 test = false
 doc = false
 bench = false

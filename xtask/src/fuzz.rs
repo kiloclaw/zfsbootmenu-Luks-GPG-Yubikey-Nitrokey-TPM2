@@ -20,6 +20,7 @@ pub const TARGETS: &[&str] = &[
     "luks_metadata",
     "program_output",
     "display_data",
+    "console_output",
 ];
 
 /// How long each target runs when no time is given, in seconds.
