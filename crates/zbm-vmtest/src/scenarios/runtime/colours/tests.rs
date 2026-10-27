@@ -92,6 +92,9 @@ fn a_font_is_loaded_drawn_and_counted_from_the_screenshot() {
     let nothing = |_: &Vm<'_>, _: &Path| -> Result<()> { Ok(()) };
 
     let subset = draw(&test, &mut vm, "vga", SUBSET, &sixteen).unwrap();
+    // A screenshot an earlier run left is not counted as this one's.
+    let stem = Path::new(WHOLE).file_stem().unwrap().to_string_lossy();
+    fs::write(test.dir().join(format!("vga-{stem}.ppm")), screen(16)).unwrap();
     let whole = draw(&test, &mut vm, "vga", WHOLE, &nothing).unwrap();
     let refused = draw(&test, &mut vm, "vga", WHOLE, &sixteen).unwrap();
     check_colours(&test, subset, ALL_COLOURS, "vga: the image's font");

@@ -48,8 +48,8 @@ Commands:
                          in a crate of xtask/strict/crates.txt
   test                   Every test that needs no root and no virtual
                          machine, under cargo nextest when it is installed
-  test devices           The LUKS device suites: the LUKS code against real
-                         LUKS volumes on loop devices (root, cryptsetup,
+  test devices           The device suites: zbm-crypt and the LUKS code against
+                         real LUKS volumes on loop devices (root, cryptsetup,
                          swtpm, clevis, GnuPG; the build container has them)
   test vm [<test>...]    The VM tests: build zbm-vmtest and run the tests
                          (all by default) in QEMU (KVM, the build container,

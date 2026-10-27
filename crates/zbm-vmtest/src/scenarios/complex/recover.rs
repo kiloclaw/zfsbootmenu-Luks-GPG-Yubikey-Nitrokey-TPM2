@@ -104,7 +104,7 @@ pub(super) fn skip_prompts(vm: &mut Vm<'_>) -> Result<(usize, usize)> {
 pub(super) fn unlock(vm: &mut Vm<'_>) -> Result<(usize, String)> {
     vm.sendline("zluks unlock; echo RC=$?")?;
     let mut prompts = 0;
-    while vm.expect(&[prompt::LUKS, r"RC=(\d+)"], 1800)? == 0 {
+    while vm.expect(&[prompt::LUKS, r"RC=(\d+)\r*\n"], 1800)? == 0 {
         prompts += 1;
         vm.sendline(if prompts == 1 { PW } else { PW_OTHER })?;
     }

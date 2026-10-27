@@ -199,10 +199,12 @@ fn unlock(test: &Test, scenario: &str, uuid: &str) -> Result<()> {
 
 /// Reads what the hook printed after its first line.
 fn read_search(vm: &mut Vm<'_>) -> Result<Search> {
-    vm.expect1(r"ZBMTEST-SECRETS-END (\d+)", 600)?;
+    // Each to the line's end: matched as it arrives, a status or a kernel
+    // line is cut short.
+    vm.expect1(r"ZBMTEST-SECRETS-END (\d+)\r*\n", 600)?;
     let output = vm.before().trim().to_owned();
     let status = vm.group(1);
-    vm.expect1(r"ZBMTEST-MEMINIT ([^\r\n]*)", 60)?;
+    vm.expect1(r"ZBMTEST-MEMINIT ([^\r\n]*)\r*\n", 60)?;
     Ok(Search {
         output,
         status,

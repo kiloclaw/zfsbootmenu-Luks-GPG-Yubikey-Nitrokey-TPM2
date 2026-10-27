@@ -68,9 +68,10 @@ fn test_programs(root: &Path, nextest: bool, env: &[(&str, &str)]) -> Vec<Progra
     programs
 }
 
-/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`: as
-/// root, with real LUKS volumes on loop devices, a software TPM, clevis and
-/// GnuPG. The suites run one after another and print every case and check.
+/// Runs the device suites, `crates/zbm-crypt/tests/devices.rs` and
+/// `crates/zbm-luks/tests/devices`: as root, with real LUKS volumes on loop
+/// devices, a software TPM, clevis and GnuPG. The suites run one after
+/// another and print every case and check.
 ///
 /// # Errors
 ///
@@ -83,6 +84,8 @@ pub fn test_devices(root: &Path) -> Result<()> {
 fn test_devices_program(root: &Path) -> Program {
     cargo(root).env("ZBM_DEVICE_TESTS", "1").args([
         "test",
+        "-p",
+        "zbm-crypt",
         "-p",
         "zbm-luks",
         "--test",
@@ -353,7 +356,7 @@ mod tests {
     fn the_device_suites_run_one_after_another() {
         assert_eq!(
             test_devices_program(Path::new("/w")).shown(),
-            "ZBM_DEVICE_TESTS=1 cargo test -p zbm-luks --test devices --locked -- \
+            "ZBM_DEVICE_TESTS=1 cargo test -p zbm-crypt -p zbm-luks --test devices --locked -- \
              --nocapture --test-threads=1"
         );
     }

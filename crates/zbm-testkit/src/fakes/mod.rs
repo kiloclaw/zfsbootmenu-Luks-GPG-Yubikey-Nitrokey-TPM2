@@ -116,10 +116,17 @@ impl FakeSystem {
             }
         }
         let in_path = |path: &Path| in_os(path.as_os_str());
-        for operation in self.files.operations() {
-            let leaked = match &operation {
+        // What each file was given, all its writes in order: a secret
+        // written in two parts, as a log written line by line may hold it,
+        // is in no single write.
+        let mut written: std::collections::BTreeMap<&Path, Vec<u8>> =
+            std::collections::BTreeMap::new();
+        let operations = self.files.operations();
+        for operation in &operations {
+            let leaked = match operation {
                 FileOperation::Write(path, contents) | FileOperation::Append(path, contents) => {
-                    in_path(path) || contains(contents, secret)
+                    written.entry(path).or_default().extend_from_slice(contents);
+                    in_path(path)
                 }
                 FileOperation::CreateDir(path)
                 | FileOperation::Remove(path)
@@ -127,6 +134,13 @@ impl FakeSystem {
                 FileOperation::Rename(from, to) => in_path(from) || in_path(to),
             };
             assert!(!leaked, "a secret is in a file operation: {operation:?}");
+        }
+        for (path, contents) in written {
+            assert!(
+                !contains(&contents, secret),
+                "a secret was written to {}",
+                path.display()
+            );
         }
         assert!(
             !contains(&self.console.output(), secret),
@@ -556,7 +570,15 @@ mod tests {
         );
         assert!(
             leaks(|fake| fake.files.write(&path("/key"), b"xhunter2x").unwrap())
-                .contains("file operation")
+                .contains("written to /key")
+        );
+        // Split over two writes, as a log written in pieces holds it.
+        assert!(
+            leaks(|fake| {
+                fake.files.write(&path("/log"), b"key: hun").unwrap();
+                fake.files.append(&path("/log"), b"ter2\n").unwrap();
+            })
+            .contains("written to /log")
         );
         assert!(
             leaks(|fake| fake.files.create_dir(&path("/hunter2")).unwrap())

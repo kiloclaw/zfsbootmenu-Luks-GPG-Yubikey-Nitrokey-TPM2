@@ -294,6 +294,15 @@ impl Parity {
     }
 }
 
+impl Parity {
+    /// Whether the test has recordings. One that compared none of them,
+    /// whose cases were all left out or that returned early, passed
+    /// comparing nothing: where tests may not skip, it fails.
+    fn has_recordings(&self) -> bool {
+        self.path.exists()
+    }
+}
+
 /// What to do when a recording is out of date.
 const RECORD_AGAIN: &str = "Record the legacy results again with `cargo xtask record-parity`.";
 
@@ -340,7 +349,14 @@ impl Drop for Parity {
                 }
                 std::fs::write(&self.path, text).expect("the golden file can be written");
             }
-            Mode::Replay if !self.met.is_empty() => {
+            Mode::Replay if self.met.is_empty() => {
+                assert!(
+                    !(crate::host::tests_must_not_skip() && self.has_recordings()),
+                    "{}: the test compared no case with its recordings",
+                    self.path.display()
+                );
+            }
+            Mode::Replay => {
                 let recorded = self.recorded_cases().len();
                 assert!(
                     self.met.len() >= recorded,
@@ -349,7 +365,7 @@ impl Drop for Parity {
                     self.met.len()
                 );
             }
-            Mode::Replay | Mode::Record | Mode::Live => {}
+            Mode::Record | Mode::Live => {}
         }
     }
 }
@@ -511,15 +527,28 @@ mod tests {
     }
 
     #[test]
+    fn a_test_has_recordings_when_its_golden_file_exists() {
+        let mut parity = std::mem::ManuallyDrop::new(parity(Mode::Replay, Vec::new()));
+        assert!(!parity.has_recordings());
+        parity.path = crate::repo_root().join("tests/golden/legacy/zbm-config/args");
+        assert!(parity.has_recordings());
+    }
+
+    #[test]
     fn the_golden_file_is_named_after_the_crate_module_and_test() {
-        let parity = Parity::new("zbm-config", "zbm_config::args::tests", "lookups");
+        // Only the paths are looked at: nothing is compared.
+        let parity = std::mem::ManuallyDrop::new(Parity::new(
+            "zbm-config",
+            "zbm_config::args::tests",
+            "lookups",
+        ));
 
         assert!(
             parity
                 .path()
                 .ends_with("tests/golden/legacy/zbm-config/args/lookups.json")
         );
-        let integration = Parity::new("zbm-kcl", "parity", "edits");
+        let integration = std::mem::ManuallyDrop::new(Parity::new("zbm-kcl", "parity", "edits"));
         assert!(
             integration
                 .path()

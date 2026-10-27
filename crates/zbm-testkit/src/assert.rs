@@ -30,6 +30,7 @@
 //! }
 //! ```
 
+use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -45,6 +46,35 @@ pub fn command_list(lines: &[String]) -> String {
             let _ = writeln!(list, "  {index}: {line}");
             list
         })
+}
+
+/// `command` as a shell would read it: the program and arguments joined by
+/// spaces, an argument that is empty or holds a space, a quote or another
+/// character the shell treats specially in single quotes. Joined bare,
+/// `x 'a b'` and `x a b` read the same, and a check could pass for a
+/// command that split its arguments wrongly.
+pub fn quoted(command: &zbm_platform::exec::Command) -> String {
+    std::iter::once(command.program())
+        .chain(command.get_args().iter().map(OsString::as_os_str))
+        .map(|part| {
+            let part = part.to_string_lossy();
+            let plain = !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "-_=+/.,:@%^".contains(c));
+            if plain {
+                part.into_owned()
+            } else {
+                format!("'{}'", part.replace('\'', r"'\''"))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The commands the fake runner `runner` ran, [`quoted`].
+pub fn quoted_calls(runner: &crate::FakeRunner) -> Vec<String> {
+    runner.calls().iter().map(quoted).collect()
 }
 
 /// Fails the test unless one of `lines` is `expected`.
@@ -100,11 +130,12 @@ pub fn run_cases<T>(cases: Vec<(&str, T)>, check: impl Fn(T)) {
 }
 
 /// Fails the test unless the fake system or machine ran the command
-/// `line` (program and arguments joined by spaces).
+/// `line`: program and arguments joined by spaces, quoted as a shell reads
+/// them ([`quoted`](crate::assert::quoted)).
 #[macro_export]
 macro_rules! assert_ran {
     ($fake:expr, $line:expr $(,)?) => {
-        $crate::assert::ran(&$fake.runner.lines(), $line)
+        $crate::assert::ran(&$crate::assert::quoted_calls(&$fake.runner), $line)
     };
 }
 
@@ -113,7 +144,7 @@ macro_rules! assert_ran {
 #[macro_export]
 macro_rules! assert_not_ran {
     ($fake:expr, $prefix:expr $(,)?) => {
-        $crate::assert::not_ran(&$fake.runner.lines(), $prefix)
+        $crate::assert::not_ran(&$crate::assert::quoted_calls(&$fake.runner), $prefix)
     };
 }
 
@@ -162,6 +193,21 @@ mod tests {
         );
         ran(&lines, "zfs list");
         assert!(failure(|| ran(&[], "x")).ends_with("  (no command ran)\n"));
+    }
+
+    #[test]
+    fn arguments_are_quoted_so_that_their_split_shows() {
+        use zbm_platform::exec::Command;
+        let runner = crate::FakeRunner::new();
+        let run = |command: Command| {
+            let _ = zbm_platform::exec::Runner::run(&runner, &command);
+        };
+        run(Command::new("zfs").args(["set", "a=b c", "pool"]));
+        run(Command::new("echo").args(["", "it's"]));
+        let lines = quoted_calls(&runner);
+
+        assert_eq!(lines, ["zfs set 'a=b c' pool", r"echo '' 'it'\''s'"]);
+        assert!(failure(|| ran(&lines, "zfs set a=b c pool")).contains("did not run"));
     }
 
     #[test]

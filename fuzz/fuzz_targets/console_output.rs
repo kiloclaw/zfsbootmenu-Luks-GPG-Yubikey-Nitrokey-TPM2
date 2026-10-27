@@ -22,9 +22,9 @@ fuzz_target!(|data: &[u8]| {
     let Some((&first, output)) = data.split_first() else {
         return;
     };
-    let Ok(font) = Font::parse(FONT) else {
-        return;
-    };
+    // A font that does not parse would make every input return here, and
+    // the target would fuzz nothing: it fails at once instead.
+    let font = Font::parse(FONT).expect("the image's font parses");
     // A small screen: 12 columns and 5 rows, so that lines wrap and scroll.
     let mut console = Console::new(Grid::new(font, 1), (12 * 8, 5 * 14));
     for read in output.chunks(usize::from(first).max(1)) {

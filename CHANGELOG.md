@@ -290,6 +290,18 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   closed mappings out of an old copy of the record, without its lock, so the new mapping stayed open at the boot.
 - The memory that holds secrets is created close-on-exec, so a program started at the same moment cannot inherit it.
 - Mapping names that start with `-`, which `cryptsetup` would read as options, are refused before `cryptsetup` runs.
+- Checks that could pass by mistake:
+  - the VM tests remove a screenshot before taking it, so that one an earlier run left is not counted when QEMU takes
+    none, and fail when QEMU refuses a key they send;
+  - `assert_ran!` quotes arguments, so that `x 'a b'` and `x a b` no longer pass for each other;
+  - the leak check looks at everything a file was given, so that a secret written in two parts is found;
+  - under `cargo xtask test`, a parity test that has recordings fails when it compared none;
+  - the console output fuzz target fails at once when its font does not parse, instead of fuzzing nothing;
+  - `cargo xtask test devices` runs `zbm-crypt`'s device tests too;
+  - `zbm debug secrets` searches the files of `/dev` and goes on after a page it cannot read, instead of skipping
+    the rest of the mapping;
+  - the VM tests read the crash report's counts, the secret search's status and `zluks unlock`'s exit status to the
+    end of their line, not as the first digits arrive.
 
 ### The parity-only parts removed
 

@@ -80,9 +80,11 @@ fn read_crash(vm: &mut Vm<'_>) -> Result<Crash> {
     vm.expect1("ZBMTEST-CRASH-BEGIN", 1200)?;
     vm.expect1("ZBMTEST-CRASH-END", 60)?;
     let report = format!("{}\n", vm.before().trim_matches('\n'));
-    vm.expect1(r"ZBMTEST-CRASH-KMSG (\d+)", 60)?;
+    // To the line's end: read while its digits still arrive, a count is
+    // cut short.
+    vm.expect1(r"ZBMTEST-CRASH-KMSG (\d+)\r*\n", 60)?;
     let kmsg = count(&vm.group(1))?;
-    vm.expect1(r"ZBMTEST-CRASH-JOURNAL (\d+)", 60)?;
+    vm.expect1(r"ZBMTEST-CRASH-JOURNAL (\d+)\r*\n", 60)?;
     let journal = count(&vm.group(1))?;
     Ok(Crash {
         report,

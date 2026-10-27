@@ -146,8 +146,11 @@ fn boot<'t>(test: &'t Test, image: &Image, name: &str, gpu: bool) -> Result<Vm<'
     Ok(vm)
 }
 
-/// Writes a screenshot of the machine to `path` (a PPM image).
+/// Writes a screenshot of the machine to `path` (a PPM image). A file left
+/// there by an earlier run is removed first, so that a screenshot QEMU did
+/// not take is missing rather than an old one.
 pub(super) fn screendump(vm: &Vm<'_>, path: &Path) -> Result<()> {
+    let _ = fs::remove_file(path);
     let reply = vm.monitor(&format!("screendump {}", path.display()))?;
     if !reply.is_empty() {
         vm.test().show(&format!("monitor: screendump: {reply}"));
@@ -176,6 +179,8 @@ pub(super) fn draw(
         .file_stem()
         .map_or("font".into(), |stem| stem.to_string_lossy().into_owned());
     let path = test.dir().join(format!("{boot}-{name}.ppm"));
+    // The screenshot of an earlier run is not this one's.
+    let _ = fs::remove_file(&path);
     dump(vm, &path)?;
     let start = (BAR_LINE - 1) * CELL_HEIGHT;
     Ok(fs::read(&path)

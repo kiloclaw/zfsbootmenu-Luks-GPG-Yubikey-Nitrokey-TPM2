@@ -38,8 +38,12 @@ pub fn have_program(program: &str) -> bool {
 ///
 /// When `what` is missing and `ZBM_REQUIRE_TOOLS=1`.
 pub fn can_run(available: bool, what: &str) -> bool {
-    let required = std::env::var_os("ZBM_REQUIRE_TOOLS").is_some_and(|value| value == "1");
-    can_run_if(available, what, required)
+    can_run_if(available, what, tests_must_not_skip())
+}
+
+/// Whether tests may not skip: `ZBM_REQUIRE_TOOLS=1`.
+pub(crate) fn tests_must_not_skip() -> bool {
+    std::env::var_os("ZBM_REQUIRE_TOOLS").is_some_and(|value| value == "1")
 }
 
 /// [`can_run`], where `required` says whether a missing tool fails.

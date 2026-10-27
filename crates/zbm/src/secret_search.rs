@@ -18,16 +18,31 @@
 
 use std::fs::File;
 use std::io::Read as _;
-use std::os::unix::fs::{FileExt as _, MetadataExt as _};
+use std::os::unix::fs::{FileExt, MetadataExt as _};
 use std::path::{Path, PathBuf};
 
 use crate::{Io, USAGE};
 
-/// The file systems whose files are in memory.
-const MEMORY_FILESYSTEMS: [&str; 3] = ["rootfs", "tmpfs", "ramfs"];
+/// The file systems whose files are in memory, `/dev`'s among them.
+const MEMORY_FILESYSTEMS: [&str; 4] = ["rootfs", "tmpfs", "ramfs", "devtmpfs"];
 
 /// How much of a mapping is read at once.
 const CHUNK: usize = 1 << 20;
+
+/// How far a page that cannot be read is skipped: the smallest page.
+const PAGE: u64 = 4096;
+
+/// Memory read at an offset, as `/proc/PID/mem` is.
+trait ReadAt {
+    /// Reads into `buffer` from `offset`; how much was read.
+    fn read_at(&self, buffer: &mut [u8], offset: u64) -> std::io::Result<usize>;
+}
+
+impl ReadAt for File {
+    fn read_at(&self, buffer: &mut [u8], offset: u64) -> std::io::Result<usize> {
+        FileExt::read_at(self, buffer, offset)
+    }
+}
 
 /// What the search went through and found.
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -149,8 +164,10 @@ pub fn readable_regions(maps: &str) -> Vec<(u64, u64, String)> {
 }
 
 /// The indexes of the `secrets` in the region from `start` to `end` of
-/// `mem`, read in chunks that overlap by the longest secret.
-fn search_region(mem: &File, start: u64, end: u64, secrets: &[Needle]) -> Vec<usize> {
+/// `mem`, read in chunks that overlap by the longest secret. A page that
+/// cannot be read, such as one of a file mapped beyond its end, is skipped,
+/// and the search goes on after it.
+fn search_region(mem: &impl ReadAt, start: u64, end: u64, secrets: &[Needle]) -> Vec<usize> {
     let overlap = secrets
         .iter()
         .map(Needle::span)
@@ -164,7 +181,9 @@ fn search_region(mem: &File, start: u64, end: u64, secrets: &[Needle]) -> Vec<us
     while at < end {
         let want = usize::try_from(end - at).unwrap_or(CHUNK).min(CHUNK);
         let Ok(read) = mem.read_at(&mut buffer[kept..kept + want], at) else {
-            break;
+            at = ((at / PAGE + 1) * PAGE).min(end);
+            kept = 0;
+            continue;
         };
         if read == 0 {
             break;
@@ -373,14 +392,55 @@ bad line
     fn the_file_systems_in_memory_are_found() {
         let mounts = "rootfs / rootfs rw 0 0\nproc /proc proc rw 0 0\n\
                       tmpfs /run tmpfs rw 0 0\n/dev/vda1 /boot vfat rw 0 0\n\
-                      none /a\\040b ramfs rw 0 0\ntmpfs /run tmpfs rw 0 0\n";
+                      none /a\\040b ramfs rw 0 0\ntmpfs /run tmpfs rw 0 0\n\
+                      devtmpfs /dev devtmpfs rw 0 0\n";
         assert_eq!(
             memory_mounts(mounts),
             [
                 PathBuf::from("/"),
                 PathBuf::from("/a b"),
+                PathBuf::from("/dev"),
                 PathBuf::from("/run")
             ]
+        );
+    }
+
+    /// Memory whose page `hole` cannot be read.
+    struct Holed {
+        bytes: Vec<u8>,
+        hole: u64,
+    }
+
+    impl ReadAt for Holed {
+        fn read_at(&self, buffer: &mut [u8], offset: u64) -> std::io::Result<usize> {
+            if offset / PAGE == self.hole {
+                return Err(std::io::Error::from_raw_os_error(5));
+            }
+            // Up to the hole, as `/proc/PID/mem` reads up to a bad page.
+            let stop = if offset / PAGE < self.hole {
+                self.hole * PAGE
+            } else {
+                self.bytes.len() as u64
+            };
+            let from = usize::try_from(offset).unwrap();
+            let to = usize::try_from(stop).unwrap().min(from + buffer.len());
+            let part = &self.bytes[from..to];
+            buffer[..part.len()].copy_from_slice(part);
+            Ok(part.len())
+        }
+    }
+
+    #[test]
+    fn a_secret_after_a_page_that_cannot_be_read_is_found() {
+        let mut bytes = vec![0_u8; 3 * 4096];
+        bytes[2 * 4096 + 10..2 * 4096 + 10 + SECRET.len()].copy_from_slice(SECRET);
+        let mem = Holed { bytes, hole: 1 };
+        let secrets = needles(&[SECRET.to_vec()], None);
+
+        assert_eq!(search_region(&mem, 0, 3 * 4096, &secrets), [0]);
+        assert_eq!(
+            search_region(&mem, 0, 2 * 4096, &secrets),
+            Vec::<usize>::new()
         );
     }
 

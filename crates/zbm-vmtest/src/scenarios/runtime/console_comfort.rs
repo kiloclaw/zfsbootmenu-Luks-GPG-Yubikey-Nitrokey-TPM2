@@ -93,7 +93,7 @@ fn spec() -> ImageSpec {
 
 /// Presses `key` on the machine's keyboard for 50 milliseconds.
 fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {
-    vm.monitor(&format!("sendkey {key} 50")).map(drop)
+    vm.send_key(key)
 }
 
 /// QEMU's names of the keys that type `text`, with `&`, `*`, `=` and `+`.
