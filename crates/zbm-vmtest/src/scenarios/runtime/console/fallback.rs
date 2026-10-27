@@ -40,6 +40,15 @@ pub(super) const FLOOD: &str = "od -v /dev/zero\n";
 /// Typed after Ctrl-C: a line on the serial console, which the test reads.
 pub(super) const FLOOD_DONE: &str = "echo zbm-flood-ok > /dev/ttyS0\n";
 
+/// Typed before the flood: the terminal's modes and the signals a program
+/// started from the shell inherits ignored or blocked, on the serial
+/// console, for the notes when Ctrl-C does not stop the flood.
+pub(super) const STATE: [&str; 3] = [
+    "stty -a > /dev/ttyS0\n",
+    "grep Sig /proc/self/status > /dev/ttyS0\n",
+    "echo zbm-state-end > /dev/ttyS0\n",
+];
+
 /// The supervisor's message when the console ended.
 pub(super) const ENDED: &str = r"console on the display ended";
 
@@ -51,6 +60,7 @@ pub(super) fn check_flood(
     monitor: &Monitor,
     pace: Pace,
 ) -> Result<()> {
+    note_state(test, vm, monitor, pace)?;
     type_text(vm, monitor, FLOOD, pace.pause)?;
     thread::sleep(pace.pause * 3);
     (monitor.key)(vm, "ctrl-c")?;
@@ -61,6 +71,34 @@ pub(super) fn check_flood(
         stopped,
         "virtio: Ctrl-C typed while od floods the console stops it",
     );
+    if !stopped {
+        // Ctrl-\ sends SIGQUIT: whether it stops od tells a signal that
+        // is ignored from a terminal that sends none.
+        (monitor.key)(vm, "ctrl-backslash")?;
+        thread::sleep(pace.pause * 2);
+        type_text(vm, monitor, FLOOD_DONE, pace.pause)?;
+        let quit = vm.expect(&["zbm-flood-ok"], pace.patience.min(60)).is_ok();
+        test.note(&format!("virtio: after Ctrl-\\, the flood stopped: {quit}"));
+    }
+    Ok(())
+}
+
+/// Notes the shell's terminal modes and the signals its programs inherit
+/// ignored or blocked.
+fn note_state(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Result<()> {
+    for line in STATE {
+        type_text(vm, monitor, line, pace.pause)?;
+    }
+    if vm.expect(&["zbm-state-end"], pace.patience.min(30)).is_ok() {
+        let state: Vec<String> = vm
+            .before()
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.contains("isig") || line.starts_with("Sig"))
+            .map(str::to_owned)
+            .collect();
+        test.note(&format!("virtio: before the flood: {}", state.join(" | ")));
+    }
     Ok(())
 }
 

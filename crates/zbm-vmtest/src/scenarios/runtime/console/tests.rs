@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 
-use super::fallback::{BACK, KILL, LOG};
+use super::fallback::{BACK, KILL, LOG, STATE};
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
@@ -48,7 +48,7 @@ fn text_is_typed_with_qemu_s_key_names() {
             "shift-semicolon"
         ]
     );
-    for text in [TTY, KILL, BACK, LOG] {
+    for text in [TTY, KILL, BACK, LOG, STATE[0], STATE[1], STATE[2]] {
         assert!(key_names(text).is_some(), "{text}");
     }
     assert_eq!(key_names("S").unwrap(), ["shift-s"]);
@@ -111,7 +111,8 @@ fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
     assert_eq!(spec.features, None);
 }
 
-const LOGGED: &str = "zbm-flood-ok\r\nzbm-back-/dev/console\r\n\
+const LOGGED: &str = "speed 38400 baud; isig icanon\r\nSigIgn: 0000000000000000\r\n\
+    zbm-state-end\r\nzbm-flood-ok\r\nzbm-back-/dev/console\r\n\
     [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
     going on on the kernel console\r\n";
 
