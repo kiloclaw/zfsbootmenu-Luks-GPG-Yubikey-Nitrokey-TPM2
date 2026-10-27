@@ -168,6 +168,32 @@ fn scroll_lock_holds_the_programs_output() {
     assert_eq!(host.wait(timeout).unwrap(), Input::Output(b"held".to_vec()));
 }
 
+/// The record of a relative movement of `value` on axis `code`, as a mouse
+/// sends it (`EV_REL`).
+fn movement(code: u16, value: i32) -> Vec<u8> {
+    let mut bytes = vec![0_u8; 16];
+    bytes.extend_from_slice(&2_u16.to_ne_bytes());
+    bytes.extend_from_slice(&code.to_ne_bytes());
+    bytes.extend_from_slice(&value.to_ne_bytes());
+    bytes
+}
+
+#[test]
+fn a_keyboard_that_moves_a_mouse_holds_up_no_output() {
+    let (master, mut program) = UnixStream::pair().unwrap();
+    let (keyboard, mut typing) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
+    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let timeout = Duration::from_millis(10);
+
+    program.write_all(b"out").unwrap();
+    typing
+        .write_all(&[movement(0, 5), movement(1, -3)].concat())
+        .unwrap();
+
+    assert_eq!(host.wait(timeout).unwrap(), Input::Output(b"out".to_vec()));
+}
+
 #[test]
 fn keys_come_before_a_flood_of_output() {
     let (master, mut program) = UnixStream::pair().unwrap();

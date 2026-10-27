@@ -86,6 +86,33 @@ fn the_status_line_takes_a_row_from_the_programs_and_says_the_title() {
     assert_eq!(console.size(), (20, 4));
 }
 
+#[test]
+fn the_same_status_is_not_made_again_but_a_new_minute_or_title_is() {
+    let mut console = console().with_status_line();
+    let now = Instant::now();
+    let line = |console: &Console| console.status_line.as_ref().map(Vec::as_ptr);
+    // Short enough for the 20 columns of the test console.
+    let at = |seconds| Status {
+        layout: "de".to_owned(),
+        locks: Locks::default(),
+        clock: Some(Clock::of(seconds)),
+        battery: None,
+    };
+    console.set_status(&at(3600 * 25 + 60 * 7 + 42), now);
+    let first = line(&console);
+
+    // Seconds later, the line shows the same: it is kept as it was made.
+    console.set_status(&at(3600 * 25 + 60 * 7 + 50), now);
+    assert_eq!(line(&console), first);
+
+    // A new minute, or a title, makes it again.
+    console.set_status(&at(3600 * 25 + 60 * 8), now);
+    assert!(console.text().contains("01:08 UTC"), "{}", console.text());
+    console.feed(b"\x1b]2;sh\x07");
+    console.set_status(&at(3600 * 25 + 60 * 8), now);
+    assert!(console.text().contains(" sh "), "{}", console.text());
+}
+
 fn console_without_status() -> Console {
     console()
 }
@@ -142,7 +169,7 @@ fn print_screen_takes_the_text_and_the_image_but_not_at_a_secret_prompt() {
     assert_eq!(console.take_key(print), None);
     let (text, image) = console.take_screenshot().unwrap();
     assert!(text.starts_with("zpool status\n"));
-    assert_eq!(image, zbm_display::png::of_frame(console.frame_mut()));
+    assert_eq!(image, zbm_display::png::screenshot(console.frame_mut()));
     assert_eq!(console.take_screenshot(), None);
     // With Ctrl, the programs'.
     let ctrl = KeyPress {

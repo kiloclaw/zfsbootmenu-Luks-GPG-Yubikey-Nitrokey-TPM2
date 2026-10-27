@@ -51,6 +51,36 @@ impl Drop for Raw {
     }
 }
 
+/// The modes a terminal had, and the terminal, to give them back. The
+/// relay restores the kernel console's when it ends, but a console killed by
+/// a signal cannot: the supervisor keeps them too, and gives them back when
+/// the console is gone, so that the kernel console does not stay without
+/// echo, line endings or Ctrl-C.
+#[derive(Debug)]
+pub struct SavedModes {
+    terminal: OwnedFd,
+    saved: termios::Termios,
+}
+
+impl SavedModes {
+    /// The modes of `terminal` now; `None` when it is not a terminal.
+    pub fn of(terminal: impl AsFd) -> Option<SavedModes> {
+        let saved = termios::tcgetattr(&terminal).ok()?;
+        let terminal = terminal.as_fd().try_clone_to_owned().ok()?;
+        Some(SavedModes { terminal, saved })
+    }
+
+    /// Gives the terminal its modes back.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal is gone.
+    pub fn restore(&self) -> io::Result<()> {
+        termios::tcsetattr(&self.terminal, OptionalActions::Now, &self.saved)
+            .map_err(io::Error::from)
+    }
+}
+
 /// Why the relay on the kernel console ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Relayed {

@@ -129,8 +129,17 @@ impl Console {
         if self.status_line.is_none() {
             return;
         }
-        let line = status.line(self.title.as_deref(), usize::from(self.columns));
-        self.status_line = Some(line);
+        // The line shows the time to the minute.
+        let shown = Status {
+            clock: status.clock.map(|clock| Clock { second: 0, ..clock }),
+            ..status.clone()
+        };
+        let said = (shown, self.title.clone(), self.columns);
+        if self.status_said.as_ref() != Some(&said) {
+            let line = status.line(self.title.as_deref(), usize::from(self.columns));
+            self.status_line = Some(line);
+            self.status_said = Some(said);
+        }
         self.status_at = status
             .clock
             .map(|clock| now + Duration::from_secs(60 - u64::from(clock.second.min(59))));

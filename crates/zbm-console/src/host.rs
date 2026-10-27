@@ -340,17 +340,15 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
 
     /// Keys from the first keyboard that has some: the keyboards come
     /// before the programs' output, so that Ctrl-C reaches a program that
-    /// floods the terminal.
+    /// floods the terminal. A keyboard that was ready with no key, as one
+    /// that also moves a mouse is, gives `None`: the output is read then,
+    /// so that moving the mouse holds up nothing.
     fn keys(&mut self, ready: &[Ready]) -> io::Result<Option<Input>> {
         let Some(index) = ready.iter().position(|ready| ready.is_ready()) else {
             return Ok(None);
         };
         let presses = self.keyboards.read_device(index)?;
-        Ok(Some(if presses.is_empty() {
-            Input::Nothing
-        } else {
-            Input::Keys(presses)
-        }))
+        Ok((!presses.is_empty()).then_some(Input::Keys(presses)))
     }
 
     /// What the host waits on: the keyboards, the programs' terminal, and

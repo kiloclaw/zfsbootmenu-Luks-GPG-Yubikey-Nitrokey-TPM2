@@ -248,6 +248,18 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - `runtime-rust-console-comfort` reads the console's process ID to the end of its line: read while its digits still
   arrived, it named another process, and the check that the scrollback is wiped at a secret prompt passed whatever
   the console's memory held.
+- The PC speaker stops when the console ends or hands the display back during a bell: the tone stopped only on a
+  later pass of the console's loop, which did not come.
+- A keyboard that also moves a mouse no longer holds up the programs' output: a ready keyboard device that gave no
+  key ended the console's wait before the output was read, so moving the mouse froze the screen.
+- The kernel console gets its modes back when the console on the display dies while relaying to it: the relay
+  restores them when it ends, but not when it is killed, and the kernel console stayed without echo, line endings or
+  Ctrl-C. The supervisor saves them when it starts the console and restores them when the console is gone.
+- Screenshots leave no copies of the screen in freed memory and no longer hold up the console: the pixels, the rows
+  and the file are wiped, the file is made in one allocation, and it is compressed at the fastest level (the
+  reference images of the tests keep the best). The text of the screen is measured before it is built, so that a
+  screen full of combining marks no longer outgrows its string.
+- The status line is made again only when what it shows changes, instead of on every pass of the console's loop.
 
 ### The parity-only parts removed
 

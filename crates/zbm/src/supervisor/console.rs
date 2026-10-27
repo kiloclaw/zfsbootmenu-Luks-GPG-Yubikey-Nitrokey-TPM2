@@ -33,6 +33,7 @@ use zbm_sys::console::{
 
 use super::Program;
 use zbm_console::keys::Flavour;
+use zbm_console::relay::SavedModes;
 
 /// The supervisor's terminal: its standard input.
 const TERMINAL: i32 = 0;
@@ -47,6 +48,9 @@ pub struct Attached {
     /// The keyboard mode the virtual terminal had, if the supervisor's
     /// terminal is one.
     keyboard: Option<KeyboardMode>,
+    /// The modes the supervisor's terminal had, which the console's relay
+    /// changes and a console killed by a signal cannot give back.
+    modes: Option<SavedModes>,
     /// The terminal description the programs run with, as the console
     /// sends keys for it.
     flavour: Flavour,
@@ -69,6 +73,7 @@ impl Attached {
     /// When the pseudo-terminal or the console cannot be had.
     pub fn start(program: &Program) -> io::Result<Attached> {
         let keyboard = keyboard_mode(TERMINAL).ok();
+        let modes = SavedModes::of(io::stdin());
         let (master, slave) = zbm_console::host::open_pty()?;
         let child = Command::new(&program.path)
             .args(&program.args)
@@ -79,6 +84,7 @@ impl Attached {
             pid,
             slave,
             keyboard,
+            modes,
             flavour: Flavour::of_image(|path| path.exists()),
         })
     }
@@ -90,6 +96,7 @@ impl Attached {
             pid,
             slave,
             keyboard: None,
+            modes: None,
             flavour: Flavour::Xterm,
         }
     }
@@ -152,11 +159,15 @@ impl Attached {
     }
 
     /// Gives the virtual terminal back to the kernel console once the
-    /// console ended, and forgets it in the state directory `base`.
+    /// console ended, with the modes it had, and forgets the console in the
+    /// state directory `base`.
     pub fn detach(self, base: &Path) {
         if let Some(keyboard) = self.keyboard {
             let _ = set_display_mode(TERMINAL, DisplayMode::Text);
             let _ = set_keyboard_mode(TERMINAL, keyboard);
+        }
+        if let Some(modes) = &self.modes {
+            let _ = modes.restore();
         }
         let files = RealFiles;
         State::new(&files, base).clear_console();
@@ -195,10 +206,16 @@ mod tests {
     fn programs_run_in_a_session_of_their_own_on_the_terminal() {
         let dir = TempDir::new("zbm-supervisor-console");
         let (_master, slave) = zbm_console::host::open_pty().unwrap();
+        // The supervisor's terminal, whose modes come back when the console
+        // ended (`relay::SavedModes` has the test of the restoring).
+        let (_kernel_master, kernel) = zbm_console::host::open_pty().unwrap();
+        let modes = SavedModes::of(&kernel);
+        assert!(modes.is_some());
         let attached = Attached {
             pid: 1,
             slave,
             keyboard: Some(KeyboardMode::OFF),
+            modes,
             flavour: Flavour::Linux,
         };
         State::new(&RealFiles, dir.path()).set_console(1).unwrap();

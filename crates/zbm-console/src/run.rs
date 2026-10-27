@@ -152,13 +152,14 @@ fn tell(console: &mut Console, host: &mut dyn Host) {
     {
         console.set_status(&status, Instant::now());
     }
-    if let Some((text, image)) = console.take_screenshot() {
+    if let Some((text, mut image)) = console.take_screenshot() {
         let mut text = text.into_bytes();
         let notice = match host.save_screenshot(&text, &image) {
             Ok(path) => format!("Screenshot saved in {}", path.display()),
             Err(error) => format!("No screenshot: {error}"),
         };
         zbm_sys::wipe_vec(&mut text);
+        zbm_sys::wipe_vec(&mut image);
         console.set_notice(&notice);
     }
 }

@@ -20,9 +20,9 @@ impl Console {
     }
 
     /// The screen's text and image, a PNG file, when Print Screen asked
-    /// for them, once.
+    /// for them, once. The caller wipes both once they are saved.
     pub fn take_screenshot(&mut self) -> Option<(String, Vec<u8>)> {
         std::mem::take(&mut self.is_shot)
-            .then(|| (self.text(), zbm_display::png::of_frame(&self.frame)))
+            .then(|| (self.text(), zbm_display::png::screenshot(&self.frame)))
     }
 }

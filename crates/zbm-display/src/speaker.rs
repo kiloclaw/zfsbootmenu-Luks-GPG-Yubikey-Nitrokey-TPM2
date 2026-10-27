@@ -21,10 +21,14 @@ const SND_TONE: u16 = 0x02;
 /// The name the `pcspkr` driver gives its input device.
 const NAME: &str = "PC Speaker";
 
-/// The PC speaker's input device, open for writing.
+/// The PC speaker's input device, open for writing. A tone still sounding
+/// when it is dropped stops: the console may end, or hand the display back
+/// before `kexec`, in the middle of a bell.
 #[derive(Debug)]
 pub struct Speaker {
     file: File,
+    /// Whether the last tone written was not a stop.
+    sounding: bool,
 }
 
 impl Speaker {
@@ -46,7 +50,10 @@ impl Speaker {
             .write(true)
             .open(dev.join("input").join(name))
             .ok()?;
-        Some(Speaker { file })
+        Some(Speaker {
+            file,
+            sounding: false,
+        })
     }
 
     /// Sounds a tone of `hertz`, until the next call; 0 stops it.
@@ -55,7 +62,17 @@ impl Speaker {
     ///
     /// When the device cannot be written.
     pub fn tone(&mut self, hertz: u16) -> io::Result<()> {
-        self.file.write_all(&tone_records(hertz))
+        self.file.write_all(&tone_records(hertz))?;
+        self.sounding = hertz != 0;
+        Ok(())
+    }
+}
+
+impl Drop for Speaker {
+    fn drop(&mut self) {
+        if self.sounding {
+            let _ = self.tone(0);
+        }
     }
 }
 
@@ -106,6 +123,19 @@ mod tests {
         let written = std::fs::read(dev.join("input/event3")).unwrap();
         assert_eq!(written.len(), 96);
         assert!(Speaker::find(&root, &dev).is_none());
+
+        // Dropped while sounding, it stops the tone; dropped silent, it
+        // writes nothing.
+        drop(speaker);
+        assert_eq!(std::fs::read(dev.join("input/event3")).unwrap().len(), 96);
+        let mut speaker = Speaker::find(&sysfs, &dev).unwrap();
+        speaker.tone(750).unwrap();
+        drop(speaker);
+        // The device is not opened to append: the second speaker wrote its
+        // tone and its stop from the start.
+        let written = std::fs::read(dev.join("input/event3")).unwrap();
+        assert_eq!(&written[20..24], &750_i32.to_ne_bytes());
+        assert_eq!(&written[48 + 20..48 + 24], &0_i32.to_ne_bytes());
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

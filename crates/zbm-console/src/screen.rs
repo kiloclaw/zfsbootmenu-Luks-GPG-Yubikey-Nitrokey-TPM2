@@ -49,6 +49,7 @@ mod scroll;
 pub(super) mod seek;
 mod shot;
 mod status;
+mod text;
 pub mod zoom;
 
 /// The events of the terminal, kept until the console handles them.
@@ -103,6 +104,10 @@ pub struct Console {
     status_line: Option<Vec<char>>,
     /// When the status line must be said again.
     status_at: Option<Instant>,
+    /// What the status line says now: the status to the minute, the title
+    /// and the width it was made for, so that the same is not made again on
+    /// every pass of the loop.
+    status_said: Option<(Status, Option<String>, u16)>,
     /// Whether Print Screen asked for a screenshot.
     is_shot: bool,
 }
@@ -186,6 +191,7 @@ impl Console {
             bell: bell::Bell::default(),
             status_line: None,
             status_at: None,
+            status_said: None,
             is_shot: false,
         };
         console.draw();
@@ -538,48 +544,6 @@ impl Console {
             zbm_display::frame::Rgb::BLACK,
         );
     }
-
-    /// The text of the screen as shown, one line per row, without trailing
-    /// spaces, combining marks after their characters; the status line
-    /// last, if there is one. It is built in one string, made large enough
-    /// at once: no partial copy of the screen is left in freed memory.
-    pub fn text(&self) -> String {
-        let grid = self.term.grid();
-        let size = (grid.screen_lines(), grid.columns());
-        let overlay = self.overlay();
-        let rows = usize::from(self.display_rows());
-        // Four bytes a character, and room for a mark in a cell of four.
-        let mut text = String::with_capacity(rows * (grid.columns() * 5 + 1));
-        for line in 0..grid.screen_lines() {
-            let row = &grid[Line(self.viewport_line(line))];
-            for column in 0..grid.columns() {
-                let cell = &row[Column(column)];
-                if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
-                    continue;
-                }
-                if let Some(c) = overlay.char_at((line, column), size) {
-                    text.push(c);
-                } else {
-                    text.push(cell.c);
-                    text.extend(cell.zerowidth().unwrap_or_default());
-                }
-            }
-            end_line(&mut text);
-        }
-        if let Some(status) = self.status_text() {
-            text.extend(status);
-            end_line(&mut text);
-        }
-        text
-    }
-}
-
-/// Ends the last line of `text`: its trailing spaces go, a newline comes.
-fn end_line(text: &mut String) {
-    let line = text.rfind('\n').map_or(0, |end| end + 1);
-    let kept = text.get(line..).unwrap_or_default().trim_end().len();
-    text.truncate(line + kept);
-    text.push('\n');
 }
 
 impl Drop for Console {

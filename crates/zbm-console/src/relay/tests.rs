@@ -102,3 +102,29 @@ fn the_console_s_terminal_kept_follows_what_is_relayed() {
     assert_eq!(relayed, Relayed::Hangup);
     assert_eq!(text.lines().next(), Some("kexec failed"));
 }
+
+#[test]
+fn saved_modes_come_back_after_a_raw_terminal() {
+    let (_master, terminal) = crate::host::open_pty().unwrap();
+    let saved = SavedModes::of(&terminal).unwrap();
+    let mut raw = termios::tcgetattr(&terminal).unwrap();
+    raw.make_raw();
+    termios::tcsetattr(&terminal, OptionalActions::Now, &raw).unwrap();
+    let cooked = termios::LocalModes::ECHO | termios::LocalModes::ICANON;
+    assert!(
+        !termios::tcgetattr(&terminal)
+            .unwrap()
+            .local_modes
+            .intersects(cooked)
+    );
+
+    saved.restore().unwrap();
+
+    assert!(
+        termios::tcgetattr(&terminal)
+            .unwrap()
+            .local_modes
+            .contains(cooked)
+    );
+    assert!(SavedModes::of(std::fs::File::open("/dev/null").unwrap()).is_none());
+}
