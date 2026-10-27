@@ -298,6 +298,9 @@ pub fn run(
         tell(console, host);
         let now = Instant::now();
         console.tick(now);
+        // A synchronized update whose time ran out answers the questions
+        // it held, which the programs may be waiting for.
+        send_replies(console, host)?;
         if is_output && now.duration_since(*burst.get_or_insert(now)) < BURST {
             continue;
         }
@@ -348,6 +351,16 @@ fn take_keys(
     typed
 }
 
+/// Sends the programs the answers the terminal owes them, if any.
+fn send_replies(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
+    let replies = console.take_replies();
+    if replies.is_empty() {
+        Ok(())
+    } else {
+        host.send(&replies)
+    }
+}
+
 /// Takes `input`: output to the terminal, wiped once fed, with the
 /// answers it owes sent; keys to the programs, those of the console
 /// through `typing`. Returns why the loop ends, when it does.
@@ -361,10 +374,7 @@ fn take(
         Input::Output(mut bytes) => {
             console.feed(&bytes);
             zbm_sys::wipe_vec(&mut bytes);
-            let replies = console.take_replies();
-            if !replies.is_empty() {
-                host.send(&replies)?;
-            }
+            send_replies(console, host)?;
         }
         Input::Keys(mut presses) => {
             let typed = take_keys(console, host, typing, &presses);

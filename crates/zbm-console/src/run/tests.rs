@@ -288,6 +288,26 @@ fn a_synchronized_update_is_drawn_when_its_time_runs_out() {
 }
 
 #[test]
+fn a_question_held_by_a_synchronized_update_is_answered_when_its_time_runs_out() {
+    let mut console = console();
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    // The program asks where the cursor is inside the update, then waits
+    // for the answer and writes nothing more.
+    let mut host = FakeHost::new(vec![
+        output("\x1b[?2026h\x1b[6n"),
+        Input::Nothing,
+        Input::Nothing,
+    ]);
+
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+
+    assert_eq!(String::from_utf8_lossy(&host.sent), "\x1b[1;1R");
+}
+
+#[test]
 fn a_display_that_fails_ends_the_loop() {
     let mut console = console();
     let mut screen = FakeScreen {
