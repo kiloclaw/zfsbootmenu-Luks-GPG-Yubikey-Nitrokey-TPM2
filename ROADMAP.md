@@ -24,7 +24,8 @@ have identifiers of their own (`PM4`, `SE7`); a finished item keeps its number.
   [concurrency](#concurrency-inside-a-process), [crates and layers](#crates-and-layers),
   [the domain model](#the-domain-model), [the ZFS boundary](#the-zfs-boundary) and
   [the system boundary](#the-system-boundary), [the shell](#the-shell), [the screen](#the-screen),
-  [the boot image](#the-boot-image), [security](#security-architecture), [observability](#observability)
+  [C dependencies](#c-dependencies), [the boot image](#the-boot-image), [security](#security-architecture),
+  [observability](#observability)
 - [Rules for refactored code](#rules-for-refactored-code) and [how the rules are enforced](#how-the-rules-are-enforced)
 - [Verification](#verification), with [benchmarks](#benchmarks) and [release gates](#release-gates)
 - [Work items](#work-items), by workstream
@@ -140,7 +141,7 @@ messages on Unix sockets (`SOCK_SEQPACKET`, `SO_PEERCRED` checked), never throug
   recovery shell as today, `Locked` gives the PIN screen (#8). It is panic-free under the strict lints, and opens no
   socket.
 - **Z1, `zbm-unlock`.** The keyholder: the only process that holds passphrases, PINs, key files and unsealed keys, and
-  the only one linked to libcryptsetup and tss2-esys ([the system boundary](#the-system-boundary)). It answers
+  the only one that runs the LUKS2 and TPM2 code ([C dependencies](#c-dependencies)). It answers
   `UnlockRequest { volume, method, credential: Option<Secret> }` with `UnlockOutcome`; a credential is moved into the
   message and wiped after use. It extends the PCR of measured boot (#10) after its last unseal.
 - **Z2, the session.** The engine: `App` and the domain, which imports pools, mounts boot environments, runs hooks and
@@ -244,7 +245,7 @@ Each operation is placed in one of three layers:
 | Layer | What | How |
 | --- | --- | --- |
 | System calls | Mounting, `kexec_file_load` and `reboot(LINUX_REBOOT_CMD_KEXEC)`, `setsid` and the controlling terminal, pipes, `sync`, dropping caches | `rustix`, or `zbm-sys` where `rustix` lacks the call; no process |
-| C libraries, in `zbm-unlock` only | libcryptsetup (`libcryptsetup-rs`), tss2-esys (`tss-esapi`: salted, encrypted sessions, pcrlock, signed policies), libfido2 | Behind a cargo feature and the same port traits, with the CLI adapters as the fallback; PID 1 and the session stay linked to glibc only, so a missing library cannot stop the boot |
+| Rust in place of C, in `zbm-unlock` only | LUKS2 key slots and dm-crypt mappings, TPM2 commands, FIDO2, YubiKey challenge-response, GnuPG key files, the Clevis TPM2 pin ([C dependencies](#c-dependencies)) | Behind the same port traits as the programs they replace, with those programs as the fallback; no C library is linked, so every process stays linked to glibc only and a missing library cannot stop the boot |
 | Programs | `zfs` and `zpool`, `udevadm`, `modprobe`, `blkid`, `gpg` with `scdaemon` and `pcscd`, `clevis`, `kexec` (device trees, user hooks such as Xen), brush, uutils; `cryptsetup` and `tpm2-tools` for the recovery shell | Behind typed ports; every call has a time-out and a cap on its captured output, and runs without a shell wrapper |
 
 - **Process plumbing.** `Runner` gains `spawn() -> Child` with kill and wait, a default time-out per adapter, a cap on
@@ -253,6 +254,45 @@ Each operation is placed in one of three layers:
 - **Fakes are models, not scripts.** `FakeZfs`, `FakeLuks` (key slots, tokens) and `FakeTpm` (PCRs, lock-out) model
   behaviour; contract tests run one suite against each fake and, in a VM, against the real adapter. `FakeRunner` stays
   only for the CLI adapters' own tests, against recorded fixtures.
+
+### C dependencies
+
+`zbm` links no C library but glibc. The C code is in the programs the images run and in the host's tools. Each one
+that a Rust implementation can replace without losing what users need is replaced, behind the same port as the
+program, which stays as the fallback until the VM suites, and for the LUKS2 and TPM2 code the security review (SE13),
+have passed it. Differential tests run the Rust code and the program on the same volumes and devices; parsers of
+on-disk or device data take `Untrusted` input and are fuzzed; each new crate is a decision 1 entry and goes through
+`cargo vet`. The image's size (B1) and its process count (B7) show the gain.
+
+| C dependency | Used for | Rust replacement | Item |
+| --- | --- | --- | --- |
+| glibc's calls in `zbm-sys` (`ioctl`, `signal`, `mmap`, `mlock`, `poll`, `tcsetpgrp`) | System calls without a safe wrapper | `rustix`; glibc itself stays | SE6 |
+| `stty`, `tput` (ncurses) | Terminal set-up | `rustix` termios and escape sequences | PM11 |
+| `setsid`, `dmesg`, `lsblk`, `mount`, `umount`, `hostid` (util-linux) | Sessions, the kernel log, block devices, mounts | System calls, `/dev/kmsg`, `/sys/block`, `/etc/hostid` | SB1, SB3, CD2 |
+| `openssl`, `sha256sum`, `base64`, `cut`, `tr`, `wc` | Hashing, encoding and text in the LUKS and TPM2 paths | RustCrypto's `sha2` and `hmac`, the `base64` crate | CD3 |
+| `setfont` (kbd) | The kernel console's font | The `KDFONTOP` ioctl with the PSF parser | CD5 |
+| `ykchalresp`, `ykinfo` (ykpers, at its end of life upstream) | YubiKey challenge-response | HID feature reports over `hidraw` | SB11 |
+| `modprobe`, `insmod`, `modinfo`, `depmod` (kmod) | Kernel modules | `finit_module` with `modules.dep`, `modules.alias` and `modules.softdep` | CD4 |
+| `kexec` (kexec-tools) | Loading the kernel | `kexec_file_load`; kexec-tools stays for device trees, Xen and old kernels | SB4 |
+| `gpg`, `scdaemon` (libgcrypt) | GnuPG key files | The `pgp` crate (rPGP, MIT or Apache-2.0); `gpg` stays for OpenPGP cards | CD6 |
+| `fido2-assert`, `fido2-token` (libfido2) | FIDO2 hmac-secret | CTAP2 over `hidraw`, with Mozilla's `authenticator` crate if it covers hmac-secret | CD7 |
+| `clevis`, `jose`, `luksmeta`, `curl` | Clevis pins | The TPM2 pin natively, then Tang; `luksmeta` (LUKS1 only) goes | CD8, CD11 |
+| `cryptsetup`, `dmsetup` (libcryptsetup, libdevmapper) | Opening LUKS2 volumes | Key slots with RustCrypto, the mapping with the `devicemapper` crate; `cryptsetup` stays for enrolment and as the fallback | CD9 |
+| `tpm2_*` (tss2-esys) | Unsealing keys, extending PCRs | The TPM2 commands the key methods use, over `/dev/tpmrm0`; `tpm2-tools` stay in the recovery shell | CD10 |
+| `objcopy` (binutils) | Assembling the EFI image | PE sections written by `zbm-host` | CD12 |
+| dracut, mkinitcpio, `cpio` | Building the initramfs | The native image backend | SB12 |
+
+What stays in C, and why:
+
+- **glibc:** Rust's standard library needs a libc on Linux; libc-free Rust is still experimental.
+- **`zfs`, `zpool`, `zdb`, `mount.zfs`:** there is no Rust ZFS, and libzfs is ruled out (decision 11); SB3 needs
+  `mount.zfs` only as a fallback.
+- **`udevadm` and `systemd-udevd`:** no Rust udev is mature, and `cryptsetup` relies on the device-mapper rules.
+- **`pcscd` and `scdaemon`:** OpenPGP cards (Nitrokey, YubiKey) are reached through PC/SC; the Rust card crates use it
+  too.
+- **The systemd EFI stub:** distributions ship and sign it for Secure Boot; a Rust stub would gain little.
+- **`zstd` and `xz`:** the Rust compressors are weaker; the kernel decompresses the image.
+- **Bash and the text tools** (`sed`, `grep`, `awk`, `ps`, `less`): for users' hooks and the recovery shell.
 
 ### The shell
 
@@ -530,8 +570,8 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SB7 | Rust images without the legacy payload (`legacy/zfsbootmenu/{lib,libexec,bin}`) and with their own list of binaries | sec, perf | S | SB5, SB6 |
 | SB8 | `ImagePlan` and the `ImageBackend` trait; the dracut module and the mkinitcpio hook become shims; the mkinitcpio hook runs `zbm` without Bash | mod | M | |
 | SB9 | brush from its library crates instead of `brush-shell`; measured with B1 | perf, sec | S/M | |
-| SB10 | `zbm-unlock` with libcryptsetup, tss2-esys and libfido2 behind a feature, the CLI adapters as the fallback: TPM2 first, then cryptsetup (#4's errors, fewer processes), then FIDO2 (the PIN in the menu, cancellation for #2) | sec, perf | L | DM6, decision 12 |
-| SB11 | YubiKey challenge-response over `hidraw`, without `ykchalresp` (optional) | sec | S/M | SB10 |
+| SB10 | `zbm-unlock` hosts the key methods, natively where CD6 to CD10 are done and through the programs otherwise: TPM2 first, then LUKS2 (#4's errors, fewer processes), then FIDO2 (the PIN in the menu, cancellation for #2) | sec, perf | L | DM6, decision 12 |
+| SB11 | YubiKey challenge-response over `hidraw` (HID feature reports, slot 1 or 2, `ykinfo`'s serial), without `ykchalresp` and `ykinfo`, which upstream no longer maintains | sec, perf | S/M | DM6 |
 | SB12 | The native image backend and a minimal early init, for release and container images first, checked against dracut's output (#13 reopened in this form) | perf, sec | L | RL2 |
 | SB13 | Releases publish the debug files of every binary, indexed by build ID | stab | S | |
 
@@ -569,6 +609,26 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SE11 | The keyholder process (with SB10), the unprivileged menu and the sandboxed console: sandbox profiles as a sealed trait, `Command::sandboxed(profile)` | sec | L | PM9, UI6 |
 | SE12 | The supply chain: `cargo vet`, `cargo auditable`, the SBOM, provenance, image signing in `zbm-host`, duplicate versions denied | sec | M | |
 | SE13 | The independent security review against the threat model, before RL1 | sec | L | phase 5 |
+
+### CD: C dependencies
+
+The Rust replacements of [C dependencies](#c-dependencies) that no other item covers. Each keeps the program as the
+fallback behind the same port, until its VM tests (and for CD9 and CD10 the security review) pass.
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| CD1 | The guard: CI fails when `zbm` links a library other than glibc's (`readelf -d`); an `xtask metrics` column counts the C programs in the Rust image's list of binaries, ratcheted down; `docs/dev/dependencies.md` lists them with their item | sec, perf | S | |
+| CD2 | util-linux out of the Rust runtime: `dmesg` from `/dev/kmsg`, `lsblk` from `/sys/block`, the host ID from `/etc/hostid`; `setsid` (SB1) and `mount` (SB3) as system calls | perf | S | |
+| CD3 | Hashing and encoding in Rust: `openssl`, `sha256sum`, `base64`, `cut`, `tr` and `wc` leave the LUKS and TPM2 paths (`sha2`, `hmac`, `base64`) | sec, perf | S | SE7 |
+| CD4 | Kernel modules without kmod: `finit_module` with `modules.dep`, `modules.alias` and `modules.softdep`, compressed modules through `MODULE_INIT_COMPRESSED_FILE`, kmod as the fallback on older kernels | perf | S/M | |
+| CD5 | The kernel console's font through `KDFONTOP` with the PSF parser, without `setfont` | perf | S | DM1 |
+| CD6 | GnuPG key files with `pgp` (rPGP): symmetric and public-key encrypted files, passphrase-protected secret keys from the image's keyring, the secret key wiped after use; `gpg` and `scdaemon` stay for OpenPGP cards | sec, perf | M | DM6, decision 1 entry |
+| CD7 | FIDO2 hmac-secret natively: CTAP2 over `hidraw`, with `authenticator` if it covers hmac-secret and stays small, otherwise our own; the PIN from the menu; `fido2-assert` as the fallback | sec, perf | M | DM6, decision 1 entry |
+| CD8 | The Clevis TPM2 pin natively: the LUKS2 token's JWE, the unseal (CD10, or `tpm2-tools` until then), the A256GCM decryption with `aes-gcm`; `clevis` stays for Tang and `sss`; `luksmeta` leaves the image | sec, perf | M | CD3, DM6 |
+| CD9 | LUKS2 natively: the header and its JSON read as `Untrusted` and fuzzed, PBKDF2 and Argon2, the anti-forensic merge, the key slot decrypted (`aes`, `xts-mode`), the digest checked, the volume key locked in memory, the mapping created with `devicemapper`; `cryptsetup` for enrolment, LUKS1 and anything the Rust code does not read; differential tests against `cryptsetup` in the device suites | sec, perf, stab | L | DM6, SE5, decision 1 entry |
+| CD10 | TPM2 natively: the commands the key methods use (`StartAuthSession` salted and encrypted, `PolicyPCR`, `PolicyAuthValue`, `Load`, `Unseal`, `FlushContext`, `GetCapability`, `PCR_Read`, `PCR_Extend` for #10) marshalled in Rust over `/dev/tpmrm0`, tested against `swtpm`; supersedes SE8; `tpm2-tools` stay in the recovery shell | sec, perf | L | DM6, SE8 |
+| CD11 | The Clevis Tang pin natively: the advertisement's signature checked, the McCallum-Relyea exchange (`p521`, `p256`), a small HTTP client; for images that bring up the network (dracut's network modules) | sec | M/L | CD8 |
+| CD12 | The EFI image without `objcopy`: `zbm-host` writes the PE sections (`.osrel`, `.cmdline`, `.linux`, `.initrd`, `.splash`) itself, checked against `objcopy`'s output | mod | M | DM10 |
 
 ### VE: verification and tooling
 
@@ -632,8 +692,8 @@ every suite green, its exit met, and its docs written. Features (FE) go in whene
 The ADRs of the target architecture, and the small fixes that need no design.
 
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
-  channel (decision 15), C libraries in the keyholder (decision 12), the image plan (SB8).
-- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, PM5, VE1, and the
+  channel (decision 15), C dependencies (decision 12), the image plan (SB8).
+- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, PM5, VE1, CD1, CD2, CD3, and the
   [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`).
 
@@ -664,18 +724,18 @@ drawn natively on the console.
 
 ### Phase 4: the boundary and the image
 
-SB4, SB5, SB6, SB7, SB8, SB9, SB13, DM10, VE7, VE8.
+SB4, SB5, SB6, SB7, SB8, SB9, SB13, DM10, VE7, VE8, CD4, CD5, CD12.
 
-**Exit:** Rust images without the legacy payload or `fzf`; the dracut module and the mkinitcpio hook as shims;
-`zbm-host` with no Perl or Bash emulation; no Bash, Perl or Python under `tests/`, `scripts/` or
-`packaging/container/`.
+**Exit:** Rust images without the legacy payload or `fzf`, and without kmod or `setfont`; the dracut module and the
+mkinitcpio hook as shims; `zbm-host` with no Perl or Bash emulation and no `objcopy`; no Bash, Perl or Python under
+`tests/`, `scripts/` or `packaging/container/`.
 
 ### Phase 5: isolation and boot integrity
 
-SB10, SB11, SE9, SE10, SE11, UI8, UI9.
+SB10, SB11, SE9, SE10, SE11, UI8, UI9, CD6, CD7, CD8, CD9, CD10.
 
-**Exit:** secrets only in `zbm-unlock`; the menu and the console unprivileged and sandboxed; the locked menu (#8) and
-measured boot (#10) with their VM tests.
+**Exit:** secrets only in `zbm-unlock`; the key methods in Rust, with their programs as the fallback; the menu and
+the console unprivileged and sandboxed; the locked menu (#8) and measured boot (#10) with their VM tests.
 
 ### Phase 6: features
 
@@ -690,7 +750,8 @@ VE2 to VE6, VE9, SE12, SE13, RL1, RL3, RL4; then, one release later, RL2.
 
 ### After the release
 
-SB12, the native image backend and minimal early init.
+SB12, the native image backend and minimal early init; CD11, the Tang pin. The Rust LUKS2 and TPM2 code (CD9,
+CD10) becomes the default once SE13 has reviewed it and one release has used it.
 
 ## Decisions
 
@@ -720,8 +781,9 @@ Open:
 7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10).
 8. **A classic key map:** decided by the usability sessions (UI11).
 10. **One concurrency model:** threads and channels, one reactor per process, no async runtime (PM1).
-12. **C libraries in the keyholder:** libcryptsetup, tss2-esys and libfido2, behind a feature and in `zbm-unlock`
-    only, with the programs as the fallback (SB10).
+12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
+    programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
+    alternative, kept only if the Rust LUKS2 or TPM2 code fails its review (SE13).
 13. **Trust zones:** the four zones of [the target architecture](#processes-and-trust-zones).
 14. **The crate map** of [crates and layers](#crates-and-layers).
 15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
