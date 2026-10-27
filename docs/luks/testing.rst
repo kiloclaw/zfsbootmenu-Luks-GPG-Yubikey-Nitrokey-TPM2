@@ -264,12 +264,13 @@ Following a boot
   Two unencrypted pools hold the test boot environment as their ``bootfs``: ``tplain`` on one disk, exported by this
   host, and ``tforeign`` on another, left imported by a host with the ID ``deadbeef``. The tests check the runtime
   itself (Phase 5 and package A of Phase 6 of the port plan, ``docs/dev/history/port-roadmap.md``), with an image
-  built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``).
+  built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``). The ``runtime-legacy-*`` tests boot the legacy
+  image with the same scenarios; they are not part of the suite, and run only when named.
 
   * ``runtime-setup``: creates the pools in the recovery shell of the legacy image, and a third, ``tkeys``, whose
     boot environment is encrypted with a key file kept in its key source ``tkeys/keystore``
     (``org.zfsbootmenu:keysource``), itself encrypted with a passphrase.
-  * ``runtime-legacy``, ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
+  * ``runtime-rust``: ``tplain`` boots after the countdown; process 1 is the runtime's
     start-up program (the Rust supervisor), and hooks see ``BOOTFS``.
   * ``-hostid``: ``tforeign`` alone: host ID matching imports it, and the boot environment gets ``spl_hostid``.
   * ``-strict``: ``tforeign`` alone with ``zbm.import_policy=strict``: no import, the retry prompt appears.
@@ -278,15 +279,13 @@ Following a boot
   * ``-late``: the disk of ``tplain`` is plugged in during the import retry loop.
   * ``-waitfor``: ``zbm.wait_for`` names that disk, which is plugged in while ZFSBootMenu waits.
   * ``-hooks``: ``zbm.hookroot`` adds a teardown hook from a FAT disk; ``zbm.skip_hooks`` disables a test hook.
-  * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook, of ``fzf`` in
-    the menu and of the recovery shell, on the console. The legacy run records them; the Rust run must reproduce
-    those of the hook and the shell (its menu arrives with package E).
-  * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only, booted twice. From the countdown, which
-    skips key sources, ZFSBootMenu asks for the boot environment's own passphrase; from the menu (``zbm.show``), it
-    asks for the key source's passphrase instead, copies the key file from it and unlocks the boot environment with
-    it. The boot environment itself is not followed, as its initramfs has no key file.
-  * ``runtime-rust-keysource``: the countdown's boot of ``runtime-legacy-keysource`` with the Rust image, which loads
-    the key in the same order and asks for the boot environment's passphrase. The Rust runtime has no menu yet.
+  * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook and of the
+    recovery shell, on the console, recorded in ``signals.json``: both report them, and the shell does not ignore
+    Ctrl-C (``SIGINT``), which the start-up program does. The legacy run records ``fzf``'s in the menu too.
+  * ``runtime-rust-keysource``: ``tkeys`` alone, booted from the countdown, which skips key sources: ZFSBootMenu
+    asks for the boot environment's own passphrase. The boot environment itself is not followed, as its initramfs
+    has no key file. ``runtime-legacy-keysource`` also boots it from the legacy menu (``zbm.show``), which asks for
+    the key source's passphrase instead and copies the key file from it.
 
 * ``runtime-rust-pilot`` runs the pilots of ``ROADMAP.md`` in the Rust image, from the recovery shell on the
   serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the
@@ -485,9 +484,10 @@ Total                       740     0
 Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The same tests, with images built with ``zfsbootmenu_runtime="rust"`` (``ZBMTEST_ZBM_RUNTIME=rust``), and the
-``runtime`` tests of both runtimes, from 25 to 28 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), up to four lanes at
-a time. The build container image was the same as above. The ``oldzfs`` tests used an image that
+The same tests, with images built with ``zfsbootmenu_runtime="rust"``, the default of the harness since 27 October
+2026, on 27 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), in four lanes at a time, at the commits from ``632e0c85``
+to ``c1cd05c2``; the images were rebuilt for each run (no ``ZBMTEST_REUSE``), and the durations include building
+them. The build container image was the same as above. The ``oldzfs`` tests used an image that
 ``tests/luks/vm/old-image.sh`` built on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2). Tests that a later change
 touched ran again on rebuilt images, and the table lists the last run of each; durations are with KVM, which is several
 times faster than the software emulation of the table above.
@@ -495,64 +495,54 @@ times faster than the software emulation of the table above.
 ================================  ======  ======  ========
 Test                              Passed  Failed  Duration
 ================================  ======  ======  ========
-``layouts-main-rust``             44      0       2 min
-``layouts-parity-rust``           37      0       2 min
-``layouts-parity-oldzfs-rust``    16      0       3 min
-``complex-setup-rust``            19      0       2 min
-``complex-healthy-rust``          37      0       2 min
-``complex-crypttab-rust``         36      0       3 min
-``complex-degraded-rust``         30      0       1 min
-``complex-hotplug-rust``          36      0       2 min
-``complex-hotplug-auto-rust``     36      0       3 min
-``complex-badkey-rust``           4       0       27 s
-``complex-skip-recover-rust``     40      0       2 min
-``complex-oldzfs-rust``           4       0       3 min
-``keys-setup-rust``               9       0       47 s
-``keys-plugin-rust``              13      0       2 min
-``keys-native-rust``              13      0       2 min
-``keys-lockout-rust``             13      0       27 s
-``keys-notpm-rust``               13      0       24 s
-``firmware-setup-rust``           3       0       2 min
-``firmware-boot-rust``            14      0       2 min
-``firmware-usbkey-rust``          14      0       2 min
-``firmware-usblate-rust``         14      0       16 s
-``firmware-nostick-rust``         14      0       23 s
+``layouts-main-rust``             44      0       9 min
+``layouts-parity-rust``           37      0       9 min
+``layouts-parity-oldzfs-rust``    16      0       2 min
+``complex-setup-rust``            19      0       3 min
+``complex-healthy-rust``          37      0       5 min
+``complex-crypttab-rust``         36      0       8 min
+``complex-degraded-rust``         30      0       5 min
+``complex-hotplug-rust``          36      0       7 min
+``complex-hotplug-auto-rust``     36      0       6 min
+``complex-badkey-rust``           4       0       3 min
+``complex-skip-recover-rust``     40      0       4 min
+``complex-oldzfs-rust``           4       0       4 min
+``keys-setup-rust``               9       0       4 min
+``keys-plugin-rust``              13      0       3 min
+``keys-native-rust``              13      0       3 min
+``keys-lockout-rust``             13      0       3 min
+``keys-notpm-rust``               13      0       3 min
+``firmware-setup-rust``           3       0       5 min
+``firmware-boot-rust``            14      0       3 min
+``firmware-usbkey-rust``          14      0       3 min
+``firmware-usblate-rust``         14      0       3 min
+``firmware-nostick-rust``         14      0       3 min
 ``procedures-rust``               78      0       12 min
-``secrets-setup-rust``            2       0       9 s
-``secrets-passphrase-rust``       4       0       2 min
-``secrets-keyfile-rust``          4       0       10 s
+``secrets-setup-rust``            2       0       5 min
+``secrets-passphrase-rust``       4       0       3 min
+``secrets-keyfile-rust``          4       0       3 min
 ``runtime-setup``                 4       0       2 min
-``runtime-legacy``                16      0       39 s
-``runtime-rust``                  15      0       39 s
-``runtime-legacy-hooks``          14      0       39 s
-``runtime-rust-hooks``            13      0       39 s
-``runtime-legacy-keysource``      7       0       11 s
-``runtime-rust-keysource``        4       0       11 s
-``runtime-legacy-signals``        3       0       2 min
-``runtime-rust-signals``          9       0       2 min
-``runtime-legacy-hostid``         16      0       39 s
-``runtime-rust-hostid``           15      0       39 s
-``runtime-legacy-strict``         2       0       2 s
-``runtime-rust-strict``           2       0       2 s
-``runtime-legacy-force``          4       0       5 s
-``runtime-rust-force``            3       0       5 s
-``runtime-legacy-prefer``         17      0       42 s
-``runtime-rust-prefer``           16      0       42 s
-``runtime-legacy-late``           16      0       49 s
-``runtime-rust-late``             15      0       49 s
-``runtime-legacy-waitfor``        16      0       49 s
-``runtime-rust-waitfor``          15      0       49 s
-``runtime-rust-pilot``            7       0       13 s
-``runtime-rust-crash``            7       0       2 min
-``runtime-rust-autosize``         6       0       –
-``runtime-rust-colours``          5       0       2 min
-``runtime-rust-drm``              12      0       2 min
-``runtime-rust-console``          23      0       11 min
-``runtime-rust-console-start``    16      0       11 min
-``runtime-rust-console-comfort``  –       –       –
-``runtime-rust-saved``            36      0       52 s
+``runtime-rust``                  15      0       3 min
+``runtime-rust-hostid``           15      0       3 min
+``runtime-rust-strict``           2       0       2 min
+``runtime-rust-force``            3       0       2 min
+``runtime-rust-prefer``           16      0       3 min
+``runtime-rust-late``             15      0       3 min
+``runtime-rust-waitfor``          15      0       3 min
+``runtime-rust-hooks``            13      0       3 min
+``runtime-rust-signals``          3       0       2 min
+``runtime-rust-keysource``        4       0       4 min
+``runtime-rust-pilot``            7       0       3 min
+``runtime-rust-crash``            7       0       3 min
+``runtime-rust-autosize``         9       0       4 min
+``runtime-rust-colours``          5       0       3 min
+``runtime-rust-drm``              12      0       3 min
+``runtime-rust-console``          23      0       12 min
+``runtime-rust-console-start``    16      0       12 min
+``runtime-rust-console-comfort``  12      0       17 min
+``runtime-rust-saved``            36      0       3 min
 ``runtime-rust-gpu``              25      0       3 min
-Total                             906     0
+Total                             804     0
 ================================  ======  ======  ========
 
 Problems found and fixed
