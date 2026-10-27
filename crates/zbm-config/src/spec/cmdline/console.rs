@@ -404,7 +404,8 @@ pub static COLUMNS: OptionSpec = OptionSpec {
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text
-/// of its screen, for the VM tests.
+/// of its screen, for the VM tests; only builds with the `console-mirror`
+/// feature take it, as the copy holds what prompts show.
 pub static CONSOLE_MIRROR: OptionSpec = OptionSpec {
     name: "zbm.console_mirror",
     aliases: &[],
@@ -413,7 +414,7 @@ pub static CONSOLE_MIRROR: OptionSpec = OptionSpec {
     default: None,
     summary: "Where the console on the display writes the text of its screen",
     reader: Reader::Rust,
-    doc: Doc::NotInManual("for the VM tests, which read the console's screen on a serial port"),
+    doc: Doc::NotInManual("for the VM tests' builds, which read the screen on a serial port"),
     deprecation: None,
     examples: &["zbm.console_mirror=/dev/ttyS1"],
 };

@@ -444,7 +444,7 @@ impl Supervisor {
             }
         }
         loop {
-            match self.run_shell(&self.shell, attached, events) {
+            match self.run_recovery_shell(&self.shell, attached, events) {
                 Opened::Yes => return,
                 Opened::Failed => {}
                 Opened::NotStarted => {
@@ -457,7 +457,7 @@ impl Supervisor {
                     self.shell.path.display(),
                     fallback.path.display()
                 ));
-                match self.run_shell(fallback, attached, events) {
+                match self.run_recovery_shell(fallback, attached, events) {
                     Opened::Yes | Opened::Failed => return,
                     Opened::NotStarted => {
                         events(Event::Failed(fallback.path.display().to_string()));
@@ -469,7 +469,7 @@ impl Supervisor {
     }
 
     /// Runs `shell` until it ends.
-    fn run_shell(
+    fn run_recovery_shell(
         &self,
         shell: &Program,
         attached: &mut Option<Attached>,

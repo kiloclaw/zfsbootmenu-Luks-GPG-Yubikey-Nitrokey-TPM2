@@ -23,6 +23,11 @@ pub const SHELL_HELPERS: &[&str] = &[
     "trim_ifs",
 ];
 
+/// The functions that start an interactive shell. SE9 puts them behind one
+/// gate, `ShellGate`; until then their calls outside tests are counted, and
+/// may only go down.
+pub const SHELL_STARTS: &[&str] = &["interactive_shell", "run_recovery_shell"];
+
 /// What a file holds, as far as the metrics are concerned.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FileScan {
@@ -36,6 +41,8 @@ pub struct FileScan {
     pub legacy_docs: usize,
     /// Uses of [`SHELL_HELPERS`] outside tests.
     pub shell_helpers: usize,
+    /// Calls of [`SHELL_STARTS`] outside tests.
+    pub shell_starts: usize,
     /// `unsafe` blocks.
     pub unsafe_blocks: usize,
 }
@@ -293,6 +300,9 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             if !self.test_code && SHELL_HELPERS.contains(&last.as_str()) {
                 self.scan.shell_helpers += 1;
             }
+            if !self.test_code && SHELL_STARTS.contains(&last.as_str()) {
+                self.scan.shell_starts += 1;
+            }
             if let Some(function) = self.current_fn() {
                 function.runs_legacy |= refers_to_legacy(&segments);
                 function.mentions.insert(last.clone());
@@ -302,6 +312,9 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
     }
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        if !self.test_code && SHELL_STARTS.contains(&call.method.to_string().as_str()) {
+            self.scan.shell_starts += 1;
+        }
         if call.method != "legacy" {
             visit::visit_expr_method_call(self, call);
             return;

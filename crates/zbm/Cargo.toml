@@ -36,6 +36,9 @@ secret-test = []
 # A test build for the VM test runtime-rust-drm: `zbm debug menu-demo` runs the
 # menu prototype on the display without a terminal (ROADMAP.md #19, step 1).
 menu-demo = []
+# A test build for the VM tests runtime-rust-console*: the console on the
+# display writes its screen to the file `zbm.console_mirror` names.
+console-mirror = ["zbm-startup/console-mirror"]
 
 [dev-dependencies]
 pretty_assertions.workspace = true

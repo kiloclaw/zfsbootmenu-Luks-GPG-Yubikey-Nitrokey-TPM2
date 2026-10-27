@@ -48,7 +48,10 @@ script to use.
 
 The same settings are available as build arguments when building with
 `podman build` or `docker build`: `UBUNTU_RELEASE`, `KERNEL_FLAVOUR`,
-`ZBM_COMMIT_HASH` and `PACKAGES` (a space-separated list).
+`ZBM_COMMIT_HASH` and `PACKAGES` (a space-separated list). The default
+release's base image is pinned by digest (`UBUNTU_DIGEST`); with another
+`UBUNTU_RELEASE`, pass `--build-arg UBUNTU_DIGEST=` too, or its own digest
+(`@sha256:...`), as `image-build.sh -u` does.
 
 ## Builder Image Contents
 

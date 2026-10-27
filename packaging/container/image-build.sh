@@ -107,7 +107,10 @@ cp "${ZBM_BUILDER}" "${context}/build-init.sh"
 cp "$( dirname "${dockerfile}" )/setup-image.sh" "${context}/setup-image.sh"
 
 build_args=()
-[ -n "${ubuntu_release}" ] && build_args+=( --build-arg "UBUNTU_RELEASE=${ubuntu_release}" )
+# The digest pins the default release only
+[ -n "${ubuntu_release}" ] && build_args+=(
+  --build-arg "UBUNTU_RELEASE=${ubuntu_release}" --build-arg "UBUNTU_DIGEST="
+)
 [ -n "${kernel_flavour}" ] && build_args+=( --build-arg "KERNEL_FLAVOUR=${kernel_flavour}" )
 [ -n "${zbm_commit_hash}" ] && build_args+=( --build-arg "ZBM_COMMIT_HASH=${zbm_commit_hash}" )
 if [ "${#extra_pkgs[@]}" -gt 0 ]; then

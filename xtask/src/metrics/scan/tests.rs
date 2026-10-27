@@ -105,6 +105,15 @@ fn shell_helpers_are_counted_outside_tests_including_in_macros() {
 }
 
 #[test]
+fn interactive_shell_starts_are_counted_outside_tests() {
+    let source = "fn a(r: &R) {\n    let _ = programs::interactive_shell(r);\n    \
+                  self.run_recovery_shell(&self.shell);\n}\nfn interactive_shell() {}\n";
+
+    assert_eq!(scan(source).shell_starts, 2);
+    assert_eq!(scan_test(source, true).shell_starts, 0);
+}
+
+#[test]
 fn unsafe_blocks_are_counted() {
     let file = scan("fn a() { unsafe { f() }; unsafe { g() } }");
 

@@ -110,7 +110,11 @@ const VALUES: [(&OptionSpec, &str, IsValid); 7] = [
     (&KEYBOARD_COMPOSE, "--compose", |value| {
         COMPOSE_KEYS.contains(&value)
     }),
-    (&CONSOLE_MIRROR, "--mirror", |value| !value.is_empty()),
+    // A copy of the screen, passphrase prompts included, is for test builds
+    // alone.
+    (&CONSOLE_MIRROR, "--mirror", |value| {
+        cfg!(any(test, feature = "console-mirror")) && !value.is_empty()
+    }),
 ];
 
 /// The key repeat that `value` (`250,30`) asks for: the delay and the

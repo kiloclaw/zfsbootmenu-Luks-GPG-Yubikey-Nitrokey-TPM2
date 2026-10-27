@@ -21,6 +21,11 @@ zbm-trace.workspace = true
 zbm-types.workspace = true
 zbm-zfs.workspace = true
 
+[features]
+# A test build: start-up passes `zbm.console_mirror` to the console on the
+# display, which then writes its screen to that file for the VM tests.
+console-mirror = []
+
 [dev-dependencies]
 pretty_assertions.workspace = true
 zbm-testkit.workspace = true

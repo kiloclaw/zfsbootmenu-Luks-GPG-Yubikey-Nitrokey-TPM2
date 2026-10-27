@@ -98,6 +98,9 @@ all = { level = "warn", priority = -1 }
 [profile.release]
 # Binaries end up in an initramfs, so size matters more than build time.
 lto = true
+# An overflow ends the program with a crash report instead of wrapping around
+# to a wrong size or index (ROADMAP.md SE2).
+overflow-checks = true
 codegen-units = 1
 # Line tables and function names stay in the build, for crash reports: images
 # carry the binary without them (`cargo xtask split-debug`, which keeps them in

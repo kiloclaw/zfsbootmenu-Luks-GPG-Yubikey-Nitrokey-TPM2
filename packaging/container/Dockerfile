@@ -28,8 +28,22 @@
 # Ubuntu 26.10 or later: earlier releases do not package yq-go, which
 # build-init.sh needs
 ARG UBUNTU_RELEASE=26.10
-FROM ubuntu:${UBUNTU_RELEASE}
+# The base image by digest, so that a changed image on the registry changes
+# nothing here unnoticed. Another UBUNTU_RELEASE needs its own digest, or an
+# empty UBUNTU_DIGEST (image-build.sh -u leaves it empty). To move the pin:
+#   docker buildx imagetools inspect ubuntu:26.10 | grep -m1 Digest
+ARG UBUNTU_DIGEST=@sha256:9c3a42b7c0016cbf87ceb71fd72d26c0e73b37e532e2c6071707f124c489c118
+FROM ubuntu:${UBUNTU_RELEASE}${UBUNTU_DIGEST}
 LABEL org.opencontainers.image.authors="ZFSBootMenu Team, https://zfsbootmenu.org"
+
+# The digest wins over the release: another UBUNTU_RELEASE with the default
+# digest would build 26.10 while saying otherwise, so that fails here
+ARG UBUNTU_RELEASE
+RUN . /etc/os-release && case "${UBUNTU_RELEASE}" in \
+      "${VERSION_ID}"|"${VERSION_CODENAME}"|rolling|devel|latest) ;; \
+      *) echo "ubuntu ${VERSION_ID} is not UBUNTU_RELEASE ${UBUNTU_RELEASE}:" \
+           "pass --build-arg UBUNTU_DIGEST= or its digest" >&2; exit 1 ;; \
+    esac
 
 # Ubuntu kernel flavour to install; the matching kernel image, modules and ZFS
 # module packages are installed without the firmware and microcode packages,

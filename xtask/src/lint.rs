@@ -68,6 +68,7 @@ pub fn run(workspace: &Workspace) -> Result<()> {
     step(&mut failed, "documentation", || cargo::doc(root, false));
     step(&mut failed, "gen-docs", || crate::gen_docs::run(root, true));
     step(&mut failed, "check-deps", || deps::run(workspace, false));
+    step(&mut failed, "test features", || crate::release::check(root));
     step(&mut failed, "menu text", || crate::texts::check(workspace));
     step(&mut failed, "metrics", || {
         metrics::run(workspace, Mode::Check)

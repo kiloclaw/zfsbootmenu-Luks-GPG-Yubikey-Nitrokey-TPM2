@@ -303,6 +303,20 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   - the VM tests read the crash report's counts, the secret search's status and `zluks unlock`'s exit status to the
     end of their line, not as the first digits arrive.
 
+### Security hardening (phase 0)
+
+- Release builds check arithmetic for overflow: an overflow ends the program with a crash report instead of wrapping
+  around to a wrong size or index.
+- The CI workflows name every action by its commit, and the build container's Ubuntu base image is pinned by digest.
+  Another `UBUNTU_RELEASE` needs `--build-arg UBUNTU_DIGEST=` (or its own digest; `image-build.sh -u` does it), and
+  the build fails when the release and the image disagree.
+- `zbm.console_mirror`, which copies the console's screen (passphrase prompts included) to a file, works only in
+  builds with the `console-mirror` test feature; release images ignore it.
+- `cargo xtask lint` fails when a feature other than a test one turns a test feature on (`console-mirror`,
+  `crash-test`, `menu-demo`, `secret-test`), when a crate depends on another with one, or when a workflow or packaging
+  script sets features. `cargo xtask metrics` counts the calls that start an interactive shell, which may only go
+  down until SE9's shell gate.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

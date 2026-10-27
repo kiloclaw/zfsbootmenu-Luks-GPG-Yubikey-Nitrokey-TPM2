@@ -148,6 +148,7 @@ pub(super) fn spec() -> ImageSpec {
     ImageSpec {
         runtime: Some(ZbmRuntime::Rust),
         conf: "add_drivers+=\" virtio_gpu evdev \"\nzfsbootmenu_keyboard_layouts=\"us de\"".into(),
+        features: Some("zbm/console-mirror".into()),
         ..ImageSpec::new("console")
     }
 }

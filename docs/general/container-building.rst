@@ -105,8 +105,9 @@ still override this.
 Container Contents
 ~~~~~~~~~~~~~~~~~~
 
-* A later Ubuntu release can be selected with ``--build-arg UBUNTU_RELEASE=<version>`` (``-u`` for
-  ``image-build.sh``). Earlier releases, including 26.04 LTS, lack the ``yq-go`` package that the entrypoint needs.
+* A later Ubuntu release can be selected with ``--build-arg UBUNTU_RELEASE=<version> --build-arg UBUNTU_DIGEST=``
+  (``-u`` for ``image-build.sh``, which leaves the digest out itself); the default release's base image is pinned by
+  digest. Earlier releases, including 26.04 LTS, lack the ``yq-go`` package that the entrypoint needs.
 * The image records its kernel series in ``/etc/zbm-kernel-version``. When ``Kernel.Version`` in the configuration
   matches no installed kernel, the build uses the image's series and says so.
 * The entrypoint's ``-k <series>`` option installs the newest Ubuntu kernel of the series that has a ZFS module package;

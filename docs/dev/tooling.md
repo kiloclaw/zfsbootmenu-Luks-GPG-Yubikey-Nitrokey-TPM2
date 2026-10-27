@@ -128,6 +128,7 @@ so it knows which code is test code. It prints one row per crate and writes the 
 | Result fns | Functions outside tests that return a `Result` | |
 | legacy docs | Doc comment lines that name a function of the legacy code between backticks, explaining Rust by the Bash it replaced | yes |
 | shell helpers | Uses of the shell-semantics helpers of `zbm_core::shell` outside tests | yes |
+| shell starts | Calls outside tests that start an interactive shell (`interactive_shell`, `run_recovery_shell`); SE9 brings them down to its `ShellGate` | yes |
 | legacy tests | Tests that run legacy Bash or Perl, directly or through a helper | yes |
 | unsafe | `unsafe` blocks | yes |
 

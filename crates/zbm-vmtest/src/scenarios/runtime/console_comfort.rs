@@ -86,7 +86,7 @@ pub(super) fn run(test: &Test) -> Result<()> {
 fn spec() -> ImageSpec {
     ImageSpec {
         variant: "console-comfort".into(),
-        features: Some("zbm/secret-test".into()),
+        features: Some("zbm/console-mirror,zbm/secret-test".into()),
         ..super::console_start::spec()
     }
 }
@@ -402,7 +402,10 @@ mod tests {
         assert_eq!(columns_in("zbm-x-25 80\n", "y"), None);
         let spec = spec();
         assert_eq!(spec.variant, "console-comfort");
-        assert_eq!(spec.features.as_deref(), Some("zbm/secret-test"));
+        assert_eq!(
+            spec.features.as_deref(),
+            Some("zbm/console-mirror,zbm/secret-test")
+        );
     }
 
     #[test]

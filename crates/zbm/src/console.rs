@@ -154,7 +154,10 @@ pub fn parse(args: &[String]) -> Option<Options> {
         match arg.as_str() {
             "--card" => options.card = Some(PathBuf::from(args.next()?)),
             "--height" => options.height = Some(args.next()?.parse().ok()?),
-            "--mirror" => options.mirror = Some(PathBuf::from(args.next()?)),
+            // The screen written to a file: for the VM tests' builds alone.
+            "--mirror" if cfg!(any(test, feature = "console-mirror")) => {
+                options.mirror = Some(PathBuf::from(args.next()?));
+            }
             "--layout" => options.layout = Some(args.next()?.clone()),
             "--numlock" => {
                 options.num_lock = match args.next()?.as_str() {

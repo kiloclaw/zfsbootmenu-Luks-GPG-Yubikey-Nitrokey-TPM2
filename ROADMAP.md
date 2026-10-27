@@ -481,9 +481,9 @@ New checks, added by the items that need them:
 | No raw ZFS command lines outside `zbm-zfs` | `xtask metrics` column, ratcheted to 0 | SB2 |
 | Names are newtypes in domain signatures | `xtask metrics` column: public domain functions taking a raw string | DM3 |
 | Structured logs | `xtask metrics` column: format-string log macros | DM9 |
-| No interactive shell outside its gate | `xtask` check: `Command::shell` and the shell programs only in `ShellGate` and tests | SE9 |
-| Release images carry no test features | `xtask` check over the release profile's features | SE2 |
-| Arithmetic overflow is caught | `overflow-checks = true` in the release profile | SE2 |
+| No interactive shell outside its gate | `xtask metrics` column `shell_starts` (SE2), ratcheted down to `ShellGate` alone | SE9 |
+| Release images carry no test features | `xtask lint` step "test features": no feature but a test one turns one on, and no file that builds releases sets features (SE2, done) | SE2 |
+| Arithmetic overflow is caught | `overflow-checks = true` in the release profile (SE2, done) | SE2 |
 | Third-party code is audited | `cargo vet`; `cargo deny` with duplicate versions denied | SE12 |
 
 ## Verification

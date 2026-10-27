@@ -97,6 +97,8 @@ pub struct Counts {
     pub legacy_docs: usize,
     /// Uses of the shell-semantics helpers outside tests.
     pub shell_helpers: usize,
+    /// Calls outside tests that start an interactive shell.
+    pub shell_starts: usize,
     /// Tests that run legacy Bash or Perl code.
     pub legacy_tests: usize,
     /// `unsafe` blocks.
@@ -130,6 +132,7 @@ pub const METRICS: &[Metric] = &[
     }),
     metric("legacy_docs", "legacy docs", true, |c| c.legacy_docs),
     metric("shell_helpers", "shell helpers", true, |c| c.shell_helpers),
+    metric("shell_starts", "shell starts", true, |c| c.shell_starts),
     metric("legacy_tests", "legacy tests", true, |c| c.legacy_tests),
     metric("unsafe_blocks", "unsafe", true, |c| c.unsafe_blocks),
 ];
@@ -171,6 +174,7 @@ pub fn count(files: &[ScannedFile]) -> Counts {
         counts.long_files += usize::from(file.scan.lines > LONG_FILE);
         counts.legacy_docs += file.scan.legacy_docs;
         counts.shell_helpers += file.scan.shell_helpers;
+        counts.shell_starts += file.scan.shell_starts;
         counts.unsafe_blocks += file.scan.unsafe_blocks;
         for function in &file.scan.functions {
             if function.role.is_test() {

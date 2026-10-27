@@ -156,6 +156,7 @@ pub(super) fn spec() -> ImageSpec {
     ImageSpec {
         runtime: Some(ZbmRuntime::Rust),
         conf: "add_drivers+=\" virtio_gpu evdev xhci_pci xhci_hcd usbhid hid_generic \"".into(),
+        features: Some("zbm/console-mirror".into()),
         ..ImageSpec::new("console-start")
     }
 }
