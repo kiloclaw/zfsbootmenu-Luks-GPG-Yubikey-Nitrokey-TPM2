@@ -8,7 +8,7 @@
 //! - `ZBMTEST_ACCEL`: `kvm` or `tcg` (`kvm` when `/dev/kvm` is usable);
 //! - `ZBMTEST_REUSE`: `1` reuses images built from the same inputs, the
 //!   checkout's sources among them;
-//! - `ZBMTEST_ZBM_RUNTIME`: `legacy` (the default) or `rust`, the runtime
+//! - `ZBMTEST_ZBM_RUNTIME`: `rust` (the default) or `legacy`, the runtime
 //!   of the images;
 //! - `ZBMTEST_OLD_KERNEL`, `ZBMTEST_OLD_INITRD`: an image with an older
 //!   ZFS, for the `oldzfs` tests, which are skipped without it;
@@ -113,10 +113,10 @@ impl Settings {
             container: set("ZBMTEST_RUNTIME").unwrap_or(default_container.into()),
             accel: set("ZBMTEST_ACCEL").unwrap_or(default_accel.into()),
             reuse: var("ZBMTEST_REUSE").as_deref() == Some("1"),
-            runtime: if set("ZBMTEST_ZBM_RUNTIME").as_deref() == Some("rust") {
-                ZbmRuntime::Rust
-            } else {
+            runtime: if set("ZBMTEST_ZBM_RUNTIME").as_deref() == Some("legacy") {
                 ZbmRuntime::Legacy
+            } else {
+                ZbmRuntime::Rust
             },
             old_image,
             repo: set("ZBMTEST_REPO").map_or_else(default_repo, PathBuf::from),
@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(settings.work, PathBuf::from("/var/tmp/zbm-luks-test"));
         assert_eq!(settings.container, "podman");
         assert_eq!(settings.accel, "kvm");
-        assert_eq!(settings.runtime, ZbmRuntime::Legacy);
+        assert_eq!(settings.runtime, ZbmRuntime::Rust);
         assert!(!settings.reuse);
         assert_eq!(settings.old_image, None);
         assert_eq!(settings.old_image_files().unwrap(), None);
@@ -200,7 +200,7 @@ mod tests {
                 "ZBMTEST_RUNTIME" => "docker",
                 "ZBMTEST_ACCEL" => "tcg",
                 "ZBMTEST_REUSE" => "1",
-                "ZBMTEST_ZBM_RUNTIME" => "rust",
+                "ZBMTEST_ZBM_RUNTIME" => "legacy",
                 "ZBMTEST_OLD_KERNEL" => "/k",
                 "ZBMTEST_OLD_INITRD" => "/i",
                 "ZBMTEST_REPO" => "/r",
@@ -217,7 +217,7 @@ mod tests {
             ("docker", "tcg")
         );
         assert!(settings.reuse);
-        assert_eq!(settings.runtime.as_str(), "rust");
+        assert_eq!(settings.runtime.as_str(), "legacy");
         assert_eq!(settings.old_image, Some(("/k".into(), "/i".into())));
         let error = settings.old_image_files().unwrap_err().to_string();
         assert_eq!(error, "ZBMTEST_OLD_KERNEL=/k is not a file");

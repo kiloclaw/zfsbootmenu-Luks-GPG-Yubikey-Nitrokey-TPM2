@@ -267,6 +267,10 @@ that only checked it are gone:
 - The Bash LUKS unit suites (`tests/luks/unit`), and the test build of `zbm` that ran them against the Rust runtime
   (the Cargo feature `test-seams`, its hidden command `zbm-luks-test`). The Rust device suites they were ported to
   (`cargo xtask test devices`) test the LUKS code against real volumes.
+- The rule that every suite runs against both images: the VM tests boot the Rust runtime's images by default
+  (`ZBMTEST_ZBM_RUNTIME=legacy` still boots the legacy one), the `runtime-legacy-*` tests and CI's legacy run are
+  gone, and `runtime-rust-signals` checks that the recovery shell takes Ctrl-C instead of comparing with the legacy
+  run.
 
 ### The new menu's text in a message catalogue
 

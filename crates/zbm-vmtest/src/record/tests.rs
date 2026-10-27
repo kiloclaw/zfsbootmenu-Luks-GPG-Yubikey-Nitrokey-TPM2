@@ -27,7 +27,8 @@ fn a_test_records_its_checks_and_writes_its_result() {
         outcome.failures,
         vec!["ZFSBootMenu imported tank: None".to_owned()]
     );
-    let dir = settings.work.join("tests/layouts-main");
+    // Results of the Rust runtime's images, the default, are named apart.
+    let dir = settings.work.join("tests/layouts-main-rust");
     let written = fs::read_to_string(dir.join("result.json")).unwrap();
     assert_eq!(Outcome::from_json(&written), Some(outcome));
     let steps = fs::read_to_string(dir.join("steps.log")).unwrap();

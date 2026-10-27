@@ -5,8 +5,9 @@
 //!   environment as its bootfs: `tplain` on disk d0, exported by this host,
 //!   and `tforeign` on disk d1, left imported by another host (host ID
 //!   `deadbeef`).
-//! - `RUNTIME[-SCENARIO]`: boots with RUNTIME, `legacy` or `rust`
-//!   (`zfsbootmenu_runtime="rust"`); the scenarios (`boot`):
+//! - `RUNTIME[-SCENARIO]`: boots with RUNTIME, `rust`
+//!   (`zfsbootmenu_runtime="rust"`) in the suite, or `legacy` when asked
+//!   for by name; the scenarios (`boot`):
 //!   - (none): `tplain`: the countdown boots its boot environment; process
 //!     1, the runtime and `BOOTFS` as hooks see them;
 //!   - `hostid`: `tforeign` alone: host ID matching imports it with the
@@ -23,8 +24,8 @@
 //!   - `hooks`: `zbm.hookroot` adds a hook from a FAT disk,
 //!     `zbm.skip_hooks` disables the runtime report hook;
 //!   - `signals` (`signals`): the signal dispositions of a hook, fzf
-//!     (legacy only: the menu) and the recovery shell; the Rust run
-//!     compares with the legacy run's.
+//!     (legacy only: the menu) and the recovery shell, which must take
+//!     Ctrl-C.
 //! - `rust-pilot` (`pilot`): the pilots of `REFACTOR-ROADMAP.md` (R0).
 //! - `rust-autosize` (`autosize`): the console font follows the display's
 //!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
@@ -52,9 +53,8 @@
 //! - `rust-gpu` (`gpu`): the image's graphics drivers load before the
 //!   countdown, for the GPUs `zbm.gpu` chooses, on QEMU's standard VGA and
 //!   a virtio GPU (ROADMAP.md #17).
-//! - `legacy-keysource` (`keysource`): the boot environment of `tkeys`
-//!   (d2) takes its key from its key source. `rust-keysource`: the same
-//!   boots with the Rust runtime.
+//! - `RUNTIME-keysource` (`keysource`): the boot environment of `tkeys`
+//!   (d2) takes its key from its key source.
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).

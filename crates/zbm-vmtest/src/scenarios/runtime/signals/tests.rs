@@ -88,13 +88,14 @@ fn the_legacy_run_checks_fzf_too() {
         shell: complete("0"),
     };
 
-    verify(&test, ZbmRuntime::Legacy, &result).unwrap();
+    verify(&test, ZbmRuntime::Legacy, &result);
 
     assert_eq!(
         checks(&test),
         [
             "ok   - the hook reported its dispositions",
             "ok   - the recovery shell reported its dispositions",
+            "ok   - the recovery shell does not ignore Ctrl-C (SigIgn 0000000000384004)",
             "FAIL - fzf's dispositions were recorded",
         ]
     );
@@ -102,59 +103,28 @@ fn the_legacy_run_checks_fzf_too() {
 }
 
 #[test]
-fn the_rust_run_compares_with_the_legacy_run() {
+fn a_recovery_shell_that_ignores_ctrl_c_fails() {
     let settings = settings("runtime-signals-rust");
-    let legacy = Dispositions {
-        hook: complete("0"),
-        fzf: complete("0"),
-        shell: complete("1"),
-    };
-    let dir = settings.work.join("tests/runtime-legacy-signals");
-    fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("signals.json"), legacy.to_json()).unwrap();
     let test = Test::new(&settings, "runtime-rust-signals").unwrap();
     let mut shell = complete("0");
-    shell.0.pop();
+    shell.set("SigIgn", "0000000000384006");
+    let mut partial = complete("0");
+    partial.0.pop();
     let result = Dispositions {
-        hook: complete("0"),
+        hook: partial,
         fzf: Masks::default(),
         shell,
     };
 
-    verify(&test, ZbmRuntime::Rust, &result).unwrap();
+    verify(&test, ZbmRuntime::Rust, &result);
 
     assert_eq!(
         checks(&test),
         [
-            "ok   - the hook reported its dispositions",
-            "FAIL - the recovery shell reported its dispositions",
-            "ok   - the legacy run recorded the reference",
-            "ok   - hook SigBlk: 0 (legacy 0)",
-            "ok   - hook SigIgn: 0000000000384004 (legacy 0000000000384004)",
-            "ok   - hook SigCgt: 000000004b813efb (legacy 000000004b813efb)",
-            "FAIL - shell SigBlk: 0 (legacy 1)",
-            "ok   - shell SigIgn: 0000000000384004 (legacy 0000000000384004)",
-            "FAIL - shell SigCgt: None (legacy 000000004b813efb)",
+            "FAIL - the hook reported its dispositions",
+            "ok   - the recovery shell reported its dispositions",
+            "FAIL - the recovery shell does not ignore Ctrl-C (SigIgn 0000000000384006)",
         ]
-    );
-    cleanup(&settings);
-}
-
-#[test]
-fn the_rust_run_needs_the_legacy_reference() {
-    let settings = settings("runtime-signals-noref");
-    let test = Test::new(&settings, "runtime-rust-signals").unwrap();
-    let result = Dispositions {
-        hook: complete("0"),
-        fzf: Masks::default(),
-        shell: complete("0"),
-    };
-
-    verify(&test, ZbmRuntime::Rust, &result).unwrap();
-
-    assert_eq!(
-        checks(&test)[2],
-        "FAIL - the legacy run recorded the reference"
     );
     cleanup(&settings);
 }

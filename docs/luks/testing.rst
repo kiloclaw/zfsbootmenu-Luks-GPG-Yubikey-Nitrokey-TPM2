@@ -88,9 +88,9 @@ Variable                 Meaning
                          ``tests/luks/vm/old-image.sh [directory]`` builds one in an ``ubuntu:24.04`` container (Linux
                          6.8, OpenZFS 2.2, the legacy runtime of the checkout): *vmlinuz-bootmenu* and
                          *initramfs-bootmenu.img* in the directory, by default */var/tmp/zbm-luks-test/old*
-``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
+``ZBMTEST_ZBM_RUNTIME``  ``rust`` (the default) or ``legacy``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
-                         choose their runtime themselves
+                         choose their runtime themselves, and only the Rust runtime's run in the suite
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:

@@ -1,8 +1,9 @@
 //! `runtime-RUNTIME-signals`: the signal dispositions of an early-setup
-//! hook, of fzf in the menu and of the recovery shell, on the console. The
-//! legacy run records them in `signals.json`; the Rust run must reproduce
-//! those of the hook and the shell; its menu runs no fzf, and opens the
-//! shell from its recovery tools.
+//! hook, of fzf in the menu and of the recovery shell, on the console,
+//! recorded in `signals.json`. The hook and the shell must report them, and
+//! the shell must take Ctrl-C: the start-up program ignores `SIGINT`, and
+//! the shell gets its default action back. The menu of the Rust runtime
+//! runs no fzf, and opens the shell from its recovery tools.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -92,6 +93,7 @@ impl Masks {
     }
 
     /// The masks in a JSON value, if it is an object of strings.
+    #[cfg(test)]
     fn from_json(value: &serde_json::Value) -> Masks {
         let mut masks = Masks::default();
         for (key, mask) in value.as_object().into_iter().flatten() {
@@ -159,6 +161,7 @@ impl Dispositions {
     }
 
     /// The dispositions in a `signals.json`.
+    #[cfg(test)]
     fn from_json(text: &str) -> Result<Dispositions> {
         let value: serde_json::Value = serde_json::from_str(text)
             .map_err(|error| Error::Setup(format!("signals.json: {error}")))?;
@@ -200,7 +203,8 @@ pub(super) fn run(test: &Test, runtime: ZbmRuntime) -> Result<()> {
     vm.kill();
     let path = test.dir().join("signals.json");
     fs::write(&path, result.to_json()).map_err(Error::io(format!("writing {}", path.display())))?;
-    verify(test, runtime, &result)
+    verify(test, runtime, &result);
+    Ok(())
 }
 
 /// Reads the dispositions on the console: the hook's at start-up, then, in
@@ -223,9 +227,11 @@ fn observe(vm: &mut Vm<'_>, runtime: ZbmRuntime) -> Result<Dispositions> {
     Ok(Dispositions { hook, fzf, shell })
 }
 
-/// Checks the dispositions; the Rust run compares them with the legacy
-/// run's.
-fn verify(test: &Test, runtime: ZbmRuntime, result: &Dispositions) -> Result<()> {
+/// `SIGINT` in a mask of `/proc/<pid>/status`: bit 1 (signal 2).
+const SIGINT_BIT: u64 = 1 << 1;
+
+/// Checks the dispositions.
+fn verify(test: &Test, runtime: ZbmRuntime, result: &Dispositions) {
     test.note(&format!(
         "hook {}; fzf {}; shell {}",
         result.hook.text(),
@@ -240,36 +246,22 @@ fn verify(test: &Test, runtime: ZbmRuntime, result: &Dispositions) -> Result<()>
         result.shell.is_complete(),
         "the recovery shell reported its dispositions",
     );
+    let ignored = result
+        .shell
+        .get("SigIgn")
+        .and_then(|mask| u64::from_str_radix(mask, 16).ok());
+    test.check(
+        ignored.is_some_and(|mask| mask & SIGINT_BIT == 0),
+        &format!(
+            "the recovery shell does not ignore Ctrl-C (SigIgn {})",
+            pyfmt::option(result.shell.get("SigIgn"))
+        ),
+    );
     if runtime == ZbmRuntime::Legacy {
         test.check(result.fzf.is_complete(), "fzf's dispositions were recorded");
-        return Ok(());
-    }
-    let reference = test
-        .settings()
-        .work
-        .join("tests/runtime-legacy-signals/signals.json");
-    test.check(reference.exists(), "the legacy run recorded the reference");
-    if reference.exists() {
-        let text = fs::read_to_string(&reference)
-            .map_err(Error::io(format!("reading {}", reference.display())))?;
-        let legacy = Dispositions::from_json(&text)?;
-        for process in ["hook", "shell"] {
-            for key in SIG_KEYS {
-                let ours = result.of(process).get(key);
-                let theirs = legacy.of(process).get(key);
-                test.check(
-                    ours == theirs,
-                    &format!(
-                        "{process} {key}: {} (legacy {})",
-                        pyfmt::option(ours),
-                        pyfmt::option(theirs)
-                    ),
-                );
-            }
-        }
+    } else {
         test.note("the menu of the Rust runtime runs no fzf");
     }
-    Ok(())
 }
 
 #[cfg(test)]

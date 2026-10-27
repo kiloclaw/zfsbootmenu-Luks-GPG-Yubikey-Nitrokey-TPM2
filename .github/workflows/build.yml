@@ -185,19 +185,9 @@ jobs:
       - name: Create the build container
         run: docker build -t localhost/zbm-builder packaging/container
 
-      # The legacy image is the reference: its result decides (rules 2 and 5 of
-      # PORT-ROADMAP.md)
-      - name: Legacy runtime
+      - name: Rust runtime
         run: >-
           sudo -E target/release/zbm-vmtest run runtime-setup
-          runtime-legacy runtime-legacy-hostid runtime-legacy-strict runtime-legacy-force runtime-legacy-prefer runtime-legacy-late runtime-legacy-waitfor runtime-legacy-hooks runtime-legacy-signals
-
-      # Results against the Rust image are reported, not required, until Phase 6
-      # ends
-      - name: Rust runtime
-        continue-on-error: true
-        run: >-
-          sudo -E target/release/zbm-vmtest run
           runtime-rust runtime-rust-hostid runtime-rust-strict runtime-rust-force runtime-rust-prefer runtime-rust-late runtime-rust-waitfor runtime-rust-hooks runtime-rust-signals
 
       - name: Archive the test logs

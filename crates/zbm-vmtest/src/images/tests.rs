@@ -102,9 +102,14 @@ fn a_failed_build_names_its_log() {
 
     let error = zbm_image(&settings, &ImageSpec::new("auto")).unwrap_err();
 
-    assert!(matches!(&error, Error::Build { log, .. } if log.ends_with("zbm/auto/build.log")));
-    let conf = fs::read_to_string(settings.work.join("zbm/auto/dracut.conf.d/zz-test.conf"));
-    assert!(conf.is_ok_and(|conf| conf.contains("zfsbootmenu_luks_crypttab")));
+    // The images are the Rust runtime's unless ZBMTEST_ZBM_RUNTIME=legacy.
+    assert!(matches!(&error, Error::Build { log, .. } if log.ends_with("zbm/auto-rust/build.log")));
+    let conf = fs::read_to_string(
+        settings
+            .work
+            .join("zbm/auto-rust/dracut.conf.d/zz-test.conf"),
+    );
+    assert!(conf.is_ok_and(|conf| conf.ends_with("\nzfsbootmenu_runtime=\"rust\"\n")));
     cleanup(&settings);
 }
 
