@@ -385,7 +385,7 @@ impl<'t> Vm<'t> {
             }
         }
         let rc: i32 = self.console.group(1).parse().unwrap_or(-1);
-        let out = shell_output(&self.before());
+        let out = without_echo(&shell_output(&self.before()), &lines);
         if !options.quiet {
             let first: String = command
                 .lines()
@@ -522,6 +522,21 @@ pub fn shell_output(before: &str) -> String {
     lines.join("\n")
 }
 
+/// `output` without the lines of `sent` that the shell echoed first.
+///
+/// [`Vm::shell_ready`] turns echo off, and Bash's line editor honours it,
+/// but brush's draws what is typed whatever the terminal's modes: in Rust
+/// images the output starts with the command.
+pub fn without_echo(output: &str, sent: &[String]) -> String {
+    let lines: Vec<&str> = output.split('\n').collect();
+    let echoed = lines
+        .iter()
+        .zip(sent)
+        .take_while(|(line, sent)| line.trim_end() == sent.trim_end())
+        .count();
+    lines.get(echoed..).unwrap_or_default().join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -532,6 +547,28 @@ mod tests {
         let before = "zbm# zpool list -H -o name\ntank\n\n  \nzbm#\nzbm# mixed";
 
         assert_eq!(shell_output(before), "zpool list -H -o name\ntank\nmixed");
+    }
+
+    #[test]
+    fn the_echoed_command_is_not_output() {
+        let sent = [
+            "for i in 1 2".to_owned(),
+            "do echo $i; done; echo RC=$?".to_owned(),
+        ];
+
+        assert_eq!(
+            without_echo("for i in 1 2\ndo echo $i; done; echo RC=$?\n1\n2", &sent),
+            "1\n2"
+        );
+        assert_eq!(without_echo("1\n2", &sent), "1\n2");
+        assert_eq!(
+            without_echo("for i in 1 2 \nfor i in 1 2", &sent),
+            "for i in 1 2"
+        );
+        assert_eq!(
+            without_echo("do echo $i; done; echo RC=$?", &sent),
+            "do echo $i; done; echo RC=$?"
+        );
     }
 
     #[test]

@@ -12,8 +12,9 @@
 //! - With `zbm.autosize=48`, the 24-pixel font doubled: 160×50.
 //! - An image built with `Global.ConsoleFont: spleen` in the configuration
 //!   of `generate-zbm`, which sets `zfsbootmenu_console_font`, has the
-//!   Spleen fonts and their licence, the TrueType font of the console on
-//!   the display (#19 step 3) and its licence, and no Terminus: with the
+//!   Spleen fonts and their licence, the TrueType fonts of the console on
+//!   the display (#19 step 3: regular, bold, italic and bold italic) and
+//!   their licence, and no Terminus: with the
 //!   EDID, 18 pixels make Spleen 8×16, 480×150; `zbm.autosize=64` loads
 //!   the native 32×64, 120×37, rather than 16×32 doubled.
 
@@ -168,7 +169,7 @@ fn run_spleen(test: &Test) -> Result<()> {
 }
 
 /// Checks that the image has the Spleen fonts, their licence, the
-/// console's TrueType font and its licence, and nothing else.
+/// console's TrueType fonts and their licence, and nothing else.
 fn check_font_files(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
     let (_, files) = vm.sh(FONT_FILES)?;
     let files = files.trim();
@@ -180,7 +181,8 @@ fn check_font_files(test: &Test, vm: &mut Vm<'_>) -> Result<()> {
 }
 
 /// What [`FONT_FILES`] lists in the Spleen image.
-const SPLEEN_FILES: &str = "DejaVuSansMono.ttf LICENSE.dejavu LICENSE.spleen spleen-12x24.psf \
+const SPLEEN_FILES: &str = "DejaVuSansMono-Bold.ttf DejaVuSansMono-BoldOblique.ttf \
+     DejaVuSansMono-Oblique.ttf DejaVuSansMono.ttf LICENSE.dejavu LICENSE.spleen spleen-12x24.psf \
      spleen-16x32.psf spleen-32x64.psf spleen-8x16.psf";
 
 /// Boots `image` with the virtio GPU, its EDID on or off, into the

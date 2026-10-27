@@ -84,6 +84,41 @@ fn a_run_is_checked_against_the_font_it_should_keep() {
 }
 
 #[test]
+fn a_shell_that_echoes_the_command_gives_the_density_alone() {
+    // brush, the shell of Rust images, echoes what is typed after
+    // `stty -echo` too.
+    let settings = settings("runtime-autosize-echo");
+    let test = Test::new(&settings, "runtime-rust-autosize").unwrap();
+    let run: &'static str = Box::leak(format!("{RUN}; echo RC=$?").into_boxed_str());
+    let density: &'static str = Box::leak(format!("{DENSITY}; echo RC=$?").into_boxed_str());
+    let said: &'static str =
+        Box::leak(format!("zbm# {density}\r\ndisplay density 101\r\nRC=0\r\n").into_boxed_str());
+    let ran: &'static str = Box::leak(format!("zbm# {run}\r\nRC=0\r\n").into_boxed_str());
+    let script = vec![
+        Step::Hear(run),
+        Step::Say(ran),
+        Step::Hear(density),
+        Step::Say(said),
+    ];
+    let (mut vm, guest) = scripted(&test, script);
+
+    check_density(
+        &test,
+        &mut vm,
+        Some(&EDID_DPI),
+        "the EDID gives about 100 dpi",
+    )
+    .unwrap();
+
+    assert_eq!(guest.finish(), Vec::<String>::new());
+    assert_eq!(
+        checks(&test),
+        ["ok   - the EDID gives about 100 dpi (display density 101)"]
+    );
+    cleanup(&settings);
+}
+
+#[test]
 fn the_spleen_image_has_its_fonts_and_licence_only() {
     let settings = settings("runtime-autosize-spleen");
     let test = Test::new(&settings, "runtime-rust-autosize").unwrap();
