@@ -29,7 +29,7 @@ have identifiers of their own (`PM4`, `SE7`); a finished item keeps its number.
 - [Rules for refactored code](#rules-for-refactored-code) and [how the rules are enforced](#how-the-rules-are-enforced)
 - [Verification](#verification), with [benchmarks](#benchmarks) and [release gates](#release-gates)
 - [Work items](#work-items), by workstream
-- [Phases](#phases): the order of the work
+- [Phases](#phases): the order of the work, and [the timeline](#timeline)
 - [Decisions](#decisions)
 - [Fixes left from the review of 27 October 2026](#fixes-left-from-the-review-of-27-october-2026)
 - [Not planned](#not-planned)
@@ -259,8 +259,8 @@ Each operation is placed in one of three layers:
 
 `zbm` links no C library but glibc. The C code is in the programs the images run and in the host's tools. Each one
 that a Rust implementation can replace without losing what users need is replaced, behind the same port as the
-program, which stays as the fallback until the VM suites, and for the LUKS2 and TPM2 code the security review (SE13),
-have passed it. Differential tests run the Rust code and the program on the same volumes and devices; parsers of
+program, which stays as the fallback until the VM suites, and for the LUKS2 and TPM2 code a security review of its
+own, have passed it. Differential tests run the Rust code and the program on the same volumes and devices; parsers of
 on-disk or device data take `Untrusted` input and are fuzzed; each new crate is a decision 1 entry and goes through
 `cargo vet`. The image's size (B1) and its process count (B7) show the gain.
 
@@ -613,7 +613,8 @@ code) and what it needs first. Code in the images changes with most items, so th
 ### CD: C dependencies
 
 The Rust replacements of [C dependencies](#c-dependencies) that no other item covers. Each keeps the program as the
-fallback behind the same port, until its VM tests (and for CD9 and CD10 the security review) pass.
+fallback behind the same port, until its VM tests pass. CD9 and CD10 come after the release (see
+[the timeline](#timeline)) and become the default only after a security review of their own, like SE13.
 
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
@@ -638,7 +639,7 @@ fallback behind the same port, until its VM tests (and for CD9 and CD10 the secu
 | VE2 | Fault injection: `FaultyRunner` and `FaultyFiles`, and the property that start-up always ends in a menu or a shell | stab | M | |
 | VE3 | Contract tests of the fakes against the real adapters, in a VM | stab | M | |
 | VE4 | Mutation testing on the code where a missed case costs most | stab, sec | M | |
-| VE5 | The VM tiers: smoke on CI with KVM, nightly, release | stab | M | |
+| VE5 | The VM tiers: smoke on CI with KVM, nightly, release; in phase 1, so that VM runs stop waiting on one machine | stab | M | |
 | VE6 | The first benchmark baseline: `cargo xtask bench` and the `bench-*` scenarios (B1 to B12) | perf | M | |
 | VE7 | The upstream test VMs as `zbm-vmtest` scenarios; `scripts/` and the build container's scripts as `xtask` commands (R7 of the old plan) | mod | L | |
 | VE8 | The developer guides (R8 of the old plan): the boot flow, how to add a key method, a menu view and a boot step, how to debug a boot, the ADRs, `cargo doc` published | mod | M | |
@@ -701,10 +702,10 @@ The ADRs of the target architecture, and the small fixes that need no design.
 
 ### Phase 1: ports and types
 
-PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6.
+PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6, VE5.
 
-**Exit:** no domain crate takes a `Runner` or a console; no ZFS command line outside `zbm-zfs`; the new metric
-columns at 0; the strict lints on every crate that runs at boot.
+**Exit:** the smoke tier of the VM suite runs on CI with KVM; no domain crate takes a `Runner` or a console; no ZFS
+command line outside `zbm-zfs`; the new metric columns at 0; the strict lints on every crate that runs at boot.
 
 ### Phase 2: the session
 
@@ -732,9 +733,10 @@ mkinitcpio hook as shims; `zbm-host` with no Perl or Bash emulation and no `objc
 
 ### Phase 5: isolation and boot integrity
 
-SB10, SB11, SE9, SE10, SE11, UI8, UI9, CD6, CD7, CD8, CD9, CD10.
+SB10, SB11, SE9, SE10, SE11, UI8, UI9, CD6, CD7, CD8.
 
-**Exit:** secrets only in `zbm-unlock`; the key methods in Rust, with their programs as the fallback; the menu and
+**Exit:** secrets only in `zbm-unlock`; the key methods in Rust but LUKS2 and TPM2, which stay with `cryptsetup` and
+`tpm2-tools`, and the programs as the fallback; the menu and
 the console unprivileged and sandboxed; the locked menu (#8) and measured boot (#10) with their VM tests.
 
 ### Phase 6: features
@@ -744,14 +746,74 @@ phase 5's SB10, #6, #7, #15, #16 and #21 after phase 3.
 
 ### Phase 7: release
 
-VE2 to VE6, VE9, SE12, SE13, RL1, RL3, RL4; then, one release later, RL2.
+VE2, VE3, VE4, VE6, VE9, SE12, SE13, RL1, RL3, RL4; then, one release later, RL2.
 
 **Exit:** the [release gates](#release-gates); the Rust runtime is the default; then the legacy runtime is gone.
 
 ### After the release
 
-SB12, the native image backend and minimal early init; CD11, the Tang pin. The Rust LUKS2 and TPM2 code (CD9,
-CD10) becomes the default once SE13 has reviewed it and one release has used it.
+CD9 and CD10, LUKS2 and TPM2 in Rust, moved here to shorten the critical path; they become the default after a
+security review of their own and one release behind a setting. SB12, the native image backend and minimal early
+init; CD11, the Tang pin.
+
+## Timeline
+
+An estimate made on 27 October 2026, to be revised at the end of each phase.
+
+### Effort
+
+The [work items](#work-items) give their effort for one developer who knows the code. Counted as S = 0.6 weeks,
+S/M = 1.5, M = 3, M/L = 6 and L = 10, with 3 weeks for the review fixes and 2 for the ADRs:
+
+| Phase | What weighs most | Developer-weeks |
+| --- | --- | --- |
+| 0 | The ADRs, 13 small items, the review fixes | ~14 |
+| 1 | Ten M items: ports, value types, the ZFS port, mounts, the strict lints, fuzzing, the VM tiers (VE5) | ~36 |
+| 2 | PM8 (L), PM9 (M/L), the supervisor, the sockets | ~31 |
+| 3 | UI10, UI6, DM6, DM7 (L each), UI4, UI5 | ~58 |
+| 4 | SB6, DM10, VE7 (L each), `kexec_file_load`, the hooks, the image plan, CD4, CD5, CD12 | ~50 |
+| 5 | SB10, SE11 (L each), CD6 to CD8, the locked menu, measured boot | ~43 |
+| 6 | About ten features, and the console's other items (UI12) | ~37 |
+| 7 | Fault injection, mutation tests, benchmarks, the security review (SE13), real hardware | ~35 |
+| **To RL1** | | **~304**: about six years for one developer, eight with review and rework |
+| After the release | RL2, CD9, CD10 and their review, SB12, CD11 | ~40 |
+
+The critical path, the chain that cannot run in parallel, is the ADRs → DM2 and DM3 → PM2 and PM4 → PM8 → PM9 →
+UI3 and UI5 → UI6 → DM6 → SB10 → SE11 → SE13 → RL1: about 80 developer-weeks, so even a team needs well over a
+year.
+
+### Calendar
+
+The code is written with an AI assistant, which takes away most of the typing. What sets the pace is what only
+people can do: the maintainer's review and VM runs (assumed about 10 hours a week), the hardware of RL4, the usability
+sessions of UI11, the independent review of SE13 (six to eight weeks of the reviewer's calendar) and one release
+between RL1 and RL2. Phases 4 and 6 overlap the others.
+
+| Phase | Weeks | Ends about |
+| --- | --- | --- |
+| 0: the design and the quick fixes | 3 | November 2026 |
+| 1: ports and types | 7 | January 2027 |
+| 2: the session | 6 | March 2027 |
+| 3: the menu and the screen | 10 | May 2027 |
+| 4: the boundary and the image | 8, overlapping 3 and 5 | June 2027 |
+| 5: isolation and boot integrity | 7 | July 2027 |
+| 6: features | alongside 1 to 5 | |
+| 7: release | 8 to 10 | **September to October 2027: RL1** |
+| RL2 | one release later | early 2028 |
+| CD9, CD10 (default after their review), SB12, CD11 | after RL2 | 2028 |
+
+Two changes shortened the path: VE5 moved from phase 7 to phase 1, so VM runs no longer wait on one machine, and
+CD9 and CD10, about 20 weeks of security-critical code, moved after the release, where `cryptsetup` and `tpm2-tools`
+keep doing their work until then.
+
+### Risks to the dates
+
+- **VM runs:** until VE5 is done, every change to the images waits on the maintainer's machine.
+- **The design risks,** UI6 (the client channel) and PM8 (the machine actor): their ADRs in phase 0 settle them, and
+  a wrong turn there costs a phase.
+- **Outside calendars:** the security review, the usability sessions, and the hardware of RL4.
+- **The estimate itself:** the history in git was squashed, so there is no measured pace yet. Phase 0's actual length
+  is the first measure; the calendar is revised from it.
 
 ## Decisions
 
@@ -783,7 +845,7 @@ Open:
 10. **One concurrency model:** threads and channels, one reactor per process, no async runtime (PM1).
 12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
     programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
-    alternative, kept only if the Rust LUKS2 or TPM2 code fails its review (SE13).
+    alternative, kept only if the Rust LUKS2 or TPM2 code (CD9, CD10) fails its review.
 13. **Trust zones:** the four zones of [the target architecture](#processes-and-trust-zones).
 14. **The crate map** of [crates and layers](#crates-and-layers).
 15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
