@@ -57,9 +57,11 @@ pub fn kernel_version(path: &str) -> String {
 }
 
 impl Boot<'_, '_> {
-    /// The kernels of `fs`, found by mounting it read-only, with the one that
-    /// boots marked when `org.zfsbootmenu:kernel` names it; none when it
-    /// cannot be mounted.
+    /// The kernels of `fs`, found by mounting it read-only, newest first as
+    /// the menu shows them, with the one that boots marked when
+    /// `org.zfsbootmenu:kernel` names it; none when it cannot be mounted.
+    /// The kernel list is oldest first, and without the property the last,
+    /// the newest, boots: the first here.
     pub fn kernels(&self, fs: &str) -> Vec<model::Kernel> {
         if kexec::find_kernels(self.system, self.state, fs).is_err() {
             return Vec::new();
@@ -72,6 +74,7 @@ impl Boot<'_, '_> {
         let named = kexec::kernel_property(self.system, fs).is_some();
         let chosen = kexec::select_kernel(self.system, self.state, fs);
         list.lines()
+            .rev()
             .map(Kernel::parse)
             .map(|kernel| model::Kernel {
                 version: kernel_version(&kernel.kernel),
@@ -142,6 +145,7 @@ impl Boot<'_, '_> {
             .read_to_string(&self.state.kernels(fs))
             .unwrap_or_default();
         list.lines()
+            .rev()
             .map(Kernel::parse)
             .find(|kernel| kernel_version(&kernel.kernel) == version)
     }

@@ -218,6 +218,11 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   `vendor/` and the build container in the image check, build each image once when run in parallel, report tests
   that did not run as `SKIP`, and fail a shadow-mode boot without a summary.
 
+### Fixes from the bug review before the console's M4
+
+- The menu lists an environment's kernels newest first, as it shows them: the kernel it names as the one that boots
+  is the one that boots, and the kernels view no longer starts on the oldest.
+
 ### The new menu's text in a message catalogue
 
 Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,

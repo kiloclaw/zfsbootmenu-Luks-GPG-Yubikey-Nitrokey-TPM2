@@ -73,7 +73,7 @@ fn kernels_are_found_with_the_one_the_property_names() {
     let fake = machine();
     let kernels = with_boot(&fake, |boot| boot.kernels(BE));
     let versions: Vec<&str> = kernels.iter().map(|k| k.version.as_str()).collect();
-    assert_eq!(versions, ["6.1.10", "6.6.2"]);
+    assert_eq!(versions, ["6.6.2", "6.1.10"]);
     assert!(kernels.iter().all(|kernel| !kernel.is_default));
 
     let named = machine();
@@ -93,11 +93,33 @@ fn kernels_are_found_with_the_one_the_property_names() {
         })
     });
     let kernels = with_boot(&named, |boot| boot.kernels(BE));
-    assert!(kernels.first().is_some_and(|kernel| kernel.is_default));
+    let marked: Vec<&str> = kernels
+        .iter()
+        .filter(|kernel| kernel.is_default)
+        .map(|kernel| kernel.version.as_str())
+        .collect();
+    assert_eq!(marked, ["6.1.10"]);
 
     let missing = FakeSystem::new();
     missing.runner.respond_program("mount", 32, "");
     assert_eq!(with_boot(&missing, |boot| boot.kernels(BE)), []);
+}
+
+#[test]
+fn the_kernel_the_menu_shows_first_is_the_one_that_boots() {
+    let fake = machine();
+    let (shown, booted) = with_boot(&fake, |boot| {
+        let shown = boot
+            .kernels(BE)
+            .first()
+            .map(|kernel| kernel.version.clone());
+        let booted = kexec::select_kernel(boot.system, boot.state, BE)
+            .map(|kernel| kernel_version(&kernel.kernel));
+        (shown, booted)
+    });
+
+    assert_eq!(shown.as_deref(), Some("6.6.2"));
+    assert_eq!(shown, booted);
 }
 
 #[test]
