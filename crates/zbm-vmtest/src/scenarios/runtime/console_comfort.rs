@@ -41,8 +41,9 @@ const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
 const MARKER: &str = "zbmtest-Scroll-42x9Kq";
 const WRITE_MARKER: &str = "echo zbmtest-Scroll-$((6*7))x9Kq\n";
 
-/// Lines enough to scroll the marker off the screen.
-const ROWS: &str = "for i in $(seq 1 80); do echo zbm-row-$i; done\n";
+/// Lines enough to scroll the marker off the screen, counted by the
+/// shell: the image has no `seq`.
+const ROWS: &str = "i=0; while test $i -lt 80; do i=$((i+1)); echo zbm-row-$i; done\n";
 
 /// The pace of the VM.
 const PACE: Pace = Pace {
@@ -95,12 +96,14 @@ fn sendkey(vm: &Vm<'_>, key: &str) -> Result<()> {
     vm.monitor(&format!("sendkey {key} 50")).map(drop)
 }
 
-/// QEMU's names of the keys that type `text`, with `&` and `*`.
+/// QEMU's names of the keys that type `text`, with `&`, `*`, `=` and `+`.
 fn keys(text: &str) -> Option<Vec<String>> {
     text.chars()
         .map(|c| match c {
             '&' => Some(vec!["shift-7".to_owned()]),
             '*' => Some(vec!["shift-8".to_owned()]),
+            '=' => Some(vec!["equal".to_owned()]),
+            '+' => Some(vec!["shift-equal".to_owned()]),
             _ => names(&c.to_string()),
         })
         .collect::<Option<Vec<_>>>()
@@ -409,6 +412,10 @@ mod tests {
             assert!(!text.contains(MARKER), "{text}");
         }
         assert!(search().contains(&hex(MARKER.as_bytes())));
-        assert_eq!(keys("&*").unwrap(), ["shift-7", "shift-8"]);
+        assert_eq!(
+            keys("&*=+").unwrap(),
+            ["shift-7", "shift-8", "equal", "shift-equal"]
+        );
+        assert!(!ROWS.contains("seq"), "the image has no seq");
     }
 }
