@@ -739,8 +739,9 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, UI13, PM5, VE1, CD1, CD2, CD3, and the
-  [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026).
+- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, UI13, PM5, VE1, CD1, CD2, CD3.
+- The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
+  those that go with later items; their VM runs are left.
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
   test passing on the Rust runtime.
 
@@ -915,34 +916,24 @@ Decisions 10, 12 to 16 and 18 are decided by their ADRs in phase 0; decision 8 b
 
 ## Fixes left from the review of 27 October 2026
 
-The review of all the code before M4 found 34 groups of bugs; 1 to 9, 30 and 31 are fixed. The rest, by their
-numbers in that review, go in phase 0 unless an item above replaces them:
+The review of all the code before M4 found 34 groups of bugs. Phase 0 fixed 1 to 12, 15, 17 to 20, 26 and 28 to 34,
+and the part of 16 that needs no design (the screenshot's compression and the status line). The rest go with the
+items that replace the code they are in:
 
-| # | Fix | Where |
-| --- | --- | --- |
-| 10 | The PC speaker sounds on after the console ends | `zbm-console/src/host/status.rs` |
-| 11 | A keyboard device that also sends mouse events can freeze the programs' output | `zbm-console/src/host.rs` |
-| 12 | The kernel console stays raw when the console dies while relaying | `zbm-console/src/relay.rs`; supervisor |
-| 13 | A stale `console-released` record survives a dead console | goes with PM7 |
-| 14 | The font keys race `zbm console font` | goes with PM7 |
-| 15 | Copies of the screen in freed memory (`Console::text`, screenshot pixels) | `zbm-console` |
-| 16 | Slow work in the console's loop: compression at level 9, full repaints for bells, the status line rebuilt each pass | `zbm-console`; UI4 |
-| 17 | Confirmation dialogs can cut off their "Type … to confirm" line | `zbm-tui/src/menu/view/dialogs.rs` |
-| 18 | Changing the sort order moves the selection to another snapshot | `zbm-tui/src/menu/update/snapshots.rs` |
-| 19 | A failed boot from the command line editor leaves a blank screen; `o` does nothing in the main view; start-up dialogs' timers run fast on a noisy serial line | `zbm-tui` |
-| 20 | Duplicating into a locked parent asks for no key | `zbm-app/src/changes/needs.rs` |
-| 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs`; SB5 |
-| 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs`; SB5 |
-| 23 | The initramfs of prefixes other than `vmlinuz` changed name without a warning; `contrib/syslinux-update.sh` | `generate-zbm`; DM10 |
-| 24 | `zbm-kcl` rewrites the live EFI image in place | `zbm-kcl`; DM10 |
-| 25 | Versions such as `git-abc` are never pruned; firmware trimming under a symlinked build directory; `config.yaml` rewritten in place | `generate-zbm`; DM10 |
-| 26 | `org.zfsbootmenu:devicetree` accepts `..` | `zbm-boot/src/commandline.rs` |
-| 27 | `org.zfsbootmenu:rootprefix` can add kernel arguments | `zbm-boot`; DM3 |
-| 28 | One bad pool name hides every pool; a failed read/write import leaves the pool exported; the countdown ends at once at end of input; `zbm.retry_delay=0` with a missing device spins; the wrong crash report is named | `zbm-zfs`, `zbm-boot`, `zbm-startup`, `zbm` |
-| 29 | A FIFO as a key file hangs the boot; `zluks close` racing `zluks open`; `memfd_secret` without close-on-exec; mapping names that start with `-` | `zbm-luks`, `zbm-sys`, `zbm-types`; PM5 |
-| 32 | A parity test reads the host's `/etc/hostid` | `zbm-boot/src/commandline/tests.rs` |
-| 33 | Checks that can pass by mistake: an old screen dump, keys QEMU refused, `assert_ran!` joining arguments, the log secret check per write, an empty parity test, a fuzz target that returns at once | `zbm-vmtest`, `zbm-testkit`, `fuzz/` |
-| 34 | `cargo xtask test devices` skips `zbm-crypt`'s device tests; the secret search skips `/dev` and stops at an unreadable page; two VM patterns match half a line | `xtask`, `zbm`, `zbm-vmtest` |
+| # | Fix | Where | With |
+| --- | --- | --- | --- |
+| 13 | A stale `console-released` record survives a dead console | `zbm-console`, supervisor | PM7 |
+| 14 | The font keys race `zbm console font` | `zbm-console` | PM7 |
+| 16 | The full repaint for a bell | `zbm-console` | UI4 |
+| 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs` | SB5 |
+| 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs` | SB5 |
+| 23 | The initramfs of prefixes other than `vmlinuz` changed name without a warning; `contrib/syslinux-update.sh` | `generate-zbm` | DM10 |
+| 24 | `zbm-kcl` rewrites the live EFI image in place | `zbm-kcl` | DM10 |
+| 25 | Versions such as `git-abc` are never pruned; firmware trimming under a symlinked build directory; `config.yaml` rewritten in place | `generate-zbm` | DM10 |
+| 27 | `org.zfsbootmenu:rootprefix` can add kernel arguments | `zbm-boot` | DM3 |
+
+The fixes of phase 0 are in `CHANGELOG.md`, under "Fixes from the bug review before the console's M4". Their VM runs
+are left: the console, the menu, start-up, the supervisor and the LUKS code all changed in the images.
 
 ## Not planned
 
