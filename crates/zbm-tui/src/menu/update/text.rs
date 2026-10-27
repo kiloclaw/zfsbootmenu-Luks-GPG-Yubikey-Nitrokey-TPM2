@@ -207,6 +207,9 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
                 model.editor = Some(editor);
                 return Vec::new();
             }
+            // The editor gives its line to the boot and closes: when the boot
+            // fails, or the environment has gone, the main view says so.
+            model.screen = Screen::Main;
             let Some(environment) = model
                 .snapshot
                 .environments

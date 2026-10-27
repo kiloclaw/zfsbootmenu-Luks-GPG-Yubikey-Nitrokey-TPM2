@@ -16,7 +16,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                j  Chroot                                                                                             │
 │                /  Filter                                                                                             │
 │                :  Commands                                                                                           │
-│                o  Sort                                                                                               │
 │                l  Log                                                                                                │
 │                !  Recovery                                                                                           │
 │                x  Power                                                                                              │
@@ -39,5 +38,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │            MOD+P  Pools                                                                                              │
 │            MOD+R  Shell                                                                                              │
 │            MOD+J  Chroot                                                                                             │
+│            MOD+W  Read/Write                                                                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  Esc Back   Up/Down Scroll

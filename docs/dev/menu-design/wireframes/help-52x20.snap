@@ -16,8 +16,8 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                j  Chroot                         │
 │                /  Filter                         │
 │                :  Commands                       │
-│                o  Sort                           │
 │                l  Log                            │
 │                !  Recovery                       │
+│                x  Power                          │
 └──────────────────────────────────────────────────┘
  Esc Back   Up/Down Scroll

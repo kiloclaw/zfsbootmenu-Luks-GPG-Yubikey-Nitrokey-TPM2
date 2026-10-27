@@ -61,6 +61,7 @@ fn options(locked: bool, foreign: bool) -> DemoOptions {
 /// Every wireframe.
 fn wireframes() -> Vec<Wireframe> {
     let mut all = first_wireframes();
+    all.extend(snapshot_wireframes());
     all.extend(unlock_wireframes());
     all.extend(naming_wireframes());
     all
@@ -68,7 +69,7 @@ fn wireframes() -> Vec<Wireframe> {
 
 /// The wireframes of naming a clone and a snapshot.
 fn naming_wireframes() -> Vec<Wireframe> {
-    use Key::{Char, Text};
+    use Key::{Char, Code, Text};
     let frame = |name, keys| Wireframe {
         name,
         options: options(false, false),
@@ -76,7 +77,16 @@ fn naming_wireframes() -> Vec<Wireframe> {
         keys,
     };
     vec![
-        frame("clone-name", &[Char('s'), Char('o'), Char('c'), Text("-2")]),
+        frame(
+            "clone-name",
+            &[
+                Char('s'),
+                Char('o'),
+                Code(KeyCode::Home),
+                Char('c'),
+                Text("-2"),
+            ],
+        ),
         frame("snapshot-name", &[Char('n')]),
     ]
 }
@@ -121,7 +131,13 @@ fn unlock_wireframes() -> Vec<Wireframe> {
         frame(
             "diff-packages",
             options(false, false),
-            &[Char('s'), Char('o'), Char('f'), Code(KeyCode::Right)],
+            &[
+                Char('s'),
+                Char('o'),
+                Code(KeyCode::Home),
+                Char('f'),
+                Code(KeyCode::Right),
+            ],
         ),
     ]
 }
@@ -141,19 +157,6 @@ fn first_wireframes() -> Vec<Wireframe> {
         frame("main", plain(), 50, &[]),
         frame("main-filter", plain(), 50, &[Char('/'), Text("ta")]),
         frame("kernels", plain(), 50, &[Char('k')]),
-        frame("snapshots", plain(), 50, &[Char('s'), Char('o')]),
-        frame(
-            "snapshot-actions",
-            plain(),
-            50,
-            &[Char('s'), Char('o'), Code(KeyCode::Enter)],
-        ),
-        frame(
-            "rollback-confirm",
-            plain(),
-            50,
-            &[Char('s'), Char('o'), Char('r'), Text("vo")],
-        ),
         frame(
             "command-line",
             plain(),
@@ -192,14 +195,49 @@ fn first_wireframes() -> Vec<Wireframe> {
                 Code(KeyCode::Enter),
             ],
         ),
-        frame("diff", plain(), 50, &[Char('s'), Char('o'), Char('f')]),
+    ]
+}
+
+/// The wireframes of the snapshots view, sorted newest first.
+fn snapshot_wireframes() -> Vec<Wireframe> {
+    use Key::{Char, Code, Text};
+    let frame = |name, keys| Wireframe {
+        name,
+        options: options(false, false),
+        ticks: 50,
+        keys,
+    };
+    vec![
+        frame("snapshots", &[Char('s'), Char('o'), Code(KeyCode::Home)]),
         frame(
-            "diff-marked",
-            plain(),
-            50,
+            "snapshot-actions",
             &[
                 Char('s'),
                 Char('o'),
+                Code(KeyCode::Home),
+                Code(KeyCode::Enter),
+            ],
+        ),
+        frame(
+            "rollback-confirm",
+            &[
+                Char('s'),
+                Char('o'),
+                Code(KeyCode::Home),
+                Char('r'),
+                Text("vo"),
+            ],
+        ),
+        frame(
+            "diff",
+            &[Char('s'), Char('o'), Code(KeyCode::Home), Char('f')],
+        ),
+        frame(
+            "diff-marked",
+            &[
+                Char('s'),
+                Char('o'),
+                Code(KeyCode::Home),
                 Char('f'),
                 Char(' '),
                 Code(KeyCode::Down),
@@ -210,11 +248,10 @@ fn first_wireframes() -> Vec<Wireframe> {
         ),
         frame(
             "restore-confirm",
-            plain(),
-            50,
             &[
                 Char('s'),
                 Char('o'),
+                Code(KeyCode::Home),
                 Char('f'),
                 Char(' '),
                 Code(KeyCode::Down),

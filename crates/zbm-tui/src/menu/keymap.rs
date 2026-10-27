@@ -299,7 +299,7 @@ pub const KEYMAP: &[Binding] = &[
         Intent::Palette,
         Footer::Key,
     ),
-    key('o', &[Main, Snapshots], Intent::Sort),
+    key('o', &[Snapshots], Intent::Sort),
     key('l', ALL_VIEWS, Intent::Log),
     key('!', ALL_VIEWS, Intent::Recovery),
     key('x', ALL_VIEWS, Intent::Power),

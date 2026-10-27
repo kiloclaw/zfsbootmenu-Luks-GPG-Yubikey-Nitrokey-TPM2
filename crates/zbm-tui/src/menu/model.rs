@@ -274,10 +274,35 @@ impl Model {
         self.refresh_with(None);
     }
 
+    /// Sorts the snapshots by `sort`. The selection is read in the old order,
+    /// so a rollback takes the snapshot shown selected before.
+    pub fn set_sort(&mut self, sort: Sort) {
+        let selected = self.selected_names();
+        self.sort = sort;
+        self.refresh_keeping(None, selected);
+    }
+
+    /// The names of the selected environment and snapshot.
+    fn selected_names(&self) -> (Option<String>, Option<String>) {
+        (
+            self.selected_environment().map(|e| e.name.to_string()),
+            self.selected_snapshot().map(|s| s.name.name().to_owned()),
+        )
+    }
+
     /// [`Model::refresh`], with `new` in place of the snapshot when given.
     fn refresh_with(&mut self, new: Option<Snapshot>) {
-        let environment = self.selected_environment().map(|e| e.name.to_string());
-        let snapshot = self.selected_snapshot().map(|s| s.name.name().to_owned());
+        let selected = self.selected_names();
+        self.refresh_keeping(new, selected);
+    }
+
+    /// [`Model::refresh_with`], keeping the environment and snapshot named.
+    fn refresh_keeping(
+        &mut self,
+        new: Option<Snapshot>,
+        selected: (Option<String>, Option<String>),
+    ) {
+        let (environment, snapshot) = selected;
         if let Some(new) = new {
             self.snapshot = new;
         }

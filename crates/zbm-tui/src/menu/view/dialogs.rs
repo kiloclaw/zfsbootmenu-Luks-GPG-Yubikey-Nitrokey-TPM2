@@ -92,13 +92,13 @@ fn alert_width(area: Rect) -> u16 {
     area.width.saturating_sub(4).min(ALERT_WIDTH)
 }
 
-/// The rows `lines` take wrapped in `width` columns.
+/// The rows `lines` take wrapped in `width` columns, as the paragraph that
+/// draws them wraps them: at word boundaries, so that a dialog is tall
+/// enough for its last line, the typed confirmation of a destructive one.
 fn wrapped(lines: &[Line<'_>], width: u16) -> u16 {
-    let width = usize::from(width.max(1));
-    let rows: usize = lines
-        .iter()
-        .map(|line| line.width().div_ceil(width).max(1))
-        .sum();
+    let rows = Paragraph::new(lines.to_vec())
+        .wrap(Wrap { trim: false })
+        .line_count(width.max(1));
     u16::try_from(rows).unwrap_or(u16::MAX)
 }
 

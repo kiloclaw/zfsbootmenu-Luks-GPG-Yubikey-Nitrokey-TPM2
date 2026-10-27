@@ -149,6 +149,7 @@ fn diff() -> Session {
     let mut session = started();
     session.key(KeyCode::Char('s'));
     session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Home);
     session.key(KeyCode::Char('f'));
     session
 }

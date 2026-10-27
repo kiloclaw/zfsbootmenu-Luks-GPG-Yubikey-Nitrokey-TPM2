@@ -47,6 +47,25 @@ fn snapshots_sort_by_name_creation_or_size() {
 }
 
 #[test]
+fn a_new_sort_order_keeps_the_snapshot_selected() {
+    let mut model = model();
+    model.focus = Some("zroot/ROOT/void".parse().unwrap());
+    model.refresh();
+    model.snapshots.selected = 3;
+    let chosen = model.selected_snapshot().unwrap().name.clone();
+
+    for _ in 0..3 {
+        model.set_sort(model.sort.next());
+        assert_eq!(
+            model.selected_snapshot().map(|s| &s.name),
+            Some(&chosen),
+            "sorted by {:?}",
+            model.sort
+        );
+    }
+}
+
+#[test]
 fn the_pools_view_lists_pools_then_volumes() {
     let mut model = model();
 

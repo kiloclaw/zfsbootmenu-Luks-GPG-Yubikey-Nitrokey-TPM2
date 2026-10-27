@@ -16,7 +16,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │                j  Chroot                                                     │
 │                /  Filter                                                     │
 │                :  Commands                                                   │
-│                o  Sort                                                       │
 │                l  Log                                                        │
 │                !  Recovery                                                   │
 │                x  Power                                                      │
@@ -24,5 +23,6 @@ source: crates/zbm-tui/src/menu/view/wireframes.rs
 │      Esc, Ctrl-C  Back                                                       │
 │       Up, Ctrl-P  Select                                                     │
 │     Down, Ctrl-N  Select                                                     │
+│             PgUp  Move                                                       │
 └──────────────────────────────────────────────────────────────────────────────┘
  Esc Back   Up/Down Scroll

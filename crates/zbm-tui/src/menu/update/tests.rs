@@ -122,9 +122,10 @@ fn t4_a_snapshot_boots_as_a_clone() {
 
     session.key(KeyCode::Char('s'));
     session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Home);
     session.key(KeyCode::Char('b'));
 
-    assert_eq!(session.keys(), 3);
+    assert_eq!(session.keys(), 4);
     let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
     assert_eq!(session.actions, [Action::BootSnapshot(snapshot)]);
 }
@@ -134,6 +135,7 @@ fn t4_a_rollback_needs_the_name_typed() {
     let mut session = started();
     session.key(KeyCode::Char('s'));
     session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Home);
 
     session.key(KeyCode::Char('r'));
     session.type_text("voi");
@@ -157,6 +159,7 @@ fn a_promotion_needs_the_environment_s_name_typed_after_its_own() {
     let mut session = started();
     session.key(KeyCode::Char('s'));
     session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Home);
 
     session.key(KeyCode::Char('m'));
     session.key(KeyCode::Enter);
@@ -183,6 +186,7 @@ fn new_environments_and_snapshots_are_named_first() {
     let mut session = started();
     session.key(KeyCode::Char('s'));
     session.key(KeyCode::Char('o'));
+    session.key(KeyCode::Home);
     session.key(KeyCode::Char('c'));
     session.key(KeyCode::Backspace);
     session.key(KeyCode::Backspace);
@@ -265,6 +269,10 @@ fn t6_the_command_line_is_edited_for_one_boot() {
         session.actions,
         [boot_action("zroot/ROOT/void", None, Some(line))]
     );
+    // If that boot fails, the menu is there to say so: the editor gave its
+    // line to the boot and is gone, so the main view is shown, not an
+    // empty editor.
+    assert_eq!(session.model().screen, Screen::Main);
 }
 
 #[test]

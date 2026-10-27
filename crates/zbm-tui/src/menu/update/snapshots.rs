@@ -16,8 +16,7 @@ const MARKS: usize = 2;
 /// What `intent` does on the snapshots view.
 pub(super) fn intent(model: &mut Model, intent: Intent) -> Vec<Action> {
     if intent == Intent::Sort {
-        model.sort = model.sort.next();
-        model.refresh();
+        model.set_sort(model.sort.next());
         return Vec::new();
     }
     if intent == Intent::NewSnapshot {

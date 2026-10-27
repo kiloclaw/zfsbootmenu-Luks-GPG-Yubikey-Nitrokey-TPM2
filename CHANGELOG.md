@@ -260,6 +260,15 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   reference images of the tests keep the best). The text of the screen is measured before it is built, so that a
   screen full of combining marks no longer outgrows its string.
 - The status line is made again only when what it shows changes, instead of on every pass of the console's loop.
+- The menu's dialogs are as tall as their text wrapped on the screen: a long word, or a line that wraps where the
+  old estimate did not expect it, no longer pushes the last line (such as a confirmation being typed) out of sight.
+- Changing the sort order of the snapshots keeps the selected snapshot selected, instead of selecting another one
+  that then got rolled back to, cloned or diffed.
+- The menu shows the main view after a boot with an edited command line fails, instead of an empty screen.
+- `o` (and `MOD+O`) sorts the snapshots view only: in the main view it did nothing, as the environments carry no
+  creation time or size, and the help view listed it there.
+- Start-up's dialogs count the time that passed: on a serial line, bytes that make no key ended each wait early and
+  counted as a full tick, so a dialog's countdown ran out sooner than it said.
 
 ### The parity-only parts removed
 

@@ -15,6 +15,7 @@ use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::{Position, Rect, Size};
+use zbm_platform::clock::{Clock, SystemClock};
 
 use super::model::Model;
 use super::secret::{Marker, is_asking_secret};
@@ -118,6 +119,8 @@ pub struct StartupView<B: Backend, K: Keys> {
     /// Where the view records its secret prompts for the console on the
     /// display, if anywhere.
     marker: Option<Marker>,
+    /// The clock the dialogs' time passes on.
+    clock: Box<dyn Clock>,
 }
 
 /// Whether `action` answers a dialog of start-up.
@@ -156,6 +159,7 @@ where
             terminal,
             keys,
             marker: None,
+            clock: Box::new(SystemClock::new()),
         };
         drawn(view.terminal.clear())?;
         view.draw()?;
@@ -167,6 +171,13 @@ where
     #[must_use]
     pub fn with_marker(mut self, marker: Marker) -> StartupView<B, K> {
         self.marker = Some(marker);
+        self
+    }
+
+    /// The view, which measures the time of its dialogs on `clock`.
+    #[must_use]
+    pub fn with_clock(mut self, clock: impl Clock + 'static) -> StartupView<B, K> {
+        self.clock = Box::new(clock);
         self
     }
 
@@ -251,17 +262,26 @@ where
         event: &Event,
         check: &mut dyn FnMut() -> Option<Action>,
     ) -> io::Result<Action> {
-        let ms = u64::try_from(TICK.as_millis()).unwrap_or(u64::MAX);
         let _ = self.step(Message::Event(Box::new(event.clone())));
+        let mut last_tick = self.clock.now();
         loop {
             self.draw()?;
-            let message = match self.keys.key(TICK)? {
-                Some(key) => Message::Key(key),
-                None => Message::Tick(ms),
+            // A read can end before the tick with no key, as noise on a
+            // serial line does: the dialog's time is the time that passed.
+            let passed = self.clock.now().saturating_sub(last_tick);
+            let mut answers = match self.keys.key(TICK.saturating_sub(passed))? {
+                Some(key) => self.step(Message::Key(key)),
+                None => Vec::new(),
             };
+            let passed = self.clock.now().saturating_sub(last_tick);
+            if !answers.iter().any(is_answer) && passed >= TICK {
+                last_tick = self.clock.now();
+                let ms = u64::try_from(passed.as_millis()).unwrap_or(u64::MAX);
+                answers.extend(self.step(Message::Tick(ms)));
+            }
             // The dialog answered closes at once on the screen, before
             // what the answer starts.
-            if let Some(answer) = self.step(message).into_iter().find(is_answer) {
+            if let Some(answer) = answers.into_iter().find(is_answer) {
                 self.draw()?;
                 return Ok(answer);
             }

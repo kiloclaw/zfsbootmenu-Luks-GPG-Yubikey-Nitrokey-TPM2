@@ -34,7 +34,7 @@ pub const CLASSIC: &[(char, &[(Context, Intent)])] = &[
     ),
     ('j', &[(Main, Intent::Chroot), (Snapshots, Intent::Chroot)]),
     ('w', &[(Main, Intent::ReadWrite)]),
-    ('o', &[(Main, Intent::Sort), (Snapshots, Intent::Sort)]),
+    ('o', &[(Snapshots, Intent::Sort)]),
     (
         'l',
         &[

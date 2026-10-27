@@ -48,7 +48,7 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `p` | pools and volumes | main |
 | `w` | import the pool of the selection read/write | main, pools |
 | `j` | chroot into the selection (snapshots: read-only) | main, snapshots |
-| `o` | sort order: name, creation, size | lists |
+| `o` | sort order: name, creation, size | snapshots |
 | `l` | the log | every view |
 | `!` | recovery tools | every view |
 | `x` | power: power off, reboot, firmware setup | every view |
@@ -82,12 +82,15 @@ keeps working, with its old meaning in its old view, as an alias that the help v
 | `MOD+R` | recovery shell | roll back | | rewind checkpoint |
 | `MOD+J` | chroot | chroot | | |
 | `MOD+W` | import read/write | | | |
-| `MOD+O` | sort order | sort order | | |
+| `MOD+O` | | sort order | | |
 | `MOD+L` | log | log | log | log |
 | `MOD+X` | power | clone and promote | | |
 | `MOD+C` | | clone | | |
 | `MOD+N` | | new snapshot | | |
 | `MOD+U` | | | inherit the default | |
+
+The `fzf` menu's `MOD+O` also sorted the main list; the environments carry no creation time or size to sort by,
+so here it sorts the snapshots view only.
 
 So people who know the `fzf` menu keep their habits, and new users learn the letters from the footer. The new
 letters hold no modifier, so the two maps meet only where the new map gives `Ctrl` a meaning of every view (`Ctrl-C`

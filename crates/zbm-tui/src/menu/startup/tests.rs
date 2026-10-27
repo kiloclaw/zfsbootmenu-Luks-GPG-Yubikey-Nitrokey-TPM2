@@ -5,17 +5,31 @@ use std::rc::Rc;
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use zbm_testkit::fakes::FakeClock;
 use zbm_types::Answer;
 
 use super::*;
 use crate::menu::caps::Capabilities;
 use crate::menu::world::{Method, Question, Stage, StageState};
 
-/// Keys typed in advance (`None`: a tick passes without one), what was
-/// done to the terminal's mode, and the terminal's size, when known.
+/// What a read of the terminal gives.
+#[derive(Clone, Copy)]
+enum Read {
+    /// A key.
+    Key(KeyEvent),
+    /// No key before the read's time ran out: the time passes.
+    Tick,
+    /// No key, at once: bytes that make no key, as noise on a serial line.
+    Noise,
+}
+
+/// Keys typed in advance (with no more, ticks pass), the clock the time
+/// waiting for them passes on, what was done to the terminal's mode, and the
+/// terminal's size, when known.
 #[derive(Clone, Default)]
 struct Scripted {
-    keys: Rc<RefCell<VecDeque<Option<KeyEvent>>>>,
+    keys: Rc<RefCell<VecDeque<Read>>>,
+    clock: FakeClock,
     modes: Rc<RefCell<Vec<&'static str>>>,
     size: Rc<Cell<Option<(u16, u16)>>>,
 }
@@ -23,17 +37,25 @@ struct Scripted {
 impl Scripted {
     fn typed(&self, text: &str) {
         let mut keys = self.keys.borrow_mut();
-        keys.extend(text.chars().map(|c| Some(key(KeyCode::Char(c)))));
+        keys.extend(text.chars().map(|c| Read::Key(key(KeyCode::Char(c)))));
     }
 
     fn press(&self, code: KeyCode) {
-        self.keys.borrow_mut().push_back(Some(key(code)));
+        self.keys.borrow_mut().push_back(Read::Key(key(code)));
     }
 
     fn ticks(&self, count: usize) {
+        self.reads(Read::Tick, count);
+    }
+
+    fn noise(&self, count: usize) {
+        self.reads(Read::Noise, count);
+    }
+
+    fn reads(&self, read: Read, count: usize) {
         self.keys
             .borrow_mut()
-            .extend(std::iter::repeat_n(None, count));
+            .extend(std::iter::repeat_n(read, count));
     }
 }
 
@@ -42,8 +64,16 @@ fn key(code: KeyCode) -> KeyEvent {
 }
 
 impl Keys for Scripted {
-    fn key(&mut self, _timeout: Duration) -> io::Result<Option<KeyEvent>> {
-        Ok(self.keys.borrow_mut().pop_front().flatten())
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
+        let read = self.keys.borrow_mut().pop_front();
+        match read.unwrap_or(Read::Tick) {
+            Read::Key(key) => Ok(Some(key)),
+            Read::Tick => {
+                self.clock.advance(timeout);
+                Ok(None)
+            }
+            Read::Noise => Ok(None),
+        }
     }
 
     fn release(&mut self) -> io::Result<()> {
@@ -82,7 +112,9 @@ fn snapshot() -> Snapshot {
 fn view(keys: &Scripted) -> StartupView<TestBackend, Scripted> {
     let terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
     let theme = Theme::new(Capabilities::FULL);
-    StartupView::new(terminal, keys.clone(), snapshot(), theme).unwrap()
+    StartupView::new(terminal, keys.clone(), snapshot(), theme)
+        .unwrap()
+        .with_clock(keys.clock.clone())
 }
 
 /// What the terminal of `view` shows.
@@ -165,6 +197,28 @@ fn escape_skips_and_the_time_running_out_goes_on() {
     let answer = view.ask(&asked, &mut || None).unwrap();
     assert_eq!(answer, Action::Answer(Answer::Continue));
     assert!(keys.keys.borrow().is_empty());
+}
+
+#[test]
+fn noise_on_the_line_does_not_make_the_dialog_s_time_run_out_early() {
+    let keys = Scripted::default();
+    // Reads that end at once with no key, then the dialog's second.
+    keys.noise(10);
+    keys.ticks(5);
+    let mut view = view(&keys);
+    let asked = Event::Asked {
+        question: Question::MissingDevices,
+        seconds: Some(1),
+    };
+
+    let answer = view.ask(&asked, &mut || None).unwrap();
+
+    assert_eq!(answer, Action::Answer(Answer::Continue));
+    assert!(
+        keys.keys.borrow().is_empty(),
+        "the time ran out with {} reads still to come",
+        keys.keys.borrow().len()
+    );
 }
 
 #[test]
