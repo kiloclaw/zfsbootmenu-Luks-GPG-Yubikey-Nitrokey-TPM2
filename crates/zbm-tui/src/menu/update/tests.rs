@@ -153,6 +153,32 @@ fn t4_a_rollback_needs_the_name_typed() {
 }
 
 #[test]
+fn a_promotion_needs_the_environment_s_name_typed_after_its_own() {
+    let mut session = started();
+    session.key(KeyCode::Char('s'));
+    session.key(KeyCode::Char('o'));
+
+    session.key(KeyCode::Char('m'));
+    session.key(KeyCode::Enter);
+    let named = session.actions.clone();
+    let asks =
+        matches!(&session.model().dialog, Some(Dialog::Confirm { name, .. }) if name == "void");
+    session.type_text("void");
+    session.key(KeyCode::Enter);
+
+    assert_eq!(named, []);
+    assert!(asks, "{:?}", session.model().dialog);
+    let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
+    assert_eq!(
+        session.actions,
+        [Action::CloneAndPromote(
+            snapshot,
+            "zroot/ROOT/void_NEW".parse().unwrap()
+        )]
+    );
+}
+
+#[test]
 fn new_environments_and_snapshots_are_named_first() {
     let mut session = started();
     session.key(KeyCode::Char('s'));

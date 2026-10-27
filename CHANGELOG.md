@@ -224,6 +224,8 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   is the one that boots, and the kernels view no longer starts on the oldest.
 - Rust images: start-up counts down and boots by itself when the menu crashes (a panic, or a signal), not only when
   it says it could not start.
+- The menu asks for the environment's name to be typed before it clones and promotes a snapshot, as before every
+  other change that cannot be undone; naming the clone and pressing Enter no longer promotes it at once.
 
 ### The new menu's text in a message catalogue
 

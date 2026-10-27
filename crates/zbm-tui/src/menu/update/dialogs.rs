@@ -4,7 +4,7 @@ use zbm_types::{Answer, ImportPolicy, PoolName};
 
 use super::screens;
 use crate::menu::keymap::{Input, Intent};
-use crate::menu::model::{Asking, Choice, Dialog, Model, Naming, Then, is_name_char};
+use crate::menu::model::{Asking, Choice, Dialog, Make, Model, Naming, Then, is_name_char};
 use crate::menu::world::{Action, Outcome};
 use crate::text::text;
 
@@ -290,7 +290,7 @@ fn named(model: &mut Model, input: Input, mut naming: Naming) -> Vec<Action> {
                     model.notification =
                         Some(Outcome::Warning(text!("name-taken", name = full.as_str())));
                 }
-                Some(action) => return vec![action],
+                Some(action) => return made(model, naming, action),
                 None => {
                     model.notification = Some(Outcome::Warning(text!("name-empty")));
                 }
@@ -299,5 +299,22 @@ fn named(model: &mut Model, input: Input, mut naming: Naming) -> Vec<Action> {
         Input::Type(_) | Input::Intent(_) => {}
     }
     model.dialog = Some(Dialog::Name(naming));
+    Vec::new()
+}
+
+/// What `action`, the making of `naming`, does once named: a promotion,
+/// which leaves the environment depending on the clone, asks for the
+/// environment's name to be typed; the others go ahead.
+fn made(model: &mut Model, naming: Naming, action: Action) -> Vec<Action> {
+    let Make::Promote(snapshot) = &naming.make else {
+        return vec![action];
+    };
+    let name = snapshot.dataset().last_component().to_owned();
+    model.dialog = Some(confirm(Then::Confirm {
+        action,
+        title: naming.title,
+        lines: naming.lines,
+        name,
+    }));
     Vec::new()
 }
