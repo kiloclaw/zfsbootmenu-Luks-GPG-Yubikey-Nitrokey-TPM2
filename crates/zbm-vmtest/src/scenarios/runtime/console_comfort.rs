@@ -126,7 +126,9 @@ fn search() -> String {
 /// The places the search found the marker in the console's memory, from
 /// the serial console.
 fn found_in_console(vm: &mut Vm<'_>) -> Result<Option<Vec<String>>> {
-    if vm.expect1(r"ZBMTEST-CONSOLE-(\d+)", 120).is_err() {
+    // To the end of the line: a process ID read while its digits still
+    // arrive would find nothing, and pass the check after the prompt.
+    if vm.expect1(r"ZBMTEST-CONSOLE-(\d+)\r?\n", 120).is_err() {
         return Ok(None);
     }
     let pid = vm.group(1);
@@ -356,6 +358,31 @@ mod tests {
         assert!(
             found.iter().all(|line| line.starts_with("ok")),
             "{found:#?}"
+        );
+    }
+
+    #[test]
+    fn the_console_s_process_id_is_read_whole() {
+        let settings = settings("runtime-console-comfort-pid");
+        let test = Test::new(&settings, "runtime-rust-console-comfort").unwrap();
+        let script = vec![
+            Step::Say("ZBMTEST-CONSOLE-4"),
+            Step::Pause(300),
+            Step::Say("2\r\n"),
+            Step::Say("found secret 0 in process 42 (zbm) memory 0-40 [heap]\r\n"),
+            Step::Say("ZBMTEST-SEARCH-END\r\n"),
+        ];
+        let (mut vm, guest) = scripted(&test, script);
+
+        let found = found_in_console(&mut vm).unwrap();
+
+        assert_eq!(guest.finish(), Vec::<String>::new());
+        cleanup(&settings);
+        assert_eq!(
+            found,
+            Some(vec![
+                "found secret 0 in process 42 (zbm) memory 0-40 [heap]".to_owned()
+            ])
         );
     }
 

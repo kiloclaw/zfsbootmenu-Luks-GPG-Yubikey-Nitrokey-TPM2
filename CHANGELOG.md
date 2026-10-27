@@ -247,6 +247,9 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The VM tests build their images again when a patched crate (`patches/`) or `rust-toolchain.toml` changes: with
   `ZBMTEST_REUSE=1`, an image built before a change to the patched terminal or shell was reused, and the tests
   checked the old code.
+- `runtime-rust-console-comfort` reads the console's process ID to the end of its line: read while its digits still
+  arrived, it named another process, and the check that the scrollback is wiped at a secret prompt passed whatever
+  the console's memory held.
 
 ### The new menu's text in a message catalogue
 
