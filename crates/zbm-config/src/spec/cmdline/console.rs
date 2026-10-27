@@ -248,6 +248,9 @@ pub static CONSOLE_SCROLLBACK: OptionSpec = OptionSpec {
     examples: &["zbm.console_scrollback=0", "zbm.console_scrollback=10000"],
 };
 
+/// The most lines of history `zbm.console_scrollback` may ask for.
+pub const MAX_SCROLLBACK: usize = 100_000;
+
 /// The colour schemes of the console on the display.
 pub const PALETTES: &[&str] = &[
     "linux",
@@ -330,6 +333,30 @@ pub static KEYBOARD_LAYOUTS: OptionSpec = OptionSpec {
     deprecation: None,
     examples: &["zbm.keyboard_layouts=046d:c31c=de,1a2c:0e24=fr"],
 };
+
+/// Whether `name` is a keyboard layout's name as the console on the
+/// display takes it, in `zbm.keyboard_layouts`: a layout and perhaps a
+/// variant in parentheses (`de`, `de(nodeadkeys)`), each of ASCII letters,
+/// digits, `_` and `-`.
+///
+/// ```
+/// use zbm_config::spec::cmdline::is_layout_name;
+///
+/// assert!(is_layout_name("de(nodeadkeys)"));
+/// assert!(!is_layout_name("de("));
+/// ```
+pub fn is_layout_name(name: &str) -> bool {
+    let is_word = |part: &str| {
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    };
+    match name.split_once('(') {
+        Some((layout, rest)) => is_word(layout) && rest.strip_suffix(')').is_some_and(is_word),
+        None => is_word(name),
+    }
+}
 
 /// What the bell of the console on the display can do.
 pub const BELLS: &[&str] = &["none", "visual", "audible", "both"];

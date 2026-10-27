@@ -105,8 +105,9 @@ Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
 /// display of 192 columns.
 pub const SCROLLBACK: usize = 2000;
 
-/// The most lines of scrollback that may be asked for.
-pub const MAX_SCROLLBACK: usize = 100_000;
+/// The most lines of scrollback that may be asked for, as start-up checks
+/// them.
+pub const MAX_SCROLLBACK: usize = zbm_config::spec::cmdline::MAX_SCROLLBACK;
 
 /// How long `zbm console release` waits by default.
 const RELEASE_TIMEOUT: Duration = Duration::from_secs(3);

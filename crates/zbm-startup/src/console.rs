@@ -16,7 +16,8 @@ use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
     AUTOSIZE, BELLS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
     CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE,
-    KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
+    KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, MAX_SCROLLBACK, NUM_LOCK, PALETTES,
+    is_layout_name,
 };
 use zbm_platform::System;
 
@@ -72,12 +73,6 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
 /// keyboard, by vendor and product, and a layout.
 fn keyboard_layouts(value: &str) -> Vec<&str> {
     let is_hex = |part: &str| part.len() == 4 && part.bytes().all(|b| b.is_ascii_hexdigit());
-    let is_layout = |name: &str| {
-        !name.is_empty()
-            && name
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'(' | b')'))
-    };
     value
         .trim()
         .split(',')
@@ -86,7 +81,7 @@ fn keyboard_layouts(value: &str) -> Vec<&str> {
                 return false;
             };
             let (vendor, product) = id.split_once(':').unwrap_or_default();
-            is_hex(vendor) && is_hex(product) && is_layout(name)
+            is_hex(vendor) && is_hex(product) && is_layout_name(name)
         })
         .collect()
 }
@@ -104,7 +99,9 @@ const VALUES: [(&OptionSpec, &str, IsValid); 7] = [
         repeat(value).is_some()
     }),
     (&CONSOLE_SCROLLBACK, "--scrollback", |value| {
-        value.parse::<u32>().is_ok()
+        value
+            .parse::<usize>()
+            .is_ok_and(|lines| lines <= MAX_SCROLLBACK)
     }),
     (&CONSOLE_PALETTE, "--palette", |value| {
         PALETTES.contains(&value)
@@ -211,6 +208,19 @@ mod tests {
         assert_eq!(
             console("zbm.console=drm zbm.numlock=yes zbm.keyboard_repeat=fast"),
             words("console")
+        );
+        // So are values the console would refuse, which would keep it from
+        // starting at all.
+        assert_eq!(
+            console(
+                "zbm.console=drm zbm.console_scrollback=200000 \
+                 zbm.keyboard_layouts=046d:c31c=de(,046d:c31d=(de),046d:c31e=de)x"
+            ),
+            words("console")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.console_scrollback=100000"),
+            words("console --scrollback 100000")
         );
     }
 

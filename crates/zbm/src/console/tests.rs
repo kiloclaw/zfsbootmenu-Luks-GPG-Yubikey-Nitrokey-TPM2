@@ -98,6 +98,42 @@ fn options_are_parsed_and_wrong_ones_refused() {
 }
 
 #[test]
+fn the_console_takes_every_option_start_up_passes_on() {
+    for name in [
+        "de",
+        "de(nodeadkeys)",
+        "fr(azerty)",
+        "br-abnt2",
+        "de(",
+        "(de)",
+        "de)x",
+        "()",
+        "de()",
+        "de(a)(b)",
+        "d e",
+        "",
+    ] {
+        assert_eq!(
+            zbm_config::spec::cmdline::is_layout_name(name),
+            zbm_display::layout::compile::split(name).is_ok(),
+            "{name:?}"
+        );
+    }
+    for line in [
+        "zbm.console=drm zbm.console_scrollback=200000 zbm.keyboard_layouts=046d:c31c=de(",
+        "zbm.console=drm zbm.console_scrollback=100000 zbm.keyboard_layouts=046d:c31c=fr(azerty)",
+        "zbm.console=drm zbm.console_palette=tango zbm.console_bell=both zbm.keyboard_compose=menu",
+        "zbm.console=drm zbm.numlock=on zbm.keyboard_repeat=250,30 zbm.autosize=48",
+    ] {
+        let arguments = zbm_startup::console::arguments(&line.replace(' ', "\n")).unwrap();
+        assert!(
+            parse(arguments.get(1..).unwrap_or_default()).is_some(),
+            "{line}: {arguments:?}"
+        );
+    }
+}
+
+#[test]
 fn wrong_options_show_the_usage() {
     let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
     let mut io = Io {
