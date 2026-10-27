@@ -12,11 +12,25 @@ pub struct ModeDesc {
     pub preferred: bool,
 }
 
+/// Whether a display is on a connector, as the kernel knows it.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Link {
+    /// No display.
+    #[default]
+    Disconnected,
+    /// A display.
+    Connected,
+    /// The kernel cannot tell, such as on a VGA output whose monitor does
+    /// not answer, or behind some docks: the kernel console uses such a
+    /// connector when none is connected, and so does the console.
+    Unknown,
+}
+
 /// A connector, by what choosing an output needs to know of it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ConnectorDesc {
     /// Whether a display is connected.
-    pub connected: bool,
+    pub link: Link,
     /// Its modes, in the device's order.
     pub modes: Vec<ModeDesc>,
     /// The CRTC it is scanned out by now, as an index into the device's
@@ -40,36 +54,42 @@ pub struct Choice {
     pub crtc: usize,
 }
 
-/// The output the kernel console shows, else the first connected one:
-/// the first connected connector that has a mode and a CRTC and is scanned
-/// out now, else the first that has a mode and a CRTC. A closed laptop's
-/// panel is then left dark when the kernel console is on another monitor.
+/// The output the kernel console shows, else the first connected one, as
+/// the kernel console chooses: the first connector, connected or of
+/// unknown state, that has a mode and is scanned out now; else the first
+/// connected one that has a mode and a CRTC; else the first of unknown
+/// state. A closed laptop's panel is then left dark when the kernel console
+/// is on another monitor, and a monitor the kernel cannot see is used when
+/// there is no other.
 ///
 /// Its mode is the one shown now, so that the monitor neither flickers nor
 /// loses its signal; else its preferred mode, else its largest. Its CRTC is
-/// the one that scans it out, else the first it can use.
+/// the one that scans it out, else the first it can use that scans out no
+/// other connector, so that no monitor goes dark.
 pub fn choose(connectors: &[ConnectorDesc]) -> Option<Choice> {
-    let usable = || {
+    let busy: Vec<usize> = connectors.iter().filter_map(|c| c.current_crtc).collect();
+    let usable = |links: &'static [Link]| {
+        let busy = &busy;
         connectors
             .iter()
             .enumerate()
-            .filter_map(|(index, connector)| choice(index, connector))
+            .filter(move |(_, connector)| links.contains(&connector.link))
+            .filter_map(move |(index, connector)| choice(index, connector, busy))
     };
-    usable()
+    usable(&[Link::Connected, Link::Unknown])
         .find(|choice| {
             connectors
                 .get(choice.connector)
                 .is_some_and(|connector| connector.current_crtc.is_some())
         })
-        .or_else(|| usable().next())
+        .or_else(|| usable(&[Link::Connected]).next())
+        .or_else(|| usable(&[Link::Unknown]).next())
 }
 
-/// The connector at `index`, its mode and CRTC, when it is connected and
-/// has both.
-fn choice(index: usize, connector: &ConnectorDesc) -> Option<Choice> {
-    if !connector.connected {
-        return None;
-    }
+/// The connector at `index`, its mode and CRTC, when it has both; `busy`
+/// are the CRTCs that scan out a connector now, which only that connector
+/// may take.
+fn choice(index: usize, connector: &ConnectorDesc, busy: &[usize]) -> Option<Choice> {
     let mode = connector
         .current_mode
         .filter(|&mode| mode < connector.modes.len())
@@ -82,9 +102,13 @@ fn choice(index: usize, connector: &ConnectorDesc) -> Option<Choice> {
                 .iter()
                 .position(|mode| area(mode) == largest)
         })?;
-    let crtc = connector
-        .current_crtc
-        .or_else(|| connector.possible_crtcs.first().copied())?;
+    let crtc = connector.current_crtc.or_else(|| {
+        connector
+            .possible_crtcs
+            .iter()
+            .copied()
+            .find(|crtc| !busy.contains(crtc))
+    })?;
     Some(Choice {
         connector: index,
         mode,
@@ -114,7 +138,7 @@ mod tests {
             ..ConnectorDesc::default()
         };
         let display = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             modes: vec![mode(3840, 2400, false), mode(1920, 1200, true)],
             current_crtc: Some(1),
             possible_crtcs: vec![0, 1],
@@ -134,19 +158,19 @@ mod tests {
     #[test]
     fn without_a_preferred_mode_or_current_crtc_the_largest_on_the_first() {
         let display = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             modes: vec![mode(1024, 768, false), mode(1280, 800, false)],
             current_crtc: None,
             possible_crtcs: vec![2, 0],
             ..ConnectorDesc::default()
         };
         let no_crtc = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             modes: vec![mode(1024, 768, false)],
             ..ConnectorDesc::default()
         };
         let no_mode = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             possible_crtcs: vec![0],
             ..ConnectorDesc::default()
         };
@@ -166,13 +190,13 @@ mod tests {
         // A closed laptop's panel, connected but dark, and the monitor the
         // kernel console is on, at a mode below its preferred one.
         let panel = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             modes: vec![mode(2880, 1800, true)],
             possible_crtcs: vec![0, 1],
             ..ConnectorDesc::default()
         };
         let monitor = ConnectorDesc {
-            connected: true,
+            link: Link::Connected,
             modes: vec![mode(3840, 2160, true), mode(1920, 1080, false)],
             current_crtc: Some(1),
             current_mode: Some(1),
@@ -200,5 +224,94 @@ mod tests {
                 crtc: 0
             })
         );
+    }
+
+    #[test]
+    fn a_monitor_of_unknown_state_is_used_when_none_is_connected() {
+        let vga = ConnectorDesc {
+            link: Link::Unknown,
+            modes: vec![mode(1024, 768, false)],
+            possible_crtcs: vec![0],
+            ..ConnectorDesc::default()
+        };
+        let unplugged = ConnectorDesc {
+            modes: vec![mode(640, 480, true)],
+            possible_crtcs: vec![0],
+            ..ConnectorDesc::default()
+        };
+        let hdmi = ConnectorDesc {
+            link: Link::Connected,
+            modes: vec![mode(1920, 1080, true)],
+            possible_crtcs: vec![1],
+            ..ConnectorDesc::default()
+        };
+        let first = Choice {
+            connector: 0,
+            mode: 0,
+            crtc: 0,
+        };
+
+        assert_eq!(choose(&[vga.clone(), unplugged.clone()]), Some(first));
+        // A connected monitor comes first, unless the other one is shown.
+        assert_eq!(
+            choose(&[vga.clone(), hdmi.clone()]),
+            Some(Choice {
+                connector: 1,
+                mode: 0,
+                crtc: 1
+            })
+        );
+        let shown = ConnectorDesc {
+            current_crtc: Some(0),
+            ..vga
+        };
+        assert_eq!(choose(&[shown, hdmi]), Some(first));
+        assert_eq!(choose(&[unplugged]), None);
+    }
+
+    #[test]
+    fn the_crtc_of_another_monitor_is_not_taken() {
+        // The kernel console on a monitor of unknown state, on CRTC 0; a
+        // connected one that could use CRTC 0 or 1 is not chosen over it,
+        // and when it is the only choice it gets CRTC 1.
+        let shown = ConnectorDesc {
+            link: Link::Unknown,
+            modes: vec![mode(1024, 768, true)],
+            current_crtc: Some(0),
+            possible_crtcs: vec![0],
+            ..ConnectorDesc::default()
+        };
+        let other = ConnectorDesc {
+            link: Link::Connected,
+            modes: vec![mode(1920, 1080, true)],
+            possible_crtcs: vec![0, 1],
+            ..ConnectorDesc::default()
+        };
+        let without_mode = ConnectorDesc {
+            modes: Vec::new(),
+            ..shown.clone()
+        };
+
+        assert_eq!(
+            choose(&[other.clone(), shown]),
+            Some(Choice {
+                connector: 1,
+                mode: 0,
+                crtc: 0
+            })
+        );
+        assert_eq!(
+            choose(&[other.clone(), without_mode.clone()]),
+            Some(Choice {
+                connector: 0,
+                mode: 0,
+                crtc: 1
+            })
+        );
+        let only_busy = ConnectorDesc {
+            possible_crtcs: vec![0],
+            ..other
+        };
+        assert_eq!(choose(&[only_busy, without_mode]), None);
     }
 }

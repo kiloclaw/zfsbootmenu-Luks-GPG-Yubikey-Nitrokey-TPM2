@@ -19,7 +19,7 @@ use drm::control::{
 };
 
 use crate::frame::{Area, Frame};
-use crate::output::{ConnectorDesc, ModeDesc, choose};
+use crate::output::{ConnectorDesc, Link, ModeDesc, choose};
 
 /// What frames are presented on.
 pub trait Screen {
@@ -113,8 +113,8 @@ impl Display {
     ///
     /// # Errors
     ///
-    /// When the card cannot be opened, has no connected output, or refuses
-    /// the buffer or the mode (another program is the DRM master).
+    /// When the card cannot be opened, has no output with a display, or
+    /// refuses the buffer or the mode (another program is the DRM master).
     pub fn open(path: &Path) -> io::Result<Display> {
         let file = OpenOptions::new().read(true).write(true).open(path);
         let card = Card(file.map_err(context(&path.display().to_string()))?);
@@ -182,7 +182,11 @@ fn output(
             .filter_map(crtc_index)
             .collect();
         descs.push(ConnectorDesc {
-            connected: info.state() == connector::State::Connected,
+            link: match info.state() {
+                connector::State::Connected => Link::Connected,
+                connector::State::Unknown => Link::Unknown,
+                connector::State::Disconnected => Link::Disconnected,
+            },
             modes: info.modes().iter().map(|mode| mode_desc(*mode)).collect(),
             current_crtc,
             current_mode,
@@ -191,7 +195,7 @@ fn output(
         infos.push(info);
     }
     let choice = choose(&descs)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no connected output"))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no output with a display"))?;
     let missing = || io::Error::new(io::ErrorKind::NotFound, "no such output");
     let info = infos.get(choice.connector).ok_or_else(missing)?;
     let mode = *info.modes().get(choice.mode).ok_or_else(missing)?;

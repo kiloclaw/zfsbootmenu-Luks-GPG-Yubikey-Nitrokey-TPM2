@@ -233,6 +233,9 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The console on the display answers a question a program asked inside a synchronized update (such as the cursor's
   position) when the update's time runs out, not only at the program's next output, which a program waiting for the
   answer never sends.
+- The console on the display uses a monitor whose state the kernel cannot tell (a VGA monitor that does not answer,
+  some docks) when no other is connected, as the kernel console does, instead of giving up; and it no longer takes
+  the CRTC of a monitor the kernel console is on for another one, which turned that monitor dark.
 
 ### The new menu's text in a message catalogue
 
