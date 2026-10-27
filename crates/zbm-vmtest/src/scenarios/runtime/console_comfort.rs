@@ -1,5 +1,5 @@
 //! `runtime-rust-console-comfort`: the recovery shell on the console on
-//! the display, made comfortable (docs/dev/console-roadmap.md, M3). The
+//! the display, made comfortable (ROADMAP.md, M3). The
 //! image of `runtime-rust-console-start`, with the `secret-test` feature,
 //! boots with a status line (`zbm.console_status=on`):
 //!

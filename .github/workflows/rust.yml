@@ -83,7 +83,7 @@ jobs:
 
   strict:
     name: Strict lints
-    # The lints that crates must pass once REFACTOR-ROADMAP.md has refactored them, for every crate; the counts go to
+    # The lints that crates must pass once ROADMAP.md has refactored them, for every crate; the counts go to
     # the job summary. It fails only on a finding in a crate of xtask/strict/crates.txt
     runs-on: ubuntu-latest
     steps:

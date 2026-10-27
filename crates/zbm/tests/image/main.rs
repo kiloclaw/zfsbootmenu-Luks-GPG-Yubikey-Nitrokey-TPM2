@@ -3,7 +3,7 @@
 //! `legacy/zfsbootmenu/install-helpers.sh`, and the dracut module, run with
 //! stubs for the dracut and mkinitcpio functions they call.
 //!
-//! The helpers are shell code until R6 of REFACTOR-ROADMAP.md, so their runs
+//! The helpers are shell code until R6 of ROADMAP.md, so their runs
 //! are recorded as golden files (`zbm_testkit::parity`): a normal test run
 //! reads the recordings, and `cargo xtask record-parity` runs the helpers
 //! again. A `zbm` program that exists is written `$ZBM` in settings

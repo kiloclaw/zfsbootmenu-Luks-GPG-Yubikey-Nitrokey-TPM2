@@ -1,4 +1,4 @@
-//! The new menu (REFACTOR-ROADMAP.md, phases D and R5): the design of
+//! The new menu (ROADMAP.md, phases D and R5): the design of
 //! `docs/dev/menu-design/` as code.
 //!
 //! - [`world`]: the snapshot of the machine, the actions and the events,

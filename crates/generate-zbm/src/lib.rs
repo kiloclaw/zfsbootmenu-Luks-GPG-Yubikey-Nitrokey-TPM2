@@ -2,7 +2,8 @@
 //! `generate-zbm` of upstream ZFSBootMenu.
 //!
 //! The port follows the Perl program step by step, and parity tests check it
-//! against the results recorded from it; see Phase 3 of `PORT-ROADMAP.md`. [`generate::run`] is the
+//! against the results recorded from it; see Phase 3 of the port plan, now in
+//! `docs/dev/history/port-roadmap.md`. [`generate::run`] is the
 //! program; the other modules hold the parts of Perl's behaviour it depends on.
 
 #![cfg_attr(

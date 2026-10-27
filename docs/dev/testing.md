@@ -16,19 +16,19 @@ documentation tests, which nextest cannot run, under `cargo test --doc`; without
 `cargo test`. The profiles are in `.config/nextest.toml`; CI uses `NEXTEST_PROFILE=ci`, which reports every failure
 instead of stopping at the first. `cargo xtask coverage` measures line coverage per crate ([tooling.md](tooling.md)).
 
-`runtime-rust-pilot` (`zbm-vmtest run runtime-rust-pilot`) runs the pilots of REFACTOR-ROADMAP.md in the
+`runtime-rust-pilot` (`zbm-vmtest run runtime-rust-pilot`) runs the pilots of ROADMAP.md in the
 Rust image: the menu on the serial console with `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS
 volume formatted inside the VM.
 
 [docs/luks/testing.rst](../luks/testing.rst) describes every LUKS test and its latest results. CI runs the Rust tests
 and both LUKS unit suites on every pull request that touches the code they cover.
 
-REFACTOR-ROADMAP.md moves every suite to Rust: the LUKS unit suites in phase R2, the VM harness in R3 and R4, the
+ROADMAP.md moves every suite to Rust: the LUKS unit suites in phase R2, the VM harness in R3 and R4, the
 rest in R7. Until then, a change to the runtime is checked by the suites above, in both runtimes where it applies.
 
 ## Writing tests
 
-New tests follow the conventions of REFACTOR-ROADMAP.md ("Testing strategy"), which keep them easy to read for
+New tests follow the conventions of ROADMAP.md ("Testing strategy"), which keep them easy to read for
 people and for AI tools alike:
 
 - **One behaviour per test, named as a sentence:** `a_wrong_pin_counts_towards_the_lockout`, not `test_pin_2`.
@@ -109,7 +109,7 @@ Rules for a parity test:
   the legacy helpers outside a recording as "legacy tests", which must stay at zero.
 
 Recording needs what the legacy code needs (Bash, Perl with its modules, binutils, the systemd EFI stub) and root for
-the cases that compare with it as root. REFACTOR-ROADMAP.md lists behaviour changes that update a recording on
+the cases that compare with it as root. ROADMAP.md lists behaviour changes that update a recording on
 purpose.
 
 ### Fuzz targets

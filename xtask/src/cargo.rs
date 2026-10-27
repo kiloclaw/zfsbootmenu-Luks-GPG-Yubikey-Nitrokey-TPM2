@@ -68,9 +68,9 @@ fn test_programs(root: &Path, nextest: bool, env: &[(&str, &str)]) -> Vec<Progra
     programs
 }
 
-/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`: as root, with real LUKS
-/// volumes on loop devices, a software TPM, clevis and GnuPG. The suites
-/// run one after another and print every case and check.
+/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`: as
+/// root, with real LUKS volumes on loop devices, a software TPM, clevis and
+/// GnuPG. The suites run one after another and print every case and check.
 ///
 /// # Errors
 ///

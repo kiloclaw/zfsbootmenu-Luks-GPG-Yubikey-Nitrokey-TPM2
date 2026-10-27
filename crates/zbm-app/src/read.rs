@@ -1,6 +1,6 @@
 //! The [`Snapshot`] of the machine, read from it: its pools, boot
 //! environments, LUKS volumes, the countdown, the keyboard layouts and the
-//! log (R4 of REFACTOR-ROADMAP.md).
+//! log (R4 of ROADMAP.md).
 //!
 //! What the runtime cannot read yet stays empty: the kernels of a boot
 //! environment, its checks and boot tries arrive with R5 and port package

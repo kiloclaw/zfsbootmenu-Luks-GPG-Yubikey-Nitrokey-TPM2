@@ -1,7 +1,7 @@
 //! What the start-up stages need from the person at the console, through
 //! the program's front end ([`Front`]): the plain console of the legacy
 //! start-up program ([`ConsoleFront`]), or the start-up view of the menu,
-//! which `zbm` builds on `zbm-tui` (REFACTOR-ROADMAP.md, R5 step 4).
+//! which `zbm` builds on `zbm-tui` (ROADMAP.md, R5 step 4).
 
 use zbm_app::model::Event;
 use zbm_boot::import::{self, ImportSettings, Imported};

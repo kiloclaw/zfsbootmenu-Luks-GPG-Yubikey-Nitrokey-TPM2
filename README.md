@@ -60,8 +60,7 @@ replace the Bash one as a whole, after a beta; images already include its progra
 builds the Rust programs, and `make install` installs them with files from `legacy/zfsbootmenu/`, `packaging/dracut/`,
 `packaging/initcpio/`, `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test
-each part, [PORT-ROADMAP.md](PORT-ROADMAP.md) for the phases of the port, and [ROADMAP.md](ROADMAP.md) for the features
-planned after it.
+each part, and [ROADMAP.md](ROADMAP.md) for the target architecture and the work left, features included.
 
 ### For more details, see:
 

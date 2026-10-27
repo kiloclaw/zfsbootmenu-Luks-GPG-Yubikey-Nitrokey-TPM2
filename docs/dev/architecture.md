@@ -1,6 +1,6 @@
 # Architecture
 
-This page describes the Rust workspace as it is. [REFACTOR-ROADMAP.md](../../REFACTOR-ROADMAP.md) describes where it
+This page describes the Rust workspace as it is. [ROADMAP.md](../../ROADMAP.md) describes where it
 is going ("Target architecture"), and this page changes with each of its phases.
 
 ## Programs
@@ -92,7 +92,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 - **ports**: `zbm-platform` gives services a `Context`: the ports they may use, with a runner that reports every
   program it runs to the journal (the command journal). Refactored services take a `&Context`.
 - **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`
-  (REFACTOR-ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
+  (ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
   `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
   programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:
   `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts. Adapters are the
@@ -130,7 +130,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 
 ## The pilots
 
-REFACTOR-ROADMAP.md (R0) built two thin features through every layer before any crate is migrated; they are the
+ROADMAP.md (R0) built two thin features through every layer before any crate is migrated; they are the
 template for the phases that follow.
 
 - **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::Unlock`) →

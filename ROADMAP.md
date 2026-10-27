@@ -1,698 +1,799 @@
 # Roadmap
 
-This roadmap lists features to add to ZFSBootMenu beyond what the legacy Bash and Perl code in `legacy/` does. Each
-entry is a proposal, not a commitment. Two other plans carry the code there:
+This is the one plan for ZFSBootMenu in Rust: the architecture it is heading for, the rules its code follows, how it
+is verified, and the work left, in order. It replaces the four plans written while the project was a port of the
+legacy Bash and Perl code (`PORT-ROADMAP.md`, `REFACTOR-ROADMAP.md`, the feature list that was `ROADMAP.md`, and
+`docs/dev/console-roadmap.md`). They are kept unchanged in [docs/dev/history/](docs/dev/history/) as the record of
+how the code got here; [Identifiers of the old plans](#identifiers-of-the-old-plans) says where each of their items
+went.
 
-- [PORT-ROADMAP.md](PORT-ROADMAP.md) ported the host tools and the start-up of the boot runtime (packages A and B) to
-  Rust, with the legacy code as the reference;
-- [REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md) reshapes that code into layers (R0 to R4), builds the redesigned menu and
-  the rest of the runtime (R5, R6), and removes the legacy runtime (R9).
+The port no longer aims at doing what the legacy code does. Behaviour may change where it makes ZFSBootMenu more
+scalable, modular, fast, secure or stable; what changes is recorded in `CHANGES-FROM-LEGACY.md`. Major rewrites are
+allowed on the same grounds, provided the code follows the four rules of [Principles](#principles).
 
-A feature lands when the code it touches is in Rust and the phase it depends on allows it, so the features below are
-grouped by what they wait for, not by importance. Their numbers never change, because code, tests and documents cite
-them (`ROADMAP.md #18`).
+Identifiers stay stable, because code, tests and commits cite them: features keep their numbers (`ROADMAP.md #18`),
+console items theirs (`C61`), benchmarks theirs (`B7`) and decisions theirs (decision 9). The work items of this plan
+have identifiers of their own (`PM4`, `SE7`); a finished item keeps its number.
 
-Each feature lists why it is useful, how it could work and when it counts as done. Effort is a rough estimate for one
-developer who knows the code: **Small** is under a week, **Medium** a few weeks, **Large** a few months.
+## Contents
 
-## Principles
-
-- The legacy code is the reference. A Rust part first behaves like the code it replaces; new behaviour comes after.
-- Features that change how a system boots are off unless configured. Warnings and better messages can be on by default.
-- Every feature comes with tests (unit, device or VM tests) and with documentation in `docs/`.
-- Features marked **security** document what they protect against, and get a review before they ship.
-- Kernel command line options, configuration files and `org.zfsbootmenu:*` properties stay compatible with upstream
-  ZFSBootMenu, so boot environments work with either.
-- A feature of the menu is first tried in the menu prototype (`cargo run -p zbm-tui -- --demo`, phase D of
-  REFACTOR-ROADMAP.md) on a fake machine, with wireframes as snapshot tests, before it is built on real code.
+- [Where things stand](#where-things-stand)
+- [Should we start from a white paper?](#should-we-start-from-a-white-paper)
+- [Principles](#principles)
+- [Target architecture](#target-architecture): [processes and trust zones](#processes-and-trust-zones),
+  [concurrency](#concurrency-inside-a-process), [crates and layers](#crates-and-layers),
+  [the domain model](#the-domain-model), [the ZFS boundary](#the-zfs-boundary) and
+  [the system boundary](#the-system-boundary), [the shell](#the-shell), [the screen](#the-screen),
+  [the boot image](#the-boot-image), [security](#security-architecture), [observability](#observability)
+- [Rules for refactored code](#rules-for-refactored-code) and [how the rules are enforced](#how-the-rules-are-enforced)
+- [Verification](#verification), with [benchmarks](#benchmarks) and [release gates](#release-gates)
+- [Work items](#work-items), by workstream
+- [Phases](#phases): the order of the work
+- [Decisions](#decisions)
+- [Fixes left from the review of 27 October 2026](#fixes-left-from-the-review-of-27-october-2026)
+- [Not planned](#not-planned)
+- [Identifiers of the old plans](#identifiers-of-the-old-plans)
 
 ## Where things stand
 
-In October 2026, on branch `claude/zbm-refactor`:
+On branch `claude/zbm-refactor`, 27 October 2026:
 
-- **Done:** #1 (secrets in locked memory, and none left before `kexec`), #5 (reproducible images), #9 (saved boot
-  logs and `zbm report`) and #20 (console fonts as 256-glyph subsets, and Spleen).
-- **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
-  the menu side of #4 ([boot health](docs/dev/menu-design/boot-health.md),
-  [unlocking](docs/dev/menu-design/unlocking.md)).
-- **Partly done** by the port and the refactoring: #12 (the menu is phase D and R5 of the refactoring), #17 (the console font follows the display's
-  EDID when a graphics driver provides it) and #18 (the fonts carry the letters).
-- **Proposed:** the others.
-- **Dropped** in October 2026, with their numbers left unused: #13 (an own init in place of dracut and mkinitcpio,
-  which stay the image builders) and #14 (a built-in SSH server; remote unlock stays with dropbear and
-  `dracut-crypt-ssh`, as `contrib/remote-ssh-build.sh` builds it).
+| Part | State |
+| --- | --- |
+| Host tools | `generate-zbm` and `zbm-kcl` in Rust; the Perl and Bash ones are gone |
+| Runtime | The Rust runtime boots every layout of the VM tests, unlocks LUKS with every key method, runs start-up and the countdown in the new menu (Nucleo, Ratatui), and its shell work on brush. Images build it with `zfsbootmenu_runtime=rust`; the legacy runtime is still the default |
+| Menu | Main view, start-up view, unlock and import dialogs, snapshots (diff, clone, rollback, set default), command palette. Left: kernels, the command line editor, pools and LUKS volumes, recovery tools, help, power |
+| Console on the display | `zbm.console=drm`: Alacritty's terminal drawn through DRM, TrueType fonts, XKB layouts, scrollback wiped at secret prompts, status line, bells. Milestones M1 to M3 done; M3's VM test not run yet |
+| Features done | #1 secrets in locked memory, #5 reproducible images, #9 saved boot logs and `zbm report`, #20 console fonts |
+| Verification | About 1,670 Rust tests without root, LUKS device suites, 7 fuzz targets, about 900 VM checks (the maintainer's machine, with KVM), metrics and coverage ratchets |
+| Removed in October 2026 | The Perl and Bash host tools, parity check mode, shadow mode, the Bash LUKS unit suites, and the rule that every suite runs against both images |
 
-## Overview
+The code is 129,000 lines of Rust in 27 crates. Five reviews of it on 27 October 2026 (the process model, the crates
+and domain, the system boundary and image, the screen, security and verification) found the same thing from five
+sides: the parts are sound and well tested, and the joints between them are where the port shows. The domain takes
+strings and a console; components talk through PID files, signals and polling; the menu reaches the display through a
+terminal it does not need; the boot path starts a process for every ZFS property; every process is root and holds
+or can reach every secret. This plan fixes the joints.
 
-| # | Feature | Group | Effort | Status |
+## Should we start from a white paper?
+
+**A white paper for the design, yes; a clean-sheet rewrite of the code, no.**
+
+The [target architecture](#target-architecture) below is that white paper: the end state, written down before the
+work, so that every step moves towards one design instead of ten local ones. Each part of it that changes a contract
+between components gets an Architecture Decision Record in `docs/dev/adr/` before its code (the ADRs of
+[phase 0](#phase-0-the-design-and-the-quick-fixes)), and the design changes only through a new ADR.
+
+The code then moves there by evolution, one port or protocol at a time behind stable interfaces (the strangler
+pattern), with a few modules written anew where nothing worth keeping is in them. The reasons:
+
+- **The evidence is the asset.** About 1,670 tests, 900 VM checks on real images, the LUKS device suites against real
+  volumes, fuzz targets and memory searches for secrets prove behaviour on hardware that no review can. A rewrite resets
+  every "holds" of the threat model to "to verify", just before the security review that a release needs.
+- **The faults are in the joints, not the parts.** The Elm menu, Alacritty's grid, the glyph rendering, the
+  `KeyMethod` strategies, the typed ZFS port, `Secret` and the fakes are what the target is built from. What must change
+  (how processes talk, which code may see the console, how the domain reaches ZFS) is a few thousand lines of glue.
+- **The VM tests run only on the maintainer's machine.** A big-bang rewrite would break them all at once, and a failure
+  could not be bisected. Steps that each pass the VM tests keep every failure attributable.
+- **Each step leaves the branch releasable,** and the user-visible work (the menu, the features) goes on alongside.
+
+Written anew, because the legacy code they copied is gone or because their shape is the problem:
+
+| What | Why | Item |
+| --- | --- | --- |
+| `generate-zbm` and `zbm-kcl`, as one `zbm-host` crate | 2,500 lines emulate Perl (`Getopt::Long`, `YAML::PP`, `Data::Dumper`, `File::Glob`, `Sort::Versions`) and Bash quirks for programs that no longer exist | DM10 |
+| The LUKS unlocker's core (`Unlocker`, the methods, the pilot) | A god object of 30 methods with two `KeyMethod` traits; the key handlers and the device suites stay | DM6 |
+| The supervisor's loop | A blocking `waitpid` loop cannot restart the console or react to it | PM6 |
+| The image assembly (`ImagePlan`) | `install-helpers.sh` is lists and distribution quirks in Bash, verified by diffing file lists | SB8 |
+| The menu's run loops, as one front end | Three loops (start-up view, menu, demo) for one Elm model | UI3 |
+
+## Principles
+
+1. **Strict Rust-native idioms.** Types say what values are (newtypes, enums, `Option` instead of sentinels such as
+   `"-"`); parse, don't validate; ownership and borrowing instead of shared mutable state; `Result` with typed errors
+   for everything that can fail; iterators over index loops; no `unsafe` outside `zbm-sys`.
+2. **Rust design patterns.** Ports and adapters (hexagonal architecture), strategy and registry for key methods and
+   boot steps, typestate for resources with a life cycle (mappings, pools, mounts, the display, child processes), RAII
+   guards for everything that must be undone, the Elm architecture for front ends, actors with typed channels for
+   long-running work, builders for complex values, the command pattern for actions.
+3. **The Rust Style Guide.** `rustfmt` (style edition 2024) and the width rules of `cargo xtask widths`, the API
+   Guidelines as the review checklist (naming, conversions, `#[must_use]`, `#[non_exhaustive]`).
+4. **Rustdoc as the documentation standard.** Every crate says what it is for and how it fits; every public item says
+   what it does, its errors and panics, with an example that runs where it can. Documents in `docs/dev/` explain what
+   spans crates, and link into rustdoc.
+
+And four rules of the product:
+
+5. **Compatible where users depend on it.** Kernel command line options, `org.zfsbootmenu:*` properties, the
+   configuration files and the hook environment stay compatible with upstream ZFSBootMenu, so boot environments work
+   with either; a change of them is a decision with a deprecation period, not a refactoring.
+6. **Safe defaults.** Features that change how a system boots are off unless configured; warnings and better messages
+   may be on by default. Security fixes are on by default.
+7. **Every change is tested and documented** at the lowest layer that can show it ([Verification](#verification)), and
+   every security feature names what it protects against in `docs/dev/threat-model.md`.
+8. **Measured, not claimed.** No speed or size claim without a [benchmark](#benchmarks).
+
+## Target architecture
+
+### Processes and trust zones
+
+Four kinds of process, each with one job and one event loop, in four trust zones. They talk over typed, versioned
+messages on Unix sockets (`SOCK_SEQPACKET`, `SO_PEERCRED` checked), never through PID files, signals or polling.
+
+```text
+ Z0  zbm-init (PID 1, root)          supervises the others; parses no untrusted input; holds no secret
+      │  pidfd + signalfd; a table of services with restart policies
+      ├──────────────┬────────────────────────────┬──────────────────────────────┐
+ Z2  session (root)  │                        Z1  zbm-unlock (root)          Z3  zbm console (unprivileged)
+      engine: App,   │ UnlockRequest ─────────▶  holds every secret;              DRM, evdev, pty opened, then
+      imports,       │ ◀───────── UnlockOutcome  runs cryptsetup, TPM2,           privileges dropped; seccomp,
+      mounts, hooks, │                           FIDO2, GnuPG, YubiKey;           landlock; draws surfaces,
+      kexec          │                           extends the PCR before kexec     reads keys
+      │ Snapshot, Event ▼  ▲ Action                                               ▲ cells, input mode
+ Z3  menu (unprivileged): the Elm front end, a client of the session; ──── cells ──┘ keys
+      on the console's surface, or on a terminal (serial, SSH)
+```
+
+- **Z0, `zbm-init`.** The supervisor that runs as PID 1. It polls a `signalfd` and one `pidfd` per child, and runs a
+  table of `Service { program, restart: RestartPolicy }` (resume, back-off, never). It starts the console, the session
+  and the shell, and restarts each by its policy (C89). After a crash it applies a `RecoveryPolicy`: `Open` gives the
+  recovery shell as today, `Locked` gives the PIN screen (#8). It is panic-free under the strict lints, and opens no
+  socket.
+- **Z1, `zbm-unlock`.** The keyholder: the only process that holds passphrases, PINs, key files and unsealed keys, and
+  the only one linked to libcryptsetup and tss2-esys ([the system boundary](#the-system-boundary)). It answers
+  `UnlockRequest { volume, method, credential: Option<Secret> }` with `UnlockOutcome`; a credential is moved into the
+  message and wiped after use. It extends the PCR of measured boot (#10) after its last unseal.
+- **Z2, the session.** The engine: `App` and the domain, which imports pools, mounts boot environments, runs hooks and
+  loads kernels. It parses hostile input (pool and dataset names and properties, files in `/boot`, crypttab, hook roots)
+  into checked types and holds no secret. It checks every action a client sends against the policy (the locked menu,
+  the key map) before it acts.
+- **Z3, the front ends.** The menu, a client of the session that renders snapshots and sends actions; `zbm console`,
+  which owns the display and the keyboards. Both open what they need, then drop privileges (`no_new_privs`, an
+  unprivileged user, a seccomp allow-list, landlock with no file access). A compromise of the terminal parser then
+  leaks key presses, not root.
+- **Over SSH,** `zfsbootmenu` is a client of the same session: it takes the menu over by a handshake (`Takeover` →
+  `Yielded`) instead of a `SIGTERM` to whatever the menu runs.
+
+The zones arrive in that order of need: the session as one process with the menu inside it first
+([phase 2](#phase-2-the-session)), then the keyholder and the unprivileged front ends
+([phase 5](#phase-5-isolation-and-boot-integrity)). The message types are defined once, in `zbm-app`, so moving a
+component into its own process changes the transport, not the code.
+
+### Concurrency inside a process
+
+One model for the whole runtime (decision 10): **threads and channels, one reactor per process, no async runtime.**
+
+- A process has one thread that owns its state and polls its file descriptors (`zbm_sys::console::wait_ready`): the
+  terminal or display, a `Mailbox` waker (an `eventfd` paired with `std::sync::mpsc`), a `signalfd`, a uevent netlink
+  socket, its sockets.
+- Long work runs on workers: the session's `MachineService` actor owns `App`, takes `Command { action, reply }` and
+  streams `Event`s back, so the menu redraws, counts down and cancels while Argon2 or `zpool import` runs.
+- A question from the domain to the user (a passphrase, a retry) is a request with a one-shot reply channel, not a
+  nested event loop.
+- Every command has a `CancelToken`; the `Runner` kills the child's process group on cancel, through its `pidfd`.
+- Parallel work runs in `std::thread::scope` with a bounded `WorkPool`, and a `MemoryBudget` whose RAII permits are
+  sized for Argon2 (about 1 GiB each). TPM PIN attempts go through one `Mutex<Tpm>`, so they stay one at a time by
+  construction.
+- The ports are `Send + Sync`; tracing and the kernel log are per process, not per thread.
+
+### Crates and layers
+
+27 crates become 24. Dependencies point down only; `cargo xtask check-deps` enforces the table, and two new rules
+join it: orchestration does not use adapters, and front ends reach the system only through `zbm-app`.
+
+| Layer | Crates | Responsibility |
+| --- | --- | --- |
+| unsafe | `zbm-sys` | The few system calls `rustix` lacks: `memfd_secret`, seccomp, landlock, `kexec_file_load`; everything else moves onto `rustix` (29 `unsafe` blocks to about 6) |
+| types | `zbm-types` | Domain values with no I/O: names, `KernelCommandLine`, `KernelSelector`, `HostId`, `Timeout`, `LogLevel`, questions and answers, the message types' building blocks |
+| foundation | `zbm-trace` | Structured events, the journal, the kernel log |
+| platform | `zbm-platform`, `zbm-display` | The ports and their real implementations, one `Context` (no console in it), the reactor's building blocks; the display, fonts (the PSF parser moves here from `zbm-types`) and keyboards |
+| state | `zbm-config`, `zbm-state` | The option table and typed options; the documented state directory, with `flock` locks |
+| adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | One port trait per capability (`Zfs`, `LuksVolumes`, `Tpm2`, `Fido2`, `KernelLoader`, `Mounts`, `Modules`, `Devices`), with in-memory fakes behind a `fake` feature |
+| domain | `zbm-luks`, `zbm-pool`, `zbm-bootenv`, `zbm-boot` | Unlocking with a registry of key methods; pool import as a state machine; boot environments, kernels, command lines and key sources (`zbm-bootenv`, new, split out of `zbm-boot`); loading and booting a kernel with teardown |
+| application | `zbm-app` | The `Application` trait (`snapshot`, `apply`, `tick`), its `App`, the `Action`, `Event` and `Snapshot` vocabulary, and the session's messages |
+| orchestration | `zbm-startup` | Start-up as a pipeline of steps over `zbm-app` |
+| front ends | `zbm`, `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm-host` | The multi-call runtime binary; the menu; the console; the shell; the host tools (`generate-zbm` and `zbm-kcl` as two binaries of one crate, new) |
+| tools | `xtask`, `zbm-vmtest`, `zbm-testkit` | Developer automation, the VM harness, the test kit |
+
+Gone: `zbm-menu` (empty), `zbm-core` (Bash and Perl emulation: `getopts`, shell semantics, Perl's file tests; its
+useful parts move into `zbm-platform`), `zbm-coreutils` (into `zbm-platform`), `generate-zbm` and `zbm-kcl` (into
+`zbm-host`).
+
+### The domain model
+
+- **One way to inject the system.** Services take `&Context` and the ports they need (`Bootenvs::new(cx, &dyn Zfs)`);
+  the `System` bundle, which carries a console into the domain, goes. Domain crates never take `Runner`: they reach
+  programs only through adapter ports, which `check-deps` enforces.
+- **One port to the user.** `trait Interaction` (`ask(Question)`, `secret(SecretPrompt)`, `notify(&Event)`,
+  `lease_console()`, `shell(reason)`) replaces `Prompter`, `Operator`, `Recovery` and the questions of `Front`. Only
+  front ends implement it, so no domain code draws, centres text or calls `tput`.
+- **Values, not strings.** `DatasetName`, `PoolName`, `MappingName` and `DevicePath` everywhere a name is meant;
+  `KernelCommandLine(Vec<KernelArg>)` instead of newline-joined text; `KernelSelector` wraps a compiled `regex::Regex`
+  for `org.zfsbootmenu:kernel`, instead of a shell per kernel; properties are `Option<T>`.
+- **Typestate for life cycles.** `Mapping<Closed>` → `Mapping<Open>` in the real unlocker (only the pilot uses it
+  today); `Pool<ReadOnly>` → `Pool<Writable>` through `import_rw`, so only a writable pool can be
+  changed; `Mounted<'cx>` unmounts on drop; `LoadedKernel::exec(self, Teardown) -> !`; `Child<Running>` → `Exit` in
+  the supervisor.
+- **Registries for extension.** `trait KeyMethod { id, applies, try_open }` with the order as data (a slice, later
+  configurable); token handlers become methods through `TokenMethod<H: TokenHandler>`, one registry. Boot steps and
+  built-in hooks are `trait BootStep`, registered in one table, which `zbm.skip_hooks` reads by name. A new key method,
+  boot step or menu view is one new type registered in one place (G4 of the old plan).
+- **Errors with causes.** One `thiserror` enum per crate, not `Clone`, with `#[source]`; `Step::run` returns
+  `Result<StepOutcome, StartupError>`; an unlock failure keeps every `Attempt`; binaries return `ExitCode` and print the
+  cause chain; stable error codes (`ZBM-E0412`) that `zbm explain` describes.
+- **A small public surface.** `pub(crate)` by default, a curated facade in each `lib.rs`, `#[non_exhaustive]` on enums
+  that will grow.
+
+### The ZFS boundary
+
+- **No libzfs** (decision 11): no bindings to `libzfs`, `libzfs_core` or `libnvpair`, whose ABI changes between
+  OpenZFS releases. The speed problem is the number of calls, not the CLI.
+- **The `Zfs` port on every path.** The raw `ZfsCommand` and `ZpoolCommand` builders, which the boot path uses today,
+  go; every call goes through `trait Zfs`, with `ZfsCli` (JSON with `-j -p`, the `-H -p` text fallback for OpenZFS 2.2)
+  and `FakeZfs`.
+- **Batched.** One `zpool list -j` for all pools and one `zfs list -j -p -r -o <the properties ZFSBootMenu reads>` per
+  pool build the snapshot; the boot code reads properties from it, not with one `zfs get` each.
+- **Mounting without programs:** `mount(2)` and `umount2(2)` with `zfsutil`, behind the `Mounts` port, with
+  `mount.zfs` as the fallback.
+- The text fallback goes when the oldest supported distribution ships OpenZFS 2.3.
+
+### The system boundary
+
+Each operation is placed in one of three layers:
+
+| Layer | What | How |
+| --- | --- | --- |
+| System calls | Mounting, `kexec_file_load` and `reboot(LINUX_REBOOT_CMD_KEXEC)`, `setsid` and the controlling terminal, pipes, `sync`, dropping caches | `rustix`, or `zbm-sys` where `rustix` lacks the call; no process |
+| C libraries, in `zbm-unlock` only | libcryptsetup (`libcryptsetup-rs`), tss2-esys (`tss-esapi`: salted, encrypted sessions, pcrlock, signed policies), libfido2 | Behind a cargo feature and the same port traits, with the CLI adapters as the fallback; PID 1 and the session stay linked to glibc only, so a missing library cannot stop the boot |
+| Programs | `zfs` and `zpool`, `udevadm`, `modprobe`, `blkid`, `gpg` with `scdaemon` and `pcscd`, `clevis`, `kexec` (device trees, user hooks such as Xen), brush, uutils; `cryptsetup` and `tpm2-tools` for the recovery shell | Behind typed ports; every call has a time-out and a cap on its captured output, and runs without a shell wrapper |
+
+- **Process plumbing.** `Runner` gains `spawn() -> Child` with kill and wait, a default time-out per adapter, a cap on
+  captured output, and one pipe for standard output and error instead of `sh -c 'exec "$0" "$@" 2>&1'`, which today
+  doubles the processes of 15 call sites and makes Bash a dependency of the Rust runtime.
+- **Fakes are models, not scripts.** `FakeZfs`, `FakeLuks` (key slots, tokens) and `FakeTpm` (PCRs, lock-out) model
+  behaviour; contract tests run one suite against each fake and, in a VM, against the real adapter. `FakeRunner` stays
+  only for the CLI adapters' own tests, against recorded fixtures.
+
+### The shell
+
+ZFSBootMenu runs shell code for the recovery shell, user hooks and SSH logins. Rust images run it on brush
+(decision 9); `zbm.shell=bash` and the recovery shell's fallback lead back to Bash.
+
+- **Lighter brush.** Depend on `brush-core`, `brush-builtins` and `brush-interactive` instead of `brush-shell`, whose
+  command-line layer brings `clap`, `human-panic`, `toml` and more; measure with B1.
+- **No legacy payload.** Rust images stop installing `legacy/zfsbootmenu/{lib,libexec,bin}` and `fzf`. The recovery
+  shell's functions come from a generated `zfunc` library that calls `zbm` applets (a test compares its list with the
+  legacy functions), and the recovery tools are menu views and applets (R6 of the old plan).
+- **A typed hook API.** User hooks stay executables, with the same environment, plus `ZBM_HOOK_API=2` and a read-only
+  JSON context file (`$ZBM_HOOK_CONTEXT`) for hooks not written in a shell.
+- **Patches** to brush go to `patches/` and upstream (`patches/README.md`).
+
+### The screen
+
+`zbm console` becomes the owner of the seat: the display, the keyboards and the virtual terminal. It shows
+**surfaces**, and the menu draws its cells on one natively instead of through a terminal.
+
+- **Two kinds of surface,** a closed enum: `Surface::Cells`, a grid of styled cells that a client fills, for the menu;
+  `Surface::Terminal`, today's Alacritty terminal on a pseudo-terminal, for the shell, hooks and `/dev/console`. Layers
+  on top: the status line, search, kernel messages (C77).
+- **One renderer,** `zbm_display::render::CellRenderer`: a cell cache keyed by character and style (C71), the buffer
+  mapped once (C72), several damage rectangles (C73), double buffering on vertical blank (C74). The demo's own pixel
+  backend in `zbm-tui` goes.
+- **The client channel.** A socket pair the supervisor hands the session: from the client, `Cells`, `Cursor`,
+  `Input { secret }`, `SwitchLayout(name)`, `Announce(text)`; from the console, `Caps` (cells, true colour, which
+  characters the font has), `Key(KeyPress)` with the layout's name, `Resize`, `Bell`. The secret flag travels in the
+  same ordered stream as the keys, and passphrases no longer cross a pseudo-terminal, whose kernel buffer outlives them.
+- **The seat as typestate:** `Seat<Held>` → `release()` → `Released` → `reattach()`, so nothing draws on a display that
+  was handed back before `kexec`.
+- **One key type.** `KeyPress` from the console, or decoded from terminal bytes for serial and SSH, is the menu's
+  `Message::Key`; the menu's own key tables for the unlock dialog give way to the image's XKB keymaps, and Ctrl-K
+  switches the console's layout (C105).
+- **One front end runtime** for the start-up view, the main menu and the demo: `Frontend<B: Backend, I: Input>`, with a
+  backend for the console's cells, one for a terminal (serial, SSH, the kernel console) and Ratatui's test backend. If
+  the console goes away, the front end goes on on the kernel console with the same model.
+- **Accessible.** The focused surface is exported as text for `brltty` (C85), with `Announce` lines; a line-oriented
+  `view` over the same model serves `TERM=dumb`, speakup and serial users (#12's plain mode). The language is part of
+  the model, so changing it is a message (#18).
+- **Leases instead of hand-overs.** When the menu lends the screen to a console action, dropping the `SurfaceLease`
+  gives it back and redraws once.
+
+### The boot image
+
+- **`ImagePlan`.** `zbm-host` computes the image as a value: files, the ELF closure, modules, firmware, udev rules and
+  links, per runtime; a builder makes it, and golden files check it under `cargo test`. An `ImageBackend` trait installs
+  it: `Dracut` and `Mkinitcpio`, whose `module-setup.sh` and install hook shrink to shims, and later `Native`.
+- **Rust images list their own binaries,** without the legacy runtime's (`awk`, `sed`, `od`, `tac`, `openssl`, `fzf`
+  and others).
+- **A native backend, after the cutover,** for release and container images first: a `cpio` writer, the ELF closure
+  with `object`, the module and firmware closure, and a minimal early init in `zbm-startup` that mounts the pseudo
+  file systems and starts udev. It is checked against dracut's output with `xtask compare-images`. Dracut stays a
+  backend, because remote unlock relies on its modules (`dracut-crypt-ssh` with dropbear). This reopens #13 in that
+  narrowed form.
+- **Signed and accounted for.** `generate-zbm` signs the unified kernel image itself (with `sbsign` or `ukify`), builds
+  reproducibly (#5), and releases publish an SBOM, `cargo auditable` metadata, build provenance and the debug files of
+  every binary, indexed by build ID.
+
+### Security architecture
+
+`docs/dev/threat-model.md` stays the reference: attackers, untrusted inputs, properties with their evidence, risks.
+The architecture adds:
+
+- **Trust zones** as [above](#processes-and-trust-zones): secrets in one process, hostile parsers in others, renderers
+  without privileges.
+- **One gate to a shell.** `ShellGate::open(&Authorized)` is the only way to start an interactive shell; `Authorized`
+  is a zero-sized token that only `auth::verify` mints (Argon2id, a constant-time comparison, a growing delay), or that
+  is minted at once without `zbm.lock`. A crash then leads to the PIN screen, not to a root shell with the volumes open.
+- **Untrusted text cannot reach a terminal raw.** `Untrusted<T>` has no `Display`; rendering takes `Printable`, which
+  escapes C0, C1 and DEL. Hostile names are fuzzed through `view`.
+- **Boot integrity.** `kexec_file_load` whenever lockdown or Secure Boot is on, failing closed; the kernel, initramfs
+  and command line measured into a PCR with a TCG event log and a prediction tool (#10); after a TPM-only unlock, the
+  import policy is `strict`, a pool whose keys were not unlocked cannot give the default boot environment, and a hook
+  root on a pool imported under another host's ID is refused.
+- **Salted, encrypted TPM sessions,** so an interposer on a discrete TPM's bus reads nothing.
+- **Audited crypto.** The hand-written SHA-256, HMAC, PBKDF2 and base64 of `zbm-luks` give way to the RustCrypto crates
+  with `zeroize`; `argon2` for the PIN of #8.
+- **Secrets at the edges.** No `String` copy of a typed passphrase (the masked field renders from the `Secret`);
+  `Secret::ct_eq`; no implicit `Clone`; the journal keeps fields by an allow-list, not a deny-list; the key cache is
+  written with `O_NOFOLLOW | O_EXCL` and mode 0600 and removed before `kexec`; `zbm.console_mirror` exists only in test
+  builds.
+- **Updates that cannot brick.** A/B images with a backup boot entry, boot counting (#7) with EFI variables written in
+  a fixed order, saved logs capped and skipped when the ESP is low on space.
+- **The supply chain.** `cargo vet` (importing the audits of Mozilla, Google and the Bytecode Alliance), duplicate
+  versions denied with a list of allowed ones, actions pinned by commit, the build container's base pinned by digest.
+
+### Observability
+
+- Structured `tracing` events with domain fields, instead of format strings; the journal (`/zfsbootmenu/journal.jsonl`)
+  with fields kept by an allow-list; a simple kernel log format instead of the legacy one.
+- Stable error codes, explained by `zbm explain <code>`.
+- Each zone reports its health to Z0; `zbm debug` reads every zone; crash reports hold no heap data and resolve with
+  `cargo xtask symbolize`; `zbm report` bundles everything without key material, and `xtask replay` turns a bundle into
+  a test.
+
+## Rules for refactored code
+
+1. **Formatting and lints:** `rustfmt` style edition 2024 with no options; the width rules (`cargo xtask widths`) are
+   part of `xtask lint`; `clippy::all` and `clippy::pedantic` denied, each allow carrying a `reason`; `unsafe_code`
+   denied outside `zbm-sys`; `missing_docs`, `rustdoc::broken_intra_doc_links` and `rustdoc::missing_crate_level_docs`
+   denied.
+2. **Documentation:** every crate starts with what it is for, how it fits the architecture and a short example; every
+   public item says what it does, its errors (`# Errors`), panics (`# Panics`, ideally none) and has a doctest when it
+   can run without a system. Docs explain intent and behaviour, not which legacy function it was.
+3. **Size:** functions of at most 60 lines, modules of at most 600 lines including tests; a test module that grows
+   past that moves to `tests.rs` next to the module.
+4. **Types over strings:** no `String` or `bool` parameter that stands for a domain concept; `&str` only at the
+   boundary (parsing input, printing output).
+5. **Errors:** one error enum per crate, written with `thiserror`, carrying context (`#[source]`); `Result` for
+   everything that can fail; non-error outcomes are enums. Binaries render the chain.
+6. **Observability:** every public operation in a service runs in a `tracing` span named after it, with the domain
+   identifiers as fields; every external command is logged once with its arguments (secrets redacted), duration and
+   status.
+7. **No hidden IO:** domain types and `update` functions take no context and perform no IO; services take a context.
+8. **Secrets:** secrets reach programs only on standard input, are captured as `Secret`, and never reach arguments,
+   the environment, files, logs or the screen; `zbm-trace` redacts `Secret` fields by type.
+9. **Dependencies:** vendored, each with a written reason in `docs/dev/dependencies.md`, checked with `cargo deny`
+   (licences, advisories, duplicates). A changed third-party crate is a patch in `patches/`, never an edit of
+   `vendor/`.
+10. **Everything new is Rust:** no new Bash, Perl or Python, including tests and tooling.
+
+## How the rules are enforced
+
+Every rule is checked by a tool in CI, so that developers and AI tools learn the rules from the build instead of from
+review comments. `docs/dev/tooling.md` describes each command.
+
+| Rule | Tool | How |
+| --- | --- | --- |
+| Lints (1) | `[workspace.lints]` in `Cargo.toml` | `clippy::pedantic`, the `rustdoc` lints and the no-panic lints, denied per crate as the phase that refactors the crate ends |
+| No panics in the runtime | `clippy::unwrap_used`, `expect_used`, `panic`, `indexing_slicing`, `unreachable`, `todo` | Denied in every crate that runs at boot; tests are exempt (`allow-unwrap-in-tests` and `allow-expect-in-tests` in `clippy.toml`) |
+| No hidden IO (7), adapters only | `disallowed-methods` and `disallowed-types` in `clippy.toml` | `std::process::Command`, `std::fs::*`, `std::env::var*`, `std::thread::sleep`, `SystemTime::now`, `Instant::now`, `println!` and `eprintln!` are disallowed; the real implementations allow them once per module, with a reason |
+| Layering (front ends never import adapters) | `xtask check-deps` | Fails on any dependency edge that the layer table in `xtask/src/deps.rs` does not allow; `docs/dev/architecture.md` is generated from that table |
+| Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts long functions and files, success flags, legacy-named doc lines, shell helpers, tests that run Bash and `unsafe` blocks per crate, against `xtask/metrics-baseline.txt`; a count may only go down |
+| Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs `rustfmt` and the width check |
+| Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for decision 11) |
+| Strict lints stay clean once reached | `xtask lint` with `xtask/strict/crates.txt` | The crates listed there must have no strict finding; each phase adds the crates it finishes |
+| Test coverage only goes up | `xtask coverage` with `cargo llvm-cov` | `--check` fails when a crate's line coverage drops below `xtask/coverage-baseline.txt`; a new crate must reach 80% |
+| Documentation matches behaviour | `xtask gen-docs --check` | Fails when a man page fragment generated from the option or key binding tables is out of date |
+
+New checks, added by the items that need them:
+
+| Rule | Tool | Item |
+| --- | --- | --- |
+| Domain crates reach programs only through adapter ports | `xtask check-deps` refuses `zbm_platform::Runner` in domain crates, and front ends that use domain crates other than through `zbm-app` | DM2, DM8 |
+| No raw ZFS command lines outside `zbm-zfs` | `xtask metrics` column, ratcheted to 0 | SB2 |
+| Names are newtypes in domain signatures | `xtask metrics` column: public domain functions taking a raw string | DM3 |
+| Structured logs | `xtask metrics` column: format-string log macros | DM9 |
+| No interactive shell outside its gate | `xtask` check: `Command::shell` and the shell programs only in `ShellGate` and tests | SE9 |
+| Release images carry no test features | `xtask` check over the release profile's features | SE2 |
+| Arithmetic overflow is caught | `overflow-checks = true` in the release profile | SE2 |
+| Third-party code is audited | `cargo vet`; `cargo deny` with duplicate versions denied | SE12 |
+
+## Verification
+
+### Layers
+
+| Layer | What | Where | Runs | Root |
 | --- | --- | --- | --- | --- |
-| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | Done | Small | Done |
-| 2 | [Unlock with whatever arrives first](#2-unlock-with-whatever-arrives-first) | 3 | Medium | Proposed |
-| 3 | [Parallel startup](#3-parallel-startup) | 3 | Medium | Proposed |
-| 4 | [Clear unlock errors](#4-clear-unlock-errors) | 2 | Medium | Prototyped |
-| 5 | [Reproducible images](#5-reproducible-images) | Done | Small | Done |
-| 6 | [Check the boot environment's ZFS before booting](#6-check-the-boot-environments-zfs-before-booting) | 2 | Small | Prototyped |
-| 7 | [Boot counting with automatic fallback, and boot once](#7-boot-counting-with-automatic-fallback-and-boot-once) | 2 | Medium | Prototyped |
-| 8 | [Locked menu](#8-locked-menu) | 2 | Medium | Proposed |
-| 9 | [Saved boot log and bug-report bundle](#9-saved-boot-log-and-bug-report-bundle) | Done | Small | Done |
-| 10 | [Measured boot](#10-measured-boot) | 3 | Medium | Proposed |
-| 11 | [Re-seal the TPM after firmware updates](#11-re-seal-the-tpm-after-firmware-updates) | 2 | Medium | Prototyped |
-| 12 | [Built-in menu interface](#12-built-in-menu-interface) | 2 | Large | In progress |
-| 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
-| 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
-| 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 1 | Medium | Partly done |
-| 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Partly done |
-| 19 | [Own console in Rust](#19-own-console-in-rust) | 1 | Large | In progress |
-| 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | Done | Small | Done |
-| 21 | [Restore files and see what an upgrade changed](#21-restore-files-and-see-what-an-upgrade-changed) | 2 | Medium | Prototyped |
-
-Groups:
-
-1. [**Now, in images with the Rust runtime**](#group-1-now-in-images-with-the-rust-runtime): the code they touch is
-   already Rust, and they are opt-in or change nothing a user sees.
-2. [**With the new menu**](#group-2-with-the-new-menu): they need the menu of REFACTOR-ROADMAP.md R5, or the boot
-   environment code it brings (port package C).
-3. [**After the menu, on the finished runtime**](#group-3-after-the-menu-on-the-finished-runtime): they change how
-   start-up, unlocking or booting behave, which the refactoring allows from R5, or need the Rust `kexec` path of all
-   images.
-
-Status is one of Proposed, Prototyped, Partly done, In progress or Done. Update it, and the entry's **Status** line, in
-the pull request that changes it.
-
-## Group 1: now, in images with the Rust runtime
-
-These touch code that is already Rust. Each is added as a change of its own, for images with
-`zfsbootmenu_runtime=rust`; legacy images stay frozen (`legacy/RUNTIME-CHANGES.md`).
-
-### 17. Graphics drivers for AMD and Intel GPUs
-
-**Status:** partly done. `zbm console-autosize` sizes the console font from the display's EDID when a graphics driver
-provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust-colours` add `virtio_gpu` to their
-images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
-(`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
-list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot and loading before the first prompt
-are done too (`zbm_boot::graphics`, VM test `runtime-rust-gpu`), and so are the hand-back before `kexec` and the
-list of known-good GPUs, which holds QEMU's GPUs until real hardware passes. The tests on real hardware remain. The Rust runtime owns the `kexec` path
-of its images.
-
-- **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
-  `config/zfsbootmenu/dracut.conf.d/omit-drivers.conf`), and the release images boot with `nomodeset`, because a GPU
-  that one kernel has set up rarely starts again under the kernel that `kexec` hands over to. The console then runs
-  on the framebuffer the firmware left behind:
-  - in whatever mode the firmware chose, often not the panel's own;
-  - with nothing on a screen the firmware did not light up, such as a second monitor or one behind a dock;
-  - with no EDID, so `zbm console-autosize` cannot size the font to the display and falls back to its old rule.
-- **How:**
-  - **Opt-in drivers.** The drivers are `amdgpu` for AMD GPUs from GCN on, and `i915` and `xe` for Intel graphics.
-    `generate-zbm` adds them when asked, for example with `Kernel.GraphicsDrivers: amdgpu i915 xe`, for dracut and
-    mkinitcpio alike, and drops `nomodeset` from the image's command line. Release images stay without the drivers.
-  - **Model selection.** `amdgpu` firmware for every chip is tens of megabytes, and one chip needs a few files, so
-    the image takes only the firmware of the GPUs it is for:
-    - host-only builds find the machine's GPUs by their PCI IDs in sysfs, with nothing to configure;
-    - other builds name chip families after the driver, such as `Kernel.GraphicsDrivers: amdgpu:gfx12 i915`, for an
-      image built on another machine or meant for several;
-    - a table in `generate-zbm` maps PCI IDs to families and families to firmware files, since the driver lists
-      every file it may load (`modinfo -F firmware`) but not which chip needs which. A test checks the table against
-      the firmware list of the build's kernel, so that a new kernel's files are noticed;
-    - `generate-zbm` reports the GPUs and firmware it chose, and fails when a named family is unknown or its files
-      are missing, rather than building an image whose display stays dark.
-    The first families are those of the machines below, the AMD Radeon RX 9060 XT (RDNA 4) among them.
-    *Done.* The table covers `amdgpu` from GCN 3 to RDNA 4 (families `gfx8` to `gfx12`), `i915` from Gen 9 to
-    Meteor Lake and `xe` for Lunar Lake, Battlemage and Panther Lake, with the PCI IDs of Linux 6.17 and `pci.ids`.
-    AMD chips from Navi 3x on name their firmware after IP versions, which the kernel reads from the GPU, so the
-    table holds groups of kin chips (`navi4x`: Navi 44 and 48); a host-only build where `amdgpu` runs reads the
-    versions from sysfs (`ip_discovery`) and takes one chip's files. A family whose newer chips the build kernel
-    does not know keeps the others. The dracut module installs the drivers in `installkernel`, past
-    `omit_drivers`, and removes the other firmware straight after, since dracut installs `add_drivers` after
-    every module and would bring the files back. Measured with dracut on Linux 6.8 (uncompressed, firmware
-    compressed): 22.2 MB without drivers, 31.1 MB with `amdgpu` and `i915` and the firmware of two chips, 54.0 MB
-    with all their firmware.
-  - **Choosing a GPU at boot.** With integrated and discrete graphics, `zbm.gpu=` names the GPU the console and the
-    menu draw on, by PCI address (`zbm.gpu=0000:03:00.0`) or vendor (`amd`, `intel`), and the others are not
-    touched; without it they use the first GPU with a connected display.
-  - **Load before the first prompt.** At start-up the drivers load before anything is asked, so the console does not
-    change mode under a passphrase field.
-    *Done.* The image keeps udev from loading them (`modprobe.d`) and lists them in
-    `/etc/zfsbootmenu/graphics-drivers`; `zfsbootmenu-preinit` loads them before the supervisor starts the console on
-    the display, waits up to 10 s for each chosen GPU's DRM card, and passes the console that card (`--card`).
-    `zbm.gpu` takes a PCI address, `amd`, `intel` or `off`; GPUs it leaves out get a driver override no driver matches.
-    The VM test `runtime-rust-gpu` runs it on QEMU's standard VGA and a virtio GPU.
-  - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
-    shutdown path, and resets the PCI function where it supports a reset. The booted kernel then finds the GPU as at
-    power-on.
-    *Done.* `zbm_boot::graphics::hand_back` runs after the console on the display handed the display back and the
-    "Booting" line, last before `kexec`: each GPU bound to a driver, of a vendor the image's drivers drive, is
-    unbound (`driver/unbind`) and reset (`reset`) where the kernel offers a method (`reset_method`), and the kernel
-    log says which; with `zbm.save_logs`, the saved kernel log and journal are written again after it, for the booted
-    system to read. When `kexec` fails, `take_back` has the PCI bus probe them again (`drivers_probe`) and waits for
-    their cards, before the console takes the display again. `runtime-rust-gpu` boots the environment after both
-    QEMU GPUs were handed back, and its kernel brings up a display on each.
-  - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at
-    all. Other GPUs stay on the firmware framebuffer, and the log says why.
-    *Done* as a list of PCI vendor and device IDs (`zbm_boot::graphics::known`), which holds QEMU's standard VGA and
-    virtio GPU, the VM test's; a real GPU joins it once it passes the twenty boots below. `zbm.gpu_untested` loads
-    the drivers for the other GPUs, to try one; the kernel log names each GPU as known, tried or left on the
-    firmware's framebuffer.
-  - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come
-    back.
-  - **Order.** Make and model selection come first, as they need no hardware to test: unit tests with a fake sysfs
-    and firmware list, and the image size measured. Choosing a GPU at boot and the hand-back follow, tested on the
-    machines below.
-  - **What stays out.** `radeon` (AMD GPUs before GCN) and NVIDIA's drivers: the proprietary driver cannot ship in the
-    image, and `nouveau` is not tested.
-- **Done when:**
-  - A VM test with a graphics driver QEMU can emulate (`bochs` or `virtio-gpu`) checks the sequence: the driver loads
-    before the prompts, the EDID reaches `zbm console-autosize` (done in `runtime-rust-autosize`), the device is
-    unbound before `kexec`, and the booted kernel brings up its display.
-  - On real hardware, each listed machine (Intel Gen 9 and Xe graphics, an AMD APU, an AMD RDNA graphics card) boots
-    twenty times in a row through `kexec`, with a working display both in ZFSBootMenu and in the booted system.
-  - Image size and the time to the menu are measured against an image without the drivers.
-  - A host-only image for one GPU holds only that chip's firmware; an image naming a family holds that family's;
-    unit tests cover the PCI ID and family tables, an unknown family and missing firmware files.
-  - On a machine with two GPUs, `zbm.gpu=` puts the console on the one named and leaves the other alone.
-
-### 19. Own console in Rust
-
-**Security.**
-
-**Status:** steps 1 to 4 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
-(19 checks, 905c3da) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
-`zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
-fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
-`kexec`. It types with the image's keyboard layouts, compiled from XKB data with `kbvm`, dead keys included, and
-`zbm console layout` switches them. Step 5 makes it the default, after the cutover. What it lacks to be a full
-console, and the order to add it in, is planned in [docs/dev/console-roadmap.md](docs/dev/console-roadmap.md) (112
-items in nine milestones; step 5 is its last).
-
-- **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
-  best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
-  and Spleen's native 32×64 serves the densest displays. What stays out of reach:
-  - at most 512 glyphs, so no font covers more than a few scripts, and 256 when the colours matter;
-  - fixed bitmap sizes, between which a display gets either too small or too large a font;
-  - 16 colours, not the 256 or true colour that terminal programs and themes expect;
-  - keyboard layouts only as the image's one keymap, which the unlock dialog works around by translating keys
-    itself.
-
-  Fedora is replacing the kernel console with `kmscon`, a console in user space that draws on the display through DRM
-  (reported for Fedora 45). `kmscon` is C with `libtsm`, `libxkbcommon`, `freetype` and `fontconfig`, a few megabytes
-  in the image. A console in Rust fits this project better: it is one more applet of `zbm`, and it keeps typed secrets
-  under the rules of `docs/dev/threat-model.md`.
-- **Prior art in Rust (October 2026):** no Rust program does what `kmscon` does, so the console is assembled from
-  crates:
-  - **Whole programs.** None replaces the kernel console. `term39` (MIT), a terminal multiplexer, comes closest: it can
-    draw on `/dev/fb0` from a physical console, with `vte` and `portable-pty`, but through the old framebuffer device
-    rather than DRM, with bitmap console fonts, and with keys read through the kernel console it runs on.
-  - **Ratatui drawn as pixels.** `mousefood` (MIT or Apache-2.0, from the Ratatui project, Rust 1.88 as the
-    workspace) is a Ratatui backend on `embedded-graphics`, with bitmap fonts. `soft_ratatui` (MIT or Apache-2.0, one
-    maintainer) renders a Ratatui buffer into an RGB pixel map, with bitmap (BDF, `embedded-graphics`) or TrueType
-    fonts (`rusttype`, `cosmic-text`). Both build on `ratatui-core`, which the workspace already vendors, and either
-    turns the menu into pixels without a renderer of our own. Step 1 took neither: neither reads the PSF fonts that
-    every image already carries, which `zbm_types::psf` reads and `zbm console-autosize` sizes, and drawing a cell
-    from a PSF glyph is a few dozen lines. They stay the choice for TrueType fonts in step 2.
-  - **The other layers.** `drm` for the display; `fontdue`, `rusttype` or `cosmic-text` (shaping, and much larger)
-    for fonts; `alacritty_terminal`, or `vt100` and `vte`, which the workspace vendors, for the terminal; `evdev` for
-    keys and `xkbcommon-rs`, a young pure Rust port of libxkbcommon (0.1), for layouts; `drmkit-session` (new in
-    October 2026) for revoking devices across VT switches, to watch rather than take.
-- **How:** a `zbm console` applet, which the supervisor starts on the display before the first prompt.
-  - **Display.** It draws into a dumb buffer through DRM (the `drm` crate, 0.15, on the workspace's `rustix` 1). It
-    works on `simpledrm`, the firmware's framebuffer, without graphics drivers, and at the native resolution with #17.
-  - **Text.** Any TTF or OTF font, at the size `zbm console-autosize` already computes from the display's EDID,
-    rasterized with `fontdue` (pure Rust; a terminal grid of Latin text needs no shaping). Full Unicode and 256
-    colours, so the four languages of #18 show without a 512-glyph subset.
-  - **Terminal.** `alacritty_terminal`, the terminal state machine of Alacritty, on a pseudo-terminal (`rustix`), so
-    `zfsbootmenu-init`, the menu and the recovery shell run in it and `vim`, `less` and `mc` work. `vte` and `vt100`
-    are already vendored for the VM tests.
-  - **Keyboard.** Key events from `evdev`, layouts from `kbvm` (an implementation of XKB in Rust), compiled when the
-    image is built into one file each. The unlock dialog's `Ctrl-K` then switches real keyboard layouts, dead keys
-    included.
-  - **Secrets.** No scrollback while a prompt is open, and the grid and the PTY's buffers wiped when it closes.
-  - **Fallback.** If the console fails to start or ends, the supervisor puts the menu back on the kernel console,
-    which stays built in. The serial console is unchanged.
-  - **Handing over.** Before `kexec` it releases the display and the keyboard, and gives the kernel console back, so
-    that the booted kernel takes over as it does today.
-  - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
-    the drivers), so it is not hidden behind the console.
-  - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only; step 2
-    added `alacritty_terminal` (0.26.0, Apache-2.0, without `serde`), `rustix` directly and `signal-hook`, for
-    `zbm-console`; step 3 added `swash` (0.2.10, MIT or Apache-2.0) for `zbm-display`, not `fontdue`, whose parser
-    `ttf-parser` was declared unmaintained (RUSTSEC-2026-0192); step 4 added `kbvm` (0.1.7, MIT or Apache-2.0), the
-    XKB engine of the Jay compositor, not `xkbcommon-rs`, last released in February 2025 (decision 1 of
-    REFACTOR-ROADMAP.md). The layouts cost about 70 KB each in the image, and the dead keys 75 KB.
-- **Steps:**
-  1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
-     sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
-     - `zbm-display` (platform layer): a frame of pixels; a grid that draws characters with the image's PSF fonts,
-       doubled where `zbm console-autosize` doubles them; a DRM dumb buffer on the first connected output, in its
-       preferred mode, restored when dropped; keys from the keyboards' input devices (`/dev/input/event*`, found
-       through sysfs), on the US layout; the virtual terminal in graphics mode with its keyboard off
-       (`KDSETMODE`, `KDSKBMODE` in `zbm-sys`) until the menu ends, so that the kernel console neither draws over it
-       nor passes its keys to the shell.
-     - `zbm_tui::menu::display`: a Ratatui backend that draws cells as pixels in the Linux console's palette (bold
-       drawn bright), and the menu's loop on a screen and a key source, which tests replace.
-     - The VM test `runtime-rust-drm` checks, on `virtio_gpu` and on `simpledrm` (`vga=0x318`): the driver, the main
-       view in the screen's text, its colours in a QEMU screenshot, Down and Enter typed on QEMU's keyboard, and the
-       kernel console drawing again after the menu boots.
-  2. **Done.** The console, with the image's PSF fonts and the US layout, for the
-     Rust runtime as it is before R5 (the countdown and the recovery shell); the menu of R5 runs on it unchanged.
-     - `zbm-console` (front ends): Alacritty's terminal on the controlling side of a pseudo-terminal, without
-       scrollback or clipboard, drawn where it changed with the grid of `zbm-display`, in the console's 16 colours
-       (bold drawn bright), xterm's 256 and true colour; the answers the programs ask for (cursor position, device
-       attributes, colours, size); keys as the Linux console sends them (`TERM=linux`), the bytes typed wiped once
-       written; `SIGUSR1` as the request to hand the display back, and the relay to the kernel console afterwards.
-     - `zbm console` (an applet): the display, the keyboards and the virtual terminal shown now, taken in that
-       order, so that a missing card or keyboard leaves the virtual terminal alone; without them it relays at once.
-       `zbm console release` sends the request and waits until the console removed its process ID from the state
-       directory. The console records that ID itself, once it can take requests. When `kexec` fails after the
-       hand-over, `zbm console reattach` has the console, which relays on the kernel console meanwhile, take the
-       display again.
-     - The supervisor, with `zbm.console=drm` and a virtual terminal as its control terminal, opens the
-       pseudo-terminal, starts the console on it and runs the start-up program and the recovery shell on the other
-       side in sessions of their own (`setsid -c`). If the console ends, it gives the virtual terminal back (text
-       mode, the keyboard's mode) and goes on on the kernel console; a program hung up then leaves no crash report.
-     - `zbm-boot` runs `zbm console release` after the teardown hooks, before `kexec -e`, when a console runs.
-     - The VM test `runtime-rust-console` reads the screen's text from a second serial port
-       (`zbm.console_mirror`): on `virtio_gpu`, the countdown in colour, Escape and a command typed on QEMU's
-       keyboard, the shell on the pseudo-terminal, and the kernel console taking keys after the console is killed;
-       on `simpledrm`, the hand-over and the boot of the boot environment.
-     - Keys come before the programs' output, so that Ctrl-C reaches a program that floods the terminal; typed
-       bytes wait in a wiped queue when the programs read nothing. A keyboard that goes away is dropped, and one
-       plugged in later is opened when nothing else happens for a moment; after events were lost
-       (`SYN_DROPPED`) the keys held are read back from the device, and Caps Lock lights the keyboards' light.
-     - Left for later: a console that comes back after it ended.
-  3. **Done.** TrueType fonts at the size `zbm console-autosize` computes, for full
-     Unicode without a 512-glyph subset (#18).
-     - `zbm_display::outline`: a TrueType or OpenType font through `swash` (hinted, rasterized as coverage), sized
-       so that a line fills a cell as high as the console font `zbm console-autosize` chooses, with whole pixels per
-       em; each character rasterized once. The grid blends its coverage between the cell's colours, and falls back
-       to the replacement character or `?` for characters the font lacks.
-     - `zbm_display::boxes`: the box drawing (U+2500 to U+257F, but the diagonals) and block characters (U+2580 to
-       U+259F) drawn to fill their cells, so that borders and bars join as they do with the console fonts.
-     - Images with the Rust runtime carry DejaVu Sans Mono 2.37 (340 KB, Bitstream Vera licence) as
-       `/usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf`; `zbm console` draws with it unless
-       `zbm.console_font=psf`, or the image has none, and names its font in its start message.
-     - `runtime-rust-console` checks the TrueType font and its anti-aliasing on `virtio_gpu`, and
-       `zbm.console_font=psf` on `simpledrm`.
-     - Left for later: a bold face (bold is drawn bright, as on the kernel console), fonts other than the image's,
-       and characters wider than a cell, which are cut at its edge.
-  4. **Done.** Keyboard layouts, so that the unlock dialog's `Ctrl-K` can switch real
-     layouts.
-     - `zbm_display::layout`: an XKB keymap through `kbvm`, its key state machine (Shift, Caps Lock, `AltGr`, level
-       and group switches as the keymap defines them) and its dead keys through a compose table; Ctrl and Alt with a
-       key of a layout not in Latin letters give the key's US letter, as `Ctrl-C` needs. The decoder takes a layout,
-       and a new one keeps the keys held; without one it keeps the US tables of step 1.
-     - `zbm keyboard-layouts` compiles, when the image is built, each layout of `zfsbootmenu_keyboard_layouts`
-       (`de`, `de(nodeadkeys)`; by default the build host's `XKBLAYOUT`, then `us`, `de`, `fr` and `gb`) from the
-       build host's XKB data into a self-contained keymap, and the compose rules of `en_US.UTF-8` that start with a
-       dead key; Rust images install them in `/usr/share/zfsbootmenu/layouts` with their order. The build container
-       gains `xkb-data` and `libx11-data`.
-     - `zbm console` types with the image's first layout, or `zbm.keyboard_layout` (`--layout`), and names it in its
-       start message. `zbm console layout <name>` writes the request in the state directory and sends `SIGUSR2`; the
-       console loads the layout, records it (`console-layout`) and removes the request, which the command waits for.
-       Without a name it shows the layout and the image's others.
-     - `runtime-rust-console` checks, on `virtio_gpu`, the start layout, `zbm console layout de` typed in the shell,
-       `y`, `z` and a dead circumflex typed on the German layout into `cat`, and the switch back typed with it.
-     - Left for later: the menu's `Ctrl-K` asking the console for the layout (R5, with the unlock dialog; on the
-       console the menu then stops translating by key position), `Global.KeyboardLayouts` in `generate-zbm`, the
-       compose key (`Multi_key`), and keyboards with their own layouts.
-     - The recovery shell's prompt takes characters beyond ASCII: the first VM run lost `ê` there, which `cat` on the
-       same console typed, as readline in the image's C locale may take their bytes for Meta keys. Rust images get
-       `/etc/inputrc` (8-bit input and output) and, where the build host's C library has it, the character set of
-       `C.UTF-8` (`LC_CTYPE`, 360 KB) with `LC_CTYPE=C.UTF-8` in `/etc/profile`; `runtime-rust-console` checks `ê`
-       at the prompt, and passes (19 checks).
-  5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
-- **Done when:**
-  - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;
-  - snapshot tests compare its rendering, in memory, with reference images at three sizes;
-  - a test types a passphrase and finds it in no buffer of the console once the dialog closed;
-  - a VM test kills the console and the menu comes back on the kernel console;
-  - image size and the time to the menu are measured against the kernel console.
-
-## Group 2: with the new menu
-
-These need the menu that REFACTOR-ROADMAP.md R5 builds, the boot environment code it ports (package C), or both. The
-prototypes show how they look and behave; R5 builds the menu's core tasks first, and these follow on it.
-
-### 4. Clear unlock errors
-
-**Status:** prototyped. The unlock dialog of the prototype says why a method is asked instead of another, when a
-secret was wrong, and when the keyboard layout is the likely cause, with `Ctrl-K` to type with another layout
-([unlocking](docs/dev/menu-design/unlocking.md)). In the runtime, `zbm_luks::LuksError` and `TokenFailure` carry each
-failure's cause, and `cryptsetup`'s exit statuses map onto typed errors (a wrong key, no device, busy).
-
-- **Why:** several different failures look alike today. Users need to know whether the passphrase was wrong, the
-  volume has no key slot or token for the method, the LUKS header is damaged, the TPM refused because the system
-  changed (PCR mismatch), the FIDO2 key or GnuPG card is missing, or its PIN was wrong. The TPM lockout is already
-  detected.
-- **How:** map the outcomes of the `zbm-crypt` adapters to one error type with a message and a hint for each case,
-  shown by the unlock dialog. Where a tool's output cannot tell two cases apart, call libcryptsetup through
-  `libcryptsetup-rs` and the TPM through `tss-esapi`; neither is among the agreed crates yet (decision 1 of
-  REFACTOR-ROADMAP.md).
-- **Done when:** every failure case of the LUKS device suites (`crates/zbm-luks/tests/devices/edge.rs`) produces its own
-  message, and the test checks it.
-
-### 6. Check the boot environment's ZFS before booting
-
-**Status:** prototyped: the menu runs five checks on each environment, shows them on its row and in the inspector,
-and asks before booting one that fails ([boot health](docs/dev/menu-design/boot-health.md)).
-
-- **Why:** ZFSBootMenu warns when its own ZFS does not support a pool's features. Nothing warns when the selected boot
-  environment's ZFS is too old for the features active on its root pool. That boot environment then fails to import
-  its root pool after `kexec`, away from ZFSBootMenu's recovery tools.
-- **How:** before booting, read the ZFS module version that the boot environment's initramfs (or, failing that, its
-  module tree) contains for the selected kernel. Look up the features that version supports in the `compatibility.d`
-  files that OpenZFS ships (`openzfs-2.2-linux` and so on), and compare them with the features that are active on the
-  pool. Features that are enabled but unused do not block an import. List the features the boot environment does not
-  support, and ask before booting.
-- **Done when:** a VM test with an old ZFS in the boot environment, like `complex-oldzfs`, shows the warning before
-  booting, and boot environments with a recent enough ZFS boot without it.
-
-### 7. Boot counting with automatic fallback, and boot once
-
-**Status:** prototyped: `zbm-tui --demo --failing` shows the fallback, `--next-boot` a boot asked for once by the
-running system ([boot health](docs/dev/menu-design/boot-health.md)). The commands `zbm bless` and `zbm next-boot` and
-the option `zbm.boot_tries` are proposals; their names are open until they are built.
-
-- **Why:** after an update that does not boot, an unattended or remote machine stays down until someone reaches the
-  console. And a running system cannot ask for the next boot only, as `systemctl reboot --boot-loader-entry` does for
-  systemd-boot.
-- **How:** a boot environment or kernel can be marked for trial, from the menu or with a tool in the booted system.
-  ZFSBootMenu decrements a counter before each trial boot, and when it reaches zero boots the last known-good boot
-  environment instead. A small service in the booted system marks the boot good, as `systemd-bless-boot` does for
-  systemd-boot. ZFSBootMenu imports pools read-only, so the counter is kept in an EFI variable; systems without UEFI
-  are not supported at first. The same variable can name the environment to boot once.
-- **Done when:** a VM test boots a boot environment that crashes and ZFSBootMenu falls back after the configured number
-  of tries, a boot environment whose service marks the boot good keeps booting, and a boot asked for once happens once.
-
-### 8. Locked menu
-
-**Security.**
-
-- **Why:** anyone at the console can edit the kernel command line (for example `init=/bin/sh`), open the recovery
-  shell, or boot another boot environment or snapshot. On a system that unlocks with a TPM and no PIN, that means
-  anyone who can start the machine reaches the decrypted data.
-- **How:** optionally require a PIN (stored as an Argon2id hash in the image) or a FIDO2 key before editing the command
-  line, opening the recovery shell, choosing anything but the default boot environment, or managing snapshots. The
-  default boot stays unattended. The lock only helps when the image itself cannot be replaced, so the documentation
-  pairs it with Secure Boot and signed images.
-- **Done when:** VM tests check that each locked action asks for the PIN, that a wrong PIN is refused with a delay,
-  and that the default boot still needs no input.
-
-### 11. Re-seal the TPM after firmware updates
-
-**Security.**
-
-**Status:** prototyped: `zbm-tui --demo --tpm-changed` shows which PCR changed and why, asks for the passphrase
-instead of the TPM2 PIN, and offers the re-seal alert ([unlocking](docs/dev/menu-design/unlocking.md)).
-
-- **Why:** a firmware update changes PCR values. TPM unlocking then fails, and the passphrase is needed at every boot
-  until someone re-enrolls the token from the booted system.
-- **How:** when a TPM2 token fails because of a PCR mismatch and the volume is then unlocked with a passphrase or
-  recovery key, show which PCRs changed and offer to re-seal the token to the current values. Re-sealing trusts the
-  current state of the machine, so it needs explicit confirmation. The same code gives `zluks` commands to enroll
-  TPM2 and FIDO2 tokens and recovery keys.
-- **Done when:** a VM test changes a PCR the token is bound to, unlocks with the passphrase, re-seals, and the next
-  boot unlocks with the TPM alone.
-
-### 12. Built-in menu interface
-
-**Status:** in progress, as the refactoring's menu: designed in phase D, with a prototype that runs every core task
-on a fake machine; the R0 pilot showed the boot environment list in the Rust image on a serial console. R5 builds it,
-and `fzf` then leaves the images (decision 3 of REFACTOR-ROADMAP.md).
-
-- **Why:** the menu runs `fzf` with Bash previews, which starts many processes and depends on the `fzf` version in the
-  image. A built-in interface behaves the same everywhere and can add mouse support, themes, and a plain mode for
-  serial consoles and screen readers.
-- **How:** Ratatui for the layout and `nucleo-matcher` for filtering, redesigned from the tasks users come to do rather
-  than rebuilt screen for screen (REFACTOR-ROADMAP.md, "The menu redesign"). The `fzf` menu's `MOD+key` bindings stay
-  as aliases in their old views, so the help pages and users' habits stay valid (decision 8, open until the usability
-  sessions).
-- **Done when:** the exit of R5: the VM tests drive every core task through the menu, including on a serial console.
-
-### 15. Reclaim space from snapshots
-
-- **Why:** a nearly full pool makes writes fail during boot, and only destroying snapshots frees the space they hold.
-  Finding which ones hold it takes `zfs list -o space` and `zfs destroy -nv` in the recovery shell, and space shared
-  by neighbouring snapshots is freed only when all of them go, which no single snapshot's `used` shows. The menu's
-  boot checks already warn when a pool has less than 5% free; this is what to do next.
-- **How:** a *Reclaim Space* view lists an environment's snapshots by the space destroying each frees. The user marks
-  several, and the header shows what destroying them together frees, from a dry run (`zfs destroy -nvp` on the marked
-  snapshots). One confirmation, with the environment's name typed, imports the pool read/write and destroys them.
-  Snapshots with a `zfs hold`, and those a clone depends on, are shown as protected and cannot be marked; a key adds or
-  releases a hold, so a snapshot can be kept from automatic pruning. The pool's checkpoint is never offered.
-- **Done when:** a VM test fills a pool, marks snapshots and checks that the space freed matches the dry run, and that
-  held snapshots and snapshots with clones cannot be destroyed.
-
-### 16. Pool health in detail
-
-- **Why:** after a disk fails or is replaced, the menu shows a pool as `DEGRADED` and nothing more. Which device
-  failed, how many errors each has, whether a resilver runs and when it ends, and which files are damaged take
-  `zpool status -v` in the recovery shell.
-- **How:** opening a pool shows its device tree (each vdev and device with its state and read, write and checksum
-  errors), the progress of a scrub or resilver with the time left, and the damaged files, from `zpool status -j`
-  (OpenZFS 2.3 and later; `zpool status -p` before), through the typed ZFS port of `zbm-zfs`. Actions, each confirmed:
-  clear the errors (`zpool clear`), bring a device online or take it offline. Replacing a device stays in the recovery
-  shell. ZFSBootMenu imports pools read-only, and a read-only pool neither resilvers nor takes these actions: the view
-  says so and offers to import it read/write first.
-- **Done when:** VM tests with a degraded mirror and a resilvering raidz show the same devices, errors and progress as
-  `zpool status`; clearing errors and bringing a device back online work; a read-only pool offers the import first.
-
-### 18. Spanish, French, Dutch and Brazilian Portuguese
-
-**Status:** partly done: the console fonts carry every letter the four languages use, in both families, and a test
-checks it (#20). The catalogue comes with the menu in R5.
-
-- **Why:** ZFSBootMenu speaks only English, at the moment a user is least able to look words up: a boot that went
-  wrong, a passphrase refused, a pool that did not import. Spanish, French, Dutch and Brazilian Portuguese cover
-  many of the users who ask for help in other languages today.
-- **What is translated:**
-  - about 500 strings the user reads: the menu, the unlock and import prompts, and the errors of unlocking,
-    importing, start-up and booting;
-  - the help inside the menu;
-  - the man pages `zfsbootmenu(7)` and `zfsbootmenu-luks(7)`.
-- **What stays English:**
-  - the log, the runtime journal and bug-report bundles (#9), so that maintainers can read and search them;
-  - command line options, `org.zfsbootmenu:*` properties and configuration keys, which ZFSBootMenu shares with
-    upstream;
-  - the distribution guides, which change too often for translations to keep up.
-- **How:**
-  - **Catalogues.** One Fluent file per language (`locales/es`, `fr`, `nl`, `pt-BR`), built into `zbm`: a few tens of
-    kilobytes each. Fluent is already vendored, as a dependency of `uucore`. Its plural rules follow CLDR (French
-    counts 0 as singular, for example).
-  - **Choosing the language.**
-    1. `zbm.lang=fr` on the kernel command line.
-    2. Otherwise, the language `generate-zbm` read from the build host's `/etc/locale.conf`.
-    3. Otherwise, English.
-
-    The command palette changes it for the rest of the session. A string missing from a catalogue is shown in
-    English.
-  - **Characters.** The image's console fonts, Terminus or Spleen, installed as 256-glyph subsets in images with the
-    Rust runtime, keep every letter and mark the four languages use: ñ ¿ ¡ é è ç œ « » ã õ ë. The only gap is the
-    Dutch ligature ĳ, which Dutch usually writes as two letters. Where the terminal has no UTF-8 (`--theme ascii`, old
-    serial terminals), accents are dropped (é becomes e), as line drawing already falls back to ASCII.
-  - **Keys stay the same in every language.** `s` opens the snapshots whatever the word for them, so that each key
-    keeps one meaning, and the classic bindings, the VM tests and the documentation stay valid. Help shows each key
-    beside its translated label.
-  - **Layout.** Translations run 20 to 35% longer than English. Titles use sentence case, as these languages do, not
-    English title case. Numbers, sizes and ages follow the language (`1,2 Go`, `il y a 12 h`), from small rules per
-    language rather than ICU, which is too large for the image.
-  - **Keyboard layouts.** The layout translation of the unlock dialog gains `es` and `br-abnt2`. Dutch users mostly
-    type on the US layout.
-  - **Translators.** Each language needs a native speaker who reviews its changes. A language without one stays at
-    its last reviewed state, its missing strings in English, and never blocks a release.
-- **Steps:**
-  1. In R5 (REFACTOR-ROADMAP.md), the menu takes every string from the catalogue, in English. CI checks that every
-     key exists and that placeholders match. A pseudo-language that lengthens and accents every string finds text
-     that does not fit before any translation exists. Small, if done then.
-  2. The four catalogues of the menu, the prompts, the errors and the help. Medium.
-  3. The two man pages, through Sphinx's translation tools (`sphinx-intl`, `.po` files). Large, and ongoing.
-- **Done when:**
-  - every view's wireframes, at 120×40, 80×25 and 52×20, exist in each language and fit without clipping;
-  - a VM test boots with `zbm.lang=` set to each language, unlocks a volume and boots an environment;
-  - a test checks that log and journal entries stay English whatever the language;
-  - each language has had a native speaker's review.
-
-### 21. Restore files and see what an upgrade changed
-
-**Status:** prototyped: `f` on a snapshot opens the Changes view, with a Files segment that restores marked paths and
-a Packages segment that lists what the upgrade installed, removed, upgraded and downgraded
-([boot health](docs/dev/menu-design/boot-health.md), wireframes `diff`, `diff-marked`, `diff-packages` and
-`restore-confirm`).
-
-- **Why:** after an upgrade that broke something, the user wants one file back, or to know which package did it.
-  Today that takes a rollback, which loses everything since the snapshot, or `zfs diff` in the recovery shell and
-  reading package databases by hand.
-- **How:**
-  - **Files.** What changed since the snapshot (`zfs diff`), one row per path with its kind and a preview. Restoring
-    copies marked paths back from `.zfs/snapshot/<name>/`, keeping owner, mode and times, after importing the pool
-    read/write and taking a safety snapshot `@before-restore`; the confirmation wants the environment's name typed.
-  - **Packages.** The package database in the snapshot compared with the live one: `xbps`, `dpkg`, `pacman` or `rpm`
-    (its SQLite database, read without `rpm`). Each row says what happened and how to undo it, and lists the
-    package's changed files.
-- **Done when:** a VM test changes and removes files in a boot environment, restores them from a snapshot and checks
-  their contents, owners and modes and the safety snapshot; fixture tests read each package database format and give
-  the same changes as the distribution's own tools.
-
-## Group 3: after the menu, on the finished runtime
-
-These change how start-up, unlocking or booting behave. The refactoring changes no behaviour before R5, and package C
-of the port, which R5 builds, brings the Rust `kexec` path to every image.
-
-### 2. Unlock with whatever arrives first
-
-- **Why:** the Bash code tries unlock methods in turn. A FIDO2 key or a USB key stick plugged in while the passphrase
-  prompt is shown is not noticed until the prompt ends, and a slow TPM delays the prompt.
-- **How:** run one task per method (TPM2, FIDO2, YubiKey challenge-response, GnuPG smart card, key file or key device,
-  passphrase) and watch device hot-plug through kernel uevents. The `KeyMethod` strategies of `zbm-luks` (R3) are the
-  units to run. The first method that unlocks the volume cancels the others. Configuration keeps its meaning: a volume
-  configured for a key file alone never shows a prompt. PIN attempts against the TPM stay one at a time, so they do
-  not use up the TPM's lockout counter. One concurrency model for the runtime is proposal 7 of REFACTOR-ROADMAP.md.
-- **Done when:** the hot-plug and lockout VM tests (`complex-hotplug`, `complex-hotplug-auto`, `firmware-usbkey`,
-  `firmware-usblate`, `keys-lockout`) pass, and a new test plugs in a key while the passphrase prompt is shown.
-
-### 3. Parallel startup
-
-- **Why:** kernel discovery mounts one boot environment after another, and several LUKS volumes that share a
-  passphrase each run a slow Argon2id key derivation in turn. Systems with many boot environments or disks wait the
-  longest.
-- **How:** scan boot environments with a thread pool, and unlock volumes in parallel. Each Argon2id derivation can use
-  up to 1 GiB of RAM, so the number of parallel unlocks depends on free memory. Pool imports stay serial where the
-  `zpool` command needs it.
-- **Done when:** the VM tests measure the time from kernel start to the menu, it drops on a layout with four LUKS
-  members and on a pool with twenty boot environments, and the menu shows the same entries as before.
-
-### 10. Measured boot
-
-**Security.**
-
-- **Why:** the firmware measures ZFSBootMenu itself into the TPM when it boots as an EFI image, but nothing measures the
-  kernel, initramfs and command line that ZFSBootMenu boots. The booted system cannot tie its own TPM secrets to
-  "this kernel, booted with this command line".
-- **How:** before `kexec`, extend a PCR with the hashes of the kernel, the initramfs and the command line, and record
-  the events in a log the booted system can read. The PCRs to use (GRUB uses PCR 8 for command lines and PCR 9 for
-  files) and the log format are to be decided and documented. Extend only after ZFSBootMenu's own TPM unlocks, so the
-  booted system cannot unseal those secrets again, much as systemd measures boot phases into PCR 11. A tool predicts
-  the PCR values for a boot environment, so policies can be prepared before an upgrade.
-- **Done when:** a VM test with a software TPM compares the PCR values after booting with the prediction, and checks
-  that ZFSBootMenu's TPM tokens no longer unseal after the extension.
-
-## Done
-
-### 1. Wipe secrets from memory
-
-**Security.**
-
-**Status:** done; the VM tests `secrets-passphrase` and `secrets-keyfile` passed on 24 October 2026, with the key
-methods of `keys-*` and `firmware-*` on the Rust runtime. In the Rust runtime secrets are `zbm_platform::Secret`, in pages of their own (`zbm_sys::memory::Pages`):
-from `memfd_secret` where the kernel allows it, which keeps them out of the kernel's map of memory too, else locked
-with `mlock`; never in core dumps (`MADV_DONTDUMP`) or child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`); wiped
-with `explicit_bzero` when dropped. They reach programs only on standard input, the journal writes fields named for
-secrets as `[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
-`docs/dev/threat-model.md`). The runtime's processes are undumpable, and the console on the display wipes the key
-codes it reads. Before `kexec`, the start-up program drops the page cache and warns about secrets it still holds;
-`zbm report` says whether the kernel zeroes freed memory (`init_on_free=1`), which the man page recommends for Rust
-images. The VM tests unlock a volume with a long passphrase, then with a key file on a USB stick, and a teardown hook
-runs `zbm debug secrets` (in images built with the `secret-test` feature) just before `kexec`: it searches every other
-process's memory, command line and environment, and every file on the file systems in memory, for both. Kernel
-buffers still in use at `kexec` are not searched, and stay a risk (R4 of the threat model).
-
-- **Why:** Bash keeps passphrases and key material in variables, here-strings and pipe buffers that cannot be reliably
-  erased. Copies can remain in RAM after ZFSBootMenu hands over to the booted kernel. ZFSBootMenu already closes LUKS
-  mappings before booting, which wipes the volume keys, but not the secrets used to unlock them.
-- **How:** hold secrets in types that erase themselves when dropped (done: `Secret`; `zeroize` or `secrecy` are
-  proposal 5 of REFACTOR-ROADMAP.md), lock their pages in RAM (`mlock`), and hand them to libcryptsetup and helper
-  tools through memory or pipes: never through command-line arguments, environment variables or files. Wipe
-  everything that is left before `kexec`.
-- **Done when:** a test unlocks volumes with a known passphrase and key file, then searches process memory, command
-  lines, environments and tmpfs for them and finds nothing.
-
-### 5. Reproducible images
-
-**Status:** done. With `SOURCE_DATE_EPOCH` set, the Rust `generate-zbm` passes `--reproducible` to dracut,
-`objcopy` stamps the EFI bundle with that time, the image's `BUILD_ID` is its day, and the build container builds
-`zbm` with its random work directory remapped (`--remap-path-prefix`). Two release builds in the build container,
-from checkouts in different directories five minutes apart, gave the same bytes for the initramfs, the kernel and the
-EFI bundle; without the variable they differed only in the archive's file times and the bundle's PE time stamp. The
-CI job `reproducible` (`build.yml`) builds and compares them on pull requests and on master.
-
-- **Why:** the same source and build container should give the same bytes, so that anyone can check a published image
-  and sign it. Today two builds from the same tree have identical contents but different bytes, because the initramfs
-  records timestamps.
-- **How:** set `SOURCE_DATE_EPOCH` from the last commit and pass dracut's `--reproducible` option; check the EFI bundle
-  that `objcopy` writes for timestamps. `generate-zbm` is Rust now, so the change goes there. Build paths are removed
-  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md).
-- **Done when:** CI builds the release image twice, in different directories, and the two images are identical.
-
-### 9. Saved boot log and bug-report bundle
-
-**Status:** done; the VM test `runtime-rust-saved` passed on 24 October 2026 (18 checks). Every runtime
-program appends its events to the runtime journal (`/zfsbootmenu/journal.jsonl`), with secrets redacted, and a panic
-leaves a crash report that `zbm debug crash` prints and `cargo xtask symbolize` resolves (REFACTOR-ROADMAP.md R1).
-With `zbm.save_logs`, the Rust runtime saves the journal, the crash reports and the kernel log on the EFI system
-partition before `kexec` and after a crash, in `EFI/zfsbootmenu/logs/<time>`, keeping the newest five and mounting
-the partition only for the write; `zbm debug saved` lists them and `zbm debug save` saves now. `zbm report` writes a
-bug report there or in a directory, such as a USB stick: versions, pool status, each LUKS header's UUID and its
-tokens' IDs, types and key slots, whether a TPM is there and locked out, the crash reports, the journal and the
-kernel log. A unit test (`zbm_boot::report`) fills a fake machine's LUKS header with sealed keys, Clevis JWEs and key
-slot salts and checks that no file of the report holds any of them; the VM test boots once into a boot environment,
-restarts and reads the first boot's journal back.
-
-- **Why:** ZFSBootMenu logs to the kernel log of its own kernel, which is lost when it boots another kernel or the
-  machine restarts. Failures on unattended machines cannot be diagnosed afterwards.
-- **How:** optionally write the journal and crash reports to the EFI system partition, keeping the last few, and mount
-  the partition only for the write. A `zbm report` command in the recovery shell writes pool status, LUKS header
-  summaries, token and TPM status, versions and the journal to the EFI system partition or a USB stick. It never
-  includes key material. Proposal 2 of REFACTOR-ROADMAP.md (`zbm debug bundle`, and `xtask replay` turning a bundle
-  into a test) builds on the same bundle.
-- **Done when:** a VM test restarts the machine and finds the previous journal on the EFI system partition, and a test
-  checks that a report contains none of the test passphrases or keys.
-
-### 20. Console fonts: Spleen and 256-glyph subsets
-
-For images with the Rust runtime, where `zbm console-autosize` chooses the font; the legacy hook keeps its fonts. It
-helps the kernel console until, and wherever, #19 replaces it.
-
-**Status:** done. The subsets: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
-and wireframe tests check them, and the VM test `runtime-rust-autosize` loads them on a real kernel, doubled too.
-Spleen is done too: Spleen 2.2.0 in 8×16, 12×24, 16×32 and 32×64 (`legacy/zfsbootmenu/fonts/spleen/`, with its
-licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Global.ConsoleFont: spleen` or the build option
-`zfsbootmenu_console_font=spleen`; without a display density, `zbm console-autosize` still keeps to 32 pixels. The
-VM test passes with both families (64984bd): the Spleen image, built through `generate-zbm`, holds Spleen only, loads
-8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours is the VM test
-`runtime-rust-colours`, which counts the colours of a 16-colour bar in QEMU screenshots of the VGA text console and the
-framebuffer console, with the image's font and the whole 512-glyph one: it passes (803de05). The image's fonts show all
-16 colours on both consoles; the whole font shows 8 on the VGA text console and 16 on the framebuffer console, which
-keeps the bright foreground colours with 512 glyphs: the subsets are what the VGA text console needs.
-
-- **Why:**
-  - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
-    512 glyphs of 64 bytes and a Unicode table). `setfont(8)` warns that a font of more than 256 glyphs leaves 8 of
-    the 16 colours. On a VGA text console that loses the bright ones, which the menu uses for muted text, titles
-    and warnings; the framebuffer console keeps the 16 foreground colours (measured by `runtime-rust-colours`).
-  - **Dense displays.** The largest Terminus font is 16×32, so the densest displays get it doubled to a blocky 32×64.
-- **How:**
-  - **Subsets.** The image build makes each font of the image a 256-glyph PSF2 subset: ASCII, the characters the
-    menu draws (box drawing, `▶ ‹ · • … √ ↑ ↓ →` and the others of the theme), Latin-1, and `œ Œ €` for the
-    languages of #18. That is about 230 characters in fewer glyphs, so all 16 colours stay. The Unicode table maps
-    characters a font lacks to a glyph it has (`▶` to `►`, `“ ”` to `"`), so a font missing one can still be used.
-    The subsets are modified fonts under the same licence; a PSF file carries no font name, so none uses a reserved
-    one.
-  - **Spleen.** An option chooses the family, one per image, so the text looks the same at every density:
-    `Global.ConsoleFont: terminus` (the default, as today) or `spleen`. Spleen (BSD-2) has native sizes from 5×8 to
-    32×64, so the densest displays get a font drawn at that size instead of a doubled one. `zbm console-autosize`
-    already reads the cell of each font from its header, and prefers a native size to a doubled one of the same
-    height.
-- **Done when:**
-  - a test reads every font `generate-zbm` builds and checks that it has at most 256 glyphs, every character the
-    menu draws and the letters of the four languages of #18, as the wireframe tests check the fonts of the image
-    today;
-  - the VM test of `zbm console-autosize` passes with both families, and on the 4K display chooses Spleen's 32×64
-    without doubling;
-  - on a VGA text console and on a framebuffer console, muted text, titles and warnings show in their colours.
+| Unit | Pure functions, parsers, `update`, state machines | Next to the code | Every `cargo test` | No |
+| Component | One service on in-memory fakes (`FakeMachine`, `FakeZfs`, `FakeLuks`, `FakeTpm`) | `crates/*/tests/` | Every `cargo test` | No |
+| Golden | Output compared with recorded files: screens, generated configurations, image plans, the results first recorded from the legacy code (`tests/golden/legacy`, now expected results that a deliberate change may change) | `tests/golden/`, `crates/*/tests/` | Every `cargo test` | No |
+| Property | Parsers, orderings, message round trips, `Printable` never emitting control characters, start-up always ending in a menu or a shell | Next to the code | Every `cargo test` | No |
+| Fault injection | Seeded schedules of failures, time-outs, `ENOSPC`, `EIO` and signals through `FaultyRunner` and `FaultyFiles` | Next to the code | Every `cargo test` | No |
+| Fuzz | Every parser of untrusted input in the threat model, the message decoders, hostile names through `view` | `fuzz/` | Nightly CI, with ASan | No |
+| Contract | One suite against each fake and its real adapter | `crates/*/tests/contract/` | VM | Yes |
+| Device | Real `cryptsetup`, swtpm, GnuPG on loop devices | `crates/zbm-luks/tests/devices/`, `crates/zbm-crypt/tests/` | `cargo xtask test devices`, CI | Yes |
+| System | Images booted in QEMU (`zbm-vmtest`), in three tiers: smoke (about 15 scenarios, CI with KVM), nightly, release (the full hour, the maintainer's machine) | `crates/zbm-vmtest` | `cargo xtask test vm` | Host with KVM |
+
+Mutation testing (`cargo-mutants`) runs on the code where a missed case costs most: `zbm-luks`, `zbm-crypt`, the
+command lines, the shell gate and the message codecs. Coverage counts test code apart from the code it tests.
+
+### Conventions that make tests easy for people and for AI tools
+
+- **One behaviour per test,** named as a sentence: `a_wrong_pin_counts_towards_the_lockout`.
+- **Arrange, act, assert,** separated by blank lines; the arrange part uses builders such as
+  `FakeMachine::new().with_luks_volume("/dev/sda2", "pw")`.
+- **Tables for variations:** `cases!` or an array of structs with a `name` field, so a failure names the case.
+- **Golden files instead of inline expectations** for anything longer than three lines, updated with
+  `INSTA_UPDATE=always` or `xtask bless`.
+- **Readable failures:** `pretty_assertions` diffs; `assert_ran!`, `assert_not_ran!` and
+  `assert_no_secret_leaked!`.
+- **Determinism:** no wall clock, sleep, network or randomness in unit and component tests.
+- **Self-contained:** a test does not depend on another test's state, the host's tools or the legacy tree.
+- **Discoverable:** `docs/dev/testing.md` maps features to test files.
+- **Fast:** the whole default suite under one minute; `cargo nextest` profiles for CI.
+
+### Benchmarks
+
+The Rust runtime should be faster where it matters and no slower anywhere. These benchmarks turn that into numbers,
+measured against the legacy runtime on the same machine. Until they run, no speed claim is made.
+
+| # | What | How it is measured | Compared with | Budget |
+| --- | --- | --- | --- | --- |
+| B1 | Image size: the EFI image and the initramfs, and their parts (`zbm`, `brush`, fonts, keyboard layouts, uutils) | `generate-zbm` builds both images from one configuration; `cargo xtask bench size` lists the parts | The legacy image | Set from the first baseline; a rise of more than 10% needs a reason in the record |
+| B2 | Time to the menu: from the kernel's start to the countdown's first frame | Kernel log timestamps and the journal's spans, in a VM with KVM | The legacy countdown; the kernel console and `zbm console` | No slower than legacy |
+| B3 | Time to boot: from QEMU's start to `BE-INIT-START`, with the stage times from the journal | The countdown boot of a `runtime` test, five runs, median and spread | The legacy image | No slower than legacy |
+| B4 | Key to screen: moving the selection, typing a filter, opening the snapshots and a dialog | In process on the fake machine, and end to end over the serial console in a VM | `fzf` and its previews | A frame (16 ms) in process; legacy's median end to end |
+| B5 | Many snapshots: 100, 1,000 and 10,000 of one environment; opening, filtering, scrolling, memory | A pool built by the VM test, and in process with `FakeZfs`; UI10's performance test | The legacy menu | Matching and redraw within a frame at 10,000 |
+| B6 | Bytes per redraw over a serial console, for the actions of B4 | The bytes the serial console receives in a VM, at 80×24 | The legacy menu | Each action's redraw within 100 ms at 115200 baud (1,150 bytes) |
+| B7 | Processes started: during start-up, per menu action and per boot | The command journal and `/proc` counts in a VM | The legacy runtime, from `bash -x` traces | Fewer than legacy for every action; none for moving the selection |
+| B8 | Memory: the peak resident memory of start-up, the menu, `zbm console` and the recovery shell | `/proc/<pid>/status` sampled in a VM | `bash` and `fzf` in the legacy image | Set from the first baseline |
+| B9 | The console on the display: time to its first frame, `cat` of a 10 MB file, and a scrolling flood | VM tests with the console's mirror and timestamps (C112) | The kernel console | No slower than the kernel console once UI4 is done |
+| B10 | Unlocking: from Enter to the volume open, without the key derivation | The `secrets` and `keys` VM tests' journal spans | The legacy runtime | The overhead no slower than legacy |
+| B11 | Scale: start-up with 4 pools, 24 devices and 12 LUKS volumes | A `complex` VM layout grown for the benchmark | The legacy runtime | No slower than legacy |
+| B12 | Building: an image with `generate-zbm`, and `cargo xtask test` | On the build machine and in the build container | The last release with the Perl `generate-zbm` | No slower than the Perl tool; `cargo xtask test` under a minute |
+
+`cargo xtask bench` runs what needs no VM (B1, B4 and B5 in process, B12) and writes `target/bench.json`;
+`zbm-vmtest` gets `bench-*` scenarios for the rest. Counts (bytes, processes, sizes) are checked in CI against
+budgets; times are recorded with their median and spread over five runs, compared only on the same machine, in a
+Benchmarks table of `docs/luks/testing.rst`. They run for a baseline, then at the exits of phases 3 and 4 and at
+the beta (RL1), and for B9 at the ends of UI4 and UI9.
+
+### Release gates
+
+A release that makes the Rust runtime the default (RL1) needs:
+
+- every property of the threat model reading "holds", with its evidence;
+- the full VM suite passing on the release commit, and the hardware list of RL4;
+- two builders producing the same bytes (#5);
+- the SBOM, provenance and signatures published, and `cargo vet` clean;
+- each fuzz target run for its agreed CPU hours without a finding;
+- the independent security review (SE13) done, its findings fixed or accepted in writing;
+- no benchmark worse than the legacy runtime's without a recorded reason.
+
+## Work items
+
+Each item has an identifier, the benefit it brings (**scal**ability, **mod**ularity, **perf**ormance, **sec**urity,
+**stab**ility), an effort (**S** under a week, **M** a few weeks, **L** a few months, for one developer who knows the
+code) and what it needs first. Code in the images changes with most items, so their VM runs need rebuilt images.
+
+### PM: the process model
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| PM1 | ADR for the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
+| PM2 | The ports become `Send + Sync`, the fakes use `Mutex`; `spawn_traced` carries tracing and the kernel log into workers; logging per process, not per thread | scal | M | PM1 |
+| PM3 | One signal facility: `signalfd` and `pidfd` over `rustix`, a typed `SignalSet`; the global "last signal" slot and `signal-hook` go | stab | S | |
+| PM4 | The reactor's parts in `zbm_platform::event`: `Mailbox`, `Reactor`, `CancelToken`, `MemoryBudget`, time-outs through `pidfd` instead of a watchdog thread per command | scal, perf | M | PM2, PM3 |
+| PM5 | `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
+| PM6 | The supervisor anew: an event loop over `signalfd` and `pidfd`, a table of services with restart policies and back-off, `setsid` and the controlling terminal in `pre_exec` (C89) | stab | M | PM3 |
+| PM7 | The console's control socket (C91): release, reattach, layout, font and status as typed requests with replies; the secret flag in band | stab | S/M | |
+| PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`); actions can be cancelled | perf, stab | L | PM4, DM2 |
+| PM9 | One session: the menu runs in the session process, the start-up view and the menu are one model; the `--countdown` child and the second countdown go | perf, stab | M/L | PM8, UI3 |
+| PM10 | The session socket: `Takeover` and `Yielded` for SSH instead of `SIGTERM`, then the menu over SSH as a remote front end | stab, sec | M, then L | PM9 |
+| PM11 | Fewer processes: `tput` and `stty` become `rustix` termios and escape sequences; the start-up chain of `exec`s shortens (B7) | perf | S/M | |
+
+### DM: crates and the domain model
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| DM1 | Tidy: `zbm-menu` goes, `zbm-coreutils` folds into `zbm-platform`, the PSF parser into `zbm-display`; `docs/dev/architecture.md` and `crates/DESIGN.md` agree with the code; the new metric columns | mod | S | |
+| DM2 | One `Context`, and the `Interaction` port: the console leaves the domain, the `zbm-boot` → `zbm-luks` edge goes | mod | M | |
+| DM3 | The value types (`KernelCommandLine`, `HostId`, `Timeout`, `LogLevel`, `RetryDelay`, questions and answers) and typed options, converted crate by crate: `zbm-pool` (its `PoolRef` goes), `zbm-boot`, `zbm-luks` | mod, sec | M | |
+| DM4 | `KernelSelector`, a compiled regular expression, replaces a shell per kernel for `org.zfsbootmenu:kernel`; fuzzed | perf, sec | S/M | |
+| DM5 | (merged into SB2) | | | |
+| DM6 | The unlocker's core anew: the `LuksVolumes` port, the typestate unlocker, one `Result`-based registry of key methods with the token handlers in it, every attempt kept; the pilot goes | mod, stab | L | DM2, DM3 |
+| DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends; a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |
+| DM8 | `zbm-app`: a required `Runtime` instead of five optional fields, one `apply`, the `Application` trait with `App` and `FakeMachine`; front ends reach the system only through it | mod | M | DM2 |
+| DM9 | Errors with their causes, `Step` returning `Result`, structured `tracing` fields, a simple kernel log format, stable error codes and `zbm explain` | stab | M | |
+| DM10 | `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
+| DM11 | `zbm-core` dissolves; shell helpers in configuration parsing go to 0 | mod | S | DM3 |
+
+### SB: the system boundary and the image
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| SB1 | Process plumbing: one pipe instead of the `sh -c` wrapper, `setsid` in `pre_exec`, time-outs for every wait on hardware, a cap on captured output | perf, stab | S | |
+| SB2 | The boot path on the `Zfs` port, batched: one listing per pool, `DatasetName` instead of `&str`; `ZfsCommand` and `ZpoolCommand` go | perf, mod | M | DM3 |
+| SB3 | The `Mounts` port: `mount(2)` and `umount2(2)` with `zfsutil`, `mount.zfs` as the fallback, `Mounted` unmounting on drop | perf | M | |
+| SB4 | The `KernelLoader` port: `kexec_file_load` and `reboot`, with `kexec-tools` for device trees, `ENOSYS` and hooks | sec, perf | M | |
+| SB5 | Built-in hooks as native `BootStep`s, the hook API version 2, the generated `zfunc` library | mod, sec | M | DM7 |
+| SB6 | The recovery tools as menu views and `zbm` applets (`zfs-chroot`, `zsnapshots`, `zkexec`, `mount_esp`, `reboot`, `firmware-setup`, `logs`, the help viewer); `fzf` leaves Rust images | mod | L | UI10 |
+| SB7 | Rust images without the legacy payload (`legacy/zfsbootmenu/{lib,libexec,bin}`) and with their own list of binaries | sec, perf | S | SB5, SB6 |
+| SB8 | `ImagePlan` and the `ImageBackend` trait; the dracut module and the mkinitcpio hook become shims; the mkinitcpio hook runs `zbm` without Bash | mod | M | |
+| SB9 | brush from its library crates instead of `brush-shell`; measured with B1 | perf, sec | S/M | |
+| SB10 | `zbm-unlock` with libcryptsetup, tss2-esys and libfido2 behind a feature, the CLI adapters as the fallback: TPM2 first, then cryptsetup (#4's errors, fewer processes), then FIDO2 (the PIN in the menu, cancellation for #2) | sec, perf | L | DM6, decision 12 |
+| SB11 | YubiKey challenge-response over `hidraw`, without `ykchalresp` (optional) | sec | S/M | SB10 |
+| SB12 | The native image backend and a minimal early init, for release and container images first, checked against dracut's output (#13 reopened in this form) | perf, sec | L | RL2 |
+| SB13 | Releases publish the debug files of every binary, indexed by build ID | stab | S | |
+
+### UI: the menu, the console and the display
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| UI1 | The unlock dialog's key positions from the image's XKB keymaps, so `gb` and variants such as `de(nodeadkeys)` translate; the hand-written tables go | stab | S | |
+| UI2 | One key type, `KeyPress`, for the menu (`Message::Key`), from the console or decoded from terminal bytes | mod | S | |
+| UI3 | One front end runtime, `Frontend<B: Backend, I: Input>`, for the start-up view, the menu and the demo | mod | M | UI2 |
+| UI4 | `CellRenderer`: the console's milestone M5 (C71, C72, C73, C75, C76), done once for every surface; C112 measures it | perf | M/L | |
+| UI5 | The seat as typestate on the control socket (PM7); milestone M4 on it: hotplug as "choose the output again, resize every surface" (C61), every monitor (C62), rotation (C63), a chosen mode (C60), blanking (C64), pixel formats (C65), another program on the display (C66), backlight (C67), scaling (C68), double buffering (C74) | stab | M, then M4's items | PM7, UI4 |
+| UI6 | The client channel, cell surfaces and the menu's backend for them: the menu draws natively on the console; C104 becomes unnecessary (the capabilities come in the handshake), C105 is done (`SwitchLayout`), C52's secret detection travels in band, C96 and C110 shrink, C89 is a reconnect | perf, sec | L | UI3, UI5 |
+| UI7 | Surfaces and focus: a second terminal (C55, now M), the shown terminal and a layout for each (C56), kernel messages as a layer (C77), terminal switches (C57); M8's mouse and selection on surfaces (C48 to C51) | mod | M | UI6 |
+| UI8 | Accessibility: the focused surface as text for `brltty` and `Announce` lines (C85); a line view for `TERM=dumb`, speakup and serial users (#12's plain mode) | mod | M | UI6 |
+| UI9 | The serial console too (C81): one session driving the console's surface and a serial terminal from one model | mod | M | UI6 |
+| UI10 | The rest of the menu (steps 5 to 7 of R5 in the old plan): VM tests of each snapshot change, the previews of a diff and of package changes, the palette's entries; kernels and the command line editor, pools and LUKS volumes (unlock and import from the menu), help, power; the exit: the key binding section of the man page generated from `keymap.rs`, the 10,000-snapshot test (decision 7), the hostile-names fuzz target, the pseudo-language at 52×20, `CHANGES-FROM-LEGACY.md` as a migration guide | mod | L | PM8 for pools and LUKS |
+| UI11 | The menu design's exit (phase D of the old plan): usability sessions with at least five users, one on a serial console; the design review; decision 8 | | maintainer | |
+| UI12 | The console's other items, unchanged in substance: M6's C79, C80, C82, C106; M7's C45, C46, C92 to C100 (C110 with SE3); M8's C7, C13, C15, C32, C33; M9's C101, C102, C107, C111, and C103, the default, after UI6 | | per item | |
+
+### SE: security
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| SE1 | The threat model gains attackers A6 (the network: SSH, tailscale) and A7 (the supply chain), the logs and reports saved on the ESP, and a diagram of zones and data flows | sec | S | |
+| SE2 | `overflow-checks` in release builds; actions pinned by commit, the container's base by digest; the checks for the shell gate, test features and `zbm.console_mirror` | sec | S | |
+| SE3 | The edges of secrets: the masked field renders from the `Secret`, `Secret::ct_eq`, no implicit `Clone`, the journal's allow-list, the key cache written safely and removed before `kexec` | sec | S | |
+| SE4 | The strict lints (no panics) for `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state`, the crates that run as PID 1 or parse hostile input | stab, sec | M | |
+| SE5 | `Untrusted<T>` and `Printable`; fuzz targets for files in `/boot` and `os-release`, hostile names through `view`, the message decoders, key input and the console's replies | sec | M | |
+| SE6 | `zbm-sys` on `rustix`, with a sanitizer job | sec | M | |
+| SE7 | The RustCrypto crates replace `zbm-luks/src/crypto.rs`; `argon2` for the PIN of #8 | sec | S/M | decision 1 entry |
+| SE8 | Salted, encrypted TPM sessions with today's `tpm2-tools` (a salt key for `tpm2_startauthsession`, `tpm2_sessionconfig --enable-encrypt`) | sec | S | |
+| SE9 | `RecoveryPolicy` and the `ShellGate` typestate, then the locked menu (#8) | sec | M | PM6 |
+| SE10 | Measured boot (#10), `kexec_file_load` under lockdown failing closed, and the strict defaults after a TPM-only unlock | sec | M | SB4 |
+| SE11 | The keyholder process (with SB10), the unprivileged menu and the sandboxed console: sandbox profiles as a sealed trait, `Command::sandboxed(profile)` | sec | L | PM9, UI6 |
+| SE12 | The supply chain: `cargo vet`, `cargo auditable`, the SBOM, provenance, image signing in `zbm-host`, duplicate versions denied | sec | M | |
+| SE13 | The independent security review against the threat model, before RL1 | sec | L | phase 5 |
+
+### VE: verification and tooling
+
+| ID | Item | Benefit | Effort | Needs |
+| --- | --- | --- | --- | --- |
+| VE1 | Coverage without test code; the baseline measured again once | stab | S | |
+| VE2 | Fault injection: `FaultyRunner` and `FaultyFiles`, and the property that start-up always ends in a menu or a shell | stab | M | |
+| VE3 | Contract tests of the fakes against the real adapters, in a VM | stab | M | |
+| VE4 | Mutation testing on the code where a missed case costs most | stab, sec | M | |
+| VE5 | The VM tiers: smoke on CI with KVM, nightly, release | stab | M | |
+| VE6 | The first benchmark baseline: `cargo xtask bench` and the `bench-*` scenarios (B1 to B12) | perf | M | |
+| VE7 | The upstream test VMs as `zbm-vmtest` scenarios; `scripts/` and the build container's scripts as `xtask` commands (R7 of the old plan) | mod | L | |
+| VE8 | The developer guides (R8 of the old plan): the boot flow, how to add a key method, a menu view and a boot step, how to debug a boot, the ADRs, `cargo doc` published | mod | M | |
+| VE9 | `xtask replay` of report bundles, `xtask doctor`, `cargo machete`, a machine-readable test map | stab | M | |
+
+### FE: features for users
+
+The features keep their numbers. Each needs the items named, and its full proposal (why, how, when done) is in
+[the old feature list](docs/dev/history/features-roadmap.md) until it is written into the docs.
+
+| # | Feature | State | Needs |
+| --- | --- | --- | --- |
+| 1 | Wipe secrets from memory | Done | |
+| 2 | Unlock with whatever arrives first: one racer per key method, hot-plug through uevents | Proposed | PM4, PM8, SB10 |
+| 3 | Parallel start-up: boot environments scanned and volumes unlocked in parallel, within a memory budget | Proposed | PM2, PM4, SB2 |
+| 4 | Clear unlock errors: one message and hint per failure | Prototyped | DM6, SB10 |
+| 5 | Reproducible images | Done | |
+| 6 | Check the boot environment's ZFS before booting | Prototyped | UI10, DM7 |
+| 7 | Boot counting with automatic fallback, and boot once | Prototyped | DM7, the ESP safety of SE |
+| 8 | Locked menu | Proposed | SE9 |
+| 9 | Saved boot log and bug-report bundle | Done | |
+| 10 | Measured boot | Proposed | SE10 |
+| 11 | Re-seal the TPM after firmware updates | Prototyped | SB10 |
+| 12 | Built-in menu interface | In progress | UI10, UI8 |
+| 15 | Reclaim space from snapshots | Proposed | UI10 |
+| 16 | Pool health in detail | Proposed | UI10, SB2 |
+| 17 | Graphics drivers for AMD and Intel GPUs: the tests on real hardware remain | Partly done | RL4 |
+| 18 | Spanish, French, Dutch and Brazilian Portuguese | Partly done | UI10 (the language in the model) |
+| 19 | Own console in Rust: step 5, the default, is C103 | In progress | UI4 to UI9, UI12 |
+| 20 | Console fonts: Spleen and 256-glyph subsets | Done | |
+| 21 | Restore files and see what an upgrade changed | Prototyped | UI10 |
+
+Numbers 13 (an own init) and 14 (a built-in SSH server) were dropped; 13 comes back in a narrower form as SB12.
+
+### RL: release
+
+| ID | Item | Effort | Needs |
+| --- | --- | --- | --- |
+| RL1 | The Rust runtime becomes the default, with the legacy runtime selectable for one release (decision 6) | S | the release gates |
+| RL2 | The legacy runtime goes: `legacy/`, the recordings that no longer guard anything, the compatibility shims; `CHANGES-FROM-LEGACY.md` stays as the migration guide | M | RL1 plus one release |
+| RL3 | Release tooling for the Rust builds (`scripts/release/`), and release notes for distribution packagers (the Rust toolchain, vendored crates, no Perl) | M | |
+| RL4 | Real hardware: UEFI x86_64 and aarch64, Secure Boot enabled, a BIOS machine through syslinux, the GPUs of #17, laptops with internal and external displays, a serial-only server | M | |
+
+## Phases
+
+The phases order the work; they overlap, and an item starts as soon as what it needs is done. Each phase ends with
+every suite green, its exit met, and its docs written. Features (FE) go in whenever their items are done.
+
+### Phase 0: the design and the quick fixes
+
+The ADRs of the target architecture, and the small fixes that need no design.
+
+- ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
+  channel (decision 15), C libraries in the keyholder (decision 12), the image plan (SB8).
+- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, PM5, VE1, and the
+  [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026).
+- The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`).
+
+**Exit:** the ADRs accepted; the quick fixes in, with their VM runs passing.
+
+### Phase 1: ports and types
+
+PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6.
+
+**Exit:** no domain crate takes a `Runner` or a console; no ZFS command line outside `zbm-zfs`; the new metric
+columns at 0; the strict lints on every crate that runs at boot.
+
+### Phase 2: the session
+
+PM6, PM7, PM8, PM9, PM10 (the handshake), PM11, UI3, DM8.
+
+**Exit:** one session process with the menu in it; no PID file, signal or poll between components; the menu redraws
+and cancels during long work; C89 and C91 done; a takeover never kills work in progress.
+
+### Phase 3: the menu and the screen
+
+UI10 (the rest of the menu, built on the session), UI4, UI5 (M4), UI6, UI7, DM6, DM7.
+
+**Exit:** the old R5 exit (the VM tests drive every core task through the menu, also on a serial console; snapshot
+tests of every view at three sizes, in colour, monochrome and ASCII; the task measures and the redraw budget met; the
+10,000-snapshot test; the hostile-names fuzz target; no string the user reads outside the catalogue), and the menu
+drawn natively on the console.
+
+### Phase 4: the boundary and the image
+
+SB4, SB5, SB6, SB7, SB8, SB9, SB13, DM10, VE7, VE8.
+
+**Exit:** Rust images without the legacy payload or `fzf`; the dracut module and the mkinitcpio hook as shims;
+`zbm-host` with no Perl or Bash emulation; no Bash, Perl or Python under `tests/`, `scripts/` or
+`packaging/container/`.
+
+### Phase 5: isolation and boot integrity
+
+SB10, SB11, SE9, SE10, SE11, UI8, UI9.
+
+**Exit:** secrets only in `zbm-unlock`; the menu and the console unprivileged and sandboxed; the locked menu (#8) and
+measured boot (#10) with their VM tests.
+
+### Phase 6: features
+
+The features of FE whose items are done, and UI12. Continuous from phase 1 on; #2, #3, #4 and #11 come after
+phase 5's SB10, #6, #7, #15, #16 and #21 after phase 3.
+
+### Phase 7: release
+
+VE2 to VE6, VE9, SE12, SE13, RL1, RL3, RL4; then, one release later, RL2.
+
+**Exit:** the [release gates](#release-gates); the Rust runtime is the default; then the legacy runtime is gone.
+
+### After the release
+
+SB12, the native image backend and minimal early init.
+
+## Decisions
+
+Decided, and kept from the old plans:
+
+1. **Dependencies** (22 October 2026, with additions since): for the runtime, `ratatui`, `crossterm`,
+   `nucleo-matcher`, `serde`, `serde_json`, `thiserror`, `tracing`, `tracing-subscriber` and `uucore`; for tests,
+   `insta`, `proptest` and `pretty_assertions`; and since then `drm`, `alacritty_terminal`, `rustix`, `signal-hook`,
+   `swash`, `kbvm`, `fluent-bundle`, `unic-langid`, `brush-shell`, with the VM harness's `vt100` and `regex`. Each has
+   its reason in `docs/dev/dependencies.md`; a new one is an entry here and there.
+2. **MSRV:** 1.88, checked in CI; it rises only when an agreed crate needs it.
+3. **Menu:** the Nucleo and Ratatui menu replaces `fzf`; `fzf` leaves Rust images with the recovery tools (SB6).
+4. **uutils** ships as the image's coreutils, beside `zbm`, which does not link its applets.
+5. **Errors:** `thiserror`.
+9. **The shell:** brush for the Rust runtime's shell work, Bash as the way back.
+
+Decided on 27 October 2026:
+
+11. **No libzfs** (goal G2 of the old plan): ZFS only through `zfs` and `zpool`, which `deny.toml` enforces.
+17. **Parity is not a goal.** The legacy code is no longer the reference; behaviour changes are recorded in
+    `CHANGES-FROM-LEGACY.md`, and the parity-only parts are gone.
+
+Open:
+
+6. **When the legacy runtime goes.** Proposed: one release with the Rust runtime as the default and the legacy one
+   selectable, then removal (RL1, RL2); no beta in which the legacy image is the reference.
+7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10).
+8. **A classic key map:** decided by the usability sessions (UI11).
+10. **One concurrency model:** threads and channels, one reactor per process, no async runtime (PM1).
+12. **C libraries in the keyholder:** libcryptsetup, tss2-esys and libfido2, behind a feature and in `zbm-unlock`
+    only, with the programs as the fallback (SB10).
+13. **Trust zones:** the four zones of [the target architecture](#processes-and-trust-zones).
+14. **The crate map** of [crates and layers](#crates-and-layers).
+15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
+    that need one.
+16. **A native image backend after the cutover** (SB12), with dracut kept as a backend.
+
+Decisions 10 and 12 to 16 are decided by their ADRs in phase 0.
+
+## Fixes left from the review of 27 October 2026
+
+The review of all the code before M4 found 34 groups of bugs; 1 to 9, 30 and 31 are fixed. The rest, by their
+numbers in that review, go in phase 0 unless an item above replaces them:
+
+| # | Fix | Where |
+| --- | --- | --- |
+| 10 | The PC speaker sounds on after the console ends | `zbm-console/src/host/status.rs` |
+| 11 | A keyboard device that also sends mouse events can freeze the programs' output | `zbm-console/src/host.rs` |
+| 12 | The kernel console stays raw when the console dies while relaying | `zbm-console/src/relay.rs`; supervisor |
+| 13 | A stale `console-released` record survives a dead console | goes with PM7 |
+| 14 | The font keys race `zbm console font` | goes with PM7 |
+| 15 | Copies of the screen in freed memory (`Console::text`, screenshot pixels) | `zbm-console` |
+| 16 | Slow work in the console's loop: compression at level 9, full repaints for bells, the status line rebuilt each pass | `zbm-console`; UI4 |
+| 17 | Confirmation dialogs can cut off their "Type … to confirm" line | `zbm-tui/src/menu/view/dialogs.rs` |
+| 18 | Changing the sort order moves the selection to another snapshot | `zbm-tui/src/menu/update/snapshots.rs` |
+| 19 | A failed boot from the command line editor leaves a blank screen; `o` does nothing in the main view; start-up dialogs' timers run fast on a noisy serial line | `zbm-tui` |
+| 20 | Duplicating into a locked parent asks for no key | `zbm-app/src/changes/needs.rs` |
+| 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs`; SB5 |
+| 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs`; SB5 |
+| 23 | The initramfs of prefixes other than `vmlinuz` changed name without a warning; `contrib/syslinux-update.sh` | `generate-zbm`; DM10 |
+| 24 | `zbm-kcl` rewrites the live EFI image in place | `zbm-kcl`; DM10 |
+| 25 | Versions such as `git-abc` are never pruned; firmware trimming under a symlinked build directory; `config.yaml` rewritten in place | `generate-zbm`; DM10 |
+| 26 | `org.zfsbootmenu:devicetree` accepts `..` | `zbm-boot/src/commandline.rs` |
+| 27 | `org.zfsbootmenu:rootprefix` can add kernel arguments | `zbm-boot`; DM3 |
+| 28 | One bad pool name hides every pool; a failed read/write import leaves the pool exported; the countdown ends at once at end of input; `zbm.retry_delay=0` with a missing device spins; the wrong crash report is named | `zbm-zfs`, `zbm-boot`, `zbm-startup`, `zbm` |
+| 29 | A FIFO as a key file hangs the boot; `zluks close` racing `zluks open`; `memfd_secret` without close-on-exec; mapping names that start with `-` | `zbm-luks`, `zbm-sys`, `zbm-types`; PM5 |
+| 32 | A parity test reads the host's `/etc/hostid` | `zbm-boot/src/commandline/tests.rs` |
+| 33 | Checks that can pass by mistake: an old screen dump, keys QEMU refused, `assert_ran!` joining arguments, the log secret check per write, an empty parity test, a fuzz target that returns at once | `zbm-vmtest`, `zbm-testkit`, `fuzz/` |
+| 34 | `cargo xtask test devices` skips `zbm-crypt`'s device tests; the secret search skips `/dev` and stops at an unreadable page; two VM patterns match half a line | `xtask`, `zbm`, `zbm-vmtest` |
 
 ## Not planned
 
-- **Bindings to `libzfs`.** Its interface changes between OpenZFS releases. The port calls the `zfs` and `zpool`
-  commands as the Bash code does, and reads their JSON output (`-j`, OpenZFS 2.3 and later), falling back to `-H -p`
-  for older ZFS in images built on a host. `libzfs_core`, which is more stable, can serve the few operations where
-  speed matters.
-- **Changes that break compatibility with upstream ZFSBootMenu** command line options, configuration or properties.
+- **Bindings to `libzfs`** (decision 11).
+- **Changes that break compatibility** with upstream ZFSBootMenu's command line options, configuration or properties,
+  except through a deprecation with warnings for one release.
+- **A built-in SSH server** (#14): remote unlock stays with dropbear and `dracut-crypt-ssh`.
+- **Forks or rewrites of brush, Alacritty's terminal, `drm` or `swash`.** They are contained (privilege separation,
+  sandboxing, fuzzing, `cargo vet`) and patched upstream.
+- **An async runtime** (decision 10).
+- **Ligatures in the console** (C14), and anything that breaks the threat model: a clipboard shared with the booted
+  system, scrollback or selection while a secret prompt is open, answers that read the screen back.
+
+## Identifiers of the old plans
+
+Code, tests and commits cite the old plans' identifiers. Where each went:
+
+| Old identifier | Now |
+| --- | --- |
+| Port phases 1 to 4, packages A and B | Done ([history](docs/dev/history/port-roadmap.md)) |
+| Port phase 5 (minimal runtime), 6 (packages C to F) | Done, or in UI10 (C, D, E) and SB6 (F) |
+| Port phases 7 (beta) and 8 (cutover) | RL1, RL2, RL4 |
+| Refactor phases R0 to R4 | Done ([history](docs/dev/history/refactor-roadmap.md)); shadow mode on testers' machines dropped |
+| D (the menu design) | Done; its exit is UI11 |
+| R5 steps 1 to 4; steps 5 to 7 | Done; UI10 |
+| R6 (recovery tools, built-in hooks in Rust, image assembly, debug files) | SB6, SB5, SB8, SB13 |
+| R7 (upstream test VMs, scripts in Rust) | VE7 |
+| R8 (developer documentation) | VE8 |
+| R9 (cutover, removal, security review) | RL1, RL2, SE13 |
+| Goals G1 to G11 | Principles 1 to 4 and the rules; G2 is decision 11; G6 is decision 17 |
+| Proposals 1 (trustworthy fakes), 2 (offline debugging), 3 (developer experience), 4 (error codes), 5 (supply chain), 6 (deprecation policy), 7 (one concurrency model), 8 (fewer crates), 9 (API guidelines), 10 (version matrix), 11 (small steps), 12 (log levels), 13 (`xtask doctor`), 14 (static checks), 15 (upstream sync), 16 (metrics for rules 2 and 4) | VE3, VE9, VE8, DM9, SE12, principle 5, PM1, DM1, principle 3, VE5, principle of phases, DM9, VE9, VE9, kept as a practice, DM1 |
+| Benchmarks B1 to B12 | [Benchmarks](#benchmarks), unchanged |
+| Decisions 1 to 9 | [Decisions](#decisions), same numbers |
+| Features #1 to #21 | [FE](#fe-features-for-users), same numbers; full proposals in [history](docs/dev/history/features-roadmap.md) |
+| Console milestones M1 to M3 | Done ([history](docs/dev/history/console-roadmap.md)) |
+| Console M4, M5, M6 to M9; items C1 to C112 | UI5, UI4, UI6 to UI9 and UI12; the items keep their numbers |
+| Findings F1 to F8 of the refactoring | Done ([history](docs/dev/history/refactor-roadmap.md)) |

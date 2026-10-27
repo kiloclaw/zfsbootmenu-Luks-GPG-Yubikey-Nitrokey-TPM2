@@ -1,4 +1,4 @@
-//! `runtime-rust-pilot`: the first pilot of `REFACTOR-ROADMAP.md` (R0) in
+//! `runtime-rust-pilot`: the first pilot of `ROADMAP.md` (R0) in
 //! the Rust image, on the serial console of the recovery shell: `zluks
 //! --pilot open` on a LUKS volume formatted in the VM. The second, the
 //! boot environment list, gave way to the menu itself (R5 step 3), which

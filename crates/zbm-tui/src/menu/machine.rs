@@ -1,7 +1,7 @@
 //! What the menu runs on: a [`Machine`] answers the menu's actions with
 //! events. [`demo::FakeMachine`](super::demo::FakeMachine) is the fake
 //! machine of `--demo` and of the tests; [`RealMachine`] is the machine the
-//! menu boots, through `zbm-app` (REFACTOR-ROADMAP.md, R5 step 3).
+//! menu boots, through `zbm-app` (ROADMAP.md, R5 step 3).
 
 mod real;
 

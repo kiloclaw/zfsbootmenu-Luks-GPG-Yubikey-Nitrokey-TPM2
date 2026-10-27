@@ -114,7 +114,7 @@ pub enum Reader {
     /// The Rust code, through this table.
     Rust,
     /// A shell script of the image or of its build, named here, until R6 of
-    /// `REFACTOR-ROADMAP.md` replaces it.
+    /// `ROADMAP.md` replaces it.
     Shell(&'static str),
     /// Something other than ZFSBootMenu, such as ZFS itself.
     Other(&'static str),

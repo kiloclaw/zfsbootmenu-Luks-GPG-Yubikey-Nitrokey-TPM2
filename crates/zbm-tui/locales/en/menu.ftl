@@ -1,4 +1,4 @@
-# The English text of the menu (REFACTOR-ROADMAP.md, R5): every string a
+# The English text of the menu (ROADMAP.md, R5): every string a
 # user reads, by message id. A translation is a copy of this file in
 # locales/<language>/ with the same ids. Attributes `.title` hold the forms
 # that titles, buttons and the toolbar use: title case is a rule of English.

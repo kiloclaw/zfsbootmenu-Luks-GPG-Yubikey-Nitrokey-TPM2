@@ -1,4 +1,4 @@
-//! The dialogs of the start-up view (REFACTOR-ROADMAP.md, R5 step 4): with
+//! The dialogs of the start-up view (ROADMAP.md, R5 step 4): with
 //! the menu in the image, the start-up program of the Rust runtime asks in
 //! dialogs what the legacy runtime asks on the console. The patterns match
 //! the screen, as the view redraws only the cells that change.

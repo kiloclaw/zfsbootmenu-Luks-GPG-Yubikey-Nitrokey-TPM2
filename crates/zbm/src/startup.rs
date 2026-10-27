@@ -1,4 +1,4 @@
-//! Start-up in the menu (REFACTOR-ROADMAP.md, R5 step 4): the start-up
+//! Start-up in the menu (ROADMAP.md, R5 step 4): the start-up
 //! stages on the menu's start-up view.
 //!
 //! [`MenuFront`] is the stages' front end ([`Front`]) on the start-up

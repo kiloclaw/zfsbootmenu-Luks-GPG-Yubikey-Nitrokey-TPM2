@@ -1,4 +1,4 @@
-//! The menu of ZFSBootMenu (REFACTOR-ROADMAP.md, R5), on
+//! The menu of ZFSBootMenu (ROADMAP.md, R5), on
 //! [Ratatui](https://ratatui.rs) and `nucleo-matcher`, in the Elm
 //! architecture: [`menu`], with every string it shows from the message
 //! catalogue of [`text`].

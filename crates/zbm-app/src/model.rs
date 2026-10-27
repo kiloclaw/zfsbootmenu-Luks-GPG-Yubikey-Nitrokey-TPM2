@@ -4,7 +4,7 @@
 //!
 //! These are the lists of `docs/dev/menu-design/interfaces.md`. The menu
 //! prototype (`zbm_tui::menu`) tried their shape on a fake machine; R4 of
-//! REFACTOR-ROADMAP.md fills them from the real one.
+//! ROADMAP.md fills them from the real one.
 
 mod action;
 mod diff;

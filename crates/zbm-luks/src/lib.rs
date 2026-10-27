@@ -1,4 +1,5 @@
-//! LUKS volumes of the ZFSBootMenu runtime: package B of `PORT-ROADMAP.md`.
+//! LUKS volumes of the ZFSBootMenu runtime: package B of the
+//! port plan (`docs/dev/history/port-roadmap.md`).
 //!
 //! This crate replaces `lib/zfsbootmenu-luks.sh` and
 //! `lib/zfsbootmenu-luks-keys.sh`:

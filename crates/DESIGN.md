@@ -1,9 +1,10 @@
 # Design of the Rust runtime
 
 This document describes how the Rust runtime of ZFSBootMenu is built: the program that replaces the Bash code in
-`legacy/zfsbootmenu/` inside the boot image. It is the outcome of Phase 4 of [PORT-ROADMAP.md](../PORT-ROADMAP.md) and
-the reference for phases 5 and 6. The roadmap's rules apply throughout: the legacy runtime is the reference, the
-behaviour does not change, and every interface in its compatibility contract stays as it is.
+`legacy/zfsbootmenu/` inside the boot image. It was the outcome of Phase 4 of the port plan
+([port-roadmap.md](../docs/dev/history/port-roadmap.md)); [ROADMAP.md](../ROADMAP.md) now plans where it goes. The
+legacy runtime is no longer the reference: behaviour may change where that makes ZFSBootMenu better, and each change
+is recorded in `CHANGES-FROM-LEGACY.md`, but every interface users depend on stays as it is.
 
 **Status:** draft. A first review checked its claims against the legacy code, dracut, mkinitcpio and the test suites,
 and its findings are applied; it awaits a review by a maintainer. Changes to this design are made here first, in the
@@ -145,8 +146,8 @@ These are pure functions: they take text and values and return values, so unit t
 The legacy runtime orders kernels with the `sort -V` of the image, which is not the same program in every image:
 dracut images include the host's `sort`, which is GNU coreutils on most distributions but uutils (0.12.0) in the
 build container, whose Ubuntu 26.10 ships the Rust coreutils, and mkinitcpio images use BusyBox's where BusyBox
-provides one. The Rust runtime uses the order of uutils, the coreutils of its images (REFACTOR-ROADMAP.md, "Using
-uutils coreutils"): `zbm_types::version::version_cmp` is `uucore`'s `version_cmp` with bytes breaking ties, as
+provides one. The Rust runtime uses the order of uutils, the coreutils of its images (ROADMAP.md,
+decision 4): `zbm_types::version::version_cmp` is `uucore`'s `version_cmp` with bytes breaking ties, as
 `sort -V` does, and a test compares it with the build container's `sort -V` on generated names. On 2,745
 kernel-like names, uutils differed from GNU only where a version part is `0` and another name has a dot followed by
 a letter at that place (`kernel-0` against `kernel-.X`, which GNU puts first and uutils last); no distribution names
@@ -191,7 +192,7 @@ The runtime keeps the legacy process structure, for three reasons:
 - **Forced** (`ZFSBOOTMENU_FORCE_INIT` set to yes, y, true, t or 1, in any case): run every stage again.
 
 On the console, the stages run on the menu's start-up view when the image has the menu (`/bin/zfsbootmenu`) and the
-terminal can run it (`TERM` set, and not `dumb`), except after `--resume` (REFACTOR-ROADMAP.md, R5 step 4). The view
+terminal can run it (`TERM` set, and not `dumb`), except after `--resume` (ROADMAP.md, R5 step 4). The view
 shows the stages as they run, and its dialogs answer what they ask: the secrets and devices of LUKS volumes (the
 `Prompter` of `zbm-luks`), the retries of the import (the `Operator` of `zbm-pool`) and the devices `zbm.wait_for`
 names, with the timeouts of the console prompts. LUKS volumes are unlocked in the start-up program, not by
@@ -599,7 +600,7 @@ set-up with a pure function, which lists what it cannot handle yet:
 
 Package A of Phase 6 removed the import options (`zbm.import_policy`, `zbm.prefer`, `zbm.force_import`,
 `zbm.wait_for`) and `zbm.hookroot` from the list, once their VM tests passed against the Rust image, and package B
-the LUKS volumes. Step 1 of R5 (`REFACTOR-ROADMAP.md`) removed locked encryption roots and `load-key.d` hooks: the
+the LUKS volumes. Step 1 of R5 (`ROADMAP.md`) removed locked encryption roots and `load-key.d` hooks: the
 runtime loads keys in the legacy order, with the key-source cache for boots chosen in the menu. Step 3 added the menu
 (`/bin/zfsbootmenu`, the `zfsbootmenu` applet of `zbm`), so the list is empty in every Rust image; an image without
 the menu program would still list the menu.

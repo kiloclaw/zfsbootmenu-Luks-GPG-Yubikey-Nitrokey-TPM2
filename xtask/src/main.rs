@@ -3,7 +3,7 @@
 //! Run it as `cargo xtask <command>` anywhere in the workspace; the alias is
 //! in `.cargo/config.toml`. Each command prints the programs it runs, so a
 //! failing step can be repeated by hand. `cargo xtask help` lists the
-//! commands. REFACTOR-ROADMAP.md explains why each check exists; the
+//! commands. ROADMAP.md explains why each check exists; the
 //! developer documentation is in `docs/dev/`.
 
 #![allow(

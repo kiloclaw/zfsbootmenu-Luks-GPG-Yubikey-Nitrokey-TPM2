@@ -1,7 +1,7 @@
 # The menu's text
 
 Every string the menu shows comes from a [Project Fluent](https://projectfluent.org) catalogue,
-`crates/zbm-tui/locales/en/menu.ftl`, never from a literal in the code (REFACTOR-ROADMAP.md, R5 step 2). A translation
+`crates/zbm-tui/locales/en/menu.ftl`, never from a literal in the code (ROADMAP.md, R5 step 2). A translation
 (ROADMAP.md #18: Spanish, French, Dutch, Brazilian Portuguese) is then a new catalogue, not a change of the code.
 Logs and the journal stay in English and do not use it.
 

@@ -10,7 +10,7 @@
 //!
 //! The vocabulary is [`model`], the lists of
 //! `docs/dev/menu-design/interfaces.md`, which the menu prototype tried on a
-//! fake machine. R4 of REFACTOR-ROADMAP.md fills it from the real one; the
+//! fake machine. R4 of ROADMAP.md fills it from the real one; the
 //! actions and events below are still those of the pilot (R0), which R4
 //! replaces with the model's.
 //!

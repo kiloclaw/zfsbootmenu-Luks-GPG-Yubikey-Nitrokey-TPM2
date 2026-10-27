@@ -1,10 +1,14 @@
 # Rust port roadmap
 
+> **Archived on 27 October 2026.** [ROADMAP.md](../../../ROADMAP.md) replaces this plan. It is kept unchanged as the
+> record of how the code got here; its identifiers still appear in code and commits, and
+> [Identifiers of the old plans](../../../ROADMAP.md#identifiers-of-the-old-plans) says where each one went.
+
 This roadmap plans the port of ZFSBootMenu from Bash and Perl to Rust, in eight phases. Its goal is **parity**: the
 Rust version does what the legacy code in `legacy/` does today, nothing more. New features are listed separately in
-[ROADMAP.md](ROADMAP.md). [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build and test.
+[ROADMAP.md](features-roadmap.md). [CONTRIBUTING.md](../../../CONTRIBUTING.md) explains how to build and test.
 
-[REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md) proposes a refactoring of the whole code base into idiomatic Rust,
+[REFACTOR-ROADMAP.md](refactor-roadmap.md) proposes a refactoring of the whole code base into idiomatic Rust,
 including a new menu built with Nucleo and Ratatui, and how it changes the later phases of this plan.
 
 ## Contents
@@ -211,7 +215,7 @@ packages, the port takes about 6 to 9 months.
 
 **Delivered by Phase 4:**
 
-- **Design:** [crates/DESIGN.md](crates/DESIGN.md) describes the data model, the process model (a supervisor as
+- **Design:** [crates/DESIGN.md](../../../crates/DESIGN.md) describes the data model, the process model (a supervisor as
   process 1, the legacy processes and applet names, the state directory as the only shared state), hooks and their
   compatibility library, errors and logging, external programs and secrets, and how everything is tested. Its last
   section lists the decisions to review.
@@ -635,7 +639,7 @@ is not recommended.
 
 ## Out of scope
 
-- **New features and behaviour changes:** see [ROADMAP.md](ROADMAP.md).
+- **New features and behaviour changes:** see [ROADMAP.md](features-roadmap.md).
 - **The build container scripts** (`packaging/container/`): they run on the host or in the container, not in the
   image, and stay shell.
 - **The dracut and mkinitcpio glue:** both expect shell scripts, so it stays shell (work package F shrinks it).

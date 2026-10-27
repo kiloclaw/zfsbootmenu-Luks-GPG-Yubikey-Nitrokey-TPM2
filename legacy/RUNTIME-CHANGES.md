@@ -1,8 +1,8 @@
 # Changes to the frozen legacy runtime
 
-Rule 4 of [PORT-ROADMAP.md](../PORT-ROADMAP.md): from Phase 4 on, the legacy runtime gets bug fixes only, and every
-change to it must be ported to the Rust runtime before the beta (Phase 7) ends. This file is the tracking list the
-rule asks for. It is kept in the repository, rather than in a GitHub issue, because the repository has issues turned
+Rule 4 of the port plan ([port-roadmap.md](../docs/dev/history/port-roadmap.md)): from Phase 4 on, the legacy runtime
+gets bug fixes only, and every change to it must be ported to the Rust runtime before the beta (RL1 of
+[ROADMAP.md](../ROADMAP.md)) ends. This file is the tracking list the rule asks for. It is kept in the repository, rather than in a GitHub issue, because the repository has issues turned
 off, and so that a change to the runtime adds its entry in the same commit.
 
 - **Frozen files:** `legacy/zfsbootmenu/`, and the dracut and mkinitcpio files in `packaging/dracut/` and
@@ -90,7 +90,7 @@ off, and so that a change to the runtime adds its entry in the same commit.
   and recommends `init_on_free=1` for its images (ROADMAP.md #1); the legacy runtime is unchanged.
   **Rust:** nothing to port; documentation only.
 - [x] `99652d4`: the online help of `zfsbootmenu(7)` (`help-files/`) says that the Rust runtime loads the keys of
-  encrypted boot environments and runs `load-key.d` hooks (R5 step 1 of `REFACTOR-ROADMAP.md`); the legacy runtime is
+  encrypted boot environments and runs `load-key.d` hooks (R5 step 1 of `ROADMAP.md`); the legacy runtime is
   unchanged.
   **Rust:** nothing to port; documentation only.
 - [x] `fcaeb71`: `install_zbm_core` (`install-helpers.sh`) installs neither `bin/zfsbootmenu` nor `bin/zbm` in images

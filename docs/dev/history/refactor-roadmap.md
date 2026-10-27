@@ -1,12 +1,16 @@
 # Refactoring Roadmap
 
+> **Archived on 27 October 2026.** [ROADMAP.md](../../../ROADMAP.md) replaces this plan. It is kept unchanged as the
+> record of how the code got here; its identifiers still appear in code and commits, and
+> [Identifiers of the old plans](../../../ROADMAP.md#identifiers-of-the-old-plans) says where each one went.
+
 This roadmap turns the ZFSBootMenu code base into an idiomatic Rust project that developers can read, change, debug
 and test, with a new menu built on [Nucleo] and [Ratatui]. It started in October 2026, during Phase 6 of
-[PORT-ROADMAP.md](PORT-ROADMAP.md), and changed that plan: fundamental changes to structure and behaviour are allowed,
+[PORT-ROADMAP.md](port-roadmap.md), and changed that plan: fundamental changes to structure and behaviour are allowed,
 and every line of code and every test ends up in Rust.
 
-It is one of three plans. [ROADMAP.md](ROADMAP.md) lists the features for users (numbered #1 to #21), and
-[docs/dev/console-roadmap.md](docs/dev/console-roadmap.md) the milestones of the console on the display (M1 to M9).
+It is one of three plans. [ROADMAP.md](features-roadmap.md) lists the features for users (numbered #1 to #21), and
+[docs/dev/console-roadmap.md](console-roadmap.md) the milestones of the console on the display (M1 to M9).
 This file is about the code: its structure, its rules and its tests.
 
 The file starts with what is left to do. The plan for the code comes next, and the record of finished work is at the
@@ -66,8 +70,8 @@ On branch `claude/zbm-refactor`, at the end of October 2026:
    console), which the maintainer runs; the review of the design documents; decision 8.
 4. **A first [benchmark](#benchmarks) baseline**: `cargo xtask bench` and the `bench-*` VM scenarios, for the legacy
    runtime and the Rust runtime of today, on the maintainer's machine.
-5. **The console on the display**, from M4 of the [console roadmap](docs/dev/console-roadmap.md) (M3, a comfortable
-   recovery shell, is done and waits for its VM run), and the group 1 features of [ROADMAP.md](ROADMAP.md) (#17, the
+5. **The console on the display**, from M4 of the [console roadmap](console-roadmap.md) (M3, a comfortable
+   recovery shell, is done and waits for its VM run), and the group 1 features of [ROADMAP.md](features-roadmap.md) (#17, the
    graphics drivers, is partly done).
 
 ### Later
@@ -78,7 +82,7 @@ On branch `claude/zbm-refactor`, at the end of October 2026:
    `xtask` commands.
 3. **R8**: the developer guides.
 4. **R9**: the beta, the security review, and the removal of the legacy runtime.
-5. The features of groups 2 and 3 of [ROADMAP.md](ROADMAP.md), many of them already prototyped in D.
+5. The features of groups 2 and 3 of [ROADMAP.md](features-roadmap.md), many of them already prototyped in D.
 
 The [phases still to do](#phases-still-to-do) give each one in full.
 
@@ -409,7 +413,7 @@ images use Bash as before.
 ## Threat model
 
 ZFSBootMenu runs before the operating system, holds the keys of encrypted volumes, and reads data that someone other
-than its user may control. [docs/dev/threat-model.md](docs/dev/threat-model.md) says against whom, which inputs are
+than its user may control. [docs/dev/threat-model.md](../threat-model.md) says against whom, which inputs are
 hostile, which properties must hold with their evidence, and which risks stay. Every phase keeps it current, and each
 fuzz target names the input it covers. It covers:
 
@@ -575,7 +579,7 @@ Still open:
    measured against the image size budget. Decided in R5.
 8. **A classic key map:** whether `keymap.rs` offers a second profile close to the `fzf` menu's bindings. Proposed in
    D: no second profile; the `MOD+key` bindings work as aliases in their old views
-   ([keymap.md](docs/dev/menu-design/keymap.md)). Decided by the usability sessions.
+   ([keymap.md](../menu-design/keymap.md)). Decided by the usability sessions.
 
 ## Proposals for later
 
@@ -744,7 +748,7 @@ Work that no phase planned, or that a later phase planned and was done early:
   prompt; #20 console fonts (256-glyph subsets, Spleen).
 - **ROADMAP.md #19, the console on the display** (`zbm-display`, `zbm-console`, `zbm.console=drm`): the menu on DRM
   without a terminal; Alacritty's terminal drawn through DRM with the supervisor's programs on its pseudo-terminal;
-  TrueType fonts; keyboard layouts with `kbvm`; and M1 of the [console roadmap](docs/dev/console-roadmap.md) (start
+  TrueType fonts; keyboard layouts with `kbvm`; and M1 of the [console roadmap](console-roadmap.md) (start
   without a keyboard, cursor shapes, underlines, one frame per burst, scrolling by moving pixels, `/dev/console`, the
   screen kept across a failed `kexec`, the keypad). Its VM tests pass.
 - **brush** (decision 9, [The shell](#the-shell)): vendored with its parser fix, `zbm-brush`, and the Rust runtime on

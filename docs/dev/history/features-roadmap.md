@@ -1,0 +1,702 @@
+# Roadmap
+
+> **Archived on 27 October 2026.** [ROADMAP.md](../../../ROADMAP.md) replaces this plan. It is kept unchanged as the
+> record of how the code got here; its identifiers still appear in code and commits, and
+> [Identifiers of the old plans](../../../ROADMAP.md#identifiers-of-the-old-plans) says where each one went.
+
+This roadmap lists features to add to ZFSBootMenu beyond what the legacy Bash and Perl code in `legacy/` does. Each
+entry is a proposal, not a commitment. Two other plans carry the code there:
+
+- [PORT-ROADMAP.md](port-roadmap.md) ported the host tools and the start-up of the boot runtime (packages A and B) to
+  Rust, with the legacy code as the reference;
+- [REFACTOR-ROADMAP.md](refactor-roadmap.md) reshapes that code into layers (R0 to R4), builds the redesigned menu and
+  the rest of the runtime (R5, R6), and removes the legacy runtime (R9).
+
+A feature lands when the code it touches is in Rust and the phase it depends on allows it, so the features below are
+grouped by what they wait for, not by importance. Their numbers never change, because code, tests and documents cite
+them (`ROADMAP.md #18`).
+
+Each feature lists why it is useful, how it could work and when it counts as done. Effort is a rough estimate for one
+developer who knows the code: **Small** is under a week, **Medium** a few weeks, **Large** a few months.
+
+## Principles
+
+- The legacy code is the reference. A Rust part first behaves like the code it replaces; new behaviour comes after.
+- Features that change how a system boots are off unless configured. Warnings and better messages can be on by default.
+- Every feature comes with tests (unit, device or VM tests) and with documentation in `docs/`.
+- Features marked **security** document what they protect against, and get a review before they ship.
+- Kernel command line options, configuration files and `org.zfsbootmenu:*` properties stay compatible with upstream
+  ZFSBootMenu, so boot environments work with either.
+- A feature of the menu is first tried in the menu prototype (`cargo run -p zbm-tui -- --demo`, phase D of
+  REFACTOR-ROADMAP.md) on a fake machine, with wireframes as snapshot tests, before it is built on real code.
+
+## Where things stand
+
+In October 2026, on branch `claude/zbm-refactor`:
+
+- **Done:** #1 (secrets in locked memory, and none left before `kexec`), #5 (reproducible images), #9 (saved boot
+  logs and `zbm report`) and #20 (console fonts as 256-glyph subsets, and Spleen).
+- **Prototyped** in the menu prototype, designed and drawn on a fake machine but not built: #6, #7, #11 and #21, and
+  the menu side of #4 ([boot health](../menu-design/boot-health.md),
+  [unlocking](../menu-design/unlocking.md)).
+- **Partly done** by the port and the refactoring: #12 (the menu is phase D and R5 of the refactoring), #17 (the console font follows the display's
+  EDID when a graphics driver provides it) and #18 (the fonts carry the letters).
+- **Proposed:** the others.
+- **Dropped** in October 2026, with their numbers left unused: #13 (an own init in place of dracut and mkinitcpio,
+  which stay the image builders) and #14 (a built-in SSH server; remote unlock stays with dropbear and
+  `dracut-crypt-ssh`, as `contrib/remote-ssh-build.sh` builds it).
+
+## Overview
+
+| # | Feature | Group | Effort | Status |
+| --- | --- | --- | --- | --- |
+| 1 | [Wipe secrets from memory](#1-wipe-secrets-from-memory) | Done | Small | Done |
+| 2 | [Unlock with whatever arrives first](#2-unlock-with-whatever-arrives-first) | 3 | Medium | Proposed |
+| 3 | [Parallel startup](#3-parallel-startup) | 3 | Medium | Proposed |
+| 4 | [Clear unlock errors](#4-clear-unlock-errors) | 2 | Medium | Prototyped |
+| 5 | [Reproducible images](#5-reproducible-images) | Done | Small | Done |
+| 6 | [Check the boot environment's ZFS before booting](#6-check-the-boot-environments-zfs-before-booting) | 2 | Small | Prototyped |
+| 7 | [Boot counting with automatic fallback, and boot once](#7-boot-counting-with-automatic-fallback-and-boot-once) | 2 | Medium | Prototyped |
+| 8 | [Locked menu](#8-locked-menu) | 2 | Medium | Proposed |
+| 9 | [Saved boot log and bug-report bundle](#9-saved-boot-log-and-bug-report-bundle) | Done | Small | Done |
+| 10 | [Measured boot](#10-measured-boot) | 3 | Medium | Proposed |
+| 11 | [Re-seal the TPM after firmware updates](#11-re-seal-the-tpm-after-firmware-updates) | 2 | Medium | Prototyped |
+| 12 | [Built-in menu interface](#12-built-in-menu-interface) | 2 | Large | In progress |
+| 15 | [Reclaim space from snapshots](#15-reclaim-space-from-snapshots) | 2 | Medium | Proposed |
+| 16 | [Pool health in detail](#16-pool-health-in-detail) | 2 | Medium | Proposed |
+| 17 | [Graphics drivers for AMD and Intel GPUs](#17-graphics-drivers-for-amd-and-intel-gpus) | 1 | Medium | Partly done |
+| 18 | [Spanish, French, Dutch and Brazilian Portuguese](#18-spanish-french-dutch-and-brazilian-portuguese) | 2 | Large | Partly done |
+| 19 | [Own console in Rust](#19-own-console-in-rust) | 1 | Large | In progress |
+| 20 | [Console fonts: Spleen and 256-glyph subsets](#20-console-fonts-spleen-and-256-glyph-subsets) | Done | Small | Done |
+| 21 | [Restore files and see what an upgrade changed](#21-restore-files-and-see-what-an-upgrade-changed) | 2 | Medium | Prototyped |
+
+Groups:
+
+1. [**Now, in images with the Rust runtime**](#group-1-now-in-images-with-the-rust-runtime): the code they touch is
+   already Rust, and they are opt-in or change nothing a user sees.
+2. [**With the new menu**](#group-2-with-the-new-menu): they need the menu of REFACTOR-ROADMAP.md R5, or the boot
+   environment code it brings (port package C).
+3. [**After the menu, on the finished runtime**](#group-3-after-the-menu-on-the-finished-runtime): they change how
+   start-up, unlocking or booting behave, which the refactoring allows from R5, or need the Rust `kexec` path of all
+   images.
+
+Status is one of Proposed, Prototyped, Partly done, In progress or Done. Update it, and the entry's **Status** line, in
+the pull request that changes it.
+
+## Group 1: now, in images with the Rust runtime
+
+These touch code that is already Rust. Each is added as a change of its own, for images with
+`zfsbootmenu_runtime=rust`; legacy images stay frozen (`legacy/RUNTIME-CHANGES.md`).
+
+### 17. Graphics drivers for AMD and Intel GPUs
+
+**Status:** partly done. `zbm console-autosize` sizes the console font from the display's EDID when a graphics driver
+provides one (HiDPI), and the VM tests `runtime-rust-autosize` and `runtime-rust-colours` add `virtio_gpu` to their
+images. Make and model selection is done: `Kernel.GraphicsDrivers` adds the drivers with only their GPUs' firmware
+(`crates/generate-zbm/src/gpu.rs`, `install_zbm_graphics`), with unit tests on a fake sysfs and the linux-firmware
+list, and a dracut build on Linux 6.8 measured (below). Choosing a GPU at boot and loading before the first prompt
+are done too (`zbm_boot::graphics`, VM test `runtime-rust-gpu`), and so are the hand-back before `kexec` and the
+list of known-good GPUs, which holds QEMU's GPUs until real hardware passes. The tests on real hardware remain. The Rust runtime owns the `kexec` path
+of its images.
+
+- **Why:** images leave out every graphics driver (`omit_drivers+=" amdgpu radeon nvidia nouveau i915 drm "` in
+  `config/zfsbootmenu/dracut.conf.d/omit-drivers.conf`), and the release images boot with `nomodeset`, because a GPU
+  that one kernel has set up rarely starts again under the kernel that `kexec` hands over to. The console then runs
+  on the framebuffer the firmware left behind:
+  - in whatever mode the firmware chose, often not the panel's own;
+  - with nothing on a screen the firmware did not light up, such as a second monitor or one behind a dock;
+  - with no EDID, so `zbm console-autosize` cannot size the font to the display and falls back to its old rule.
+- **How:**
+  - **Opt-in drivers.** The drivers are `amdgpu` for AMD GPUs from GCN on, and `i915` and `xe` for Intel graphics.
+    `generate-zbm` adds them when asked, for example with `Kernel.GraphicsDrivers: amdgpu i915 xe`, for dracut and
+    mkinitcpio alike, and drops `nomodeset` from the image's command line. Release images stay without the drivers.
+  - **Model selection.** `amdgpu` firmware for every chip is tens of megabytes, and one chip needs a few files, so
+    the image takes only the firmware of the GPUs it is for:
+    - host-only builds find the machine's GPUs by their PCI IDs in sysfs, with nothing to configure;
+    - other builds name chip families after the driver, such as `Kernel.GraphicsDrivers: amdgpu:gfx12 i915`, for an
+      image built on another machine or meant for several;
+    - a table in `generate-zbm` maps PCI IDs to families and families to firmware files, since the driver lists
+      every file it may load (`modinfo -F firmware`) but not which chip needs which. A test checks the table against
+      the firmware list of the build's kernel, so that a new kernel's files are noticed;
+    - `generate-zbm` reports the GPUs and firmware it chose, and fails when a named family is unknown or its files
+      are missing, rather than building an image whose display stays dark.
+    The first families are those of the machines below, the AMD Radeon RX 9060 XT (RDNA 4) among them.
+    *Done.* The table covers `amdgpu` from GCN 3 to RDNA 4 (families `gfx8` to `gfx12`), `i915` from Gen 9 to
+    Meteor Lake and `xe` for Lunar Lake, Battlemage and Panther Lake, with the PCI IDs of Linux 6.17 and `pci.ids`.
+    AMD chips from Navi 3x on name their firmware after IP versions, which the kernel reads from the GPU, so the
+    table holds groups of kin chips (`navi4x`: Navi 44 and 48); a host-only build where `amdgpu` runs reads the
+    versions from sysfs (`ip_discovery`) and takes one chip's files. A family whose newer chips the build kernel
+    does not know keeps the others. The dracut module installs the drivers in `installkernel`, past
+    `omit_drivers`, and removes the other firmware straight after, since dracut installs `add_drivers` after
+    every module and would bring the files back. Measured with dracut on Linux 6.8 (uncompressed, firmware
+    compressed): 22.2 MB without drivers, 31.1 MB with `amdgpu` and `i915` and the firmware of two chips, 54.0 MB
+    with all their firmware.
+  - **Choosing a GPU at boot.** With integrated and discrete graphics, `zbm.gpu=` names the GPU the console and the
+    menu draw on, by PCI address (`zbm.gpu=0000:03:00.0`) or vendor (`amd`, `intel`), and the others are not
+    touched; without it they use the first GPU with a connected display.
+  - **Load before the first prompt.** At start-up the drivers load before anything is asked, so the console does not
+    change mode under a passphrase field.
+    *Done.* The image keeps udev from loading them (`modprobe.d`) and lists them in
+    `/etc/zfsbootmenu/graphics-drivers`; `zfsbootmenu-preinit` loads them before the supervisor starts the console on
+    the display, waits up to 10 s for each chosen GPU's DRM card, and passes the console that card (`--card`).
+    `zbm.gpu` takes a PCI address, `amd`, `intel` or `off`; GPUs it leaves out get a driver override no driver matches.
+    The VM test `runtime-rust-gpu` runs it on QEMU's standard VGA and a virtio GPU.
+  - **Hand the GPU back before `kexec`.** The runtime unbinds the device from its driver, which runs the driver's
+    shutdown path, and resets the PCI function where it supports a reset. The booted kernel then finds the GPU as at
+    power-on.
+    *Done.* `zbm_boot::graphics::hand_back` runs after the console on the display handed the display back and the
+    "Booting" line, last before `kexec`: each GPU bound to a driver, of a vendor the image's drivers drive, is
+    unbound (`driver/unbind`) and reset (`reset`) where the kernel offers a method (`reset_method`), and the kernel
+    log says which; with `zbm.save_logs`, the saved kernel log and journal are written again after it, for the booted
+    system to read. When `kexec` fails, `take_back` has the PCI bus probe them again (`drivers_probe`) and waits for
+    their cards, before the console takes the display again. `runtime-rust-gpu` boots the environment after both
+    QEMU GPUs were handed back, and its kernel brings up a display on each.
+  - **Known-good GPUs only.** A list of GPU families known to come back after this decides whether a driver loads at
+    all. Other GPUs stay on the firmware framebuffer, and the log says why.
+    *Done* as a list of PCI vendor and device IDs (`zbm_boot::graphics::known`), which holds QEMU's standard VGA and
+    virtio GPU, the VM test's; a real GPU joins it once it passes the twenty boots below. `zbm.gpu_untested` loads
+    the drivers for the other GPUs, to try one; the kernel log names each GPU as known, tried or left on the
+    firmware's framebuffer.
+  - **A way out.** `zbm.gpu=off` on the command line skips the drivers for one boot, for a GPU that does not come
+    back.
+  - **Order.** Make and model selection come first, as they need no hardware to test: unit tests with a fake sysfs
+    and firmware list, and the image size measured. Choosing a GPU at boot and the hand-back follow, tested on the
+    machines below.
+  - **What stays out.** `radeon` (AMD GPUs before GCN) and NVIDIA's drivers: the proprietary driver cannot ship in the
+    image, and `nouveau` is not tested.
+- **Done when:**
+  - A VM test with a graphics driver QEMU can emulate (`bochs` or `virtio-gpu`) checks the sequence: the driver loads
+    before the prompts, the EDID reaches `zbm console-autosize` (done in `runtime-rust-autosize`), the device is
+    unbound before `kexec`, and the booted kernel brings up its display.
+  - On real hardware, each listed machine (Intel Gen 9 and Xe graphics, an AMD APU, an AMD RDNA graphics card) boots
+    twenty times in a row through `kexec`, with a working display both in ZFSBootMenu and in the booted system.
+  - Image size and the time to the menu are measured against an image without the drivers.
+  - A host-only image for one GPU holds only that chip's firmware; an image naming a family holds that family's;
+    unit tests cover the PCI ID and family tables, an unknown family and missing firmware files.
+  - On a machine with two GPUs, `zbm.gpu=` puts the console on the one named and leaves the other alone.
+
+### 19. Own console in Rust
+
+**Security.**
+
+**Status:** steps 1 to 4 are done: the VM tests `runtime-rust-drm` (12 checks, b780c91) and `runtime-rust-console`
+(19 checks, 905c3da) pass. `zbm.console=drm` runs the Rust runtime's start-up program and recovery shell on
+`zbm console`, Alacritty's terminal drawn through DRM with the image's TrueType font, DejaVu Sans Mono (or its PSF
+fonts with `zbm.console_font=psf`); it falls back to the kernel console when it ends and hands the display back before
+`kexec`. It types with the image's keyboard layouts, compiled from XKB data with `kbvm`, dead keys included, and
+`zbm console layout` switches them. Step 5 makes it the default, after the cutover. What it lacks to be a full
+console, and the order to add it in, is planned in [docs/dev/console-roadmap.md](console-roadmap.md) (112
+items in nine milestones; step 5 is its last).
+
+- **Why:** the menu and the recovery shell run on the kernel's console, which takes only PSF bitmap fonts. #20 makes the
+  best of them: 256-glyph subsets keep the 16 colours on VGA text consoles (the framebuffer console keeps them anyway),
+  and Spleen's native 32×64 serves the densest displays. What stays out of reach:
+  - at most 512 glyphs, so no font covers more than a few scripts, and 256 when the colours matter;
+  - fixed bitmap sizes, between which a display gets either too small or too large a font;
+  - 16 colours, not the 256 or true colour that terminal programs and themes expect;
+  - keyboard layouts only as the image's one keymap, which the unlock dialog works around by translating keys
+    itself.
+
+  Fedora is replacing the kernel console with `kmscon`, a console in user space that draws on the display through DRM
+  (reported for Fedora 45). `kmscon` is C with `libtsm`, `libxkbcommon`, `freetype` and `fontconfig`, a few megabytes
+  in the image. A console in Rust fits this project better: it is one more applet of `zbm`, and it keeps typed secrets
+  under the rules of `docs/dev/threat-model.md`.
+- **Prior art in Rust (October 2026):** no Rust program does what `kmscon` does, so the console is assembled from
+  crates:
+  - **Whole programs.** None replaces the kernel console. `term39` (MIT), a terminal multiplexer, comes closest: it can
+    draw on `/dev/fb0` from a physical console, with `vte` and `portable-pty`, but through the old framebuffer device
+    rather than DRM, with bitmap console fonts, and with keys read through the kernel console it runs on.
+  - **Ratatui drawn as pixels.** `mousefood` (MIT or Apache-2.0, from the Ratatui project, Rust 1.88 as the
+    workspace) is a Ratatui backend on `embedded-graphics`, with bitmap fonts. `soft_ratatui` (MIT or Apache-2.0, one
+    maintainer) renders a Ratatui buffer into an RGB pixel map, with bitmap (BDF, `embedded-graphics`) or TrueType
+    fonts (`rusttype`, `cosmic-text`). Both build on `ratatui-core`, which the workspace already vendors, and either
+    turns the menu into pixels without a renderer of our own. Step 1 took neither: neither reads the PSF fonts that
+    every image already carries, which `zbm_types::psf` reads and `zbm console-autosize` sizes, and drawing a cell
+    from a PSF glyph is a few dozen lines. They stay the choice for TrueType fonts in step 2.
+  - **The other layers.** `drm` for the display; `fontdue`, `rusttype` or `cosmic-text` (shaping, and much larger)
+    for fonts; `alacritty_terminal`, or `vt100` and `vte`, which the workspace vendors, for the terminal; `evdev` for
+    keys and `xkbcommon-rs`, a young pure Rust port of libxkbcommon (0.1), for layouts; `drmkit-session` (new in
+    October 2026) for revoking devices across VT switches, to watch rather than take.
+- **How:** a `zbm console` applet, which the supervisor starts on the display before the first prompt.
+  - **Display.** It draws into a dumb buffer through DRM (the `drm` crate, 0.15, on the workspace's `rustix` 1). It
+    works on `simpledrm`, the firmware's framebuffer, without graphics drivers, and at the native resolution with #17.
+  - **Text.** Any TTF or OTF font, at the size `zbm console-autosize` already computes from the display's EDID,
+    rasterized with `fontdue` (pure Rust; a terminal grid of Latin text needs no shaping). Full Unicode and 256
+    colours, so the four languages of #18 show without a 512-glyph subset.
+  - **Terminal.** `alacritty_terminal`, the terminal state machine of Alacritty, on a pseudo-terminal (`rustix`), so
+    `zfsbootmenu-init`, the menu and the recovery shell run in it and `vim`, `less` and `mc` work. `vte` and `vt100`
+    are already vendored for the VM tests.
+  - **Keyboard.** Key events from `evdev`, layouts from `kbvm` (an implementation of XKB in Rust), compiled when the
+    image is built into one file each. The unlock dialog's `Ctrl-K` then switches real keyboard layouts, dead keys
+    included.
+  - **Secrets.** No scrollback while a prompt is open, and the grid and the PTY's buffers wiped when it closes.
+  - **Fallback.** If the console fails to start or ends, the supervisor puts the menu back on the kernel console,
+    which stays built in. The serial console is unchanged.
+  - **Handing over.** Before `kexec` it releases the display and the keyboard, and gives the kernel console back, so
+    that the booted kernel takes over as it does today.
+  - **Kernel errors.** A panic is drawn by the kernel's DRM panic handler (Linux 6.10 and later, `simpledrm` among
+    the drivers), so it is not hidden behind the console.
+  - **Dependencies.** Step 1 added `drm` (0.15.0, MIT, on the workspace's `rustix`), for `zbm-display` only; step 2
+    added `alacritty_terminal` (0.26.0, Apache-2.0, without `serde`), `rustix` directly and `signal-hook`, for
+    `zbm-console`; step 3 added `swash` (0.2.10, MIT or Apache-2.0) for `zbm-display`, not `fontdue`, whose parser
+    `ttf-parser` was declared unmaintained (RUSTSEC-2026-0192); step 4 added `kbvm` (0.1.7, MIT or Apache-2.0), the
+    XKB engine of the Jay compositor, not `xkbcommon-rs`, last released in February 2025 (decision 1 of
+    REFACTOR-ROADMAP.md). The layouts cost about 70 KB each in the image, and the dead keys 75 KB.
+- **Steps:**
+  1. **Done.** A prototype draws the menu on DRM in a VM (`zbm-tui --demo --drm`): fonts,
+     sizes, `simpledrm`, keyboard input and the hand-over before `kexec`, without a terminal.
+     - `zbm-display` (platform layer): a frame of pixels; a grid that draws characters with the image's PSF fonts,
+       doubled where `zbm console-autosize` doubles them; a DRM dumb buffer on the first connected output, in its
+       preferred mode, restored when dropped; keys from the keyboards' input devices (`/dev/input/event*`, found
+       through sysfs), on the US layout; the virtual terminal in graphics mode with its keyboard off
+       (`KDSETMODE`, `KDSKBMODE` in `zbm-sys`) until the menu ends, so that the kernel console neither draws over it
+       nor passes its keys to the shell.
+     - `zbm_tui::menu::display`: a Ratatui backend that draws cells as pixels in the Linux console's palette (bold
+       drawn bright), and the menu's loop on a screen and a key source, which tests replace.
+     - The VM test `runtime-rust-drm` checks, on `virtio_gpu` and on `simpledrm` (`vga=0x318`): the driver, the main
+       view in the screen's text, its colours in a QEMU screenshot, Down and Enter typed on QEMU's keyboard, and the
+       kernel console drawing again after the menu boots.
+  2. **Done.** The console, with the image's PSF fonts and the US layout, for the
+     Rust runtime as it is before R5 (the countdown and the recovery shell); the menu of R5 runs on it unchanged.
+     - `zbm-console` (front ends): Alacritty's terminal on the controlling side of a pseudo-terminal, without
+       scrollback or clipboard, drawn where it changed with the grid of `zbm-display`, in the console's 16 colours
+       (bold drawn bright), xterm's 256 and true colour; the answers the programs ask for (cursor position, device
+       attributes, colours, size); keys as the Linux console sends them (`TERM=linux`), the bytes typed wiped once
+       written; `SIGUSR1` as the request to hand the display back, and the relay to the kernel console afterwards.
+     - `zbm console` (an applet): the display, the keyboards and the virtual terminal shown now, taken in that
+       order, so that a missing card or keyboard leaves the virtual terminal alone; without them it relays at once.
+       `zbm console release` sends the request and waits until the console removed its process ID from the state
+       directory. The console records that ID itself, once it can take requests. When `kexec` fails after the
+       hand-over, `zbm console reattach` has the console, which relays on the kernel console meanwhile, take the
+       display again.
+     - The supervisor, with `zbm.console=drm` and a virtual terminal as its control terminal, opens the
+       pseudo-terminal, starts the console on it and runs the start-up program and the recovery shell on the other
+       side in sessions of their own (`setsid -c`). If the console ends, it gives the virtual terminal back (text
+       mode, the keyboard's mode) and goes on on the kernel console; a program hung up then leaves no crash report.
+     - `zbm-boot` runs `zbm console release` after the teardown hooks, before `kexec -e`, when a console runs.
+     - The VM test `runtime-rust-console` reads the screen's text from a second serial port
+       (`zbm.console_mirror`): on `virtio_gpu`, the countdown in colour, Escape and a command typed on QEMU's
+       keyboard, the shell on the pseudo-terminal, and the kernel console taking keys after the console is killed;
+       on `simpledrm`, the hand-over and the boot of the boot environment.
+     - Keys come before the programs' output, so that Ctrl-C reaches a program that floods the terminal; typed
+       bytes wait in a wiped queue when the programs read nothing. A keyboard that goes away is dropped, and one
+       plugged in later is opened when nothing else happens for a moment; after events were lost
+       (`SYN_DROPPED`) the keys held are read back from the device, and Caps Lock lights the keyboards' light.
+     - Left for later: a console that comes back after it ended.
+  3. **Done.** TrueType fonts at the size `zbm console-autosize` computes, for full
+     Unicode without a 512-glyph subset (#18).
+     - `zbm_display::outline`: a TrueType or OpenType font through `swash` (hinted, rasterized as coverage), sized
+       so that a line fills a cell as high as the console font `zbm console-autosize` chooses, with whole pixels per
+       em; each character rasterized once. The grid blends its coverage between the cell's colours, and falls back
+       to the replacement character or `?` for characters the font lacks.
+     - `zbm_display::boxes`: the box drawing (U+2500 to U+257F, but the diagonals) and block characters (U+2580 to
+       U+259F) drawn to fill their cells, so that borders and bars join as they do with the console fonts.
+     - Images with the Rust runtime carry DejaVu Sans Mono 2.37 (340 KB, Bitstream Vera licence) as
+       `/usr/share/zfsbootmenu/fonts/DejaVuSansMono.ttf`; `zbm console` draws with it unless
+       `zbm.console_font=psf`, or the image has none, and names its font in its start message.
+     - `runtime-rust-console` checks the TrueType font and its anti-aliasing on `virtio_gpu`, and
+       `zbm.console_font=psf` on `simpledrm`.
+     - Left for later: a bold face (bold is drawn bright, as on the kernel console), fonts other than the image's,
+       and characters wider than a cell, which are cut at its edge.
+  4. **Done.** Keyboard layouts, so that the unlock dialog's `Ctrl-K` can switch real
+     layouts.
+     - `zbm_display::layout`: an XKB keymap through `kbvm`, its key state machine (Shift, Caps Lock, `AltGr`, level
+       and group switches as the keymap defines them) and its dead keys through a compose table; Ctrl and Alt with a
+       key of a layout not in Latin letters give the key's US letter, as `Ctrl-C` needs. The decoder takes a layout,
+       and a new one keeps the keys held; without one it keeps the US tables of step 1.
+     - `zbm keyboard-layouts` compiles, when the image is built, each layout of `zfsbootmenu_keyboard_layouts`
+       (`de`, `de(nodeadkeys)`; by default the build host's `XKBLAYOUT`, then `us`, `de`, `fr` and `gb`) from the
+       build host's XKB data into a self-contained keymap, and the compose rules of `en_US.UTF-8` that start with a
+       dead key; Rust images install them in `/usr/share/zfsbootmenu/layouts` with their order. The build container
+       gains `xkb-data` and `libx11-data`.
+     - `zbm console` types with the image's first layout, or `zbm.keyboard_layout` (`--layout`), and names it in its
+       start message. `zbm console layout <name>` writes the request in the state directory and sends `SIGUSR2`; the
+       console loads the layout, records it (`console-layout`) and removes the request, which the command waits for.
+       Without a name it shows the layout and the image's others.
+     - `runtime-rust-console` checks, on `virtio_gpu`, the start layout, `zbm console layout de` typed in the shell,
+       `y`, `z` and a dead circumflex typed on the German layout into `cat`, and the switch back typed with it.
+     - Left for later: the menu's `Ctrl-K` asking the console for the layout (R5, with the unlock dialog; on the
+       console the menu then stops translating by key position), `Global.KeyboardLayouts` in `generate-zbm`, the
+       compose key (`Multi_key`), and keyboards with their own layouts.
+     - The recovery shell's prompt takes characters beyond ASCII: the first VM run lost `ê` there, which `cat` on the
+       same console typed, as readline in the image's C locale may take their bytes for Meta keys. Rust images get
+       `/etc/inputrc` (8-bit input and output) and, where the build host's C library has it, the character set of
+       `C.UTF-8` (`LC_CTYPE`, 360 KB) with `LC_CTYPE=C.UTF-8` in `/etc/profile`; `runtime-rust-console` checks `ê`
+       at the prompt, and passes (19 checks).
+  5. The default, once the VM tests and a list of machines pass. Images can keep the kernel console with an option.
+- **Done when:**
+  - the VM tests read the console's grid as text, as they read the serial console now, and pass with it;
+  - snapshot tests compare its rendering, in memory, with reference images at three sizes;
+  - a test types a passphrase and finds it in no buffer of the console once the dialog closed;
+  - a VM test kills the console and the menu comes back on the kernel console;
+  - image size and the time to the menu are measured against the kernel console.
+
+## Group 2: with the new menu
+
+These need the menu that REFACTOR-ROADMAP.md R5 builds, the boot environment code it ports (package C), or both. The
+prototypes show how they look and behave; R5 builds the menu's core tasks first, and these follow on it.
+
+### 4. Clear unlock errors
+
+**Status:** prototyped. The unlock dialog of the prototype says why a method is asked instead of another, when a
+secret was wrong, and when the keyboard layout is the likely cause, with `Ctrl-K` to type with another layout
+([unlocking](../menu-design/unlocking.md)). In the runtime, `zbm_luks::LuksError` and `TokenFailure` carry each
+failure's cause, and `cryptsetup`'s exit statuses map onto typed errors (a wrong key, no device, busy).
+
+- **Why:** several different failures look alike today. Users need to know whether the passphrase was wrong, the
+  volume has no key slot or token for the method, the LUKS header is damaged, the TPM refused because the system
+  changed (PCR mismatch), the FIDO2 key or GnuPG card is missing, or its PIN was wrong. The TPM lockout is already
+  detected.
+- **How:** map the outcomes of the `zbm-crypt` adapters to one error type with a message and a hint for each case,
+  shown by the unlock dialog. Where a tool's output cannot tell two cases apart, call libcryptsetup through
+  `libcryptsetup-rs` and the TPM through `tss-esapi`; neither is among the agreed crates yet (decision 1 of
+  REFACTOR-ROADMAP.md).
+- **Done when:** every failure case of the LUKS device suites (`crates/zbm-luks/tests/devices/edge.rs`) produces its own
+  message, and the test checks it.
+
+### 6. Check the boot environment's ZFS before booting
+
+**Status:** prototyped: the menu runs five checks on each environment, shows them on its row and in the inspector,
+and asks before booting one that fails ([boot health](../menu-design/boot-health.md)).
+
+- **Why:** ZFSBootMenu warns when its own ZFS does not support a pool's features. Nothing warns when the selected boot
+  environment's ZFS is too old for the features active on its root pool. That boot environment then fails to import
+  its root pool after `kexec`, away from ZFSBootMenu's recovery tools.
+- **How:** before booting, read the ZFS module version that the boot environment's initramfs (or, failing that, its
+  module tree) contains for the selected kernel. Look up the features that version supports in the `compatibility.d`
+  files that OpenZFS ships (`openzfs-2.2-linux` and so on), and compare them with the features that are active on the
+  pool. Features that are enabled but unused do not block an import. List the features the boot environment does not
+  support, and ask before booting.
+- **Done when:** a VM test with an old ZFS in the boot environment, like `complex-oldzfs`, shows the warning before
+  booting, and boot environments with a recent enough ZFS boot without it.
+
+### 7. Boot counting with automatic fallback, and boot once
+
+**Status:** prototyped: `zbm-tui --demo --failing` shows the fallback, `--next-boot` a boot asked for once by the
+running system ([boot health](../menu-design/boot-health.md)). The commands `zbm bless` and `zbm next-boot` and
+the option `zbm.boot_tries` are proposals; their names are open until they are built.
+
+- **Why:** after an update that does not boot, an unattended or remote machine stays down until someone reaches the
+  console. And a running system cannot ask for the next boot only, as `systemctl reboot --boot-loader-entry` does for
+  systemd-boot.
+- **How:** a boot environment or kernel can be marked for trial, from the menu or with a tool in the booted system.
+  ZFSBootMenu decrements a counter before each trial boot, and when it reaches zero boots the last known-good boot
+  environment instead. A small service in the booted system marks the boot good, as `systemd-bless-boot` does for
+  systemd-boot. ZFSBootMenu imports pools read-only, so the counter is kept in an EFI variable; systems without UEFI
+  are not supported at first. The same variable can name the environment to boot once.
+- **Done when:** a VM test boots a boot environment that crashes and ZFSBootMenu falls back after the configured number
+  of tries, a boot environment whose service marks the boot good keeps booting, and a boot asked for once happens once.
+
+### 8. Locked menu
+
+**Security.**
+
+- **Why:** anyone at the console can edit the kernel command line (for example `init=/bin/sh`), open the recovery
+  shell, or boot another boot environment or snapshot. On a system that unlocks with a TPM and no PIN, that means
+  anyone who can start the machine reaches the decrypted data.
+- **How:** optionally require a PIN (stored as an Argon2id hash in the image) or a FIDO2 key before editing the command
+  line, opening the recovery shell, choosing anything but the default boot environment, or managing snapshots. The
+  default boot stays unattended. The lock only helps when the image itself cannot be replaced, so the documentation
+  pairs it with Secure Boot and signed images.
+- **Done when:** VM tests check that each locked action asks for the PIN, that a wrong PIN is refused with a delay,
+  and that the default boot still needs no input.
+
+### 11. Re-seal the TPM after firmware updates
+
+**Security.**
+
+**Status:** prototyped: `zbm-tui --demo --tpm-changed` shows which PCR changed and why, asks for the passphrase
+instead of the TPM2 PIN, and offers the re-seal alert ([unlocking](../menu-design/unlocking.md)).
+
+- **Why:** a firmware update changes PCR values. TPM unlocking then fails, and the passphrase is needed at every boot
+  until someone re-enrolls the token from the booted system.
+- **How:** when a TPM2 token fails because of a PCR mismatch and the volume is then unlocked with a passphrase or
+  recovery key, show which PCRs changed and offer to re-seal the token to the current values. Re-sealing trusts the
+  current state of the machine, so it needs explicit confirmation. The same code gives `zluks` commands to enroll
+  TPM2 and FIDO2 tokens and recovery keys.
+- **Done when:** a VM test changes a PCR the token is bound to, unlocks with the passphrase, re-seals, and the next
+  boot unlocks with the TPM alone.
+
+### 12. Built-in menu interface
+
+**Status:** in progress, as the refactoring's menu: designed in phase D, with a prototype that runs every core task
+on a fake machine; the R0 pilot showed the boot environment list in the Rust image on a serial console. R5 builds it,
+and `fzf` then leaves the images (decision 3 of REFACTOR-ROADMAP.md).
+
+- **Why:** the menu runs `fzf` with Bash previews, which starts many processes and depends on the `fzf` version in the
+  image. A built-in interface behaves the same everywhere and can add mouse support, themes, and a plain mode for
+  serial consoles and screen readers.
+- **How:** Ratatui for the layout and `nucleo-matcher` for filtering, redesigned from the tasks users come to do rather
+  than rebuilt screen for screen (REFACTOR-ROADMAP.md, "The menu redesign"). The `fzf` menu's `MOD+key` bindings stay
+  as aliases in their old views, so the help pages and users' habits stay valid (decision 8, open until the usability
+  sessions).
+- **Done when:** the exit of R5: the VM tests drive every core task through the menu, including on a serial console.
+
+### 15. Reclaim space from snapshots
+
+- **Why:** a nearly full pool makes writes fail during boot, and only destroying snapshots frees the space they hold.
+  Finding which ones hold it takes `zfs list -o space` and `zfs destroy -nv` in the recovery shell, and space shared
+  by neighbouring snapshots is freed only when all of them go, which no single snapshot's `used` shows. The menu's
+  boot checks already warn when a pool has less than 5% free; this is what to do next.
+- **How:** a *Reclaim Space* view lists an environment's snapshots by the space destroying each frees. The user marks
+  several, and the header shows what destroying them together frees, from a dry run (`zfs destroy -nvp` on the marked
+  snapshots). One confirmation, with the environment's name typed, imports the pool read/write and destroys them.
+  Snapshots with a `zfs hold`, and those a clone depends on, are shown as protected and cannot be marked; a key adds or
+  releases a hold, so a snapshot can be kept from automatic pruning. The pool's checkpoint is never offered.
+- **Done when:** a VM test fills a pool, marks snapshots and checks that the space freed matches the dry run, and that
+  held snapshots and snapshots with clones cannot be destroyed.
+
+### 16. Pool health in detail
+
+- **Why:** after a disk fails or is replaced, the menu shows a pool as `DEGRADED` and nothing more. Which device
+  failed, how many errors each has, whether a resilver runs and when it ends, and which files are damaged take
+  `zpool status -v` in the recovery shell.
+- **How:** opening a pool shows its device tree (each vdev and device with its state and read, write and checksum
+  errors), the progress of a scrub or resilver with the time left, and the damaged files, from `zpool status -j`
+  (OpenZFS 2.3 and later; `zpool status -p` before), through the typed ZFS port of `zbm-zfs`. Actions, each confirmed:
+  clear the errors (`zpool clear`), bring a device online or take it offline. Replacing a device stays in the recovery
+  shell. ZFSBootMenu imports pools read-only, and a read-only pool neither resilvers nor takes these actions: the view
+  says so and offers to import it read/write first.
+- **Done when:** VM tests with a degraded mirror and a resilvering raidz show the same devices, errors and progress as
+  `zpool status`; clearing errors and bringing a device back online work; a read-only pool offers the import first.
+
+### 18. Spanish, French, Dutch and Brazilian Portuguese
+
+**Status:** partly done: the console fonts carry every letter the four languages use, in both families, and a test
+checks it (#20). The catalogue comes with the menu in R5.
+
+- **Why:** ZFSBootMenu speaks only English, at the moment a user is least able to look words up: a boot that went
+  wrong, a passphrase refused, a pool that did not import. Spanish, French, Dutch and Brazilian Portuguese cover
+  many of the users who ask for help in other languages today.
+- **What is translated:**
+  - about 500 strings the user reads: the menu, the unlock and import prompts, and the errors of unlocking,
+    importing, start-up and booting;
+  - the help inside the menu;
+  - the man pages `zfsbootmenu(7)` and `zfsbootmenu-luks(7)`.
+- **What stays English:**
+  - the log, the runtime journal and bug-report bundles (#9), so that maintainers can read and search them;
+  - command line options, `org.zfsbootmenu:*` properties and configuration keys, which ZFSBootMenu shares with
+    upstream;
+  - the distribution guides, which change too often for translations to keep up.
+- **How:**
+  - **Catalogues.** One Fluent file per language (`locales/es`, `fr`, `nl`, `pt-BR`), built into `zbm`: a few tens of
+    kilobytes each. Fluent is already vendored, as a dependency of `uucore`. Its plural rules follow CLDR (French
+    counts 0 as singular, for example).
+  - **Choosing the language.**
+    1. `zbm.lang=fr` on the kernel command line.
+    2. Otherwise, the language `generate-zbm` read from the build host's `/etc/locale.conf`.
+    3. Otherwise, English.
+
+    The command palette changes it for the rest of the session. A string missing from a catalogue is shown in
+    English.
+  - **Characters.** The image's console fonts, Terminus or Spleen, installed as 256-glyph subsets in images with the
+    Rust runtime, keep every letter and mark the four languages use: ñ ¿ ¡ é è ç œ « » ã õ ë. The only gap is the
+    Dutch ligature ĳ, which Dutch usually writes as two letters. Where the terminal has no UTF-8 (`--theme ascii`, old
+    serial terminals), accents are dropped (é becomes e), as line drawing already falls back to ASCII.
+  - **Keys stay the same in every language.** `s` opens the snapshots whatever the word for them, so that each key
+    keeps one meaning, and the classic bindings, the VM tests and the documentation stay valid. Help shows each key
+    beside its translated label.
+  - **Layout.** Translations run 20 to 35% longer than English. Titles use sentence case, as these languages do, not
+    English title case. Numbers, sizes and ages follow the language (`1,2 Go`, `il y a 12 h`), from small rules per
+    language rather than ICU, which is too large for the image.
+  - **Keyboard layouts.** The layout translation of the unlock dialog gains `es` and `br-abnt2`. Dutch users mostly
+    type on the US layout.
+  - **Translators.** Each language needs a native speaker who reviews its changes. A language without one stays at
+    its last reviewed state, its missing strings in English, and never blocks a release.
+- **Steps:**
+  1. In R5 (REFACTOR-ROADMAP.md), the menu takes every string from the catalogue, in English. CI checks that every
+     key exists and that placeholders match. A pseudo-language that lengthens and accents every string finds text
+     that does not fit before any translation exists. Small, if done then.
+  2. The four catalogues of the menu, the prompts, the errors and the help. Medium.
+  3. The two man pages, through Sphinx's translation tools (`sphinx-intl`, `.po` files). Large, and ongoing.
+- **Done when:**
+  - every view's wireframes, at 120×40, 80×25 and 52×20, exist in each language and fit without clipping;
+  - a VM test boots with `zbm.lang=` set to each language, unlocks a volume and boots an environment;
+  - a test checks that log and journal entries stay English whatever the language;
+  - each language has had a native speaker's review.
+
+### 21. Restore files and see what an upgrade changed
+
+**Status:** prototyped: `f` on a snapshot opens the Changes view, with a Files segment that restores marked paths and
+a Packages segment that lists what the upgrade installed, removed, upgraded and downgraded
+([boot health](../menu-design/boot-health.md), wireframes `diff`, `diff-marked`, `diff-packages` and
+`restore-confirm`).
+
+- **Why:** after an upgrade that broke something, the user wants one file back, or to know which package did it.
+  Today that takes a rollback, which loses everything since the snapshot, or `zfs diff` in the recovery shell and
+  reading package databases by hand.
+- **How:**
+  - **Files.** What changed since the snapshot (`zfs diff`), one row per path with its kind and a preview. Restoring
+    copies marked paths back from `.zfs/snapshot/<name>/`, keeping owner, mode and times, after importing the pool
+    read/write and taking a safety snapshot `@before-restore`; the confirmation wants the environment's name typed.
+  - **Packages.** The package database in the snapshot compared with the live one: `xbps`, `dpkg`, `pacman` or `rpm`
+    (its SQLite database, read without `rpm`). Each row says what happened and how to undo it, and lists the
+    package's changed files.
+- **Done when:** a VM test changes and removes files in a boot environment, restores them from a snapshot and checks
+  their contents, owners and modes and the safety snapshot; fixture tests read each package database format and give
+  the same changes as the distribution's own tools.
+
+## Group 3: after the menu, on the finished runtime
+
+These change how start-up, unlocking or booting behave. The refactoring changes no behaviour before R5, and package C
+of the port, which R5 builds, brings the Rust `kexec` path to every image.
+
+### 2. Unlock with whatever arrives first
+
+- **Why:** the Bash code tries unlock methods in turn. A FIDO2 key or a USB key stick plugged in while the passphrase
+  prompt is shown is not noticed until the prompt ends, and a slow TPM delays the prompt.
+- **How:** run one task per method (TPM2, FIDO2, YubiKey challenge-response, GnuPG smart card, key file or key device,
+  passphrase) and watch device hot-plug through kernel uevents. The `KeyMethod` strategies of `zbm-luks` (R3) are the
+  units to run. The first method that unlocks the volume cancels the others. Configuration keeps its meaning: a volume
+  configured for a key file alone never shows a prompt. PIN attempts against the TPM stay one at a time, so they do
+  not use up the TPM's lockout counter. One concurrency model for the runtime is proposal 7 of REFACTOR-ROADMAP.md.
+- **Done when:** the hot-plug and lockout VM tests (`complex-hotplug`, `complex-hotplug-auto`, `firmware-usbkey`,
+  `firmware-usblate`, `keys-lockout`) pass, and a new test plugs in a key while the passphrase prompt is shown.
+
+### 3. Parallel startup
+
+- **Why:** kernel discovery mounts one boot environment after another, and several LUKS volumes that share a
+  passphrase each run a slow Argon2id key derivation in turn. Systems with many boot environments or disks wait the
+  longest.
+- **How:** scan boot environments with a thread pool, and unlock volumes in parallel. Each Argon2id derivation can use
+  up to 1 GiB of RAM, so the number of parallel unlocks depends on free memory. Pool imports stay serial where the
+  `zpool` command needs it.
+- **Done when:** the VM tests measure the time from kernel start to the menu, it drops on a layout with four LUKS
+  members and on a pool with twenty boot environments, and the menu shows the same entries as before.
+
+### 10. Measured boot
+
+**Security.**
+
+- **Why:** the firmware measures ZFSBootMenu itself into the TPM when it boots as an EFI image, but nothing measures the
+  kernel, initramfs and command line that ZFSBootMenu boots. The booted system cannot tie its own TPM secrets to
+  "this kernel, booted with this command line".
+- **How:** before `kexec`, extend a PCR with the hashes of the kernel, the initramfs and the command line, and record
+  the events in a log the booted system can read. The PCRs to use (GRUB uses PCR 8 for command lines and PCR 9 for
+  files) and the log format are to be decided and documented. Extend only after ZFSBootMenu's own TPM unlocks, so the
+  booted system cannot unseal those secrets again, much as systemd measures boot phases into PCR 11. A tool predicts
+  the PCR values for a boot environment, so policies can be prepared before an upgrade.
+- **Done when:** a VM test with a software TPM compares the PCR values after booting with the prediction, and checks
+  that ZFSBootMenu's TPM tokens no longer unseal after the extension.
+
+## Done
+
+### 1. Wipe secrets from memory
+
+**Security.**
+
+**Status:** done; the VM tests `secrets-passphrase` and `secrets-keyfile` passed on 24 October 2026, with the key
+methods of `keys-*` and `firmware-*` on the Rust runtime. In the Rust runtime secrets are `zbm_platform::Secret`, in pages of their own (`zbm_sys::memory::Pages`):
+from `memfd_secret` where the kernel allows it, which keeps them out of the kernel's map of memory too, else locked
+with `mlock`; never in core dumps (`MADV_DONTDUMP`) or child processes (`MADV_WIPEONFORK`, `MADV_DONTFORK`); wiped
+with `explicit_bzero` when dropped. They reach programs only on standard input, the journal writes fields named for
+secrets as `[redacted]`, and the key method tests end with `assert_no_secret_leaked!` (property P1 of
+`docs/dev/threat-model.md`). The runtime's processes are undumpable, and the console on the display wipes the key
+codes it reads. Before `kexec`, the start-up program drops the page cache and warns about secrets it still holds;
+`zbm report` says whether the kernel zeroes freed memory (`init_on_free=1`), which the man page recommends for Rust
+images. The VM tests unlock a volume with a long passphrase, then with a key file on a USB stick, and a teardown hook
+runs `zbm debug secrets` (in images built with the `secret-test` feature) just before `kexec`: it searches every other
+process's memory, command line and environment, and every file on the file systems in memory, for both. Kernel
+buffers still in use at `kexec` are not searched, and stay a risk (R4 of the threat model).
+
+- **Why:** Bash keeps passphrases and key material in variables, here-strings and pipe buffers that cannot be reliably
+  erased. Copies can remain in RAM after ZFSBootMenu hands over to the booted kernel. ZFSBootMenu already closes LUKS
+  mappings before booting, which wipes the volume keys, but not the secrets used to unlock them.
+- **How:** hold secrets in types that erase themselves when dropped (done: `Secret`; `zeroize` or `secrecy` are
+  proposal 5 of REFACTOR-ROADMAP.md), lock their pages in RAM (`mlock`), and hand them to libcryptsetup and helper
+  tools through memory or pipes: never through command-line arguments, environment variables or files. Wipe
+  everything that is left before `kexec`.
+- **Done when:** a test unlocks volumes with a known passphrase and key file, then searches process memory, command
+  lines, environments and tmpfs for them and finds nothing.
+
+### 5. Reproducible images
+
+**Status:** done. With `SOURCE_DATE_EPOCH` set, the Rust `generate-zbm` passes `--reproducible` to dracut,
+`objcopy` stamps the EFI bundle with that time, the image's `BUILD_ID` is its day, and the build container builds
+`zbm` with its random work directory remapped (`--remap-path-prefix`). Two release builds in the build container,
+from checkouts in different directories five minutes apart, gave the same bytes for the initramfs, the kernel and the
+EFI bundle; without the variable they differed only in the archive's file times and the bundle's PE time stamp. The
+CI job `reproducible` (`build.yml`) builds and compares them on pull requests and on master.
+
+- **Why:** the same source and build container should give the same bytes, so that anyone can check a published image
+  and sign it. Today two builds from the same tree have identical contents but different bytes, because the initramfs
+  records timestamps.
+- **How:** set `SOURCE_DATE_EPOCH` from the last commit and pass dracut's `--reproducible` option; check the EFI bundle
+  that `objcopy` writes for timestamps. `generate-zbm` is Rust now, so the change goes there. Build paths are removed
+  from the binaries with `--remap-path-prefix` (proposal 17 of REFACTOR-ROADMAP.md).
+- **Done when:** CI builds the release image twice, in different directories, and the two images are identical.
+
+### 9. Saved boot log and bug-report bundle
+
+**Status:** done; the VM test `runtime-rust-saved` passed on 24 October 2026 (18 checks). Every runtime
+program appends its events to the runtime journal (`/zfsbootmenu/journal.jsonl`), with secrets redacted, and a panic
+leaves a crash report that `zbm debug crash` prints and `cargo xtask symbolize` resolves (REFACTOR-ROADMAP.md R1).
+With `zbm.save_logs`, the Rust runtime saves the journal, the crash reports and the kernel log on the EFI system
+partition before `kexec` and after a crash, in `EFI/zfsbootmenu/logs/<time>`, keeping the newest five and mounting
+the partition only for the write; `zbm debug saved` lists them and `zbm debug save` saves now. `zbm report` writes a
+bug report there or in a directory, such as a USB stick: versions, pool status, each LUKS header's UUID and its
+tokens' IDs, types and key slots, whether a TPM is there and locked out, the crash reports, the journal and the
+kernel log. A unit test (`zbm_boot::report`) fills a fake machine's LUKS header with sealed keys, Clevis JWEs and key
+slot salts and checks that no file of the report holds any of them; the VM test boots once into a boot environment,
+restarts and reads the first boot's journal back.
+
+- **Why:** ZFSBootMenu logs to the kernel log of its own kernel, which is lost when it boots another kernel or the
+  machine restarts. Failures on unattended machines cannot be diagnosed afterwards.
+- **How:** optionally write the journal and crash reports to the EFI system partition, keeping the last few, and mount
+  the partition only for the write. A `zbm report` command in the recovery shell writes pool status, LUKS header
+  summaries, token and TPM status, versions and the journal to the EFI system partition or a USB stick. It never
+  includes key material. Proposal 2 of REFACTOR-ROADMAP.md (`zbm debug bundle`, and `xtask replay` turning a bundle
+  into a test) builds on the same bundle.
+- **Done when:** a VM test restarts the machine and finds the previous journal on the EFI system partition, and a test
+  checks that a report contains none of the test passphrases or keys.
+
+### 20. Console fonts: Spleen and 256-glyph subsets
+
+For images with the Rust runtime, where `zbm console-autosize` chooses the font; the legacy hook keeps its fonts. It
+helps the kernel console until, and wherever, #19 replaces it.
+
+**Status:** done. The subsets: the image build runs `zbm console-fonts`, the code is `zbm_types::psf`, the image
+and wireframe tests check them, and the VM test `runtime-rust-autosize` loads them on a real kernel, doubled too.
+Spleen is done too: Spleen 2.2.0 in 8×16, 12×24, 16×32 and 32×64 (`legacy/zfsbootmenu/fonts/spleen/`, with its
+licence and where it came from; 5×8 and 6×12 lack `œ Œ`), chosen with `Global.ConsoleFont: spleen` or the build option
+`zfsbootmenu_console_font=spleen`; without a display density, `zbm console-autosize` still keeps to 32 pixels. The
+VM test passes with both families (64984bd): the Spleen image, built through `generate-zbm`, holds Spleen only, loads
+8×16 from the EDID and the native 32×64 for `zbm.autosize=64`. The check of the colours is the VM test
+`runtime-rust-colours`, which counts the colours of a 16-colour bar in QEMU screenshots of the VGA text console and the
+framebuffer console, with the image's font and the whole 512-glyph one: it passes (803de05). The image's fonts show all
+16 colours on both consoles; the whole font shows 8 on the VGA text console and 16 on the framebuffer console, which
+keeps the bright foreground colours with 512 glyphs: the subsets are what the VGA text console needs.
+
+- **Why:**
+  - **Colours.** The six Terminus fonts of the image hold 512 glyphs each (their sizes say so: `ter-v32b.psf` is
+    512 glyphs of 64 bytes and a Unicode table). `setfont(8)` warns that a font of more than 256 glyphs leaves 8 of
+    the 16 colours. On a VGA text console that loses the bright ones, which the menu uses for muted text, titles
+    and warnings; the framebuffer console keeps the 16 foreground colours (measured by `runtime-rust-colours`).
+  - **Dense displays.** The largest Terminus font is 16×32, so the densest displays get it doubled to a blocky 32×64.
+- **How:**
+  - **Subsets.** The image build makes each font of the image a 256-glyph PSF2 subset: ASCII, the characters the
+    menu draws (box drawing, `▶ ‹ · • … √ ↑ ↓ →` and the others of the theme), Latin-1, and `œ Œ €` for the
+    languages of #18. That is about 230 characters in fewer glyphs, so all 16 colours stay. The Unicode table maps
+    characters a font lacks to a glyph it has (`▶` to `►`, `“ ”` to `"`), so a font missing one can still be used.
+    The subsets are modified fonts under the same licence; a PSF file carries no font name, so none uses a reserved
+    one.
+  - **Spleen.** An option chooses the family, one per image, so the text looks the same at every density:
+    `Global.ConsoleFont: terminus` (the default, as today) or `spleen`. Spleen (BSD-2) has native sizes from 5×8 to
+    32×64, so the densest displays get a font drawn at that size instead of a doubled one. `zbm console-autosize`
+    already reads the cell of each font from its header, and prefers a native size to a doubled one of the same
+    height.
+- **Done when:**
+  - a test reads every font `generate-zbm` builds and checks that it has at most 256 glyphs, every character the
+    menu draws and the letters of the four languages of #18, as the wireframe tests check the fonts of the image
+    today;
+  - the VM test of `zbm console-autosize` passes with both families, and on the 4K display chooses Spleen's 32×64
+    without doubling;
+  - on a VGA text console and on a framebuffer console, muted text, titles and warnings show in their colours.
+
+## Not planned
+
+- **Bindings to `libzfs`.** Its interface changes between OpenZFS releases. The port calls the `zfs` and `zpool`
+  commands as the Bash code does, and reads their JSON output (`-j`, OpenZFS 2.3 and later), falling back to `-H -p`
+  for older ZFS in images built on a host. `libzfs_core`, which is more stable, can serve the few operations where
+  speed matters.
+- **Changes that break compatibility with upstream ZFSBootMenu** command line options, configuration or properties.

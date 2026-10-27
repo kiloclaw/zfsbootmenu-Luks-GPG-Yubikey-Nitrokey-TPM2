@@ -1,7 +1,7 @@
 # Cargo workspace for the Rust port of ZFSBootMenu.
 #
 # The bootloader that ships today is the Bash and Perl code in legacy/. The crates in crates/ replace it as planned in
-# PORT-ROADMAP.md.
+# ROADMAP.md.
 #
 # Third-party crates are vendored in vendor/ (see .cargo/config.toml), so every build works offline.
 
@@ -44,7 +44,7 @@ zbm-tui = { path = "crates/zbm-tui" }
 zbm-types = { path = "crates/zbm-types" }
 zbm-zfs = { path = "crates/zbm-zfs" }
 yaml-rust2 = { version = "0.13", default-features = false }
-# The crates agreed for the refactoring (REFACTOR-ROADMAP.md, "Decisions"), with the features it needs. A crate is
+# The crates agreed for the refactoring (ROADMAP.md, "Decisions"), with the features it needs. A crate is
 # vendored when the first workspace crate uses it; until then these lines only fix the versions and features.
 crossterm = { version = "0.29", default-features = false, features = ["events"] }
 insta = "1"
@@ -72,10 +72,10 @@ swash = { version = "=0.2.10", default-features = false, features = ["std", "sca
 # Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled when the image is
 # built, and their dead keys through a compose table.
 kbvm = { version = "=0.1.7", default-features = false, features = ["compose"] }
-# The shell of the Rust images (REFACTOR-ROADMAP.md, "Decisions"): brush, a Bash-compatible shell in Rust, with its
+# The shell of the Rust images (ROADMAP.md, "Decisions"): brush, a Bash-compatible shell in Rust, with its
 # line editors. Its parser carries a patch of ours (patches/README.md).
 brush-shell = { version = "=0.4.0" }
-# The message catalogue of the menu (REFACTOR-ROADMAP.md, R5 step 2): Project Fluent's bundle, already built for
+# The message catalogue of the menu (ROADMAP.md, R5 step 2): Project Fluent's bundle, already built for
 # `uucore`, and its language identifiers.
 fluent-bundle = "0.16"
 unic-langid = "0.9"

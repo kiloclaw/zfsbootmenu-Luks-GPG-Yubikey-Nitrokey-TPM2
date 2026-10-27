@@ -1,4 +1,4 @@
-//! The menu's text (REFACTOR-ROADMAP.md, R5): every string a user reads
+//! The menu's text (ROADMAP.md, R5): every string a user reads
 //! comes from the English catalogue `crates/zbm-tui/locales/en/menu.ftl`.
 //! `cargo xtask lint` checks that
 //!

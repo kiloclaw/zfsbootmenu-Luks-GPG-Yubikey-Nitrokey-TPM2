@@ -15,7 +15,7 @@ have a lock file of their own: after changing the dependencies of a crate they u
 
 Each crate a workspace crate depends on directly is listed below with the reason it is used, and allowed for that
 crate in `xtask/src/deps.rs` (`THIRD_PARTY`), which `cargo xtask check-deps` enforces; `cargo deny check` checks their
-licences and advisories (`deny.toml`). Adding one is a decision for the pull request; REFACTOR-ROADMAP.md
+licences and advisories (`deny.toml`). Adding one is a decision for the pull request; ROADMAP.md
 ("Decisions") lists the crates agreed for the refactoring, with their versions and features pinned in
 `[workspace.dependencies]`.
 

@@ -32,7 +32,7 @@ pub struct Layer {
 /// The layers from the bottom up.
 ///
 /// These describe the workspace as it is at the start of the refactoring;
-/// REFACTOR-ROADMAP.md changes them phase by phase.
+/// ROADMAP.md changes them phase by phase.
 pub const LAYERS: &[Layer] = &[
     Layer {
         name: "unsafe",
@@ -103,7 +103,7 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
 
 /// Layers whose crates may not use the crates of another, lower layer:
 /// (from, to). Front ends reach the system through `zbm-app` and the domain
-/// crates, never through an adapter (REFACTOR-ROADMAP.md, R4).
+/// crates, never through an adapter (ROADMAP.md, R4).
 pub const NOT_THROUGH: &[(&str, &str)] = &[("front ends", "adapters")];
 
 /// Crates that only tests may use.

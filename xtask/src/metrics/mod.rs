@@ -1,7 +1,7 @@
 //! Code metrics that show how far the refactoring has come.
 //!
 //! `cargo xtask metrics` scans every crate (see [`tree`] and [`scan`]) and
-//! prints, per crate, the numbers that REFACTOR-ROADMAP.md's findings are
+//! prints, per crate, the numbers that ROADMAP.md's findings are
 //! about. The *debt* metrics may only go down: `--check` compares them with
 //! the committed baseline (`xtask/metrics-baseline.txt`, see [`baseline`])
 //! and fails when a crate has more than before; `--bless` writes the current

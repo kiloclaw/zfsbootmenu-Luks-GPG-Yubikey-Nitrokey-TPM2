@@ -1,9 +1,9 @@
 //! Shared types of the Rust port of ZFSBootMenu.
 //!
 //! The bootloader that ships is still the Bash runtime in `legacy/zfsbootmenu`.
-//! `PORT-ROADMAP.md` plans how the Rust code replaces it; whatever the order,
-//! the Rust code must behave like the Bash code it replaces, and the test
-//! suites in `tests/` are the reference.
+//! `ROADMAP.md` plans how the Rust code replaces it. Behaviour users depend
+//! on stays compatible; other changes are recorded in
+//! `CHANGES-FROM-LEGACY.md`.
 //!
 //! This crate holds what every other crate needs and that does no I/O through
 //! the system's ports: the command line as text ([`args`]), the file tests

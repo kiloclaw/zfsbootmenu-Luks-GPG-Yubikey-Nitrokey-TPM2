@@ -5,7 +5,7 @@
 //! The [`Prompter`](crate::unlocker::Prompter) answers them. Its default
 //! answers are the plain console prompts, which each call site gives as a
 //! closure, so that the console shows what it showed before the requests
-//! existed; the menu answers them with its dialogs (REFACTOR-ROADMAP.md, R5
+//! existed; the menu answers them with its dialogs (ROADMAP.md, R5
 //! step 4).
 
 use zbm_platform::secret::Secret;

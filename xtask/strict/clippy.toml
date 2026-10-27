@@ -1,4 +1,4 @@
-# The clippy configuration that `cargo xtask lint --strict` uses: the rules of REFACTOR-ROADMAP.md ("How the rules are
+# The clippy configuration that `cargo xtask lint --strict` uses: the rules of ROADMAP.md ("How the rules are
 # enforced") for code that a phase has refactored. Until a crate is refactored, its findings are only reported.
 #
 # The normal build does not read this file; it is selected with CLIPPY_CONF_DIR.

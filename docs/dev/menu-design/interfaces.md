@@ -4,7 +4,7 @@ The menu talks to `zbm-app` only: it reads a `Snapshot` of the machine, sends `A
 are the lists the design needs, handed to R4, which builds them in `zbm-app`. The prototype defined them and answered
 them with a fake machine, so their shape was tried before R4 committed to it; they are now `zbm_app::model`, which the
 prototype imports (`zbm_tui::menu::world` re-exports it), and `App::snapshot` reads the real machine into them (step 1
-of R4 in REFACTOR-ROADMAP.md says what it fills so far).
+of R4 in ROADMAP.md says what it fills so far).
 
 ## The snapshot
 

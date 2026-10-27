@@ -1,10 +1,10 @@
 # The clippy configuration of the normal build (`cargo xtask lint`); the strict lints of refactored crates use
 # xtask/strict/clippy.toml instead, which repeats these rules.
 
-# Options are read by their specification in the table of zbm-config (REFACTOR-ROADMAP.md, R3), so an option without
+# Options are read by their specification in the table of zbm-config (ROADMAP.md, R3), so an option without
 # one cannot be read: `Args::raw`, the lookup by name, is for zbm-config itself.
 
-# Only adapters build commands (REFACTOR-ROADMAP.md, R2): zbm-platform, zbm-zfs, zbm-crypt and zbm-tools allow this
+# Only adapters build commands (ROADMAP.md, R2): zbm-platform, zbm-zfs, zbm-crypt and zbm-tools allow this
 # lint, and so do test builds (`#![cfg_attr(test, allow(...))]`), which describe the commands they expect. Everything
 # else asks an adapter, which keeps every command line in one place with its tests.
 disallowed-methods = [

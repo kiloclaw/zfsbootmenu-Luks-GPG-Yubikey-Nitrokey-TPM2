@@ -2,9 +2,10 @@
 # vim: softtabstop=2 shiftwidth=2 expandtab
 #
 # Lists the commits that changed the frozen legacy runtime since the freeze at
-# the start of Phase 4 of PORT-ROADMAP.md, with the files each one changed.
+# the start of Phase 4 of the port plan (docs/dev/history/port-roadmap.md),
+# with the files each one changed.
 # Every one of them must be listed in legacy/RUNTIME-CHANGES.md and ported to the Rust
-# runtime before the beta ends (rule 4 of PORT-ROADMAP.md).
+# runtime before the beta ends (rule 4 of the port plan).
 #
 # Usage: scripts/dev/legacy-runtime-changes.sh [revision]   (default: HEAD)
 

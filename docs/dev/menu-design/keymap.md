@@ -67,7 +67,7 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 
 ## The classic bindings
 
-[Decision 8](../../../REFACTOR-ROADMAP.md#decisions) asked whether to offer a second profile close to the `fzf`
+[Decision 8](../../../ROADMAP.md#decisions) asked whether to offer a second profile close to the `fzf`
 menu. The proposal: no profile to choose, but every `MOD+key` binding of the `fzf` menu (`MOD` is `Alt` or `Ctrl`)
 keeps working, with its old meaning in its old view, as an alias that the help view lists under *classic*:
 

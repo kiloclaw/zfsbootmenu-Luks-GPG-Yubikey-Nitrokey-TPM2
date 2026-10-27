@@ -22,7 +22,7 @@ use crate::{deps, widths};
 /// The directories whose line widths are checked.
 pub const WIDTH_ROOTS: &[&str] = &["crates", "xtask", "fuzz/fuzz_targets"];
 
-/// The lints that crates must pass once a phase of REFACTOR-ROADMAP.md has
+/// The lints that crates must pass once a phase of ROADMAP.md has
 /// refactored them, on top of the workspace lints in `Cargo.toml`.
 pub const STRICT_LINTS: &[&str] = &[
     "clippy::pedantic",

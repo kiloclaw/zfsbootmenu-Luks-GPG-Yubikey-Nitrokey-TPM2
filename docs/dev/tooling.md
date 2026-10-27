@@ -24,7 +24,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask widths` | Checks the line widths of The Rust Style Guide that `rustfmt` leaves alone: at most 100 characters, comment lines at most 80 without their indentation |
 
 The suites that need root or QEMU are described in [testing.md](testing.md); they are not part of `cargo xtask` yet
-(REFACTOR-ROADMAP.md moves them there in R2 and R3).
+(ROADMAP.md moves them there in R2 and R3).
 
 ## Crash reports
 
@@ -150,7 +150,7 @@ findings per crate and per lint, and writes them to `target/strict/strict-lints.
 A crate that has reached the strict lints stays there: `xtask/strict/crates.txt` lists those crates (`xtask`, the
 crates of the R0 pilots and the empty `zbm-menu`), `cargo xtask lint` runs the strict lints over them alone and fails
 on any finding, and `cargo xtask lint --strict`, which reports every crate, fails on them too. Each phase of
-REFACTOR-ROADMAP.md adds the crates it finishes; a crate never leaves the list. The other crates' findings are only
+ROADMAP.md adds the crates it finishes; a crate never leaves the list. The other crates' findings are only
 reported. Silence a finding that is right in context with `#[allow(lint, reason = "...")]` on the item, never for a
 whole crate.
 

@@ -55,7 +55,7 @@ installkernel() {
 
 # The uutils multi-call binary, when the host has one: images then get their
 # coreutils from it, one binary with a hard link per program, whatever the
-# host's own coreutils are (REFACTOR-ROADMAP.md, "Using uutils coreutils").
+# host's own coreutils are (ROADMAP.md, decision 4).
 # uutils refuses to run as a utility whose name is not the executable's, so
 # the links are hard links, not symbolic ones. GNU coreutils' optional
 # multi-call binary has no --list, so it is not taken.

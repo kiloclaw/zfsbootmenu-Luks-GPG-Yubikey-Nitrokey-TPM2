@@ -1,5 +1,9 @@
 # The console on the display: roadmap to a full console
 
+> **Archived on 27 October 2026.** [ROADMAP.md](../../../ROADMAP.md) replaces this plan. It is kept unchanged as the
+> record of how the code got here; its identifiers still appear in code and commits, and
+> [Identifiers of the old plans](../../../ROADMAP.md#identifiers-of-the-old-plans) says where each one went.
+
 `zbm console` (`zbm.console=drm`, ROADMAP.md #19) draws the runtime's terminal through DRM instead of leaving it to the
 kernel console. Steps 1 to 4 of #19 made it work; this page plans what it lacks to be a full console, measured against
 three references: the Linux virtual terminal and `fbcon`, `kmscon` (a console in user space on DRM), and a terminal
@@ -8,7 +12,7 @@ emulator such as Alacritty or xterm. Step 5 of #19, making it the default, comes
 Each item has an ID (`C1` to `C112`) that commits, tests and the CHANGELOG name. Priorities: **P1** users hit it today,
 or a full console needs it; **P2** the references have it; **P3** nice to have. Effort: **S** a day or less, **M** a few
 days, **L** a week or more. Items marked *vendor* need a patch to `alacritty_terminal` or `vte`, kept in `patches/` (the
-vendoring rules of [dependencies.md](dependencies.md) and [patches/README.md](../../patches/README.md) apply, and the
+vendoring rules of [dependencies.md](../dependencies.md) and [patches/README.md](../../../patches/README.md) apply, and the
 patch is offered upstream).
 
 ## Where it stands
@@ -38,7 +42,7 @@ without a finding. On `3c5d178`, its VM test `runtime-rust-console-start` passes
 - Each milestone is a series of commits, each with its unit tests, passing `cargo xtask lint`, `cargo xtask test` and
   the coverage and metrics ratchets. A milestone ends with the VM tests it names, run by the maintainer with KVM
   (`CLAUDE.md`), on images rebuilt from its last commit.
-- What the console keeps or shows obeys [threat-model.md](threat-model.md): nothing typed at a secret prompt reaches a
+- What the console keeps or shows obeys [threat-model.md](../threat-model.md): nothing typed at a secret prompt reaches a
   buffer that is not wiped, a scrollback, a selection, a screenshot or a reply to a program.
 - The milestones are in order of need, not of size; within one, items are independent unless a dependency is named.
 - The VM tests extend `runtime-rust-console` (`crates/zbm-vmtest/src/scenarios/runtime/console.rs`) or add
@@ -212,7 +216,7 @@ Goal: a shell flooding the console keeps up on the slowest framebuffer.
 - **C75 Frames at the refresh rate** (P3, S) at most.
 - **C76 Warm and lean** (P3, S): rasterize ASCII and the menu's characters at start; no allocation per frame.
 - **C112 Benchmarks** (P2, S): time to the first frame, `cat` of a large file and a scrolling flood, against the
-  kernel console: B9 of the [benchmarks](../../REFACTOR-ROADMAP.md#benchmarks), with the image's size (B1) and
+  kernel console: B9 of the [benchmarks](refactor-roadmap.md#benchmarks), with the image's size (B1) and
   memory (B8), recorded in `docs/luks/testing.rst`.
 
 ## M6. The kernel console's place

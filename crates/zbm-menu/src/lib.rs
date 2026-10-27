@@ -1,5 +1,5 @@
 //! The interactive menu of the ZFSBootMenu runtime: package E of
-//! `PORT-ROADMAP.md`.
+//! the port plan (`docs/dev/history/port-roadmap.md`).
 //!
 //! This crate will replace `bin/zfsbootmenu`, `lib/zfsbootmenu-ui.sh`,
 //! `lib/fzf-defaults.sh` and the programs `fzf` starts: the main loop and its

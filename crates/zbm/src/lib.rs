@@ -3,9 +3,10 @@
 //! Like BusyBox, `zbm` is one program that acts as each of its commands, chosen
 //! by the name it is run under (through a link such as `/bin/zfsbootmenu ->
 //! /libexec/zbm`) or by its first argument (`zbm zfsbootmenu`). One binary
-//! keeps the boot image small. The commands arrive with the runtime port: Phase
-//! 5 of `PORT-ROADMAP.md` brings the start-up hooks, the start-up program and
-//! the supervisor, and package B of Phase 6 brings `zluks`.
+//! keeps the boot image small. The commands arrived with the runtime port:
+//! Phase 5 of the port plan (`docs/dev/history/port-roadmap.md`) brought the
+//! start-up hooks, the start-up program and the supervisor, and package B of
+//! Phase 6 brought `zluks`.
 
 use std::io::Write;
 

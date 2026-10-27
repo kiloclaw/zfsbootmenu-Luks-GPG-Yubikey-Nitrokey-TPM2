@@ -115,7 +115,7 @@ reason and still writes its result. ``zbm-vmtest run runtime-record-zfs`` (``car
 ``zbm-zfs``.
 
 The harness replaced a Python one, whose results it reproduced check for check before the Python harness was removed
-(``REFACTOR-ROADMAP.md``, R3.6).
+(``ROADMAP.md``, R3.6).
 
 ``cargo xtask test devices`` runs the device suites one after another, as root, and prints every case and check.
 The suites call the LUKS code directly, with the real volumes, software TPM, clevis and GnuPG above, and stand-ins
@@ -263,8 +263,8 @@ Following a boot
 ``runtime``: start-up and pool import with each runtime, without LUKS
   Two unencrypted pools hold the test boot environment as their ``bootfs``: ``tplain`` on one disk, exported by this
   host, and ``tforeign`` on another, left imported by a host with the ID ``deadbeef``. The tests check the runtime
-  itself (Phase 5 and package A of Phase 6 in ``PORT-ROADMAP.md``); every scenario runs with the legacy image first,
-  which is the reference, then with an image built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``).
+  itself (Phase 5 and package A of Phase 6 of the port plan, ``docs/dev/history/port-roadmap.md``), with an image
+  built with ``zfsbootmenu_runtime="rust"`` (``runtime-rust-*``).
 
   * ``runtime-setup``: creates the pools in the recovery shell of the legacy image, and a third, ``tkeys``, whose
     boot environment is encrypted with a key file kept in its key source ``tkeys/keystore``
@@ -288,7 +288,7 @@ Following a boot
   * ``runtime-rust-keysource``: the countdown's boot of ``runtime-legacy-keysource`` with the Rust image, which loads
     the key in the same order and asks for the boot environment's passphrase. The Rust runtime has no menu yet.
 
-* ``runtime-rust-pilot`` runs the pilots of ``REFACTOR-ROADMAP.md`` in the Rust image, from the recovery shell on the
+* ``runtime-rust-pilot`` runs the pilots of ``ROADMAP.md`` in the Rust image, from the recovery shell on the
   serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the
   list and Enter chooses ``tplain/ROOT/be``, with the frame times and serial bytes it reports; and
   ``zluks --pilot open`` on a LUKS volume formatted in the VM, refused with a wrong key file and opened with the
@@ -343,7 +343,7 @@ Following a boot
   environment must boot.
 
 * ``runtime-rust-console-start`` checks how the console on the display starts and what it shows
-  (``docs/dev/console-roadmap.md``, M1), with the image of ``runtime-rust-console`` and the drivers of a USB keyboard
+  (``ROADMAP.md``, M1), with the image of ``runtime-rust-console`` and the drivers of a USB keyboard
   (``xhci_pci``, ``usbhid``, ``hid_generic``). It boots on a virtio GPU without a keyboard (``i8042.nokbd`` leaves the
   machine's PS/2 keyboard out), the kernel console at 800x600, below the display's preferred mode
   (``video=Virtual-1:800x600``), with the mirror kept as ``mirror-start.txt``. The countdown must show, and the
@@ -361,7 +361,7 @@ Following a boot
   ``\e]P1123456`` must have pixels of exactly (255, 135, 0), (1, 2, 3) and (0x12, 0x34, 0x56)
   (``colours-256.ppm``).
 
-* ``runtime-rust-console-comfort`` checks the recovery shell of M3 of ``docs/dev/console-roadmap.md``, with the image
+* ``runtime-rust-console-comfort`` checks the recovery shell of M3 of ``ROADMAP.md``, with the image
   of ``runtime-rust-console-start`` built with the ``secret-test`` feature, booted with ``zbm.console_status=on``.
   In the recovery shell, the status line must name the layout ``us`` and the time, and ``Caps`` while Caps Lock is on.
   ``echo zbm-first-$(stty size)``, Ctrl+Alt+= and the same again must show fewer columns; ``zbm console font`` must

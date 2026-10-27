@@ -1,5 +1,5 @@
 //! `runtime-rust-console-start`: how the console on the display starts,
-//! and what it shows (docs/dev/console-roadmap.md, M1). The Rust image of
+//! and what it shows (ROADMAP.md, M1). The Rust image of
 //! `runtime-rust-console`, with the drivers of a USB keyboard, boots on a
 //! virtio GPU whose kernel console runs at 800x600, below the display's
 //! preferred mode (`video=Virtual-1:800x600`), and without a keyboard: the

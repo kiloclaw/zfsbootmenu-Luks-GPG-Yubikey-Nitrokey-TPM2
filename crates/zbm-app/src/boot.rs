@@ -1,5 +1,5 @@
 //! Booting and leaving: the use cases of the actions that take the console
-//! (REFACTOR-ROADMAP.md, R5 step 3). Booting loads the key of the
+//! (ROADMAP.md, R5 step 3). Booting loads the key of the
 //! environment's encryption root, finds its kernels, writes the command
 //! line chosen for this boot and executes the kernel with `kexec`, as the
 //! legacy menu's boot does; the power actions export the pools imported

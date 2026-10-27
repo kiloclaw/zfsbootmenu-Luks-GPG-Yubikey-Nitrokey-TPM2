@@ -1,7 +1,7 @@
 //! Pool import for the ZFSBootMenu runtime: import policies, the retry loop of
 //! the start-up stage, and host IDs.
 //!
-//! A domain service of the architecture in `REFACTOR-ROADMAP.md`: it runs
+//! A domain service of the architecture in `ROADMAP.md`: it runs
 //! `zpool` through the adapters of `zbm-zfs`, keeps its findings in the state
 //! directory (`zbm-state`), and leaves the console to the program that runs
 //! it, through the [`Operator`] port. `zbm-boot`'s start-up program runs

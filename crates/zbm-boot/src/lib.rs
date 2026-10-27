@@ -1,5 +1,6 @@
 //! Start-up, pool import and booting of the ZFSBootMenu runtime: packages A, C
-//! and D of `PORT-ROADMAP.md`, and the minimal runtime of Phase 5.
+//! and D, and the minimal runtime of Phase 5, of the port plan
+//! (`docs/dev/history/port-roadmap.md`).
 //!
 //! This crate will replace the start-up stages in `init.d/` and most of
 //! `lib/zfsbootmenu-core.sh`:

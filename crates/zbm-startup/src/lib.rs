@@ -1,7 +1,7 @@
 //! The start-up program of the ZFSBootMenu runtime (`zfsbootmenu-init`), its
 //! stages and the start-up hooks.
 //!
-//! A front end in the architecture of `REFACTOR-ROADMAP.md`: the multi-call
+//! A front end in the architecture of `ROADMAP.md`: the multi-call
 //! binary `zbm` runs it. The program is a list of [`step::Step`] values, one
 //! per [`zbm_types::Stage`] ([`stages`]), run in order by
 //! [`step::run_steps`]; the domain services do the work (`zbm-pool` imports

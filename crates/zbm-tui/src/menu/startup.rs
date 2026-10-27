@@ -1,4 +1,4 @@
-//! Start-up on a terminal (REFACTOR-ROADMAP.md, R5 step 4): the start-up
+//! Start-up on a terminal (ROADMAP.md, R5 step 4): the start-up
 //! view, drawn as the stages run, and the dialogs of what start-up asks.
 //!
 //! Start-up runs its stages itself, one after another, and shows their

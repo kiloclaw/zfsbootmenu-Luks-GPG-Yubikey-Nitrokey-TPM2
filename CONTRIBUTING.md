@@ -85,16 +85,18 @@ request which ones you ran.
 
 ## Porting to Rust
 
-The Bash and Perl code in `legacy/` is what ships, and it stays the reference until a Rust replacement matches it.
+The Bash code in `legacy/` is what ships until the Rust runtime replaces it. It is no longer the reference: the Rust
+runtime may behave differently where that makes ZFSBootMenu better, and records each change in
+`CHANGES-FROM-LEGACY.md`.
 
-- Follow [PORT-ROADMAP.md](PORT-ROADMAP.md): the host tools (`zbm-kcl`, `generate-zbm`) replace the legacy ones one
+- Follow [ROADMAP.md](ROADMAP.md): the host tools (`zbm-kcl`, `generate-zbm`) replace the legacy ones one
   at a time, and the boot runtime is written as a whole, next to the legacy runtime, which stays the default until the
   Rust runtime has passed a beta. Keep the legacy code working until then.
-- The existing suites decide whether a Rust part behaves like the code it replaces. Add tests to them for behaviour
-  that is not tested yet, and run them against the legacy code first.
+- Behaviour that users depend on (kernel command line options, `org.zfsbootmenu:*` properties, the configuration
+  file, hooks) stays compatible; the golden files in `tests/golden/legacy` pin it.
 - Every change to Rust code comes with Rust unit tests in the same pull request: parsers tested against recorded tool
-  output, parity tests against the Bash functions they replace, and fakes instead of real programs and devices. The
-  "Rust unit tests" section of [PORT-ROADMAP.md](PORT-ROADMAP.md) describes what they cover.
+  output, golden files for compatible behaviour, and fakes instead of real programs and devices. The
+  [Verification](ROADMAP.md#verification) section of the roadmap describes what they cover.
 - Runtime code follows [crates/DESIGN.md](crates/DESIGN.md): it reaches the system only through the interfaces of
   `zbm-platform`, shares state between processes only through `zbm-state`, and is tested with the fakes in
   `zbm-testkit::fakes`. Secrets are `Secret` values and reach programs only on standard input. When the code needs
@@ -104,7 +106,7 @@ The Bash and Perl code in `legacy/` is what ships, and it stays the reference un
   `scripts/dev/legacy-runtime-changes.sh` lists the commits since the freeze.
 - Keep crates free of `unsafe` unless they need FFI; the workspace denies `unsafe_code` by default, and `zbm-sys` is
   the only crate that allows it.
-- Features beyond parity are listed in [ROADMAP.md](ROADMAP.md). Update an entry's status when you start or finish
+- Features and work items are listed in [ROADMAP.md](ROADMAP.md). Update an entry's status when you start or finish
   it.
 
 ## Style

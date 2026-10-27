@@ -2,7 +2,7 @@
 //! running `cp`, `chmod` and `rm`.
 //!
 //! uutils coreutils is the coreutils of ZFSBootMenu's images
-//! (REFACTOR-ROADMAP.md, "Using uutils coreutils"). Version order, the
+//! (ROADMAP.md, decision 4). Version order, the
 //! `sort -V` of uutils, comes from `uucore` and lives with the kernel
 //! versions it orders, in `zbm_types::version`. The file tree operations here
 //! work through the

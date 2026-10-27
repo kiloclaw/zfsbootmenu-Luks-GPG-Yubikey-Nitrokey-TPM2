@@ -2,7 +2,7 @@
 
 What behaves differently in images with the Rust runtime (`zfsbootmenu_runtime=rust`) than in legacy images, and why.
 Images with the legacy runtime, the default, are unchanged. The list grows with each step of R5 in
-[REFACTOR-ROADMAP.md](REFACTOR-ROADMAP.md); step 7 completes it as the migration guide for the switch.
+[ROADMAP.md](ROADMAP.md); step 7 completes it as the migration guide for the switch.
 
 ## The shell: brush
 

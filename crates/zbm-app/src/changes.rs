@@ -1,5 +1,5 @@
 //! Package D: the changes the menu makes to boot environments and their
-//! snapshots (REFACTOR-ROADMAP.md, R5 step 5). Each change has its pool
+//! snapshots (ROADMAP.md, R5 step 5). Each change has its pool
 //! imported read/write and the key of its environment loaded first, as
 //! the legacy functions do, then runs the commands of the legacy runtime
 //! through the ZFS port:

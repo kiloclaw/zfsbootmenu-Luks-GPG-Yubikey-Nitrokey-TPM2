@@ -1,5 +1,5 @@
 //! `zfsbootmenu`: the menu of the Rust runtime, at `/bin/zfsbootmenu`
-//! (REFACTOR-ROADMAP.md, R5 step 3). The start-up program runs it after the
+//! (ROADMAP.md, R5 step 3). The start-up program runs it after the
 //! countdown, as the legacy loop runs `bin/zfsbootmenu`, and users run it
 //! over SSH or from the recovery shell. The program around the menu is
 //! `zbm_startup::program::menu`; the menu is `zbm_tui::menu` on the real

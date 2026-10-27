@@ -20,7 +20,7 @@ pub const ZLUKS_USAGE: &str = "\
 Usage: zluks --pilot open DEVICE NAME --key-file PATH [options]
 
 Opens the LUKS volume DEVICE as /dev/mapper/NAME with the key in PATH, through
-the refactored code of REFACTOR-ROADMAP.md (pilot, R0).
+the refactored code of ROADMAP.md (pilot, R0).
 
 Options:
   --allow-discards   pass discard (TRIM) requests through

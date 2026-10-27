@@ -1,5 +1,6 @@
 //! Start-up and pool import with each runtime, without LUKS (Phase 5 and
-//! package A of Phase 6 in `PORT-ROADMAP.md`).
+//! package A of Phase 6 of the port plan,
+//! `docs/dev/history/port-roadmap.md`).
 //!
 //! - `setup`: creates two pools, each holding the ZFS 2.4.4 test boot
 //!   environment as its bootfs: `tplain` on disk d0, exported by this host,
@@ -26,7 +27,7 @@
 //!   - `signals` (`signals`): the signal dispositions of a hook, fzf
 //!     (legacy only: the menu) and the recovery shell, which must take
 //!     Ctrl-C.
-//! - `rust-pilot` (`pilot`): the pilots of `REFACTOR-ROADMAP.md` (R0).
+//! - `rust-pilot` (`pilot`): the pilots of `ROADMAP.md` (R0).
 //! - `rust-autosize` (`autosize`): the console font follows the display's
 //!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
 //! - `rust-colours` (`colours`): the image's console fonts leave the VGA

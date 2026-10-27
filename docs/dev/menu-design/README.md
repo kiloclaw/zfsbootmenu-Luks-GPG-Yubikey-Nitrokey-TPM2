@@ -1,6 +1,6 @@
 # The menu design
 
-The design of the new menu of ZFSBootMenu (REFACTOR-ROADMAP.md, phase D), which R5 builds on Ratatui and
+The design of the new menu of ZFSBootMenu (ROADMAP.md, phase D), which R5 builds on Ratatui and
 `nucleo-matcher` in `zbm-tui`. It replaces the `fzf` menu; the principles are in the roadmap's section
 *The menu redesign*.
 

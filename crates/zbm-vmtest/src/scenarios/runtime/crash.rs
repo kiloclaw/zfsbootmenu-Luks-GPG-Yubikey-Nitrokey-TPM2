@@ -1,7 +1,7 @@
 //! `runtime-rust-crash`: a panic in the Rust image leaves a crash report
 //! that the image's debug file resolves: the frame of the panicking
-//! function names its file and line (`REFACTOR-ROADMAP.md`, "Crash
-//! reports").
+//! function names its file and line (`docs/dev/tooling.md`,
+//! "Crash reports").
 
 use std::fs;
 use std::path::Path;
