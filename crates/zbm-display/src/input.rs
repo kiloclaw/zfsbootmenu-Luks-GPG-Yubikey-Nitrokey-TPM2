@@ -411,10 +411,20 @@ impl Keyboards {
             .collect()
     }
 
-    /// Stops reading the device at `index`, which went away.
+    /// Stops reading the device at `index`, which went away. Its own
+    /// decoder goes with it; the keys it held in the shared one are let go,
+    /// since the kernel hands over no releases from a keyboard that is gone,
+    /// and a Shift held when it was unplugged would stay down for the
+    /// others.
     pub fn drop_device(&mut self, index: usize) {
-        if index < self.devices.len() {
-            self.devices.remove(index);
+        if index >= self.devices.len() {
+            return;
+        }
+        let device = self.devices.remove(index);
+        if device.own.is_none() {
+            let shared: Vec<usize> = own::sharing(&self.own_layouts(), None);
+            let down = self.keys_down(&shared);
+            self.decoder.resync(&down);
         }
     }
 
@@ -424,11 +434,12 @@ impl Keyboards {
         std::mem::replace(&mut self.pending, Vec::with_capacity(PENDING))
     }
 
-    /// The keys down on every keyboard, as the kernel knows them.
-    fn keys_down(&self) -> Vec<u16> {
-        let mut down: Vec<u16> = self
-            .devices
+    /// The keys down on the keyboards at `indexes`, as the kernel knows
+    /// them.
+    fn keys_down(&self, indexes: &[usize]) -> Vec<u16> {
+        let mut down: Vec<u16> = indexes
             .iter()
+            .filter_map(|&index| self.devices.get(index))
             .filter_map(|device| zbm_sys::console::keys_down(device.file.as_raw_fd()).ok())
             .flatten()
             .collect();
@@ -447,7 +458,10 @@ impl Keyboards {
                 (EV_SYN, SYN_DROPPED) => device.lost = true,
                 (EV_SYN, SYN_REPORT) if device.lost => {
                     device.lost = false;
-                    let down = self.keys_down();
+                    // Only the keys of the keyboards that type through the
+                    // same decoder: another's would stay down in it.
+                    let sharing = own::sharing(&self.own_layouts(), Some(index));
+                    let down = self.keys_down(&sharing);
                     self.decoder_of(index).resync(&down);
                 }
                 _ if device.lost => {}

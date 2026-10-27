@@ -240,6 +240,10 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   `zbm.keyboard_layouts` values it takes (at most 100000 lines; layout names such as `de` or `de(nodeadkeys)`). A
   value the console refused, such as `zbm.keyboard_layouts=046d:c31c=de(`, kept it from starting and hung up
   start-up's terminal, which ended in a recovery shell instead of the boot.
+- The console on the display no longer leaves keys stuck: a key held on a keyboard that is unplugged (or switched
+  away by a KVM) is let go, so Shift or Ctrl no longer stays down for the other keyboards and a passphrase typed
+  afterwards no longer fails; and after events were lost, a keyboard with a layout of its own takes back only its
+  own keys, not those held on the others.
 
 ### The new menu's text in a message catalogue
 

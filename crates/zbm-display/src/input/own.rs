@@ -6,6 +6,19 @@ use std::path::Path;
 
 use super::{Decoder, Keyboards, Source};
 
+/// The keyboards, by index, that type through the decoder of the one at
+/// `index`, given whether each has a layout of its own (`own`): that one
+/// alone when it has its own, else every keyboard without one; with no
+/// `index`, those of the shared decoder.
+pub(super) fn sharing(own: &[bool], index: Option<usize>) -> Vec<usize> {
+    let alone = index.filter(|&index| own.get(index).copied().unwrap_or(false));
+    own.iter()
+        .enumerate()
+        .filter(|&(other, &has_own)| alone.map_or(!has_own, |index| other == index))
+        .map(|(other, _)| other)
+        .collect()
+}
+
 /// A keyboard's USB vendor and product, as `lsusb` shows them.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceId {
@@ -86,6 +99,14 @@ impl Keyboards {
     }
 
     /// The decoder of the keyboard at `index`: its own, or the shared one.
+    /// Whether each keyboard has a layout of its own, in their order.
+    pub(super) fn own_layouts(&self) -> Vec<bool> {
+        self.devices
+            .iter()
+            .map(|device| device.own.is_some())
+            .collect()
+    }
+
     pub(super) fn decoder_of(&mut self, index: usize) -> &mut Decoder {
         match self
             .devices

@@ -307,3 +307,39 @@ fn a_keyboard_of_a_rule_types_with_its_own_layout_and_lights() {
     // The shared layout stays the console's.
     assert_eq!(keyboards.layout(), "us");
 }
+
+#[test]
+fn each_decoder_is_resynchronised_with_its_own_keyboards() {
+    // The second keyboard has a layout of its own.
+    let own = [false, true, false];
+
+    assert_eq!(own::sharing(&own, Some(0)), [0, 2]);
+    assert_eq!(own::sharing(&own, Some(1)), [1]);
+    assert_eq!(own::sharing(&own, Some(2)), [0, 2]);
+    assert_eq!(own::sharing(&own, None), [0, 2]);
+    assert_eq!(own::sharing(&own, Some(7)), [0, 2]);
+}
+
+#[test]
+fn a_key_held_on_a_keyboard_that_goes_away_is_let_go() {
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+
+    let pair = || {
+        let (device, typing) = UnixStream::pair().unwrap();
+        (File::from(std::os::fd::OwnedFd::from(device)), typing)
+    };
+    let ((first, mut unplugged), (second, mut other)) = (pair(), pair());
+    let mut keyboards = Keyboards::from_files(vec![first, second]);
+    // Shift held on the first keyboard, which is then unplugged.
+    unplugged.write_all(&event(EV_KEY, 42, 1)).unwrap();
+    assert_eq!(keyboards.read_device(0).unwrap(), []);
+    drop(unplugged);
+    assert_eq!(keyboards.read_device(0).unwrap(), []);
+
+    other.write_all(&event(EV_KEY, 30, 1)).unwrap();
+    let presses = keyboards.read_device(0).unwrap();
+
+    assert_eq!(keyboards.count(), 1);
+    assert_eq!(presses[0].key, crate::keys::Key::Char('a'));
+}
