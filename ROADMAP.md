@@ -24,7 +24,8 @@ have identifiers of their own (`PM4`, `SE7`); a finished item keeps its number.
   [concurrency](#concurrency-inside-a-process), [crates and layers](#crates-and-layers),
   [the domain model](#the-domain-model), [the ZFS boundary](#the-zfs-boundary) and
   [the system boundary](#the-system-boundary), [the shell](#the-shell), [the screen](#the-screen),
-  [C dependencies](#c-dependencies), [the boot image](#the-boot-image), [security](#security-architecture),
+  [the menu](#the-menu-a-workspace), [C dependencies](#c-dependencies), [the boot image](#the-boot-image),
+  [security](#security-architecture),
   [observability](#observability)
 - [Rules for refactored code](#rules-for-refactored-code) and [how the rules are enforced](#how-the-rules-are-enforced)
 - [Verification](#verification), with [benchmarks](#benchmarks) and [release gates](#release-gates)
@@ -44,9 +45,9 @@ On branch `claude/zbm-refactor`, 27 October 2026:
 | Host tools | `generate-zbm` and `zbm-kcl` in Rust; the Perl and Bash ones are gone |
 | Runtime | The Rust runtime boots every layout of the VM tests, unlocks LUKS with every key method, runs start-up and the countdown in the new menu (Nucleo, Ratatui), and its shell work on brush. Images build it with `zfsbootmenu_runtime=rust`; the legacy runtime is still the default |
 | Menu | Main view, start-up view, unlock and import dialogs, snapshots (diff, clone, rollback, set default), command palette. Left: kernels, the command line editor, pools and LUKS volumes, recovery tools, help, power |
-| Console on the display | `zbm.console=drm`: Alacritty's terminal drawn through DRM, TrueType fonts, XKB layouts, scrollback wiped at secret prompts, status line, bells. Milestones M1 to M3 done; M3's VM test not run yet |
+| Console on the display | `zbm.console=drm`: Alacritty's terminal drawn through DRM, TrueType fonts, XKB layouts, scrollback wiped at secret prompts, status line, bells. Milestones M1 to M3 done, with their VM tests passing |
 | Features done | #1 secrets in locked memory, #5 reproducible images, #9 saved boot logs and `zbm report`, #20 console fonts |
-| Verification | About 1,670 Rust tests without root, LUKS device suites, 7 fuzz targets, about 900 VM checks (the maintainer's machine, with KVM), metrics and coverage ratchets |
+| Verification | About 1,670 Rust tests without root, LUKS device suites, 7 fuzz targets, about 900 VM checks (the maintainer's machine, with KVM), metrics and coverage ratchets. On 27 October 2026 every VM test passed on the Rust runtime, `procedures` after the fix of brush's long lines (its rerun is pending) |
 | Removed in October 2026 | The Perl and Bash host tools, parity check mode, shadow mode, the Bash LUKS unit suites, and the rule that every suite runs against both images |
 
 The code is 129,000 lines of Rust in 27 crates. Five reviews of it on 27 October 2026 (the process model, the crates
@@ -254,6 +255,44 @@ Each operation is placed in one of three layers:
 - **Fakes are models, not scripts.** `FakeZfs`, `FakeLuks` (key slots, tokens) and `FakeTpm` (PCRs, lock-out) model
   behaviour; contract tests run one suite against each fake and, in a VM, against the real adapter. `FakeRunner` stays
   only for the CLI adapters' own tests, against recorded fixtures.
+
+### The menu: a workspace
+
+The menu becomes a workspace for people who know ZFS, without losing those who do not. Eight mockups of 27 October
+2026 show it: the boot workspace, drill-down columns for kernels, the snapshot timeline, the command line, the
+rollback review, pools, the start-up timeline, and the same workspace at 80×24 in ASCII. UI13 turns them into the
+design pages of `docs/dev/menu-design/` and the prototype's wireframes; UI10 builds it.
+
+- **Tabs and columns instead of separate screens.** Numbered tabs (Boot, Snapshots, Pools, Log) that `Tab` also
+  cycles; in each, drill-down columns (pool › environment › kernels or snapshots) that `h` and `l` or the arrows move
+  through, so a selection keeps its context. The inspector wraps long values instead of cutting them.
+- **What needs attention, in view.** A sidebar names degraded pools, missing devices, foreign pools and failing checks,
+  each with the key that leads to it; the boot history, from the saved logs (#9), shows which kernel last reached a
+  login.
+- **A command line with a dry run.** `:` opens a command line with fuzzy completion, grouped as actions, items and
+  help, each with its key and what it costs. Before anything runs, it shows the plan: the steps and the commands
+  each step runs (`zfs snapshot …`, `zfs rollback …`), the effect and how to undo it. Actions are plans of steps
+  (PM8) whose adapters describe the command they would run (SB2, SB3), so the dry run is the plan itself.
+- **Review pages for what cannot be undone.** A rollback, a forced import or a destroy opens a whole page, not an
+  alert: what is lost, what is kept, the steps with their commands, the undo, a safer alternative, and the typed
+  confirmation.
+- **Start-up decides nothing silently, and never stops silently.** A problem gets choices with the commands they run,
+  and a safe default that runs after a time-out, such as continuing without a foreign pool that no boot environment
+  needs.
+- **The same workspace everywhere.** At 80×24 over a serial line, in ASCII and reverse video without colour, the
+  layout keeps its parts, shorter.
+
+Keys work on every keyboard ([decision 18](#decisions)):
+
+1. **No action needs one character only.** Arrows, `Enter`, `Esc`, `Tab` and the command line reach everything;
+   `j` `k` `h` `l` move as the arrows do, and the digit row only shortens the way to a tab.
+2. **No action depends on case.** One letter, one action; the risky ones open their review page.
+3. **Keys by position on the display console.** There the menu gets key positions (evdev, the image's XKB keymaps):
+   when a key types a character the map does not bind, as on a Cyrillic, Greek or Hebrew layout, or as AZERTY's digit
+   row types `&é"'`, the key in the same place of the US layout counts. Over a serial line only characters arrive, and
+   rule 1 covers it.
+4. **The command line knows every language.** It matches the names of the catalogue in the menu's language and the
+   English command names.
 
 ### C dependencies
 
@@ -536,7 +575,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | PM5 | `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
 | PM6 | The supervisor anew: an event loop over `signalfd` and `pidfd`, a table of services with restart policies and back-off, `setsid` and the controlling terminal in `pre_exec` (C89) | stab | M | PM3 |
 | PM7 | The console's control socket (C91): release, reattach, layout, font and status as typed requests with replies; the secret flag in band | stab | S/M | |
-| PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`); actions can be cancelled | perf, stab | L | PM4, DM2 |
+| PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`); actions can be cancelled; an action is a plan of steps, each with the command its adapter would run, for the menu's dry run | perf, stab | L | PM4, DM2 |
 | PM9 | One session: the menu runs in the session process, the start-up view and the menu are one model; the `--countdown` child and the second countdown go | perf, stab | M/L | PM8, UI3 |
 | PM10 | The session socket: `Takeover` and `Yielded` for SSH instead of `SIGTERM`, then the menu over SSH as a remote front end | stab, sec | M, then L | PM9 |
 | PM11 | Fewer processes: `tput` and `stty` become `rustix` termios and escape sequences; the start-up chain of `exec`s shortens (B7) | perf | S/M | |
@@ -588,9 +627,12 @@ code) and what it needs first. Code in the images changes with most items, so th
 | UI7 | Surfaces and focus: a second terminal (C55, now M), the shown terminal and a layout for each (C56), kernel messages as a layer (C77), terminal switches (C57); M8's mouse and selection on surfaces (C48 to C51) | mod | M | UI6 |
 | UI8 | Accessibility: the focused surface as text for `brltty` and `Announce` lines (C85); a line view for `TERM=dumb`, speakup and serial users (#12's plain mode) | mod | M | UI6 |
 | UI9 | The serial console too (C81): one session driving the console's surface and a serial terminal from one model | mod | M | UI6 |
-| UI10 | The rest of the menu (steps 5 to 7 of R5 in the old plan): VM tests of each snapshot change, the previews of a diff and of package changes, the palette's entries; kernels and the command line editor, pools and LUKS volumes (unlock and import from the menu), help, power; the exit: the key binding section of the man page generated from `keymap.rs`, the 10,000-snapshot test (decision 7), the hostile-names fuzz target, the pseudo-language at 52×20, `CHANGES-FROM-LEGACY.md` as a migration guide | mod | L | PM8 for pools and LUKS |
-| UI11 | The menu design's exit (phase D of the old plan): usability sessions with at least five users, one on a serial console; the design review; decision 8 | | maintainer | |
+| UI10 | The rest of the menu, built as the workspace of UI13 (steps 5 to 7 of R5 in the old plan): tabs and drill-down columns, the attention sidebar, the boot history (#9), review pages for rollback, forced import and destroy; VM tests of each snapshot change, the previews of a diff and of package changes, the palette's entries; kernels and the command line editor, pools and LUKS volumes (unlock and import from the menu), help, power; the exit: the key binding section of the man page generated from `keymap.rs`, the 10,000-snapshot test (decision 7), the hostile-names fuzz target, the pseudo-language at 52×20, `CHANGES-FROM-LEGACY.md` as a migration guide | mod | L | PM8 for pools and LUKS |
+| UI11 | The menu design's exit (phase D of the old plan): usability sessions with at least five users, one on a serial console and one with a non-US layout, on the workspace prototype of UI13; the design review; decisions 8 and 18 | | maintainer | |
 | UI12 | The console's other items, unchanged in substance: M6's C79, C80, C82, C106; M7's C45, C46, C92 to C100 (C110 with SE3); M8's C7, C13, C15, C32, C33; M9's C101, C102, C107, C111, and C103, the default, after UI6 | | per item | |
+| UI13 | The workspace design: the ADR for it and its key map (decisions 8 and 18), `docs/dev/menu-design/` rewritten from the eight mockups, new task measures, and the main and serial screens in `zbm-tui --demo` for the sessions of UI11 | mod | S/M | |
+| UI14 | The command line: completion grouped by kind with keys and costs, history, and the dry run of a plan's steps and commands, translated through the catalogue | mod, sec | M | PM8, UI13 |
+| UI15 | Keys on every keyboard: the four rules of [the menu](#the-menu-a-workspace), with the snapshot and VM tests typing on `us`, `de`, `fr`, `uk`, `ru` and Dvorak | stab | S/M | UI2, UI13 |
 
 ### SE: security
 
@@ -671,6 +713,8 @@ The features keep their numbers. Each needs the items named, and its full propos
 | 19 | Own console in Rust: step 5, the default, is C103 | In progress | UI4 to UI9, UI12 |
 | 20 | Console fonts: Spleen and 256-glyph subsets | Done | |
 | 21 | Restore files and see what an upgrade changed | Prototyped | UI10 |
+| 22 | Compare a kernel with the default: modules, firmware and initramfs, before booting it | Proposed | UI10 |
+| 23 | Snapshot space over time: what each month of snapshots holds, in the timeline | Proposed | UI10, SB2 |
 
 Numbers 13 (an own init) and 14 (a built-in SSH server) were dropped; 13 comes back in a narrower form as SB12.
 
@@ -693,16 +737,20 @@ every suite green, its exit met, and its docs written. Features (FE) go in whene
 The ADRs of the target architecture, and the small fixes that need no design.
 
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
-  channel (decision 15), C dependencies (decision 12), the image plan (SB8).
-- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, PM5, VE1, CD1, CD2, CD3, and the
+  channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
+  decisions 8 and 18).
+- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, UI13, PM5, VE1, CD1, CD2, CD3, and the
   [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026).
-- The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`).
+- The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026 but
+  for the rerun of `procedures`.
 
-**Exit:** the ADRs accepted; the quick fixes in, with their VM runs passing.
+**Exit:** the ADRs accepted; the quick fixes in, with their VM runs passing; the workspace prototype ready for the
+sessions.
 
 ### Phase 1: ports and types
 
-PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6, VE5.
+PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6, VE5; the usability sessions of UI11 on the
+workspace prototype, in parallel.
 
 **Exit:** the smoke tier of the VM suite runs on CI with KVM; no domain crate takes a `Runner` or a console; no ZFS
 command line outside `zbm-zfs`; the new metric columns at 0; the strict lints on every crate that runs at boot.
@@ -716,12 +764,13 @@ and cancels during long work; C89 and C91 done; a takeover never kills work in p
 
 ### Phase 3: the menu and the screen
 
-UI10 (the rest of the menu, built on the session), UI4, UI5 (M4), UI6, UI7, DM6, DM7.
+UI10 (the rest of the menu, built on the session as the workspace), UI14, UI15, UI4, UI5 (M4), UI6, UI7, DM6, DM7.
 
 **Exit:** the old R5 exit (the VM tests drive every core task through the menu, also on a serial console; snapshot
 tests of every view at three sizes, in colour, monochrome and ASCII; the task measures and the redraw budget met; the
-10,000-snapshot test; the hostile-names fuzz target; no string the user reads outside the catalogue), and the menu
-drawn natively on the console.
+10,000-snapshot test; the hostile-names fuzz target; no string the user reads outside the catalogue), the menu
+drawn natively on the console, every risky action with its dry run and review page, and the key tests passing on the
+six layouts of UI15.
 
 ### Phase 4: the boundary and the image
 
@@ -742,7 +791,7 @@ the console unprivileged and sandboxed; the locked menu (#8) and measured boot (
 ### Phase 6: features
 
 The features of FE whose items are done, and UI12. Continuous from phase 1 on; #2, #3, #4 and #11 come after
-phase 5's SB10, #6, #7, #15, #16 and #21 after phase 3.
+phase 5's SB10, #6, #7, #15, #16, #21, #22 and #23 after phase 3.
 
 ### Phase 7: release
 
@@ -767,20 +816,20 @@ S/M = 1.5, M = 3, M/L = 6 and L = 10, with 3 weeks for the review fixes and 2 fo
 
 | Phase | What weighs most | Developer-weeks |
 | --- | --- | --- |
-| 0 | The ADRs, 13 small items, the review fixes | ~14 |
+| 0 | The ADRs, 14 small items (UI13 among them), the review fixes | ~16 |
 | 1 | Ten M items: ports, value types, the ZFS port, mounts, the strict lints, fuzzing, the VM tiers (VE5) | ~36 |
 | 2 | PM8 (L), PM9 (M/L), the supervisor, the sockets | ~31 |
-| 3 | UI10, UI6, DM6, DM7 (L each), UI4, UI5 | ~58 |
+| 3 | UI10 as the workspace, UI6, DM6, DM7 (L each), UI4, UI5, UI14, UI15 | ~67 |
 | 4 | SB6, DM10, VE7 (L each), `kexec_file_load`, the hooks, the image plan, CD4, CD5, CD12 | ~50 |
 | 5 | SB10, SE11 (L each), CD6 to CD8, the locked menu, measured boot | ~43 |
-| 6 | About ten features, and the console's other items (UI12) | ~37 |
+| 6 | About twelve features (#22 and #23 among them), and the console's other items (UI12) | ~41 |
 | 7 | Fault injection, mutation tests, benchmarks, the security review (SE13), real hardware | ~35 |
-| **To RL1** | | **~304**: about six years for one developer, eight with review and rework |
+| **To RL1** | | **~319**: about six years for one developer, eight with review and rework |
 | After the release | RL2, CD9, CD10 and their review, SB12, CD11 | ~40 |
 
 The critical path, the chain that cannot run in parallel, is the ADRs → DM2 and DM3 → PM2 and PM4 → PM8 → PM9 →
 UI3 and UI5 → UI6 → DM6 → SB10 → SE11 → SE13 → RL1: about 80 developer-weeks, so even a team needs well over a
-year.
+year. The workspace (UI10's growth, UI13 to UI15, #22 and #23) is off that path; it adds about 15 weeks of work.
 
 ### Calendar
 
@@ -791,26 +840,30 @@ between RL1 and RL2. Phases 4 and 6 overlap the others.
 
 | Phase | Weeks | Ends about |
 | --- | --- | --- |
-| 0: the design and the quick fixes | 3 | November 2026 |
-| 1: ports and types | 7 | January 2027 |
-| 2: the session | 6 | March 2027 |
-| 3: the menu and the screen | 10 | May 2027 |
-| 4: the boundary and the image | 8, overlapping 3 and 5 | June 2027 |
-| 5: isolation and boot integrity | 7 | July 2027 |
+| 0: the design and the quick fixes | 4 | late November 2026 |
+| 1: ports and types | 7 | late January 2027 |
+| 2: the session | 6 | mid-March 2027 |
+| 3: the menu and the screen | 12 | June 2027 |
+| 4: the boundary and the image | 8, overlapping 3 and 5 | July 2027 |
+| 5: isolation and boot integrity | 7 | August 2027 |
 | 6: features | alongside 1 to 5 | |
-| 7: release | 8 to 10 | **September to October 2027: RL1** |
-| RL2 | one release later | early 2028 |
+| 7: release | 8 to 10 | **October to November 2027: RL1** |
+| RL2 | one release later | early to mid 2028 |
 | CD9, CD10 (default after their review), SB12, CD11 | after RL2 | 2028 |
 
 Two changes shortened the path: VE5 moved from phase 7 to phase 1, so VM runs no longer wait on one machine, and
 CD9 and CD10, about 20 weeks of security-critical code, moved after the release, where `cryptsetup` and `tpm2-tools`
-keep doing their work until then.
+keep doing their work until then. The workspace moves RL1 by about a month: a week more in phase 0 for its design
+and prototype, and two to three more in phase 3, which builds it once instead of building the old design first. Its
+extras (#22, #23) wait for phase 6 and move nothing.
 
 ### Risks to the dates
 
 - **VM runs:** until VE5 is done, every change to the images waits on the maintainer's machine.
 - **The design risks,** UI6 (the client channel) and PM8 (the machine actor): their ADRs in phase 0 settle them, and
   a wrong turn there costs a phase.
+- **The workspace in the sessions:** if UI11 rejects it, phase 3 builds the current design, as planned before; the
+  prototype in phase 0 is there to learn that before any of it is built.
 - **Outside calendars:** the security review, the usability sessions, and the hardware of RL4.
 - **The estimate itself:** the history in git was squashed, so there is no measured pace yet. Phase 0's actual length
   is the first measure; the calendar is revised from it.
@@ -841,7 +894,10 @@ Open:
 6. **When the legacy runtime goes.** Proposed: one release with the Rust runtime as the default and the legacy one
    selectable, then removal (RL1, RL2); no beta in which the legacy image is the reference.
 7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10).
-8. **A classic key map:** decided by the usability sessions (UI11).
+8. **The key map:** proposed, the workspace keys of UI13 (`j` `k` `h` `l` and the arrows to move, numbered tabs, one
+   letter per action, `:` for the command line), with the classic `MOD+key` aliases of the `fzf` menu; this changes
+   rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions. Decided by the usability sessions
+   (UI11), which compare it with the current map.
 10. **One concurrency model:** threads and channels, one reactor per process, no async runtime (PM1).
 12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
     programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
@@ -851,8 +907,11 @@ Open:
 15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
     that need one.
 16. **A native image backend after the cutover** (SB12), with dracut kept as a backend.
+18. **Keys that work on every keyboard:** proposed, the four rules of [the menu](#the-menu-a-workspace): nothing needs
+    one character only, nothing depends on case, keys by position on the display console, and a command line that
+    knows every language (UI15).
 
-Decisions 10 and 12 to 16 are decided by their ADRs in phase 0.
+Decisions 10, 12 to 16 and 18 are decided by their ADRs in phase 0; decision 8 by the sessions that follow.
 
 ## Fixes left from the review of 27 October 2026
 
