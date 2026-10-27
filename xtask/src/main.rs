@@ -55,10 +55,8 @@ Commands:
                          (all by default) in QEMU (KVM, the build container,
                          root for the disk setups; docs/luks/testing.rst)
   bless                  Accept every changed snapshot and list the files
-  record-parity [--check]
-                         Run the legacy code of the parity tests and record
-                         its results in tests/golden/legacy; --check fails
-                         where a recording no longer matches
+  record-parity          Run the legacy code of the parity tests and record
+                         its results in tests/golden/legacy
   record-zfs [--manifest]
                          Record what zfs and zpool print, in a virtual
                          machine of the VM test harness (root, QEMU), as the
@@ -110,7 +108,7 @@ enum Command {
     /// `bless`.
     Bless,
     /// `record-parity`.
-    RecordParity { check: bool },
+    RecordParity,
     /// `record-zfs`, or only its manifest.
     RecordZfs { manifest: bool },
     /// `doc`.
@@ -152,8 +150,7 @@ impl Command {
                 Command::TestVm(tests.iter().map(|&test| test.to_owned()).collect())
             }
             ["bless"] => Command::Bless,
-            ["record-parity"] => Command::RecordParity { check: false },
-            ["record-parity", "--check"] => Command::RecordParity { check: true },
+            ["record-parity"] => Command::RecordParity,
             ["record-zfs"] => Command::RecordZfs { manifest: false },
             ["record-zfs", "--manifest"] => Command::RecordZfs { manifest: true },
             ["doc"] => Command::Doc { open: false },
@@ -268,7 +265,7 @@ fn run(command: Command) -> Result<()> {
         Command::TestDevices => cargo::test_devices(&root),
         Command::TestVm(tests) => cargo::test_vm(&root, &tests),
         Command::Bless => cargo::bless(&Workspace::load(&root)?),
-        Command::RecordParity { check } => cargo::record_parity(&root, check),
+        Command::RecordParity => cargo::record_parity(&root),
         Command::RecordZfs { manifest: true } => {
             println!("{}", record_zfs::manifest());
             Ok(())
@@ -326,10 +323,8 @@ mod tests {
             parse("test vm procedures").unwrap(),
             Command::TestVm(vec!["procedures".to_owned()])
         );
-        assert_eq!(
-            parse("record-parity --check").unwrap(),
-            Command::RecordParity { check: true }
-        );
+        assert_eq!(parse("record-parity").unwrap(), Command::RecordParity);
+        assert!(parse("record-parity --check").is_err());
         assert_eq!(
             parse("record-zfs --manifest").unwrap(),
             Command::RecordZfs { manifest: true }

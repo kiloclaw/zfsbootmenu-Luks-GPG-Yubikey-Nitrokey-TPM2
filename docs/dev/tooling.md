@@ -11,7 +11,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask lint --strict` | Reports the strict lints for every crate (below); fails only on a finding in a crate of `xtask/strict/crates.txt` |
 | `cargo xtask test` | Every test that needs neither root nor a virtual machine: the workspace and the test build of `zbm`, under `cargo nextest` when it is installed ([testing.md](testing.md)) |
 | `cargo xtask record-zfs [--manifest]` | Records what `zfs` and `zpool` print, as JSON and as text, in a test VM (root, QEMU), into `crates/zbm-zfs/tests/fixtures/<major.minor>/`; `--manifest` prints the commands the VM harness runs ([testing.md](testing.md)) |
-| `cargo xtask record-parity [--check]` | Runs the legacy code of the parity tests and records its results in `tests/golden/legacy/`; `--check` fails where a recording no longer matches ([testing.md](testing.md)) |
+| `cargo xtask record-parity` | Runs the legacy code of the parity tests and records its results in `tests/golden/legacy/` ([testing.md](testing.md)) |
 | `cargo xtask fuzz [<target>] [--seconds <n>]` | Runs the fuzz targets of `fuzz/` with nightly Rust and `cargo-fuzz` ([testing.md](testing.md)) |
 | `cargo xtask bless` | Accepts every changed snapshot (`INSTA_UPDATE=always` over the crates that use `insta`) and lists the `.snap` files that changed, for review with `git diff` |
 | `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
@@ -156,8 +156,7 @@ whole crate.
 
 ## Line coverage
 
-`cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm`, with `ZBM_PARITY=check` so that
-the recordings of the legacy results are checked too, under
+`cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm` under
 [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) (`cargo install cargo-llvm-cov --locked` and
 `rustup component add llvm-tools`), adds up the lines of each source file per crate, test code included, and prints
 the line coverage of each crate with what it must reach. The report is in `target/coverage.json`, and the profiles

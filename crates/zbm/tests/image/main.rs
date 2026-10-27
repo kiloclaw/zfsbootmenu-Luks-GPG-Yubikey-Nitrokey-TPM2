@@ -5,8 +5,8 @@
 //!
 //! The helpers are shell code until R6 of REFACTOR-ROADMAP.md, so their runs
 //! are recorded as golden files (`zbm_testkit::parity`): a normal test run
-//! reads the recordings, and `cargo xtask record-parity --check` runs the
-//! helpers again. A `zbm` program that exists is written `$ZBM` in settings
+//! reads the recordings, and `cargo xtask record-parity` runs the helpers
+//! again. A `zbm` program that exists is written `$ZBM` in settings
 //! and results.
 
 use std::collections::BTreeMap;

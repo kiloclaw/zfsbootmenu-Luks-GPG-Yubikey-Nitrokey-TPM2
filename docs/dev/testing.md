@@ -99,7 +99,6 @@ legacy half runs inside `parity.legacy(case, || ...)` (`zbm_testkit::parity`), a
 | --- | --- |
 | `replay` (default) | The recorded results are used; a case that was not recorded, or whose input changed, fails |
 | `record` | The legacy code runs and the files are written: `cargo xtask record-parity` |
-| `check` | The legacy code runs and must give the recorded results: `cargo xtask record-parity --check`, and `cargo xtask coverage` |
 | `live` | The legacy code runs and the files are left alone; the default when `ZBM_TEST_SEED` is set, since other seeds generate inputs that were never recorded |
 
 Rules for a parity test:

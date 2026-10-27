@@ -224,13 +224,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libyaml-pp-perl libsort-versions-perl libboolean-perl \
             systemd-boot-efi binutils xkb-data libx11-data
 
       # Line coverage per crate may only go up: xtask/coverage-baseline.txt, and 80% for a new crate. The table
-      # goes to the job summary. The tests run with ZBM_PARITY=check, so this also fails when a recording of the
-      # legacy results in tests/golden/legacy is out of date. It runs as root, as the baseline was measured: some
-      # parity tests compare with the legacy code only as root, which is how that code runs
+      # goes to the job summary. It runs as root, as the baseline was measured: some tests run only as root
       - name: Check line coverage
         run: |
           sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \

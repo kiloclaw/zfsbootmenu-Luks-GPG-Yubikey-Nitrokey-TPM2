@@ -27,8 +27,6 @@
 //!   and [`legacy`](crate::legacy) refuses to run it.
 //! - `record`: run the legacy code and write the golden files
 //!   (`cargo xtask record-parity`).
-//! - `check`: run the legacy code and fail where it no longer gives the
-//!   recorded result (`cargo xtask record-parity --check`).
 //! - `live`: run the legacy code and ignore the golden files. This is the
 //!   default when `ZBM_TEST_SEED` is set, since other seeds generate inputs
 //!   that were never recorded.
@@ -69,8 +67,6 @@ pub enum Mode {
     Replay,
     /// Run the legacy code and write its results to the golden files.
     Record,
-    /// Run the legacy code and compare its results with the golden files.
-    Check,
     /// Run the legacy code and leave the golden files alone.
     Live,
 }
@@ -99,9 +95,8 @@ impl Mode {
         match parity {
             Some("replay") => Mode::Replay,
             Some("record") => Mode::Record,
-            Some("check") => Mode::Check,
             Some("live") => Mode::Live,
-            Some(other) => panic!("ZBM_PARITY={other}: use replay, record, check or live"),
+            Some(other) => panic!("ZBM_PARITY={other}: use replay, record or live"),
             None if seeded => Mode::Live,
             None => Mode::Replay,
         }
@@ -128,7 +123,7 @@ thread_local! {
 pub fn assert_recording() {
     assert!(
         RECORDING.with(Cell::get),
-        "legacy code runs only inside Parity::legacy, when ZBM_PARITY is record, check or live"
+        "legacy code runs only inside Parity::legacy, when ZBM_PARITY is record or live"
     );
 }
 
@@ -161,7 +156,7 @@ pub struct Parity {
     path: PathBuf,
     /// What happens to the legacy code and the file.
     mode: Mode,
-    /// The cases of the file (replay and check), read when first needed:
+    /// The cases of the file when replaying, read when first needed:
     /// a test that skips needs no file.
     recorded: Option<Vec<Case>>,
     /// The cases met so far.
@@ -219,9 +214,8 @@ impl Parity {
     ///
     /// # Panics
     ///
-    /// When replaying and the golden file cannot be read, the case was not
-    /// recorded or its input changed, and when checking and the legacy code
-    /// gives another result.
+    /// When replaying and the golden file cannot be read, or the case was not
+    /// recorded or its input changed.
     pub fn legacy<T, F>(&mut self, input: impl Into<String>, run: F) -> T
     where
         T: Serialize + DeserializeOwned,
@@ -251,17 +245,6 @@ impl Parity {
             };
             case.result
         };
-        if self.mode == Mode::Check
-            && let Some(case) = &recorded
-        {
-            assert!(
-                case.result == result,
-                "{}: the legacy code no longer gives the recorded result for input {input}\n\
-                 recorded: {}\nnow: {result}\n{RECORD_AGAIN}",
-                self.path.display(),
-                case.result
-            );
-        }
         self.met.push(Case {
             input,
             result: result.clone(),
@@ -305,7 +288,7 @@ impl Parity {
     fn recorded_cases(&mut self) -> &[Case] {
         let (path, mode) = (&self.path, self.mode);
         self.recorded.get_or_insert_with(|| match mode {
-            Mode::Replay | Mode::Check => read(path),
+            Mode::Replay => read(path),
             Mode::Record | Mode::Live => Vec::new(),
         })
     }
@@ -357,7 +340,7 @@ impl Drop for Parity {
                 }
                 std::fs::write(&self.path, text).expect("the golden file can be written");
             }
-            Mode::Replay | Mode::Check if !self.met.is_empty() => {
+            Mode::Replay if !self.met.is_empty() => {
                 let recorded = self.recorded_cases().len();
                 assert!(
                     self.met.len() >= recorded,
@@ -366,7 +349,7 @@ impl Drop for Parity {
                     self.met.len()
                 );
             }
-            Mode::Replay | Mode::Check | Mode::Record | Mode::Live => {}
+            Mode::Replay | Mode::Record | Mode::Live => {}
         }
     }
 }
@@ -418,14 +401,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "the legacy code no longer gives the recorded result")]
-    fn check_fails_when_the_legacy_result_changed() {
-        let mut parity = parity(Mode::Check, vec![case("a", Value::from(7))]);
-
-        let _: u32 = parity.legacy("a", || 8);
-    }
-
-    #[test]
     fn the_legacy_helpers_run_only_inside_a_recording() {
         let mut parity = parity(Mode::Live, Vec::new());
 
@@ -441,11 +416,11 @@ mod tests {
         assert_eq!(Mode::select(None, false), Mode::Replay);
         assert_eq!(Mode::select(None, true), Mode::Live);
         assert_eq!(Mode::select(Some("record"), true), Mode::Record);
-        assert_eq!(Mode::select(Some("check"), false), Mode::Check);
         assert_eq!(Mode::select(Some("live"), false), Mode::Live);
         assert_eq!(Mode::select(Some("replay"), true), Mode::Replay);
         assert!(std::panic::catch_unwind(|| Mode::select(Some("x"), false)).is_err());
-        assert!(!Mode::Replay.needs_legacy() && Mode::Check.needs_legacy());
+        assert!(std::panic::catch_unwind(|| Mode::select(Some("check"), false)).is_err());
+        assert!(!Mode::Replay.needs_legacy() && Mode::Record.needs_legacy());
     }
 
     #[test]
@@ -502,15 +477,6 @@ mod tests {
     }
 
     #[test]
-    fn check_returns_what_the_legacy_code_gives_when_it_matches() {
-        let mut parity = parity(Mode::Check, vec![case("a", Value::from(7))]);
-
-        let result: u32 = parity.legacy("a", || 7);
-
-        assert_eq!(result, 7);
-    }
-
-    #[test]
     fn live_runs_the_legacy_code_and_reads_nothing() {
         let mut parity = Parity {
             path: PathBuf::from("/nonexistent/t.json"),
@@ -530,10 +496,7 @@ mod tests {
     fn the_mode_comes_from_the_environment() {
         let mode = Mode::current();
 
-        assert!(matches!(
-            mode,
-            Mode::Replay | Mode::Record | Mode::Check | Mode::Live
-        ));
+        assert!(matches!(mode, Mode::Replay | Mode::Record | Mode::Live));
     }
 
     #[test]

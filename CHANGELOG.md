@@ -258,6 +258,9 @@ that only checked it are gone:
   build container's `-g perl` option and `scripts/dev/compare-generators.sh` with them. The build container builds
   this tree's images with the Rust `generate-zbm` only, and needs `cargo`; upstream trees still build with their
   Perl one. The parity tests of the two programs keep the results recorded from them as expected results.
+- Check mode (`ZBM_PARITY=check`, `cargo xtask record-parity --check`): the coverage job no longer runs the legacy code
+  to compare with its recordings, which only replay. The recordings are expected results now: a deliberate change of
+  behaviour changes them, and says so.
 
 ### The new menu's text in a message catalogue
 

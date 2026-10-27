@@ -8,10 +8,8 @@
 //! [`NEW_CRATE`]. `--bless` writes the current numbers as the new baseline.
 //!
 //! This is a command of its own, not part of `metrics`, because it runs
-//! every test in an instrumented build. The tests run with `ZBM_PARITY=check`,
-//! so the parity tests also run the legacy code they were recorded from and
-//! fail when a recording is out of date (`zbm_testkit::parity`); that needs
-//! what `cargo xtask record-parity` needs.
+//! every test in an instrumented build; the parity tests replay their
+//! recordings (`zbm_testkit::parity`), as in every test run.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -116,14 +114,8 @@ fn measure(root: &Path) -> Result<()> {
 fn measure_programs(root: &Path) -> Vec<process::Program> {
     vec![
         cargo::cargo(root).args(["llvm-cov", "clean", "--workspace"]),
-        cargo::cargo(root).env("ZBM_PARITY", "check").args([
-            "llvm-cov",
-            "--no-report",
-            "--workspace",
-            "--locked",
-        ]),
+        cargo::cargo(root).args(["llvm-cov", "--no-report", "--workspace", "--locked"]),
         cargo::cargo(root)
-            .env("ZBM_PARITY", "check")
             .args(["llvm-cov", "--no-report", "-p", "zbm"])
             .args(["--features", "test-seams", "--locked"]),
         cargo::cargo(root)
@@ -356,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn the_tests_run_instrumented_and_check_the_recordings() {
+    fn the_tests_run_instrumented() {
         let programs = measure_programs(Path::new("/w"));
         let shown: Vec<&str> = programs.iter().map(process::Program::shown).collect();
 
@@ -364,8 +356,8 @@ mod tests {
             shown,
             [
                 "cargo llvm-cov clean --workspace",
-                "ZBM_PARITY=check cargo llvm-cov --no-report --workspace --locked",
-                "ZBM_PARITY=check cargo llvm-cov --no-report -p zbm --features test-seams --locked",
+                "cargo llvm-cov --no-report --workspace --locked",
+                "cargo llvm-cov --no-report -p zbm --features test-seams --locked",
                 "cargo llvm-cov report --json --summary-only --output-path target/coverage.json",
             ]
         );

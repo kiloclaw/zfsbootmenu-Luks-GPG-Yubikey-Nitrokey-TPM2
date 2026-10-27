@@ -160,8 +160,8 @@ pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
 /// Records the results of the legacy code that parity tests compare with:
 /// runs the tests with `ZBM_PARITY=record`, which runs the legacy code and
 /// writes the golden files below [`GOLDEN_LEGACY`], then lists the files that
-/// changed. With `check`, runs them with `ZBM_PARITY=check` instead, which
-/// fails where the legacy code no longer gives the recorded result.
+/// changed. Recordings of code that is gone are kept as they are
+/// (`Parity::recorded`).
 ///
 /// Recording needs what the legacy code needs: Bash, Perl with its modules,
 /// binutils and the systemd EFI stub (`docs/dev/testing.md`). Run it as root
@@ -170,13 +170,8 @@ pub const GOLDEN_LEGACY: &str = "tests/golden/legacy";
 /// # Errors
 ///
 /// When a test fails.
-pub fn record_parity(root: &Path, check: bool) -> Result<()> {
-    let mode = if check { "check" } else { "record" };
-    test_with(root, &[("ZBM_PARITY", mode), REQUIRE_TOOLS])?;
-    if check {
-        println!("record-parity: every recording matches the legacy code");
-        return Ok(());
-    }
+pub fn record_parity(root: &Path) -> Result<()> {
+    test_with(root, &[("ZBM_PARITY", "record"), REQUIRE_TOOLS])?;
     let changed = git_changes(root, GOLDEN_LEGACY)?;
     print!("{}", changes("record-parity", "recordings", &changed));
     Ok(())
@@ -311,14 +306,14 @@ mod tests {
 
     #[test]
     fn tests_run_under_nextest_with_the_doctests_apart() {
-        let programs = test_programs(Path::new("/w"), true, &[("ZBM_PARITY", "check")]);
+        let programs = test_programs(Path::new("/w"), true, &[("ZBM_PARITY", "record")]);
 
         assert_eq!(
             shown(&programs),
             [
-                "ZBM_PARITY=check cargo nextest run --workspace --locked",
-                "ZBM_PARITY=check cargo test --workspace --doc --locked",
-                "ZBM_PARITY=check cargo nextest run -p zbm --features test-seams --locked",
+                "ZBM_PARITY=record cargo nextest run --workspace --locked",
+                "ZBM_PARITY=record cargo test --workspace --doc --locked",
+                "ZBM_PARITY=record cargo nextest run -p zbm --features test-seams --locked",
             ]
         );
     }
