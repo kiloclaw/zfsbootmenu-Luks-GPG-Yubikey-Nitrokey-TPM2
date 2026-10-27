@@ -139,7 +139,7 @@ fn open_with_keyscript(
     session.with_console(&mut |system| {
         printed = programs::key_script(system.runner, script, key, &env)
             .ok()
-            .and_then(|output| output.secret);
+            .and_then(zbm_platform::Output::into_secret);
     });
     let printed = printed.unwrap_or_default();
     let target = volume.target();
@@ -171,7 +171,7 @@ impl KeyMethod for KeyFile {
             .gpg_plain
             .get(keyspec)
             .filter(|plain| !plain.is_empty())
-            .cloned();
+            .map(zbm_platform::Secret::duplicate);
         let tried = match cached {
             Some(plain) => open_with_decrypted(session, volume, &plain),
             None => open_with_keyfile(session, volume),

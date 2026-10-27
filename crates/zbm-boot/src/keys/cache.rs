@@ -15,6 +15,25 @@ use super::load::{KeyLoad, load_key};
 use super::{keysource, stripped};
 use crate::boot::{Noise, mount_zfs};
 
+/// Removes every cached key file, and the cache, before `kexec`: the files
+/// are in memory, and their pages, freed now, are zeroed by the kernel with
+/// `init_on_free=1` rather than left for the next kernel to find.
+pub fn clear_key_caches(files: &dyn Files, state: &State<'_>) {
+    remove_tree(files, &state.key_caches());
+}
+
+/// Removes `path` and, when it is a directory, what is below it; a link is
+/// removed, not followed.
+fn remove_tree(files: &dyn Files, path: &Path) {
+    if files.remove_file(path).is_ok() {
+        return;
+    }
+    for name in files.read_dir(path).unwrap_or_default() {
+        remove_tree(files, &path.join(name));
+    }
+    let _ = files.remove_dir(path);
+}
+
 /// `<dir>/<file>`, joined as text as the legacy runtime joins it.
 fn below(dir: &Path, file: &str) -> PathBuf {
     PathBuf::from(format!("{}/{file}", dir.display()))
@@ -175,10 +194,13 @@ fn copy_key(files: &dyn Files, keypath: &Path, keyfile: &str, keycache: &Path) {
         );
         return;
     }
+    // A key cached by an earlier attempt goes first: the copy is a new file
+    // of mode 0600 that no link can redirect.
+    let _ = files.remove_file(&keydest);
     let copied = files
         .read(keypath)
         .map(Secret::from_vec)
-        .and_then(|key| files.write(&keydest, key.expose()));
+        .and_then(|key| files.write_private(&keydest, key.expose()));
     if copied.is_err() {
         zbm_trace::error!(
             "failed to copy {} to {}",

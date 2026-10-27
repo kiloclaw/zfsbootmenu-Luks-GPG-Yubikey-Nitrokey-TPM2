@@ -15,8 +15,9 @@ pub struct Asking {
     pub left: Option<u64>,
 }
 
-/// A volume asks for a secret, or waits for a device.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// A volume asks for a secret, or waits for a device. Not `Clone`: it holds
+/// what was typed.
+#[derive(Debug, Eq, PartialEq)]
 pub struct Prompt {
     /// The volume.
     pub volume: String,
@@ -62,8 +63,10 @@ impl Prompt {
         self
     }
 
-    /// What was typed, as the dialog shows it once revealed.
-    pub fn typed(&self) -> String {
-        String::from_utf8_lossy(self.secret.expose()).into_owned()
+    /// What was typed, as the dialog shows it once revealed: borrowed from
+    /// the secret's pages, so that no copy is left in freed memory. What is
+    /// typed is always text; anything else shows as nothing.
+    pub fn typed(&self) -> &str {
+        std::str::from_utf8(self.secret.expose()).unwrap_or_default()
     }
 }

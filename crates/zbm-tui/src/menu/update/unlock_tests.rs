@@ -302,7 +302,7 @@ fn a_restore_keeps_the_segment_and_no_database_says_so() {
     assert_eq!(diff(&session).segment, Segment::Files);
     assert_eq!(session.model().screen, Screen::Diff);
 
-    let mut model = session.model().clone();
+    let mut model = session.into_model();
     if let Some(diff) = &mut model.diff {
         diff.packages = None;
         diff.segment = Segment::Packages;

@@ -144,7 +144,7 @@ fn key_presses_become_the_events_the_menu_takes() {
 fn model() -> crate::menu::Model {
     let mut session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::CONSOLE));
     session.start();
-    session.model().clone()
+    session.into_model()
 }
 
 #[test]

@@ -14,9 +14,11 @@
 //! event happened in, outermost first, each with its name and fields.
 //!
 //! Secrets are kept out twice. By type: `Secret` prints as `Secret(..)`
-//! wherever it is recorded. By name: the value of a field named for a secret
-//! ([`is_secret_field`]) is written as `"[redacted]"`, whatever its type, so a
-//! passphrase recorded by mistake as text does not reach the journal either.
+//! wherever it is recorded. By name: only the fields of [`KEPT_FIELDS`] are
+//! written ([`is_kept_field`]); the value of any other, and of one named for
+//! a secret ([`is_secret_field`]), is written as `"[redacted]"`, whatever its
+//! type. A new field is left out until it is added to the list, so a
+//! passphrase recorded by mistake under a new name does not reach the journal.
 
 use std::fmt;
 use std::io::Write;
@@ -32,6 +34,33 @@ use tracing_subscriber::registry::LookupSpan;
 
 /// What a redacted field's value is replaced with.
 pub const REDACTED: &str = "[redacted]";
+
+/// The fields whose values are written: what the events and spans of the
+/// workspace record, none of them a secret. A new field joins the list in the
+/// change that adds it, after a look at what it can hold.
+pub const KEPT_FIELDS: &[&str] = &[
+    "device",
+    "duration_ms",
+    "error",
+    "file",
+    "kind",
+    "line",
+    "message",
+    "method",
+    "name",
+    "pool",
+    "program",
+    "reason",
+    "report",
+    "status",
+    "stdin",
+];
+
+/// Whether the value of a field named `name` is written: it is in
+/// [`KEPT_FIELDS`] and not named for a secret.
+pub fn is_kept_field(name: &str) -> bool {
+    KEPT_FIELDS.contains(&name) && !is_secret_field(name)
+}
 
 /// Whether a field named `name` holds a secret, so that its value is never
 /// written: `passphrase`, `password`, `pin`, `secret`, `challenge`,
@@ -214,14 +243,14 @@ const FULL: &str = "the journal is full; later lines are left out";
 struct Fields(Map<String, Value>);
 
 impl Fields {
-    /// Records `value` for `field`, or [`REDACTED`] if the field is named for
-    /// a secret.
+    /// Records `value` for `field`, or [`REDACTED`] unless the field is
+    /// kept ([`is_kept_field`]).
     fn insert(&mut self, field: &Field, value: impl Into<Value>) {
         let name = field.name();
-        let value = if is_secret_field(name) {
-            REDACTED.into()
-        } else {
+        let value = if is_kept_field(name) {
             value.into()
+        } else {
+            REDACTED.into()
         };
         self.0.insert(name.to_owned(), value);
     }
@@ -336,7 +365,7 @@ mod tests {
     fn lines_are_numbered_and_written_as_json_lines() {
         let (text, _) = journal(|| {
             info!("first");
-            warn!(code = 4, "second");
+            warn!(status = 4, "second");
         });
 
         let parsed: Vec<Value> = text
@@ -346,7 +375,7 @@ mod tests {
         assert_eq!(parsed[0]["seq"], 0);
         assert_eq!(parsed[1]["seq"], 1);
         assert_eq!(parsed[1]["level"], "WARN");
-        assert_eq!(parsed[1]["fields"]["code"], 4);
+        assert_eq!(parsed[1]["fields"]["status"], 4);
     }
 
     #[test]
@@ -370,9 +399,19 @@ mod tests {
             }
         }
 
-        let (text, _) = journal(|| info!(key = ?Secretish, "read"));
+        let (text, _) = journal(|| info!(error = ?Secretish, "read"));
 
-        assert!(text.contains("\"key\":\"Secret(..)\""));
+        assert!(text.contains("\"error\":\"Secret(..)\""));
+    }
+
+    #[test]
+    fn a_field_that_is_not_on_the_list_is_left_out() {
+        let (text, lines) = journal(|| info!(token_bytes = "hunter2", pool = "tank", "read"));
+
+        assert!(!text.contains("hunter2"), "{text}");
+        assert_eq!(lines[0]["fields"]["token_bytes"], REDACTED);
+        assert_eq!(lines[0]["fields"]["pool"], "tank");
+        assert!(KEPT_FIELDS.iter().all(|name| !is_secret_field(name)));
     }
 
     #[test]

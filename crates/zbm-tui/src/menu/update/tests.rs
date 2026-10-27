@@ -444,7 +444,7 @@ fn a_new_filter_selects_the_best_match() {
 fn a_new_snapshot_keeps_the_selection_by_name() {
     let mut session = started();
     session.key(KeyCode::Down);
-    let model = session.model().clone();
+    let model = session.into_model();
     let chosen = model.selected_environment().map(|e| e.name.clone());
     let mut snapshot = model.snapshot.clone();
     let mut newcomer = snapshot.environments[0].clone();
@@ -461,7 +461,7 @@ fn a_new_snapshot_keeps_the_selection_by_name() {
 
 #[test]
 fn a_screen_opened_from_the_palette_starts_at_its_top() {
-    let mut model = started().model().clone();
+    let mut model = started().into_model();
     model.scroll = 7;
 
     let _ = super::dialogs::follow(&mut model, crate::menu::model::Then::Open(Screen::Log));

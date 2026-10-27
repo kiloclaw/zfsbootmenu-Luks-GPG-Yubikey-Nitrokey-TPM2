@@ -151,7 +151,11 @@ impl Prompter for MenuFront<'_> {
                 method: chosen,
                 secret,
                 ..
-            }) if chosen == method => Asked::Secret(secret.unwrap_or_else(Secret::new)),
+            }) if chosen == method => Asked::Secret(
+                secret
+                    .map(zbm_platform::secret::unshare)
+                    .unwrap_or_default(),
+            ),
             Some(Action::Answer(_)) => Asked::Elsewhere,
             Some(_) => Asked::Secret(Secret::new()),
             None => Asked::Ended,

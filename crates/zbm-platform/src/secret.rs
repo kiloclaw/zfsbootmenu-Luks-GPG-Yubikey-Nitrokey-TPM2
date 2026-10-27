@@ -58,6 +58,33 @@ impl Secret {
             .unwrap_or_default()
     }
 
+    /// A copy of the secret in pages of its own. Secrets are not `Clone`, so
+    /// that every copy is written out and shows in review:
+    ///
+    /// ```compile_fail
+    /// fn copies<T: Clone>() {}
+    /// copies::<zbm_platform::Secret>();
+    /// ```
+    #[must_use]
+    pub fn duplicate(&self) -> Secret {
+        Secret::copy_from(self.expose())
+    }
+
+    /// Whether the secret is `other`, in a time that depends only on the
+    /// longer of the two lengths, not on where they first differ: a PIN or
+    /// a passphrase compared byte by byte with an early return tells an
+    /// attacker who times it how many leading bytes were right.
+    pub fn ct_eq(&self, other: &[u8]) -> bool {
+        let mine = self.expose();
+        let mut difference = mine.len() ^ other.len();
+        for index in 0..mine.len().max(other.len()) {
+            let a = mine.get(index).copied().unwrap_or(0);
+            let b = other.get(index).copied().unwrap_or(0);
+            difference |= usize::from(a ^ b);
+        }
+        std::hint::black_box(difference) == 0
+    }
+
     /// The number of bytes.
     pub fn len(&self) -> usize {
         self.len
@@ -149,21 +176,21 @@ impl Secret {
     }
 }
 
+/// The secret `shared` holds, taken out of it; copied when another holder
+/// still shares it.
+pub fn unshare(shared: std::sync::Arc<Secret>) -> Secret {
+    std::sync::Arc::try_unwrap(shared).unwrap_or_else(|shared| shared.duplicate())
+}
+
 /// How many secrets with bytes the process holds now, which it should not
 /// just before `kexec`.
 pub fn live_secrets() -> usize {
     zbm_sys::memory::live_regions()
 }
 
-impl Clone for Secret {
-    fn clone(&self) -> Secret {
-        Secret::copy_from(self.expose())
-    }
-}
-
 impl PartialEq for Secret {
     fn eq(&self, other: &Secret) -> bool {
-        self.expose() == other.expose()
+        self.ct_eq(other.expose())
     }
 }
 
@@ -192,6 +219,19 @@ mod tests {
     }
 
     #[test]
+    fn comparisons_look_at_every_byte_and_the_length() {
+        let pin = Secret::copy_from(b"1234");
+        assert!(pin.ct_eq(b"1234"));
+        assert!(!pin.ct_eq(b"1235"));
+        assert!(!pin.ct_eq(b"123"));
+        assert!(!pin.ct_eq(b"12345"));
+        assert!(!pin.ct_eq(b""));
+        assert!(Secret::new().ct_eq(b""));
+        assert_eq!(pin, Secret::copy_from(b"1234"));
+        assert_ne!(pin, Secret::copy_from(b"0234"));
+    }
+
+    #[test]
     fn grows_and_shrinks_like_a_buffer() {
         let mut secret = Secret::new();
         for byte in b"pass" {
@@ -200,7 +240,7 @@ mod tests {
         secret.push_bytes(b"word!");
         assert_eq!(secret.pop(), Some(b'!'));
         assert_eq!(secret.expose(), b"password");
-        let copy = secret.clone();
+        let copy = secret.duplicate();
         assert_eq!(copy, secret);
         assert_ne!(copy, Secret::copy_from(b"other"));
 

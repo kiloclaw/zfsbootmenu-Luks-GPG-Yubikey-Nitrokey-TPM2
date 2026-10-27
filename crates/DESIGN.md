@@ -461,8 +461,9 @@ now.
 The same `KernelLog` appends every `tracing` event, whatever its level, to `/zfsbootmenu/journal.jsonl`: one line of
 JSON per event with the spans it happened in (stage, pool, volume) and the programs run through
 `zbm_platform::TracedRunner`, so a failed boot can be read back step by step. Each process writes at most 4 MiB.
-Secrets stay out by type (`Secret` prints as `Secret(..)`) and by name: fields named `passphrase`, `password`, `pin`,
-`secret`, `challenge` or `response` (or ending in `_` and one of them) are written as `"[redacted]"`.
+Secrets stay out by type (`Secret` prints as `Secret(..)`) and by name: only the fields of `zbm_trace::KEPT_FIELDS`
+are written, and any other is written as `"[redacted]"`, as is one named `passphrase`, `password`, `pin`, `secret`,
+`challenge` or `response` (or ending in `_` and one of them). A new field joins the list in the change that adds it.
 
 ## External programs
 

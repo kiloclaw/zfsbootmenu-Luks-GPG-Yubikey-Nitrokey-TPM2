@@ -521,7 +521,7 @@ mod tests {
             .run(
                 &Command::new("cryptsetup")
                     .args(["open", "--key-file=-", "/dev/vda2", "luks-x"])
-                    .stdin(Input::Secret(secret))
+                    .stdin(Input::secret(secret))
                     .stdout(Stream::Null),
             )
             .unwrap();

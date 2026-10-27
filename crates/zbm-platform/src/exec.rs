@@ -50,8 +50,15 @@ pub enum Input {
     /// The given bytes, followed by end of file.
     Bytes(Vec<u8>),
     /// A secret, followed by end of file. It is written from where it is kept,
-    /// without copies.
-    Secret(Secret),
+    /// without copies; a clone of the command shares it.
+    Secret(Arc<Secret>),
+}
+
+impl Input {
+    /// `secret` as standard input.
+    pub fn secret(secret: Secret) -> Input {
+        Input::Secret(Arc::new(secret))
+    }
 }
 
 /// A program to run, with its arguments and standard streams.
@@ -283,11 +290,18 @@ pub struct Output {
     pub stdout: Vec<u8>,
     /// Standard error, if it was captured.
     pub stderr: Vec<u8>,
-    /// Standard output, if it was captured as a secret.
-    pub secret: Option<Secret>,
+    /// Standard output, if it was captured as a secret; a clone of the
+    /// output shares it.
+    pub secret: Option<Arc<Secret>>,
 }
 
 impl Output {
+    /// The secret it captured, taken out of the output. Where a clone of the
+    /// output still shares it, which only tests do, it is copied.
+    pub fn into_secret(self) -> Option<Secret> {
+        self.secret.map(crate::secret::unshare)
+    }
+
     /// An output with the given status and captured standard output.
     pub fn new(status: Status, stdout: impl Into<Vec<u8>>) -> Output {
         Output {
@@ -302,7 +316,7 @@ impl Output {
     /// secret.
     pub fn with_secret(status: Status, secret: Secret) -> Output {
         Output {
-            secret: Some(secret),
+            secret: Some(Arc::new(secret)),
             ..Output::new(status, Vec::new())
         }
     }
@@ -361,7 +375,9 @@ fn not_found(command: &Command) -> io::Result<Output> {
     };
     match target {
         Stream::Inherit => io::stderr().write_all(message.as_bytes())?,
-        Stream::CaptureSecret => output.secret = Some(Secret::from_vec(message.into_bytes())),
+        Stream::CaptureSecret => {
+            output.secret = Some(Arc::new(Secret::from_vec(message.into_bytes())));
+        }
         Stream::Capture if command.merge_stderr => output.stdout = message.into_bytes(),
         Stream::Capture => output.stderr = message.into_bytes(),
         Stream::Null => {}
@@ -488,7 +504,7 @@ impl Runner for SystemRunner {
         let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
         match stdout.transpose()? {
             Some(Captured::Plain(bytes)) => output.stdout = bytes,
-            Some(Captured::Secret(secret)) => output.secret = Some(secret),
+            Some(Captured::Secret(secret)) => output.secret = Some(Arc::new(secret)),
             None => {}
         }
         output.stderr = stderr.transpose()?.unwrap_or_default();

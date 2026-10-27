@@ -228,7 +228,7 @@ impl<'a> GnupgHome<'a> {
 
     /// Decrypts `file` with the passphrase or card PIN `secret`.
     pub fn decrypt(&self, file: &str, secret: &Secret) -> Decrypted {
-        let mut line = secret.clone();
+        let mut line = secret.duplicate();
         line.push(b'\n');
         let decrypt = self
             .gpg()
@@ -245,11 +245,11 @@ impl<'a> GnupgHome<'a> {
                 "--decrypt",
                 file,
             ])
-            .stdin(Input::Secret(line))
+            .stdin(Input::secret(line))
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Capture);
         let (status, key) = match self.runner.run(&decrypt) {
-            Ok(output) => (output.stderr_text(), output.secret),
+            Ok(output) => (output.stderr_text(), output.into_secret()),
             Err(error) => (error.to_string(), None),
         };
         let okay = status
@@ -326,7 +326,7 @@ mod tests {
         let calls = runner.calls();
         assert_eq!(
             *calls[0].get_stdin(),
-            Input::Secret(Secret::copy_from(b"pass\n"))
+            Input::secret(Secret::copy_from(b"pass\n"))
         );
     }
 

@@ -366,11 +366,13 @@ fn take_back(system: &System<'_>, state: &State<'_>) {
 const DROP_CACHES: &str = "/proc/sys/vm/drop_caches";
 
 /// The last step before `kexec` (ROADMAP.md #1), which leaves the memory of
-/// running processes and of the kernel as it is: drops the clean page cache,
-/// which may hold key files read from key devices, so that the kernel frees
-/// those pages, and zeroes them with `init_on_free=1`; and warns when this
-/// process still holds secrets.
-pub fn wipe_before_kexec(system: &System<'_>) {
+/// running processes and of the kernel as it is: removes the key files
+/// cached from key sources, and drops the clean page cache, which may hold
+/// key files read from key devices, so that the kernel frees those pages,
+/// and zeroes them with `init_on_free=1`; and warns when this process still
+/// holds secrets.
+pub fn wipe_before_kexec(system: &System<'_>, state: &State<'_>) {
+    crate::keys::clear_key_caches(system.files, state);
     if let Err(error) = system.files.write(Path::new(DROP_CACHES), b"3\n") {
         zbm_trace::debug!("unable to drop the page cache: {error}");
     }
@@ -389,7 +391,7 @@ fn execute(
     (fs, kernel): (&str, &str),
     saved: Option<&Saved>,
 ) {
-    wipe_before_kexec(system);
+    wipe_before_kexec(system, state);
     let booting = format!(
         "\nBooting {} for {} ...\n\n",
         colorize("yellow", kernel),
@@ -535,19 +537,41 @@ mod tests {
         let fake = FakeSystem::new();
         fake.files.dir("/proc/sys/vm");
         let system = fake.system();
+        let state = State::new(&fake.files, "/zfsbootmenu");
         let _log =
             zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
                 .install();
 
-        wipe_before_kexec(&system);
+        wipe_before_kexec(&system, &state);
         assert_eq!(fake.files.text(DROP_CACHES).as_deref(), Some("3\n"));
         assert!(!fake.kmsg().contains("still in memory"), "{}", fake.kmsg());
         let held = zbm_platform::secret::Secret::copy_from(b"pass");
-        wipe_before_kexec(&system);
+        wipe_before_kexec(&system, &state);
         assert!(
             fake.kmsg()
                 .contains("secrets are still in memory before kexec")
         );
         drop(held);
+    }
+
+    #[test]
+    fn the_cached_keys_are_removed_before_kexec_but_not_what_they_link_to() {
+        let fake = FakeSystem::new();
+        fake.files
+            .dir("/proc/sys/vm")
+            .file("/zfsbootmenu/.keys/pool/keys/a.key", "key")
+            .file("/elsewhere/kept", "kept")
+            .symlink("/zfsbootmenu/.keys/pool/link", "/elsewhere");
+        let system = fake.system();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+
+        wipe_before_kexec(&system, &state);
+
+        assert!(
+            !fake
+                .files
+                .exists(std::path::Path::new("/zfsbootmenu/.keys"))
+        );
+        assert_eq!(fake.files.text("/elsewhere/kept").as_deref(), Some("kept"));
     }
 }

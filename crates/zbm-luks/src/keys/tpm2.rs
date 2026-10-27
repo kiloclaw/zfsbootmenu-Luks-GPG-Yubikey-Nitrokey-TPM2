@@ -294,11 +294,11 @@ impl Unlocker<'_> {
     ) -> Result<(), TokenFailure> {
         let device = target.device;
         let mut asked = 0;
-        let cached: Vec<Secret> = self.tpm2_pins.clone();
+        let cached: Vec<Secret> = self.tpm2_pins.iter().map(Secret::duplicate).collect();
         for cached in cached.iter().map(Some).chain([None]) {
             loop {
                 let pin = match cached {
-                    Some(pin) => pin.clone(),
+                    Some(pin) => pin.duplicate(),
                     None => self.ask_tpm2_pin(target, &mut asked)?,
                 };
                 if self.tpm2_open_with_pin(target, id, token, &pin)? {

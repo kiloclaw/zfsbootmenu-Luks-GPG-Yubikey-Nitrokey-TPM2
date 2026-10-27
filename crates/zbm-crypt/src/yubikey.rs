@@ -39,14 +39,14 @@ impl<'a> YubiKey<'a> {
     pub fn response(&self, slot: u8, challenge: &Secret) -> Option<Secret> {
         let command = Command::new("ykchalresp")
             .args([format!("-{slot}"), "-i-".to_owned()])
-            .stdin(Input::Secret(challenge.clone()))
+            .stdin(Input::secret(challenge.duplicate()))
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Null);
         self.runner
             .run(&command)
             .ok()
             .filter(|output| output.status.is_success())
-            .and_then(|output| output.secret)
+            .and_then(zbm_platform::Output::into_secret)
             .map(|mut response| {
                 while response.expose().last() == Some(&b'\n') {
                     response.pop();

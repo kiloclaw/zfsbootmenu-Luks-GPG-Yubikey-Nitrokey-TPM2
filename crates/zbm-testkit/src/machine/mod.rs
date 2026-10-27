@@ -14,7 +14,7 @@
 //! let open = Command::new("cryptsetup")
 //!     .args(["open", "--type", "luks", "--key-file=-"])
 //!     .args(["/dev/sda2", "cryptroot"])
-//!     .stdin(Input::Secret(Secret::copy_from(b"pw")));
+//!     .stdin(Input::secret(Secret::copy_from(b"pw")));
 //! assert!(machine.runner.run(&open).unwrap().status.is_success());
 //!
 //! assert_ran!(

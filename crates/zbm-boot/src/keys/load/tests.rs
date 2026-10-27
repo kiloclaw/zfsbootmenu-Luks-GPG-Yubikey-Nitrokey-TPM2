@@ -257,6 +257,10 @@ fn a_boot_chosen_in_the_menu_copies_the_key_from_its_key_source() {
 
     assert_eq!(machine.load(BootPath::Menu, Clear::No), Ok(()));
     assert_eq!(machine.fake.files.text(cached).as_deref(), Some("secret"));
+    let mode = zbm_platform::Files::metadata(&machine.fake.files, std::path::Path::new(cached))
+        .unwrap()
+        .mode;
+    assert_eq!(mode, 0o600, "the cached key is private");
     assert!(machine.ran(&format!("umount {}", mnt.display())));
     let mutexes = machine.fake.files.paths();
     assert!(

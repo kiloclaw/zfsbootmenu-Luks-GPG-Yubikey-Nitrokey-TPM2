@@ -58,7 +58,7 @@ impl<'a> Clevis<'a> {
             .run(&decrypt)
             .ok()
             .filter(|output| output.status.is_success())
-            .and_then(|output| output.secret)
+            .and_then(zbm_platform::Output::into_secret)
             .filter(|key| !key.is_empty())
     }
 }

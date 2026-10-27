@@ -4,7 +4,7 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 
 use super::dialogs::{Alert, Kind, alert};
 use crate::menu::model::{Model, Prompt, Screen};
@@ -82,8 +82,9 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &
 }
 
 /// The message: the device, the field or what is awaited, why, the tries
-/// left, the other methods, the keyboard.
-fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
+/// left, the other methods, the keyboard. What was typed, once revealed,
+/// is borrowed from the prompt's secret, not copied into a string.
+fn body<'a>(model: &Model, prompt: &'a Prompt) -> Vec<Line<'a>> {
     let theme = model.theme;
     let method = prompt.method;
     let known = model
@@ -100,13 +101,19 @@ fn body(model: &Model, prompt: &Prompt) -> Vec<Line<'static>> {
         Line::default(),
     ];
     let ask = if !method.is_typed() {
-        text!("unlock-waiting", method = text::get(method_name(method)))
+        Line::from(text!(
+            "unlock-waiting",
+            method = text::get(method_name(method))
+        ))
     } else if prompt.revealed {
-        format!("{}: {}", field_label(method), prompt.typed())
+        Line::from(vec![
+            Span::raw(format!("{}: ", field_label(method))),
+            Span::raw(prompt.typed()),
+        ])
     } else {
-        format!("{}:", field_label(method))
+        Line::from(format!("{}:", field_label(method)))
     };
-    body.push(Line::styled(ask, theme.style(Role::Title)));
+    body.push(ask.style(theme.style(Role::Title)));
     if let Some(notice) = &prompt.notice {
         body.push(Line::styled(
             notice.text().to_owned(),

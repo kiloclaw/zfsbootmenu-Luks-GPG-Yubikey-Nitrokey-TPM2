@@ -90,7 +90,7 @@ fn secrets_travel_through_pipes() {
         .run(
             &Command::new("sh")
                 .args(["-c", "tr a-z A-Z; echo done >&2"])
-                .stdin(Input::Secret(Secret::copy_from(b"hunter2")))
+                .stdin(Input::secret(Secret::copy_from(b"hunter2")))
                 .stdout(Stream::CaptureSecret)
                 .stderr(Stream::Capture),
         )
@@ -103,7 +103,7 @@ fn secrets_travel_through_pipes() {
     let missing = SystemRunner
         .run(
             &Command::new("zbm-no-such-program")
-                .stdin(Input::Secret(Secret::copy_from(b"x")))
+                .stdin(Input::secret(Secret::copy_from(b"x")))
                 .stdout(Stream::CaptureSecret)
                 .merge_stderr(),
         )
@@ -125,7 +125,7 @@ fn input_the_command_does_not_read_is_not_an_error() {
         .unwrap();
     assert!(output.status.is_success());
     let output = SystemRunner
-        .run(&Command::new("false").stdin(Input::Secret(Secret::copy_from(&[0; 1 << 20]))))
+        .run(&Command::new("false").stdin(Input::secret(Secret::copy_from(&[0; 1 << 20]))))
         .unwrap();
     assert_eq!(output.status.code(), Some(1));
 }
@@ -134,7 +134,7 @@ fn input_the_command_does_not_read_is_not_an_error() {
 fn a_secret_input_does_not_show_in_debug_output() {
     let command = Command::new("cryptsetup")
         .arg("open")
-        .stdin(Input::Secret(Secret::copy_from(b"hunter2")));
+        .stdin(Input::secret(Secret::copy_from(b"hunter2")));
     assert!(!format!("{command:?}").contains("hunter2"));
     let output = Output::with_secret(Status::exited(0), Secret::copy_from(b"key"));
     assert!(!format!("{output:?}").contains("key\""));

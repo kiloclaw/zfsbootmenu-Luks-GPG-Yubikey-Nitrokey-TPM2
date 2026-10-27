@@ -80,6 +80,18 @@ pub trait Files {
     /// The error of the operation, such as `NotFound` for a missing path.
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
 
+    /// Creates a new file for a secret, such as a cached key, and writes
+    /// `contents`: mode 0600 whatever the umask, and never over a file that
+    /// exists or through a symbolic link (`O_CREAT | O_EXCL`, which does not
+    /// follow a link at the last component), so that another process cannot
+    /// make the write land elsewhere.
+    ///
+    /// # Errors
+    ///
+    /// `AlreadyExists` when the path exists, even as a link, and the error of
+    /// the operation otherwise.
+    fn write_private(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
+
     /// Appends `contents` to a file, creating it if needed, with one write
     /// (`>> file`). Each write to `/dev/kmsg` becomes one log record.
     ///
@@ -243,6 +255,16 @@ impl Files for RealFiles {
         std::fs::write(path, contents)
     }
 
+    fn write_private(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?;
+        file.write_all(contents)
+    }
+
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .append(true)
@@ -390,6 +412,27 @@ mod tests {
         dir.write("full/entry", "");
         assert!(RealFiles.replace(&dir.join("full"), b"x").is_err());
         assert_eq!(RealFiles.read_dir(dir.path()).unwrap(), ["full", "kernels"]);
+    }
+
+    #[test]
+    fn private_files_are_new_mode_0600_and_never_through_a_link() {
+        let dir = TempDir::new("zbm-files");
+        let key = dir.join("key");
+        RealFiles.write_private(&key, b"secret").unwrap();
+        assert_eq!(RealFiles.read(&key).unwrap(), b"secret");
+        assert_eq!(RealFiles.metadata(&key).unwrap().mode, 0o600);
+        let again = RealFiles.write_private(&key, b"other").unwrap_err();
+        assert_eq!(again.kind(), io::ErrorKind::AlreadyExists);
+
+        dir.write("target", "kept");
+        std::os::unix::fs::symlink(dir.join("target"), dir.join("link")).unwrap();
+        std::os::unix::fs::symlink(dir.join("nowhere"), dir.join("dangling")).unwrap();
+        for link in ["link", "dangling"] {
+            let error = RealFiles.write_private(&dir.join(link), b"x").unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::AlreadyExists, "{link}");
+        }
+        assert_eq!(RealFiles.read(&dir.join("target")).unwrap(), b"kept");
+        assert!(!dir.join("nowhere").exists());
     }
 
     #[test]

@@ -1,6 +1,8 @@
 //! What front ends ask for ([`Action`]) and what they are told
 //! ([`Event`]).
 
+use std::sync::Arc;
+
 use zbm_platform::secret::Secret;
 use zbm_types::{Answer, DatasetName, ImportPolicy, PoolName, SnapshotName};
 
@@ -75,8 +77,9 @@ pub enum Action {
         volume: String,
         /// The method.
         method: Method,
-        /// The secret typed, for typed methods.
-        secret: Option<Secret>,
+        /// The secret typed, for typed methods; a clone of the action shares
+        /// it.
+        secret: Option<Arc<Secret>>,
     },
     /// Leave a volume locked, or try its next key method.
     SkipUnlock(String),

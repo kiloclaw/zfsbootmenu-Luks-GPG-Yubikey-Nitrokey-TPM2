@@ -75,9 +75,10 @@ mod tests {
         let mut model = Model::new(snapshot, Theme::new(Capabilities::FULL));
         assert!(!is_asking_secret(&model));
         let prompt = Prompt::new("luks-tank".into(), Method::Passphrase, None, None);
-        model.dialog = Some(Dialog::Unlock(prompt.clone()));
+        model.dialog = Some(Dialog::Unlock(prompt));
         assert!(is_asking_secret(&model));
-        model.dialog = Some(Dialog::Unlock(prompt.waiting(Some(10))));
+        let waiting = Prompt::new("luks-tank".into(), Method::Passphrase, None, None);
+        model.dialog = Some(Dialog::Unlock(waiting.waiting(Some(10))));
         assert!(!is_asking_secret(&model));
     }
 

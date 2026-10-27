@@ -33,7 +33,9 @@ fn unlock(method: Method, secret: &str) -> Action {
     Action::Unlock {
         volume: VOLUME.name.into(),
         method,
-        secret: Some(Secret::from_vec(secret.as_bytes().to_vec())),
+        secret: Some(std::sync::Arc::new(Secret::from_vec(
+            secret.as_bytes().to_vec(),
+        ))),
     }
 }
 

@@ -316,6 +316,15 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   `crash-test`, `menu-demo`, `secret-test`), when a crate depends on another with one, or when a workflow or packaging
   script sets features. `cargo xtask metrics` counts the calls that start an interactive shell, which may only go
   down until SE9's shell gate.
+- Secrets at the edges:
+  - a `Secret` is no longer `Clone`: every copy is an explicit `duplicate()`, and a command or a menu action that is
+    cloned shares the secret behind an `Arc` instead of copying it;
+  - secrets compare in constant time (`Secret::ct_eq`), so that timing a comparison tells nothing about a PIN;
+  - the unlock dialog shows a revealed passphrase from the secret's pages, without copying it into a string;
+  - the journal and the crash report keep only the fields of an allow-list; any other is written as `[redacted]`;
+  - key files cached from `org.zfsbootmenu:keysource` are new files of mode 0600 that no symbolic link can redirect,
+    and they are removed before `kexec`, so that their pages are freed (and zeroed, with `init_on_free=1`) instead
+    of passed to the booted kernel.
 
 ### The parity-only parts removed
 

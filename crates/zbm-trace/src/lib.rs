@@ -45,7 +45,10 @@ pub mod crash;
 mod journal;
 pub mod kmsg;
 
-pub use journal::{JournalLayer, LIMIT as JOURNAL_LIMIT, Lines, REDACTED, is_secret_field};
+pub use journal::{
+    JournalLayer, KEPT_FIELDS, LIMIT as JOURNAL_LIMIT, Lines, REDACTED, is_kept_field,
+    is_secret_field,
+};
 pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};
 pub use tracing::level_filters::LevelFilter;
 
@@ -74,18 +77,17 @@ pub struct Config {
 }
 
 /// The fields of events on standard error, as the default format writes them
-/// (`name=value`, the message alone), but with the value of a field named
-/// for a secret ([`is_secret_field`]) replaced by [`REDACTED`], as in the
-/// journal.
+/// (`name=value`, the message alone), but with the value of a field that is
+/// not kept ([`is_kept_field`]) replaced by [`REDACTED`], as in the journal.
 fn redacted_fields() -> impl for<'w> tracing_subscriber::fmt::FormatFields<'w> + 'static {
     use tracing_subscriber::field::MakeExt as _;
     tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
-        if is_secret_field(field.name()) {
-            write!(writer, "{field}={REDACTED}")
-        } else if field.name() == "message" {
+        if field.name() == "message" {
             write!(writer, "{value:?}")
-        } else {
+        } else if is_kept_field(field.name()) {
             write!(writer, "{field}={value:?}")
+        } else {
+            write!(writer, "{field}={REDACTED}")
         }
     })
     .delimited(" ")

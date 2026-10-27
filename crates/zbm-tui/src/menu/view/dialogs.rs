@@ -34,9 +34,9 @@ pub(super) enum Kind {
 }
 
 /// An alert: a title, a message, buttons.
-pub(super) struct Alert {
+pub(super) struct Alert<'a> {
     pub(super) title: String,
-    pub(super) body: Vec<Line<'static>>,
+    pub(super) body: Vec<Line<'a>>,
     pub(super) buttons: Vec<(String, Kind)>,
     pub(super) danger: bool,
 }
@@ -130,7 +130,7 @@ fn buttons(theme: Theme, buttons: &[(String, Kind)]) -> Line<'static> {
 }
 
 /// Draws `alert`; returns the area of its message.
-pub(super) fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Alert) -> Rect {
+pub(super) fn alert(theme: Theme, frame: &mut Frame<'_>, area: Rect, alert: Alert<'_>) -> Rect {
     let width = alert_width(area);
     let inner_width = width.saturating_sub(4);
     let body = wrapped(&alert.body, inner_width);

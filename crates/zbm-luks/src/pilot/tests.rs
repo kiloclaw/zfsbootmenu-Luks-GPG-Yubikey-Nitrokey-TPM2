@@ -91,7 +91,7 @@ fn a_key_file_reaches_cryptsetup_on_standard_input_only() {
     );
     assert_eq!(
         calls[0].get_stdin(),
-        &Input::Secret(Secret::copy_from(b"correct horse battery staple"))
+        &Input::secret(Secret::copy_from(b"correct horse battery staple"))
     );
     fake.assert_no_leak(b"correct horse battery staple");
 }

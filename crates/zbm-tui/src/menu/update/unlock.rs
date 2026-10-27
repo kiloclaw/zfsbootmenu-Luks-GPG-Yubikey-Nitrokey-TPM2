@@ -2,6 +2,8 @@
 //! keyboard layout typing is translated into, and sealing a TPM2 key again
 //! after the TPM kept it.
 
+use std::sync::Arc;
+
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use zbm_platform::secret::Secret;
 
@@ -36,7 +38,7 @@ pub(super) fn prompt(model: &mut Model, input: Input, mut prompt: Prompt) -> Vec
             prompt.revealed = !prompt.revealed;
         }
         Input::Intent(Intent::Primary) => {
-            let secret = prompt.method.is_typed().then_some(prompt.secret);
+            let secret = prompt.method.is_typed().then(|| Arc::new(prompt.secret));
             return vec![Action::Unlock {
                 volume: prompt.volume,
                 method: prompt.method,

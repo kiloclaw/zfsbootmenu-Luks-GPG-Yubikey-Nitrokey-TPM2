@@ -112,7 +112,7 @@ impl<'a> Fido2<'a> {
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Null);
         let output = self.runner.run(&assert).ok()?;
-        let hmac = last_line(output.secret.unwrap_or_default().expose());
+        let hmac = last_line(output.into_secret().unwrap_or_default().expose());
         (!hmac.is_empty()).then_some(hmac)
     }
 }

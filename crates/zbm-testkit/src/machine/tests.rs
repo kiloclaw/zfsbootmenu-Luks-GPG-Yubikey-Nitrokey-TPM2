@@ -24,7 +24,7 @@ fn cryptsetup(args: &[&str]) -> Command {
 /// `cryptsetup open` with `key` on standard input.
 fn open(device: &str, name: &str, key: &[u8]) -> Command {
     cryptsetup(&["open", "--type", "luks", "--key-file=-", device, name])
-        .stdin(Input::Secret(Secret::copy_from(key)))
+        .stdin(Input::secret(Secret::copy_from(key)))
 }
 
 #[test]

@@ -47,6 +47,9 @@ impl Files for Redirect {
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         RealFiles.write(self.map(path), contents)
     }
+    fn write_private(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        RealFiles.write_private(self.map(path), contents)
+    }
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         RealFiles.append(self.map(path), contents)
     }

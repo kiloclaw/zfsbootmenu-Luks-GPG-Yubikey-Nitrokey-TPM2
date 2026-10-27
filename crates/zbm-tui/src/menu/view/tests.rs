@@ -151,7 +151,7 @@ fn on_the_console_the_banner_leads_with_what_boots_and_when() {
 
 #[test]
 fn the_log_scrolls_to_its_last_entry_when_lines_wrap() {
-    let mut model = started(Capabilities::FULL).model().clone();
+    let mut model = started(Capabilities::FULL).into_model();
     model.snapshot.log.entries = (0..30)
         .map(|n| crate::menu::world::LogEntry {
             level: crate::menu::world::Level::Info,
@@ -169,7 +169,7 @@ fn the_log_scrolls_to_its_last_entry_when_lines_wrap() {
 
 #[test]
 fn the_command_line_wraps_where_the_cursor_goes() {
-    let mut model = started(Capabilities::FULL).model().clone();
+    let mut model = started(Capabilities::FULL).into_model();
     let environment = model.snapshot.environments[0].name.clone();
     // 78 characters on 76 columns: a word wrap would move all of `quietly`.
     let text = format!("{} quietly", "x".repeat(70));

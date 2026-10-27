@@ -40,6 +40,7 @@ const PREDICATE_WORDS: &[&str] = &[
     "contains",
     "enabled",
     "ends",
+    "eq",
     "equals",
     "exists",
     "fits",

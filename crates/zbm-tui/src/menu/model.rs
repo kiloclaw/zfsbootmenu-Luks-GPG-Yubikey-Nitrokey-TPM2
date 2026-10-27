@@ -98,8 +98,8 @@ pub enum Then {
     Focus(DatasetName, Screen),
 }
 
-/// A dialog over a view.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// A dialog over a view; not `Clone`: an unlock dialog holds a secret.
+#[derive(Debug, Eq, PartialEq)]
 pub enum Dialog {
     /// A volume asks for a secret, or waits for a device.
     Unlock(Prompt),
@@ -175,7 +175,7 @@ pub struct PaletteItem {
 }
 
 /// The menu.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Model {
     /// The machine.
     pub snapshot: Snapshot,

@@ -194,7 +194,7 @@ impl FakeMachine {
                 volume,
                 method,
                 secret,
-            } => self.unlock(&volume, method, secret.as_ref().map(Secret::expose)),
+            } => self.unlock(&volume, method, secret.as_deref().map(Secret::expose)),
             Action::SkipUnlock(volume) => {
                 self.set_volume(&volume, VolumeState::Skipped);
                 self.waiting = false;

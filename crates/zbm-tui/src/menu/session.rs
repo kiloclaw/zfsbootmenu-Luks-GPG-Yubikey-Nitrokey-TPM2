@@ -16,7 +16,7 @@ use super::world::Action;
 const START_TICKS: usize = 50;
 
 /// A menu on a machine: the fake one unless said otherwise.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Session<M = FakeMachine> {
     model: Option<Model>,
     machine: M,
@@ -59,6 +59,16 @@ impl<M: Machine> Session<M> {
     )]
     pub fn model(&self) -> &Model {
         self.model.as_ref().unwrap_or_else(|| unreachable!())
+    }
+
+    /// The menu, taken out of the session; the model is not `Clone`, as an
+    /// unlock dialog holds what was typed.
+    #[allow(
+        clippy::unreachable,
+        reason = "update takes the model by value; step puts it back before returning"
+    )]
+    pub fn into_model(mut self) -> Model {
+        self.model.take().unwrap_or_else(|| unreachable!())
     }
 
     fn step(&mut self, message: Message) {

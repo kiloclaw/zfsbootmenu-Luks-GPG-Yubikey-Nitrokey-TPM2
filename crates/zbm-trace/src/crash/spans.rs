@@ -8,7 +8,7 @@ use tracing::{Subscriber, field::Field, field::Visit};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 
-use crate::journal::{REDACTED, is_secret_field};
+use crate::journal::{REDACTED, is_kept_field};
 
 thread_local! {
     /// The spans this thread entered and has not left, outermost first.
@@ -41,10 +41,10 @@ struct Pairs(Vec<String>);
 impl Visit for Pairs {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         let mut pair = format!("{}=", field.name());
-        if is_secret_field(field.name()) {
-            pair.push_str(REDACTED);
-        } else {
+        if is_kept_field(field.name()) {
             let _ = write!(pair, "{value:?}");
+        } else {
+            pair.push_str(REDACTED);
         }
         self.0.push(pair);
     }

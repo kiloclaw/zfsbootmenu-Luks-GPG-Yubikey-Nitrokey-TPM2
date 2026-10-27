@@ -430,7 +430,12 @@ impl<'a> State<'a> {
     /// The cache of key files from the key source `dataset`
     /// (`.keys/<dataset>`).
     pub fn key_cache(&self, dataset: &str) -> PathBuf {
-        self.path(".keys").join(dataset)
+        self.key_caches().join(dataset)
+    }
+
+    /// The caches of key files of every key source (`.keys`).
+    pub fn key_caches(&self) -> PathBuf {
+        self.path(".keys")
     }
 
     /// Where an external hook root is mounted (`.external_hooks`).

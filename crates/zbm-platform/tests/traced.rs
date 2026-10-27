@@ -71,7 +71,7 @@ fn a_secret_on_standard_input_is_reported_by_kind_only() {
     let _serial = serial();
     let command = Command::new("cryptsetup")
         .args(["open", "--key-file=-", "/dev/sda2", "v"])
-        .stdin(Input::Secret(Secret::copy_from(b"hunter2")));
+        .stdin(Input::secret(Secret::copy_from(b"hunter2")));
 
     let lines = journal_of(&command, 0, Duration::ZERO);
 

@@ -191,7 +191,7 @@ impl PolicySession<'_, '_> {
             policy.push_str("+file:-");
             let mut value = Secret::copy_from(b"hex:");
             value.push_bytes(auth.expose());
-            stdin = Input::Secret(value);
+            stdin = Input::secret(value);
         }
         let unseal = self
             .tpm
@@ -203,7 +203,7 @@ impl PolicySession<'_, '_> {
         output
             .status
             .is_success()
-            .then(|| output.secret.unwrap_or_default())
+            .then(|| output.into_secret().unwrap_or_default())
     }
 }
 

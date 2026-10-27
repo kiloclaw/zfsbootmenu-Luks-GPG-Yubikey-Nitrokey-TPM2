@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pretty_assertions::assert_eq;
 use zbm_platform::secret::Secret;
 
@@ -37,7 +39,7 @@ fn a_locked_volume_stops_start_up_until_it_is_unlocked() {
     let wrong = machine.apply(Action::Unlock {
         volume: "luks-zroot-a".into(),
         method: Method::Tpm2Pin,
-        secret: Some(Secret::copy_from(b"0000")),
+        secret: Some(Arc::new(Secret::copy_from(b"0000"))),
     });
 
     assert_eq!(asked, 1);
@@ -61,7 +63,7 @@ fn three_wrong_pins_lock_the_tpm_and_offer_the_passphrase() {
         machine.apply(Action::Unlock {
             volume: "luks-zroot-a".into(),
             method: Method::Tpm2Pin,
-            secret: Some(Secret::copy_from(b"9999")),
+            secret: Some(Arc::new(Secret::copy_from(b"9999"))),
         })
     };
 

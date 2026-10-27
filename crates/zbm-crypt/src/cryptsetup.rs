@@ -161,7 +161,7 @@ impl<'a> Cryptsetup<'a> {
         }
         let (key_file, stdin) = match key {
             KeySource::File(path) => (path, Input::Null),
-            KeySource::Secret(secret) => ("-", Input::Secret(secret.clone())),
+            KeySource::Secret(secret) => ("-", Input::secret(secret.duplicate())),
         };
         let key_option = format!("--key-file={key_file}");
         let command = self
@@ -219,9 +219,9 @@ impl<'a> Cryptsetup<'a> {
         pin: Option<&Secret>,
     ) -> Result<(), CryptError> {
         let stdin = pin.map_or(Input::Null, |pin| {
-            let mut line = pin.clone();
+            let mut line = pin.duplicate();
             line.push(b'\n');
-            Input::Secret(line)
+            Input::secret(line)
         });
         let command = self
             .command(&["open", "--type", "luks", "--token-only", "--token-id", id])
@@ -260,7 +260,7 @@ impl<'a> Cryptsetup<'a> {
         }
         let command = command
             .args([mapping.device().as_str(), mapping.name().as_str()])
-            .stdin(Input::Secret(key.clone()));
+            .stdin(Input::secret(key.duplicate()));
         match self.run(command, mapping.device(), mapping.name()) {
             Ok(()) => Ok(mapping.into_state()),
             Err(error) => Err(Failed { mapping, error }),
@@ -349,7 +349,7 @@ mod tests {
             calls[0].display(),
             "cryptsetup open --type luks --key-file=- /dev/sda2 cryptroot"
         );
-        assert_eq!(calls[0].get_stdin(), &Input::Secret(key()));
+        assert_eq!(calls[0].get_stdin(), &Input::secret(key()));
         assert!(!calls[0].display().contains("correct horse"));
     }
 
@@ -472,7 +472,7 @@ mod tests {
             "cryptsetup open --type luks --key-file=/key /dev/sda2 root"
         );
         assert_eq!(*calls[0].get_stdin(), Input::Null);
-        assert_eq!(*calls[1].get_stdin(), Input::Secret(key()));
+        assert_eq!(*calls[1].get_stdin(), Input::secret(key()));
         assert_eq!(
             calls[1].get_env(),
             [("DM_DISABLE_UDEV".into(), Some("1".into()))]

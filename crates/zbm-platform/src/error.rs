@@ -143,7 +143,7 @@ mod tests {
     fn failed_commands_name_the_command_but_not_its_input() {
         let command = Command::new("cryptsetup")
             .args(["open", "--key-file=-", "/dev/vda2", "luks-1"])
-            .stdin(Input::Secret(Secret::copy_from(b"hunter2")));
+            .stdin(Input::secret(Secret::copy_from(b"hunter2")));
         let mut output = Output::new(Status::exited(2), "");
         output.stderr = b"No key available with this passphrase.\n".to_vec();
         let error = Error::failed(&command, &output);
