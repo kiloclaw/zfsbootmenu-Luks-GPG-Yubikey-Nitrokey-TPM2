@@ -482,4 +482,6 @@ impl KexecLoad<'_> {
 }
 
 #[cfg(test)]
+mod devicetree_tests;
+#[cfg(test)]
 mod tests;
