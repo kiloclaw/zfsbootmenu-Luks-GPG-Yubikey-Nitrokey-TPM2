@@ -310,7 +310,7 @@ fn a_restart_goes_to_the_recovery_loop() {
     for stage in Stage::ALL {
         state.finish_stage(stage.as_str()).unwrap();
     }
-    state.set_active(77).unwrap();
+    let _other = state.take_active(77).unwrap().unwrap();
     let resume = Modes {
         console: true,
         resume: true,

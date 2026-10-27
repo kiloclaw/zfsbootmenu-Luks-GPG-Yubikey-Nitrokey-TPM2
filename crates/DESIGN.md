@@ -256,7 +256,7 @@ error never turns into a busy loop.
 The processes share state only through files under `/zfsbootmenu` (`BASE`), with the legacy layout and formats.
 `zbm-state` owns the layout: no other code builds these paths. Keeping the layout has a cost, since files are slower
 than memory, but it is small next to the `zfs` commands the runtime runs, and it buys three things: users and
-documentation rely on some of these paths (remote access removes `active`, the GRUB migration guide works in
+documentation rely on some of these paths (remote access ends the menu named in `active`, the GRUB migration guide works in
 `environments/<dataset>/mnt`, `zluks(8)` documents the LUKS files); a hook or a user in the recovery shell sees what
 they see today; and short-lived callback processes need no server to ask.
 
@@ -265,7 +265,7 @@ they see today; and short-lived callback processes need no server to ask.
 | `ready` | dracut's `initqueue/settled` hook | dracut's `initqueue/finished` hook | empty |
 | `initialized` | start-up, when done | menu | empty |
 | `.stages` | start-up, after each stage (new, replaces the permission bits of `/libexec/init.d`) | start-up | one stage name per line |
-| `active` | menu, at start; removed at exit | menu (takeover), start-up (before the automatic boot), users | process ID and newline |
+| `active`, `active.lock` | menu, at start; `active` removed at exit | menu (takeover), start-up (before the automatic boot), users | process ID and newline; a file locked with `flock` while a menu runs |
 | `bootfs` | pool import; menu (`CTRL+D`) | start-up, menu | dataset name and newline |
 | `degraded` | pool import, re-import after the recovery shell | read-write imports | one pool per line |
 | `spl_hostid` | pool import, when a host ID matched | host ID decisions | host ID, no newline |
@@ -276,17 +276,20 @@ they see today; and short-lived callback processes need no server to ask.
 | `environments/<dataset>/kernels` | kernel discovery | kernel selection, kernel screen, previews | `dataset<TAB>kernel<TAB>initramfs` lines |
 | `environments/<dataset>/kcl/<kernel>.kcl` | kernel discovery, command line cache | command line assembly | command line |
 | `environments/<dataset>/mnt` | mounting a boot environment | users | mount point |
-| `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files |
-| `.keys/<key source>/.cachemutex.<pid>` | key caching, while it runs | key caching | empty |
+| `.keys/<key source>/<path>` | key caching | key loading | copies of ZFS key files, mode 0600; removed before `kexec` |
+| `.keys/<key source>/.lock` | key caching, while it runs | key caching | empty; locked with `flock` |
 | `.external_hooks` | external hook root | hook import | mount point |
 | `have_errors`, `have_warnings`, `errors_since` | logging, error printer | previews, recovery shell, `zlogtail` | empty; time stamp |
-| `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | teardown hook, `zluks`, retries | `name<TAB>device<TAB>auto` lines; a lock directory; one device per line |
+| `luks-mappings`, `luks-mappings.lock`, `luks-skipped` | LUKS unlocking | teardown hook, `zluks`, retries | `name<TAB>device<TAB>auto` lines; a file locked with `flock`; one device per line |
 
 Files that other processes may read while they are rewritten (`bootfs`, `bootenvs`, `kernels`, `.kcl` files) are
 written to a temporary name and renamed, so a reader sees the old or the new contents, never a partial file. The
 legacy code writes them in place; nothing can observe the difference except a reader that would have seen a partial
-file. `luks-mappings` keeps its lock directory; `degraded` and `luks-skipped` are appended to without a lock, as in the
-legacy code.
+file. The locks of the state directory are `flock` locks on files that stay (`luks-mappings.lock`, `active.lock`, a key
+cache's `.lock`), taken through `Files::lock`: the kernel lets go of a lock when its process ends, killed or not, so no
+lock is left behind and none is taken anyway after a wait, as the legacy code's lock directory was after five seconds;
+`active` holds the menu's PID only while `active.lock` is held. `degraded` and `luks-skipped` are appended to without a
+lock, as in the legacy code.
 
 Within a process, data read from ZFS lives in the data model and is read again at the points where the legacy code
 reads it again (each time a screen is drawn), so the Rust runtime sees changes made from a hook or the recovery shell

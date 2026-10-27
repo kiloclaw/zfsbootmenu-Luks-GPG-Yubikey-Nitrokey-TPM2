@@ -15,7 +15,24 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use zbm_platform::error::{Error, Result};
-use zbm_platform::files::Files;
+use zbm_platform::files::{FileLock, Files, LockWait};
+
+/// The lock of the menu: one menu runs at a time.
+const ACTIVE_LOCK: &str = "active.lock";
+
+/// The lock of the menu, held by the menu that runs; when it is dropped, the
+/// PID in `active` goes first, then the lock.
+pub struct Active<'a> {
+    files: &'a dyn Files,
+    pid_file: PathBuf,
+    _lock: FileLock,
+}
+
+impl Drop for Active<'_> {
+    fn drop(&mut self) {
+        let _ = self.files.remove_file(&self.pid_file);
+    }
+}
 
 /// The state directory of the boot image (`BASE`).
 pub const BASE: &str = "/zfsbootmenu";
@@ -131,24 +148,78 @@ impl<'a> State<'a> {
         self.append(".stages", format!("{stage}\n").as_bytes())
     }
 
-    /// Whether a menu holds the lock (`active`).
+    /// Whether a menu holds the lock of the menu (`active.lock`). The kernel
+    /// lets go of it when that menu's process ends, however it ends.
     pub fn is_active(&self) -> bool {
-        self.files.exists(&self.path("active"))
+        self.files.is_locked(&self.path(ACTIVE_LOCK))
     }
 
-    /// The process ID of the menu that holds the lock, if it can be read.
+    /// The process ID of the menu that holds the lock, while one does: it is
+    /// written in `active` once the lock is taken, and removed before it is
+    /// released, so a PID read without the lock held is never trusted.
     pub fn active_pid(&self) -> Option<u32> {
+        if !self.is_active() {
+            return None;
+        }
         self.read_line("active")?.parse().ok()
     }
 
-    /// Takes the lock for the menu with process ID `pid` (`echo "$$" > active`).
-    pub fn set_active(&self, pid: u32) -> Result<()> {
-        self.write("active", format!("{pid}\n").as_bytes())
+    /// Takes the lock of the menu for the process `pid`, unless another
+    /// menu holds it (`None`); held until the result is dropped.
+    ///
+    /// # Errors
+    ///
+    /// When the lock or `active` cannot be written.
+    pub fn take_active(&self, pid: u32) -> Result<Option<Active<'a>>> {
+        let path = self.path(ACTIVE_LOCK);
+        let lock = self
+            .files
+            .lock(&path, LockWait::Try)
+            .map_err(|error| Error::io(format!("unable to lock {}", path.display()), error))?;
+        let Some(lock) = lock else {
+            return Ok(None);
+        };
+        let held = Active {
+            files: self.files,
+            pid_file: self.path("active"),
+            _lock: lock,
+        };
+        self.write("active", format!("{pid}\n").as_bytes())?;
+        Ok(Some(held))
     }
 
-    /// Releases the lock (`rm -f active`).
-    pub fn clear_active(&self) {
-        self.remove("active");
+    /// Takes the lock of the record of the LUKS mappings
+    /// (`luks-mappings.lock`), waiting for the session (the console or SSH)
+    /// that holds it: a holder that dies lets go of it, so the wait ends.
+    ///
+    /// # Errors
+    ///
+    /// When the lock cannot be taken.
+    pub fn lock_mappings(&self) -> Result<FileLock> {
+        let path = self.path("luks-mappings.lock");
+        self.lock_path(&path, LockWait::Block)?.ok_or_else(|| {
+            let held = std::io::Error::from(std::io::ErrorKind::WouldBlock);
+            Error::io(format!("unable to lock {}", path.display()), held)
+        })
+    }
+
+    /// Takes the lock of the cache of key files from the key source
+    /// `dataset`, unless it is held (`None`): by another process caching the
+    /// same key, or by this one, when the key source's own key comes from
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// When the lock cannot be taken.
+    pub fn try_lock_key_cache(&self, dataset: &str) -> Result<Option<FileLock>> {
+        self.lock_path(&self.key_cache(dataset).join(".lock"), LockWait::Try)
+    }
+
+    /// The lock of the file `path`.
+    fn lock_path(&self, path: &Path, wait: LockWait) -> Result<Option<FileLock>> {
+        self.files
+            .lock(path, wait)
+            .map_err(|error| Error::io(format!("unable to lock {}", path.display()), error))
     }
 
     /// The process ID of the console on the display (`zbm console`,

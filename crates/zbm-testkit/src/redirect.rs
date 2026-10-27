@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use zbm_platform::files::{Files, Metadata, RealFiles};
+use zbm_platform::files::{FileLock, Files, LockWait, Metadata, RealFiles};
 
 /// Real files, with some absolute paths moved elsewhere.
 #[derive(Clone)]
@@ -49,6 +49,12 @@ impl Files for Redirect {
     }
     fn write_private(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         RealFiles.write_private(self.map(path), contents)
+    }
+    fn lock(&self, path: &Path, wait: LockWait) -> io::Result<Option<FileLock>> {
+        RealFiles.lock(self.map(path), wait)
+    }
+    fn is_locked(&self, path: &Path) -> bool {
+        RealFiles.is_locked(self.map(path))
     }
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         RealFiles.append(self.map(path), contents)

@@ -329,6 +329,11 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   its responses (`tpm2_startauthsession -c`, `tpm2_sessionconfig --enable-encrypt`), so a device on the bus of a
   discrete TPM no longer reads the unsealed key; a session that cannot encrypt is not used. Images carry
   `tpm2_sessionconfig`.
+- The state directory's locks are `flock` locks, which the kernel releases when their process ends, killed or not:
+  the record of LUKS mappings (`luks-mappings.lock`, a file now, which a session waits for instead of taking anyway
+  after five seconds), the running menu (`active.lock`; `active` holds its PID only while it runs, so a PID left by a
+  killed menu is never signalled) and each key source's cache (`.keys/<source>/.lock`). In Rust images, removing
+  `/zfsbootmenu/active` no longer lets a second menu start; end the first one instead (`docs/general/remote-access.rst`).
 
 ### The parity-only parts removed
 

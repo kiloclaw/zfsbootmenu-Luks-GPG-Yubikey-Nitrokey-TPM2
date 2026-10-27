@@ -139,7 +139,14 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
             != 1;
     }
     checks.check("never recorded twice", !duplicate);
-    checks.check("no lock left", !c.base.join("luks-mappings.lock").exists());
+    // The lock file stays; what may not stay is a holder of its lock.
+    checks.check(
+        "no lock left",
+        !zbm_platform::Files::is_locked(
+            &zbm_platform::RealFiles,
+            &c.base.join("luks-mappings.lock"),
+        ),
+    );
 
     checks.case("mapping names are compared as text, not as patterns");
     let c = case(zfs);

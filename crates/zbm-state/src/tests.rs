@@ -19,7 +19,11 @@ fn markers_and_locks() {
 
     assert!(!state.is_active());
     assert_eq!(state.active_pid(), None);
-    state.set_active(1234).unwrap();
+    let active = state.take_active(1234).unwrap().unwrap();
+    assert!(
+        state.take_active(99).unwrap().is_none(),
+        "one menu at a time"
+    );
     assert_eq!(files.text("/zfsbootmenu/active").unwrap(), "1234\n");
     assert_eq!(state.active_pid(), Some(1234));
     files.file("/zfsbootmenu/active", "  77  \nextra\n");
@@ -27,9 +31,19 @@ fn markers_and_locks() {
     files.file("/zfsbootmenu/active", "garbage\n");
     assert!(state.is_active());
     assert_eq!(state.active_pid(), None);
-    state.clear_active();
-    state.clear_active();
+    drop(active);
     assert!(!state.is_active());
+    assert_eq!(files.text("/zfsbootmenu/active"), None);
+    // A PID without the lock held is a menu that is gone.
+    files.file("/zfsbootmenu/active", "77\n");
+    assert_eq!(state.active_pid(), None);
+    let mappings = state.lock_mappings().unwrap();
+    assert!(state.lock_mappings().is_err(), "the fake does not wait");
+    drop(mappings);
+    files.dir("/zfsbootmenu/.keys/tank/keys");
+    let cache = state.try_lock_key_cache("tank/keys").unwrap();
+    assert!(cache.is_some());
+    assert!(state.try_lock_key_cache("tank/keys").unwrap().is_none());
 
     assert_eq!(state.console_pid(), None);
     state.set_console(42).unwrap();

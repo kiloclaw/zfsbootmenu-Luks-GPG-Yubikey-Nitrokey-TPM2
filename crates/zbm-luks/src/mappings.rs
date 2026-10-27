@@ -6,10 +6,8 @@
 //! `zluks` close what it lists. `luks-skipped` lists a device per line.
 
 use std::path::Path;
-use std::time::Duration;
 
-use zbm_platform::clock::Clock;
-use zbm_platform::files::Files;
+use zbm_platform::files::{Files, LockWait};
 
 use crate::device::is_open;
 use crate::unlocker::Unlocker;
@@ -92,22 +90,15 @@ impl Origin {
 #[derive(Clone, Copy)]
 pub struct MappingStore<'a> {
     files: &'a dyn Files,
-    clock: &'a dyn Clock,
     mappings: &'a Path,
     skipped: &'a Path,
 }
 
 impl<'a> MappingStore<'a> {
     /// The store of the files `mappings` and `skipped`.
-    pub fn new(
-        files: &'a dyn Files,
-        clock: &'a dyn Clock,
-        mappings: &'a Path,
-        skipped: &'a Path,
-    ) -> MappingStore<'a> {
+    pub fn new(files: &'a dyn Files, mappings: &'a Path, skipped: &'a Path) -> MappingStore<'a> {
         MappingStore {
             files,
-            clock,
             mappings,
             skipped,
         }
@@ -127,10 +118,11 @@ impl<'a> MappingStore<'a> {
         }
     }
 
-    /// Runs `work` holding the lock of the record (an atomic `mkdir`), which
-    /// the console and SSH sessions share; after five seconds the lock
-    /// counts as stale and `work` runs anyway.
-    fn locked<T>(&self, work: impl FnOnce() -> T) -> T {
+    /// Runs `work` holding the lock of the record (`flock`), which the
+    /// console and SSH sessions share; it waits for the session holding it,
+    /// which lets go of it when it ends, however it ends. `None`, and `work`
+    /// does not run, when the lock cannot be taken.
+    fn locked<T>(&self, work: impl FnOnce() -> T) -> Option<T> {
         let path = self.mappings;
         if let Some(parent) = path.parent() {
             let _ = self.files.create_dir_all(parent);
@@ -138,17 +130,14 @@ impl<'a> MappingStore<'a> {
         let mut lock = path.as_os_str().to_owned();
         lock.push(".lock");
         let lock = Path::new(&lock);
-        let mut tries = 0;
-        while self.files.create_dir(lock).is_err() {
-            tries += 1;
-            if tries >= 50 {
-                break;
+        match self.files.lock(lock, LockWait::Block) {
+            Ok(Some(_held)) => Some(work()),
+            Ok(None) => None,
+            Err(error) => {
+                zbm_trace::error!("unable to lock {}: {error}", lock.display());
+                None
             }
-            self.clock.sleep(Duration::from_millis(100));
         }
-        let done = work();
-        let _ = self.files.remove_dir(lock);
-        done
     }
 
     /// Records a mapping ZFSBootMenu opened, once. Concurrent sessions
@@ -221,12 +210,7 @@ impl Unlocker<'_> {
     /// The store of the mappings and skipped volumes of the settings.
     pub fn mappings(&self) -> MappingStore<'_> {
         let settings = self.settings();
-        MappingStore::new(
-            self.system().files,
-            self.system().clock,
-            &settings.mappings,
-            &settings.skipped,
-        )
+        MappingStore::new(self.system().files, &settings.mappings, &settings.skipped)
     }
 
     /// Whether a retry leaves `device` alone because it is open or skipped.
@@ -242,7 +226,6 @@ mod tests {
     use crate::device::OpenCheck;
     use crate::testing::{NoPrompts, legacy_luks, log};
     use crate::unlocker::{Luks, Settings};
-    use zbm_platform::clock::Clock;
     use zbm_platform::files::Files;
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::shell_quote;
@@ -297,7 +280,7 @@ mod tests {
         assert!(
             !fake
                 .files
-                .exists(Path::new("/zfsbootmenu/luks-mappings.lock"))
+                .is_locked(Path::new("/zfsbootmenu/luks-mappings.lock"))
         );
     }
 
@@ -323,14 +306,25 @@ mod tests {
         assert!(
             !fake
                 .files
-                .exists(Path::new("/zfsbootmenu/luks-mappings.lock"))
+                .is_locked(Path::new("/zfsbootmenu/luks-mappings.lock"))
         );
     }
 
     #[test]
-    fn a_stale_lock_is_waited_for_and_ignored() {
+    fn the_record_is_not_changed_without_its_lock() {
         let fake = FakeSystem::new();
-        fake.files.dir("/zfsbootmenu/luks-mappings.lock");
+        fake.files.dir("/zfsbootmenu");
+        // Another session holds it; the real lock waits for that one, which
+        // lets go when it ends; the fake fails instead of waiting.
+        let lock = Path::new("/zfsbootmenu/luks-mappings.lock");
+        let other = fake.files.lock(lock, LockWait::Try).unwrap();
+        with_session(&fake, |session| {
+            session
+                .mappings()
+                .record("a", "/dev/sda", Origin::Configured);
+        });
+        assert_eq!(fake.files.text("/zfsbootmenu/luks-mappings"), None);
+        drop(other);
         with_session(&fake, |session| {
             session
                 .mappings()
@@ -339,13 +333,6 @@ mod tests {
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
             "a\t/dev/sda\t0\n"
-        );
-        assert_eq!(fake.clock.now(), Duration::from_millis(4900));
-        // The stale lock is removed with the record.
-        assert!(
-            !fake
-                .files
-                .exists(Path::new("/zfsbootmenu/luks-mappings.lock"))
         );
     }
 

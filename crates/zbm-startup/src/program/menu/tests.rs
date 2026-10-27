@@ -4,6 +4,7 @@ use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_platform::exec::{Output, Status};
 use zbm_platform::files::Files;
+use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
@@ -145,7 +146,8 @@ fn the_menu_waits_for_start_up_and_runs_it_when_asked() {
 fn another_menu_is_asked_to_end_and_waited_for() {
     let fake = started();
     let state = State::new(&fake.files, "/zfsbootmenu");
-    state.set_active(77).unwrap();
+    // The other menu, 77, holds the lock.
+    let _other = state.take_active(77).unwrap().unwrap();
     fake.files.file("/proc/77/task/77/children", "78\n");
     fake.console.keys(&[0x1b]);
     let startup = Startup::new(fake.system(), &conf());
@@ -165,11 +167,12 @@ fn another_menu_is_asked_to_end_and_waited_for() {
 }
 
 #[test]
-fn a_lock_whose_process_is_gone_is_stale() {
+fn the_pid_a_killed_menu_left_is_not_trusted() {
     let fake = started();
     let state = State::new(&fake.files, "/zfsbootmenu");
-    // The menu that held it was killed (SIGKILL) and left it.
-    state.set_active(77).unwrap();
+    // The menu was killed (SIGKILL): the kernel let go of its lock, and its
+    // PID stayed in `active`.
+    fake.files.file("/zfsbootmenu/active", "77\n");
     fake.processes.end(77);
     let startup = Startup::new(fake.system(), &conf());
     let mut menu = Recorded::default();
@@ -309,7 +312,7 @@ fn after_another_instance_was_seen_nothing_boots_by_itself() {
         state.finish_stage(stage.as_str()).unwrap();
     }
     fake.files.file_with_mode(MENU, "", 0o755);
-    state.set_active(77).unwrap();
+    let _other = state.take_active(77).unwrap().unwrap();
     let console = Modes {
         console: true,
         ..Modes::default()

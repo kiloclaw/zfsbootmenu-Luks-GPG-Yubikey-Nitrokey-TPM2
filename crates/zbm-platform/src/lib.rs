@@ -71,7 +71,7 @@ pub use console::{Console, NoConsole, Size, Terminal};
 pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
 pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner};
-pub use files::{FileKind, Files, Metadata, RealFiles};
+pub use files::{FileKind, FileLock, Files, LockWait, Metadata, RealFiles};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use quiet::QuietRunner;

@@ -17,6 +17,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use rustix::fs::FlockOperation;
+
+/// `flock` of `file`, again when a signal interrupted it; whether the lock
+/// was taken, `false` when a non-blocking `operation` found it held.
+fn flock_retrying(file: &std::fs::File, operation: FlockOperation) -> io::Result<bool> {
+    loop {
+        match rustix::fs::flock(file, operation) {
+            Ok(()) => return Ok(true),
+            Err(rustix::io::Errno::INTR) => {}
+            Err(rustix::io::Errno::WOULDBLOCK) => return Ok(false),
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
 /// What kind of file a path names, after following symbolic links.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FileKind {
@@ -52,6 +67,38 @@ impl Metadata {
     /// test means for the root user that runs it.
     pub fn is_executable(&self) -> bool {
         self.mode & 0o111 != 0
+    }
+}
+
+/// How [`Files::lock`] waits for a lock another holder has.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LockWait {
+    /// Until the other holder lets go.
+    Block,
+    /// Not at all: the lock is not taken.
+    Try,
+}
+
+/// An advisory lock on a file (`flock`), held until it is dropped. The
+/// kernel releases it when its process ends, killed or not, so a lock is
+/// never left behind by a process that is gone.
+pub struct FileLock {
+    _held: Box<dyn std::any::Any + Send>,
+}
+
+impl FileLock {
+    /// A lock that `held` keeps until it is dropped: the open file of a real
+    /// lock, or the entry of a fake one.
+    pub fn new(held: impl std::any::Any + Send) -> FileLock {
+        FileLock {
+            _held: Box::new(held),
+        }
+    }
+}
+
+impl std::fmt::Debug for FileLock {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("FileLock")
     }
 }
 
@@ -91,6 +138,19 @@ pub trait Files {
     /// `AlreadyExists` when the path exists, even as a link, and the error of
     /// the operation otherwise.
     fn write_private(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
+
+    /// Takes the exclusive lock of the file `path`, created with mode 0600
+    /// when it is missing; waits for another holder as `wait` says.
+    ///
+    /// # Errors
+    ///
+    /// The error of opening or locking the file. With [`LockWait::Try`], a
+    /// lock that another holder has is `Ok(None)`, not an error.
+    fn lock(&self, path: &Path, wait: LockWait) -> io::Result<Option<FileLock>>;
+
+    /// Whether another holder has the lock of the file `path`; a file that
+    /// does not exist is not locked.
+    fn is_locked(&self, path: &Path) -> bool;
 
     /// Appends `contents` to a file, creating it if needed, with one write
     /// (`>> file`). Each write to `/dev/kmsg` becomes one log record.
@@ -265,6 +325,30 @@ impl Files for RealFiles {
         file.write_all(contents)
     }
 
+    fn lock(&self, path: &Path, wait: LockWait) -> io::Result<Option<FileLock>> {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(path)?;
+        let operation = match wait {
+            LockWait::Block => FlockOperation::LockExclusive,
+            LockWait::Try => FlockOperation::NonBlockingLockExclusive,
+        };
+        Ok(flock_retrying(&file, operation)?.then(|| FileLock::new(file)))
+    }
+
+    fn is_locked(&self, path: &Path) -> bool {
+        let Ok(file) = std::fs::File::open(path) else {
+            return false;
+        };
+        // A shared lock is refused only while someone holds the exclusive one.
+        flock_retrying(&file, FlockOperation::NonBlockingLockShared).is_ok_and(|taken| !taken)
+    }
+
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .append(true)
@@ -433,6 +517,20 @@ mod tests {
         }
         assert_eq!(RealFiles.read(&dir.join("target")).unwrap(), b"kept");
         assert!(!dir.join("nowhere").exists());
+    }
+
+    #[test]
+    fn a_lock_is_held_until_it_is_dropped_and_shows_to_others() {
+        let dir = TempDir::new("zbm-files");
+        let path = dir.join("state.lock");
+        assert!(!RealFiles.is_locked(&path));
+        let held = RealFiles.lock(&path, LockWait::Block).unwrap().unwrap();
+        assert_eq!(RealFiles.metadata(&path).unwrap().mode, 0o600);
+        assert!(RealFiles.is_locked(&path));
+        assert!(RealFiles.lock(&path, LockWait::Try).unwrap().is_none());
+        drop(held);
+        assert!(!RealFiles.is_locked(&path));
+        assert!(RealFiles.lock(&path, LockWait::Try).unwrap().is_some());
     }
 
     #[test]

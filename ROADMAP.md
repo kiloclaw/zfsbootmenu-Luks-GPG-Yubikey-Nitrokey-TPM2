@@ -572,7 +572,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | PM2 | The ports become `Send + Sync`, the fakes use `Mutex`; `spawn_traced` carries tracing and the kernel log into workers; logging per process, not per thread | scal | M | PM1 |
 | PM3 | One signal facility: `signalfd` and `pidfd` over `rustix`, a typed `SignalSet`; the global "last signal" slot and `signal-hook` go | stab | S | |
 | PM4 | The reactor's parts in `zbm_platform::event`: `Mailbox`, `Reactor`, `CancelToken`, `MemoryBudget`, time-outs through `pidfd` instead of a watchdog thread per command | scal, perf | M | PM2, PM3 |
-| PM5 | `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
+| PM5 | Done: `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
 | PM6 | The supervisor anew: an event loop over `signalfd` and `pidfd`, a table of services with restart policies and back-off, `setsid` and the controlling terminal in `pre_exec` (C89) | stab | M | PM3 |
 | PM7 | The console's control socket (C91): release, reattach, layout, font and status as typed requests with replies; the secret flag in band | stab | S/M | |
 | PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`); actions can be cancelled; an action is a plan of steps, each with the command its adapter would run, for the menu's dry run | perf, stab | L | PM4, DM2 |
@@ -639,13 +639,13 @@ code) and what it needs first. Code in the images changes with most items, so th
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
 | SE1 | The threat model gains attackers A6 (the network: SSH, tailscale) and A7 (the supply chain), the logs and reports saved on the ESP, and a diagram of zones and data flows | sec | S | |
-| SE2 | `overflow-checks` in release builds; actions pinned by commit, the container's base by digest; the checks for the shell gate, test features and `zbm.console_mirror` | sec | S | |
-| SE3 | The edges of secrets: the masked field renders from the `Secret`, `Secret::ct_eq`, no implicit `Clone`, the journal's allow-list, the key cache written safely and removed before `kexec` | sec | S | |
+| SE2 | Done: `overflow-checks` in release builds; actions pinned by commit, the container's base by digest; the checks for the shell gate, test features and `zbm.console_mirror` | sec | S | |
+| SE3 | Done: The edges of secrets: the masked field renders from the `Secret`, `Secret::ct_eq`, no implicit `Clone`, the journal's allow-list, the key cache written safely and removed before `kexec` | sec | S | |
 | SE4 | The strict lints (no panics) for `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state`, the crates that run as PID 1 or parse hostile input | stab, sec | M | |
 | SE5 | `Untrusted<T>` and `Printable`; fuzz targets for files in `/boot` and `os-release`, hostile names through `view`, the message decoders, key input and the console's replies | sec | M | |
 | SE6 | `zbm-sys` on `rustix`, with a sanitizer job | sec | M | |
 | SE7 | The RustCrypto crates replace `zbm-luks/src/crypto.rs`; `argon2` for the PIN of #8 | sec | S/M | decision 1 entry |
-| SE8 | Salted, encrypted TPM sessions with today's `tpm2-tools` (a salt key for `tpm2_startauthsession`, `tpm2_sessionconfig --enable-encrypt`) | sec | S | |
+| SE8 | Done: Salted, encrypted TPM sessions with today's `tpm2-tools` (a salt key for `tpm2_startauthsession`, `tpm2_sessionconfig --enable-encrypt`) | sec | S | |
 | SE9 | `RecoveryPolicy` and the `ShellGate` typestate, then the locked menu (#8) | sec | M | PM6 |
 | SE10 | Measured boot (#10), `kexec_file_load` under lockdown failing closed, and the strict defaults after a TPM-only unlock | sec | M | SB4 |
 | SE11 | The keyholder process (with SB10), the unprivileged menu and the sandboxed console: sandbox profiles as a sealed trait, `Command::sandboxed(profile)` | sec | L | PM9, UI6 |
@@ -739,7 +739,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, UI13, PM5, VE1, CD1, CD2, CD3.
+- SE1, SE7, SB1, DM1, UI1, UI2, UI13, VE1, CD1, CD2, CD3; SE2, SE3, SE8 and PM5 are done (27 October 2026; their
+  VM runs are left).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items; their VM runs are left.
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every

@@ -3997,6 +3997,7 @@ name = "zbm-platform"
 version = "0.1.0"
 dependencies = [
  "pretty_assertions",
+ "rustix",
  "serde_json",
  "tracing",
  "tracing-subscriber",

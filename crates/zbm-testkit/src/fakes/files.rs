@@ -80,9 +80,14 @@ const MAX_LINKS: usize = 40;
 /// the fake runner) can change the files the code under test sees, and a
 /// tracing layer of another thread can write the kernel log. The state is
 /// behind mutexes, which no method holds while it calls another.
+///
+/// Locks are a table of the files locked: a test holds one, as another
+/// process would, by taking it itself. A blocking lock of a file that is
+/// held fails with `WouldBlock` instead of waiting for ever.
 #[derive(Clone)]
 pub struct FakeFiles {
     nodes: Arc<Mutex<BTreeMap<PathBuf, Node>>>,
+    locks: Arc<Mutex<std::collections::BTreeSet<PathBuf>>>,
     operations: Arc<Mutex<Vec<FileOperation>>>,
     failures: Arc<Mutex<Vec<(PathBuf, io::ErrorKind)>>>,
     ticks: Arc<AtomicU64>,
@@ -132,6 +137,7 @@ impl FakeFiles {
         );
         FakeFiles {
             nodes: Arc::new(Mutex::new(nodes)),
+            locks: Arc::new(Mutex::new(std::collections::BTreeSet::new())),
             operations: Arc::new(Mutex::new(Vec::new())),
             failures: Arc::new(Mutex::new(Vec::new())),
             ticks: Arc::new(AtomicU64::new(0)),

@@ -5,9 +5,21 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use zbm_platform::files::{FileKind, Files, Metadata};
+use zbm_platform::files::{FileKind, FileLock, Files, LockWait, Metadata};
 
-use super::{FakeFiles, FileOperation, Node, error};
+use super::{FakeFiles, FileOperation, Node, error, lock};
+
+/// A fake lock: the entry of the table, removed when the lock is dropped.
+struct Held {
+    locks: Arc<std::sync::Mutex<std::collections::BTreeSet<PathBuf>>>,
+    path: PathBuf,
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        lock(&self.locks).remove(&self.path);
+    }
+}
 
 impl Files for FakeFiles {
     fn shared(&self) -> Arc<dyn Files + Send + Sync> {
@@ -53,6 +65,37 @@ impl Files for FakeFiles {
         );
         self.record(FileOperation::Write(resolved, contents.to_vec()));
         Ok(())
+    }
+
+    fn lock(&self, path: &Path, wait: LockWait) -> io::Result<Option<FileLock>> {
+        let resolved = self.resolve_for_write(path, true)?;
+        if !self.nodes().contains_key(&resolved) {
+            let modified = self.tick();
+            self.nodes().insert(
+                resolved.clone(),
+                Node::File {
+                    contents: Vec::new(),
+                    kind: FileKind::File,
+                    mode: 0o600,
+                    modified,
+                },
+            );
+        }
+        if !lock(&self.locks).insert(resolved.clone()) {
+            return match wait {
+                LockWait::Try => Ok(None),
+                LockWait::Block => Err(error(io::ErrorKind::WouldBlock, path)),
+            };
+        }
+        Ok(Some(FileLock::new(Held {
+            locks: Arc::clone(&self.locks),
+            path: resolved,
+        })))
+    }
+
+    fn is_locked(&self, path: &Path) -> bool {
+        self.resolve_for_write(path, true)
+            .is_ok_and(|resolved| lock(&self.locks).contains(&resolved))
     }
 
     fn append(&self, path: &Path, contents: &[u8]) -> io::Result<()> {

@@ -133,7 +133,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-startup", &["thiserror"]),
     (
         "zbm-platform",
-        &["serde_json", "tracing", "tracing-subscriber"],
+        &["rustix", "serde_json", "tracing", "tracing-subscriber"],
     ),
     (
         "zbm-trace",

@@ -14,7 +14,6 @@ use zbm_boot::recovery::Recovery;
 use zbm_platform::Signal;
 use zbm_platform::System;
 use zbm_platform::process::deepest_child;
-use zbm_state::State;
 use zbm_types::HookStage;
 
 use super::{Modes, Startup};
@@ -41,15 +40,6 @@ pub trait Menu {
     fn show(&mut self, settings: &BootSettings, recovery: &mut dyn Recovery);
 }
 
-/// Holds the `active` lock while it lives (`trap "rm -f active" EXIT`).
-struct Active<'s, 'a>(&'s State<'a>);
-
-impl Drop for Active<'_, '_> {
-    fn drop(&mut self) {
-        self.0.clear_active();
-    }
-}
-
 impl Startup<'_> {
     /// Runs the menu program around `menu`; the exit status of
     /// `bin/zfsbootmenu`.
@@ -66,14 +56,23 @@ impl Startup<'_> {
         if self.state.is_active() {
             self.take_over();
         }
-        if !self.has_waited_for_the_other() {
-            return 0;
-        }
-        if let Err(error) = self.state.set_active(system.processes.id()) {
-            zbm_trace::error!("{}", error.to_string());
-        }
-        zbm_trace::debug!("creating {}/active", self.state.base().display());
-        let _active = Active(&self.state);
+        // Held until the menu ends; the kernel lets go of it if this process
+        // dies, so no lock is left behind.
+        let _active = loop {
+            if !self.has_waited_for_the_other() {
+                return 0;
+            }
+            match self.state.take_active(system.processes.id()) {
+                Ok(Some(active)) => break Some(active),
+                // Another menu took it meanwhile: wait for that one.
+                Ok(None) => {}
+                Err(error) => {
+                    zbm_trace::error!("{}", error.to_string());
+                    break None;
+                }
+            }
+        };
+        zbm_trace::debug!("holding {}/active.lock", self.state.base().display());
 
         // The variables of `/etc/zfsbootmenu.conf`, as the legacy menu's
         // hooks got them from the script that sourced it.
@@ -132,7 +131,6 @@ impl Startup<'_> {
 
     /// Asks the menu holding the lock to end: `SIGUSR1` to it, then `SIGTERM`
     /// to its deepest child, so that what it waits for returns.
-    /// A lock whose process is gone (it was killed) is stale: it is removed.
     fn take_over(&self) {
         let Some(pid) = self.state.active_pid() else {
             return;
@@ -141,8 +139,7 @@ impl Startup<'_> {
         zbm_trace::info!("Stopping active zfsbootmenu with a PID of {pid}");
         zbm_trace::debug!("sending USR1 to {pid}");
         if processes.signal(pid, Signal::User1).is_err() {
-            zbm_trace::info!("no process {pid}: removing its stale lock");
-            self.state.clear_active();
+            zbm_trace::info!("no process {pid}: waiting for the lock to be let go");
             return;
         }
         let child = deepest_child(self.system.files, pid);

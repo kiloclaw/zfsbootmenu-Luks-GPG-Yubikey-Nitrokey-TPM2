@@ -324,3 +324,8 @@ local instance to show the interactive menu immediately.
     rm /zfsbootmenu/active
 
   to eliminate the indicator of the other running instance. You may then run ``zfsbootmenu`` again to launch the menu.
+
+  In images with the Rust runtime, the indicator is a lock that belongs to the process holding it: removing the file
+  does not end it, and the lock goes when that instance ends, however it ends. End the other instance instead::
+
+    kill "$(cat /zfsbootmenu/active)"

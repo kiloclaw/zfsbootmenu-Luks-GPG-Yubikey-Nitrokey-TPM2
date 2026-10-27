@@ -67,21 +67,24 @@ pub(super) fn cache_key(
         return;
     };
     let keycache = state.key_cache(&source);
-    let mutex = keycache.join(format!(".cachemutex.{}", system.processes.id()));
-    if system.files.exists(&mutex) {
-        zbm_trace::debug!("will not repeat cache attempt for {source}:{keyfile}");
-        return;
-    }
-    zbm_trace::debug!("attempting to cache {source}:{keyfile}");
     if system.files.create_dir_all(&keycache).is_err() {
         return;
     }
-    if system.files.write(&mutex, b"").is_err() {
-        zbm_trace::error!("failed to acquire mutex {}", mutex.display());
-        return;
-    }
+    // Held while caching: by this process when the key source's own key comes
+    // from it, or by another one caching the same key.
+    let _cache = match state.try_lock_key_cache(&source) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => {
+            zbm_trace::debug!("will not repeat cache attempt for {source}:{keyfile}");
+            return;
+        }
+        Err(error) => {
+            zbm_trace::error!("{error}");
+            return;
+        }
+    };
+    zbm_trace::debug!("attempting to cache {source}:{keyfile}");
     copy_from_source(system, state, how, &source, keyfile, &keycache);
-    let _ = system.files.remove_file(&mutex);
 }
 
 /// Loads the key of `source`, mounts it, copies `keyfile` from it into
