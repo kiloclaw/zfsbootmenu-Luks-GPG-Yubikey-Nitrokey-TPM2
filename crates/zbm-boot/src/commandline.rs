@@ -5,7 +5,7 @@
 //! module also finds the prefix of the `root=` argument and the device tree,
 //! and builds the `kexec` commands that load and run the kernel.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use zbm_config::kcl;
 use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
@@ -392,7 +392,8 @@ pub fn devicetree(
 }
 
 /// The file to try as the device tree of `kernel` for the value of
-/// `org.zfsbootmenu:devicetree`, or `None` when the property is unset.
+/// `org.zfsbootmenu:devicetree`, or `None` when the property is unset or
+/// its path leaves the boot environment through `..`.
 pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<PathBuf> {
     if property.is_empty() || property == "-" {
         return None;
@@ -403,13 +404,19 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
         .strip_prefix(base)
         .and_then(|rest| rest.strip_prefix('-'))
         .unwrap_or(kernel);
-    let mnt = mnt.to_string_lossy();
-    let candidate = if property.starts_with('/') {
-        format!("{mnt}{}", property.replace("%{kernel}", kver))
+    let inside = if property.starts_with('/') {
+        property.replace("%{kernel}", kver)
     } else {
-        format!("{mnt}/boot/dtbs/dtbs-{kver}/{property}")
+        format!("/boot/dtbs/dtbs-{kver}/{property}")
     };
-    Some(PathBuf::from(candidate))
+    if Path::new(&inside)
+        .components()
+        .any(|part| part == Component::ParentDir)
+    {
+        zbm_trace::warn!("ignoring the device tree {inside}: it leaves the boot environment");
+        return None;
+    }
+    Some(PathBuf::from(format!("{}{inside}", mnt.to_string_lossy())))
 }
 
 /// The spaces between the root argument and the rest of the command line: the

@@ -156,7 +156,8 @@ impl Action {
     /// describes: those of [`Action::needs_console`], and a change whose
     /// pool is imported read-only or whose environment is locked, as the
     /// read/write import may ask about hibernation and the key may be
-    /// asked for.
+    /// asked for; and a duplicate whose target may go under a locked
+    /// encryption root.
     pub fn needs_console_on(&self, snapshot: &super::Snapshot) -> bool {
         if self.needs_console() {
             return true;
@@ -173,7 +174,36 @@ impl Action {
             known.name.as_str() == environment.as_str()
                 && known.encryption == super::Encryption::Locked
         });
-        read_only || locked
+        read_only || locked || self.target_may_be_locked(snapshot)
+    }
+
+    /// Whether a duplicate's target may go under a locked encryption root:
+    /// the duplicate loads the key of the target's parent. The snapshot
+    /// knows that key when the parent is an environment, or holds an
+    /// unencrypted source, as ZFS keeps the parents of an unencrypted
+    /// dataset unencrypted.
+    fn target_may_be_locked(&self, snapshot: &super::Snapshot) -> bool {
+        let Action::Duplicate(source, target) = self else {
+            return false;
+        };
+        let Some((parent, _)) = target.as_str().rsplit_once('/') else {
+            return false;
+        };
+        let encryption = |name: &str| {
+            snapshot
+                .environments
+                .iter()
+                .find(|known| known.name.as_str() == name)
+                .map(|known| &known.encryption)
+        };
+        if let Some(known) = encryption(parent) {
+            return *known == super::Encryption::Locked;
+        }
+        let source = source.dataset().as_str();
+        let holds_source = source
+            .strip_prefix(parent)
+            .is_some_and(|rest| rest.starts_with('/'));
+        !(holds_source && encryption(source) == Some(&super::Encryption::None))
     }
 }
 

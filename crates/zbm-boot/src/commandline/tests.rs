@@ -2,6 +2,7 @@
 //! tree and the kexec commands, several against the legacy runtime.
 
 use super::*;
+use crate::testing::Redirect;
 use std::time::{Duration, SystemTime};
 use zbm_platform::exec::SystemRunner;
 use zbm_platform::files::RealFiles;
@@ -290,6 +291,21 @@ fn device_trees() {
     assert_eq!(devicetree(&files, None, "/boot/vmlinuz-6.1.0", mnt), None);
     // Without a hyphen the "version" is the whole path, as in the legacy code.
     assert_eq!(dtb("x.dtb", "/boot/vmlinuz"), None);
+    // A path out of the boot environment is not tried.
+    let candidate = |property, kernel| devicetree_candidate(property, kernel, mnt);
+    assert_eq!(
+        candidate("../../../../etc/x.dtb", "/boot/vmlinuz-6.1.0"),
+        None
+    );
+    assert_eq!(candidate("/../etc/x.dtb", "/boot/vmlinuz-6.1.0"), None);
+    assert_eq!(
+        candidate("/usr/%{kernel}/x.dtb", "/boot/vmlinuz-6.1.0-../.."),
+        None
+    );
+    assert_eq!(
+        candidate("/usr/%{kernel}/x..dtb", "/boot/vmlinuz-6.1.0"),
+        Some(PathBuf::from("/mnt/usr/6.1.0/x..dtb"))
+    );
 }
 
 #[test]
@@ -346,6 +362,14 @@ fn the_separator_is_the_legacy_one() {
 }
 
 /// The legacy library, with the shim that finds `/lib/zfsbootmenu-kcl.sh`.
+/// Shell code that moves the host ID files `get_spl_hostid` reads to
+/// `$HOSTIDS`, so that neither side reads this machine's; its messages
+/// still name the usual paths.
+const HOST_IDS_MOVED: &str = r#"eval "$(declare -f get_spl_hostid | sed \
+    -e "s|/sys/module/spl/parameters/spl_hostid|$HOSTIDS/spl_hostid|g" \
+    -e "s|-r /etc/hostid|-r $HOSTIDS/etc_hostid|" \
+    -e "s|-An /etc/hostid|-An $HOSTIDS/etc_hostid|")""#;
+
 fn legacy_core() -> Bash {
     Bash::new()
         .code(LOG_STUBS)
@@ -434,6 +458,9 @@ impl Scenario {
         if self.noresume {
             dir.write("noresume", "");
         }
+        // The host ID both sides read, in place of this machine's.
+        std::fs::create_dir_all(dir.join("host")).unwrap();
+        dir.write("host/etc_hostid", [0x0c_u8, 0xb1, 0xba, 0x00]);
         if self.stale_default {
             dir.write(DEFAULT_KCL, "stale\n");
             let old = SystemTime::now() - Duration::from_secs(3600);
@@ -464,6 +491,8 @@ fn command_lines_match_the_legacy_function() {
             parity.legacy(format!("{scenario:?}"), || {
                 let dir = scenario.base();
                 let legacy = legacy_core()
+                    .code(HOST_IDS_MOVED)
+                    .env("HOSTIDS", &dir.join("host").to_string_lossy())
                     .env("BASE", &dir.path().to_string_lossy())
                     .env("PATH", &zfs.path_env())
                     .env(
@@ -480,12 +509,16 @@ fn command_lines_match_the_legacy_function() {
 
         let dir = scenario.base();
         let base = dir.path().to_string_lossy().into_owned();
-        let state = State::new(&RealFiles, base.as_str());
+        let files = Redirect::new(&[
+            (ETC_HOSTID, &dir.join("host/etc_hostid")),
+            (SPL_HOSTID, &dir.join("host/spl_hostid")),
+        ]);
+        let state = State::new(&files, base.as_str());
         let runner = SystemRunner;
         let source = ZfsCommand::with_program(&runner, zfs.program());
         let mut log = Vec::new();
         let rust = be_cmdline(
-            &RealFiles,
+            &files,
             &source,
             &state,
             "tank/ROOT/be",

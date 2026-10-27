@@ -4144,6 +4144,7 @@ dependencies = [
  "zbm-core",
  "zbm-platform",
  "zbm-testkit",
+ "zbm-trace",
  "zbm-types",
 ]
 

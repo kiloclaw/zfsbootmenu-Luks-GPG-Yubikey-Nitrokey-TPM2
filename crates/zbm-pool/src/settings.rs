@@ -95,13 +95,19 @@ impl BootfsPreference {
 pub struct RetryDelay(i64);
 
 impl RetryDelay {
-    /// The delay `zbm_retry_delay` gives: 5 seconds when it is empty, and 0
-    /// when it is not a number, as the legacy prompt reads it.
+    /// The delay `zbm_retry_delay` gives: 5 seconds unless it is a positive
+    /// number, as `zbm.retry_delay` is read. The legacy prompt read a value
+    /// that is not a number as 0, which answers at once, so a missing device
+    /// was looked for again and again without a pause.
     pub fn from_conf(value: &str) -> RetryDelay {
-        RetryDelay(match value {
-            "" => 5,
-            delay => delay.trim().parse().unwrap_or(0),
-        })
+        RetryDelay(
+            value
+                .trim()
+                .parse()
+                .ok()
+                .filter(|seconds| *seconds > 0)
+                .unwrap_or(5),
+        )
     }
 
     /// The delay in seconds.
@@ -206,7 +212,9 @@ mod tests {
         assert_eq!(Requirement::from_conf(""), Requirement::Optional);
         assert_eq!(RetryDelay::from_conf("").seconds(), 5);
         assert_eq!(RetryDelay::from_conf(" 3 ").seconds(), 3);
-        assert_eq!(RetryDelay::from_conf("x").seconds(), 0);
+        for spinning in ["x", "0", "-1"] {
+            assert_eq!(RetryDelay::from_conf(spinning).seconds(), 5, "{spinning}");
+        }
         assert_eq!(
             BootfsPreference::from_conf("tank@snap"),
             BootfsPreference::Invalid("tank@snap".to_owned())

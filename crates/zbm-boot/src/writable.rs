@@ -81,7 +81,8 @@ fn prohibition(
 /// Makes `pool` writable: does nothing when it is imported read/write
 /// already; otherwise, unless a property or its health forbids it, asks
 /// about hibernation where a suspend partition exists, then exports the
-/// pool and imports it read/write with `policy`.
+/// pool and imports it read/write with `policy`. When that import fails,
+/// the pool is imported read-only again, as it was.
 ///
 /// # Errors
 ///
@@ -112,11 +113,15 @@ pub fn set_rw_pool(
     }
     let _choice = resume_prompt(system, state, pool)?;
     export_pool(system.runner, pool)?;
-    let import = Import::pool(&reference)
-        .policy(policy)
-        .access(Access::ReadWrite);
-    let imported = import_pool(system, state, import);
+    let import = Import::pool(&reference).policy(policy);
+    let imported = import_pool(system, state, import.access(Access::ReadWrite));
     zbm_trace::debug!("import_pool: {}", i32::from(imported.is_err()));
+    if imported.is_err() {
+        zbm_trace::warn!("{pool} could not be imported read/write; importing it read-only again");
+        if let Err(error) = import_pool(system, state, import.access(Access::ReadOnly)) {
+            zbm_trace::error!("{pool} could not be imported again: {error}");
+        }
+    }
     Ok(imported?)
 }
 

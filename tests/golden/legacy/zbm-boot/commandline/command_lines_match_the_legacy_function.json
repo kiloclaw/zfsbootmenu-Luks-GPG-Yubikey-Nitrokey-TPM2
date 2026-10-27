@@ -116,9 +116,9 @@
     {
       "input": "Scenario { parent: Some(\"quiet\"), own: Some(\"\"), kernel_kcl: None, edited: false, noresume: false, stale_default: false, set_hostid: true }",
       "result": [
-        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
-        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
-        "quiet loglevel=4\nspl.spl_hostid=0x30728216\n"
+        "quiet loglevel=4 spl.spl_hostid=0x00bab10c\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: no parent reference in org.zfsbootmenu:commandline on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x00bab10c'\n",
+        "quiet loglevel=4\nspl.spl_hostid=0x00bab10c\n"
       ]
     },
     {
@@ -132,16 +132,16 @@
     {
       "input": "Scenario { parent: Some(\"a=\\\"b c\\\"roa=\\\"b c\\\"\"), own: Some(\"spl_hostid=1\"), kernel_kcl: Some(\"quietresume=/dev/y\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: true }",
       "result": [
-        "quietresume=/dev/y spl.spl_hostid=0x30728216\n",
-        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quietresume=/dev/y spl.spl_hostid=0x30728216'\n",
+        "quietresume=/dev/y spl.spl_hostid=0x00bab10c\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quietresume=/dev/y spl.spl_hostid=0x00bab10c'\n",
         null
       ]
     },
     {
       "input": "Scenario { parent: Some(\"a=\\\"b c\\\"\"), own: Some(\"%{parent}\"), kernel_kcl: Some(\"\\n\"), edited: false, noresume: false, stale_default: false, set_hostid: true }",
       "result": [
-        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
-        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        "quiet loglevel=4 spl.spl_hostid=0x00bab10c\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x00bab10c'\n",
         null
       ]
     },
@@ -204,9 +204,9 @@
     {
       "input": "Scenario { parent: None, own: None, kernel_kcl: None, edited: false, noresume: false, stale_default: false, set_hostid: true }",
       "result": [
-        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
-        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: org.zfsbootmenu:commandline on tank/ROOT/be has no value\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
-        "quiet loglevel=4\nspl.spl_hostid=0x30728216\n"
+        "quiet loglevel=4 spl.spl_hostid=0x00bab10c\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: org.zfsbootmenu:commandline on tank/ROOT/be has no value\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: caching KCL for tank/ROOT/be at $BASE/environments/tank/ROOT/be/kcl/default.kcl\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x00bab10c'\n",
+        "quiet loglevel=4\nspl.spl_hostid=0x00bab10c\n"
       ]
     },
     {
@@ -228,8 +228,8 @@
     {
       "input": "Scenario { parent: Some(\"root=x\"), own: Some(\"%{parent}\"), kernel_kcl: Some(\"\\n\"), edited: false, noresume: false, stale_default: true, set_hostid: true }",
       "result": [
-        "quiet loglevel=4 spl.spl_hostid=0x30728216\n",
-        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 30728216\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x30728216'\n",
+        "quiet loglevel=4 spl.spl_hostid=0x00bab10c\n",
+        "DEBUG: fs set to tank/ROOT/be\nDEBUG: fs set to tank/ROOT/be\nDEBUG: found kernel KCL $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be, ignoring KCL cache\nDEBUG: no parent reference in $BASE/environments/tank/ROOT/be/kcl/boot:vmlinuz-6.1.kcl on tank/ROOT/be\nDEBUG: hostid from /etc/hostid: 00bab10c\nDEBUG: overriding spl_hostid and spl.spl_hostid for tank/ROOT/be\nDEBUG: assembled commandline: 'quiet loglevel=4 spl.spl_hostid=0x00bab10c'\n",
         "stale\n"
       ]
     },

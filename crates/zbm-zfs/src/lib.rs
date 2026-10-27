@@ -25,6 +25,7 @@ pub mod json;
 mod model;
 pub mod mounts;
 mod port;
+mod rows;
 pub mod text;
 
 pub use cli::{Format, ZfsCli};

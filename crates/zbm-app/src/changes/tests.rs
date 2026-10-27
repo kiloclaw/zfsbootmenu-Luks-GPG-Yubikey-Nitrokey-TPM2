@@ -451,6 +451,13 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
     }
     let set = Action::SetDefaultEnvironment(dataset("zroot/ROOT/void"));
     assert!(set.is_change() && !set.needs_console_on(&machine));
+
+    // A duplicate loads the key of its target's parent too: the console is
+    // taken unless that parent is known to need no key.
+    let copy = |target: &str| Action::Duplicate(snapshot("zroot/ROOT/void@first"), dataset(target));
+    assert!(!copy("zroot/ROOT/copy").needs_console_on(&machine));
+    assert!(copy("zroot/ROOT/sealed/copy").needs_console_on(&machine));
+    assert!(copy("zroot/secure/copy").needs_console_on(&machine));
 }
 
 #[test]

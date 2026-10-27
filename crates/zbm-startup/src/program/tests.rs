@@ -176,7 +176,9 @@ fn the_logs_are_saved_before_the_kernel_starts_when_asked() {
         .rposition(|line| line == "kexec -e -i")
         .unwrap();
     assert!(saved < execute, "{lines:?}");
-    let saved = "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z/kernel.log";
+    // The first run's `kexec -e` returned, as a fake one does: its message
+    // stayed its 10 seconds before the second run saved the logs.
+    let saved = "/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-10Z/kernel.log";
     assert!(zbm_platform::Files::exists(&fake.files, Path::new(saved)));
 }
 

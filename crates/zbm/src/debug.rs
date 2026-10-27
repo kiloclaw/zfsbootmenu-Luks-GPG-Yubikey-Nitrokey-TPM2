@@ -57,7 +57,7 @@ Usage: zbm debug crash [--list]   print the latest crash report, or list them
 /// second and later reports of a process in the same second. Compared as
 /// numbers, not as text, where `-100` sorts before `-99` and `.2.txt`
 /// before `.txt`.
-fn report_order(name: &str) -> Option<(u64, u64, u64)> {
+pub(crate) fn report_order(name: &str) -> Option<(u64, u64, u64)> {
     let stem = name.strip_prefix("crash-")?.strip_suffix(".txt")?;
     let (time, rest) = stem.split_once('-')?;
     let (pid, count) = rest.split_once('.').unwrap_or((rest, "0"));

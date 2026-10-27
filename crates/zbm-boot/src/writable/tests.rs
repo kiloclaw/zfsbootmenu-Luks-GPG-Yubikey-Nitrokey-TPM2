@@ -114,4 +114,14 @@ fn a_failed_import_or_export_keeps_it_read_only() {
         set_rw_pool(&system, &state, "tank", ImportPolicy::default()),
         Err(BootError::Pool(_))
     ));
+    // The export went through: the pool is imported read-only again, not
+    // left exported.
+    let lines = fake.runner.lines();
+    assert_eq!(
+        lines[lines.len() - 2..],
+        [
+            "zpool import -N -o readonly=off tank",
+            "zpool import -N -o readonly=on tank"
+        ]
+    );
 }

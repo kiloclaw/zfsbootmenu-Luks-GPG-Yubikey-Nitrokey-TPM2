@@ -13,6 +13,7 @@ use serde::Deserialize;
 use zbm_config::spec::properties::BOOTFS;
 
 use crate::model::{Dataset, Health, Pool, Property, Snapshot, Source, Version};
+use crate::rows::Readable as _;
 
 /// What was wrong with a JSON document.
 #[derive(Debug, thiserror::Error)]
@@ -159,7 +160,7 @@ pub fn pools(text: &str) -> Result<Vec<Pool>, JsonError> {
                     .map_err(|_| invalid("guid", value("guid")))?,
             })
         })
-        .collect()
+        .readable()
 }
 
 /// `zfs get` or `zpool get -j -p`: each (name, property) and its value.
@@ -205,7 +206,7 @@ pub fn datasets(text: &str) -> Result<Vec<Dataset>, JsonError> {
                 properties: properties(raw.properties),
             })
         })
-        .collect()
+        .readable()
 }
 
 /// `zfs list -j -p -t snapshot -o name,creation`.
@@ -235,7 +236,7 @@ pub fn snapshots(text: &str) -> Result<Vec<Snapshot>, JsonError> {
                     .map_err(|_| invalid("creation time", &creation))?,
             })
         })
-        .collect()
+        .readable()
 }
 
 #[cfg(test)]
@@ -243,11 +244,16 @@ mod tests {
     use super::*;
 
     fn pool(name: &str, bootfs: &str, guid: &str) -> String {
+        format!(r#"{{"pools":{{{}}}}}"#, entry(name, bootfs, guid))
+    }
+
+    /// A pool of the `pools` object.
+    fn entry(name: &str, bootfs: &str, guid: &str) -> String {
         format!(
-            r#"{{"pools":{{"{name}":{{"name":"{name}","properties":{{
+            r#""{name}":{{"name":"{name}","properties":{{
             "health":{{"value":"ONLINE","source":{{"type":"NONE","data":"-"}}}},
             "bootfs":{{"value":"{bootfs}","source":{{"type":"LOCAL","data":"-"}}}},
-            "guid":{{"value":"{guid}","source":{{"type":"NONE","data":"-"}}}}}}}}}}}}"#
+            "guid":{{"value":"{guid}","source":{{"type":"NONE","data":"-"}}}}}}}}"#
         )
     }
 
@@ -259,6 +265,15 @@ mod tests {
             "invalid bootfs \"tank/\""
         );
         assert!(pools(&pool("mirror", "-", "1")).is_err());
+        // One unreadable pool is left out, not every pool.
+        let two = format!(
+            r#"{{"pools":{{{},{}}}}}"#,
+            entry("tank", "-", "1"),
+            entry("mirror", "-", "2")
+        );
+        let listed = pools(&two).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].name.as_str(), "tank");
         assert!(pools(&pool("tank", "-", "many")).is_err());
         assert!(pools("\"pools\"").is_err());
         assert!(version("{}").is_err());

@@ -374,20 +374,15 @@ impl Supervisor {
     /// wait `status`: the one its panic hook wrote, or, when a signal killed
     /// it, one written here, which names the signal.
     fn crash_report(&self, pid: u32, status: i32) -> Option<PathBuf> {
-        // `crash-TIME-PID.txt`, or `crash-TIME-PID.N.txt` after the first.
-        let tag = format!("-{pid}.");
-        let written = std::fs::read_dir(&self.base)
-            .ok()?
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("crash-") && name.contains(&tag))
-            })
-            .max();
-        if written.is_some() {
-            return written;
+        // The newest of `pid`'s, in the order of their numbers: as text,
+        // `crash-TIME-PID.txt` sorts after the later `crash-TIME-PID.1.txt`.
+        let written = crate::debug::crash_reports(&RealFiles, &self.base)
+            .into_iter()
+            .rfind(|name| {
+                crate::debug::report_order(name).is_some_and(|(_, of, _)| of == u64::from(pid))
+            });
+        if let Some(name) = written {
+            return Some(self.base.join(name));
         }
         let signal = status & 0x7f;
         // SIGHUP is no crash: the program lost its terminal, as when the
@@ -505,5 +500,7 @@ enum Opened {
     NotStarted,
 }
 
+#[cfg(test)]
+mod report_tests;
 #[cfg(test)]
 mod tests;

@@ -9,6 +9,7 @@ use zbm_types::{PoolName, SnapshotName};
 use crate::model::{
     Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
 };
+use crate::rows::Readable as _;
 
 /// What was wrong with a line of output.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -65,7 +66,7 @@ pub fn pool_names(text: &str) -> Result<Vec<PoolName>, TextError> {
             line.parse()
                 .map_err(|_| TextError::new(line, "invalid pool name"))
         })
-        .collect()
+        .readable()
 }
 
 /// The device paths in `zpool status -L -P`: every field that starts with
@@ -108,7 +109,7 @@ pub fn pools(text: &str) -> Result<Vec<Pool>, TextError> {
                     .map_err(|_| TextError::new(line, "invalid guid"))?,
             })
         })
-        .collect()
+        .readable()
 }
 
 /// Whether `field` is what `zfs get` prints as a property's source.
@@ -192,7 +193,7 @@ pub fn datasets(text: &str, properties: &[&str]) -> Result<Vec<Dataset>, TextErr
                 properties,
             })
         })
-        .collect()
+        .readable()
 }
 
 /// `zfs list -H -p -t snapshot -o name,creation`.
@@ -216,7 +217,7 @@ pub fn snapshots(text: &str) -> Result<Vec<Snapshot>, TextError> {
                     .map_err(|_| TextError::new(line, "invalid creation time"))?,
             })
         })
-        .collect()
+        .readable()
 }
 
 /// `zfs list -H -p -t snapshot -o name,used`.

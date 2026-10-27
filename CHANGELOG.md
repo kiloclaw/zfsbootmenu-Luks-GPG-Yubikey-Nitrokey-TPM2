@@ -269,6 +269,21 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   creation time or size, and the help view listed it there.
 - Start-up's dialogs count the time that passed: on a serial line, bytes that make no key ended each wait early and
   counted as a full tick, so a dialog's countdown ran out sooner than it said.
+- Duplicating a snapshot under a locked encryption root asks for its key on the console, as the other changes do;
+  the menu looked only at the source environment and failed the change instead.
+- `org.zfsbootmenu:devicetree` may not leave the boot environment: a path with `..` in it, after `%{kernel}` is
+  filled in, is ignored with a warning.
+- A pool, dataset or snapshot whose name the Rust port refuses is left out of the lists with a warning, instead of
+  hiding all the others.
+- When importing a pool read/write fails after it was exported, it is imported read-only again instead of being left
+  exported.
+- Timed prompts count down in seconds when their input has ended, instead of ending at once; a `zbm_retry_delay` that
+  is not a positive number is read as 5 seconds, as `zbm.retry_delay` is, so a missing device is no longer looked for
+  again and again without a pause.
+- After the start-up program crashes twice in the same second, the supervisor names its newest crash report, not the
+  first.
+- The parity test of the boot environment's command line no longer reads the host ID of the machine it runs on, which
+  failed it on machines with another `/etc/hostid` than the recording's.
 
 ### The parity-only parts removed
 

@@ -349,4 +349,9 @@ fn pool_names_devices_and_export_need_no_format() {
         ZfsCli::new(&bad).pool_names(),
         Err(ZfsError::Output { .. })
     ));
+    // A name the port refuses is left out; the other pools stay listed.
+    let one_bad = FakeRunner::new();
+    one_bad.respond("zpool list -H -o name", 0, "rpool\ntank/ROOT\nfixture\n");
+    let names = ZfsCli::new(&one_bad).pool_names().unwrap();
+    assert_eq!(names, ["rpool".parse().unwrap(), fixture]);
 }

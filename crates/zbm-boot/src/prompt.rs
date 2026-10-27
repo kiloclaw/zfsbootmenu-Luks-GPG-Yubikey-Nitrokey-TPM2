@@ -8,18 +8,15 @@ use std::time::Duration;
 
 use zbm_platform::System;
 use zbm_platform::exec::Input;
+use zbm_pool::RetryDelay;
 use zbm_tools::terminal;
 
 pub use zbm_core::color::{colorize, decolorize};
 
-/// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`. The start-up
-/// writes only positive numbers; a value that is not a number is read as 0,
-/// which answers at once.
+/// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`: 5 seconds
+/// unless it is a positive number ([`RetryDelay::from_conf`]).
 pub fn retry_delay(value: &str) -> i64 {
-    match value {
-        "" => 5,
-        delay => delay.trim().parse().unwrap_or(0),
-    }
+    RetryDelay::from_conf(value).seconds()
 }
 
 /// The text of the countdown line for `seconds` left.
@@ -159,13 +156,15 @@ struct Countdown {
 
 impl Countdown {
     /// Redraws the line every second and waits for RETURN or ESCAPE, until
-    /// the time runs out.
+    /// the time runs out. Another key counts as a second, as in the legacy
+    /// loop; the end of the input does not, as a read there ends at once.
     fn wait(&self, system: &System<'_>) -> Answer {
         let timeout = (!self.infinite).then_some(Duration::from_secs(1));
         let mut left = self.delay;
         while left > 0 {
             let text = (self.prompt)(left);
             draw_centred(system, self.row, self.columns, &text);
+            let start = system.clock.now();
             match system.console.read_key(timeout) {
                 Ok(Some(0x1b)) => return Answer::Escape,
                 Ok(Some(b'\n')) => return Answer::Continue,
@@ -173,7 +172,14 @@ impl Countdown {
                 // legacy loop would spin; a terminal never ends, so stopping here
                 // changes nothing a user can see
                 Ok(None) | Err(_) if self.infinite => return Answer::Continue,
-                _ => {}
+                Ok(None) | Err(_) => {
+                    let waited = system.clock.now().saturating_sub(start);
+                    let rest = timeout.unwrap_or_default().saturating_sub(waited);
+                    if !rest.is_zero() {
+                        system.clock.sleep(rest);
+                    }
+                }
+                Ok(Some(_)) => {}
             }
             if !self.infinite {
                 left -= 1;
@@ -396,5 +402,13 @@ mod tests {
             TimedPrompt::new().delay(-1).run(&fake.system()),
             Answer::Continue
         );
+    }
+
+    #[test]
+    fn the_end_of_the_input_still_counts_down_in_seconds() {
+        let fake = setup();
+        let answer = TimedPrompt::new().delay(3).run(&fake.system());
+        assert_eq!(answer, Answer::Continue);
+        assert_eq!(fake.clock.now(), Duration::from_secs(3));
     }
 }
