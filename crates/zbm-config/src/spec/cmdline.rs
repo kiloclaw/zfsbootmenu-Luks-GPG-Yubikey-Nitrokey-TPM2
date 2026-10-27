@@ -9,9 +9,10 @@ pub mod shell;
 
 use super::{Alias, Deprecation, Doc, OptionSpec, Reader, Source, Value};
 pub use console::{
-    AUTOSIZE, BELLS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
-    CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
-    KEYBOARD_REPEAT, NUM_LOCK, PALETTES, VCONSOLE_FONT,
+    AUTOSIZE, BELLS, COLUMNS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR,
+    CONSOLE_PALETTE, CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT,
+    KEYBOARD_COMPOSE, KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, LINES, NUM_LOCK,
+    PALETTES, VCONSOLE_FONT,
 };
 pub use graphics::{GPU, GPU_UNTESTED};
 pub use logs::SAVE_LOGS;
@@ -48,6 +49,8 @@ pub static ALL: &[&OptionSpec] = &[
     &CONSOLE_LARGE,
     &CONSOLE_STATUS,
     &CONSOLE_BELL,
+    &KEYBOARD_COMPOSE,
+    &KEYBOARD_LAYOUTS,
     &CONSOLE_MIRROR,
     &GPU,
     &GPU_UNTESTED,
@@ -394,34 +397,6 @@ pub static SKIP: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.timeout"),
     deprecation: None,
     examples: &["zbm.skip"],
-};
-
-/// `zbm.lines`: the number of lines of the console.
-pub static LINES: OptionSpec = OptionSpec {
-    name: "zbm.lines",
-    aliases: &[],
-    source: Source::KernelCommandLine,
-    value: Value::Integer,
-    default: None,
-    summary: "The number of lines of the console",
-    reader: Reader::Rust,
-    doc: Doc::NotInManual("undocumented; it sets the size of the console when the kernel cannot"),
-    deprecation: None,
-    examples: &["zbm.lines=40"],
-};
-
-/// `zbm.columns`: the number of columns of the console.
-pub static COLUMNS: OptionSpec = OptionSpec {
-    name: "zbm.columns",
-    aliases: &[],
-    source: Source::KernelCommandLine,
-    value: Value::Integer,
-    default: None,
-    summary: "The number of columns of the console",
-    reader: Reader::Rust,
-    doc: Doc::NotInManual("undocumented; it sets the size of the console when the kernel cannot"),
-    deprecation: None,
-    examples: &["zbm.columns=120"],
 };
 
 /// `zbm.hookroot`: A file system with more hooks, as device//path.

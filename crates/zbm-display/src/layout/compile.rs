@@ -88,8 +88,9 @@ fn quoted(text: &str) -> String {
     quoted
 }
 
-/// The rules of `compose`, a compose file, that start with a dead key, in
-/// the same format: what the console needs of the 5,000 rules of a locale.
+/// The rules of `compose`, a compose file, that start with a dead key or
+/// the compose key (`Multi_key`), in the same format: what the console
+/// needs of the rules of a locale.
 ///
 /// # Errors
 ///
@@ -113,10 +114,10 @@ pub fn dead_keys(compose: &[u8]) -> Result<String, LayoutError> {
         let (Some(names), Some(string)) = (names, rule.string()) else {
             continue;
         };
-        if !names
+        let is_wanted = names
             .first()
-            .is_some_and(|first| first.starts_with("dead_"))
-        {
+            .is_some_and(|first| first.starts_with("dead_") || *first == "Multi_key");
+        if !is_wanted {
             continue;
         }
         for name in names {

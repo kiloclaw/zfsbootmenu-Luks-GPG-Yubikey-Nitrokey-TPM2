@@ -14,9 +14,9 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, BELLS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
-    CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
-    KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
+    AUTOSIZE, BELLS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
+    CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE,
+    KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
 };
 use zbm_platform::System;
 
@@ -56,6 +56,10 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
             arguments.extend([flag.to_owned(), value]);
         }
     }
+    let own = args.lookup(&KEYBOARD_LAYOUTS, &mut messages);
+    for rule in own.as_deref().map(keyboard_layouts).unwrap_or_default() {
+        arguments.extend(["--keyboard".to_owned(), rule.to_owned()]);
+    }
     for (spec, flag) in [(&CONSOLE_LARGE, "--large"), (&CONSOLE_STATUS, "--status")] {
         if args.lookup(spec, &mut messages).as_deref().map(str::trim) == Some("on") {
             arguments.push(flag.to_owned());
@@ -64,12 +68,35 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
     Some(arguments)
 }
 
+/// The rules of `value` (`046d:c31c=de,1a2c:0e24=fr`) that name a USB
+/// keyboard, by vendor and product, and a layout.
+fn keyboard_layouts(value: &str) -> Vec<&str> {
+    let is_hex = |part: &str| part.len() == 4 && part.bytes().all(|b| b.is_ascii_hexdigit());
+    let is_layout = |name: &str| {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'(' | b')'))
+    };
+    value
+        .trim()
+        .split(',')
+        .filter(|rule| {
+            let Some((id, name)) = rule.split_once('=') else {
+                return false;
+            };
+            let (vendor, product) = id.split_once(':').unwrap_or_default();
+            is_hex(vendor) && is_hex(product) && is_layout(name)
+        })
+        .collect()
+}
+
 /// Whether a value is one the console takes.
 type IsValid = fn(&str) -> bool;
 
 /// The options with a value that the console gets as they are, with its
 /// argument for each, when the value is right.
-const VALUES: [(&OptionSpec, &str, IsValid); 6] = [
+const VALUES: [(&OptionSpec, &str, IsValid); 7] = [
     (&NUM_LOCK, "--numlock", |value| {
         matches!(value, "on" | "off")
     }),
@@ -83,6 +110,9 @@ const VALUES: [(&OptionSpec, &str, IsValid); 6] = [
         PALETTES.contains(&value)
     }),
     (&CONSOLE_BELL, "--bell", |value| BELLS.contains(&value)),
+    (&KEYBOARD_COMPOSE, "--compose", |value| {
+        COMPOSE_KEYS.contains(&value)
+    }),
     (&CONSOLE_MIRROR, "--mirror", |value| !value.is_empty()),
 ];
 
@@ -161,12 +191,20 @@ mod tests {
         assert_eq!(
             console(
                 "zbm.console=drm zbm.console_palette=tango zbm.console_large=on \
-                 zbm.console_status=on zbm.console_bell=both"
+                 zbm.console_status=on zbm.console_bell=both zbm.keyboard_compose=menu"
             ),
-            words("console --palette tango --bell both --large --status")
+            words("console --palette tango --bell both --compose menu --large --status")
         );
         assert_eq!(
             console("zbm.console=drm zbm.console_palette=rainbow zbm.console_large=off"),
+            words("console")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.keyboard_layouts=046d:c31c=de,bad,1a2c:0e24=fr(azerty)"),
+            words("console --keyboard 046d:c31c=de --keyboard 1a2c:0e24=fr(azerty)")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.keyboard_layouts=46d:c31c=de,046d:c31c="),
             words("console")
         );
         // Wrong values are left out: the console keeps the keyboards' own.

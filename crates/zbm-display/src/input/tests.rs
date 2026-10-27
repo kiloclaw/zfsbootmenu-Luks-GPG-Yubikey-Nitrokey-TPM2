@@ -220,6 +220,90 @@ fn num_lock_starts_as_the_keyboards_show_it() {
     typing.write_all(&event(EV_KEY, 79, 1)).unwrap();
     let typed = keyboards.read_device(0).unwrap();
     assert_eq!(typed[0].key, crate::keys::Key::Char('1'));
-    assert_eq!(keyboards.lights, Some([false, true, false]));
+    assert_eq!(keyboards.devices[0].lights, Some([false, true, false]));
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn device_ids_are_read_and_written_as_lsusb_does() {
+    assert_eq!(
+        DeviceId::parse("046d:c31c"),
+        Some(DeviceId {
+            vendor: 0x046d,
+            product: 0xc31c
+        })
+    );
+    for wrong in ["046d", "46d:c31c", "046d:c31cc", "zzzz:0000", ""] {
+        assert_eq!(DeviceId::parse(wrong), None, "{wrong}");
+    }
+    assert_eq!(
+        DeviceId::parse("1A2C:0E24").unwrap().to_string(),
+        "1a2c:0e24"
+    );
+
+    let root = std::env::temp_dir().join(format!("zbm-display-ids-{}", std::process::id()));
+    let id = root.join("class/input/event4/device/id");
+    std::fs::create_dir_all(&id).unwrap();
+    std::fs::write(id.join("vendor"), "046d\n").unwrap();
+    std::fs::write(id.join("product"), "c31c\n").unwrap();
+    let device = Path::new("/dev/input/event4");
+    assert_eq!(DeviceId::of(&root, device), DeviceId::parse("046d:c31c"));
+    assert_eq!(DeviceId::of(&root, Path::new("/dev/input/event5")), None);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_keyboard_of_a_rule_types_with_its_own_layout_and_lights() {
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+
+    let pair = || {
+        let (device, typing) = UnixStream::pair().unwrap();
+        (File::from(std::os::fd::OwnedFd::from(device)), typing)
+    };
+    let ((first, mut usb), (second, mut builtin)) = (pair(), pair());
+    let mut keyboards = Keyboards::from_files(vec![first, second]);
+    let id = DeviceId::parse("046d:c31c").unwrap();
+    keyboards.devices[0].id = Some(id);
+    let keymap = crate::layout::compile::keymap(Path::new(crate::layout::compile::XKB), "de")
+        .expect("the XKB data (xkb-data)");
+    let source = Source {
+        name: "de".to_owned(),
+        keymap: keymap.into_bytes(),
+        rules: None,
+    };
+    assert_eq!(source.layout().unwrap().name(), "de");
+    keyboards.set_compose_key(Some(127));
+    keyboards.set_device_layouts(vec![(id, source)]);
+    assert_eq!(keyboards.device_layouts(), [(id, "de".to_owned())]);
+    // Its lights are written again; the other's are as they were.
+    let mut lights = [0_u8; 6 * EVENT_SIZE];
+    usb.read_exact(&mut lights).unwrap();
+
+    // Y on the German layout is the US Z, and the other keyboard types Y.
+    usb.write_all(&event(EV_KEY, 21, 1)).unwrap();
+    assert_eq!(
+        keyboards.read_device(0).unwrap()[0].key,
+        crate::keys::Key::Char('z')
+    );
+    builtin.write_all(&event(EV_KEY, 21, 1)).unwrap();
+    assert_eq!(
+        keyboards.read_device(1).unwrap()[0].key,
+        crate::keys::Key::Char('y')
+    );
+    // Caps Lock on the first: its light, and the keyboards say it is on.
+    usb.write_all(&event(EV_KEY, 58, 1)).unwrap();
+    keyboards.read_device(0).unwrap();
+    usb.read_exact(&mut lights).unwrap();
+    assert!(keyboards.is_caps_lock() && !keyboards.is_num_lock() && !keyboards.is_scroll_lock());
+    builtin.write_all(&event(EV_KEY, 30, 1)).unwrap();
+    assert_eq!(
+        keyboards.read_device(1).unwrap()[0].key,
+        crate::keys::Key::Char('a')
+    );
+    keyboards.set_num_lock(true);
+    assert!(keyboards.is_num_lock());
+    assert_eq!(keyboards.pending_accent(), None);
+    // The shared layout stays the console's.
+    assert_eq!(keyboards.layout(), "us");
 }

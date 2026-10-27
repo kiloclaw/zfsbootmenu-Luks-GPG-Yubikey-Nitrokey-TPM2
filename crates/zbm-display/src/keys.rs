@@ -248,6 +248,24 @@ const CAPS_LOCK: u16 = 58;
 /// `KEY_NUMLOCK`.
 pub const NUM_LOCK: u16 = 69;
 
+/// The keys that can be the compose key (`zbm.keyboard_compose`), by
+/// name, and their codes: right Alt, the right logo key, Menu, right Ctrl
+/// and Caps Lock.
+pub const COMPOSE_KEYS: [(&str, u16); 5] = [
+    ("ralt", 100),
+    ("rwin", 126),
+    ("menu", 127),
+    ("rctrl", 97),
+    ("caps", 58),
+];
+
+/// The code of the compose key named `name`.
+pub fn compose_key(name: &str) -> Option<u16> {
+    COMPOSE_KEYS
+        .iter()
+        .find_map(|&(known, code)| (known == name).then_some(code))
+}
+
 /// `KEY_SCROLLLOCK`.
 const SCROLL_LOCK: u16 = 70;
 
@@ -283,6 +301,8 @@ pub struct Decoder {
     down: Vec<u16>,
     /// The accent typed before the last press, from a dead key.
     accent: Option<char>,
+    /// The compose key, by code, which the layouts get.
+    compose_key: Option<u16>,
 }
 
 impl Default for Decoder {
@@ -295,6 +315,7 @@ impl Default for Decoder {
             layout: None,
             down: Vec::with_capacity(DOWN),
             accent: None,
+            compose_key: None,
         }
     }
 }
@@ -398,10 +419,20 @@ impl Decoder {
         self.layout = layout;
         self.num_lock = num_lock;
         if let Some(layout) = &mut self.layout {
+            layout.set_compose_key(self.compose_key);
             for &code in &self.down {
                 layout.hold(code);
             }
             layout.set_num_lock(num_lock);
+        }
+    }
+
+    /// Has key `code` start the compose key's sequences, on the layouts
+    /// that have its rules; `None` for none.
+    pub fn set_compose_key(&mut self, code: Option<u16>) {
+        self.compose_key = code;
+        if let Some(layout) = &mut self.layout {
+            layout.set_compose_key(code);
         }
     }
 

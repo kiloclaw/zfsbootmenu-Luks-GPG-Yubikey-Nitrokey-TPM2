@@ -111,6 +111,18 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   A key held repeats after *delay* milliseconds, *rate* times a second, on every keyboard; otherwise
   the keyboards keep the kernel's repeat.
 
+**zbm.keyboard_compose=menu**
+
+  The compose key: **ralt** (right Alt), **rwin** (the right logo key), **menu**, **rctrl** (right
+  Ctrl) or **caps** (Caps Lock). It starts the sequences of the compose rules of the image's
+  locale, as Compose a e for æ, and types nothing itself; without this option there is none.
+
+**zbm.keyboard_layouts=046d:c31c=de,1a2c:0e24=fr**
+
+  Layouts of their own for USB keyboards, each named by its vendor and product as **lsusb** shows
+  them. Such a keyboard keeps its own Caps Lock, Num Lock and lights; the others type with the
+  layout of **zbm.keyboard_layout**, which Super+Space changes.
+
 **zbm.console_scrollback=2000**
 
   The console keeps this many lines that scrolled off the screen, which Shift+PgUp and Shift+PgDn
@@ -288,6 +300,37 @@ pub static CONSOLE_STATUS: OptionSpec = OptionSpec {
     examples: &["zbm.console_status=on"],
 };
 
+/// The keys that can be the compose key.
+pub const COMPOSE_KEYS: &[&str] = &["ralt", "rwin", "menu", "rctrl", "caps"];
+
+/// `zbm.keyboard_compose`: the compose key of the console on the display.
+pub static KEYBOARD_COMPOSE: OptionSpec = OptionSpec {
+    name: "zbm.keyboard_compose",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(COMPOSE_KEYS),
+    default: None,
+    summary: "The compose key of the console on the display",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.keyboard_compose=menu"],
+};
+
+/// `zbm.keyboard_layouts`: layouts of their own for some keyboards.
+pub static KEYBOARD_LAYOUTS: OptionSpec = OptionSpec {
+    name: "zbm.keyboard_layouts",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Text,
+    default: None,
+    summary: "Layouts of their own for USB keyboards, by vendor and product",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.keyboard_layouts=046d:c31c=de,1a2c:0e24=fr"],
+};
+
 /// What the bell of the console on the display can do.
 pub const BELLS: &[&str] = &["none", "visual", "audible", "both"];
 
@@ -303,6 +346,34 @@ pub static CONSOLE_BELL: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.console"),
     deprecation: None,
     examples: &["zbm.console_bell=audible"],
+};
+
+/// `zbm.lines`: the number of lines of the console.
+pub static LINES: OptionSpec = OptionSpec {
+    name: "zbm.lines",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Integer,
+    default: None,
+    summary: "The number of lines of the console",
+    reader: Reader::Rust,
+    doc: Doc::NotInManual("undocumented; it sets the size of the console when the kernel cannot"),
+    deprecation: None,
+    examples: &["zbm.lines=40"],
+};
+
+/// `zbm.columns`: the number of columns of the console.
+pub static COLUMNS: OptionSpec = OptionSpec {
+    name: "zbm.columns",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Integer,
+    default: None,
+    summary: "The number of columns of the console",
+    reader: Reader::Rust,
+    doc: Doc::NotInManual("undocumented; it sets the size of the console when the kernel cannot"),
+    deprecation: None,
+    examples: &["zbm.columns=120"],
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text

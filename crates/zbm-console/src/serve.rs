@@ -22,8 +22,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use zbm_display::display::{Display, Screen as _, first_card};
-use zbm_display::input::Keyboards;
-use zbm_display::layout::Layout;
+use zbm_display::input::{DeviceId, Keyboards};
+use zbm_display::layout::{Layout, Source};
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::RealFiles;
 use zbm_state::State;
@@ -100,6 +100,10 @@ pub struct Settings {
     pub status_line: bool,
     /// What the bell does (`zbm.console_bell`).
     pub bell: Ring,
+    /// The compose key, by code (`zbm.keyboard_compose`).
+    pub compose_key: Option<u16>,
+    /// The keyboards with a layout of their own (`zbm.keyboard_layouts`).
+    pub device_layouts: Vec<(DeviceId, Source)>,
 }
 
 impl Settings {
@@ -375,7 +379,9 @@ fn open_keyboards(settings: &Settings, places: &Places, layout: Option<Layout>) 
     if keyboards.count() == 0 {
         places.log(5, "no keyboard yet; waiting for one");
     }
+    keyboards.set_compose_key(settings.compose_key);
     keyboards.set_layout(layout);
+    keyboards.set_device_layouts(settings.device_layouts.clone());
     if let Some(on) = settings.num_lock {
         keyboards.set_num_lock(on);
     }

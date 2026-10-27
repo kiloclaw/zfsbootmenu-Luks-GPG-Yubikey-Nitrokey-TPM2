@@ -15,7 +15,9 @@
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
 //!             [--numlock on|off] [--repeat <delay>,<rate>]
 //!             [--scrollback <lines>] [--palette <name>] [--large]
-//!             [--status] [--bell none|visual|audible|both] [--mirror <file>]
+//!             [--status] [--bell none|visual|audible|both]
+//!             [--compose ralt|rwin|menu|rctrl|caps]
+//!             [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
@@ -55,7 +57,11 @@
 //! they set, the keyboard layout, the locks that are on, the time (UTC)
 //! and the battery's charge. `--bell` says what the bell does: the
 //! frame's border flashes (`visual`, the default), the PC speaker sounds
-//! (`audible`), both, or nothing (`none`).
+//! (`audible`), both, or nothing (`none`). `--compose` makes a key the
+//! compose key: it starts the sequences of the image's compose rules, as
+//! Compose a e for æ. `--keyboard` gives the keyboard of a USB vendor and
+//! product (`046d:c31c`) a layout of its own, with its own key state and
+//! lights; the others type with the console's layout.
 //!
 //! `--mirror` writes the screen's text to a file or device after each
 //! change, after a form feed, for the VM tests.
@@ -76,6 +82,8 @@ use zbm_console::screen::zoom::Zoom;
 use zbm_console::serve::{
     Layouts, Places, Released, Settings, Switched, reattach, release, request_font, serve,
 };
+use zbm_display::input::DeviceId;
+use zbm_display::keys::compose_key;
 use zbm_platform::RealFiles;
 
 use crate::{Io, USAGE};
@@ -85,7 +93,8 @@ const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--numlock on|off] [--repeat <delay>,<rate>] [--scrollback <lines>]
                    [--palette <name>] [--large] [--status]
-                   [--bell none|visual|audible|both] [--mirror <file>]
+                   [--bell none|visual|audible|both] [--compose ralt|rwin|menu|rctrl|caps]
+                   [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -130,6 +139,10 @@ pub struct Options {
     pub status: bool,
     /// What the bell does.
     pub bell: Ring,
+    /// The compose key, by code.
+    pub compose_key: Option<u16>,
+    /// The keyboards with a layout of their own, by USB id.
+    pub device_layouts: Vec<(DeviceId, String)>,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -159,10 +172,19 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--large" => options.large = true,
             "--status" => options.status = true,
             "--bell" => options.bell = Ring::parse(args.next()?)?,
+            "--compose" => options.compose_key = Some(compose_key(args.next()?)?),
+            "--keyboard" => options.device_layouts.push(device_layout(args.next()?)?),
             _ => return None,
         }
     }
     Some(options)
+}
+
+/// The keyboard and its layout that `rule` (`046d:c31c=de`) names.
+fn device_layout(rule: &str) -> Option<(DeviceId, String)> {
+    let (id, name) = rule.split_once('=')?;
+    zbm_display::layout::compile::split(name).ok()?;
+    Some((DeviceId::parse(id)?, name.to_owned()))
 }
 
 /// The timeout of `zbm console release` in `args`, or `None` when an
@@ -282,6 +304,36 @@ fn large_grid(
     Ok(base)
 }
 
+/// The console's settings from `options`, with the layouts of the
+/// keyboards that have their own from `directory`; one that cannot be
+/// loaded is said in `places`' log.
+fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &Path) -> Settings {
+    Settings {
+        card: options.card.clone(),
+        mirror: options.mirror.clone(),
+        flavour: zbm_console::keys::Flavour::of_image(|path| files.exists(path)),
+        num_lock: options.num_lock,
+        repeat: options.repeat,
+        scrollback: options.scrollback.unwrap_or(SCROLLBACK),
+        scheme: options
+            .scheme
+            .or_else(|| options.large.then_some(&HIGH_CONTRAST)),
+        status_line: options.status,
+        bell: options.bell,
+        compose_key: options.compose_key,
+        device_layouts: options
+            .device_layouts
+            .iter()
+            .filter_map(|(id, name)| {
+                crate::layouts::source(files, directory, name)
+                    .map(|source| (*id, source))
+                    .map_err(|error| places.log(4, &format!("keyboard {id}: {error}")))
+                    .ok()
+            })
+            .collect(),
+    }
+}
+
 /// `zbm console`, or `zbm console release`, `reattach` or `layout`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     match args.first().map(String::as_str) {
@@ -296,26 +348,14 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         return USAGE;
     };
     let files = RealFiles;
-    let settings = Settings {
-        card: options.card.clone(),
-        mirror: options.mirror.clone(),
-        flavour: zbm_console::keys::Flavour::of_image(|path| files.exists(path)),
-        num_lock: options.num_lock,
-        repeat: options.repeat,
-        scrollback: options.scrollback.unwrap_or(SCROLLBACK),
-        scheme: options
-            .scheme
-            .or_else(|| options.large.then_some(&HIGH_CONTRAST)),
-        status_line: options.status,
-        bell: options.bell,
-    };
     let places = Places::system();
+    let directory = Path::new(crate::layouts::DIRECTORY);
+    let settings = settings(&options, &files, &places, directory);
     // The screen and its history stay out of swap.
     if let Err(error) = zbm_sys::memory::lock_all_memory() {
         places.log(5, &format!("memory not locked: {error}"));
     }
     let mut grid = |size, height| console_grid(&files, Path::new("/"), &options, size, height);
-    let directory = Path::new(crate::layouts::DIRECTORY);
     let mut warn = |text: String| places.log(4, &text);
     let first = crate::layouts::first(&files, directory, options.layout.as_deref(), &mut warn);
     let mut load = |name: &str| crate::layouts::load(&files, directory, name);
@@ -409,151 +449,4 @@ fn run_font(args: &[String], io: &mut Io) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    fn args(line: &str) -> Vec<String> {
-        line.split_whitespace().map(str::to_owned).collect()
-    }
-
-    #[test]
-    fn options_are_parsed_and_wrong_ones_refused() {
-        assert_eq!(
-            parse(&args(
-                "--card /dev/dri/card1 --height 32 --mirror /dev/ttyS1"
-            )),
-            Some(Options {
-                card: Some(PathBuf::from("/dev/dri/card1")),
-                height: Some(32),
-                psf: false,
-                layout: None,
-                num_lock: None,
-                repeat: None,
-                scrollback: None,
-                mirror: Some(PathBuf::from("/dev/ttyS1")),
-                scheme: None,
-                large: false,
-                status: false,
-                bell: Ring::Visual,
-            })
-        );
-        let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();
-        assert_eq!((keys.num_lock, keys.repeat), (Some(true), Some((250, 33))));
-        assert_eq!(parse(&args("--numlock off")).unwrap().num_lock, Some(false));
-        assert_eq!(parse(&args("--numlock yes")), None);
-        assert_eq!(parse(&args("--repeat fast")), None);
-        assert_eq!(parse(&args("--scrollback 0")).unwrap().scrollback, Some(0));
-        assert_eq!(parse(&args("--scrollback 100001")), None);
-        let look = parse(&args("--palette tango --large")).unwrap();
-        assert_eq!(look.scheme.map(|scheme| scheme.name), Some("tango"));
-        assert!(look.large);
-        assert_eq!(parse(&args("--palette rainbow")), None);
-        let more = parse(&args("--status --bell both")).unwrap();
-        assert!(more.status);
-        assert_eq!(more.bell, Ring::Both);
-        assert_eq!(parse(&args("--bell loud")), None);
-        // The names `zbm.console_palette` takes are the console's.
-        let palettes = zbm_config::spec::cmdline::PALETTES;
-        let schemes: Vec<&str> = zbm_console::scheme::SCHEMES
-            .iter()
-            .map(|scheme| scheme.name)
-            .collect();
-        assert_eq!(palettes, schemes);
-        for bell in zbm_config::spec::cmdline::BELLS {
-            assert!(Ring::parse(bell).is_some(), "{bell}");
-        }
-        assert_eq!(parse(&[]), Some(Options::default()));
-        assert!(parse(&args("--psf")).unwrap().psf);
-        let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;
-        assert_eq!(layout.as_deref(), Some("de(nodeadkeys)"));
-        assert_eq!(parse(&args("--layout")), None);
-        assert_eq!(parse(&args("--height tall")), None);
-        assert_eq!(parse(&args("--mirror")), None);
-        assert_eq!(parse(&args("--loud")), None);
-
-        assert_eq!(parse_release(&[]), Some(RELEASE_TIMEOUT));
-        assert_eq!(
-            parse_release(&args("--timeout 500")),
-            Some(Duration::from_millis(500))
-        );
-        assert_eq!(parse_release(&args("--timeout soon")), None);
-        assert_eq!(parse_release(&args("--now")), None);
-    }
-
-    #[test]
-    fn wrong_options_show_the_usage() {
-        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
-        let mut io = Io {
-            stdout: &mut stdout,
-            stderr: &mut stderr,
-        };
-
-        assert_eq!(run(&args("--loud"), &mut io), USAGE);
-        // No console runs on the machine of the tests: nothing to hand back.
-        assert_eq!(run(&args("release --timeout 10"), &mut io), 0);
-        assert_eq!(run(&args("release --now"), &mut io), USAGE);
-        assert_eq!(run(&args("reattach --timeout 10"), &mut io), 0);
-        assert_eq!(run(&args("reattach --now"), &mut io), USAGE);
-        let text = String::from_utf8_lossy(&stderr).into_owned();
-        assert_eq!(text.matches("Usage: zbm console").count(), 3, "{text}");
-    }
-
-    #[test]
-    fn the_console_draws_with_the_truetype_font_at_the_console_font_s_height() {
-        let files = zbm_testkit::fakes::FakeFiles::new();
-        let fonts = Path::new("/").join(FONTS);
-        let terminus = include_bytes!("../../../legacy/zfsbootmenu/fonts/ter-v20b.psf");
-        files.file(fonts.join("ter-v20b.psf"), terminus.as_slice());
-        let options = Options::default();
-        let psf = Options {
-            psf: true,
-            ..Options::default()
-        };
-        let grid =
-            |options: &Options| console_grid(&files, Path::new("/"), options, (1280, 800), None);
-
-        // Without a TrueType font, the console font.
-        let bitmap = grid(&options).unwrap();
-        assert_eq!((bitmap.name(), bitmap.cell()), ("ter-v20b.psf", (10, 20)));
-
-        let dejavu = include_bytes!("../../../legacy/zfsbootmenu/fonts/dejavu/DejaVuSansMono.ttf");
-        files.file(fonts.join(TTF), dejavu.as_slice());
-        let outline = grid(&options).unwrap();
-        assert_eq!(outline.name(), TTF);
-        assert_eq!(outline.cell().1, 20);
-        assert_eq!(grid(&psf).unwrap().name(), "ter-v20b.psf");
-
-        assert_eq!(outline.font_count(), 1);
-        // A height asked for while the console runs: the TrueType font in
-        // cells that high; the console font nearest it, here doubled.
-        let asked = console_grid(&files, Path::new("/"), &options, (1280, 800), Some(32));
-        assert_eq!(asked.unwrap().cell().1, 32);
-        let asked = console_grid(&files, Path::new("/"), &psf, (1280, 800), Some(32));
-        assert_eq!(asked.unwrap().cell().1, 40);
-
-        // Its faces and fallback fonts, those that are fonts.
-        files.file(fonts.join(STYLED[0].1), dejavu.as_slice());
-        let fallback = fonts.join(FALLBACK);
-        files.file(fallback.join("b.ttf"), dejavu.as_slice());
-        files.file(fallback.join("a.ttf"), "not a font");
-        assert_eq!(grid(&options).unwrap().font_count(), 3);
-        assert_eq!(grid(&psf).unwrap().font_count(), 1);
-
-        // Large text: cells twice as high, or half again as high on a
-        // display too narrow for that.
-        let large = Options {
-            large: true,
-            ..Options::default()
-        };
-        let large_grid = |size| console_grid(&files, Path::new("/"), &large, size, None);
-        assert_eq!(large_grid((1280, 800)).unwrap().cell().1, 40);
-        assert_eq!(large_grid((700, 500)).unwrap().cell().1, 30);
-        assert_eq!(large_grid((400, 300)).unwrap().cell().1, 20);
-
-        // A file that is no font leaves the console font.
-        files.file(fonts.join(TTF), "not a font");
-        assert_eq!(grid(&options).unwrap().name(), "ter-v20b.psf");
-    }
-}
+mod tests;

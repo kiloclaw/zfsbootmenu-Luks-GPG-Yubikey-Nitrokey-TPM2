@@ -13,7 +13,7 @@ use std::time::Duration;
 use zbm_console::serve::{Switched, request_layout};
 
 use zbm_display::layout::compile::{self, COMPOSE, XKB};
-use zbm_display::layout::{Layout, LayoutError};
+use zbm_display::layout::{Layout, LayoutError, Source};
 use zbm_platform::{Files, RealFiles};
 
 use crate::Io;
@@ -40,17 +40,27 @@ pub fn keymap_path(directory: &Path, name: &str) -> PathBuf {
 /// When `name` is not a layout name, the image does not have it, or its
 /// keymap does not load.
 pub fn load(files: &dyn Files, directory: &Path, name: &str) -> Result<Layout, String> {
+    source(files, directory, name)?
+        .layout()
+        .map_err(|error| error.to_string())
+}
+
+/// What layout `name` is made from in `directory`: its keymap, and the
+/// compose rules when the directory has them.
+///
+/// # Errors
+///
+/// When `name` is not a layout name or the image does not have it.
+pub fn source(files: &dyn Files, directory: &Path, name: &str) -> Result<Source, String> {
     compile::split(name).map_err(|error| error.to_string())?;
     let keymap = files
         .read(&keymap_path(directory, name))
         .map_err(|error| format!("{name}: not in this image ({error})"))?;
-    let layout = Layout::from_keymap(name, &keymap).map_err(|error| error.to_string())?;
-    match files.read(&directory.join(DEAD_KEYS)) {
-        Ok(rules) => layout
-            .with_dead_keys(&rules)
-            .map_err(|error| error.to_string()),
-        Err(_) => Ok(layout),
-    }
+    Ok(Source {
+        name: name.to_owned(),
+        keymap,
+        rules: files.read(&directory.join(DEAD_KEYS)).ok(),
+    })
 }
 
 /// The names of the layouts in `directory`, the console's own first; none

@@ -126,7 +126,40 @@ fn dead_keys_compose_with_the_next_key() {
         "{}",
         &rules[..200]
     );
-    assert!(rules.lines().all(|rule| rule.starts_with("<dead_")));
+    assert!(
+        rules
+            .lines()
+            .all(|rule| rule.starts_with("<dead_") || rule.starts_with("<Multi_key>"))
+    );
+}
+
+#[test]
+fn the_compose_key_starts_sequences_and_types_nothing_itself() {
+    let mut layout = german();
+    // Right Alt is the compose key, not AltGr: a then e is æ, and q stays
+    // q (AltGr q is @).
+    layout.set_compose_key(Some(100));
+    assert_eq!(typed(&mut layout, &[100, 30, 18, 16]), "æq");
+    // Held when a layout takes over, it is not AltGr either.
+    layout.hold(100);
+    assert_eq!(typed(&mut layout, &[16]), "q");
+    // A sequence that does not go on types its last key.
+    assert_eq!(typed(&mut layout, &[100, 30, 2]), "1");
+    // Without the rules, the compose key types nothing.
+    let mut plain = Layout::from_keymap("de", keymap("de").as_bytes()).unwrap();
+    plain.set_compose_key(Some(100));
+    assert_eq!(typed(&mut plain, &[100, 30]), "a");
+    // The decoder gives the key to the layouts it gets.
+    let mut decoder = Decoder::new();
+    decoder.set_compose_key(Some(100));
+    decoder.set_layout(Some(german()));
+    assert_eq!(decoder.feed(100, 1), None);
+    assert_eq!(decoder.feed(100, 0), None);
+    decoder.feed(30, 1);
+    decoder.feed(30, 0);
+    assert_eq!(decoder.feed(18, 1).unwrap().key, Key::Char('æ'));
+    assert_eq!(crate::keys::compose_key("menu"), Some(127));
+    assert_eq!(crate::keys::compose_key("pause"), None);
 }
 
 #[test]

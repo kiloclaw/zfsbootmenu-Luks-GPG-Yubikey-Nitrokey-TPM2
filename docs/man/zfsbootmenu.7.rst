@@ -254,6 +254,18 @@ These options are set on the kernel command line when booting the initramfs or U
     A key held repeats after *delay* milliseconds, *rate* times a second, on every keyboard; otherwise
     the keyboards keep the kernel's repeat.
 
+  **zbm.keyboard_compose=menu**
+
+    The compose key: **ralt** (right Alt), **rwin** (the right logo key), **menu**, **rctrl** (right
+    Ctrl) or **caps** (Caps Lock). It starts the sequences of the compose rules of the image's
+    locale, as Compose a e for æ, and types nothing itself; without this option there is none.
+
+  **zbm.keyboard_layouts=046d:c31c=de,1a2c:0e24=fr**
+
+    Layouts of their own for USB keyboards, each named by its vendor and product as **lsusb** shows
+    them. Such a keyboard keeps its own Caps Lock, Num Lock and lights; the others type with the
+    layout of **zbm.keyboard_layout**, which Super+Space changes.
+
   **zbm.console_scrollback=2000**
 
     The console keeps this many lines that scrolled off the screen, which Shift+PgUp and Shift+PgDn

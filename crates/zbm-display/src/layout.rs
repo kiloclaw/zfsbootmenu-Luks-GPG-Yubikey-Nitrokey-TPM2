@@ -69,6 +69,34 @@ pub(crate) fn sealed_context() -> Context {
     builder.build()
 }
 
+/// What a layout is made from: its name, its keymap and its compose
+/// rules, kept to make it again, for a keyboard that comes later.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Source {
+    /// The layout's name.
+    pub name: String,
+    /// The keymap file that [`compile::keymap`] wrote.
+    pub keymap: Vec<u8>,
+    /// The compose rules that [`compile::dead_keys`] wrote, if the image
+    /// has them.
+    pub rules: Option<Vec<u8>>,
+}
+
+impl Source {
+    /// The layout, with its compose rules.
+    ///
+    /// # Errors
+    ///
+    /// When the keymap or the rules do not parse.
+    pub fn layout(&self) -> Result<Layout, LayoutError> {
+        let layout = Layout::from_keymap(&self.name, &self.keymap)?;
+        match &self.rules {
+            Some(rules) => layout.with_dead_keys(rules),
+            None => Ok(layout),
+        }
+    }
+}
+
 /// A keyboard layout and the state of its keys.
 pub struct Layout {
     name: String,
@@ -77,8 +105,12 @@ pub struct Layout {
     state: state_machine::State,
     components: Components,
     dead_keys: Option<(ComposeTable, ComposeState)>,
-    /// The dead key that started the sequence being composed.
+    /// The dead key, or the compose key, that started the sequence being
+    /// composed.
     dead: Option<Keysym>,
+    /// The key, by code, that starts a sequence of the compose key
+    /// (`Multi_key`): it types nothing itself.
+    compose_key: Option<u16>,
     /// The state machine's events, kept to be wiped: they tell the keys.
     events: Vec<Event>,
 }
@@ -116,6 +148,7 @@ impl Layout {
             components: Components::default(),
             dead_keys: None,
             dead: None,
+            compose_key: None,
             events: Vec::with_capacity(EVENTS),
         })
     }
@@ -138,6 +171,12 @@ impl Layout {
         let state = table.create_state();
         self.dead_keys = Some((table, state));
         Ok(self)
+    }
+
+    /// Has key `code` start the sequences of the compose key, which the
+    /// rules of [`Layout::with_dead_keys`] compose; `None` for none.
+    pub fn set_compose_key(&mut self, code: Option<u16>) {
+        self.compose_key = code;
     }
 
     /// The layout's name: `de`, or `de(nodeadkeys)` for a variant.
@@ -186,12 +225,33 @@ impl Layout {
     /// Key `code` held down already when this layout took over from
     /// another, so that a modifier held then still counts.
     pub fn hold(&mut self, code: u16) {
-        self.feed(code, true);
+        if Some(code) != self.compose_key {
+            self.feed(code, true);
+        }
+    }
+
+    /// The compose key pressed: a sequence starts, or goes on.
+    fn compose(&mut self) {
+        let Some((table, state)) = &mut self.dead_keys else {
+            return;
+        };
+        match table.feed(state, syms::Multi_key) {
+            Some(FeedResult::Pending) => {
+                self.dead.get_or_insert(syms::Multi_key);
+            }
+            _ => self.dead = None,
+        }
     }
 
     /// The key event of `code`: released (0), pressed (1) or repeated (2).
     /// Releases type nothing and return `None`.
     pub fn key(&mut self, code: u16, value: i32) -> Option<Typed> {
+        if Some(code) == self.compose_key {
+            if value == 1 {
+                self.compose();
+            }
+            return None;
+        }
         match value {
             0 => {
                 self.feed(code, false);

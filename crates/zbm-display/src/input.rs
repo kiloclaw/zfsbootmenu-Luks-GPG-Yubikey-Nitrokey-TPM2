@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::keys::{Decoder, KeyPress};
-use crate::layout::Layout;
+use crate::layout::{Layout, Source};
 
 /// `EV_SYN`: the end of a group of events, or the news that some were lost.
 const EV_SYN: u16 = 0;
@@ -164,6 +164,34 @@ struct Device {
     /// Events were lost: the rest of the group is skipped and the keys
     /// down are read from the device at its end.
     lost: bool,
+    /// Its USB vendor and product, for a layout of its own.
+    id: Option<DeviceId>,
+    /// Its own decoder, with the layout of its own; the keyboards' shared
+    /// one otherwise.
+    own: Option<Decoder>,
+    /// The states of Caps Lock, Num Lock and Scroll Lock its lights show;
+    /// `None` when they are not known yet.
+    lights: Option<[bool; 3]>,
+}
+
+impl Device {
+    /// The keyboard `file`, opened at `path`, of `id`, whose lights show
+    /// `lights`.
+    fn new(
+        file: File,
+        path: Option<PathBuf>,
+        id: Option<DeviceId>,
+        lights: Option<[bool; 3]>,
+    ) -> Device {
+        Device {
+            file,
+            path,
+            lost: false,
+            id,
+            own: None,
+            lights,
+        }
+    }
 }
 
 /// Opens the input device at `path`, for writing as well when it may be,
@@ -196,9 +224,10 @@ pub struct Keyboards {
     places: Option<(PathBuf, PathBuf)>,
     decoder: Decoder,
     pending: Vec<KeyPress>,
-    /// The states of Caps Lock, Num Lock and Scroll Lock the lights show;
-    /// `None` when a keyboard came that does not show them yet.
-    lights: Option<[bool; 3]>,
+    /// The layouts of the keyboards that have one of their own.
+    rules: Vec<(DeviceId, Source)>,
+    /// The compose key, which the keyboards' own decoders get too.
+    compose_key: Option<u16>,
     /// The key repeat asked for, in milliseconds: the delay and the period,
     /// which keyboards that come later get too.
     repeat: Option<(u32, u32)>,
@@ -237,19 +266,18 @@ impl Keyboards {
         let mut num_lock = false;
         for path in keyboards(sysfs, dev) {
             num_lock |= is_num_lock_lit(sysfs, &path);
+            let id = DeviceId::of(sysfs, &path);
             match open_device(&path) {
-                Ok(file) => found.devices.push(Device {
-                    file,
-                    path: Some(path),
-                    lost: false,
-                }),
+                Ok(file) => found.devices.push(Device::new(file, Some(path), id, None)),
                 Err(error) => failed = Some(error),
             }
         }
         // Num Lock as the keyboards showed it: the firmware or the kernel
         // console may have turned it on.
         found.decoder.set_num_lock(num_lock);
-        found.lights = Some([false, num_lock, false]);
+        for device in &mut found.devices {
+            device.lights = Some([false, num_lock, false]);
+        }
         (found, failed)
     }
 
@@ -259,16 +287,13 @@ impl Keyboards {
         Keyboards {
             devices: devices
                 .into_iter()
-                .map(|file| Device {
-                    file,
-                    path: None,
-                    lost: false,
-                })
+                .map(|file| Device::new(file, None, None, Some([false; 3])))
                 .collect(),
             places: None,
             decoder: Decoder::new(),
             pending: Vec::with_capacity(PENDING),
-            lights: Some([false; 3]),
+            rules: Vec::new(),
+            compose_key: None,
             repeat: None,
         }
     }
@@ -289,17 +314,16 @@ impl Keyboards {
                 if let Some((delay, period)) = self.repeat {
                     let _ = zbm_sys::console::set_key_repeat(file.as_raw_fd(), delay, period);
                 }
-                self.devices.push(Device {
-                    file,
-                    path: Some(path),
-                    lost: false,
-                });
+                let id = DeviceId::of(sysfs, &path);
+                self.devices.push(Device::new(file, Some(path), id, None));
                 added += 1;
             }
         }
         if added > 0 {
-            // The new keyboards show the locks as the others do.
-            self.lights = None;
+            for index in self.devices.len() - added..self.devices.len() {
+                self.adopt(index);
+            }
+            // The new keyboards show the locks.
             self.show_locks();
         }
         added
@@ -313,6 +337,11 @@ impl Keyboards {
     /// Turns Num Lock on or off, on every keyboard (`zbm.numlock`).
     pub fn set_num_lock(&mut self, on: bool) {
         self.decoder.set_num_lock(on);
+        for device in &mut self.devices {
+            if let Some(own) = &mut device.own {
+                own.set_num_lock(on);
+            }
+        }
         self.show_locks();
     }
 
@@ -325,25 +354,43 @@ impl Keyboards {
         }
     }
 
-    /// Whether Scroll Lock is on: the programs' output is held.
+    /// The decoders: the shared one, and the keyboards' own.
+    fn decoders(&self) -> impl Iterator<Item = &Decoder> {
+        std::iter::once(&self.decoder).chain(self.devices.iter().filter_map(|d| d.own.as_ref()))
+    }
+
+    /// Whether Scroll Lock is on, on a keyboard: the programs' output is
+    /// held.
     pub fn is_scroll_lock(&self) -> bool {
-        self.decoder.is_scroll_lock()
+        self.decoders().any(Decoder::is_scroll_lock)
     }
 
-    /// Whether Caps Lock is on.
+    /// Whether Caps Lock is on, on a keyboard.
     pub fn is_caps_lock(&self) -> bool {
-        self.decoder.is_caps_lock()
+        self.decoders().any(Decoder::is_caps_lock)
     }
 
-    /// Whether Num Lock is on.
+    /// Whether Num Lock is on, on a keyboard.
     pub fn is_num_lock(&self) -> bool {
-        self.decoder.is_num_lock()
+        self.decoders().any(Decoder::is_num_lock)
     }
 
     /// The accent of the dead key typed last, while it waits for the key it
     /// goes on.
     pub fn pending_accent(&self) -> Option<char> {
-        self.decoder.pending_accent()
+        self.decoders().find_map(Decoder::pending_accent)
+    }
+
+    /// Has key `code` start the compose key's sequences (`None` for none),
+    /// on the layouts that have its rules.
+    pub fn set_compose_key(&mut self, code: Option<u16>) {
+        self.compose_key = code;
+        self.decoder.set_compose_key(code);
+        for device in &mut self.devices {
+            if let Some(own) = &mut device.own {
+                own.set_compose_key(code);
+            }
+        }
     }
 
     /// Translates keys with `layout` from now on, or on the US layout.
@@ -401,11 +448,15 @@ impl Keyboards {
                 (EV_SYN, SYN_REPORT) if device.lost => {
                     device.lost = false;
                     let down = self.keys_down();
-                    self.decoder.resync(&down);
+                    self.decoder_of(index).resync(&down);
                 }
                 _ if device.lost => {}
                 (EV_KEY, code) if self.pending.len() + 2 <= PENDING => {
-                    self.decoder.feed_into(code, event.value, &mut self.pending);
+                    let decoder = match self.devices.get_mut(index).and_then(|d| d.own.as_mut()) {
+                        Some(own) => own,
+                        None => &mut self.decoder,
+                    };
+                    decoder.feed_into(code, event.value, &mut self.pending);
                 }
                 _ => {}
             }
@@ -413,23 +464,23 @@ impl Keyboards {
     }
 
     /// Lights Caps Lock, Num Lock and Scroll Lock on every keyboard when
-    /// the console's changed: the kernel does not, while the console reads
+    /// its decoder's changed: the kernel does not, while the console reads
     /// the keys.
     fn show_locks(&mut self) {
-        let decoder = &self.decoder;
-        let now = [
-            decoder.is_caps_lock(),
-            decoder.is_num_lock(),
-            decoder.is_scroll_lock(),
-        ];
-        if self.lights == Some(now) {
-            return;
-        }
-        self.lights = Some(now);
-        let mut records = led_records(LED_CAPSL, now[0]);
-        records.extend(led_records(LED_NUML, now[1]));
-        records.extend(led_records(LED_SCROLLL, now[2]));
         for device in &mut self.devices {
+            let decoder = device.own.as_ref().unwrap_or(&self.decoder);
+            let now = [
+                decoder.is_caps_lock(),
+                decoder.is_num_lock(),
+                decoder.is_scroll_lock(),
+            ];
+            if device.lights == Some(now) {
+                continue;
+            }
+            device.lights = Some(now);
+            let mut records = led_records(LED_CAPSL, now[0]);
+            records.extend(led_records(LED_NUML, now[1]));
+            records.extend(led_records(LED_SCROLLL, now[2]));
             let _ = device.file.write_all(&records);
         }
     }
@@ -487,6 +538,10 @@ impl KeySource for Keyboards {
         Ok(press)
     }
 }
+
+mod own;
+
+pub use own::DeviceId;
 
 #[cfg(test)]
 mod tests;
