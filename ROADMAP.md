@@ -742,7 +742,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - SE1, SE7, SB1, DM1, UI1, UI2, UI13, VE1, CD1, CD2, CD3; SE2, SE3, SE8 and PM5 are done (27 October 2026; their
   VM runs are left).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
-  those that go with later items; their VM runs are left.
+  those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
   test passing on the Rust runtime.
 
@@ -933,8 +933,9 @@ items that replace the code they are in:
 | 25 | Versions such as `git-abc` are never pruned; firmware trimming under a symlinked build directory; `config.yaml` rewritten in place | `generate-zbm` | DM10 |
 | 27 | `org.zfsbootmenu:rootprefix` can add kernel arguments | `zbm-boot` | DM3 |
 
-The fixes of phase 0 are in `CHANGELOG.md`, under "Fixes from the bug review before the console's M4". Their VM runs
-are left: the console, the menu, start-up, the supervisor and the LUKS code all changed in the images.
+The fixes of phase 0 are in `CHANGELOG.md`, under "Fixes from the bug review before the console's M4". Every Rust VM
+test passed on them on 27 October 2026 (`docs/luks/testing.rst`), but for the two `oldzfs` tests, which need the old
+image and did not run.
 
 ## Not planned
 
