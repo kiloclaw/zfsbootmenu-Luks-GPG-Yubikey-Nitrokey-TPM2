@@ -166,6 +166,8 @@ pub struct Parity {
     recorded: Option<Vec<Case>>,
     /// The cases met so far.
     met: Vec<Case>,
+    /// The cases of the file, in every mode, for [`Parity::recorded`].
+    kept: Option<Vec<Case>>,
 }
 
 impl Parity {
@@ -194,6 +196,7 @@ impl Parity {
             mode: Mode::current(),
             recorded: None,
             met: Vec::new(),
+            kept: None,
         }
     }
 
@@ -226,7 +229,7 @@ impl Parity {
     {
         let input = input.into();
         let index = self.met.len();
-        let recorded = self.recorded().get(index).cloned();
+        let recorded = self.recorded_cases().get(index).cloned();
         if let Some(case) = &recorded {
             assert!(
                 case.input == input,
@@ -266,8 +269,40 @@ impl Parity {
         serde_json::from_value(result).expect("the recorded result has the type the test expects")
     }
 
+    /// The result recorded for `input` from legacy code that is gone, such
+    /// as the legacy host tools: nothing runs, in every mode. Recording
+    /// keeps the case as it is, so that the golden file stays whole.
+    ///
+    /// # Panics
+    ///
+    /// When the case was not recorded or its input changed, as in a live
+    /// run whose seed generates inputs that were never recorded.
+    pub fn recorded<T: DeserializeOwned>(&mut self, input: impl Into<String>) -> T {
+        let input = input.into();
+        let index = self.met.len();
+        let path = self.path.clone();
+        let kept = self.kept.get_or_insert_with(|| read(&path));
+        let Some(case) = kept.get(index).cloned() else {
+            panic!(
+                "{}: no recording of case {index} (input {input}), and the legacy code \
+                 that gave the recordings is gone",
+                self.path.display()
+            );
+        };
+        assert!(
+            case.input == input,
+            "{}: case {index} was recorded for input\n  {}\nbut the test now gives\n  \
+             {input}\nand the legacy code that gave the recordings is gone",
+            self.path.display(),
+            case.input,
+        );
+        self.met.push(case.clone());
+        serde_json::from_value(case.result)
+            .expect("the recorded result has the type the test expects")
+    }
+
     /// The recorded cases; none when recording or running live.
-    fn recorded(&mut self) -> &[Case] {
+    fn recorded_cases(&mut self) -> &[Case] {
         let (path, mode) = (&self.path, self.mode);
         self.recorded.get_or_insert_with(|| match mode {
             Mode::Replay | Mode::Check => read(path),
@@ -323,7 +358,7 @@ impl Drop for Parity {
                 std::fs::write(&self.path, text).expect("the golden file can be written");
             }
             Mode::Replay | Mode::Check if !self.met.is_empty() => {
-                let recorded = self.recorded().len();
+                let recorded = self.recorded_cases().len();
                 assert!(
                     self.met.len() >= recorded,
                     "{}: {recorded} cases were recorded but the test met only {}. {RECORD_AGAIN}",
@@ -346,6 +381,7 @@ mod tests {
             mode,
             recorded: Some(recorded),
             met: Vec::new(),
+            kept: None,
         }
     }
 
@@ -421,6 +457,7 @@ mod tests {
             mode: Mode::Record,
             recorded: None,
             met: Vec::new(),
+            kept: None,
         };
         let recorded: Vec<u8> = recording.legacy("first", || vec![1, 2]);
         drop(recording);
@@ -431,10 +468,37 @@ mod tests {
             mode: Mode::Replay,
             recorded: None,
             met: Vec::new(),
+            kept: None,
         };
         let replayed: Vec<u8> = replay.legacy("first", || unreachable!("the legacy code ran"));
 
         assert_eq!(replayed, [1, 2]);
+    }
+
+    #[test]
+    fn a_recording_of_code_that_is_gone_is_read_in_every_mode_and_kept() {
+        let dir = crate::TempDir::new("zbm-parity-kept");
+        let path = dir.join("t.json");
+        let at = |mode| Parity {
+            path: path.clone(),
+            mode,
+            recorded: None,
+            met: Vec::new(),
+            kept: None,
+        };
+        let mut first = at(Mode::Record);
+        let _: u32 = first.legacy("a", || 7);
+        drop(first);
+
+        for mode in [Mode::Record, Mode::Replay, Mode::Live] {
+            let mut parity = at(mode);
+            let result: u32 = parity.recorded("a");
+            assert_eq!(result, 7, "{mode:?}");
+        }
+        let result: u32 = at(Mode::Replay).recorded("a");
+        assert_eq!(result, 7);
+        let changed = std::panic::catch_unwind(|| at(Mode::Replay).recorded::<u32>("b"));
+        assert!(changed.is_err());
     }
 
     #[test]
@@ -453,6 +517,7 @@ mod tests {
             mode: Mode::Live,
             recorded: None,
             met: Vec::new(),
+            kept: None,
         };
 
         let result: String = parity.legacy("a", || "ran".to_owned());

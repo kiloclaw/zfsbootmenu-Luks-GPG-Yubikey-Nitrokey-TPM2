@@ -1,17 +1,18 @@
-//! Parity tests: `legacy/bin/generate-zbm` and the Rust `generate-zbm` run with
-//! the same arguments and configuration in identical sandboxes, with fake
+//! Parity tests: the Rust `generate-zbm` runs in a sandbox, with fake
 //! `dracut`, `mkinitcpio`, mount tools and hooks and the real `objcopy`,
-//! `objdump` and `strings`. They must exit the same way, print the same
-//! messages and debug log, run the same commands and leave the same files, byte
-//! for byte.
+//! `objdump` and `strings`, and must exit the same way, print the same
+//! messages and debug log, run the same commands and leave the same files,
+//! byte for byte, as the Perl `generate-zbm` did when its results were
+//! recorded (`tests/golden/legacy`). The Perl program is gone; the
+//! recordings stay as the expected results.
 //!
 //! The tests are in this file, so that their golden files are named after it;
-//! [`sandbox`] runs the programs and compares them, and [`fixtures`] holds the
+//! [`sandbox`] runs the program and compares it, and [`fixtures`] holds the
 //! configurations and fake programs that several tests share.
 
 #![allow(
     clippy::disallowed_methods,
-    reason = "the parity tests run the legacy programs"
+    reason = "the parity tests run the program in a sandbox"
 )]
 
 mod fixtures;
@@ -29,8 +30,7 @@ use zbm_testkit::{can_run, parity};
 #[test]
 fn builds_images() {
     let mut parity = parity!("builds_images");
-    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
-    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
+    if !can_run(tools() && efi_tools(), "binutils or the systemd EFI stub") {
         return;
     }
     compare(
@@ -93,8 +93,7 @@ fn builds_images() {
 #[test]
 fn keeps_versions() {
     let mut parity = parity!("keeps_versions");
-    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
-    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
+    if !can_run(tools() && efi_tools(), "binutils or the systemd EFI stub") {
         return;
     }
     let versioned = "Global:
@@ -179,7 +178,7 @@ EFI:
 #[test]
 fn chooses_kernels() {
     let mut parity = parity!("chooses_kernels");
-    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
+    if !can_run(tools(), "binutils") {
         return;
     }
     let args: &[&[&str]] = &[
@@ -268,7 +267,7 @@ Kernel:
 #[test]
 fn initramfs_generators() {
     let mut parity = parity!("initramfs_generators");
-    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
+    if !can_run(tools(), "binutils") {
         return;
     }
     let cpio = "Global:
@@ -357,7 +356,7 @@ Components:
 #[test]
 fn configuration_states() {
     let mut parity = parity!("configuration_states");
-    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
+    if !can_run(tools(), "binutils") {
         return;
     }
     let disabled =
@@ -411,7 +410,7 @@ fn configuration_states() {
 #[test]
 fn mounts_and_hooks() {
     let mut parity = parity!("mounts_and_hooks");
-    if !can_run(!parity.mode().needs_legacy() || tools(), "perl or binutils") {
+    if !can_run(tools(), "binutils") {
         return;
     }
     let config = "Global:
@@ -526,8 +525,7 @@ kill -KILL $$
 #[test]
 fn bundle_failures() {
     let mut parity = parity!("bundle_failures");
-    let tools = (!parity.mode().needs_legacy() || tools()) && efi_tools();
-    if !can_run(tools, "perl, binutils or the systemd EFI stub") {
+    if !can_run(tools() && efi_tools(), "binutils or the systemd EFI stub") {
         return;
     }
     let config = "Global:

@@ -43,7 +43,6 @@ the booted system.
 | Path | Contents |
 | --- | --- |
 | `legacy/zfsbootmenu/` | The bootloader runtime, written in Bash: init hooks, libraries and help pages. Installed as `/usr/share/zfsbootmenu`. |
-| `legacy/bin/` | The legacy `generate-zbm` (Perl) and `zbm-kcl` (Bash), which the Rust ones have replaced. `legacy/cpanfile` lists the Perl modules the legacy `generate-zbm` needs. |
 | `crates/` | Rust crates for the port of ZFSBootMenu to Rust, in the Cargo workspace defined by `Cargo.toml`: `generate-zbm`, `zbm-kcl`, the runtime program `zbm` and their libraries. Their dependencies are vendored in `vendor/`. |
 | `packaging/dracut/` | The dracut module (`90zfsbootmenu`). |
 | `packaging/initcpio/` | The mkinitcpio hooks and install scripts. |
@@ -59,8 +58,8 @@ The boot runtime that ships is the Bash code under `legacy/zfsbootmenu/`; the ho
 are the Rust ones in `crates/`, which replaced the Perl and Bash tools and build the same images. The Rust runtime will
 replace the Bash one as a whole, after a beta; images already include its program, `zbm`, but do not use it. `make`
 builds the Rust programs, and `make install` installs them with files from `legacy/zfsbootmenu/`, `packaging/dracut/`,
-`packaging/initcpio/`, `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`
-(`TOOLS=legacy` installs the legacy tools instead). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test
+`packaging/initcpio/`, `config/zfsbootmenu/`, `contrib/`, `examples/` and `docs/man/dist/`, plus `assets/splash.bmp`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build and test
 each part, [PORT-ROADMAP.md](PORT-ROADMAP.md) for the phases of the port, and [ROADMAP.md](ROADMAP.md) for the features
 planned after it.
 

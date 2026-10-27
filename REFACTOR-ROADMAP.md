@@ -112,7 +112,6 @@ What the finished phases left open, and where it goes:
 | Front ends: `zbm`, `zbm-startup`, `zbm-tui`, `zbm-console`, `zbm-brush` | Rust | 31,100 lines | R5 builds the menu |
 | Test kit and developer tools: `zbm-testkit`, `xtask`, `zbm-vmtest` | Rust | 28,200 lines | Done (R1 to R3) |
 | Legacy runtime (`legacy/zfsbootmenu`) | Bash | 9,200 lines | Frozen; the default runtime until R9 |
-| Legacy host tools (`legacy/bin`) | Perl, Bash | 1,800 lines | Replaced; kept to record parity results until R9 |
 | LUKS unit suites (`tests/luks/unit`) | Bash | 1,300 lines | Kept while the legacy runtime is; the Rust port is `crates/zbm-luks/tests/devices` |
 | Upstream test VMs (`tests/*.sh`, `tests/helpers`) | Bash, Perl | 2,800 lines | Interactive; R7 |
 | Packaging and scripts (`packaging/`, `scripts/`) | Bash, Python | 2,300 lines | R6, R7 |

@@ -1,9 +1,0 @@
-{
-  "about": "Results of the legacy code, recorded by `cargo xtask record-parity`; do not edit",
-  "cases": [
-    {
-      "input": "our $VERSION",
-      "result": "our $VERSION = '3.1.0+dev';"
-    }
-  ]
-}

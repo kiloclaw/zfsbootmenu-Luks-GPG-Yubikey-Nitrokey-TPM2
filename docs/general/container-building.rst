@@ -115,9 +115,9 @@ Container Contents
   ``Global.InitCPIO`` are refused.
 * systemd's cryptsetup token plugins are included, so TPM2 tokens with signed PCR policies or ``--tpm2-pcrlock`` can be
   unlocked (see :doc:`luks`).
-* For source trees that contain the Rust crates, the entrypoint builds ``zbm`` and the Rust ``generate-zbm`` offline with
-  the image's Rust toolchain and builds images with the Rust ``generate-zbm``; ``-g perl`` selects the Perl one, which
-  older trees always use. Both produce the same images, which include ``zbm`` but boot the legacy runtime.
+* For source trees that contain the Rust crates, the entrypoint builds ``zbm`` and ``generate-zbm`` offline with the
+  image's Rust toolchain and builds images with that ``generate-zbm``; upstream trees build with their Perl
+  ``generate-zbm``.
 
 The container README (``packaging/container/README.md``) describes the image in detail.
 

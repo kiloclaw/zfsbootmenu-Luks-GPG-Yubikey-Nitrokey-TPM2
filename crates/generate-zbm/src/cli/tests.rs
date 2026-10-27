@@ -1,9 +1,8 @@
 //! Tests of the command line parser.
 
 use super::*;
-use zbm_platform::exec::{Command, Runner, Stream, SystemRunner};
-use zbm_testkit::legacy::path;
-use zbm_testkit::{Rng, can_run, have_program, parity};
+use zbm_testkit::parity::Mode;
+use zbm_testkit::{Rng, parity};
 
 fn args(list: &[&str]) -> Vec<String> {
     list.iter().map(|arg| (*arg).to_owned()).collect()
@@ -62,36 +61,6 @@ fn errors() {
     assert_eq!(parsed.warnings, ["Unknown option: x\n"]);
     let parsed = parse(&args(&["foo", "-d"]), true);
     assert_eq!(parsed.outcome, Outcome::Run(Box::default()));
-}
-
-/// The `GetOptions` call of the Perl program, run on `list`, reporting the
-/// options, warnings and status.
-fn perl_parse(source: &str, list: &[String], posix: bool) -> String {
-    let start = source.find("GetOptions(").unwrap();
-    let end = source[start..].find(") or exit 1;").unwrap() + start;
-    let call = &source[start..end + 1];
-    let program = format!(
-        "use strict; use warnings; use Getopt::Long qw(:config no_ignore_case auto_version);\n\
-         my %runConf; $runConf{{config}} = '/etc/zfsbootmenu/config.yaml';\n\
-         $runConf{{bootdir}} = '/boot';\n\
-         sub pod2usage {{ print \"HELP\\n\"; exit 1; }}\n\
-         my $ok = {call};\n\
-         for my $k (sort keys %runConf) {{ my $v = $runConf{{$k}}; next unless defined $v;\n\
-           $v = join('|', @$v) if ref $v; print \"$k=$v\\n\"; }}\n\
-         print $ok ? \"ok\\n\" : \"invalid\\n\";\n"
-    );
-    let mut command = Command::new("perl")
-        .arg("-e")
-        .arg(program)
-        .arg("--")
-        .args(list.iter().cloned())
-        .merge_stderr()
-        .stderr(Stream::Capture)
-        .env_remove("POSIXLY_CORRECT");
-    if posix {
-        command = command.env("POSIXLY_CORRECT", "1");
-    }
-    SystemRunner.run(&command).unwrap().stdout_text()
 }
 
 fn rust_parse(list: &[String], posix: bool) -> String {
@@ -153,28 +122,12 @@ fn rust_parse(list: &[String], posix: bool) -> String {
     text
 }
 
-/// Perl's output without the option values of invalid runs, which the Rust
-/// parser does not report.
-fn comparable(perl: &str) -> String {
-    if perl.ends_with("invalid\n") {
-        perl.lines()
-            .filter(|line| {
-                !line.contains('=') || line.starts_with("Option ") || line.starts_with("Unknown")
-            })
-            .map(|line| format!("{line}\n"))
-            .collect()
-    } else {
-        perl.to_owned()
-    }
-}
-
 #[test]
 fn matches_getopt_long() {
     let mut parity = parity!("matches_getopt_long");
-    if !can_run(
-        !parity.mode().needs_legacy() || have_program("perl"),
-        "perl",
-    ) {
+    // The results of the Perl program's `GetOptions` were recorded with
+    // seed 10; another seed gives inputs that were never recorded.
+    if parity.mode() == Mode::Live {
         return;
     }
     let pieces = [
@@ -248,10 +201,7 @@ fn matches_getopt_long() {
             .map(|_| (*rng.choose(&pieces)).to_owned())
             .collect();
         let posix = rng.below(5) == 0;
-        let legacy: String = parity.legacy(format!("args {list:?}, posix {posix}"), || {
-            let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
-            comparable(&perl_parse(&source, &list, posix))
-        });
+        let legacy: String = parity.recorded(format!("args {list:?}, posix {posix}"));
         assert_eq!(
             rust_parse(&list, posix),
             legacy,

@@ -1,12 +1,13 @@
-//! The sandboxes the parity tests run both programs in, with fake programs and
-//! kernels, and the comparison of what the programs did.
+//! The sandboxes the parity tests run the program in, with fake programs and
+//! kernels, and the comparison of what it did with what the Perl program
+//! did when it was recorded.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Output, Runner, Stream, SystemRunner};
 use zbm_testkit::parity::Parity;
-use zbm_testkit::{TempDir, have_program, legacy};
+use zbm_testkit::{TempDir, have_program};
 
 pub(crate) const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 
@@ -15,8 +16,9 @@ pub(crate) fn efi_tools() -> bool {
     Path::new(STUB).is_file() && have_program("objcopy") && have_program("objdump")
 }
 
+/// Whether the tools every case needs are available.
 pub(crate) fn tools() -> bool {
-    have_program("perl") && have_program("strings")
+    have_program("strings")
 }
 
 /// Logs a fake program's arguments, one bracketed word each.
@@ -383,33 +385,6 @@ pub(crate) struct Outcome {
     stderr: String,
 }
 
-/// Runs a case with the Perl program.
-fn run_perl(case: &Case) -> Outcome {
-    let script = legacy::path("bin/generate-zbm").display().to_string();
-    let perl_box = Sandbox::new(case);
-    let output = perl_box.run(&["perl".to_owned(), script.clone()], case);
-    // Perl dies over a configuration section that is not a mapping with whatever
-    // error number an earlier call left; the Rust port exits with 255.
-    let perl_code = output.status.shell_code();
-    let type_error = (output.stderr_text().contains("as a HASH ref")
-        || output.stderr_text().contains("Not a HASH reference"))
-        && !output
-            .stdout_text()
-            .contains("Unable to parse configuration");
-    let code = if type_error && perl_code != 0 {
-        255
-    } else {
-        perl_code
-    };
-    Outcome {
-        code,
-        stdout: perl_box.normalize(&output.stdout_text(), &script),
-        log: debug_log(&perl_box.normalize(&output.stderr_text(), &script)),
-        state: perl_box.state(&script),
-        stderr: perl_box.normalize(&output.stderr_text(), &script),
-    }
-}
-
 /// What the Rust program did in a case that the Perl program has no part in.
 pub(crate) struct RustRun {
     pub(crate) code: i32,
@@ -442,7 +417,7 @@ pub(crate) fn compare(parity: &mut Parity, case: &Case) -> Outcome {
         "args {:?}, env {:?}, config:\n{}",
         case.args, case.env, case.config
     );
-    let mut legacy: Outcome = parity.legacy(describe.clone(), || run_perl(case));
+    let mut legacy: Outcome = parity.recorded(describe.clone());
     for (legacy_text, rust_text) in case.differs {
         for text in [&mut legacy.stdout, &mut legacy.log, &mut legacy.state] {
             *text = text.replace(legacy_text, rust_text);

@@ -186,8 +186,8 @@ pub fn prune_versions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testkit::legacy::{path, perl};
-    use zbm_testkit::{Rng, TempDir, can_run, have_program, parity};
+    use zbm_testkit::parity::Mode;
+    use zbm_testkit::{Rng, TempDir, parity};
 
     fn files(list: &[&str]) -> Vec<String> {
         list.iter().map(|f| (*f).to_owned()).collect()
@@ -247,39 +247,12 @@ mod tests {
         assert_eq!(removed[0], "p-3_1");
     }
 
-    /// A Perl harness with the real `maxRevision`, `groupKernels`, `pruneVersions`
-    /// and `purgeFiles` subs, which reports the files `pruneVersions` would remove,
-    /// one per line.
-    fn perl_harness() -> String {
-        let source = std::fs::read_to_string(path("bin/generate-zbm")).unwrap();
-        let extract = |name: &str| {
-            let start = source.find(&format!("\nsub {name} ")).unwrap() + 1;
-            let end = source[start..].find("\n}\n").unwrap() + start + 3;
-            source[start..end].to_owned()
-        };
-        format!(
-            "use strict; use warnings; use Sort::Versions;\n\
-             our @removed; sub verboseUnlink {{ push @removed, $_[0]; }} sub Log {{ }}\n\
-             {}{}{}{}\n\
-             my ($current, $keep, @spec) = @ARGV;\n\
-             my %groups;\n\
-             for my $entry (@spec) {{ my ($v, @f) = split /,/, $entry; $groups{{$v}} = [@f]; }}\n\
-             pruneVersions(\\%groups, $current, $keep);\n\
-             print \"$_\\n\" for @removed;\n",
-            extract("maxRevision"),
-            extract("groupKernels"),
-            extract("pruneVersions"),
-            extract("purgeFiles"),
-        )
-    }
-
     #[test]
     fn pruning_matches_generate_zbm() {
         let mut parity = parity!("pruning_matches_generate_zbm");
-        if !can_run(
-            !parity.mode().needs_legacy() || have_program("perl"),
-            "perl",
-        ) {
+        // The Perl program's results were recorded with seed 7; another seed
+        // gives inputs that were never recorded.
+        if parity.mode() == Mode::Live {
             return;
         }
         let versions = ["1.0", "1.10", "2.0", "2.1", "3.0.0+dev", "3.0.0"];
@@ -309,12 +282,7 @@ mod tests {
                 .collect();
             let mut args = vec![current.to_owned(), keep.to_string()];
             args.extend(spec);
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let expected: Vec<String> = parity.legacy(format!("{args:?}"), || {
-                let output = perl(&perl_harness(), &arg_refs, b"");
-                assert!(output.status.is_success(), "{}", output.stderr_text());
-                output.stdout_text().lines().map(str::to_owned).collect()
-            });
+            let expected: Vec<String> = parity.recorded(format!("{args:?}"));
             let removed = prune_versions(&groups, current, keep);
             assert_eq!(
                 removed, expected,

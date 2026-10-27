@@ -65,7 +65,7 @@ To link to files within the ZFSBootMenu repository, use the `:zbm:` macro:
 will both create a link to the file `/bin/generate-zbm` on GitHub.
 
 The macro links to the upstream repository at the tag of the current release, so its paths follow the upstream layout
-(`bin/`, `etc/`, `releng/`), not the layout of this repository (`legacy/bin/`, `config/`, `scripts/`). To refer to a file
+(`bin/`, `etc/`, `releng/`), not the layout of this repository (`legacy/zfsbootmenu/`, `config/`, `scripts/`). To refer to a file
 that exists only here, or that has moved, write its path in this repository as a literal (``` ``packaging/container`` ```).
 
 ### Headings

@@ -1,7 +1,7 @@
 //! `zbm-kcl`: review or change the kernel command line of a ZFS boot
 //! environment or a ZFSBootMenu EFI image.
 //!
-//! This is the Rust version of `legacy/bin/zbm-kcl`, with the same options,
+//! This is the Rust version of the Bash `zbm-kcl`, with the same options,
 //! messages and exit codes. The command line of a boot environment is its
 //! `org.zfsbootmenu:commandline` property; that of an EFI image is its
 //! `.cmdline` section, which `objcopy` reads and replaces. Each step does what

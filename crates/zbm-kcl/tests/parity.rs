@@ -1,11 +1,12 @@
-//! Parity tests: `legacy/bin/zbm-kcl` and the Rust `zbm-kcl` run with the same
-//! arguments, environment and input, against the same fake `zfs` and real EFI
-//! images, and must produce the same exit code, output, `zfs` calls, properties
-//! and files.
+//! Parity tests: the Rust `zbm-kcl` runs against a fake `zfs` and real EFI
+//! images, and must produce the same exit code, output, `zfs` calls,
+//! properties and files as the Bash `zbm-kcl` did when its results were
+//! recorded (`tests/golden/legacy`). The Bash program is gone; the
+//! recordings stay as the expected results.
 
 #![allow(
     clippy::disallowed_methods,
-    reason = "the parity tests run the legacy programs"
+    reason = "the parity tests run the program in a sandbox"
 )]
 
 use std::path::{Path, PathBuf};
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Input, Output, Runner, Stream, SystemRunner};
 use zbm_testkit::parity::Parity;
 use zbm_testkit::zfs_script::ZfsScript;
-use zbm_testkit::{TempDir, can_run, have_program, legacy, parity};
+use zbm_testkit::{TempDir, can_run, have_program, parity};
 
 const STUB: &str = "/usr/lib/systemd/boot/efi/linuxx64.efi.stub";
 const PROPERTY: &str = "org.zfsbootmenu:commandline";
@@ -216,27 +217,6 @@ fn in_dir(program: &str) -> Vec<String> {
     ]
 }
 
-/// Runs a case with the legacy program.
-fn run_legacy(
-    properties: &[(&str, &str)],
-    images: &[(&str, Option<&[u8]>)],
-    args: &[&str],
-    editor: Option<&str>,
-    stdin: &[u8],
-) -> Outcome {
-    let script = legacy::path("bin/zbm-kcl").display().to_string();
-    let mut program = in_dir("bash");
-    program.push(script.clone());
-    let sandbox = Sandbox::new(properties, images);
-    let output = sandbox.run(&program, args, editor, stdin);
-    Outcome {
-        code: output.status.shell_code(),
-        stdout: stdout_of(&sandbox, &output, &script),
-        stderr: sandbox.normalize(&output.stderr_text(), &script),
-        state: sandbox.state(),
-    }
-}
-
 /// Runs a case with the Rust program and compares everything with what the
 /// legacy program did (recorded in `parity`).
 fn compare(
@@ -265,9 +245,7 @@ fn compare(
         "properties {properties:?}, images {images_described:?}, args {args:?}, \
          editor {editor:?}, input {input}"
     );
-    let legacy: Outcome = parity.legacy(describe.clone(), || {
-        run_legacy(properties, images, args, editor, stdin)
-    });
+    let legacy: Outcome = parity.recorded(describe.clone());
 
     let binary = env!("CARGO_BIN_EXE_zbm-kcl").to_owned();
     let sandbox = Sandbox::new(properties, images);

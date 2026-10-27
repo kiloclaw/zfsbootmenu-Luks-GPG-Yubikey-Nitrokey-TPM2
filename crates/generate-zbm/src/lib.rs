@@ -1,8 +1,8 @@
-//! `generate-zbm`: build ZFSBootMenu images, the Rust port of
-//! `legacy/bin/generate-zbm`.
+//! `generate-zbm`: build ZFSBootMenu images, the Rust port of the Perl
+//! `generate-zbm` of upstream ZFSBootMenu.
 //!
-//! The port follows the Perl program step by step and is checked against it by
-//! parity tests; see Phase 3 of `PORT-ROADMAP.md`. [`generate::run`] is the
+//! The port follows the Perl program step by step, and parity tests check it
+//! against the results recorded from it; see Phase 3 of `PORT-ROADMAP.md`. [`generate::run`] is the
 //! program; the other modules hold the parts of Perl's behaviour it depends on.
 
 #![cfg_attr(

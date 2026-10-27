@@ -9,8 +9,6 @@ fork are better sent upstream.
 | Path | Contents |
 | --- | --- |
 | `legacy/zfsbootmenu/` | The bootloader runtime (Bash). Installed as `/usr/share/zfsbootmenu`. |
-| `legacy/bin/` | The legacy `generate-zbm` (Perl) and `zbm-kcl` (Bash), which the Rust ones replace; `make install TOOLS=legacy` still installs them. |
-| `legacy/cpanfile` | Perl modules that the legacy `generate-zbm` needs; builds no longer need them. |
 | `crates/` | Rust crates of the port, one Cargo workspace (`Cargo.toml` at the root): `generate-zbm` and `zbm-kcl` (host tools), `zbm` (the runtime program, still without commands) and the libraries they share. |
 | `xtask/` | Developer automation in Rust, run as `cargo xtask` (lints, tests, dependency checks, code metrics); see `docs/dev/tooling.md`. |
 | `vendor/` | The crates the workspace depends on, vendored so that builds need no network (`.cargo/config.toml`). |
@@ -35,7 +33,7 @@ runtime they boot does not use it yet (`zfsbootmenu_runtime`, `zfsbootmenu_zbm` 
 
 ```sh
 make
-make install DESTDIR=/tmp/zbm-root     # TOOLS=legacy: the Perl and Bash tools, without Rust
+make install DESTDIR=/tmp/zbm-root
 ```
 
 Build boot images in the build container (Ubuntu 26.10, Linux 7.3, OpenZFS 2.4.4):
@@ -46,12 +44,13 @@ mkdir -p /tmp/zbm-build
 packaging/container/zbm-builder.sh -b /tmp/zbm-build -l "$PWD"  # images from this checkout, in /tmp/zbm-build/build
 ```
 
-The container builds `zbm` and the Rust `generate-zbm` from the checkout; `-g perl` builds with the Perl one.
+The container builds `zbm` and `generate-zbm` from the checkout.
 
 Build and check the Rust workspace. `rust-toolchain.toml` selects the compiler; the oldest supported one is
-`rust-version` in `Cargo.toml`. The parity tests run the legacy code they compare with, so they need Bash, Perl with
-`YAML::PP`, `Sort::Versions` and `boolean`, binutils and the systemd EFI stub (`systemd-boot-efi`); tests skip
-what they cannot run.
+`rust-version` in `Cargo.toml`. The parity tests compare with results recorded from the legacy code
+(`tests/golden/legacy`); recording them again runs the legacy runtime's Bash functions and Perl's modules, which need
+Bash and Perl with `YAML::PP`, `Sort::Versions` and `boolean`. The EFI cases need binutils and the systemd EFI stub
+(`systemd-boot-efi`); tests skip what they cannot run.
 
 ```sh
 cargo xtask lint      # rustfmt, line widths, clippy, strict lints, rustdoc, dependency layers, code metrics
@@ -77,7 +76,6 @@ quote the seed a failing test prints to reproduce it.
 | LUKS VM tests | `cargo xtask test vm [test ...]` | root, QEMU (KVM if available), the build container image |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS; see `tests/README.md` |
 | Rust | `cargo xtask test` | the Rust toolchain; Perl and binutils for the parity tests |
-| Perl and Rust `generate-zbm` give the same images | `scripts/dev/compare-generators.sh [release recovery builder]` | podman or docker, the build container image |
 
 `docs/luks/testing.rst` describes every LUKS test. Run the suites that cover the code you changed, and say in the pull
 request which ones you ran.

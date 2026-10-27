@@ -21,12 +21,7 @@ RUST_PROGRAMS=zbm brush generate-zbm zbm-kcl
 # stripped unless INSTALL_STRIP is empty (for packages that split debug files)
 INSTALL_STRIP=-s
 
-# Which host tools "make install" installs: "rust" (the default) or "legacy",
-# the Perl generate-zbm and Bash zbm-kcl in legacy/bin, which need no Rust
-# toolchain; images built without zbm use the legacy runtime as before
-TOOLS=rust
-
-.PHONY: all rust install core tools-rust tools-legacy dracut initcpio zbm-release show-version
+.PHONY: all rust install core tools dracut initcpio zbm-release show-version
 
 all: rust
 
@@ -36,16 +31,13 @@ rust:
 zbm-release:
 	./scripts/version.sh -u
 
-install: core tools-$(TOOLS) dracut initcpio zbm-release
+install: core tools dracut initcpio zbm-release
 
-tools-rust: zbm-release rust
+tools: zbm-release rust
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/generate-zbm" "$(DESTDIR)/$(BINDIR)/generate-zbm"
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm-kcl" "$(DESTDIR)/$(BINDIR)/zbm-kcl"
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/zbm" "$(DESTDIR)/$(LIBEXECDIR)/zbm"
 	install -m 0755 $(INSTALL_STRIP) -D "$(CARGO_TARGET_DIR)/release/brush" "$(DESTDIR)/$(LIBEXECDIR)/brush"
-
-tools-legacy: zbm-release
-	install -m 0755 -t "$(DESTDIR)/$(BINDIR)" -D legacy/bin/*
 
 core: zbm-release
 	./scripts/install-tree.sh legacy/zfsbootmenu "$(DESTDIR)/$(MODDIR)/zfsbootmenu"

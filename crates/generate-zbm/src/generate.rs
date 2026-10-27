@@ -1,5 +1,5 @@
-//! The program: the Rust counterpart of the main part of
-//! `legacy/bin/generate-zbm`.
+//! The program: the Rust counterpart of the main part of the Perl
+//! `generate-zbm`.
 //!
 //! The steps, messages and exit statuses follow the Perl program. Like it, the
 //! generator runs every external program through `/bin/sh -c '<command> 2>&1'`:
@@ -387,17 +387,5 @@ mod tests {
         assert_eq!(canonical_path(Path::new("/")), PathBuf::from("/"));
         assert_eq!(canonical_path(Path::new("./a/./b")), PathBuf::from("a/b"));
         assert_eq!(canonical_path(Path::new(".")), PathBuf::from("."));
-    }
-
-    #[test]
-    fn the_version_matches_the_perl_program() {
-        let mut parity = zbm_testkit::parity!("the_version_matches_the_perl_program");
-        let line: String = parity.legacy("our $VERSION", || {
-            let source =
-                std::fs::read_to_string(zbm_testkit::legacy::path("bin/generate-zbm")).unwrap();
-            let line = source.lines().find(|line| line.starts_with("our $VERSION"));
-            line.unwrap().to_owned()
-        });
-        assert_eq!(line, format!("our $VERSION = '{VERSION}';"));
     }
 }

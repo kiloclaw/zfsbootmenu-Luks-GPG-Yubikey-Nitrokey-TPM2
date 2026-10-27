@@ -267,8 +267,13 @@ if ((MKINITCPIO)) ; then
 fi
 
 if ((GENZBM)) ; then
+  # The Rust generate-zbm, built by "make" (or cargo build --release)
+  if [ ! -x ../target/release/generate-zbm ]; then
+    echo "ERROR: build generate-zbm first (make, in the root of the tree)"
+    exit 1
+  fi
   rm -f "${TESTDIR}/generate-zbm"
-  ln -s "$(realpath -e ../legacy/bin/generate-zbm)" "${TESTDIR}/generate-zbm"
+  ln -s "$(realpath -e ../target/release/generate-zbm)" "${TESTDIR}/generate-zbm"
 fi
 
 # Setup a local config file

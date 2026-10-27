@@ -1,4 +1,6 @@
 #!/bin/bash
+# The Rust generate-zbm, built by "make" in the root of the tree
+GENZBM="$( realpath -e ../../target/release/generate-zbm )" || exit 1
 TMP="$( mktemp -d )"
 # shellcheck disable=SC2064
 trap "sudo umount '${TMP}'" EXIT
@@ -14,7 +16,7 @@ sudo mount tmpfs -t tmpfs -o size=10M "${TMP}"
 echo ""
 echo "Unversioned component build, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -22,7 +24,7 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Unversioned component build, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -30,9 +32,9 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Unversioned component build, with backup, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -40,9 +42,9 @@ sudo mount tmpfs -t tmpfs -o size=120M "${TMP}"
 echo ""
 echo "Unversioned component build, with backup, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -51,7 +53,7 @@ sudo mount tmpfs -t tmpfs -o size=10M "${TMP}"
 echo ""
 echo "Versioned component build, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -59,7 +61,7 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Versioned component build, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -67,9 +69,9 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Versioned component build, twice, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -77,9 +79,9 @@ sudo mount tmpfs -t tmpfs -o size=120M "${TMP}"
 echo ""
 echo "Versioned component build, twice, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -90,7 +92,7 @@ sudo mount tmpfs -t tmpfs -o size=10M "${TMP}"
 echo ""
 echo "Unversioned UEFI build, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -98,7 +100,7 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Unversioned UEFI build, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -106,9 +108,9 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Unversioned UEFI build, with backup, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -116,9 +118,9 @@ sudo mount tmpfs -t tmpfs -o size=120M "${TMP}"
 echo ""
 echo "Unversioned UEFI build, with backup, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -127,7 +129,7 @@ sudo mount tmpfs -t tmpfs -o size=10M "${TMP}"
 echo ""
 echo "Versioned UEFI build, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -135,7 +137,7 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Versioned UEFI build, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -143,9 +145,9 @@ sudo mount tmpfs -t tmpfs -o size=60M "${TMP}"
 echo ""
 echo "Versioned UEFI build, twice, not enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"
 
@@ -153,8 +155,8 @@ sudo mount tmpfs -t tmpfs -o size=120M "${TMP}"
 echo ""
 echo "Versioned UEFI build, twice, enough space"
 echo ""
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
-../../legacy/bin/generate-zbm -c spaced.yaml
+"${GENZBM}" -c spaced.yaml
 ls -lah "${TMP}"
 sudo umount "${TMP}"

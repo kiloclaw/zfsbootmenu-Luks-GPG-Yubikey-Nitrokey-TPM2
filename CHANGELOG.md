@@ -38,10 +38,8 @@ request template and a Dependabot configuration.
 `generate-zbm` and `zbm-kcl` are now Rust programs (phases 1 to 3 of `PORT-ROADMAP.md`). They accept the same options
 and configuration, print the same messages and build the same images as the Perl and Bash tools, which parity tests
 and image comparisons check. `make` builds them offline from vendored crates, `make install` installs them, and the
-build container builds images with them; Perl is no longer needed to build images. `make install TOOLS=legacy`
-installs the legacy tools, and the build container's `-g perl` option uses the Perl `generate-zbm`. A build container
-without `cargo`, such as one built from an older `Dockerfile`, builds with the Perl `generate-zbm` and without `zbm`,
-with a warning, since the legacy runtime does not need it; `-g rust` fails there.
+build container builds images with them; Perl is no longer needed to build images. The Perl `generate-zbm` and the Bash `zbm-kcl` are gone
+(see "The parity-only parts removed" below).
 
 Images now include `zbm`, the program of the future Rust runtime, as `/libexec/zbm`, but still boot the legacy runtime.
 The dracut and mkinitcpio setting `zfsbootmenu_runtime` selects the runtime (`legacy` by default) and
@@ -250,6 +248,16 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - `runtime-rust-console-comfort` reads the console's process ID to the end of its line: read while its digits still
   arrived, it named another process, and the check that the scrollback is wiped at a secret prompt passed whatever
   the console's memory held.
+
+### The parity-only parts removed
+
+The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
+that only checked it are gone:
+
+- The Perl `generate-zbm` and the Bash `zbm-kcl` (`legacy/bin`, `legacy/cpanfile`): `make install TOOLS=legacy`, the
+  build container's `-g perl` option and `scripts/dev/compare-generators.sh` with them. The build container builds
+  this tree's images with the Rust `generate-zbm` only, and needs `cargo`; upstream trees still build with their
+  Perl one. The parity tests of the two programs keep the results recorded from them as expected results.
 
 ### The new menu's text in a message catalogue
 

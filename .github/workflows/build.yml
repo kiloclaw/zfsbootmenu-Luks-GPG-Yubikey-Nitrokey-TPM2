@@ -155,20 +155,6 @@ jobs:
           fi
           exit "${status}"
 
-  generators:
-    name: Compare the Perl and Rust generators
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Create the build container
-        run: docker build -t localhost/zbm-builder packaging/container
-
-      # Builds the release, recovery and container-default images with both
-      # generate-zbm programs and compares their contents
-      - name: Build and compare images
-        run: sudo env ZBM_COMPARE_WORK=/tmp/zbm-compare scripts/dev/compare-generators.sh
-
   runtime:
     name: Start-up and pool import with each runtime
     runs-on: ubuntu-latest

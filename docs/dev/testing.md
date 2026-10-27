@@ -12,7 +12,6 @@
 | Either, in the build container | `tests/luks/unit/run-in-container.sh` | podman or docker | |
 | LUKS VM tests | `cargo xtask test vm [test ...]`, or `zbm-vmtest run [test ...]` as root after `cargo build --release -p zbm-vmtest`; `ZBMTEST_ZBM_RUNTIME=rust` boots the Rust runtime | root, QEMU (KVM if available), the build container image | `crates/zbm-vmtest/`, guest files in `tests/luks/vm/` |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS | `tests/README.md` |
-| Same images from the Perl and Rust `generate-zbm` | `scripts/dev/compare-generators.sh` | podman or docker | |
 
 `cargo xtask test` runs the Rust tests under [cargo-nextest](https://nexte.st) when it is installed
 (`cargo install cargo-nextest --locked`), which runs each test in its own process and reports slow ones, and the

@@ -4,13 +4,11 @@ This directory holds the implementation of ZFSBootMenu that ships today:
 
 - `zfsbootmenu/`: the bootloader runtime, written in Bash. `make install` installs it as `/usr/share/zfsbootmenu`, and
   the dracut module and mkinitcpio hooks in `packaging/` copy it into the boot image.
-- `bin/generate-zbm`: the Perl program that builds boot images; `cpanfile` lists the Perl modules it needs.
-- `bin/zbm-kcl`: a Bash tool that reads and changes the kernel command lines of boot environments and EFI executables.
-
-The Rust crates in `crates/` replace this code. The Rust `generate-zbm` and `zbm-kcl` have replaced the two tools:
-`make install` and the build container use them, and `make install TOOLS=legacy` still installs the ones here. The
-runtime in `zfsbootmenu/` will be replaced as a whole, after the Rust runtime has passed a beta. The parity tests of the
-Rust crates run the code here and compare the results, so keep both tools working.
+The Rust crates in `crates/` replace this code. The Perl `generate-zbm` and the Bash `zbm-kcl` that were here are gone:
+the Rust ones replaced them, and the parity tests keep the results they recorded from them as expected results
+(`tests/golden/legacy`). The runtime in `zfsbootmenu/` will be replaced as a whole; the Rust images still install its
+shell libraries, recovery tools, fonts, help pages and hooks, and build with its `install-helpers.sh`, until R6 of
+[REFACTOR-ROADMAP.md](../REFACTOR-ROADMAP.md) moves them.
 
 Until then this code stays the reference, and the runtime is frozen: since Phase 4 of the port it gets bug fixes only,
 each with a test, and every change is recorded in [RUNTIME-CHANGES.md](RUNTIME-CHANGES.md) so the Rust runtime ports it

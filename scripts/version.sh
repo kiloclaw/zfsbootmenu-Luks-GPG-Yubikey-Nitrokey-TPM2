@@ -63,12 +63,11 @@ detect_version() (
     fi
   fi
 
-  # If there is no zbm-release, look to generate-zbm
-  genzbm="legacy/bin/generate-zbm"
-  if [ -r "${genzbm}" ]; then
-    # shellcheck disable=SC2016
-    if verline="$(grep 'our $VERSION[[:space:]]*=' "${genzbm}")"; then
-      version="$(echo "${verline}" | head -n1 | sed -e "s/.*=[[:space:]]*['\"]//" -e "s/['\"].*//")" || version=""
+  # If there is no zbm-release, look to the version the Rust programs report
+  rustver="crates/zbm-core/src/version.rs"
+  if [ -r "${rustver}" ]; then
+    if verline="$(grep '^pub const ZBM_VERSION' "${rustver}")"; then
+      version="$(echo "${verline}" | head -n1 | sed -e 's/[^"]*"//' -e 's/".*//')" || version=""
       if [ -n "${version}" ]; then
         echo "${version}"
         return 0
@@ -105,12 +104,6 @@ update_version() {
   # Versions derived from branch names may contain '/' (e.g., feature/x);
   # escape what sed treats specially
   sedver="$( printf '%s\n' "${version}" | sed -e 's/[&|]/\\&/g' )"
-
-  # Update generate-zbm
-  if [ -w legacy/bin/generate-zbm ]; then
-    echo "Updating legacy/bin/generate-zbm"
-    sed -e "s|our \$VERSION.*|our \$VERSION = '${sedver}';|" -i legacy/bin/generate-zbm
-  fi
 
   # Update the version the Rust programs report
   rustver="crates/zbm-core/src/version.rs"

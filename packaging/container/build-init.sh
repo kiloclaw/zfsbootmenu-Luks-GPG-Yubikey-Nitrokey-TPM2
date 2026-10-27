@@ -124,11 +124,6 @@ Usage: $0 [options]
      to modify the configuration used for image building.
      May be specified more than once to chain modifications.
 
-  -g <generator>
-     Build images with the "rust" or the "perl" generate-zbm
-     (Default: rust when the tree contains the Rust crates and
-      the container has cargo, perl otherwise)
-
   -- <arguments>
       Additional arguments to the generate-zbm binary
 
@@ -147,9 +142,8 @@ UPDATE=
 UPDATE_ZFS=
 KERN_SERIES=
 SKIP_VERSIONING=
-GENERATOR=
 
-while getopts "hb:o:t:e:p:k:uzVg:" opt; do
+while getopts "hb:o:t:e:p:k:uzV" opt; do
   case "${opt}" in
     b)
       BUILDROOT="${OPTARG}"
@@ -177,9 +171,6 @@ while getopts "hb:o:t:e:p:k:uzVg:" opt; do
       ;;
     V)
       SKIP_VERSIONING="yes"
-      ;;
-    g)
-      GENERATOR="${OPTARG}"
       ;;
     h)
       usage
@@ -270,7 +261,8 @@ fi
 zbmcore=
 if [ -d /zbm/legacy/zfsbootmenu ]; then
   zbmcore=/zbm/legacy/zfsbootmenu
-  genzbm=/zbm/legacy/bin/generate-zbm
+  # generate-zbm is built from the Rust crates, below
+  genzbm=
   dracutmod=/zbm/packaging/dracut
   zbmetc=/zbm/config
   versioner=scripts/version.sh
@@ -290,7 +282,7 @@ else
   error "/zbm does not appear to be a valid ZFSBootMenu tree"
 fi
 
-[ -x "${genzbm}" ] || error "missing executable ${genzbm}"
+[ -z "${genzbm}" ] || [ -x "${genzbm}" ] || error "missing executable ${genzbm}"
 
 if [ -n "${zbmcore}" ]; then
   # With new structure, core library must be in /usr/share
@@ -409,23 +401,12 @@ if [ "${SKIP_VERSIONING,,}" != "yes" ] && [ -x "/zbm/${versioner}" ]; then
   ( cd /zbm && "./${versioner}" -u ) || true
 fi
 
-# Trees with the Rust crates build zbm, which images include, and the Rust
-# generate-zbm, which builds them unless "-g perl" selects the Perl one. The
-# crates' dependencies are vendored, so the build needs no network. A build
-# container without cargo builds with the Perl generate-zbm instead, unless
-# "-g rust" asks for the Rust one: both build the same images, and the legacy
-# runtime, the only one so far, does not need zbm.
-case "${GENERATOR:-default}" in
-  default|rust|perl) ;;
-  *) error "unknown generator '${GENERATOR}'; use rust or perl" ;;
-esac
-
+# Trees with the Rust crates build zbm, which images include, and
+# generate-zbm, which builds them; upstream trees bring the Perl
+# generate-zbm. The crates' dependencies are vendored, so the build needs no
+# network.
 if [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ] && ! command -v cargo >/dev/null 2>&1; then
-  if [ "${GENERATOR}" = rust ]; then
-    error "cargo is needed to build the Rust generate-zbm; use -g perl, or a build container with cargo"
-  fi
-  echo "WARNING: cargo is not available: building with the Perl generate-zbm, and without zbm" >&2
-  echo "WARNING: (the legacy runtime does not need it; rebuild the build container to get cargo)" >&2
+  error "cargo is needed to build generate-zbm and zbm; rebuild the build container to get it"
 elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   : "${CARGO_TARGET_DIR:=${ZBMWORKDIR}/target}"
   export CARGO_TARGET_DIR
@@ -456,11 +437,9 @@ elif [ -f /zbm/Cargo.toml ] && [ -d /zbm/crates ]; then
   install -m 0755 -s -D "${CARGO_TARGET_DIR}/release/brush" /usr/libexec/zfsbootmenu/brush \
     || error "unable to install brush"
 
-  if [ "${GENERATOR:-rust}" = rust ]; then
-    genzbm="${CARGO_TARGET_DIR}/release/generate-zbm"
-  fi
-elif [ "${GENERATOR}" = rust ]; then
-  error "this ZFSBootMenu tree has no Rust generate-zbm"
+  genzbm="${CARGO_TARGET_DIR}/release/generate-zbm"
 fi
+
+[ -n "${genzbm}" ] || error "this ZFSBootMenu tree has no generate-zbm"
 
 exec "${genzbm}" "${GENARGS[@]}"
