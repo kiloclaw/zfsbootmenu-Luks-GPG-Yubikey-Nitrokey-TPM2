@@ -340,10 +340,12 @@ impl<'a> Startup<'a> {
                     &[]
                 };
                 let ran = programs::applet(self.system.runner, menu::MENU, args, &[]);
-                let failed = ran.is_ok_and(|output| output.status.code() == Some(menu::FAILED));
+                // Anything but a clean end is a failure: the menu could not
+                // read the machine or use the terminal (`menu::FAILED`), it
+                // panicked, a signal killed it, or it did not start.
+                let failed = !ran.is_ok_and(|output| output.status.is_success());
                 if let Some(bootfs) = countdown.filter(|_| failed) {
-                    // The menu could not read the machine or use the
-                    // terminal: the automatic boot must not depend on it.
+                    // The automatic boot must not depend on the menu.
                     zbm_trace::warn!("the menu could not start; counting down without it");
                     self.countdown(bootfs);
                 }

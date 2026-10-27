@@ -222,6 +222,8 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 
 - The menu lists an environment's kernels newest first, as it shows them: the kernel it names as the one that boots
   is the one that boots, and the kernels view no longer starts on the oldest.
+- Rust images: start-up counts down and boots by itself when the menu crashes (a panic, or a signal), not only when
+  it says it could not start.
 
 ### The new menu's text in a message catalogue
 

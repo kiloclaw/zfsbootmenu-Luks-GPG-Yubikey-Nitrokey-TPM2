@@ -2,6 +2,7 @@ use zbm_boot::error::BootError;
 use zbm_config::args::ZbmArgs;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_platform::exec::{Output, Status};
 use zbm_platform::files::Files;
 use zbm_testkit::fakes::FakeSystem;
 
@@ -274,6 +275,30 @@ fn start_up_counts_down_itself_when_the_menu_cannot_start() {
     );
     let shown = fake.console.output_text();
     assert!(shown.contains("Booting"), "{shown}");
+}
+
+#[test]
+fn start_up_counts_down_itself_when_the_menu_crashes() {
+    // A panic exits with 101; SIGSEGV (11) gives no exit code at all.
+    for status in [Status::exited(101), Status::from_raw(11)] {
+        let fake = started();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        for stage in zbm_types::Stage::ALL {
+            state.finish_stage(stage.as_str()).unwrap();
+        }
+        fake.files.file_with_mode(MENU, "", 0o755);
+        fake.runner
+            .on(move |command| (command.program() == MENU).then(|| Ok(Output::new(status, ""))));
+        let console = Modes {
+            console: true,
+            ..Modes::default()
+        };
+
+        Startup::new(fake.system(), &conf()).run(console, Some(2));
+
+        let shown = fake.console.output_text();
+        assert!(shown.contains("Booting"), "{status:?}: {shown}");
+    }
 }
 
 #[test]
