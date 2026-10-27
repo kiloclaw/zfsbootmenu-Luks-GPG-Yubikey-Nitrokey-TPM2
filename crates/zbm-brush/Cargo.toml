@@ -17,6 +17,7 @@ brush-shell.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+rustix.workspace = true
 
 [lints]
 workspace = true

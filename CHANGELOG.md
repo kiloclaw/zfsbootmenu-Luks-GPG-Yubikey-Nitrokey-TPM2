@@ -272,6 +272,19 @@ that only checked it are gone:
   gone, and `runtime-rust-signals` checks that the recovery shell takes Ctrl-C instead of comparing with the legacy
   run.
 
+### Fixes from the first full VM run on the Rust runtime
+
+- The recovery shell of Rust images no longer stops reading a line typed or pasted in one burst longer than 1 KiB:
+  crossterm, which both of brush's line editors read keys with, read 1 KiB, and waited for more input with the rest
+  of the burst unread, so the shell never saw the Enter. The `procedures` VM test, which sends 3 KiB lines, hung on
+  it. A patch of ours to crossterm 0.29.0 reads on while the terminal holds input
+  (`patches/crossterm-edge-triggered-input.patch`); `crates/zbm-brush/tests/long_input.rs` runs brush on a
+  pseudo-terminal with such a line.
+- The VM harness drops the command brush echoes before its output: brush's line editors draw what is typed after
+  `stty -echo` too, unlike Bash's, and `runtime-rust-autosize` read the command as the output.
+- `runtime-rust-autosize` expects the bold and italic DejaVu faces in the Spleen image, and
+  `runtime-rust-console-comfort` writes its rows without `seq`, which Rust images do not have.
+
 ### The new menu's text in a message catalogue
 
 Every string of the new menu (`zbm-tui`) comes from a Project Fluent catalogue,

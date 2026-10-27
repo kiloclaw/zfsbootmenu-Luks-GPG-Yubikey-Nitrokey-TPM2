@@ -54,7 +54,7 @@ Third-party crates:
 - `zbm`: `serde_json`, `tracing`
 - `zbm-app`: `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
-- `zbm-brush`: `brush-shell`
+- `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`

@@ -113,3 +113,4 @@ brush-interactive = { path = "patches/brush-interactive-0.4.0" }
 brush-parser = { path = "patches/brush-parser-0.4.0" }
 alacritty_terminal = { path = "patches/alacritty_terminal-0.26.0" }
 vte = { path = "patches/vte-0.15.0" }
+crossterm = { path = "patches/crossterm-0.29.0" }

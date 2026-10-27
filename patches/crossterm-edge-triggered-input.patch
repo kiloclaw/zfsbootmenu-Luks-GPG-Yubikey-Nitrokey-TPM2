@@ -1,0 +1,40 @@
+diff -ru a/src/event/source/unix/mio.rs b/src/event/source/unix/mio.rs
+--- a/src/event/source/unix/mio.rs
++++ b/src/event/source/unix/mio.rs
+@@ -101,6 +101,12 @@
+                                             read_count == TTY_BUFFER_SIZE,
+                                         );
+                                     }
++                                    // mio is edge-triggered: the bytes a full buffer left in
++                                    // the terminal raise no new event, so a later poll would
++                                    // wait for more input with them unread. Read them now.
++                                    if read_count == TTY_BUFFER_SIZE && has_pending_input(&self.tty_fd) {
++                                        continue;
++                                    }
+                                 }
+                                 Err(e) => {
+                                     // No more data to read at the moment. We will receive another event
+@@ -158,6 +164,23 @@
+     }
+ }
+ 
++/// Whether the terminal holds input not read yet (`FIONREAD`), without
++/// blocking: the descriptor is the terminal's own, which may block.
++#[cfg(not(feature = "libc"))]
++fn has_pending_input(fd: &FileDesc<'_>) -> bool {
++    rustix::io::ioctl_fionread(fd).is_ok_and(|count| count > 0)
++}
++
++/// Whether the terminal holds input not read yet (`FIONREAD`), without
++/// blocking: the descriptor is the terminal's own, which may block.
++#[cfg(feature = "libc")]
++fn has_pending_input(fd: &FileDesc<'_>) -> bool {
++    let mut count: libc::c_int = 0;
++    // SAFETY: FIONREAD writes one int to the pointer given.
++    let result = unsafe { libc::ioctl(fd.raw_fd(), libc::FIONREAD, &mut count) };
++    result == 0 && count > 0
++}
++
+ //
+ // Following `Parser` structure exists for two reasons:
+ //

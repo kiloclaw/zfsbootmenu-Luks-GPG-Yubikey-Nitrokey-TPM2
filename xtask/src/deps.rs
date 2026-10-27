@@ -119,7 +119,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm", &["serde_json", "tracing"]),
     ("zbm-app", &["serde_json", "thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
-    ("zbm-brush", &["brush-shell"]),
+    ("zbm-brush", &["brush-shell", "rustix"]),
     ("zbm-config", &["thiserror"]),
     (
         "zbm-console",
