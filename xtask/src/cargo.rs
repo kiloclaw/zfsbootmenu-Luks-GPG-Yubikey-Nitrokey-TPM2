@@ -13,8 +13,7 @@ pub fn cargo(root: &Path) -> Program {
     Program::new("cargo", root)
 }
 
-/// Runs every test that needs no root and no virtual machine: the
-/// workspace, then the test build of `zbm` (feature `test-seams`).
+/// Runs every test that needs no root and no virtual machine.
 ///
 /// With `cargo-nextest` installed the tests run under `cargo nextest run`
 /// (profiles in `.config/nextest.toml`; CI sets `NEXTEST_PROFILE=ci`) and
@@ -66,12 +65,10 @@ fn test_programs(root: &Path, nextest: bool, env: &[(&str, &str)]) -> Vec<Progra
     if nextest {
         programs.push(program(&["test", "--workspace", "--doc", "--locked"]));
     }
-    programs.push(program(runner).args(["-p", "zbm", "--features", "test-seams", "--locked"]));
     programs
 }
 
-/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`, which
-/// replace the Bash suites of `tests/luks/unit`: as root, with real LUKS
+/// Runs the LUKS device suites of `crates/zbm-luks/tests/devices`: as root, with real LUKS
 /// volumes on loop devices, a software TPM, clevis and GnuPG. The suites
 /// run one after another and print every case and check.
 ///
@@ -257,8 +254,7 @@ pub fn doc(root: &Path, open: bool) -> Result<()> {
         .run()
 }
 
-/// Runs clippy over every target with warnings as errors, then over the
-/// test build of `zbm`.
+/// Runs clippy over every target with warnings as errors.
 ///
 /// # Errors
 ///
@@ -267,17 +263,6 @@ pub fn clippy(root: &Path) -> Result<()> {
     cargo(root)
         .args(["clippy", "--workspace", "--all-targets", "--locked", "--"])
         .args(["-D", "warnings"])
-        .run()?;
-    cargo(root)
-        .args([
-            "clippy",
-            "-p",
-            "zbm",
-            "--all-targets",
-            "--features",
-            "test-seams",
-        ])
-        .args(["--locked", "--", "-D", "warnings"])
         .run()
 }
 
@@ -313,7 +298,6 @@ mod tests {
             [
                 "ZBM_PARITY=record cargo nextest run --workspace --locked",
                 "ZBM_PARITY=record cargo test --workspace --doc --locked",
-                "ZBM_PARITY=record cargo nextest run -p zbm --features test-seams --locked",
             ]
         );
     }
@@ -362,13 +346,7 @@ mod tests {
     fn without_nextest_cargo_test_runs_everything() {
         let programs = test_programs(Path::new("/w"), false, &[]);
 
-        assert_eq!(
-            shown(&programs),
-            [
-                "cargo test --workspace --locked",
-                "cargo test -p zbm --features test-seams --locked",
-            ]
-        );
+        assert_eq!(shown(&programs), ["cargo test --workspace --locked",]);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! a device runner that stands in for device-mapper, and the cases that run
 //! the LUKS code against them.
 //!
-//! The suites replace the Bash suites of `tests/luks/unit`, case for case and
+//! The suites replaced the Bash suites of `tests/luks/unit`, case for case and
 //! check for check. Like them, they use real LUKS2 headers, `cryptsetup`, a
 //! software TPM (`swtpm`), `systemd-cryptenroll`, clevis and GnuPG, and stand
 //! in for what a test machine lacks:

@@ -568,7 +568,8 @@ in phases 2 and 3.
 
 ### Driving the existing suites
 
-- **LUKS unit suites.** They load the code under test through `tests/luks/unit/impl.sh`, which also provides every
+- **LUKS unit suites** (removed in October 2026, with the test build below; the device suites of
+  `crates/zbm-luks/tests/devices` replace them). They loaded the code under test through `tests/luks/unit/impl.sh`, which also provides every
   seam through which they observe and control it, and documents them: messages as `LEVEL: text` lines in a log file,
   timed prompts recorded in a file and answered from another, a directory of stand-ins for open volumes, which the
   stub `cryptsetup` keeps, and the six operations the suites call (`luks_unlock_all`, `luks_close_all`,
@@ -644,7 +645,7 @@ These choices shape the later phases and are the points to review:
 5. **The compatibility library covers every function** of the three legacy libraries, checked by a test.
 6. **Secrets never touch files the runtime creates,** which is stricter than the legacy code but invisible to users.
 7. **The LUKS unit suites drive the Rust code through a test build of `zbm`** with the same seams as the legacy
-   adapter; release images never contain it.
+   adapter; release images never contain it. (Superseded: the suites and the test build are gone.)
 8. **The console is driven with `stty`, not with terminal FFI,** which keeps `unsafe` out of the console code at the
    cost of a few short-lived processes per prompt.
 9. **Kernels follow the version order of GNU coreutils,** where the legacy images disagree with each other.

@@ -71,17 +71,13 @@ quote the seed a failing test prints to reproduce it.
 
 | Suite | Command | Needs |
 | --- | --- | --- |
-| LUKS unit tests | `tests/luks/unit/run-all.sh` | root, cryptsetup, swtpm, clevis, GnuPG |
-| LUKS unit tests in the build container | `tests/luks/unit/run-in-container.sh` | podman or docker |
+| LUKS device suites | `cargo xtask test devices` | root, cryptsetup, swtpm, clevis, GnuPG; the build container has them |
 | LUKS VM tests | `cargo xtask test vm [test ...]` | root, QEMU (KVM if available), the build container image |
 | Upstream test VMs | `cd tests && ./setup.sh -a && ./run.sh` | root, QEMU, ZFS; see `tests/README.md` |
-| Rust | `cargo xtask test` | the Rust toolchain; Perl and binutils for the parity tests |
+| Rust | `cargo xtask test` | the Rust toolchain; binutils and the systemd EFI stub for the EFI cases |
 
 `docs/luks/testing.rst` describes every LUKS test. Run the suites that cover the code you changed, and say in the pull
 request which ones you ran.
-
-The LUKS unit suites load the code under test through `tests/luks/unit/impl.sh`: `ZBMTEST_IMPL=legacy` (the default)
-tests the Bash libraries, and `ZBMTEST_IMPL=rust` will test the Rust runtime; until it exists, the suites skip.
 
 `zbm-vmtest run runtime-record-fixtures` records the output of `zfs`, `zpool` and `/proc/self/mounts` of OpenZFS
 2.4.4 in a VM of the LUKS VM tests into `crates/zbm-zfs/tests/fixtures/`; the Rust tests parse those files.

@@ -1,9 +1,5 @@
 # Tests of the LUKS support
 
-- `unit/` — shell suites that run ZFSBootMenu's LUKS code against real LUKS
-  headers on loop devices, a software TPM, clevis and GnuPG. Run
-  `unit/run-all.sh` as root, or `unit/run-in-container.sh` to use the tool
-  versions of the build container.
 - `vm/` — the files of the QEMU tests that go into images and the test boot
   environment (`be/`, `hooks/`, `functions.sh`). The tests themselves are the
   Rust harness `crates/zbm-vmtest`: pools created with ZFS 2.4.4, booted

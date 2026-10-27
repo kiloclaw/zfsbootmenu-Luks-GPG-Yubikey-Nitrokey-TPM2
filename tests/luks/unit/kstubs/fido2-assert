@@ -1,8 +1,0 @@
-#!/bin/bash
-# Expect: -G -h -t up=.. -t uv=.. [-t pin=true] /dev/hidraw99 ; stdin: cdh, rp, cred, salt
-echo "fido2-assert $*" >> "$FAKE/calls"
-read -r cdh; read -r rp; read -r cred; read -r salt
-[ "$rp" = "io.systemd.cryptsetup" ] && [ "$cred" = "$FIDO_CRED" ] && [ "$salt" = "$FIDO_SALT" ] || { echo "bad input" >&2; exit 1; }
-[[ " $* " == *" -G -h "* ]] || exit 1
-if [ -n "$FIDO_NEED_PIN" ] && [[ " $* " != *" pin=true "* ]]; then echo "FIDO_ERR_PIN_REQUIRED" >&2; exit 1; fi
-printf '%s\n%s\nAUTHDATA\nSIG\n%s\n' "$cdh" "$rp" "$FIDO_HMAC"

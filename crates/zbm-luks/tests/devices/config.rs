@@ -1,5 +1,5 @@
 //! Crypttab and command line parsing, device specifications, passphrases
-//! and USB key sticks, the Rust port of `tests/luks/unit/config.sh`. The
+//! and USB key sticks, the Rust port of the Bash suite `config.sh`. The
 //! TPM2, FIDO2 and GnuPG volumes that script sets up are not used by its
 //! checks and are left out.
 

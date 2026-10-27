@@ -28,11 +28,6 @@ zbm-tui.workspace = true
 zbm-types.workspace = true
 
 [features]
-# A test build for the LUKS unit suites (tests/luks/unit/impl.sh): the hidden
-# command zbm-luks-test runs the operations they call, with messages, timed
-# prompts and the check for open volumes going to their files. Images never
-# contain this build.
-test-seams = []
 # A test build for the crash report VM test: `zbm debug panic` panics.
 crash-test = []
 # A test build for the VM test secrets-*: `zbm debug secrets` searches the

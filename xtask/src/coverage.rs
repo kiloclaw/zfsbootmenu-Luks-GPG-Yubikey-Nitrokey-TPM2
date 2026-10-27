@@ -1,9 +1,9 @@
 //! `cargo xtask coverage`: line coverage per crate, which may only go up.
 //!
-//! The tests run under `cargo llvm-cov` (the workspace, then the test build
-//! of `zbm`), and the lines of each source file count for the crate whose
-//! directory holds it. `--check` compares the whole percent of each crate
-//! with the committed baseline (`xtask/coverage-baseline.txt`) and fails
+//! The tests of the workspace run under `cargo llvm-cov`, and the lines of
+//! each source file count for the crate whose directory holds it. `--check`
+//! compares the whole percent of each crate with the committed baseline
+//! (`xtask/coverage-baseline.txt`) and fails
 //! when it dropped; a crate that is not in the baseline must reach
 //! [`NEW_CRATE`]. `--bless` writes the current numbers as the new baseline.
 //!
@@ -115,9 +115,6 @@ fn measure_programs(root: &Path) -> Vec<process::Program> {
     vec![
         cargo::cargo(root).args(["llvm-cov", "clean", "--workspace"]),
         cargo::cargo(root).args(["llvm-cov", "--no-report", "--workspace", "--locked"]),
-        cargo::cargo(root)
-            .args(["llvm-cov", "--no-report", "-p", "zbm"])
-            .args(["--features", "test-seams", "--locked"]),
         cargo::cargo(root)
             .args(["llvm-cov", "report", "--json", "--summary-only"])
             .args(["--output-path", REPORT]),
@@ -357,7 +354,6 @@ mod tests {
             [
                 "cargo llvm-cov clean --workspace",
                 "cargo llvm-cov --no-report --workspace --locked",
-                "cargo llvm-cov --no-report -p zbm --features test-seams --locked",
                 "cargo llvm-cov report --json --summary-only --output-path target/coverage.json",
             ]
         );

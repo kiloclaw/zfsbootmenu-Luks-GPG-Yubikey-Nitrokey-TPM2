@@ -1,5 +1,5 @@
 //! Failure paths, races, token listing and teardown matching, the Rust port
-//! of `tests/luks/unit/edge.sh`. Its two legacy-only cases, which replace
+//! of the Bash suite `edge.sh`. Its two legacy-only cases, which replace
 //! functions inside the Bash code, are unit tests of the Rust runtime:
 //! `disabled_or_unavailable_unlocking_fails_only_retries` (zbm-luks) and
 //! `late_luks_volumes_are_unlocked_before_retrying` (zbm-boot).

@@ -110,7 +110,6 @@ const MENU: Applet = Applet {
 };
 
 /// The commands `zbm` provides.
-#[cfg(not(feature = "test-seams"))]
 pub const APPLETS: &[Applet] = &[
     INIT,
     PARSE_COMMANDLINE,
@@ -123,28 +122,6 @@ pub const APPLETS: &[Applet] = &[
     MENU,
     DEBUG,
     REPORT,
-];
-
-/// The commands `zbm` provides, with the operations of the LUKS unit suites
-/// in the test build.
-#[cfg(feature = "test-seams")]
-pub const APPLETS: &[Applet] = &[
-    INIT,
-    PARSE_COMMANDLINE,
-    PREINIT,
-    ZLUKS,
-    CONSOLE_AUTOSIZE,
-    CONSOLE_FONTS,
-    KEYBOARD_LAYOUTS,
-    CONSOLE,
-    MENU,
-    DEBUG,
-    REPORT,
-    Applet {
-        name: "zbm-luks-test",
-        summary: "the LUKS operations of the unit suites (test build only)",
-        run: luks::seams::run,
-    },
 ];
 
 /// The exit status for a command that does not exist, as a shell reports it.
@@ -329,7 +306,7 @@ mod tests {
             .lines()
             .filter_map(|line| line.split_whitespace().next())
             .collect();
-        let mut expected = vec![
+        let expected = vec![
             "zfsbootmenu-init",
             "zfsbootmenu-parse-commandline",
             "zfsbootmenu-preinit",
@@ -342,9 +319,6 @@ mod tests {
             "debug",
             "report",
         ];
-        if cfg!(feature = "test-seams") {
-            expected.push("zbm-luks-test");
-        }
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);
         assert_eq!(code, USAGE);

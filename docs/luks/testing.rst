@@ -9,13 +9,14 @@ Testing
 Introduction
 ------------
 
-The LUKS support of ZFSBootMenu is tested at two levels, both kept in ``tests/luks``:
+The LUKS support of ZFSBootMenu is tested at two levels:
 
-Unit suites (``tests/luks/unit``)
-  Shell scripts that run ZFSBootMenu's LUKS code (``zfsbootmenu-luks.sh`` and ``zfsbootmenu-luks-keys.sh``) against
-  real LUKS1 and LUKS2 headers on loop devices, a software TPM, real ``systemd-cryptenroll``, clevis and GnuPG, and
-  stand-ins for FIDO2 keys and YubiKeys. Device-mapper and ``zpool`` are replaced by stubs, so the suites check the
-  decisions the code makes: what it asks, which method it uses, what it opens and closes, and what it leaves behind.
+Device suites (``crates/zbm-luks/tests/devices``)
+  Rust suites that run ZFSBootMenu's LUKS code (``zbm-luks``) against real LUKS1 and LUKS2 headers on loop devices, a
+  software TPM, real ``systemd-cryptenroll``, clevis and GnuPG, and stand-ins for FIDO2 keys and YubiKeys.
+  Device-mapper and ``zpool`` are replaced by stubs, so the suites check the decisions the code makes: what it asks,
+  which method it uses, what it opens and closes, and what it leaves behind. They were ported from Bash suites, case
+  for case and check for check; the Bash suites, which also ran the legacy runtime's LUKS code, are gone.
 
 Virtual-machine tests (``crates/zbm-vmtest``)
   A Rust program that boots ZFSBootMenu images in QEMU and follow every boot from the firmware or kernel to the booted
@@ -30,13 +31,11 @@ Requirements
 
 Both levels run as root on a Linux host.
 
-Unit suites
+Device suites
   ``cryptsetup`` 2.4 or later, ``systemd-cryptenroll``, ``tpm2-tools``, ``swtpm`` and ``swtpm_setup``, clevis with
-  its TPM2 pin, GnuPG, ``e2fsprogs``, ``dosfstools``, ``sfdisk`` and ``unshare`` (util-linux). Each suite runs in a
-  private mount namespace with its own empty ``/dev/mapper``, and detaches only the loop devices it created, so it does
-  not touch the host's device-mapper devices. To run them with the tool versions of the build container instead of the
-  host's, use ``run-in-container.sh``: it needs Docker or Podman and runs the container privileged with the host's
-  ``/dev``.
+  its TPM2 pin, GnuPG, ``e2fsprogs``, ``dosfstools``, ``sfdisk`` and ``unshare`` (util-linux), and the Rust toolchain;
+  the build container has them. They detach only the loop devices they created, so they do not touch the host's
+  device-mapper devices.
 
 Virtual-machine tests
   QEMU (``qemu-system-x86_64``) with OVMF firmware, ``swtpm``, ``tpm2-tools``, ``systemd-cryptenroll`` (in the
@@ -55,8 +54,7 @@ Running the Tests
 
 .. code-block:: bash
 
-  # tests/luks/unit/run-all.sh
-  # tests/luks/unit/run-in-container.sh
+  # cargo xtask test devices
   $ cargo build --release -p zbm-vmtest
   # target/release/zbm-vmtest run
   # target/release/zbm-vmtest run layouts-main complex-hotplug
@@ -119,61 +117,28 @@ reason and still writes its result. ``zbm-vmtest run runtime-record-zfs`` (``car
 The harness replaced a Python one, whose results it reproduced check for check before the Python harness was removed
 (``REFACTOR-ROADMAP.md``, R3.6).
 
-The unit suites write their output to */var/tmp/zbm-luks-unit*, the tool versions to *tools.txt*, and the details of
-each case to */tmp/z?/cases*. Run one ``unit/run-all.sh`` at a time: two runs share that directory, the loop devices
-backed by its images, and the ports and pid files of their software TPMs. A suite waits for a lock
-(*/run/lock/zbm-luks-unit.lock*) while a suite of another run holds it, but the two runs still write the same output
-files. Each suite hides the host's */dev/hidraw\** devices, which the code would take for FIDO2 keys, and the
-``blkid`` stub's device searches find only loop devices, so that discovery leaves the host's own LUKS disks alone.
+``cargo xtask test devices`` runs the device suites one after another, as root, and prints every case and check.
+The suites call the LUKS code directly, with the real volumes, software TPM, clevis and GnuPG above, and stand-ins
+for device-mapper and security keys.
 
-The suites load the code they test through ``unit/impl.sh``, which ``ZBMTEST_IMPL`` selects: ``legacy`` (the default)
-for the Bash libraries, ``rust`` for the Rust runtime of the port. ``impl.sh`` also provides, and documents, every seam
-through which the suites observe and control the code under test: the log file, the recorded and answered timed
-prompts, the stand-ins for open volumes, and the six operations the suites call. A new case uses only these seams, so
-that it runs against both implementations; the cases that reach inside the legacy code are marked as legacy-only, and
-Rust unit tests cover them for the Rust runtime.
+Device Suites
+-------------
 
-With ``ZBMTEST_IMPL=rust``, the suites run a test build of ``zbm`` (the Cargo feature ``test-seams``), whose hidden
-command ``zbm-luks-test`` runs the operations with the seams. ``impl.sh`` uses ``ZBMTEST_ZBM``, by default
-*target/test-seams/debug/zbm*, and builds it with ``cargo`` when it is missing:
-
-.. code-block:: bash
-
-  $ CARGO_TARGET_DIR=target/test-seams cargo build -p zbm --features test-seams
-  # ZBMTEST_IMPL=rust tests/luks/unit/run-all.sh
-
-Images never contain the test build; CI checks that the release ``zbm`` has no ``zbm-luks-test`` command.
-
-The suites are also ported to Rust, case for case and check for check, in *crates/zbm-luks/tests/devices*. The Rust
-suites call the LUKS code directly instead of through the seams, with the same real volumes, software TPM, clevis and
-GnuPG, and the same stand-ins for device-mapper and security keys. They run the 252 checks of
-``ZBMTEST_IMPL=rust``; the three legacy-only checks are unit tests. As root, in the build container or on a host with
-the tools above:
-
-.. code-block:: bash
-
-  # cargo xtask test devices
-
-The Bash suites stay until the legacy runtime is removed: they are the only suites that run against it.
-
-Unit Suites
------------
-
-``unlock.sh``
+``unlock.rs``
   Core unlocking and teardown: automatic discovery (one prompt for volumes with a shared passphrase, non-ZFS volumes
   closed again), empty answers, end of input, retries, ``zbm.luks=off``, ``zbm.luks=`` lists and missing devices,
   ``zbm.luks_key=path:LABEL=``, crypttab key files, ``noauto``, ``nofail``, key scripts, missing key files, duplicate
   devices, volumes already open, the teardown (exporting pools on LUKS, closing mappings, keeping busy ones),
   ``zluks close``, and device specification resolution.
 
-``tokens.sh``
+``tokens.rs``
   Key management with a software TPM: TPM2 tokens with and without a PIN through systemd's plugin and the native
   code, wrong and empty PINs, PCR policies after the PCR changed, the TPM dictionary-attack lockout, clevis TPM2,
   disabling tokens; GnuPG key files encrypted symmetrically and to a public key, with the secret key or card absent;
   YubiKey challenge-response in both modes; FIDO2 tokens with and without a PIN, and with the key absent; secrets
   shared by several volumes.
 
-``edge.sh``
+``edge.rs``
   Failure paths and races: a TPM2 token whose key slot was removed; TPM2 and FIDO2 tokens on one volume without a TPM;
   listing every token of a volume, also when ``cryptsetup luksDump`` prints later tokens to standard error (systemd 261
   token plugins); a clevis token behind a TPM2 token with a PIN, and in a detached header; LUKS1 volumes; key scripts
@@ -183,7 +148,7 @@ Unit Suites
   ``zbm.luks=off``, no ``cryptsetup``); everything failing; pools on a partition of a mapping and mixed LUKS and plain
   pools at teardown.
 
-``config.sh``
+``config.rs``
   Configuration parsing: crypttab without a final newline, with CRLF line endings, tabs, blank lines and comments;
   upper-case ``UUID=``, ``PARTUUID=`` and bare UUIDs; ``luks-<UUID>`` names; repeated devices and names; mapping
   names already in use; unknown device specifications; non-LUKS devices; invalid ``key-slot=``, ``keyfile-offset=``,
@@ -455,25 +420,12 @@ runtime, see below. The build container image was Ubuntu 26.10 with
 Linux 7.3.0-9-generic, OpenZFS 2.4.4 (``zfs-2.4.4-1ubuntu4``), cryptsetup 2.8.7, systemd 261 and dracut 112. The
 ``oldzfs`` tests used a ZFSBootMenu image built on Ubuntu 24.04 with OpenZFS 2.2.2 and Linux 6.8.
 
-Unit suites
-~~~~~~~~~~~
+Device suites
+~~~~~~~~~~~~~
 
-The same results on the host and in the build container:
-
-=============  ======  ======
-Suite          Passed  Failed
-=============  ======  ======
-``unlock.sh``  52      0
-``tokens.sh``  51      0
-``edge.sh``    81      0
-``config.sh``  64      0
-=============  ======  ======
-
-With ``ZBMTEST_IMPL=rust``, the suites pass 252 checks against the Rust runtime; the other three reach inside the
-Bash code, and Rust unit tests cover them.
-
-Host tools: cryptsetup 2.7.0, systemd 255, GnuPG 2.4.4, tpm2-tools 5.6, clevis 20, swtpm 0.7.3. Container tools:
-cryptsetup 2.8.7, systemd 261, GnuPG 2.4.9, tpm2-tools 5.7, clevis 23, swtpm 0.10.1.
+The device suites run 252 checks, as the Bash suites they were ported from did against the Rust runtime
+(``unlock``, ``tokens``, ``edge`` and ``config``); the three checks of the Bash suites that reached inside the legacy
+code are unit tests. ``cargo xtask test devices`` runs them on the host and in the build container.
 
 Virtual-machine tests
 ~~~~~~~~~~~~~~~~~~~~~

@@ -1,4 +1,4 @@
-//! Core unlocking and teardown, the Rust port of `tests/luks/unit/unlock.sh`:
+//! Core unlocking and teardown, the Rust port of the Bash suite `unlock.sh`:
 //! auto, command line and crypttab modes, key devices, key scripts, and
 //! closing volumes before booting.
 

@@ -10,7 +10,7 @@ targets = [
     "aarch64-unknown-linux-gnu",
     "aarch64-unknown-linux-musl",
 ]
-# Includes the test build of zbm (feature test-seams).
+# Includes the test builds of zbm (crash-test, secret-test).
 all-features = true
 
 [advisories]

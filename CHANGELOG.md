@@ -264,6 +264,9 @@ that only checked it are gone:
 - Shadow mode: `zbm shadow`, the build option `zfsbootmenu_shadow`, its `boot-sel.d` hook and `zbm.shadow`, the
   read-only runner it ran on, and the VM harness's shadow summaries (`ZBMTEST_SHADOW`). Legacy images no longer
   compare their decisions with the Rust code's.
+- The Bash LUKS unit suites (`tests/luks/unit`), and the test build of `zbm` that ran them against the Rust runtime
+  (the Cargo feature `test-seams`, its hidden command `zbm-luks-test`). The Rust device suites they were ported to
+  (`cargo xtask test devices`) test the LUKS code against real volumes.
 
 ### The new menu's text in a message catalogue
 

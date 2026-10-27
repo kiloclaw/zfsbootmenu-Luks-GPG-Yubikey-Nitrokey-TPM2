@@ -6,7 +6,6 @@
 
 <!-- Which suites did you run, and with which results? See CONTRIBUTING.md. -->
 
-- [ ] `tests/luks/unit/run-all.sh` or `tests/luks/unit/run-in-container.sh`
 - [ ] `cargo xtask test devices` (as root), for changes to the LUKS code
 - [ ] `cargo xtask test vm` or `zbm-vmtest run` (all tests, or the ones listed here)
 - [ ] `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` (Rust changes)

@@ -4,8 +4,7 @@
 
 The maintainer runs the long test suites locally, with KVM. Do not run them in a cloud session:
 
-- the LUKS VM tests (`cargo xtask test vm`, `zbm-vmtest run`);
-- the Bash LUKS unit suites (`tests/luks/unit/run-all.sh`, with and without `ZBMTEST_IMPL=rust`).
+- the LUKS VM tests (`cargo xtask test vm`, `zbm-vmtest run`).
 
 Run the quick checks yourself: `cargo xtask lint`, `cargo xtask test`, coverage, metrics, parity and
 `cargo xtask test devices`.

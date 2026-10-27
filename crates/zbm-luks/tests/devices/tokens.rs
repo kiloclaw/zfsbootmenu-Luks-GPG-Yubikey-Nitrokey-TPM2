@@ -1,4 +1,4 @@
-//! Key management, the Rust port of `tests/luks/unit/tokens.sh`: TPM2 tokens
+//! Key management, the Rust port of the Bash suite `tokens.sh`: TPM2 tokens
 //! with and without a PIN, clevis, GnuPG key files, YubiKey
 //! challenge-response and FIDO2 tokens.
 

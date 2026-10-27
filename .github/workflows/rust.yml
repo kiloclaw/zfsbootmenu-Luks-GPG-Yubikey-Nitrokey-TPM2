@@ -15,9 +15,8 @@ on:
       - 'deny.toml'
       - '.config/nextest.toml'
       - 'fuzz/**'
-      # Parity tests run the legacy code they are compared with
+      # Tests of the image build run the shell helpers in legacy/
       - 'legacy/**'
-      - 'tests/luks/unit/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -32,9 +31,8 @@ on:
       - 'deny.toml'
       - '.config/nextest.toml'
       - 'fuzz/**'
-      # Parity tests run the legacy code they are compared with
+      # Tests of the image build run the shell helpers in legacy/
       - 'legacy/**'
-      - 'tests/luks/unit/**'
       - '.github/workflows/rust.yml'
 
 concurrency:
@@ -77,22 +75,11 @@ jobs:
       - name: Lint
         run: cargo xtask lint
 
-      # The workspace and the test build of zbm, used by the LUKS unit suites (tests/luks/unit/impl.sh), under
-      # cargo nextest with the ci profile of .config/nextest.toml
+      # The workspace, under cargo nextest with the ci profile of .config/nextest.toml
       - name: Test
         run: cargo xtask test
         env:
           NEXTEST_PROFILE: ci
-
-      # Images never contain the test build: the release zbm must not have the
-      # command that runs the unit suites' operations
-      - name: The release zbm has no test command
-        run: |
-          cargo build --release -p zbm --locked
-          if target/release/zbm --list | grep '^zbm-luks-test '; then
-            echo "the release zbm contains the test command zbm-luks-test" >&2
-            exit 1
-          fi
 
   strict:
     name: Strict lints
@@ -118,8 +105,8 @@ jobs:
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@v2
 
-  luks-unit:
-    name: LUKS unit suites with each implementation
+  luks-devices:
+    name: LUKS device tests
     # The suites need root, loop devices and the tools of the boot images; see
     # docs/luks/testing.rst
     runs-on: ubuntu-24.04
@@ -136,17 +123,6 @@ jobs:
             cryptsetup-bin swtpm swtpm-tools tpm2-tools clevis clevis-luks clevis-tpm2 \
             jose gnupg fido2-tools fdisk e2fsprogs openssl
 
-      - name: Build the test build of zbm
-        run: CARGO_TARGET_DIR=target/test-seams cargo build -p zbm --features test-seams --locked
-
-      - name: Legacy
-        run: sudo env ZBMTEST_UNIT_WORK=/var/tmp/zbm-luks-unit-legacy tests/luks/unit/run-all.sh
-
-      - name: Rust
-        run: |
-          sudo env ZBMTEST_IMPL=rust ZBMTEST_UNIT_WORK=/var/tmp/zbm-luks-unit-rust \
-            tests/luks/unit/run-all.sh
-
       # zbm-crypt against real LUKS volumes on loop devices (crates/zbm-crypt/tests/devices.rs)
       - name: Rust device tests
         run: |
@@ -155,19 +131,12 @@ jobs:
             "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" ZBM_DEVICE_TESTS=1 \
             cargo test -p zbm-crypt --test devices --locked
 
-      # The Rust port of the suites above (crates/zbm-luks/tests/devices)
+      # The LUKS code against real volumes (crates/zbm-luks/tests/devices)
       - name: LUKS device suites
         run: |
           cargo test -p zbm-luks --test devices --locked --no-run
           sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
             "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" cargo xtask test devices
-
-      - name: Archive the suite output
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: LUKS-Unit-Output
-          path: /var/tmp/zbm-luks-unit-*
 
   msrv:
     name: Minimum supported Rust version
