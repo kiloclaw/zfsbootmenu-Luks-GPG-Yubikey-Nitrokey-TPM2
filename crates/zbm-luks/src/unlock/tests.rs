@@ -520,4 +520,22 @@ fn closing_exports_pools_first_and_keeps_busy_mappings() {
     assert_eq!(mappings(&fake), "b1\t/dev/loop2\t0\n");
     assert_eq!(close(Some("b1")), Ok(()));
     assert_eq!(mappings(&fake), "");
+
+    // A mapping another session records while the close runs stays
+    // recorded, to be closed before the boot.
+    fake.files
+        .file("/zfsbootmenu/luks-mappings", "a1\t/dev/loop1\t0\n")
+        .block_device("/dev/mapper/a1");
+    let files = fake.files.clone();
+    fake.runner.first(move |command| {
+        if command.display() == "cryptsetup close a1" {
+            let _ = files.append(
+                Path::new("/zfsbootmenu/luks-mappings"),
+                b"c1\t/dev/loop3\t0\n",
+            );
+        }
+        None
+    });
+    assert_eq!(close(None), Ok(()));
+    assert_eq!(mappings(&fake), "c1\t/dev/loop3\t0\n");
 }

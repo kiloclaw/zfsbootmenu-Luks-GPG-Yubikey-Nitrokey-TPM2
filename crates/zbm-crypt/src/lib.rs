@@ -99,4 +99,8 @@ pub enum CryptError {
         /// Standard output and standard error, trimmed.
         output: String,
     },
+    /// A device or mapping name starts with `-`: `cryptsetup` would read it
+    /// as an option, so it is not run.
+    #[error("{0:?} starts with '-', which cryptsetup would read as an option")]
+    LeadingDash(String),
 }

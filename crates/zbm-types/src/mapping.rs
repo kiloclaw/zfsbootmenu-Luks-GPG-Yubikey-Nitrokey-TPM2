@@ -16,8 +16,9 @@ const WHAT: &str = "mapping name";
 /// `cryptsetup open DEVICE NAME`, which appears as `/dev/mapper/NAME`.
 ///
 /// It has 1 to 127 printable ASCII characters other than `/` and the space,
-/// and is not `.` or `..`. The device mapper itself accepts a few more, but
-/// it rewrites them in the names udev creates, so ZFSBootMenu does not use
+/// does not start with `-`, which `cryptsetup` would read as an option, and
+/// is not `.` or `..`. The device mapper itself accepts a few more, but it
+/// rewrites them in the names udev creates, so ZFSBootMenu does not use
 /// them.
 ///
 /// ```
@@ -59,6 +60,9 @@ impl FromStr for MappingName {
         if text == "." || text == ".." {
             return Err(error(Reason::Reserved));
         }
+        if text.starts_with('-') {
+            return Err(error(Reason::LeadingDash));
+        }
         Ok(MappingName(text.to_owned()))
     }
 }
@@ -98,6 +102,7 @@ mod tests {
                 "non-ascii" => ("é", Reason::InvalidCharacter('é')),
                 "dot" => (".", Reason::Reserved),
                 "dot dot" => ("..", Reason::Reserved),
+                "an option" => ("--help", Reason::LeadingDash),
             } {
                 assert_eq!(reason(text), expected);
             }
@@ -112,7 +117,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn valid_names_round_trip(text in "[A-Za-z0-9_+:@-][A-Za-z0-9_.+:@-]{0,60}") {
+        fn valid_names_round_trip(text in "[A-Za-z0-9_+:@][A-Za-z0-9_.+:@-]{0,60}") {
             let name: MappingName = text.parse().unwrap();
 
             prop_assert_eq!(name.to_string(), text);

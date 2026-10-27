@@ -142,8 +142,10 @@ impl<'a> Cryptsetup<'a> {
     ///
     /// # Errors
     ///
-    /// [`CryptError::Failed`] with cryptsetup's exit status and output, and
-    /// [`CryptError::Start`] when it cannot be started.
+    /// [`CryptError::Failed`] with cryptsetup's exit status and output,
+    /// [`CryptError::Start`] when it cannot be started, and
+    /// [`CryptError::LeadingDash`] for a device or name that would be read
+    /// as an option.
     pub fn open_described(
         &self,
         device: &str,
@@ -151,6 +153,12 @@ impl<'a> Cryptsetup<'a> {
         key: KeySource<'_>,
         options: &[String],
     ) -> Result<(), CryptError> {
+        if let Some(option) = [device, name]
+            .into_iter()
+            .find(|text| text.starts_with('-'))
+        {
+            return Err(CryptError::LeadingDash(option.to_owned()));
+        }
         let (key_file, stdin) = match key {
             KeySource::File(path) => (path, Input::Null),
             KeySource::Secret(secret) => ("-", Input::Secret(secret.clone())),
@@ -452,7 +460,13 @@ mod tests {
             CryptError::Failed { status: 2, ref output }
                 if output == "No key available with this passphrase."
         ));
+        // A crypttab name that looks like an option runs nothing.
+        assert!(matches!(
+            cryptsetup.open_described("/dev/sda2", "--help", KeySource::File("/key"), &[]),
+            Err(CryptError::LeadingDash(ref name)) if name == "--help"
+        ));
         let calls = runner.calls();
+        assert_eq!(calls.len(), 2);
         assert_eq!(
             calls[0].display(),
             "cryptsetup open --type luks --key-file=/key /dev/sda2 root"

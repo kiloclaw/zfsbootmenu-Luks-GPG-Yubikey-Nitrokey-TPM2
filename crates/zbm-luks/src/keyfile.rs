@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use zbm_platform::files::FileKind;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 
@@ -44,7 +45,7 @@ impl Unlocker<'_> {
         let Some(device_spec) = device_spec.filter(|spec| !spec.is_empty()) else {
             let mut found = FoundKey::default();
             if self.system().files.exists(Path::new(file)) {
-                found.path = Some(file.to_owned());
+                found.path = self.readable(file);
             } else {
                 zbm_trace::warn!("LUKS key file {file} not found");
             }
@@ -120,11 +121,23 @@ impl Unlocker<'_> {
         let path = format!("{dir}{file}");
         found.mount = Some(dir);
         if files.exists(Path::new(&path)) {
-            found.path = Some(path);
+            found.path = self.readable(&path);
         } else {
             zbm_trace::warn!("LUKS key file {file} not found on {device}");
         }
         found
+    }
+
+    /// `path`, unless it is something a read of can wait on for ever, such
+    /// as a named pipe: a key file is a regular file, or a block device
+    /// holding a raw key.
+    fn readable(&self, path: &str) -> Option<String> {
+        let kind = self.system().files.metadata(Path::new(path)).ok()?.kind;
+        if matches!(kind, FileKind::File | FileKind::BlockDevice) {
+            return Some(path.to_owned());
+        }
+        zbm_trace::warn!("LUKS key file {path} is not a regular file or a block device, skipped");
+        None
     }
 
     /// Unmounts and removes a key device's mount point.
@@ -220,8 +233,9 @@ mod tests {
                 session.find_keyfile("/etc/k", VOLUME).path.as_deref(),
                 Some("/etc/k")
             );
-            // A directory passes `[ -r ]` and fails in cryptsetup.
-            assert!(session.find_keyfile("/etc/dir.key", VOLUME).path.is_some());
+            // A directory passed `[ -r ]` and failed in cryptsetup; it is
+            // skipped before.
+            assert!(session.find_keyfile("/etc/dir.key", VOLUME).path.is_none());
             assert_eq!(
                 session.find_keyfile("/missing", VOLUME),
                 FoundKey::default()
@@ -235,11 +249,36 @@ mod tests {
         assert_eq!(
             crate::testing::warnings(&fake),
             [
+                "LUKS key file /etc/dir.key is not a regular file or a block device, skipped",
                 "LUKS key file /missing not found",
                 "LUKS key file /missing not found"
             ]
         );
         assert!(fake.runner.calls().is_empty());
+    }
+
+    #[test]
+    fn a_key_file_that_could_block_is_skipped() {
+        let fake = FakeSystem::new();
+        fake.files
+            .fifo("/keys/pipe.key")
+            .block_device("/dev/sdc")
+            .file("/keys/a.key", "key");
+        with_session(&fake, false, |session| {
+            assert_eq!(
+                session.find_keyfile("/keys/pipe.key", VOLUME),
+                FoundKey::default()
+            );
+            let raw = session.find_keyfile("/dev/sdc", VOLUME);
+            assert_eq!(raw.path.as_deref(), Some("/dev/sdc"));
+            let file = session.find_keyfile("/keys/a.key", VOLUME);
+            assert_eq!(file.path.as_deref(), Some("/keys/a.key"));
+        });
+        assert!(
+            crate::testing::warnings(&fake)
+                .iter()
+                .any(|line| line.starts_with("LUKS key file /keys/pipe.key is not a regular file"))
+        );
     }
 
     #[test]

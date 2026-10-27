@@ -284,6 +284,12 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   first.
 - The parity test of the boot environment's command line no longer reads the host ID of the machine it runs on, which
   failed it on machines with another `/etc/hostid` than the recording's.
+- A LUKS key file that is a named pipe, a socket or a directory is skipped with a warning: reading a pipe, which a key
+  stick with an ext4 file system can hold, hung the boot. Regular files and block devices (raw keys) still work.
+- `zluks close` no longer forgets a mapping that `zluks open` recorded in another session while it ran: it took the
+  closed mappings out of an old copy of the record, without its lock, so the new mapping stayed open at the boot.
+- The memory that holds secrets is created close-on-exec, so a program started at the same moment cannot inherit it.
+- Mapping names that start with `-`, which `cryptsetup` would read as options, are refused before `cryptsetup` runs.
 
 ### The parity-only parts removed
 

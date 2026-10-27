@@ -214,6 +214,11 @@ impl FakeFiles {
         self.special(path.as_ref(), FileKind::Socket)
     }
 
+    /// Adds a named pipe, which a read of would wait for a writer.
+    pub fn fifo(&self, path: impl AsRef<Path>) -> &FakeFiles {
+        self.special(path.as_ref(), FileKind::Other)
+    }
+
     /// Adds a block device node, such as `/dev/sda`.
     pub fn block_device(&self, path: impl AsRef<Path>) -> &FakeFiles {
         self.special(path.as_ref(), FileKind::BlockDevice)

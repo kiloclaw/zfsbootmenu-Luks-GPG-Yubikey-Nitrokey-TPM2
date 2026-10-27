@@ -47,7 +47,9 @@ impl Unlocker<'_> {
 
     /// Exports the pools on, and closes, the mappings ZFSBootMenu opened: all
     /// of them, or only `only`. Mappings that cannot be closed stay
-    /// recorded.
+    /// recorded, and so do those another session (`zluks open`) recorded
+    /// meanwhile: only the mappings that are gone are taken out of the
+    /// record, under its lock.
     ///
     /// # Errors
     ///
@@ -59,12 +61,10 @@ impl Unlocker<'_> {
         if !self.available() {
             return Ok(());
         }
-        let mut keep: Vec<Mapping> = Vec::new();
+        let mut gone: Vec<String> = Vec::new();
         let mut open: Vec<String> = Vec::new();
-        for mapping in mappings {
-            let name = mapping.name.clone();
+        for Mapping { name, .. } in mappings {
             if only.is_some_and(|only| only != name) {
-                keep.push(mapping);
                 continue;
             }
             let path = self
@@ -74,6 +74,7 @@ impl Unlocker<'_> {
                 .to_string_lossy()
                 .into_owned();
             if !is_block_device(self.system().files, &path) {
+                gone.push(name);
                 continue;
             }
             let zfs = ZfsCli::new(self.system().runner);
@@ -86,13 +87,13 @@ impl Unlocker<'_> {
             }
             if self.cryptsetup_close(&name).is_ok() {
                 zbm_trace::info!("closed LUKS mapping {name}");
+                gone.push(name);
             } else {
                 zbm_trace::warn!("unable to close LUKS mapping {name}");
-                keep.push(mapping);
                 open.push(name);
             }
         }
-        self.mappings().write(&keep);
+        self.mappings().remove(&gone);
         if open.is_empty() {
             Ok(())
         } else {

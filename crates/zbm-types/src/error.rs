@@ -81,6 +81,9 @@ pub enum Reason {
     NotOneOf(&'static [&'static str]),
     /// A snapshot name has no `@`, or more than one.
     NotOneAt,
+    /// A name starts with `-`, which a program it is passed to would read
+    /// as an option.
+    LeadingDash,
 }
 
 impl fmt::Display for Reason {
@@ -96,6 +99,7 @@ impl fmt::Display for Reason {
             Reason::EmptyComponent => write!(formatter, "it has an empty component"),
             Reason::NotOneOf(names) => write!(formatter, "it is not one of {}", names.join(", ")),
             Reason::NotOneAt => write!(formatter, "it does not have exactly one '@'"),
+            Reason::LeadingDash => write!(formatter, "it starts with '-', as an option does"),
         }
     }
 }

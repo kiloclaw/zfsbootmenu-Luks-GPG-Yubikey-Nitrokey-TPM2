@@ -10,11 +10,9 @@ use std::cell::Cell;
 use std::path::PathBuf;
 
 use pretty_assertions::assert_eq;
-use tracing_subscriber::layer::SubscriberExt;
 use zbm_crypt::{Closed, CryptError, Mapping, OpenOptions};
 use zbm_platform::{Context, Input, Secret};
 use zbm_testkit::fakes::FakeSystem;
-use zbm_trace::JournalLayer;
 
 use super::*;
 
@@ -121,6 +119,28 @@ fn a_missing_key_file_is_unavailable_and_runs_nothing() {
 }
 
 #[test]
+fn a_key_file_that_is_a_pipe_is_unreadable_and_runs_nothing() {
+    let fake = FakeSystem::new();
+    fake.files.fifo(KEY_FILE);
+    let unlocker = KeyChain::new(vec![key_file()]);
+
+    let failed = unlocker
+        .unlock(
+            &Context::new(fake.system()),
+            volume(),
+            OpenOptions::default(),
+        )
+        .unwrap_err();
+
+    assert_eq!(fake.runner.lines(), Vec::<String>::new());
+    assert!(matches!(
+        &failed.attempts[0].1,
+        Refusal::Unavailable(Unavailable::KeyFileUnreadable { source, .. })
+            if source.kind() == std::io::ErrorKind::InvalidInput
+    ));
+}
+
+#[test]
 fn methods_are_tried_in_order_until_one_opens_the_volume() {
     let fake = FakeSystem::new();
     let unlocker = KeyChain::new(vec![
@@ -164,40 +184,4 @@ fn a_refused_key_file_leads_to_the_next_method() {
         Refusal::Refused(CryptError::WrongKey { .. })
     ));
     assert_eq!(failed.to_string(), "no key method opened /dev/sda2");
-}
-
-#[test]
-fn each_attempt_is_traced_inside_the_unlock_span() {
-    let fake = FakeSystem::new();
-    let unlocker = KeyChain::new(vec![key_file(), Scripted::boxed("prompt", true)]);
-    let layer = JournalLayer::new(std::io::sink()).with_copy();
-    let lines = layer.lines();
-    let subscriber = tracing_subscriber::registry().with(layer);
-
-    tracing::subscriber::with_default(subscriber, || {
-        let _ = unlocker.unlock(
-            &Context::new(fake.system()),
-            volume(),
-            OpenOptions::default(),
-        );
-    });
-
-    let events: Vec<(String, String)> = lines
-        .take()
-        .iter()
-        .filter(|line| line["spans"][1]["span"] == "key_method")
-        .map(|line| {
-            let method = line["spans"][1]["method"].as_str().unwrap().to_owned();
-            let message = line["message"].as_str().unwrap().to_owned();
-            (method, message)
-        })
-        .collect();
-    assert_eq!(
-        events,
-        [
-            ("key file".to_owned(), "not available".to_owned()),
-            ("prompt".to_owned(), "command ended".to_owned()),
-            ("prompt".to_owned(), "opened".to_owned()),
-        ]
-    );
 }

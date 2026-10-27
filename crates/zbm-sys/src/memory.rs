@@ -123,6 +123,13 @@ const SC_PAGESIZE: c_int = 30;
 /// (the common numbering of new system calls).
 const SYS_MEMFD_SECRET: c_long = 447;
 
+/// `O_CLOEXEC`, the only flag of `memfd_secret`, which SPARC numbers
+/// differently.
+#[cfg(any(target_arch = "sparc", target_arch = "sparc64"))]
+const O_CLOEXEC: c_long = 0x40_0000;
+#[cfg(not(any(target_arch = "sparc", target_arch = "sparc64")))]
+const O_CLOEXEC: c_long = 0o2_000_000;
+
 /// How many regions the process holds now.
 static LIVE: AtomicUsize = AtomicUsize::new(0);
 
@@ -217,12 +224,14 @@ impl Pages {
     fn from_secretmem(len: usize) -> Option<Pages> {
         let size = i64::try_from(len).ok()?;
         // SAFETY: `memfd_secret(unsigned int flags)` reads no memory of the
-        // caller (0, no flags, is passed as a whole register); the file it
+        // caller (the flags are passed as a whole register); the file it
         // makes is sized, mapped as a new mapping that aliases no Rust
         // memory, and closed, as the mapping keeps the memory. The advice
-        // applies to that mapping alone.
+        // applies to that mapping alone. The file is closed on exec: a
+        // thread that starts a program before the `close` below does not
+        // hand it the secret.
         let start = unsafe {
-            let fd = syscall(SYS_MEMFD_SECRET, 0 as c_long);
+            let fd = syscall(SYS_MEMFD_SECRET, O_CLOEXEC);
             let fd = c_int::try_from(fd).ok().filter(|fd| *fd >= 0)?;
             let start = if ftruncate(fd, size) == 0 {
                 mmap(std::ptr::null_mut(), len, READ_WRITE, MAP_SHARED, fd, 0)

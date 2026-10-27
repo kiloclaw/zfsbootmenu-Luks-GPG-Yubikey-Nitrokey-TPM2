@@ -4,6 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use zbm_crypt::{Closed, Cryptsetup, Failed, Mapping, OpenOptions};
+use zbm_platform::files::FileKind;
 use zbm_platform::{Context, Secret};
 
 use super::{Attempt, KeyMethod, Unavailable};
@@ -32,6 +33,20 @@ impl KeyFile {
     }
 }
 
+/// The contents of the regular file at `path`; a named pipe or a device
+/// is refused before it is read, as a read of it may wait for ever or not
+/// end.
+fn read_regular(context: &Context<'_>, path: &Path) -> io::Result<Vec<u8>> {
+    let kind = context.files().metadata(path)?.kind;
+    if kind != FileKind::File {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not a regular file",
+        ));
+    }
+    context.files().read(path)
+}
+
 impl KeyMethod for KeyFile {
     fn name(&self) -> &'static str {
         "key file"
@@ -43,7 +58,7 @@ impl KeyMethod for KeyFile {
         mapping: Mapping<Closed>,
         options: OpenOptions,
     ) -> Attempt {
-        let key = match context.files().read(&self.path) {
+        let key = match read_regular(context, &self.path) {
             Ok(bytes) => Secret::from_vec(bytes),
             Err(error) => {
                 let path = self.path.clone();

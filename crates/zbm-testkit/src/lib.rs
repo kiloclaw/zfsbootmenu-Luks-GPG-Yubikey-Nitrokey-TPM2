@@ -87,6 +87,13 @@ impl FakeRunner {
         self.responders.borrow_mut().push(Box::new(responder));
     }
 
+    /// Adds a responder tried before all the others, such as one that does
+    /// something as a command runs and returns `None` to let the others
+    /// answer it.
+    pub fn first(&self, responder: impl Fn(&Command) -> Option<io::Result<Output>> + 'static) {
+        self.responders.borrow_mut().insert(0, Box::new(responder));
+    }
+
     /// Answers commands whose program and arguments, joined by spaces, equal
     /// `line`.
     pub fn respond(&self, line: &str, status: u8, stdout: &str) {
