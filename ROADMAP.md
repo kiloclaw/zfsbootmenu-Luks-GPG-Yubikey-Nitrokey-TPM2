@@ -47,7 +47,7 @@ On branch `claude/zbm-refactor`, 27 October 2026:
 | Menu | Main view, start-up view, unlock and import dialogs, snapshots (diff, clone, rollback, set default), command palette. Left: kernels, the command line editor, pools and LUKS volumes, recovery tools, help, power |
 | Console on the display | `zbm.console=drm`: Alacritty's terminal drawn through DRM, TrueType fonts, XKB layouts, scrollback wiped at secret prompts, status line, bells. Milestones M1 to M3 done, with their VM tests passing |
 | Features done | #1 secrets in locked memory, #5 reproducible images, #9 saved boot logs and `zbm report`, #20 console fonts |
-| Verification | About 1,670 Rust tests without root, LUKS device suites, 7 fuzz targets, about 900 VM checks (the maintainer's machine, with KVM), metrics and coverage ratchets. On 27 October 2026 every VM test passed on the Rust runtime, `procedures` after the fix of brush's long lines (its rerun is pending) |
+| Verification | About 1,670 Rust tests without root, LUKS device suites, 7 fuzz targets, about 900 VM checks (the maintainer's machine, with KVM), metrics and coverage ratchets. On 27 October 2026 every VM test passed on the Rust runtime, after fixes to brush's reading of long and continued lines and to three tests |
 | Removed in October 2026 | The Perl and Bash host tools, parity check mode, shadow mode, the Bash LUKS unit suites, and the rule that every suite runs against both images |
 
 The code is 129,000 lines of Rust in 27 crates. Five reviews of it on 27 October 2026 (the process model, the crates
@@ -741,8 +741,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
   decisions 8 and 18).
 - SE1, SE2, SE3, SE7, SE8, SB1, DM1, UI1, UI2, UI13, PM5, VE1, CD1, CD2, CD3, and the
   [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026).
-- The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026 but
-  for the rerun of `procedures`.
+- The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
+  test passing on the Rust runtime.
 
 **Exit:** the ADRs accepted; the quick fixes in, with their VM runs passing; the workspace prototype ready for the
 sessions.
