@@ -25,16 +25,26 @@ pub fn open_mirror(path: &Path) -> Option<File> {
 /// The screens written to the mirror, each after a form feed. A screen is
 /// written whole, even across calls; of the screens that come meanwhile,
 /// only the latest is written, so that the mirror always ends with the
-/// screen shown.
+/// screen shown. Every copy of a screen is wiped when it goes, as the
+/// scrollback is: a passphrase shown by mistake does not stay in memory.
 #[derive(Debug)]
 pub struct Mirror<W> {
     out: W,
-    /// What is left to write of the screen being written.
+    /// The screen being written.
     pending: Vec<u8>,
+    /// How much of it is written.
+    sent: usize,
     /// The latest screen, not written yet.
-    next: Option<String>,
+    next: Option<Vec<u8>>,
     /// The latest screen taken.
-    last: String,
+    last: Vec<u8>,
+}
+
+/// Wipes `bytes`, if there are any.
+fn wipe(bytes: Option<Vec<u8>>) {
+    if let Some(mut bytes) = bytes {
+        zbm_sys::wipe_vec(&mut bytes);
+    }
 }
 
 impl<W: io::Write> Mirror<W> {
@@ -43,16 +53,21 @@ impl<W: io::Write> Mirror<W> {
         Mirror {
             out,
             pending: Vec::new(),
+            sent: 0,
             next: None,
-            last: String::new(),
+            last: Vec::new(),
         }
     }
 
     /// Takes the screen `text`, and writes what `out` takes now.
     pub fn show(&mut self, text: &str) {
-        if text != self.last {
-            text.clone_into(&mut self.last);
-            self.next = Some(format!("\x0c{text}"));
+        if text.as_bytes() != self.last {
+            zbm_sys::wipe_vec(&mut self.last);
+            self.last = text.as_bytes().to_vec();
+            let mut screen = Vec::with_capacity(text.len() + 1);
+            screen.push(0x0c);
+            screen.extend_from_slice(text.as_bytes());
+            wipe(self.next.replace(screen));
         }
         self.flush();
     }
@@ -60,29 +75,40 @@ impl<W: io::Write> Mirror<W> {
     /// Writes what `out` takes now of the screens taken.
     pub fn flush(&mut self) {
         loop {
-            if self.pending.is_empty() {
+            if self.sent >= self.pending.len() {
+                zbm_sys::wipe_vec(&mut self.pending);
+                self.sent = 0;
                 match self.next.take() {
-                    Some(screen) => self.pending = screen.into_bytes(),
+                    Some(screen) => self.pending = screen,
                     None => return,
                 }
             }
-            match self.out.write(&self.pending) {
+            match self
+                .out
+                .write(self.pending.get(self.sent..).unwrap_or_default())
+            {
                 Ok(0) | Err(_) => return,
-                Ok(written) => {
-                    self.pending.drain(..written.min(self.pending.len()));
-                }
+                Ok(written) => self.sent += written,
             }
         }
     }
 
     /// Whether some of the screens taken is left to write.
     pub fn is_pending(&self) -> bool {
-        !self.pending.is_empty() || self.next.is_some()
+        self.sent < self.pending.len() || self.next.is_some()
     }
 
     /// What it writes to.
     pub fn get_ref(&self) -> &W {
         &self.out
+    }
+}
+
+impl<W> Drop for Mirror<W> {
+    fn drop(&mut self) {
+        zbm_sys::wipe_vec(&mut self.pending);
+        zbm_sys::wipe_vec(&mut self.last);
+        wipe(self.next.take());
     }
 }
 

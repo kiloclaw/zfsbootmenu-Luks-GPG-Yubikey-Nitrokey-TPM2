@@ -541,32 +541,45 @@ impl Console {
 
     /// The text of the screen as shown, one line per row, without trailing
     /// spaces, combining marks after their characters; the status line
-    /// last, if there is one.
+    /// last, if there is one. It is built in one string, made large enough
+    /// at once: no partial copy of the screen is left in freed memory.
     pub fn text(&self) -> String {
         let grid = self.term.grid();
         let size = (grid.screen_lines(), grid.columns());
         let overlay = self.overlay();
-        (0..grid.screen_lines())
-            .map(|line| {
-                let row = &grid[Line(self.viewport_line(line))];
-                let text: String = (0..grid.columns())
-                    .map(|column| (column, &row[Column(column)]))
-                    .filter(|(_, cell)| !cell.flags.contains(Flags::WIDE_CHAR_SPACER))
-                    .flat_map(|(column, cell)| {
-                        let over = overlay.char_at((line, column), size);
-                        let marks = cell.zerowidth().unwrap_or_default();
-                        let marks = if over.is_some() { &[][..] } else { marks };
-                        std::iter::once(over.unwrap_or(cell.c)).chain(marks.iter().copied())
-                    })
-                    .collect();
-                text.trim_end().to_owned() + "\n"
-            })
-            .chain(
-                self.status_text()
-                    .map(|status| status.iter().collect::<String>().trim_end().to_owned() + "\n"),
-            )
-            .collect()
+        let rows = usize::from(self.display_rows());
+        // Four bytes a character, and room for a mark in a cell of four.
+        let mut text = String::with_capacity(rows * (grid.columns() * 5 + 1));
+        for line in 0..grid.screen_lines() {
+            let row = &grid[Line(self.viewport_line(line))];
+            for column in 0..grid.columns() {
+                let cell = &row[Column(column)];
+                if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                    continue;
+                }
+                if let Some(c) = overlay.char_at((line, column), size) {
+                    text.push(c);
+                } else {
+                    text.push(cell.c);
+                    text.extend(cell.zerowidth().unwrap_or_default());
+                }
+            }
+            end_line(&mut text);
+        }
+        if let Some(status) = self.status_text() {
+            text.extend(status);
+            end_line(&mut text);
+        }
+        text
     }
+}
+
+/// Ends the last line of `text`: its trailing spaces go, a newline comes.
+fn end_line(text: &mut String) {
+    let line = text.rfind('\n').map_or(0, |end| end + 1);
+    let kept = text.get(line..).unwrap_or_default().trim_end().len();
+    text.truncate(line + kept);
+    text.push('\n');
 }
 
 impl Drop for Console {

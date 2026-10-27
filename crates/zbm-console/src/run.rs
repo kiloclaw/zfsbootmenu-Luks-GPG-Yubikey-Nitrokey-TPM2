@@ -245,7 +245,9 @@ impl<F: FnMut(&str)> Shown for F {
 /// the screen in freed memory.
 fn show(console: &Console, shown: &mut Option<&mut dyn Shown>) {
     if let Some(shown) = shown {
-        shown.show(&console.text());
+        let text = console.text();
+        shown.show(&text);
+        zbm_sys::wipe_vec(&mut text.into_bytes());
     }
 }
 

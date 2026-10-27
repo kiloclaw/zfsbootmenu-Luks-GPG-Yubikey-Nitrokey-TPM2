@@ -83,6 +83,10 @@ fn markers_and_locks() {
     ] {
         assert_eq!(is_screenshot(name), is_shot, "{name}");
     }
+    for number in 3..=MAX_SCREENSHOTS {
+        files.file(format!("/zfsbootmenu/screenshot-{number}.png"), "PNG");
+    }
+    assert!(state.save_screenshot(b"$\n", b"PNG").is_err());
     let saved = state.save_scrollback(b"$ ls\n").unwrap();
     assert_eq!(saved, Path::new("/zfsbootmenu/console-scrollback.txt"));
     assert_eq!(files.read_to_string(&saved).unwrap(), "$ ls\n");

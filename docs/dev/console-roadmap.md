@@ -153,6 +153,33 @@ Goal: the recovery shell is as usable as on a desktop terminal.
 VM tests: scrollback shown and then gone after a passphrase prompt (searched in memory as `runtime-rust-secrets`
 searches), a font size changed with keys, and the status line's Caps Lock.
 
+Done: every item, in six commits on `claude/zbm-refactor`:
+
+- Keys (C36 to C39, C42 to C44): `zbm.numlock`, Scroll Lock holding output, F13 to F24 and the other keys,
+  `zbm.keyboard_repeat`, Super+Space for the next layout, the dead key's accent and Ctrl+Shift+U at the cursor.
+- Scrollback (C52): 2000 lines by default (`zbm.console_scrollback`), in locked memory (`mlockall`). A prompt is secret
+  when the pty reads a line without echo (`cryptsetup`, `zluks`, `read -s`), or while the menu's passphrase dialog is
+  open, which the menu records in `/zfsbootmenu/secret-prompt`; the history is overwritten then, through the
+  `alacritty_terminal` patch's `Term::wipe_history`, and none is kept. The console notices such a prompt when it next
+  wakes: at its output, or at the first key typed, before that key goes anywhere. Search and vi mode (C53) on
+  Ctrl+Shift+F, Ctrl+Shift+B and Ctrl+Shift+Space; Ctrl+Shift+S saves the scrollback for `zbm report` (C54).
+- Font size, colour schemes and large text (C87, C23, C86): Ctrl+Alt+`=`, `-` and `0`, and `zbm console font`;
+  `zbm.console_palette` (linux, high-contrast, solarized-dark, solarized-light, tango); `zbm.console_large=on`.
+- Status line, bells and screenshots (C83, C31, C84, C47, C88): `zbm.console_status=on`; `zbm.console_bell`, the
+  border flashing or the PC speaker sounding; Print Screen saving `screenshot-N.txt` and `.png`.
+- Compose key and layouts per keyboard (C40, C41): `zbm.keyboard_compose`, and `zbm.keyboard_layouts` for USB keyboards
+  by vendor and product.
+
+Changed from the plan: `zbm console font` takes a size in pixels, `+`, `-` or `default`, not a font's name. There is no
+compose key unless `zbm.keyboard_compose` names one: each key it can be has another use. A keyboard with a layout of
+its own keeps its own Caps Lock and Num Lock, and the lights with them.
+
+`runtime-rust-console-comfort` checks the status line and its Caps Lock, the font made larger with Ctrl+Alt+= (fewer
+columns, named by `zbm console font`) and back, Shift+PgUp, and the scrollback in the console's memory before a prompt
+without echo and not after. The terminal's cells hold characters 4 bytes each, a cell apart, so
+`zbm debug secrets --cells` looks for them that way too. The mirror of the VM tests now wipes its copies of the screen,
+as the scrollback is wiped. Not run yet.
+
 ## M4. Displays
 
 Goal: the displays a machine has, as the kernel console uses them, and better.

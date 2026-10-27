@@ -401,6 +401,16 @@ Following a boot
   ``\e]P1123456`` must have pixels of exactly (255, 135, 0), (1, 2, 3) and (0x12, 0x34, 0x56)
   (``colours-256.ppm``).
 
+* ``runtime-rust-console-comfort`` checks the recovery shell of M3 of ``docs/dev/console-roadmap.md``, with the image
+  of ``runtime-rust-console-start`` built with the ``secret-test`` feature, booted with ``zbm.console_status=on``.
+  In the recovery shell, the status line must name the layout ``us`` and the time, and ``Caps`` while Caps Lock is on.
+  ``echo zbm-first-$(stty size)``, Ctrl+Alt+= and the same again must show fewer columns; ``zbm console font`` must
+  name them; after Ctrl+Alt+0, the first number of columns must be back. After 80 lines, Shift+PgUp must show a line
+  that scrolled off, with the place in the history in brackets. Then a marker line, written by a command that holds
+  it only in parts, is scrolled off, and ``zbm debug secrets --cells`` must find it in the console's memory, where
+  the terminal's cells hold its characters a cell apart; this shows the search works. ``stty -echo`` opens a prompt
+  without echo and a key is typed: the same search must then find nothing in the console's memory.
+
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
   passphrase and a key file, both unlike anything else in memory, and the pool ``tsecret`` on it. The other two boot a
@@ -535,67 +545,68 @@ a time. The build container image was the same as above. The ``oldzfs`` tests us
 touched ran again on rebuilt images, and the table lists the last run of each; durations are with KVM, which is several
 times faster than the software emulation of the table above.
 
-==============================  ======  ======  ========
-Test                            Passed  Failed  Duration
-==============================  ======  ======  ========
-``layouts-main-rust``           44      0       2 min
-``layouts-parity-rust``         37      0       2 min
-``layouts-parity-oldzfs-rust``  16      0       3 min
-``complex-setup-rust``          19      0       2 min
-``complex-healthy-rust``        37      0       2 min
-``complex-crypttab-rust``       36      0       3 min
-``complex-degraded-rust``       30      0       1 min
-``complex-hotplug-rust``        36      0       2 min
-``complex-hotplug-auto-rust``   36      0       3 min
-``complex-badkey-rust``         4       0       27 s
-``complex-skip-recover-rust``   40      0       2 min
-``complex-oldzfs-rust``         4       0       3 min
-``keys-setup-rust``             9       0       47 s
-``keys-plugin-rust``            13      0       2 min
-``keys-native-rust``            13      0       2 min
-``keys-lockout-rust``           13      0       27 s
-``keys-notpm-rust``             13      0       24 s
-``firmware-setup-rust``         3       0       2 min
-``firmware-boot-rust``          14      0       2 min
-``firmware-usbkey-rust``        14      0       2 min
-``firmware-usblate-rust``       14      0       16 s
-``firmware-nostick-rust``       14      0       23 s
-``procedures-rust``             78      0       12 min
-``secrets-setup-rust``          2       0       9 s
-``secrets-passphrase-rust``     4       0       2 min
-``secrets-keyfile-rust``        4       0       10 s
-``runtime-setup``               4       0       2 min
-``runtime-legacy``              16      0       39 s
-``runtime-rust``                15      0       39 s
-``runtime-legacy-hooks``        14      0       39 s
-``runtime-rust-hooks``          13      0       39 s
-``runtime-legacy-keysource``    7       0       11 s
-``runtime-rust-keysource``      4       0       11 s
-``runtime-legacy-signals``      3       0       2 min
-``runtime-rust-signals``        9       0       2 min
-``runtime-legacy-hostid``       16      0       39 s
-``runtime-rust-hostid``         15      0       39 s
-``runtime-legacy-strict``       2       0       2 s
-``runtime-rust-strict``         2       0       2 s
-``runtime-legacy-force``        4       0       5 s
-``runtime-rust-force``          3       0       5 s
-``runtime-legacy-prefer``       17      0       42 s
-``runtime-rust-prefer``         16      0       42 s
-``runtime-legacy-late``         16      0       49 s
-``runtime-rust-late``           15      0       49 s
-``runtime-legacy-waitfor``      16      0       49 s
-``runtime-rust-waitfor``        15      0       49 s
-``runtime-rust-pilot``          7       0       13 s
-``runtime-rust-crash``          7       0       2 min
-``runtime-rust-autosize``       6       0       –
-``runtime-rust-colours``        5       0       2 min
-``runtime-rust-drm``            12      0       2 min
-``runtime-rust-console``        23      0       11 min
-``runtime-rust-console-start``  16      0       11 min
-``runtime-rust-saved``          36      0       52 s
-``runtime-rust-gpu``            25      0       3 min
-Total                           906     0
-==============================  ======  ======  ========
+================================  ======  ======  ========
+Test                              Passed  Failed  Duration
+================================  ======  ======  ========
+``layouts-main-rust``             44      0       2 min
+``layouts-parity-rust``           37      0       2 min
+``layouts-parity-oldzfs-rust``    16      0       3 min
+``complex-setup-rust``            19      0       2 min
+``complex-healthy-rust``          37      0       2 min
+``complex-crypttab-rust``         36      0       3 min
+``complex-degraded-rust``         30      0       1 min
+``complex-hotplug-rust``          36      0       2 min
+``complex-hotplug-auto-rust``     36      0       3 min
+``complex-badkey-rust``           4       0       27 s
+``complex-skip-recover-rust``     40      0       2 min
+``complex-oldzfs-rust``           4       0       3 min
+``keys-setup-rust``               9       0       47 s
+``keys-plugin-rust``              13      0       2 min
+``keys-native-rust``              13      0       2 min
+``keys-lockout-rust``             13      0       27 s
+``keys-notpm-rust``               13      0       24 s
+``firmware-setup-rust``           3       0       2 min
+``firmware-boot-rust``            14      0       2 min
+``firmware-usbkey-rust``          14      0       2 min
+``firmware-usblate-rust``         14      0       16 s
+``firmware-nostick-rust``         14      0       23 s
+``procedures-rust``               78      0       12 min
+``secrets-setup-rust``            2       0       9 s
+``secrets-passphrase-rust``       4       0       2 min
+``secrets-keyfile-rust``          4       0       10 s
+``runtime-setup``                 4       0       2 min
+``runtime-legacy``                16      0       39 s
+``runtime-rust``                  15      0       39 s
+``runtime-legacy-hooks``          14      0       39 s
+``runtime-rust-hooks``            13      0       39 s
+``runtime-legacy-keysource``      7       0       11 s
+``runtime-rust-keysource``        4       0       11 s
+``runtime-legacy-signals``        3       0       2 min
+``runtime-rust-signals``          9       0       2 min
+``runtime-legacy-hostid``         16      0       39 s
+``runtime-rust-hostid``           15      0       39 s
+``runtime-legacy-strict``         2       0       2 s
+``runtime-rust-strict``           2       0       2 s
+``runtime-legacy-force``          4       0       5 s
+``runtime-rust-force``            3       0       5 s
+``runtime-legacy-prefer``         17      0       42 s
+``runtime-rust-prefer``           16      0       42 s
+``runtime-legacy-late``           16      0       49 s
+``runtime-rust-late``             15      0       49 s
+``runtime-legacy-waitfor``        16      0       49 s
+``runtime-rust-waitfor``          15      0       49 s
+``runtime-rust-pilot``            7       0       13 s
+``runtime-rust-crash``            7       0       2 min
+``runtime-rust-autosize``         6       0       –
+``runtime-rust-colours``          5       0       2 min
+``runtime-rust-drm``              12      0       2 min
+``runtime-rust-console``          23      0       11 min
+``runtime-rust-console-start``    16      0       11 min
+``runtime-rust-console-comfort``  –       –       –
+``runtime-rust-saved``            36      0       52 s
+``runtime-rust-gpu``              25      0       3 min
+Total                             906     0
+================================  ======  ======  ========
 
 Problems found and fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~

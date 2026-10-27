@@ -38,6 +38,9 @@
 //! - `rust-console-start` (`console_start`): the console's start without a
 //!   keyboard, in the kernel console's mode, and what it shows: the cursor,
 //!   the keypad, `/dev/console`, the screen across the hand-over.
+//! - `rust-console-comfort` (`console_comfort`): the status line, the
+//!   font's size changed with keys, the scrollback, and the scrollback
+//!   wiped from memory at a prompt without echo.
 //! - `rust-crash` (`crash`): a hook runs `zbm debug panic` in an image
 //!   built with the crash-test feature and prints the crash report;
 //!   `cargo xtask symbolize` must name the panicking function and line from
@@ -79,6 +82,7 @@ mod autosize;
 mod boot;
 mod colours;
 mod console;
+mod console_comfort;
 mod console_start;
 mod crash;
 mod drm;
@@ -109,6 +113,7 @@ const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
 
 /// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-console-start`,
+/// `rust-console-comfort`,
 /// `rust-saved`, `rust-gpu`,
 /// `RUNTIME-keysource`, `RUNTIME-signals` or `RUNTIME[-SCENARIO]`.
 ///
@@ -127,6 +132,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "rust-drm" => drm::run(test),
         "rust-console" => console::run(test),
         "rust-console-start" => console_start::run(test),
+        "rust-console-comfort" => console_comfort::run(test),
         "rust-saved" => saved::run(test),
         "rust-gpu" => gpu::run(test),
         "legacy-keysource" => keysource::run(test, ZbmRuntime::Legacy),

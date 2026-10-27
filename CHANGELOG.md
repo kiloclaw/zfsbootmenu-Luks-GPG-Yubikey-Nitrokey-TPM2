@@ -350,6 +350,26 @@ The last items needed changes to `alacritty_terminal` and `vte`, which the build
 authors release them. Double-width and double-height lines (DECDWL, DECDHL) are left for later. A test card drawn
 with three fonts is compared with reference images in the repository.
 
+### The console on the display: a comfortable recovery shell
+
+The console of `zbm.console=drm` (milestone M3 of `docs/dev/console-roadmap.md`):
+
+- Shift+PgUp and Shift+PgDn show the lines that scrolled off, 2000 by default (`zbm.console_scrollback`), kept in
+  memory that is never swapped. While a prompt reads a passphrase without echo, or the menu's passphrase dialog is
+  open, the scrollback is overwritten and none is kept, so no passphrase or what came before it stays in memory.
+  Ctrl+Shift+F and Ctrl+Shift+B search it, Ctrl+Shift+Space starts vi mode, and Ctrl+Shift+S saves it for
+  `zbm report`;
+- Ctrl+Alt+`=`, `-` and `0` make the text larger, smaller and as it was, as does `zbm console font`;
+  `zbm.console_palette` chooses a colour scheme, and `zbm.console_large=on` large text in high contrast;
+- `zbm.console_status=on` keeps a status line with Caps Lock, Num Lock, the layout, the title, the time and the
+  battery; `zbm.console_bell` makes the bell flash the border or sound the PC speaker; Print Screen saves the screen's
+  text and image for `zbm report`, but not while a passphrase is asked for;
+- `zbm.numlock=on` starts with Num Lock on, Scroll Lock holds the output, `zbm.keyboard_repeat` sets the key repeat,
+  and F13 to F24, Print, Pause, Menu and the media keys reach programs;
+- Super+Space switches to the image's next keyboard layout, the waiting accent of a dead key shows at the cursor,
+  Ctrl+Shift+U types a character by its code, `zbm.keyboard_compose` chooses a compose key, and
+  `zbm.keyboard_layouts` gives USB keyboards layouts of their own.
+
 ### The console on the display: quieter, cleaner, accents
 
 Five fixes to the console of `zbm.console=drm`:

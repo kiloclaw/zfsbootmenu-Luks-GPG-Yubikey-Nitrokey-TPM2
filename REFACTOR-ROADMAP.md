@@ -68,8 +68,8 @@ On branch `claude/zbm-refactor`, at the end of October 2026:
 4. **A first [benchmark](#benchmarks) baseline**: `cargo xtask bench` and the `bench-*` VM scenarios, for the legacy
    runtime and the Rust runtime of today, on the maintainer's machine.
 5. **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
-6. **The console on the display**, from M3 of the [console roadmap](docs/dev/console-roadmap.md) (M2, a real
-   terminal, is done and passed its VM tests), and the group 1 features of [ROADMAP.md](ROADMAP.md) (#17, the
+6. **The console on the display**, from M4 of the [console roadmap](docs/dev/console-roadmap.md) (M3, a comfortable
+   recovery shell, is done and waits for its VM run), and the group 1 features of [ROADMAP.md](ROADMAP.md) (#17, the
    graphics drivers, is partly done).
 
 ### Later

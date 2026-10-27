@@ -1,8 +1,10 @@
-//! `zbm debug secrets HEX...`, only in builds with the `secret-test`
-//! feature: searches the machine for secrets, for the VM test of
-//! ROADMAP.md #1. Each argument is a secret in hexadecimal, so that the
-//! command line, the hook that runs the command and the image hold no copy
-//! of it. The search covers:
+//! `zbm debug secrets [--cells] HEX...`, only in builds with the
+//! `secret-test` feature: searches the machine for secrets, for the VM
+//! tests of ROADMAP.md #1 and of the console's scrollback. Each argument is
+//! a secret in hexadecimal, so that the command line, the hook that runs
+//! the command and the image hold no copy of it. With `--cells`, each is
+//! also looked for as the cells of the console's terminal hold text: its
+//! characters as 4-byte values, one cell apart. The search covers:
 //!
 //! - the memory of every other process: each readable mapping of
 //!   `/proc/PID/maps`, read through `/proc/PID/mem`;
@@ -52,19 +54,79 @@ pub fn decode_hex(text: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-/// Whether `needle` occurs in `haystack`.
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty()
-        && haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
+/// A secret as it is looked for: its bytes one after another, or, with a
+/// stride, its characters as 4-byte values that many bytes apart.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Needle {
+    /// The index of the secret.
+    pub secret: usize,
+    /// What is looked for: the bytes, or the characters' 4-byte values.
+    pub parts: Vec<Vec<u8>>,
+    /// How far apart the parts are; `None` for bytes in a row.
+    pub stride: Option<usize>,
 }
 
-/// The indexes of the `secrets` that occur in `bytes`.
-fn matches(bytes: &[u8], secrets: &[Vec<u8>]) -> Vec<usize> {
-    (0..secrets.len())
-        .filter(|&index| contains(bytes, &secrets[index]))
-        .collect()
+impl Needle {
+    /// How many bytes it spans.
+    fn span(&self) -> usize {
+        match self.stride {
+            None => self.parts.first().map_or(0, Vec::len),
+            Some(stride) => stride * self.parts.len().saturating_sub(1) + 4,
+        }
+    }
+
+    /// Whether it occurs in `haystack`.
+    fn is_in(&self, haystack: &[u8]) -> bool {
+        let span = self.span();
+        if span == 0 || haystack.len() < span {
+            return false;
+        }
+        let Some(stride) = self.stride else {
+            let bytes = self.parts.first().map_or(&[][..], Vec::as_slice);
+            return haystack.windows(span).any(|window| window == bytes);
+        };
+        (0..=haystack.len() - span).any(|start| {
+            self.parts.iter().enumerate().all(|(index, part)| {
+                let at = start + index * stride;
+                haystack.get(at..at + 4) == Some(part.as_slice())
+            })
+        })
+    }
+}
+
+/// What to look for of `secrets`: each in a row, and with `cells`, the
+/// size of a cell, as the cells of the console's terminal hold it.
+pub fn needles(secrets: &[Vec<u8>], cells: Option<usize>) -> Vec<Needle> {
+    let mut needles = Vec::new();
+    for (secret, bytes) in secrets.iter().enumerate() {
+        needles.push(Needle {
+            secret,
+            parts: vec![bytes.clone()],
+            stride: None,
+        });
+        if let (Some(stride), Ok(text)) = (cells, std::str::from_utf8(bytes)) {
+            needles.push(Needle {
+                secret,
+                parts: text
+                    .chars()
+                    .map(|c| u32::from(c).to_le_bytes().to_vec())
+                    .collect(),
+                stride: Some(stride),
+            });
+        }
+    }
+    needles
+}
+
+/// The indexes of the secrets of `needles` that occur in `bytes`.
+fn matches(bytes: &[u8], needles: &[Needle]) -> Vec<usize> {
+    let mut found: Vec<usize> = needles
+        .iter()
+        .filter(|needle| needle.is_in(bytes))
+        .map(|needle| needle.secret)
+        .collect();
+    found.dedup();
+    found
 }
 
 /// The readable mappings of a `/proc/PID/maps` text: start, end and name.
@@ -88,10 +150,10 @@ pub fn readable_regions(maps: &str) -> Vec<(u64, u64, String)> {
 
 /// The indexes of the `secrets` in the region from `start` to `end` of
 /// `mem`, read in chunks that overlap by the longest secret.
-fn search_region(mem: &File, start: u64, end: u64, secrets: &[Vec<u8>]) -> Vec<usize> {
+fn search_region(mem: &File, start: u64, end: u64, secrets: &[Needle]) -> Vec<usize> {
     let overlap = secrets
         .iter()
-        .map(Vec::len)
+        .map(Needle::span)
         .max()
         .unwrap_or(1)
         .saturating_sub(1);
@@ -121,7 +183,7 @@ fn search_region(mem: &File, start: u64, end: u64, secrets: &[Vec<u8>]) -> Vec<u
 }
 
 /// Searches the process `pid` below `proc`.
-fn search_process(proc: &Path, pid: u32, secrets: &[Vec<u8>], findings: &mut Findings) {
+fn search_process(proc: &Path, pid: u32, secrets: &[Needle], findings: &mut Findings) {
     let dir = proc.join(pid.to_string());
     let comm = std::fs::read_to_string(dir.join("comm")).unwrap_or_default();
     let name = format!("process {pid} ({})", comm.trim());
@@ -146,7 +208,7 @@ fn search_process(proc: &Path, pid: u32, secrets: &[Vec<u8>], findings: &mut Fin
 }
 
 /// Searches every process below `proc` but `except`.
-pub fn search_processes(proc: &Path, except: u32, secrets: &[Vec<u8>], findings: &mut Findings) {
+pub fn search_processes(proc: &Path, except: u32, secrets: &[Needle], findings: &mut Findings) {
     let mut pids: Vec<u32> = std::fs::read_dir(proc)
         .into_iter()
         .flatten()
@@ -180,7 +242,7 @@ pub fn memory_mounts(mounts: &str) -> Vec<PathBuf> {
 }
 
 /// Searches the regular files below `root` on its file system.
-pub fn search_files(root: &Path, secrets: &[Vec<u8>], findings: &mut Findings) {
+pub fn search_files(root: &Path, secrets: &[Needle], findings: &mut Findings) {
     let Ok(device) = std::fs::symlink_metadata(root).map(|meta| meta.dev()) else {
         return;
     };
@@ -214,13 +276,18 @@ pub fn search_files(root: &Path, secrets: &[Vec<u8>], findings: &mut Findings) {
     }
 }
 
-/// `zbm debug secrets HEX...`.
+/// `zbm debug secrets [--cells] HEX...`.
 pub fn run(args: &[&str], io: &mut Io) -> i32 {
+    let (cells, args) = match args {
+        ["--cells", rest @ ..] => (Some(zbm_console::CELL_SIZE), rest),
+        _ => (None, args),
+    };
     let secrets: Option<Vec<Vec<u8>>> = args.iter().map(|arg| decode_hex(arg)).collect();
     let Some(secrets) = secrets.filter(|secrets| !secrets.is_empty()) else {
-        let _ = writeln!(io.stderr, "Usage: zbm debug secrets HEX...");
+        let _ = writeln!(io.stderr, "Usage: zbm debug secrets [--cells] HEX...");
         return USAGE;
     };
+    let secrets = needles(&secrets, cells);
     let mut findings = Findings::default();
     search_processes(
         Path::new("/proc"),
@@ -329,7 +396,7 @@ bad line
         std::fs::write(dir.join("other"), b"nothing").unwrap();
         let mut findings = Findings::default();
 
-        search_files(&dir, &[SECRET.to_vec()], &mut findings);
+        search_files(&dir, &needles(&[SECRET.to_vec()], None), &mut findings);
 
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!(findings.files, 2);
@@ -356,7 +423,7 @@ bad line
         search_process(
             Path::new("/proc"),
             pid,
-            &[other, SECRET.to_vec()],
+            &needles(&[other, SECRET.to_vec()], None),
             &mut findings,
         );
 
@@ -388,6 +455,43 @@ bad line
     }
 
     #[test]
+    fn every_process_but_one_is_searched_in_a_proc_tree() {
+        let proc = std::env::temp_dir().join(format!("zbm-secret-proc-{}", std::process::id()));
+        let process = |pid: &str, memory: Option<&[u8]>| {
+            let dir = proc.join(pid);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("comm"), "sh\n").unwrap();
+            std::fs::write(dir.join("cmdline"), b"sh\0").unwrap();
+            let maps = "0-40 r--p 0 0:0 0 [heap]\n1000-2000 r--p 0 0:0 0\n";
+            std::fs::write(dir.join("maps"), maps).unwrap();
+            if let Some(memory) = memory {
+                std::fs::write(dir.join("mem"), memory).unwrap();
+            }
+        };
+        let memory = [b"x".as_slice(), SECRET, b"y"].concat();
+        process("7", Some(&memory));
+        process("8", Some(&memory));
+        process("9", None);
+        std::fs::create_dir_all(proc.join("self")).unwrap();
+        let mut findings = Findings::default();
+
+        search_processes(&proc, 8, &needles(&[SECRET.to_vec()], None), &mut findings);
+
+        std::fs::remove_dir_all(&proc).unwrap();
+        assert_eq!(
+            findings,
+            Findings {
+                processes: 1,
+                regions: 2,
+                files: 0,
+                found: vec![(0, "process 7 (sh) memory 0-40 [heap]".to_owned())],
+            }
+        );
+        search_files(&proc, &needles(&[SECRET.to_vec()], None), &mut findings);
+        assert_eq!(findings.files, 0);
+    }
+
+    #[test]
     fn the_report_names_each_place_and_the_protection() {
         let findings = Findings {
             processes: 3,
@@ -409,5 +513,28 @@ bad line
                         searched 3 processes, 40 mappings and 500 files; found 1; \
                         secrets kept as ";
         assert!(text.starts_with(expected), "{text}");
+    }
+
+    #[test]
+    fn a_secret_is_found_in_a_row_and_as_the_terminal_s_cells_hold_it() {
+        let secrets = vec![b"ab".to_vec(), vec![0xff]];
+        let found = needles(&secrets, Some(8));
+        // Invalid UTF-8 has no cells.
+        assert_eq!(found.len(), 3);
+        assert_eq!(found[1].span(), 12);
+        let mut cells = vec![0_u8; 32];
+        cells[4..8].copy_from_slice(&u32::from('a').to_le_bytes());
+        cells[12..16].copy_from_slice(&u32::from('b').to_le_bytes());
+        assert_eq!(matches(&cells, &found), [0]);
+        assert_eq!(matches(b"xxabxx", &found), [0]);
+        assert_eq!(matches(b"a", &found), Vec::<usize>::new());
+        assert_eq!(matches(&[0xff, 0], &found), [1]);
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+        let mut io = Io {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+        };
+        assert_eq!(run(&["--cells"], &mut io), USAGE);
+        const { assert!(zbm_console::CELL_SIZE >= 4) };
     }
 }

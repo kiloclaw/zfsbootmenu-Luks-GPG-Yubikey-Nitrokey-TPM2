@@ -33,3 +33,7 @@ pub mod scheme;
 pub mod screen;
 pub mod serve;
 pub mod typing;
+
+/// The size of a cell of the console's terminal: the characters of a row
+/// are this many bytes apart, as 4-byte values.
+pub const CELL_SIZE: usize = std::mem::size_of::<alacritty_terminal::term::cell::Cell>();
