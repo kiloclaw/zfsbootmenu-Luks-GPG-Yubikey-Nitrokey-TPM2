@@ -18,7 +18,7 @@ pub mod memory;
 mod process;
 mod stack;
 
-pub use process::{Ended, try_wait, wait_any};
+pub use process::{Ended, take_terminal, try_wait, wait_any};
 pub use stack::{MAX_FRAMES, return_addresses};
 
 use std::ffi::{c_int, c_ulong, c_void};

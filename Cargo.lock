@@ -335,8 +335,6 @@ dependencies = [
 [[package]]
 name = "brush-interactive"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8147f101092e1cc8bc51a0be24535555910af1ef72e2f0b7b4c99eef4c88082b"
 dependencies = [
  "bon",
  "brush-core",
@@ -4076,6 +4074,7 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "zbm-platform",
+ "zbm-sys",
  "zbm-testkit",
 ]
 

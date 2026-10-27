@@ -1422,6 +1422,7 @@ name = "zbm-tools"
 version = "0.1.0"
 dependencies = [
  "zbm-platform",
+ "zbm-sys",
 ]
 
 [[package]]

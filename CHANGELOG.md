@@ -226,6 +226,10 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   it says it could not start.
 - The menu asks for the environment's name to be typed before it clones and promotes a snapshot, as before every
   other change that cannot be undone; naming the clone and pressing Enter no longer promotes it at once.
+- Rust images: leaving a brush recovery shell with `exit` goes back to the menu again. brush kept its own process
+  group in the terminal's foreground when it ended, so the menu could read no key and every `exit` led to another
+  shell; brush is patched to give the terminal back (`patches/`), and the supervisor, start-up and the menu take it
+  back after every interactive shell, also one that was killed.
 
 ### The new menu's text in a message catalogue
 

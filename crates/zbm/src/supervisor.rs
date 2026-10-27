@@ -261,6 +261,9 @@ impl Supervisor {
     /// Waits until `pid` ends, reaping every other child that ends meanwhile,
     /// and returns its wait status (`None` if it is gone already). When the
     /// console is among them, the terminal goes back to the kernel console.
+    /// When `pid` ends, the supervisor takes its terminal back: a shell with
+    /// job control on it, such as brush, may leave its own process group in
+    /// the foreground, and the next program could then read no key.
     fn wait_for(
         &self,
         pid: u32,
@@ -269,7 +272,11 @@ impl Supervisor {
     ) -> Option<i32> {
         loop {
             match zbm_sys::wait_any() {
-                Ok(Some(Ended { pid: ended, status })) if ended == pid => return Some(status),
+                Ok(Some(Ended { pid: ended, status })) if ended == pid => {
+                    // Not a terminal (the tests): nothing to take back.
+                    let _ = zbm_sys::take_terminal(0);
+                    return Some(status);
+                }
                 Ok(Some(Ended { pid: ended, status })) => {
                     self.console_ended(ended, status, attached, events);
                 }

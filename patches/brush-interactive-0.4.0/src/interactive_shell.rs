@@ -59,6 +59,9 @@ pub struct InteractiveShell<'a, IB: InputBackend, SE: brush_core::ShellExtension
     terminal_integration: Option<crate::term_integration::TerminalIntegration>,
     /// Options.
     options: InteractiveOptions,
+    /// The terminal, while the shell holds it: dropping it gives the
+    /// terminal back to the process group that had it before.
+    _terminal_control: Option<brush_core::terminal::TerminalControl>,
 }
 
 impl<'a, IB: InputBackend, SE: brush_core::ShellExtensions> InteractiveShell<'a, IB, SE> {
@@ -76,10 +79,13 @@ impl<'a, IB: InputBackend, SE: brush_core::ShellExtensions> InteractiveShell<'a,
     ) -> Result<Self, ShellError> {
         let stdin_is_terminal = std::io::stdin().is_terminal();
 
-        // Acquire terminal control if stdin is a terminal.
-        if stdin_is_terminal {
-            brush_core::terminal::TerminalControl::acquire()?;
-        }
+        // Acquire terminal control if stdin is a terminal, and keep it until
+        // the shell ends: the guard gives the terminal back when dropped.
+        let terminal_control = if stdin_is_terminal {
+            Some(brush_core::terminal::TerminalControl::acquire()?)
+        } else {
+            None
+        };
 
         // Set up terminal integration if enabled *and* if stdin is a terminal.
         let terminal_integration = if options.terminal_shell_integration && stdin_is_terminal {
@@ -99,6 +105,7 @@ impl<'a, IB: InputBackend, SE: brush_core::ShellExtensions> InteractiveShell<'a,
             input,
             terminal_integration,
             options: options.clone(),
+            _terminal_control: terminal_control,
         })
     }
 

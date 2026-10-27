@@ -420,7 +420,9 @@ images use Bash as before.
   no answer comes. `zbm-brush`, the program images install as `brush`, starts brush's basic line editor on serial
   lines, which may not answer; virtual terminals, the console on the display and SSH get reedline.
 - **Patches.** brush is vendored unchanged, and fixes go in `patches/` through `[patch.crates-io]`, each to be offered
-  upstream. Today: a parser fix for `case` patterns inside `$( )` (`patches/README.md`).
+  upstream. Today: a parser fix for `case` patterns inside `$( )`, signal numbers for `kill`, and an interactive
+  shell that gives the terminal back when it ends (`patches/README.md`). The programs that start an interactive
+  shell take the terminal back after it too, so a shell that was killed cannot keep it.
 - **Known gaps.** A script given on standard input fails where a `$(` substitution spans lines; script files work.
 
 ## Threat model

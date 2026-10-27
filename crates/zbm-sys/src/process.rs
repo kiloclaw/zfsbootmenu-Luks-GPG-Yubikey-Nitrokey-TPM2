@@ -1,10 +1,21 @@
 //! Waiting for child processes, as process 1 does: any child, so that
-//! orphans are reaped too, or one child without blocking.
+//! orphans are reaped too, or one child without blocking; and taking the
+//! terminal back from a child that left it to its own process group.
 
 use std::ffi::c_int;
 use std::io;
 
-use super::{ECHILD, waitpid};
+use super::{ECHILD, SIG_ERR, SIG_IGN, signal, waitpid};
+
+unsafe extern "C" {
+    fn getpgrp() -> c_int;
+    fn tcgetpgrp(fd: c_int) -> c_int;
+    fn tcsetpgrp(fd: c_int, pgrp: c_int) -> c_int;
+}
+
+/// `SIGTTOU`, which the kernel sends a process of a background group that
+/// sets the terminal's foreground group (the same on x86 and Arm).
+const SIGTTOU: c_int = 22;
 
 /// `WNOHANG`: `waitpid` returns at once when the child still runs.
 const WNOHANG: c_int = 1;
@@ -46,6 +57,41 @@ pub fn try_wait(pid: u32) -> io::Result<Option<i32>> {
         .filter(|&pid| pid > 0)
         .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
     wait(pid, WNOHANG).map(|ended| ended.map(|ended| ended.status))
+}
+
+/// Makes this process's group the foreground group of the terminal open
+/// as `fd` again, as a shell does when a job ends. A shell that leads a
+/// process group of its own, such as brush, and ends without giving the
+/// terminal back leaves its dead group in the foreground: this process
+/// then cannot read the terminal, nor set its modes. Nothing changes when
+/// the group is in the foreground already.
+///
+/// # Errors
+///
+/// When `fd` is not this process's controlling terminal.
+pub fn take_terminal(fd: i32) -> io::Result<()> {
+    // SAFETY: `getpgrp`, `tcgetpgrp` and `tcsetpgrp` take and return plain
+    // integers. `signal` gets `SIG_IGN`, then the disposition it returned,
+    // which was installed before and is therefore valid.
+    unsafe {
+        let group = getpgrp();
+        let foreground = tcgetpgrp(fd);
+        if foreground < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if foreground == group {
+            return Ok(());
+        }
+        // From a background group, setting the foreground group raises
+        // SIGTTOU, which would stop this process.
+        let previous = signal(SIGTTOU, SIG_IGN);
+        let result = tcsetpgrp(fd, group);
+        let error = io::Error::last_os_error();
+        if previous != SIG_ERR {
+            signal(SIGTTOU, previous);
+        }
+        if result < 0 { Err(error) } else { Ok(()) }
+    }
 }
 
 /// `waitpid(pid, options)`, again when a signal interrupts it: the child
@@ -113,5 +159,11 @@ mod tests {
         assert_eq!(try_wait(running.id()).unwrap(), None);
         running.kill().unwrap();
         running.wait().unwrap();
+    }
+    #[test]
+    fn only_a_terminal_can_be_taken_back() {
+        let file = std::fs::File::open("/dev/null").unwrap();
+        let error = take_terminal(std::os::fd::AsRawFd::as_raw_fd(&file)).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(25), "{error}"); // ENOTTY
     }
 }

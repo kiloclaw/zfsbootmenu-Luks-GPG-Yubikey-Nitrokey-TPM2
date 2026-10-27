@@ -92,7 +92,10 @@ pub fn key_script(
 
 /// Runs an interactive shell on the console, the one the runtime chose
 /// ([`zbm_platform::shell`]) or Bash (`/bin/bash -i`), which Ctrl-C reaches
-/// with its default action.
+/// with its default action. When it ends, this process takes the terminal
+/// back: a shell with job control that ended without giving it back, or
+/// was killed, leaves its own process group in the foreground, and the
+/// menu or start-up could then read no key.
 ///
 /// # Errors
 ///
@@ -100,8 +103,14 @@ pub fn key_script(
 pub fn interactive_shell(runner: &dyn Runner) -> io::Result<Output> {
     let program = shell::chosen().unwrap_or_else(|| shell::BASH.into());
     let command = on_console(Command::new(program).arg("-i")).default_signal(Signal::Interrupt);
-    runner.run(&command)
+    let ran = runner.run(&command);
+    // Not a terminal (a script, the tests): nothing to take back.
+    let _ = zbm_sys::take_terminal(STDIN);
+    ran
 }
+
+/// Standard input, the console the shell ran on.
+const STDIN: i32 = 0;
 
 /// Runs the applet `program` of ZFSBootMenu with `args` and `env` on the
 /// console, in a process of its own, such as `zluks unlock`.
