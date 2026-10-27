@@ -66,7 +66,11 @@ fn machine() -> FakeSystem {
         .file(
             "/zfsbootmenu/crash-1767225600-77.txt",
             "ZFSBootMenu crash report\n",
-        );
+        )
+        .file("/zfsbootmenu/console-scrollback.txt", "$ zpool status\n")
+        .file("/zfsbootmenu/screenshot-1.txt", "$\n")
+        .file("/zfsbootmenu/screenshot-1.png", "PNG")
+        .file("/zfsbootmenu/screenshot-1.jpg", "not a screenshot");
     fake
 }
 
@@ -130,10 +134,13 @@ fn a_report_holds_no_key_material() {
     assert_eq!(
         names,
         [
+            "console-scrollback.txt",
             "crash-1767225600-77.txt",
             "journal.jsonl",
             "kernel.log",
-            "report.txt"
+            "report.txt",
+            "screenshot-1.png",
+            "screenshot-1.txt",
         ]
     );
     for name in names {

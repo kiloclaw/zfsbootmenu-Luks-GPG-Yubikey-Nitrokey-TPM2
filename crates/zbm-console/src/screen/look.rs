@@ -4,7 +4,7 @@
 use alacritty_terminal::Term;
 use alacritty_terminal::grid::Dimensions as _;
 use alacritty_terminal::index::{Column, Line, Point};
-use alacritty_terminal::term::cell::Flags;
+use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor};
 use zbm_display::decor::Decoration;
 use zbm_display::faces::FontFace;
@@ -29,16 +29,19 @@ pub(super) fn look<'a>(
     let offset = i32::try_from(term.grid().display_offset()).ok()?;
     let row = i32::try_from(line).ok()? - offset;
     let grid = term.grid();
+    let colours = Table::new(term.colors(), shown.scheme);
+    // The search bar, the label and the status line, in the default
+    // colours reversed.
+    let size = (grid.screen_lines(), grid.columns());
+    if column < grid.columns()
+        && let Some(c) = overlay.char_at((line, column), size)
+    {
+        return Some((c, reversed(colours), &[], None));
+    }
     if line >= grid.screen_lines() || column >= grid.columns() {
         return None;
     }
     let cell = &grid[Line(row)][Column(column)];
-    let colours = Table::new(term.colors(), shown.scheme);
-    // The search bar and the label, in the default colours reversed.
-    let size = (grid.screen_lines(), grid.columns());
-    if let Some(c) = overlay.char_at((line, column), size) {
-        return Some((c, reversed(colours), &[], None));
-    }
     // What is being typed, underlined from the cursor on.
     if let Some(c) = previewed(cursor, (line, column)) {
         let style = colour::shown(colour::style(colours, cell), cell.flags, shown);
@@ -58,24 +61,36 @@ pub(super) fn look<'a>(
         .map(|cursor| cursor.shape)
         .filter(|&shape| shape != CursorShape::Hidden);
 
-    let style = colour::shown(colour::style(colours, cell), cell.flags, shown);
-    let point = Point::new(Line(row), Column(column));
-    let style = if overlay.has_found(point) {
-        found(colours, style)
-    } else {
-        style
-    };
-    let style = if shape == Some(CursorShape::Block) {
-        colour::cursor(colours, style)
-    } else {
-        style
-    };
+    let is_found = overlay.has_found(Point::new(Line(row), Column(column)));
+    let style = styled(colours, cell, shown, is_found, shape);
     let c = if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
         ' '
     } else {
         cell.c
     };
     Some((c, style, cell.zerowidth().unwrap_or_default(), shape))
+}
+
+/// How `cell` is drawn as the screen is `shown`: in a match found, under
+/// a cursor of `shape`.
+fn styled(
+    colours: Table<'_>,
+    cell: &Cell,
+    shown: Shown,
+    is_found: bool,
+    shape: Option<CursorShape>,
+) -> CellStyle {
+    let style = colour::shown(colour::style(colours, cell), cell.flags, shown);
+    let style = if is_found {
+        found(colours, style)
+    } else {
+        style
+    };
+    if shape == Some(CursorShape::Block) {
+        colour::cursor(colours, style)
+    } else {
+        style
+    }
 }
 
 /// The character being typed that `cursor` shows at (line, column), if

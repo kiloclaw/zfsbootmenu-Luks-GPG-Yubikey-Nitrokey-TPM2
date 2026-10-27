@@ -32,8 +32,9 @@ use crate::host::{RealHost, Switch, set_size};
 use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
 use crate::run::{Ended, Shown, run};
-use crate::screen::Console;
+use crate::screen::{Console, Ring};
 pub use layouts::{next_layout, switch_layout};
+use setup::{console_for, settle, with_bell};
 
 /// What the mirror gets once the display is handed back.
 pub const RELEASED: &str = "zbm console: handed the display back";
@@ -95,6 +96,10 @@ pub struct Settings {
     /// The colour scheme (`zbm.console_palette`); the Linux console's
     /// otherwise.
     pub scheme: Option<&'static crate::scheme::Scheme>,
+    /// Whether the console has a status line (`zbm.console_status`).
+    pub status_line: bool,
+    /// What the bell does (`zbm.console_bell`).
+    pub bell: Ring,
 }
 
 impl Settings {
@@ -380,23 +385,6 @@ fn open_keyboards(settings: &Settings, places: &Places, layout: Option<Layout>) 
     keyboards
 }
 
-/// The console's terminal for a display of `size`: the one `kept` from
-/// before the hand-over, whose screen the relay kept up, drawn whole on the
-/// new buffer; else a new one, in the font `grid` gives.
-fn console_for(
-    kept: &mut Option<Console>,
-    grid: MakeGrid<'_>,
-    size: (u32, u32),
-) -> io::Result<Console> {
-    match kept.take() {
-        Some(mut console) if console.pixels() == size => {
-            console.frame_mut().damage_all();
-            Ok(console)
-        }
-        _ => Ok(Console::new(grid(size, None)?, size)),
-    }
-}
-
 /// Draws the programs on `master` on the display, with the virtual
 /// terminal `vt` taken over, until they are gone or `requests` asks for
 /// the display back; returns why, the screen's last text and the keyboard
@@ -417,10 +405,7 @@ fn on_display(
     };
     let mut display = Display::open(&card)?;
     let size = display.size();
-    let mut console = console_for(kept, &mut *grid, size)?
-        .with_flavour(settings.flavour)
-        .with_scrollback(settings.scrollback)
-        .with_scheme(settings.scheme.unwrap_or(&crate::scheme::LINUX));
+    let mut console = settle(console_for(kept, &mut *grid, size)?, settings);
     let Layouts { first, names, load } = layouts;
     let keyboards = open_keyboards(settings, places, first);
     let taken = VirtualTerminal::take(vt)?;
@@ -442,7 +427,8 @@ fn on_display(
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch = layouts::switcher(places, names, load);
-    let mut host = real_host(&mut *master, keyboards, requests, places, switch).with_fonts(grid);
+    let host = real_host(&mut *master, keyboards, requests, places, switch);
+    let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
@@ -563,6 +549,7 @@ pub fn request_layout(base: &Path, name: &str, timeout: Duration) -> io::Result<
 
 mod font;
 mod layouts;
+mod setup;
 
 pub use font::request_font;
 

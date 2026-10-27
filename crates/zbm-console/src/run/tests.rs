@@ -63,6 +63,12 @@ struct FakeHost {
     font_request: Option<Zoom>,
     /// The fonts and sizes the programs were told.
     fonts_shown: Vec<(String, u16, u16)>,
+    /// What the status line says.
+    status: Option<Status>,
+    /// How often the speaker sounded.
+    rings: usize,
+    /// The screenshots saved: their text.
+    shots: Vec<String>,
 }
 
 impl FakeHost {
@@ -79,6 +85,9 @@ impl FakeHost {
             has_fonts: false,
             font_request: None,
             fonts_shown: Vec::new(),
+            status: None,
+            rings: 0,
+            shots: Vec::new(),
         }
     }
 }
@@ -132,6 +141,31 @@ impl Host for FakeHost {
     fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {
         self.fonts_shown
             .push((font.to_owned(), size.num_cols, size.num_lines));
+        Ok(())
+    }
+
+    fn status(&mut self) -> Option<Status> {
+        self.status.clone()
+    }
+
+    fn ring(&mut self) {
+        self.rings += 1;
+    }
+
+    fn save_screenshot(&mut self, text: &[u8], image: &[u8]) -> io::Result<PathBuf> {
+        assert!(image.starts_with(b"\x89PNG"));
+        self.shots.push(String::from_utf8_lossy(text).into_owned());
+        Ok(PathBuf::from("/zfsbootmenu/screenshot-1.png"))
+    }
+}
+
+/// A host with the trait's defaults.
+struct Bare;
+impl Host for Bare {
+    fn wait(&mut self, _: Duration) -> io::Result<Input> {
+        Ok(Input::Hangup)
+    }
+    fn send(&mut self, _: &[u8]) -> io::Result<()> {
         Ok(())
     }
 }
@@ -475,4 +509,44 @@ fn ctrl_alt_keys_and_requests_change_the_font_s_size() {
             .text()
             .ends_with("\nNo other size: psf 8x14, 40x10\n")
     );
+}
+
+#[test]
+fn the_host_says_the_status_sounds_the_bell_and_keeps_screenshots() {
+    use crate::screen::{Locks, Ring};
+    let print = press(Key::Print);
+    let mut screen = FakeScreen {
+        presented: 0,
+        broken: false,
+    };
+    let mut console = console().with_status_line().with_bell(Ring::Both);
+    let mut host = FakeHost::new(vec![
+        output("$ \x07"),
+        Input::Keys(vec![print]),
+        Input::Nothing,
+    ]);
+    host.status = Some(Status {
+        layout: "fr".to_owned(),
+        locks: Locks {
+            caps: true,
+            ..Locks::default()
+        },
+        ..Status::default()
+    });
+    run(&mut console, &mut screen, &mut host, None).unwrap();
+    assert_eq!(host.rings, 1);
+    assert_eq!(host.shots.len(), 1);
+    assert!(host.shots[0].starts_with("$\n"), "{:?}", host.shots);
+    let text = console.text();
+    assert!(
+        text.contains("\nScreenshot saved in /zfsbootmenu/screens\n"),
+        "{text:?}"
+    );
+    assert!(text.ends_with("  fr  Caps\n"), "{text:?}");
+
+    // The default host saves none.
+    let mut bare = Bare;
+    assert!(bare.save_screenshot(b"", b"").is_err());
+    assert!(bare.status().is_none());
+    bare.ring();
 }

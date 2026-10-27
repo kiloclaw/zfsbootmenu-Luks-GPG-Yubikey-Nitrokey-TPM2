@@ -363,6 +363,13 @@ fn the_state_directory_records_secret_prompts_and_keeps_the_scrollback() {
     state.set_secret_prompt(u32::MAX).unwrap();
     assert!(!host.is_secret());
 
+    let status = host.status().unwrap();
+    assert_eq!(status.layout, "us");
+    assert_eq!(status.locks, crate::screen::Locks::default());
+    assert!(status.clock.is_some());
+    host.ring();
+    let shot = host.save_screenshot(b"$\n", b"PNG").unwrap();
+    assert_eq!(shot, dir.join("screenshot-1.png"));
     let saved = host.save_scrollback(b"$ zpool status\n").unwrap();
     assert_eq!(saved, dir.join("console-scrollback.txt"));
     assert_eq!(std::fs::read(&saved).unwrap(), b"$ zpool status\n");
@@ -376,6 +383,8 @@ fn a_host_without_a_state_directory_saves_nothing() {
     let keyboards = Keyboards::from_files(Vec::new());
     let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
     let error = host.save_scrollback(b"x").unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+    let error = host.save_screenshot(b"x", b"y").unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::Unsupported);
 }
 

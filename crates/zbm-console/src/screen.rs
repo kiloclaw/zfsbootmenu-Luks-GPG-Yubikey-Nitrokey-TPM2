@@ -26,7 +26,7 @@ use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
-use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb as TermRgb};
+use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
 use zbm_display::frame::Frame;
 use zbm_display::grid::{Grid, Neighbour, Text};
 
@@ -34,15 +34,21 @@ use crate::colour::{self, Shown, Table};
 use crate::keys::{self, Flavour, Modes};
 use crate::scheme::{LINUX, Scheme};
 use crate::typing::Preview;
+pub use bell::Ring;
 pub use blink::BLINK;
 use look::{draw_cursor, look};
 use scroll::Shift;
+pub use status::{Clock, Locks, Status};
 
+mod bell;
 mod blink;
+mod events;
 mod history;
 mod look;
 mod scroll;
 pub(super) mod seek;
+mod shot;
+mod status;
 pub mod zoom;
 
 /// The events of the terminal, kept until the console handles them.
@@ -89,6 +95,16 @@ pub struct Console {
     zoom: Option<zoom::Zoom>,
     /// The colour scheme.
     scheme: &'static Scheme,
+    /// The title the programs set.
+    title: Option<String>,
+    /// The bell.
+    bell: bell::Bell,
+    /// The status line, when the console has one.
+    status_line: Option<Vec<char>>,
+    /// When the status line must be said again.
+    status_at: Option<Instant>,
+    /// Whether Print Screen asked for a screenshot.
+    is_shot: bool,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -166,6 +182,11 @@ impl Console {
             overlay: seek::Overlay::default(),
             zoom: None,
             scheme: &LINUX,
+            title: None,
+            bell: bell::Bell::default(),
+            status_line: None,
+            status_at: None,
+            is_shot: false,
         };
         console.draw();
         console
@@ -209,10 +230,16 @@ impl Console {
     /// cursor blinks.
     pub fn deadline(&self) -> Option<Instant> {
         let sync = self.parser.sync_timeout().sync_timeout();
-        [sync, self.blink.at, self.text_blink.at()]
-            .into_iter()
-            .flatten()
-            .min()
+        [
+            sync,
+            self.blink.at,
+            self.text_blink.at(),
+            self.bell.at(),
+            self.status_at(),
+        ]
+        .into_iter()
+        .flatten()
+        .min()
     }
 
     /// Ends a synchronized update whose time ran out at `now`, and blinks
@@ -228,33 +255,7 @@ impl Console {
         let is_blinking = shape != CursorShape::Hidden && self.term.cursor_style().blinking;
         self.blink.time(is_blinking, now);
         self.text_blink.tick(now);
-    }
-
-    /// Turns the terminal's events into the answers the programs get.
-    fn answer(&mut self) {
-        let events: Vec<Event> = self.events.0.borrow_mut().drain(..).collect();
-        for event in events {
-            let text = match event {
-                Event::PtyWrite(text) => text,
-                Event::TextAreaSizeRequest(format) => format(self.window_size()),
-                Event::ColorRequest(index, format) => {
-                    let colours = Table::new(self.term.colors(), self.scheme);
-                    let colour = colour::by_index(colours, index);
-                    format(TermRgb {
-                        r: colour.0,
-                        g: colour.1,
-                        b: colour.2,
-                    })
-                }
-                _ => continue,
-            };
-            self.replies.extend_from_slice(text.as_bytes());
-        }
-    }
-
-    /// Takes the answers owed to the programs.
-    pub fn take_replies(&mut self) -> Vec<u8> {
-        std::mem::take(&mut self.replies)
+        self.tick_bell(now);
     }
 
     /// Has the keys sent as the terminal description `flavour` describes
@@ -315,7 +316,7 @@ impl Console {
         let drawn = match damaged {
             Some(lines) if !is_whole => self.draw_lines(&lines, cursor),
             _ => self.draw_screen(cursor),
-        };
+        } + self.draw_flash();
         self.text_blink.follow(self.has_blinking_text());
         drawn
     }
@@ -396,7 +397,7 @@ impl Console {
     /// Draws the whole screen, which changed as a whole: the rows drawn are
     /// moved first when it scrolled, then the rows that differ are drawn.
     fn draw_screen(&mut self, cursor: Option<Cursor>) -> usize {
-        let rows = usize::from(self.rows);
+        let rows = usize::from(self.display_rows());
         let next: Vec<u64> = (0..rows).map(|line| self.row_hash(line, cursor)).collect();
         let shift = scroll::best_shift(&self.drawn_rows, &next);
         let (_, cell) = self.grid.cell();
@@ -539,7 +540,8 @@ impl Console {
     }
 
     /// The text of the screen as shown, one line per row, without trailing
-    /// spaces, combining marks after their characters.
+    /// spaces, combining marks after their characters; the status line
+    /// last, if there is one.
     pub fn text(&self) -> String {
         let grid = self.term.grid();
         let size = (grid.screen_lines(), grid.columns());
@@ -559,6 +561,10 @@ impl Console {
                     .collect();
                 text.trim_end().to_owned() + "\n"
             })
+            .chain(
+                self.status_text()
+                    .map(|status| status.iter().collect::<String>().trim_end().to_owned() + "\n"),
+            )
             .collect()
     }
 }

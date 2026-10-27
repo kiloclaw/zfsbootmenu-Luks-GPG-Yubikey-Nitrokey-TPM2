@@ -281,6 +281,19 @@ These options are set on the kernel command line when booting the initramfs or U
     leaves fewer than 40 columns, in the **high-contrast** scheme unless **zbm.console_palette** names
     another.
 
+  **zbm.console_status=on**
+
+    A status line under the programs' screen: the title they set, the keyboard layout, the locks that
+    are on, the time in UTC and the battery's charge on a laptop.
+
+  **zbm.console_bell=visual**
+
+    What the bell does: the screen's border flashes (**visual**), the PC speaker sounds (**audible**),
+    **both**, or nothing (**none**). The speaker needs the **pcspkr** module in the image.
+
+  Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
+  ``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
+
   Ctrl+Alt+= and Ctrl+Alt+- make the text larger and smaller while the console runs, and Ctrl+Alt+0
   gives it its first size again; the programs are told the new size. **zbm console font** says which
   font the console draws with, and **zbm console font** *pixels*, **+**, **-** or **default** asks for

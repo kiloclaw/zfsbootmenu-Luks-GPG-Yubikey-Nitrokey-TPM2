@@ -3943,6 +3943,7 @@ version = "0.1.0"
 dependencies = [
  "drm",
  "kbvm",
+ "miniz_oxide 0.8.9",
  "pretty_assertions",
  "swash",
  "zbm-sys",
@@ -4058,11 +4059,11 @@ version = "0.1.0"
 name = "zbm-testkit"
 version = "0.1.0"
 dependencies = [
- "miniz_oxide 0.8.9",
  "pretty_assertions",
  "serde",
  "serde_json",
  "zbm-core",
+ "zbm-display",
  "zbm-platform",
  "zbm-trace",
  "zbm-types",

@@ -37,6 +37,7 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | `base64`, `home`, `parking_lot`, `polling`, `regex-automata`, `rustix-openpty`, `signal-hook` 0.4, `cursor-icon` | (`alacritty_terminal`) | Its dependencies; `polling`, `rustix-openpty` and `home` serve its own event loop and process spawning, which `zbm-console` does not use, and link-time optimization drops them |
 | `swash` | `zbm-display` | TrueType and OpenType fonts for the console on the display (ROADMAP.md #19, step 3): glyphs hinted to the pixel grid and rasterized as coverage masks. Linebender's crate, MIT or Apache-2.0. Pinned to 0.2.10 without its default features but `std`, `scale` and `render`. Chosen over `fontdue`, whose parser `ttf-parser` is unmaintained (RUSTSEC-2026-0192) |
 | `skrifa`, `read-fonts`, `font-types`, `yazi`, `zeno`, `once_cell` | (`swash`) | Its dependencies: Google Fonts' font parser (the replacement the advisory names), decompression of compressed glyph data, and the rasterizer |
+| `miniz_oxide` | `zbm-display` | The compression of PNG files: the console's screenshots, and the reference images of the snapshot tests. Already vendored for `backtrace`, which `brush-shell` uses; pure Rust, MIT, Zlib or Apache-2.0 |
 | `kbvm` | `zbm-display` | Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled into self-contained keymap files when the image is built and loaded at boot, the key state machine (modifiers, Caps Lock, level and group switching) and dead keys through a compose table. The XKB engine of the Jay compositor, MIT or Apache-2.0. Pinned to 0.1.7 with only its `compose` feature. Chosen over `xkbcommon-rs`, which was last released in February 2025 |
 | `bstr`, `indexmap`, `linearize`, `linearize-derive`, `kbvm-proc`, `isnt`, `debug-fn`, `secure-execution`, `pkg-config`, `version_check` | (`kbvm`) | Its dependencies: byte strings and ordered maps for the XKB parser, enum-indexed arrays, its procedural macros, and the check that keeps environment variables out of set-user-ID programs; `pkg-config` and `version_check` run at build time only, to find the build host's XKB files |
 | `rustix` | `zbm-console` | The pseudo-terminal (`pty`), its size and the kernel console's raw mode (`termios`), and the signal of the hand-over (`process`), in safe Rust; already in the workspace through `drm` |
@@ -63,7 +64,6 @@ These are development dependencies only, allowed for every crate (`TEST_THIRD_PA
 | Crate | Why |
 | --- | --- |
 | `insta` | Snapshot tests: the menu's screens (`crates/zbm-tui/src/snapshots/`) and the console's reference images (`crates/zbm-console/src/screen/tests/reference/`) |
-| `miniz_oxide` | The compression of those images as PNG files (`zbm-testkit`); already vendored for `backtrace`, which `brush-shell` uses |
 | `proptest` | Property tests: parsing never panics, valid values round-trip (`zbm-types`) |
 | `pretty_assertions` | Readable diffs when an assertion of equality fails |
 | `serde`, `serde_json` | The golden files of the legacy results (`zbm_testkit::parity`, in `tests/golden/legacy/`); `serde`'s `derive` describes a test's recorded result |

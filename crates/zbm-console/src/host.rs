@@ -27,9 +27,13 @@ use zbm_sys::console::{Ready, Watch, wait_ready};
 
 use crate::run::{Host, Input};
 use crate::screen::zoom::Zoom;
+use crate::screen::{Locks, Status};
 use state::StateDir;
 
 mod state;
+mod status;
+
+pub use status::POWER_SUPPLY;
 
 /// Makes the grid of the image's fonts for a display of a size in pixels,
 /// in cells as high as asked, or as at the start.
@@ -228,6 +232,10 @@ pub struct RealHost<'h, M> {
     fonts: Option<Fonts<'h>>,
     /// The font's size `zbm console font` asked for.
     font_request: Option<Zoom>,
+    /// The battery's charge, for the status line.
+    battery: status::Battery,
+    /// The PC speaker, for the bell.
+    beeper: status::Beeper,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -256,6 +264,8 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             state: None,
             fonts: None,
             font_request: None,
+            battery: status::Battery::default(),
+            beeper: status::Beeper::default(),
         }
     }
 
@@ -266,6 +276,13 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         self.state = Some(StateDir {
             base: base.to_owned(),
         });
+        self
+    }
+
+    /// The host, which sounds the bell on `speaker`.
+    #[must_use]
+    pub fn with_speaker(mut self, speaker: zbm_display::speaker::Speaker) -> Self {
+        self.beeper.speaker = Some(speaker);
         self
     }
 
@@ -387,6 +404,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
 
 impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn wait(&mut self, timeout: Duration) -> io::Result<Input> {
+        self.beeper.quiet(Instant::now());
         if self.release.load(Ordering::SeqCst) {
             // The request's wake-up is taken with it.
             if let Some(wake) = &mut self.wake {
@@ -423,11 +441,15 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     /// [`IDLE`] when requests wake the host and new devices are watched,
     /// else the tick that looks for them.
     fn idle(&self) -> Duration {
-        if self.wake.is_some() && !self.is_rescanning() {
+        let idle = if self.wake.is_some() && !self.is_rescanning() {
             IDLE
         } else {
             crate::run::TICK
-        }
+        };
+        // A tone stops on time.
+        self.beeper
+            .remaining(Instant::now())
+            .map_or(idle, |remaining| remaining.min(idle))
     }
 
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
@@ -456,6 +478,31 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
 
     fn font_request(&mut self) -> Option<Zoom> {
         self.font_request.take()
+    }
+
+    fn status(&mut self) -> Option<Status> {
+        let keyboards = &self.keyboards;
+        Some(Status {
+            layout: keyboards.layout().to_owned(),
+            locks: Locks {
+                caps: keyboards.is_caps_lock(),
+                num: keyboards.is_num_lock(),
+                scroll: keyboards.is_scroll_lock(),
+            },
+            clock: status::clock(),
+            battery: self
+                .battery
+                .charge(std::path::Path::new(POWER_SUPPLY), Instant::now()),
+        })
+    }
+
+    fn ring(&mut self) {
+        self.beeper.ring(Instant::now());
+    }
+
+    fn save_screenshot(&mut self, text: &[u8], image: &[u8]) -> io::Result<std::path::PathBuf> {
+        let state = self.state.as_ref().ok_or(io::ErrorKind::Unsupported)?;
+        state.save_screenshot(text, image)
     }
 
     fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {

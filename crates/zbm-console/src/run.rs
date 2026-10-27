@@ -17,8 +17,8 @@ use zbm_display::grid::Grid;
 use zbm_display::keys::KeyPress;
 
 use crate::keys;
-use crate::screen::Console;
 use crate::screen::zoom::Zoom;
+use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
 
 /// How long the loop waits when nothing is due, so that a request to hand
@@ -116,6 +116,50 @@ pub trait Host {
     fn font_shown(&mut self, font: &str, size: &WindowSize) -> io::Result<()> {
         let _ = (font, size);
         Ok(())
+    }
+
+    /// What the status line says: the layout, the locks, the time and the
+    /// battery. A host that cannot tell says nothing.
+    fn status(&mut self) -> Option<Status> {
+        None
+    }
+
+    /// Sounds the bell on the PC speaker, if there is one.
+    fn ring(&mut self) {}
+
+    /// Saves a screenshot: the screen's `text` and its `image`, a PNG file,
+    /// for `zbm report`; returns where the image went.
+    ///
+    /// # Errors
+    ///
+    /// When they cannot be written; always for a host without a state
+    /// directory.
+    fn save_screenshot(&mut self, text: &[u8], image: &[u8]) -> io::Result<PathBuf> {
+        let _ = (text, image);
+        Err(io::ErrorKind::Unsupported.into())
+    }
+}
+
+/// Sounds the bell, says the status, and saves a screenshot, when the
+/// console asks for them.
+fn tell(console: &mut Console, host: &mut dyn Host) {
+    // Bells that come together sound once.
+    if console.take_sounds() > 0 {
+        host.ring();
+    }
+    if console.has_status_line()
+        && let Some(status) = host.status()
+    {
+        console.set_status(&status, Instant::now());
+    }
+    if let Some((text, image)) = console.take_screenshot() {
+        let mut text = text.into_bytes();
+        let notice = match host.save_screenshot(&text, &image) {
+            Ok(path) => format!("Screenshot saved in {}", path.display()),
+            Err(error) => format!("No screenshot: {error}"),
+        };
+        zbm_sys::wipe_vec(&mut text);
+        console.set_notice(&notice);
     }
 }
 
@@ -249,6 +293,7 @@ pub fn run(
             return Ok(ended);
         }
         zoom(console, host)?;
+        tell(console, host);
         let now = Instant::now();
         console.tick(now);
         if is_output && now.duration_since(*burst.get_or_insert(now)) < BURST {

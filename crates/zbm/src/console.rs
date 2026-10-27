@@ -15,7 +15,7 @@
 //! zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
 //!             [--numlock on|off] [--repeat <delay>,<rate>]
 //!             [--scrollback <lines>] [--palette <name>] [--large]
-//!             [--mirror <file>]
+//!             [--status] [--bell none|visual|audible|both] [--mirror <file>]
 //! zbm console release [--timeout <milliseconds>]
 //! zbm console reattach [--timeout <milliseconds>]
 //! zbm console layout [<name>]
@@ -51,6 +51,12 @@
 //! when that would leave fewer than 40 columns, in the high-contrast
 //! scheme unless `--palette` names another.
 //!
+//! `--status` adds a status line under the programs' screen: the title
+//! they set, the keyboard layout, the locks that are on, the time (UTC)
+//! and the battery's charge. `--bell` says what the bell does: the
+//! frame's border flashes (`visual`, the default), the PC speaker sounds
+//! (`audible`), both, or nothing (`none`).
+//!
 //! `--mirror` writes the screen's text to a file or device after each
 //! change, after a form feed, for the VM tests.
 
@@ -65,6 +71,7 @@ use zbm_platform::Files;
 use zbm_startup::autosize::FONTS;
 
 use zbm_console::scheme::{HIGH_CONTRAST, Scheme};
+use zbm_console::screen::Ring;
 use zbm_console::screen::zoom::Zoom;
 use zbm_console::serve::{
     Layouts, Places, Released, Settings, Switched, reattach, release, request_font, serve,
@@ -77,7 +84,8 @@ use crate::{Io, USAGE};
 const USAGE_TEXT: &str = "\
 Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--numlock on|off] [--repeat <delay>,<rate>] [--scrollback <lines>]
-                   [--palette <name>] [--large] [--mirror <file>]
+                   [--palette <name>] [--large] [--status]
+                   [--bell none|visual|audible|both] [--mirror <file>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -118,6 +126,10 @@ pub struct Options {
     /// Whether to draw large text, in the high-contrast scheme unless
     /// another is asked for.
     pub large: bool,
+    /// Whether to show a status line.
+    pub status: bool,
+    /// What the bell does.
+    pub bell: Ring,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -145,6 +157,8 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--psf" => options.psf = true,
             "--palette" => options.scheme = Some(zbm_console::scheme::by_name(args.next()?)?),
             "--large" => options.large = true,
+            "--status" => options.status = true,
+            "--bell" => options.bell = Ring::parse(args.next()?)?,
             _ => return None,
         }
     }
@@ -292,6 +306,8 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         scheme: options
             .scheme
             .or_else(|| options.large.then_some(&HIGH_CONTRAST)),
+        status_line: options.status,
+        bell: options.bell,
     };
     let places = Places::system();
     // The screen and its history stay out of swap.
@@ -419,6 +435,8 @@ mod tests {
                 mirror: Some(PathBuf::from("/dev/ttyS1")),
                 scheme: None,
                 large: false,
+                status: false,
+                bell: Ring::Visual,
             })
         );
         let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();
@@ -432,6 +450,10 @@ mod tests {
         assert_eq!(look.scheme.map(|scheme| scheme.name), Some("tango"));
         assert!(look.large);
         assert_eq!(parse(&args("--palette rainbow")), None);
+        let more = parse(&args("--status --bell both")).unwrap();
+        assert!(more.status);
+        assert_eq!(more.bell, Ring::Both);
+        assert_eq!(parse(&args("--bell loud")), None);
         // The names `zbm.console_palette` takes are the console's.
         let palettes = zbm_config::spec::cmdline::PALETTES;
         let schemes: Vec<&str> = zbm_console::scheme::SCHEMES
@@ -439,6 +461,9 @@ mod tests {
             .map(|scheme| scheme.name)
             .collect();
         assert_eq!(palettes, schemes);
+        for bell in zbm_config::spec::cmdline::BELLS {
+            assert!(Ring::parse(bell).is_some(), "{bell}");
+        }
         assert_eq!(parse(&[]), Some(Options::default()));
         assert!(parse(&args("--psf")).unwrap().psf);
         let layout = parse(&args("--layout de(nodeadkeys)")).unwrap().layout;

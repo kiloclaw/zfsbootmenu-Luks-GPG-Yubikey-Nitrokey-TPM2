@@ -5,7 +5,8 @@
 //! (`zbm.keyboard_layout`), Num Lock (`zbm.numlock`), the key repeat
 //! (`zbm.keyboard_repeat`), the scrollback (`zbm.console_scrollback`), the
 //! colour scheme (`zbm.console_palette`), large text
-//! (`zbm.console_large`), and the mirror of the VM tests.
+//! (`zbm.console_large`), the status line (`zbm.console_status`), the bell
+//! (`zbm.console_bell`), and the mirror of the VM tests.
 
 use std::path::Path;
 
@@ -13,8 +14,9 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE, CONSOLE_SCROLLBACK, DISPLAY_CONSOLE,
-    DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT, KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
+    AUTOSIZE, BELLS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
+    CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_LAYOUT,
+    KEYBOARD_REPEAT, NUM_LOCK, PALETTES,
 };
 use zbm_platform::System;
 
@@ -54,9 +56,10 @@ pub fn arguments(kcl: &str) -> Option<Vec<String>> {
             arguments.extend([flag.to_owned(), value]);
         }
     }
-    let large = args.lookup(&CONSOLE_LARGE, &mut messages);
-    if large.as_deref().map(str::trim) == Some("on") {
-        arguments.push("--large".to_owned());
+    for (spec, flag) in [(&CONSOLE_LARGE, "--large"), (&CONSOLE_STATUS, "--status")] {
+        if args.lookup(spec, &mut messages).as_deref().map(str::trim) == Some("on") {
+            arguments.push(flag.to_owned());
+        }
     }
     Some(arguments)
 }
@@ -66,7 +69,7 @@ type IsValid = fn(&str) -> bool;
 
 /// The options with a value that the console gets as they are, with its
 /// argument for each, when the value is right.
-const VALUES: [(&OptionSpec, &str, IsValid); 5] = [
+const VALUES: [(&OptionSpec, &str, IsValid); 6] = [
     (&NUM_LOCK, "--numlock", |value| {
         matches!(value, "on" | "off")
     }),
@@ -79,6 +82,7 @@ const VALUES: [(&OptionSpec, &str, IsValid); 5] = [
     (&CONSOLE_PALETTE, "--palette", |value| {
         PALETTES.contains(&value)
     }),
+    (&CONSOLE_BELL, "--bell", |value| BELLS.contains(&value)),
     (&CONSOLE_MIRROR, "--mirror", |value| !value.is_empty()),
 ];
 
@@ -155,8 +159,11 @@ mod tests {
             words("console --numlock on --repeat 250,30 --scrollback 0")
         );
         assert_eq!(
-            console("zbm.console=drm zbm.console_palette=tango zbm.console_large=on"),
-            words("console --palette tango --large")
+            console(
+                "zbm.console=drm zbm.console_palette=tango zbm.console_large=on \
+                 zbm.console_status=on zbm.console_bell=both"
+            ),
+            words("console --palette tango --bell both --large --status")
         );
         assert_eq!(
             console("zbm.console=drm zbm.console_palette=rainbow zbm.console_large=off"),

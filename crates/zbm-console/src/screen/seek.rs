@@ -52,6 +52,7 @@ pub(super) struct Seek {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct Overlay {
     pub bar: Option<Vec<char>>,
+    pub status: Option<Vec<char>>,
     pub label: Option<Vec<char>>,
     pub found: Option<Match>,
 }
@@ -71,6 +72,11 @@ impl Overlay {
         (row, column): (usize, usize),
         (rows, columns): (usize, usize),
     ) -> Option<char> {
+        if row == rows
+            && let Some(status) = &self.status
+        {
+            return Some(status.get(column).copied().unwrap_or(' '));
+        }
         if row + 1 == rows
             && let Some(bar) = &self.bar
         {
@@ -238,6 +244,7 @@ impl Console {
         });
         Overlay {
             bar,
+            status: self.status_text().map(<[char]>::to_vec),
             label,
             found: self.seek.found.clone(),
         }

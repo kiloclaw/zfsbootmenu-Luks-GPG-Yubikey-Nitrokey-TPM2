@@ -46,4 +46,6 @@ pub mod layout;
 pub mod outline;
 pub mod output;
 pub mod palette;
+pub mod png;
+pub mod speaker;
 pub mod vt;

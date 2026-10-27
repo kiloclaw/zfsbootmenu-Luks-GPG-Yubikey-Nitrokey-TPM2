@@ -134,23 +134,15 @@ impl Console {
     /// the display, its lines rewrapped, and the frame is drawn again.
     pub fn set_grid(&mut self, grid: Grid) {
         let (columns, rows) = grid.dimensions(self.pixels());
-        let (columns, rows) = (columns.max(1), rows.max(1));
+        let status = u16::from(self.has_status_line());
+        let (columns, rows) = (columns.max(1), rows.saturating_sub(status).max(1));
         self.grid = grid;
         self.columns = columns;
         self.rows = rows;
         self.term
             .resize(TermSize::new(usize::from(columns), usize::from(rows)));
         self.forget_match();
-        self.drawn_rows = vec![None; usize::from(rows)];
-        let (width, height) = self.frame.size();
-        let area = Area {
-            x: 0,
-            y: 0,
-            width,
-            height,
-        };
-        self.frame.fill(area, self.scheme().background);
-        self.redraw = true;
+        self.repaint();
         // The terminal's events of the resize are not for the programs.
         self.events.0.borrow_mut().clear();
     }
@@ -162,6 +154,13 @@ impl Console {
     #[must_use]
     pub fn with_scheme(mut self, scheme: &'static Scheme) -> Console {
         self.scheme = scheme;
+        self.repaint();
+        self
+    }
+
+    /// Paints the frame with the scheme's background, to be drawn whole
+    /// again.
+    pub(super) fn repaint(&mut self) {
         let (width, height) = self.frame.size();
         let area = Area {
             x: 0,
@@ -169,10 +168,9 @@ impl Console {
             width,
             height,
         };
-        self.frame.fill(area, scheme.background);
-        self.drawn_rows.fill(None);
+        self.frame.fill(area, self.scheme.background);
+        self.drawn_rows = vec![None; usize::from(self.display_rows())];
         self.redraw = true;
-        self
     }
 
     /// The colour scheme.

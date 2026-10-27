@@ -330,6 +330,16 @@ impl Keyboards {
         self.decoder.is_scroll_lock()
     }
 
+    /// Whether Caps Lock is on.
+    pub fn is_caps_lock(&self) -> bool {
+        self.decoder.is_caps_lock()
+    }
+
+    /// Whether Num Lock is on.
+    pub fn is_num_lock(&self) -> bool {
+        self.decoder.is_num_lock()
+    }
+
     /// The accent of the dead key typed last, while it waits for the key it
     /// goes on.
     pub fn pending_accent(&self) -> Option<char> {

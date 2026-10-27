@@ -24,6 +24,19 @@ pub const BASE: &str = "/zfsbootmenu";
 /// its scrollback in, for `zbm report`.
 pub const SCROLLBACK: &str = "console-scrollback.txt";
 
+/// The most screenshots the state directory keeps.
+pub const MAX_SCREENSHOTS: u32 = 99;
+
+/// Whether `name`, a file of the state directory, is a screenshot.
+pub fn is_screenshot(name: &str) -> bool {
+    name.strip_prefix("screenshot-")
+        .and_then(|rest| {
+            rest.strip_suffix(".txt")
+                .or_else(|| rest.strip_suffix(".png"))
+        })
+        .is_some_and(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()))
+}
+
 /// The value `read -r` gives a variable from the first line of `text`: the
 /// line without the spaces and tabs around it.
 fn read_first_line(text: &str) -> &str {
@@ -260,6 +273,23 @@ impl<'a> State<'a> {
     /// Records that no secret prompt is shown.
     pub fn clear_secret_prompt(&self) {
         self.remove("secret-prompt");
+    }
+
+    /// Saves a screenshot of the console, its `text` and its `image` (a
+    /// PNG file), as `screenshot-N.txt` and `screenshot-N.png`, N the first
+    /// number not taken; returns the image's path.
+    pub fn save_screenshot(&self, text: &[u8], image: &[u8]) -> Result<PathBuf> {
+        let number = (1..=MAX_SCREENSHOTS)
+            .find(|number| {
+                !self
+                    .files
+                    .exists(&self.path(&format!("screenshot-{number}.png")))
+            })
+            .ok_or_else(|| Error::invalid("too many screenshots"))?;
+        self.write(&format!("screenshot-{number}.txt"), text)?;
+        let name = format!("screenshot-{number}.png");
+        self.write(&name, image)?;
+        Ok(self.path(&name))
     }
 
     /// Saves `text`, the console's scrollback, in [`SCROLLBACK`]; returns

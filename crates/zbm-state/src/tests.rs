@@ -64,6 +64,25 @@ fn markers_and_locks() {
         state.console_font().as_deref(),
         Some("ter-v32b.psf 16x32, 80x25")
     );
+    let shot = state.save_screenshot(b"$\n", b"PNG").unwrap();
+    assert_eq!(shot, Path::new("/zfsbootmenu/screenshot-1.png"));
+    let next = state.save_screenshot(b"$\n", b"PNG").unwrap();
+    assert_eq!(next, Path::new("/zfsbootmenu/screenshot-2.png"));
+    assert_eq!(
+        files
+            .read_to_string(Path::new("/zfsbootmenu/screenshot-2.txt"))
+            .unwrap(),
+        "$\n"
+    );
+    for (name, is_shot) in [
+        ("screenshot-1.png", true),
+        ("screenshot-12.txt", true),
+        ("screenshot-.png", false),
+        ("screenshot-1.jpg", false),
+        ("screenshot-x.txt", false),
+    ] {
+        assert_eq!(is_screenshot(name), is_shot, "{name}");
+    }
     let saved = state.save_scrollback(b"$ ls\n").unwrap();
     assert_eq!(saved, Path::new("/zfsbootmenu/console-scrollback.txt"));
     assert_eq!(files.read_to_string(&saved).unwrap(), "$ ls\n");

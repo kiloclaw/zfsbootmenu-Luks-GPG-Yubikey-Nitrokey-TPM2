@@ -11,7 +11,8 @@
 //!   as `[redacted]`, and the crash reports;
 //! - `kernel.log`, the kernel log;
 //! - `console-scrollback.txt`, the console's scrollback, when it was saved
-//!   with Ctrl+Shift+S.
+//!   with Ctrl+Shift+S, and the screenshots Print Screen took
+//!   (`screenshot-N.txt`, `screenshot-N.png`).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -159,17 +160,24 @@ fn memory(system: &System<'_>, text: &mut String) {
     let _ = writeln!(text, "{line}\n");
 }
 
-/// The crash reports of the state directory `base`, by name.
-fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
+/// The files of the state directory `base` that `is_wanted`, by name.
+fn state_files(files: &dyn Files, base: &Path, is_wanted: fn(&str) -> bool) -> Vec<String> {
     let mut names: Vec<String> = files
         .read_dir(base)
         .unwrap_or_default()
         .into_iter()
         .filter_map(|name| name.into_string().ok())
-        .filter(|name| name.starts_with("crash-") && name.ends_with(".txt"))
+        .filter(|name| is_wanted(name))
         .collect();
     names.sort();
     names
+}
+
+/// The crash reports of the state directory `base`, by name.
+fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
+    state_files(files, base, |name| {
+        name.starts_with("crash-") && name.ends_with(".txt")
+    })
 }
 
 /// The text of `report.txt`, made at `seconds` after the epoch.
@@ -227,6 +235,7 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
     let mut copied = crash_reports(system.files, base);
     copied.push("journal.jsonl".to_owned());
     copied.push(zbm_state::SCROLLBACK.to_owned());
+    copied.extend(state_files(system.files, base, zbm_state::is_screenshot));
     for name in copied {
         if let Ok(contents) = system.files.read(&base.join(&name)) {
             files.push((name, contents));

@@ -138,6 +138,19 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   leaves fewer than 40 columns, in the **high-contrast** scheme unless **zbm.console_palette** names
   another.
 
+**zbm.console_status=on**
+
+  A status line under the programs' screen: the title they set, the keyboard layout, the locks that
+  are on, the time in UTC and the battery's charge on a laptop.
+
+**zbm.console_bell=visual**
+
+  What the bell does: the screen's border flashes (**visual**), the PC speaker sounds (**audible**),
+  **both**, or nothing (**none**). The speaker needs the **pcspkr** module in the image.
+
+Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
+``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
+
 Ctrl+Alt+= and Ctrl+Alt+- make the text larger and smaller while the console runs, and Ctrl+Alt+0
 gives it its first size again; the programs are told the new size. **zbm console font** says which
 font the console draws with, and **zbm console font** *pixels*, **+**, **-** or **default** asks for
@@ -259,6 +272,37 @@ pub static CONSOLE_LARGE: OptionSpec = OptionSpec {
     doc: Doc::Within("zbm.console"),
     deprecation: None,
     examples: &["zbm.console_large=on"],
+};
+
+/// `zbm.console_status`: the status line of the console on the display.
+pub static CONSOLE_STATUS: OptionSpec = OptionSpec {
+    name: "zbm.console_status",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(&["on", "off"]),
+    default: Some("off"),
+    summary: "A status line under the console on the display",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_status=on"],
+};
+
+/// What the bell of the console on the display can do.
+pub const BELLS: &[&str] = &["none", "visual", "audible", "both"];
+
+/// `zbm.console_bell`: the bell of the console on the display.
+pub static CONSOLE_BELL: OptionSpec = OptionSpec {
+    name: "zbm.console_bell",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Choice(BELLS),
+    default: Some("visual"),
+    summary: "What the bell of the console on the display does",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_bell=audible"],
 };
 
 /// `zbm.console_mirror`: where the console on the display writes the text

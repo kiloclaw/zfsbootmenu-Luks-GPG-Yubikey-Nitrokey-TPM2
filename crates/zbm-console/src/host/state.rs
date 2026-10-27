@@ -34,6 +34,14 @@ impl StateDir {
             .map_err(std::io::Error::other)
     }
 
+    /// Saves a screenshot, its `text` and its `image`; returns where the
+    /// image went.
+    pub fn save_screenshot(&self, text: &[u8], image: &[u8]) -> std::io::Result<PathBuf> {
+        self.state()
+            .save_screenshot(text, image)
+            .map_err(std::io::Error::other)
+    }
+
     /// The font's size asked for, if a request waits; one that cannot be
     /// read asks for none, and is answered with the font as it is.
     pub fn font_request(&self) -> Option<Zoom> {
