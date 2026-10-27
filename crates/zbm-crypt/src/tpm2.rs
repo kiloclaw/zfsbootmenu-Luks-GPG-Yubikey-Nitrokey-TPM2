@@ -5,6 +5,11 @@
 //! out of scope, on every path, so a failed unseal does not leave the TPM's
 //! few session slots taken.
 //!
+//! Sessions are salted with the storage root key and encrypt their
+//! responses, as systemd's own are: the unsealed key leaves the TPM
+//! encrypted under a session key that only the TPM and this process know,
+//! so a device on the bus of a discrete TPM reads nothing of it.
+//!
 //! ```
 //! use std::path::Path;
 //! use zbm_crypt::tpm2::Tpm2;
@@ -36,9 +41,10 @@ use zbm_platform::{Command, Input, Runner, Secret, Stream};
 pub const SRK_HANDLE: &str = "0x81000001";
 
 /// The tools that unsealing needs.
-pub const TOOLS: [&str; 6] = [
+pub const TOOLS: [&str; 7] = [
     "tpm2_load",
     "tpm2_startauthsession",
+    "tpm2_sessionconfig",
     "tpm2_policypcr",
     "tpm2_policyauthvalue",
     "tpm2_unseal",
@@ -121,21 +127,34 @@ impl<'a> Tpm2<'a> {
         self.run("tpm2_load", &load)
     }
 
-    /// Starts a policy session saved in `context`
-    /// (`tpm2_startauthsession --policy-session`).
+    /// Starts a policy session saved in `context`, salted with the storage
+    /// root key, whose responses are encrypted
+    /// (`tpm2_startauthsession --policy-session -c`, then
+    /// `tpm2_sessionconfig --enable-encrypt`).
     ///
     /// # Errors
     ///
-    /// [`ToolFailed`] when `tpm2_startauthsession` fails.
+    /// [`ToolFailed`] when either tool fails: an unsealed key is not read
+    /// over a session that would carry it in the clear.
     pub fn policy_session(&self, context: &Path) -> Result<PolicySession<'_, 'a>, ToolFailed> {
-        let start =
-            self.command("tpm2_startauthsession")
-                .args(["--policy-session", "-S", &text(context)]);
+        let start = self.command("tpm2_startauthsession").args([
+            "--policy-session",
+            "-c",
+            SRK_HANDLE,
+            "-S",
+            &text(context),
+        ]);
         self.run("tpm2_startauthsession", &start)?;
-        Ok(PolicySession {
+        // From here the session is flushed however this ends.
+        let session = PolicySession {
             tpm: self,
             context: context.to_path_buf(),
-        })
+        };
+        let encrypt = self
+            .command("tpm2_sessionconfig")
+            .args([&text(context), "--enable-encrypt"]);
+        self.run("tpm2_sessionconfig", &encrypt)?;
+        Ok(session)
     }
 
     /// Flushes every transient object (`tpm2_flushcontext -t`).
@@ -240,7 +259,8 @@ mod tests {
         assert_eq!(
             runner.lines(),
             [
-                "tpm2_startauthsession --policy-session -S /w/s.ctx",
+                "tpm2_startauthsession --policy-session -c 0x81000001 -S /w/s.ctx",
+                "tpm2_sessionconfig /w/s.ctx --enable-encrypt",
                 "tpm2_policyauthvalue -S /w/s.ctx",
                 "tpm2_unseal -c /w/o.ctx -p session:/w/s.ctx",
                 "tpm2_flushcontext /w/s.ctx",
@@ -275,11 +295,26 @@ mod tests {
 
         let key = session.unseal(Path::new("/o"), Some(&Secret::copy_from(b"abcd")));
         assert_eq!(key.unwrap().expose(), b"key");
-        assert!(runner.lines()[1].ends_with("-p session:/s+file:-"));
+        assert!(runner.lines()[2].ends_with("-p session:/s+file:-"));
         assert!(
             session
                 .unseal(Path::new("/o"), Some(&Secret::copy_from(b"0000")))
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn a_session_that_cannot_encrypt_is_flushed_and_refused() {
+        let runner = FakeRunner::new();
+        runner.respond_program("tpm2_sessionconfig", 1, "");
+        let tpm = Tpm2::new(&runner, "x");
+
+        let refused = tpm.policy_session(Path::new("/s")).err();
+
+        assert_eq!(refused, Some(ToolFailed("tpm2_sessionconfig")));
+        assert_eq!(
+            runner.lines().last().map(String::as_str),
+            Some("tpm2_flushcontext /s")
         );
     }
 

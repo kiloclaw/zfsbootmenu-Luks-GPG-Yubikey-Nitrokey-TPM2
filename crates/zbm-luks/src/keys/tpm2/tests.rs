@@ -147,17 +147,18 @@ fn unsealing_runs_the_policy_and_keeps_the_secret_off_files() {
     let lines = fake.runner.lines();
     let work = "/run/zbm-tpm2.4242-0";
     assert_eq!(
-        lines[..6],
+        lines[..7],
         [
             format!("tpm2_load -C 0x81000001 -u {work}/pub -r {work}/priv -c {work}/obj.ctx"),
-            format!("tpm2_startauthsession --policy-session -S {work}/session.ctx"),
+            format!("tpm2_startauthsession --policy-session -c 0x81000001 -S {work}/session.ctx"),
+            format!("tpm2_sessionconfig {work}/session.ctx --enable-encrypt"),
             format!("tpm2_policypcr -S {work}/session.ctx -l sha256:7"),
             format!("tpm2_policyauthvalue -S {work}/session.ctx"),
             format!("tpm2_unseal -c {work}/obj.ctx -p session:{work}/session.ctx+file:-"),
             format!("tpm2_flushcontext {work}/session.ctx"),
         ]
     );
-    assert_eq!(lines[6], "tpm2_flushcontext -t");
+    assert_eq!(lines[7], "tpm2_flushcontext -t");
     assert!(fake.runner.calls().iter().all(|call| {
         call.get_env().iter().any(|(key, value)| {
             key == "TPM2TOOLS_TCTI" && value.as_deref() == Some("swtpm:port=2321".as_ref())

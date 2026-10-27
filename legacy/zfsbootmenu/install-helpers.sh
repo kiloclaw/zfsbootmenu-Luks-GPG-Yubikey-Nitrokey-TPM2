@@ -113,6 +113,7 @@ zfsbootmenu_luks_token_libs=(
 zfsbootmenu_luks_tpm2_binaries=(
   "tpm2_load"
   "tpm2_startauthsession"
+  "tpm2_sessionconfig"
   "tpm2_policypcr"
   "tpm2_policyauthvalue"
   "tpm2_unseal"

@@ -325,6 +325,10 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   - key files cached from `org.zfsbootmenu:keysource` are new files of mode 0600 that no symbolic link can redirect,
     and they are removed before `kexec`, so that their pages are freed (and zeroed, with `init_on_free=1`) instead
     of passed to the booted kernel.
+- The native unlocking of systemd-tpm2 tokens salts its TPM session with the storage root key and has the TPM encrypt
+  its responses (`tpm2_startauthsession -c`, `tpm2_sessionconfig --enable-encrypt`), so a device on the bus of a
+  discrete TPM no longer reads the unsealed key; a session that cannot encrypt is not used. Images carry
+  `tpm2_sessionconfig`.
 
 ### The parity-only parts removed
 

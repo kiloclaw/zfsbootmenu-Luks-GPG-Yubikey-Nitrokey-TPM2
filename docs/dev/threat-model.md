@@ -74,6 +74,7 @@ target or review shows it; "to verify" means it is believed to hold and the evid
 | P6 | Every failure ends in a message and a recovery shell, never in a hang; every wait has a time limit or a way out by key | A1 to A3 on S6 | The supervisor and start-up stage tests; VM tests of failing pools, devices and keys | Holds for the paths the VM tests cover |
 | P7 | The menu and prompts read only the console; a key press cannot run a command that the help screen does not list | A2 on S5, S6 | The key map is one table (`zbm-tui`'s `KEYMAP`) that input handling and the help screen both use | Holds for the pilot menu; R5 carries it to every screen |
 | P8 | Host tools never write outside the paths their configuration names, and never leave a half-written image in place of a good one | Host misconfiguration on S5 | `generate-zbm` parity tests (files left behind are compared) | Holds where the parity tests reach |
+| P9 | An unsealed TPM2 key does not cross the bus of a discrete TPM in the clear | A1, with a device on the TPM's bus | The native unlocking of systemd-tpm2 tokens salts its policy session with the storage root key and turns on response encryption (`zbm_crypt::tpm2::Tpm2::policy_session`: `tpm2_startauthsession -c`, `tpm2_sessionconfig --enable-encrypt`), and refuses to unseal over a session that cannot; the device suite checks both on swtpm | Holds for the Rust runtime's native unlocking. systemd's token plugin salts its own sessions; clevis's TPM2 pin and the legacy runtime do not |
 
 ## Risks that stay
 

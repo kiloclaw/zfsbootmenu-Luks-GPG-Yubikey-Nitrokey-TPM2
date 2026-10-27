@@ -263,6 +263,21 @@ fn tokens() {
         .collect();
     checks.check("mapped", c.mapped("v"));
     checks.check("tpm2_unseal ran", !unseals.is_empty());
+    // Salted with the storage root key, and its responses encrypted: the
+    // unsealed key does not cross the TPM's bus in the clear (SE8)
+    let calls = c.calls();
+    checks.check(
+        "the session is salted",
+        calls.iter().any(|call| {
+            call.starts_with("tpm2_startauthsession") && call.contains(" -c 0x81000001")
+        }),
+    );
+    checks.check(
+        "the session encrypts",
+        calls.iter().any(|call| {
+            call.starts_with("tpm2_sessionconfig") && call.ends_with("--enable-encrypt")
+        }),
+    );
     checks.check(
         "authorization read from standard input",
         unseals.iter().any(|call| call.contains("+file:-")),
@@ -486,5 +501,7 @@ fn tokens() {
         c.prompts("YubiKey challenge-response") == 1,
     );
 
-    checks.finish(55);
+    // The Bash suite's 55, and the two checks of the salted, encrypted TPM
+    // session (SE8), which the legacy runtime does not use.
+    checks.finish(55 + 2);
 }
