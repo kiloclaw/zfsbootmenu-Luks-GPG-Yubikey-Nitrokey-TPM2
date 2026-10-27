@@ -225,7 +225,7 @@ fn find_bootfs(
 
 /// The default boot environment: `zbm.prefer` naming a filesystem, or else the
 /// `bootfs` property of the preferred pool or of the first imported pool that
-/// sets it. It only reads, so shadow mode can ask it too.
+/// sets it. It only reads.
 pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<DatasetName> {
     let preferred = match &settings.prefer_bootfs {
         BootfsPreference::FromPool => return pool_bootfs(runner, settings.prefer_pool.as_ref()),

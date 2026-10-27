@@ -58,7 +58,6 @@ pub static ALL: &[&OptionSpec] = &[
     &SHELL,
     &WAIT_FOR,
     &ROOT,
-    &SHADOW,
 ];
 
 /// `loglevel`: the kernel log level of ZFSBootMenu's messages; at least 4.
@@ -557,18 +556,4 @@ pub static ROOT: OptionSpec = OptionSpec {
         instead: "use **zbm.prefer**",
     }),
     examples: &["root=zfsbootmenu:POOL=zroot"],
-};
-
-/// `zbm.shadow`: where shadow mode keeps a summary of its differences.
-pub static SHADOW: OptionSpec = OptionSpec {
-    name: "zbm.shadow",
-    aliases: &[],
-    source: Source::KernelCommandLine,
-    value: Value::Choice(&["efivar"]),
-    default: None,
-    summary: "Where shadow mode also keeps a summary of its differences",
-    reader: Reader::Rust,
-    doc: Doc::NotInManual("for the shadow-mode test images, in docs/dev/shadow-mode.md"),
-    deprecation: None,
-    examples: &["zbm.shadow=efivar"],
 };

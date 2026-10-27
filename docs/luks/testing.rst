@@ -93,10 +93,6 @@ Variable                 Meaning
 ``ZBMTEST_ZBM_RUNTIME``  ``legacy`` (the default) or ``rust``: the runtime of the ZFSBootMenu images. With ``rust``,
                          image and result names end in ``-rust`` (``complex-healthy-rust``); the ``runtime`` tests
                          choose their runtime themselves
-``ZBMTEST_SHADOW``       ``0`` builds legacy images without shadow mode. By default they run ``zbm shadow`` before
-                         each boot, and a test fails when a summary on its serial consoles reports differences or
-                         compared nothing, or when a boot of such an image reached the boot environment without a
-                         summary (*docs/dev/shadow-mode.md*)
 =======================  ===========================================================================================
 
 Each VM test writes to ``$ZBMTEST_WORK/tests/<test>/``:
@@ -323,8 +319,7 @@ Following a boot
   * ``runtime-legacy-keysource``: ``tkeys`` alone, with the legacy image only, booted twice. From the countdown, which
     skips key sources, ZFSBootMenu asks for the boot environment's own passphrase; from the menu (``zbm.show``), it
     asks for the key source's passphrase instead, copies the key file from it and unlocks the boot environment with
-    it. Each time, shadow mode compares where the key came from (``key source``) without a difference. The boot
-    environment itself is not followed, as its initramfs has no key file.
+    it. The boot environment itself is not followed, as its initramfs has no key file.
   * ``runtime-rust-keysource``: the countdown's boot of ``runtime-legacy-keysource`` with the Rust image, which loads
     the key in the same order and asks for the boot environment's passphrase. The Rust runtime has no menu yet.
 

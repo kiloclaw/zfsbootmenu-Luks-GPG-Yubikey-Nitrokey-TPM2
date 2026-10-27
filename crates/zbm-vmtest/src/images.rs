@@ -217,9 +217,6 @@ pub struct Image {
     pub efi: PathBuf,
     /// The directory of `zbm`'s debug file (`cargo xtask symbolize`).
     pub debug: PathBuf,
-    /// Whether it runs shadow mode before each boot (legacy images, unless
-    /// `ZBMTEST_SHADOW=0`).
-    pub shadow: bool,
 }
 
 /// The dracut configuration of an image.
@@ -269,12 +266,9 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
     let mut variant = spec.variant.clone();
     let mut conf = spec.conf.clone();
     let rust = spec.runtime.unwrap_or(settings.runtime) == ZbmRuntime::Rust;
-    let shadow = !rust && settings.shadow;
     if rust {
         variant.push_str("-rust");
         conf.push_str("\nzfsbootmenu_runtime=\"rust\"");
-    } else if shadow {
-        conf.push_str("\nzfsbootmenu_shadow=\"yes\"");
     }
     let _lock = lock(&settings.work.join("zbm"), &variant)?;
     let dir = settings.work.join("zbm").join(&variant);
@@ -284,7 +278,6 @@ pub fn zbm_image(settings: &Settings, spec: &ImageSpec) -> Result<Image> {
         initrd: build.join("initramfs-bootmenu.img"),
         efi: build.join("vmlinuz.EFI"),
         debug: build.join("debug"),
-        shadow,
     };
     let stamp_path = dir.join("inputs.txt");
     let stamp = inputs(settings, spec, &conf);
@@ -358,7 +351,6 @@ pub fn own_links(image: &Image, images: &Path, variant: &str) -> Result<Image> {
         initrd: link(&image.initrd)?,
         efi: link(&image.efi)?,
         debug: image.debug.clone(),
-        shadow: image.shadow,
     })
 }
 

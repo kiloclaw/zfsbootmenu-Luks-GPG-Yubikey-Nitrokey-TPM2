@@ -12,8 +12,7 @@
 //! The legacy runtime runs the `load-key.d` hooks first, which may unlock
 //! the root in their own way; this decision leaves them out.
 //!
-//! Shadow mode compares this decision with what the legacy runtime did
-//! (`crate::shadow`), and the loading in `load` follows the same order.
+//! The loading in `load` follows the same order.
 
 use std::fmt;
 use std::path::Path;

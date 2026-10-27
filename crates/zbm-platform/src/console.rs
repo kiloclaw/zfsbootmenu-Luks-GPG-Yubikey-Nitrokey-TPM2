@@ -98,7 +98,7 @@ pub trait Console {
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>>;
 }
 
-/// No console, for programs that must never interact, such as shadow mode:
+/// No console, for programs that must never interact, such as `zbm report`:
 /// writes go nowhere and every read finds the end of the input.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NoConsole;

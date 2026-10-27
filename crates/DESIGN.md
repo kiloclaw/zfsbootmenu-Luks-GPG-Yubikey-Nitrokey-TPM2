@@ -72,7 +72,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | --- | --- | --- |
 | `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, credentials and wiping memory; waiting for any child, for the supervisor (Phase 5). | Bash built-ins |
 | `zbm-core` | File tests, shell quoting, `getopts`, release information, colours. | parts of `zfsbootmenu-core.sh` |
-| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and the read-only runner of shadow mode. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
+| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports and the command journal. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
 | `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
 | `zbm-config` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |

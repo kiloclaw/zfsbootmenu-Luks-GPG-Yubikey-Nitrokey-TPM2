@@ -104,7 +104,7 @@ fn a_failed_build_names_its_log() {
 
     assert!(matches!(&error, Error::Build { log, .. } if log.ends_with("zbm/auto/build.log")));
     let conf = fs::read_to_string(settings.work.join("zbm/auto/dracut.conf.d/zz-test.conf"));
-    assert!(conf.unwrap().ends_with("\n\nzfsbootmenu_shadow=\"yes\"\n"));
+    assert!(conf.is_ok_and(|conf| conf.contains("zfsbootmenu_luks_crypttab")));
     cleanup(&settings);
 }
 
@@ -215,7 +215,6 @@ fn each_process_boots_its_own_links_which_a_rebuild_leaves_alone() {
         initrd: build.join("initramfs-bootmenu.img"),
         efi: build.join("vmlinuz.EFI"),
         debug: build.join("debug"),
-        shadow: false,
     };
     // The directory of a process that has ended (no PID is this large).
     let ended = images.join("in-use/auto.4294967295");

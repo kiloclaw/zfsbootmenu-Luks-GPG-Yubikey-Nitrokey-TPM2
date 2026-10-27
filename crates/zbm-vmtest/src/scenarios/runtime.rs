@@ -53,9 +53,8 @@
 //!   countdown, for the GPUs `zbm.gpu` chooses, on QEMU's standard VGA and
 //!   a virtio GPU (ROADMAP.md #17).
 //! - `legacy-keysource` (`keysource`): the boot environment of `tkeys`
-//!   (d2) takes its key from its key source; shadow mode compares where
-//!   the key came from. `rust-keysource`: its countdown boot with the Rust
-//!   runtime.
+//!   (d2) takes its key from its key source. `rust-keysource`: the same
+//!   boots with the Rust runtime.
 //! - `record-zfs` (`record_zfs`): not a test: records what `zfs` and
 //!   `zpool` print as the fixtures of `crates/zbm-zfs` (`cargo xtask
 //!   record-zfs`, which defines the commands).

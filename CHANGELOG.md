@@ -261,6 +261,9 @@ that only checked it are gone:
 - Check mode (`ZBM_PARITY=check`, `cargo xtask record-parity --check`): the coverage job no longer runs the legacy code
   to compare with its recordings, which only replay. The recordings are expected results now: a deliberate change of
   behaviour changes them, and says so.
+- Shadow mode: `zbm shadow`, the build option `zfsbootmenu_shadow`, its `boot-sel.d` hook and `zbm.shadow`, the
+  read-only runner it ran on, and the VM harness's shadow summaries (`ZBMTEST_SHADOW`). Legacy images no longer
+  compare their decisions with the Rust code's.
 
 ### The new menu's text in a message catalogue
 

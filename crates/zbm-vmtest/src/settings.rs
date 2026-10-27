@@ -10,7 +10,6 @@
 //!   checkout's sources among them;
 //! - `ZBMTEST_ZBM_RUNTIME`: `legacy` (the default) or `rust`, the runtime
 //!   of the images;
-//! - `ZBMTEST_SHADOW`: `0` builds legacy images without shadow mode;
 //! - `ZBMTEST_OLD_KERNEL`, `ZBMTEST_OLD_INITRD`: an image with an older
 //!   ZFS, for the `oldzfs` tests, which are skipped without it;
 //! - `ZBMTEST_REPO`: the checkout to build images from (this crate's).
@@ -81,8 +80,6 @@ pub struct Settings {
     pub reuse: bool,
     /// The runtime of the images, unless a scenario chooses.
     pub runtime: ZbmRuntime,
-    /// Whether legacy images run shadow mode.
-    pub shadow: bool,
     /// The kernel and initramfs of an image with an older ZFS.
     pub old_image: Option<(PathBuf, PathBuf)>,
     /// The checkout images are built from.
@@ -121,7 +118,6 @@ impl Settings {
             } else {
                 ZbmRuntime::Legacy
             },
-            shadow: var("ZBMTEST_SHADOW").as_deref() != Some("0"),
             old_image,
             repo: set("ZBMTEST_REPO").map_or_else(default_repo, PathBuf::from),
         }
@@ -190,7 +186,7 @@ mod tests {
         assert_eq!(settings.container, "podman");
         assert_eq!(settings.accel, "kvm");
         assert_eq!(settings.runtime, ZbmRuntime::Legacy);
-        assert!(settings.shadow && !settings.reuse);
+        assert!(!settings.reuse);
         assert_eq!(settings.old_image, None);
         assert_eq!(settings.old_image_files().unwrap(), None);
         assert!(settings.guest_files().ends_with("tests/luks/vm"));
@@ -205,7 +201,6 @@ mod tests {
                 "ZBMTEST_ACCEL" => "tcg",
                 "ZBMTEST_REUSE" => "1",
                 "ZBMTEST_ZBM_RUNTIME" => "rust",
-                "ZBMTEST_SHADOW" => "0",
                 "ZBMTEST_OLD_KERNEL" => "/k",
                 "ZBMTEST_OLD_INITRD" => "/i",
                 "ZBMTEST_REPO" => "/r",
@@ -221,7 +216,7 @@ mod tests {
             (settings.container.as_str(), settings.accel.as_str()),
             ("docker", "tcg")
         );
-        assert!(settings.reuse && !settings.shadow);
+        assert!(settings.reuse);
         assert_eq!(settings.runtime.as_str(), "rust");
         assert_eq!(settings.old_image, Some(("/k".into(), "/i".into())));
         let error = settings.old_image_files().unwrap_err().to_string();

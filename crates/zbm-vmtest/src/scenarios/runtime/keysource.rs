@@ -10,22 +10,17 @@
 //!   runtime asks for the key source's passphrase, copies the key file into
 //!   `/zfsbootmenu/.keys` and unlocks the boot environment with it.
 //!
-//! With the legacy runtime, shadow mode must compare where the key came
-//! from without a difference each time. The menu of the Rust runtime shows
-//! the boot environment locked and asks for the key when it boots.
+//! The menu of the Rust runtime shows the boot environment locked and asks
+//! for the key when it boots.
 
 use crate::boot::{Follow, Kind, follow_boot};
 use crate::error::Result;
-use crate::expect::regex;
 use crate::qemu::Machine;
 use crate::record::Test;
 use crate::settings::{ZFSKEY, ZbmRuntime};
 use crate::vm::Vm;
 
 use super::setup::BE_KEY;
-
-/// The summary of a shadow mode run that compared the key source.
-const COMPARED: &str = r"ZBM-SHADOW: \d+ differences in \d+ decisions \([^)\n]*key source";
 
 /// A boot of the scenario.
 struct Boot {
@@ -78,9 +73,6 @@ pub(super) fn run(test: &Test, runtime: ZbmRuntime) -> Result<()> {
         vm.kill();
         let log = super::serial_text(&vm)?;
         check(test, boot, &followed.prompts, &log);
-        if runtime == ZbmRuntime::Legacy {
-            check_shadow(test, boot, &log);
-        }
     }
     Ok(())
 }
@@ -99,38 +91,25 @@ fn check(test: &Test, boot: &Boot, prompts: &[String], log: &str) {
     );
 }
 
-/// Checks that shadow mode compared the key source of `boot`.
-fn check_shadow(test: &Test, boot: &Boot, log: &str) {
-    test.check(
-        regex(COMPARED).is_ok_and(|compared| compared.is_match(log)),
-        &format!("{}: shadow mode compared the key source", boot.label),
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testing::{checks, cleanup, settings};
 
     #[test]
-    fn each_boot_asks_its_passphrase_and_shadow_mode_compares_the_key_source() {
+    fn each_boot_asks_its_passphrase() {
         let settings = settings("runtime-keysource");
-        let test = Test::new(&settings, "runtime-legacy-keysource").unwrap();
-        let log = "Enter passphrase for 'tkeys/keystore':\n\
-                   ZBM-SHADOW: 0 differences in 4 decisions (pools, default boot environment, \
-                   kernel, key source)\n";
+        let test = Test::new(&settings, "runtime-rust-keysource").unwrap();
+        let log = "Enter passphrase for 'tkeys/keystore':\n";
         let prompts = ["menu".to_owned(), "zfskey".to_owned()];
         check(&test, &BOOTS[1], &prompts, log);
-        check_shadow(&test, &BOOTS[1], log);
-        let other = "ZBM-SHADOW: 0 differences in 2 decisions (pools, kernel)\n";
-        check(&test, &BOOTS[0], &[], other);
-        check_shadow(&test, &BOOTS[0], other);
+        check(&test, &BOOTS[0], &[], "other\n");
 
         let results: Vec<bool> = checks(&test)
             .iter()
             .map(|line| line.starts_with("ok"))
             .collect();
-        assert_eq!(results, [true, true, true, false, false, false]);
+        assert_eq!(results, [true, true, false, false]);
         cleanup(&settings);
     }
 }

@@ -77,7 +77,6 @@
   general/uefi-booting
   general/grub-migration
   general/mdraid-esp
-  general/shadow-testing
 
 .. toctree::
   :caption: Installation Guides

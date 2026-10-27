@@ -117,7 +117,7 @@ fn an_unencrypted_filesystem_has_no_key() {
 }
 
 #[test]
-fn key_files_and_sources_are_written_as_shadow_mode_shows_them() {
+fn key_files_and_sources_are_written_out() {
     assert_eq!(key_file("file:///etc/zfs/k"), Some("etc/zfs/k"));
     assert_eq!(key_file("file://k"), Some("k"));
     assert_eq!(key_file("file://"), None);

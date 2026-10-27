@@ -27,7 +27,7 @@ Commands:
 Tests are named <group>-<scenario>: layouts-main, complex-hotplug, ...
 Settings come from the environment: ZBMTEST_WORK, ZBMTEST_IMAGE,
 ZBMTEST_RUNTIME, ZBMTEST_ACCEL, ZBMTEST_REUSE, ZBMTEST_ZBM_RUNTIME,
-ZBMTEST_SHADOW, ZBMTEST_OLD_KERNEL, ZBMTEST_OLD_INITRD, ZBMTEST_REPO.
+ZBMTEST_OLD_KERNEL, ZBMTEST_OLD_INITRD, ZBMTEST_REPO.
 ";
 
 /// One command of the command line.

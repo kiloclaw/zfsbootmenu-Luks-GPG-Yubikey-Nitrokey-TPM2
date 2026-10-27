@@ -27,8 +27,7 @@
 //! A service (unlocking a volume, importing a pool) is given a [`Context`]:
 //! [`Context::new`] wraps the runner in a [`TracedRunner`], so every program
 //! a service runs appears in the journal of `zbm-trace` with its arguments,
-//! exit status and duration: the command journal. [`ReadOnlyRunner`] runs only
-//! commands that read, for shadow mode.
+//! exit status and duration: the command journal.
 //!
 //! ```
 //! use zbm_platform::{Command, Context};
@@ -63,7 +62,6 @@ pub mod files;
 pub mod log;
 pub mod process;
 mod quiet;
-mod read_only;
 pub mod secret;
 pub mod shell;
 mod traced;
@@ -77,8 +75,8 @@ pub use files::{FileKind, Files, Metadata, RealFiles};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use quiet::QuietRunner;
-pub use read_only::{ALLOWED, BASH_MATCH, ReadOnlyRunner, is_read_only};
 pub use secret::Secret;
+pub use shell::BASH_MATCH;
 pub use traced::TracedRunner;
 
 /// One implementation of each system interface.

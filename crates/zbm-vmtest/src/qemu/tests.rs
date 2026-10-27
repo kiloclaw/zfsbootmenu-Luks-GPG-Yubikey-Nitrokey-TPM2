@@ -17,14 +17,12 @@ fn a_direct_boot_has_the_kernel_the_disks_and_the_serial_console_on_a_socket() {
         initrd: "/z/initrd".into(),
         efi: "/z/efi".into(),
         debug: "/z/debug".into(),
-        shadow: true,
     };
     let machine = Machine::boot(&image, "console=ttyS0 zbm.timeout=3").with_disks([
         Disk::new("/d/disk0.img", "d0"),
         Disk::new("/d/payload.img", PAYLOAD),
     ]);
 
-    assert!(machine.shadow);
     let args = args(&machine, "kvm", &sockets(false)).join(" ");
 
     assert_eq!(

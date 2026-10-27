@@ -9,14 +9,8 @@ use std::process::Command;
 use std::sync::OnceLock;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use regex::Regex;
-
 use crate::error::{Error, Result};
 use crate::settings::{Settings, ZFS_VERSION, ZbmRuntime};
-use crate::text::clean;
-
-/// The summary shadow mode prints at each boot.
-const SHADOW_SUMMARY: &str = r"ZBM-SHADOW: (\d+) differences in \d+ decisions(?: \(([^)\n]*)\))?";
 
 /// The result of a test, as `result.json` holds it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -95,8 +89,6 @@ struct Tally {
     passed: usize,
     failures: Vec<String>,
     skipped: Vec<String>,
-    /// The machines started from images with shadow mode, by label.
-    shadow_boots: Vec<String>,
 }
 
 /// One test.
@@ -133,7 +125,6 @@ impl Test {
                 passed: 0,
                 failures: Vec::new(),
                 skipped: Vec::new(),
-                shadow_boots: Vec::new(),
             }),
         };
         test.step(&format!(
@@ -196,16 +187,6 @@ impl Test {
         self.tally.borrow_mut().skipped.push(reason.to_owned());
     }
 
-    /// Records that the machine `label` boots an image with shadow mode:
-    /// a boot of it that reaches the boot environment must print the
-    /// shadow summary.
-    pub fn expect_shadow(&self, label: &str) {
-        let mut tally = self.tally.borrow_mut();
-        if !tally.shadow_boots.iter().any(|known| known == label) {
-            tally.shadow_boots.push(label.to_owned());
-        }
-    }
-
     /// Records the lines of `text` that are not blank, indented.
     pub fn show(&self, text: &str) {
         for line in text.lines().filter(|line| !line.trim().is_empty()) {
@@ -213,43 +194,8 @@ impl Test {
         }
     }
 
-    /// Checks the shadow mode summaries on the serial consoles of the test:
-    /// the Rust code decided as the legacy runtime did on every boot.
-    fn shadow(&self) {
-        let boots = self.tally.borrow().shadow_boots.clone();
-        for label in missing_summaries(&self.dir, &boots) {
-            self.check(
-                false,
-                &format!(
-                    "shadow mode: the boot {label} reached the boot environment \
-                     without a shadow summary"
-                ),
-            );
-        }
-        let Some(summary) = shadow_summary(&self.dir) else {
-            return;
-        };
-        if !summary.lines.is_empty() {
-            self.show(&summary.lines.join("\n"));
-        }
-        let compared = if summary.decisions.is_empty() {
-            "nothing".to_owned()
-        } else {
-            summary.decisions.join(", ")
-        };
-        self.check(
-            summary.differences == 0 && !summary.decisions.is_empty(),
-            &format!(
-                "shadow mode: {} differences in {} boots (compared: {compared})",
-                summary.differences, summary.boots
-            ),
-        );
-    }
-
-    /// Ends the test: checks shadow mode, writes `result.json` and records
-    /// the verdict.
+    /// Ends the test: writes `result.json` and records the verdict.
     pub fn finish(&self) -> Outcome {
-        self.shadow();
         let checked = {
             let tally = self.tally.borrow();
             tally.passed > 0 || !tally.failures.is_empty() || !tally.skipped.is_empty()
@@ -278,90 +224,6 @@ impl Test {
         }
         outcome
     }
-}
-
-/// The shadow mode reports on the serial consoles of a test.
-#[derive(Debug, Default, Eq, PartialEq)]
-struct ShadowSummary {
-    boots: usize,
-    differences: u64,
-    /// The decisions compared, each once, in order.
-    decisions: Vec<String>,
-    /// The other `ZBM-SHADOW:` lines, each once: the differences.
-    lines: Vec<String>,
-}
-
-/// The labels of `boots` whose serial console shows the boot environment
-/// starting (`BE-INIT-START`) without a shadow summary before it.
-fn missing_summaries(dir: &Path, boots: &[String]) -> Vec<String> {
-    static SUMMARY: OnceLock<Regex> = OnceLock::new();
-    let summary =
-        SUMMARY.get_or_init(|| Regex::new(SHADOW_SUMMARY).unwrap_or_else(|_| unreachable!()));
-    boots
-        .iter()
-        .filter(|label| {
-            let log = dir.join(format!("serial-{label}.log"));
-            let text = fs::read(log).map(|bytes| clean(&String::from_utf8_lossy(&bytes)));
-            text.is_ok_and(|text| text.contains("BE-INIT-START") && !summary.is_match(&text))
-        })
-        .cloned()
-        .collect()
-}
-
-/// The shadow mode reports in the `serial-*.log` files of `dir`, if any.
-fn shadow_summary(dir: &Path) -> Option<ShadowSummary> {
-    let mut logs: Vec<PathBuf> = fs::read_dir(dir)
-        .ok()?
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("serial-") && name.ends_with(".log"))
-        })
-        .collect();
-    logs.sort();
-    let texts: Vec<String> = logs
-        .iter()
-        .filter_map(|log| fs::read(log).ok())
-        .map(|bytes| clean(&String::from_utf8_lossy(&bytes)))
-        .collect();
-    let summary = summarize_shadow(&texts);
-    (summary.boots > 0).then_some(summary)
-}
-
-/// The shadow mode reports in the console texts `texts`.
-fn summarize_shadow(texts: &[String]) -> ShadowSummary {
-    static PATTERNS: OnceLock<(Regex, Regex)> = OnceLock::new();
-    let (summary_re, line_re) = PATTERNS.get_or_init(|| {
-        let summary = Regex::new(SHADOW_SUMMARY).unwrap_or_else(|_| unreachable!());
-        let line = Regex::new(r"ZBM-SHADOW: [^\n]*").unwrap_or_else(|_| unreachable!());
-        (summary, line)
-    });
-    let mut summary = ShadowSummary::default();
-    for text in texts {
-        for captures in summary_re.captures_iter(text) {
-            summary.boots += 1;
-            summary.differences += captures[1].parse::<u64>().unwrap_or_default();
-            let decisions = captures.get(2).map_or("", |group| group.as_str());
-            for decision in decisions
-                .split(", ")
-                .filter(|decision| !decision.is_empty())
-            {
-                if !summary.decisions.iter().any(|known| known == decision) {
-                    summary.decisions.push(decision.to_owned());
-                }
-            }
-        }
-        for line in line_re.find_iter(text).map(|found| found.as_str()) {
-            let is_summary = summary_re
-                .find(line.trim())
-                .is_some_and(|found| found.start() == 0);
-            if !is_summary && !summary.lines.iter().any(|known| known == line) {
-                summary.lines.push(line.to_owned());
-            }
-        }
-    }
-    summary
 }
 
 /// The local time of day, `HH:MM:SS`, as steps show it.

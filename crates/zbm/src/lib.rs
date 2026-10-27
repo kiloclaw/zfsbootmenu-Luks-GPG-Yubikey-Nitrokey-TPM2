@@ -22,7 +22,6 @@ pub mod report;
 pub mod saved;
 #[cfg(any(test, feature = "secret-test"))]
 pub mod secret_search;
-pub mod shadow;
 pub mod startup;
 pub mod supervisor;
 
@@ -104,12 +103,6 @@ const REPORT: Applet = Applet {
     run: report::run,
 };
 
-const SHADOW: Applet = Applet {
-    name: "shadow",
-    summary: "compare the legacy runtime's decisions with the Rust code's",
-    run: shadow::run,
-};
-
 const MENU: Applet = Applet {
     name: "zfsbootmenu",
     summary: "the menu: boot environments, booting and the recovery shell",
@@ -130,7 +123,6 @@ pub const APPLETS: &[Applet] = &[
     MENU,
     DEBUG,
     REPORT,
-    SHADOW,
 ];
 
 /// The commands `zbm` provides, with the operations of the LUKS unit suites
@@ -148,7 +140,6 @@ pub const APPLETS: &[Applet] = &[
     MENU,
     DEBUG,
     REPORT,
-    SHADOW,
     Applet {
         name: "zbm-luks-test",
         summary: "the LUKS operations of the unit suites (test build only)",
@@ -350,7 +341,6 @@ mod tests {
             "zfsbootmenu",
             "debug",
             "report",
-            "shadow",
         ];
         if cfg!(feature = "test-seams") {
             expected.push("zbm-luks-test");

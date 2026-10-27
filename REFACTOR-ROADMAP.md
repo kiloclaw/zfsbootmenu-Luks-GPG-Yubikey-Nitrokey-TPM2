@@ -23,8 +23,7 @@ end.
 - [Target architecture](#target-architecture), with [the menu redesign](#the-menu-redesign)
 - [Rules for refactored code](#rules-for-refactored-code) and [how the rules are
   enforced](#how-the-rules-are-enforced)
-- [Testing strategy](#testing-strategy), with [shadow mode](#shadow-mode-on-real-machines) and
-  [benchmarks](#benchmarks)
+- [Testing strategy](#testing-strategy), with [benchmarks](#benchmarks)
 - [Using uutils coreutils](#using-uutils-coreutils), [the ZFS boundary](#the-zfs-boundary), [the
   shell](#the-shell)
 - [Threat model](#threat-model)
@@ -39,7 +38,7 @@ On branch `claude/zbm-refactor`, at the end of October 2026:
 
 | Phase | State | What is left |
 | --- | --- | --- |
-| R0 to R4 | Done | Only the last part of R4's exit: shadow mode on testers' machines |
+| R0 to R4 | Done | |
 | D. Menu design | Nearly done | The usability sessions, the review of the design, decision 8 |
 | R5. The new menu | Steps 1 to 4 of 7 done, step 5 under way | The rest of step 5, then steps 6 and 7 |
 | R6. Recovery tools and image assembly | Not started | Two built-in hooks were done early |
@@ -67,8 +66,7 @@ On branch `claude/zbm-refactor`, at the end of October 2026:
    console), which the maintainer runs; the review of the design documents; decision 8.
 4. **A first [benchmark](#benchmarks) baseline**: `cargo xtask bench` and the `bench-*` VM scenarios, for the legacy
    runtime and the Rust runtime of today, on the maintainer's machine.
-5. **Shadow mode on testers' machines**, the last part of R4's exit: no open shadow difference reported by users.
-6. **The console on the display**, from M4 of the [console roadmap](docs/dev/console-roadmap.md) (M3, a comfortable
+5. **The console on the display**, from M4 of the [console roadmap](docs/dev/console-roadmap.md) (M3, a comfortable
    recovery shell, is done and waits for its VM run), and the group 1 features of [ROADMAP.md](ROADMAP.md) (#17, the
    graphics drivers, is partly done).
 
@@ -324,21 +322,6 @@ review comments. `docs/dev/tooling.md` describes each command.
 - **Discoverable:** `docs/dev/testing.md` maps features to test files.
 - **Fast:** the whole default suite under one minute; `cargo nextest` profiles for CI.
 
-### Shadow mode on real machines
-
-Shadow mode checks the Rust code on machines that no test describes, without letting it act
-([docs/dev/shadow-mode.md](docs/dev/shadow-mode.md)):
-
-- **What it does.** A legacy image built with `zfsbootmenu_shadow=yes` runs `zbm shadow` from a `boot-sel.d` hook,
-  after the legacy runtime has chosen what to boot and before it loads the kernel. It works out what the Rust code
-  would have decided, and compares: the host ID, the pools imported and how, the LUKS mapping names, the default boot
-  environment, the kernel and initramfs, and the key sources of encryption roots.
-- **It cannot act.** It runs on `ReadOnlyRunner`, an allowlist of read-only commands; it never prompts or reads a
-  secret, gives up after five seconds, and its exit status is ignored.
-- **Where the result goes.** `ZBM-SHADOW: <n> differences` on the console and in the kernel log; with
-  `zbm.shadow=efivar`, a summary in an EFI variable that `zbm shadow report` reads on the booted system.
-- **In tests.** The VM harness builds every legacy image with shadow mode, and a difference fails the test.
-
 ### Replacing the Bash-based parity tests
 
 Parity with the legacy code stays the safety net until the cutover, without running Bash at test time:
@@ -536,10 +519,9 @@ now:                           R5 (step 5) ─ R5 (steps 6, 7) ─ R6 ─ R9
 
 | Risk | Mitigation |
 | --- | --- |
-| Behaviour drifts while structure changes | Golden files recorded from the legacy code, the full VM suite after each step, shadow mode on testers' machines |
+| Behaviour drifts while structure changes | Golden files recorded from the legacy code, the full VM suite after each step |
 | Documentation drifts from behaviour | Options and key bindings are defined once and their documentation generated; `xtask gen-docs --check` |
 | Crashes on users' machines cannot be diagnosed | Crash reports with build IDs and published debug files; `xtask symbolize` |
-| Shadow mode harms a boot | Read-only adapter with an allowlist, no prompts or secrets, a time budget, an ignored exit status; opt-in images only |
 | The new menu is slower or worse on small consoles than `fzf` | Snapshot tests at 52 columns; a performance test with 10,000 snapshots; the benchmarks against the legacy menu |
 | New dependencies grow the image and the attack surface | Image size per part (B1), `cargo deny` advisories, minimal features, vendoring |
 | uutils behaviour differs from what users expect on GNU systems | Golden tests for every coreutils behaviour the runtime relies on; documented differences |

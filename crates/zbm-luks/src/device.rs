@@ -165,8 +165,8 @@ pub fn default_name(system: &System<'_>, device: &str) -> String {
 
 /// The name a volume is opened as: `name` when given,
 /// else the default name of its LUKS `header`, which is the device itself
-/// unless crypttab gives a detached one. The unlock use cases and shadow mode
-/// both name volumes with it.
+/// unless crypttab gives a detached one. The unlock use cases name volumes
+/// with it.
 pub fn mapping_name(system: &System<'_>, name: &str, header: &str) -> String {
     if name.is_empty() {
         default_name(system, header)

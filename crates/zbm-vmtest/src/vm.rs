@@ -115,9 +115,6 @@ impl<'t> Vm<'t> {
         }
         let args = qemu::args(machine, &test.settings().accel, &sockets);
         test.step(&format!("VM {label}: starting"));
-        if machine.shadow {
-            test.expect_shadow(label);
-        }
         let qemu_log = test.dir().join(format!("qemu-{label}.log"));
         let log = File::create(&qemu_log).map_err(Error::io("creating the QEMU log"))?;
         let mut child = Command::new("qemu-system-x86_64")
