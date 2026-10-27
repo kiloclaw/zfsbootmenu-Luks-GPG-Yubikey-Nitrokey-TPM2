@@ -278,8 +278,13 @@ that only checked it are gone:
   crossterm, which both of brush's line editors read keys with, read 1 KiB, and waited for more input with the rest
   of the burst unread, so the shell never saw the Enter. The `procedures` VM test, which sends 3 KiB lines, hung on
   it. A patch of ours to crossterm 0.29.0 reads on while the terminal holds input
-  (`patches/crossterm-edge-triggered-input.patch`); `crates/zbm-brush/tests/long_input.rs` runs brush on a
+  (`patches/crossterm-edge-triggered-input.patch`); `crates/zbm-brush/tests/interactive.rs` runs brush on a
   pseudo-terminal with such a line.
+- In the recovery shell on a serial line, a line that ends with a backslash goes on on the next line, as in Bash:
+  brush's basic line editor ran it alone, then each following line as a command of its own, so the documentation's
+  `zpool create` commands, one vdev a line, failed with "command not found" in the `procedures` VM test. A second
+  patch of ours to brush-interactive 0.4.0 asks for the next line (`patches/brush-interactive-line-continuation.patch`),
+  and `crates/zbm-brush/tests/interactive.rs` sends such a command.
 - The VM harness drops the command brush echoes before its output: brush's line editors draw what is typed after
   `stty -echo` too, unlike Bash's, and `runtime-rust-autosize` read the command as the output.
 - `runtime-rust-autosize` expects the bold and italic DejaVu faces in the Spleen image, and

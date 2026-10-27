@@ -1,0 +1,18 @@
+diff -ru a/src/basic/input_backend.rs b/src/basic/input_backend.rs
+--- a/src/basic/input_backend.rs
++++ b/src/basic/input_backend.rs
+@@ -82,6 +82,14 @@
+     }
+ 
+     fn is_valid_input(shell: &Shell<impl brush_core::ShellExtensions>, input: &str) -> bool {
++        // A line that ends with a backslash goes on on the next line, as in bash. The
++        // tokenizer reads a backslash and a newline as nothing, so it would call such a line
++        // complete: ask about the line without its newline, where the backslash escapes
++        // nothing and the tokenizer reports an unterminated escape.
++        let input = input
++            .strip_suffix('\n')
++            .filter(|line| line.ends_with('\\'))
++            .unwrap_or(input);
+         match shell.parse_string(input.to_owned()) {
+             // Incomplete tokenizing (unclosed quotes, etc.) - need more input
+             Err(brush_parser::ParseError::Tokenizing { inner, position: _ })
