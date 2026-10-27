@@ -244,6 +244,9 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   away by a KVM) is let go, so Shift or Ctrl no longer stays down for the other keyboards and a passphrase typed
   afterwards no longer fails; and after events were lost, a keyboard with a layout of its own takes back only its
   own keys, not those held on the others.
+- The VM tests build their images again when a patched crate (`patches/`) or `rust-toolchain.toml` changes: with
+  `ZBMTEST_REUSE=1`, an image built before a change to the patched terminal or shell was reused, and the tests
+  checked the old code.
 
 ### The new menu's text in a message catalogue
 

@@ -8,16 +8,20 @@ use std::hash::{DefaultHasher, Hasher};
 use std::path::{Path, PathBuf};
 
 /// What goes into an image, relative to the checkout: the build reads the
-/// cargo configuration, links `config/zfsbootmenu/dracut.conf.d` into the
-/// image, and compiles the vendored crates (see [`vendored`]).
+/// cargo configuration and the toolchain, links
+/// `config/zfsbootmenu/dracut.conf.d` into the image, and compiles the
+/// vendored crates (see [`vendored`]) and the patched ones of `patches/`,
+/// in whole, as they are small.
 const SOURCES: &[&str] = &[
     ".cargo/config.toml",
     "Cargo.toml",
     "Cargo.lock",
+    "rust-toolchain.toml",
     "config",
     "crates",
     "legacy",
     "packaging",
+    "patches",
     "tests/luks/vm/hooks",
 ];
 
@@ -131,13 +135,15 @@ mod tests {
             ("config/zfsbootmenu/dracut.conf.d/omit.conf", "omit"),
             ("vendor/regex/.cargo-checksum.json", "{}"),
             ("vendor/regex/src/lib.rs", "regex"),
+            ("patches/vte-0.15.0/src/lib.rs", "vte"),
+            ("rust-toolchain.toml", "1.88"),
         ] {
             let path = root.join(path);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, text).unwrap();
         }
         let first = fingerprint(&root);
-        assert!(first.ends_with(" 5 files"), "{first}");
+        assert!(first.ends_with(" 7 files"), "{first}");
 
         fs::write(root.join("crates/zbm/src/lib/tests.rs"), "other test").unwrap();
         fs::write(root.join("crates/zbm-vmtest/src/lib.rs"), "other harness").unwrap();
@@ -154,7 +160,14 @@ mod tests {
         fs::write(root.join("vendor/regex/src/lib.rs"), "other regex").unwrap();
         assert_eq!(fingerprint(&root), second);
         fs::write(root.join("vendor/regex/.cargo-checksum.json"), "{\"a\":1}").unwrap();
-        assert_ne!(fingerprint(&root), second);
+        let third = fingerprint(&root);
+        assert_ne!(third, second);
+        // A patched crate counts through its files, and so does the toolchain.
+        fs::write(root.join("patches/vte-0.15.0/src/lib.rs"), "fixed vte").unwrap();
+        let fourth = fingerprint(&root);
+        assert_ne!(fourth, third);
+        fs::write(root.join("rust-toolchain.toml"), "1.89").unwrap();
+        assert_ne!(fingerprint(&root), fourth);
         fs::remove_dir_all(&root).ok();
     }
 }
