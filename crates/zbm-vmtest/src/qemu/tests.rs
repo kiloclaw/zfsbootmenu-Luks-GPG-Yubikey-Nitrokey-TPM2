@@ -86,6 +86,21 @@ fn the_monitor_reply_leaves_out_prompts_and_echo() {
 }
 
 #[test]
+fn the_echo_of_a_command_is_left_out_of_its_reply() {
+    // As QEMU 10 redraws its input line for each character of `sendkey esc 50`.
+    let command = "sendkey esc 50";
+    let echo: String = (1..=command.len()).map(|n| &command[..n]).collect();
+    assert_eq!(without_echo(&echo, command), "");
+    assert_eq!(without_echo(command, command), "");
+    let refused = format!("{echo}\ninvalid parameter: escape");
+    assert_eq!(without_echo(&refused, command), "invalid parameter: escape");
+    assert_eq!(
+        without_echo("QEMU 10.0 monitor\nOK", command),
+        "QEMU 10.0 monitor\nOK"
+    );
+}
+
+#[test]
 fn the_monitor_is_asked_over_its_socket() {
     use std::os::unix::net::UnixListener;
     let path = std::env::temp_dir().join(format!("zbm-vmtest-mon-{}.sock", std::process::id()));
@@ -106,7 +121,7 @@ fn the_monitor_is_asked_over_its_socket() {
 
     let reply = monitor(&path, "device_add usb-storage").unwrap();
 
-    assert_eq!(reply, "device_add usb-storage\nOK");
+    assert_eq!(reply, "OK");
     server.join().unwrap();
     std::fs::remove_file(&path).ok();
     assert!(monitor(&path, "info").is_err());

@@ -244,7 +244,42 @@ pub fn monitor(socket: &Path, command: &str) -> Result<String> {
         let read = stream.read(&mut answer).unwrap_or_default();
         Ok(String::from_utf8_lossy(&answer[..read]).into_owned())
     };
-    talk().map(|answer| monitor_reply(&answer)).map_err(io)
+    talk()
+        .map(|answer| without_echo(&monitor_reply(&answer), command))
+        .map_err(io)
+}
+
+/// `reply` without the lines that echo `command`. The monitor redraws its
+/// input line at every character it reads, so with the escape sequences
+/// gone the echo is each prefix of the command in turn, `ssesen…`.
+pub fn without_echo(reply: &str, command: &str) -> String {
+    reply
+        .lines()
+        .filter(|line| !is_echo(line.trim(), command))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Whether `line` is prefixes of `command`, one after another.
+fn is_echo(line: &str, command: &str) -> bool {
+    let (line, command) = (line.as_bytes(), command.as_bytes());
+    if line.is_empty() || command.is_empty() {
+        return false;
+    }
+    // Which lengths of `line` such prefixes can make up.
+    let mut made = vec![false; line.len() + 1];
+    made[0] = true;
+    for start in 0..line.len() {
+        if !made[start] {
+            continue;
+        }
+        let rest = &line[start..];
+        let common = rest.iter().zip(command).take_while(|(a, b)| a == b).count();
+        for length in 1..=common {
+            made[start + length] = true;
+        }
+    }
+    made[line.len()]
 }
 
 /// The reply in what the monitor sent back: its lines other than the

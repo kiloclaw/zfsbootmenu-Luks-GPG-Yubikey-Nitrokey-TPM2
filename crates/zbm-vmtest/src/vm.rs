@@ -275,6 +275,7 @@ impl<'t> Vm<'t> {
     pub fn send_key(&self, key: &str) -> Result<()> {
         let command = format!("sendkey {key} 50");
         let reply = self.monitor(&command)?;
+        // The greeting, when it came late, is no answer.
         let answer: Vec<&str> = reply
             .lines()
             .filter(|line| !(line.starts_with("QEMU ") && line.contains(" monitor")))
