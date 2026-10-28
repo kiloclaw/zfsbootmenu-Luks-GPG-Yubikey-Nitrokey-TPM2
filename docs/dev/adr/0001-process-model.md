@@ -1,6 +1,6 @@
 # ADR 0001: The process model and concurrency
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 28 October 2026 (proposed the same day)
 - **Decides:** decision 10 of [ROADMAP.md](../../../ROADMAP.md#decisions); item PM1
 - **Governs:** PM2, PM4, PM6, PM8, PM9, PM10
 
@@ -94,12 +94,12 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   Escape cancels it.
 - PM4's test: a command past its time-out is killed through its `pidfd`, with no thread left behind.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **The mailbox's bound.** Proposed: bounded at 256 messages, with the sender blocking when it is full, so a flood of
-   events slows the worker instead of growing memory. The alternative is an unbounded channel with a counter in the
-   journal.
-2. **Deadlines in the poll time-out or a `timerfd`.** Proposed: the poll time-out, computed from the nearest deadline;
-   a `timerfd` only if the supervisor needs timers that survive a long wait elsewhere.
-3. **The rule for `async` in `zbm-brush`.** Proposed: allowed there only, as brush's own; our code in that crate stays
-   synchronous.
+Accepted as proposed, on 28 October 2026:
+
+1. **The mailbox's bound:** 256 messages, the sender blocking when it is full, so a flood of events slows the worker
+   instead of growing memory.
+2. **Deadlines:** in the poll's time-out, computed from the nearest deadline; a `timerfd` only if the supervisor
+   needs timers that survive a long wait elsewhere.
+3. **`async` in `zbm-brush`:** allowed there only, as brush's own; our code in that crate stays synchronous.

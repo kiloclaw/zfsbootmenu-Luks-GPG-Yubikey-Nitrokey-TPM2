@@ -8,7 +8,7 @@ stays, marked so.
 
 | Record | Decision | Status |
 | --- | --- | --- |
-| [0001](0001-process-model.md) | The process model and concurrency: one reactor per process, no async runtime (decision 10, PM1) | Proposed |
+| [0001](0001-process-model.md) | The process model and concurrency: one reactor per process, no async runtime (decision 10, PM1) | Accepted, 28 October 2026 |
 | [0002](0002-trust-zones.md) | Trust zones: the supervisor, the keyholder, the session, the unprivileged front ends (decision 13) | Proposed |
 | [0003](0003-crate-map.md) | The crate map: 24 crates in 11 layers, and the rules `check-deps` enforces (decision 14) | Proposed |
 | [0004](0004-client-channel.md) | The menu draws natively on the console, over a client channel and a control socket (decision 15) | Proposed |

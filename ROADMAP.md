@@ -571,7 +571,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
-| PM1 | Drafted ([ADR 0001](docs/dev/adr/0001-process-model.md)), for review: ADR for the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
+| PM1 | Done: [ADR 0001](docs/dev/adr/0001-process-model.md), accepted on 28 October 2026: the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
 | PM2 | The ports become `Send + Sync`, the fakes use `Mutex`; `spawn_traced` carries tracing and the kernel log into workers; logging per process, not per thread | scal | M | PM1 |
 | PM3 | Done: one signal facility: `signalfd` and `pidfd` over `rustix`, a typed `SignalSet`; the global "last signal" slot and `signal-hook` go | stab | S | |
 | PM4 | The reactor's parts in `zbm_platform::event`: `Mailbox`, `Reactor`, `CancelToken`, `MemoryBudget`, time-outs through `pidfd` instead of a watchdog thread per command | scal, perf | M | PM2, PM3 |
@@ -741,7 +741,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
-  decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's.
+  decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's; the
+  process model accepted the same day.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -891,6 +892,12 @@ Decided, and kept from the old plans:
 5. **Errors:** `thiserror`.
 9. **The shell:** brush for the Rust runtime's shell work, Bash as the way back.
 
+Decided on 28 October 2026:
+
+10. **One concurrency model:** threads and channels, one reactor per process, no async runtime
+    ([ADR 0001](docs/dev/adr/0001-process-model.md), PM1): a mailbox bounded at 256 messages, deadlines in the poll's
+    time-out, `async` only as `brush`'s own in `zbm-brush`.
+
 Decided on 27 October 2026:
 
 11. **No libzfs** (goal G2 of the old plan): ZFS only through `zfs` and `zpool`, which `deny.toml` enforces.
@@ -906,7 +913,6 @@ Open:
    letter per action, `:` for the command line), with the classic `MOD+key` aliases of the `fzf` menu; this changes
    rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions. Decided by the usability sessions
    (UI11), which compare it with the current map.
-10. **One concurrency model:** threads and channels, one reactor per process, no async runtime (PM1).
 12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
     programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
     alternative, kept only if the Rust LUKS2 or TPM2 code (CD9, CD10) fails its review.
@@ -919,8 +925,8 @@ Open:
     one character only, nothing depends on case, keys by position on the display console, and a command line that
     knows every language (UI15).
 
-Decisions 10, 12 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for
-10 and 12 to 16, awaiting acceptance); decision 8 by the sessions that follow.
+Decisions 12 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12 to
+16, awaiting acceptance; 10 accepted on 28 October 2026); decision 8 by the sessions that follow.
 
 ## Fixes left from the review of 27 October 2026
 
