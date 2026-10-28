@@ -19,8 +19,15 @@
 //! | [`Stage`] | A stage of the start-up program: `50-import-pools` |
 //! | [`HookStage`] | A stage that runs hooks: `teardown.d` |
 //! | [`Answer`] | What the user answered at a timed prompt |
+//! | [`HostId`] | A host ID, as eight or more hex digits: `00bab10c` |
+//! | [`Timeout`] | How long the menu waits: `10` seconds, or `-1` until a key |
+//! | [`RetryDelay`] | The seconds between retries: `5` |
+//! | [`LogLevel`] | The log level of ZFSBootMenu's messages, at least `4` |
+//! | [`PoolRequirement`] | How much `zbm.prefer`'s pool is required |
+//! | [`BootfsPreference`] | The boot environment `zbm.prefer` names, if any |
 //!
-//! [`version`] holds the version order itself (`sort -V`).
+//! [`version`] holds the version order itself (`sort -V`), and [`number`]
+//! integers as the shell's `test` reads them.
 //!
 //! ```
 //! use zbm_types::{DatasetName, MappingName};
@@ -38,9 +45,13 @@ mod answer;
 mod device;
 mod ere;
 mod error;
+mod hostid;
 mod mapping;
+pub mod number;
 mod policy;
+mod preference;
 mod selector;
+mod settings;
 mod snapshot;
 mod stage;
 pub mod version;
@@ -49,9 +60,12 @@ mod zfs;
 pub use answer::Answer;
 pub use device::DevicePath;
 pub use error::{ParseError, Reason};
+pub use hostid::{HostId, scrape_hostid};
 pub use mapping::MappingName;
 pub use policy::ImportPolicy;
+pub use preference::{BootfsPreference, PoolRequirement};
 pub use selector::KernelSelector;
+pub use settings::{LogLevel, RetryDelay, Timeout};
 pub use snapshot::SnapshotName;
 pub use stage::{HookStage, Stage};
 pub use version::KernelVersion;

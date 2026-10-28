@@ -8,13 +8,14 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Output, Status, Stream, SystemRunner};
 use zbm_platform::{KernelLog, Runner, System};
-use zbm_pool::{BootfsPreference, Build, ImportSettings, PoolRef, Requirement, RetryDelay};
+use zbm_pool::{BootfsPreference, Build, ImportSettings, PoolRequirement, RetryDelay};
 use zbm_state::State;
 use zbm_testkit::TempDir;
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, log_lines, path};
 use zbm_testkit::parity::Parity;
 use zbm_types::ImportPolicy;
+use zbm_types::PoolName;
 
 use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
 use crate::import::stage;
@@ -39,10 +40,10 @@ impl Settings {
     fn import(&self) -> ImportSettings {
         ImportSettings {
             policy: self.import_policy,
-            prefer_pool: PoolRef::new(&self.prefer_pool),
-            requirement: Requirement::from_conf(&self.require_pool),
+            prefer_pool: self.prefer_pool.parse::<PoolName>().ok(),
+            requirement: PoolRequirement::from_conf(&self.require_pool),
             prefer_bootfs: BootfsPreference::from_conf(&self.prefer_bootfs),
-            retry_delay: RetryDelay::from_conf(&self.retry_delay),
+            retry_delay: RetryDelay::or_default(&self.retry_delay),
             build: if self.release_build {
                 Build::Release
             } else {

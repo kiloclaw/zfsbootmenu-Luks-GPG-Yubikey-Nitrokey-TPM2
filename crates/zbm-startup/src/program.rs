@@ -29,9 +29,10 @@ use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_config::spec::cmdline::{SAVE_LOGS, SKIP_HOOKS};
 use zbm_platform::{Installed, System};
-use zbm_pool::{BootfsPreference, Build, PoolRef, Requirement, RetryDelay};
+use zbm_pool::Build;
 use zbm_state::State;
 use zbm_tools::programs;
+use zbm_types::PoolRequirement;
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::front::{ConsoleFront, Front};
@@ -93,7 +94,7 @@ impl<'a> Startup<'a> {
         let options = ZbmOptions::from_conf(conf);
         let base = crate::preinit::base(conf);
         let state = State::new(system.files, &base);
-        let log = system.kernel_log(&options.loglevel, &base);
+        let log = system.kernel_log(&options.loglevel.to_string(), &base);
         let kcl = system
             .files
             .read_to_string(&base.join("zbm.cmdline"))
@@ -129,10 +130,10 @@ impl<'a> Startup<'a> {
     fn import_settings(&self) -> ImportSettings {
         ImportSettings {
             policy: self.options.import_policy,
-            prefer_pool: PoolRef::new(&self.options.prefer_pool),
-            requirement: Requirement::from_conf(&self.options.require_pool),
-            prefer_bootfs: BootfsPreference::from_conf(&self.options.prefer_bootfs),
-            retry_delay: RetryDelay::from_conf(&self.options.retry_delay),
+            prefer_pool: self.options.prefer_pool.clone(),
+            requirement: self.options.require_pool,
+            prefer_bootfs: self.options.prefer_bootfs.clone(),
+            retry_delay: self.options.retry_delay,
             build: self.build,
         }
     }
@@ -205,11 +206,11 @@ impl<'a> Startup<'a> {
         vec![
             Box::new(stages::Modules),
             Box::new(stages::HostId {
-                spl_hostid: &self.options.spl_hostid,
+                spl_hostid: self.options.spl_hostid.as_ref(),
             }),
             Box::new(stages::DeviceWait {
                 wait_for: &self.options.wait_for_devices,
-                retry_delay: &self.options.retry_delay,
+                retry_delay: self.options.retry_delay,
             }),
             Box::new(stages::EarlyHooks {
                 root: &self.hooks,
@@ -252,13 +253,13 @@ impl<'a> Startup<'a> {
             has_menu: menu::has_menu(&self.system),
             ..Facts::default()
         };
-        let timeout = self.options.menu_timeout_seconds();
-        let Some(bootfs) = bootfs.filter(|_| timeout.is_some_and(|timeout| timeout >= 0)) else {
+        let timeout = self.options.menu_timeout.seconds();
+        let (Some(bootfs), Some(seconds)) = (bootfs, timeout) else {
             log_unsupported(&support::unsupported(&self.options, &facts));
             return;
         };
 
-        if self.count_down(bootfs, timeout.unwrap_or_default()) == Answer::Escape {
+        if self.count_down(bootfs, seconds) == Answer::Escape {
             facts.countdown_interrupted = true;
             log_unsupported(&support::unsupported(&self.options, &facts));
             return;
@@ -272,11 +273,11 @@ impl<'a> Startup<'a> {
 
     /// Counts down `seconds` before booting `bootfs`: RETURN boots at once,
     /// ESCAPE stops.
-    fn count_down(&self, bootfs: &str, seconds: i64) -> Answer {
-        let width = self.options.menu_timeout.len();
+    fn count_down(&self, bootfs: &str, seconds: u64) -> Answer {
+        let width = self.options.menu_timeout.to_string().len();
         let name = colorize("cyan", bootfs);
         TimedPrompt::new()
-            .delay(seconds)
+            .delay(i64::try_from(seconds).unwrap_or(i64::MAX))
             .prompt(move |seconds| {
                 let seconds = colorize("yellow", &format!("{seconds:0width$}"));
                 format!("Booting {name} in {seconds} seconds")
@@ -358,7 +359,7 @@ impl<'a> Startup<'a> {
             let pool = settings
                 .prefer_pool
                 .as_ref()
-                .filter(|_| settings.requirement == Requirement::Only);
+                .filter(|_| settings.requirement == PoolRequirement::Only);
             let reimport = Import::target(pool).policy(settings.policy);
             let _ = import::import_pool(&self.system, &self.state, reimport);
             let output = ZpoolCommand::new(self.system.runner)

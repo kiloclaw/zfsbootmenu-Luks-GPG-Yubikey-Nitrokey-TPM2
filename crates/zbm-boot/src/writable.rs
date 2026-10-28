@@ -8,10 +8,10 @@
 use std::path::Path;
 
 use zbm_platform::System;
-use zbm_pool::PoolRef;
 use zbm_pool::import::{Access, Import, import_pool};
 use zbm_state::State;
 use zbm_types::ImportPolicy;
+use zbm_types::PoolName;
 use zbm_zfs::ZpoolCommand;
 
 use crate::boot::{export_pool, is_writable};
@@ -95,7 +95,7 @@ pub fn set_rw_pool(
     pool: &str,
     policy: ImportPolicy,
 ) -> Result<(), BootError> {
-    let Some(reference) = PoolRef::new(pool) else {
+    let Some(reference) = pool.parse::<PoolName>().ok() else {
         zbm_trace::error!("pool is undefined");
         return Err(BootError::NoPool);
     };

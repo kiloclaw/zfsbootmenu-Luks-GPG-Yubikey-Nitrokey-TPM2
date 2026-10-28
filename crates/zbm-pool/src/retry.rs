@@ -7,11 +7,12 @@
 //!
 //! ```
 //! use zbm_pool::retry::{AfterImport, Found, ImportLoop, Next};
-//! use zbm_pool::{ImportSettings, PoolRef, Requirement};
+//! use zbm_pool::{ImportSettings, PoolRequirement};
+//! use zbm_types::PoolName;
 //!
 //! let settings = ImportSettings {
-//!     prefer_pool: PoolRef::new("tank"),
-//!     requirement: Requirement::Optional,
+//!     prefer_pool: "tank".parse::<PoolName>().ok(),
+//!     requirement: PoolRequirement::Optional,
 //!     ..ImportSettings::default()
 //! };
 //! let mut retry = ImportLoop::new(&settings);
@@ -21,9 +22,9 @@
 //! assert_eq!(retry.imported(Found::Pools), AfterImport::Next(Next::Done));
 //! ```
 
-use zbm_types::ImportPolicy;
+use zbm_types::{ImportPolicy, PoolName, PoolRequirement};
 
-use crate::settings::{ImportSettings, PoolRef, Requirement};
+use crate::settings::ImportSettings;
 
 /// What an import attempt found.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,8 +74,8 @@ pub enum Next {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportLoop {
     policy: ImportPolicy,
-    requirement: Requirement,
-    target: Option<PoolRef>,
+    requirement: PoolRequirement,
+    target: Option<PoolName>,
     failed: u64,
 }
 
@@ -90,7 +91,7 @@ impl ImportLoop {
     }
 
     /// The pool the next attempt imports; `None` for every pool.
-    pub fn target(&self) -> Option<&PoolRef> {
+    pub fn target(&self) -> Option<&PoolName> {
         self.target.as_ref()
     }
 
@@ -102,7 +103,9 @@ impl ImportLoop {
     /// The transition after an import attempt that found `found`.
     pub fn imported(&mut self, found: Found) -> AfterImport {
         match found {
-            Found::Pools if self.requirement == Requirement::Only => AfterImport::Next(Next::Done),
+            Found::Pools if self.requirement == PoolRequirement::Only => {
+                AfterImport::Next(Next::Done)
+            }
             // A single pool was imported: try the others too.
             Found::Pools if self.target.take().is_some() => AfterImport::Next(Next::Again),
             Found::Pools => AfterImport::Next(Next::Done),
@@ -115,7 +118,7 @@ impl ImportLoop {
     /// [`AfterImport::MatchHostid`] asked for.
     pub fn matched(&mut self, matched: Matched) -> Next {
         match matched {
-            Matched::Pool if self.target.is_some() && self.requirement == Requirement::Only => {
+            Matched::Pool if self.target.is_some() && self.requirement == PoolRequirement::Only => {
                 Next::Done
             }
             // Pick up the other pools of this host ID.
@@ -130,7 +133,7 @@ impl ImportLoop {
     /// Nothing was imported: a preferred pool that is not required gives way
     /// to every pool; otherwise the attempt failed.
     fn not_found(&mut self) -> Next {
-        if self.target.is_some() && self.requirement == Requirement::Optional {
+        if self.target.is_some() && self.requirement == PoolRequirement::Optional {
             self.target = None;
             return Next::Again;
         }
@@ -146,10 +149,10 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
 
-    fn start(policy: ImportPolicy, prefer: &str, requirement: Requirement) -> ImportLoop {
+    fn start(policy: ImportPolicy, prefer: &str, requirement: PoolRequirement) -> ImportLoop {
         ImportLoop::new(&ImportSettings {
             policy,
-            prefer_pool: PoolRef::new(prefer),
+            prefer_pool: prefer.parse::<PoolName>().ok(),
             requirement,
             ..ImportSettings::default()
         })
@@ -160,7 +163,7 @@ mod tests {
     struct Case {
         policy: ImportPolicy,
         prefer: &'static str,
-        requirement: Requirement,
+        requirement: PoolRequirement,
         steps: &'static [(Step, Answer)],
     }
 
@@ -178,9 +181,9 @@ mod tests {
 
     const STRICT: ImportPolicy = ImportPolicy::Strict;
     const HOSTID: ImportPolicy = ImportPolicy::Hostid;
-    const OPTIONAL: Requirement = Requirement::Optional;
-    const REQUIRED: Requirement = Requirement::Required;
-    const ONLY: Requirement = Requirement::Only;
+    const OPTIONAL: PoolRequirement = PoolRequirement::Optional;
+    const REQUIRED: PoolRequirement = PoolRequirement::Required;
+    const ONLY: PoolRequirement = PoolRequirement::Only;
     const POOLS: Step = Step::Import(Found::Pools);
     const NOTHING: Step = Step::Import(Found::Nothing);
     const DONE: Answer = Answer::Import(AfterImport::Next(Next::Done));
@@ -287,7 +290,7 @@ mod tests {
             Next::Failed { attempt: 1 }
         );
         assert_eq!(missing.failures(), 1);
-        assert_eq!(missing.target().map(PoolRef::as_str), Some("tank"));
+        assert_eq!(missing.target().map(PoolName::as_str), Some("tank"));
         assert_eq!(missing.imported(Found::Nothing), AfterImport::MatchHostid);
         assert_eq!(
             missing.matched(Matched::Nothing),

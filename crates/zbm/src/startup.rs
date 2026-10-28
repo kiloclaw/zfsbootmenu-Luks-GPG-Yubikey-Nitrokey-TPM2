@@ -23,11 +23,12 @@ use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
 use zbm_app::{App, BootError, Recovery};
+use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
-use zbm_pool::{ImportSettings, Imported, Late, Operator, PoolRef, RetryDelay};
+use zbm_pool::{ImportSettings, Imported, Late, Operator, RetryDelay};
 use zbm_startup::front::Front;
 use zbm_startup::program::menu::has_menu;
 use zbm_startup::program::{Modes, Startup};
@@ -39,6 +40,7 @@ use zbm_tui::menu::term_keys::{CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT};
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
 use zbm_types::Answer;
+use zbm_types::PoolName;
 
 use crate::layouts;
 
@@ -248,9 +250,9 @@ impl Operator for MenuFront<'_> {
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolRef>, delay: RetryDelay) -> Answer {
+    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
         let pool = target.map(|target| target.as_str().to_owned());
-        self.timed(Question::ImportFailed { pool }, delay.seconds())
+        self.timed(Question::ImportFailed { pool }, retry_delay(delay))
     }
 
     fn unsupported_features(&mut self, advice: &str) {

@@ -12,7 +12,7 @@ use std::path::Path;
 use zbm_boot::hooks::executable_hooks;
 use zbm_platform::System;
 use zbm_pool::ImportSettings;
-use zbm_types::{HookStage, Stage};
+use zbm_types::{HookStage, RetryDelay, Stage};
 
 use crate::step::{Step, StepContext};
 
@@ -31,8 +31,8 @@ impl Step for Modules {
 
 /// `init.d/20-hostid`: writes `/etc/hostid` from `spl_hostid`.
 pub struct HostId<'o> {
-    /// The host ID the command line gives (`spl_hostid`), or empty.
-    pub spl_hostid: &'o str,
+    /// The host ID the command line gives (`spl_hostid`), if any.
+    pub spl_hostid: Option<&'o zbm_types::HostId>,
 }
 
 impl Step for HostId<'_> {
@@ -50,7 +50,7 @@ pub struct DeviceWait<'o> {
     /// `zbm.wait_for`: the devices, comma-separated.
     pub wait_for: &'o str,
     /// `zbm.retry_delay`: the seconds between checks.
-    pub retry_delay: &'o str,
+    pub retry_delay: RetryDelay,
 }
 
 impl Step for DeviceWait<'_> {

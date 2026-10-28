@@ -3,10 +3,10 @@
   "cases": [
     {
       "input": "create_zbm_conf",
-      "result": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"1\"\nexport HAS_DISABLED=\"1\"\nexport HAS_BORDER=\"1\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"legacy\"\n"
+      "result": "# Include guard\n[ -n \"${_ETC_ZFSBOOTMENU_CONF}\" ] && return\nreadonly _ETC_ZFSBOOTMENU_CONF=1\nexport HAS_REFRESH=\"\"\nexport HAS_DISABLED=\"\"\nexport HAS_BORDER=\"\"\nexport HAS_COLUMN=\"\"\nexport HAS_COLORS=\"\"\nexport HAS_RAW=\"\"\nexport ZBM_BUILDSTYLE=\"dracut\"\nexport ZBM_RELEASE_BUILD=\"1\"\nexport ZBM_RUNTIME=\"legacy\"\n"
     },
     {
-      "input": "[\"\", \"/ *00;\", \";\\\"*\", \"`a';'`*Z\\\\\", \"$*!``Z/`/0\", \"''=a'\\\" '\", \"\", \"\", \"$\", \"\", \"Z\", \"0/\", \"0==\", \"/* \"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='/* '\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='0=='\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='9'\\nexport zbm_hook_root=''\\nexport zbm_wait_for_devices=''\\nexport control_term=';\\\"*'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -14,7 +14,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -26,7 +26,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -34,7 +34,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -62,15 +62,15 @@
         ],
         [
           "loglevel",
-          ""
+          "4"
         ],
         [
           "menu_timeout",
-          "$*!``Z/`/0"
+          "0"
         ],
         [
           "spl_hostid",
-          "/ *00;"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -82,15 +82,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "Z"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "0/"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "''=a'\" '"
+          "9"
         ],
         [
           "zbm_set_hostid",
@@ -107,7 +107,7 @@
       ]
     },
     {
-      "input": "[\"/;/Z`Z'\", \";'\\\\\\\"/\", \"\\\\\\\"\\\\'*$`a \", \"0;\\\\Z\\\\ $\", \"=!=$!  =\", \" \", \"=\\\"';\", \"`!`*==\", \"`\", \"/' \\\\\\\"\", \"''\\\\a0\", \"\", \"\", \"0\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='0'\\nexport spl_hostid='deadbeef'\\nexport import_policy='force'\\nexport menu_timeout='10'\\nexport loglevel='7'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs=''\\nexport default_hostid=00bab10c\\nexport zbm_sort='=\\\"'\\\\'';'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='2'\\nexport zbm_hook_root='`!`*=='\\nexport zbm_wait_for_devices='/'\\\\'' \\\\\\\"'\\nexport control_term='\\\\\\\"\\\\'\\\\''*$`a '\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -115,7 +115,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -127,7 +127,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -135,7 +135,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -163,15 +163,15 @@
         ],
         [
           "loglevel",
-          "/;/Z`Z'"
+          "7"
         ],
         [
           "menu_timeout",
-          "=!=$!  ="
+          "10"
         ],
         [
           "spl_hostid",
-          ";'\\\"/"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -183,7 +183,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "''\\a0"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
@@ -191,7 +191,7 @@
         ],
         [
           "zbm_retry_delay",
-          " "
+          "2"
         ],
         [
           "zbm_set_hostid",
@@ -208,7 +208,7 @@
       ]
     },
     {
-      "input": "[\"Z\\\\'=!00a!0\", \" /!\", \"!!aa\", \"'0\", \"$\\\"/0*`'\\\\*\", \" /a\", \"$\\\\a`*\", \" 0\", \";= /\\\\a\", \";=$ \\\"a\\\"'=\\\"\", \"Z;a'`Z*'' \", \"\\\\ \", \"=*/;\", \"0*'/!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='0*'\\\\''/!'\\nexport spl_hostid=''\\nexport import_policy='strict'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='=*/;'\\nexport default_hostid=00bab10c\\nexport zbm_sort='$\\\\a`*'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='4'\\nexport zbm_hook_root=' 0'\\nexport zbm_wait_for_devices=';=$ \\\"a\\\"'\\\\''=\\\"'\\nexport control_term='!!aa'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -216,7 +216,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -228,7 +228,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -236,7 +236,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -264,15 +264,15 @@
         ],
         [
           "loglevel",
-          "Z\\'=!00a!0"
+          "6"
         ],
         [
           "menu_timeout",
-          "$\"/0*`'\\*"
+          "-1"
         ],
         [
           "spl_hostid",
-          " /!"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -284,15 +284,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "Z;a'`Z*'' "
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "\\ "
+          "only"
         ],
         [
           "zbm_retry_delay",
-          " /a"
+          "4"
         ],
         [
           "zbm_set_hostid",
@@ -309,7 +309,7 @@
       ]
     },
     {
-      "input": "[\"\\\"Z\\\\\", \"'\\\\`\", \"\\\\=!Z\", \"\", \"$;/ /Z=\", \"=!Z0; \", \"`!\", \"`**Z0$\", \"$=\\\"a\", \"0=;\", \"aa!\\\"\", \"``$\", \"=*$/aaZ`\\\"\", \"**;/'!0\\\"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='**;/'\\\\''!0\\\"'\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='0'\\nexport loglevel='7'\\nexport zbm_prefer_pool=''\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='=*$/aaZ`\\\"'\\nexport default_hostid=00bab10c\\nexport zbm_sort='`!'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='7'\\nexport zbm_hook_root='`**Z0$'\\nexport zbm_wait_for_devices='0=;'\\nexport control_term='\\\\=!Z'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -317,7 +317,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -329,7 +329,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -337,7 +337,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -365,15 +365,15 @@
         ],
         [
           "loglevel",
-          "\"Z\\"
+          "7"
         ],
         [
           "menu_timeout",
-          "$;/ /Z="
+          "0"
         ],
         [
           "spl_hostid",
-          "'\\`"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -385,15 +385,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "aa!\""
+          ""
         ],
         [
           "zbm_require_pool",
-          "``$"
+          ""
         ],
         [
           "zbm_retry_delay",
-          "=!Z0; "
+          "7"
         ],
         [
           "zbm_set_hostid",
@@ -410,7 +410,7 @@
       ]
     },
     {
-      "input": "[\"\", \"/*00a;Z!\", \"Z!Z 0== $\", \"'$**aa!=!\", \"\", \"'*/\", \"'='! `'=\\\"\", \"!`'\\\\$a\", \"\\\";`$ a`\\\\ \", \"!\\\\`a\", \" 0\\\\a\\\\/aa;a\", \"$\\\\Z/;0Z'\", \"a`$Z'a=\", \"''`a//\\\\/\\\\!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\'''\\\\''`a//\\\\/\\\\!'\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='a`$Z'\\\\''a='\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\\\''='\\\\''! `'\\\\''=\\\"'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='4'\\nexport zbm_hook_root='!`'\\\\''\\\\$a'\\nexport zbm_wait_for_devices='!\\\\`a'\\nexport control_term='Z!Z 0== $'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -418,7 +418,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -430,7 +430,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -438,7 +438,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -466,15 +466,15 @@
         ],
         [
           "loglevel",
-          ""
+          "4"
         ],
         [
           "menu_timeout",
-          ""
+          "-1"
         ],
         [
           "spl_hostid",
-          "/*00a;Z!"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -486,15 +486,15 @@
         ],
         [
           "zbm_prefer_pool",
-          " 0\\a\\/aa;a"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "$\\Z/;0Z'"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "'*/"
+          "4"
         ],
         [
           "zbm_set_hostid",
@@ -511,7 +511,7 @@
       ]
     },
     {
-      "input": "[\"!'=\\\\\\\\//\", \"\", \"Z'a`\\\\\", \"' a$\", \"$  0` **=\", \"*\", \"=  0`a;\", \"Z0Z= */`;\", \"\\\"00;\", \"=aa\", \"0Z'/*/`a0\", \"\", \"\\\\aZ ==\", \"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='7'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='\\\\aZ =='\\nexport default_hostid=00bab10c\\nexport zbm_sort='=  0`a;'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='2'\\nexport zbm_hook_root='Z0Z= */`;'\\nexport zbm_wait_for_devices='=aa'\\nexport control_term='Z'\\\\''a`\\\\'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -519,7 +519,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -531,7 +531,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -539,7 +539,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -567,11 +567,11 @@
         ],
         [
           "loglevel",
-          "!'=\\\\//"
+          "7"
         ],
         [
           "menu_timeout",
-          "$  0` **="
+          "-1"
         ],
         [
           "spl_hostid",
@@ -587,7 +587,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "0Z'/*/`a0"
+          "tank"
         ],
         [
           "zbm_require_pool",
@@ -595,7 +595,7 @@
         ],
         [
           "zbm_retry_delay",
-          "*"
+          "2"
         ],
         [
           "zbm_set_hostid",
@@ -612,7 +612,7 @@
       ]
     },
     {
-      "input": "[\"$\\\\Z$$Z '\", \"$0\\\\;Za/;*\", \"* 0;=''Z*\", \"!\", \"0\", \"a!'\\\\!`*`/$\", \"`Z\", \";  a`\", \"a;= *a\", \";*a*$$'/`/\", \"$\\\\\\\\\", \"Z=0a Z '\", \"'/' $`\", \"a;/;;a\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='a;/;;a'\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs=''\\\\''/'\\\\'' $`'\\nexport default_hostid=00bab10c\\nexport zbm_sort='`Z'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root=';  a`'\\nexport zbm_wait_for_devices=';*a*$$'\\\\''/`/'\\nexport control_term='* 0;='\\\\'''\\\\''Z*'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -620,7 +620,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -632,7 +632,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -640,7 +640,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -668,7 +668,7 @@
         ],
         [
           "loglevel",
-          "$\\Z$$Z '"
+          "4"
         ],
         [
           "menu_timeout",
@@ -676,7 +676,7 @@
         ],
         [
           "spl_hostid",
-          "$0\\;Za/;*"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -688,15 +688,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "$\\\\"
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "Z=0a Z '"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "a!'\\!`*`/$"
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -713,7 +713,7 @@
       ]
     },
     {
-      "input": "[\"/\", \"=``\", \" \\\\\\\\0\", \"\\\"';\", \"\", \"\\\"\", \"\", \"\", \"\\\\$0!;Z`\", \"'0`!/a!0`\", \"Z=  /\", \"\", \"\", \"/';;\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='/'\\\\'';;'\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='5'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs=''\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='2'\\nexport zbm_hook_root=''\\nexport zbm_wait_for_devices=''\\\\''0`!/a!0`'\\nexport control_term=' \\\\\\\\0'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -721,7 +721,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -733,7 +733,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -741,7 +741,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -769,15 +769,15 @@
         ],
         [
           "loglevel",
-          "/"
+          "5"
         ],
         [
           "menu_timeout",
-          ""
+          "-1"
         ],
         [
           "spl_hostid",
-          "=``"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -789,7 +789,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "Z=  /"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
@@ -797,7 +797,7 @@
         ],
         [
           "zbm_retry_delay",
-          "\""
+          "2"
         ],
         [
           "zbm_set_hostid",
@@ -814,7 +814,7 @@
       ]
     },
     {
-      "input": "[\"//a='/\", \"$/*$\", \"a=$00*=\", \"\", \"\", \"\\\\'\", \"\", \"!''\\\"$\", \"*/aZa\", \"\", \"$Z='\\\"`/\", \"a /a/='$$\\\\\", \" $;*;\", \"Z\\\\$$=** $\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='Z\\\\$$=** $'\\nexport spl_hostid='00000000'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs=' $;*;'\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='3'\\nexport zbm_hook_root='!'\\\\'''\\\\''\\\"$'\\nexport zbm_wait_for_devices=''\\nexport control_term='a=$00*='\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -822,7 +822,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -834,7 +834,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -842,7 +842,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -870,15 +870,15 @@
         ],
         [
           "loglevel",
-          "//a='/"
+          "6"
         ],
         [
           "menu_timeout",
-          ""
+          "-1"
         ],
         [
           "spl_hostid",
-          "$/*$"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -890,15 +890,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "$Z='\"`/"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "a /a/='$$\\"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "\\'"
+          "3"
         ],
         [
           "zbm_set_hostid",
@@ -915,7 +915,7 @@
       ]
     },
     {
-      "input": "[\"=*; / *`!\\\\\", \"*0'\\\\\\\\`\\\\;0`\", \";$\", \"`*\", \"\", \"=*/`Z\\\"\\\"0;$\", \"`'/$'$\\\"\", \"/$!$ ' \", \"\\\\`!\", \"0\", \"\\\\*0/Z`=\", \"\", \"' a/;\", \"\\\"0='\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='\\\"0='\\\\'''\\nexport spl_hostid='00000000'\\nexport import_policy='strict'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs=''\\\\'' a/;'\\nexport default_hostid=00bab10c\\nexport zbm_sort='`'\\\\''/$'\\\\''$\\\"'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root='/$!$ '\\\\'' '\\nexport zbm_wait_for_devices='0'\\nexport control_term=';$'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -923,7 +923,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -935,7 +935,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -943,7 +943,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -971,15 +971,15 @@
         ],
         [
           "loglevel",
-          "=*; / *`!\\"
+          "6"
         ],
         [
           "menu_timeout",
-          ""
+          "-1"
         ],
         [
           "spl_hostid",
-          "*0'\\\\`\\;0`"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -991,7 +991,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "\\*0/Z`="
+          "zroot"
         ],
         [
           "zbm_require_pool",
@@ -999,7 +999,7 @@
         ],
         [
           "zbm_retry_delay",
-          "=*/`Z\"\"0;$"
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -1016,7 +1016,7 @@
       ]
     },
     {
-      "input": "[\"'``\\\\=; \", \";$\\\"\\\"=\", \"'*\", \"'\\\"/\\\"\", \"a $`Z$ \", \"!''0\\\"\", \"Z/\", \" \\\\`='aa\\\\=\\\"\", \" *\", \" \", \"\", \"a!=\", \"==Z!*;;\", \"\\\"$=/'=\\\\\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='\\\"$=/'\\\\''=\\\\'\\nexport spl_hostid='deadbeef'\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='7'\\nexport zbm_prefer_pool=''\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='==Z!*;;'\\nexport default_hostid=00bab10c\\nexport zbm_sort='Z/'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='6'\\nexport zbm_hook_root=' \\\\`='\\\\''aa\\\\=\\\"'\\nexport zbm_wait_for_devices=' '\\nexport control_term=''\\\\''*'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1024,7 +1024,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1036,7 +1036,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1044,7 +1044,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1072,15 +1072,15 @@
         ],
         [
           "loglevel",
-          "'``\\=; "
+          "7"
         ],
         [
           "menu_timeout",
-          "a $`Z$ "
+          "0"
         ],
         [
           "spl_hostid",
-          ";$\"\"="
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1096,11 +1096,11 @@
         ],
         [
           "zbm_require_pool",
-          "a!="
+          ""
         ],
         [
           "zbm_retry_delay",
-          "!''0\""
+          "6"
         ],
         [
           "zbm_set_hostid",
@@ -1117,7 +1117,7 @@
       ]
     },
     {
-      "input": "[\"\", \"\", \" \\\"\\\\*\\\\\", \";;\\\"`!`0=  \", \"0*\", \"`' $0\", \"=$ Z\\\"/Z`'$\", \"a\", \"!ZZ0\", \"Z*/;\\\\`\", \"\", \"';\", \"=;*/0\\\\$0';\", \"0\\\\;\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='0\\\\;'\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='10'\\nexport loglevel='4'\\nexport zbm_prefer_pool=''\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='=;*/0\\\\$0'\\\\'';'\\nexport default_hostid=00bab10c\\nexport zbm_sort='=$ Z\\\"/Z`'\\\\''$'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='6'\\nexport zbm_hook_root='a'\\nexport zbm_wait_for_devices='Z*/;\\\\`'\\nexport control_term=' \\\"\\\\*\\\\'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1125,7 +1125,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1137,7 +1137,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1145,7 +1145,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1173,11 +1173,11 @@
         ],
         [
           "loglevel",
-          ""
+          "4"
         ],
         [
           "menu_timeout",
-          "0*"
+          "10"
         ],
         [
           "spl_hostid",
@@ -1197,11 +1197,11 @@
         ],
         [
           "zbm_require_pool",
-          "';"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "`' $0"
+          "6"
         ],
         [
           "zbm_set_hostid",
@@ -1218,7 +1218,7 @@
       ]
     },
     {
-      "input": "[\"\\\"=Za/!/\", \"\\\"\\\\0Z$;`=Z\", \"0\\\"aa\", \"a\", \"=/$\", \" \", \"\\\\*'\\\"\", \"\\\"/$ '$Z\", \"'\\\"\\\"=\", \"`a\", \"`\\\\;\", \"$`\\\"$'$\\\"*\\\"\", \"=\", \"';!$/\\\"Z$=\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\'';!$/\\\"Z$='\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='7'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='='\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\*'\\\\''\\\"'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='2'\\nexport zbm_hook_root='\\\"/$ '\\\\''$Z'\\nexport zbm_wait_for_devices='`a'\\nexport control_term='0\\\"aa'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1226,7 +1226,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1238,7 +1238,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1246,7 +1246,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1274,15 +1274,15 @@
         ],
         [
           "loglevel",
-          "\"=Za/!/"
+          "7"
         ],
         [
           "menu_timeout",
-          "=/$"
+          "-1"
         ],
         [
           "spl_hostid",
-          "\"\\0Z$;`=Z"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -1294,15 +1294,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "`\\;"
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "$`\"$'$\"*\""
+          ""
         ],
         [
           "zbm_retry_delay",
-          " "
+          "2"
         ],
         [
           "zbm_set_hostid",
@@ -1319,7 +1319,7 @@
       ]
     },
     {
-      "input": "[\"*\\\"\", \" Z\\\\\\\"\\\\'0'$`\", \"\", \";! 0=$ \", \"`0=\", \"\\\"=!a0\\\"a0;\", \"\\\\\", \"a0\", \"\\\\a/\\\"'0$!!\", \"`'\", \"**'*\\\"!0/! \", \"0= ;\", \"$;'`/\\\";/\", \"'\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\'''\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='$;'\\\\''`/\\\";/'\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='10'\\nexport zbm_hook_root='a0'\\nexport zbm_wait_for_devices='`'\\\\'''\\nexport control_term=''\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1327,7 +1327,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1339,7 +1339,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1347,7 +1347,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1375,15 +1375,15 @@
         ],
         [
           "loglevel",
-          "*\""
+          "6"
         ],
         [
           "menu_timeout",
-          "`0="
+          "-1"
         ],
         [
           "spl_hostid",
-          " Z\\\"\\'0'$`"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -1395,15 +1395,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "**'*\"!0/! "
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "0= ;"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "\"=!a0\"a0;"
+          "10"
         ],
         [
           "zbm_set_hostid",
@@ -1420,7 +1420,7 @@
       ]
     },
     {
-      "input": "[\"a\", \"=0\\\\a*\", \"Z*0'`\", \";a'\", \"=*/a!'*$ZZ\", \"\\\"$=;;Z\", \"!`a=;;; \", \"`/!*Z !/\", \"\\\"!`$a!*;\\\"\", \"$Z=a*$!$\", \"' a=!\", \"*$!*`!Z\", \"';/*!Z\\\\'\", \"'\\\"'!\\\"Z\\\\\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\''\\\"'\\\\''!\\\"Z\\\\'\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='0'\\nexport loglevel='5'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs=''\\\\'';/*!Z\\\\'\\\\'''\\nexport default_hostid=00bab10c\\nexport zbm_sort='!`a=;;; '\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='7'\\nexport zbm_hook_root='`/!*Z !/'\\nexport zbm_wait_for_devices='$Z=a*$!$'\\nexport control_term='Z*0'\\\\''`'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1428,7 +1428,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1440,7 +1440,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1448,7 +1448,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1476,15 +1476,15 @@
         ],
         [
           "loglevel",
-          "a"
+          "5"
         ],
         [
           "menu_timeout",
-          "=*/a!'*$ZZ"
+          "0"
         ],
         [
           "spl_hostid",
-          "=0\\a*"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1496,15 +1496,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "' a=!"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
-          "*$!*`!Z"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "\"$=;;Z"
+          "7"
         ],
         [
           "zbm_set_hostid",
@@ -1521,7 +1521,7 @@
       ]
     },
     {
-      "input": "[\"a` \\\"'/Z$\", \"$Z\", \";0aZ\\\\*0=Z\", \"=\\\\ *a\", \"aa !a;\", \"\", \"/a'\\\\\\\" \", \";\\\\`\\\"Z\", \"!=$!=`ZZ\\\"$\", \" 0*'\\\"';0\\\\a\", \"\\\\$$\", \";\\\\a\\\"\", \"*!;$`* *\", \"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\nexport spl_hostid='deadbeef'\\nexport import_policy='strict'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='*!;$`* *'\\nexport default_hostid=00bab10c\\nexport zbm_sort='/a'\\\\''\\\\\\\" '\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='1'\\nexport zbm_hook_root=';\\\\`\\\"Z'\\nexport zbm_wait_for_devices=' 0*'\\\\''\\\"'\\\\'';0\\\\a'\\nexport control_term=';0aZ\\\\*0=Z'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1529,7 +1529,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1541,7 +1541,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1549,7 +1549,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1577,15 +1577,15 @@
         ],
         [
           "loglevel",
-          "a` \"'/Z$"
+          "4"
         ],
         [
           "menu_timeout",
-          "aa !a;"
+          "-1"
         ],
         [
           "spl_hostid",
-          "$Z"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1597,15 +1597,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\\$$"
+          "tank"
         ],
         [
           "zbm_require_pool",
-          ";\\a\""
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          ""
+          "1"
         ],
         [
           "zbm_set_hostid",
@@ -1622,7 +1622,7 @@
       ]
     },
     {
-      "input": "[\"$``*\\\\/$ \", \"`\\\"0`0;a\\\\\", \"`\", \"= a\\\\$ a'`\", \" $$a00\", \"$!$*\\\\'\\\\ $!\", \"00a\", \"Z` '\", \"=aZ\", \"\\\\!\\\";a\\\"/`=\", \"a';\\\\;a0$`'\", \"/\", \"`\\\"/$/'Z=\", \"\\\"\\\"$\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='\\\"\\\"$'\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='`\\\"/$/'\\\\''Z='\\nexport default_hostid=00bab10c\\nexport zbm_sort='00a'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root='Z` '\\\\'''\\nexport zbm_wait_for_devices='\\\\!\\\";a\\\"/`='\\nexport control_term='`'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1630,7 +1630,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1642,7 +1642,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1650,7 +1650,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1678,15 +1678,15 @@
         ],
         [
           "loglevel",
-          "$``*\\/$ "
+          "4"
         ],
         [
           "menu_timeout",
-          " $$a00"
+          "-1"
         ],
         [
           "spl_hostid",
-          "`\"0`0;a\\"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1698,15 +1698,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "a';\\;a0$`'"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "/"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "$!$*\\'\\ $!"
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -1723,7 +1723,7 @@
       ]
     },
     {
-      "input": "[\"\\\"!`' $\", \"\\\" =`!\", \"Za=`Z*`*\\\\\", \"0Z!=/$*\", \"\\\"==\\\\ 0/\\\"0\", \"\\\"0'a\\\"Z;\", \"\\\\=\\\\/$=!\\\\\\\\;\", \"$;;`* \", \"\", \"\\\"/`Z;$$\", \"=!\\\\/'$=aZ=\", \"\", \"\\\"!\", \"0*/\\\\=//\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='0*/\\\\=//'\\nexport spl_hostid='deadbeef'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='\\\"!'\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\=\\\\/$=!\\\\\\\\;'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root='$;;`* '\\nexport zbm_wait_for_devices='\\\"/`Z;$$'\\nexport control_term='Za=`Z*`*\\\\'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1731,7 +1731,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1743,7 +1743,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1751,7 +1751,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1779,15 +1779,15 @@
         ],
         [
           "loglevel",
-          "\"!`' $"
+          "6"
         ],
         [
           "menu_timeout",
-          "\"==\\ 0/\"0"
+          "-1"
         ],
         [
           "spl_hostid",
-          "\" =`!"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1799,7 +1799,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "=!\\/'$=aZ="
+          "zroot"
         ],
         [
           "zbm_require_pool",
@@ -1807,7 +1807,7 @@
         ],
         [
           "zbm_retry_delay",
-          "\"0'a\"Z;"
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -1824,7 +1824,7 @@
       ]
     },
     {
-      "input": "[\"** \\\\!!'$\", \"Z\\\\\", \"`;/00a!\", \" 0`\\\\' \", \"*\\\";a==0Za\", \"\\\"=//\", \"\\\\`\", \"*Z!!\\\"\", \"\\\"\", \" ``*``/\", \"`$$\", \"*\\\"!a;!`Z\\\"Z\", \"*!'aZ/=` =\", \" \"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=' '\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='*!'\\\\''aZ/=` ='\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\`'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='5'\\nexport zbm_hook_root='*Z!!\\\"'\\nexport zbm_wait_for_devices=' ``*``/'\\nexport control_term='`;/00a!'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1832,7 +1832,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1844,7 +1844,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1852,7 +1852,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1880,15 +1880,15 @@
         ],
         [
           "loglevel",
-          "** \\!!'$"
+          "4"
         ],
         [
           "menu_timeout",
-          "*\";a==0Za"
+          "-1"
         ],
         [
           "spl_hostid",
-          "Z\\"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -1900,15 +1900,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "`$$"
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "*\"!a;!`Z\"Z"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "\"=//"
+          "5"
         ],
         [
           "zbm_set_hostid",
@@ -1925,7 +1925,7 @@
       ]
     },
     {
-      "input": "[\"=\\\\$Z\", \"$0\\\"`!\", \"`\\\\a\\\\\\\"'/\\\\\", \" !;'==\", \"$=!\\\";'\", \" \\\\\", \" \", \"`;! \\\\\", \"\\\"\", \"Z0!;'\", \"$`\", \"\", \"$a'0\\\"0!`\", \"0;$!/\\\"'\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='0;$!/\\\"'\\\\'''\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='$a'\\\\''0\\\"0!`'\\nexport default_hostid=00bab10c\\nexport zbm_sort=' '\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='3'\\nexport zbm_hook_root='`;! \\\\'\\nexport zbm_wait_for_devices='Z0!;'\\\\'''\\nexport control_term='`\\\\a\\\\\\\"'\\\\''/\\\\'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -1933,7 +1933,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -1945,7 +1945,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -1953,7 +1953,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -1981,15 +1981,15 @@
         ],
         [
           "loglevel",
-          "=\\$Z"
+          "4"
         ],
         [
           "menu_timeout",
-          "$=!\";'"
+          "-1"
         ],
         [
           "spl_hostid",
-          "$0\"`!"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -2001,7 +2001,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "$`"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
@@ -2009,7 +2009,7 @@
         ],
         [
           "zbm_retry_delay",
-          " \\"
+          "3"
         ],
         [
           "zbm_set_hostid",
@@ -2026,7 +2026,7 @@
       ]
     },
     {
-      "input": "[\"*`\\\\\", \"!!$=\", \"=a*a0'!'\", \" \\\\*\\\"\\\\=\", \"0=*0$`\", \"\\\"/*!\", \"$\\\"'$;*aa\", \"0`0$\\\\$*0\", \"\", \"a\\\"$*=Z\\\"\", \"\\\"=a'$$ \\\\$a\", \"``\", \"a\\\\a=*'$\", \" aa`\\\\*/`Z\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=' aa`\\\\*/`Z'\\nexport spl_hostid='00000000'\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='7'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='a\\\\a=*'\\\\''$'\\nexport default_hostid=00bab10c\\nexport zbm_sort='$\\\"'\\\\''$;*aa'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='5'\\nexport zbm_hook_root='0`0$\\\\$*0'\\nexport zbm_wait_for_devices='a\\\"$*=Z\\\"'\\nexport control_term='=a*a0'\\\\''!'\\\\'''\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2034,7 +2034,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2046,7 +2046,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2054,7 +2054,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2082,15 +2082,15 @@
         ],
         [
           "loglevel",
-          "*`\\"
+          "7"
         ],
         [
           "menu_timeout",
-          "0=*0$`"
+          "-1"
         ],
         [
           "spl_hostid",
-          "!!$="
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -2102,15 +2102,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\"=a'$$ \\$a"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "``"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "\"/*!"
+          "5"
         ],
         [
           "zbm_set_hostid",
@@ -2127,7 +2127,7 @@
       ]
     },
     {
-      "input": "[\"$`/\\\\! '!\", \"0/ '!!!Z0\", \"`/a//Z$`'\", \"\\\"\", \"$$Za'!';\", \";`*;=`\\\\0\", \"\", \";`\\\"0ZZ`;\", \"$\\\\;*0=**\", \"*!!\\\"/\", \"\\\\/$=Z$;\", \"0`'\", \"\\\\*Z\", \"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='10'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='\\\\*Z'\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='9'\\nexport zbm_hook_root=';`\\\"0ZZ`;'\\nexport zbm_wait_for_devices='*!!\\\"/'\\nexport control_term='`/a//Z$`'\\\\'''\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2135,7 +2135,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2147,7 +2147,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2155,7 +2155,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2183,15 +2183,15 @@
         ],
         [
           "loglevel",
-          "$`/\\! '!"
+          "4"
         ],
         [
           "menu_timeout",
-          "$$Za'!';"
+          "10"
         ],
         [
           "spl_hostid",
-          "0/ '!!!Z0"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -2203,15 +2203,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\\/$=Z$;"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "0`'"
+          ""
         ],
         [
           "zbm_retry_delay",
-          ";`*;=`\\0"
+          "9"
         ],
         [
           "zbm_set_hostid",
@@ -2228,7 +2228,7 @@
       ]
     },
     {
-      "input": "[\"= 0\", \"\", \"a\\\"'0/'\", \"/\", \"Z0/\\\"\", \"0/\", \"\\\"$ \", \"0\\\"\", \"'Z;'0Z =!\", \" ///=*ZZa!\", \"\\\\Z;Z =a/ \", \"/!\\\\\", \";a;'/$\\\\a \\\\\", \"\\\"'$a$\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='\\\"'\\\\''$a$'\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='7'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs=';a;'\\\\''/$\\\\a \\\\'\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\"$ '\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='3'\\nexport zbm_hook_root='0\\\"'\\nexport zbm_wait_for_devices=' ///=*ZZa!'\\nexport control_term='a\\\"'\\\\''0/'\\\\'''\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2236,7 +2236,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2248,7 +2248,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2256,7 +2256,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2284,11 +2284,11 @@
         ],
         [
           "loglevel",
-          "= 0"
+          "7"
         ],
         [
           "menu_timeout",
-          "Z0/\""
+          "0"
         ],
         [
           "spl_hostid",
@@ -2304,15 +2304,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\\Z;Z =a/ "
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "/!\\"
+          ""
         ],
         [
           "zbm_retry_delay",
-          "0/"
+          "3"
         ],
         [
           "zbm_set_hostid",
@@ -2329,7 +2329,7 @@
       ]
     },
     {
-      "input": "[\"0' \", \"*;=a\\\\\\\"\", \"\\\"\\\\=\", \"= \\\\'Z;'!'=\", \"\\\"/\", \"$ a ;\\\"\", \" \", \"`'Z0 *\\\\\", \"'\\\\\", \"\\\\$!$ ;/ \", \"\\\"'`\\\"*/**$ \", \"\\\"0\\\"\\\\00a\", \"` \\\\`$\\\\!a\", \"=$\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='=$'\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='10'\\nexport loglevel='7'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='` \\\\`$\\\\!a'\\nexport default_hostid=00bab10c\\nexport zbm_sort=' '\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='7'\\nexport zbm_hook_root='`'\\\\''Z0 *\\\\'\\nexport zbm_wait_for_devices='\\\\$!$ ;/ '\\nexport control_term='\\\"\\\\='\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2337,7 +2337,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2349,7 +2349,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2357,7 +2357,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2385,15 +2385,15 @@
         ],
         [
           "loglevel",
-          "0' "
+          "7"
         ],
         [
           "menu_timeout",
-          "\"/"
+          "10"
         ],
         [
           "spl_hostid",
-          "*;=a\\\""
+          ""
         ],
         [
           "zbm_hook_root",
@@ -2405,15 +2405,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\"'`\"*/**$ "
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "\"0\"\\00a"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "$ a ;\""
+          "7"
         ],
         [
           "zbm_set_hostid",
@@ -2430,7 +2430,7 @@
       ]
     },
     {
-      "input": "[\"\", \"\", \"\\\\'\\\\\", \"';/Z$\", \"/\\\\a=\", \"/!$`* $\\\\*=\", \"\", \"!$\\\"!  `\", \"\\\"\", \"'\", \"a\", \"`'*0*\\\"Z\\\\\", \"\\\"! a\", \"Z$ \\\"$\\\"\\\\*\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='Z$ \\\"$\\\"\\\\*'\\nexport spl_hostid=''\\nexport import_policy='strict'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='\\\"! a'\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root='!$\\\"!  `'\\nexport zbm_wait_for_devices=''\\\\'''\\nexport control_term='\\\\'\\\\''\\\\'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2438,7 +2438,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2450,7 +2450,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2458,7 +2458,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2486,11 +2486,11 @@
         ],
         [
           "loglevel",
-          ""
+          "4"
         ],
         [
           "menu_timeout",
-          "/\\a="
+          "0"
         ],
         [
           "spl_hostid",
@@ -2506,15 +2506,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "a"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "`'*0*\"Z\\"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "/!$`* $\\*="
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -2531,7 +2531,7 @@
       ]
     },
     {
-      "input": "[\" \", \"\", \" \", \"\", \"`'a\\\"/\\\\\", \"*/*Z/\\\\ *'\", \"\\\\\\\\;0Za;/a\", \";\", \"*`/\\\\0a \", \"Z`'a\", \" ;'\\\"0=Z*/\", \"\\\\\", \"$\\\"'=\", \"'/ Z!=$\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\''/ Z!=$'\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='5'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='$\\\"'\\\\''='\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\\\\\;0Za;/a'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='10'\\nexport zbm_hook_root=';'\\nexport zbm_wait_for_devices='Z`'\\\\''a'\\nexport control_term=' '\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2539,7 +2539,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2551,7 +2551,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2559,7 +2559,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2587,11 +2587,11 @@
         ],
         [
           "loglevel",
-          " "
+          "5"
         ],
         [
           "menu_timeout",
-          "`'a\"/\\"
+          "-1"
         ],
         [
           "spl_hostid",
@@ -2607,15 +2607,15 @@
         ],
         [
           "zbm_prefer_pool",
-          " ;'\"0=Z*/"
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "\\"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "*/*Z/\\ *'"
+          "10"
         ],
         [
           "zbm_set_hostid",
@@ -2632,7 +2632,7 @@
       ]
     },
     {
-      "input": "[\"/$\\\"! 0Za\", \";\", \"===\\\"\", \"/`!\\\"`/!\\\"0 \", \"\", \";;Z=''\", \" ; $ \\\\'``/\", \" $$ 0==$0\", \"0`\", \"!'' *$=`aa\", \" =/=/* ='`\", \"/\", \"a$'`!'!0a\", \"Z;;*a/a/Z=\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='Z;;*a/a/Z='\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='a$'\\\\''`!'\\\\''!0a'\\nexport default_hostid=00bab10c\\nexport zbm_sort=' ; $ \\\\'\\\\''``/'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='7'\\nexport zbm_hook_root=' $$ 0==$0'\\nexport zbm_wait_for_devices='!'\\\\'''\\\\'' *$=`aa'\\nexport control_term='===\\\"'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2640,7 +2640,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2652,7 +2652,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2660,7 +2660,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2688,15 +2688,15 @@
         ],
         [
           "loglevel",
-          "/$\"! 0Za"
+          "4"
         ],
         [
           "menu_timeout",
-          ""
+          "-1"
         ],
         [
           "spl_hostid",
-          ";"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -2708,15 +2708,15 @@
         ],
         [
           "zbm_prefer_pool",
-          " =/=/* ='`"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "/"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          ";;Z=''"
+          "7"
         ],
         [
           "zbm_set_hostid",
@@ -2733,7 +2733,7 @@
       ]
     },
     {
-      "input": "[\"\\\\\", \"=;a0!\\\\!`\", \" a\", \"\", \"!\\\"$*a Z*\", \" !\\\"*a=\\\"\", \"\", \";a\", \"=\\\\$\", \"'0*\\\\0\\\"Z/=\", \"//'/*Z0\", \"\\\"Z`=\\\"a=\\\"\", \"'\", \"\\\"\\\"``;!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='\\\"\\\"``;!'\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='10'\\nexport loglevel='5'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs=''\\\\'''\\nexport default_hostid=00bab10c\\nexport zbm_sort=''\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root=';a'\\nexport zbm_wait_for_devices=''\\\\''0*\\\\0\\\"Z/='\\nexport control_term=' a'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2741,7 +2741,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2753,7 +2753,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2761,7 +2761,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2789,15 +2789,15 @@
         ],
         [
           "loglevel",
-          "\\"
+          "5"
         ],
         [
           "menu_timeout",
-          "!\"$*a Z*"
+          "10"
         ],
         [
           "spl_hostid",
-          "=;a0!\\!`"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -2809,15 +2809,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "//'/*Z0"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "\"Z`=\"a=\""
+          "only"
         ],
         [
           "zbm_retry_delay",
-          " !\"*a=\""
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -2834,7 +2834,7 @@
       ]
     },
     {
-      "input": "[\"\\\"Z; \", \"\\\\'`*$=*`a\", \"/\", \"$\\\\*'/*0!`\", \" $`= 0\", \"0'a/!; '0\", \"0;=;*\\\"===\", \"`\\\"a;*\\\\!=\", \" *  \", \"*0\\\\;$ /*/Z\", \";/0\\\\a;\\\\a=\", \"0$ \", \"/ $\", \"$a* /'\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='$a* /'\\\\'''\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='-1'\\nexport loglevel='4'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='/ $'\\nexport default_hostid=00bab10c\\nexport zbm_sort='0;=;*\\\"==='\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='10'\\nexport zbm_hook_root='`\\\"a;*\\\\!='\\nexport zbm_wait_for_devices='*0\\\\;$ /*/Z'\\nexport control_term='/'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2842,7 +2842,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2854,7 +2854,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2862,7 +2862,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2890,15 +2890,15 @@
         ],
         [
           "loglevel",
-          "\"Z; "
+          "4"
         ],
         [
           "menu_timeout",
-          " $`= 0"
+          "-1"
         ],
         [
           "spl_hostid",
-          "\\'`*$=*`a"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -2910,15 +2910,15 @@
         ],
         [
           "zbm_prefer_pool",
-          ";/0\\a;\\a="
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "0$ "
+          ""
         ],
         [
           "zbm_retry_delay",
-          "0'a/!; '0"
+          "10"
         ],
         [
           "zbm_set_hostid",
@@ -2935,7 +2935,7 @@
       ]
     },
     {
-      "input": "[\"Z; \\\\!!\", \"0\", \"\\\"*=Z\", \"!'\", \"=!=`;=\\\\\", \"*\\\\=\\\" \\\"\\\\\", \"=0\\\"\", \"';;$0Za\\\"*\", \"\\\\*\", \" ''*0a$*\", \"$ !'Z/=\\\\=\", \"'$'*\", \"* $\\\\=\\\\0Z\", \"/'**`$!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='/'\\\\''**`$!'\\nexport spl_hostid='00000000'\\nexport import_policy='strict'\\nexport menu_timeout='0'\\nexport loglevel='6'\\nexport zbm_prefer_pool='tank'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='* $\\\\=\\\\0Z'\\nexport default_hostid=00bab10c\\nexport zbm_sort='=0\\\"'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root=''\\\\'';;$0Za\\\"*'\\nexport zbm_wait_for_devices=' '\\\\'''\\\\''*0a$*'\\nexport control_term='\\\"*=Z'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -2943,7 +2943,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -2955,7 +2955,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -2963,7 +2963,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -2991,15 +2991,15 @@
         ],
         [
           "loglevel",
-          "Z; \\!!"
+          "6"
         ],
         [
           "menu_timeout",
-          "=!=`;=\\"
+          "0"
         ],
         [
           "spl_hostid",
-          "0"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -3011,15 +3011,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "$ !'Z/=\\="
+          "tank"
         ],
         [
           "zbm_require_pool",
-          "'$'*"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "*\\=\" \"\\"
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -3036,7 +3036,7 @@
       ]
     },
     {
-      "input": "[\"'/ZZZ!$\", \"\", \" =\", \";\", \"\\\"!=' ! '/=\", \"\", \"\\\\!;;'!;'='\", \"*!;/\", \"\\\\00Z*0'0=0\", \"*\\\"0\", \";;**= !\", \"*=\", \"\", \"a=\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='a='\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='7'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs=''\\nexport default_hostid=00bab10c\\nexport zbm_sort='\\\\!;;'\\\\''!;'\\\\''='\\\\'''\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='1'\\nexport zbm_hook_root='*!;/'\\nexport zbm_wait_for_devices='*\\\"0'\\nexport control_term=' ='\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3044,7 +3044,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3056,7 +3056,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3064,7 +3064,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3092,11 +3092,11 @@
         ],
         [
           "loglevel",
-          "'/ZZZ!$"
+          "7"
         ],
         [
           "menu_timeout",
-          "\"!=' ! '/="
+          "0"
         ],
         [
           "spl_hostid",
@@ -3112,15 +3112,15 @@
         ],
         [
           "zbm_prefer_pool",
-          ";;**= !"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "*="
+          "only"
         ],
         [
           "zbm_retry_delay",
-          ""
+          "1"
         ],
         [
           "zbm_set_hostid",
@@ -3137,7 +3137,7 @@
       ]
     },
     {
-      "input": "[\"\\\\`\\\\*`*\", \"\\\"\", \"$Z$\\\\=\\\"\", \"' $Z!;$* ;\", \"';a\", \"* =0;!a='*\", \"$\\\"!\", \"$;*/a\", \" 0;/!;`0a\", \"Z\", \"'\", \"\", \"`\", \"!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='!'\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='`'\\nexport default_hostid=00bab10c\\nexport zbm_sort='$\\\"!'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root='$;*/a'\\nexport zbm_wait_for_devices='Z'\\nexport control_term='$Z$\\\\=\\\"'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3145,7 +3145,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3157,7 +3157,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3165,7 +3165,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3193,15 +3193,15 @@
         ],
         [
           "loglevel",
-          "\\`\\*`*"
+          "6"
         ],
         [
           "menu_timeout",
-          "';a"
+          "-1"
         ],
         [
           "spl_hostid",
-          "\""
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -3213,7 +3213,7 @@
         ],
         [
           "zbm_prefer_pool",
-          "'"
+          "zroot"
         ],
         [
           "zbm_require_pool",
@@ -3221,7 +3221,7 @@
         ],
         [
           "zbm_retry_delay",
-          "* =0;!a='*"
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -3238,7 +3238,7 @@
       ]
     },
     {
-      "input": "[\";\", \"'=/\", \"Z\\\"=Z\\\"$!;\", \" \", \"\\\"!='\", \"=\\\\=Z\\\" =\", \"=aZ;ZZ/\", \";!`'!a$\", \"0';/!\", \" \\\\ !=Z\", \"\", \"\\\\Z\\\"/\\\"a'\", \"\\\\\\\"\\\"a\", \"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\nexport spl_hostid=''\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='5'\\nexport zbm_prefer_pool=''\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='\\\\\\\"\\\"a'\\nexport default_hostid=00bab10c\\nexport zbm_sort='=aZ;ZZ/'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root=';!`'\\\\''!a$'\\nexport zbm_wait_for_devices=' \\\\ !=Z'\\nexport control_term='Z\\\"=Z\\\"$!;'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3246,7 +3246,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3258,7 +3258,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3266,7 +3266,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3294,15 +3294,15 @@
         ],
         [
           "loglevel",
-          ";"
+          "5"
         ],
         [
           "menu_timeout",
-          "\"!='"
+          "0"
         ],
         [
           "spl_hostid",
-          "'=/"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -3318,11 +3318,11 @@
         ],
         [
           "zbm_require_pool",
-          "\\Z\"/\"a'"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "=\\=Z\" ="
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -3339,7 +3339,7 @@
       ]
     },
     {
-      "input": "[\"';\\\\  \", \"=\", \"a* /\\\\\\\\*;*\", \" \\\"'\\\\!a=\", \"!$/Z$a\", \" '!Z/`0\\\\'*\", \"Z0/!$\", \"$ZZ`$\", \"'\\\\*a'*;$\", \"\\\"=* \", \"a0\", \"0\", \"'a`\\\\a\", \"a\\\"0;\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='a\\\"0;'\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='5'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs=''\\\\''a`\\\\a'\\nexport default_hostid=00bab10c\\nexport zbm_sort='Z0/!$'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='11'\\nexport zbm_hook_root='$ZZ`$'\\nexport zbm_wait_for_devices='\\\"=* '\\nexport control_term='a* /\\\\\\\\*;*'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3347,7 +3347,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3359,7 +3359,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3367,7 +3367,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3395,15 +3395,15 @@
         ],
         [
           "loglevel",
-          "';\\  "
+          "5"
         ],
         [
           "menu_timeout",
-          "!$/Z$a"
+          "-1"
         ],
         [
           "spl_hostid",
-          "="
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -3415,15 +3415,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "a0"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
-          "0"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          " '!Z/`0\\'*"
+          "11"
         ],
         [
           "zbm_set_hostid",
@@ -3440,7 +3440,7 @@
       ]
     },
     {
-      "input": "[\"$aaZ'*'\", \" /$0'\", \" *'$\\\"\", \"\\\\0Z!$Z;\", \";;;!/=**\", \"a=!= !; 0\", \"` \\\\'==\\\"\\\"\\\\\", \"0\", \"\\\\;*0`\", \"'a\", \"0\", \"'=;\", \"!'=!/Z0a\", \"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\nexport spl_hostid='deadbeef'\\nexport import_policy='force'\\nexport menu_timeout='10'\\nexport loglevel='7'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='!'\\\\''=!/Z0a'\\nexport default_hostid=00bab10c\\nexport zbm_sort='` \\\\'\\\\''==\\\"\\\"\\\\'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='10'\\nexport zbm_hook_root='0'\\nexport zbm_wait_for_devices=''\\\\''a'\\nexport control_term=' *'\\\\''$\\\"'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3448,7 +3448,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3460,7 +3460,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3468,7 +3468,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3496,15 +3496,15 @@
         ],
         [
           "loglevel",
-          "$aaZ'*'"
+          "7"
         ],
         [
           "menu_timeout",
-          ";;;!/=**"
+          "10"
         ],
         [
           "spl_hostid",
-          " /$0'"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -3516,15 +3516,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "0"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          "'=;"
+          ""
         ],
         [
           "zbm_retry_delay",
-          "a=!= !; 0"
+          "10"
         ],
         [
           "zbm_set_hostid",
@@ -3541,7 +3541,7 @@
       ]
     },
     {
-      "input": "[\"!Z/! ;;0 0\", \"; !!\\\\\\\\ ='\", \"a/a/\\\"Z\", \"Za'!'/\", \"=\\\"!0'\", \"'$0\\\\\\\\! \", \"0\\\"\", \"!=\", \"\\\\;/0$\", \"=/*\\\\*!/'a$\", \" '\", \"$\", \"ZZ* '\", \"!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='!'\\nexport spl_hostid=''\\nexport import_policy='hostid'\\nexport menu_timeout='10'\\nexport loglevel='6'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool='yes'\\nexport zbm_prefer_bootfs='ZZ* '\\\\'''\\nexport default_hostid=00bab10c\\nexport zbm_sort='0\\\"'\\nexport zbm_set_hostid='0'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root='!='\\nexport zbm_wait_for_devices='=/*\\\\*!/'\\\\''a$'\\nexport control_term='a/a/\\\"Z'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3549,7 +3549,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3561,7 +3561,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3569,7 +3569,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3597,15 +3597,15 @@
         ],
         [
           "loglevel",
-          "!Z/! ;;0 0"
+          "6"
         ],
         [
           "menu_timeout",
-          "=\"!0'"
+          "10"
         ],
         [
           "spl_hostid",
-          "; !!\\\\ ='"
+          ""
         ],
         [
           "zbm_hook_root",
@@ -3617,15 +3617,15 @@
         ],
         [
           "zbm_prefer_pool",
-          " '"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
-          "$"
+          "yes"
         ],
         [
           "zbm_retry_delay",
-          "'$0\\\\! "
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -3642,7 +3642,7 @@
       ]
     },
     {
-      "input": "[\"=a=0`==\\\"$\", \"!;'=\", \"\\\"\\\\$ Z\\\\\\\"0!\", \"!Za!\", \"/\", \"!a00\", \" a\", \"0*\\\\Za\", \"/$!`$=\\\"\\\"=/\", \"/\", \"/' '\\\"*\\\\\", \";/\\\\ a!`*=\", \"0!=$ ;\", \"!/`/`0*;\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='!/`/`0*;'\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='5'\\nexport zbm_prefer_pool='zroot'\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='0!=$ ;'\\nexport default_hostid=00bab10c\\nexport zbm_sort=' a'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='5'\\nexport zbm_hook_root='0*\\\\Za'\\nexport zbm_wait_for_devices='/'\\nexport control_term='\\\"\\\\$ Z\\\\\\\"0!'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3650,7 +3650,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3662,7 +3662,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3670,7 +3670,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3698,15 +3698,15 @@
         ],
         [
           "loglevel",
-          "=a=0`==\"$"
+          "5"
         ],
         [
           "menu_timeout",
-          "/"
+          "0"
         ],
         [
           "spl_hostid",
-          "!;'="
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -3718,15 +3718,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "/' '\"*\\"
+          "zroot"
         ],
         [
           "zbm_require_pool",
-          ";/\\ a!`*="
+          ""
         ],
         [
           "zbm_retry_delay",
-          "!a00"
+          "5"
         ],
         [
           "zbm_set_hostid",
@@ -3743,7 +3743,7 @@
       ]
     },
     {
-      "input": "[\"!;;\\\"a;\", \"\\\\ \", \"$0/\", \"aa0'!\\\"Z!!Z\", \"\\\";=$;*\", \"`!\\\"\\\"\", \"00\", \"$\", \"\", \"` \\\\\\\"$/$='\", \"\\\\;\", \"Z;;a;\", \"\\\\$!==Z\", \"''`\\\"\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\'''\\\\''`\\\"'\\nexport spl_hostid='deadbeef'\\nexport import_policy='force'\\nexport menu_timeout='-1'\\nexport loglevel='6'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='\\\\$!==Z'\\nexport default_hostid=00bab10c\\nexport zbm_sort='00'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='5'\\nexport zbm_hook_root='$'\\nexport zbm_wait_for_devices='` \\\\\\\"$/$='\\\\'''\\nexport control_term='$0/'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3751,7 +3751,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3763,7 +3763,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3771,7 +3771,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3799,15 +3799,15 @@
         ],
         [
           "loglevel",
-          "!;;\"a;"
+          "6"
         ],
         [
           "menu_timeout",
-          "\";=$;*"
+          "-1"
         ],
         [
           "spl_hostid",
-          "\\ "
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -3819,15 +3819,15 @@
         ],
         [
           "zbm_prefer_pool",
-          "\\;"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
-          "Z;;a;"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "`!\"\""
+          "5"
         ],
         [
           "zbm_set_hostid",
@@ -3844,7 +3844,7 @@
       ]
     },
     {
-      "input": "[\"= =\\\"'='`\", \"a!\", \"Z\", \" `\\\\\", \"00\\\"`\", \"! `!\\\\!=\", \" =$!Z\", \"*'*\", \"a\\\"\\\"!0/\", \"\", \"\", \"a$/\\\";`000\", \"a*a\", \"!! aZ 0 /\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE='!! aZ 0 /'\\nexport spl_hostid='deadbeef'\\nexport import_policy='hostid'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool=''\\nexport zbm_require_pool=''\\nexport zbm_prefer_bootfs='a*a'\\nexport default_hostid=00bab10c\\nexport zbm_sort=' =$!Z'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='8'\\nexport zbm_hook_root='*'\\\\''*'\\nexport zbm_wait_for_devices=''\\nexport control_term='Z'\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3852,7 +3852,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3864,7 +3864,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3872,7 +3872,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -3900,15 +3900,15 @@
         ],
         [
           "loglevel",
-          "= =\"'='`"
+          "4"
         ],
         [
           "menu_timeout",
-          "00\"`"
+          "0"
         ],
         [
           "spl_hostid",
-          "a!"
+          "deadbeef"
         ],
         [
           "zbm_hook_root",
@@ -3924,11 +3924,11 @@
         ],
         [
           "zbm_require_pool",
-          "a$/\";`000"
+          ""
         ],
         [
           "zbm_retry_delay",
-          "! `!\\!="
+          "8"
         ],
         [
           "zbm_set_hostid",
@@ -3945,7 +3945,7 @@
       ]
     },
     {
-      "input": "[\"\", \"= $;`$`/=!\", \"*a\\\"'$ \", \"'  !'= \", \"'a0a\", \"a\\\"a$\", \"*a\", \"!a\", \"/;\", \"*=;/''ZZ\", \" $\\\"=/\", \"\\\"'\", \"=`!\", \"''' ` \\\"!\"]",
+      "input": "\"# Include guard\\n[ -n \\\"${_ETC_ZFSBOOTMENU_CONF}\\\" ] && return\\nreadonly _ETC_ZFSBOOTMENU_CONF=1\\nexport HAS_REFRESH=\\\"\\\"\\nexport HAS_DISABLED=\\\"\\\"\\nexport HAS_BORDER=\\\"\\\"\\nexport HAS_COLUMN=\\\"\\\"\\nexport HAS_COLORS=\\\"\\\"\\nexport HAS_RAW=\\\"\\\"\\nexport ZBM_BUILDSTYLE=\\\"dracut\\\"\\nexport ZBM_RELEASE_BUILD=\\\"1\\\"\\nexport ZBM_RUNTIME=\\\"legacy\\\"\\n# BEGIN additions by zfsbootmenu-preinit.sh\\nexport BASE=''\\\\'''\\\\'''\\\\'' ` \\\"!'\\nexport spl_hostid='00000000'\\nexport import_policy='force'\\nexport menu_timeout='0'\\nexport loglevel='4'\\nexport zbm_prefer_pool='a.b-c_d:e'\\nexport zbm_require_pool='only'\\nexport zbm_prefer_bootfs='=`!'\\nexport default_hostid=00bab10c\\nexport zbm_sort='*a'\\nexport zbm_set_hostid='1'\\nexport zbm_retry_delay='5'\\nexport zbm_hook_root='!a'\\nexport zbm_wait_for_devices='*=;/'\\\\'''\\\\''ZZ'\\nexport control_term='*a\\\"'\\\\''$ '\\n# END additions by zfsbootmenu-preinit.sh\\n\"",
       "result": [
         [
           "BASE",
@@ -3953,7 +3953,7 @@
         ],
         [
           "HAS_BORDER",
-          "1"
+          ""
         ],
         [
           "HAS_COLORS",
@@ -3965,7 +3965,7 @@
         ],
         [
           "HAS_DISABLED",
-          "1"
+          ""
         ],
         [
           "HAS_RAW",
@@ -3973,7 +3973,7 @@
         ],
         [
           "HAS_REFRESH",
-          "1"
+          ""
         ],
         [
           "ZBM_BUILDSTYLE",
@@ -4001,15 +4001,15 @@
         ],
         [
           "loglevel",
-          ""
+          "4"
         ],
         [
           "menu_timeout",
-          "'a0a"
+          "0"
         ],
         [
           "spl_hostid",
-          "= $;`$`/=!"
+          "00000000"
         ],
         [
           "zbm_hook_root",
@@ -4021,15 +4021,15 @@
         ],
         [
           "zbm_prefer_pool",
-          " $\"=/"
+          "a.b-c_d:e"
         ],
         [
           "zbm_require_pool",
-          "\"'"
+          "only"
         ],
         [
           "zbm_retry_delay",
-          "a\"a$"
+          "5"
         ],
         [
           "zbm_set_hostid",

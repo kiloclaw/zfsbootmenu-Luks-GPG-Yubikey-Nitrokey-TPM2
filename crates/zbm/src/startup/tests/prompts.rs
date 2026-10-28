@@ -225,7 +225,7 @@ fn the_timed_prompts_are_questions() {
             name: VOLUME.name.into(),
             device: VOLUME.device.into(),
         },
-        delay: Some("10".into()),
+        delay: zbm_types::RetryDelay::new(10),
         message: "Unlocking failed".into(),
         on_return: "retry".into(),
         on_escape: "skip".into(),

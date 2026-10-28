@@ -12,13 +12,14 @@ use zbm_config::spec::properties::BOOTFS;
 use zbm_platform::{Runner, System};
 use zbm_state::State;
 use zbm_trace::Level;
-use zbm_types::{Answer, DatasetName};
+use zbm_types::{
+    Answer, BootfsPreference, DatasetName, HostId, PoolName, PoolRequirement, RetryDelay,
+};
 use zbm_zfs::{Stderr, ZfsCommand, ZpoolCommand};
 
-use crate::hostid::HostId;
 use crate::import::{Import, import_pool, imported_pools, log_unimportable, match_hostid, stdout};
 use crate::retry::{AfterImport, Found, ImportLoop, Matched, Next};
-use crate::settings::{BootfsPreference, Build, ImportSettings, PoolRef, Requirement, RetryDelay};
+use crate::settings::{Build, ImportSettings};
 use crate::text::{here_lines, tab_fields, tab_lines};
 
 /// Whether late unlocking opened a LUKS volume.
@@ -38,7 +39,7 @@ pub trait Operator {
     /// Says that `target` (every pool when `None`) cannot be imported and
     /// counts down `delay`: [`Answer::Continue`] retries, [`Answer::Escape`]
     /// opens the recovery shell.
-    fn retry(&mut self, target: Option<&PoolRef>, delay: RetryDelay) -> Answer;
+    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer;
 
     /// Warns that a pool has features this ZFS does not support, with what
     /// to do about it.
@@ -113,8 +114,8 @@ fn attempt(
     } else {
         Found::Pools
     };
-    if found == Found::Pools && settings.requirement == Requirement::Only {
-        let target = retry.target().map_or("", PoolRef::as_str);
+    if found == Found::Pools && settings.requirement == PoolRequirement::Only {
+        let target = retry.target().map_or("", PoolName::as_str);
         zbm_trace::debug!("only importing {target}");
     }
     match retry.imported(found) {
@@ -241,8 +242,8 @@ pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<D
 
 /// The `bootfs` property of `pool`, or of the first imported pool that sets
 /// it.
-fn pool_bootfs(runner: &dyn Runner, pool: Option<&PoolRef>) -> Option<DatasetName> {
-    let pool = pool.map_or("--", PoolRef::as_str);
+fn pool_bootfs(runner: &dyn Runner, pool: Option<&PoolName>) -> Option<DatasetName> {
+    let pool = pool.map_or("--", PoolName::as_str);
     let list =
         ZpoolCommand::new(runner).text(&["list", "-H", "-o", BOOTFS.name, pool], Stderr::Console);
     // The first line that is not `-` decides; an empty one means none.

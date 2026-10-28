@@ -22,6 +22,7 @@ use zbm_platform::secret::Secret;
 use zbm_platform::{Environment, System};
 use zbm_tools::{Shown, terminal, udev};
 pub use zbm_types::Answer;
+use zbm_types::RetryDelay;
 
 use crate::ask::{Asked, SecretRequest, Tell, Told, WaitRequest};
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
@@ -59,7 +60,7 @@ pub struct Settings {
     /// only looks at volumes that appeared since and never waits.
     pub retry: bool,
     /// The delay of the prompt for a missing device (`zbm_retry_delay`).
-    pub retry_delay: String,
+    pub retry_delay: RetryDelay,
     /// How to tell whether a volume is open.
     pub open_check: OpenCheck,
     /// Whether text is coloured; the unit suites turn it off, as they expect
@@ -83,7 +84,7 @@ impl Settings {
             token_plugins: true,
             default_tries: DEFAULT_TRIES,
             retry: false,
-            retry_delay: String::new(),
+            retry_delay: RetryDelay::DEFAULT,
             open_check: OpenCheck::Sysfs,
             colors: true,
             mapper: PathBuf::from("/dev/mapper"),
@@ -124,7 +125,8 @@ impl Settings {
                 .unwrap_or(DEFAULT_TRIES);
         }
         settings.retry = var("LUKS_RETRY").is_some();
-        settings.retry_delay = environment.var("zbm_retry_delay").unwrap_or_default();
+        settings.retry_delay =
+            RetryDelay::or_default(&environment.var("zbm_retry_delay").unwrap_or_default());
         settings
     }
 }
@@ -151,8 +153,8 @@ pub enum Subject {
 pub struct PromptRequest {
     /// What it is about, for a front end that shows it otherwise.
     pub subject: Subject,
-    /// `-d`: the delay, as the legacy code passes it; `None` for the default.
-    pub delay: Option<String>,
+    /// `-d`: the delay; `None` for the default.
+    pub delay: Option<RetryDelay>,
     /// `-m`: the message, shown in red.
     pub message: String,
     /// `-r`: what RETURN does.
@@ -167,7 +169,7 @@ impl PromptRequest {
     pub fn arguments(&self) -> Vec<String> {
         let mut arguments = Vec::new();
         if let Some(delay) = &self.delay {
-            arguments.extend(["-d".to_owned(), delay.clone()]);
+            arguments.extend(["-d".to_owned(), delay.to_string()]);
         }
         arguments.extend([
             "-m".to_owned(),

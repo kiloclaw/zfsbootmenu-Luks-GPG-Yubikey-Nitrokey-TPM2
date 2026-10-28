@@ -9,15 +9,15 @@ use std::time::Duration;
 
 use zbm_platform::System;
 use zbm_platform::exec::Input;
-use zbm_pool::RetryDelay;
 use zbm_tools::terminal;
+use zbm_types::RetryDelay;
 
 pub use zbm_core::color::{colorize, decolorize};
 
-/// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`: 5 seconds
-/// unless it is a positive number ([`RetryDelay::from_conf`]).
-pub fn retry_delay(value: &str) -> i64 {
-    RetryDelay::from_conf(value).seconds()
+/// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`, in the
+/// seconds [`TimedPrompt::delay`] takes.
+pub fn retry_delay(delay: RetryDelay) -> i64 {
+    i64::try_from(delay.seconds()).unwrap_or(i64::MAX)
 }
 
 /// The text of the countdown line for `seconds` left.
@@ -217,7 +217,7 @@ impl<'a> ConsolePrompter<'a> {
 impl zbm_luks::unlocker::Prompter for ConsolePrompter<'_> {
     fn timed_prompt(&self, request: &zbm_luks::unlocker::PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
-        if let Some(delay) = &request.delay {
+        if let Some(delay) = request.delay {
             prompt = prompt.delay(retry_delay(delay));
         }
         prompt
@@ -374,7 +374,7 @@ mod tests {
         fake.console.timeout().keys(&[0x1b]);
         let request = PromptRequest {
             subject: Subject::Missing("LABEL=x".to_owned()),
-            delay: Some("5".to_owned()),
+            delay: RetryDelay::new(5),
             message: "LUKS device LABEL=x is missing".to_owned(),
             on_return: "retry now".to_owned(),
             on_escape: "skip this device".to_owned(),

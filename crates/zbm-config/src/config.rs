@@ -9,7 +9,7 @@
 //!
 //! let args = ZbmArgs::from_cmdline("zbm.timeout=5 zbm.luks=off");
 //! let (config, _) = Config::read(&args, None, "/etc/zfsbootmenu/crypttab");
-//! assert_eq!(config.options.menu_timeout, "5");
+//! assert_eq!(config.options.menu_timeout, zbm_types::Timeout::Seconds(5));
 //! let described = config.describe();
 //! let timeout = described.iter().find(|line| line.spec == &TIMEOUT).unwrap();
 //! assert_eq!(timeout.origin, Origin::CommandLine { name: "zbm.timeout" });

@@ -87,6 +87,12 @@ pub enum Reason {
     /// A regular expression is not valid, or cannot be translated: why,
     /// as a clause.
     Pattern(&'static str),
+    /// The text is not an integer, as the shell's `test` reads one.
+    NotAnInteger,
+    /// A number is below the smallest allowed.
+    Below(i64),
+    /// The text is not a hexadecimal number.
+    NotHexadecimal,
 }
 
 impl fmt::Display for Reason {
@@ -104,6 +110,9 @@ impl fmt::Display for Reason {
             Reason::NotOneAt => write!(formatter, "it does not have exactly one '@'"),
             Reason::LeadingDash => write!(formatter, "it starts with '-', as an option does"),
             Reason::Pattern(why) => formatter.write_str(why),
+            Reason::NotAnInteger => write!(formatter, "it is not an integer"),
+            Reason::Below(min) => write!(formatter, "it is below {min}"),
+            Reason::NotHexadecimal => write!(formatter, "it is not a hexadecimal number"),
         }
     }
 }
@@ -138,6 +147,9 @@ mod tests {
             (Reason::NotOneOf(&["a", "b"]), "it is not one of a, b"),
             (Reason::NotOneAt, "it does not have exactly one '@'"),
             (Reason::Pattern("it ends with '\\'"), "it ends with '\\'"),
+            (Reason::NotAnInteger, "it is not an integer"),
+            (Reason::Below(4), "it is below 4"),
+            (Reason::NotHexadecimal, "it is not a hexadecimal number"),
         ];
 
         for (reason, text) in cases {

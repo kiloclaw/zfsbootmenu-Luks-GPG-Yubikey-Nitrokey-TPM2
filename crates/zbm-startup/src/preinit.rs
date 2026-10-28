@@ -101,7 +101,7 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     let (options, messages) = ZbmOptions::parse(&ZbmArgs::from_kcl(&kcl));
     let _log = KernelLog::new(
         files,
-        &options.loglevel,
+        &options.loglevel.to_string(),
         &base_in_root,
         system.processes.id(),
     )
@@ -236,7 +236,7 @@ export embedded_kcl=\"rd.hostonly=0\"
         );
         let options = parse_commandline(&fake.system(), Path::new("/")).unwrap();
         assert_eq!(options.control_term, "/dev/ttyS0");
-        assert_eq!(options.menu_timeout, "3");
+        assert_eq!(options.menu_timeout, zbm_types::Timeout::Seconds(3));
         assert_eq!(
             fake.files
                 .text("/etc/cmdline.d/zfsbootmenu.conf")

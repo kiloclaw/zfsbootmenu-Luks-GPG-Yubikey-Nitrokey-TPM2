@@ -185,8 +185,8 @@ fn the_import_asks_before_trying_again_and_says_what_it_cannot_import() {
     let fake = FakeSystem::new();
     let (mut front, seen) = front(&fake);
     seen.reply(Reply::With(Action::Answer(Answer::Continue)));
-    let pool = PoolRef::new("tank").unwrap();
-    let answer = front.retry(Some(&pool), RetryDelay::from_conf("3"));
+    let pool = "tank".parse::<PoolName>().unwrap();
+    let answer = front.retry(Some(&pool), RetryDelay::or_default("3"));
     assert_eq!(answer, Answer::Continue);
     let failed = Question::ImportFailed {
         pool: Some("tank".into()),

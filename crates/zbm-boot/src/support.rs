@@ -52,10 +52,7 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     }
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
-    if options
-        .menu_timeout_seconds()
-        .is_none_or(|timeout| timeout < 0)
-    {
+    if options.menu_timeout.seconds().is_none() {
         list.push(Unsupported::Menu("zbm.show"));
     } else if facts.bootfs.is_none() {
         list.push(Unsupported::Menu("no default boot environment"));

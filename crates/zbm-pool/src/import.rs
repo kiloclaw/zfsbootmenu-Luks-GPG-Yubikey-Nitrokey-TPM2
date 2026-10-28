@@ -8,12 +8,12 @@
 use zbm_platform::exec::Output;
 use zbm_platform::{Runner, System};
 use zbm_state::State;
-use zbm_types::ImportPolicy;
+use zbm_types::{ImportPolicy, PoolName};
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::error::PoolError;
 use crate::hostid::{self, HostId};
-use crate::settings::{Build, ImportSettings, PoolRef};
+use crate::settings::{Build, ImportSettings};
 use crate::text::here_lines;
 
 /// Which pools an import imports.
@@ -23,7 +23,7 @@ pub enum Target<'a> {
     #[default]
     All,
     /// One pool.
-    Pool(&'a PoolRef),
+    Pool(&'a PoolName),
 }
 
 /// Whether imported pools can be written.
@@ -50,10 +50,10 @@ pub enum Rewind {
 ///
 /// ```
 /// use zbm_pool::import::{Access, Import};
-/// use zbm_pool::PoolRef;
+/// use zbm_types::PoolName;
 /// use zbm_types::ImportPolicy;
 ///
-/// let tank = PoolRef::new("tank").unwrap();
+/// let tank = "tank".parse::<PoolName>().unwrap();
 /// let import = Import::pool(&tank)
 ///     .policy(ImportPolicy::Force)
 ///     .access(Access::ReadWrite);
@@ -77,7 +77,7 @@ impl<'a> Import<'a> {
     }
 
     /// An import of `pool`, read-only, by this host's ID.
-    pub fn pool(pool: &'a PoolRef) -> Import<'a> {
+    pub fn pool(pool: &'a PoolName) -> Import<'a> {
         Import {
             target: Target::Pool(pool),
             ..Import::default()
@@ -85,7 +85,7 @@ impl<'a> Import<'a> {
     }
 
     /// An import of `target`: one pool, or every pool when `None`.
-    pub fn target(target: Option<&'a PoolRef>) -> Import<'a> {
+    pub fn target(target: Option<&'a PoolName>) -> Import<'a> {
         target.map_or_else(Import::all, Import::pool)
     }
 
@@ -222,8 +222,8 @@ pub fn imported_pools(runner: &dyn Runner) -> Vec<String> {
 
 /// The importable pools `zpool import` lists as `ONLINE`, leaving out the
 /// preferred pool: the pools host ID matching tries.
-pub fn online_pools(output: &str, prefer: Option<&PoolRef>) -> Vec<String> {
-    let preferred = prefer.map_or("", PoolRef::as_str);
+pub fn online_pools(output: &str, prefer: Option<&PoolName>) -> Vec<String> {
+    let preferred = prefer.map_or("", PoolName::as_str);
     let mut pools = Vec::new();
     let mut pool = String::new();
     for line in here_lines(output) {
@@ -245,7 +245,7 @@ pub fn online_pools(output: &str, prefer: Option<&PoolRef>) -> Vec<String> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HostidMatch {
     /// The pool.
-    pub pool: PoolRef,
+    pub pool: PoolName,
     /// The host ID written to `/etc/hostid`.
     pub hostid: HostId,
 }
@@ -255,15 +255,15 @@ pub struct HostidMatch {
 fn candidates(
     system: &System<'_>,
     settings: &ImportSettings,
-    single: Option<&PoolRef>,
-) -> Vec<PoolRef> {
+    single: Option<&PoolName>,
+) -> Vec<PoolName> {
     if let Some(pool) = single {
         return vec![pool.clone()];
     }
     let list = ZpoolCommand::new(system.runner).text(&["import"], Stderr::Hidden);
     online_pools(&stdout(list), settings.prefer_pool.as_ref())
         .iter()
-        .filter_map(|pool| PoolRef::new(pool))
+        .filter_map(|pool| pool.parse::<PoolName>().ok())
         .collect()
 }
 
@@ -274,10 +274,10 @@ pub fn match_hostid(
     system: &System<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
-    single: Option<&PoolRef>,
+    single: Option<&PoolName>,
 ) -> Option<HostidMatch> {
     let importable = candidates(system, settings, single);
-    let names: Vec<&str> = importable.iter().map(PoolRef::as_str).collect();
+    let names: Vec<&str> = importable.iter().map(PoolName::as_str).collect();
     zbm_trace::debug!("importable pools: {}", names.join(" "));
 
     for pool in importable {
@@ -292,7 +292,7 @@ pub fn match_hostid(
             continue;
         };
         zbm_trace::debug!("discovered pool owner hostid: {hostid}");
-        if hostid.write(system.files).is_err() {
+        if hostid::write(system.files, &hostid).is_err() {
             zbm_trace::debug!("failed to set hostid {hostid}, skipping import of pool {pool}");
             continue;
         }

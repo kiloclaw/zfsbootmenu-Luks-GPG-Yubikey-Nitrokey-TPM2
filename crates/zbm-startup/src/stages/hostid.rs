@@ -5,16 +5,17 @@ use std::path::Path;
 
 use zbm_platform::files::Files;
 pub use zbm_pool::hostid::{DEFAULT_HOSTID, write_hex};
+use zbm_types::HostId;
 
-use zbm_pool::hostid::ETC_HOSTID;
+use zbm_pool::hostid::{ETC_HOSTID, write};
 
 /// The stage `init.d/20-hostid`: writes the host ID from the command line
-/// (`spl_hostid`), or the default one when that is invalid or when neither the
-/// command line nor `/etc/hostid` has one.
-pub fn stage(files: &dyn Files, spl_hostid: &str) {
-    if !spl_hostid.is_empty() {
-        if write_hex(files, spl_hostid).is_some() {
-            zbm_trace::info!("writing /etc/hostid from command line: {spl_hostid}");
+/// (`spl_hostid`), or the default one when that cannot be written or when
+/// neither the command line nor `/etc/hostid` has one.
+pub fn stage(files: &dyn Files, spl_hostid: Option<&HostId>) {
+    if let Some(hostid) = spl_hostid {
+        if write(files, hostid).is_ok() {
+            zbm_trace::info!("writing /etc/hostid from command line: {hostid}");
         } else {
             write_hex(files, DEFAULT_HOSTID);
             zbm_trace::info!("defaulting hostid to {DEFAULT_HOSTID}");
@@ -45,7 +46,7 @@ mod tests {
         let fake = FakeSystem::new();
         let _log = log(&fake);
         fake.files.dir("/etc").dir("/zfsbootmenu");
-        stage(&fake.files, "");
+        stage(&fake.files, None);
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0x0c, 0xb1, 0xba, 0x00]
@@ -54,7 +55,7 @@ mod tests {
             fake.kmsg()
                 .contains("no hostid found on kernel command line or /etc/hostid")
         );
-        stage(&fake.files, "deadbeef");
+        stage(&fake.files, Some(&"deadbeef".parse().unwrap()));
         assert_eq!(
             fake.files.contents(ETC_HOSTID).unwrap(),
             [0xef, 0xbe, 0xad, 0xde]
@@ -63,19 +64,13 @@ mod tests {
             fake.kmsg()
                 .contains("writing /etc/hostid from command line: deadbeef")
         );
-        stage(&fake.files, "nothex");
-        assert_eq!(
-            fake.files.contents(ETC_HOSTID).unwrap(),
-            [0x0c, 0xb1, 0xba, 0x00]
-        );
-        assert!(fake.kmsg().contains("defaulting hostid to 00bab10c"));
 
         // An existing /etc/hostid is kept when the command line has none.
         let files = FakeFiles::new();
         files.file(ETC_HOSTID, [1_u8, 2, 3, 4]);
         files.dir("/zfsbootmenu");
         let _log = KernelLog::new(&files, "7", Path::new("/zfsbootmenu"), 1).install();
-        stage(&files, "");
+        stage(&files, None);
         assert_eq!(files.contents(ETC_HOSTID).unwrap(), [1, 2, 3, 4]);
     }
 

@@ -299,13 +299,9 @@ impl Unlocker<'_> {
                 zbm_trace::info!("optional LUKS device {spec} not found, skipping");
                 return None;
             }
-            let delay = match self.settings().retry_delay.as_str() {
-                "" => "5".to_owned(),
-                delay => delay.to_owned(),
-            };
             let request = PromptRequest {
                 subject: Subject::Missing(spec.to_owned()),
-                delay: Some(delay),
+                delay: Some(self.settings().retry_delay),
                 message: format!("LUKS device {spec} is missing"),
                 on_return: "retry now".to_owned(),
                 on_escape: "skip this device".to_owned(),

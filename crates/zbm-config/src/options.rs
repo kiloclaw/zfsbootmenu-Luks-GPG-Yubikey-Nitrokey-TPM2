@@ -3,17 +3,20 @@
 //!
 //! [`ZbmOptions::parse`] does what `zfsbootmenu-parse-commandline.sh` does: it
 //! reads the options from the command line, falls back to defaults for missing
-//! and invalid values, and records the same log messages. The values keep the
-//! text the legacy script exports to `/etc/zfsbootmenu.conf` (see
-//! [`ZbmOptions::conf`]): a valid timeout of `+5` stays `+5`, as the shell
-//! keeps it.
+//! and invalid values, and records the same log messages. Numbers, host IDs
+//! and names are values of `zbm-types`, which print as they are written to
+//! `/etc/zfsbootmenu.conf` (see [`ZbmOptions::conf`]): a timeout of `+5`
+//! is written `5`, where the shell kept `+5`.
 
 mod hostid;
 mod read;
 
 use zbm_core::shell::{quote, test_integer};
 use zbm_trace::Message;
-use zbm_types::ImportPolicy;
+use zbm_types::{
+    BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
+    Timeout,
+};
 
 pub use self::hostid::parse_spl_hostid;
 use self::read::Reader;
@@ -31,8 +34,16 @@ type Value = fn(&ZbmOptions) -> Option<String>;
 
 /// The options [`ZbmOptions`] keeps, and where.
 static VALUES: &[(&OptionSpec, Value)] = &[
-    (&LOGLEVEL, |options| Some(options.loglevel.clone())),
-    (&SPL_HOSTID, |options| Some(options.spl_hostid.clone())),
+    (&LOGLEVEL, |options| Some(options.loglevel.to_string())),
+    (&SPL_HOSTID, |options| {
+        Some(
+            options
+                .spl_hostid
+                .as_ref()
+                .map(HostId::to_string)
+                .unwrap_or_default(),
+        )
+    }),
     (&CONSOLE, |options| Some(options.control_term.clone())),
     (&IMPORT_POLICY, |options| {
         Some(options.import_policy.to_string())
@@ -40,10 +51,12 @@ static VALUES: &[(&OptionSpec, Value)] = &[
     (&FORCE_IMPORT, |options| {
         Some(options.import_policy.to_string())
     }),
-    (&TIMEOUT, |options| Some(options.menu_timeout.clone())),
-    (&SHOW, |options| Some(options.menu_timeout.clone())),
-    (&SKIP, |options| Some(options.menu_timeout.clone())),
-    (&RETRY_DELAY, |options| Some(options.retry_delay.clone())),
+    (&TIMEOUT, |options| Some(options.menu_timeout.to_string())),
+    (&SHOW, |options| Some(options.menu_timeout.to_string())),
+    (&SKIP, |options| Some(options.menu_timeout.to_string())),
+    (&RETRY_DELAY, |options| {
+        Some(options.retry_delay.to_string())
+    }),
     (&LINES, |options| options.lines.clone()),
     (&COLUMNS, |options| options.columns.clone()),
     (&SORT_KEY, |options| Some(options.sort.clone())),
@@ -62,20 +75,20 @@ static VALUES: &[(&OptionSpec, Value)] = &[
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ZbmOptions {
     /// `loglevel`: the kernel log level of ZFSBootMenu's messages; at least 4.
-    pub loglevel: String,
-    /// `spl.spl_hostid` or `spl_hostid`: the host ID as eight or more hex digits,
-    /// `0`, or empty.
-    pub spl_hostid: String,
+    pub loglevel: LogLevel,
+    /// `spl.spl_hostid` or `spl_hostid`: the host ID, 0 among them, if one is
+    /// given.
+    pub spl_hostid: Option<HostId>,
     /// `console`: the device the menu runs on.
     pub control_term: String,
     /// `zbm.import_policy` (or `zbm.force_import`).
     pub import_policy: ImportPolicy,
-    /// `zbm.timeout`, `zbm.show` or `zbm.skip`: seconds before booting the default,
-    /// `-1` to always show the menu.
-    pub menu_timeout: String,
+    /// `zbm.timeout`, `zbm.show` or `zbm.skip`: seconds before booting the
+    /// default, or waiting to show the menu.
+    pub menu_timeout: Timeout,
     /// `zbm.retry_delay` or `zbm.import_delay`: seconds between import and device
     /// retries.
-    pub retry_delay: String,
+    pub retry_delay: RetryDelay,
     /// `zbm.lines`: the number of terminal lines, when given.
     pub lines: Option<String>,
     /// `zbm.columns`: the number of terminal columns, when given.
@@ -93,21 +106,15 @@ pub struct ZbmOptions {
     pub kcl_override: Option<String>,
     /// `zbm.wait_for`: devices to wait for, or empty.
     pub wait_for_devices: String,
-    /// `zbm.prefer`: the preferred pool, or empty.
-    pub prefer_pool: String,
-    /// `zbm.prefer` with `!` (`yes`) or `!!` (`only`): whether the preferred pool
-    /// is required, or empty.
-    pub require_pool: String,
-    /// `zbm.prefer` naming a dataset: the boot environment to prefer, or empty.
-    pub prefer_bootfs: String,
+    /// `zbm.prefer`: the preferred pool, if a pool is named.
+    pub prefer_pool: Option<PoolName>,
+    /// `zbm.prefer` with `!` or `!!`: how much the preferred pool is required.
+    pub require_pool: PoolRequirement,
+    /// `zbm.prefer` naming a dataset: the boot environment to prefer.
+    pub prefer_bootfs: BootfsPreference,
 }
 
 impl ZbmOptions {
-    /// The menu timeout in seconds: `None` when it is not an integer.
-    pub fn menu_timeout_seconds(&self) -> Option<i64> {
-        self.menu_timeout.trim().parse().ok()
-    }
-
     /// Reads the options from the command line and returns them with the messages
     /// the legacy script logs, in order.
     pub fn parse(args: &ZbmArgs) -> (ZbmOptions, Vec<Message>) {
@@ -157,17 +164,11 @@ impl ZbmOptions {
     /// `zbm.prefer` as given: the boot environment or pool, followed by `!`
     /// or `!!` when the pool is required.
     fn preference(&self) -> Option<String> {
-        let target = if self.prefer_bootfs.is_empty() {
-            &self.prefer_pool
-        } else {
-            &self.prefer_bootfs
+        let target = match &self.prefer_bootfs {
+            BootfsPreference::FromPool => self.prefer_pool.as_ref()?.to_string(),
+            other => other.to_string(),
         };
-        let suffix = match self.require_pool.as_str() {
-            "yes" => "!",
-            "only" => "!!",
-            _ => "",
-        };
-        (!target.is_empty()).then(|| format!("{target}{suffix}"))
+        Some(format!("{target}{}", self.require_pool.suffix()))
     }
 
     /// The value this start-up keeps for the option `spec`, as text; `None`
@@ -185,15 +186,18 @@ impl ZbmOptions {
     /// `None`; a missing variable is empty, as an unset shell variable is.
     pub fn from_conf(conf: &crate::conf::Conf) -> ZbmOptions {
         let get = |name: &str| conf.get(name).unwrap_or_default().to_owned();
+        let hostid = get("spl_hostid");
         ZbmOptions {
-            loglevel: get("loglevel"),
-            spl_hostid: get("spl_hostid"),
+            loglevel: get("loglevel").parse().unwrap_or_default(),
+            spl_hostid: (!hostid.is_empty())
+                .then(|| HostId::from_hex(&hostid))
+                .flatten(),
             control_term: get("control_term"),
             // The start-up writes one of the three names; anything else
             // imports as `strict` does, as the legacy stage reads it.
             import_policy: get("import_policy").parse().unwrap_or(ImportPolicy::Strict),
-            menu_timeout: get("menu_timeout"),
-            retry_delay: get("zbm_retry_delay"),
+            menu_timeout: get("menu_timeout").parse().unwrap_or_default(),
+            retry_delay: RetryDelay::or_default(&get("zbm_retry_delay")),
             lines: None,
             columns: None,
             sort: get("zbm_sort"),
@@ -202,9 +206,9 @@ impl ZbmOptions {
             set_hostid: test_integer(&get("zbm_set_hostid")) == Some(1),
             kcl_override: None,
             wait_for_devices: get("zbm_wait_for_devices"),
-            prefer_pool: get("zbm_prefer_pool"),
-            require_pool: get("zbm_require_pool"),
-            prefer_bootfs: get("zbm_prefer_bootfs"),
+            prefer_pool: get("zbm_prefer_pool").parse().ok(),
+            require_pool: PoolRequirement::from_conf(&get("zbm_require_pool")),
+            prefer_bootfs: BootfsPreference::from_conf(&get("zbm_prefer_bootfs")),
         }
     }
 
@@ -214,16 +218,18 @@ impl ZbmOptions {
     /// [`crate::conf::Conf::parse`]) gives the values back.
     pub fn conf(&self, base: &str) -> String {
         let set_hostid = if self.set_hostid { "1" } else { "0" };
+        let hostid = self.spl_hostid.as_ref().map(HostId::to_string);
+        let pool = self.prefer_pool.as_ref().map(PoolName::to_string);
         let mut conf = String::from("# BEGIN additions by zfsbootmenu-preinit.sh\n");
         for (name, value) in [
             ("BASE", base),
-            ("spl_hostid", &self.spl_hostid),
+            ("spl_hostid", hostid.as_deref().unwrap_or_default()),
             ("import_policy", self.import_policy.as_str()),
-            ("menu_timeout", &self.menu_timeout),
-            ("loglevel", &self.loglevel),
-            ("zbm_prefer_pool", &self.prefer_pool),
-            ("zbm_require_pool", &self.require_pool),
-            ("zbm_prefer_bootfs", &self.prefer_bootfs),
+            ("menu_timeout", &self.menu_timeout.to_string()),
+            ("loglevel", &self.loglevel.to_string()),
+            ("zbm_prefer_pool", pool.as_deref().unwrap_or_default()),
+            ("zbm_require_pool", self.require_pool.as_str()),
+            ("zbm_prefer_bootfs", &self.prefer_bootfs.to_string()),
         ] {
             conf.push_str(&export(name, value));
         }
@@ -231,7 +237,7 @@ impl ZbmOptions {
         for (name, value) in [
             ("zbm_sort", self.sort.as_str()),
             ("zbm_set_hostid", set_hostid),
-            ("zbm_retry_delay", &self.retry_delay),
+            ("zbm_retry_delay", &self.retry_delay.to_string()),
             ("zbm_hook_root", &self.hook_root),
             ("zbm_wait_for_devices", &self.wait_for_devices),
             ("control_term", &self.control_term),

@@ -119,7 +119,7 @@ impl Prompter for MenuFront<'_> {
                 device: device.clone(),
             },
         };
-        let delay = request.delay.as_deref().map_or(DEFAULT_DELAY, retry_delay);
+        let delay = request.delay.map_or(DEFAULT_DELAY, retry_delay);
         self.timed(question, delay)
     }
 

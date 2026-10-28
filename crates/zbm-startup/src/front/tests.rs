@@ -32,7 +32,7 @@ fn the_stages_ask_the_front_end() {
         Box::new(Modules),
         Box::new(DeviceWait {
             wait_for: "/dev/missing",
-            retry_delay: "3",
+            retry_delay: zbm_types::RetryDelay::new(3).unwrap(),
         }),
         Box::new(EarlyHooks {
             root: Path::new("/hooks"),

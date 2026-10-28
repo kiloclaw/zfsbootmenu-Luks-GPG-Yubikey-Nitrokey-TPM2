@@ -3,14 +3,15 @@
 //! [`Operator`].
 
 use zbm_platform::System;
-use zbm_pool::{Late, Operator, PoolRef, RetryDelay};
+use zbm_pool::{Late, Operator, RetryDelay};
 use zbm_state::State;
+use zbm_types::PoolName;
 
 pub use zbm_pool::import::{Access, Import, Rewind, import_pool, imported_pools};
 pub use zbm_pool::text::{tab_fields, tab_lines};
 pub use zbm_pool::{ImportSettings, Imported, choose_bootfs};
 
-use crate::prompt::{Answer, TimedPrompt, colorize};
+use crate::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 use crate::recovery::Recovery;
 
 /// The operator of the import stage: the countdown prompts of the start-up
@@ -36,10 +37,10 @@ impl Operator for Prompts<'_, '_> {
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolRef>, delay: RetryDelay) -> Answer {
-        let pool = colorize("magenta", target.map_or("pool", PoolRef::as_str));
+    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
+        let pool = colorize("magenta", target.map_or("pool", PoolName::as_str));
         TimedPrompt::new()
-            .delay(delay.seconds())
+            .delay(retry_delay(delay))
             .prompt(move |seconds| {
                 let seconds = colorize("yellow", &format!("{seconds:02}"));
                 format!("Unable to import {pool}, retrying in {seconds} seconds")

@@ -135,7 +135,9 @@ mod tests {
     use crate::options::ZbmOptions;
     use zbm_testkit::legacy::{Bash, path, shell_quote};
     use zbm_testkit::{Rng, TempDir, parity};
-    use zbm_types::ImportPolicy;
+    use zbm_types::{
+        BootfsPreference, HostId, ImportPolicy, PoolName, PoolRequirement, RetryDelay, Timeout,
+    };
 
     fn parse(text: &str) -> Conf {
         Conf::parse(text)
@@ -240,10 +242,15 @@ mod tests {
         (0..14).map(|_| rng.string(&alphabet, 10)).collect()
     }
 
+    /// Options of random values: text where the options keep text, and for
+    /// the others a value of their type chosen by the length of the text.
     fn options(values: &[String]) -> ZbmOptions {
+        let pick = |index: usize| values[index].len();
+        let pools = ["tank", "zroot", "a.b-c_d:e"];
         ZbmOptions {
-            loglevel: values[0].clone(),
-            spl_hostid: values[1].clone(),
+            loglevel: (4 + pick(0) % 4).to_string().parse().unwrap(),
+            spl_hostid: [None, HostId::from_hex("0"), HostId::from_hex("deadbeef")][pick(1) % 3]
+                .clone(),
             control_term: values[2].clone(),
             // A policy is one of three names; the others take any text.
             import_policy: [
@@ -251,8 +258,8 @@ mod tests {
                 ImportPolicy::Force,
                 ImportPolicy::Strict,
             ][values[3].len() % 3],
-            menu_timeout: values[4].clone(),
-            retry_delay: values[5].clone(),
+            menu_timeout: [Timeout::Wait, Timeout::Seconds(0), Timeout::Seconds(10)][pick(4) % 3],
+            retry_delay: RetryDelay::new(1 + pick(5) as u64).unwrap(),
             lines: None,
             columns: None,
             sort: values[6].clone(),
@@ -260,9 +267,14 @@ mod tests {
             set_hostid: values[8].len().is_multiple_of(2),
             kcl_override: None,
             wait_for_devices: values[9].clone(),
-            prefer_pool: values[10].clone(),
-            require_pool: values[11].clone(),
-            prefer_bootfs: values[12].clone(),
+            prefer_pool: (pick(10) % 4 > 0).then(|| pools[pick(10) % 3].parse().unwrap()),
+            require_pool: [
+                PoolRequirement::Optional,
+                PoolRequirement::Required,
+                PoolRequirement::Only,
+            ][pick(11) % 3],
+            // Any text: what cannot name a dataset is kept as it is.
+            prefer_bootfs: BootfsPreference::from_conf(&values[12]),
         }
     }
 
@@ -293,22 +305,32 @@ mod tests {
             let options = options(&values);
             let set_hostid = if options.set_hostid { "1" } else { "0" };
             let base = &values[13];
-            let legacy: String = parity.legacy(format!("{values:?}"), || {
+            let hostid = options
+                .spl_hostid
+                .as_ref()
+                .map(HostId::to_string)
+                .unwrap_or_default();
+            let pool = options
+                .prefer_pool
+                .as_ref()
+                .map(PoolName::to_string)
+                .unwrap_or_default();
+            let legacy: String = parity.legacy(format!("{options:?}, base {base:?}"), || {
                 let dir = TempDir::new("zbm-conf");
                 let conf = dir.join("zfsbootmenu.conf");
                 let output = Bash::new()
                     .env("CONF", &conf.to_string_lossy())
                     .env("BASE", base)
-                    .env("spl_hostid", &options.spl_hostid)
+                    .env("spl_hostid", &hostid)
                     .env("import_policy", options.import_policy.as_str())
-                    .env("menu_timeout", &options.menu_timeout)
-                    .env("loglevel", &options.loglevel)
-                    .env("zbm_prefer_pool", &options.prefer_pool)
-                    .env("zbm_require_pool", &options.require_pool)
-                    .env("zbm_prefer_bootfs", &options.prefer_bootfs)
+                    .env("menu_timeout", &options.menu_timeout.to_string())
+                    .env("loglevel", &options.loglevel.to_string())
+                    .env("zbm_prefer_pool", &pool)
+                    .env("zbm_require_pool", options.require_pool.as_str())
+                    .env("zbm_prefer_bootfs", &options.prefer_bootfs.to_string())
                     .env("zbm_sort", &options.sort)
                     .env("zbm_set_hostid", set_hostid)
-                    .env("zbm_retry_delay", &options.retry_delay)
+                    .env("zbm_retry_delay", &options.retry_delay.to_string())
                     .env("zbm_hook_root", &options.hook_root)
                     .env("zbm_wait_for_devices", &options.wait_for_devices)
                     .env("control_term", &options.control_term)
@@ -365,7 +387,7 @@ mod tests {
             let values = values(&mut rng);
             let text = format!("{header}{}", options(&values).conf(&values[13]));
             let conf = Conf::parse(&text);
-            let shell: Vec<(String, String)> = parity.legacy(format!("{values:?}"), || {
+            let shell: Vec<(String, String)> = parity.legacy(format!("{text:?}"), || {
                 let dir = TempDir::new("zbm-conf");
                 // Only the variables of the file: the rest is this process's environment.
                 sourced(&dir.write("zfsbootmenu.conf", &text))

@@ -36,8 +36,8 @@ impl Operator for FakeOperator {
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolRef>, delay: RetryDelay) -> Answer {
-        let target = target.map_or("pool", PoolRef::as_str);
+    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
+        let target = target.map_or("pool", PoolName::as_str);
         self.prompts.push(format!("{target} {}", delay.seconds()));
         if self.answers.is_empty() {
             Answer::Continue
@@ -121,9 +121,9 @@ fn escape_opens_the_recovery_shell_after_logging_unavailable_pools() {
         ..FakeOperator::default()
     };
     let settings = ImportSettings {
-        prefer_pool: PoolRef::new("tank"),
-        requirement: crate::Requirement::Only,
-        retry_delay: RetryDelay::from_conf("2"),
+        prefer_pool: "tank".parse::<PoolName>().ok(),
+        requirement: PoolRequirement::Only,
+        retry_delay: RetryDelay::or_default("2"),
         ..strict()
     };
     stage(&fake.system(), &state, &settings, &mut operator);
@@ -221,7 +221,7 @@ fn the_boot_environment_is_preferred_then_taken_from_the_pools() {
     let runner = fake.system().runner;
     let choose = |prefer_pool: &str, prefer_bootfs: &str| {
         let settings = ImportSettings {
-            prefer_pool: PoolRef::new(prefer_pool),
+            prefer_pool: prefer_pool.parse::<PoolName>().ok(),
             prefer_bootfs: BootfsPreference::from_conf(prefer_bootfs),
             ..ImportSettings::default()
         };

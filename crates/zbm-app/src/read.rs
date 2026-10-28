@@ -263,10 +263,10 @@ pub fn startup(state: &State<'_>) -> Vec<crate::model::Stage> {
         .collect()
 }
 
-/// The countdown `zbm.timeout` asks for: no number or a negative one waits,
-/// zero boots at once.
+/// The countdown `zbm.timeout` asks for: a negative one waits, zero boots
+/// at once.
 pub fn timeout(options: &ZbmOptions) -> Timeout {
-    match options.menu_timeout_seconds() {
+    match options.menu_timeout.seconds() {
         Some(0) => Timeout::Skip,
         Some(seconds) => u32::try_from(seconds).map_or(Timeout::Wait, Timeout::Seconds),
         None => Timeout::Wait,

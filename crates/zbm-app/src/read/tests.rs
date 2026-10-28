@@ -170,7 +170,7 @@ fn the_countdown_follows_zbm_timeout() {
     assert_eq!(timeout_of("zbm.timeout=-1"), Timeout::Wait);
     assert_eq!(timeout_of("zbm.show"), Timeout::Wait);
     let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_kcl(""));
-    options.menu_timeout = "soon".into();
+    options.menu_timeout = zbm_types::Timeout::Seconds(u64::MAX);
     assert_eq!(timeout(&options), Timeout::Wait);
 }
 

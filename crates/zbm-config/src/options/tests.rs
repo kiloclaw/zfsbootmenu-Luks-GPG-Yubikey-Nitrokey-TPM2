@@ -9,17 +9,17 @@ fn parse(cmdline: &str) -> (ZbmOptions, Vec<Message>) {
 #[test]
 fn defaults() {
     let (options, log) = parse("");
-    assert_eq!(options.loglevel, "4");
-    assert_eq!(options.spl_hostid, "");
+    assert_eq!(options.loglevel, LogLevel::MIN);
+    assert_eq!(options.spl_hostid, None);
     assert_eq!(options.control_term, "/dev/tty1");
     assert_eq!(options.import_policy, ImportPolicy::Hostid);
-    assert_eq!(options.menu_timeout, "10");
-    assert_eq!(options.retry_delay, "5");
+    assert_eq!(options.menu_timeout, Timeout::DEFAULT);
+    assert_eq!(options.retry_delay, RetryDelay::DEFAULT);
     assert_eq!(options.lines, None);
     assert_eq!(options.sort, "name;creation;used");
     assert!(options.set_hostid);
     assert_eq!(options.kcl_override, None);
-    assert_eq!(options.prefer_pool, "");
+    assert_eq!(options.prefer_pool, None);
     assert_eq!(log.len(), 5);
 }
 
@@ -31,20 +31,28 @@ fn explicit_values() {
          zbm.hookroot=pool/hooks zbm.set_hostid=0 zbm.wait_for=/dev/sda \
          zbm.prefer=pool/ROOT/be!",
     );
-    assert_eq!(options.loglevel, "7");
+    assert_eq!(options.loglevel.get(), 7);
     assert_eq!(options.control_term, "/dev/ttyS0");
     assert_eq!(options.import_policy, ImportPolicy::Strict);
-    assert_eq!(options.menu_timeout, "+3");
-    assert_eq!(options.retry_delay, "2");
+    // Written to the configuration as 3, where the shell kept `+3`.
+    assert_eq!(options.menu_timeout, Timeout::Seconds(3));
+    assert_eq!(options.retry_delay.seconds(), 2);
     assert_eq!(options.lines.as_deref(), Some("40"));
     assert_eq!(options.columns.as_deref(), Some("80"));
     assert_eq!(options.sort, "used;name;creation");
     assert_eq!(options.hook_root, "pool/hooks");
     assert!(!options.set_hostid);
     assert_eq!(options.wait_for_devices, "/dev/sda");
-    assert_eq!(options.prefer_pool, "pool");
-    assert_eq!(options.require_pool, "yes");
-    assert_eq!(options.prefer_bootfs, "pool/ROOT/be");
+    assert_eq!(options.prefer_pool, "pool".parse().ok());
+    assert_eq!(options.require_pool, PoolRequirement::Required);
+    assert_eq!(
+        options.prefer_bootfs,
+        BootfsPreference::Dataset("pool/ROOT/be".parse().unwrap())
+    );
+    // A name that no pool can have prefers none.
+    let (options, _) = parse("zbm.prefer=1pool!");
+    assert_eq!(options.prefer_pool, None);
+    assert_eq!(options.require_pool, PoolRequirement::Required);
 }
 
 #[test]
@@ -129,22 +137,24 @@ const VARIABLES: &[&str] = &[
 
 fn rust_report(options: &ZbmOptions) -> String {
     let set_hostid = if options.set_hostid { "1" } else { "0" };
+    let hostid = options.spl_hostid.as_ref().map(HostId::to_string);
+    let pool = options.prefer_pool.as_ref().map(PoolName::to_string);
     let values = [
-        options.loglevel.as_str(),
-        &options.spl_hostid,
+        &options.loglevel.to_string(),
+        hostid.as_deref().unwrap_or_default(),
         &options.control_term,
         options.import_policy.as_str(),
-        &options.menu_timeout,
-        &options.retry_delay,
+        &options.menu_timeout.to_string(),
+        &options.retry_delay.to_string(),
         options.lines.as_deref().unwrap_or_default(),
         options.columns.as_deref().unwrap_or_default(),
         &options.sort,
         &options.hook_root,
         set_hostid,
         &options.wait_for_devices,
-        &options.prefer_pool,
-        &options.require_pool,
-        &options.prefer_bootfs,
+        pool.as_deref().unwrap_or_default(),
+        options.require_pool.as_str(),
+        &options.prefer_bootfs.to_string(),
     ];
     let mut report: String = VARIABLES
         .iter()
@@ -155,6 +165,38 @@ fn rust_report(options: &ZbmOptions) -> String {
         report.push_str(&["override<<", text, ">>\n"].concat());
     }
     report
+}
+
+/// The legacy script's report with its numbers, host IDs and pool names as
+/// the types of `zbm-types` print them: `+3` as `3`, a host ID of `0` as
+/// `00000000`, and a pool that no pool can be named as none.
+fn canonical(report: &str) -> String {
+    report
+        .lines()
+        .map(|line| {
+            let Some((name, value)) = line.split_once('=') else {
+                return [line, "\n"].concat();
+            };
+            let value = match name {
+                "loglevel" => value
+                    .parse::<LogLevel>()
+                    .map_or(value.to_owned(), |v| v.to_string()),
+                "menu_timeout" => value
+                    .parse::<Timeout>()
+                    .map_or(value.to_owned(), |v| v.to_string()),
+                "zbm_retry_delay" => RetryDelay::or_default(value).to_string(),
+                "spl_hostid" if !value.is_empty() => {
+                    HostId::from_hex(value).map_or(value.to_owned(), |v| v.to_string())
+                }
+                "zbm_prefer_pool" => value
+                    .parse::<PoolName>()
+                    .map(|pool| pool.to_string())
+                    .unwrap_or_default(),
+                _ => value.to_owned(),
+            };
+            [name, "=", &value, "\n"].concat()
+        })
+        .collect()
 }
 
 const PIECES: &[&str] = &[
@@ -284,7 +326,11 @@ fn options_match_the_legacy_parser() {
             )
         });
         let (options, log) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&cmdline));
-        assert_eq!(rust_report(&options), expected, "cmdline {cmdline:?}");
+        assert_eq!(
+            rust_report(&options),
+            canonical(&expected),
+            "cmdline {cmdline:?}"
+        );
         let messages: String = log
             .iter()
             .map(|message| message.stderr_line() + "\n")

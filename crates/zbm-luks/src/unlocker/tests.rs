@@ -33,7 +33,7 @@ fn settings_follow_the_legacy_variables() {
     assert_eq!(settings.tpm2_tcti, "swtpm:port=1");
     assert!(!settings.token_plugins && settings.retry);
     assert_eq!(settings.default_tries, 8);
-    assert_eq!(settings.retry_delay, "7");
+    assert_eq!(settings.retry_delay.seconds(), 7);
 }
 
 fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
@@ -302,7 +302,7 @@ fn prompts_go_to_the_prompter() {
 fn prompts_record_their_legacy_arguments() {
     let request = PromptRequest {
         subject: Subject::Missing("x".to_owned()),
-        delay: Some("5".to_owned()),
+        delay: RetryDelay::new(5),
         message: "LUKS device x is missing".to_owned(),
         on_return: "retry now".to_owned(),
         on_escape: "skip this device".to_owned(),

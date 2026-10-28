@@ -46,6 +46,6 @@ pub mod stage;
 pub mod text;
 
 pub use error::PoolError;
-pub use hostid::HostId;
-pub use settings::{BootfsPreference, Build, ImportSettings, PoolRef, Requirement, RetryDelay};
+pub use settings::{Build, ImportSettings};
 pub use stage::{Imported, Late, Operator, choose_bootfs, stage};
+pub use zbm_types::{BootfsPreference, HostId, PoolRequirement, RetryDelay};

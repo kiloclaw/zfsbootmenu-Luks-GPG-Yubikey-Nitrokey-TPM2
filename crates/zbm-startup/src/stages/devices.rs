@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use zbm_platform::System;
+use zbm_types::RetryDelay;
 
 use zbm_boot::prompt::{Answer, TimedPrompt, colorize, retry_delay};
 
@@ -32,7 +33,7 @@ pub fn device_path(device: &str) -> Option<String> {
 /// Waits for the devices of `zbm.wait_for` (`wait_for`, separated by commas),
 /// asking on the console every `retry_delay` seconds, until all exist or the
 /// user cancels.
-pub fn stage(system: &System<'_>, wait_for: &str, delay: &str) {
+pub fn stage(system: &System<'_>, wait_for: &str, delay: RetryDelay) {
     stage_with(system, wait_for, delay, &mut |seconds| {
         missing_prompt(system, seconds)
     });
@@ -58,7 +59,7 @@ pub fn missing_prompt(system: &System<'_>, delay: i64) -> Answer {
 pub fn stage_with(
     system: &System<'_>,
     wait_for: &str,
-    delay: &str,
+    delay: RetryDelay,
     prompt: &mut dyn FnMut(i64) -> Answer,
 ) {
     if wait_for.is_empty() {
@@ -130,7 +131,7 @@ mod tests {
             .device("/dev/sda")
             .device("/dev/disk/by-uuid/abc");
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        stage(&fake.system(), "/dev/sda,UUID=abc", "");
+        stage(&fake.system(), "/dev/sda,UUID=abc", RetryDelay::DEFAULT);
         assert!(fake.runner.lines().is_empty());
     }
 
@@ -140,7 +141,11 @@ mod tests {
         fake.files.device("/dev/sda");
         fake.console.keys(b"\n\x1b");
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-        stage(&fake.system(), "/dev/sda,LABEL=boot", "3");
+        stage(
+            &fake.system(),
+            "/dev/sda,LABEL=boot",
+            RetryDelay::new(3).unwrap(),
+        );
         let prompts = fake
             .runner
             .lines()
@@ -191,7 +196,7 @@ mod tests {
             fake.files.device("/dev/null").device("/dev/zero");
             fake.console.keys(b"\x1b");
             let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-            stage(&fake.system(), wait_for, "");
+            stage(&fake.system(), wait_for, RetryDelay::DEFAULT);
             let prompts = fake
                 .runner
                 .lines()

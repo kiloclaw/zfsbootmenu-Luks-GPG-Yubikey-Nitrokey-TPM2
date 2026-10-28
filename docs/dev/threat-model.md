@@ -148,7 +148,7 @@ night.
 | Target | Parsers | Inputs | Threat |
 | --- | --- | --- | --- |
 | `kernel_cmdline` | `zbm_config::kcl::tokenize`, `ZbmArgs::from_cmdline`, `ZbmOptions::parse`, `Conf::parse` | I1, I2 | A1 |
-| `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion`, `ImportPolicy`, `Stage`, `HookStage`, and the version order | I1, I3, I5, I7 | A1, A2, A3 |
+| `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion`, `ImportPolicy`, `Stage`, `HookStage`, the values of the options (`Timeout`, `RetryDelay`, `LogLevel`, `HostId`, `PoolRequirement`, `BootfsPreference`), and the version order | I1, I3, I5, I7 | A1, A2, A3 |
 | `kernel_selector` | `zbm_types::KernelSelector`: the translation of `org.zfsbootmenu:kernel`, its compilation and matches | I4 | A3 |
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |

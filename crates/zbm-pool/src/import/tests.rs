@@ -19,7 +19,7 @@ fn import_arguments_follow_the_options() {
     let _log = log(&fake);
     let state = State::new(&fake.files, "/zfsbootmenu");
     let system = fake.system();
-    let tank = PoolRef::new("tank").unwrap();
+    let tank = "tank".parse::<PoolName>().unwrap();
     assert_eq!(import_pool(&system, &state, Import::all()), Ok(()));
     let import = Import::pool(&tank)
         .policy(ImportPolicy::Force)
@@ -68,7 +68,7 @@ fn failed_imports_log_the_apparent_host_id() {
         "cannot import\n\n",
     );
     let state = State::new(&fake.files, "/zfsbootmenu");
-    let tank = PoolRef::new("tank").unwrap();
+    let tank = "tank".parse::<PoolName>().unwrap();
     assert_eq!(
         import_pool(&fake.system(), &state, Import::pool(&tank)),
         Err(PoolError::Import {
@@ -106,7 +106,7 @@ fn online_pools_leave_out_the_preferred_one() {
                   \ttank  ONLINE\n\n   pool: dead\n     id: 2\n  state: UNAVAIL\n\
                   \n   pool: boot\n     id: 3\n  state: ONLINE\n";
     assert_eq!(online_pools(output, None), ["tank", "boot"]);
-    let boot = PoolRef::new("boot").unwrap();
+    let boot = "boot".parse::<PoolName>().unwrap();
     assert_eq!(online_pools(output, Some(&boot)), ["tank"]);
 }
 
@@ -168,7 +168,7 @@ fn host_id_matching_writes_the_foreign_host_id_and_imports() {
         build: Build::Release,
         ..settings
     };
-    let tank = PoolRef::new("tank").unwrap();
+    let tank = "tank".parse::<PoolName>().unwrap();
     assert!(match_hostid(&release.system(), &state, &settings, Some(&tank)).is_some());
     assert!(!release.kmsg().contains("assumed hostid"));
 }

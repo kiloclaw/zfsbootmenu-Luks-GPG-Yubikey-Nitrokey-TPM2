@@ -4,7 +4,10 @@
 
 use zbm_core::shell::test_integer;
 use zbm_trace::Message;
-use zbm_types::ImportPolicy;
+use zbm_types::{
+    BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
+    Timeout,
+};
 
 use super::hostid::parse_spl_hostid;
 use crate::args::{Args, ZbmArgs, deprecated, is_on};
@@ -16,9 +19,6 @@ use crate::spec::cmdline::{
     RETRY_DELAY, SET_HOSTID, SHOW, SKIP, SORT_KEY, SPL_HOSTID, TIMEOUT, WAIT_FOR,
 };
 
-/// The lowest log level: warnings and errors are always logged.
-const MIN_LOGLEVEL: i64 = 4;
-
 /// The sort keys the menu supports, in their default order.
 const SORT_KEYS: [&str; 3] = ["name", "creation", "used"];
 
@@ -28,11 +28,11 @@ fn pool_of(name: &str) -> &str {
 }
 
 /// `zbm.prefer`: the preferred pool, whether it is required, and the
-/// preferred boot environment, each empty when not given.
+/// preferred boot environment.
 pub(super) struct Preference {
-    pub(super) pool: String,
-    pub(super) require: String,
-    pub(super) bootfs: String,
+    pub(super) pool: Option<PoolName>,
+    pub(super) require: PoolRequirement,
+    pub(super) bootfs: BootfsPreference,
 }
 
 /// Reads options from a command line, logging and recording as it goes.
@@ -91,30 +91,28 @@ impl<'a> Reader<'a> {
     }
 
     /// `loglevel`: at least 4.
-    pub(super) fn loglevel(&mut self) -> String {
-        match self.value(&LOGLEVEL) {
-            Some(level) if test_integer(&level).is_some_and(|level| level >= MIN_LOGLEVEL) => {
-                self.info(format!("setting log level from command line: {level}"));
-                level
-            }
-            Some(level) => {
-                self.invalid(&LOGLEVEL, &level);
-                MIN_LOGLEVEL.to_string()
-            }
-            None => MIN_LOGLEVEL.to_string(),
+    pub(super) fn loglevel(&mut self) -> LogLevel {
+        let Some(text) = self.value(&LOGLEVEL) else {
+            return LogLevel::MIN;
+        };
+        if let Ok(level) = text.parse() {
+            self.info(format!("setting log level from command line: {text}"));
+            level
+        } else {
+            self.invalid(&LOGLEVEL, &text);
+            LogLevel::MIN
         }
     }
 
-    /// `spl.spl_hostid`: a host ID, `0`, or empty.
-    pub(super) fn spl_hostid(&mut self) -> String {
-        let Some(value) = self.value(&SPL_HOSTID) else {
-            return String::new();
-        };
-        parse_spl_hostid(&value).unwrap_or_else(|| {
+    /// `spl.spl_hostid`: a host ID, 0 among them, or none.
+    pub(super) fn spl_hostid(&mut self) -> Option<HostId> {
+        let value = self.value(&SPL_HOSTID)?;
+        let hostid = parse_spl_hostid(&value).and_then(|digits| HostId::from_hex(&digits));
+        if hostid.is_none() {
             self.warn(format!("invalid hostid value {value}, ignoring"));
             self.invalid(&SPL_HOSTID, &value);
-            String::new()
-        })
+        }
+        hostid
     }
 
     /// `console`: the device of the menu.
@@ -163,46 +161,41 @@ impl<'a> Reader<'a> {
     }
 
     /// `zbm.timeout`, or `zbm.show` and `zbm.skip`.
-    pub(super) fn menu_timeout(&mut self) -> String {
-        if let Some(timeout) = self.value(&TIMEOUT) {
-            if test_integer(&timeout).is_some() {
-                self.info(format!("setting menu timeout from command line: {timeout}"));
+    pub(super) fn menu_timeout(&mut self) -> Timeout {
+        if let Some(text) = self.value(&TIMEOUT) {
+            if let Ok(timeout) = text.parse() {
+                self.info(format!("setting menu timeout from command line: {text}"));
                 return timeout;
             }
             self.warn(format!(
-                "invalid menu timeout: '{timeout}', defaulting to 10 seconds"
+                "invalid menu timeout: '{text}', defaulting to 10 seconds"
             ));
-            self.invalid(&TIMEOUT, &timeout);
-            "10".to_owned()
+            self.invalid(&TIMEOUT, &text);
+            Timeout::DEFAULT
         } else if self.enabled(&SHOW) {
             self.info("forcing display of menu");
-            "-1".to_owned()
+            Timeout::Wait
         } else if self.enabled(&SKIP) {
             self.info("skipping display of menu");
-            "0".to_owned()
+            Timeout::Seconds(0)
         } else {
             self.info("defaulting menu timeout to 10");
-            "10".to_owned()
+            Timeout::DEFAULT
         }
     }
 
     /// `zbm.retry_delay`: a positive number of seconds, 5 otherwise.
-    pub(super) fn retry_delay(&mut self) -> String {
-        let delay = self.value(&RETRY_DELAY);
-        match delay {
-            // `[ "${zbm_retry_delay:-0}" -gt 0 ]`
-            Some(delay)
-                if test_integer(if delay.is_empty() { "0" } else { &delay })
-                    .is_some_and(|delay| delay > 0) =>
-            {
-                self.info(format!("import/waitfor retry delay is {delay} seconds"));
-                delay
-            }
-            Some(delay) => {
-                self.invalid(&RETRY_DELAY, &delay);
-                "5".to_owned()
-            }
-            None => "5".to_owned(),
+    pub(super) fn retry_delay(&mut self) -> RetryDelay {
+        let Some(text) = self.value(&RETRY_DELAY) else {
+            return RetryDelay::DEFAULT;
+        };
+        // `[ "${zbm_retry_delay:-0}" -gt 0 ]`
+        if let Ok(delay) = text.parse() {
+            self.info(format!("import/waitfor retry delay is {text} seconds"));
+            delay
+        } else {
+            self.invalid(&RETRY_DELAY, &text);
+            RetryDelay::DEFAULT
         }
     }
 
@@ -304,27 +297,29 @@ impl<'a> Reader<'a> {
     /// `!!` to import only it.
     pub(super) fn prefer(&mut self) -> Preference {
         let mut preference = Preference {
-            pool: String::new(),
-            require: String::new(),
-            bootfs: String::new(),
+            pool: None,
+            require: PoolRequirement::Optional,
+            bootfs: BootfsPreference::FromPool,
         };
         let Some(prefer) = self.value(&PREFER) else {
             return preference;
         };
         let prefer = if let Some(pool) = prefer.strip_suffix("!!") {
-            "only".clone_into(&mut preference.require);
+            preference.require = PoolRequirement::Only;
             self.info(format!("will only attempt to import {}", pool_of(pool)));
             pool.to_owned()
         } else if let Some(pool) = prefer.strip_suffix('!') {
-            "yes".clone_into(&mut preference.require);
+            preference.require = PoolRequirement::Required;
             self.info(format!("requiring pool {}", pool_of(pool)));
             pool.to_owned()
         } else {
             prefer
         };
-        pool_of(&prefer).clone_into(&mut preference.pool);
-        if preference.pool != prefer {
-            preference.bootfs = prefer;
+        let pool = pool_of(&prefer);
+        // A name that no pool can have prefers none.
+        preference.pool = pool.parse().ok();
+        if pool != prefer {
+            preference.bootfs = BootfsPreference::from_conf(&prefer);
         }
         preference
     }

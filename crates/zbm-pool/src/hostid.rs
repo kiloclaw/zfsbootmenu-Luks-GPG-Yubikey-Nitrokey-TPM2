@@ -1,9 +1,9 @@
 //! Host IDs: the number in `/etc/hostid` that ZFS records in each pool a host
 //! imports, and that decides whether another host may import it.
 //!
-//! [`HostId`] is the ID as eight or more lowercase hexadecimal digits;
-//! [`write_hex`] puts one in `/etc/hostid` and [`apparent_hostid`] says
-//! which one ZFS uses now.
+//! [`HostId`], from `zbm-types`, is the ID as eight or more lowercase
+//! hexadecimal digits; [`write()`] puts one in `/etc/hostid` and
+//! [`apparent_hostid`] says which one ZFS uses now.
 //!
 //! ```
 //! use zbm_pool::hostid::HostId;
@@ -14,7 +14,6 @@
 //! assert_eq!(HostId::from_hex("zz"), None);
 //! ```
 
-use std::fmt;
 use std::path::Path;
 
 use zbm_platform::files::Files;
@@ -28,92 +27,27 @@ pub const SPL_HOSTID: &str = "/sys/module/spl/parameters/spl_hostid";
 pub const ETC_HOSTID: &str = "/etc/hostid";
 
 /// The host ID ZFSBootMenu uses when none is given.
-pub const DEFAULT_HOSTID: &str = "00bab10c";
+pub const DEFAULT_HOSTID: &str = HostId::DEFAULT;
 
-/// A host ID: at least eight lowercase hexadecimal digits, as
-/// `printf "%08x"` writes the number.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct HostId(String);
+pub use zbm_types::{HostId, scrape_hostid};
 
-impl HostId {
-    /// The host ID ZFSBootMenu uses when none is given, [`DEFAULT_HOSTID`].
-    pub fn default_id() -> HostId {
-        HostId(DEFAULT_HOSTID.to_owned())
+/// Writes `hostid` to `/etc/hostid`, then sets the SPL module's own host ID
+/// to 0 so that `/etc/hostid` counts.
+///
+/// # Errors
+///
+/// When `/etc/hostid` cannot be written; it is logged.
+pub fn write(files: &dyn Files, hostid: &HostId) -> Result<(), crate::PoolError> {
+    if files.write(Path::new(ETC_HOSTID), &hostid.bytes()).is_err() {
+        zbm_trace::error!("unable to write {hostid} to /etc/hostid");
+        return Err(crate::PoolError::WriteHostid);
     }
-
-    /// The host ID `printf "%08x" "0x<value>"` gives, or `None` when `value`
-    /// is not a hexadecimal number Bash can read. An empty value is 0.
-    pub fn from_hex(value: &str) -> Option<HostId> {
-        let digits = if value.is_empty() { "0" } else { value };
-        if !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return None;
-        }
-        let number = u64::from_str_radix(digits, 16).ok()?;
-        Some(HostId(format!("{number:08x}")))
+    zbm_trace::debug!("wrote hostid {hostid} to /etc/hostid");
+    let spl = Path::new(SPL_HOSTID);
+    if files.exists(spl) && files.write(spl, b"0\n").is_err() {
+        zbm_trace::warn!("failed to force spl.spl_hostid=0 for host ID matching");
     }
-
-    /// The host ID in a message of `zpool import` about a pool that another
-    /// host used last, such as `Last accessed by host (hostid=deadbeef)`.
-    pub fn scrape(text: &str) -> Option<HostId> {
-        scrape_hostid(text).and_then(HostId::from_hex)
-    }
-
-    /// The digits.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// The four bytes of `/etc/hostid`: the first eight digits, in
-    /// little-endian order; longer IDs lose their last digits, as they do in
-    /// the legacy runtime.
-    pub fn bytes(&self) -> [u8; 4] {
-        let byte = |start: usize| {
-            self.0
-                .get(start..start + 2)
-                .and_then(|digits| u8::from_str_radix(digits, 16).ok())
-                .unwrap_or(0)
-        };
-        [byte(6), byte(4), byte(2), byte(0)]
-    }
-
-    /// Writes the ID to `/etc/hostid`, then sets the SPL module's own host ID
-    /// to 0 so that `/etc/hostid` counts.
-    ///
-    /// # Errors
-    ///
-    /// When `/etc/hostid` cannot be written; it is logged.
-    pub fn write(&self, files: &dyn Files) -> Result<(), crate::PoolError> {
-        if files.write(Path::new(ETC_HOSTID), &self.bytes()).is_err() {
-            zbm_trace::error!("unable to write {self} to /etc/hostid");
-            return Err(crate::PoolError::WriteHostid);
-        }
-        zbm_trace::debug!("wrote hostid {self} to /etc/hostid");
-        let spl = Path::new(SPL_HOSTID);
-        if files.exists(spl) && files.write(spl, b"0\n").is_err() {
-            zbm_trace::warn!("failed to force spl.spl_hostid=0 for host ID matching");
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for HostId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-/// The digits `hostid=([A-Fa-f0-9]{1,8})` captures in `text`: the first
-/// `hostid=` followed by a hex digit, and up to eight digits.
-pub fn scrape_hostid(text: &str) -> Option<&str> {
-    text.match_indices("hostid=").find_map(|(start, needle)| {
-        let digits = text.get(start + needle.len()..)?;
-        let len = digits
-            .bytes()
-            .take(8)
-            .take_while(u8::is_ascii_hexdigit)
-            .count();
-        (len > 0).then(|| digits.get(..len)).flatten()
-    })
+    Ok(())
 }
 
 /// Writes the host ID `value` (hexadecimal text, from the command line or a
@@ -123,7 +57,7 @@ pub fn write_hex(files: &dyn Files, value: &str) -> Option<HostId> {
         zbm_trace::error!("invalid hostid {value}");
         return None;
     };
-    hostid.write(files).ok()?;
+    write(files, &hostid).ok()?;
     Some(hostid)
 }
 
@@ -196,20 +130,6 @@ mod tests {
         );
         let unwritable = FakeSystem::new();
         assert_eq!(write_hex(&unwritable.files, "1"), None);
-    }
-
-    #[test]
-    fn host_ids_are_scraped_as_the_legacy_pattern_matches() {
-        let text = "Last accessed by host (hostid=deadbeef1) at ...";
-        assert_eq!(scrape_hostid(text), Some("deadbeef"));
-        assert_eq!(scrape_hostid("hostid=x hostid=A1"), Some("A1"));
-        assert_eq!(scrape_hostid("hostid="), None);
-        assert_eq!(scrape_hostid("myhostid=0b"), Some("0b"));
-        // Found by the fuzz target program_output: text that is not ASCII
-        // before the match.
-        assert_eq!(scrape_hostid("tan\u{fffd}\tDEGRADED"), None);
-        assert_eq!(scrape_hostid("pool «tank» hostid=0c"), Some("0c"));
-        assert_eq!(HostId::scrape("(hostid=A1)").unwrap().as_str(), "000000a1");
     }
 
     #[test]

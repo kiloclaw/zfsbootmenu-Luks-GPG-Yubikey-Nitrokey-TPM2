@@ -10,6 +10,7 @@ use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::{Luks, Settings, Unlocker};
 use zbm_platform::{Context, RealSystem};
+use zbm_types::RetryDelay;
 
 use crate::Io;
 
@@ -47,9 +48,7 @@ pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf
         settings.skipped = path.into();
     }
     settings.base = base;
-    conf.get("zbm_retry_delay")
-        .unwrap_or_default()
-        .clone_into(&mut settings.retry_delay);
+    settings.retry_delay = RetryDelay::or_default(conf.get("zbm_retry_delay").unwrap_or_default());
     settings
 }
 
