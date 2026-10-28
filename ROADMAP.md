@@ -741,8 +741,9 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1,
-  CD2, UI1 and UI2 (28 October 2026; their VM run is left); SE1, DM1, CD1 and VE1 (28 October 2026).
+- UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
+  and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 (28 October 2026;
+  their VM run, at `f8374569`, is left).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
