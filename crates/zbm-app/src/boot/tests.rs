@@ -316,7 +316,7 @@ fn the_app_reads_the_kernels_of_the_environments_it_can_mount() {
     };
     let settings = settings();
     let base = std::path::Path::new("/zfsbootmenu");
-    let unset = crate::App::new(zbm_platform::Context::new(fake.system()));
+    let unset = crate::App::new(fake.context());
     unset.read_kernels(&mut snapshot, fake.system());
     assert!(snapshot.environments[0].kernels.is_empty());
 
@@ -338,7 +338,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     fake.runner.respond_program("zpool", 0, "");
     let settings = settings();
     let base = std::path::Path::new("/zfsbootmenu");
-    let unset = crate::App::new(zbm_platform::Context::new(fake.system()));
+    let unset = crate::App::new(fake.context());
     let app = unset.with_base(base).with_boot(&settings);
     let mut shells = Shells::default();
 

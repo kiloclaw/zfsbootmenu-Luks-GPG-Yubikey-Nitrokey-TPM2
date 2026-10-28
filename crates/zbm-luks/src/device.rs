@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_crypt::Cryptsetup;
-use zbm_platform::System;
+use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::devices::Devices;
 use zbm_types::{DevicePath, MappingName, ParseError};
@@ -48,8 +48,8 @@ fn is_uuid(text: &str) -> bool {
 
 /// What `blkid -c /dev/null -l -o device -t KEY=value` prints, without the
 /// final newlines.
-fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
-    Devices::new(system.runner, system.files).find(key, value)
+fn blkid_device(context: &Context<'_>, key: &str, value: &str) -> String {
+    Devices::new(context.runner(), context.files()).find(key, value)
 }
 
 /// The device node a device specification names: `/dev/...`, `UUID=`,
@@ -57,7 +57,7 @@ fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
 /// a bare LUKS UUID or `luks-<UUID>`. Returns the canonical path of the block
 /// device, or `None` (after logging an error for a specification it does not
 /// understand).
-pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<DevicePath> {
+pub fn resolve_device(context: &Context<'_>, spec: &str) -> Option<DevicePath> {
     if spec.is_empty() {
         return None;
     }
@@ -87,7 +87,7 @@ pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<DevicePath> {
     // LUKS and GPT UUIDs are lower case, FAT volume IDs upper case; tools such
     // as sgdisk print GPT UUIDs in upper case, so either is accepted.
     let lower = value.to_lowercase();
-    let files = system.files;
+    let files = context.files();
     if !is_block_device(files, &device)
         && let Some(link) = lower_case_link(files, &key, &lower)
     {
@@ -99,9 +99,9 @@ pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<DevicePath> {
     if !is_block_device(files, &device)
         && matches!(key.as_str(), "UUID" | "PARTUUID" | "LABEL" | "PARTLABEL")
     {
-        device = blkid_device(system, &key, &value);
+        device = blkid_device(context, &key, &value);
         if device.is_empty() && value != lower && matches!(key.as_str(), "UUID" | "PARTUUID") {
-            device = blkid_device(system, &key, &lower);
+            device = blkid_device(context, &key, &lower);
         }
     }
 
@@ -124,8 +124,8 @@ fn lower_case_link(files: &dyn Files, key: &str, lower: &str) -> Option<String> 
 }
 
 /// Whether the device a specification names exists.
-pub fn device_present(system: &System<'_>, spec: &str) -> bool {
-    resolve_device(system, spec).is_some()
+pub fn device_present(context: &Context<'_>, spec: &str) -> bool {
+    resolve_device(context, spec).is_some()
 }
 
 /// How to tell whether a volume is open.
@@ -169,8 +169,8 @@ pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
 ///
 /// When that is not a mapping name: the UUID comes from the header, which
 /// whoever wrote the device chose.
-pub fn default_name(system: &System<'_>, device: &str) -> Result<MappingName, ParseError> {
-    match Cryptsetup::new(system.runner).luks_uuid(device) {
+pub fn default_name(context: &Context<'_>, device: &str) -> Result<MappingName, ParseError> {
+    match Cryptsetup::new(context.runner()).luks_uuid(device) {
         Some(uuid) if !uuid.is_empty() => format!("luks-{uuid}"),
         _ => format!("luks-{}", device.rsplit('/').next().unwrap_or_default()),
     }
@@ -186,20 +186,20 @@ pub fn default_name(system: &System<'_>, device: &str) -> Result<MappingName, Pa
 ///
 /// When the default name is not a mapping name.
 pub fn mapping_name(
-    system: &System<'_>,
+    context: &Context<'_>,
     name: Option<&MappingName>,
     header: &str,
 ) -> Result<MappingName, ParseError> {
     match name {
         Some(name) => Ok(name.clone()),
-        None => default_name(system, header),
+        None => default_name(context, header),
     }
 }
 
 /// A short description of a device for prompts: the device, its label or
 /// partition label in quotes, and its size.
-pub fn describe_device(system: &System<'_>, device: &str) -> String {
-    let devices = Devices::new(system.runner, system.files);
+pub fn describe_device(context: &Context<'_>, device: &str) -> String {
+    let devices = Devices::new(context.runner(), context.files());
     let size = devices.size(device);
     let label = devices.tag(device, "LABEL");
     let partlabel = devices.tag(device, "PARTLABEL");
@@ -261,9 +261,9 @@ mod tests {
     #[test]
     fn specifications_name_devices() {
         let fake = machine();
-        let system = fake.system();
+        let context = fake.context();
         let _log = log(&fake);
-        let resolve = |spec: &str| resolve_device(&system, spec).map(|device| device.to_string());
+        let resolve = |spec: &str| resolve_device(&context, spec).map(|device| device.to_string());
         let sda = Some("/dev/sda1".to_owned());
         let sdb = Some("/dev/sdb".to_owned());
         assert_eq!(resolve("/dev/sda1"), sda);
@@ -312,8 +312,8 @@ mod tests {
                 "blkid -c /dev/null -l -o device -t LABEL=gone",
             ]
         );
-        assert!(device_present(&system, "LABEL=root"));
-        assert!(!device_present(&system, "LABEL=none"));
+        assert!(device_present(&context, "LABEL=root"));
+        assert!(!device_present(&context, "LABEL=none"));
     }
 
     /// The legacy function, with `/dev/disk` moved below `$ROOT` and `-b`
@@ -388,7 +388,7 @@ mod tests {
                 parity.legacy(format!("{spec:?}"), || legacy_resolution(&spec));
             let fake = machine();
             let _log = log(&fake);
-            let rust = resolve_device(&fake.system(), &spec);
+            let rust = resolve_device(&fake.context(), &spec);
             assert_eq!(
                 rust.map(|device| format!("{device}\n")).unwrap_or_default(),
                 expected,
@@ -479,12 +479,15 @@ mod tests {
             let fake = FakeSystem::new();
             fake.runner
                 .respond("cryptsetup luksUUID /dev/sda1", 0, &format!("{uuid}\n"));
-            assert!(default_name(&fake.system(), "/dev/sda1").is_err(), "{uuid}");
+            assert!(
+                default_name(&fake.context(), "/dev/sda1").is_err(),
+                "{uuid}"
+            );
         }
         let fake = FakeSystem::new();
         let given: MappingName = "cryptroot".parse().unwrap();
         assert_eq!(
-            mapping_name(&fake.system(), Some(&given), "/dev/sda1"),
+            mapping_name(&fake.context(), Some(&given), "/dev/sda1"),
             Ok(given)
         );
     }
@@ -494,14 +497,14 @@ mod tests {
         let mut parity = parity!("names_and_descriptions_match_the_legacy_code");
         for device in ["/dev/sda1", "/dev/sdb", "/dev/mapper/x", "/dev/dir/"] {
             let fake = describe_machine();
-            let system = fake.system();
+            let context = fake.context();
             for (function, rust) in [
                 (
                     "luks_default_name",
-                    default_name(&system, device)
+                    default_name(&context, device)
                         .map_or_else(|_| String::new(), |name| name.to_string()),
                 ),
-                ("luks_describe_device", describe_device(&system, device)),
+                ("luks_describe_device", describe_device(&context, device)),
             ] {
                 let legacy: String = parity.legacy(format!("{function} {device}"), || {
                     legacy_luks()
@@ -514,17 +517,17 @@ mod tests {
         }
         let fake = describe_machine();
         assert_eq!(
-            default_name(&fake.system(), "/dev/sda1")
+            default_name(&fake.context(), "/dev/sda1")
                 .unwrap()
                 .to_string(),
             format!("luks-{UUID}")
         );
         assert_eq!(
-            describe_device(&fake.system(), "/dev/sda1"),
+            describe_device(&fake.context(), "/dev/sda1"),
             "/dev/sda1 \"rpool\" (1.8T)"
         );
         assert_eq!(
-            describe_device(&fake.system(), "/dev/sdb"),
+            describe_device(&fake.context(), "/dev/sdb"),
             "/dev/sdb \"data disk\" (5G)"
         );
     }

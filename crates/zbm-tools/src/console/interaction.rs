@@ -134,12 +134,13 @@ impl<'a> ConsoleInteraction<'a> {
     }
 }
 
-/// The heading and the prompt of a secret of `kind` other than the volume's
-/// passphrase, for the volume on `device`.
-fn secret_prompt(kind: &SecretKind, device: &str) -> (Option<String>, String) {
+/// The heading and the prompt of a secret of `kind`, for the volume on
+/// `device`; `None` for the volume's passphrase, which has a prompt of its
+/// own ([`ConsoleInteraction::passphrase`]).
+fn secret_prompt(kind: &SecretKind, device: &str) -> Option<(Option<String>, String)> {
     const OTHER: &str = "leave empty to use another method";
-    match kind {
-        SecretKind::Passphrase => (None, "Passphrase (leave empty to skip): ".to_owned()),
+    Some(match kind {
+        SecretKind::Passphrase => return None,
         SecretKind::Tpm2Pin => (
             Some(format!("Unlock {device} with the TPM")),
             format!("TPM2 PIN ({OTHER}): "),
@@ -163,7 +164,7 @@ fn secret_prompt(kind: &SecretKind, device: &str) -> (Option<String>, String) {
             Some(format!("Unlock {device} with OpenPGP card {serial}")),
             format!("Card PIN ({left} attempts left; {OTHER}): "),
         ),
-    }
+    })
 }
 
 impl Interaction for ConsoleInteraction<'_> {
@@ -197,11 +198,10 @@ impl Interaction for ConsoleInteraction<'_> {
     }
 
     fn secret(&self, request: &SecretRequest<'_>) -> Asked {
-        if request.kind == SecretKind::Passphrase {
-            return self.passphrase(request);
-        }
         let device = request.volume.device;
-        let (heading, prompt) = secret_prompt(&request.kind, device);
+        let Some((heading, prompt)) = secret_prompt(&request.kind, device) else {
+            return self.passphrase(request);
+        };
         if let Some(heading) = heading {
             self.heading(&heading, device);
         }

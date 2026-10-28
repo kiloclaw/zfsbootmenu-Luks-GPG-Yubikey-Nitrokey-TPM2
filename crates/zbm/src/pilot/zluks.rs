@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use zbm_app::{Action, App, AppError, OpenOptions, UnlockRequest};
-use zbm_platform::{Context, RealFiles, SystemClock, SystemRunner};
+use zbm_platform::RealSystem;
 use zbm_trace::{Config, LevelFilter};
 
 use crate::{Io, USAGE as USAGE_STATUS};
@@ -95,8 +95,8 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         let _ = writeln!(io.stderr, "zluks: {message}");
         return 1;
     }
-    let (runner, files, clock) = (SystemRunner, RealFiles, SystemClock::new());
-    let app = App::new(Context::from_parts(&runner, &files, &clock));
+    let real = RealSystem::new();
+    let app = App::new(real.context());
     open(&app, parsed.request, io)
 }
 
@@ -166,7 +166,7 @@ mod tests {
     /// and standard error.
     fn run_open(fake: &FakeSystem, line: &str) -> (i32, String, String) {
         let parsed = parse_open(&args(line)).unwrap();
-        let app = App::new(Context::new(fake.system()));
+        let app = App::new(fake.context());
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
         let mut io = Io {
             stdout: &mut stdout,

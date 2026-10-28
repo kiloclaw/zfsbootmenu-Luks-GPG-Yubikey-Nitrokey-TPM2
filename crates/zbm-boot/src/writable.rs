@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use zbm_platform::System;
+use zbm_platform::{Context, System};
 use zbm_pool::import::{Access, Import, import_pool};
 use zbm_state::State;
 use zbm_types::ImportPolicy;
@@ -110,11 +110,12 @@ pub fn set_rw_pool(
     let _choice = resume_prompt(system, state, pool)?;
     export_pool(system.runner, pool)?;
     let import = Import::pool(pool).policy(policy);
-    let imported = import_pool(system, state, import.access(Access::ReadWrite));
+    let context = Context::new(*system);
+    let imported = import_pool(&context, state, import.access(Access::ReadWrite));
     zbm_trace::debug!("import_pool: {}", i32::from(imported.is_err()));
     if imported.is_err() {
         zbm_trace::warn!("{pool} could not be imported read/write; importing it read-only again");
-        if let Err(error) = import_pool(system, state, import.access(Access::ReadOnly)) {
+        if let Err(error) = import_pool(&context, state, import.access(Access::ReadOnly)) {
             zbm_trace::error!("{pool} could not be imported again: {error}");
         }
     }

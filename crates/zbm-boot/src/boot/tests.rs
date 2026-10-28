@@ -582,3 +582,11 @@ fn failed_exports_and_missing_kernels_are_errors() {
 }
 
 mod root_prefix;
+
+#[test]
+fn a_program_that_does_not_start_substitutes_its_error() {
+    let ran = zfs::substituted(Ok(Output::new(Status::exited(0), "tank\n\n")));
+    assert_eq!(ran, (true, "tank".to_owned()));
+    let failed = zfs::substituted(Err(std::io::Error::other("no zfs")));
+    assert_eq!(failed, (false, "no zfs".to_owned()));
+}

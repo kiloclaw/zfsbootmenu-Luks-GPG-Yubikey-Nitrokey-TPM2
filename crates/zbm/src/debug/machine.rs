@@ -108,7 +108,7 @@ pub fn pool_lines(snapshot: &Snapshot) -> Vec<String> {
 /// `settings`.
 pub fn run_in(system: &System<'_>, settings: &Settings, report: &str, io: &mut Io) -> i32 {
     let luks = Luks {
-        system: *system,
+        context: Context::new(*system),
         settings,
         interaction: &NoInteraction,
     };

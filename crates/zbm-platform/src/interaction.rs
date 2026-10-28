@@ -6,7 +6,7 @@
 //! them with its dialogs (ROADMAP.md, R5 step 4), the start-up program with
 //! the console prompts of the legacy runtime.
 
-use crate::System;
+use crate::Runner;
 use crate::secret::Secret;
 pub use zbm_types::Answer;
 use zbm_types::RetryDelay;
@@ -249,10 +249,10 @@ pub trait Interaction {
 
     /// Runs `run`, whose program needs the console: an interactive key
     /// script, or `fido2-assert` asking for its PIN. A front end that draws
-    /// on the console steps aside meanwhile and gives `run` the system whose
+    /// on the console steps aside meanwhile and gives `run` the runner whose
     /// programs reach it; on the plain console `run` gets `None` and uses
-    /// the caller's own system. `run` must not ask anything.
-    fn lease_console(&self, run: &mut dyn FnMut(Option<&System<'_>>)) {
+    /// the caller's own runner. `run` must not ask anything.
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&dyn Runner>)) {
         run(None);
     }
 }
@@ -321,5 +321,44 @@ mod tests {
         assert!(Asked::Secret(Secret::copy_from(b"pw")).secret().is_some());
         assert!(Asked::Elsewhere.secret().is_none() && Asked::Ended.secret().is_none());
         assert!(matches!(Asked::from(None), Asked::Ended));
+    }
+
+    #[test]
+    fn no_one_answers_nothing_and_lends_no_console() {
+        let volume = VolumeRef {
+            name: "root",
+            device: "/dev/sda2",
+        };
+        let request = PromptRequest {
+            subject: Subject::Missing("LABEL=keys".to_owned()),
+            delay: None,
+            message: "missing".to_owned(),
+            on_return: "retry".to_owned(),
+            on_escape: "skip".to_owned(),
+        };
+        assert_eq!(NoInteraction.ask(&request), Answer::Escape);
+        let secret = SecretRequest {
+            volume,
+            kind: SecretKind::Fido2Pin,
+            attempt: 1,
+            tries: None,
+            opened_elsewhere: None,
+            description: None,
+        };
+        assert!(matches!(NoInteraction.secret(&secret), Asked::Ended));
+        let wait = |present: &dyn Fn() -> bool| {
+            NoInteraction.wait(&WaitRequest {
+                volume,
+                awaited: Awaited::YubiKey,
+                seconds: 5,
+                present,
+            })
+        };
+        assert_eq!(wait(&|| true), Wait::Present);
+        assert_eq!(wait(&|| false), Wait::TimedOut);
+        NoInteraction.notify(Tell::new(Told::Working, "Unlocking"));
+        let mut lent = None;
+        NoInteraction.lease_console(&mut |runner| lent = Some(runner.is_some()));
+        assert_eq!(lent, Some(false));
     }
 }

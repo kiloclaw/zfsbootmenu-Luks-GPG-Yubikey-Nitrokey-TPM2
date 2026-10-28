@@ -38,39 +38,41 @@ impl Unlocker<'_> {
     /// cleaned up when dropped. The home is in `/run`, with a short path,
     /// because the agent's sockets must fit in a `sockaddr_un`.
     pub fn gpg_setup(&self) -> Option<GnupgHome<'_>> {
-        let system = self.system();
-        if !system.command_exists("gpg") {
+        let context = self.context();
+        if !context.command_exists("gpg") {
             return None;
         }
-        let _ = system.files.create_dir_all(Path::new("/run"));
+        let _ = context.files().create_dir_all(Path::new("/run"));
         let home = GnupgHome::new(
-            system.runner,
-            system.files,
+            context.runner(),
+            context.files(),
             self.temporary_dir("/run/zbm-gpg")?,
         );
-        let _ = system.files.set_mode(home.path(), 0o700);
+        let _ = context.files().set_mode(home.path(), 0o700);
         let source = &self.settings().gnupg_dir;
-        if system.files.is_dir(source) {
+        if context.files().is_dir(source) {
             home.import(source);
         }
         // Start pcscd if the image has it, and prefer it over GnuPG's
         // internal CCID driver once it runs.
         let socket = Path::new("/run/pcscd/pcscd.comm");
         let is_socket = |path: &Path| {
-            system
-                .files
+            context
+                .files()
                 .metadata(path)
                 .is_ok_and(|metadata| metadata.kind == FileKind::Socket)
         };
-        if system.command_exists("pcscd") && !is_socket(socket) {
-            let _ = system.files.create_dir_all(Path::new("/run/pcscd"));
-            if start_pcscd(system.runner).is_ok() {
-                system.clock.sleep(std::time::Duration::from_secs(1));
+        if context.command_exists("pcscd") && !is_socket(socket) {
+            let _ = context.files().create_dir_all(Path::new("/run/pcscd"));
+            if start_pcscd(context.runner()).is_ok() {
+                context.clock().sleep(std::time::Duration::from_secs(1));
             }
         }
         if is_socket(socket) {
             let conf = home.path().join("scdaemon.conf");
-            let _ = system.files.append(&conf, b"disable-ccid\npcsc-shared\n");
+            let _ = context
+                .files()
+                .append(&conf, b"disable-ccid\npcsc-shared\n");
         }
         home.make_private();
         Some(home)

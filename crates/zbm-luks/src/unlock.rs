@@ -69,7 +69,7 @@ impl Unlocker<'_> {
 
     /// Whether `device` is open, as the settings tell.
     fn is_device_open(&self, device: &str) -> bool {
-        is_open(self.system().files, device, &self.settings().open_check)
+        is_open(self.context().files(), device, &self.settings().open_check)
     }
 
     /// The name to open `device` as, with the LUKS header `header`: `name`,
@@ -80,10 +80,10 @@ impl Unlocker<'_> {
         header: &str,
         device: &str,
     ) -> Result<MappingName, LuksError> {
-        let name = mapping_name(self.system(), name, header)?;
+        let name = mapping_name(self.context(), name, header)?;
         if self
-            .system()
-            .files
+            .context()
+            .files()
             .exists(Path::new(&self.mapper(name.as_str())))
         {
             zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
@@ -168,7 +168,7 @@ impl Unlocker<'_> {
         options: &Options,
         origin: Origin,
     ) -> Result<Opened, LuksError> {
-        let description = describe_device(self.system(), device);
+        let description = describe_device(self.context(), device);
         let volume = VolumeRef { name, device };
         let mut prompt = PassphrasePrompt::new(options.tries);
         let mut next = prompt.start();
@@ -268,13 +268,13 @@ impl Unlocker<'_> {
     /// Waits for the device of a specification; a missing device is skipped
     /// at once with `nofail`, and otherwise when the user says so.
     pub fn wait_device(&self, spec: &str, nofail: bool) -> Option<DevicePath> {
-        let system = *self.system();
+        let context = *self.context();
         loop {
-            if let Some(device) = resolve_device(&system, spec) {
+            if let Some(device) = resolve_device(&context, spec) {
                 return Some(device);
             }
             self.settle();
-            if let Some(device) = resolve_device(&system, spec) {
+            if let Some(device) = resolve_device(&context, spec) {
                 return Some(device);
             }
             if nofail {
@@ -297,13 +297,13 @@ impl Unlocker<'_> {
 
     /// Every LUKS block device on the machine.
     pub fn discover_devices(&self) -> Vec<DevicePath> {
-        let system = self.system();
-        let output = Devices::new(system.runner, system.files).luks_devices();
+        let context = *self.context();
+        let output = Devices::new(context.runner(), context.files()).luks_devices();
         let devices: BTreeSet<DevicePath> = output
             .lines()
             .map(str::trim)
-            .filter(|device| is_block_device(system.files, device))
-            .filter_map(|device| canonical(system.files, device).parse().ok())
+            .filter(|device| is_block_device(context.files(), device))
+            .filter_map(|device| canonical(context.files(), device).parse().ok())
             .collect();
         devices.into_iter().collect()
     }
@@ -311,7 +311,7 @@ impl Unlocker<'_> {
     /// Whether an open mapping might hold a ZFS vdev: unknown contents (or a
     /// partitioned device) count as maybe.
     pub fn may_hold_zfs(&self, name: &MappingName) -> bool {
-        let kind = Devices::new(self.system().runner, self.system().files)
+        let kind = Devices::new(self.context().runner(), self.context().files())
             .content_type(&self.mapper(name.as_str()));
         kind.is_empty() || kind == "zfs_member"
     }

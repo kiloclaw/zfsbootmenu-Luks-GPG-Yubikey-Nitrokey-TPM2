@@ -16,7 +16,7 @@ use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::luks::{LUKS_TOKEN_WAIT, LUKS_TOKENS};
 use zbm_crypt::{CryptError, Cryptsetup, KeySource};
 use zbm_platform::secret::Secret;
-use zbm_platform::{Environment, System};
+use zbm_platform::{Context, Environment, Runner};
 use zbm_tools::{Shown, udev};
 pub use zbm_types::Answer;
 use zbm_types::RetryDelay;
@@ -133,8 +133,8 @@ impl Settings {
 /// What the LUKS code works with.
 #[derive(Clone, Copy)]
 pub struct Luks<'a> {
-    /// The system.
-    pub system: System<'a>,
+    /// The ports to the system.
+    pub context: Context<'a>,
     /// The settings.
     pub settings: &'a Settings,
     /// The person at the console.
@@ -183,9 +183,9 @@ impl<'a> Unlocker<'a> {
         }
     }
 
-    /// The system.
-    pub fn system(&self) -> &System<'a> {
-        &self.luks.system
+    /// The ports to the system.
+    pub fn context(&self) -> &Context<'a> {
+        &self.luks.context
     }
 
     /// The settings.
@@ -206,8 +206,8 @@ impl<'a> Unlocker<'a> {
     /// nothing acknowledges libdevmapper's `udev` cookie and `cryptsetup`
     /// waits forever, so it is told to manage the device nodes itself.
     pub fn available(&mut self) -> bool {
-        let system = self.system();
-        if !system.command_exists("cryptsetup") {
+        let context = *self.context();
+        if !context.command_exists("cryptsetup") {
             return false;
         }
         let rules = [
@@ -215,11 +215,11 @@ impl<'a> Unlocker<'a> {
             "/lib/udev/rules.d/95-dm-notify.rules",
             "/etc/udev/rules.d/95-dm-notify.rules",
         ];
-        let set = system.environment.var_os("DM_DISABLE_UDEV").is_some();
+        let set = context.environment().var_os("DM_DISABLE_UDEV").is_some();
         if !set
             && !rules
                 .iter()
-                .any(|rule| system.files.exists(Path::new(rule)))
+                .any(|rule| context.files().exists(Path::new(rule)))
         {
             zbm_trace::debug!(
                 "{}",
@@ -242,7 +242,7 @@ impl<'a> Unlocker<'a> {
 
     /// The options the start-up stored from ZFSBootMenu's command line.
     pub fn options(&self) -> CmdlineDir<'a> {
-        CmdlineDir::new(self.system().files, &self.settings().base)
+        CmdlineDir::new(self.context().files(), &self.settings().base)
     }
 
     /// The value of a ZFSBootMenu command line option.
@@ -252,7 +252,7 @@ impl<'a> Unlocker<'a> {
 
     /// `udevadm settle`.
     pub fn settle(&self) {
-        udev::settle(self.system().runner, Shown::Hidden);
+        udev::settle(self.context().runner(), Shown::Hidden);
     }
 
     /// Shows a timed prompt.
@@ -265,13 +265,13 @@ impl<'a> Unlocker<'a> {
         self.luks.interaction.secret(request)
     }
 
-    /// Runs `run` with the system whose programs reach the console
+    /// Runs `run` with the runner whose programs reach the console
     /// ([`Interaction::lease_console`]): a front end that draws on it steps aside.
-    pub fn with_console(&self, run: &mut dyn FnMut(&System<'_>)) {
-        let own = *self.system();
+    pub fn with_console(&self, run: &mut dyn FnMut(&dyn Runner)) {
+        let own = self.context().runner();
         self.luks
             .interaction
-            .lease_console(&mut |system| run(system.unwrap_or(&own)));
+            .lease_console(&mut |runner| run(runner.unwrap_or(own)));
     }
 
     /// Waits for a device. One that appeared meanwhile is used once udev
@@ -336,7 +336,7 @@ impl<'a> Unlocker<'a> {
             Key::File(path) => KeySource::File(path),
             Key::Stdin(secret) => KeySource::Secret(secret),
         };
-        let result = Cryptsetup::new(self.system().runner)
+        let result = Cryptsetup::new(self.context().runner())
             .without_udev(self.dm_disable_udev)
             .open_described(device, name, key, args);
         let (status, output) = match result {

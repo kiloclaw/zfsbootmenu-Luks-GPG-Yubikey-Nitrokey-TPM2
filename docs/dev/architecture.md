@@ -85,8 +85,11 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   (`zbm_trace::info!` and the others) log to the kernel log, which its `KmsgLayer` writes in the formats of the legacy
   runtime.
 - **platform**: `zbm-platform` defines the ports through which runtime code reaches the system (`Runner`, `Files`,
-  `Clock`, `Console`, `Processes`, `Environment`), with their real implementations, the `System` bundle and the
-  `Context` of services, whose runner reports every program it runs to the journal (the command journal). It holds
+  `Clock`, `Console`, `Processes`, `Environment`), with their real implementations, the `System` bundle of front ends
+  and the `Context` of services, which is the bundle without its console and whose runner reports every program it
+  runs to the journal (the command journal); and the `Interaction` port, through which services ask the person
+  (`interaction`: timed prompts, secrets, waits for devices, messages, and lending the console to a program that asks
+  there itself), with `NoInteraction` for programs with no one to ask. It holds
   `Command` and `Secret`, the error type, the kernel log writer and reader (records read from `/dev/kmsg`), crash
   reports, the state directory's locks, and the file tree operations (copying, restricting and removing trees in
   process, `tree`). `zbm-display` is the display and keyboard without a terminal: DRM buffers, fonts (TrueType, and
@@ -98,10 +101,14 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
   programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:
   `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts, and reads block
-  devices from `/sys/class/block` and udev's records. Adapters are the only code that builds a `Command`: the
+  devices from `/sys/class/block` and udev's records; its `console` module is the plain console, the
+  `ConsoleInteraction` that shows a service's questions on a terminal without the menu. Adapters are the only code
+  that builds a `Command`: the
   workspace's `clippy.toml` disallows `Command::new` and `Command::shell`, which the adapters' modules and test builds
   allow. Each adapter gives the programs that wait on a device a time-out.
-- **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method. Its `Unlocker` tries the key methods
+- **domain**: domain crates take a `Context`, which has no console, and ask the person through the `Interaction`
+  they are given; `check-deps` refuses `System` and `Console` in their code outside tests, apart from `zbm-boot`
+  until its prompts move to the front ends (ROADMAP.md, DM7). `zbm-luks` unlocks and closes LUKS volumes with every key method. Its `Unlocker` tries the key methods
   of `unlock::methods` (`KeyMethod` strategies, in the order `key_methods` lists them), LUKS2 tokens through the
   `TokenHandler` registry of `keys::handlers` in two passes (silent, then interactive), and then the passphrase prompt,
   whose `PassphrasePrompt` state machine decides between another try, the retry prompt and giving up; a
@@ -125,7 +132,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   on the menu's start-up view (`zbm::startup::MenuFront` over `zbm_tui::menu::startup`) when the terminal can run
   the menu, and `zluks` performs its actions through `zbm-app`; its supervisor starts the console on the display
   (`zbm-console`) and the programs on its terminal. No front end uses an adapter crate (`check-deps`,
-  `NOT_THROUGH`). `zbm-tui` is the menu in the Elm architecture: a `Model`, a pure `update`, a `view` drawn with
+  `NOT_THROUGH`); they reach the plain console through `zbm_boot::prompt`. `zbm-tui` is the menu in the Elm architecture: a `Model`, a pure `update`, a `view` drawn with
   Ratatui, and one key binding table. `zbm-brush` is the shell of the Rust images.
 - **test support**: `zbm-testkit` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,
   `FakeConsole`) and the helpers that run legacy code for parity tests. Crates use it only as a development

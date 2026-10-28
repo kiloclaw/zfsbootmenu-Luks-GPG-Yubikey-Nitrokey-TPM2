@@ -20,10 +20,10 @@ impl Unlocker<'_> {
     /// Whether a YubiKey is connected; without `ykinfo` in the image,
     /// `ykchalresp` itself reports a missing key.
     pub fn ykchalresp_present(&self) -> bool {
-        if !self.system().command_exists("ykinfo") {
+        if !self.context().command_exists("ykinfo") {
             return true;
         }
-        zbm_crypt::yubikey::YubiKey::new(self.system().runner).is_present()
+        zbm_crypt::yubikey::YubiKey::new(self.context().runner()).is_present()
     }
 
     /// Opens a volume with YubiKey challenge-response, with `tries`
@@ -43,7 +43,7 @@ impl Unlocker<'_> {
         let failed = || LuksError::YubiKey {
             device: device.to_owned(),
         };
-        if !self.system().command_exists("ykchalresp") {
+        if !self.context().command_exists("ykchalresp") {
             zbm_trace::warn!("ykchalresp is not available to unlock {device}");
             return Err(failed());
         }
@@ -91,7 +91,7 @@ impl Unlocker<'_> {
             pass
         };
         self.tell(Told::Touch, "Touch the YubiKey if it blinks.\n");
-        let response = zbm_crypt::yubikey::YubiKey::new(self.system().runner)
+        let response = zbm_crypt::yubikey::YubiKey::new(self.context().runner())
             .response(yubikey.slot, &challenge);
         let Some(response) = response else {
             self.tell(Told::Refused, "The YubiKey did not respond.\n");

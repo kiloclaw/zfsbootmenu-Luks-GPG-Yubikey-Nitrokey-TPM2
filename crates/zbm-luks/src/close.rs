@@ -29,12 +29,12 @@ pub fn is_on(device: &str, target: &str) -> bool {
 impl Unlocker<'_> {
     /// The imported pools with a vdev on `device` or one of its partitions.
     pub fn pools_on_device(&self, device: &str) -> Vec<String> {
-        let system = self.system();
-        let Ok(target) = system.files.canonicalize(Path::new(device)) else {
+        let context = *self.context();
+        let Ok(target) = context.files().canonicalize(Path::new(device)) else {
             return Vec::new();
         };
         let target = target.to_string_lossy().into_owned();
-        let zfs = ZfsCli::new(system.runner);
+        let zfs = ZfsCli::new(context.runner());
         zfs.pool_names()
             .unwrap_or_default()
             .into_iter()
@@ -74,11 +74,11 @@ impl Unlocker<'_> {
                 .join(&name)
                 .to_string_lossy()
                 .into_owned();
-            if !is_block_device(self.system().files, &path) {
+            if !is_block_device(self.context().files(), &path) {
                 gone.push(name);
                 continue;
             }
-            let zfs = ZfsCli::new(self.system().runner);
+            let zfs = ZfsCli::new(self.context().runner());
             for pool in self.pools_on_device(&path) {
                 zbm_trace::debug!("exporting {pool} before closing {name}");
                 let exported = pool.parse().is_ok_and(|pool| zfs.export(&pool).is_ok());

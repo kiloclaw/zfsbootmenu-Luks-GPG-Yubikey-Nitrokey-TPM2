@@ -191,7 +191,7 @@ fn token_method(kind: &str, has_pin: bool) -> Option<Method> {
 /// ZFSBootMenu opened it, whether it is open, the methods its tokens offer
 /// (the passphrase last) and the pools on it.
 pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
-    let system = *session.system();
+    let context = *session.context();
     let settings = session.settings();
     let mappings = session.mappings().read().unwrap_or_default();
     session
@@ -200,9 +200,9 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
         .map(|device| {
             let device = device.to_string();
             let mapping = mappings.iter().find(|mapping| mapping.device == device);
-            let open = is_open(system.files, &device, &settings.open_check);
+            let open = is_open(context.files(), &device, &settings.open_check);
             let mut methods: Vec<Method> = Vec::new();
-            for token in list_tokens(&system, &device) {
+            for token in list_tokens(&context, &device) {
                 let has_pin = token.flag("tpm2-pin").unwrap_or(false);
                 if let Some(method) = token_method(&token.kind, has_pin)
                     && !methods.contains(&method)

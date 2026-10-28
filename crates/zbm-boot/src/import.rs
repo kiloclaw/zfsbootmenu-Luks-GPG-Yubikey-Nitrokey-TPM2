@@ -2,7 +2,7 @@
 //! console prompts and the recovery shell of the start-up program as its
 //! [`Operator`].
 
-use zbm_platform::System;
+use zbm_platform::{Context, System};
 use zbm_pool::{Late, Operator, RetryDelay};
 use zbm_state::State;
 use zbm_types::PoolName;
@@ -70,7 +70,13 @@ pub fn stage(
     settings: &ImportSettings,
     recovery: &mut dyn Recovery,
 ) -> Imported {
-    zbm_pool::stage(system, state, settings, &mut Prompts::new(system, recovery))
+    let context = Context::new(*system);
+    zbm_pool::stage(
+        &context,
+        state,
+        settings,
+        &mut Prompts::new(system, recovery),
+    )
 }
 
 #[cfg(test)]

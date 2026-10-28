@@ -62,8 +62,8 @@ fn recorded(session: &Unlocker<'_>) -> Vec<Mapping> {
 fn skipped(session: &Unlocker<'_>) -> BTreeSet<String> {
     let path = &session.settings().skipped;
     session
-        .system()
-        .files
+        .context()
+        .files()
         .read_to_string(path)
         .unwrap_or_default()
         .lines()
@@ -123,8 +123,8 @@ fn open(luks: Luks<'_>, spec: &str, name: Option<&MappingName>) -> Vec<Event> {
     let Some(mut session) = session(luks) else {
         return unavailable();
     };
-    let system = *session.system();
-    let Some(device) = resolve_device(&system, spec) else {
+    let context = *session.context();
+    let Some(device) = resolve_device(&context, spec) else {
         return vec![failed(
             &format!("unable to open {spec}"),
             vec![device_not_found(spec)],

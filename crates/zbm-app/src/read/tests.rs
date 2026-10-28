@@ -146,7 +146,7 @@ fn volumes_say_their_mapping_state_and_methods() {
         .file("/zfsbootmenu/luks-mappings", "zroot-a\t/dev/vda2\t\n");
     let settings = Settings::new("/zfsbootmenu");
     let session = Unlocker::new(Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &NoPrompts,
     });

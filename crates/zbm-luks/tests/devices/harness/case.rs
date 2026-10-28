@@ -17,7 +17,7 @@ use zbm_platform::files::{Files, RealFiles};
 use zbm_platform::interaction::{
     Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, Wait, WaitRequest,
 };
-use zbm_platform::{KernelLog, Secret, System, SystemClock, SystemProcesses};
+use zbm_platform::{Context, KernelLog, Secret, System, SystemClock, SystemProcesses};
 use zbm_tools::console::ConsoleInteraction;
 
 use super::{DeviceRunner, Dump, Lab, record_name};
@@ -298,7 +298,7 @@ impl<'l> Case<'l> {
     pub fn with_session<T>(
         &self,
         console: &LinesConsole,
-        body: impl FnOnce(&mut Unlocker<'_>, &System<'_>) -> T,
+        body: impl FnOnce(&mut Unlocker<'_>, &Context<'_>) -> T,
     ) -> T {
         let files = RealFiles;
         let clock = SystemClock::new();
@@ -325,12 +325,13 @@ impl<'l> Case<'l> {
             answers: self.fake.join("answers"),
             delay: self.prompt_delay,
         };
+        let context = Context::new(system);
         let mut session = Unlocker::new(Luks {
-            system,
+            context,
             settings: &settings,
             interaction: &prompter,
         });
-        let result = body(&mut session, &system);
+        let result = body(&mut session, &context);
         self.console_output
             .lock()
             .unwrap()

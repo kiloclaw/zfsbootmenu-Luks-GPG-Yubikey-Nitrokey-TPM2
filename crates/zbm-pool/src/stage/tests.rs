@@ -96,7 +96,7 @@ fn late_luks_volumes_are_unlocked_before_retrying() {
         opens: vec![1, 4],
         ..FakeOperator::default()
     };
-    stage(&fake.system(), &state, &strict(), &mut operator);
+    stage(&fake.context(), &state, &strict(), &mut operator);
     assert_eq!(operator.unlocks, 4);
     assert_eq!(operator.prompts, ["pool 5"]);
     assert_eq!(
@@ -126,7 +126,7 @@ fn escape_opens_the_recovery_shell_after_logging_unavailable_pools() {
         retry_delay: RetryDelay::or_default("2"),
         ..strict()
     };
-    stage(&fake.system(), &state, &settings, &mut operator);
+    stage(&fake.context(), &state, &settings, &mut operator);
     assert_eq!(operator.prompts, ["tank 2"]);
     assert_eq!(operator.shells, ["unable to successfully import a pool"]);
     assert!(fake.runner.lines().contains(&"zpool import".to_owned()));
@@ -160,7 +160,7 @@ fn host_id_matching_records_the_host_id() {
         ..ImportSettings::default()
     };
     let imported = stage(
-        &fake.system(),
+        &fake.context(),
         &state,
         &settings,
         &mut FakeOperator::default(),
@@ -195,7 +195,7 @@ fn unhealthy_and_unsupported_pools_are_restricted() {
     for build in [Build::Local, Build::Release] {
         let settings = ImportSettings { build, ..strict() };
         let mut operator = FakeOperator::default();
-        let imported = stage(&fake.system(), &state, &settings, &mut operator);
+        let imported = stage(&fake.context(), &state, &settings, &mut operator);
         assert_eq!(imported.bootfs.unwrap().as_str(), "tank/ROOT/a");
         assert_eq!(operator.warnings.len(), 1);
     }

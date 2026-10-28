@@ -447,6 +447,17 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   `zbm-platform`; `getopts` is in `zbm-kcl`, which also keeps the legacy tokenizer until it is rewritten (DM10). Uses of
   Bash-emulating helpers outside tests: 21 to 2, both in `zbm-kcl`.
 
+### One context, one port to the person (phase 1)
+
+- Domain code no longer draws on the console. What unlocking asks and says (passphrases, PINs, waits for a key, what
+  it is doing) goes through one port, `Interaction`, which the plain console (`zbm-tools`'s `ConsoleInteraction`) and
+  the menu's start-up view implement; the LUKS code no longer paints text, calls `tput` or reads secrets itself. The
+  plain console shows the same prompts, except that the TPM lockout message no longer follows a blank line.
+- Services take a `Context`: the system's programs, files, clock, process and environment, without the console. Its
+  runner reports each program to the command journal, so the programs `zluks` runs are in the journal too.
+- `zbm-boot` no longer depends on `zbm-luks`, and `cargo xtask check-deps` refuses `System` and `Console` in the
+  domain crates' code outside tests, apart from `zbm-boot` until its prompts move to the front ends (DM7).
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

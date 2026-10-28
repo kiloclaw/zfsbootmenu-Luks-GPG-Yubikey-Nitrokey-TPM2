@@ -145,3 +145,35 @@ fn key_files_and_sources_are_written_out() {
         ["prompt", "file /k", "keysource tank/keys", "nothing"]
     );
 }
+
+#[test]
+fn key_sources_say_what_they_are() {
+    let shown: Vec<String> = [
+        KeySource::Prompt,
+        KeySource::File("/etc/zfs/key".to_owned()),
+        KeySource::Keysource(name("tank/keys")),
+        KeySource::Nothing,
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    assert_eq!(
+        shown,
+        [
+            "prompt",
+            "file /etc/zfs/key",
+            "keysource tank/keys",
+            "nothing"
+        ]
+    );
+    let fake = machine("prompt", "tank/keys");
+    assert_eq!(
+        keysource_property(&fake.runner, &name("tank/ROOT/be")).as_deref(),
+        Some("tank/keys")
+    );
+    let unset = machine("prompt", "-");
+    assert_eq!(
+        keysource_property(&unset.runner, &name("tank/ROOT/be")),
+        None
+    );
+}

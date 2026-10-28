@@ -28,7 +28,7 @@ const FIDO2_TRIES: u32 = 3;
 impl Unlocker<'_> {
     /// Whether a FIDO2 (HID) device is connected.
     pub fn have_fido2_device(&self) -> bool {
-        let files = self.system().files;
+        let files = self.context().files();
         let names = files.read_dir(Path::new("/dev")).unwrap_or_default();
         names.iter().any(|name| {
             name.as_encoded_bytes().starts_with(b"hidraw")
@@ -41,8 +41,8 @@ impl Unlocker<'_> {
     /// Computes the LUKS passphrase of a systemd-fido2 token with
     /// `fido2-assert`.
     pub fn fido2_native(&self, token: &Token) -> Outcome {
-        let system = self.system();
-        if !system.command_exists("fido2-assert") || !system.command_exists("fido2-token") {
+        let context = *self.context();
+        if !context.command_exists("fido2-assert") || !context.command_exists("fido2-token") {
             return Outcome::Unsupported;
         }
         let (Some(credential), Some(salt)) =
@@ -61,7 +61,7 @@ impl Unlocker<'_> {
             None => &[false, true],
         };
 
-        let fido2 = Fido2::new(system.runner);
+        let fido2 = Fido2::new(context.runner());
         let devices = fido2.devices();
         if devices.is_empty() {
             return Outcome::Failed;
@@ -98,18 +98,18 @@ impl Unlocker<'_> {
         device: &str,
         assertion: Assertion<'_>,
     ) -> Option<zbm_platform::secret::Secret> {
-        let system = self.system();
-        let random = system
-            .files
+        let context = *self.context();
+        let random = context
+            .files()
             .read_prefix(Path::new("/dev/urandom"), 32)
             .unwrap_or_default();
         let challenge = base64_encode(&random);
         if !assertion.pin {
-            return Fido2::new(system.runner).hmac_secret(device, assertion, &challenge);
+            return Fido2::new(context.runner()).hmac_secret(device, assertion, &challenge);
         }
         let mut hmac = None;
-        self.with_console(&mut |system| {
-            hmac = Fido2::new(system.runner).hmac_secret(device, assertion, &challenge);
+        self.with_console(&mut |runner| {
+            hmac = Fido2::new(runner).hmac_secret(device, assertion, &challenge);
         });
         hmac
     }

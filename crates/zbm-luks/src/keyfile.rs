@@ -46,7 +46,7 @@ impl Unlocker<'_> {
         let (file, device_spec) = split_keyfile(spec);
         let Some(device_spec) = device_spec.filter(|spec| !spec.is_empty()) else {
             let mut found = FoundKey::default();
-            if self.system().files.exists(Path::new(file)) {
+            if self.context().files().exists(Path::new(file)) {
                 found.path = self.readable(file);
             } else {
                 zbm_trace::warn!("LUKS key file {file} not found");
@@ -69,8 +69,8 @@ impl Unlocker<'_> {
         file: &str,
         volume: VolumeRef<'_>,
     ) -> Option<DevicePath> {
-        let system = *self.system();
-        if let Some(device) = resolve_device(&system, device_spec) {
+        let context = *self.context();
+        if let Some(device) = resolve_device(&context, device_spec) {
             return Some(device);
         }
         let mut device = None;
@@ -82,11 +82,11 @@ impl Unlocker<'_> {
                     file: file.to_owned(),
                 },
                 seconds: self.token_wait(),
-                present: &|| device_present(&system, device_spec),
+                present: &|| device_present(&context, device_spec),
             };
             let waited = self.await_device(&request);
             if waited == Wait::Present {
-                device = resolve_device(&system, device_spec);
+                device = resolve_device(&context, device_spec);
             }
         }
         if device.is_none() {
@@ -99,13 +99,13 @@ impl Unlocker<'_> {
     /// Mounts the key device `device` read-only and finds `file` on it.
     fn mount_key_device(&self, device: &str, file: &str) -> FoundKey {
         let mut found = FoundKey::default();
-        let files = self.system().files;
+        let files = self.context().files();
         let _ = files.create_dir_all(Path::new("/tmp"));
         let Some(dir) = self.temporary_dir("/tmp/luks-key") else {
             zbm_trace::error!("unable to create a mount point for key device {device}");
             return found;
         };
-        let mounted = Mount::new(self.system().runner)
+        let mounted = Mount::new(self.context().runner())
             .read_only(device, &dir)
             .is_ok_and(|output| output.status.is_success());
         if !mounted {
@@ -127,7 +127,7 @@ impl Unlocker<'_> {
     /// as a named pipe: a key file is a regular file, or a block device
     /// holding a raw key.
     fn readable(&self, path: &str) -> Option<String> {
-        let kind = self.system().files.metadata(Path::new(path)).ok()?.kind;
+        let kind = self.context().files().metadata(Path::new(path)).ok()?.kind;
         if matches!(kind, FileKind::File | FileKind::BlockDevice) {
             return Some(path.to_owned());
         }
@@ -140,19 +140,19 @@ impl Unlocker<'_> {
         let Some(mount) = &found.mount else {
             return;
         };
-        let _ = Mount::new(self.system().runner).unmount(Path::new(mount), Shown::Hidden);
-        let _ = self.system().files.remove_dir(Path::new(mount));
+        let _ = Mount::new(self.context().runner()).unmount(Path::new(mount), Shown::Hidden);
+        let _ = self.context().files().remove_dir(Path::new(mount));
     }
 
     /// Creates a new directory `<prefix>.<process ID>-<n>`, as
     /// `mktemp -d <prefix>.XXXXXX` creates one: a name that exists already is
     /// never reused.
     pub(crate) fn temporary_dir(&self, prefix: &str) -> Option<String> {
-        let system = self.system();
-        let pid = system.processes.id();
+        let context = *self.context();
+        let pid = context.processes().id();
         for attempt in 0..100 {
             let dir = format!("{prefix}.{pid}-{attempt}");
-            match system.files.create_dir(Path::new(&dir)) {
+            match context.files().create_dir(Path::new(&dir)) {
                 Ok(()) => return Some(dir),
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(_) => return None,
@@ -179,7 +179,7 @@ mod tests {
         settings.retry = retry;
         let _log = log(fake);
         let luks = Luks {
-            system: fake.system(),
+            context: fake.context(),
             settings: &settings,
             interaction: &NoPrompts::new(fake),
         };

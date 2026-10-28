@@ -57,13 +57,13 @@ pub fn split_blob(blob: &[u8]) -> Option<(&[u8], &[u8])> {
 impl Unlocker<'_> {
     /// tpm2-tools for the TPM of the settings.
     fn tpm2(&self) -> Tpm2<'_> {
-        Tpm2::new(self.system().runner, &self.settings().tpm2_tcti)
+        Tpm2::new(self.context().runner(), &self.settings().tpm2_tcti)
     }
 
     /// Whether the TPM device is there, as `[ -c ]` finds it.
     fn tpm2_device_present(&self, device: &str) -> bool {
-        self.system()
-            .files
+        self.context()
+            .files()
             .metadata(Path::new(device))
             .is_ok_and(|metadata| metadata.kind == FileKind::CharDevice)
     }
@@ -80,7 +80,7 @@ impl Unlocker<'_> {
         }
         if !self.tpm2_probed {
             self.tpm2_probed = true;
-            let modules = Modules::new(self.system().runner);
+            let modules = Modules::new(self.context().runner());
             for module in ["tpm_crb", "tpm_tis"] {
                 modules.probe_quietly(module);
             }
@@ -90,11 +90,11 @@ impl Unlocker<'_> {
                     return true;
                 }
                 // Give up early when the kernel found no TPM at all.
-                let tpms = self.system().files.read_dir(Path::new("/sys/class/tpm"));
+                let tpms = self.context().files().read_dir(Path::new("/sys/class/tpm"));
                 if tpms.unwrap_or_default().is_empty() {
                     break;
                 }
-                self.system().clock.sleep(Duration::from_millis(100));
+                self.context().clock().sleep(Duration::from_millis(100));
             }
         }
         self.tpm2_device_present(device)
@@ -103,7 +103,7 @@ impl Unlocker<'_> {
     /// Whether the TPM refuses PIN-protected objects after too many wrong
     /// PINs.
     pub fn tpm2_in_lockout(&self) -> bool {
-        self.system().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
+        self.context().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
     }
 
     /// Says that the TPM is in lockout.
@@ -124,8 +124,8 @@ impl Unlocker<'_> {
 
     /// What unsealing `token` needs, or why it cannot be unsealed here.
     fn unseal_plan(&self, token: &Token, pin: Option<&Secret>) -> Result<Unseal, Outcome> {
-        let system = self.system();
-        if let Some(tool) = TOOLS.iter().find(|tool| !system.command_exists(tool)) {
+        let context = *self.context();
+        if let Some(tool) = TOOLS.iter().find(|tool| !context.command_exists(tool)) {
             zbm_trace::debug!("native TPM2 unlocking needs {tool}");
             return Err(Outcome::Unsupported);
         }
@@ -169,7 +169,7 @@ impl Unlocker<'_> {
         else {
             return Outcome::Failed;
         };
-        let files = self.system().files;
+        let files = self.context().files();
         let _ = files.set_mode(Path::new(&work), 0o700);
         let path = |name: &str| format!("{work}/{name}");
         let written = files.write(Path::new(&path("priv")), &plan.private).is_ok()

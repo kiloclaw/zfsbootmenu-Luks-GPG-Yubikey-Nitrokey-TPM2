@@ -40,7 +40,7 @@ fn act(fake: &FakeSystem, action: &Action) -> Vec<Event> {
     settings.open_check = OpenCheck::Markers("/fake/holders".into());
     let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
     let luks = Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &NoPrompts,
     };
@@ -134,7 +134,7 @@ fn closing_without_mappings_is_done_at_once() {
     );
     let settings = Settings::new("/zfsbootmenu");
     let luks = Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &NoPrompts,
     };
@@ -202,13 +202,11 @@ fn act_in_app(fake: &FakeSystem, action: &Action) -> Vec<Event> {
     settings.open_check = OpenCheck::Markers("/fake/holders".into());
     let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
     let luks = Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &Escape(ConsoleInteraction::new(fake.system()).colors(false)),
     };
-    crate::App::new(zbm_platform::Context::new(fake.system()))
-        .with_luks(luks)
-        .act(action)
+    crate::App::new(fake.context()).with_luks(luks).act(action)
 }
 
 #[test]
@@ -256,7 +254,7 @@ fn a_volume_that_does_not_open_is_reported_with_its_causes() {
 #[test]
 fn actions_without_a_use_case_end_as_failed() {
     let fake = machine();
-    let app = crate::App::new(zbm_platform::Context::new(fake.system()));
+    let app = crate::App::new(fake.context());
 
     for events in [
         app.act(&Action::UnlockAll),

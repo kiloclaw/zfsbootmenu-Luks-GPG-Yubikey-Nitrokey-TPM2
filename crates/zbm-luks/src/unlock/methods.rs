@@ -110,8 +110,8 @@ fn open_with_keyscript(
 ) -> Result<(), LuksError> {
     let device = volume.device;
     let executable = session
-        .system()
-        .files
+        .context()
+        .files()
         .metadata(Path::new(script))
         .is_ok_and(|metadata| metadata.is_executable());
     if !executable {
@@ -136,8 +136,8 @@ fn open_with_keyscript(
     ]);
     // The script may ask on the console, which it gets for the time.
     let mut printed = None;
-    session.with_console(&mut |system| {
-        printed = programs::key_script(system.runner, script, key, &env)
+    session.with_console(&mut |runner| {
+        printed = programs::key_script(runner, script, key, &env)
             .ok()
             .and_then(zbm_platform::Output::into_secret);
     });

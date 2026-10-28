@@ -37,6 +37,12 @@ pub const ZFS_PROGRAMS: &[&str] = &["zfs", "zpool", "zdb"];
 /// `Zfs` port everywhere else.
 pub const ZFS_BUILDERS: &[&str] = &["ZfsCommand", "ZpoolCommand"];
 
+/// The ports that reach the person at the console: the `System` bundle,
+/// which carries a console, and the console itself. Domain crates take a
+/// `Context` and ask through an `Interaction` instead (DM2), which
+/// `xtask check-deps` enforces.
+pub const CONSOLE_PORTS: &[&str] = &["System", "Console"];
+
 /// The macros that log, of `zbm_trace` and `tracing`; a message of theirs
 /// that is a format string, rather than a constant with fields, is counted
 /// (DM9).
@@ -65,6 +71,9 @@ pub struct FileScan {
     /// Calls of [`LOG_MACROS`] outside tests whose message is a format
     /// string.
     pub format_logs: usize,
+    /// The lines, outside tests, of the paths that name a [`CONSOLE_PORTS`]
+    /// type.
+    pub console_ports: Vec<usize>,
     /// The lines of test code in a file that is not test code as a whole:
     /// inline `#[cfg(test)]` modules and test functions, as ranges from
     /// their first line to their last.
@@ -228,6 +237,7 @@ impl Scanner<'_> {
         for attr in attrs {
             self.visit_attribute(attr);
         }
+        self.visit_signature(sig);
         self.visit_block(body);
         self.current.pop();
         self.test_code = saved;
@@ -241,6 +251,14 @@ impl Scanner<'_> {
         }
         let index = *self.current.last()?;
         self.scan.functions.get_mut(index)
+    }
+
+    /// Records `ident` if it names one of the [`CONSOLE_PORTS`] outside
+    /// tests.
+    fn console_port(&mut self, ident: &proc_macro2::Ident) {
+        if !self.test_code && CONSOLE_PORTS.iter().any(|port| ident == port) {
+            self.scan.console_ports.push(ident.span().start().line);
+        }
     }
 
     /// Records the identifiers of macro input that does not parse as
@@ -360,6 +378,31 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             }
         }
         visit::visit_expr_path(self, expr);
+    }
+
+    fn visit_path(&mut self, path: &'ast syn::Path) {
+        // `System`, `zbm_platform::System` or `console::Console`, not a
+        // variant such as `Stderr::Console`.
+        let mut segments = path.segments.iter().rev();
+        if let Some(last) = segments.next() {
+            let module = segments.next().is_none_or(|segment| {
+                ["zbm_platform", "console", "crate"]
+                    .iter()
+                    .any(|name| segment.ident == name)
+            });
+            if module {
+                self.console_port(&last.ident);
+            }
+        }
+        visit::visit_path(self, path);
+    }
+
+    fn visit_use_name(&mut self, name: &'ast syn::UseName) {
+        self.console_port(&name.ident);
+    }
+
+    fn visit_use_rename(&mut self, rename: &'ast syn::UseRename) {
+        self.console_port(&rename.ident);
     }
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {

@@ -28,7 +28,7 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_config::spec::cmdline::{SAVE_LOGS, SKIP_HOOKS};
-use zbm_platform::{Installed, System};
+use zbm_platform::{Context, Installed, System};
 use zbm_pool::Build;
 use zbm_state::State;
 use zbm_tools::programs;
@@ -366,7 +366,8 @@ impl<'a> Startup<'a> {
                 .as_ref()
                 .filter(|_| settings.requirement == PoolRequirement::Only);
             let reimport = Import::target(pool).policy(settings.policy);
-            let _ = import::import_pool(&self.system, &self.state, reimport);
+            let context = Context::new(self.system);
+            let _ = import::import_pool(&context, &self.state, reimport);
             let output = ZpoolCommand::new(self.system.runner)
                 .text(&["list", "-H", "-o", "name,health"], Stderr::Hidden)
                 .map(|output| output.stdout_text())

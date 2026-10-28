@@ -80,7 +80,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
     let prompter = ConsoleInteraction::new(system).colors(settings.colors);
     let luks = Luks {
-        system,
+        context: Context::new(system),
         settings: &settings,
         interaction: &prompter,
     };
@@ -115,7 +115,7 @@ fn app_action(command: &str, rest: &[String]) -> Option<Result<Action, ParseErro
 /// that came before any volume was touched is said on standard error, as
 /// the legacy script said it; the others are in the log.
 fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
-    let app = App::new(Context::new(luks.system)).with_luks(luks);
+    let app = App::new(luks.context).with_luks(luks);
     match app.act(action).last() {
         Some(Event::Finished(Outcome::Done(_))) => 0,
         Some(Event::Finished(Outcome::Failed { why, .. })) => {
@@ -178,10 +178,10 @@ pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
 
 /// `zluks status`: the mappings ZFSBootMenu opened, and the pools on them.
 fn print_status(session: &Unlocker<'_>, io: &mut Io) {
-    let system = *session.system();
+    let context = *session.context();
     let settings = session.settings();
-    let empty = system
-        .files
+    let empty = context
+        .files()
         .metadata(&settings.mappings)
         .map_or(true, |metadata| metadata.len == 0);
     if empty {
@@ -191,7 +191,7 @@ fn print_status(session: &Unlocker<'_>, io: &mut Io) {
     for mapping in session.mappings().read().unwrap_or_default() {
         let path = settings.mapper.join(&mapping.name);
         let path = path.to_string_lossy();
-        let (state, pools) = if is_block_device(system.files, &path) {
+        let (state, pools) = if is_block_device(context.files(), &path) {
             let pools: String = session
                 .pools_on_device(&path)
                 .iter()
@@ -217,10 +217,10 @@ fn print_status(session: &Unlocker<'_>, io: &mut Io) {
 /// `zluks list`: every LUKS volume, whether it is in use, and its token
 /// types.
 fn print_list(session: &Unlocker<'_>, io: &mut Io) {
-    let system = *session.system();
+    let context = *session.context();
     for device in session.discover_devices() {
         let state = if is_open(
-            system.files,
+            context.files(),
             device.as_str(),
             &session.settings().open_check,
         ) {
@@ -228,7 +228,7 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
         } else {
             colorize("yellow", "locked")
         };
-        let kinds: std::collections::BTreeSet<String> = list_tokens(&system, device.as_str())
+        let kinds: std::collections::BTreeSet<String> = list_tokens(&context, device.as_str())
             .into_iter()
             .map(|token| token.kind)
             .collect();
@@ -241,7 +241,7 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
         let _ = writeln!(
             io.stdout,
             "{}\t{state}{tokens}",
-            describe_device(&system, device.as_str())
+            describe_device(&context, device.as_str())
         );
     }
 }
@@ -258,7 +258,7 @@ mod tests {
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
         let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
         let luks = Luks {
-            system: fake.system(),
+            context: fake.context(),
             settings: &settings,
             interaction: &zbm_platform::interaction::NoInteraction,
         };

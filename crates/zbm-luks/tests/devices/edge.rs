@@ -18,8 +18,8 @@ const CRYPTSETUP: &str = "/usr/sbin/cryptsetup";
 /// The tokens `luks_list_tokens` prints for `device`, one `id kind` per line.
 fn list_tokens(case: &Case<'_>, device: &str) -> String {
     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
-    case.with_session(&console, |_, system| {
-        zbm_luks::tokens::list_tokens(system, device)
+    case.with_session(&console, |_, context| {
+        zbm_luks::tokens::list_tokens(context, device)
             .iter()
             .map(|token| format!("{} {}\n", token.id, token.kind))
             .collect()

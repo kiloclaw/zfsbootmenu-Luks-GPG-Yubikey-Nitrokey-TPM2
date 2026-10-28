@@ -549,3 +549,15 @@ fn root_prefixes_match_the_legacy_function() {
         assert_eq!(format!("{rust}\n"), legacy, "case {case}");
     }
 }
+
+#[test]
+fn what_is_not_one_kernel_argument_is_left_out_with_a_warning() {
+    let mut log = Vec::new();
+    let cmdline = arguments("quiet \"a b\"=c loglevel=4", "the test", &mut log);
+    assert_eq!(cmdline.to_string(), "quiet loglevel=4");
+    let texts: Vec<&str> = log.iter().map(|message| message.text.as_str()).collect();
+    assert_eq!(
+        texts,
+        ["ignoring \"a b\"=c in the test: it is not one kernel argument"]
+    );
+}

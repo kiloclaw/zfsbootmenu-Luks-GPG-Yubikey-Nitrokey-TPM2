@@ -157,7 +157,7 @@ impl<'a> MenuFront<'a> {
         let mut settings = self.luks.clone();
         settings.retry = late;
         let luks = Luks {
-            system: *system,
+            context: Context::new(*system),
             settings: &settings,
             interaction: self,
         };
@@ -200,7 +200,7 @@ impl Front for MenuFront<'_> {
         state: &State<'_>,
         settings: &ImportSettings,
     ) -> Imported {
-        zbm_pool::stage(system, state, settings, self)
+        zbm_pool::stage(&Context::new(*system), state, settings, self)
     }
 
     fn finish(&mut self) {

@@ -198,10 +198,10 @@ impl Interaction for MenuFront<'_> {
     }
 
     /// The view steps aside while `run`'s program has the console, with the
-    /// whole system rather than the quiet one of the stages.
-    fn lease_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
-        let system = self.system;
-        self.hand_over(|| run(Some(&system)));
+    /// runner of the whole system rather than the quiet one of the stages.
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&dyn zbm_platform::Runner>)) {
+        let runner = self.system.runner;
+        self.hand_over(|| run(Some(runner)));
     }
 
     /// What goes wrong is said by the next dialog; what takes a while

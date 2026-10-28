@@ -100,7 +100,7 @@ fn with_session<T>(
 ) -> T {
     let _log = log(fake);
     let luks = Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings,
         interaction: prompts,
     };

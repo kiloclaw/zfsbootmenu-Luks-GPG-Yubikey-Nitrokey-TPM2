@@ -40,7 +40,7 @@ fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
     let settings = Settings::new("/zfsbootmenu");
     let _log = log(fake);
     let luks = Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &NoPrompts::new(fake),
     };
@@ -224,7 +224,7 @@ fn prompts_go_to_the_prompter() {
     let _log = log(&fake);
     let prompts = Prompts::answering(&fake, &[Answer::Continue]);
     let session = Unlocker::new(Luks {
-        system: fake.system(),
+        context: fake.context(),
         settings: &settings,
         interaction: &prompts,
     });

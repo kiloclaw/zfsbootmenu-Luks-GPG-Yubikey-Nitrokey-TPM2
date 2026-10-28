@@ -17,6 +17,18 @@ fn console(fake: &FakeSystem) -> ConsoleInteraction<'_> {
     ConsoleInteraction::new(fake.system()).colors(false)
 }
 
+/// A request for a secret of `kind`, attempt `attempt`.
+fn secret(kind: SecretKind, attempt: u32) -> SecretRequest<'static> {
+    SecretRequest {
+        volume: VOLUME,
+        kind,
+        attempt,
+        tries: None,
+        opened_elsewhere: None,
+        description: None,
+    }
+}
+
 /// A wait of `seconds` for a YubiKey that is there when `present` says so.
 fn yubikey(seconds: u64, present: &dyn Fn() -> bool) -> WaitRequest<'_> {
     WaitRequest {
@@ -62,14 +74,7 @@ fn waiting_ends_with_the_device_or_a_key() {
 fn secrets_are_read_with_echo_off() {
     let fake = FakeSystem::new();
     fake.console.secret(b"1234");
-    let request = SecretRequest {
-        volume: VOLUME,
-        kind: SecretKind::Tpm2Pin,
-        attempt: 1,
-        tries: None,
-        opened_elsewhere: None,
-        description: None,
-    };
+    let request = secret(SecretKind::Tpm2Pin, 1);
     let interaction = console(&fake);
     let Asked::Secret(pin) = interaction.secret(&request) else {
         panic!("no PIN");
@@ -105,4 +110,104 @@ fn messages_are_painted_by_what_they_tell() {
         ),
     );
     assert_eq!(fake.console.output_text(), expected);
+}
+
+#[test]
+fn the_passphrase_prompt_names_the_volume_and_notices_an_unlock_elsewhere() {
+    let fake = FakeSystem::new();
+    fake.console.timeout().secret(b"pw");
+    let mut request = secret(SecretKind::Passphrase, 2);
+    request.description = Some("/dev/vda2 (root, 20G)");
+    let Asked::Secret(passphrase) = console(&fake).secret(&request) else {
+        panic!("no passphrase");
+    };
+    assert_eq!(passphrase.expose(), b"pw");
+    assert_eq!(
+        fake.console.output_text(),
+        "\nUnlock LUKS volume /dev/vda2 (root, 20G)\n\
+         No key available with this passphrase.\n\
+         Passphrase (leave empty to skip): \n"
+    );
+    assert_eq!(fake.console.echo_changes(), [false, true]);
+
+    // Opened over SSH meanwhile: the prompt goes.
+    let fake = FakeSystem::new();
+    fake.console.timeout();
+    let request = SecretRequest {
+        opened_elsewhere: Some(&|| true),
+        ..secret(SecretKind::Passphrase, 1)
+    };
+    assert!(matches!(console(&fake).secret(&request), Asked::Elsewhere));
+    assert!(
+        fake.console
+            .output_text()
+            .contains("Unlock LUKS volume /dev/vda2\n")
+    );
+}
+
+#[test]
+fn each_secret_has_its_heading_and_prompt() {
+    let card = SecretKind::CardPin {
+        serial: "000F1234".to_owned(),
+        left: "3".to_owned(),
+    };
+    let (heading, prompt) = secret_prompt(&card, "/dev/vda2").unwrap();
+    assert_eq!(
+        heading.as_deref(),
+        Some("Unlock /dev/vda2 with OpenPGP card 000F1234")
+    );
+    assert_eq!(
+        prompt,
+        "Card PIN (3 attempts left; leave empty to use another method): "
+    );
+    assert!(secret_prompt(&SecretKind::Passphrase, "/dev/vda2").is_none());
+}
+
+#[test]
+fn a_wait_says_what_it_waits_for() {
+    let fake = FakeSystem::new();
+    let request = WaitRequest {
+        awaited: Awaited::OpenPgpKey,
+        ..yubikey(1, &|| false)
+    };
+    fake.console.timeout();
+    assert_eq!(console(&fake).wait(&request), Wait::TimedOut);
+    assert!(
+        fake.console.output_text().starts_with(
+            "Insert the OpenPGP security key (YubiKey, Nitrokey, ...) for /dev/vda2\n"
+        )
+    );
+}
+
+#[test]
+fn a_retry_prompt_leaves_the_screen_clear() {
+    let fake = FakeSystem::new();
+    fake.console.keys(b"\r");
+    let request = PromptRequest {
+        subject: Subject::Retry {
+            name: "luks-1".to_owned(),
+            device: "/dev/vda2".to_owned(),
+        },
+        delay: None,
+        message: "Unable to unlock /dev/vda2".to_owned(),
+        on_return: "try again".to_owned(),
+        on_escape: "skip it".to_owned(),
+    };
+    assert_eq!(console(&fake).ask(&request), Answer::Continue);
+    assert!(
+        fake.runner
+            .lines()
+            .ends_with(&["tput cnorm".to_owned(), "tput clear".to_owned()])
+    );
+}
+
+#[test]
+fn a_heading_without_a_device_is_plain() {
+    let fake = FakeSystem::new();
+    console(&fake).notify(Tell {
+        told: Told::Heading,
+        text: "Unlocking the volumes",
+        highlight: None,
+    });
+    assert_eq!(fake.console.output_text(), "\nUnlocking the volumes\n");
 }

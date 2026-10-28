@@ -107,8 +107,8 @@ impl Unlocker<'_> {
         let zbm_luks = self.option(&LUKS);
         let crypttab_path = self.settings().crypttab.clone();
         let crypttab = self
-            .system()
-            .files
+            .context()
+            .files()
             .read(&crypttab_path)
             .ok()
             .map(|text| String::from_utf8_lossy(&text).into_owned());
@@ -200,8 +200,8 @@ impl Unlocker<'_> {
         tally: &mut Tally,
     ) -> Option<DevicePath> {
         if retry {
-            let system = *self.system();
-            return resolve_device(&system, spec)
+            let context = *self.context();
+            return resolve_device(&context, spec)
                 .filter(|device| !self.retry_ignores(device.as_str()));
         }
         let device = self.wait_device(spec, options.nofail);
@@ -224,7 +224,7 @@ impl Unlocker<'_> {
                 continue;
             };
             if mapping.auto == "1"
-                && is_block_device(self.system().files, &self.mapper(name))
+                && is_block_device(self.context().files(), &self.mapper(name))
                 && !self.may_hold_zfs(&typed)
             {
                 zbm_trace::info!(

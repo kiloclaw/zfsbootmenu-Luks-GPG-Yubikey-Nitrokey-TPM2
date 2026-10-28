@@ -577,7 +577,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | PM5 | Done: `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
 | PM6 | The supervisor anew: an event loop over `signalfd` and `pidfd`, a table of services with restart policies and back-off, `setsid` and the controlling terminal in `pre_exec` (C89) | stab | M | PM3 |
 | PM7 | The console's control socket (C91): release, reattach, layout, font and status as typed requests with replies; the secret flag in band | stab | S/M | |
-| PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`), their questions and answers types of `zbm-types` (zbm-luks's `PromptRequest` and `SecretRequest` today); actions can be cancelled; an action is a plan of steps, each with the command its adapter would run, for the menu's dry run | perf, stab | L | PM4, DM2 |
+| PM8 | The `MachineService` actor owns `App`; questions to the user become requests with one-shot replies (`Interaction`), their questions and answers types of `zbm-types` (`zbm-platform`'s `PromptRequest` and `SecretRequest` today); `zbm-pool`'s `Operator` and `zbm-boot`'s `Recovery`, which take `&mut` receivers, join `Interaction`; actions can be cancelled; an action is a plan of steps, each with the command its adapter would run, for the menu's dry run | perf, stab | L | PM4, DM2 |
 | PM9 | One session: the menu runs in the session process, the start-up view and the menu are one model; the `--countdown` child and the second countdown go | perf, stab | M/L | PM8, UI3 |
 | PM10 | The session socket: `Takeover` and `Yielded` for SSH instead of `SIGTERM`, then the menu over SSH as a remote front end | stab, sec | M, then L | PM9 |
 | PM11 | Fewer processes: `tput` and `stty` become `rustix` termios and escape sequences; the start-up chain of `exec`s shortens (B7) | perf | S/M | |
@@ -587,12 +587,12 @@ code) and what it needs first. Code in the images changes with most items, so th
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
 | DM1 | Tidy: `zbm-menu` goes, `zbm-coreutils` folds into `zbm-platform`, the PSF parser into `zbm-display`; `docs/dev/architecture.md` and `crates/DESIGN.md` agree with the code; the new metric columns | mod | S | |
-| DM2 | One `Context`, and the `Interaction` port: the console leaves the domain, the `zbm-boot` → `zbm-luks` edge goes | mod | M | |
+| DM2 | Done: one `Context` (the `System` without its console, its runner traced), and the `Interaction` port without console closures: the plain console is `zbm-tools`'s `ConsoleInteraction`, `zbm-luks` and `zbm-pool` take a `Context`, which `check-deps` enforces in domain crates; the `zbm-boot` → `zbm-luks` edge is gone. Left: `zbm-boot`'s prompts (DM7), `Recovery` and `Operator` into `Interaction` (PM8) | mod | M | |
 | DM3 | Done: the value types (`KernelArg` and `KernelCommandLine`, `HostId`, `Timeout`, `LogLevel`, `RetryDelay`, `FilesystemName`) and typed options, converted crate by crate: `zbm-pool` (its `PoolRef` goes), `zbm-boot`, `zbm-luks`'s entry points; bug 27 fixed. Left to the items that rebuild the code: the key methods' names (DM6), the command line pipeline (DM11), questions and answers (PM8) | mod, sec | M | |
 | DM4 | Done: `KernelSelector`, a compiled regular expression, replaces a shell per kernel for `org.zfsbootmenu:kernel`; fuzzed | perf, sec | S/M | |
 | DM5 | (merged into SB2) | | | |
 | DM6 | The unlocker's core anew: the `LuksVolumes` port, the typestate unlocker, one `Result`-based registry of key methods with the token handlers in it, every attempt kept, on `MappingName` and `DevicePath` inside as at its entry points (DM3); the pilot goes | mod, stab | L | DM2, DM3 |
-| DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends; a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |
+| DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends (the resume question, the boot message and key loading, so that `zbm-boot` takes a `Context` and leaves `check-deps`'s console exception, `xtask/src/deps/console.rs`); a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |
 | DM8 | `zbm-app`: a required `Runtime` instead of five optional fields, one `apply`, the `Application` trait with `App` and `FakeMachine`; front ends reach the system only through it | mod | M | DM2 |
 | DM9 | Errors with their causes, `Step` returning `Result`, structured `tracing` fields, a simple kernel log format, stable error codes and `zbm explain` | stab | M | |
 | DM10 | `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
@@ -743,7 +743,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
   decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
-  at `f8374569`, all four lanes). The VM run of phase 1's DM4, PM3, SE4 and DM3, at `9b30b81a`, is left.
+  at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
+  lanes). The VM run of DM11 and DM2 is left.
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every

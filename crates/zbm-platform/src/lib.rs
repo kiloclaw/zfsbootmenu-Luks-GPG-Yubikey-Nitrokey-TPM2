@@ -126,12 +126,7 @@ impl System<'_> {
     /// Whether `name` is an executable file in a directory of `PATH`, as
     /// `command -v` finds it.
     pub fn command_exists(&self, name: &str) -> bool {
-        let path = self.environment.var("PATH").unwrap_or_default();
-        path.split(':').filter(|dir| !dir.is_empty()).any(|dir| {
-            self.files
-                .metadata(&std::path::Path::new(dir).join(name))
-                .is_ok_and(|metadata| metadata.kind == FileKind::File && metadata.is_executable())
-        })
+        command_exists(self.files, self.environment, name)
     }
 }
 
@@ -166,6 +161,12 @@ impl RealSystem {
         Terminal::standard(&self.runner)
     }
 
+    /// The ports of the real system without a console, for programs that
+    /// need none, such as `zluks --pilot`.
+    pub fn context(&self) -> Context<'_> {
+        Context::new(self.with_console(&NoConsole))
+    }
+
     /// The system, with `console` as the user's console.
     pub fn with_console<'a>(&'a self, console: &'a dyn Console) -> System<'a> {
         System {
@@ -185,7 +186,8 @@ impl Default for RealSystem {
     }
 }
 
-/// The ports a service may use.
+/// The ports a service may use: every part of the [`System`] but the
+/// console, which only front ends reach, through their [`Interaction`].
 ///
 /// It is cheap to copy: it holds references to the system's parts. Front ends
 /// build one per program run and pass it by reference.
@@ -197,31 +199,22 @@ pub struct Context<'a> {
     files: &'a dyn Files,
     /// Time and waiting.
     clock: &'a dyn Clock,
+    /// The process and signals.
+    processes: &'a dyn Processes,
+    /// Environment variables.
+    environment: &'a dyn Environment,
 }
 
 impl<'a> Context<'a> {
-    /// The ports of `system`, with its runner traced.
+    /// The ports of `system` without its console, with its runner traced.
+    /// A runner traced already reports each program once.
     pub fn new(system: System<'a>) -> Context<'a> {
         Context {
             runner: TracedRunner::new(system.runner, system.clock),
             files: system.files,
             clock: system.clock,
-        }
-    }
-
-    /// The ports `runner`, `files` and `clock`, with the runner traced.
-    ///
-    /// For programs that need no console, such as `zluks --pilot`: a full
-    /// [`System`] includes one, which needs a terminal.
-    pub fn from_parts(
-        runner: &'a dyn Runner,
-        files: &'a dyn Files,
-        clock: &'a dyn Clock,
-    ) -> Context<'a> {
-        Context {
-            runner: TracedRunner::new(runner, clock),
-            files,
-            clock,
+            processes: system.processes,
+            environment: system.environment,
         }
     }
 
@@ -239,6 +232,39 @@ impl<'a> Context<'a> {
     pub fn clock(&self) -> &'a dyn Clock {
         self.clock
     }
+
+    /// The process and signals.
+    pub fn processes(&self) -> &'a dyn Processes {
+        self.processes
+    }
+
+    /// Environment variables.
+    pub fn environment(&self) -> &'a dyn Environment {
+        self.environment
+    }
+
+    /// Sends this thread's kernel log messages to this context's files, for
+    /// this process, until the returned guard is dropped.
+    pub fn kernel_log(&self, loglevel: &str, base: &std::path::Path) -> Installed {
+        KernelLog::new(self.files, loglevel, base, self.processes.id()).install()
+    }
+
+    /// Whether `name` is an executable file in a directory of `PATH`, as
+    /// `command -v` finds it.
+    pub fn command_exists(&self, name: &str) -> bool {
+        command_exists(self.files, self.environment, name)
+    }
+}
+
+/// Whether `name` is an executable file in a directory of `PATH` in
+/// `environment`, as `command -v` finds it.
+fn command_exists(files: &dyn Files, environment: &dyn Environment, name: &str) -> bool {
+    let path = environment.var("PATH").unwrap_or_default();
+    path.split(':').filter(|dir| !dir.is_empty()).any(|dir| {
+        files
+            .metadata(&std::path::Path::new(dir).join(name))
+            .is_ok_and(|metadata| metadata.kind == FileKind::File && metadata.is_executable())
+    })
 }
 
 #[cfg(test)]
@@ -270,11 +296,15 @@ mod tests {
 
     #[test]
     fn a_context_hands_out_the_parts_it_was_given() {
-        let (runner, files, clock) = (SystemRunner, RealFiles, SystemClock::new());
-        let context = Context::from_parts(&runner, &files, &clock);
+        let real = RealSystem::default();
+        let context = real.context();
         let _runner = context.runner();
         assert!(context.files().exists(std::path::Path::new("/proc/self")));
         let before = context.clock().now();
         assert!(context.clock().now() >= before);
+        assert_eq!(context.processes().id(), std::process::id());
+        assert!(context.environment().var("PATH").is_some());
+        assert!(context.command_exists("sh"));
+        let _log = context.kernel_log("x", std::path::Path::new("/nonexistent"));
     }
 }

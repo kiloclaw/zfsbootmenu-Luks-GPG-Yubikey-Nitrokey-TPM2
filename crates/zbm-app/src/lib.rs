@@ -441,7 +441,7 @@ mod tests {
         let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
         let prompter = crate::read::tests::NoPrompts;
         let luks = Luks {
-            system: fake.system(),
+            context: fake.context(),
             settings: &settings,
             interaction: &prompter,
         };

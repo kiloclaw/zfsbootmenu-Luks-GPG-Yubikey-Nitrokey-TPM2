@@ -6,7 +6,7 @@
 //! which the parity tests of `zbm-boot`'s start-up stage compare.
 
 use zbm_platform::exec::Output;
-use zbm_platform::{Runner, System};
+use zbm_platform::{Context, Runner};
 use zbm_state::State;
 use zbm_types::{ImportPolicy, PoolName};
 use zbm_zfs::{Stderr, ZpoolCommand};
@@ -171,7 +171,7 @@ pub(crate) fn stdout(run: std::io::Result<Output>) -> String {
 /// [`PoolError::RewindAll`] for a rewind without a pool,
 /// [`PoolError::Import`] when `zpool import` fails.
 pub fn import_pool(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     import: Import<'_>,
 ) -> Result<(), PoolError> {
@@ -187,7 +187,7 @@ pub fn import_pool(
     let args = import.arguments();
     let shown = args.get(1..).unwrap_or_default().join(" ");
     zbm_trace::debug!("zpool import arguments: {shown}");
-    let (code, output) = match ZpoolCommand::new(system.runner).text(&args, Stderr::Merged) {
+    let (code, output) = match ZpoolCommand::new(context.runner()).text(&args, Stderr::Merged) {
         Ok(output) => (output.status.shell_code(), output.stdout_text()),
         Err(error) => (126, error.to_string()),
     };
@@ -196,7 +196,7 @@ pub fn import_pool(
         return Ok(());
     }
     let mut messages = Vec::new();
-    let apparent = hostid::apparent_hostid(system.files, state, &mut messages);
+    let apparent = hostid::apparent_hostid(context.files(), state, &mut messages);
     for message in &messages {
         message.emit();
     }
@@ -253,14 +253,14 @@ pub struct HostidMatch {
 /// The pools host ID matching tries: `single`, or else each `ONLINE` pool
 /// that is not the preferred one.
 fn candidates(
-    system: &System<'_>,
+    context: &Context<'_>,
     settings: &ImportSettings,
     single: Option<&PoolName>,
 ) -> Vec<PoolName> {
     if let Some(pool) = single {
         return vec![pool.clone()];
     }
-    let list = ZpoolCommand::new(system.runner).text(&["import"], Stderr::Hidden);
+    let list = ZpoolCommand::new(context.runner()).text(&["import"], Stderr::Hidden);
     online_pools(&stdout(list), settings.prefer_pool.as_ref())
         .iter()
         .filter_map(|pool| pool.parse::<PoolName>().ok())
@@ -271,18 +271,18 @@ fn candidates(
 /// `single`, or else each `ONLINE` pool that is not the
 /// preferred one, until one is imported.
 pub fn match_hostid(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
     single: Option<&PoolName>,
 ) -> Option<HostidMatch> {
-    let importable = candidates(system, settings, single);
+    let importable = candidates(context, settings, single);
     let names: Vec<&str> = importable.iter().map(PoolName::as_str).collect();
     zbm_trace::debug!("importable pools: {}", names.join(" "));
 
     for pool in importable {
         zbm_trace::debug!("trying to import: {pool}");
-        let probe = ZpoolCommand::new(system.runner).text(
+        let probe = ZpoolCommand::new(context.runner()).text(
             &["import", "-o", "readonly=on", "-N", pool.as_str()],
             Stderr::Merged,
         );
@@ -292,12 +292,12 @@ pub fn match_hostid(
             continue;
         };
         zbm_trace::debug!("discovered pool owner hostid: {hostid}");
-        if hostid::write(system.files, &hostid).is_err() {
+        if hostid::write(context.files(), &hostid).is_err() {
             zbm_trace::debug!("failed to set hostid {hostid}, skipping import of pool {pool}");
             continue;
         }
         let import = Import::pool(&pool).policy(settings.policy);
-        if import_pool(system, state, import).is_ok() {
+        if import_pool(context, state, import).is_ok() {
             zbm_trace::debug!("successfully imported {pool}");
             if settings.build == Build::Local {
                 zbm_trace::warn!("imported {pool} with assumed hostid {hostid}");

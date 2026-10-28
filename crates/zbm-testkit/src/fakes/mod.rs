@@ -23,8 +23,8 @@ pub use environment::FakeEnvironment;
 pub use files::{FakeFiles, FileOperation};
 pub use processes::FakeProcesses;
 
-use zbm_platform::System;
 use zbm_platform::exec::Input;
+use zbm_platform::{Context, System};
 
 use crate::FakeRunner;
 
@@ -82,6 +82,11 @@ impl FakeSystem {
             processes: &self.processes,
             environment: &self.environment,
         }
+    }
+
+    /// The fakes as a [`Context`]: the [`System`] without its console.
+    pub fn context(&self) -> Context<'_> {
+        Context::new(self.system())
     }
 
     /// The records written to `/dev/kmsg`.

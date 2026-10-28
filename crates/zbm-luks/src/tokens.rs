@@ -8,7 +8,7 @@
 
 use zbm_crypt::Cryptsetup;
 pub use zbm_crypt::Token;
-use zbm_platform::System;
+use zbm_platform::Context;
 
 /// The LUKS2 tokens of a device or detached header: the ID and type of each,
 /// from the JSON metadata when cryptsetup can print it.
@@ -16,8 +16,8 @@ use zbm_platform::System;
 /// The JSON metadata is the reliable source: with systemd's token plugins
 /// installed, cryptsetup 2.8 (systemd 261) prints the text of every token
 /// after the first to standard error, so the `luksDump` text misses them.
-pub fn list_tokens(system: &System<'_>, device: &str) -> Vec<Token> {
-    Cryptsetup::new(system.runner).list_tokens(device)
+pub fn list_tokens(context: &Context<'_>, device: &str) -> Vec<Token> {
+    Cryptsetup::new(context.runner()).list_tokens(device)
 }
 
 #[cfg(test)]
@@ -103,12 +103,12 @@ mod tests {
                 legacy_list(volume, status, &text_file.to_string_lossy())
             });
             let fake = dump_machine(volume, status, None);
-            let rust = list_tokens(&fake.system(), "/dev/x");
+            let rust = list_tokens(&fake.context(), "/dev/x");
             assert_eq!(show(&rust), legacy, "{volume}");
         }
         let tokens = |volume: &str, status: u8| {
             show(&list_tokens(
-                &dump_machine(volume, status, None).system(),
+                &dump_machine(volume, status, None).context(),
                 "/dev/x",
             ))
         };
@@ -140,7 +140,7 @@ mod tests {
             }))
         });
         assert_eq!(
-            show(&list_tokens(&fake.system(), "/dev/x")),
+            show(&list_tokens(&fake.context(), "/dev/x")),
             "0 systemd-tpm2\n1 systemd-fido2\n2 clevis\n"
         );
         assert_eq!(

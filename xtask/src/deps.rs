@@ -11,12 +11,17 @@
 //! [`BEGIN`] and [`END`] is generated from them, so that the documentation
 //! and the check cannot drift apart. Changing an allowed edge is a change of
 //! these tables, which a reviewer sees.
+//!
+//! The check also reads the sources of the domain crates, which may not
+//! reach the console ([`console`]).
 
 use std::fmt::Write as _;
 use std::path::Path;
 
 use crate::error::{Error, Result};
 use crate::workspace::{DependencyKind, Package, Workspace};
+
+pub mod console;
 
 /// One layer of the architecture.
 #[derive(Clone, Copy, Debug)]
@@ -369,6 +374,7 @@ pub fn replace_section(page: &str, section: &str) -> Result<String> {
 /// [`Error::Check`] with every problem found, or [`Error::Io`].
 pub fn run(workspace: &Workspace, bless: bool) -> Result<()> {
     let mut problems = problems(workspace);
+    problems.extend(console::problems(workspace)?);
     let path = workspace.root.join(PAGE);
     let page = std::fs::read_to_string(&path)
         .map_err(|error| Error::io(format!("reading {PAGE}"), error))?;

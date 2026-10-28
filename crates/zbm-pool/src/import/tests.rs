@@ -18,17 +18,17 @@ fn import_arguments_follow_the_options() {
     let fake = FakeSystem::new();
     let _log = log(&fake);
     let state = State::new(&fake.files, "/zfsbootmenu");
-    let system = fake.system();
+    let context = fake.context();
     let tank = "tank".parse::<PoolName>().unwrap();
-    assert_eq!(import_pool(&system, &state, Import::all()), Ok(()));
+    assert_eq!(import_pool(&context, &state, Import::all()), Ok(()));
     let import = Import::pool(&tank)
         .policy(ImportPolicy::Force)
         .access(Access::ReadWrite)
         .rewind(Rewind::ToCheckpoint);
-    assert_eq!(import_pool(&system, &state, import), Ok(()));
+    assert_eq!(import_pool(&context, &state, import), Ok(()));
     let rewind_all = Import::all().rewind(Rewind::ToCheckpoint);
     assert_eq!(
-        import_pool(&system, &state, rewind_all),
+        import_pool(&context, &state, rewind_all),
         Err(PoolError::RewindAll)
     );
     assert_eq!(
@@ -70,7 +70,7 @@ fn failed_imports_log_the_apparent_host_id() {
     let state = State::new(&fake.files, "/zfsbootmenu");
     let tank = "tank".parse::<PoolName>().unwrap();
     assert_eq!(
-        import_pool(&fake.system(), &state, Import::pool(&tank)),
+        import_pool(&fake.context(), &state, Import::pool(&tank)),
         Err(PoolError::Import {
             target: "tank".to_owned(),
             status: 1
@@ -91,7 +91,7 @@ fn failed_imports_log_the_apparent_host_id() {
         .on(|_| Some(Err(std::io::Error::other("no zpool"))));
     let state = State::new(&missing.files, "/zfsbootmenu");
     assert_eq!(
-        import_pool(&missing.system(), &state, Import::all()),
+        import_pool(&missing.context(), &state, Import::all()),
         Err(PoolError::Import {
             target: "-a".to_owned(),
             status: 126
@@ -141,7 +141,7 @@ fn host_id_matching_writes_the_foreign_host_id_and_imports() {
         policy: ImportPolicy::Hostid,
         ..ImportSettings::default()
     };
-    let found = match_hostid(&fake.system(), &state, &settings, None).unwrap();
+    let found = match_hostid(&fake.context(), &state, &settings, None).unwrap();
     assert_eq!(found.pool.as_str(), "tank");
     assert_eq!(found.hostid.as_str(), "deadbeef");
     assert_eq!(
@@ -169,7 +169,7 @@ fn host_id_matching_writes_the_foreign_host_id_and_imports() {
         ..settings
     };
     let tank = "tank".parse::<PoolName>().unwrap();
-    assert!(match_hostid(&release.system(), &state, &settings, Some(&tank)).is_some());
+    assert!(match_hostid(&release.context(), &state, &settings, Some(&tank)).is_some());
     assert!(!release.kmsg().contains("assumed hostid"));
 }
 
@@ -181,7 +181,7 @@ fn host_id_matching_skips_pools_without_a_host_id_or_when_it_cannot_write() {
         .respond("zpool import", 0, "   pool: tank\n  state: ONLINE\n");
     let state = State::new(&fake.files, "/zfsbootmenu");
     let settings = ImportSettings::default();
-    assert_eq!(match_hostid(&fake.system(), &state, &settings, None), None);
+    assert_eq!(match_hostid(&fake.context(), &state, &settings, None), None);
     assert!(stub_lines(&fake.kmsg()).contains("unable to scrape hostid for tank, skipping"));
 
     // No /etc to write the host ID to.
@@ -190,7 +190,7 @@ fn host_id_matching_skips_pools_without_a_host_id_or_when_it_cannot_write() {
     foreign_pools(&unwritable, "   pool: tank\n  state: ONLINE\n");
     let state = State::new(&unwritable.files, "/zfsbootmenu");
     assert_eq!(
-        match_hostid(&unwritable.system(), &state, &settings, None),
+        match_hostid(&unwritable.context(), &state, &settings, None),
         None
     );
     assert!(
@@ -208,7 +208,7 @@ fn host_id_matching_skips_pools_without_a_host_id_or_when_it_cannot_write() {
         .respond("zpool import -N -o readonly=on tank", 1, "");
     let state = State::new(&refused.files, "/zfsbootmenu");
     assert_eq!(
-        match_hostid(&refused.system(), &state, &settings, None),
+        match_hostid(&refused.context(), &state, &settings, None),
         None
     );
 }
@@ -244,5 +244,5 @@ fn imported_pools_are_listed_by_name() {
     assert_eq!(imported_pools(fake.system().runner), ["tank", "boot"]);
     let none = FakeSystem::new();
     none.runner.respond("zpool list -H -o name", 0, "");
-    assert!(imported_pools(none.system().runner).is_empty());
+    assert!(imported_pools(none.context().runner()).is_empty());
 }

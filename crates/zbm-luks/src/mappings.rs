@@ -210,12 +210,16 @@ impl Unlocker<'_> {
     /// The store of the mappings and skipped volumes of the settings.
     pub fn mappings(&self) -> MappingStore<'_> {
         let settings = self.settings();
-        MappingStore::new(self.system().files, &settings.mappings, &settings.skipped)
+        MappingStore::new(
+            self.context().files(),
+            &settings.mappings,
+            &settings.skipped,
+        )
     }
 
     /// Whether a retry leaves `device` alone because it is open or skipped.
     pub fn retry_ignores(&self, device: &str) -> bool {
-        is_open(self.system().files, device, &self.settings().open_check)
+        is_open(self.context().files(), device, &self.settings().open_check)
             || self.mappings().is_skipped(device)
     }
 }
@@ -236,7 +240,7 @@ mod tests {
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
         let _log = log(fake);
         let luks = Luks {
-            system: fake.system(),
+            context: fake.context(),
             settings: &settings,
             interaction: &NoPrompts::new(fake),
         };

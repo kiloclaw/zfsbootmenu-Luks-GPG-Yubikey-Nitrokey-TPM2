@@ -29,9 +29,9 @@ impl Unlocker<'_> {
         token: &Token,
     ) -> Result<(), LuksError> {
         let device = target.device;
-        let system = *self.system();
+        let context = *self.context();
         let failed = |failure| target.token_error("clevis", id, failure);
-        if !system.command_exists("clevis") || !system.command_exists("jose") {
+        if !context.command_exists("clevis") || !context.command_exists("jose") {
             zbm_trace::info!("clevis token {id} on {device} needs clevis and jose in the image");
             return Err(failed(TokenFailure::Unsupported));
         }
@@ -42,7 +42,7 @@ impl Unlocker<'_> {
         // The clevis policy may use the TPM.
         self.have_tpm2();
 
-        let key = Clevis::new(system.runner, &self.settings().tpm2_tcti).decrypt(token);
+        let key = Clevis::new(context.runner(), &self.settings().tpm2_tcti).decrypt(token);
 
         let Some(key) = key else {
             zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");

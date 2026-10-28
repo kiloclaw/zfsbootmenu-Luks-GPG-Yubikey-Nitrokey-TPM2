@@ -141,7 +141,7 @@ impl Interaction for Prompts<'_> {
         self.console.notify(tell);
     }
 
-    fn lease_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&dyn zbm_platform::Runner>)) {
         self.consoles.set(self.consoles.get() + 1);
         run(None);
     }

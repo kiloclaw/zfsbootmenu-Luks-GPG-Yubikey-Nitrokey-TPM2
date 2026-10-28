@@ -9,7 +9,7 @@
 //! provides.
 
 use zbm_config::spec::properties::BOOTFS;
-use zbm_platform::{Runner, System};
+use zbm_platform::{Context, Runner};
 use zbm_state::State;
 use zbm_trace::Level;
 use zbm_types::{
@@ -61,7 +61,7 @@ pub struct Imported {
 
 /// The start-up stage `init.d/50-import-pools`.
 pub fn stage(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
     operator: &mut dyn Operator,
@@ -74,27 +74,27 @@ pub fn stage(
         if retry.failures() > 0 && operator.unlock_late() == Late::Unlocked {
             zbm_trace::info!("unlocked LUKS volumes that appeared late");
         }
-        match attempt(system, state, settings, &mut retry, &mut imported) {
+        match attempt(context, state, settings, &mut retry, &mut imported) {
             Next::Done => break,
             Next::Again => {}
-            Next::Failed { attempt } => failed(system, settings, &retry, operator, attempt),
+            Next::Failed { attempt } => failed(context, settings, &retry, operator, attempt),
         }
     }
 
-    restrict_unhealthy(system.runner, state);
+    restrict_unhealthy(context.runner(), state);
     // `zdebug && zdebug "$( zreport )"`: the first call writes an empty line.
     // The system report itself arrives with the recovery tools (package F).
     if zbm_trace::enabled(Level::Debug) {
         zbm_trace::debug!("");
     }
-    check_unsupported(system.runner, state, settings, operator);
-    imported.bootfs = find_bootfs(system.runner, state, settings);
+    check_unsupported(context.runner(), state, settings, operator);
+    imported.bootfs = find_bootfs(context.runner(), state, settings);
     imported
 }
 
 /// One import attempt, and host ID matching when the loop asks for it.
 fn attempt(
-    system: &System<'_>,
+    context: &Context<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
     retry: &mut ImportLoop,
@@ -105,11 +105,11 @@ fn attempt(
     }
     // Whether anything was imported is what counts, not the status.
     let _ = import_pool(
-        system,
+        context,
         state,
         Import::target(retry.target()).policy(settings.policy),
     );
-    let found = if imported_pools(system.runner).is_empty() {
+    let found = if imported_pools(context.runner()).is_empty() {
         Found::Nothing
     } else {
         Found::Pools
@@ -122,7 +122,7 @@ fn attempt(
         AfterImport::Next(next) => next,
         AfterImport::MatchHostid => {
             let target = retry.target().cloned();
-            let matched = match match_hostid(system, state, settings, target.as_ref()) {
+            let matched = match match_hostid(context, state, settings, target.as_ref()) {
                 Some(found) => {
                     zbm_trace::debug!("match_hostid returned: {};{}", found.pool, found.hostid);
                     if let Err(error) = state.set_spl_hostid(found.hostid.as_str()) {
@@ -141,7 +141,7 @@ fn attempt(
 /// A failed attempt: late LUKS volumes, or the prompt and, on ESCAPE, the
 /// recovery shell.
 fn failed(
-    system: &System<'_>,
+    context: &Context<'_>,
     settings: &ImportSettings,
     retry: &ImportLoop,
     operator: &mut dyn Operator,
@@ -155,7 +155,7 @@ fn failed(
     if operator.retry(retry.target(), settings.retry_delay) == Answer::Continue {
         return;
     }
-    log_unimportable(system.runner);
+    log_unimportable(context.runner());
     operator.emergency_shell("unable to successfully import a pool");
 }
 

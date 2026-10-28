@@ -71,7 +71,7 @@ impl Unlocker<'_> {
         if !self.settings().token_plugins {
             return false;
         }
-        let files = self.system().files;
+        let files = self.context().files();
         let library = format!("libcryptsetup-token-{kind}.so");
         // /usr/lib/cryptsetup /usr/lib64/cryptsetup /usr/lib/*/cryptsetup and
         // the same below /lib, in this order.
@@ -96,7 +96,7 @@ impl Unlocker<'_> {
     /// `cryptsetup`, with device-mapper's udev synchronization off when
     /// [`Unlocker::available`] turned it off.
     pub fn cryptsetup(&self) -> Cryptsetup<'_> {
-        Cryptsetup::new(self.system().runner).without_udev(self.dm_disable_udev)
+        Cryptsetup::new(self.context().runner()).without_udev(self.dm_disable_udev)
     }
 
     /// Opens a volume through cryptsetup's token plugin; cryptsetup reads a
@@ -221,7 +221,7 @@ pub(crate) mod tests {
     ) -> T {
         let _log = log(fake);
         let luks = Luks {
-            system: fake.system(),
+            context: fake.context(),
             settings,
             interaction: prompter,
         };
