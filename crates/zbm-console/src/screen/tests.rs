@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use pretty_assertions::assert_eq;
 use zbm_display::frame::{Area, Rgb};
-use zbm_types::psf::Font;
+use zbm_display::psf::Font;
 
 use super::*;
 

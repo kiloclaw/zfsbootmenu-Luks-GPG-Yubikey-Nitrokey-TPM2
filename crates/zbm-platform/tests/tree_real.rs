@@ -10,7 +10,7 @@ use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use zbm_coreutils::{clear_mode_bits, copy_into, remove_tree};
+use zbm_platform::tree::{clear_mode_bits, copy_into, remove_tree};
 use zbm_platform::files::RealFiles;
 use zbm_testkit::TempDir;
 
@@ -20,7 +20,7 @@ fn mode(path: &Path) -> u32 {
 
 #[test]
 fn a_gnupg_home_is_copied_made_private_and_removed() {
-    let dir = TempDir::new("zbm-coreutils");
+    let dir = TempDir::new("zbm-tree");
     let source = dir.join("gnupg");
     let home = dir.join("home");
     std::fs::create_dir_all(source.join("private-keys-v1.d")).unwrap();

@@ -6,7 +6,7 @@
 //!
 //! - [`frame`]: pixels in memory, and the area drawn since they were shown;
 //! - [`grid`]: text on them, with the image's console fonts
-//!   (`zbm_types::psf`), at the size `zbm console-autosize` chooses;
+//!   ([`psf`]), at the size `zbm console-autosize` chooses;
 //! - [`display`]: a DRM dumb buffer on the output the kernel console
 //!   shows, in its mode ([`output`]), which works with any DRM driver,
 //!   `simpledrm` on the firmware's framebuffer included, and gives the
@@ -47,5 +47,6 @@ pub mod outline;
 pub mod output;
 pub mod palette;
 pub mod png;
+pub mod psf;
 pub mod speaker;
 pub mod vt;

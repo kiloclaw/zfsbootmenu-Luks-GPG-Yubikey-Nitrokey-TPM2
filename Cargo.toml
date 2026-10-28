@@ -25,14 +25,12 @@ zbm-brush = { path = "crates/zbm-brush" }
 zbm-boot = { path = "crates/zbm-boot" }
 zbm-config = { path = "crates/zbm-config" }
 zbm-core = { path = "crates/zbm-core" }
-zbm-coreutils = { path = "crates/zbm-coreutils" }
 zbm-console = { path = "crates/zbm-console" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-display = { path = "crates/zbm-display" }
 zbm-kcl = { path = "crates/zbm-kcl" }
 zbm-luks = { path = "crates/zbm-luks" }
 zbm-pool = { path = "crates/zbm-pool" }
-zbm-menu = { path = "crates/zbm-menu" }
 zbm-platform = { path = "crates/zbm-platform" }
 zbm-startup = { path = "crates/zbm-startup" }
 zbm-state = { path = "crates/zbm-state" }

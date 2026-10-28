@@ -188,7 +188,7 @@ join it: orchestration does not use adapters, and front ends reach the system on
 | unsafe | `zbm-sys` | The few system calls `rustix` lacks: `memfd_secret`, seccomp, landlock, `kexec_file_load`; everything else moves onto `rustix` (29 `unsafe` blocks to about 6) |
 | types | `zbm-types` | Domain values with no I/O: names, `KernelCommandLine`, `KernelSelector`, `HostId`, `Timeout`, `LogLevel`, questions and answers, the message types' building blocks |
 | foundation | `zbm-trace` | Structured events, the journal, the kernel log |
-| platform | `zbm-platform`, `zbm-display` | The ports and their real implementations, one `Context` (no console in it), the reactor's building blocks; the display, fonts (the PSF parser moves here from `zbm-types`) and keyboards |
+| platform | `zbm-platform`, `zbm-display` | The ports and their real implementations, one `Context` (no console in it), the reactor's building blocks; the display, fonts (the PSF parser moved here from `zbm-types`, DM1) and keyboards |
 | state | `zbm-config`, `zbm-state` | The option table and typed options; the documented state directory, with `flock` locks |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | One port trait per capability (`Zfs`, `LuksVolumes`, `Tpm2`, `Fido2`, `KernelLoader`, `Mounts`, `Modules`, `Devices`), with in-memory fakes behind a `fake` feature |
 | domain | `zbm-luks`, `zbm-pool`, `zbm-bootenv`, `zbm-boot` | Unlocking with a registry of key methods; pool import as a state machine; boot environments, kernels, command lines and key sources (`zbm-bootenv`, new, split out of `zbm-boot`); loading and booting a kernel with teardown |

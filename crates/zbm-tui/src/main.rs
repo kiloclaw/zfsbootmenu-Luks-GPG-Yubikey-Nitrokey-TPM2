@@ -12,12 +12,12 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use zbm_display::grid::Grid;
+use zbm_display::psf::Font;
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::{DemoOptions, Session};
 use zbm_tui::menu::theme::Theme;
 use zbm_tui::menu::{display, terminal};
 use zbm_tui::text::{Language, set_language};
-use zbm_types::psf::Font;
 
 /// The text of `zbm-tui --help`.
 const USAGE: &str = "\

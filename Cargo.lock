@@ -4003,15 +4003,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zbm-coreutils"
-version = "0.1.0"
-dependencies = [
- "pretty_assertions",
- "zbm-platform",
- "zbm-testkit",
-]
-
-[[package]]
 name = "zbm-crypt"
 version = "0.1.0"
 dependencies = [
@@ -4019,7 +4010,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
- "zbm-coreutils",
  "zbm-platform",
  "zbm-testkit",
  "zbm-types",
@@ -4034,6 +4024,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "pretty_assertions",
  "swash",
+ "thiserror",
  "zbm-sys",
  "zbm-types",
 ]
@@ -4074,16 +4065,6 @@ dependencies = [
  "zbm-trace",
  "zbm-types",
  "zbm-zfs",
-]
-
-[[package]]
-name = "zbm-menu"
-version = "0.1.0"
-dependencies = [
- "zbm-boot",
- "zbm-config",
- "zbm-state",
- "zbm-testkit",
 ]
 
 [[package]]

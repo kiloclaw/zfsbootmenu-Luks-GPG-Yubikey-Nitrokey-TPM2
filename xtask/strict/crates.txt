@@ -6,11 +6,9 @@ zbm-app
 zbm-brush
 zbm-config
 zbm-console
-zbm-coreutils
 zbm-crypt
 zbm-display
 zbm-luks
-zbm-menu
 zbm-platform
 zbm-pool
 zbm-startup

@@ -13,7 +13,7 @@ use std::time::Instant;
 use libfuzzer_sys::fuzz_target;
 use zbm_console::screen::Console;
 use zbm_display::grid::Grid;
-use zbm_types::psf::Font;
+use zbm_display::psf::Font;
 
 /// The image's Terminus 8×14.
 const FONT: &[u8] = include_bytes!("../../legacy/zfsbootmenu/fonts/ter-v14b.psf");

@@ -18,6 +18,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_display::grid::Grid;
+use zbm_display::psf::Font;
 use zbm_platform::{Files, RealFiles};
 use zbm_startup::autosize::choice::{self, Candidate, Request};
 use zbm_startup::autosize::font::Cell;
@@ -26,7 +27,6 @@ use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::demo::{DemoOptions, Session};
 use zbm_tui::menu::display::run_on_display;
 use zbm_tui::menu::theme::Theme;
-use zbm_types::psf::Font;
 
 use crate::{Io, USAGE};
 

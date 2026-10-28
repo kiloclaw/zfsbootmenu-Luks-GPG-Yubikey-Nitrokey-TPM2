@@ -8,7 +8,7 @@
 //! Passphrases and card PINs reach `gpg` on standard input (loopback
 //! pinentry), and the decrypted key is captured from its output as a secret;
 //! nothing decrypted is written to a file. The home's files are copied,
-//! made private and removed in process (`zbm-coreutils`).
+//! made private and removed in process (`zbm_platform::tree`).
 
 #![allow(
     clippy::disallowed_methods,
@@ -18,8 +18,8 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use zbm_coreutils::{clear_mode_bits, copy_into, remove_tree};
 use zbm_platform::files::Files;
+use zbm_platform::tree::{clear_mode_bits, copy_into, remove_tree};
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 

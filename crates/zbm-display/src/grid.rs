@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use zbm_types::psf::Font;
+use crate::psf::Font;
 
 use crate::boxes;
 use crate::decor::{self, Decoration};

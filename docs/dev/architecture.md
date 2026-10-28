@@ -25,13 +25,13 @@ dependencies that exist.
 
 | Layer | Crates | Purpose |
 | --- | --- | --- |
-| front ends | `zbm-menu`, `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
+| front ends | `zbm-tui`, `zbm-console`, `zbm-brush`, `zbm` | The menus, the console on the display, the shell and the multi-call binary, whose applets start the programs |
 | orchestration | `zbm-startup`, `generate-zbm` | Start-up; image generation |
 | application | `zbm-app` | Actions, events and the snapshot that front ends use |
 | domain | `zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot` | LUKS volumes and key methods, pool import, kernel command lines of boot environments; boot environments, their kernels and keys, and booting |
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
-| platform | `zbm-platform`, `zbm-coreutils`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
+| platform | `zbm-platform`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
 | foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
@@ -39,7 +39,6 @@ dependencies that exist.
 A crate depends only on crates of lower layers, with these exceptions in its own layer:
 
 - `zbm-trace` → `zbm-core`
-- `zbm-coreutils` → `zbm-platform`
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
 - `zbm-boot` → `zbm-luks`
@@ -58,7 +57,7 @@ Third-party crates:
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
-- `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `swash`
+- `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
@@ -77,56 +76,63 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 ## How the layers are used
 
 - **unsafe**: `zbm-sys` wraps the C library calls the standard library lacks (signals, `waitpid`, `poll`,
-  `kexec_file_load`, wiping memory). It is the only crate that may contain `unsafe`; the workspace lints deny it
+  `kexec_file_load`, wiping and locking memory, the child set-up between `fork` and `exec`: default signals, `setsid`
+  and the controlling terminal). It is the only crate that may contain `unsafe`; the workspace lints deny it
   everywhere else.
 - **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
-  `PoolName`, `DatasetName`. Nothing else can hold an invalid one.
-- **foundation**: `zbm-core` describes programs to run (`Command`, `Input::Secret`, `Stream::CaptureSecret`), holds
-  `Secret`, file tests and the error type. `zbm-trace` sends `tracing` events to standard error and to a JSON
-  journal (at boot, `/zfsbootmenu/journal.jsonl`), one line per event with its spans, fields named for secrets
-  redacted; its macros (`zbm_trace::info!` and the others) log to the kernel log,
-  which its `KmsgLayer` writes in the formats of the legacy runtime, and it reads that log back.
-- **platform**: `zbm-system` defines the interfaces through which runtime code reaches the system (`Runner`, `Files`,
-  `Clock`, `Console`, `Processes`, `Environment`) and their real implementations. `zbm-state` shares state between
-  processes through files. `zbm-config` parses the kernel command line and the configuration file.
-- **ports**: `zbm-platform` gives services a `Context`: the ports they may use, with a runner that reports every
-  program it runs to the journal (the command journal). Refactored services take a `&Context`.
+  `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion` and the stages. Nothing else can hold an invalid one.
+- **foundation**: `zbm-core` holds what every crate needs and that reaches the system through no port: the command
+  line as text, Perl's and the shell's file tests, colours, `getopts`, the Bash semantics the legacy code relies on and
+  the release information. `zbm-trace` sends `tracing` events to standard error and to a JSON journal (at boot,
+  `/zfsbootmenu/journal.jsonl`), one line per event with its spans, only the fields of an allow-list kept; its macros
+  (`zbm_trace::info!` and the others) log to the kernel log, which its `KmsgLayer` writes in the formats of the legacy
+  runtime.
+- **platform**: `zbm-platform` defines the ports through which runtime code reaches the system (`Runner`, `Files`,
+  `Clock`, `Console`, `Processes`, `Environment`), with their real implementations, the `System` bundle and the
+  `Context` of services, whose runner reports every program it runs to the journal (the command journal). It holds
+  `Command` and `Secret`, the error type, the kernel log writer and reader (records read from `/dev/kmsg`), crash
+  reports, the state directory's locks, and the file tree operations (copying, restricting and removing trees in
+  process, `tree`). `zbm-display` is the display and keyboard without a terminal: DRM buffers, fonts (TrueType, and
+  PSF console fonts with their parser, `psf`), keyboard layouts, evdev keys and the virtual terminal's hand-over.
+- **state**: `zbm-state` shares state between processes through the files of `/zfsbootmenu`. `zbm-config` holds the
+  table of options and parses the kernel command line, `/etc/zfsbootmenu.conf` and crypttab files.
 - **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`
   (ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
   `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
   programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:
-  `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts. Adapters are the
-  only code that builds a `Command`: the workspace's `clippy.toml` disallows `Command::new` and `Command::shell`,
-  which the adapters' modules and test builds allow. `zbm-coreutils` (platform) copies, restricts and removes file
-  trees in process.
+  `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts, and reads block
+  devices from `/sys/class/block` and udev's records. Adapters are the only code that builds a `Command`: the
+  workspace's `clippy.toml` disallows `Command::new` and `Command::shell`, which the adapters' modules and test builds
+  allow. Each adapter gives the programs that wait on a device a time-out.
 - **domain**: `zbm-luks` unlocks and closes LUKS volumes with every key method. Its `Unlocker` tries the key methods
   of `unlock::methods` (`KeyMethod` strategies, in the order `key_methods` lists them), LUKS2 tokens through the
   `TokenHandler` registry of `keys::handlers` in two passes (silent, then interactive), and then the passphrase prompt,
   whose `PassphrasePrompt` state machine decides between another try, the retry prompt and giving up; a
-  `MappingStore` keeps the mappings and skipped volumes. `pilot` is the key-file slice of R0 (`KeyChain`). `zbm-pool` imports pools: the import settings as types,
-  `zpool import` with typed options, host IDs, and the retry loop of the start-up stage as a state machine
-  (`ImportLoop`) whose transitions are pure; the stage reaches the console only through its `Operator` port.
-  `zbm-kcl` handles the kernel command lines stored on boot environments.
+  `MappingStore` keeps the mappings and skipped volumes. `pilot` is the key-file slice of R0 (`KeyChain`). `zbm-pool`
+  imports pools: the import settings as types, `zpool import` with typed options, host IDs, and the retry loop of the
+  start-up stage as a state machine (`ImportLoop`) whose transitions are pure; the stage reaches the console only
+  through its `Operator` port. `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, saved logs and
+  reports, and the prompts and recovery contract (`Recovery`) the start-up stages use; pool import runs through
+  `zbm-pool`, with these prompts as its `Operator`. `zbm-kcl` handles the kernel command lines stored on boot
+  environments.
 - **application**: `zbm-app` is what front ends talk to: they read the `model::Snapshot` of the machine
   (`App::snapshot`), send a `model::Action` to `App::act`, and get `model::Event`s back, the last of them the
   outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
   end answers through the `Prompter` it passes.
-- **orchestration**: `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, and the prompts and recovery
-  contract (`Recovery`) the start-up stages use; pool import runs through `zbm-pool`, with these prompts as its
-  `Operator`. `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host ID,
-  device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an earlier
-  run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the plain
-  console (`ConsoleFront`) or the menu's start-up view; the recovery shell; and the start-up hooks (`preinit`). `generate-zbm`
-  assembles images.
+- **orchestration**: `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host
+  ID, device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an
+  earlier run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the
+  plain console (`ConsoleFront`) or the menu's start-up view; the recovery shell; and the start-up hooks (`preinit`).
+  `generate-zbm` assembles images.
 - **front ends**: `zbm` dispatches applets by the name it was called with; `zfsbootmenu-init` runs `zbm-startup`,
   on the menu's start-up view (`zbm::startup::MenuFront` over `zbm_tui::menu::startup`) when the terminal can run
-  the menu, and `zluks` performs its actions through `zbm-app`. No front end uses an adapter crate (`check-deps`,
-  `NOT_THROUGH`). `zbm-tui` is the new menu in the Elm
-  architecture: a `Model`, a pure `update`, a `view` drawn with Ratatui, and one key binding table. `zbm-menu` is the
-  placeholder it replaces.
+  the menu, and `zluks` performs its actions through `zbm-app`; its supervisor starts the console on the display
+  (`zbm-console`) and the programs on its terminal. No front end uses an adapter crate (`check-deps`,
+  `NOT_THROUGH`). `zbm-tui` is the menu in the Elm architecture: a `Model`, a pure `update`, a `view` drawn with
+  Ratatui, and one key binding table. `zbm-brush` is the shell of the Rust images.
 - **test support**: `zbm-testkit` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,
   `FakeConsole`) and the helpers that run legacy code for parity tests. Crates use it only as a development
-  dependency.
+  dependency. `zbm-vmtest` runs the VM tests.
 
 ## The pilots
 

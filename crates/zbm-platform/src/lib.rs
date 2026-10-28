@@ -65,6 +65,7 @@ mod quiet;
 pub mod secret;
 pub mod shell;
 mod traced;
+pub mod tree;
 
 pub use clock::{Clock, SystemClock};
 pub use console::{Console, NoConsole, Size, Terminal};

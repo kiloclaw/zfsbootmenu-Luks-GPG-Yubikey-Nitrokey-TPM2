@@ -9,7 +9,7 @@ use super::tests::screen;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
-use zbm_types::psf::{Font, repertoire};
+use zbm_display::psf::{Font, repertoire};
 
 /// The sizes of the wireframes.
 const SIZES: [(u16, u16); 3] = [(120, 40), (80, 25), (52, 20)];

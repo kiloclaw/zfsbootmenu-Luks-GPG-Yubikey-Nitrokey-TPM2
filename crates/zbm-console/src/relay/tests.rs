@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use pretty_assertions::assert_eq;
 use zbm_display::grid::Grid;
-use zbm_types::psf::Font;
+use zbm_display::psf::Font;
 
 use super::*;
 

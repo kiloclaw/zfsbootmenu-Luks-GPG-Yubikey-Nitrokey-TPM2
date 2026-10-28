@@ -62,7 +62,7 @@ story; the snapshot tests compare the monochrome text with the coloured one.
 ## Glyphs
 
 Only glyphs that every console font an image can have, as images with the Rust runtime install them: the six
-Terminus fonts, or the four Spleen fonts with `Global.ConsoleFont: spleen`, as 256-glyph subsets (`zbm_types::psf`),
+Terminus fonts, or the four Spleen fonts with `Global.ConsoleFont: spleen`, as 256-glyph subsets (`zbm_display::psf`),
 which keep the console's 16 colours. A test of the wireframes makes the subsets of both families and fails on any
 character they cannot draw. Each glyph has an ASCII form.
 

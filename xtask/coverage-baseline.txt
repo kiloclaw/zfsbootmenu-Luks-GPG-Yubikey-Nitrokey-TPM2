@@ -12,7 +12,6 @@ zbm-boot                  97
 zbm-config                99
 zbm-console               91
 zbm-core                  97
-zbm-coreutils            100
 zbm-crypt                100
 zbm-display               90
 zbm-kcl                   91

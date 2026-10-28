@@ -71,32 +71,37 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 
 | Crate | Responsibility | Legacy counterpart |
 | --- | --- | --- |
-| `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, credentials and wiping memory; waiting for any child, for the supervisor (Phase 5). | Bash built-ins |
+| `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, `waitpid`, credentials, wiping and locking memory, the child set-up between `fork` and `exec`, the virtual terminal's modes, the stack for crash reports. | Bash built-ins |
+| `zbm-types` | Names and paths checked once, when parsed: devices, mappings, pools, datasets, snapshots, kernel versions, stages. | — |
 | `zbm-core` | File tests, shell quoting, `getopts`, release information, colours. | parts of `zfsbootmenu-core.sh` |
-| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports and the command journal. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, variables |
-| `zbm-state` | The state directory `/zfsbootmenu`: its layout, and reading and writing each file. | `${BASE}/*` |
 | `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
-| `zbm-config` | The ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, and reading and writing `/etc/zfsbootmenu.conf`. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
+| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and file trees. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, `cp -a`, `rm -rf`, variables |
+| `zbm-display` | The display and keyboard without a terminal: DRM buffers, TrueType and PSF fonts, keyboard layouts, evdev keys, the virtual terminal's hand-over. | `setfont`, `loadkeys` |
+| `zbm-state` | The state directory `/zfsbootmenu`: its layout, reading and writing each file, and its locks. | `${BASE}/*` |
+| `zbm-config` | The table of options, the ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, `/etc/zfsbootmenu.conf` and crypttab files. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
 | `zbm-zfs` | `zfs` and `zpool`: properties, listings, pools and datasets, mounts, importing and exporting. | the ZFS parts of `zfsbootmenu-core.sh` |
+| `zbm-crypt` | `cryptsetup` with typed requests and mappings, and the key programs: `tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`. | the program calls of `zfsbootmenu-luks*.sh` |
+| `zbm-tools` | The system's other programs: `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, user scripts; block devices from `/sys`. | `zfsbootmenu-core.sh` helpers |
 | `zbm-luks` | Package B: crypttab and options, finding volumes, every key method, closing volumes. | `zfsbootmenu-luks.sh`, `zfsbootmenu-luks-keys.sh` |
-| `zbm-boot` | Packages A, C and D: the start-up sequence, hooks, pool import, boot environments, kernels, ZFS encryption keys, `kexec`, snapshots and pool management. | `init.d/*`, `zfsbootmenu-core.sh` |
-| `zbm-menu` | Package E: the screens, `fzf`, previews, help, the command line editor and the power menu. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `libexec/*` |
+| `zbm-pool` | Pool import: policies, host IDs, the retry loop of the start-up stage. | `init.d/50-import-pools` |
+| `zbm-boot` | Packages A, C and D: boot environments, kernels, ZFS encryption keys, hooks, `kexec`, snapshots, pool management, saved logs and reports. | `zfsbootmenu-core.sh` |
+| `zbm-kcl` | The host tool that reads and writes the kernel command line of boot environments and EFI images. | `bin/zbm-kcl` |
+| `zbm-app` | What front ends talk to: actions, events and the snapshot of the machine. | — |
+| `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
+| `generate-zbm` | The host tool that builds images. | `bin/generate-zbm` |
+| `zbm-tui` | The menu: an Elm architecture on Ratatui and nucleo-matcher. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `fzf` |
+| `zbm-console` | The console on the display: Alacritty's terminal on a pseudo-terminal, drawn through DRM. | the kernel's console |
+| `zbm-brush` | The shell of the Rust images, brush. | Bash |
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
+| `zbm-vmtest` | The VM tests: QEMU, disks, images and the scenarios. Developers' machines only. | `tests/luks/vm` |
 
 The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-platform`, `zbm-config`,
 `zbm-trace` and `zbm-zfs` with the runtime.
 
-Dependencies point from the program to the system and never back:
-
-- `zbm` uses `zbm-menu`, `zbm-boot` and `zbm-luks`; `zbm-menu` uses `zbm-boot`; `zbm-boot` uses `zbm-luks`, because
-  pool import retries unlocking volumes that appear late.
-- `zbm-boot`, `zbm-luks` and `zbm-menu` use `zbm-state`, `zbm-platform`, `zbm-zfs`, `zbm-config` and `zbm-trace` as
-  they need them.
-- `zbm-state`, `zbm-zfs` and `zbm-config` use `zbm-platform`; `zbm-zfs` and `zbm-config` run programs through
-  `Runner` alone, as the host tools need.
-- `zbm-platform` uses `zbm-core`, `zbm-trace` (for its kernel log writer and crash reports) and `zbm-sys`.
-- `docs/dev/architecture.md` lists the layers and every allowed dependency; `cargo xtask check-deps` enforces them.
+Dependencies point from the program to the system and never back: each crate belongs to one layer and uses only
+crates of lower layers. `docs/dev/architecture.md` lists the layers and every allowed dependency, generated from
+`xtask/src/deps.rs`, and `cargo xtask check-deps` enforces them.
 
 Third-party crates are vendored and need a reason; so far the runtime needs none.
 

@@ -1400,20 +1400,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "zbm-coreutils"
-version = "0.1.0"
-dependencies = [
- "zbm-platform",
-]
-
-[[package]]
 name = "zbm-crypt"
 version = "0.1.0"
 dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
- "zbm-coreutils",
  "zbm-platform",
  "zbm-types",
 ]
@@ -1426,6 +1418,7 @@ dependencies = [
  "kbvm",
  "miniz_oxide",
  "swash",
+ "thiserror",
  "zbm-sys",
  "zbm-types",
 ]

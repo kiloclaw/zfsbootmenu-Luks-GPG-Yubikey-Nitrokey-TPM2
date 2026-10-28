@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
 use ratatui::style::Style;
-use zbm_types::psf::Font;
+use zbm_display::psf::Font;
 
 use super::*;
 use crate::menu::caps::Capabilities;

@@ -149,7 +149,7 @@ implementations of the system interfaces. It builds in `target/strict` so the no
 findings per crate and per lint, and writes them to `target/strict/strict-lints.txt`.
 
 A crate that has reached the strict lints stays there: `xtask/strict/crates.txt` lists those crates (`xtask`, the
-crates of the R0 pilots and the empty `zbm-menu`), `cargo xtask lint` runs the strict lints over them alone and fails
+crates of the R0 pilots and others), `cargo xtask lint` runs the strict lints over them alone and fails
 on any finding, and `cargo xtask lint --strict`, which reports every crate, fails on them too. Each phase of
 ROADMAP.md adds the crates it finishes; a crate never leaves the list. The other crates' findings are only
 reported. Silence a finding that is right in context with `#[allow(lint, reason = "...")]` on the item, never for a

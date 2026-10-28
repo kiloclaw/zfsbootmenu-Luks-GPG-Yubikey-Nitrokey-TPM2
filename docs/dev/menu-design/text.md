@@ -76,4 +76,4 @@ cargo run -p zbm-tui -- --demo --language pseudo
 3. Check the wireframes in it at 52×20, as for the pseudo-language.
 
 The characters must be in the 256-glyph console fonts the image installs: Latin-1 and the few letters beyond it that
-those four languages use (`zbm_types::psf::repertoire`).
+those four languages use (`zbm_display::psf::repertoire`).

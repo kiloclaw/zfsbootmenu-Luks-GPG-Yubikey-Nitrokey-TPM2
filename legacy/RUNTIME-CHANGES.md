@@ -50,7 +50,7 @@ off, and so that a change to the runtime adds its entry in the same commit.
 - [x] `c364e98`: images with `zfsbootmenu_runtime=rust` install their console fonts as 256-glyph subsets that
   `install_zbm_fonts` makes with `zbm console-fonts` (ROADMAP.md #20), so the console keeps its 16 colours; the whole
   fonts when `zbm` cannot make them. Legacy images are unchanged.
-  **Rust:** done; `zbm_types::psf` makes the subsets, and `crates/zbm/tests/image.rs` checks the fonts of both
+  **Rust:** done; `zbm_display::psf` makes the subsets, and `crates/zbm/tests/image.rs` checks the fonts of both
   runtimes' images.
 - [x] `79624e4`: the build option `zfsbootmenu_console_font=terminus|spleen` (ROADMAP.md #20), which `generate-zbm`
   sets from `Global.ConsoleFont`. With `spleen`, `install_zbm_fonts` installs the Spleen fonts of

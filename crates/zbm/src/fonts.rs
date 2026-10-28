@@ -2,13 +2,13 @@
 //! as 256-glyph subsets (ROADMAP.md #20), which the image build runs for
 //! images with the Rust runtime. A console font of more than 256 glyphs costs
 //! colours; the subsets keep the characters the menu and the shell need
-//! (`zbm_types::psf`).
+//! (`zbm_display::psf`).
 
 use std::io;
 use std::path::Path;
 
+use zbm_display::psf::{Font, SUBSET_GLYPHS, repertoire};
 use zbm_platform::{Files, RealFiles};
-use zbm_types::psf::{Font, SUBSET_GLYPHS, repertoire};
 
 use crate::Io;
 

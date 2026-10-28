@@ -1,4 +1,12 @@
 //! Tests of the file tree operations on the fake file system.
+//!
+//! They are integration tests because the fakes of `zbm-testkit` implement
+//! the traits of this crate as other crates see it.
+
+#![allow(
+    clippy::unwrap_used,
+    reason = "tests fail loudly when a step cannot be done"
+)]
 
 use std::io;
 use std::path::Path;
@@ -6,7 +14,8 @@ use std::path::Path;
 use pretty_assertions::assert_eq;
 use zbm_testkit::fakes::FakeFiles;
 
-use super::*;
+use zbm_platform::files::Files as _;
+use zbm_platform::tree::{MAX_DEPTH, clear_mode_bits, copy_into, remove_tree};
 
 fn mode(files: &FakeFiles, path: &str) -> u32 {
     files.metadata(Path::new(path)).unwrap().mode

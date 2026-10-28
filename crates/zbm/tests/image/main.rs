@@ -280,7 +280,7 @@ impl Image {
                 let entry = entry.unwrap();
                 // Directories, such as the fallback fonts', are no font.
                 let bytes = std::fs::read(entry.path()).unwrap_or_default();
-                let font = zbm_types::psf::Font::parse(&bytes);
+                let font = zbm_display::psf::Font::parse(&bytes);
                 let name = entry.file_name().to_string_lossy().into_owned();
                 (name, font.map_or(0, |font| font.glyph_count()))
             })

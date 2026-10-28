@@ -1,4 +1,7 @@
-//! File trees: copying, restricting and removing them.
+//! File trees: copying, restricting and removing them, in process instead
+//! of by running `cp -a SOURCE/. TARGET/`, `chmod -R go-rwx PATH` and
+//! `rm -rf PATH`, through the [`Files`] port, so that tests run them on a
+//! fake file system.
 //!
 //! The operations follow symbolic links where `cp -a` and `chmod -R` would
 //! keep or skip them: [`Files`] reports what a path names after following
@@ -10,7 +13,7 @@
 use std::io;
 use std::path::Path;
 
-use zbm_platform::files::{FileKind, Files};
+use crate::files::{FileKind, Files};
 
 /// How deep [`copy_into`] and [`clear_mode_bits`] go below the path they are
 /// given.
@@ -117,6 +120,3 @@ pub fn remove_tree(files: &dyn Files, path: &Path) -> io::Result<()> {
         None => removed,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+thiserror.workspace = true
 drm.workspace = true
 kbvm.workspace = true
 miniz_oxide.workspace = true

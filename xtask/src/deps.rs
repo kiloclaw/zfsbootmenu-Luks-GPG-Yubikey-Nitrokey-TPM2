@@ -54,7 +54,7 @@ pub const LAYERS: &[Layer] = &[
         purpose: "The ports to the system (programs, files, clock, console, processes, \
                   environment), their real implementations, secrets and the Context; the \
                   display and keyboard without a terminal",
-        crates: &["zbm-platform", "zbm-coreutils", "zbm-display"],
+        crates: &["zbm-platform", "zbm-display"],
     },
     Layer {
         name: "state",
@@ -87,14 +87,13 @@ pub const LAYERS: &[Layer] = &[
         name: "front ends",
         purpose: "The menus, the console on the display, the shell and the multi-call binary, \
                   whose applets start the programs",
-        crates: &["zbm-menu", "zbm-tui", "zbm-console", "zbm-brush", "zbm"],
+        crates: &["zbm-tui", "zbm-console", "zbm-brush", "zbm"],
     },
 ];
 
 /// Dependencies between crates of the same layer: (from, to).
 pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm-trace", "zbm-core"),
-    ("zbm-coreutils", "zbm-platform"),
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
     ("zbm-boot", "zbm-luks"),
@@ -126,7 +125,10 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         &["alacritty_terminal", "rustix", "signal-hook"],
     ),
     ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
-    ("zbm-display", &["drm", "kbvm", "miniz_oxide", "swash"]),
+    (
+        "zbm-display",
+        &["drm", "kbvm", "miniz_oxide", "swash", "thiserror"],
+    ),
     ("zbm-testkit", &["serde", "serde_json"]),
     (
         "zbm-luks",

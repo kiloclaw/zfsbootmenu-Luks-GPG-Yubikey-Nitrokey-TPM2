@@ -9,9 +9,9 @@
 use std::path::PathBuf;
 
 use libfuzzer_sys::fuzz_target;
+use zbm_display::psf::{Font, repertoire};
 use zbm_startup::autosize::choice::{Density, Request, order};
 use zbm_startup::autosize::{edid, font};
-use zbm_types::psf::{Font, repertoire};
 
 fuzz_target!(|data: &[u8]| {
     if let Ok(psf) = Font::parse(data) {
