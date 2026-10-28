@@ -24,7 +24,9 @@ mod process;
 pub mod signals;
 mod stack;
 
-pub use process::{ChildSetup, Ended, Session, prepare_child, take_terminal, try_wait, wait_any};
+pub use process::{
+    ChildSetup, Ended, Session, prepare_child, reap, take_terminal, try_wait, wait_any,
+};
 pub use signals::{Process, SignalSet, Signals};
 pub use stack::{MAX_FRAMES, return_addresses};
 
@@ -71,10 +73,13 @@ pub enum Signal {
     Pipe,
     /// `SIGTERM`, the default signal of `kill`.
     Terminate,
+    /// `SIGCHLD`, sent when a child process ends: process 1 reads it to
+    /// collect the orphans that come to it.
+    Child,
 }
 
 /// Every [`Signal`], in the order of their numbers.
-const SIGNALS: [Signal; 8] = [
+const SIGNALS: [Signal; 9] = [
     Signal::Hangup,
     Signal::Interrupt,
     Signal::Quit,
@@ -83,6 +88,7 @@ const SIGNALS: [Signal; 8] = [
     Signal::User2,
     Signal::Pipe,
     Signal::Terminate,
+    Signal::Child,
 ];
 
 impl Signal {
@@ -98,6 +104,7 @@ impl Signal {
             Signal::User2 => 12,
             Signal::Pipe => 13,
             Signal::Terminate => 15,
+            Signal::Child => 17,
         }
     }
 
@@ -112,6 +119,7 @@ impl Signal {
             Signal::User2 => "USR2",
             Signal::Pipe => "PIPE",
             Signal::Terminate => "TERM",
+            Signal::Child => "CHLD",
         }
     }
 
@@ -367,6 +375,9 @@ mod tests {
         assert_eq!(Signal::User2.number(), 12);
         assert_eq!(Signal::from_number(12), Some(Signal::User2));
         assert_eq!(Signal::from_number(1), Some(Signal::Hangup));
+        assert_eq!(Signal::Child.number(), 17);
+        assert_eq!(Signal::from_number(17), Some(Signal::Child));
+        assert_eq!(Signal::Child.name(), "CHLD");
     }
 
     #[test]

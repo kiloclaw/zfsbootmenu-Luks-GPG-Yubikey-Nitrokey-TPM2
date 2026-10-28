@@ -129,6 +129,23 @@ pub fn wait_any() -> io::Result<Option<Ended>> {
     }
 }
 
+/// A child of this process that ended, which this collects, without
+/// waiting: `None` when none ended, or there are no children.
+///
+/// # Errors
+///
+/// When `waitpid` fails other than by a signal or for lack of children.
+pub fn reap() -> io::Result<Option<Ended>> {
+    loop {
+        match rustix::process::wait(WaitOptions::NOHANG) {
+            Ok(ended) => return Ok(ended.map(ended_of)),
+            Err(Errno::CHILD) => return Ok(None),
+            Err(Errno::INTR) => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
 /// The raw wait status of the child `pid` if it ended, which collects it;
 /// `None` while it runs. Does not block.
 ///
@@ -239,6 +256,28 @@ mod tests {
         assert_eq!(try_wait(running.id()).unwrap(), None);
         running.kill().unwrap();
         running.wait().unwrap();
+    }
+
+    #[test]
+    #[allow(
+        clippy::zombie_processes,
+        reason = "reap collects the child, which is what the test checks"
+    )]
+    fn any_child_that_ended_is_reaped_without_waiting() {
+        let _guard = PROCESSES.lock().unwrap();
+        assert_eq!(reap().unwrap(), None);
+        let child = Command::new("sh").args(["-c", "exit 5"]).spawn().unwrap();
+        let start = Instant::now();
+        let ended = loop {
+            if let Some(ended) = reap().unwrap() {
+                break ended;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert_eq!(ended.pid, child.id());
+        assert_eq!((ended.status >> 8) & 0xff, 5);
+        assert_eq!(reap().unwrap(), None);
     }
     /// The process and session IDs in `/proc/self/stat` of the program that
     /// `setup` prepares: `cat`, which prints its own.

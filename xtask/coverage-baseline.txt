@@ -6,7 +6,7 @@
 crate         line_coverage
 generate-zbm             91
 xtask                    71
-zbm                      81
+zbm                      83
 zbm-app                  99
 zbm-boot                 97
 zbm-brush                74
@@ -14,13 +14,13 @@ zbm-config               99
 zbm-console              90
 zbm-crypt               100
 zbm-display              92
-zbm-kcl                  91
+zbm-kcl                  93
 zbm-luks                 92
 zbm-platform             97
 zbm-pool                 98
 zbm-startup              96
 zbm-state                99
-zbm-sys                  86
+zbm-sys                  87
 zbm-testkit              94
 zbm-tools               100
 zbm-trace                98

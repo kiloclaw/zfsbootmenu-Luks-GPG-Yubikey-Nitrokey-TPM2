@@ -78,10 +78,11 @@ impl Attached {
         let keyboard = keyboard_mode(terminal()).ok();
         let modes = SavedModes::of(io::stdin());
         let (master, slave) = zbm_console::host::open_pty()?;
-        let child = Command::new(&program.path)
-            .args(&program.args)
-            .stdin(Stdio::from(master))
-            .spawn()?;
+        let mut command = Command::new(&program.path);
+        command.args(&program.args).stdin(Stdio::from(master));
+        // Without the supervisor's blocked `SIGCHLD`, when it starts again.
+        zbm_sys::prepare_child(&mut command, &zbm_sys::ChildSetup::default());
+        let child = command.spawn()?;
         let pid = child.id();
         Ok(Attached {
             pid,

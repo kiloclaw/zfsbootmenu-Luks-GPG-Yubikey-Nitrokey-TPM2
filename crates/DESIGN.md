@@ -253,10 +253,27 @@ The start-up stages run in this order, as the steps of `zbm-startup` (one `Step`
 
 The supervisor is the only code in process 1, so it is kept small and cannot panic: its module denies `unwrap`,
 `expect`, `panic!` and indexing, and allocates nothing after start-up beyond what starting a child needs. It ignores
-`SIGINT`, and it starts its children itself and waits for them with `waitpid(-1)` (through `zbm-sys`), which also
+`SIGINT`, and it starts its children itself and collects them with `waitpid(-1)` (through `zbm-sys`), which also
 reaps orphans. It never uses `Runner` or the standard library's `Child::wait`, because its `waitpid(-1)` would collect
-their exit statuses first. If the recovery shell itself cannot start, it waits ten seconds and tries again, so an
-error never turns into a busy loop.
+their exit statuses first.
+
+It is one event loop, as ADR 0001 has every process be: a `poll` over the `pidfd` of each child it runs, the hang-up
+of the console's terminal (not its input, which is the programs'), and, as process 1, a `signalfd` for `SIGCHLD`,
+which wakes it for orphans too. The time-out is the nearest deadline, at most five seconds as process 1. Each time it
+wakes it collects every child that ended, without waiting, and moves its two services on:
+
+- **The start-up program and the recovery shell.** When the program ends, the recovery shell starts; when the shell
+  ends, the program starts again with `--resume`. A shell that fails within five seconds did not open: Bash, its
+  fallback, starts instead. If no shell can start, the supervisor tries again after ten seconds, so an error never
+  turns into a busy loop.
+- **The console on the display.** When it ends, or its terminal hangs up and it is not collected within five seconds,
+  the virtual terminal goes back to the kernel console. It starts again after 1, 2 and then 4 seconds; after a third
+  end in a row it is given up, and the programs stay on the kernel console. A run of a minute starts the count again.
+  It starts again only between programs, so a program never changes terminal while it runs, and nothing starts while
+  the console is ending or about to start again.
+
+It keeps its own `poll` rather than the `Reactor` of `zbm_platform::event`, which reads the time through the `Clock`
+port and wakes on input.
 
 ### Shared state: the state directory
 
@@ -599,8 +616,8 @@ value bundles, so a function needs only one parameter for all of them.
 
 Devices are files (`/dev/disk/by-*`), so waiting for them is `Files` and `Clock`; mounting, `kexec` and module loading
 are programs. The supervisor's starting of and waiting for children is the one part outside these interfaces (see
-"The supervisor"); its decisions (what to start next, after which status) are a pure function with unit tests, and the
-VM tests cover the rest. The fakes check what must not happen as well: `FakeSystem::assert_no_leak` fails if a
+"The supervisor"); its unit tests run its loop with real programs (what starts next, after which status, and the
+console's restarts), and the VM tests cover the rest. The fakes check what must not happen as well: `FakeSystem::assert_no_leak` fails if a
 secret's bytes appear in any argument, environment variable, written file or console output.
 
 ### How each package is tested

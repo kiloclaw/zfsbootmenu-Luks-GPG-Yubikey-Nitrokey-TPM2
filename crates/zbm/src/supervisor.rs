@@ -1,15 +1,18 @@
 //! The supervisor: process 1 of the Rust runtime.
 //!
-//! It starts the start-up program on the console and waits for every child
-//! with `waitpid(-1)`, which also reaps orphans. If the start-up program ends
-//! for any reason, it logs that, opens a recovery shell, and then starts the
-//! program again with `--resume`, which skips the countdown and the automatic
-//! boot. It never uses `Runner` or `Child::wait`, whose own waiting its
-//! `waitpid(-1)` would get in the way of, and it contains no ZFS logic. See
-//! "The supervisor" in `crates/DESIGN.md`.
+//! It starts the start-up program on the console and collects every child
+//! that ends with `waitpid(-1)`, which also reaps orphans. If the start-up
+//! program ends for any reason, it logs that, opens a recovery shell, and then
+//! starts the program again with `--resume`, which skips the countdown and the
+//! automatic boot. It never uses `Runner` or `Child::wait`, whose own waiting
+//! its `waitpid(-1)` would get in the way of, and it contains no ZFS logic.
+//! One event loop does all of it (`supervisor/running.rs`), with the restart
+//! policies of `supervisor/restart.rs`. See "The supervisor" in
+//! `crates/DESIGN.md`.
 //!
-//! With `zbm.console=drm` it first starts the console on the display, and
-//! runs the programs on its terminal (`supervisor/console.rs`).
+//! With `zbm.console=drm` it first starts the console on the display, runs
+//! the programs on its terminal (`supervisor/console.rs`), and starts it
+//! again a few times when it ends.
 //!
 //! The kernel panics if process 1 ends, so this module cannot panic: it uses no
 //! `unwrap`, `expect`, `panic!` or indexing, and handles every error by
@@ -28,21 +31,25 @@
 )]
 
 mod console;
+mod restart;
+mod running;
 
 use std::fmt::Write as _;
 use std::io::Write;
 use std::os::fd::AsFd;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use zbm_console::host::Modes;
 use zbm_platform::RealFiles;
 
-use zbm_sys::{Ended, Signal};
+use zbm_sys::Signal;
 use zbm_trace::crash::{Reason, Report};
 
 use self::console::Attached;
+pub use self::restart::Backoff;
+use self::running::{Begin, Running};
 
 /// How long the supervisor waits for the console to end once its terminal
 /// hung up.
@@ -79,6 +86,8 @@ pub struct Supervisor {
     /// terminal (`TIOCCONS`): off in tests, where it would take the
     /// machine's console.
     pub redirect_console: bool,
+    /// When the console on the display starts again once it ended.
+    pub console_restart: Backoff,
 }
 
 /// What happened, for the log and for tests.
@@ -125,6 +134,7 @@ impl Supervisor {
             base: PathBuf::from(crate::debug::BASE),
             console: None,
             redirect_console: true,
+            console_restart: Backoff::CONSOLE,
         }
     }
 
@@ -193,15 +203,7 @@ impl Supervisor {
         match Attached::start(program) {
             Ok(attached) => {
                 events(Event::Console(format!("started {}", attached.pid)));
-                // What hooks and tools write to `/dev/console` shows on the
-                // console, not on the kernel console it hides.
-                if self.redirect_console
-                    && let Err(error) = attached.redirect_console()
-                {
-                    self.error(&format!(
-                        "/dev/console stays on the kernel console: {error}"
-                    ));
-                }
+                self.redirect(&attached);
                 Some(attached)
             }
             Err(error) => {
@@ -215,155 +217,38 @@ impl Supervisor {
         }
     }
 
-    /// Gives the terminal back to the kernel console when the console that
-    /// ended with `status` is the `attached` one.
-    fn console_ended(
-        &self,
-        ended: u32,
-        status: i32,
-        attached: &mut Option<Attached>,
-        events: &mut dyn FnMut(Event),
-    ) {
-        if attached
-            .as_ref()
-            .is_some_and(|console| console.pid == ended)
-            && let Some(console) = attached.take()
+    /// Has what hooks and tools write to `/dev/console` show on the console
+    /// `attached`, not on the kernel console it hides.
+    fn redirect(&self, attached: &Attached) {
+        if self.redirect_console
+            && let Err(error) = attached.redirect_console()
         {
-            console.detach(&self.base);
             self.error(&format!(
-                "the console on the display ended (wait status {status}); \
-                 going on on the kernel console"
+                "/dev/console stays on the kernel console: {error}"
             ));
-            events(Event::Console(format!("ended {status}")));
-        }
-    }
-
-    /// Once the console's terminal hung up, the console has ended or is
-    /// ending: waits for it a moment (at most [`CONSOLE_END`]) and gives the
-    /// virtual terminal back to the kernel console, so that what starts next
-    /// runs there. Otherwise a program that ended with the terminal, and was
-    /// collected before the console, would be followed by a recovery shell
-    /// on the dead terminal, which ends at once.
-    fn settle_console(&self, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
-        let Some(pid) = attached
-            .as_ref()
-            .filter(|console| console.is_hung_up())
-            .map(|console| console.pid)
-        else {
-            return;
-        };
-        let start = std::time::Instant::now();
-        loop {
-            match zbm_sys::try_wait(pid) {
-                Ok(Some(status)) => {
-                    self.console_ended(pid, status, attached, events);
-                    return;
-                }
-                Ok(None) if start.elapsed() < CONSOLE_END => {
-                    std::thread::sleep(Duration::from_millis(20));
-                }
-                _ => break,
-            }
-        }
-        if let Some(console) = attached.take() {
-            console.detach(&self.base);
-            self.error(
-                "the terminal of the console on the display hung up; \
-                 going on on the kernel console",
-            );
-            events(Event::Console("hung up".to_owned()));
-        }
-    }
-
-    /// Waits until `pid` ends, reaping every other child that ends meanwhile,
-    /// and returns its wait status (`None` if it is gone already). When the
-    /// console is among them, the terminal goes back to the kernel console.
-    /// When `pid` ends, the supervisor takes its terminal back: a shell with
-    /// job control on it, such as brush, may leave its own process group in
-    /// the foreground, and the next program could then read no key.
-    fn wait_for(
-        &self,
-        pid: u32,
-        attached: &mut Option<Attached>,
-        events: &mut dyn FnMut(Event),
-    ) -> Option<i32> {
-        loop {
-            match zbm_sys::wait_any() {
-                Ok(Some(Ended { pid: ended, status })) if ended == pid => {
-                    // Not a terminal (the tests): nothing to take back.
-                    let _ = zbm_sys::take_terminal(std::io::stdin());
-                    return Some(status);
-                }
-                Ok(Some(Ended { pid: ended, status })) => {
-                    self.console_ended(ended, status, attached, events);
-                }
-                Ok(None) => return None,
-                Err(error) => {
-                    self.error(&format!("waiting for processes failed: {error}"));
-                    std::thread::sleep(self.retry);
-                }
-            }
         }
     }
 
     /// Runs the start-up program and restarts it after a recovery shell each
     /// time it ends, `rounds` times (without end with `None`), calling
-    /// `events` for each step. A round that panics is logged and the next
-    /// one starts: process 1 must not end.
+    /// `events` for each step, with the console on the display if one is
+    /// wanted.
     pub fn run(&self, rounds: Option<usize>, events: &mut dyn FnMut(Event)) {
         let _ = zbm_sys::ignore_signal(Signal::Interrupt);
-        let mut attached = self.start_console(events);
-        let mut round = 0;
-        while rounds.is_none_or(|rounds| round < rounds) {
-            let resume = round > 0;
-            round += 1;
-            let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.round(resume, &mut attached, events);
-            }));
-            if ran.is_err() {
-                self.error("the supervisor failed in this round; starting again");
-                std::thread::sleep(self.retry);
-            }
-        }
+        let attached = self.start_console(events);
+        self.run_from(attached, Begin::Startup { resume: false }, rounds, events);
     }
 
-    /// One round: the start-up program (with `--resume` after the first),
-    /// then, when it ends, the recovery shell.
-    fn round(&self, resume: bool, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
-        let extra: &[&str] = if resume { &["--resume"] } else { &[] };
-        self.settle_console(attached, events);
-        let modes = Self::modes(attached.as_ref());
-        let report = if let Some(pid) = self.spawn(&self.startup, extra, false, attached.as_ref()) {
-            events(Event::Started(pid));
-            let status = self.wait_for(pid, attached, events).unwrap_or(-1);
-            events(Event::Ended(status));
-            self.error(&format!(
-                "zfsbootmenu-init ended unexpectedly (wait status {status}); \
-                 starting a recovery shell"
-            ));
-            let report = self.crash_report(pid, status);
-            if let Some(path) = &report {
-                self.error(&format!("crash report: {}", path.display()));
-            }
-            self.save_logs();
-            report
-        } else {
-            events(Event::Failed(self.startup.path.display().to_string()));
-            None
-        };
-        if let Some(modes) = &modes {
-            let _ = modes.restore();
-        }
-        self.recovery_shell(report.as_deref(), attached, events);
-    }
-
-    /// The modes of the terminal the programs run on, to give back to the
-    /// recovery shell when the start-up program is killed in raw mode.
-    fn modes(attached: Option<&Attached>) -> Option<Modes> {
-        match attached {
-            Some(console) => Modes::save(console.terminal()),
-            None => Modes::save(std::io::stdin().as_fd()),
-        }
+    /// Runs from `begin` on the console `attached`, if there is one, for
+    /// `rounds` rounds (`supervisor/running.rs`).
+    fn run_from(
+        &self,
+        attached: Option<Attached>,
+        begin: Begin,
+        rounds: Option<usize>,
+        events: &mut dyn FnMut(Event),
+    ) {
+        Running::new(self, events, attached, begin, rounds).run();
     }
 
     /// After a crash, has `zbm debug save --after-crash` save the logs on
@@ -382,6 +267,8 @@ impl Supervisor {
         if let Ok(kmsg) = std::fs::OpenOptions::new().append(true).open(&self.log) {
             command.stderr(kmsg);
         }
+        // Without the supervisor's blocked `SIGCHLD`.
+        zbm_sys::prepare_child(&mut command, &zbm_sys::ChildSetup::default());
         if let Err(error) = command.spawn() {
             self.error(&format!("unable to save the logs: {error}"));
         }
@@ -428,94 +315,34 @@ impl Supervisor {
         let path = self.base.join(report.file_name());
         std::fs::write(&path, report.render()).ok().map(|()| path)
     }
+}
 
-    /// Runs the recovery shell until it ends; while it cannot start, tries
-    /// again every `retry`, so an error never becomes a busy loop. The
-    /// message before it names the crash `report`, if there is one.
-    fn recovery_shell(
-        &self,
-        report: Option<&std::path::Path>,
-        attached: &mut Option<Attached>,
-        events: &mut dyn FnMut(Event),
-    ) {
-        self.settle_console(attached, events);
-        let mut message =
-            String::from("\nZFSBootMenu ended unexpectedly; type 'exit' to start it again\n");
-        if let Some(report) = report {
-            let _ = writeln!(
-                message,
-                "A crash report is in {}; 'zbm debug crash' shows it.",
-                report.display()
-            );
-        }
-        message.push('\n');
-        // A program killed while it drew leaves the cursor hidden, and its
-        // screen up.
-        message.insert_str(0, "\x1b[?1049l\x1b[?25h");
-        match attached {
-            Some(console) => {
-                // The terminal turns each line feed into a new line.
-                let _ = console.write(&message);
-            }
-            None => {
-                let _ = std::io::stderr().write_all(message.as_bytes());
-            }
-        }
-        loop {
-            match self.run_recovery_shell(&self.shell, attached, events) {
-                Opened::Yes => return,
-                Opened::Failed => {}
-                Opened::NotStarted => {
-                    events(Event::Failed(self.shell.path.display().to_string()));
-                }
-            }
-            if let Some(fallback) = &self.fallback {
-                self.error(&format!(
-                    "{} did not open; starting {}",
-                    self.shell.path.display(),
-                    fallback.path.display()
-                ));
-                match self.run_recovery_shell(fallback, attached, events) {
-                    Opened::Yes | Opened::Failed => return,
-                    Opened::NotStarted => {
-                        events(Event::Failed(fallback.path.display().to_string()));
-                    }
-                }
-            }
-            std::thread::sleep(self.retry);
-        }
-    }
-
-    /// Runs `shell` until it ends.
-    fn run_recovery_shell(
-        &self,
-        shell: &Program,
-        attached: &mut Option<Attached>,
-        events: &mut dyn FnMut(Event),
-    ) -> Opened {
-        let start = std::time::Instant::now();
-        let Some(pid) = self.spawn(shell, &[], true, attached.as_ref()) else {
-            return Opened::NotStarted;
-        };
-        let status = self.wait_for(pid, attached, events);
-        events(Event::Shell);
-        let failed = status.is_none_or(|status| status != 0);
-        if failed && start.elapsed() < QUICK_FAILURE {
-            Opened::Failed
-        } else {
-            Opened::Yes
-        }
+/// The modes of the terminal the programs run on, to give back to the
+/// recovery shell when the start-up program is killed in raw mode.
+fn modes(attached: Option<&Attached>) -> Option<Modes> {
+    match attached {
+        Some(console) => Modes::save(console.terminal()),
+        None => Modes::save(std::io::stdin().as_fd()),
     }
 }
 
-/// What became of a recovery shell.
-enum Opened {
-    /// It ran, and the user left it.
-    Yes,
-    /// It started, but failed at once.
-    Failed,
-    /// It could not start.
-    NotStarted,
+/// What the recovery shell is told before it starts, which names the crash
+/// `report`, if there is one.
+fn shell_message(report: Option<&Path>) -> String {
+    // A program killed while it drew leaves the cursor hidden, and its
+    // screen up.
+    let mut message = String::from(
+        "\x1b[?1049l\x1b[?25h\nZFSBootMenu ended unexpectedly; type 'exit' to start it again\n",
+    );
+    if let Some(report) = report {
+        let _ = writeln!(
+            message,
+            "A crash report is in {}; 'zbm debug crash' shows it.",
+            report.display()
+        );
+    }
+    message.push('\n');
+    message
 }
 
 #[cfg(test)]

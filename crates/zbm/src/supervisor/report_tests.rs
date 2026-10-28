@@ -27,6 +27,7 @@ fn the_newest_crash_report_of_the_program_is_named() {
         log: dir.join("kmsg"),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
 
     let report = supervisor.crash_report(42, 101 << 8);

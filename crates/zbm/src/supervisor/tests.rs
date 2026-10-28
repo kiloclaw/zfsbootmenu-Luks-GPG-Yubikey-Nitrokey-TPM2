@@ -49,6 +49,7 @@ fn restarts_the_program_after_a_shell() {
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
     let mut events = Vec::new();
     supervisor.run(Some(2), &mut |event| events.push(event));
@@ -95,6 +96,7 @@ fn a_program_killed_by_a_signal_leaves_a_crash_report() {
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
 
     let mut events = Vec::new();
@@ -143,6 +145,7 @@ fn a_program_that_lost_its_terminal_did_not_crash() {
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
 
     let mut events = Vec::new();
@@ -181,6 +184,7 @@ fn a_crash_report_the_program_wrote_is_named() {
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
 
     supervisor.run(Some(1), &mut |_| {});
@@ -219,6 +223,7 @@ fn without_a_console_the_programs_run_on_the_supervisor_s_terminal() {
             path: dir.join("missing"),
             args: Vec::new(),
         }),
+        console_restart: Backoff::CONSOLE,
     };
 
     let mut events = Vec::new();
@@ -255,6 +260,7 @@ fn programs_that_cannot_start_are_logged() {
         log: log.clone(),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     };
     let mut events = Vec::new();
     supervisor.run(Some(1), &mut |event| events.push(event));
@@ -286,106 +292,8 @@ fn supervisor_in(dir: &TempDir, startup: PathBuf) -> Supervisor {
         log: dir.write("kmsg", ""),
         base: dir.path().to_owned(),
         console: None,
+        console_restart: Backoff::NEVER,
     }
-}
-
-#[test]
-fn programs_run_on_the_console_s_terminal_in_a_session_of_their_own() {
-    let _guard = PROCESSES.lock().unwrap();
-    let dir = TempDir::new("zbm-supervisor");
-    let startup = dir.write_executable("startup", "#!/bin/sh\ntty\nps -o sid= -p $$\n");
-    let supervisor = supervisor_in(&dir, startup);
-    let (mut master, slave) = zbm_console::host::open_pty().unwrap();
-    let mut attached = Some(Attached::for_tests(0, slave));
-
-    let pid = supervisor
-        .spawn(&supervisor.startup, &[], false, attached.as_ref())
-        .unwrap();
-    let status = supervisor.wait_for(pid, &mut attached, &mut |_| {});
-    // The output may come in more than one read.
-    let mut shown = String::new();
-    while shown.lines().count() < 2 {
-        let mut chunk = vec![0_u8; 256];
-        let length = std::io::Read::read(&mut master, &mut chunk).unwrap();
-        shown.push_str(&String::from_utf8_lossy(&chunk[..length]));
-    }
-
-    assert_eq!(status, Some(0));
-    assert!(shown.starts_with("/dev/pts/"), "{shown:?}");
-    assert_eq!(
-        shown.lines().nth(1).map(str::trim),
-        Some(pid.to_string().as_str())
-    );
-}
-
-#[test]
-#[allow(
-    clippy::zombie_processes,
-    reason = "the supervisor collects the console with waitpid(-1)"
-)]
-fn when_the_console_ends_the_terminal_goes_back_to_the_kernel_console() {
-    let _guard = PROCESSES.lock().unwrap();
-    let dir = TempDir::new("zbm-supervisor");
-    let startup = dir.write_executable("startup", "#!/bin/sh\nsleep 0.3\n");
-    let supervisor = supervisor_in(&dir, startup);
-    let console = std::process::Command::new("true").spawn().unwrap();
-    let (_master, slave) = zbm_console::host::open_pty().unwrap();
-    dir.write("console", format!("{}\n", console.id()));
-    let mut attached = Some(Attached::for_tests(console.id(), slave));
-    let mut events = Vec::new();
-
-    let pid = supervisor
-        .spawn(&supervisor.startup, &[], false, None)
-        .unwrap();
-    let status = supervisor.wait_for(pid, &mut attached, &mut |event| events.push(event));
-
-    assert_eq!(status, Some(0));
-    assert!(attached.is_none());
-    assert_eq!(events, [Event::Console("ended 0".to_owned())]);
-    assert!(!dir.join("console").exists());
-    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
-    assert!(
-        kmsg.contains("the console on the display ended (wait status 0)"),
-        "{kmsg}"
-    );
-}
-
-#[test]
-fn with_a_console_the_programs_and_the_message_go_to_its_terminal() {
-    let _guard = PROCESSES.lock().unwrap();
-    let dir = TempDir::new("zbm-supervisor");
-    let shown = dir.join("shown");
-    // The console keeps what the programs write.
-    let console = dir.write_executable(
-        "display",
-        format!("#!/bin/sh\nexec cat > {}\n", shown.display()),
-    );
-    let startup = dir.write_executable("startup", "#!/bin/sh\necho started on $(tty)\n");
-    let mut supervisor = supervisor_in(&dir, startup);
-    supervisor.console = Some(Program {
-        path: console,
-        args: Vec::new(),
-    });
-
-    let mut events = Vec::new();
-    supervisor.run(Some(1), &mut |event| events.push(event));
-    let _ = zbm_sys::restore_default(Signal::Interrupt);
-
-    let Some(Event::Console(started)) = events.first() else {
-        panic!("{events:?}");
-    };
-    let pid = started.strip_prefix("started ").unwrap().to_owned();
-    // The console records itself (`zbm console`); this one does not.
-    assert!(!dir.join("console").exists());
-    assert_eq!(events.last(), Some(&Event::Shell));
-    std::thread::sleep(Duration::from_millis(200));
-    let _ = std::process::Command::new("kill").arg(&pid).status();
-    let text = std::fs::read_to_string(&shown).unwrap();
-    assert!(text.contains("started on /dev/pts/"), "{text:?}");
-    assert!(
-        text.contains("type 'exit' to start it again\r\n"),
-        "{text:?}"
-    );
 }
 
 #[test]
@@ -437,11 +345,11 @@ fn the_recovery_shell_gets_the_terminal_s_modes_back() {
         let _ = std::io::Read::read_to_end(&mut master, &mut shown);
         shown
     });
-    let mut attached = Some(Attached::for_tests(0, slave));
+    let attached = Some(Attached::for_tests(0, slave));
 
-    supervisor.round(false, &mut attached, &mut |_| {});
-    let _ = zbm_sys::restore_default(Signal::Interrupt);
-    drop(attached);
+    let begin = Begin::Startup { resume: false };
+    // The terminal closes when the run ends.
+    supervisor.run_from(attached, begin, Some(1), &mut |_| {});
 
     let shown = String::from_utf8_lossy(&reader.join().unwrap()).into_owned();
     let text = std::fs::read_to_string(&modes).unwrap();
@@ -466,66 +374,6 @@ fn with_marking_shell(dir: &TempDir) -> Supervisor {
 }
 
 #[test]
-#[allow(
-    clippy::zombie_processes,
-    reason = "the supervisor collects the console with waitpid"
-)]
-fn a_shell_after_the_console_ended_runs_on_the_kernel_console() {
-    let _guard = PROCESSES.lock().unwrap();
-    let dir = TempDir::new("zbm-supervisor");
-    let supervisor = with_marking_shell(&dir);
-    // The console ended, closing its side of the terminal, and the start-up
-    // program, which lost the terminal with it, was collected first.
-    let console = std::process::Command::new("true").spawn().unwrap();
-    let (master, slave) = zbm_console::host::open_pty().unwrap();
-    drop(master);
-    let mut attached = Some(Attached::for_tests(console.id(), slave));
-    let mut events = Vec::new();
-
-    supervisor.recovery_shell(None, &mut attached, &mut |event| events.push(event));
-
-    assert!(attached.is_none());
-    assert_eq!(events, [Event::Console("ended 0".to_owned()), Event::Shell]);
-    // Not on the dead terminal, where it would have ended at once.
-    assert_eq!(
-        std::fs::read_to_string(dir.join("shell-ran")).unwrap(),
-        "ran\n"
-    );
-    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
-    assert!(
-        kmsg.contains("the console on the display ended (wait status 0)"),
-        "{kmsg}"
-    );
-}
-
-#[test]
-fn a_hung_up_terminal_is_given_up_even_if_its_console_is_not_collected() {
-    let _guard = PROCESSES.lock().unwrap();
-    let dir = TempDir::new("zbm-supervisor");
-    let supervisor = with_marking_shell(&dir);
-    dir.write("console", "1\n");
-    let (master, slave) = zbm_console::host::open_pty().unwrap();
-    drop(master);
-    // Not a child of the supervisor: it cannot be waited for.
-    let mut attached = Some(Attached::for_tests(std::process::id(), slave));
-    let mut events = Vec::new();
-
-    supervisor.round(true, &mut attached, &mut |event| events.push(event));
-    let _ = zbm_sys::restore_default(Signal::Interrupt);
-
-    assert!(attached.is_none());
-    assert_eq!(events.first(), Some(&Event::Console("hung up".to_owned())));
-    assert_eq!(events.last(), Some(&Event::Shell));
-    assert!(!dir.join("console").exists());
-    assert!(dir.join("shell-ran").exists());
-    let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
-    assert!(
-        kmsg.contains("hung up; going on on the kernel console"),
-        "{kmsg}"
-    );
-}
-
-#[test]
 fn bash_opens_when_the_shell_fails_at_once_or_cannot_start() {
     let _guard = PROCESSES.lock().unwrap();
     let dir = TempDir::new("zbm-supervisor");
@@ -537,7 +385,7 @@ fn bash_opens_when_the_shell_fails_at_once_or_cannot_start() {
     };
     let mut events = Vec::new();
 
-    supervisor.recovery_shell(None, &mut None, &mut |event| events.push(event));
+    supervisor.run_from(None, Begin::Shell, Some(1), &mut |event| events.push(event));
 
     assert_eq!(events, [Event::Shell, Event::Shell]);
     assert_eq!(
@@ -550,7 +398,7 @@ fn bash_opens_when_the_shell_fails_at_once_or_cannot_start() {
     std::fs::remove_file(dir.join("shell-ran")).unwrap();
     supervisor.shell.path = dir.join("missing");
     let mut events = Vec::new();
-    supervisor.recovery_shell(None, &mut None, &mut |event| events.push(event));
+    supervisor.run_from(None, Begin::Shell, Some(1), &mut |event| events.push(event));
     let _ = zbm_sys::restore_default(Signal::Interrupt);
     assert!(matches!(
         events.as_slice(),
@@ -567,27 +415,4 @@ fn without_a_chosen_shell_the_recovery_shell_is_bash() {
     assert_eq!(supervisor.fallback, None);
 }
 
-#[test]
-fn programs_on_the_console_get_its_terminal_description() {
-    let (_master, slave) = zbm_console::host::open_pty().unwrap();
-    let attached = Attached::for_tests(0, slave);
-    let program = Program {
-        path: PathBuf::from("/bin/sh"),
-        args: Vec::new(),
-    };
-
-    let command = attached.command(&program, &[]).unwrap();
-
-    let vars: Vec<(String, String)> = command
-        .get_envs()
-        .filter_map(|(key, value)| Some((key.to_str()?.to_owned(), value?.to_str()?.to_owned())))
-        .collect();
-    let get = |name: &str| {
-        vars.iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| value.as_str())
-    };
-    assert_eq!(get("TERM"), Some("xterm-256color"));
-    assert_eq!(get("COLORTERM"), Some("truecolor"));
-    assert_eq!(get(super::console::MARKER), Some("drm"));
-}
+mod console;

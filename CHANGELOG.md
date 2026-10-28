@@ -527,6 +527,13 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - Over SSH or a serial line, Enter is no longer lost after a broken character or escape sequence, nor taken twice
   when a terminal's CR LF comes in two reads.
 
+### The supervisor as one event loop (phase 2)
+
+- When the console on the display ends, the supervisor starts it again, after 1, 2 and then 4 seconds, between two
+  programs; after a third end in a row the programs stay on the kernel console, as before. Before, one end was enough.
+- Process 1 waits for its children, the console's terminal and the orphans that come to it in one loop, instead of
+  waiting for one program at a time; nothing changes in what it starts and when.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
