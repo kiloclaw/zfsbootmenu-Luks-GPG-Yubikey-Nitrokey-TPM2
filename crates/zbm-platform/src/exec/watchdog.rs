@@ -25,7 +25,7 @@ impl Watchdog {
         let collected = Arc::new(Mutex::new(false));
         let (done, ended) = mpsc::channel::<()>();
         let watched = Arc::clone(&collected);
-        std::thread::spawn(move || {
+        let watch = move || {
             if ended.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout) {
                 let collected = watched
                     .lock()
@@ -34,7 +34,10 @@ impl Watchdog {
                     let _ = zbm_sys::send_signal(pid, Signal::Kill);
                 }
             }
-        });
+        };
+        // Without a thread, the time-out is not watched; the command runs
+        // as long as it runs.
+        let _ = crate::event::spawn_traced("watchdog", watch);
         Watchdog { collected, done }
     }
 

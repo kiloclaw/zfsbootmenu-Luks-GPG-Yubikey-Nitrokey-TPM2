@@ -64,6 +64,7 @@ pub mod crash;
 pub mod dmesg;
 pub mod env;
 pub mod error;
+pub mod event;
 pub mod exec;
 pub mod files;
 pub mod filetest;

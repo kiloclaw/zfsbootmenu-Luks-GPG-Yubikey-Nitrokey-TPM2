@@ -33,6 +33,10 @@ pub struct Guest {
 impl Guest {
     /// Plays `script` on `stream`, then closes it.
     pub fn play(stream: UnixStream, script: Vec<Step>) -> Guest {
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "a developer tool, not the runtime of ADR 0001"
+        )]
         let thread = thread::spawn(move || {
             let mut mismatches = Vec::new();
             let mut reader = BufReader::new(stream.try_clone().unwrap());

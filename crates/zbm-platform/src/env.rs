@@ -16,7 +16,7 @@
 use std::ffi::{OsStr, OsString};
 
 /// Reads environment variables.
-pub trait Environment {
+pub trait Environment: Send + Sync {
     /// The value of `name`, if it is set.
     fn var_os(&self, name: &str) -> Option<OsString>;
 

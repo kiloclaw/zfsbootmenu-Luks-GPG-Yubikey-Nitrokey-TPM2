@@ -96,6 +96,10 @@ impl Console {
             Condvar::new(),
         ));
         let thread_state = Arc::clone(&state);
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "a developer tool, not the runtime of ADR 0001"
+        )]
         let reader = thread::spawn(move || read_console(reader, log, &thread_state));
         Console {
             writer: Box::new(writer),

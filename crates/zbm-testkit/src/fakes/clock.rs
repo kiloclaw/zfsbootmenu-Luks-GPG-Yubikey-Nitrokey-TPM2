@@ -1,18 +1,19 @@
 //! A clock that only moves when the code sleeps.
 
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use zbm_platform::clock::Clock;
+
+use crate::sync::lock;
 
 /// The wall-clock time at which a fake clock starts: 2026-01-01 00:00:00 UTC.
 pub const START: Duration = Duration::from_secs(1_767_225_600);
 
 #[derive(Default)]
 struct State {
-    now: Cell<Duration>,
-    sleeps: RefCell<Vec<Duration>>,
+    now: Mutex<Duration>,
+    sleeps: Mutex<Vec<Duration>>,
 }
 
 /// A [`Clock`] whose time advances only through [`Clock::sleep`] and
@@ -21,7 +22,7 @@ struct State {
 /// the fake console can let time pass when a key press times out.
 #[derive(Clone, Default)]
 pub struct FakeClock {
-    state: Rc<State>,
+    state: Arc<State>,
 }
 
 impl FakeClock {
@@ -32,26 +33,26 @@ impl FakeClock {
 
     /// Lets `duration` pass without recording a sleep.
     pub fn advance(&self, duration: Duration) {
-        self.state.now.set(self.state.now.get() + duration);
+        *lock(&self.state.now) += duration;
     }
 
     /// Every sleep so far, in order.
     pub fn sleeps(&self) -> Vec<Duration> {
-        self.state.sleeps.borrow().clone()
+        lock(&self.state.sleeps).clone()
     }
 }
 
 impl Clock for FakeClock {
     fn now(&self) -> Duration {
-        self.state.now.get()
+        *lock(&self.state.now)
     }
 
     fn wall(&self) -> SystemTime {
-        SystemTime::UNIX_EPOCH + START + self.state.now.get()
+        SystemTime::UNIX_EPOCH + START + self.now()
     }
 
     fn sleep(&self, duration: Duration) {
-        self.state.sleeps.borrow_mut().push(duration);
+        lock(&self.state.sleeps).push(duration);
         self.advance(duration);
     }
 }

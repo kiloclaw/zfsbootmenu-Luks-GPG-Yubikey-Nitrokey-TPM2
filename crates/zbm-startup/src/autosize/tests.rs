@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use zbm_testkit::Shared;
 
 use pretty_assertions::assert_eq;
 use zbm_platform::exec::{Output, Status};
@@ -202,8 +201,8 @@ impl Machine {
         let geometry = format!("{},{}\n", screen.0, screen.1);
         fake.files
             .file("/sys/class/graphics/fb0/virtual_size", geometry);
-        let cell: Rc<RefCell<Option<(u16, u16)>>> = Rc::default();
-        let current = Rc::clone(&cell);
+        let cell: Shared<Option<(u16, u16)>> = Shared::default();
+        let current = cell.clone();
         fake.runner.on(move |command| {
             let line = command.display();
             let words: Vec<&str> = line.split_whitespace().collect();

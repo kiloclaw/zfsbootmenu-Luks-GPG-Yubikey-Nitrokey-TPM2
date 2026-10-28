@@ -369,7 +369,7 @@ impl Output {
 }
 
 /// Runs commands.
-pub trait Runner {
+pub trait Runner: Send + Sync {
     /// Runs `command` and waits for it to end.
     ///
     /// A program that cannot be found is reported as a shell would: exit status 127
@@ -518,12 +518,14 @@ fn communicate(
             };
             // A command may exit without reading all of its input; that is not
             // an error here. Closing the pipe ends the input.
-            scope.spawn(move || {
+            crate::event::spawn_scoped_traced(scope, move || {
                 let _ = pipe.write_all(bytes);
             });
         }
         let stderr_limit = command.get_output_limit(Stream::Capture);
-        let stderr = stderr.map(|pipe| scope.spawn(move || read_pipe(pipe, stderr_limit)));
+        let stderr = stderr.map(|pipe| {
+            crate::event::spawn_scoped_traced(scope, move || read_pipe(pipe, stderr_limit))
+        });
         let stdout = stdout.map(|pipe| {
             if secret_stdout {
                 read_secret(pipe, command.get_output_limit(Stream::CaptureSecret))

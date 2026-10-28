@@ -62,6 +62,10 @@ fn a_match_consumes_the_text_up_to_its_end() {
 #[test]
 fn text_that_arrives_while_waiting_is_matched() {
     let (mut console, mut vm, _log) = console();
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a developer tool, not the runtime of ADR 0001"
+    )]
     let writer = std::thread::spawn(move || {
         for chunk in [&b"Passphrase (leave "[..], b"empty to ", b"skip): "] {
             std::thread::sleep(Duration::from_millis(30));

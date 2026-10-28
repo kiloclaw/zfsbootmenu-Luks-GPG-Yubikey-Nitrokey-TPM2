@@ -189,6 +189,10 @@ fn a_second_process_waits_for_the_image_being_built() {
     let held = lock(&images, "auto").unwrap();
     let waiting = {
         let images = images.clone();
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "a developer tool, not the runtime of ADR 0001"
+        )]
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
             drop(lock(&images, "auto").unwrap());

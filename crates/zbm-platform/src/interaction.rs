@@ -233,6 +233,10 @@ impl PromptRequest {
 /// (`zbm_tools::console::ConsoleInteraction`), the menu with its dialogs;
 /// the unit suites record and answer the requests. Domain code only says
 /// what it needs: how each request is shown is the implementation's.
+///
+/// Unlike the other ports it need not be `Send` or `Sync`: the menu answers
+/// on the thread that draws it. ROADMAP.md's PM8 makes each question a
+/// request with a one-shot reply, which a worker can send.
 pub trait Interaction {
     /// Shows the prompt and returns what the user did: RETURN or letting the
     /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].

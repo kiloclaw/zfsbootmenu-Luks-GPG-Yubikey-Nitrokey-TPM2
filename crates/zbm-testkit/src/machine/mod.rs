@@ -42,10 +42,9 @@
 
 mod programs;
 
-use std::cell::RefCell;
 use std::ops::Deref;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use zbm_platform::files::Files as _;
 
@@ -159,7 +158,7 @@ pub struct FakeMachine {
     /// The fakes.
     system: FakeSystem,
     /// The disks, shared with the responders.
-    model: Rc<RefCell<Model>>,
+    model: Arc<Mutex<Model>>,
 }
 
 impl Default for FakeMachine {
@@ -194,7 +193,7 @@ impl FakeMachine {
             .dir(HOLDERS)
             .dir(MAPS)
             .dir("/zfsbootmenu");
-        let model = Rc::new(RefCell::new(Model::default()));
+        let model = Arc::new(Mutex::new(Model::default()));
         programs::install(&system.runner, &system.files, &model);
         FakeMachine { system, model }
     }
@@ -215,14 +214,14 @@ impl FakeMachine {
             format!("/dev/disk/by-uuid/{}", volume.uuid),
             format!("../../{}", base(&volume.device)),
         );
-        self.model.borrow_mut().volumes.push(volume);
+        crate::sync::lock(&self.model).volumes.push(volume);
         self
     }
 
     /// The same machine with the pool `name` on the device `vdev`.
     #[must_use]
     pub fn with_pool(self, name: &str, vdev: &str) -> FakeMachine {
-        self.model.borrow_mut().pools.push(Pool {
+        crate::sync::lock(&self.model).pools.push(Pool {
             name: name.to_owned(),
             vdev: vdev.to_owned(),
         });
@@ -257,7 +256,7 @@ impl FakeMachine {
     ///
     /// If the machine has none; this is a mistake in the test.
     pub fn volume(&self, device: &str) -> LuksVolume {
-        let model = self.model.borrow();
+        let model = crate::sync::lock(&self.model);
         let volume = model.volumes.iter().find(|volume| volume.device == device);
         volume
             .cloned()

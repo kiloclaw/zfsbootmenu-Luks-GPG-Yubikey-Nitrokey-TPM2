@@ -1,8 +1,7 @@
 //! The stage against fake `zpool` answers and a fake operator. The parity
 //! tests of `zbm-boot` run it against the legacy stage too.
 
-use std::cell::Cell;
-use std::rc::Rc;
+use zbm_testkit::Shared;
 
 use pretty_assertions::assert_eq;
 use zbm_platform::exec::{Output, Status};
@@ -57,7 +56,7 @@ impl Operator for FakeOperator {
 
 /// `zpool list -H -o name` listing `pool` from its `after`th call on.
 fn pool_after(fake: &FakeSystem, pool: &'static str, after: usize) {
-    let lists = Cell::new(0);
+    let lists = Shared::new(0);
     fake.runner.on(move |command| {
         if command.display() != "zpool list -H -o name" {
             return None;
@@ -137,7 +136,7 @@ fn host_id_matching_records_the_host_id() {
     let fake = FakeSystem::new();
     let _log = log(&fake);
     fake.files.dir("/etc");
-    let imported = Rc::new(Cell::new(false));
+    let imported = Shared::new(false);
     let seen = imported.clone();
     fake.runner.on(move |command| {
         let line = command.display();

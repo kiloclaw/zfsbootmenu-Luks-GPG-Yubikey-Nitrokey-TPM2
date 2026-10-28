@@ -42,7 +42,7 @@ pub enum Timed<T> {
 }
 
 /// Input from and output to the user.
-pub trait Console {
+pub trait Console: Send + Sync {
     /// Writes text (`echo -n`).
     ///
     /// # Errors

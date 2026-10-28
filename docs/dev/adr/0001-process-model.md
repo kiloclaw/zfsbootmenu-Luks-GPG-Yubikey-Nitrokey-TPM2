@@ -94,6 +94,15 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   Escape cancels it.
 - PM4's test: a command past its time-out is killed through its `pidfd`, with no thread left behind.
 
+## Notes from the implementation
+
+- **PM2** (28 October 2026): the ports of the system (`Runner`, `Files`, `Clock`, `Console`, `Processes`,
+  `Environment`) are `Send + Sync`, and so are their fakes. `Interaction` is not yet: the menu answers it on the
+  thread that draws, and PM8 makes its questions requests with replies. The kernel log stays installed for a thread
+  and a scope, as the start-up stages install it with their own level and state directory; `spawn_traced` carries
+  it, with the current span, into every worker that thread starts, so a process logs to one place whichever thread
+  writes.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

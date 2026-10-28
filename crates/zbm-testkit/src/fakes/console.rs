@@ -1,14 +1,15 @@
 //! A scripted console.
 
-use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::io;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use zbm_platform::console::{Console, Size, Timed};
 use zbm_platform::secret::Secret;
 
 use super::clock::FakeClock;
+use crate::sync::lock;
 
 /// One thing the user does, in the order the code under test should ask for it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -34,11 +35,11 @@ pub enum ConsoleInput {
 /// input. A timed-out key press lets its timeout pass on the clock given to
 /// [`FakeConsole::with_clock`].
 pub struct FakeConsole {
-    script: RefCell<VecDeque<ConsoleInput>>,
-    output: RefCell<Vec<u8>>,
-    size: Cell<Size>,
+    script: Mutex<VecDeque<ConsoleInput>>,
+    output: Mutex<Vec<u8>>,
+    size: Mutex<Size>,
     clock: Option<FakeClock>,
-    echo: RefCell<Vec<bool>>,
+    echo: Mutex<Vec<bool>>,
 }
 
 impl Default for FakeConsole {
@@ -51,14 +52,14 @@ impl FakeConsole {
     /// A console of 25 rows and 80 columns with an empty script.
     pub fn new() -> FakeConsole {
         FakeConsole {
-            script: RefCell::new(VecDeque::new()),
-            output: RefCell::new(Vec::new()),
-            size: Cell::new(Size {
+            script: Mutex::new(VecDeque::new()),
+            output: Mutex::new(Vec::new()),
+            size: Mutex::new(Size {
                 rows: 25,
                 columns: 80,
             }),
             clock: None,
-            echo: RefCell::new(Vec::new()),
+            echo: Mutex::new(Vec::new()),
         }
     }
 
@@ -72,7 +73,7 @@ impl FakeConsole {
 
     /// Adds input to the script.
     pub fn push(&self, input: ConsoleInput) -> &FakeConsole {
-        self.script.borrow_mut().push_back(input);
+        lock(&self.script).push_back(input);
         self
     }
 
@@ -101,32 +102,32 @@ impl FakeConsole {
 
     /// Sets the screen size.
     pub fn set_size(&self, rows: u16, columns: u16) {
-        self.size.set(Size { rows, columns });
+        *lock(&self.size) = Size { rows, columns };
     }
 
     /// Everything written so far.
     pub fn output(&self) -> Vec<u8> {
-        self.output.borrow().clone()
+        lock(&self.output).clone()
     }
 
     /// Everything written so far, as text.
     pub fn output_text(&self) -> String {
-        String::from_utf8_lossy(&self.output.borrow()).into_owned()
+        String::from_utf8_lossy(&lock(&self.output)).into_owned()
     }
 
     /// Every switch of echo, in order: `true` for on.
     pub fn echo_changes(&self) -> Vec<bool> {
-        self.echo.borrow().clone()
+        lock(&self.echo).clone()
     }
 
     /// The input the code did not read.
     pub fn remaining(&self) -> Vec<ConsoleInput> {
-        self.script.borrow().iter().cloned().collect()
+        lock(&self.script).iter().cloned().collect()
     }
 
     /// The next input, or [`ConsoleInput::End`] when the script is exhausted.
     fn next(&self, wanted: &str) -> ConsoleInput {
-        let mut script = self.script.borrow_mut();
+        let mut script = lock(&self.script);
         match script.front() {
             None | Some(ConsoleInput::End) => ConsoleInput::End,
             Some(_) => {
@@ -153,12 +154,12 @@ impl FakeConsole {
 
 impl Console for FakeConsole {
     fn write(&self, bytes: &[u8]) -> io::Result<()> {
-        self.output.borrow_mut().extend_from_slice(bytes);
+        lock(&self.output).extend_from_slice(bytes);
         Ok(())
     }
 
     fn size(&self) -> io::Result<Size> {
-        Ok(self.size.get())
+        Ok(*lock(&self.size))
     }
 
     fn read_key(&self, timeout: Option<Duration>) -> io::Result<Option<u8>> {
@@ -190,7 +191,7 @@ impl Console for FakeConsole {
     }
 
     fn set_echo(&self, on: bool) {
-        self.echo.borrow_mut().push(on);
+        lock(&self.echo).push(on);
     }
 
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>> {

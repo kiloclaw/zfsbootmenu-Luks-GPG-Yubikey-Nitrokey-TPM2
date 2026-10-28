@@ -2,8 +2,8 @@
 //! pools in a directory, so that the legacy stage and the Rust stage run
 //! against the same pools, and what each run leaves behind.
 
-use std::cell::Cell;
 use std::path::PathBuf;
+use zbm_testkit::Shared;
 
 use serde::{Deserialize, Serialize};
 use zbm_platform::exec::{Command, Output, Status, Stream, SystemRunner};
@@ -312,7 +312,7 @@ impl Scenario {
         let dir = self.machine();
         let fake = FakeSystem::new();
         let bin = dir.join("bin");
-        let prompts = std::rc::Rc::new(Cell::new(0));
+        let prompts = Shared::new(0);
         let counter = prompts.clone();
         fake.runner.on(move |command| {
             let program = command.program().to_string_lossy().into_owned();

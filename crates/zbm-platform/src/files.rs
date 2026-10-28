@@ -104,7 +104,7 @@ impl std::fmt::Debug for FileLock {
 
 /// File system operations, with the semantics of the shell commands the legacy
 /// code uses for them.
-pub trait Files {
+pub trait Files: Send + Sync {
     /// Reads a whole file (`cat`).
     ///
     /// # Errors

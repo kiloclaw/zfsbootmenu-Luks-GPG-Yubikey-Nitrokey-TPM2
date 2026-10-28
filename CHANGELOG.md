@@ -475,6 +475,13 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - A mount made for a while (to read a boot environment's kernels, copy a key, import hooks or save logs) is undone on
   every way out of the code that made it.
 
+### Ready for threads (phase 1)
+
+- The interfaces through which the Rust runtime reaches the system, and their test doubles, can be used from several
+  threads (ADR 0001, accepted: one event loop per process, no async runtime). Threads start in one place,
+  `zbm_platform::event`, which carries the kernel log and the current span into each, so what a worker logs goes
+  where its starter's messages go. Nothing changes at boot yet: PM4 and PM8 put this to use.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

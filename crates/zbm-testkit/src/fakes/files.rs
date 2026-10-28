@@ -5,10 +5,12 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
 
 use zbm_platform::files::FileKind;
+
+use crate::sync::lock;
 
 /// A file system entry.
 #[derive(Clone, Debug)]
@@ -106,11 +108,6 @@ impl Default for FakeFiles {
 
 /// The error the kernel reports for `kind`, so that messages read as they do on
 /// a real system ("No such file or directory").
-/// The value behind `mutex`, also after a test panicked while holding it.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
 fn error(kind: io::ErrorKind, path: &Path) -> io::Error {
     let errno = match kind {
         io::ErrorKind::NotFound => 2,

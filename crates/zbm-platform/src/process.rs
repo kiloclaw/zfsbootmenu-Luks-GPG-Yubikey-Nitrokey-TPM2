@@ -13,7 +13,7 @@ pub use zbm_sys::Signal;
 use crate::files::Files;
 
 /// The process and signals.
-pub trait Processes {
+pub trait Processes: Send + Sync {
     /// The ID of this process (`$$`).
     fn id(&self) -> u32;
 

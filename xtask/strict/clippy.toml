@@ -21,6 +21,10 @@ disallowed-methods = [
     { path = "zbm_platform::exec::Command::shell", reason = "build commands in an adapter (zbm-zfs, zbm-crypt, zbm-tools)" },
     { path = "zbm_config::args::Args::raw", reason = "look options up by their specification in zbm_config::spec: Args::lookup, Args::enabled or Args::find" },
     { path = "std::process::Command::new", reason = "run programs through the Runner interface" },
+    # Threads start in zbm_platform::event (ADR 0001), which carries the tracing of the thread that starts them.
+    { path = "std::thread::spawn", reason = "start threads with zbm_platform::event::spawn_traced" },
+    { path = "std::thread::Builder::spawn", reason = "start threads with zbm_platform::event::spawn_traced" },
+    { path = "std::thread::Scope::spawn", reason = "start threads with zbm_platform::event::spawn_scoped_traced" },
     { path = "std::fs::read", reason = "read files through the Files interface" },
     { path = "std::fs::read_to_string", reason = "read files through the Files interface" },
     { path = "std::fs::read_dir", reason = "read directories through the Files interface" },

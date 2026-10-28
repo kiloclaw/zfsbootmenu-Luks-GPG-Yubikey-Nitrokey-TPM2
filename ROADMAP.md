@@ -572,7 +572,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
 | PM1 | Done: [ADR 0001](docs/dev/adr/0001-process-model.md), accepted on 28 October 2026: the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
-| PM2 | The ports become `Send + Sync`, the fakes use `Mutex`; `spawn_traced` carries tracing and the kernel log into workers; logging per process, not per thread | scal | M | PM1 |
+| PM2 | Done: the ports of the system and their fakes are `Send + Sync` (`Mutex` instead of `RefCell`; `zbm_testkit::Shared` for what a test shares with a responder); `zbm_platform::event::spawn_traced` carries the kernel log and the current span into workers, and clippy refuses `std::thread::spawn` elsewhere. Left to PM8: `Interaction`, which the menu answers on its thread | scal | M | PM1 |
 | PM3 | Done: one signal facility: `signalfd` and `pidfd` over `rustix`, a typed `SignalSet`; the global "last signal" slot and `signal-hook` go | stab | S | |
 | PM4 | The reactor's parts in `zbm_platform::event`: `Mailbox`, `Reactor`, `CancelToken`, `MemoryBudget`, time-outs through `pidfd` instead of a watchdog thread per command | scal, perf | M | PM2, PM3 |
 | PM5 | Done: `flock` locks for the state directory (`luks-mappings`, `active`, the key cache) as RAII `StateLock`s: no lock taken anyway after 5 s, no stale PID | stab | S | |
@@ -746,7 +746,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
-  lanes). The VM run of DM11, DM2, SB2 and SB3 is left.
+  lanes). The VM run of DM11, DM2, SB2, SB3 and PM2 is left.
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every

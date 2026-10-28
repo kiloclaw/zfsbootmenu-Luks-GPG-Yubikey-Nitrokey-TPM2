@@ -1,9 +1,8 @@
 //! The programs of a [`FakeMachine`](super::FakeMachine), answering from its
 //! model.
 
-use std::cell::RefCell;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use zbm_platform::exec::{Command, Input, Output, Status};
 use zbm_platform::files::Files as _;
@@ -13,12 +12,12 @@ use crate::FakeRunner;
 use crate::fakes::FakeFiles;
 
 /// Adds the responders of the machine's programs to `runner`.
-pub(super) fn install(runner: &FakeRunner, files: &FakeFiles, model: &Rc<RefCell<Model>>) {
+pub(super) fn install(runner: &FakeRunner, files: &FakeFiles, model: &Arc<Mutex<Model>>) {
     let files = files.clone();
-    let model = Rc::clone(model);
+    let model = Arc::clone(model);
     runner.on(move |command| {
         let args = args(command);
-        let model = model.borrow();
+        let model = crate::sync::lock(&model);
         let output = match command.program().to_string_lossy().as_ref() {
             "cryptsetup" => cryptsetup(&files, &model.volumes, command, &args),
             "blkid" => blkid(&files, &model.volumes, &args)?,

@@ -40,8 +40,8 @@
               so panics are its errors and need no `# Panics` section"
 )]
 
-use std::cell::RefCell;
 use std::io;
+use std::sync::{Arc, Mutex};
 
 use zbm_platform::exec::{Command, Output, Runner, Status};
 
@@ -55,15 +55,17 @@ pub mod parity;
 pub mod png;
 pub mod redirect;
 mod rng;
+mod sync;
 pub mod zfs;
 pub mod zfs_script;
 
 pub use host::{TempDir, can_run, have_program, repo_root, write_executable};
 pub use rng::Rng;
+pub use sync::Shared;
 
 /// A response function: returns the output for commands it handles and `None`
 /// for the others.
-type Responder = Box<dyn Fn(&Command) -> Option<io::Result<Output>>>;
+type Responder = Arc<dyn Fn(&Command) -> Option<io::Result<Output>> + Send + Sync>;
 
 /// A [`Runner`] that records commands and answers them without running
 /// anything.
@@ -72,8 +74,8 @@ type Responder = Box<dyn Fn(&Command) -> Option<io::Result<Output>>>;
 /// handles succeeds with no output.
 #[derive(Default)]
 pub struct FakeRunner {
-    calls: RefCell<Vec<Command>>,
-    responders: RefCell<Vec<Responder>>,
+    calls: Mutex<Vec<Command>>,
+    responders: Mutex<Vec<Responder>>,
 }
 
 impl FakeRunner {
@@ -83,15 +85,21 @@ impl FakeRunner {
     }
 
     /// Adds a responder.
-    pub fn on(&self, responder: impl Fn(&Command) -> Option<io::Result<Output>> + 'static) {
-        self.responders.borrow_mut().push(Box::new(responder));
+    pub fn on(
+        &self,
+        responder: impl Fn(&Command) -> Option<io::Result<Output>> + Send + Sync + 'static,
+    ) {
+        sync::lock(&self.responders).push(Arc::new(responder));
     }
 
     /// Adds a responder tried before all the others, such as one that does
     /// something as a command runs and returns `None` to let the others
     /// answer it.
-    pub fn first(&self, responder: impl Fn(&Command) -> Option<io::Result<Output>> + 'static) {
-        self.responders.borrow_mut().insert(0, Box::new(responder));
+    pub fn first(
+        &self,
+        responder: impl Fn(&Command) -> Option<io::Result<Output>> + Send + Sync + 'static,
+    ) {
+        sync::lock(&self.responders).insert(0, Arc::new(responder));
     }
 
     /// Answers commands whose program and arguments, joined by spaces, equal
@@ -111,20 +119,24 @@ impl FakeRunner {
 
     /// The commands run so far.
     pub fn calls(&self) -> Vec<Command> {
-        self.calls.borrow().clone()
+        sync::lock(&self.calls).clone()
     }
 
     /// The commands run so far, each as its program and arguments joined by spaces.
     pub fn lines(&self) -> Vec<String> {
-        self.calls.borrow().iter().map(Command::display).collect()
+        sync::lock(&self.calls)
+            .iter()
+            .map(Command::display)
+            .collect()
     }
 }
 
 impl Runner for FakeRunner {
     fn run(&self, command: &Command) -> io::Result<Output> {
-        self.calls.borrow_mut().push(command.clone());
-        self.responders
-            .borrow()
+        sync::lock(&self.calls).push(command.clone());
+        // Out of the lock, so that a responder may run commands itself.
+        let responders = sync::lock(&self.responders).clone();
+        responders
             .iter()
             .find_map(|responder| responder(command))
             .unwrap_or_else(|| Ok(Output::new(Status::exited(0), Vec::new())))

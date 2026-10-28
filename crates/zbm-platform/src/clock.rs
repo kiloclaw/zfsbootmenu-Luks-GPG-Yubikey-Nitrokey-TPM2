@@ -12,7 +12,7 @@
 use std::time::{Duration, Instant, SystemTime};
 
 /// The time, and waiting.
-pub trait Clock {
+pub trait Clock: Send + Sync {
     /// Time since an arbitrary start; it never goes backwards.
     fn now(&self) -> Duration;
 

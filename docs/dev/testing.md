@@ -44,7 +44,9 @@ people and for AI tools alike:
   ```
 
   It dereferences to a `FakeSystem` (`FakeFiles`, `FakeRunner`, `FakeConsole` and the others), so anything a
-  `FakeSystem` test does works on it too.
+  `FakeSystem` test does works on it too. The fakes are `Send + Sync`, as the ports are (ADR 0001), so code under
+  test may answer them from worker threads: a value a test shares with a responder is a `zbm_testkit::Shared`, which
+  has the methods of `Cell` and `RefCell`, not an `Rc<RefCell<_>>`.
 - **Readable failures:** `assert_ran!(machine, "zpool import -N -a")` and `assert_not_ran!(machine, "zpool export")`
   list every command that ran when they fail.
 - **Tables for variations,** with a name per case, so that a failure says which case failed. `cases!` runs every

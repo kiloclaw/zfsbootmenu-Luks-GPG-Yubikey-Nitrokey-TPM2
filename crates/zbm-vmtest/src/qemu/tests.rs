@@ -106,6 +106,10 @@ fn the_monitor_is_asked_over_its_socket() {
     let path = std::env::temp_dir().join(format!("zbm-vmtest-mon-{}.sock", std::process::id()));
     std::fs::remove_file(&path).ok();
     let listener = UnixListener::bind(&path).unwrap();
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a developer tool, not the runtime of ADR 0001"
+    )]
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
         stream.write_all(b"QEMU monitor\r\n(qemu) ").unwrap();

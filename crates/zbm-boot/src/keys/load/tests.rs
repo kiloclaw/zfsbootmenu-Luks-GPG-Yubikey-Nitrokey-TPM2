@@ -1,9 +1,8 @@
 //! Tests of loading keys: each step of the order on a fake machine whose
 //! key status changes as keys load.
 
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use zbm_testkit::Shared;
 
 use zbm_platform::KernelLog;
 use zbm_platform::exec::{Output, Status};
@@ -30,7 +29,7 @@ struct Keys {
 /// for.
 struct Machine {
     fake: FakeSystem,
-    keys: Rc<RefCell<Keys>>,
+    keys: Shared<Keys>,
 }
 
 fn output(stdout: &str) -> Output {
@@ -40,8 +39,8 @@ fn output(stdout: &str) -> Output {
 impl Machine {
     fn new(keylocation: &str, keyformat: &str, keysource: &str) -> Machine {
         let fake = FakeSystem::new();
-        let keys = Rc::new(RefCell::new(Keys::default()));
-        let shared = Rc::clone(&keys);
+        let keys = Shared::new(Keys::default());
+        let shared = keys.clone();
         fake.runner.on(move |command| {
             let line = command.display();
             if let Some(root) = line.strip_prefix("zfs get -H -o value keystatus ") {
@@ -176,7 +175,7 @@ fn load_key_hooks_come_first_and_may_unlock_the_root() {
     let machine = Machine::new("prompt", "passphrase", "-");
     let hook = "/libexec/hooks/load-key.d/10-key";
     machine.fake.files.file_with_mode(hook, "", 0o755);
-    let keys = Rc::clone(&machine.keys);
+    let keys = machine.keys.clone();
     machine.fake.runner.on(move |command| {
         (command.program() == hook).then(|| {
             let env = command.get_env();
@@ -363,7 +362,7 @@ fn a_key_source_that_unlocks_the_root_itself_is_enough() {
     // when they share an encryption root.
     let machine = Machine::new("file:///etc/zfs/keys/tank.key", "raw", "tank/keys");
     machine.loads("prompt", "tank/keys");
-    let keys = Rc::clone(&machine.keys);
+    let keys = machine.keys.clone();
     machine.fake.runner.on(move |command| {
         command.display().starts_with("mount ").then(|| {
             keys.borrow_mut().unlocked.push("tank/ROOT".into());

@@ -110,11 +110,11 @@ mod tests {
 
     /// A runner that answers with what the shell says on standard error,
     /// and records the stream it was asked to put it in.
-    struct Shell(std::cell::Cell<Option<Stream>>);
+    struct Shell(std::sync::Mutex<Option<Stream>>);
 
     impl Runner for Shell {
         fn run(&self, command: &Command) -> io::Result<Output> {
-            self.0.set(Some(command.get_stderr()));
+            *self.0.lock().unwrap() = Some(command.get_stderr());
             let mut output = Output::new(crate::exec::Status::exited(2), Vec::new());
             output.stderr = b"sh: cannot open /x: No such file\n".to_vec();
             Ok(output)
@@ -126,7 +126,7 @@ mod tests {
         let dir = TempDir::new("zbm-platform-quiet-merged");
         let kmsg = dir.join("kmsg");
         let log = KernelLog::new(&RealFiles, "7", dir.path(), 1).with_device(&kmsg);
-        let shell = Shell(std::cell::Cell::new(None));
+        let shell = Shell(std::sync::Mutex::new(None));
         let output = {
             let _installed = log.install();
             QuietRunner::new(&shell)
@@ -137,7 +137,7 @@ mod tests {
                 )
                 .unwrap()
         };
-        assert_eq!(shell.0.get(), Some(Stream::Capture));
+        assert_eq!(*shell.0.lock().unwrap(), Some(Stream::Capture));
         assert!(output.stderr.is_empty());
         let logged = std::fs::read_to_string(&kmsg).unwrap();
         assert!(
