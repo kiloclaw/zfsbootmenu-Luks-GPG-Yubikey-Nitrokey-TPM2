@@ -411,7 +411,8 @@ dracut module and mkinitcpio hook add the following to the image:
   built as modules;
 * the crypttab and any key scripts and GnuPG-encrypted key files it references;
 * when installed on the build host: systemd's ``systemd-tpm2`` and ``systemd-fido2`` cryptsetup plugins (with the
-  libraries they load at run time), ``tpm2-tools`` and ``openssl`` for native TPM2 unlocking, ``fido2-assert`` and
+  libraries they load at run time), ``tpm2-tools`` for native TPM2 unlocking (with ``openssl`` in images of the legacy
+  runtime, whose LUKS code also takes ``sha256sum`` and ``base64``), ``fido2-assert`` and
   ``fido2-token``, the clevis tools, GnuPG (``gpg``, ``gpg-agent``, ``scdaemon``), and ``ykchalresp``;
 * TPM, USB and HID drivers for TPM chips, security keys and smart cards.
 

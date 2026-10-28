@@ -9,6 +9,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
+pbkdf2.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 zbm-core.workspace = true

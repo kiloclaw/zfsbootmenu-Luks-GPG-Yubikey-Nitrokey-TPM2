@@ -335,6 +335,12 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   after five seconds), the running menu (`active.lock`; `active` holds its PID only while it runs, so a PID left by a
   killed menu is never signalled) and each key source's cache (`.keys/<source>/.lock`). In Rust images, removing
   `/zfsbootmenu/active` no longer lets a second menu start; end the first one instead (`docs/general/remote-access.rst`).
+- The hashes and encodings of the key methods (SHA-256 for the TPM2 authorization value of a PIN and the
+  `ykchalresp-hash` challenge, PBKDF2-HMAC-SHA256 for salted TPM2 PINs, base64) come from RustCrypto's `sha2` and
+  `pbkdf2` and the `base64` crate instead of our own code; their hash states are wiped when dropped. Base64 without
+  padding is still taken; base64 whose last character carries stray bits no longer is.
+- Rust images with LUKS support leave out `openssl`, `sha256sum` and `base64`, which only the legacy runtime's LUKS
+  and TPM2 code runs; `cut`, `tr` and `wc` stay, for the recovery shell's legacy commands. Legacy images are unchanged.
 
 ### The parity-only parts removed
 

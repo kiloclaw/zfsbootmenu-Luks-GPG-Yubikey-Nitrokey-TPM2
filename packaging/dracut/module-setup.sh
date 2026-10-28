@@ -127,8 +127,9 @@ install() {
 
   # Support for ZFS pools on LUKS volumes
   if zbm_luks_enabled && command -v cryptsetup >/dev/null 2>&1; then
-    # shellcheck disable=SC2154
-    for _exec in "${zfsbootmenu_luks_binaries[@]}"; do
+    local -a _luks
+    mapfile -t _luks < <( zbm_luks_binaries )
+    for _exec in "${_luks[@]}"; do
       if ! zbm_install_exec "${_exec}"; then
         dwarning "LUKS component '${_exec}' not found, omitting from image"
       fi

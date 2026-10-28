@@ -340,9 +340,9 @@ pub static LUKS_TOKENS: OptionSpec = OptionSpec {
 
 const LUKS_TOKENS_DOC: &str = r"
 Omit support for LUKS2 tokens (TPM2, FIDO2 and clevis). By default, the systemd **systemd-tpm2**
-and **systemd-fido2** cryptsetup plugins, **tpm2-tools**, **openssl**, **fido2-assert**,
-**fido2-token** and the clevis tools are installed when present on the build host, together with
-TPM, USB and HID drivers.
+and **systemd-fido2** cryptsetup plugins, **tpm2-tools**, **fido2-assert**, **fido2-token** and
+the clevis tools are installed when present on the build host, together with TPM, USB and HID
+drivers; images of the legacy runtime get **openssl** too.
 ";
 
 /// `zfsbootmenu_luks_token_plugins`.

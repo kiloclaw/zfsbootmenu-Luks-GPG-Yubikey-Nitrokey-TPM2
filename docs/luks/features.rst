@@ -141,7 +141,8 @@ Requirements
 ------------
 
 * ``cryptsetup`` 2.4 or later for LUKS2 tokens; LUKS1 volumes support passphrases, key files and key scripts.
-* For TPM2 tokens without systemd's plugin: tokens created by systemd 254 or later, ``tpm2-tools`` and ``openssl``.
+* For TPM2 tokens without systemd's plugin: tokens created by systemd 254 or later and ``tpm2-tools``; images of the
+  legacy runtime need ``openssl`` too, which the Rust runtime does without.
 * For FIDO2 tokens without systemd's plugin: ``fido2-tools`` (libfido2).
 * For OpenPGP cards: GnuPG 2.2 or later with ``scdaemon``.
 * The ZFS version in the ZFSBootMenu image must support every feature that is active on the pools (OpenZFS 2.4.4 in

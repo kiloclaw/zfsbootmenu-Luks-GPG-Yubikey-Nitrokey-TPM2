@@ -308,7 +308,7 @@ on-disk or device data take `Untrusted` input and are fuzzed; each new crate is 
 | glibc's calls in `zbm-sys` (`ioctl`, `signal`, `mmap`, `mlock`, `poll`, `tcsetpgrp`) | System calls without a safe wrapper | `rustix`; glibc itself stays | SE6 |
 | `stty`, `tput` (ncurses) | Terminal set-up | `rustix` termios and escape sequences | PM11 |
 | `setsid`, `dmesg`, `lsblk`, `mount`, `umount`, `hostid` (util-linux) | Sessions, the kernel log, block devices, mounts | System calls, `/dev/kmsg`, `/sys/block`, `/etc/hostid` | SB1, SB3, CD2 |
-| `openssl`, `sha256sum`, `base64`, `cut`, `tr`, `wc` | Hashing, encoding and text in the LUKS and TPM2 paths | RustCrypto's `sha2` and `hmac`, the `base64` crate | CD3 |
+| `openssl`, `sha256sum`, `base64`, `cut`, `tr`, `wc` | Hashing, encoding and text in the LUKS and TPM2 paths | RustCrypto's `sha2` and `pbkdf2`, the `base64` crate; Rust images leave out the first three (October 2026), and `cut`, `tr` and `wc` stay for the recovery shell's legacy commands until SB6 | CD3 |
 | `setfont` (kbd) | The kernel console's font | The `KDFONTOP` ioctl with the PSF parser | CD5 |
 | `ykchalresp`, `ykinfo` (ykpers, at its end of life upstream) | YubiKey challenge-response | HID feature reports over `hidraw` | SB11 |
 | `modprobe`, `insmod`, `modinfo`, `depmod` (kmod) | Kernel modules | `finit_module` with `modules.dep`, `modules.alias` and `modules.softdep` | CD4 |
@@ -409,8 +409,8 @@ The architecture adds:
   import policy is `strict`, a pool whose keys were not unlocked cannot give the default boot environment, and a hook
   root on a pool imported under another host's ID is refused.
 - **Salted, encrypted TPM sessions,** so an interposer on a discrete TPM's bus reads nothing.
-- **Audited crypto.** The hand-written SHA-256, HMAC, PBKDF2 and base64 of `zbm-luks` give way to the RustCrypto crates
-  with `zeroize`; `argon2` for the PIN of #8.
+- **Audited crypto.** The hand-written SHA-256, HMAC, PBKDF2 and base64 of `zbm-luks` gave way to the RustCrypto
+  crates with `zeroize` (SE7); `argon2` comes with the PIN of #8 (SE9), which is the first to need it.
 - **Secrets at the edges.** No `String` copy of a typed passphrase (the masked field renders from the `Secret`);
   `Secret::ct_eq`; no implicit `Clone`; the journal keeps fields by an allow-list, not a deny-list; the key cache is
   written with `O_NOFOLLOW | O_EXCL` and mode 0600 and removed before `kexec`; `zbm.console_mirror` exists only in test
@@ -644,9 +644,9 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SE4 | The strict lints (no panics) for `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state`, the crates that run as PID 1 or parse hostile input | stab, sec | M | |
 | SE5 | `Untrusted<T>` and `Printable`; fuzz targets for files in `/boot` and `os-release`, hostile names through `view`, the message decoders, key input and the console's replies | sec | M | |
 | SE6 | `zbm-sys` on `rustix`, with a sanitizer job | sec | M | |
-| SE7 | The RustCrypto crates replace `zbm-luks/src/crypto.rs`; `argon2` for the PIN of #8 | sec | S/M | decision 1 entry |
+| SE7 | The RustCrypto crates replace `zbm-luks/src/crypto.rs`; `argon2` for the PIN of #8, with SE9 | sec | S/M | decision 1 entry |
 | SE8 | Done: Salted, encrypted TPM sessions with today's `tpm2-tools` (a salt key for `tpm2_startauthsession`, `tpm2_sessionconfig --enable-encrypt`) | sec | S | |
-| SE9 | `RecoveryPolicy` and the `ShellGate` typestate, then the locked menu (#8) | sec | M | PM6 |
+| SE9 | `RecoveryPolicy` and the `ShellGate` typestate, then the locked menu (#8), its PIN hashed with `argon2` (from SE7) | sec | M | PM6, decision 1 entry |
 | SE10 | Measured boot (#10), `kexec_file_load` under lockdown failing closed, and the strict defaults after a TPM-only unlock | sec | M | SB4 |
 | SE11 | The keyholder process (with SB10), the unprivileged menu and the sandboxed console: sandbox profiles as a sealed trait, `Command::sandboxed(profile)` | sec | L | PM9, UI6 |
 | SE12 | The supply chain: `cargo vet`, `cargo auditable`, the SBOM, provenance, image signing in `zbm-host`, duplicate versions denied | sec | M | |
@@ -662,7 +662,7 @@ fallback behind the same port, until its VM tests pass. CD9 and CD10 come after 
 | --- | --- | --- | --- | --- |
 | CD1 | The guard: CI fails when `zbm` links a library other than glibc's (`readelf -d`); an `xtask metrics` column counts the C programs in the Rust image's list of binaries, ratcheted down; `docs/dev/dependencies.md` lists them with their item | sec, perf | S | |
 | CD2 | util-linux out of the Rust runtime: `dmesg` from `/dev/kmsg`, `lsblk` from `/sys/block`, the host ID from `/etc/hostid`; `setsid` (SB1) and `mount` (SB3) as system calls | perf | S | |
-| CD3 | Hashing and encoding in Rust: `openssl`, `sha256sum`, `base64`, `cut`, `tr` and `wc` leave the LUKS and TPM2 paths (`sha2`, `hmac`, `base64`) | sec, perf | S | SE7 |
+| CD3 | Hashing and encoding in Rust: `openssl`, `sha256sum`, `base64`, `cut`, `tr` and `wc` leave the LUKS and TPM2 paths (`sha2`, `pbkdf2`, `base64`); Rust images leave out the first three, and the text tools stay for the shell's legacy commands (`firmware-setup` runs `tr`) | sec, perf | S | SE7 |
 | CD4 | Kernel modules without kmod: `finit_module` with `modules.dep`, `modules.alias` and `modules.softdep`, compressed modules through `MODULE_INIT_COMPRESSED_FILE`, kmod as the fallback on older kernels | perf | S/M | |
 | CD5 | The kernel console's font through `KDFONTOP` with the PSF parser, without `setfont` | perf | S | DM1 |
 | CD6 | GnuPG key files with `pgp` (rPGP): symmetric and public-key encrypted files, passphrase-protected secret keys from the image's keyring, the secret key wiped after use; `gpg` and `scdaemon` stay for OpenPGP cards | sec, perf | M | DM6, decision 1 entry |
@@ -739,8 +739,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- SE1, SE7, SB1, DM1, UI1, UI2, UI13, VE1, CD1, CD2, CD3; SE2, SE3, SE8 and PM5 are done (27 October 2026; their
-  VM runs are left).
+- SE1, SB1, DM1, UI1, UI2, UI13, VE1, CD1, CD2; SE2, SE3, SE8 and PM5 are done (27 October 2026; their VM runs
+  are left), and SE7 and CD3 (28 October 2026; their VM runs are left).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
@@ -877,8 +877,9 @@ Decided, and kept from the old plans:
 1. **Dependencies** (22 October 2026, with additions since): for the runtime, `ratatui`, `crossterm`,
    `nucleo-matcher`, `serde`, `serde_json`, `thiserror`, `tracing`, `tracing-subscriber` and `uucore`; for tests,
    `insta`, `proptest` and `pretty_assertions`; and since then `drm`, `alacritty_terminal`, `rustix`, `signal-hook`,
-   `swash`, `kbvm`, `fluent-bundle`, `unic-langid`, `brush-shell`, with the VM harness's `vt100` and `regex`. Each has
-   its reason in `docs/dev/dependencies.md`; a new one is an entry here and there.
+   `swash`, `kbvm`, `fluent-bundle`, `unic-langid`, `brush-shell`, with the VM harness's `vt100` and `regex`, and
+   RustCrypto's `sha2` and `pbkdf2` with the `base64` crate for the key methods (SE7, 28 October 2026). Each has its
+   reason in `docs/dev/dependencies.md`; a new one is an entry here and there.
 2. **MSRV:** 1.88, checked in CI; it rises only when an agreed crate needs it.
 3. **Menu:** the Nucleo and Ratatui menu replaces `fzf`; `fzf` leaves Rust images with the recovery tools (SB6).
 4. **uutils** ships as the image's coreutils, beside `zbm`, which does not link its applets.

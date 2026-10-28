@@ -190,8 +190,9 @@ build() {
 
     # Support for ZFS pools on LUKS volumes
     if zbm_luks_enabled && command -v cryptsetup >/dev/null 2>&1; then
-        # shellcheck disable=SC2154
-        map add_optional_binary "${zfsbootmenu_luks_binaries[@]}"
+        local -a _luks
+        mapfile -t _luks < <( zbm_luks_binaries )
+        map add_optional_binary "${_luks[@]}"
 
         # shellcheck disable=SC2154
         map add_optional_module "${zfsbootmenu_luks_modules[@]}"

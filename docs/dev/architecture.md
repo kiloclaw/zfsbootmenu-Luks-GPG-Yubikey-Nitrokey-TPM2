@@ -60,7 +60,7 @@ Third-party crates:
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `swash`
 - `zbm-testkit`: `serde`, `serde_json`
-- `zbm-luks`: `thiserror`, `tracing`, `tracing-subscriber`
+- `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
 - `zbm-startup`: `thiserror`
 - `zbm-platform`: `rustix`, `serde_json`, `tracing`, `tracing-subscriber`

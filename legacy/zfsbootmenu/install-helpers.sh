@@ -64,17 +64,30 @@ zfsbootmenu_luks_udev_rules=(
   "95-dm-notify.rules"
 )
 
-# Programs needed to unlock LUKS volumes that hold ZFS vdevs
+# Programs needed to unlock LUKS volumes that hold ZFS vdevs; zbm_luks_binaries
+# adds those of the legacy runtime
 # shellcheck disable=SC2034
 zfsbootmenu_luks_binaries=(
   "cryptsetup"
   "dmsetup"
   "udevadm"
-  "base64"
   "cut"
   "tr"
   "wc"
+)
+
+# The hashing and encoding programs of the legacy runtime's LUKS and TPM2
+# code. The Rust runtime computes them in its own process, so that secrets
+# never pass through other programs (ROADMAP.md CD3): its images leave them out
+# shellcheck disable=SC2034
+zfsbootmenu_luks_legacy_binaries=(
+  "base64"
   "sha256sum"
+)
+
+# shellcheck disable=SC2034
+zfsbootmenu_luks_legacy_tpm2_binaries=(
+  "openssl"
 )
 
 # TPM and USB/HID drivers for TPM2 chips, FIDO2 security keys and OpenPGP
@@ -119,7 +132,6 @@ zfsbootmenu_luks_tpm2_binaries=(
   "tpm2_unseal"
   "tpm2_flushcontext"
   "tpm2_getcap"
-  "openssl"
 )
 
 # Native unlocking of systemd-fido2 tokens
@@ -929,6 +941,16 @@ install_zbm_hooks() {
 # prints: nothing
 # returns: 0 unless LUKS support has been disabled with zfsbootmenu_luks=no
 
+# The programs that unlock LUKS volumes in an image of the chosen runtime
+# (ZBM_RUNTIME), one a line: the Rust runtime needs none of the legacy
+# runtime's hashing and encoding programs
+zbm_luks_binaries() {
+  # shellcheck disable=SC2154
+  printf '%s\n' "${zfsbootmenu_luks_binaries[@]}"
+  # shellcheck disable=SC2154
+  [ "${ZBM_RUNTIME}" = "rust" ] || printf '%s\n' "${zfsbootmenu_luks_legacy_binaries[@]}"
+}
+
 zbm_luks_enabled() {
   # shellcheck disable=SC2154
   case "${zfsbootmenu_luks,,}" in
@@ -1149,9 +1171,13 @@ install_zbm_luks_tokens() {
   done
 
   # Native systemd-tpm2 and systemd-fido2 support
+  local -a tpm2
   # shellcheck disable=SC2154
-  zbm_install_executables "${zfsbootmenu_luks_tpm2_binaries[@]}" \
-    || zbm_info "tpm2-tools/openssl incomplete; native TPM2 unlocking may be unavailable"
+  tpm2=( "${zfsbootmenu_luks_tpm2_binaries[@]}" )
+  # shellcheck disable=SC2154
+  [ "${ZBM_RUNTIME}" = "rust" ] || tpm2+=( "${zfsbootmenu_luks_legacy_tpm2_binaries[@]}" )
+  zbm_install_executables "${tpm2[@]}" \
+    || zbm_info "${tpm2[*]}: incomplete; native TPM2 unlocking may be unavailable"
   # shellcheck disable=SC2154
   zbm_install_executables "${zfsbootmenu_luks_fido2_binaries[@]}" \
     || zbm_info "fido2-tools not found; native FIDO2 unlocking unavailable"
