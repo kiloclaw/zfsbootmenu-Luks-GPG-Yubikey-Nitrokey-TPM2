@@ -240,3 +240,20 @@ fn log(pool: &str) {
     assert_eq!(scan(source).format_logs, 2);
     assert_eq!(scan_test(source, true).format_logs, 0);
 }
+
+#[test]
+fn the_lines_of_inline_test_code_are_recorded() {
+    let source = "fn run() {}\n\
+                  #[cfg(test)]\n\
+                  mod tests {\n\
+                      #[test]\n\
+                      fn runs() {}\n\
+                  }\n\
+                  #[test]\n\
+                  fn alone() {\n\
+                  }\n";
+
+    let file = scan(source);
+
+    assert_eq!(file.test_lines, [(3, 6), (5, 5), (8, 9)]);
+}

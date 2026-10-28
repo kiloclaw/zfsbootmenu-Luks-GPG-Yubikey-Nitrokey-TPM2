@@ -1,7 +1,10 @@
 //! `cargo xtask coverage`: line coverage per crate, which may only go up.
 //!
 //! The tests of the workspace run under `cargo llvm-cov`, and the lines of
-//! each source file count for the crate whose directory holds it. `--check`
+//! each source file count for the crate whose directory holds it, but for
+//! test code (ROADMAP.md VE1): files that are tests as a whole, and inline
+//! `#[cfg(test)]` modules and test functions, which the scanner of `metrics`
+//! finds; the tests run them, so they would raise every number. `--check`
 //! compares the whole percent of each crate with the committed baseline
 //! (`xtask/coverage-baseline.txt`) and fails
 //! when it dropped; a crate that is not in the baseline must reach
@@ -11,15 +14,13 @@
 //! every test in an instrumented build; the parity tests replay their
 //! recordings (`zbm_testkit::parity`), as in every test run.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
-use std::path::Path;
-
-use serde_json::Value;
+use std::path::{Path, PathBuf};
 
 use crate::cargo;
 use crate::error::{Error, Result};
-use crate::metrics::{Mode, baseline};
+use crate::metrics::{Mode, baseline, legacy, tree};
 use crate::process;
 use crate::workspace::Workspace;
 
@@ -33,8 +34,57 @@ pub const NEW_CRATE: usize = 80;
 /// The column of the baseline.
 const KEY: &str = "line_coverage";
 
-/// The report of `cargo llvm-cov`, relative to the workspace root.
-const REPORT: &str = "target/coverage.json";
+/// The report of `cargo llvm-cov`, in LCOV's format, which counts each
+/// line; relative to the workspace root.
+const REPORT: &str = "target/coverage.lcov";
+
+/// The test code of each file that holds some: all of it, or ranges of
+/// lines.
+pub type TestCode = HashMap<PathBuf, TestLines>;
+
+/// The test code of one file.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct TestLines {
+    /// Whether the whole file is test code.
+    pub whole: bool,
+    /// Ranges of lines of test code, first and last.
+    pub ranges: Vec<(usize, usize)>,
+}
+
+impl TestLines {
+    /// Whether `line` is test code.
+    fn holds(&self, line: usize) -> bool {
+        self.whole
+            || self
+                .ranges
+                .iter()
+                .any(|&(first, last)| (first..=last).contains(&line))
+    }
+}
+
+/// The test code of the workspace's crates, as `metrics` scans them.
+///
+/// # Errors
+///
+/// When a source file cannot be read or parsed.
+pub fn test_code(workspace: &Workspace) -> Result<TestCode> {
+    let legacy_names = legacy::function_names(&workspace.root.join("legacy"))?;
+    let mut code = TestCode::new();
+    for package in &workspace.packages {
+        for file in tree::scan_package(package, &legacy_names)? {
+            if file.test_code || !file.scan.test_lines.is_empty() {
+                code.insert(
+                    file.path.clone(),
+                    TestLines {
+                        whole: file.test_code,
+                        ranges: file.scan.test_lines.clone(),
+                    },
+                );
+            }
+        }
+    }
+    Ok(code)
+}
 
 /// The header comment written above the baseline.
 const HEADER: &str = "\
@@ -71,9 +121,9 @@ impl Lines {
 pub fn run(workspace: &Workspace, mode: Mode) -> Result<()> {
     let root = &workspace.root;
     measure(root)?;
-    let json = std::fs::read_to_string(root.join(REPORT))
+    let report = std::fs::read_to_string(root.join(REPORT))
         .map_err(|error| Error::io(format!("reading {REPORT}"), error))?;
-    let all = per_crate(&json, workspace)?;
+    let all = per_crate(&report, workspace, &test_code(workspace)?)?;
     let path = root.join(BASELINE);
     let committed = match std::fs::read_to_string(&path) {
         Ok(text) => baseline::parse(&text)?,
@@ -116,41 +166,59 @@ fn measure_programs(root: &Path) -> Vec<process::Program> {
         cargo::cargo(root).args(["llvm-cov", "clean", "--workspace"]),
         cargo::cargo(root).args(["llvm-cov", "--no-report", "--workspace", "--locked"]),
         cargo::cargo(root)
-            .args(["llvm-cov", "report", "--json", "--summary-only"])
+            .args(["llvm-cov", "report", "--lcov"])
             .args(["--output-path", REPORT]),
     ]
 }
 
-/// Adds up the lines of each file of a `cargo llvm-cov --json` report per
-/// crate. Files outside every crate are left out.
+/// Adds up the lines of each file of a `cargo llvm-cov --lcov` report per
+/// crate, leaving out the lines of `tests`. Files outside every crate are
+/// left out.
+///
+/// The report has a record per file: `SF:PATH`, then `DA:LINE,COUNT` for
+/// each line with code, and `end_of_record`.
 ///
 /// # Errors
 ///
-/// [`Error::Format`] when the report is not the JSON export of LLVM.
-pub fn per_crate(json: &str, workspace: &Workspace) -> Result<BTreeMap<String, Lines>> {
-    let bad = |what: &str| Error::Format(format!("{REPORT}: {what}"));
-    let report: Value = serde_json::from_str(json).map_err(|_| bad("not JSON"))?;
-    let files = report
-        .pointer("/data/0/files")
-        .and_then(Value::as_array)
-        .ok_or_else(|| bad("no data[0].files"))?;
-    let mut all = BTreeMap::new();
-    for file in files {
-        let name = file
-            .get("filename")
-            .and_then(Value::as_str)
-            .ok_or_else(|| bad("a file without a name"))?;
-        let Some(package) = package_of(Path::new(name), workspace) else {
-            continue;
-        };
-        let lines = file.pointer("/summary/lines");
-        let number = |key: &str| lines.and_then(|l| l.get(key)).and_then(Value::as_u64);
-        let (Some(count), Some(covered)) = (number("count"), number("covered")) else {
-            return Err(bad(&format!("{name} has no line summary")));
-        };
-        let total: &mut Lines = all.entry(package.to_owned()).or_default();
-        total.count += count;
-        total.covered += covered;
+/// [`Error::Format`] when a line count is not two numbers, or comes before
+/// a file.
+pub fn per_crate(
+    report: &str,
+    workspace: &Workspace,
+    tests: &TestCode,
+) -> Result<BTreeMap<String, Lines>> {
+    let bad = |what: String| Error::Format(format!("{REPORT}: {what}"));
+    let mut all: BTreeMap<String, Lines> = BTreeMap::new();
+    let mut current: Option<(&str, Option<&TestLines>)> = None;
+    let mut in_file = false;
+    for line in report.lines() {
+        if let Some(path) = line.strip_prefix("SF:") {
+            let path = Path::new(path);
+            current = package_of(path, workspace).map(|package| (package, tests.get(path)));
+            in_file = true;
+        } else if line == "end_of_record" {
+            current = None;
+            in_file = false;
+        } else if let Some(data) = line.strip_prefix("DA:") {
+            if !in_file {
+                return Err(bad(format!("`{line}` before a file")));
+            }
+            let mut fields = data.split(',');
+            let number = fields.next().and_then(|n| n.parse::<usize>().ok());
+            let count = fields.next().and_then(|n| n.parse::<u64>().ok());
+            let (Some(number), Some(count)) = (number, count) else {
+                return Err(bad(format!("`{line}` is not a line count")));
+            };
+            let Some((package, file_tests)) = current else {
+                continue;
+            };
+            if file_tests.is_some_and(|tests| tests.holds(number)) {
+                continue;
+            }
+            let total = all.entry(package.to_owned()).or_default();
+            total.count += 1;
+            total.covered += u64::from(count > 0);
+        }
     }
     Ok(all)
 }
@@ -274,11 +342,15 @@ mod tests {
         }
     }
 
-    fn file(name: &str, count: u64, covered: u64) -> Value {
-        serde_json::json!({
-            "filename": name,
-            "summary": { "lines": { "count": count, "covered": covered } }
-        })
+    /// The LCOV record of `path`, with a count for each of `counts`, the
+    /// first on line 1.
+    fn record(path: &str, counts: &[u64]) -> String {
+        let mut text = format!("SF:{path}\n");
+        for (index, count) in counts.iter().enumerate() {
+            let _ = writeln!(text, "DA:{},{count}", index + 1);
+        }
+        text.push_str("end_of_record\n");
+        text
     }
 
     fn lines(count: u64, covered: u64) -> Lines {
@@ -287,20 +359,52 @@ mod tests {
 
     #[test]
     fn files_add_up_per_crate_and_the_innermost_crate_wins() {
-        let report = serde_json::json!({
-            "data": [{ "files": [
-                file("/w/crates/zbm/src/main.rs", 10, 5),
-                file("/w/crates/zbm/src/pilot/menu.rs", 10, 10),
-                file("/w/crates/zbm-app/src/lib.rs", 4, 1),
-                file("/elsewhere/lib.rs", 100, 0),
-            ]}]
-        });
+        let report = [
+            record("/w/crates/zbm/src/main.rs", &[1, 0, 1, 0]),
+            record("/w/crates/zbm/src/pilot/menu.rs", &[3, 3]),
+            record("/w/crates/zbm-app/src/lib.rs", &[0, 0, 1]),
+            record("/elsewhere/lib.rs", &[0; 10]),
+        ]
+        .concat();
 
-        let all = per_crate(&report.to_string(), &workspace()).unwrap();
+        let all = per_crate(&report, &workspace(), &TestCode::new()).unwrap();
 
-        assert_eq!(all.get("zbm"), Some(&lines(20, 15)));
-        assert_eq!(all.get("zbm-app"), Some(&lines(4, 1)));
+        assert_eq!(all.get("zbm"), Some(&lines(6, 4)));
+        assert_eq!(all.get("zbm-app"), Some(&lines(3, 1)));
         assert_eq!(all.len(), 2);
+        let none = TestCode::new();
+        assert!(per_crate("DA:1,1\n", &workspace(), &none).is_err());
+        assert!(per_crate("SF:/w/crates/zbm/a.rs\nDA:x\n", &workspace(), &none).is_err());
+    }
+
+    #[test]
+    fn test_code_is_left_out() {
+        let report = [
+            record("/w/crates/zbm/src/main.rs", &[1, 0, 1, 1, 1]),
+            record("/w/crates/zbm/src/tests.rs", &[1, 1, 1]),
+        ]
+        .concat();
+        let mut tests = TestCode::new();
+        tests.insert(
+            PathBuf::from("/w/crates/zbm/src/main.rs"),
+            TestLines {
+                whole: false,
+                ranges: vec![(3, 4)],
+            },
+        );
+        tests.insert(
+            PathBuf::from("/w/crates/zbm/src/tests.rs"),
+            TestLines {
+                whole: true,
+                ranges: Vec::new(),
+            },
+        );
+
+        let all = per_crate(&report, &workspace(), &tests).unwrap();
+
+        // Lines 1, 2 and 5 of main.rs: the test module's lines 3 and 4, and
+        // the test file, are left out.
+        assert_eq!(all.get("zbm"), Some(&lines(3, 2)));
     }
 
     #[test]
@@ -354,7 +458,7 @@ mod tests {
             [
                 "cargo llvm-cov clean --workspace",
                 "cargo llvm-cov --no-report --workspace --locked",
-                "cargo llvm-cov report --json --summary-only --output-path target/coverage.json",
+                "cargo llvm-cov report --lcov --output-path target/coverage.lcov",
             ]
         );
     }

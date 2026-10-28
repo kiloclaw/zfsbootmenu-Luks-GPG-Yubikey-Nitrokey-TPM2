@@ -64,6 +64,10 @@ pub struct FileScan {
     /// Calls of [`LOG_MACROS`] outside tests whose message is a format
     /// string.
     pub format_logs: usize,
+    /// The lines of test code in a file that is not test code as a whole:
+    /// inline `#[cfg(test)]` modules and test functions, as ranges from
+    /// their first line to their last.
+    pub test_lines: Vec<(usize, usize)>,
 }
 
 /// One function with a body.
@@ -197,6 +201,9 @@ impl Scanner<'_> {
         let end = body.brace_token.span.close().end().line;
         let saved = self.test_code;
         self.test_code = saved || is_test || is_cfg_test(attrs);
+        if self.test_code {
+            self.scan.test_lines.push((start, end));
+        }
         self.scan.functions.push(FnScan {
             name: sig.ident.to_string(),
             lines: end.saturating_sub(start) + 1,
@@ -266,6 +273,14 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
             return;
         };
         let saved = self.test_code;
+        if test_code && !saved {
+            let start = item.mod_token.span.start().line;
+            let end = item
+                .content
+                .as_ref()
+                .map_or(start, |(brace, _)| brace.span.close().end().line);
+            self.scan.test_lines.push((start, end));
+        }
         self.test_code = test_code;
         self.inline.push(item.ident.to_string());
         for attr in &item.attrs {
