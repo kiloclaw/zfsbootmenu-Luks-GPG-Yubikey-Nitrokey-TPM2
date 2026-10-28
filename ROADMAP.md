@@ -570,7 +570,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
-| PM1 | ADR for the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
+| PM1 | Drafted ([ADR 0001](docs/dev/adr/0001-process-model.md)), for review: ADR for the process model and concurrency (decision 10): one reactor per process, workers own nothing global, typed messages, no async runtime | mod, stab | S | |
 | PM2 | The ports become `Send + Sync`, the fakes use `Mutex`; `spawn_traced` carries tracing and the kernel log into workers; logging per process, not per thread | scal | M | PM1 |
 | PM3 | Done: one signal facility: `signalfd` and `pidfd` over `rustix`, a typed `SignalSet`; the global "last signal" slot and `signal-hook` go | stab | S | |
 | PM4 | The reactor's parts in `zbm_platform::event`: `Mailbox`, `Reactor`, `CancelToken`, `MemoryBudget`, time-outs through `pidfd` instead of a watchdog thread per command | scal, perf | M | PM2, PM3 |
@@ -609,7 +609,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SB5 | Built-in hooks as native `BootStep`s, the hook API version 2, the generated `zfunc` library | mod, sec | M | DM7 |
 | SB6 | The recovery tools as menu views and `zbm` applets (`zfs-chroot`, `zsnapshots`, `zkexec`, `mount_esp`, `reboot`, `firmware-setup`, `logs`, the help viewer); `fzf` leaves Rust images | mod | L | UI10 |
 | SB7 | Rust images without the legacy payload (`legacy/zfsbootmenu/{lib,libexec,bin}`) and with their own list of binaries | sec, perf | S | SB5, SB6 |
-| SB8 | `ImagePlan` and the `ImageBackend` trait; the dracut module and the mkinitcpio hook become shims; the mkinitcpio hook runs `zbm` without Bash | mod | M | |
+| SB8 | Decided by [ADR 0006](docs/dev/adr/0006-image-plan.md), proposed: `ImagePlan` and the `ImageBackend` trait; the dracut module and the mkinitcpio hook become shims; the mkinitcpio hook runs `zbm` without Bash | mod | M | |
 | SB9 | brush from its library crates instead of `brush-shell`; measured with B1 | perf, sec | S/M | |
 | SB10 | `zbm-unlock` hosts the key methods, natively where CD6 to CD10 are done and through the programs otherwise: TPM2 first, then LUKS2 (#4's errors, fewer processes), then FIDO2 (the PIN in the menu, cancellation for #2) | sec, perf | L | DM6, decision 12 |
 | SB11 | YubiKey challenge-response over `hidraw` (HID feature reports, slot 1 or 2, `ykinfo`'s serial), without `ykchalresp` and `ykinfo`, which upstream no longer maintains | sec, perf | S/M | DM6 |
@@ -740,7 +740,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
 
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
-  decisions 8 and 18).
+  decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 (28 October 2026;
   their VM run, at `f8374569`, is left).
@@ -917,7 +917,8 @@ Open:
     one character only, nothing depends on case, keys by position on the display console, and a command line that
     knows every language (UI15).
 
-Decisions 10, 12 to 16 and 18 are decided by their ADRs in phase 0; decision 8 by the sessions that follow.
+Decisions 10, 12 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for
+10 and 12 to 16, awaiting acceptance); decision 8 by the sessions that follow.
 
 ## Fixes left from the review of 27 October 2026
 
