@@ -1,6 +1,8 @@
 //! The differences between a snapshot and the live filesystem, as `zfs
 //! diff` reports them, and what can be restored from the snapshot.
 
+use zbm_types::Untrusted;
+
 /// What happened to a path since the snapshot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChangeKind {
@@ -32,11 +34,11 @@ pub struct Change {
     /// What happened.
     pub kind: ChangeKind,
     /// The path, in the snapshot.
-    pub path: String,
+    pub path: Untrusted<String>,
     /// The new path of a renamed one.
-    pub renamed_to: Option<String>,
+    pub renamed_to: Option<Untrusted<String>>,
     /// The lines of a text diff, `-` and `+` first; empty for binary files.
-    pub preview: Vec<String>,
+    pub preview: Vec<Untrusted<String>>,
 }
 
 impl Change {
@@ -55,7 +57,7 @@ mod tests {
     fn only_paths_the_snapshot_has_can_be_restored() {
         let change = |kind| Change {
             kind,
-            path: "/etc/fstab".into(),
+            path: Untrusted::new("/etc/fstab".to_owned()),
             renamed_to: None,
             preview: Vec::new(),
         };

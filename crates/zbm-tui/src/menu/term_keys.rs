@@ -70,12 +70,23 @@ fn character(bytes: &[u8], last: bool) -> Option<Decoded> {
         0xf0..=0xf7 => 4,
         _ => return Some((None, 1)),
     };
-    let Some(encoded) = bytes.get(..width) else {
-        return last.then_some((None, bytes.len()));
+    // A byte that cannot go on the character ends it: the lead byte alone
+    // is dropped, and what follows, such as Enter, is a key of its own.
+    let continued = bytes
+        .iter()
+        .skip(1)
+        .take(width - 1)
+        .take_while(|&&byte| byte & 0xc0 == 0x80)
+        .count();
+    let Some(encoded) = bytes.get(..width).filter(|_| continued == width - 1) else {
+        let cut = continued + 1 < bytes.len().min(width);
+        return (cut || last).then_some((None, 1));
     };
     let key = std::str::from_utf8(encoded)
         .ok()
         .and_then(|text| text.chars().next())
+        // A C1 control, such as U+009B, types nothing.
+        .filter(|c| !c.is_control())
         .map(|c| {
             let shift = if c.is_uppercase() {
                 Modifiers::SHIFT
@@ -154,10 +165,24 @@ fn control_sequence(bytes: &[u8], last: bool) -> Option<Decoded> {
         let Some(&letter) = body.get(1) else {
             return unfinished(bytes, last);
         };
+        if !is_final(letter) {
+            return Some((None, 3));
+        }
         let key = matches!(letter, b'A'..=b'E').then(|| plain(Key::F(1 + letter - b'A')));
         return Some((key, 4));
     }
-    let Some(end) = body.iter().position(|byte| (0x40..=0x7e).contains(byte)) else {
+    // A control character ends a sequence that is broken: the sequence is
+    // dropped, and the control character is a key of its own.
+    if let Some(broken) = body.iter().position(|&byte| byte < 0x20 || byte == 0x7f)
+        && !body.iter().take(broken).any(|&byte| is_final(byte))
+    {
+        return Some((None, 2 + broken));
+    }
+    let Some(end) = body.iter().position(|&byte| is_final(byte)) else {
+        // Without its end, it is not waited for without limit either.
+        if bytes.len() >= STRING_MAX {
+            return Some((None, bytes.len()));
+        }
         return unfinished(bytes, last);
     };
     let (parameters, rest) = body.split_at(end);
@@ -165,11 +190,21 @@ fn control_sequence(bytes: &[u8], last: bool) -> Option<Decoded> {
     Some((key, 2 + end + 1))
 }
 
-/// The sequence `ESC O letter` at the front of `bytes`.
+/// Whether `byte` ends a control sequence (`0x40` to `0x7e`).
+fn is_final(byte: u8) -> bool {
+    (0x40..=0x7e).contains(&byte)
+}
+
+/// The sequence `ESC O letter` at the front of `bytes`; Alt+O when what
+/// follows cannot end it, so that a key typed after it, such as Enter, is
+/// not lost.
 fn single_shift(bytes: &[u8], last: bool) -> Option<Decoded> {
     let Some(&letter) = bytes.get(2) else {
         return unfinished(bytes, last);
     };
+    if !is_final(letter) {
+        return alt(bytes, last);
+    }
     let code = match letter {
         b'A' => Some(Key::Up),
         b'B' => Some(Key::Down),
@@ -183,6 +218,38 @@ fn single_shift(bytes: &[u8], last: bool) -> Option<Decoded> {
     Some((code.map(plain), 3))
 }
 
+/// The longest sequence waited for: one that is longer without its end is
+/// dropped as far as it came, so that it cannot hold the keys back.
+const STRING_MAX: usize = 4096;
+
+/// The string sequence at the front of `bytes`, which start `ESC ]` (OSC),
+/// `ESC P` (DCS), `ESC _` (APC), `ESC ^` (PM) or `ESC X` (SOS), up to its
+/// end, BEL or `ESC \` (ST). Nobody types one: a terminal sends them as
+/// replies, such as its colours (`OSC 11`), which a program printed a query
+/// for. Such a reply names no key; read as keys, it would type its text.
+/// Without its end when nothing more comes, it is Alt and the key after
+/// `ESC`, as typed; `None` while its end may still come.
+fn string_sequence(bytes: &[u8], last: bool) -> Option<Decoded> {
+    let body = bytes.get(2..).unwrap_or_default();
+    let end = body.iter().enumerate().find_map(|(at, &byte)| match byte {
+        0x07 => Some(at + 1),
+        ESCAPE if body.get(at + 1) == Some(&b'\\') => Some(at + 2),
+        _ => None,
+    });
+    match end {
+        Some(end) => Some((None, 2 + end)),
+        None if bytes.len() >= STRING_MAX => Some((None, bytes.len())),
+        None if last => alt(bytes, last),
+        None => None,
+    }
+}
+
+/// Alt with the key after the `ESC` at the front of `bytes`.
+fn alt(bytes: &[u8], last: bool) -> Option<Decoded> {
+    let (key, length) = next(bytes.get(1..).unwrap_or_default(), last)?;
+    Some((key.map(KeyPress::with_alt), length + 1))
+}
+
 /// What starts with `ESC` at the front of `bytes`: a sequence, Alt with the
 /// key after it, or the Escape key.
 fn escape(bytes: &[u8], last: bool) -> Option<Decoded> {
@@ -192,12 +259,9 @@ fn escape(bytes: &[u8], last: bool) -> Option<Decoded> {
     match second {
         b'[' => control_sequence(bytes, last),
         b'O' => single_shift(bytes, last),
+        b']' | b'P' | b'_' | b'^' | b'X' => string_sequence(bytes, last),
         ESCAPE => Some((Some(plain(Key::Escape)), 1)),
-        _ => {
-            let (key, length) = next(bytes.get(1..).unwrap_or_default(), last)?;
-            let key = key.map(KeyPress::with_alt);
-            Some((key, length + 1))
-        }
+        _ => alt(bytes, last),
     }
 }
 
@@ -217,6 +281,13 @@ fn next(bytes: &[u8], last: bool) -> Option<Decoded> {
         Some(key) => Some((Some(key), 1)),
         None => character(bytes, last),
     }
+}
+
+/// Whether the last key of `keys`, decoded from `bytes`, is an Enter that a
+/// carriage return ended, with Alt or without: a line feed right after it,
+/// in the next read, is the same Enter (CR LF), and is dropped.
+pub fn ends_with_carriage_return(bytes: &[u8], keys: &[KeyPress]) -> bool {
+    bytes.last() == Some(&b'\r') && keys.last().is_some_and(|press| press.key == Key::Enter)
 }
 
 /// Decodes the key presses in `bytes` into `keys`, and says how many bytes
@@ -343,15 +414,22 @@ impl TerminalKeys {
     /// Decodes what was read, the start of a sequence too when `last`; the
     /// bytes decoded are wiped.
     fn decode(&mut self, last: bool) {
-        if self.after_cr && self.pending.first() == Some(&b'\n') {
-            self.pending.copy_within(1.., 0);
-            let end = self.pending.len() - 1;
-            zbm_sys::wipe(self.pending.get_mut(end..).unwrap_or_default());
-            self.pending.truncate(end);
+        // The carriage return counts for the byte right after it alone.
+        if self.after_cr && !self.pending.is_empty() {
+            self.after_cr = false;
+            if self.pending.first() == Some(&b'\n') {
+                self.pending.copy_within(1.., 0);
+                let end = self.pending.len() - 1;
+                zbm_sys::wipe(self.pending.get_mut(end..).unwrap_or_default());
+                self.pending.truncate(end);
+            }
         }
+        let decoded = self.keys.len();
         let used = decode(&self.pending, last, &mut self.keys);
         if used > 0 {
-            self.after_cr = self.pending.get(used - 1) == Some(&b'\r');
+            let bytes = self.pending.get(..used).unwrap_or_default();
+            let keys = self.keys.get(decoded..).unwrap_or_default();
+            self.after_cr = ends_with_carriage_return(bytes, keys);
         }
         let rest = self.pending.len() - used;
         self.pending.copy_within(used.., 0);

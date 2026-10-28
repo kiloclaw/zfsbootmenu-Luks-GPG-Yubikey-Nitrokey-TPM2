@@ -4,7 +4,9 @@
 use std::sync::Arc;
 
 use zbm_platform::secret::Secret;
-use zbm_types::{Answer, DatasetName, ImportPolicy, MappingName, PoolName, SnapshotName};
+use zbm_types::{
+    Answer, DatasetName, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
+};
 
 use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
 
@@ -20,10 +22,10 @@ pub enum Action {
     Boot {
         /// The environment.
         environment: DatasetName,
-        /// The kernel version.
-        kernel: Option<String>,
-        /// The command line.
-        command_line: Option<String>,
+        /// The kernel version, as the environment's files name it.
+        kernel: Option<Untrusted<String>>,
+        /// The command line, as the pool or the user gives it.
+        command_line: Option<Untrusted<String>>,
         /// Whether the countdown booted it, nobody having chosen: the
         /// countdown's boot tries no key source.
         countdown: bool,
@@ -32,8 +34,9 @@ pub enum Action {
     BootSnapshot(SnapshotName),
     /// Make an environment the `bootfs` of its pool.
     SetDefaultEnvironment(DatasetName),
-    /// Make a kernel the default of its environment.
-    SetDefaultKernel(DatasetName, String),
+    /// Make a kernel the default of its environment: its version, as the
+    /// environment's files name it.
+    SetDefaultKernel(DatasetName, Untrusted<String>),
     /// Let an environment inherit its default kernel again.
     InheritDefaultKernel(DatasetName),
     /// Take the snapshot named.
@@ -57,7 +60,7 @@ pub enum Action {
         /// The snapshot.
         snapshot: SnapshotName,
         /// The paths, as the snapshot has them.
-        paths: Vec<String>,
+        paths: Vec<Untrusted<String>>,
     },
     /// Give an environment its boot tries back: mark it good.
     ResetBootTries(DatasetName),

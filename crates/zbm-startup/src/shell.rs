@@ -2,6 +2,7 @@
 //! through the `zluks` applet: what the start-up stages and the boot code
 //! need from the program that runs them ([`Recovery`]).
 
+use std::fmt::Write as _;
 use std::path::Path;
 
 use zbm_boot::boot;
@@ -14,6 +15,7 @@ use zbm_platform::dmesg::read_logs;
 use zbm_state::State;
 use zbm_tools::mount::Mount;
 use zbm_tools::{Shown, programs, terminal};
+use zbm_types::Printable;
 
 use crate::error::StartupError;
 
@@ -114,7 +116,14 @@ impl Recovery for Shell<'_, '_> {
         let _ = system.console.write(banner.as_bytes());
         if self.state.has_errors() {
             if let Ok(errors) = read_logs(system, "err") {
-                let _ = system.console.write(errors.as_bytes());
+                // Reading the log back undoes the kernel's escapes: what a
+                // message named, such as a file of a boot environment, is
+                // shown escaped, so that it cannot steer the console.
+                let mut shown = String::new();
+                for line in errors.lines() {
+                    let _ = writeln!(shown, "{}", Printable(line));
+                }
+                let _ = system.console.write(shown.as_bytes());
             }
             let _ = system.console.write(b"\n");
             self.state.clear_errors();

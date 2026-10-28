@@ -1,6 +1,6 @@
 //! The intents of the main, kernels, pools and recovery views.
 
-use zbm_types::ImportPolicy;
+use zbm_types::{ImportPolicy, Untrusted};
 
 use super::dialogs;
 use crate::menu::keymap::{Context, Intent};
@@ -37,7 +37,11 @@ pub(super) fn screen_of(context: Context) -> Screen {
 
 /// The boot of `environment` with `kernel`, and its command line for this
 /// boot.
-pub(super) fn boot(model: &Model, environment: &Environment, kernel: Option<String>) -> Action {
+pub(super) fn boot(
+    model: &Model,
+    environment: &Environment,
+    kernel: Option<Untrusted<String>>,
+) -> Action {
     let line = model.command_line(environment);
     let edited = line != environment.command_line.value;
     Action::Boot {
@@ -99,7 +103,7 @@ pub(super) fn focus(model: &mut Model, environment: zbm_types::DatasetName, scre
         && let Some(environment) = model.focused().cloned()
     {
         model.editor = Some(Editor {
-            text: model.command_line(&environment),
+            text: model.command_line(&environment).into_inner(),
             environment: environment.name,
             kernel: None,
         });
@@ -212,7 +216,7 @@ pub(super) fn unlock(model: &mut Model, volume: &str) {
         .snapshot
         .volumes
         .iter()
-        .find(|known| known.name == volume)
+        .find(|known| known.name.get() == volume)
         .and_then(|known| known.methods.first().copied())
         .unwrap_or(Method::Passphrase);
     let prompt = crate::menu::model::Prompt::new(volume.to_owned(), method, None, None);

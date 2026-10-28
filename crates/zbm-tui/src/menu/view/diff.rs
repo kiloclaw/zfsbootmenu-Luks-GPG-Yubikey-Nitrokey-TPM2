@@ -104,9 +104,14 @@ fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff: &DiffView
                     theme.style(role(change.kind)),
                 ),
             ];
-            let path = fit(&change.path, width, theme.is_ascii());
+            let path = fit(
+                &change.path.printable().to_string(),
+                width,
+                theme.is_ascii(),
+            );
             spans.extend(lists::highlighted(theme, &path, &ranked.positions));
             if let Some(to) = &change.renamed_to {
+                let to = to.printable();
                 spans.push(Span::styled(format!(" → {to}"), theme.style(Role::Muted)));
             }
             Some(lists::clip(Line::from(spans), width + 4, theme.is_ascii()))
@@ -147,11 +152,14 @@ fn kind_word(kind: ChangeKind) -> String {
 
 /// The lines of the preview of `change`.
 fn preview_lines(theme: Theme, change: &Change) -> Vec<Line<'static>> {
-    let mut lines = vec![Line::styled(change.path.clone(), theme.style(Role::Title))];
+    let path = change.path.printable().to_string();
+    let mut lines = vec![Line::styled(path, theme.style(Role::Title))];
     let note = match (change.kind, &change.renamed_to) {
         (ChangeKind::Created, _) => Some(text!("preview-created")),
         (ChangeKind::Removed, _) => Some(text!("preview-removed")),
-        (ChangeKind::Renamed, Some(to)) => Some(text!("preview-renamed", to = to.as_str())),
+        (ChangeKind::Renamed, Some(to)) => {
+            Some(text!("preview-renamed", to = to.printable().to_string()))
+        }
         _ if change.preview.is_empty() => Some(text!("preview-binary")),
         _ => None,
     };
@@ -159,12 +167,12 @@ fn preview_lines(theme: Theme, change: &Change) -> Vec<Line<'static>> {
         lines.push(Line::styled(note, theme.style(Role::Muted)));
     }
     lines.extend(change.preview.iter().map(|line| {
-        let role = match line.chars().next() {
+        let role = match line.get().chars().next() {
             Some('-') => Role::Danger,
             Some('+') => Role::Good,
             _ => Role::Muted,
         };
-        Line::styled(line.clone(), theme.style(role))
+        Line::styled(line.printable().to_string(), theme.style(role))
     }));
     lines
 }

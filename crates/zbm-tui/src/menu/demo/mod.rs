@@ -14,6 +14,7 @@ mod storage;
 pub use crate::menu::session::Session;
 
 use zbm_platform::secret::Secret;
+use zbm_types::Untrusted;
 
 use crate::menu::world::{
     Action, Event, Method, Notice, Outcome, Snapshot, StageState, Volume, VolumeState,
@@ -78,7 +79,7 @@ pub struct FakeMachine {
     /// The import problem of the foreign pool was shown.
     import_asked: bool,
     /// The paths restored from snapshots, which no longer differ.
-    restored: Vec<String>,
+    restored: Vec<Untrusted<String>>,
 }
 
 impl FakeMachine {
@@ -144,8 +145,10 @@ impl FakeMachine {
                 (Some(Method::Tpm2Pin), Some(notice)) => (Method::Passphrase, Some(notice)),
                 (first, _) => (first.unwrap_or(Method::Passphrase), None),
             };
+            // Events and actions name a volume as plain text, which the
+            // views show through `Printable`.
             return Some(Event::UnlockRequested {
-                volume: volume.name.clone(),
+                volume: volume.name.get().clone(),
                 method,
                 tries_left: None,
                 notice,
@@ -220,7 +223,11 @@ impl FakeMachine {
 
     /// Restores `paths` from `snapshot`, after a safety snapshot; the diff
     /// is sent again without them.
-    fn restore(&mut self, snapshot: &zbm_types::SnapshotName, paths: Vec<String>) -> Vec<Event> {
+    fn restore(
+        &mut self,
+        snapshot: &zbm_types::SnapshotName,
+        paths: Vec<Untrusted<String>>,
+    ) -> Vec<Event> {
         let outcome = storage::restore(&mut self.snapshot, snapshot, paths.len());
         self.restored.extend(paths);
         vec![
@@ -241,7 +248,7 @@ impl FakeMachine {
             .snapshot
             .volumes
             .iter_mut()
-            .find(|volume| volume.name == name)
+            .find(|volume| volume.name.get() == name)
             .and_then(|volume| volume.tpm2.as_mut());
         let Some(seal) = seal else {
             return Vec::new();
@@ -260,7 +267,7 @@ impl FakeMachine {
             .snapshot
             .volumes
             .iter()
-            .find(|known| known.name == volume)
+            .find(|known| known.name.get() == volume)
             .and_then(kept_by_tpm);
         let right = match method {
             Method::Passphrase => secret == Some(PASSPHRASE),
@@ -345,7 +352,12 @@ impl FakeMachine {
     }
 
     fn set_volume(&mut self, name: &str, state: VolumeState) {
-        if let Some(volume) = self.snapshot.volumes.iter_mut().find(|v| v.name == name) {
+        if let Some(volume) = self
+            .snapshot
+            .volumes
+            .iter_mut()
+            .find(|v| v.name.get() == name)
+        {
             volume.state = state;
         }
     }
@@ -401,6 +413,12 @@ fn kept_by_tpm(volume: &Volume) -> Option<Notice> {
 /// The menu ends.
 fn leave(why: &str) -> Vec<Event> {
     vec![Event::Leaving(why.to_owned())]
+}
+
+/// `text` as the demo machine's pools, files and programs give it: from
+/// outside the menu, as on a real machine.
+fn untrusted(text: &str) -> Untrusted<String> {
+    Untrusted::new(text.to_owned())
 }
 
 #[cfg(test)]

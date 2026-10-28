@@ -2,6 +2,7 @@
 //! over SSH, and in the test build the operations the LUKS unit suites call.
 
 use std::path::Path;
+use zbm_types::Printable;
 
 use zbm_app::model::{Action, Event, Outcome};
 use zbm_app::{App, NO_CRYPTSETUP, device_not_found};
@@ -209,7 +210,8 @@ fn print_status(session: &Unlocker<'_>, io: &mut Io) {
         let _ = writeln!(
             io.stdout,
             "{}\t{}\t{state}{pools}",
-            mapping.name, mapping.device
+            Printable(&mapping.name),
+            Printable(&mapping.device)
         );
     }
 }

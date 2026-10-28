@@ -1,0 +1,12 @@
+zbm crash report
+version: 1
+20-hostid
+50-import-pools
+123
+zroot/ROOT/void
+tank
+quiet
+root=zfs:x
+456
+de
++

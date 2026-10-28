@@ -12,7 +12,7 @@ use zbm_platform::interaction::{
 };
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
-use zbm_types::Answer;
+use zbm_types::{Answer, Untrusted};
 
 use super::{DEFAULT_DELAY, MenuFront};
 
@@ -93,14 +93,18 @@ impl MenuFront<'_> {
         let _ = self.with_view(|view| {
             let mut snapshot = view.snapshot().clone();
             let known = Volume {
-                name: volume.name.to_owned(),
-                device: volume.device.to_owned(),
+                name: Untrusted::new(volume.name.to_owned()),
+                device: Untrusted::new(volume.device.to_owned()),
                 state: VolumeState::Locked,
                 methods: vec![method],
                 pool: None,
                 tpm2: None,
             };
-            match snapshot.volumes.iter_mut().find(|v| v.name == volume.name) {
+            match snapshot
+                .volumes
+                .iter_mut()
+                .find(|v| v.name.get() == volume.name)
+            {
                 Some(listed) => *listed = known,
                 None => snapshot.volumes.push(known),
             }

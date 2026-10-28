@@ -1,6 +1,8 @@
 //! The differences view: marking changed paths and restoring them from the
 //! snapshot, and the packages that changed.
 
+use zbm_types::Untrusted;
+
 use super::dialogs;
 use crate::menu::keymap::Intent;
 use crate::menu::model::{DiffView, Model, Segment, Then};
@@ -33,7 +35,9 @@ fn restore(model: &mut Model) {
     };
     let paths = diff.to_restore();
     if paths.is_empty() {
-        let created = diff.selected().map_or_else(String::new, |c| c.path.clone());
+        let created = diff
+            .selected()
+            .map_or_else(String::new, |c| c.path.printable().to_string());
         model.notification = Some(Outcome::Warning(text!(
             "restore-nothing",
             path = created,
@@ -45,9 +49,13 @@ fn restore(model: &mut Model) {
 }
 
 /// The confirmation of restoring `paths` from the snapshot of `diff`.
-fn confirmation(diff: &DiffView, paths: Vec<String>) -> Then {
+fn confirmation(diff: &DiffView, paths: Vec<Untrusted<String>>) -> Then {
     let environment = diff.from.dataset();
-    let mut lines: Vec<String> = paths.iter().take(LISTED).cloned().collect();
+    let mut lines: Vec<String> = paths
+        .iter()
+        .take(LISTED)
+        .map(|path| path.printable().to_string())
+        .collect();
     if paths.len() > LISTED {
         lines.push(text!("restore.more", count = paths.len() - LISTED));
     }

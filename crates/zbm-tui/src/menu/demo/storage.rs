@@ -1,8 +1,9 @@
 //! What the demo machine does to its pools, environments and snapshots.
 
-use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 use super::data::NOW;
+use super::untrusted;
 use crate::menu::world::{
     Action, CommandLine, Environment, Event, Origin, Outcome, RESTORE_SNAPSHOT, Snapshot,
     SnapshotInfo,
@@ -54,8 +55,8 @@ pub(super) fn apply(snapshot: &mut Snapshot, action: Action) -> Vec<Event> {
 fn boot_message(
     snapshot: &Snapshot,
     name: &DatasetName,
-    kernel: Option<String>,
-    command_line: Option<String>,
+    kernel: Option<Untrusted<String>>,
+    command_line: Option<Untrusted<String>>,
 ) -> String {
     let environment = snapshot.environments.iter().find(|e| &e.name == name);
     let kernel = kernel
@@ -68,7 +69,11 @@ fn boot_message(
     let line = command_line
         .or_else(|| environment.map(|e| e.command_line.value.clone()))
         .unwrap_or_default();
-    format!("Booting {name} with kernel {kernel} and the command line \"{line}\"")
+    format!(
+        "Booting {name} with kernel {} and the command line \"{}\"",
+        kernel.printable(),
+        line.printable()
+    )
 }
 
 /// Imports `pool` read/write, as every change needs; returns a note to add
@@ -98,17 +103,21 @@ fn set_default(snapshot: &mut Snapshot, name: &DatasetName) -> Outcome {
     Outcome::Done(format!("{name} is the default of {pool}{note}"))
 }
 
-fn set_kernel(snapshot: &mut Snapshot, name: &DatasetName, version: Option<&str>) -> Outcome {
+fn set_kernel(
+    snapshot: &mut Snapshot,
+    name: &DatasetName,
+    version: Option<&Untrusted<String>>,
+) -> Outcome {
     let note = make_writable(snapshot, &name.pool());
     let Some(environment) = environment(snapshot, name) else {
         return Outcome::Warning(format!("{name} is gone"));
     };
     for kernel in &mut environment.kernels {
-        kernel.is_default = Some(kernel.version.as_str()) == version;
+        kernel.is_default = Some(&kernel.version) == version;
     }
     let what = version.map_or_else(
         || format!("{name} boots its newest kernel"),
-        |version| format!("{name} boots {version} by default"),
+        |version| format!("{name} boots {} by default", version.printable()),
     );
     Outcome::Done(format!("{what}{note}"))
 }
@@ -260,7 +269,7 @@ pub(super) fn add_backup_environment(snapshot: &mut Snapshot, pool: &PoolName) {
         snapshots: Vec::new(),
         tries: None,
         command_line: CommandLine {
-            value: "quiet".to_owned(),
+            value: untrusted("quiet"),
             origin: Origin::Local,
         },
         ..template

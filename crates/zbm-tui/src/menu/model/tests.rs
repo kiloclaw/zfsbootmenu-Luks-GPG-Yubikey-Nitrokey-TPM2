@@ -84,11 +84,12 @@ fn an_edited_command_line_wins_over_the_own_one() {
     let mut model = model();
     let environment = model.snapshot.environments[0].clone();
 
-    model
-        .edited
-        .push((environment.name.clone(), "single".to_owned()));
+    model.edited.push((
+        environment.name.clone(),
+        Untrusted::new("single".to_owned()),
+    ));
 
-    assert_eq!(model.command_line(&environment), "single");
+    assert_eq!(model.command_line(&environment).get(), "single");
 }
 
 #[test]

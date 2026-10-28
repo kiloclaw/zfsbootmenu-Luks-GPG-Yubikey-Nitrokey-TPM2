@@ -8,6 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Clear, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Wrap,
 };
+use zbm_types::Printable;
 
 use super::lists;
 use crate::menu::format::{capitalised, fit};
@@ -275,7 +276,7 @@ fn confirm(
     let (before, after) = sentence.split_once('\u{1}').unwrap_or((&sentence, ""));
     body.push(Line::from(vec![
         Span::raw(before.to_owned()),
-        Span::styled(name.clone(), theme.style(Role::Danger)),
+        Span::styled(Printable(name).to_string(), theme.style(Role::Danger)),
         Span::raw(format!("{after} ")),
         Span::styled(typed.clone(), theme.style(Role::Title)),
     ]));

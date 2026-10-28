@@ -4,6 +4,7 @@
 
 use pretty_assertions::assert_eq;
 use zbm_display::keys::Key;
+use zbm_types::Untrusted;
 
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
@@ -168,7 +169,9 @@ fn marked_files_are_restored_after_the_name_is_typed() {
     session.type_text("void");
     session.key(Key::Enter);
 
-    let paths = vec!["/etc/fstab".to_owned(), "/usr/lib/libdrm.so.2".to_owned()];
+    let paths = ["/etc/fstab", "/usr/lib/libdrm.so.2"]
+        .map(|path| Untrusted::new(path.to_owned()))
+        .to_vec();
     let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
     assert_eq!(
         session.actions,

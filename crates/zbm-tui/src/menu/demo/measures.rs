@@ -87,7 +87,7 @@ fn first_tasks() -> Vec<Task> {
             done: |s| {
                 matches!(
                     s.actions.as_slice(),
-                    [Action::Boot { kernel: Some(k), .. }] if k == "6.12.8_1"
+                    [Action::Boot { kernel: Some(k), .. }] if k.get() == "6.12.8_1"
                 )
             },
         },
@@ -143,7 +143,7 @@ fn more_tasks() -> Vec<Task> {
             done: |s| {
                 matches!(
                     s.actions.as_slice(),
-                    [Action::Boot { command_line: Some(line), .. }] if line.ends_with(" single")
+                    [Action::Boot { command_line: Some(l), .. }] if l.get().ends_with(" single")
                 )
             },
         },

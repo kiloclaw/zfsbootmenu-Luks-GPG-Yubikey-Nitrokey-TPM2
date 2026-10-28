@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use zbm_display::keys::{Key, KeyPress};
 use zbm_platform::secret::Secret;
+use zbm_types::Printable;
 
 use crate::menu::keymap::{Input, Intent, Modifiers};
 use crate::menu::model::{Dialog, Model, Prompt, Screen, Then};
@@ -65,7 +66,7 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
         .snapshot
         .volumes
         .iter()
-        .find(|known| known.name == volume)
+        .find(|known| known.name.get() == volume)
         .map(|known| known.methods.clone())
         .unwrap_or_default();
     let Some(position) = methods.iter().position(|known| *known == method) else {
@@ -122,7 +123,11 @@ pub(super) fn next_layout(model: &mut Model) {
 /// The confirmation of sealing `volume`'s TPM2 key to the PCRs as they are
 /// now; `None` when its key is current or it has none.
 pub(super) fn reseal(model: &Model, volume: &str) -> Option<Then> {
-    let known = model.snapshot.volumes.iter().find(|v| v.name == volume)?;
+    let known = model
+        .snapshot
+        .volumes
+        .iter()
+        .find(|v| v.name.get() == volume)?;
     let seal = known.tpm2.as_ref().filter(|seal| !seal.is_current())?;
     // Short, so that the field to type in stays on a 52x20 screen.
     let mut lines: Vec<String> = seal
@@ -134,7 +139,7 @@ pub(super) fn reseal(model: &Model, volume: &str) -> Option<Then> {
     lines.push(text!("reseal.only-yours"));
     Some(Then::Confirm {
         action: Action::Reseal(volume.to_owned()),
-        title: text!("reseal.title", volume = volume),
+        title: text!("reseal.title", volume = Printable(volume).to_string()),
         lines,
         name: volume.to_owned(),
     })

@@ -6,6 +6,7 @@
 //! read/write first.
 
 use std::path::Path;
+use zbm_types::Untrusted;
 
 use zbm_boot::boot::{self as kexec, BootSettings};
 use zbm_boot::kernels::Kernel;
@@ -78,7 +79,7 @@ impl Boot<'_, '_> {
             .rev()
             .map(Kernel::parse)
             .map(|kernel| model::Kernel {
-                version: kernel_version(&kernel.kernel),
+                version: Untrusted::new(kernel_version(&kernel.kernel)),
                 is_default: named && chosen.as_ref() == Some(&kernel),
             })
             .collect()

@@ -6,6 +6,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use zbm_types::Printable;
 
 use super::lists;
 use crate::menu::format::fit;
@@ -39,7 +40,7 @@ pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect, diff
             let versions = package.versions(ascii);
             let facts = vec![Span::styled(versions.clone(), theme.style(Role::Muted))];
             let room = width.saturating_sub(versions.chars().count() + 2);
-            let name = fit(&package.name, room, ascii);
+            let name = fit(&Printable(&package.name).to_string(), room, ascii);
             let mut line = lists::row(theme, &name, &ranked.positions, width, facts);
             let mark = format!("{} ", package.kind.mark(ascii));
             line.spans
@@ -104,7 +105,10 @@ fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
         PackageKind::Downgraded => text!("package-downgraded.since", versions = versions),
     };
     let mut lines = vec![
-        Line::styled(package.name.clone(), theme.style(Role::Title)),
+        Line::styled(
+            Printable(&package.name).to_string(),
+            theme.style(Role::Title),
+        ),
         Line::styled(what, theme.style(Role::Text)),
     ];
     if package.files.is_empty() {
@@ -123,7 +127,7 @@ fn preview_lines(theme: Theme, package: &PackageChange) -> Vec<Line<'static>> {
         package
             .files
             .iter()
-            .map(|file| Line::styled(format!("  {file}"), theme.style(Role::Text))),
+            .map(|file| Line::styled(format!("  {}", Printable(file)), theme.style(Role::Text))),
     );
     lines.push(Line::styled(
         text!("package-files-hint"),

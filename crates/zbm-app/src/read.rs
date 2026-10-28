@@ -11,6 +11,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 use zbm_display::layout::{Layout, Positions};
+use zbm_types::Untrusted;
 
 use zbm_config::options::ZbmOptions;
 use zbm_luks::device::is_open;
@@ -101,7 +102,7 @@ fn origin(source: &Source) -> Origin {
 fn command_line(zfs: &dyn Zfs, dataset: &DatasetName) -> CommandLine {
     match zfs.property(dataset, COMMAND_LINE) {
         Ok(property) => CommandLine {
-            value: property.value().unwrap_or_default().to_owned(),
+            value: Untrusted::new(property.value().unwrap_or_default().to_owned()),
             origin: if property.value().is_some() {
                 origin(&property.source)
             } else {
@@ -109,7 +110,7 @@ fn command_line(zfs: &dyn Zfs, dataset: &DatasetName) -> CommandLine {
             },
         },
         Err(_) => CommandLine {
-            value: String::new(),
+            value: Untrusted::default(),
             origin: Origin::Default,
         },
     }
@@ -220,7 +221,9 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
                         .find_map(|pool| pool.parse::<PoolName>().ok())
                 });
             Volume {
-                name: mapping.map_or_else(|| device.clone(), |mapping| mapping.name.clone()),
+                name: Untrusted::new(
+                    mapping.map_or_else(|| device.clone(), |mapping| mapping.name.clone()),
+                ),
                 state: if open {
                     VolumeState::Open
                 } else {
@@ -229,7 +232,7 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
                 methods,
                 pool,
                 tpm2: None,
-                device,
+                device: Untrusted::new(device),
             }
         })
         .collect()
@@ -325,7 +328,10 @@ pub fn log(files: &dyn Files, base: &Path) -> Log {
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
-            Some(LogEntry { level, text })
+            Some(LogEntry {
+                level,
+                text: Untrusted::new(text),
+            })
         })
         .collect();
     Log { entries }

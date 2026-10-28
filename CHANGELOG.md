@@ -515,6 +515,18 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   were right on x86 and Arm only. Nothing changes on those machines.
 - CI runs the tests of the code that calls the kernel directly under AddressSanitizer.
 
+### Hostile text kept off the screen (phase 1)
+
+- Names and text that come from a pool, a boot environment's `/boot`, a LUKS device's label, crypttab or a program's
+  output are shown with their control characters escaped (`\x1b`), in the menu, in prompts, in boot messages, in the
+  errors the recovery shell shows and in `zbm debug` and `zluks status`. Text that reorders what is shown around it
+  (Unicode bidi controls) is escaped too. Before, the menu dropped control characters without a trace, so that a
+  name could look like another, and the plain console showed them raw.
+- The menu no longer reads a terminal's replies as keys: a file shown on the console on the display that asked for
+  its colours made the console answer into the menu's input, which typed the answer.
+- Over SSH or a serial line, Enter is no longer lost after a broken character or escape sequence, nor taken twice
+  when a terminal's CR LF comes in two reads.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

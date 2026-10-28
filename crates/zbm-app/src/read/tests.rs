@@ -99,9 +99,9 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
     assert!(void.is_default && !arch.is_default);
     assert_eq!(void.encryption, Encryption::Unlocked);
     assert_eq!(arch.encryption, Encryption::None);
-    assert_eq!(arch.command_line.value, "ro loglevel=4");
+    assert_eq!(arch.command_line.value.get(), "ro loglevel=4");
     assert_eq!(arch.command_line.origin, Origin::Local);
-    assert_eq!(void.command_line.value, "quiet");
+    assert_eq!(void.command_line.value.get(), "quiet");
     assert_eq!(
         void.command_line.origin,
         Origin::Inherited("zroot/ROOT".parse().unwrap())
@@ -114,7 +114,10 @@ fn environments_carry_their_command_line_and_where_it_was_set() {
         .collect();
     assert_eq!(taken, [("new".to_owned(), 4096), ("old".to_owned(), 4096)]);
     let none = command_line(&zfs, &"zroot/ROOT/gone".parse().unwrap());
-    assert_eq!((none.value.as_str(), none.origin), ("", Origin::Default));
+    assert_eq!(
+        (none.value.get().as_str(), none.origin),
+        ("", Origin::Default)
+    );
     assert_eq!(origin(&Source::Temporary), Origin::Local);
     assert_eq!(origin(&Source::Inherited(String::new())), Origin::Default);
 }
@@ -156,7 +159,7 @@ fn volumes_say_their_mapping_state_and_methods() {
     assert_eq!(volumes.len(), 2);
     let (vda2, vdb) = (&volumes[0], &volumes[1]);
     assert_eq!(
-        (vda2.name.as_str(), vda2.device.as_str()),
+        (vda2.name.get().as_str(), vda2.device.get().as_str()),
         ("zroot-a", "/dev/vda2")
     );
     assert_eq!(vda2.state, VolumeState::Open);
@@ -169,7 +172,7 @@ fn volumes_say_their_mapping_state_and_methods() {
             Method::Passphrase
         ]
     );
-    assert_eq!(vdb.name, "/dev/vdb");
+    assert_eq!(vdb.name.get(), "/dev/vdb");
     assert_eq!(vdb.state, VolumeState::Locked);
     assert_eq!(vdb.methods, [Method::Passphrase]);
     assert_eq!(token_method("systemd-fido2", false), Some(Method::Fido2));
@@ -257,7 +260,7 @@ fn the_log_holds_the_warnings_and_errors_of_the_journal() {
     let entries: Vec<(Level, &str)> = log
         .entries
         .iter()
-        .map(|entry| (entry.level, entry.text.as_str()))
+        .map(|entry| (entry.level, entry.text.get().as_str()))
         .collect();
     assert_eq!(
         entries,

@@ -4,10 +4,10 @@
 //! pool of another host.
 
 use zbm_app::Encryption;
-use zbm_types::{DatasetName, SnapshotName};
+use zbm_types::{DatasetName, SnapshotName, Untrusted};
 
-use super::DemoOptions;
 use super::health;
+use super::{DemoOptions, untrusted};
 use crate::menu::world::{
     CommandLine, Environment, Fallback, Health, Kernel, Keyboard, Level, Log, LogEntry, Method,
     Origin, PcrChange, Pool, Snapshot, SnapshotInfo, Stage, StageState, Target, Timeout, Tpm2Seal,
@@ -128,7 +128,7 @@ fn kernels(versions: &[&str], default: Option<&str>) -> Vec<Kernel> {
     versions
         .iter()
         .map(|version| Kernel {
-            version: (*version).to_owned(),
+            version: untrusted(version),
             is_default: default == Some(*version),
         })
         .collect()
@@ -136,7 +136,7 @@ fn kernels(versions: &[&str], default: Option<&str>) -> Vec<Kernel> {
 
 fn inherited(value: &str, from: &str) -> CommandLine {
     CommandLine {
-        value: value.to_owned(),
+        value: untrusted(value),
         origin: Origin::Inherited(dataset(from)),
     }
 }
@@ -197,7 +197,7 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             Encryption::None,
             kernels(&["6.11.5-arch1-1", "6.10.10-arch1-1"], None),
             CommandLine {
-                value: "rw quiet splash".to_owned(),
+                value: untrusted("rw quiet splash"),
                 origin: Origin::Local,
             },
             few_snapshots("tank/ROOT/arch"),
@@ -208,7 +208,7 @@ fn environments(options: &DemoOptions) -> Vec<Environment> {
             Encryption::None,
             kernels(&["6.1.0-26-amd64"], None),
             CommandLine {
-                value: String::new(),
+                value: Untrusted::default(),
                 origin: Origin::Default,
             },
             Vec::new(),
@@ -272,8 +272,8 @@ fn volumes(options: &DemoOptions) -> Vec<Volume> {
         VolumeState::Open
     };
     let volume = |name: &str, device: &str, methods: Vec<Method>, pool: &str| Volume {
-        name: name.to_owned(),
-        device: device.to_owned(),
+        name: untrusted(name),
+        device: untrusted(device),
         state: state.clone(),
         methods,
         pool: pool.parse().ok(),
@@ -304,7 +304,7 @@ fn volumes(options: &DemoOptions) -> Vec<Volume> {
 fn log() -> Log {
     let entry = |level, text: &str| LogEntry {
         level,
-        text: text.to_owned(),
+        text: untrusted(text),
     };
     Log {
         entries: vec![

@@ -77,7 +77,7 @@ fn versions_are_what_follows_the_kernel_s_name() {
 fn kernels_are_found_with_the_one_the_property_names() {
     let fake = machine();
     let kernels = with_boot(&fake, |boot| boot.kernels(&be()));
-    let versions: Vec<&str> = kernels.iter().map(|k| k.version.as_str()).collect();
+    let versions: Vec<&str> = kernels.iter().map(|k| k.version.get().as_str()).collect();
     assert_eq!(versions, ["6.6.2", "6.1.10"]);
     assert!(kernels.iter().all(|kernel| !kernel.is_default));
 
@@ -101,7 +101,7 @@ fn kernels_are_found_with_the_one_the_property_names() {
     let marked: Vec<&str> = kernels
         .iter()
         .filter(|kernel| kernel.is_default)
-        .map(|kernel| kernel.version.as_str())
+        .map(|kernel| kernel.version.get().as_str())
         .collect();
     assert_eq!(marked, ["6.1.10"]);
 
@@ -117,7 +117,7 @@ fn the_kernel_the_menu_shows_first_is_the_one_that_boots() {
         let shown = boot
             .kernels(&be())
             .first()
-            .map(|kernel| kernel.version.clone());
+            .map(|kernel| kernel.version.get().clone());
         let booted = kexec::select_kernel(boot.system, boot.state, &be().into())
             .map(|kernel| kernel_version(&kernel.kernel));
         (shown, booted)
@@ -295,7 +295,7 @@ fn environment(name: &str, encryption: model::Encryption) -> model::Environment 
         encryption,
         kernels: Vec::new(),
         command_line: model::CommandLine {
-            value: String::new(),
+            value: zbm_types::Untrusted::default(),
             origin: model::Origin::Default,
         },
         snapshots: Vec::new(),

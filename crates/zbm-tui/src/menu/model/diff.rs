@@ -2,7 +2,7 @@
 //! (the files, the paths marked to restore; the packages), each a list with
 //! its filter.
 
-use zbm_types::SnapshotName;
+use zbm_types::{SnapshotName, Untrusted};
 
 use super::{ListState, refilter};
 use crate::menu::world::{Change, PackageChange, PackageDiff};
@@ -29,7 +29,7 @@ pub struct DiffView {
     /// The list of changes, by path.
     pub list: ListState,
     /// The paths marked to restore.
-    pub marked: Vec<String>,
+    pub marked: Vec<Untrusted<String>>,
     /// The packages that changed; `None` without a package database.
     pub packages: Option<PackageDiff>,
     /// The list of packages, by name.
@@ -61,9 +61,9 @@ impl DiffView {
 
     /// Recomputes the list after the changes or the filter changed.
     pub fn refilter(&mut self) {
-        let paths: Vec<&str> = self.changes.iter().map(|c| c.path.as_str()).collect();
+        let paths: Vec<&str> = self.changes.iter().map(|c| c.path.get().as_str()).collect();
         refilter(&mut self.list, paths);
-        let paths: Vec<&String> = self.changes.iter().map(|c| &c.path).collect();
+        let paths: Vec<&Untrusted<String>> = self.changes.iter().map(|c| &c.path).collect();
         self.marked.retain(|path| paths.contains(&path));
         let packages = self
             .packages
@@ -122,7 +122,7 @@ impl DiffView {
         let position = self.list.matches.iter().position(|ranked| {
             self.changes
                 .get(ranked.index)
-                .is_some_and(|change| change.path == first)
+                .is_some_and(|change| *change.path.get() == first)
         });
         if let Some(position) = position {
             self.list.selected = position;
@@ -148,8 +148,8 @@ impl DiffView {
 
     /// The paths to restore: the marked ones the snapshot has, else the
     /// selected one if the snapshot has it.
-    pub fn to_restore(&self) -> Vec<String> {
-        let restorable = |path: &String| {
+    pub fn to_restore(&self) -> Vec<Untrusted<String>> {
+        let restorable = |path: &Untrusted<String>| {
             self.changes
                 .iter()
                 .any(|change| &change.path == path && change.is_restorable())

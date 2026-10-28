@@ -16,6 +16,7 @@ use zbm_app::model::{Origin, Snapshot, VolumeState};
 use zbm_luks::unlocker::{Luks, Settings};
 use zbm_platform::interaction::NoInteraction;
 use zbm_platform::{Context, System};
+use zbm_types::Printable;
 
 use crate::Io;
 
@@ -32,13 +33,13 @@ pub fn luks_lines(snapshot: &Snapshot) -> Vec<String> {
                 VolumeState::Open => "open".to_owned(),
                 VolumeState::Locked => "locked".to_owned(),
                 VolumeState::Skipped => "skipped".to_owned(),
-                VolumeState::Failed(why) => format!("failed: {why}"),
+                VolumeState::Failed(why) => format!("failed: {}", Printable(why)),
             };
             let methods: Vec<&str> = volume.methods.iter().map(|m| m.as_str()).collect();
             let mut line = format!(
                 "{}\t{}\t{state}\tmethods: {}",
-                volume.device,
-                volume.name,
+                volume.device.printable(),
+                volume.name.printable(),
                 methods.join(", ")
             );
             if let Some(pool) = &volume.pool {
@@ -93,10 +94,10 @@ pub fn pool_lines(snapshot: &Snapshot) -> Vec<String> {
         lines.push(format!(
             "  {}{default}\t{encryption}\tcommand line: {} ({})",
             environment.name,
-            if line.value.is_empty() {
-                "-"
+            if line.value.get().is_empty() {
+                Printable("-")
             } else {
-                &line.value
+                line.value.printable()
             },
             origin(&line.origin)
         ));

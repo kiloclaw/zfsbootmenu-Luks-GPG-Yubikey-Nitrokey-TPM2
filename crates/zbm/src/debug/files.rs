@@ -12,6 +12,7 @@
 //!   secrets.
 
 use std::path::Path;
+use zbm_types::Printable;
 
 use zbm_config::args::{Args as _, ZbmArgs};
 use zbm_config::options::ZbmOptions;
@@ -87,9 +88,9 @@ pub fn config(files: &dyn Files, base: &Path, io: &mut Io) -> i32 {
         return 1;
     };
     let words: Vec<&str> = kcl.lines().filter(|line| !line.is_empty()).collect();
-    let _ = writeln!(io.stdout, "command line: {}", words.join(" "));
+    let _ = writeln!(io.stdout, "command line: {}", Printable(&words.join(" ")));
     for line in config_lines(&kcl) {
-        let _ = writeln!(io.stdout, "{line}");
+        let _ = writeln!(io.stdout, "{}", Printable(&line));
     }
     0
 }
@@ -126,14 +127,19 @@ pub fn state(files: &dyn Files, base: &Path, io: &mut Io) -> i32 {
     for name in found {
         let path = base.join(&name);
         let size = files.metadata(&path).map_or(0, |metadata| metadata.len);
-        let _ = writeln!(io.stdout, "== {name} ({size} bytes)");
+        let _ = writeln!(io.stdout, "== {} ({size} bytes)", Printable(&name));
         let text = (size <= SHOWN)
             .then(|| files.read_to_string(&path).ok())
             .flatten();
         if let Some(text) = text.filter(|text| !text.is_empty()) {
-            let _ = write!(io.stdout, "{text}");
-            if !text.ends_with('\n') {
-                let _ = writeln!(io.stdout);
+            // Hooks can write the state directory: its files are shown
+            // line by line, escaped, but for the tabs between fields.
+            for line in text.lines() {
+                let fields: Vec<String> = line
+                    .split('\t')
+                    .map(|field| Printable(field).to_string())
+                    .collect();
+                let _ = writeln!(io.stdout, "{}", fields.join("\t"));
             }
         }
     }

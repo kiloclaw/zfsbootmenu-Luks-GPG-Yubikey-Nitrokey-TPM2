@@ -21,6 +21,7 @@ mod needs;
 
 pub(crate) use needs::{Needs, OnMachine};
 
+use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 use zbm_zfs::{DiffChange, Difference, Zfs, ZfsError};
 
@@ -357,10 +358,12 @@ fn bytes(bytes: u64) -> String {
 /// A difference as the menu shows it: its path below the filesystem's
 /// mount point `mounted`.
 fn change(difference: Difference, mounted: &str) -> Change {
-    let below = |path: String| match path.strip_prefix(mounted) {
-        Some("") => "/".to_owned(),
-        Some(rest) if rest.starts_with('/') => rest.to_owned(),
-        _ => path,
+    let below = |path: String| {
+        Untrusted::new(match path.strip_prefix(mounted) {
+            Some("") => "/".to_owned(),
+            Some(rest) if rest.starts_with('/') => rest.to_owned(),
+            _ => path,
+        })
     };
     Change {
         kind: match difference.change {

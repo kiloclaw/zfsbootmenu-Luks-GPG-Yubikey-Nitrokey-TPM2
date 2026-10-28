@@ -28,6 +28,7 @@
 //! | [`LogLevel`] | The log level of ZFSBootMenu's messages, at least `4` |
 //! | [`PoolRequirement`] | How much `zbm.prefer`'s pool is required |
 //! | [`BootfsPreference`] | The boot environment `zbm.prefer` names, if any |
+//! | [`Untrusted`] | Text from outside, shown only as [`Printable`] |
 //!
 //! [`version`] holds the version order itself (`sort -V`), and [`number`]
 //! integers as the shell's `test` reads them.
@@ -60,6 +61,7 @@ mod selector;
 mod settings;
 mod snapshot;
 mod stage;
+mod untrusted;
 pub mod version;
 mod zfs;
 
@@ -76,5 +78,6 @@ pub use selector::KernelSelector;
 pub use settings::{LogLevel, RetryDelay, Timeout};
 pub use snapshot::SnapshotName;
 pub use stage::{HookStage, Stage};
+pub use untrusted::{Printable, Untrusted, must_escape};
 pub use version::KernelVersion;
 pub use zfs::{DatasetName, PoolName};

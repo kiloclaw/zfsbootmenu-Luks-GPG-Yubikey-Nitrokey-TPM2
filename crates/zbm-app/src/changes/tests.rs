@@ -366,10 +366,13 @@ fn a_diff_compares_the_older_snapshot_with_the_newer_below_the_mount() {
     };
     assert_eq!((from, to.as_ref()), (&first, Some(&second)));
     assert_eq!(packages, &None);
-    assert_eq!(changes[0].path, "/");
+    assert_eq!(changes[0].path.get(), "/");
     assert_eq!(changes[1].kind, ChangeKind::Renamed);
-    assert_eq!(changes[1].path, "/etc/a");
-    assert_eq!(changes[1].renamed_to.as_deref(), Some("/etc/b"));
+    assert_eq!(changes[1].path.get(), "/etc/a");
+    assert_eq!(
+        changes[1].renamed_to.as_ref().map(|to| to.get().as_str()),
+        Some("/etc/b")
+    );
     assert_eq!(
         needs.asked.last().map(String::as_str),
         Some("unmount /zfsbootmenu/environments/mnt")
@@ -378,7 +381,10 @@ fn a_diff_compares_the_older_snapshot_with_the_newer_below_the_mount() {
     let failing = machine().failing("diff", "not mounted");
     let events = perform(&failing, &mut needs, &Action::Diff(first, None));
     assert!(!is_done(&events));
-    assert_eq!(change(found[1].clone(), "/other").path, found[1].path);
+    assert_eq!(
+        change(found[1].clone(), "/other").path.get(),
+        &found[1].path
+    );
 }
 
 #[test]
@@ -412,7 +418,7 @@ fn a_change_takes_the_console_on_a_read_only_pool_or_a_locked_environment() {
         encryption,
         kernels: Vec::new(),
         command_line: CommandLine {
-            value: String::new(),
+            value: Untrusted::default(),
             origin: Origin::Default,
         },
         snapshots: Vec::new(),

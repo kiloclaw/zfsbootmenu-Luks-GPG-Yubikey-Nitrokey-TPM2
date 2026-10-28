@@ -1,6 +1,8 @@
 //! Text fields: the filter of a list, the command palette and the command
 //! line editor.
 
+use zbm_types::Untrusted;
+
 use super::dialogs;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Model, Palette, PaletteItem, Screen, Then};
@@ -154,9 +156,9 @@ fn tool_items(model: &Model) -> Vec<PaletteItem> {
         .volumes
         .iter()
         .filter_map(|volume| {
-            let then = super::unlock::reseal(model, &volume.name)?;
+            let then = super::unlock::reseal(model, volume.name.get())?;
             Some(item(
-                text!("reseal.title", volume = volume.name.as_str()),
+                text!("reseal.title", volume = volume.name.printable().to_string()),
                 then,
             ))
         })
@@ -220,9 +222,10 @@ pub(super) fn editor(model: &mut Model, input: Input) -> Vec<Action> {
                 return Vec::new();
             };
             model.edited.retain(|(name, _)| *name != editor.environment);
-            model
-                .edited
-                .push((editor.environment.clone(), editor.text.clone()));
+            model.edited.push((
+                editor.environment.clone(),
+                Untrusted::new(editor.text.clone()),
+            ));
             let action = super::screens::boot(model, &environment, editor.kernel.clone());
             super::screens::guarded(model, action)
         }

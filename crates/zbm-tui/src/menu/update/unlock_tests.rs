@@ -285,7 +285,7 @@ fn the_packages_segment_lists_what_the_upgrade_changed() {
 
     assert_eq!(diff(&session).segment, Segment::Files);
     assert_eq!(
-        diff(&session).selected().map(|c| c.path.as_str()),
+        diff(&session).selected().map(|c| c.path.get().as_str()),
         Some("/boot/initramfs-6.12.9_1.img")
     );
     session.key(Key::Left);

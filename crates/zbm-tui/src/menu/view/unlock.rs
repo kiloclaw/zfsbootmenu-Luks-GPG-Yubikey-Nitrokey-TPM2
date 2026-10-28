@@ -5,6 +5,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};
+use zbm_types::Printable;
 
 use super::dialogs::{Alert, Kind, alert};
 use crate::menu::model::{Model, Prompt, Screen};
@@ -56,7 +57,10 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect, prompt: &
         (text!("button-skip"), Kind::Normal),
         (text!("button-unlock"), Kind::Default),
     ];
-    let title = text!("unlock-title", volume = prompt.volume.as_str());
+    let title = text!(
+        "unlock-title",
+        volume = Printable(&prompt.volume).to_string()
+    );
     let message = alert(
         model.theme,
         frame,
@@ -91,11 +95,11 @@ fn body<'a>(model: &Model, prompt: &'a Prompt) -> Vec<Line<'a>> {
         .snapshot
         .volumes
         .iter()
-        .find(|known| known.name == prompt.volume);
-    let device = known.map(|known| known.device.clone()).unwrap_or_default();
+        .find(|known| *known.name.get() == prompt.volume);
+    let device = known.map(|known| known.device.printable().to_string());
     let mut body = vec![
         Line::styled(
-            text!("unlock-device", device = device.as_str()),
+            text!("unlock-device", device = device.unwrap_or_default()),
             theme.style(Role::Muted),
         ),
         Line::default(),

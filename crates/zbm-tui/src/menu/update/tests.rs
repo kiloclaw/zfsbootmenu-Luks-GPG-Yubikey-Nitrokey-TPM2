@@ -1,5 +1,6 @@
 use pretty_assertions::assert_eq;
 use zbm_display::keys::{Key, KeyPress};
+use zbm_types::Untrusted;
 
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
@@ -20,8 +21,8 @@ fn started() -> Session {
 fn boot_action(environment: &str, kernel: Option<&str>, line: Option<&str>) -> Action {
     Action::Boot {
         environment: environment.parse().unwrap(),
-        kernel: kernel.map(str::to_owned),
-        command_line: line.map(str::to_owned),
+        kernel: kernel.map(|kernel| Untrusted::new(kernel.to_owned())),
+        command_line: line.map(|line| Untrusted::new(line.to_owned())),
         countdown: false,
     }
 }

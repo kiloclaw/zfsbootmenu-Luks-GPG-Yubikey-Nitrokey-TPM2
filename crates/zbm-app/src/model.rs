@@ -12,6 +12,7 @@ mod health;
 mod packages;
 mod unlock;
 
+use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
 pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, UnlockOutcome};
@@ -175,7 +176,7 @@ impl Environment {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Kernel {
     /// Its version.
-    pub version: String,
+    pub version: Untrusted<String>,
     /// Whether `org.zfsbootmenu:kernel` names it.
     pub is_default: bool,
 }
@@ -184,7 +185,7 @@ pub struct Kernel {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommandLine {
     /// The command line.
-    pub value: String,
+    pub value: Untrusted<String>,
     /// Where it was set.
     pub origin: Origin,
 }
@@ -215,9 +216,9 @@ pub struct SnapshotInfo {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Volume {
     /// The name of its mapping.
-    pub name: String,
+    pub name: Untrusted<String>,
     /// Its device.
-    pub device: String,
+    pub device: Untrusted<String>,
     /// Its state.
     pub state: VolumeState,
     /// The key methods that apply, in the order they are tried.
@@ -327,7 +328,7 @@ pub struct LogEntry {
     /// Its level.
     pub level: Level,
     /// What it says.
-    pub text: String,
+    pub text: Untrusted<String>,
 }
 
 /// The level of a log entry.
@@ -390,16 +391,16 @@ mod tests {
             encryption: Encryption::None,
             kernels: vec![
                 Kernel {
-                    version: "6.9".into(),
+                    version: Untrusted::new("6.9".to_owned()),
                     is_default: false,
                 },
                 Kernel {
-                    version: "6.8".into(),
+                    version: Untrusted::new("6.8".to_owned()),
                     is_default: true,
                 },
             ],
             command_line: CommandLine {
-                value: String::new(),
+                value: Untrusted::default(),
                 origin: Origin::Default,
             },
             snapshots: Vec::new(),
@@ -408,12 +409,12 @@ mod tests {
         };
 
         assert_eq!(
-            environment.boot_kernel().map(|k| k.version.as_str()),
+            environment.boot_kernel().map(|k| k.version.get().as_str()),
             Some("6.8")
         );
         environment.kernels[1].is_default = false;
         assert_eq!(
-            environment.boot_kernel().map(|k| k.version.as_str()),
+            environment.boot_kernel().map(|k| k.version.get().as_str()),
             Some("6.9")
         );
         assert!(Method::Tpm2Pin.is_typed() && !Method::Fido2.is_typed());

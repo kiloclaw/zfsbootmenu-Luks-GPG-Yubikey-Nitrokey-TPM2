@@ -1,6 +1,9 @@
 //! The demo machine's boot health and file changes: what the checks of each
 //! environment find, and what `zfs diff` reports for a snapshot.
 
+use zbm_types::Untrusted;
+
+use super::untrusted;
 use crate::menu::world::{
     Change, ChangeKind, Check, PackageChange, PackageDiff, PackageKind, Verdict,
 };
@@ -28,7 +31,8 @@ fn problem(name: &str, verdict: Verdict, detail: &str, fix: &str) -> Check {
 /// The checks of the demo environment `name` booting `kernel`: `tank` is
 /// nearly full, and Debian's old ZFS has no module for its kernel and cannot
 /// read the pool's newest feature.
-pub fn checks(name: &str, kernel: &str) -> Vec<Check> {
+pub fn checks(name: &str, kernel: &Untrusted<String>) -> Vec<Check> {
+    let kernel = kernel.printable();
     let pair = pass(
         "Kernel and initramfs",
         &format!("{kernel} with its initramfs"),
@@ -79,16 +83,16 @@ pub fn checks(name: &str, kernel: &str) -> Vec<Check> {
 fn change(kind: ChangeKind, path: &str, preview: &[&str]) -> Change {
     Change {
         kind,
-        path: path.to_owned(),
+        path: untrusted(path),
         renamed_to: None,
-        preview: preview.iter().map(|line| (*line).to_owned()).collect(),
+        preview: preview.iter().copied().map(untrusted).collect(),
     }
 }
 
 /// What changed since a snapshot of the demo machine, less `restored`.
-pub fn changes(restored: &[String]) -> Vec<Change> {
+pub fn changes(restored: &[Untrusted<String>]) -> Vec<Change> {
     let mut renamed = change(ChangeKind::Renamed, "/etc/default/zfs", &[]);
-    renamed.renamed_to = Some("/etc/default/zfs.bak".to_owned());
+    renamed.renamed_to = Some(untrusted("/etc/default/zfs.bak"));
     let all = vec![
         change(
             ChangeKind::Modified,

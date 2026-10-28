@@ -10,7 +10,9 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
-use zbm_types::{DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine};
+use zbm_types::{
+    DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine, Printable,
+};
 use zbm_zfs::ZfsText;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
@@ -317,8 +319,14 @@ fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<
             "red",
             "Unable to load kernel or initramfs into memory",
         ))
-        .message(colorize("orange", &format!("{mnt_text}{kernel}")))
-        .message(colorize("orange", &format!("{mnt_text}{initramfs}")))
+        .message(colorize(
+            "orange",
+            &Printable(&format!("{mnt_text}{kernel}")).to_string(),
+        ))
+        .message(colorize(
+            "orange",
+            &Printable(&format!("{mnt_text}{initramfs}")).to_string(),
+        ))
         .run(system);
     None
 }
@@ -451,8 +459,8 @@ fn execute(
     wipe_before_kexec(system, state);
     let booting = format!(
         "\nBooting {} for {} ...\n\n",
-        colorize("yellow", kernel),
-        colorize("cyan", fs)
+        colorize("yellow", &Printable(kernel).to_string()),
+        colorize("cyan", &Printable(fs).to_string())
     );
     let _ = system.console.write(booting.as_bytes());
     // The GPUs last, as a display shows nothing once its GPU is handed back
@@ -469,7 +477,10 @@ fn execute(
     zbm_trace::error!("{output}"; %output);
     TimedPrompt::new()
         .delay(10)
-        .message(colorize("red", &format!("kexec run of {kernel} failed!")))
+        .message(colorize(
+            "red",
+            &format!("kexec run of {} failed!", Printable(kernel)),
+        ))
         .run(system);
 }
 

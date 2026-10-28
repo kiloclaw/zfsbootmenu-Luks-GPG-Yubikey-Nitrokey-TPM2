@@ -503,6 +503,11 @@ are written, and any other is written as `"[redacted]"`, as is one named `passph
 it, after a look at what it can hold; one that can carry free text, such as a program's `output`, stays out, and the
 message still shows its value.
 
+Text from outside ZFSBootMenu (names and files from a pool, labels from a device, crypttab, programs' output) is held
+as `zbm_types::Untrusted<String>` where the menu's model carries it, and shown through `zbm_types::Printable`, which
+escapes C0, C1, DEL and the bidi controls; a message that colours text escapes the machine text it puts in, not the
+whole line. `Untrusted` has no `Display`, so the compiler finds a place that would show it raw.
+
 Each level has one meaning. **error**: something failed that the person needs to know of, and the boot may not go on
 as asked (a pool that does not import, a stage that failed). **warn**: something failed and the runtime went on
 without it (a hook that could not be copied, logs that could not be saved). **notice**: a normal event the person

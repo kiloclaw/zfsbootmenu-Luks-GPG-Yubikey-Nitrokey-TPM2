@@ -106,6 +106,51 @@ fn a_sequence_that_is_not_whole_waits_for_the_rest_or_is_the_escape_key() {
     assert_eq!(keys, [plain(Key::Char('a')), plain(Key::Escape)]);
 }
 
+#[test]
+fn a_terminal_s_replies_type_nothing() {
+    // Its colours (OSC 11, ended by BEL and by ST), a DCS reply, and a
+    // cursor position report: the keys around them still come.
+    let replies: [&[u8]; 4] = [
+        b"\x1b]11;rgb:0000/0000/0000\x07",
+        b"\x1b]10;rgb:ffff/ffff/ffff\x1b\\",
+        b"\x1bP1$r0m\x1b\\",
+        b"\x1b[12;40R",
+    ];
+    for reply in replies {
+        let mut bytes = b"a".to_vec();
+        bytes.extend_from_slice(reply);
+        bytes.push(b'b');
+        assert_eq!(
+            keys(&bytes),
+            [
+                with(Key::Char('a'), Modifiers::NONE),
+                with(Key::Char('b'), Modifiers::NONE)
+            ],
+            "{reply:?}"
+        );
+    }
+}
+
+#[test]
+fn alt_with_a_bracket_is_still_typed() {
+    // Without the end of a reply when nothing more comes, it is Alt+].
+    assert_eq!(keys(b"\x1b]"), [with(Key::Char(']'), Modifiers::ALT)]);
+    // While more may come, it waits.
+    let mut held = Vec::new();
+    assert_eq!(decode(b"\x1b]11;rgb:00", false, &mut held), 0);
+    assert!(held.is_empty());
+    // A reply without an end is not waited for without limit.
+    let mut endless = b"\x1b]".to_vec();
+    endless.resize(STRING_MAX, b'x');
+    assert_eq!(decode(&endless, false, &mut held), STRING_MAX);
+    assert!(held.is_empty());
+}
+
+#[test]
+fn c1_controls_type_nothing() {
+    assert_eq!(keys("x\u{9b}y".as_bytes()).len(), 2);
+}
+
 /// Keys read from a pipe, the rest of whose sequences may take
 /// `escape_wait`, and the pipe's other end.
 fn piped(escape_wait: Duration) -> (TerminalKeys, io::PipeWriter) {
@@ -214,4 +259,52 @@ fn cr_lf_split_between_reads_is_one_enter() {
     let capacity = keys.keys.capacity();
     while keys.key(TICK).unwrap().is_some() {}
     assert_eq!(keys.keys.capacity(), capacity);
+}
+
+#[test]
+fn only_the_line_feed_right_after_a_carriage_return_joins_it() {
+    // CR, then LF, then LF, each read alone: two Enters, CR LF and LF.
+    let (mut keys, mut writer) = piped(CONSOLE_ESCAPE_WAIT);
+    let enter = Some(plain(Key::Enter));
+    writer.write_all(b"\r").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), enter);
+    writer.write_all(b"\n").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), None);
+    writer.write_all(b"\n").unwrap();
+    assert_eq!(keys.key(TICK).unwrap(), enter);
+}
+
+#[test]
+fn a_broken_character_does_not_swallow_the_key_after_it() {
+    // A stray lead byte, then Enter: the Enter still comes, read at once or
+    // cut between two reads.
+    assert_eq!(keys(b"\xdd\r"), [with(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(keys(b"\xe2\x82a"), [with(Key::Char('a'), Modifiers::NONE)]);
+    let mut held = Vec::new();
+    assert_eq!(decode(b"\xdd", false, &mut held), 0);
+    assert_eq!(decode(b"\xdd", true, &mut held), 1);
+    assert!(held.is_empty());
+}
+
+#[test]
+fn a_broken_sequence_does_not_swallow_the_key_after_it() {
+    // `ESC O` or `ESC [` cut short by Enter: the Enter still comes.
+    assert_eq!(
+        keys(b"\x1bO\r"),
+        [
+            with(Key::Char('O'), Modifiers::ALT | Modifiers::SHIFT),
+            with(Key::Enter, Modifiers::NONE)
+        ]
+    );
+    assert_eq!(keys(b"\x1b[1;5\r"), [with(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(keys(b"\x1b[[\r"), [with(Key::Enter, Modifiers::NONE)]);
+    // An Enter that a carriage return ended joins a line feed after it,
+    // with Alt too; a carriage return inside a broken sequence does not.
+    let enter = [with(Key::Enter, Modifiers::NONE)];
+    assert!(ends_with_carriage_return(b"\r", &enter));
+    assert!(ends_with_carriage_return(
+        b"\x1b\r",
+        &[with(Key::Enter, Modifiers::ALT)]
+    ));
+    assert!(!ends_with_carriage_return(b"\x1b[1\r", &[]));
 }

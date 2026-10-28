@@ -299,8 +299,8 @@ impl<'a> App<'a> {
                 };
                 boot.boot(
                     environment,
-                    kernel.as_deref(),
-                    command_line.as_deref(),
+                    kernel.as_ref().map(|kernel| kernel.get().as_str()),
+                    command_line.as_ref().map(|line| line.get().as_str()),
                     *countdown,
                     recovery,
                 )

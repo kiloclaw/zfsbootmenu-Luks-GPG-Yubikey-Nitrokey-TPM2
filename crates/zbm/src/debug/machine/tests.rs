@@ -3,6 +3,7 @@ use zbm_app::model::{
     CommandLine, Environment, Health, Method, Pool, Snapshot, Volume, VolumeState,
 };
 use zbm_testkit::fakes::FakeSystem;
+use zbm_types::Untrusted;
 
 use super::*;
 
@@ -14,7 +15,7 @@ fn snapshot() -> Snapshot {
         encryption,
         kernels: Vec::new(),
         command_line: CommandLine {
-            value: line.to_owned(),
+            value: Untrusted::new(line.to_owned()),
             origin,
         },
         snapshots: Vec::new(),
@@ -48,16 +49,16 @@ fn snapshot() -> Snapshot {
         ],
         volumes: vec![
             Volume {
-                name: "zroot-a".into(),
-                device: "/dev/sda2".into(),
+                name: Untrusted::new("zroot-a".to_owned()),
+                device: Untrusted::new("/dev/sda2".to_owned()),
                 state: VolumeState::Open,
                 methods: vec![Method::Tpm2Pin, Method::Passphrase],
                 pool: Some("zroot".parse().unwrap()),
                 tpm2: None,
             },
             Volume {
-                name: "/dev/sdb2".into(),
-                device: "/dev/sdb2".into(),
+                name: Untrusted::new("/dev/sdb2".to_owned()),
+                device: Untrusted::new("/dev/sdb2".to_owned()),
                 state: VolumeState::Failed("wrong".into()),
                 methods: vec![Method::Passphrase],
                 pool: None,

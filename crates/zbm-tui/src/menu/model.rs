@@ -1,7 +1,7 @@
 //! The state of the menu: the snapshot of the machine and everything on the
 //! screen. Nothing in it changes but through [`update`](fn@super::update).
 
-use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 mod diff;
 mod naming;
@@ -148,8 +148,8 @@ pub struct Editor {
     /// The environment.
     pub environment: DatasetName,
     /// The kernel, when one was chosen.
-    pub kernel: Option<String>,
-    /// The text.
+    pub kernel: Option<Untrusted<String>>,
+    /// The text, as the user edits it.
     pub text: String,
 }
 
@@ -206,7 +206,7 @@ pub struct Model {
     /// The sort order of the snapshots.
     pub sort: Sort,
     /// Command lines edited for this boot, by environment.
-    pub edited: Vec<(DatasetName, String)>,
+    pub edited: Vec<(DatasetName, Untrusted<String>)>,
     /// The countdown, in milliseconds, while it runs.
     pub countdown: Option<u64>,
     /// Whether start-up finished and the main view opened.
@@ -335,7 +335,7 @@ impl Model {
                 environment
                     .kernels
                     .iter()
-                    .map(|k| k.version.clone())
+                    .map(|k| k.version.get().clone())
                     .collect()
             })
             .unwrap_or_default();
@@ -414,7 +414,7 @@ impl Model {
             .snapshot
             .volumes
             .iter()
-            .map(|volume| volume.name.clone());
+            .map(|volume| volume.name.get().clone());
         pools.chain(volumes).collect()
     }
 
@@ -424,7 +424,7 @@ impl Model {
         self.snapshot.pools.get(row).map(|pool| &pool.name)
     }
 
-    /// The volume of the selected row of the pools view, if it is one.
+    /// The name of the volume of the selected row of the pools view.
     pub fn selected_volume(&self) -> Option<&str> {
         let row = self
             .pools
@@ -433,12 +433,12 @@ impl Model {
         self.snapshot
             .volumes
             .get(row)
-            .map(|volume| volume.name.as_str())
+            .map(|volume| volume.name.get().as_str())
     }
 
     /// The command line `environment` boots with: the edited one, else its
     /// own.
-    pub fn command_line(&self, environment: &Environment) -> String {
+    pub fn command_line(&self, environment: &Environment) -> Untrusted<String> {
         self.edited
             .iter()
             .find(|(name, _)| *name == environment.name)

@@ -1,6 +1,7 @@
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use zbm_display::keys::Key;
+use zbm_types::Untrusted;
 
 use super::*;
 use crate::menu::caps::Capabilities;
@@ -155,7 +156,10 @@ fn the_log_scrolls_to_its_last_entry_when_lines_wrap() {
     model.snapshot.log.entries = (0..30)
         .map(|n| crate::menu::world::LogEntry {
             level: crate::menu::world::Level::Info,
-            text: format!("entry {n:02} {}", "long words that wrap ".repeat(5)),
+            text: Untrusted::new(format!(
+                "entry {n:02} {}",
+                "long words that wrap ".repeat(5)
+            )),
         })
         .collect();
     model.screen = Screen::Log;
@@ -191,4 +195,60 @@ fn the_command_line_wraps_where_the_cursor_goes() {
     assert_eq!(before.symbol(), "y", "cursor at {cursor:?}\n{shown}");
     assert_eq!(screens::wrapped("", 5).len(), 1);
     assert_eq!(screens::wrapped("abcdefg", 3).len(), 3);
+}
+
+#[test]
+fn hostile_names_are_shown_escaped() {
+    let mut model = started(Capabilities::FULL).into_model();
+    let name = model.selected_environment().unwrap().name.clone();
+    let environment = model
+        .snapshot
+        .environments
+        .iter_mut()
+        .find(|environment| environment.name == name)
+        .unwrap();
+    let kernel = Untrusted::new("6.1\u{1b}[2J".to_owned());
+    environment.kernels = vec![crate::menu::world::Kernel {
+        version: kernel.clone(),
+        is_default: true,
+    }];
+    environment.command_line.value = Untrusted::new("quiet\u{202e}x\u{9b}1m".to_owned());
+    let line = environment.command_line.value.get().clone();
+    model.snapshot.volumes[0].name = Untrusted::new("luks\u{7}a".to_owned());
+    model.snapshot.log.entries = vec![crate::menu::world::LogEntry {
+        level: crate::menu::world::Level::Warning,
+        text: Untrusted::new("hi\u{1b}]0;x\u{7}".to_owned()),
+    }];
+    model.focus = Some(name.clone());
+    model.refresh();
+
+    let main = screen(&model, 120, 40);
+    model.screen = Screen::Kernels;
+    let kernels = screen(&model, 80, 25);
+    model.editor = Some(crate::menu::model::Editor {
+        environment: name,
+        kernel: Some(kernel),
+        text: line,
+    });
+    model.screen = Screen::CommandLine;
+    let editor = screen(&model, 80, 25);
+    model.screen = Screen::Pools;
+    let pools = screen(&model, 80, 25);
+    model.screen = Screen::Log;
+    let log = screen(&model, 80, 25);
+
+    for (text, escaped) in [
+        (&main, "6.1\\x1b[2J"),
+        (&main, "quiet\\u{202e}x\\x9b1m"),
+        (&kernels, "6.1\\x1b[2J"),
+        // The title is drawn in capitals.
+        (&editor, "6.1\\X1B[2J"),
+        (&editor, "quiet\\u{202e}x\\x9b1m"),
+        (&pools, "luks\\x07a"),
+        (&log, "hi\\x1b]0;x\\x07"),
+    ] {
+        assert!(text.contains(escaped), "{escaped} not in\n{text}");
+        let raw = |row: &str| row.contains(zbm_types::must_escape);
+        assert!(!text.lines().any(raw), "{text:?}");
+    }
 }

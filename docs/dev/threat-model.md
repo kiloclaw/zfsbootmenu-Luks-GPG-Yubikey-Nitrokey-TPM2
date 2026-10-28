@@ -113,6 +113,7 @@ target or review shows it; "to verify" means it is believed to hold and the evid
 | P10 | What is saved on the ESP holds no secret, and what is read back from it is untrusted | A1, A4, A5 on S1 to S3, S7 | P1's evidence: the journal keeps only the fields of an allow-list and crash reports redact the rest; the kernel log holds only what the runtime logs, which P1 keeps free of secrets; the VM test `runtime-rust-saved` checks what a save writes; I15 is handled as names alone | Holds for the Rust runtime |
 | P11 | Remote access adds no way in that the console does not have: ZFSBootMenu itself listens on no port, and the SSH server is one the user adds, with keys the user chooses | A6 on S1, S5, S6 | No crate of the runtime opens a socket (no `std::net` outside the VM test harness); `docs/general/remote-access.rst` | Holds; the menu over SSH is a client of the same session (ROADMAP.md PM10), and SE9's shell gate applies to it |
 | P12 | What builds and fills an image is pinned and checked | A7 on S5 | Crates are vendored and locked (`vendor/`, `Cargo.lock`), their licences and advisories checked (`cargo deny`); CI names every action by its commit and the build container's base image by its digest; no release build turns on a test feature (`cargo xtask lint`, "test features"); `zbm` links no library but glibc (`cargo xtask check-links`, CD1) | Partly: audits of the crates (`cargo vet`, SE12) are to come, and the distribution packages the build container installs are not pinned |
+| P13 | Text from outside ZFSBootMenu reaches no terminal raw, and a terminal's replies type nothing: names, files and program output cannot move the cursor, change what is shown around them, set a title or answer for the user | A2, A3 on S6 | `zbm_types::Untrusted` (no `Display`) holds the menu's text from pools, files, crypttab and programs, and `Printable` shows it with C0, C1, DEL and the bidi controls escaped (a property test checks that nothing it writes is one); prompts escape device labels and kernel paths, and the recovery shell the errors it reads back; the menu's key decoder drops the string sequences terminals reply with (`OSC`, `DCS`); fuzz targets `menu_names` and `console_replies` | Holds for the menu, the prompts, the recovery shell, `zbm debug` (journal, commands, state files, saved logs) and `zluks status`; messages that a format string builds and colours (`colorize`) are escaped where machine text goes into them, not as a whole |
 
 ## Risks that stay
 
@@ -155,6 +156,11 @@ night.
 | `program_output` | `zbm_zfs::parse_table`, `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |
 | `display_data` | `zbm_startup::autosize`: `edid::parse`, `font::cell`, `Density::new`, `choice::order`; `zbm_display::psf`: `Font::parse`, `Font::subset`, `Font::to_bytes` | I13 | A1, A2 |
 | `console_output` | `zbm_console::screen::Console`: `feed` in reads of any size, `draw` (scrolling and the cursor included), `tick`, `take_replies`, `text` | I14 | A1, A3 |
+| `boot_files` | `zbm_boot::kernels`: `discover` (kernel names, their initramfs images and `.kcl` files, version order) and `select`; `zbm_boot::commandline`: `os_release`, `root_prefix` | I5 | A3 |
+| `menu_names` | `zbm_tui::menu::view` over a snapshot whose text fields are hostile, on every screen, at three sizes; checks P13: no cell holds a character that acts on a terminal | I3, I5, I8, I9 | A2, A3 |
+| `key_input` | `zbm_tui::menu::term_keys::decode`, in reads of any size against all at once; `zbm_display::input::parse_events` and `keys::Decoder` (`feed`, `resync`); `zbm_display::layout`: `Layout::from_keymap`, `compile::dead_keys`, `keys::compose_key` | I10 | A1, A2, A6 |
+| `console_replies` | What `zbm_console::screen::Console` answers to any output (`take_replies`), read back by `term_keys::decode`; checks P13: no key | I14 | A3 |
+| `messages` | What ZBM's processes leave each other: `zbm_trace::crash::Report::parse`, `zbm_platform::dmesg::records`, the state files through `zbm_state::State` (stages, the active menu, `bootfs`, degraded pools, the command line override, the console's process, layout and font requests), `Zoom::parse`, `compile::split`, `parse_size`, `ZbmArgs::from_cmdline` | I11 | A1 (through hooks) |
 
 A parser that a phase adds or moves gets a target, or joins one, in the same pull request, and this table says which.
 
@@ -163,3 +169,13 @@ Findings so far:
 - `program_output`, on its first run: `zbm_pool::hostid::scrape_hostid` sliced the output of `zpool import` at byte
   positions, and panicked when text that is not ASCII came before `hostid=`. A pool someone else controls (A3) could
   stop the start-up program with it. Fixed, with the input as a unit test.
+- `console_replies`, by review while it was written (SE5): the console on the display answers a program that asks
+  for its colours (`OSC 10`, `11` and `4`), and the menu's key decoder read the answer as Alt+`]` and the letters of
+  the colour. A file of a pool shown on the console (A3) could type into the menu. The decoder now drops the string
+  sequences terminals reply with, and a C1 control typed as a character; unit tests in `term_keys` and `zbm`.
+- `key_input`, on its first runs (SE5): the menu's terminal key decoder lost or doubled Enter at the edges of broken
+  input. A stray byte that starts a UTF-8 character, `ESC O` or a control sequence cut short took the Enter after it
+  as part of themselves; and the reader, which joins CR LF cut between two reads, kept dropping line feeds after the
+  first. Over SSH or a serial line, that could skip or confirm a dialog. Fixed: a broken character or sequence ends
+  at the first byte that cannot belong to it, and only the byte right after the carriage return of an Enter is
+  joined to it; the inputs are unit tests in `term_keys`.

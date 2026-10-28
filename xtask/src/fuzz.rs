@@ -22,6 +22,11 @@ pub const TARGETS: &[&str] = &[
     "program_output",
     "display_data",
     "console_output",
+    "boot_files",
+    "key_input",
+    "console_replies",
+    "messages",
+    "menu_names",
 ];
 
 /// How long each target runs when no time is given, in seconds.

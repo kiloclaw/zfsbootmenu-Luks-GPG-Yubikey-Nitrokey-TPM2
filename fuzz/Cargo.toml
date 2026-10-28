@@ -21,6 +21,7 @@ vte = { path = "../patches/vte-0.15.0" }
 
 [dependencies]
 libfuzzer-sys = "0.4"
+ratatui = { version = "0.30", default-features = false, features = ["std", "crossterm", "layout-cache", "unstable-rendered-line-info"] }
 zbm-boot = { path = "../crates/zbm-boot" }
 zbm-config = { path = "../crates/zbm-config" }
 zbm-console = { path = "../crates/zbm-console" }
@@ -29,6 +30,11 @@ zbm-display = { path = "../crates/zbm-display" }
 zbm-luks = { path = "../crates/zbm-luks" }
 zbm-pool = { path = "../crates/zbm-pool" }
 zbm-startup = { path = "../crates/zbm-startup" }
+zbm-platform = { path = "../crates/zbm-platform" }
+zbm-state = { path = "../crates/zbm-state" }
+zbm-testkit = { path = "../crates/zbm-testkit" }
+zbm-trace = { path = "../crates/zbm-trace" }
+zbm-tui = { path = "../crates/zbm-tui" }
 zbm-types = { path = "../crates/zbm-types" }
 zbm-zfs = { path = "../crates/zbm-zfs" }
 
@@ -84,6 +90,41 @@ bench = false
 [[bin]]
 name = "console_output"
 path = "fuzz_targets/console_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "boot_files"
+path = "fuzz_targets/boot_files.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "key_input"
+path = "fuzz_targets/key_input.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "console_replies"
+path = "fuzz_targets/console_replies.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "messages"
+path = "fuzz_targets/messages.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "menu_names"
+path = "fuzz_targets/menu_names.rs"
 test = false
 doc = false
 bench = false

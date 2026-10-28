@@ -5,6 +5,7 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use zbm_types::Printable;
 
 use super::lists;
 use crate::menu::format::{age, date, fit, size};
@@ -121,7 +122,7 @@ pub(super) fn kernels(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             };
             Some(lists::row(
                 theme,
-                &kernel.version,
+                &kernel.version.printable().to_string(),
                 &ranked.positions,
                 width,
                 facts,
@@ -141,16 +142,18 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let Some(editor) = &model.editor else {
         return;
     };
-    let header = match editor.kernel.as_deref() {
-        Some(kernel) => text!("command-line-with", kernel = kernel),
+    let header = match &editor.kernel {
+        Some(kernel) => text!("command-line-with", kernel = kernel.printable().to_string()),
         None => text!("command-line-title"),
     };
     let block = lists::block(theme, &header);
     let inner = block.inner(area);
     let width = usize::from(inner.width.max(1));
     // The line wraps at the last column, not between words, so that the
-    // cursor is where the next character goes.
-    let mut lines = wrapped(&editor.text, width);
+    // cursor is where the next character goes. The text came from the pool,
+    // so it is shown escaped, the cursor after the escapes.
+    let shown = Printable(&editor.text).to_string();
+    let mut lines = wrapped(&shown, width);
     lines.extend([
         Line::default(),
         Line::styled(text!("command-line-hint"), theme.style(Role::Muted)),
@@ -161,7 +164,7 @@ pub(super) fn command_line(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             .block(block),
         area,
     );
-    let length = editor.text.chars().count();
+    let length = shown.chars().count();
     let (row, column) = (length / width, length % width);
     let row = u16::try_from(row).unwrap_or(u16::MAX);
     let column = u16::try_from(column).unwrap_or(u16::MAX);
@@ -244,7 +247,7 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
         VolumeState::Locked => (text!("volume-locked"), Role::Locked),
         VolumeState::Skipped => (text!("volume-skipped"), Role::Muted),
         VolumeState::Failed(reason) => (
-            text!("volume-failed", reason = reason.as_str()),
+            text!("volume-failed", reason = Printable(reason).to_string()),
             Role::Danger,
         ),
     };
@@ -256,11 +259,11 @@ fn pool_row(model: &Model, index: usize, width: usize) -> Option<Line<'static>> 
         ));
     }
     facts.push(Span::styled(
-        format!("{}{dot}", volume.device),
+        format!("{}{dot}", volume.device.printable()),
         theme.style(Role::Muted),
     ));
     facts.push(Span::styled(format!("{word:<8}"), theme.style(role)));
-    let name = format!("{:<8}{}", text!("volume-label"), volume.name);
+    let name = format!("{:<8}{}", text!("volume-label"), volume.name.printable());
     Some(lists::row(theme, &name, &[], width, facts))
 }
 
@@ -303,7 +306,7 @@ pub(super) fn log(model: &Model, frame: &mut Frame<'_>, area: Rect) {
             };
             Line::from(vec![
                 Span::styled(format!("{glyph} {word:<8}"), theme.style(role)),
-                Span::raw(entry.text.clone()),
+                Span::raw(entry.text.printable().to_string()),
             ])
         })
         .collect();

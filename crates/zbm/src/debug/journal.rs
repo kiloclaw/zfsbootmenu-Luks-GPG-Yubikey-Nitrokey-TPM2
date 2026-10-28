@@ -13,6 +13,7 @@
 //! report can show one.
 
 use std::path::Path;
+use zbm_types::Printable;
 
 use serde_json::Value;
 use zbm_platform::Files;
@@ -123,7 +124,8 @@ pub fn journal(files: &dyn Files, base: &Path, args: &[&str], io: &mut Io) -> Op
         .iter()
         .filter(|record| rank(record.get("level").and_then(Value::as_str).unwrap_or("")) <= limit)
     {
-        let _ = writeln!(io.stdout, "{}", line(record));
+        // The journal holds names and output from outside ZFSBootMenu.
+        let _ = writeln!(io.stdout, "{}", Printable(&line(record)));
     }
     Some(0)
 }
@@ -175,7 +177,8 @@ pub fn print_commands(files: &dyn Files, base: &Path, io: &mut Io) -> i32 {
         let _ = writeln!(
             io.stdout,
             "{status:>4} {:>7} ms  {}",
-            command.duration_ms, command.line
+            command.duration_ms,
+            Printable(&command.line)
         );
     }
     let failed = ran

@@ -7,6 +7,7 @@ use zbm_platform::interaction::{
 };
 use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
+use zbm_types::Untrusted;
 
 use pretty_assertions::assert_eq;
 
@@ -99,8 +100,8 @@ fn a_secret_typed_in_the_dialog_comes_back_and_esc_gives_an_empty_one() {
     assert_eq!(seen.asked(), requested(Method::Passphrase, Some(3), None));
     // The dialog names the volume's device.
     let listed = Volume {
-        name: VOLUME.name.into(),
-        device: VOLUME.device.into(),
+        name: Untrusted::new(VOLUME.name.to_owned()),
+        device: Untrusted::new(VOLUME.device.to_owned()),
         state: VolumeState::Locked,
         methods: vec![Method::Passphrase],
         pool: None,

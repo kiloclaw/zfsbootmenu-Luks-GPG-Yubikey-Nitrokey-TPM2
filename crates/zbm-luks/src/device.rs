@@ -1,13 +1,14 @@
 //! Finding LUKS volumes: resolving a device specification to its device,
 //! telling whether a volume is open, and naming and describing volumes.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use zbm_crypt::Cryptsetup;
 use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::devices::Devices;
-use zbm_types::{DevicePath, MappingName, ParseError};
+use zbm_types::{DevicePath, MappingName, ParseError, Printable};
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
 const BY_KEY: [(&str, &str); 6] = [
@@ -197,16 +198,19 @@ pub fn mapping_name(
 }
 
 /// A short description of a device for prompts: the device, its label or
-/// partition label in quotes, and its size.
+/// partition label in quotes, and its size. Whoever made the device chose
+/// its label (attacker A2 of `docs/dev/threat-model.md`), so the label and
+/// the device are shown as [`Printable`]: no control character in them
+/// reaches the console.
 pub fn describe_device(context: &Context<'_>, device: &str) -> String {
     let devices = Devices::new(context.runner(), context.files());
     let size = devices.size(device);
     let label = devices.tag(device, "LABEL");
     let partlabel = devices.tag(device, "PARTLABEL");
-    let mut description = device.to_owned();
+    let mut description = Printable(device).to_string();
     let name = if label.is_empty() { &partlabel } else { &label };
     if !name.is_empty() {
-        description.push_str(&[" \"", name, "\""].concat());
+        let _ = write!(description, " \"{}\"", Printable(name));
     }
     if !size.is_empty() {
         description.push_str(&[" (", &size, ")"].concat());

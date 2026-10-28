@@ -97,9 +97,10 @@ fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
             theme.style(Role::Default),
         ));
     }
-    let kernel = environment
-        .boot_kernel()
-        .map_or_else(|| text!("kernel-none"), |k| k.version.clone());
+    let kernel = environment.boot_kernel().map_or_else(
+        || text!("kernel-none"),
+        |k| k.version.printable().to_string(),
+    );
     facts.push(Span::styled(kernel, theme.style(Role::Muted)));
     facts
 }
@@ -168,7 +169,8 @@ fn kernel_lines(model: &Model, environment: &Environment, width: usize) -> Vec<L
         } else {
             Vec::new()
         };
-        let version = fit(&kernel.version, width.saturating_sub(9), theme.is_ascii());
+        let version = kernel.version.printable().to_string();
+        let version = fit(&version, width.saturating_sub(9), theme.is_ascii());
         let mut line = lists::row(theme, &version, &[], width.saturating_sub(2), label);
         line.spans.insert(0, Span::raw("  "));
         line
@@ -221,9 +223,10 @@ fn detail_lines(model: &Model, environment: &Environment) -> Vec<Line<'static>> 
         .map(|(label, value)| fact(model, &label, value))
         .collect();
     lines.extend(pool_fact(model, environment));
-    let kernel = environment
-        .boot_kernel()
-        .map_or_else(|| text!("value-none"), |k| k.version.clone());
+    let kernel = environment.boot_kernel().map_or_else(
+        || text!("value-none"),
+        |k| k.version.printable().to_string(),
+    );
     let count = environment.kernels.len();
     let kernels = text!("fact-kernel.count", count = count);
     lines.push(fact(
@@ -314,10 +317,10 @@ fn command_line(model: &Model, environment: &Environment) -> Vec<Span<'static>> 
     } else {
         text!("origin-edited")
     };
-    let shown = if line.is_empty() {
+    let shown = if line.get().is_empty() {
         text!("value-empty")
     } else {
-        line
+        line.printable().to_string()
     };
     let dot = model.theme.dot();
     vec![

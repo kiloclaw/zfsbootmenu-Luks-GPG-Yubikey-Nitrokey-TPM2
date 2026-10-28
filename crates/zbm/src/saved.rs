@@ -12,6 +12,7 @@
 //! is not given; the supervisor saves only when it is.
 
 use std::path::Path;
+use zbm_types::Printable;
 
 use zbm_boot::saved_logs::{self, Destination};
 use zbm_config::args::{Args, ZbmArgs};
@@ -42,9 +43,10 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
                     let files: Vec<String> = boot
                         .files
                         .iter()
-                        .map(|(name, size)| format!("{name} ({size} bytes)"))
+                        .map(|(name, size)| format!("{} ({size} bytes)", Printable(name)))
                         .collect();
-                    let _ = writeln!(io.stdout, "{}: {}", boot.name, files.join(", "));
+                    let name = Printable(&boot.name);
+                    let _ = writeln!(io.stdout, "{name}: {}", files.join(", "));
                 }
                 0
             }

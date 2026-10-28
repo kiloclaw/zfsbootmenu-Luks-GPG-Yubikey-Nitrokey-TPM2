@@ -206,3 +206,27 @@ fn the_console_draws_with_the_truetype_font_at_the_console_font_s_height() {
     files.file(fonts.join(TTF), "not a font");
     assert_eq!(grid(&options).unwrap().name(), "ter-v20b.psf");
 }
+
+#[test]
+/// What the console answers, read back by the menu's key decoder, presses
+/// no key (ROADMAP.md SE5).
+fn what_the_console_answers_presses_no_key() {
+    use zbm_console::screen::Console;
+    use zbm_display::grid::Grid;
+    use zbm_display::psf::Font;
+    use zbm_tui::menu::term_keys::decode;
+
+    let font = Font::parse(include_bytes!(
+        "../../../../legacy/zfsbootmenu/fonts/ter-v14b.psf"
+    ))
+    .unwrap();
+    let mut console = Console::new(Grid::new(font, 1), (80 * 8, 25 * 14));
+    // What a hostile file cat'ed to the console asks it: its device
+    // attributes, the cursor's position, its colours, the window's size.
+    console.feed(b"\x1b[c\x1b[6n\x1b]11;?\x07\x1b]4;1;?\x1b\\\x1b[18t\x1b[5n");
+    let replies = console.take_replies();
+    assert!(!replies.is_empty());
+    let mut keys = Vec::new();
+    assert_eq!(decode(&replies, true, &mut keys), replies.len());
+    assert!(keys.is_empty(), "{keys:?} from {replies:?}");
+}
