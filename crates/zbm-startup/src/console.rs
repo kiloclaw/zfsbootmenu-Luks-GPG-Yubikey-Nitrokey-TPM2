@@ -27,7 +27,7 @@ use crate::preinit;
 /// The arguments of `zbm` that start the console the command line `kcl`
 /// asks for (`console ...`); `None` for the kernel console.
 pub fn arguments(kcl: &str) -> Option<Vec<String>> {
-    let args = ZbmArgs::from_kcl(kcl);
+    let args = ZbmArgs::from_cmdline(kcl);
     let mut messages = Vec::new();
     let console = args.lookup(&DISPLAY_CONSOLE, &mut messages)?;
     if console.trim() != "drm" {

@@ -32,13 +32,12 @@ dependencies that exist.
 | adapters | `zbm-zfs`, `zbm-crypt`, `zbm-tools` | External programs: ZFS, encryption, and the system's programs |
 | state | `zbm-state`, `zbm-config` | State files, and the configuration: the table of options, the kernel command line, /etc/zfsbootmenu.conf and crypttab files |
 | platform | `zbm-platform`, `zbm-display` | The ports to the system (programs, files, clock, console, processes, environment), their real implementations, secrets and the Context; the display and keyboard without a terminal |
-| foundation | `zbm-core`, `zbm-trace` | File tests, option parsing, shell semantics, release information, tracing |
+| foundation | `zbm-trace` | Tracing: structured events, the journal and the kernel log |
 | types | `zbm-types` | Domain types: names and paths checked when parsed; no I/O |
 | unsafe | `zbm-sys` | The only crate with `unsafe` code: C library calls |
 
 A crate depends only on crates of lower layers, with these exceptions in its own layer:
 
-- `zbm-trace` → `zbm-core`
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
 - `zbm-boot` → `zbm-luks`
@@ -82,9 +81,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   everywhere else.
 - **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
   `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion` and the stages. Nothing else can hold an invalid one.
-- **foundation**: `zbm-core` holds what every crate needs and that reaches the system through no port: the command
-  line as text, Perl's and the shell's file tests, colours, `getopts`, the Bash semantics the legacy code relies on and
-  the release information. `zbm-trace` sends `tracing` events to standard error and to a JSON journal (at boot,
+- **foundation**: `zbm-trace` sends `tracing` events to standard error and to a JSON journal (at boot,
   `/zfsbootmenu/journal.jsonl`), one line per event with its spans, only the fields of an allow-list kept; its macros
   (`zbm_trace::info!` and the others) log to the kernel log, which its `KmsgLayer` writes in the formats of the legacy
   runtime.

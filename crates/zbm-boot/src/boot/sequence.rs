@@ -9,7 +9,7 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
-use zbm_types::{DatasetName, FilesystemName, HookStage, ImportPolicy};
+use zbm_types::{DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine};
 use zbm_zfs::ZfsCommand;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
@@ -203,7 +203,7 @@ fn command_line(
     settings: &BootSettings,
     fs: &str,
     kernel: &str,
-) -> String {
+) -> KernelCommandLine {
     let mut messages = Vec::new();
     let zfs = ZfsCommand::new(system.runner);
     let cli_args = match &settings.command_line {

@@ -23,7 +23,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use crate::getopts::Opt;
-use zbm_config::kcl;
+use crate::tokens as kcl;
 use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Runner, SystemRunner};
 use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_file, is_readable};
@@ -35,6 +35,7 @@ mod edit;
 pub mod efi;
 mod getopts;
 mod save;
+mod tokens;
 
 pub use edit::strip_kcl;
 

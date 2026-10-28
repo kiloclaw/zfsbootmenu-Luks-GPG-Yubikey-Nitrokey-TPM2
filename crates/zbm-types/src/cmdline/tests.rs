@@ -48,10 +48,55 @@ fn command_lines_split_as_next_arg_splits_them() {
 }
 
 #[test]
-fn quotes_that_stay_in_an_argument_are_refused() {
-    for text in ["a=b\"c d\"", "na\"me", "\"", "=x", "a=\u{1}"] {
+fn quotes_that_would_not_print_back_are_refused() {
+    for text in ["na\"me", "\"", "=x", "a=\u{1}", "a=b\"c", "a=\"\"b\"\""] {
         assert!(text.parse::<KernelCommandLine>().is_err(), "{text:?}");
     }
+}
+
+#[test]
+fn quotes_inside_a_value_stay_as_the_kernel_keeps_them() {
+    // The kernel keeps these quotes, and the space between them.
+    assert_eq!(
+        split("a=b\"c d\" x"),
+        vec![arg("a", Some("b\"c d\"")), arg("x", None)]
+    );
+    let line: KernelCommandLine = "a=b\"c d\"e f=\"g\"".parse().unwrap();
+    assert_eq!(line.to_string(), "a=b\"c d\"e f=g");
+    assert_eq!(line.to_string().parse::<KernelCommandLine>().unwrap(), line);
+    assert!(KernelArg::new("a", Some("b c\"d\"")).is_err());
+}
+
+#[test]
+fn a_lenient_split_keeps_what_it_can() {
+    let (line, refused) = KernelCommandLine::lenient("quiet na\"me\"=1 =x  ro\n");
+    assert_eq!(line.to_string(), "quiet ro");
+    assert_eq!(refused, ["na\"me\"=1", "=x"]);
+    // An open quote takes the rest of the line, as the kernel reads it.
+    let (line, refused) = KernelCommandLine::lenient("quiet a=b\"c ro");
+    assert_eq!(line.to_string(), "quiet");
+    assert_eq!(refused, ["a=b\"c ro"]);
+    let (line, refused) = KernelCommandLine::lenient("");
+    assert!(line.is_empty() && refused.is_empty());
+}
+
+#[test]
+fn arguments_are_removed_by_name_and_added() {
+    let mut line: KernelCommandLine = "root=zfs:a quiet spl_hostid=1 rootwait".parse().unwrap();
+    line = line.without(&["root", "spl_hostid"]);
+    assert_eq!(line.to_string(), "quiet rootwait");
+    line.push(KernelArg::new("spl_hostid", Some("00000000")).unwrap());
+    line.extend(["noresume".parse::<KernelArg>().unwrap()]);
+    assert_eq!(
+        line.one_per_line(),
+        "quiet\nrootwait\nspl_hostid=00000000\nnoresume\n"
+    );
+    assert_eq!(
+        line.one_per_line().parse::<KernelCommandLine>().unwrap(),
+        line
+    );
+    let collected: KernelCommandLine = line.args().iter().take(1).cloned().collect();
+    assert_eq!(collected.to_string(), "quiet");
 }
 
 #[test]
@@ -92,7 +137,10 @@ fn the_last_argument_of_a_name_wins() {
 
 fn kernel_arg() -> impl Strategy<Value = KernelArg> {
     let name = "[a-z_.-][a-z0-9_.:/-]{0,8}";
-    let value = proptest::option::of("[a-zA-Z0-9 =:/,._-]{0,12}");
+    let value = proptest::option::of(prop_oneof![
+        "[a-zA-Z0-9 =:/,._-]{0,12}",
+        "[a-z]{1,3}\"[a-z ]{0,4}\"[a-z]{0,3}",
+    ]);
     (name, value).prop_map(|(name, value)| KernelArg::new(&name, value.as_deref()).unwrap())
 }
 

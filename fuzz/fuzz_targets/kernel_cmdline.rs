@@ -7,15 +7,17 @@
 use libfuzzer_sys::fuzz_target;
 use zbm_config::args::{ZbmArgs, cmdline_files};
 use zbm_config::conf::Conf;
-use zbm_config::kcl::tokenize;
 use zbm_config::options::ZbmOptions;
+use zbm_types::KernelCommandLine;
 
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);
-    let tokens = tokenize(&text);
-    let _ = cmdline_files(&tokens);
-    let args = ZbmArgs::from_cmdline(&text);
+    let (cmdline, _) = KernelCommandLine::lenient(&text);
+    let _ = cmdline_files(&cmdline);
+    // What start-up writes to zbm.cmdline reads back the same.
+    let again = KernelCommandLine::lenient(&cmdline.one_per_line()).0;
+    assert_eq!(again, cmdline);
+    let args = ZbmArgs::new(&cmdline);
     let _ = ZbmOptions::parse(&args);
-    let _ = ZbmArgs::from_kcl(&tokens);
     let _ = Conf::parse(&text);
 });

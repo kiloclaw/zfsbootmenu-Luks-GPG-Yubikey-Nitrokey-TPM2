@@ -1,17 +1,49 @@
-//! Splitting, editing and joining kernel command lines.
+//! Splitting, editing and joining kernel command lines as the legacy
+//! `zbm-kcl` script does, with the Bash semantics it has.
 //!
 //! Each function takes and returns the text its Bash counterpart in
 //! `zfsbootmenu-kcl.sh` reads and prints: a *tokenized* command line has one
-//! argument per line.
+//! argument per line. The runtime splits command lines as the kernel does
+//! (`zbm_types::KernelCommandLine`); this tool follows when ROADMAP.md's DM10
+//! rewrites it, and this module goes.
 
-use zbm_core::shell::{echo, read_lines};
+/// What Bash's builtin `echo "$arg"` prints for a single argument: an
+/// argument made only of `-` and the letters `n`, `e` and `E` is taken as
+/// options, so `-n` prints nothing and `-e` a newline.
+fn echo(arg: &str) -> String {
+    match arg.strip_prefix('-') {
+        Some(options) if !options.is_empty() && options.chars().all(|c| "neE".contains(c)) => {
+            if options.contains('n') {
+                String::new()
+            } else {
+                "\n".to_owned()
+            }
+        }
+        _ => format!("{arg}\n"),
+    }
+}
+
+/// The lines `while read -r line` reads from `text`: each without the blanks
+/// around it and its NUL bytes; a last line without a newline is not read.
+fn read_lines(text: &str) -> Vec<String> {
+    let mut lines: Vec<String> = text
+        .split('\n')
+        .map(|line| {
+            line.replace('\0', "")
+                .trim_matches([' ', '\t', '\n'])
+                .to_owned()
+        })
+        .collect();
+    lines.pop();
+    lines
+}
 
 /// Splits a command line into arguments, one per line.
 ///
 /// Arguments are separated by spaces, tabs and newlines, except within double
 /// quotes: words of a quoted argument are joined by a single space. When a
 /// quote is never closed, the last argument has no newline.
-pub fn tokenize(input: &str) -> String {
+pub(crate) fn tokenize(input: &str) -> String {
     let mut text = String::new();
     let mut quoted = false;
     let mut at_start = true;
@@ -41,7 +73,7 @@ pub fn tokenize(input: &str) -> String {
 ///
 /// Each argument is read as `while read -r` reads it: a last argument without
 /// a newline is dropped, and blanks around each argument are trimmed.
-pub fn suppress(text: &str, removals: &[&str]) -> String {
+pub(crate) fn suppress(text: &str, removals: &[&str]) -> String {
     read_lines(text)
         .iter()
         .filter(|arg| {
@@ -56,7 +88,8 @@ pub fn suppress(text: &str, removals: &[&str]) -> String {
 
 /// Adds arguments: the text is kept as it is, and each non-empty argument is
 /// added as one line, even if it contains spaces.
-pub fn append(text: &str, args: &[&str]) -> String {
+#[cfg(test)]
+pub(crate) fn append(text: &str, args: &[&str]) -> String {
     let mut result = text.to_owned();
     for arg in args.iter().filter(|arg| !arg.is_empty()) {
         result.push_str(&echo(arg));
@@ -66,39 +99,18 @@ pub fn append(text: &str, args: &[&str]) -> String {
 
 /// Joins a tokenized command line with single spaces. The result has no
 /// newline.
-pub fn assemble(text: &str) -> String {
+pub(crate) fn assemble(text: &str) -> String {
     lines(text).join(" ")
 }
 
 /// The lines of a tokenized command line as awk reads them: a last line without
 /// a newline counts, an empty text has no lines.
-pub fn lines(text: &str) -> Vec<&str> {
+pub(crate) fn lines(text: &str) -> Vec<&str> {
     let mut lines: Vec<&str> = text.split('\n').collect();
     if lines.last() == Some(&"") {
         lines.pop();
     }
     lines
-}
-
-/// The arguments of a command line, as [`tokenize`] splits them.
-pub fn arguments(input: &str) -> Vec<String> {
-    lines(&tokenize(input))
-        .into_iter()
-        .map(str::to_owned)
-        .collect()
-}
-
-/// The tokenized form of ZFSBootMenu's own command line: the text of each
-/// source is tokenized separately and the results are concatenated.
-///
-/// The sources are `/etc/cmdline`, the files `/etc/cmdline.d/*.conf` and
-/// `/proc/cmdline`, in that order, which `zbm_startup::preinit::zbm_sources`
-/// reads.
-pub fn build_zbm_kcl<S: AsRef<str>>(sources: &[S]) -> String {
-    sources
-        .iter()
-        .map(|source| tokenize(source.as_ref()))
-        .collect()
 }
 
 #[cfg(test)]
@@ -143,12 +155,6 @@ mod tests {
         assert_eq!(assemble("a\nb c\nd\n"), "a b c d");
         assert_eq!(assemble("a\n\nb"), "a  b");
         assert_eq!(assemble(""), "");
-        assert_eq!(arguments("a \"b c\" d"), ["a", "\"b c\"", "d"]);
-    }
-
-    #[test]
-    fn zbm_kcl_concatenates_sources() {
-        assert_eq!(build_zbm_kcl(&["a \"b", "c d"]), "a\n\"bc\nd\n");
     }
 
     const PIECES: &[&str] = &[
@@ -187,6 +193,15 @@ mod tests {
             });
             assert_eq!(tokenize(&input), legacy, "input {input:?}");
         }
+    }
+
+    #[test]
+    fn echo_and_read_follow_bash() {
+        assert_eq!(echo("-n"), "");
+        assert_eq!(echo("-eE"), "\n");
+        assert_eq!(echo("-x"), "-x\n");
+        assert_eq!(read_lines("a\n  b c \t\n\nlast"), ["a", "b c", ""]);
+        assert_eq!(read_lines("qu\0iet\0\n"), ["quiet"]);
     }
 
     #[test]

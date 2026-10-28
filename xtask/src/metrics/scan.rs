@@ -14,7 +14,8 @@ use syn::punctuated::Punctuated;
 use syn::visit::{self, Visit};
 use syn::{Attribute, Block, Expr, Lit, Meta, ReturnType, Signature, Token, Type};
 
-/// The shell-semantics helpers of `zbm_core::shell`.
+/// Helpers that emulate Bash's semantics: those of the former
+/// `zbm_core::shell`, and the copies `zbm-kcl` keeps until ROADMAP.md's DM10.
 pub const SHELL_HELPERS: &[&str] = &[
     "command_substitution",
     "echo",

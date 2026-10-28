@@ -58,7 +58,7 @@ impl Settings {
     pub fn from_image(system: &System<'_>, root: &Path, conf: &Conf) -> Settings {
         let options = preinit::saved_options(system, root, conf);
         let kcl = preinit::saved_commandline(system, root, conf);
-        let args = ZbmArgs::from_kcl(&kcl);
+        let args = ZbmArgs::from_cmdline(&kcl);
         let mut messages = Vec::new();
         let request = Request::parse(args.lookup(&AUTOSIZE, &mut messages).as_deref());
         let font = args.lookup(&VCONSOLE_FONT, &mut messages);

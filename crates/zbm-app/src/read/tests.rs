@@ -162,14 +162,14 @@ fn volumes_say_their_mapping_state_and_methods() {
 #[test]
 fn the_countdown_follows_zbm_timeout() {
     let timeout_of = |kcl: &str| {
-        let (options, _) = ZbmOptions::parse(&ZbmArgs::from_kcl(kcl));
+        let (options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(kcl));
         timeout(&options)
     };
     assert_eq!(timeout_of("zbm.timeout=5"), Timeout::Seconds(5));
     assert_eq!(timeout_of("zbm.timeout=0"), Timeout::Skip);
     assert_eq!(timeout_of("zbm.timeout=-1"), Timeout::Wait);
     assert_eq!(timeout_of("zbm.show"), Timeout::Wait);
-    let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_kcl(""));
+    let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(""));
     options.menu_timeout = zbm_types::Timeout::Seconds(u64::MAX);
     assert_eq!(timeout(&options), Timeout::Wait);
 }

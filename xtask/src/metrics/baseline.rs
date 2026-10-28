@@ -3,7 +3,7 @@
 //! ```text
 //! # comment
 //! crate      long_functions  flag_functions
-//! zbm-core                2               7
+//! zbm-trace                2               7
 //! ```
 //!
 //! The first line that is not a comment names the columns; every other line
@@ -99,7 +99,7 @@ mod tests {
     fn a_formatted_baseline_parses_back() {
         let mut baseline = Baseline::new();
         baseline.insert(
-            "zbm-core".to_owned(),
+            "zbm-trace".to_owned(),
             [
                 ("long_functions".to_owned(), 2),
                 ("unsafe_blocks".to_owned(), 0),
@@ -110,7 +110,7 @@ mod tests {
         let keys = ["long_functions", "unsafe_blocks"];
         let text = format(&baseline, DEBT_HEADER, &keys);
 
-        assert!(text.contains("zbm-core               2              0\n"));
+        assert!(text.contains("zbm-trace               2              0\n"));
         assert_eq!(parse(&text).unwrap(), baseline);
     }
 
@@ -121,11 +121,11 @@ mod tests {
 
     #[test]
     fn a_short_row_is_an_error() {
-        let error = parse("crate a b\nzbm-core 1\n").unwrap_err();
+        let error = parse("crate a b\nzbm-trace 1\n").unwrap_err();
 
         assert_eq!(
             error.to_string(),
-            "metrics baseline: zbm-core has 1 values for 2 columns"
+            "metrics baseline: zbm-trace has 1 values for 2 columns"
         );
     }
 }

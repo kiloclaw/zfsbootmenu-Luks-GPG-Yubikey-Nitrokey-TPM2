@@ -7,25 +7,38 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use zbm_config::kcl;
 use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
 use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_tools::kexec;
 use zbm_trace::Message;
-use zbm_types::KernelArg;
+use zbm_types::{KernelArg, KernelCommandLine};
 
 pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
 /// The command line of a boot environment that sets none.
 const DEFAULT_ARGS: &str = "quiet loglevel=4";
 
-/// What `$( ... )` gives for `text`, followed by the newline of a here-string
-/// (`<<< "${var}"`), so text moves between the `kcl` functions as it does
-/// between the legacy ones.
-fn here(text: &str) -> String {
-    format!("{}\n", text.trim_end_matches('\n'))
+/// The arguments of `text`, a command line from `what`; those that are not
+/// kernel arguments are left out, with a warning.
+fn arguments(text: &str, what: &str, log: &mut Vec<Message>) -> KernelCommandLine {
+    let (cmdline, refused) = KernelCommandLine::lenient(text);
+    for arg in refused {
+        log.push(Message::warning(format!(
+            "ignoring {arg} in {what}: it is not one kernel argument"
+        )));
+    }
+    cmdline
+}
+
+/// `cmdline`, or the default arguments when it has none.
+fn or_default(cmdline: KernelCommandLine) -> KernelCommandLine {
+    if cmdline.is_empty() {
+        DEFAULT_ARGS.parse().unwrap_or_default()
+    } else {
+        cmdline
+    }
 }
 
 /// Whether the command line cache `path` can be used: it exists and was
@@ -53,10 +66,10 @@ pub fn be_cmdline(
     kernel: &str,
     set_hostid: bool,
     log: &mut Vec<Message>,
-) -> String {
+) -> KernelCommandLine {
     if dataset.is_empty() {
         log.push(Message::error("filesystem is undefined"));
-        return String::new();
+        return KernelCommandLine::default();
     }
     let (kernel_kcl, cache) = kcl_files(files, state, dataset, kernel, log);
     if let Some(stored) = stored_cmdline(files, state, dataset, cache.as_deref(), log) {
@@ -70,14 +83,11 @@ pub fn be_cmdline(
             "caching KCL for {dataset} at {}",
             cache.display()
         )));
-        // printf "%s\n" "${args}" > "${cache}"; a failure is not reported
-        let _ = files.write(cache, format!("{args}\n").as_bytes());
+        // One argument per line; a failure is not reported.
+        let _ = files.write(cache, args.one_per_line().as_bytes());
     }
-    let assembled = kcl::assemble(&here(&args));
-    log.push(Message::debug(format!(
-        "assembled commandline: '{assembled}'"
-    )));
-    assembled
+    log.push(Message::debug(format!("assembled commandline: '{args}'")));
+    args
 }
 
 /// A command line typed for one boot in place of the property of its boot
@@ -118,7 +128,7 @@ pub fn edited_cmdline(
     (dataset, line): (&str, &str),
     set_hostid: bool,
     log: &mut Vec<Message>,
-) -> String {
+) -> KernelCommandLine {
     log.push(Message::debug(format!(
         "using the command line typed for this boot of {dataset}"
     )));
@@ -128,20 +138,10 @@ pub fn edited_cmdline(
         line,
     };
     let value = read_kcl_prop(&typed, dataset, log).unwrap_or_default();
-    let args = kcl::tokenize(&here(&value))
-        .trim_end_matches('\n')
-        .to_owned();
-    let args = if args.is_empty() {
-        DEFAULT_ARGS.to_owned()
-    } else {
-        args
-    };
+    let args = or_default(arguments(&value, "the command line typed", log));
     let args = edited_args(files, state, dataset, set_hostid, &args, log);
-    let assembled = kcl::assemble(&here(&args));
-    log.push(Message::debug(format!(
-        "assembled commandline: '{assembled}'"
-    )));
-    assembled
+    log.push(Message::debug(format!("assembled commandline: '{args}'")));
+    args
 }
 
 /// The command line files of `dataset` booted with `kernel`: the kernel's own
@@ -184,13 +184,13 @@ fn stored_cmdline(
     dataset: &str,
     cache: Option<&Path>,
     log: &mut Vec<Message>,
-) -> Option<String> {
+) -> Option<KernelCommandLine> {
     if let Some(text) = state.cmdline_override() {
         log.push(Message::debug(format!(
             "using {}/cmdline as command line for {dataset}",
             state.base().display()
         )));
-        return Some(kcl::assemble(&text));
+        return Some(arguments(&text, "zbm.kcl_override", log));
     }
     let cache = cache.filter(|cache| cache_is_valid(files, state, cache))?;
     log.push(Message::debug(format!(
@@ -198,10 +198,10 @@ fn stored_cmdline(
         cache.display()
     )));
     let text = files.read_to_string(cache).unwrap_or_default();
-    Some(kcl::assemble(&text))
+    Some(arguments(&text, &cache.display().to_string(), log))
 }
 
-/// The boot environment's own command line, one argument per line: from the
+/// The boot environment's own command line: from the
 /// kernel's command line file `kernel_kcl`, or from
 /// `org.zfsbootmenu:commandline` with `%{parent}` expanded, or the default
 /// arguments when that gives none.
@@ -211,21 +211,15 @@ fn own_args(
     dataset: &str,
     kernel_kcl: Option<&Path>,
     log: &mut Vec<Message>,
-) -> String {
+) -> KernelCommandLine {
     // read_kcl_value with the kernel's .kcl file, which the legacy function
     // passes even when it is empty, so the property is read
     let kcl_path = kernel_kcl.map(Path::to_path_buf).unwrap_or_default();
     let contents = kernel_kcl.and_then(|path| files.read(path).ok());
     let value =
         read_kcl_contents(source, dataset, &kcl_path, contents.as_deref(), log).unwrap_or_default();
-    let args = kcl::tokenize(&here(&value))
-        .trim_end_matches('\n')
-        .to_owned();
-    if args.is_empty() {
-        DEFAULT_ARGS.to_owned()
-    } else {
-        args
-    }
+    let what = format!("the command line of {dataset}");
+    or_default(arguments(&value, &what, log))
 }
 
 /// `args` without `root=`, and with `noresume` and the host ID in place of the
@@ -235,10 +229,10 @@ fn edited_args(
     state: &State,
     dataset: &str,
     set_hostid: bool,
-    args: &str,
+    args: &KernelCommandLine,
     log: &mut Vec<Message>,
-) -> String {
-    let mut removals = vec!["root".to_owned()];
+) -> KernelCommandLine {
+    let mut removals = vec!["root"];
     let mut additions = Vec::new();
 
     if state.noresume().is_some() {
@@ -246,28 +240,24 @@ fn edited_args(
             "{}/noresume set, expunging from {dataset}",
             state.base().display()
         )));
-        removals.push("resume".to_owned());
-        additions.push("noresume".to_owned());
+        removals.push("resume");
+        additions.push(KernelArg::new("noresume", None));
     }
     if set_hostid && let Some(hostid) = spl_hostid(files, state, log) {
         log.push(Message::debug(format!(
             "overriding spl_hostid and spl.spl_hostid for {dataset}"
         )));
-        removals.push("spl_hostid".to_owned());
-        removals.push("spl.spl_hostid".to_owned());
+        removals.extend(["spl_hostid", "spl.spl_hostid"]);
         additions.push(if hostid == "0x00000000" {
-            "spl_hostid=00000000".to_owned()
+            KernelArg::new("spl_hostid", Some("00000000"))
         } else {
-            format!("spl.spl_hostid={hostid}")
+            KernelArg::new("spl.spl_hostid", Some(&hostid))
         });
     }
 
-    let removals: Vec<&str> = removals.iter().map(String::as_str).collect();
-    let additions: Vec<&str> = additions.iter().map(String::as_str).collect();
-    let suppressed = kcl::suppress(&here(args), &removals);
-    kcl::append(&suppressed, &additions)
-        .trim_end_matches('\n')
-        .to_owned()
+    let mut edited = args.without(&removals);
+    edited.extend(additions.into_iter().filter_map(Result::ok));
+    edited
 }
 
 /// Reads the assignments of an `os-release` file, as sourcing it sets them:
@@ -468,7 +458,7 @@ pub struct KexecLoad<'a> {
     /// The root argument, such as `root=zfs:zroot/ROOT/void`.
     pub root: &'a KernelArg,
     /// The rest of the command line.
-    pub args: &'a str,
+    pub args: &'a KernelCommandLine,
 }
 
 impl KexecLoad<'_> {

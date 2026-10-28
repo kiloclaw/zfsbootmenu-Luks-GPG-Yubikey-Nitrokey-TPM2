@@ -14,14 +14,10 @@
 //! - [`crypttab`]: the LUKS volumes to unlock and their options;
 //! - [`Config`]: all of it at once, for `zbm debug config`;
 //! - [`conf`]: reading `/etc/zfsbootmenu.conf`;
-//! - [`kcl`]: splitting a kernel command line into arguments, removing and
-//!   adding arguments, and joining them again;
 //! - [`parent`]: expanding `%{parent}` in `org.zfsbootmenu:commandline`.
 //!
-//! The legacy functions pass text from one to the next through pipes, and some
-//! of their results depend on that: a final argument whose quote is never
-//! closed has no newline, so some later steps drop it. The functions in [`kcl`]
-//! therefore take and return the same text as their Bash counterparts.
+//! Command lines are split into arguments as the kernel splits them, by
+//! `zbm_types::KernelCommandLine`.
 
 #![cfg_attr(
     test,
@@ -36,7 +32,6 @@ pub mod conf;
 mod config;
 pub mod crypttab;
 pub mod docs;
-pub mod kcl;
 pub mod options;
 pub mod origin;
 pub mod parent;

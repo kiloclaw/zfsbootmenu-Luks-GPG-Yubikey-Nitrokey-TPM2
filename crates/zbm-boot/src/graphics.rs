@@ -97,13 +97,13 @@ impl Choice {
 
 /// The value of `zbm.gpu` on the command line `kcl`.
 pub fn option(kcl: &str) -> Option<String> {
-    ZbmArgs::from_kcl(kcl).lookup(&GPU, &mut Vec::new())
+    ZbmArgs::from_cmdline(kcl).lookup(&GPU, &mut Vec::new())
 }
 
 /// Whether the command line `kcl` has the graphics drivers take GPUs not
 /// known to come back after `kexec` (`zbm.gpu_untested`).
 pub fn is_untested_allowed(kcl: &str) -> bool {
-    ZbmArgs::from_kcl(kcl).enabled(&GPU_UNTESTED, &mut Vec::new())
+    ZbmArgs::from_cmdline(kcl).enabled(&GPU_UNTESTED, &mut Vec::new())
 }
 
 /// A PCI address with its domain, `0000:03:00.0`, from one with or without

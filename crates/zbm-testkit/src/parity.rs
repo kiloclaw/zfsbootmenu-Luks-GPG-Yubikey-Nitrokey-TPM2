@@ -530,7 +530,7 @@ mod tests {
     fn a_test_has_recordings_when_its_golden_file_exists() {
         let mut parity = std::mem::ManuallyDrop::new(parity(Mode::Replay, Vec::new()));
         assert!(!parity.has_recordings());
-        parity.path = crate::repo_root().join("tests/golden/legacy/zbm-config/args");
+        parity.path = crate::repo_root().join("tests/golden/legacy/zbm-config/options");
         assert!(parity.has_recordings());
     }
 

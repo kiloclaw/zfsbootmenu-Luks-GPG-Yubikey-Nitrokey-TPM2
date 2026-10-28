@@ -76,13 +76,23 @@ fn host_ids() {
 
 #[test]
 fn kcl_override_drops_root_and_host_ids() {
-    let (options, log) = parse("zbm.kcl_override=\"quiet root=zfs:x spl_hostid=1 'a b' c\"");
-    assert_eq!(options.kcl_override.as_deref(), Some("quiet\n\"a b\"\nc\n"));
+    let (options, log) =
+        parse("zbm.kcl_override=\"quiet root=zfs:x spl_hostid=1 d='a b' 'c d' e\"");
+    let text = options
+        .kcl_override
+        .as_ref()
+        .map(KernelCommandLine::one_per_line);
+    assert_eq!(text.as_deref(), Some("quiet\nd=\"a b\"\ne\n"));
     assert!(log.contains(&Message::info(
-        "overriding all BE KCLs with: 'quiet \"a b\" c'"
+        "overriding all BE KCLs with: 'quiet d=\"a b\" e'"
+    )));
+    // A quoted word with a space is not a kernel argument.
+    assert!(log.contains(&Message::warning(
+        "ignoring \"c d\" in zbm.kcl_override: it is not one kernel argument"
     )));
     let (options, _) = parse("zbm.set_hostid=no zbm.kcl_override=\"spl_hostid=1 root=x\"");
-    assert_eq!(options.kcl_override.as_deref(), Some("spl_hostid=1\n"));
+    let text = options.kcl_override.as_ref().map(ToString::to_string);
+    assert_eq!(text.as_deref(), Some("spl_hostid=1"));
 }
 
 #[test]
@@ -161,8 +171,8 @@ fn rust_report(options: &ZbmOptions) -> String {
         .zip(values)
         .map(|(name, value)| [*name, "=", value, "\n"].concat())
         .collect();
-    if let Some(text) = &options.kcl_override {
-        report.push_str(&["override<<", text, ">>\n"].concat());
+    if let Some(cmdline) = &options.kcl_override {
+        report.push_str(&["override<<", &cmdline.one_per_line(), ">>\n"].concat());
     }
     report
 }
@@ -171,7 +181,16 @@ fn rust_report(options: &ZbmOptions) -> String {
 /// the types of `zbm-types` print them: `+3` as `3`, a host ID of `0` as
 /// `00000000`, and a pool that no pool can be named as none.
 fn canonical(report: &str) -> String {
-    report
+    // The override's arguments, after the variables, stay as they are.
+    let (variables, overridden) = report
+        .split_once("override<<")
+        .map_or((report, ""), |(variables, rest)| (variables, rest));
+    let overridden = if overridden.is_empty() {
+        String::new()
+    } else {
+        ["override<<", overridden].concat()
+    };
+    let variables: String = variables
         .lines()
         .map(|line| {
             let Some((name, value)) = line.split_once('=') else {
@@ -196,7 +215,8 @@ fn canonical(report: &str) -> String {
             };
             [name, "=", &value, "\n"].concat()
         })
-        .collect()
+        .collect();
+    variables + &overridden
 }
 
 const PIECES: &[&str] = &[
@@ -252,7 +272,7 @@ const PIECES: &[&str] = &[
     "zbm.set_hostid=0",
     "zbm.set_hostid=off",
     "zbm.set_hostid=yes",
-    "zbm.kcl_override=\"quiet root=x spl_hostid=1 'a b'\"",
+    "zbm.kcl_override=\"quiet root=x spl_hostid=1 x='a b'\"",
     "zbm.kcl_override=\"spl.spl_hostid=2 c\"",
     "zbm.kcl_override=plain",
     "zbm.wait_for=/dev/sda,/dev/sdb",
@@ -264,7 +284,6 @@ const PIECES: &[&str] = &[
     "zbm.prefer=p!!!",
     "-n",
     "=x",
-    "\"",
 ];
 
 #[test]
@@ -285,6 +304,11 @@ fn options_survive_the_configuration_file() {
     }
 }
 
+/// Quotes are left out of the pieces: the legacy tokenizer kept them in the
+/// argument, where the kernel removes them or groups words with them, and the
+/// runtime splits as the kernel does (`zbm_types::KernelCommandLine`, tested
+/// there and in `kcl_override_drops_root_and_host_ids`). The single quotes of
+/// `zbm.kcl_override`, which both turn into double quotes, are kept.
 #[test]
 fn options_match_the_legacy_parser() {
     let mut parity = parity!("options_match_the_legacy_parser");
@@ -298,7 +322,9 @@ fn options_match_the_legacy_parser() {
         })
         .collect();
     for _ in 0..150 {
-        let cmdline = rng.join(PIECES, 8);
+        let count = rng.below(9);
+        let pieces: Vec<&str> = (0..count).map(|_| *rng.choose(PIECES)).collect();
+        let cmdline = pieces.join(" ");
         let (expected, logged): (String, String) = parity.legacy(format!("{cmdline:?}"), || {
             let base = TempDir::new("zbm-config-options");
             let file = base.write("proc-cmdline", &cmdline);
@@ -377,12 +403,12 @@ fn origins_say_which_name_gave_each_value_and_which_were_invalid() {
 #[test]
 fn values_are_found_by_their_option() {
     use crate::spec::cmdline::{KCL_OVERRIDE, PREFER, SET_HOSTID};
-    let (options, _) = parse("zbm.prefer=tank! zbm.set_hostid=0 zbm.kcl_override=\"a 'b c'\"");
+    let (options, _) = parse("zbm.prefer=tank! zbm.set_hostid=0 zbm.kcl_override=\"a x='b c'\"");
     assert_eq!(options.value_of(&PREFER).as_deref(), Some("tank!"));
     assert_eq!(options.value_of(&SET_HOSTID).as_deref(), Some("0"));
     assert_eq!(
         options.value_of(&KCL_OVERRIDE).as_deref(),
-        Some("a \"b c\"")
+        Some("a x=\"b c\"")
     );
     assert_eq!(options.value_of(&crate::spec::cmdline::luks::LUKS), None);
     let (none, _) = parse("");

@@ -8,7 +8,6 @@
 //! [`CommandLineSource`] (normally the `zfs` command; see the `zbm-zfs`
 //! crate).
 
-use zbm_core::shell::{command_substitution, echo, read_first_line};
 use zbm_platform::files::Files;
 use zbm_trace::Message;
 
@@ -59,7 +58,7 @@ pub fn read_kcl_prop(
             "no parent reference in {property} on {filesystem}",
             property = COMMANDLINE.name
         )));
-        return Some(printed(&args));
+        return Some(args);
     }
 
     let parent = filesystem
@@ -83,11 +82,11 @@ pub fn read_kcl_prop(
                  using parent expansion verbatim",
                 property = COMMANDLINE.name
             )));
-            return Some(printed(&parent_args));
+            return Some(parent_args);
         }
         parent_args
     };
-    Some(printed(&args.replace("%{parent}", &parent_args)))
+    Some(args.replace("%{parent}", &parent_args))
 }
 
 /// The command line in `kclfile`, with `%{parent}` expanded from the property
@@ -121,21 +120,25 @@ pub fn read_kcl_contents(
     let Some(contents) = contents else {
         return read_kcl_prop(source, filesystem, log);
     };
-    let args = read_first_line(&String::from_utf8_lossy(contents));
+    let text = String::from_utf8_lossy(contents);
+    let args = first_line(&text);
     if !args.contains("%{parent}") {
         log.push(Message::debug(format!(
             "no parent reference in {} on {filesystem}",
             kclfile.display()
         )));
-        return Some(printed(&args));
+        return Some(args.to_owned());
     }
     let parent_args = read_kcl_prop(source, filesystem, log).unwrap_or_default();
-    Some(printed(&args.replace("%{parent}", &parent_args)))
+    Some(args.replace("%{parent}", &parent_args))
 }
 
-/// What a caller gets from `echo "$value"` in a command substitution.
-fn printed(value: &str) -> String {
-    command_substitution(&echo(value)).to_owned()
+/// The first line of a command line file, without the blanks around it.
+fn first_line(text: &str) -> &str {
+    text.lines()
+        .next()
+        .unwrap_or_default()
+        .trim_matches([' ', '\t'])
 }
 
 #[cfg(test)]
@@ -188,9 +191,10 @@ mod tests {
             read_kcl_prop(&source, "pool/unset", &mut log).as_deref(),
             Some("")
         );
+        // The value as it is: no `echo` takes `-n` for an option.
         assert_eq!(
             read_kcl_prop(&source, "pool/flag", &mut log).as_deref(),
-            Some("")
+            Some("-n")
         );
     }
 

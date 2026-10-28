@@ -56,9 +56,8 @@ pub fn is_screenshot(name: &str) -> bool {
         .is_some_and(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()))
 }
 
-/// The value `read -r` gives a variable from the first line of `text`: the
-/// line without the spaces and tabs around it.
-fn read_first_line(text: &str) -> &str {
+/// The first line of `text`, without the spaces and tabs around it.
+fn first_line(text: &str) -> &str {
     let line = text.split('\n').next().unwrap_or_default();
     line.trim_matches([' ', '\t'])
 }
@@ -115,7 +114,7 @@ impl<'a> State<'a> {
 
     fn read_line(&self, name: &str) -> Option<String> {
         let text = self.files.read_to_string(&self.path(name)).ok()?;
-        Some(read_first_line(&text).to_owned())
+        Some(first_line(&text).to_owned())
     }
 
     /// Creates the directory (`mkdir -p "${BASE}"`).

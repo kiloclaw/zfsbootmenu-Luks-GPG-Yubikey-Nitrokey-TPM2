@@ -367,7 +367,8 @@ mod tests {
         "%{parent}",
         "a&b %{parent}",
         "x %{parent} y %{parent}",
-        "-n",
+        // Not `-n`: Bash's `echo` took it for an option, the runtime keeps it.
+        "-x",
         "loglevel=7 \\x",
         "spl_hostid=1 a&b\\&c",
     ];

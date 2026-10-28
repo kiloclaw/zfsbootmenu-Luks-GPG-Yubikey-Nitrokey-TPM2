@@ -5,13 +5,12 @@
 use zbm_trace::Message;
 use zbm_types::number::shell_integer;
 use zbm_types::{
-    BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
-    Timeout,
+    BootfsPreference, HostId, ImportPolicy, KernelCommandLine, LogLevel, PoolName, PoolRequirement,
+    RetryDelay, Timeout,
 };
 
 use super::hostid::parse_spl_hostid;
 use crate::args::{Args, ZbmArgs, deprecated, is_on};
-use crate::kcl;
 use crate::origin::{Origin, Origins};
 use crate::spec::OptionSpec;
 use crate::spec::cmdline::{
@@ -264,9 +263,10 @@ impl<'a> Reader<'a> {
         set_hostid
     }
 
-    /// `zbm.kcl_override`: the tokenized command line, without `root` and,
-    /// when `set_hostid`, without host IDs.
-    pub(super) fn kcl_override(&mut self, set_hostid: bool) -> Option<String> {
+    /// `zbm.kcl_override`: the command line, without `root` and, when
+    /// `set_hostid`, without host IDs; what is not an argument in it is left
+    /// out, with a warning.
+    pub(super) fn kcl_override(&mut self, set_hostid: bool) -> Option<KernelCommandLine> {
         let value = self.value(&KCL_OVERRIDE)?;
         // Remove one leading and one trailing quote, then up-convert single quotes to
         // double quotes.
@@ -276,12 +276,15 @@ impl<'a> Reader<'a> {
         if set_hostid {
             removals.extend(["spl_hostid", "spl.spl_hostid"]);
         }
-        let text = kcl::suppress(&kcl::tokenize(&format!("{value}\n")), &removals);
-        self.info(format!(
-            "overriding all BE KCLs with: '{}'",
-            kcl::assemble(&text)
-        ));
-        Some(text)
+        let (cmdline, refused) = KernelCommandLine::lenient(&value);
+        for arg in refused {
+            self.warn(format!(
+                "ignoring {arg} in zbm.kcl_override: it is not one kernel argument"
+            ));
+        }
+        let cmdline = cmdline.without(&removals);
+        self.info(format!("overriding all BE KCLs with: '{cmdline}'"));
+        Some(cmdline)
     }
 
     /// `zbm.wait_for`, or empty.

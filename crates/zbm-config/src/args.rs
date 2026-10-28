@@ -1,10 +1,10 @@
 //! Looking up options of ZFSBootMenu's own command line.
 //!
-//! The shell code stores every argument as a file `${BASE}/cmdline.d/<key>`
-//! holding its value (`1` for an argument without `=`), so the last occurrence
-//! of a key wins. [`ZbmArgs`] keeps the same key-value pairs in memory, with
-//! the values exactly as reading the files back produces them; [`CmdlineDir`]
-//! reads the files.
+//! The command line is split into arguments as the kernel splits it
+//! ([`KernelCommandLine`]). Start-up stores every argument as a file
+//! `${BASE}/cmdline.d/<key>` holding its value (`1` for an argument without
+//! `=`), so the last occurrence of a key wins. [`ZbmArgs`] keeps the same
+//! key-value pairs in memory; [`CmdlineDir`] reads the files.
 //!
 //! Both are [`Args`], which look an option up by its specification in the
 //! [table of options](crate::spec): by its name, then by its aliases, with a
@@ -24,9 +24,9 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use zbm_core::shell::{command_substitution, echo, read_first_line, read_lines};
 use zbm_platform::files::Files;
 use zbm_trace::Message;
+use zbm_types::KernelCommandLine;
 
 use crate::spec::OptionSpec;
 
@@ -104,41 +104,37 @@ pub struct ZbmArgs {
 }
 
 impl ZbmArgs {
-    /// The arguments of a tokenized command line (see
-    /// [`crate::kcl::build_zbm_kcl`]), with each value as its file in
-    /// `cmdline.d` holds it (see [`cmdline_files`]).
-    pub fn from_kcl(text: &str) -> ZbmArgs {
-        // `while read -r karg ... done <<< "$( _build_zbm_kcl )"`: the command
-        // substitution and the here-string end the text with a single newline, so every
-        // argument is read.
-        let input = format!("{}\n", command_substitution(text));
-        let mut values = BTreeMap::new();
-        for arg in read_lines(&input) {
-            let key = arg.split_once('=').map_or(arg.as_str(), |(key, _)| key);
-            if key.is_empty() || !can_be_file_name(key) {
-                continue;
-            }
-            let value = if key.len() == arg.len() {
-                "1"
-            } else {
-                &arg[key.len() + 1..]
-            };
-            // `echo "${value}" > file`, read back with `read -r kval < file`.
-            values.insert(key.to_owned(), read_first_line(&echo(value)));
+    /// The arguments of `cmdline`, by name: the value of each, or `1` for an
+    /// argument without one; a later argument replaces an earlier one with
+    /// the same name. Names that cannot be file names in `cmdline.d` are
+    /// left out, as start-up cannot store them (see [`cmdline_files`]).
+    pub fn new(cmdline: &KernelCommandLine) -> ZbmArgs {
+        ZbmArgs {
+            values: stored(cmdline).collect(),
         }
-        ZbmArgs { values }
     }
 
-    /// The arguments of a command line given as text, such as the contents of
-    /// `/proc/cmdline`.
+    /// The arguments of a command line given as text, such as the contents
+    /// of `/proc/cmdline` or of `zbm.cmdline`, split as the kernel splits it;
+    /// what is not an argument is left out.
     pub fn from_cmdline(cmdline: &str) -> ZbmArgs {
-        ZbmArgs::from_kcl(&crate::kcl::tokenize(cmdline))
+        ZbmArgs::new(&KernelCommandLine::lenient(cmdline).0)
     }
 
     /// The stored value of `key`, if the command line has it.
     pub(crate) fn get(&self, key: &str) -> Option<&str> {
         self.values.get(key).map(String::as_str)
     }
+}
+
+/// The names and values of the arguments of `cmdline` that start-up stores,
+/// in order.
+fn stored(cmdline: &KernelCommandLine) -> impl Iterator<Item = (String, String)> + '_ {
+    cmdline
+        .args()
+        .iter()
+        .filter(|arg| can_be_file_name(arg.name()))
+        .map(|arg| (arg.name().to_owned(), arg.value().unwrap_or("1").to_owned()))
 }
 
 impl Args for ZbmArgs {
@@ -165,281 +161,32 @@ impl<'a> CmdlineDir<'a> {
 }
 
 impl Args for CmdlineDir<'_> {
-    /// The first line of the file of `name`, as `read -r` reads it.
+    /// The first line of the file of `name`, without the blanks around it.
     fn raw(&self, name: &str) -> Option<String> {
         if name.is_empty() || name.contains('/') {
             return None;
         }
         let text = self.files.read_to_string(&self.dir.join(name)).ok()?;
-        Some(read_first_line(&text))
+        let line = text.lines().next().unwrap_or_default();
+        Some(line.trim_matches([' ', '\t']).to_owned())
     }
 }
 
-/// The files written in `${BASE}/cmdline.d` for a tokenized command line: each
-/// key with the `echo` output of its value (`1` for an argument without `=`),
-/// in the order written, so a later one replaces an earlier one with the same
-/// key.
-pub fn cmdline_files(text: &str) -> Vec<(String, String)> {
-    let input = format!("{}\n", command_substitution(text));
-    read_lines(&input)
-        .into_iter()
-        .filter_map(|arg| {
-            let key = arg.split_once('=').map_or(arg.as_str(), |(key, _)| key);
-            if key.is_empty() || !can_be_file_name(key) {
-                return None;
-            }
-            let contents = if key.len() == arg.len() {
-                "1\n".to_owned()
-            } else {
-                echo(&arg[key.len() + 1..])
-            };
-            Some((key.to_owned(), contents))
-        })
+/// The files written in `${BASE}/cmdline.d` for `cmdline`: each name with
+/// its value and a newline (`1` for an argument without `=`), in the order
+/// written, so a later one replaces an earlier one with the same name.
+pub fn cmdline_files(cmdline: &KernelCommandLine) -> Vec<(String, String)> {
+    stored(cmdline)
+        .map(|(name, value)| (name, format!("{value}\n")))
         .collect()
 }
 
-/// Whether the legacy code can store `key` as a file in `cmdline.d`: names with
-/// `/`, the names `.` and `..`, and names longer than a file name may be cannot
-/// be written, so those arguments are ignored.
+/// Whether `key` can be stored as a file in `cmdline.d`: names with `/`, the
+/// names `.` and `..`, and names longer than a file name may be cannot be
+/// written, so those arguments are ignored.
 fn can_be_file_name(key: &str) -> bool {
     !key.contains('/') && key != "." && key != ".." && key.len() <= 255
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::kcl::tokenize;
-    use crate::spec::cmdline::luks::{LUKS, LUKS_KEY, LUKS_TOKENS};
-    use crate::spec::cmdline::{HOOKROOT, RETRY_DELAY, SET_HOSTID, SHOW, TIMEOUT};
-    use zbm_testkit::fakes::FakeSystem;
-    use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
-    use zbm_testkit::{Rng, TempDir, parity};
-
-    /// The library of `get_zbm_arg`, with `_build_zbm_kcl` reading `cmdline`.
-    fn kcl_lib(base: &TempDir, cmdline: &str) -> Bash {
-        let file = base.write("cmdline", cmdline);
-        Bash::new()
-            .code(LOG_STUBS)
-            .source("zfsbootmenu/lib/zfsbootmenu-kcl.sh")
-            .code(&format!(
-                "BASE={}; _build_zbm_kcl() {{ kcl_tokenize < {}; }}",
-                base.path().display(),
-                file.display()
-            ))
-    }
-
-    #[test]
-    fn last_occurrence_wins_and_flags_are_one() {
-        let args = ZbmArgs::from_cmdline("quiet zbm.timeout=5 zbm.timeout=7 a=b=c x= -n=y");
-        assert_eq!(args.get("quiet"), Some("1"));
-        assert_eq!(args.get("zbm.timeout"), Some("7"));
-        assert_eq!(args.get("a"), Some("b=c"));
-        assert_eq!(args.get("x"), Some(""));
-        assert_eq!(args.get("-n"), Some("y"));
-        assert_eq!(args.get("missing"), None);
-    }
-
-    #[test]
-    fn values_change_as_files_change_them() {
-        let args = ZbmArgs::from_cmdline("a=-n b=-e c=\"x y\" d/e=1 .=1 ..=1 =z");
-        assert_eq!(args.get("a"), Some(""));
-        assert_eq!(args.get("b"), Some(""));
-        assert_eq!(args.get("c"), Some("\"x y\""));
-        assert_eq!(args.get("d/e"), None);
-        assert_eq!(args.get("."), None);
-        assert_eq!(args.get(".."), None);
-        assert_eq!(args.get(""), None);
-        // An unterminated quote is still read.
-        assert_eq!(ZbmArgs::from_cmdline("k=\"open").get("k"), Some("\"open"));
-    }
-
-    /// `get_zbm_arg` with any list of names: the first given, with a warning
-    /// for every name but the first.
-    fn lookup_names(args: &ZbmArgs, names: &[&str], messages: &mut Vec<Message>) -> Option<String> {
-        let preferred = names.first().filter(|name| !name.is_empty())?;
-        names.iter().find_map(|&name| {
-            let value = args.get(name)?;
-            if name != *preferred {
-                messages.push(deprecated(name, preferred));
-            }
-            Some(value.to_owned())
-        })
-    }
-
-    /// `get_zbm_bool` with any default and list of names.
-    fn flag_names(args: &ZbmArgs, default: &str, names: &[&str]) -> bool {
-        is_on(&lookup_names(args, names, &mut Vec::new()).unwrap_or_else(|| default.to_owned()))
-    }
-
-    #[test]
-    fn lookup_warns_about_deprecated_names() {
-        let args = ZbmArgs::from_cmdline("timeout=3 zbm.retry_delay=4");
-        let mut messages = Vec::new();
-        assert_eq!(args.lookup(&TIMEOUT, &mut messages), Some("3".to_owned()));
-        assert_eq!(
-            messages,
-            [Message::warning(
-                "using deprecated arg 'timeout' when 'zbm.timeout' is preferred"
-            )]
-        );
-        assert_eq!(
-            args.find(&RETRY_DELAY),
-            Some(Found {
-                name: "zbm.retry_delay",
-                value: "4".to_owned()
-            })
-        );
-        assert_eq!(args.lookup(&HOOKROOT, &mut messages), None);
-        assert_eq!(messages.len(), 1);
-    }
-
-    #[test]
-    fn flags_follow_get_zbm_bool() {
-        let on = |cmdline: &str, spec: &OptionSpec| {
-            ZbmArgs::from_cmdline(cmdline).enabled(spec, &mut Vec::new())
-        };
-        // zbm.set_hostid is on by default, zbm.show off.
-        assert!(on("", &SET_HOSTID));
-        assert!(!on("", &SHOW));
-        assert!(on("zbm.show", &SHOW));
-        for off in ["0", "OFF", "No", ""] {
-            assert!(!on(&format!("zbm.set_hostid={off}"), &SET_HOSTID), "{off}");
-        }
-        assert!(on("zbm.set_hostid=yes", &SET_HOSTID));
-        // A specification without a default is off.
-        assert!(!on("", &HOOKROOT));
-        assert!(is_on("On") && !is_on("off"));
-    }
-
-    #[test]
-    fn the_cmdline_directory_holds_the_first_line_of_each_value() {
-        let fake = FakeSystem::new();
-        fake.files
-            .dir("/zfsbootmenu/cmdline.d")
-            .file("/zfsbootmenu/cmdline.d/zbm.luks", "\tUUID=a, b \nmore\n")
-            .file("/zfsbootmenu/cmdline.d/zbm.luks_key", "");
-        let dir = CmdlineDir::new(&fake.files, Path::new("/zfsbootmenu"));
-        let mut messages = Vec::new();
-        assert_eq!(
-            dir.lookup(&LUKS, &mut messages).as_deref(),
-            Some("UUID=a, b")
-        );
-        assert_eq!(dir.lookup(&LUKS_KEY, &mut messages).as_deref(), Some(""));
-        assert_eq!(dir.lookup(&LUKS_TOKENS, &mut messages), None);
-        assert_eq!(dir.raw(""), None);
-        assert_eq!(dir.raw("a/b"), None);
-        assert!(messages.is_empty());
-    }
-
-    const PIECES: &[&str] = &[
-        "a",
-        "b=1",
-        "b=2",
-        "c=",
-        "=x",
-        "d=\"p q\"",
-        " ",
-        "\"",
-        "-n",
-        "e=-n",
-        "f=-e",
-        "g/h=1",
-        ".=1",
-        "k=a=b",
-        "zbm.timeout=4",
-        "timeout=9",
-        "OFF",
-        "x=no",
-        "y=Off",
-        "z=0",
-    ];
-
-    #[test]
-    fn cmdline_files_match_make_cmdline_dir() {
-        let mut parity = parity!("cmdline_files_match_make_cmdline_dir");
-        let mut rng = Rng::from_env(5);
-        for _ in 0..40 {
-            let cmdline = rng.join(PIECES, 10);
-            let legacy: Vec<(String, String)> = parity.legacy(format!("{cmdline:?}"), || {
-                let base = TempDir::new("zbm-config-dir");
-                kcl_lib(&base, &cmdline).call("make_cmdline_dir", &[], b"");
-                let mut files: Vec<(String, String)> = std::fs::read_dir(base.join("cmdline.d"))
-                    .unwrap()
-                    .map(|entry| {
-                        let entry = entry.unwrap();
-                        let name = entry.file_name().to_string_lossy().into_owned();
-                        (name, std::fs::read_to_string(entry.path()).unwrap())
-                    })
-                    .collect();
-                files.sort();
-                files
-            });
-            let mut rust = std::collections::BTreeMap::new();
-            for (key, contents) in cmdline_files(&tokenize(&cmdline)) {
-                rust.insert(key, contents);
-            }
-            let rust: Vec<(String, String)> = rust.into_iter().collect();
-            assert_eq!(rust, legacy, "cmdline {cmdline:?}");
-        }
-    }
-
-    #[test]
-    fn lookups_match_get_zbm_arg_and_get_zbm_bool() {
-        let mut rng = Rng::from_env(3);
-        // Callers only look up fixed names, never "." (which the legacy code finds as
-        // the directory itself).
-        let names = [
-            "a",
-            "b",
-            "c",
-            "d",
-            "e",
-            "f",
-            "g/h",
-            "k",
-            "zbm.timeout",
-            "timeout",
-            "x",
-            "y",
-            "z",
-            "missing",
-        ];
-        let mut parity = parity!("lookups_match_get_zbm_arg_and_get_zbm_bool");
-        for _ in 0..60 {
-            let cmdline = rng.join(PIECES, 10);
-            let lookup: Vec<&str> = (0..=rng.below(2)).map(|_| *rng.choose(&names)).collect();
-            let default = *rng.choose(&["0", "1", "", "no", "On"]);
-            let mut bool_args = vec![default];
-            bool_args.extend(&lookup);
-            let input = format!("cmdline {cmdline:?}, lookup {lookup:?}, flag {bool_args:?}");
-            let (expected, logged, flag): (Option<String>, String, bool) =
-                parity.legacy(input, || {
-                    let base = TempDir::new("zbm-config-args");
-                    let lib = kcl_lib(&base, &cmdline);
-                    let arg = lib.call("get_zbm_arg", &lookup, b"");
-                    let value = arg
-                        .status
-                        .is_success()
-                        .then(|| arg.stdout_text().trim_end_matches('\n').to_owned());
-                    let flag = lib.call("get_zbm_bool", &bool_args, b"");
-                    (
-                        value,
-                        log_lines(&arg.stderr_text()),
-                        flag.status.is_success(),
-                    )
-                });
-
-            let args = ZbmArgs::from_kcl(&tokenize(&cmdline));
-            let mut messages = Vec::new();
-            let rust = lookup_names(&args, &lookup, &mut messages);
-            assert_eq!(rust, expected, "cmdline {cmdline:?}, lookup {lookup:?}");
-            let warnings: String = messages
-                .iter()
-                .map(|message| message.stderr_line() + "\n")
-                .collect();
-            assert_eq!(warnings, logged, "cmdline {cmdline:?}");
-            let rust = flag_names(&args, default, &lookup);
-            assert_eq!(rust, flag, "cmdline {cmdline:?}, flag {bool_args:?}");
-        }
-    }
-}
+mod tests;

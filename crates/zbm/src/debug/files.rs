@@ -39,7 +39,7 @@ fn is_left_out(name: &str) -> bool {
 
 /// The lines of `zbm debug config` for the command line `kcl`.
 pub fn config_lines(kcl: &str) -> Vec<String> {
-    let args = ZbmArgs::from_kcl(kcl);
+    let args = ZbmArgs::from_cmdline(kcl);
     let (_, origins, messages) = ZbmOptions::read(&args);
     let mut lines = Vec::new();
     for spec in ALL {

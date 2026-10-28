@@ -26,7 +26,7 @@ pub fn destination(files: &dyn Files, base: &Path) -> Option<Destination> {
     let kcl = files
         .read_to_string(&base.join("zbm.cmdline"))
         .unwrap_or_default();
-    let value = ZbmArgs::from_kcl(&kcl).lookup(&SAVE_LOGS, &mut Vec::new());
+    let value = ZbmArgs::from_cmdline(&kcl).lookup(&SAVE_LOGS, &mut Vec::new());
     Destination::from_option(value.as_deref())
 }
 

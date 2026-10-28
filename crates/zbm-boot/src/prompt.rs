@@ -1,8 +1,8 @@
 //! Colours and the timed prompt.
 //!
-//! The timed prompt, and the colours of `zbm-core`. The prompt draws centred
-//! lines with `tput`; `tput`'s output is captured and written to the console,
-//! so tests see it.
+//! The timed prompt, and the colours of `zbm_platform::color`. The prompt
+//! draws centred lines with `tput`; `tput`'s output is captured and written
+//! to the console, so tests see it.
 
 use std::fmt::Write as _;
 use std::time::Duration;

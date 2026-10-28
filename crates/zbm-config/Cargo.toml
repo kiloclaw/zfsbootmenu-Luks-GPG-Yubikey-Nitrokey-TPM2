@@ -10,7 +10,6 @@ publish.workspace = true
 
 [dependencies]
 thiserror.workspace = true
-zbm-core.workspace = true
 zbm-platform.workspace = true
 zbm-trace.workspace = true
 zbm-types.workspace = true

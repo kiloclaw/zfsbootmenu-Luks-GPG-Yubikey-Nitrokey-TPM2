@@ -223,7 +223,7 @@ mod tests {
             "workspace_root": "/w",
             "workspace_members": [
                 "path+file:///w/crates/app#0.1.0",
-                "path+file:///w/crates/zbm-core#0.1.0"
+                "path+file:///w/crates/zbm-trace#0.1.0"
             ],
             "packages": [
                 {
@@ -235,15 +235,15 @@ mod tests {
                         { "kind": ["test"], "src_path": "/w/crates/app/tests/it.rs" }
                     ],
                     "dependencies": [
-                        { "name": "zbm-core", "kind": null, "path": "/w/crates/zbm-core" },
+                        { "name": "zbm-trace", "kind": null, "path": "/w/crates/zbm-trace" },
                         { "name": "syn", "kind": null },
-                        { "name": "zbm-core", "kind": "dev", "path": "/w/crates/zbm-core" }
+                        { "name": "zbm-trace", "kind": "dev", "path": "/w/crates/zbm-trace" }
                     ]
                 },
                 {
-                    "id": "path+file:///w/crates/zbm-core#0.1.0",
-                    "name": "zbm-core",
-                    "manifest_path": "/w/crates/zbm-core/Cargo.toml",
+                    "id": "path+file:///w/crates/zbm-trace#0.1.0",
+                    "name": "zbm-trace",
+                    "manifest_path": "/w/crates/zbm-trace/Cargo.toml",
                     "targets": [],
                     "dependencies": []
                 }
@@ -263,7 +263,7 @@ mod tests {
             app.dependencies,
             [
                 Dependency {
-                    name: "zbm-core".to_owned(),
+                    name: "zbm-trace".to_owned(),
                     kind: DependencyKind::Normal,
                     member: true,
                 },
@@ -273,7 +273,7 @@ mod tests {
                     member: false,
                 },
                 Dependency {
-                    name: "zbm-core".to_owned(),
+                    name: "zbm-trace".to_owned(),
                     kind: DependencyKind::Dev,
                     member: true,
                 },

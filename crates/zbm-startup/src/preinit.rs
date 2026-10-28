@@ -14,11 +14,11 @@ use std::path::{Path, PathBuf};
 
 use zbm_config::args::{ZbmArgs, cmdline_files};
 use zbm_config::conf::{self, Conf};
-use zbm_config::kcl;
 use zbm_config::options::ZbmOptions;
 use zbm_platform::error::{Error, Result};
 use zbm_platform::{KernelLog, System};
 use zbm_tools::terminal;
+use zbm_types::KernelCommandLine;
 
 /// The state directory when the configuration names none.
 pub const DEFAULT_BASE: &str = "/zfsbootmenu";
@@ -74,6 +74,20 @@ pub fn zbm_sources(system: &System<'_>, root: &Path) -> Vec<String> {
         .collect()
 }
 
+/// ZFSBootMenu's command line: the arguments of each of `sources`, as the
+/// kernel splits them, one after the other; and the text of what is not an
+/// argument in them.
+pub fn zbm_cmdline(sources: &[String]) -> (KernelCommandLine, Vec<String>) {
+    let mut cmdline = KernelCommandLine::default();
+    let mut refused = Vec::new();
+    for source in sources {
+        let (args, left_out) = KernelCommandLine::lenient(source);
+        cmdline.extend(args.args().iter().cloned());
+        refused.extend(left_out);
+    }
+    (cmdline, refused)
+}
+
 /// `zfsbootmenu-parse-commandline`: parses ZFSBootMenu's command line below
 /// `root` (normally `/`), logs what the legacy script logs, and writes the
 /// state the later stages read: the embedded command line, `zbm.cmdline`,
@@ -97,8 +111,8 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     let base_in_root = root.join(base.strip_prefix("/").unwrap_or(&base));
     let _ = files.create_dir_all(&base_in_root);
 
-    let kcl = kcl::build_zbm_kcl(&zbm_sources(system, root));
-    let (options, messages) = ZbmOptions::parse(&ZbmArgs::from_kcl(&kcl));
+    let (cmdline, refused) = zbm_cmdline(&zbm_sources(system, root));
+    let (options, messages) = ZbmOptions::parse(&ZbmArgs::new(&cmdline));
     let _log = KernelLog::new(
         files,
         &options.loglevel.to_string(),
@@ -107,20 +121,29 @@ pub fn parse_commandline(system: &System<'_>, root: &Path) -> Result<ZbmOptions>
     )
     .with_device(&root.join("dev/kmsg"))
     .install();
+    for arg in refused {
+        zbm_trace::warn!(
+            arg,
+            "ignoring part of the command line: it is not one kernel argument"
+        );
+    }
     for message in &messages {
         message.emit();
     }
 
-    // get_zbm_kcl and make_cmdline_dir
-    let zbm_config = format!("{}\n", kcl.trim_end_matches('\n'));
-    let _ = files.write(&base_in_root.join("zbm.cmdline"), zbm_config.as_bytes());
+    // One argument per line, as the legacy script tokenized it.
+    let _ = files.write(
+        &base_in_root.join("zbm.cmdline"),
+        cmdline.one_per_line().as_bytes(),
+    );
     let dir = base_in_root.join("cmdline.d");
     let _ = files.create_dir_all(&dir);
-    for (key, contents) in cmdline_files(&kcl) {
+    for (key, contents) in cmdline_files(&cmdline) {
         let _ = files.write(&dir.join(key), contents.as_bytes());
     }
     if let Some(cmdline) = &options.kcl_override {
-        let _ = files.write(&base_in_root.join("cmdline"), cmdline.as_bytes());
+        let override_file = base_in_root.join("cmdline");
+        let _ = files.write(&override_file, cmdline.one_per_line().as_bytes());
     }
 
     let conf_path = root.join(conf::PATH.trim_start_matches('/'));
@@ -177,7 +200,7 @@ pub fn saved_commandline(system: &System<'_>, root: &Path, conf: &Conf) -> Strin
 /// logging, with the control terminal of the configuration.
 pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOptions {
     let kcl = saved_commandline(system, root, conf);
-    let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_kcl(&kcl));
+    let (mut options, _) = ZbmOptions::parse(&ZbmArgs::from_cmdline(&kcl));
     if let Some(term) = conf.get("control_term").filter(|term| !term.is_empty()) {
         term.clone_into(&mut options.control_term);
     }
@@ -192,7 +215,7 @@ pub fn saved_options(system: &System<'_>, root: &Path, conf: &Conf) -> ZbmOption
 pub fn shell(system: &System<'_>, root: &Path, conf: &Conf) -> &'static str {
     let kcl = saved_commandline(system, root, conf);
     let wanted = zbm_config::args::Args::lookup(
-        &ZbmArgs::from_kcl(&kcl),
+        &ZbmArgs::from_cmdline(&kcl),
         &zbm_config::spec::cmdline::SHELL,
         &mut Vec::new(),
     );
@@ -232,7 +255,7 @@ export embedded_kcl=\"rd.hostonly=0\"
     fn parsing_writes_the_state_and_the_configuration() {
         let fake = setup(
             "loglevel=7 console=ttyS0,115200 zbm.prefer=tank! \
-             zbm.kcl_override=\"quiet 'a b'\" zbm.lines=40",
+             zbm.kcl_override=\"quiet x='a b'\" zbm.lines=40",
         );
         let options = parse_commandline(&fake.system(), Path::new("/")).unwrap();
         assert_eq!(options.control_term, "/dev/ttyS0");
@@ -253,7 +276,7 @@ export embedded_kcl=\"rd.hostonly=0\"
         );
         assert_eq!(
             fake.files.text("/zfsbootmenu/cmdline").as_deref(),
-            options.kcl_override.as_deref()
+            Some("quiet\nx=\"a b\"\n")
         );
         let conf = Conf::parse(&fake.files.text("/etc/zfsbootmenu.conf").unwrap());
         assert_eq!(conf.get("zbm_prefer_pool"), Some("tank"));

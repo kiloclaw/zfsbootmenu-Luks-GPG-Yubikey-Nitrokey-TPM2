@@ -296,8 +296,10 @@ mod tests {
 
     impl Scratch {
         fn new(name: &str) -> Scratch {
-            let path =
-                std::env::temp_dir().join(format!("zbm-core-fs-{name}-{}", std::process::id()));
+            let path = std::env::temp_dir().join(format!(
+                "zbm-platform-filetest-{name}-{}",
+                std::process::id()
+            ));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Scratch(path)

@@ -434,6 +434,19 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The bug report (`zbm report`) reads `init_on_free` from the parsed command line, the last one winning, as in the
   kernel.
 
+### Command lines as the kernel reads them; zbm-core goes (phase 1)
+
+- ZFSBootMenu's own command line, `zbm.kcl_override` and the command lines of boot environments are split into
+  arguments as the kernel splits them (`zbm_types::KernelCommandLine`), not as the legacy shell functions did:
+  quotes group words and are removed where the kernel removes them, so `zbm.wait_for="a b"` has the value `a b`; a
+  value such as `-n` is kept, where Bash's `echo` took it for an option and printed nothing. What is not one kernel
+  argument (a quote in a name, a quoted word with a space, a quote left open inside a value) is left out with a
+  warning. The state files keep their form: `zbm.cmdline`, `${BASE}/cmdline` and the `kcl/*.kcl` caches hold one
+  argument per line.
+- `zbm-core` is gone. The version, a program's arguments, colours, shell quoting and the host tools' file tests are in
+  `zbm-platform`; `getopts` is in `zbm-kcl`, which also keeps the legacy tokenizer until it is rewritten (DM10). Uses of
+  Bash-emulating helpers outside tests: 21 to 2, both in `zbm-kcl`.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

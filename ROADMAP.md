@@ -596,7 +596,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | DM8 | `zbm-app`: a required `Runtime` instead of five optional fields, one `apply`, the `Application` trait with `App` and `FakeMachine`; front ends reach the system only through it | mod | M | DM2 |
 | DM9 | Errors with their causes, `Step` returning `Result`, structured `tracing` fields, a simple kernel log format, stable error codes and `zbm explain` | stab | M | |
 | DM10 | `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
-| DM11 | `zbm-core` dissolves; shell helpers in configuration parsing go to 0; the command line pipeline (`zbm_config::kcl`: tokenize, suppress, append, assemble) works on `KernelCommandLine` | mod | S | DM3 |
+| DM11 | Done: `zbm-core` dissolves (its parts into `zbm-platform`, `getopts` into `zbm-kcl`); shell helpers in configuration parsing at 0; the command line pipeline works on `KernelCommandLine`; `zbm-kcl` keeps the legacy tokenizer until DM10 | mod | S | DM3 |
 
 ### SB: the system boundary and the image
 

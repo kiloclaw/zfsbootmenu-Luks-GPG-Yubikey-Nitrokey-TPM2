@@ -13,23 +13,23 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"%{parent} quiet\")], dataset pool/ROOT, kcl file \"-n\"",
+      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"%{parent} quiet\")], dataset pool/ROOT, kcl file \"-x\"",
       "result": [
         "spl_hostid=1 a&b\\&c",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT\n",
         [
-          "",
+          "-x",
           "spl_hostid=1 a&b\\&c"
         ]
       ]
     },
     {
-      "input": "properties [(\"pool\", \"loglevel=7 \\\\x\"), (\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"x %{parent} y %{parent}\"), (\"pool/ROOT/a/b\", \"quiet\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/ROOT/a/b, kcl file \"-n\"",
+      "input": "properties [(\"pool\", \"loglevel=7 \\\\x\"), (\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"x %{parent} y %{parent}\"), (\"pool/ROOT/a/b\", \"quiet\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/ROOT/a/b, kcl file \"-x\"",
       "result": [
         "quiet",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT/a/b\n",
         [
-          "",
+          "-x",
           "quiet"
         ]
       ]
@@ -46,24 +46,24 @@
       ]
     },
     {
-      "input": "properties [(\"pool/ROOT\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a\", \"loglevel=7 \\\\x\"), (\"pool/other\", \"%{parent}\")], dataset pool, kcl file \"-n\"",
+      "input": "properties [(\"pool/ROOT\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a\", \"loglevel=7 \\\\x\"), (\"pool/other\", \"%{parent}\")], dataset pool, kcl file \"-x\"",
       "result": [
         "",
         "DEBUG: org.zfsbootmenu:commandline on pool has no value\n",
         [
-          "",
+          "-x",
           ""
         ]
       ]
     },
     {
-      "input": "properties [(\"pool\", \"-n\"), (\"pool/ROOT\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a/b\", \"loglevel=7 \\\\x\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool, kcl file \"x %{parent} y %{parent}\"",
+      "input": "properties [(\"pool\", \"-x\"), (\"pool/ROOT\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a/b\", \"loglevel=7 \\\\x\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool, kcl file \"x %{parent} y %{parent}\"",
       "result": [
-        "",
+        "-x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool\n",
         [
-          "x  y ",
-          ""
+          "x -x y -x",
+          "-x"
         ]
       ]
     },
@@ -101,7 +101,7 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"a&b %{parent}\"), (\"pool/ROOT/a\", \"-n\"), (\"pool/other\", \"a&b %{parent}\")], dataset pool/ROOT, kcl file \"spl_hostid=1 a&b\\\\&c\"",
+      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"a&b %{parent}\"), (\"pool/ROOT/a\", \"-x\"), (\"pool/other\", \"a&b %{parent}\")], dataset pool/ROOT, kcl file \"spl_hostid=1 a&b\\\\&c\"",
       "result": [
         "a&b quiet",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool\n",
@@ -112,18 +112,18 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"%{parent}\"), (\"pool/ROOT/a\", \"-n\"), (\"pool/ROOT/a/b\", \"loglevel=7 \\\\x\")], dataset pool/other, kcl file \"-n\"",
+      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"%{parent}\"), (\"pool/ROOT/a\", \"-x\"), (\"pool/ROOT/a/b\", \"loglevel=7 \\\\x\")], dataset pool/other, kcl file \"-x\"",
       "result": [
         "quiet",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/other\n",
         [
-          "",
+          "-x",
           "quiet"
         ]
       ]
     },
     {
-      "input": "properties [(\"pool\", \"a&b %{parent}\"), (\"pool/ROOT\", \"%{parent} quiet\"), (\"pool/ROOT/a\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a/b\", \"-n\")], dataset pool/other, kcl file \"quiet\"",
+      "input": "properties [(\"pool\", \"a&b %{parent}\"), (\"pool/ROOT\", \"%{parent} quiet\"), (\"pool/ROOT/a\", \"loglevel=7 \\\\x\"), (\"pool/ROOT/a/b\", \"-x\")], dataset pool/other, kcl file \"quiet\"",
       "result": [
         "a&b ",
         "DEBUG: org.zfsbootmenu:commandline on pool/other is inherited, using parent expansion verbatim\n",
@@ -145,7 +145,7 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"%{parent}\"), (\"pool/ROOT/a\", \"quiet\"), (\"pool/ROOT/a/b\", \"-n\"), (\"pool/other\", \"-n\")], dataset pool, kcl file \"x %{parent} y %{parent}\"",
+      "input": "properties [(\"pool\", \"%{parent}\"), (\"pool/ROOT/a\", \"quiet\"), (\"pool/ROOT/a/b\", \"-x\"), (\"pool/other\", \"-x\")], dataset pool, kcl file \"x %{parent} y %{parent}\"",
       "result": [
         "",
         "",
@@ -200,13 +200,13 @@
       ]
     },
     {
-      "input": "properties [(\"pool/ROOT\", \"-n\"), (\"pool/ROOT/a\", \"%{parent} quiet\"), (\"pool/ROOT/a/b\", \"%{parent}\")], dataset pool/ROOT/a, kcl file \"%{parent}\"",
+      "input": "properties [(\"pool/ROOT\", \"-x\"), (\"pool/ROOT/a\", \"%{parent} quiet\"), (\"pool/ROOT/a/b\", \"%{parent}\")], dataset pool/ROOT/a, kcl file \"%{parent}\"",
       "result": [
-        " quiet",
+        "-x quiet",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT\n",
         [
-          " quiet",
-          " quiet"
+          "-x quiet",
+          "-x quiet"
         ]
       ]
     },
@@ -266,13 +266,13 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT/a\", \"quiet\"), (\"pool/ROOT/a/b\", \"-n\")], dataset pool/ROOT/a/b, kcl file \"spl_hostid=1 a&b\\\\&c\"",
+      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT/a\", \"quiet\"), (\"pool/ROOT/a/b\", \"-x\")], dataset pool/ROOT/a/b, kcl file \"spl_hostid=1 a&b\\\\&c\"",
       "result": [
-        "",
+        "-x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT/a/b\n",
         [
           "spl_hostid=1 a&b\\&c",
-          ""
+          "-x"
         ]
       ]
     },
@@ -310,13 +310,13 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"-n\"), (\"pool/ROOT\", \"%{parent} quiet\"), (\"pool/ROOT/a\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/other\", \"spl_hostid=1 a&b\\\\&c\")], dataset pool, kcl file \"loglevel=7 \\\\x\"",
+      "input": "properties [(\"pool\", \"-x\"), (\"pool/ROOT\", \"%{parent} quiet\"), (\"pool/ROOT/a\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/other\", \"spl_hostid=1 a&b\\\\&c\")], dataset pool, kcl file \"loglevel=7 \\\\x\"",
       "result": [
-        "",
+        "-x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool\n",
         [
           "loglevel=7 \\x",
-          ""
+          "-x"
         ]
       ]
     },
@@ -343,7 +343,7 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"loglevel=7 \\\\x\"), (\"pool/ROOT\", \"a&b %{parent}\"), (\"pool/ROOT/a\", \"-n\"), (\"pool/ROOT/a/b\", \"%{parent} quiet\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/other, kcl file \"x %{parent} y %{parent}\"",
+      "input": "properties [(\"pool\", \"loglevel=7 \\\\x\"), (\"pool/ROOT\", \"a&b %{parent}\"), (\"pool/ROOT/a\", \"-x\"), (\"pool/ROOT/a/b\", \"%{parent} quiet\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/other, kcl file \"x %{parent} y %{parent}\"",
       "result": [
         "loglevel=7 \\x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/other\n",
@@ -354,13 +354,13 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"-n\"), (\"pool/ROOT/a\", \"%{parent}\"), (\"pool/ROOT/a/b\", \"%{parent}\")], dataset pool/other, kcl file \"%{parent}\"",
+      "input": "properties [(\"pool\", \"-x\"), (\"pool/ROOT/a\", \"%{parent}\"), (\"pool/ROOT/a/b\", \"%{parent}\")], dataset pool/other, kcl file \"%{parent}\"",
       "result": [
-        "",
+        "-x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/other\n",
         [
-          "",
-          ""
+          "-x",
+          "-x"
         ]
       ]
     },
@@ -376,18 +376,18 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"-n\"), (\"pool/ROOT/a/b\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/other\", \"%{parent}\")], dataset pool/ROOT/a, kcl file \"loglevel=7 \\\\x\"",
+      "input": "properties [(\"pool\", \"quiet\"), (\"pool/ROOT\", \"-x\"), (\"pool/ROOT/a/b\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/other\", \"%{parent}\")], dataset pool/ROOT/a, kcl file \"loglevel=7 \\\\x\"",
       "result": [
-        "",
+        "-x",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT/a\n",
         [
           "loglevel=7 \\x",
-          ""
+          "-x"
         ]
       ]
     },
     {
-      "input": "properties [(\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"-n\"), (\"pool/other\", \"a&b %{parent}\")], dataset pool/other, kcl file \"loglevel=7 \\\\x\"",
+      "input": "properties [(\"pool/ROOT\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a\", \"-x\"), (\"pool/other\", \"a&b %{parent}\")], dataset pool/other, kcl file \"loglevel=7 \\\\x\"",
       "result": [
         "a&b ",
         "DEBUG: org.zfsbootmenu:commandline on pool has no value\n",
@@ -398,7 +398,7 @@
       ]
     },
     {
-      "input": "properties [(\"pool/ROOT\", \"%{parent}\"), (\"pool/ROOT/a\", \"%{parent} quiet\"), (\"pool/ROOT/a/b\", \"-n\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/ROOT/a, kcl file \"a&b %{parent}\"",
+      "input": "properties [(\"pool/ROOT\", \"%{parent}\"), (\"pool/ROOT/a\", \"%{parent} quiet\"), (\"pool/ROOT/a/b\", \"-x\"), (\"pool/other\", \"loglevel=7 \\\\x\")], dataset pool/ROOT/a, kcl file \"a&b %{parent}\"",
       "result": [
         " quiet",
         "DEBUG: org.zfsbootmenu:commandline on pool has no value\n",
@@ -431,7 +431,7 @@
       ]
     },
     {
-      "input": "properties [(\"pool\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"a&b %{parent}\"), (\"pool/other\", \"-n\")], dataset pool/ROOT, kcl file \"quiet\"",
+      "input": "properties [(\"pool\", \"spl_hostid=1 a&b\\\\&c\"), (\"pool/ROOT/a/b\", \"a&b %{parent}\"), (\"pool/other\", \"-x\")], dataset pool/ROOT, kcl file \"quiet\"",
       "result": [
         "spl_hostid=1 a&b\\&c",
         "DEBUG: no parent reference in org.zfsbootmenu:commandline on pool/ROOT\n",

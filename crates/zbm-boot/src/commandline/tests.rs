@@ -88,7 +88,7 @@ fn command_lines_come_from_the_property_and_are_cached() {
             log,
         )
     };
-    assert_eq!(cmdline(&mut log), "ro quiet resume=/dev/x");
+    assert_eq!(cmdline(&mut log).to_string(), "ro quiet resume=/dev/x");
     let cache = "/zfsbootmenu/environments/tank/ROOT/void/kcl/default.kcl";
     assert_eq!(
         files.text(cache).as_deref(),
@@ -97,20 +97,20 @@ fn command_lines_come_from_the_property_and_are_cached() {
 
     // The cache wins until the user declines to resume.
     files.file(cache, "cached\n");
-    assert_eq!(cmdline(&mut log), "cached");
+    assert_eq!(cmdline(&mut log).to_string(), "cached");
     state.set_noresume().unwrap();
     files.set_modified(cache, SystemTime::UNIX_EPOCH);
-    assert_eq!(cmdline(&mut log), "ro quiet noresume");
+    assert_eq!(cmdline(&mut log).to_string(), "ro quiet noresume");
 
     // The user's override wins over everything.
     state.set_cmdline_override("edited\nby user\n").unwrap();
-    assert_eq!(cmdline(&mut log), "edited by user");
+    assert_eq!(cmdline(&mut log).to_string(), "edited by user");
     assert!(
         log.iter()
             .any(|message| message.text.contains("/zfsbootmenu/cmdline"))
     );
     assert_eq!(
-        be_cmdline(&files, &properties, &state, "", "", false, &mut log),
+        be_cmdline(&files, &properties, &state, "", "", false, &mut log).to_string(),
         ""
     );
 }
@@ -146,10 +146,11 @@ fn a_typed_command_line_stands_in_for_the_property_for_one_boot() {
         typed(
             "%{parent} root=zfs:tank/other resume=/dev/x single",
             &mut log
-        ),
+        )
+        .to_string(),
         "zswap.enabled=1 single noresume"
     );
-    assert_eq!(typed("", &mut log), "quiet loglevel=4 noresume");
+    assert_eq!(typed("", &mut log).to_string(), "quiet loglevel=4 noresume");
     // Nothing is cached or kept for the next boot.
     assert_eq!(state.cmdline_override(), None);
     assert!(!files.exists(Path::new(
@@ -175,7 +176,8 @@ fn kernel_command_lines_and_defaults() {
             "/boot/vmlinuz-6.1",
             false,
             &mut log
-        ),
+        )
+        .to_string(),
         "ro quiet resume=/dev/x single"
     );
     // No cache is written for a kernel with its own command line.
@@ -192,7 +194,8 @@ fn kernel_command_lines_and_defaults() {
             "",
             false,
             &mut log
-        ),
+        )
+        .to_string(),
         "quiet loglevel=4"
     );
 }
@@ -212,7 +215,10 @@ fn host_ids_replace_those_of_the_command_line() {
         true,
         &mut log,
     );
-    assert_eq!(line, "ro quiet resume=/dev/x spl.spl_hostid=0xdeadbeef");
+    assert_eq!(
+        line.to_string(),
+        "ro quiet resume=/dev/x spl.spl_hostid=0xdeadbeef"
+    );
     files.remove_file(Path::new(SPL_HOSTID)).unwrap();
     files.file(ETC_HOSTID, [0_u8; 4]);
     files
@@ -229,7 +235,10 @@ fn host_ids_replace_those_of_the_command_line() {
         true,
         &mut log,
     );
-    assert_eq!(line, "ro quiet resume=/dev/x spl_hostid=00000000");
+    assert_eq!(
+        line.to_string(),
+        "ro quiet resume=/dev/x spl_hostid=00000000"
+    );
 }
 
 #[test]
@@ -242,7 +251,7 @@ fn kexec_commands() {
         initramfs: "/boot/initramfs-6.12.9_1.img",
         dtb: Some(&dtb),
         root: &root,
-        args: "ro quiet",
+        args: &"ro quiet".parse().unwrap(),
     };
     let runner = zbm_testkit::FakeRunner::new();
     load.run(&runner).unwrap();
@@ -335,6 +344,14 @@ struct Scenario {
 /// The kernel of every scenario.
 const KERNEL: &str = "/boot/vmlinuz-6.1";
 
+/// Up to `max` of `words`, separated by spaces: arguments, as people write
+/// them; how the kernel splits words run together is tested in `zbm-types`.
+fn spaced(rng: &mut Rng, words: &[&str], max: usize) -> String {
+    let count = rng.below(max + 1);
+    let chosen: Vec<&str> = (0..count).map(|_| *rng.choose(words)).collect();
+    chosen.join(" ")
+}
+
 /// The cache of the default command line.
 const DEFAULT_KCL: &str = "environments/tank/ROOT/be/kcl/default.kcl";
 
@@ -350,9 +367,9 @@ impl Scenario {
             "spl_hostid=1",
         ];
         Scenario {
-            parent: (rng.below(3) > 0).then(|| rng.join(&words[..5], 3)),
-            own: (rng.below(3) > 0).then(|| rng.join(&words, 4)),
-            kernel_kcl: (rng.below(3) == 0).then(|| format!("{}\n", rng.join(&words, 3))),
+            parent: (rng.below(3) > 0).then(|| spaced(rng, &words[..5], 3)),
+            own: (rng.below(3) > 0).then(|| spaced(rng, &words, 4)),
+            kernel_kcl: (rng.below(3) == 0).then(|| format!("{}\n", spaced(rng, &words, 3))),
             edited: rng.below(4) == 0,
             noresume: rng.below(3) == 0,
             stale_default: rng.below(3) == 0,
@@ -456,12 +473,15 @@ fn command_lines_match_the_legacy_function() {
         );
         // kexec_kernel reads it with $( ... ), which drops final newlines
         assert_eq!(
-            without_base(&rust, &dir),
+            without_base(&rust.to_string(), &dir),
             stdout.trim_end_matches('\n'),
             "case {case}: {logged}"
         );
+        // The arguments of the cache, which the legacy code wrote on one line
+        // for its defaults, and otherwise one per line, as this one does.
+        let parsed = |text: Option<String>| text.map(|text| KernelCommandLine::lenient(&text).0);
         let rust_cache = std::fs::read_to_string(dir.join(DEFAULT_KCL)).ok();
-        assert_eq!(rust_cache, cache, "case {case}: cache");
+        assert_eq!(parsed(rust_cache), parsed(cache), "case {case}: cache");
         let messages: String = log
             .iter()
             .flat_map(|message| [message.stderr_line(), "\n".to_owned()])

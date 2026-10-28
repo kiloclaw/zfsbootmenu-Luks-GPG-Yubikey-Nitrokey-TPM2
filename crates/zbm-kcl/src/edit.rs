@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use zbm_config::kcl;
+use crate::tokens as kcl;
 use zbm_platform::filetest::{create_temp_file, is_readable};
 use zbm_tools::programs;
 

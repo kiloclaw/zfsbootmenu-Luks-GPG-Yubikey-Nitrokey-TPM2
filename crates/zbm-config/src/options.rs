@@ -15,14 +15,13 @@ use zbm_platform::shell::quote;
 use zbm_trace::Message;
 use zbm_types::number::shell_integer;
 use zbm_types::{
-    BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
-    Timeout,
+    BootfsPreference, HostId, ImportPolicy, KernelCommandLine, LogLevel, PoolName, PoolRequirement,
+    RetryDelay, Timeout,
 };
 
 pub use self::hostid::parse_spl_hostid;
 use self::read::Reader;
 use crate::args::ZbmArgs;
-use crate::kcl;
 use crate::origin::Origins;
 use crate::spec::OptionSpec;
 use crate::spec::cmdline::{
@@ -66,7 +65,7 @@ static VALUES: &[(&OptionSpec, Value)] = &[
         Some(if options.set_hostid { "1" } else { "0" }.to_owned())
     }),
     (&KCL_OVERRIDE, |options| {
-        options.kcl_override.as_deref().map(kcl::assemble)
+        options.kcl_override.as_ref().map(ToString::to_string)
     }),
     (&WAIT_FOR, |options| Some(options.wait_for_devices.clone())),
     (&PREFER, ZbmOptions::preference),
@@ -102,9 +101,9 @@ pub struct ZbmOptions {
     /// `zbm.set_hostid`: whether ZFSBootMenu replaces `spl_hostid` in boot
     /// environment command lines.
     pub set_hostid: bool,
-    /// `zbm.kcl_override`: the tokenized command line that replaces those of all
-    /// boot environments, as written to `${BASE}/cmdline`.
-    pub kcl_override: Option<String>,
+    /// `zbm.kcl_override`: the command line that replaces those of all boot
+    /// environments, written to `${BASE}/cmdline` one argument per line.
+    pub kcl_override: Option<KernelCommandLine>,
     /// `zbm.wait_for`: devices to wait for, or empty.
     pub wait_for_devices: String,
     /// `zbm.prefer`: the preferred pool, if a pool is named.

@@ -99,7 +99,7 @@ impl<'a> Startup<'a> {
             .files
             .read_to_string(&base.join("zbm.cmdline"))
             .unwrap_or_default();
-        let args = ZbmArgs::from_kcl(&kcl);
+        let args = ZbmArgs::from_cmdline(&kcl);
         Startup {
             system,
             state,

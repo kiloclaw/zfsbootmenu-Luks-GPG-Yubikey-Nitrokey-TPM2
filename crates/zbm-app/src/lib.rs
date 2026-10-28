@@ -436,7 +436,7 @@ mod tests {
             "{\"level\":\"WARN\",\"message\":\"slow\"}\n",
         );
         let (mut options, _) =
-            ZbmOptions::parse(&zbm_config::args::ZbmArgs::from_kcl("zbm.timeout=7"));
+            ZbmOptions::parse(&zbm_config::args::ZbmArgs::from_cmdline("zbm.timeout=7"));
         options.control_term = "ttyS0".into();
         let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
         let prompter = crate::read::tests::NoPrompts;

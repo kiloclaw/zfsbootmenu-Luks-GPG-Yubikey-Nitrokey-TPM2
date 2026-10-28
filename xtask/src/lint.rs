@@ -344,8 +344,8 @@ mod tests {
         Workspace {
             root: PathBuf::from("/w"),
             packages: vec![Package {
-                name: "zbm-core".to_owned(),
-                dir: PathBuf::from("/w/crates/zbm-core"),
+                name: "zbm-trace".to_owned(),
+                dir: PathBuf::from("/w/crates/zbm-trace"),
                 targets: Vec::new(),
                 dependencies: Vec::new(),
             }],
@@ -355,7 +355,7 @@ mod tests {
     fn message(lint: &str, line_start: u64) -> String {
         serde_json::json!({
             "reason": "compiler-message",
-            "manifest_path": "/w/crates/zbm-core/Cargo.toml",
+            "manifest_path": "/w/crates/zbm-trace/Cargo.toml",
             "message": {
                 "code": { "code": lint },
                 "spans": [{
@@ -381,7 +381,7 @@ mod tests {
 
         let findings = findings(&json, &workspace());
 
-        let key = ("zbm-core".to_owned(), "clippy::unwrap_used".to_owned());
+        let key = ("zbm-trace".to_owned(), "clippy::unwrap_used".to_owned());
         assert_eq!(findings.get(&key), Some(&2));
     }
 

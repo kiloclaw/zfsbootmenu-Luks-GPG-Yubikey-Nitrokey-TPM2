@@ -24,7 +24,6 @@ zbm-app = { path = "crates/zbm-app" }
 zbm-brush = { path = "crates/zbm-brush" }
 zbm-boot = { path = "crates/zbm-boot" }
 zbm-config = { path = "crates/zbm-config" }
-zbm-core = { path = "crates/zbm-core" }
 zbm-console = { path = "crates/zbm-console" }
 zbm-crypt = { path = "crates/zbm-crypt" }
 zbm-display = { path = "crates/zbm-display" }

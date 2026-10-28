@@ -3968,7 +3968,6 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "thiserror",
- "zbm-core",
  "zbm-platform",
  "zbm-testkit",
  "zbm-trace",
@@ -3989,13 +3988,6 @@ dependencies = [
  "zbm-sys",
  "zbm-testkit",
  "zbm-types",
-]
-
-[[package]]
-name = "zbm-core"
-version = "0.1.0"
-dependencies = [
- "zbm-sys",
 ]
 
 [[package]]

@@ -20,10 +20,13 @@ fn is_space(byte: u8) -> bool {
 /// One argument of a kernel command line: a name such as `quiet`, or a
 /// name and a value such as `root=zfs:zroot/ROOT/void`.
 ///
-/// The name is not empty and has no space, `"`, `=` or control character;
-/// the value has no `"` or control character but may have spaces, which
-/// [`Display`](fmt::Display) puts in quotes, as the kernel reads them. So an
-/// argument is always one argument: a value cannot add others.
+/// The name is not empty and has no space, `"`, `=` or control character.
+/// The value has no control character, and spaces only where the kernel
+/// keeps them in one argument: a value without quotes may have spaces, which
+/// [`Display`](fmt::Display) puts in quotes; a value with quotes, such as
+/// `b"c d"`, which the kernel keeps as it is, has them in pairs, does not
+/// start with one, and has its spaces between them. So an argument is always
+/// one argument: a value cannot add others.
 ///
 /// ```
 /// use zbm_types::KernelArg;
@@ -48,7 +51,8 @@ impl KernelArg {
     /// # Errors
     ///
     /// When the name is empty or has a space, `"`, `=` or control
-    /// character, or the value has a `"` or control character.
+    /// character, or the value has a control character or quotes that would
+    /// not keep it one argument.
     pub fn new(name: &str, value: Option<&str>) -> Result<KernelArg, ParseError> {
         let text = match value {
             Some(value) => format!("{name}={value}"),
@@ -90,11 +94,27 @@ fn check_name(name: &str) -> Result<(), Reason> {
 
 /// Why `value` cannot be the value of an argument, if it cannot.
 fn check_value(value: &str) -> Result<(), Reason> {
-    let invalid = |c: &char| c.is_control() || *c == '"' || (c.is_whitespace() && *c != ' ');
-    match value.chars().find(invalid) {
-        Some(c) => Err(Reason::InvalidCharacter(c)),
-        None => Ok(()),
+    let invalid = |c: &char| c.is_control() || (c.is_whitespace() && *c != ' ');
+    if let Some(c) = value.chars().find(invalid) {
+        return Err(Reason::InvalidCharacter(c));
     }
+    if !value.contains('"') {
+        return Ok(());
+    }
+    // Printed as it is, the kernel must read it back the same: no quote
+    // first, which it would remove, and no space outside a pair of quotes.
+    let mut in_quote = false;
+    for c in value.chars() {
+        match c {
+            '"' => in_quote = !in_quote,
+            ' ' if !in_quote => return Err(Reason::InvalidCharacter(' ')),
+            _ => {}
+        }
+    }
+    if in_quote || value.starts_with('"') {
+        return Err(Reason::InvalidCharacter('"'));
+    }
+    Ok(())
 }
 
 impl FromStr for KernelArg {
@@ -123,7 +143,9 @@ impl fmt::Display for KernelArg {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
             None => formatter.write_str(&self.name),
-            Some(value) if value.contains(' ') => write!(formatter, "{}=\"{value}\"", self.name),
+            Some(value) if value.contains(' ') && !value.contains('"') => {
+                write!(formatter, "{}=\"{value}\"", self.name)
+            }
             Some(value) => write!(formatter, "{}={value}", self.name),
         }
     }
@@ -212,6 +234,51 @@ impl KernelCommandLine {
         &self.0
     }
 
+    /// The arguments of `text` that are arguments, and the text of those
+    /// that are not, for a command line that is used even when some of it
+    /// cannot be: one written by a user, or the kernel's own. The kernel
+    /// splits `text` the same way; the arguments left out are those
+    /// [`KernelArg::new`] refuses.
+    pub fn lenient(text: &str) -> (KernelCommandLine, Vec<String>) {
+        let mut args = Vec::new();
+        let mut refused = Vec::new();
+        for (name, value, raw) in split(text) {
+            match KernelArg::new(name, value) {
+                Ok(arg) => args.push(arg),
+                Err(_) => refused.push(raw.to_owned()),
+            }
+        }
+        (KernelCommandLine(args), refused)
+    }
+
+    /// Whether it has no argument.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Adds `arg` at the end.
+    pub fn push(&mut self, arg: KernelArg) {
+        self.0.push(arg);
+    }
+
+    /// The command line without the arguments named one of `names`.
+    #[must_use]
+    pub fn without(&self, names: &[&str]) -> KernelCommandLine {
+        let kept = self.0.iter().filter(|arg| !names.contains(&arg.name()));
+        KernelCommandLine(kept.cloned().collect())
+    }
+
+    /// The arguments one per line, each followed by a newline: the form of
+    /// the command line files of the state directory, which parses back the
+    /// same, as a newline separates arguments as a space does.
+    pub fn one_per_line(&self) -> String {
+        self.0.iter().fold(String::new(), |mut text, arg| {
+            text.push_str(&arg.to_string());
+            text.push('\n');
+            text
+        })
+    }
+
     /// The value of the last argument named `name`, which the kernel and
     /// most programs take; `None` without one, or when it has no value.
     pub fn value(&self, name: &str) -> Option<&str> {
@@ -221,6 +288,35 @@ impl KernelCommandLine {
             .find(|arg| arg.name == name)
             .and_then(KernelArg::value)
     }
+}
+
+impl FromIterator<KernelArg> for KernelCommandLine {
+    fn from_iter<I: IntoIterator<Item = KernelArg>>(args: I) -> KernelCommandLine {
+        KernelCommandLine(args.into_iter().collect())
+    }
+}
+
+impl Extend<KernelArg> for KernelCommandLine {
+    fn extend<I: IntoIterator<Item = KernelArg>>(&mut self, args: I) {
+        self.0.extend(args);
+    }
+}
+
+/// The arguments of `text` as the kernel splits it: each one's name, its
+/// value, and its text.
+fn split(text: &str) -> Vec<(&str, Option<&str>, &str)> {
+    let mut rest = text.trim_start_matches(|c: char| c.is_ascii() && is_space(c as u8));
+    let mut args = Vec::new();
+    while !rest.is_empty() {
+        let (name, value, next) = next_arg(rest);
+        let raw = rest
+            .get(..rest.len().saturating_sub(next.len()))
+            .unwrap_or(rest)
+            .trim_end_matches(|c: char| c.is_ascii() && is_space(c as u8));
+        args.push((name, value, raw));
+        rest = next;
+    }
+    args
 }
 
 impl From<Vec<KernelArg>> for KernelCommandLine {
@@ -233,16 +329,11 @@ impl FromStr for KernelCommandLine {
     type Err = ParseError;
 
     fn from_str(text: &str) -> Result<KernelCommandLine, ParseError> {
-        let error = |reason| ParseError::new(COMMAND_LINE, text, reason);
-        let mut rest = text.trim_start_matches(|c: char| c.is_ascii() && is_space(c as u8));
-        let mut args = Vec::new();
-        while !rest.is_empty() {
-            let (name, value, next) = next_arg(rest);
-            let arg = KernelArg::new(name, value).map_err(|cause| error(cause.reason().clone()))?;
-            args.push(arg);
-            rest = next;
-        }
-        Ok(KernelCommandLine(args))
+        let error = |cause: ParseError| ParseError::new(COMMAND_LINE, text, cause.reason().clone());
+        split(text)
+            .into_iter()
+            .map(|(name, value, _)| KernelArg::new(name, value).map_err(error))
+            .collect()
     }
 }
 

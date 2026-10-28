@@ -73,9 +73,8 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | --- | --- | --- |
 | `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, `waitpid`, credentials, wiping and locking memory, the child set-up between `fork` and `exec`, the virtual terminal's modes, the stack for crash reports. | Bash built-ins |
 | `zbm-types` | Names and paths checked once, when parsed: devices, mappings, pools, datasets, snapshots, kernel versions, stages. | — |
-| `zbm-core` | File tests, shell quoting, `getopts`, release information, colours. | parts of `zfsbootmenu-core.sh` |
 | `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
-| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and file trees. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, `cp -a`, `rm -rf`, variables |
+| `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and file trees; shell quoting, colours, the version, and the file tests of Perl and the shell for the host tools. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, `cp -a`, `rm -rf`, variables |
 | `zbm-display` | The display and keyboard without a terminal: DRM buffers, TrueType and PSF fonts, keyboard layouts, evdev keys, the virtual terminal's hand-over. | `setfont`, `loadkeys` |
 | `zbm-state` | The state directory `/zfsbootmenu`: its layout, reading and writing each file, and its locks. | `${BASE}/*` |
 | `zbm-config` | The table of options, the ZFSBootMenu command line, `zbm.*` options, kernel command lines and `%{parent}`, `/etc/zfsbootmenu.conf` and crypttab files. | `zfsbootmenu-kcl.sh`, `zfsbootmenu-parse-commandline.sh` |
@@ -96,8 +95,8 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |
 | `zbm-vmtest` | The VM tests: QEMU, disks, images and the scenarios. Developers' machines only. | `tests/luks/vm` |
 
-The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-core`, `zbm-platform`, `zbm-config`,
-`zbm-trace` and `zbm-zfs` with the runtime.
+The host tools `generate-zbm` and `zbm-kcl` keep their own crates and share `zbm-platform`, `zbm-config`, `zbm-trace`
+and `zbm-zfs` with the runtime.
 
 Dependencies point from the program to the system and never back: each crate belongs to one layer and uses only
 crates of lower layers. `docs/dev/architecture.md` lists the layers and every allowed dependency, generated from
@@ -489,7 +488,7 @@ are written, and any other is written as `"[redacted]"`, as is one named `passph
 
 ### Running programs
 
-Every program is run through the `Runner` trait of `zbm-core` with a `Command`: program, arguments, standard input
+Every program is run through the `Runner` trait of `zbm-platform` with a `Command`: program, arguments, standard input
 (inherited, `/dev/null`, bytes or a secret), standard output and standard error (inherited, captured, discarded, or
 captured as a secret), and environment changes. `SystemRunner` runs it; a program that does not exist returns status
 127, as a shell reports it. Interactive programs (`fzf`, `zfs load-key -L prompt`, `bash -i`, hooks) inherit the

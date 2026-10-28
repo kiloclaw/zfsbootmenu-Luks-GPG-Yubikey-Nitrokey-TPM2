@@ -46,8 +46,8 @@ pub const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "foundation",
-        purpose: "File tests, option parsing, shell semantics, release information, tracing",
-        crates: &["zbm-core", "zbm-trace"],
+        purpose: "Tracing: structured events, the journal and the kernel log",
+        crates: &["zbm-trace"],
     },
     Layer {
         name: "platform",
@@ -93,7 +93,6 @@ pub const LAYERS: &[Layer] = &[
 
 /// Dependencies between crates of the same layer: (from, to).
 pub const SAME_LAYER: &[(&str, &str)] = &[
-    ("zbm-trace", "zbm-core"),
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
     ("zbm-boot", "zbm-luks"),
@@ -434,30 +433,30 @@ mod tests {
 
     #[test]
     fn a_crate_may_depend_on_lower_layers() {
-        let luks = package("zbm-luks", &[("zbm-core", DependencyKind::Normal, true)]);
+        let luks = package("zbm-luks", &[("zbm-trace", DependencyKind::Normal, true)]);
 
         assert_eq!(problems_of(&luks), Vec::<String>::new());
     }
 
     #[test]
     fn a_crate_may_not_depend_on_a_higher_layer() {
-        let core = package("zbm-core", &[("zbm-boot", DependencyKind::Normal, true)]);
+        let trace = package("zbm-trace", &[("zbm-boot", DependencyKind::Normal, true)]);
 
         assert_eq!(
-            problems_of(&core),
-            ["zbm-core -> zbm-boot: depends on a higher layer"]
+            problems_of(&trace),
+            ["zbm-trace -> zbm-boot: depends on a higher layer"]
         );
     }
 
     #[test]
     fn same_layer_edges_must_be_listed() {
-        let listed = package("zbm-trace", &[("zbm-core", DependencyKind::Normal, true)]);
-        let unlisted = package("zbm-core", &[("zbm-trace", DependencyKind::Normal, true)]);
+        let listed = package("zbm-boot", &[("zbm-pool", DependencyKind::Normal, true)]);
+        let unlisted = package("zbm-pool", &[("zbm-boot", DependencyKind::Normal, true)]);
 
         assert_eq!(problems_of(&listed), Vec::<String>::new());
         assert_eq!(
             problems_of(&unlisted),
-            ["zbm-core -> zbm-trace: same layer, and not listed in SAME_LAYER"]
+            ["zbm-pool -> zbm-boot: same layer, and not listed in SAME_LAYER"]
         );
     }
 
