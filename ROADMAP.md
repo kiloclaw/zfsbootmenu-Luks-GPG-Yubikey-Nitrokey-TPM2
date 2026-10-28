@@ -742,7 +742,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's; the
-  process model and the trust zones accepted the same day.
+  process model, the trust zones and the client channel accepted the same day.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -903,6 +903,12 @@ Decided on 28 October 2026:
     session that parses and decides, Z3 the unprivileged front ends, talking over typed messages on Unix sockets; the
     session first (PM9), the keyholder and the unprivileged front ends in phase 5 (SB10, SE11). The recovery shell
     stays in Z0's care behind the shell gate (SE9), hooks run as root in Z2, and an SSH login is a front end in Z3.
+15. **The menu draws natively on the console** ([ADR 0004](docs/dev/adr/0004-client-channel.md)): a control socket
+    for requests to the console, with replies (PM7; JSON, at `/run/zfsbootmenu/console.sock`, root only), and a client
+    channel from the supervisor's socket pair on which the menu sends cells and receives key presses, with the secret
+    flag in band (UI6; a binary encoding of our own, one cell client at a time); one front end runtime with the
+    console's cells, a terminal and the test backend as its backends (UI3); a terminal only for the programs that
+    need one.
 
 Decided on 27 October 2026:
 
@@ -923,15 +929,13 @@ Open:
     programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
     alternative, kept only if the Rust LUKS2 or TPM2 code (CD9, CD10) fails its review.
 14. **The crate map** of [crates and layers](#crates-and-layers).
-15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
-    that need one.
 16. **A native image backend after the cutover** (SB12), with dracut kept as a backend.
 18. **Keys that work on every keyboard:** proposed, the four rules of [the menu](#the-menu-a-workspace): nothing needs
     one character only, nothing depends on case, keys by position on the display console, and a command line that
     knows every language (UI15).
 
-Decisions 12, 14 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12
-and 14 to 16, awaiting acceptance; 10 and 13 accepted on 28 October 2026); decision 8 by the sessions that follow.
+Decisions 12, 14, 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12,
+14 and 16, awaiting acceptance; 10, 13 and 15 accepted on 28 October 2026); decision 8 by the sessions that follow.
 
 ## Fixes left from the review of 27 October 2026
 

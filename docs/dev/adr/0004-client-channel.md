@@ -1,6 +1,6 @@
 # ADR 0004: The menu draws natively on the console
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 28 October 2026 (proposed the same day)
 - **Decides:** decision 15 of [ROADMAP.md](../../../ROADMAP.md#decisions)
 - **Governs:** PM7, UI3, UI5, UI6, UI7, UI8, UI9; the console's C52, C89, C91, C96, C104, C105 and C110
 
@@ -83,12 +83,14 @@ cells and receives key presses. Programs that need a terminal keep one.**
 - The VM test of secrets searches the console's memory, scrollback and mirror for a typed passphrase.
 - `runtime-rust-console` and its sibling VM tests run on the cell surface once UI6 lands.
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **The encoding.** Proposed: a small binary encoding of our own for `Cells` (rows of runs of one style, UTF-8 text),
-   which must be cheap at every frame, and JSON with `serde_json`, already in the runtime, for the control socket,
-   where readability helps debugging. The alternative is one binary encoding for both.
-2. **Where the control socket lives.** Proposed: `/run/zfsbootmenu/console.sock`, beside, not inside, the state
-   directory, so hooks that list `/zfsbootmenu` do not trip over it.
-3. **Several clients.** Proposed: one cell client at a time (the session); the SSH menu draws on its own terminal and
-   reaches the session, not the console ([ADR 0002](0002-trust-zones.md), PM10).
+Accepted as proposed, on 28 October 2026:
+
+1. **The encoding:** a small binary encoding of our own for `Cells` (rows of runs of one style, UTF-8 text), which
+   must be cheap at every frame, and JSON with `serde_json`, already in the runtime, for the control socket, where
+   readability helps debugging.
+2. **Where the control socket lives:** `/run/zfsbootmenu/console.sock`, beside, not inside, the state directory, so
+   hooks that list `/zfsbootmenu` do not trip over it.
+3. **Several clients:** one cell client at a time (the session); the SSH menu draws on its own terminal and reaches
+   the session, not the console ([ADR 0002](0002-trust-zones.md), PM10).
