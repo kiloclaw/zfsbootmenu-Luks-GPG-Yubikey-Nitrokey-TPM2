@@ -157,3 +157,52 @@ fn the_cached_keys_are_removed_before_kexec_but_not_what_they_link_to() {
     );
     assert_eq!(fake.files.text("/elsewhere/kept").as_deref(), Some("kept"));
 }
+
+#[test]
+fn a_failed_save_is_logged_with_its_code() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let _log =
+        zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
+            .install();
+    let system = fake.system();
+    let state = State::new(system.files, "/zfsbootmenu");
+
+    assert!(save_logs(&system, &state, Some(&Destination::Esp)).is_none());
+
+    assert!(
+        fake.kmsg()
+            .contains("<4>ZFSBootMenu: unable to save the logs: no EFI system partition found"),
+        "{}",
+        fake.kmsg()
+    );
+}
+
+#[test]
+fn nothing_selected_is_an_error_and_boots_nothing() {
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    let _log =
+        zbm_platform::KernelLog::new(&fake.files, "7", std::path::Path::new("/zfsbootmenu"), 1)
+            .install();
+
+    let nothing = Kernel {
+        dataset: String::new(),
+        kernel: String::new(),
+        initramfs: String::new(),
+    };
+    assert!(!names_a_kernel(&nothing));
+    assert!(fake.kmsg().contains("fs, kernel, initramfs undefined"));
+    let selected = Kernel {
+        dataset: "zroot/ROOT/void".to_owned(),
+        kernel: "/boot/vmlinuz".to_owned(),
+        initramfs: "/boot/initramfs.img".to_owned(),
+    };
+    assert!(names_a_kernel(&selected));
+    assert!(
+        fake.kmsg()
+            .contains("fs: zroot/ROOT/void, kernel: /boot/vmlinuz, initramfs: /boot/initramfs.img"),
+        "{}",
+        fake.kmsg()
+    );
+}
