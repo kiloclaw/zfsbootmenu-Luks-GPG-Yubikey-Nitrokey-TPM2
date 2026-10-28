@@ -79,7 +79,7 @@ impl Unlocker<'_> {
                 };
                 if up {
                     let touch = format!("Touch the security key {device} when it blinks.\n");
-                    self.tell(Told::Touch, Some("yellow"), &touch);
+                    self.tell(Told::Touch, &touch);
                 }
                 if let Some(hmac) = self.fido2_assert(device, assertion) {
                     return Outcome::Key(hmac);
@@ -131,13 +131,6 @@ impl Unlocker<'_> {
     ) -> Result<(), LuksError> {
         let device = target.device;
         let failed = |failure| target.token_error("systemd-fido2", id, failure);
-        let message = self.paint(
-            "cyan",
-            &format!(
-                "Insert the FIDO2 security key (YubiKey, Nitrokey, ...) for {}",
-                self.paint("yellow", device)
-            ),
-        );
         let request = WaitRequest {
             volume: VolumeRef {
                 name: target.name,
@@ -147,19 +140,12 @@ impl Unlocker<'_> {
             seconds: self.token_wait(),
             present: &|| self.have_fido2_device(),
         };
-        if self.await_device(&request, &message) != Wait::Present {
+        if self.await_device(&request) != Wait::Present {
             zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
             return Err(failed(TokenFailure::NoDevice));
         }
-        let heading = format!(
-            "Unlock {} with a FIDO2 security key\n",
-            self.paint("yellow", device)
-        );
-        let plain = format!("Unlock {device} with a FIDO2 security key");
-        self.tell_with(Told::Working, &plain, || {
-            self.say("\n");
-            self.say(&self.paint("cyan", &heading));
-        });
+        let heading = format!("Unlock {device} with a FIDO2 security key");
+        self.heading(&heading, device);
         if self.have_token_plugin("systemd-fido2") {
             self.fido2_plugin_open(target, id, token).map_err(failed)?;
         } else {
@@ -194,7 +180,7 @@ impl Unlocker<'_> {
         let touch_message = || {
             if touch {
                 let text = "Touch the security key when it blinks.\n";
-                self.tell(Told::Touch, Some("yellow"), text);
+                self.tell(Told::Touch, text);
             }
         };
         if token.flag("fido2-clientPin-required") != Some(true) {
@@ -213,11 +199,9 @@ impl Unlocker<'_> {
                 attempt,
                 tries: Some(FIDO2_TRIES),
                 opened_elsewhere: None,
+                description: None,
             };
-            let asked = self.ask(&request, || {
-                self.read_secret("Security key PIN (leave empty to use another method): ")
-                    .into()
-            });
+            let asked = self.ask(&request);
             let pin = asked
                 .secret()
                 .filter(|pin| !pin.is_empty())
@@ -227,7 +211,7 @@ impl Unlocker<'_> {
                 return Ok(());
             }
             let refused = "The security key did not release the key.\n";
-            self.tell(Told::Refused, Some("red"), refused);
+            self.tell(Told::Refused, refused);
         }
         Err(TokenFailure::TooManyTries)
     }
@@ -306,7 +290,7 @@ mod tests {
             args: &args,
         };
         // The assertion with a PIN gets the console: fido2-assert asks there.
-        let prompts = crate::testing::Prompts::default();
+        let prompts = crate::testing::Prompts::new(&fake);
         let settings = Settings::new("/zfsbootmenu");
         with_prompter(&fake, &settings, &prompts, |session| {
             let token = Token::from_export("0", &json).unwrap();

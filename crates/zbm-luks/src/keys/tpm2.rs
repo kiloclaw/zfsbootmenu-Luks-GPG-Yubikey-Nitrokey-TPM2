@@ -106,15 +106,12 @@ impl Unlocker<'_> {
         self.system().command_exists("tpm2_getcap") && self.tpm2().in_lockout()
     }
 
-    /// Says that the TPM is in lockout, after `before` on the console.
-    fn tpm2_lockout_message(&self, before: &str) {
+    /// Says that the TPM is in lockout.
+    fn tpm2_lockout_message(&self) {
         let locked = "The TPM is locked against PIN guessing after too many wrong PINs.\n";
-        self.tell_with(Told::Refused, locked, || {
-            self.say(before);
-            self.say(&self.paint("red", locked));
-        });
+        self.tell(Told::Refused, locked);
         let other = "Use another unlock method; the lockout clears by itself over time.\n";
-        self.tell(Told::Refused, Some("red"), other);
+        self.tell(Told::Refused, other);
     }
 
     /// Unseals a systemd-tpm2 token with tpm2-tools, as systemd does.
@@ -250,7 +247,7 @@ impl Unlocker<'_> {
             return self.try_tpm2_without_pin(target, id, token).map_err(failed);
         }
         if self.tpm2_in_lockout() {
-            self.tpm2_lockout_message("\n");
+            self.tpm2_lockout_message();
             zbm_trace::warn!(
                 "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}"
             );
@@ -310,7 +307,7 @@ impl Unlocker<'_> {
                 }
                 drop(pin);
                 if self.tpm2_in_lockout() {
-                    self.tpm2_lockout_message("");
+                    self.tpm2_lockout_message();
                     return Err(TokenFailure::Lockout);
                 }
                 // A cached PIN is only ever tried once.
@@ -318,7 +315,7 @@ impl Unlocker<'_> {
                     break;
                 }
                 let refused = "The TPM did not release the key (wrong PIN or changed PCRs).\n";
-                self.tell(Told::Refused, Some("red"), refused);
+                self.tell(Told::Refused, refused);
             }
         }
         Err(TokenFailure::NotReleased)
@@ -341,14 +338,9 @@ impl Unlocker<'_> {
             attempt: *asked,
             tries: Some(TRIES),
             opened_elsewhere: None,
+            description: None,
         };
-        let line = format!("Unlock {} with the TPM\n", self.paint("yellow", device));
-        let asked = self.ask(&request, || {
-            self.say("\n");
-            self.say(&self.paint("cyan", &line));
-            self.read_secret("TPM2 PIN (leave empty to use another method): ")
-                .into()
-        });
+        let asked = self.ask(&request);
         asked
             .secret()
             .filter(|pin| !pin.is_empty())

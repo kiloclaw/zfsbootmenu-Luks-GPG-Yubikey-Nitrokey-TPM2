@@ -125,7 +125,7 @@ fn infos(fake: &FakeSystem) -> Vec<String> {
 fn discovery_shares_passphrases_and_closes_volumes_without_zfs() {
     let fake = machine(&[A, B, C], &[]);
     fake.console.secret(b"secret1").secret(b"other");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     let summary = with_session(&fake, &settings(), &prompts, unlock_all);
     assert_eq!(
         summary,
@@ -183,7 +183,7 @@ fn discovery_shares_passphrases_and_closes_volumes_without_zfs() {
 fn empty_passphrases_skip_and_retries_leave_skipped_volumes_alone() {
     let fake = machine(&[A], &[]);
     fake.console.secret(b"");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     assert_eq!(
         with_session(&fake, &settings(), &prompts, unlock_all),
         Err(LuksError::NoneUnlocked { failed: 1 })
@@ -209,7 +209,7 @@ fn empty_passphrases_skip_and_retries_leave_skipped_volumes_alone() {
 fn the_end_of_the_input_fails_gracefully() {
     let fake = machine(&[A], &[]);
     fake.console.push(ConsoleInput::End);
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     assert_eq!(
         with_session(&fake, &settings(), &prompts, unlock_all),
         Err(LuksError::NoneUnlocked { failed: 1 })
@@ -231,7 +231,7 @@ fn wrong_passphrases_end_in_a_retry_prompt() {
         .secret(b"secret1");
     let mut settings = settings();
     settings.default_tries = 2;
-    let prompts = Prompts::answering(&[Answer::Continue]);
+    let prompts = Prompts::answering(&fake, &[Answer::Continue]);
     assert_eq!(
         with_session(&fake, &settings, &prompts, unlock_all),
         Ok(UnlockSummary {
@@ -264,7 +264,7 @@ fn wrong_passphrases_end_in_a_retry_prompt() {
     let mut once = self::settings();
     once.default_tries = 1;
     assert_eq!(
-        with_session(&fake, &once, &Prompts::default(), unlock_all),
+        with_session(&fake, &once, &Prompts::new(&fake), unlock_all),
         Err(LuksError::NoneUnlocked { failed: 1 })
     );
     assert!(warnings(&fake).contains(&"giving up on LUKS volume /dev/loop1".to_owned()));
@@ -283,7 +283,7 @@ fn volumes_unlocked_elsewhere_end_the_prompt() {
             Ok(Output::new(Status::exited(0), ""))
         })
     });
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     let mut settings = settings();
     settings.mappings = "/zfsbootmenu/luks-mappings".into();
     assert_eq!(
@@ -318,7 +318,7 @@ fn crypttab_entries_use_key_files_options_and_names() {
         ),
     );
     fake.console.secret(b"wrong").secret(b"secret1");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     assert!(with_session(&fake, &settings(), &prompts, unlock_all).is_ok());
     assert_eq!(
         mappings(&fake),
@@ -360,7 +360,7 @@ fn a_crypttab_name_that_is_no_mapping_name_is_not_opened() {
         "--test-passphrase /dev/loop1 none\npool-b /dev/loop2 none\n",
     );
     fake.console.secret(b"secret1");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     let summary = with_session(&fake, &settings(), &prompts, unlock_all).unwrap();
     assert_eq!((summary.unlocked, summary.failed), (1, 1));
     assert_eq!(mappings(&fake), "pool-b\t/dev/loop2\t0\n");
@@ -375,7 +375,7 @@ fn missing_devices_are_asked_about_and_duplicates_are_skipped() {
         format!("a1 /dev/loop1\na2 UUID={}\nm LABEL=missing\n", A.uuid),
     );
     fake.console.secret(b"secret1");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     // One unlocked, one failed: still a success.
     assert!(with_session(&fake, &settings(), &prompts, unlock_all).is_ok());
     assert_eq!(prompts.messages(), ["LUKS device LABEL=missing is missing"]);
@@ -398,7 +398,7 @@ fn key_scripts_come_first() {
             ))
         })
     });
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     assert_eq!(
         with_session(&fake, &settings(), &prompts, |session| {
             session.open_device(
@@ -451,7 +451,7 @@ fn volumes_in_use_and_taken_names_are_left_alone() {
     let fake = machine(&[A, C], &[]);
     fake.files.file("/fake/holders/loop1", "x\n");
     fake.files.block_device("/dev/mapper/taken");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     with_session(&fake, &settings(), &prompts, |session| {
         assert_eq!(
             session.open_device(
@@ -505,7 +505,7 @@ fn volumes_in_use_and_taken_names_are_left_alone() {
 fn disabled_or_unavailable_unlocking_fails_only_retries() {
     let fake = machine(&[A], &[]);
     fake.files.file("/zfsbootmenu/cmdline.d/zbm.luks", "off\n");
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     let unlock =
         |fake: &FakeSystem, settings: Settings| with_session(fake, &settings, &prompts, unlock_all);
     let mut retry = settings();
@@ -528,7 +528,7 @@ fn closing_exports_pools_first_and_keeps_busy_mappings() {
         "/etc/zfsbootmenu/crypttab",
         "a1 /dev/loop1 none\nb1 /dev/loop2 none\n",
     );
-    let prompts = Prompts::default();
+    let prompts = Prompts::new(&fake);
     assert!(with_session(&fake, &settings(), &prompts, unlock_all).is_ok());
     fake.files.file("/fake/busy/b1", "");
     // A pool that cannot be exported does not keep its mapping open.

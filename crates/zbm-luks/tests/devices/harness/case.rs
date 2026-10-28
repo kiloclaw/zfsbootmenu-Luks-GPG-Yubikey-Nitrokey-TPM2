@@ -14,8 +14,11 @@ use zbm_luks::unlocker::{Luks, Settings, Unlocker};
 use zbm_platform::console::{Console, Size, Timed};
 use zbm_platform::env::Environment;
 use zbm_platform::files::{Files, RealFiles};
-use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
+use zbm_platform::interaction::{
+    Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, Wait, WaitRequest,
+};
 use zbm_platform::{KernelLog, Secret, System, SystemClock, SystemProcesses};
+use zbm_tools::console::ConsoleInteraction;
 
 use super::{DeviceRunner, Dump, Lab, record_name};
 
@@ -139,14 +142,15 @@ impl Console for LinesConsole {
 
 /// Timed prompts recorded and answered as the seams of `impl.sh` do: one
 /// status per line of the answers file, 0 for RETURN, ESCAPE when there is
-/// none, after `delay`.
-struct Recorded {
+/// none, after `delay`; secrets, waits and messages go to the console.
+struct Recorded<'a> {
+    console: ConsoleInteraction<'a>,
     prompts: PathBuf,
     answers: PathBuf,
     delay: Duration,
 }
 
-impl Interaction for Recorded {
+impl Interaction for Recorded<'_> {
     fn ask(&self, request: &PromptRequest) -> Answer {
         let mut text = std::fs::read_to_string(&self.prompts).unwrap_or_default();
         text.push_str(&format!("timed_prompt {}\n", request.arguments().join(" ")));
@@ -160,6 +164,18 @@ impl Interaction for Recorded {
         } else {
             Answer::Escape
         }
+    }
+
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        self.console.secret(request)
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        self.console.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        self.console.notify(tell);
     }
 }
 
@@ -304,6 +320,7 @@ impl<'l> Case<'l> {
             .labelled()
             .install();
         let prompter = Recorded {
+            console: ConsoleInteraction::new(system).colors(false),
             prompts: self.fake.join("prompts"),
             answers: self.fake.join("answers"),
             delay: self.prompt_delay,

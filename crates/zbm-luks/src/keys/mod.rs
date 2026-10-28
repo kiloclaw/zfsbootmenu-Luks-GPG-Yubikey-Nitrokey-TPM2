@@ -209,7 +209,7 @@ pub(crate) mod tests {
         settings: &Settings,
         body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
-        with_prompter(fake, settings, &NoPrompts, body)
+        with_prompter(fake, settings, &NoPrompts::new(fake), body)
     }
 
     /// [`with_session`] with `prompter`.

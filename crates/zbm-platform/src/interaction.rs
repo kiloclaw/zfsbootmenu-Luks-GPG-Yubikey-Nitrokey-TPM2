@@ -67,6 +67,9 @@ pub struct SecretRequest<'r> {
     /// Whether another program opened the volume meanwhile, such as `zluks`
     /// over SSH; asked while the request waits, when it can happen.
     pub opened_elsewhere: Option<&'r dyn Fn() -> bool>,
+    /// The volume described for the person, as the passphrase prompt names
+    /// it: its device, with its label and size when they are known.
+    pub description: Option<&'r str>,
 }
 
 impl SecretRequest<'_> {
@@ -144,15 +147,31 @@ pub enum Told {
     Touch,
     /// Something did not work: the secret was wrong, the TPM refused.
     Refused,
+    /// What comes next is about this: `Unlock /dev/sda2 with a FIDO2
+    /// security key`.
+    Heading,
 }
 
-/// A message of [`Told`] kind, as plain text.
+/// A message of [`Told`] kind, as plain text, a line without its newline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Tell<'r> {
     /// What kind of message.
     pub told: Told,
     /// The message.
     pub text: &'r str,
+    /// A part of the message to show highlighted, such as the device.
+    pub highlight: Option<&'r str>,
+}
+
+impl<'r> Tell<'r> {
+    /// A message of kind `told`, without a highlighted part.
+    pub fn new(told: Told, text: &'r str) -> Tell<'r> {
+        Tell {
+            told,
+            text,
+            highlight: None,
+        }
+    }
 }
 
 /// What a timed prompt of the LUKS code is about.
@@ -210,39 +229,58 @@ impl PromptRequest {
 }
 
 /// The person at the console, as domain code reaches them: what it asks,
-/// says and waits for. Front ends implement it: the start-up program on the
-/// console, the menu with its dialogs; the unit suites record and answer the
-/// timed prompts. Every request but the timed prompt comes with the plain
-/// console prompt as a closure, which the defaults run (ROADMAP.md, DM2:
-/// the closures go when the plain console becomes an implementation too).
+/// says and waits for. Front ends implement it: the plain console
+/// (`zbm_tools::console::ConsoleInteraction`), the menu with its dialogs;
+/// the unit suites record and answer the requests. Domain code only says
+/// what it needs: how each request is shown is the implementation's.
 pub trait Interaction {
     /// Shows the prompt and returns what the user did: RETURN or letting the
     /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
     fn ask(&self, request: &PromptRequest) -> Answer;
 
-    /// Asks for a secret; `console` asks on the plain console.
-    fn secret(&self, _request: &SecretRequest<'_>, console: &mut dyn FnMut() -> Asked) -> Asked {
-        console()
-    }
+    /// Asks for a secret.
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked;
 
-    /// Waits for a device; `console` waits on the plain console.
-    fn wait(&self, _request: &WaitRequest<'_>, console: &mut dyn FnMut() -> Wait) -> Wait {
-        console()
-    }
+    /// Waits for a device, while it is not there.
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait;
 
-    /// Says something along the way; `console` says it on the plain console.
-    fn notify(&self, _tell: Tell<'_>, console: &mut dyn FnMut()) {
-        console();
-    }
+    /// Says something along the way.
+    fn notify(&self, tell: Tell<'_>);
 
     /// Runs `run`, whose program needs the console: an interactive key
     /// script, or `fido2-assert` asking for its PIN. A front end that draws
     /// on the console steps aside meanwhile and gives `run` the system whose
     /// programs reach it; on the plain console `run` gets `None` and uses
-    /// the unlocking's own system. `run` must not ask the prompter anything.
+    /// the caller's own system. `run` must not ask anything.
     fn lease_console(&self, run: &mut dyn FnMut(Option<&System<'_>>)) {
         run(None);
     }
+}
+
+/// No one at the console, for code that must not ask anything, such as a
+/// report: timed prompts are escaped, no secret comes, no device is waited
+/// for, and nothing is said.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoInteraction;
+
+impl Interaction for NoInteraction {
+    fn ask(&self, _: &PromptRequest) -> Answer {
+        Answer::Escape
+    }
+
+    fn secret(&self, _: &SecretRequest<'_>) -> Asked {
+        Asked::Ended
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        if (request.present)() {
+            Wait::Present
+        } else {
+            Wait::TimedOut
+        }
+    }
+
+    fn notify(&self, _: Tell<'_>) {}
 }
 
 /// How waiting for a device ended.
@@ -272,6 +310,7 @@ mod tests {
             attempt,
             tries,
             opened_elsewhere: None,
+            description: None,
         };
         assert_eq!(request(1, Some(3)).tries_left(), Some(3));
         assert_eq!(request(3, Some(3)).tries_left(), Some(1));

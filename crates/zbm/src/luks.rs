@@ -5,7 +5,7 @@ use std::path::Path;
 
 use zbm_app::model::{Action, Event, Outcome};
 use zbm_app::{App, NO_CRYPTSETUP, device_not_found};
-use zbm_boot::prompt::{ConsolePrompter, colorize};
+use zbm_boot::prompt::{ConsoleInteraction, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::{Luks, Settings, Unlocker};
@@ -78,7 +78,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     };
     let settings = settings(&system, &conf);
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
-    let prompter = ConsolePrompter::new(system);
+    let prompter = ConsoleInteraction::new(system).colors(settings.colors);
     let luks = Luks {
         system,
         settings: &settings,
@@ -253,17 +253,6 @@ mod tests {
     use zbm_platform::KernelLog;
     use zbm_testkit::fakes::FakeSystem;
 
-    struct NoPrompts;
-
-    impl zbm_platform::interaction::Interaction for NoPrompts {
-        fn ask(
-            &self,
-            _: &zbm_platform::interaction::PromptRequest,
-        ) -> zbm_platform::interaction::Answer {
-            zbm_platform::interaction::Answer::Escape
-        }
-    }
-
     fn call(fake: &FakeSystem, args: &[&str]) -> (i32, String, String) {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.open_check = OpenCheck::Markers("/fake/holders".into());
@@ -271,7 +260,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            interaction: &NoPrompts,
+            interaction: &zbm_platform::interaction::NoInteraction,
         };
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());

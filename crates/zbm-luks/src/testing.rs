@@ -1,15 +1,17 @@
 //! Helpers for the tests of this crate.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::path::Path;
 
 use zbm_platform::{Installed, KernelLog};
 
-use zbm_platform::interaction::VolumeRef;
-use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
+use zbm_platform::interaction::{
+    Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, VolumeRef, Wait, WaitRequest,
+};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
+use zbm_tools::console::ConsoleInteraction;
 
 /// The legacy LUKS library, loaded as the unit suites load it, with messages
 /// on standard error as `LEVEL: text`.
@@ -43,31 +45,63 @@ pub const VOLUME: VolumeRef<'static> = VolumeRef {
     device: "/dev/sda",
 };
 
-/// A prompter for code that must not show a timed prompt.
-pub struct NoPrompts;
+/// A prompter for code that must not show a timed prompt: secrets, waits
+/// and messages go to the fake machine's console, without colours.
+pub struct NoPrompts<'a> {
+    console: ConsoleInteraction<'a>,
+}
 
-impl Interaction for NoPrompts {
-    fn ask(&self, request: &PromptRequest) -> Answer {
-        panic!("unexpected timed prompt {request:?}");
+impl NoPrompts<'_> {
+    /// The prompter of `fake`'s console.
+    pub fn new(fake: &FakeSystem) -> NoPrompts<'_> {
+        NoPrompts {
+            console: ConsoleInteraction::new(fake.system()).colors(false),
+        }
     }
 }
 
-/// A prompter that records the prompts and answers them from a list, with
-/// ESCAPE when the list is exhausted, as the unit suites answer them.
-#[derive(Default)]
-pub struct Prompts {
-    answers: RefCell<VecDeque<Answer>>,
-    shown: RefCell<Vec<PromptRequest>>,
-    consoles: std::cell::Cell<usize>,
+impl Interaction for NoPrompts<'_> {
+    fn ask(&self, request: &PromptRequest) -> Answer {
+        panic!("unexpected timed prompt {request:?}");
+    }
+
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        self.console.secret(request)
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        self.console.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        self.console.notify(tell);
+    }
 }
 
-impl Prompts {
-    /// A prompter with these answers.
-    pub fn answering(answers: &[Answer]) -> Prompts {
+/// A prompter that records the timed prompts and answers them from a list,
+/// with ESCAPE when the list is exhausted, as the unit suites answer them;
+/// secrets, waits and messages go to the fake machine's console, without
+/// colours.
+pub struct Prompts<'a> {
+    console: ConsoleInteraction<'a>,
+    answers: RefCell<VecDeque<Answer>>,
+    shown: RefCell<Vec<PromptRequest>>,
+    consoles: Cell<usize>,
+}
+
+impl Prompts<'_> {
+    /// A prompter of `fake`'s console that answers ESCAPE.
+    pub fn new(fake: &FakeSystem) -> Prompts<'_> {
+        Prompts::answering(fake, &[])
+    }
+
+    /// A prompter of `fake`'s console with these answers.
+    pub fn answering<'a>(fake: &'a FakeSystem, answers: &[Answer]) -> Prompts<'a> {
         Prompts {
+            console: ConsoleInteraction::new(fake.system()).colors(false),
             answers: RefCell::new(answers.iter().copied().collect()),
             shown: RefCell::new(Vec::new()),
-            consoles: std::cell::Cell::new(0),
+            consoles: Cell::new(0),
         }
     }
 
@@ -86,13 +120,25 @@ impl Prompts {
     }
 }
 
-impl Interaction for Prompts {
+impl Interaction for Prompts<'_> {
     fn ask(&self, request: &PromptRequest) -> Answer {
         self.shown.borrow_mut().push(request.clone());
         self.answers
             .borrow_mut()
             .pop_front()
             .unwrap_or(Answer::Escape)
+    }
+
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        self.console.secret(request)
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        self.console.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        self.console.notify(tell);
     }
 
     fn lease_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {

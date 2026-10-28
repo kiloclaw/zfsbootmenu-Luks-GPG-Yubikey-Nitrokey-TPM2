@@ -1,9 +1,8 @@
 use super::*;
 use crate::testing::{NoPrompts, Prompts, log};
-use zbm_platform::clock::Clock;
-use zbm_platform::exec::{Output, Status};
+use zbm_platform::exec::{Input, Output, Status};
 use zbm_platform::interaction::Subject;
-use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
+use zbm_testkit::fakes::FakeSystem;
 
 #[test]
 fn settings_follow_the_legacy_variables() {
@@ -43,7 +42,7 @@ fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        interaction: &NoPrompts,
+        interaction: &NoPrompts::new(fake),
     };
     body(&mut Unlocker::new(luks));
 }
@@ -114,7 +113,7 @@ fn a_device_that_appears_is_used_once_udev_settled() {
             seconds: 5,
             present: &present,
         };
-        assert_eq!(session.await_device(&request, "Insert it"), Wait::Present);
+        assert_eq!(session.await_device(&request), Wait::Present);
     });
     assert_eq!(fake.runner.lines(), ["udevadm settle"]);
 
@@ -130,64 +129,9 @@ fn a_device_that_appears_is_used_once_udev_settled() {
             seconds: 5,
             present: &|| true,
         };
-        assert_eq!(session.await_device(&request, "Insert it"), Wait::Present);
+        assert_eq!(session.await_device(&request), Wait::Present);
     });
     assert!(fake.runner.lines().is_empty());
-}
-
-#[test]
-fn waiting_ends_with_the_device_or_a_key() {
-    let fake = FakeSystem::new();
-    fake.console.timeout().timeout();
-    let checks = std::cell::Cell::new(0);
-    with_session(&fake, |session| {
-        let waited = session.wait_for(5, "Insert it", &|| {
-            checks.set(checks.get() + 1);
-            checks.get() == 3
-        });
-        assert_eq!(waited, Wait::Present);
-    });
-    assert_eq!(checks.get(), 3);
-    assert_eq!(fake.clock.now(), Duration::from_secs(2));
-    assert_eq!(
-        fake.console.output_text(),
-        "Insert it\nWaiting 5 seconds; press any key to skip.\n"
-    );
-    // await_device settles, whichever front end waited.
-    assert!(fake.runner.lines().is_empty());
-
-    // A key skips the wait; the end of the input waits a second each time.
-    let fake = FakeSystem::new();
-    fake.console.keys(b"x");
-    with_session(&fake, |session| {
-        assert_eq!(session.wait_for(5, "m", &|| false), Wait::Skipped);
-    });
-    let fake = FakeSystem::new();
-    fake.console.push(ConsoleInput::End);
-    with_session(&fake, |session| {
-        assert_eq!(session.wait_for(3, "m", &|| false), Wait::TimedOut);
-    });
-    assert_eq!(fake.clock.now(), Duration::from_secs(3));
-    // Without time to wait, only the first check counts.
-    let fake = FakeSystem::new();
-    with_session(&fake, |session| {
-        assert_eq!(session.wait_for(0, "m", &|| false), Wait::TimedOut);
-    });
-    assert_eq!(fake.console.output_text(), "");
-}
-
-#[test]
-fn secrets_are_read_with_echo_off() {
-    let fake = FakeSystem::new();
-    fake.console.secret(b"1234");
-    with_session(&fake, |session| {
-        let pin = session.read_secret("TPM2 PIN: ").unwrap();
-        assert_eq!(pin.expose(), b"1234");
-        assert_eq!(session.read_secret("again: "), None);
-    });
-    assert_eq!(fake.console.echo_changes(), [false, true, false, true]);
-    assert_eq!(fake.console.output_text(), "TPM2 PIN: \nagain: \n");
-    fake.assert_no_leak(b"1234");
 }
 
 #[test]
@@ -278,7 +222,7 @@ fn prompts_go_to_the_prompter() {
     let fake = FakeSystem::new();
     let settings = Settings::new("/zfsbootmenu");
     let _log = log(&fake);
-    let prompts = Prompts::answering(&[Answer::Continue]);
+    let prompts = Prompts::answering(&fake, &[Answer::Continue]);
     let session = Unlocker::new(Luks {
         system: fake.system(),
         settings: &settings,

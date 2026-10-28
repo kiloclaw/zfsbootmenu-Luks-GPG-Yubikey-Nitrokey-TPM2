@@ -75,13 +75,6 @@ impl Unlocker<'_> {
         }
         let mut device = None;
         if !self.settings().retry && !self.keydev_absent.contains(device_spec) {
-            let message = self.paint(
-                "cyan",
-                &format!(
-                    "Insert the key device {} holding {file}",
-                    self.paint("yellow", device_spec)
-                ),
-            );
             let request = WaitRequest {
                 volume,
                 awaited: Awaited::KeyDevice {
@@ -91,7 +84,7 @@ impl Unlocker<'_> {
                 seconds: self.token_wait(),
                 present: &|| device_present(&system, device_spec),
             };
-            let waited = self.await_device(&request, &message);
+            let waited = self.await_device(&request);
             if waited == Wait::Present {
                 device = resolve_device(&system, device_spec);
             }
@@ -188,7 +181,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            interaction: &NoPrompts,
+            interaction: &NoPrompts::new(fake),
         };
         body(&mut Unlocker::new(luks))
     }

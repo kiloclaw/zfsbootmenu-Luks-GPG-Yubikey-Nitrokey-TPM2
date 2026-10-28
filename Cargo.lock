@@ -4138,6 +4138,7 @@ dependencies = [
  "zbm-platform",
  "zbm-sys",
  "zbm-testkit",
+ "zbm-types",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 zbm-platform.workspace = true
 zbm-sys.workspace = true
+zbm-types.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

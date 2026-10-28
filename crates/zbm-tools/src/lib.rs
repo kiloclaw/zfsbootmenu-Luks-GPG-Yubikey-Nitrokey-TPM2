@@ -11,6 +11,7 @@
 //!
 //! | Module | Programs |
 //! | --- | --- |
+//! | [`console`] | `tput`: the plain console's prompts |
 //! | [`devices`] | `blkid`, `lsblk` |
 //! | [`efi`] | `objcopy`, `objdump` |
 //! | [`kexec`] | `kexec` |
@@ -28,6 +29,7 @@
     )
 )]
 
+pub mod console;
 pub mod devices;
 pub mod efi;
 pub mod kexec;

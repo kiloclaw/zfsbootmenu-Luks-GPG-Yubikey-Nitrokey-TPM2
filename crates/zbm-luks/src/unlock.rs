@@ -5,9 +5,7 @@
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::time::Duration;
 
-use zbm_platform::console::Timed;
 use zbm_tools::devices::Devices;
 use zbm_types::{DevicePath, MappingName};
 
@@ -185,6 +183,7 @@ impl Unlocker<'_> {
                             return Ok(Opened::Elsewhere);
                         }
                         Asked::Ended => {
+                            zbm_trace::warn!("no console available to unlock {device}");
                             return Err(LuksError::NoConsole {
                                 device: device.to_owned(),
                             });
@@ -194,7 +193,7 @@ impl Unlocker<'_> {
                         zbm_trace::info!("skipping LUKS volume {device} at user request");
                         return Err(self.skipped(device));
                     }
-                    self.tell(Told::Working, None, &format!("Unlocking {device} ...\n"));
+                    self.tell(Told::Working, &format!("Unlocking {device} ...\n"));
                     if self
                         .cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args)
                         .is_ok()
@@ -220,8 +219,8 @@ impl Unlocker<'_> {
         }
     }
 
-    /// Asks for the passphrase of `volume`, attempt `attempt` of `tries` (0:
-    /// without limit); on the console, at `description`.
+    /// Asks for the passphrase of `volume`, described as `description`,
+    /// attempt `attempt` of `tries` (0: without limit).
     fn passphrase(
         &self,
         volume: VolumeRef<'_>,
@@ -237,46 +236,9 @@ impl Unlocker<'_> {
             attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
             tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),
             opened_elsewhere: Some(&elsewhere),
+            description: Some(description),
         };
-        self.ask(&request, || {
-            self.show_passphrase_prompt(description, attempt);
-            self.read_passphrase(device)
-        })
-    }
-
-    /// Draws the prompt for attempt `attempt` at `description`.
-    fn show_passphrase_prompt(&self, description: &str, attempt: u64) {
-        self.system().console.set_echo(false);
-        self.tput(&["cnorm"]);
-        self.say("\n");
-        let line = format!("Unlock LUKS volume {}\n", self.paint("yellow", description));
-        self.say(&self.paint("cyan", &line));
-        if attempt > 1 {
-            self.say(&self.paint("red", "No key available with this passphrase.\n"));
-        }
-        self.say("Passphrase (leave empty to skip): ");
-    }
-
-    /// Reads a passphrase on the console, noticing when `device` is opened
-    /// elsewhere meanwhile; echo is on again afterwards. [`Asked::Ended`]
-    /// when the console has no more input.
-    fn read_passphrase(&self, device: &str) -> Asked {
-        let console = self.system().console;
-        let read = loop {
-            match console.read_secret_within(Duration::from_secs(2)) {
-                Ok(Timed::Read(passphrase)) => break Asked::Secret(passphrase),
-                Ok(Timed::TimedOut) if self.is_device_open(device) => break Asked::Elsewhere,
-                Ok(Timed::TimedOut) => {}
-                // Nothing more can be done interactively.
-                Ok(Timed::Ended) | Err(_) => break Asked::Ended,
-            }
-        };
-        console.set_echo(true);
-        self.say("\n");
-        if matches!(read, Asked::Ended) {
-            zbm_trace::warn!("no console available to unlock {device}");
-        }
-        read
+        self.ask(&request)
     }
 
     /// Asks whether to try `volume`, at `description`, again after a failed
@@ -292,10 +254,7 @@ impl Unlocker<'_> {
             on_return: "try again".to_owned(),
             on_escape: "skip this volume".to_owned(),
         };
-        let answer = self.timed_prompt(&request);
-        self.tput(&["cnorm"]);
-        self.tput(&["clear"]);
-        answer
+        self.timed_prompt(&request)
     }
 
     /// Records that the user skipped `device`, and the error that says so.
@@ -330,8 +289,6 @@ impl Unlocker<'_> {
                 on_escape: "skip this device".to_owned(),
             };
             if self.timed_prompt(&request) == Answer::Escape {
-                self.tput(&["cnorm"]);
-                self.tput(&["clear"]);
                 zbm_trace::error!("LUKS device {spec} not found");
                 return None;
             }

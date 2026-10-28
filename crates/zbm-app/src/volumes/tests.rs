@@ -1,9 +1,13 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
+use zbm_boot::prompt::ConsoleInteraction;
 use zbm_luks::device::OpenCheck;
 use zbm_luks::unlocker::Settings;
 use zbm_platform::KernelLog;
+use zbm_platform::interaction::{
+    Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, Wait, WaitRequest,
+};
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
@@ -170,15 +174,25 @@ fn an_unlocking_run_reports_the_volumes_skipped_and_how_it_ended() {
     );
 }
 
-/// A prompter that answers every timed prompt with ESCAPE.
-struct Escape;
+/// A prompter that answers every timed prompt with ESCAPE; secrets, waits
+/// and messages go to the console.
+struct Escape<'a>(ConsoleInteraction<'a>);
 
-impl zbm_platform::interaction::Interaction for Escape {
-    fn ask(
-        &self,
-        _: &zbm_platform::interaction::PromptRequest,
-    ) -> zbm_platform::interaction::Answer {
-        zbm_platform::interaction::Answer::Escape
+impl Interaction for Escape<'_> {
+    fn ask(&self, _: &PromptRequest) -> Answer {
+        Answer::Escape
+    }
+
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        self.0.secret(request)
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        self.0.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        self.0.notify(tell);
     }
 }
 
@@ -190,7 +204,7 @@ fn act_in_app(fake: &FakeSystem, action: &Action) -> Vec<Event> {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        interaction: &Escape,
+        interaction: &Escape(ConsoleInteraction::new(fake.system()).colors(false)),
     };
     crate::App::new(zbm_platform::Context::new(fake.system()))
         .with_luks(luks)

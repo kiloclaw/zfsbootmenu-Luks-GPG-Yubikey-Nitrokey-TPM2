@@ -126,7 +126,7 @@ impl Interaction for MenuFront<'_> {
     /// The unlock dialog: what was typed with Enter; empty with Esc, or when
     /// another method was chosen; nothing when another program opened the
     /// volume meanwhile, or the view is gone.
-    fn secret(&self, request: &SecretRequest<'_>, _console: &mut dyn FnMut() -> Asked) -> Asked {
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
         let method = secret_method(&request.kind);
         let notice = self.notice(method, request.attempt);
         self.list_volume(request.volume, method);
@@ -160,7 +160,7 @@ impl Interaction for MenuFront<'_> {
 
     /// The unlock dialog, waiting for the device with the time left: Esc
     /// stops waiting, Enter looks again at once.
-    fn wait(&self, request: &WaitRequest<'_>, _console: &mut dyn FnMut() -> Wait) -> Wait {
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
         if (request.present)() {
             return Wait::Present;
         }
@@ -206,10 +206,12 @@ impl Interaction for MenuFront<'_> {
 
     /// What goes wrong is said by the next dialog; what takes a while
     /// shows until the next event.
-    fn notify(&self, tell: Tell<'_>, _console: &mut dyn FnMut()) {
+    fn notify(&self, tell: Tell<'_>) {
         match tell.told {
             Told::Refused => self.refused.borrow_mut().push(tell.text.to_owned()),
-            Told::Working | Told::Touch => self.show(Event::Progress(tell.text.to_owned())),
+            Told::Working | Told::Touch | Told::Heading => {
+                self.show(Event::Progress(tell.text.to_owned()));
+            }
         }
     }
 }

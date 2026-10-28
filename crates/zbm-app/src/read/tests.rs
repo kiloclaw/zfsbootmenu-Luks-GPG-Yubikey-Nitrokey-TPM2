@@ -1,18 +1,34 @@
 use pretty_assertions::assert_eq;
 use zbm_config::args::ZbmArgs;
 use zbm_luks::unlocker::{Luks, Settings};
-use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
+use zbm_platform::interaction::{
+    Answer, Asked, Interaction, NoInteraction, PromptRequest, SecretRequest, Tell, Wait,
+    WaitRequest,
+};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::zfs::FakeZfs;
 
 use super::*;
 
-/// A prompter for code that must not show a timed prompt.
+/// A prompter for code that must not show a timed prompt, and asks nothing
+/// else of anyone.
 pub(crate) struct NoPrompts;
 
 impl Interaction for NoPrompts {
     fn ask(&self, request: &PromptRequest) -> Answer {
         panic!("unexpected timed prompt {request:?}");
+    }
+
+    fn secret(&self, request: &SecretRequest<'_>) -> Asked {
+        NoInteraction.secret(request)
+    }
+
+    fn wait(&self, request: &WaitRequest<'_>) -> Wait {
+        NoInteraction.wait(request)
+    }
+
+    fn notify(&self, tell: Tell<'_>) {
+        NoInteraction.notify(tell);
     }
 }
 

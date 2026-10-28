@@ -14,19 +14,10 @@ use zbm_app::App;
 use zbm_app::Encryption;
 use zbm_app::model::{Origin, Snapshot, VolumeState};
 use zbm_luks::unlocker::{Luks, Settings};
-use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
+use zbm_platform::interaction::NoInteraction;
 use zbm_platform::{Context, System};
 
 use crate::Io;
-
-/// The prompter of a report, which shows no prompt.
-struct NoPrompts;
-
-impl Interaction for NoPrompts {
-    fn ask(&self, _: &PromptRequest) -> Answer {
-        Answer::Escape
-    }
-}
 
 /// The lines of `zbm debug luks`.
 pub fn luks_lines(snapshot: &Snapshot) -> Vec<String> {
@@ -119,7 +110,7 @@ pub fn run_in(system: &System<'_>, settings: &Settings, report: &str, io: &mut I
     let luks = Luks {
         system: *system,
         settings,
-        interaction: &NoPrompts,
+        interaction: &NoInteraction,
     };
     let app = App::new(Context::new(*system))
         .with_luks(luks)

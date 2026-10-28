@@ -238,7 +238,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            interaction: &NoPrompts,
+            interaction: &NoPrompts::new(fake),
         };
         body(&Unlocker::new(luks))
     }

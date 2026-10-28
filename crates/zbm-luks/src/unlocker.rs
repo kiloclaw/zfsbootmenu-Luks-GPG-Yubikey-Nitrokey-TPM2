@@ -10,17 +10,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use zbm_config::args::{Args, CmdlineDir};
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::luks::{LUKS_TOKEN_WAIT, LUKS_TOKENS};
 use zbm_crypt::{CryptError, Cryptsetup, KeySource};
-use zbm_platform::color::colorize;
-use zbm_platform::exec::Input;
 use zbm_platform::secret::Secret;
 use zbm_platform::{Environment, System};
-use zbm_tools::{Shown, terminal, udev};
+use zbm_tools::{Shown, udev};
 pub use zbm_types::Answer;
 use zbm_types::RetryDelay;
 
@@ -253,26 +250,6 @@ impl<'a> Unlocker<'a> {
         self.options().lookup(spec, &mut Vec::new())
     }
 
-    /// `text` in `color`, or plain when [`Settings::colors`] is off.
-    pub fn paint(&self, color: &str, text: &str) -> String {
-        if self.settings().colors {
-            colorize(color, text)
-        } else {
-            text.to_owned()
-        }
-    }
-
-    /// Writes text to the console.
-    pub fn say(&self, text: &str) {
-        let _ = self.system().console.write(text.as_bytes());
-    }
-
-    /// `tput <args>`, whose output goes to the console.
-    pub fn tput(&self, args: &[&str]) {
-        let output = terminal::tput(self.system().runner, args, Input::Null);
-        let _ = self.system().console.write(&output);
-    }
-
     /// `udevadm settle`.
     pub fn settle(&self) {
         udev::settle(self.system().runner, Shown::Hidden);
@@ -283,10 +260,9 @@ impl<'a> Unlocker<'a> {
         self.luks.interaction.ask(request)
     }
 
-    /// Asks for a secret through the interaction; `console` is the plain
-    /// console prompt.
-    pub fn ask(&self, request: &SecretRequest<'_>, mut console: impl FnMut() -> Asked) -> Asked {
-        self.luks.interaction.secret(request, &mut console)
+    /// Asks for a secret.
+    pub fn ask(&self, request: &SecretRequest<'_>) -> Asked {
+        self.luks.interaction.secret(request)
     }
 
     /// Runs `run` with the system whose programs reach the console
@@ -298,50 +274,33 @@ impl<'a> Unlocker<'a> {
             .lease_console(&mut |system| run(system.unwrap_or(&own)));
     }
 
-    /// Waits for a device through the interaction; on the plain console, with
-    /// `message` ([`Unlocker::wait_for`]). A device that appeared meanwhile
-    /// is used once udev settled, so that its links and partitions are
-    /// there, whichever front end waited.
-    pub fn await_device(&self, request: &WaitRequest<'_>, message: &str) -> Wait {
-        let present = request.present;
-        let was_present = present();
-        let mut console = || self.wait_for(request.seconds, message, present);
-        let waited = self.luks.interaction.wait(request, &mut console);
+    /// Waits for a device. One that appeared meanwhile is used once udev
+    /// settled, so that its links and partitions are there, whichever front
+    /// end waited.
+    pub fn await_device(&self, request: &WaitRequest<'_>) -> Wait {
+        let was_present = (request.present)();
+        let waited = self.luks.interaction.wait(request);
         if waited == Wait::Present && !was_present {
             self.settle();
         }
         waited
     }
 
-    /// Says `text` (a line, with its newline) through the interaction; on the
-    /// plain console, in `color` when given.
-    pub fn tell(&self, told: Told, color: Option<&str>, text: &str) {
-        let shown = color.map_or_else(|| text.to_owned(), |color| self.paint(color, text));
-        self.tell_with(told, text, || self.say(&shown));
+    /// Says `text`, a line, with or without its newline.
+    pub fn tell(&self, told: Told, text: &str) {
+        self.luks
+            .interaction
+            .notify(Tell::new(told, text.trim_end_matches('\n')));
     }
 
-    /// Says `text` through the interaction; `console` says it on the plain
-    /// console.
-    pub fn tell_with(&self, told: Told, text: &str, mut console: impl FnMut()) {
-        let tell = Tell {
-            told,
+    /// Says what comes next is about `text`, with `device` in it
+    /// highlighted.
+    pub fn heading(&self, text: &str, device: &str) {
+        self.luks.interaction.notify(Tell {
+            told: Told::Heading,
             text: text.trim_end_matches('\n'),
-        };
-        self.luks.interaction.notify(tell, &mut console);
-    }
-
-    /// Asks for a secret on the console with echo off; `None` when the input
-    /// ends. Echo goes off before the prompt appears, so no keystroke can
-    /// echo.
-    pub fn read_secret(&self, prompt: &str) -> Option<Secret> {
-        let console = self.system().console;
-        console.set_echo(false);
-        self.tput(&["cnorm"]);
-        self.say(prompt);
-        let secret = console.read_secret().ok().flatten();
-        console.set_echo(true);
-        self.say("\n");
-        secret
+            highlight: Some(device),
+        });
     }
 
     /// Seconds to wait for a security key, smart card or key device
@@ -358,38 +317,6 @@ impl<'a> Unlocker<'a> {
     /// it off.
     pub fn tokens_enabled(&self) -> bool {
         self.options().enabled(&LUKS_TOKENS, &mut Vec::new())
-    }
-
-    /// Waits on the console up to `seconds` for `present` to hold, showing
-    /// `message`, unless the user presses a key.
-    pub fn wait_for(&self, seconds: u64, message: &str, present: &dyn Fn() -> bool) -> Wait {
-        if present() {
-            return Wait::Present;
-        }
-        if seconds == 0 {
-            return Wait::TimedOut;
-        }
-        let system = self.system();
-        self.say(&format!("{message}\n"));
-        self.say(&format!(
-            "Waiting {seconds} seconds; press any key to skip.\n"
-        ));
-        let second = Duration::from_secs(1);
-        for _ in 0..seconds {
-            let before = system.clock.now();
-            match system.console.read_key(Some(second)) {
-                Ok(Some(_)) => return Wait::Skipped,
-                // The end of the input returns at once, so wait here.
-                _ if system.clock.now().saturating_sub(before) < second => {
-                    system.clock.sleep(second);
-                }
-                _ => {}
-            }
-            if present() {
-                return Wait::Present;
-            }
-        }
-        Wait::TimedOut
     }
 
     /// `cryptsetup open --type luks --key-file=<key> <args> <device> <name>`;

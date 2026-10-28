@@ -113,7 +113,7 @@ impl Unlocker<'_> {
             let secret = secret.filter(|secret| !secret.is_empty())?;
             if card {
                 let touch = "Touch the security key if it blinks.\n";
-                self.tell(Told::Touch, Some("yellow"), touch);
+                self.tell(Told::Touch, touch);
             }
             match home.decrypt(file, &secret) {
                 Decrypted::Key(key) => return Some(key),
@@ -124,7 +124,7 @@ impl Unlocker<'_> {
                     );
                 }
             }
-            self.tell(Told::Refused, Some("red"), "Decryption failed.\n");
+            self.tell(Told::Refused, "Decryption failed.\n");
         }
         None
     }
@@ -144,20 +144,13 @@ impl Unlocker<'_> {
         }
         // Encrypted to a public key: find the card (or key) that can decrypt
         // it.
-        let message = self.paint(
-            "cyan",
-            &format!(
-                "Insert the OpenPGP security key (YubiKey, Nitrokey, ...) for {}",
-                self.paint("yellow", volume.device)
-            ),
-        );
         let request = WaitRequest {
             volume,
             awaited: Awaited::OpenPgpKey,
             seconds: self.token_wait(),
             present: &|| self.gpg_have_key(home, &recipients),
         };
-        if self.await_device(&request, &message) != Wait::Present {
+        if self.await_device(&request) != Wait::Present {
             zbm_trace::info!(
                 "no secret key for {file} (encrypted to {} )",
                 recipients.join(" ")
@@ -182,36 +175,25 @@ impl Unlocker<'_> {
         let (serial, left) = home
             .card_status()
             .unwrap_or_else(|| ("unknown".to_owned(), "?".to_owned()));
-        let line = format!(
-            "Unlock {} with OpenPGP card {serial}\n",
-            self.paint("yellow", volume.device)
-        );
-        let heading = || {
-            self.say("\n");
-            self.say(&self.paint("cyan", &line));
-        };
         if left == "0" {
-            let blocked = "The card PIN is blocked; unblock it with the admin PIN or reset code.\n";
-            self.tell_with(Told::Refused, blocked, || {
-                heading();
-                self.say(&self.paint("red", blocked));
-            });
+            let device = volume.device;
+            self.heading(
+                &format!("Unlock {device} with OpenPGP card {serial}"),
+                device,
+            );
+            let blocked = "The card PIN is blocked; unblock it with the admin PIN or reset code.";
+            self.tell(Told::Refused, blocked);
             return None;
         }
-        let prompt =
-            format!("Card PIN ({left} attempts left; leave empty to use another method): ");
         let request = SecretRequest {
             volume,
             kind: SecretKind::CardPin { serial, left },
             attempt,
             tries: Some(GPG_TRIES),
             opened_elsewhere: None,
+            description: None,
         };
-        self.ask(&request, || {
-            heading();
-            self.read_secret(&prompt).into()
-        })
-        .secret()
+        self.ask(&request).secret()
     }
 
     /// Asks for the passphrase of the secret key or of the symmetrically
@@ -223,20 +205,10 @@ impl Unlocker<'_> {
         volume: VolumeRef<'_>,
         attempt: u32,
     ) -> Option<Secret> {
-        let line = format!(
-            "Unlock {} with GnuPG key file {file}\n",
-            self.paint("yellow", volume.device)
-        );
-        let (kind, prompt) = if decryptor == Decryptor::Key(SecretKey::Soft) {
-            (
-                SecretKind::SecretKeyPassphrase(file.to_owned()),
-                "Secret key passphrase (leave empty to use another method): ",
-            )
+        let kind = if decryptor == Decryptor::Key(SecretKey::Soft) {
+            SecretKind::SecretKeyPassphrase(file.to_owned())
         } else {
-            (
-                SecretKind::KeyFilePassphrase(file.to_owned()),
-                "Key file passphrase (leave empty to use another method): ",
-            )
+            SecretKind::KeyFilePassphrase(file.to_owned())
         };
         let request = SecretRequest {
             volume,
@@ -244,13 +216,9 @@ impl Unlocker<'_> {
             attempt,
             tries: Some(GPG_TRIES),
             opened_elsewhere: None,
+            description: None,
         };
-        self.ask(&request, || {
-            self.say("\n");
-            self.say(&self.paint("cyan", &line));
-            self.read_secret(prompt).into()
-        })
-        .secret()
+        self.ask(&request).secret()
     }
 }
 

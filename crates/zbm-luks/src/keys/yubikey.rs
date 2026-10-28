@@ -65,7 +65,7 @@ impl Unlocker<'_> {
                 return Ok(());
             }
             let wrong = "No key available with this passphrase.\n";
-            self.tell(Told::Refused, Some("red"), wrong);
+            self.tell(Told::Refused, wrong);
         }
         Err(failed())
     }
@@ -90,15 +90,11 @@ impl Unlocker<'_> {
         } else {
             pass
         };
-        self.tell(
-            Told::Touch,
-            Some("yellow"),
-            "Touch the YubiKey if it blinks.\n",
-        );
+        self.tell(Told::Touch, "Touch the YubiKey if it blinks.\n");
         let response = zbm_crypt::yubikey::YubiKey::new(self.system().runner)
             .response(yubikey.slot, &challenge);
         let Some(response) = response else {
-            self.tell(Told::Refused, Some("red"), "The YubiKey did not respond.\n");
+            self.tell(Told::Refused, "The YubiKey did not respond.\n");
             return Attempt::NoResponse;
         };
         Attempt::Key(if yubikey.concat {
@@ -123,38 +119,25 @@ impl Unlocker<'_> {
         (attempt, tries): (u64, u64),
     ) -> Option<Secret> {
         let device = volume.device;
-        let message = self.paint(
-            "cyan",
-            &format!("Insert the YubiKey for {}", self.paint("yellow", device)),
-        );
         let request = WaitRequest {
             volume,
             awaited: Awaited::YubiKey,
             seconds: self.token_wait(),
             present: &|| self.ykchalresp_present(),
         };
-        if self.await_device(&request, &message) != Wait::Present {
+        if self.await_device(&request) != Wait::Present {
             zbm_trace::info!("no YubiKey present for {device}");
             return None;
         }
-        let line = format!(
-            "Unlock {} with YubiKey challenge-response (slot {})\n",
-            self.paint("yellow", device),
-            yubikey.slot
-        );
         let request = SecretRequest {
             volume,
             kind: SecretKind::YubiKeyPassphrase(yubikey.slot.to_string()),
             attempt: u32::try_from(attempt).unwrap_or(u32::MAX),
             tries: (tries > 0).then(|| u32::try_from(tries).unwrap_or(u32::MAX)),
             opened_elsewhere: None,
+            description: None,
         };
-        let asked = self.ask(&request, || {
-            self.say("\n");
-            self.say(&self.paint("cyan", &line));
-            self.read_secret("Passphrase (leave empty to use another method): ")
-                .into()
-        });
+        let asked = self.ask(&request);
         asked.secret().filter(|pass| !pass.is_empty())
     }
 }

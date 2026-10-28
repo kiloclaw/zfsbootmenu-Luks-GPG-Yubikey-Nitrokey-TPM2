@@ -25,6 +25,7 @@ fn request(kind: SecretKind, attempt: u32) -> SecretRequest<'static> {
         attempt,
         tries: Some(3),
         opened_elsewhere: None,
+        description: None,
     }
 }
 
@@ -68,7 +69,7 @@ fn waiting(method: Method, left: u64) -> Event {
 
 /// What the dialog gave for `request`.
 fn ask(front: &MenuFront<'_>, request: &SecretRequest<'_>) -> Asked {
-    front.secret(request, &mut || panic!("the console asked"))
+    front.secret(request)
 }
 
 /// The secret in `asked`.
@@ -186,11 +187,8 @@ fn each_secret_is_asked_for_with_its_method() {
 fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
     let fake = FakeSystem::new();
     let (front, seen) = front(&fake);
-    let refused = |text| Tell {
-        told: Told::Refused,
-        text,
-    };
-    front.notify(refused("The TPM refused."), &mut || panic!("console"));
+    let refused = |text| Tell::new(Told::Refused, text);
+    front.notify(refused("The TPM refused."));
     seen.reply(Reply::With(skip()));
     let _ = ask(&front, &request(SecretKind::Tpm2Pin, 1));
     let instead = Notice::Instead("The TPM refused.".into());
@@ -199,8 +197,8 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
         requested(Method::Tpm2Pin, Some(3), Some(instead))
     );
 
-    front.notify(refused("Wrong PIN."), &mut || {});
-    front.notify(refused("2 tries left."), &mut || {});
+    front.notify(refused("Wrong PIN."));
+    front.notify(refused("2 tries left."));
     seen.reply(Reply::With(skip()));
     let _ = ask(&front, &request(SecretKind::Tpm2Pin, 2));
     let wrong = Notice::Wrong("Wrong PIN. 2 tries left.".into());
@@ -209,9 +207,9 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
         requested(Method::Tpm2Pin, Some(2), Some(wrong))
     );
 
-    for told in [Told::Working, Told::Touch] {
+    for told in [Told::Working, Told::Touch, Told::Heading] {
         let text = "Unlocking /dev/sda2 ...";
-        front.notify(Tell { told, text }, &mut || {});
+        front.notify(Tell::new(told, text));
         assert_eq!(seen.sent().last(), Some(&Event::Progress(text.into())));
     }
 }
@@ -259,7 +257,7 @@ fn a_device_is_waited_for_in_the_dialog_with_the_time_left() {
         seconds: 10,
         present: is_present,
     };
-    let wait = |awaited| front.wait(&request(awaited), &mut || panic!("console"));
+    let wait = |awaited| front.wait(&request(awaited));
     assert_eq!(wait(Awaited::YubiKey), Wait::Present);
     assert_eq!(seen.questions(), 0);
 
@@ -290,7 +288,7 @@ fn a_device_is_waited_for_in_the_dialog_with_the_time_left() {
         ..request(Awaited::YubiKey)
     };
     seen.reply(Reply::Check);
-    assert_eq!(front.wait(&arrives, &mut || Wait::Skipped), Wait::Present);
+    assert_eq!(front.wait(&arrives), Wait::Present);
     // It came while Enter looked again.
     seen.reply(Reply::Late(3, unlock(Method::YubiKey, "")));
     let since = fake.clock.now();
@@ -299,7 +297,7 @@ fn a_device_is_waited_for_in_the_dialog_with_the_time_left() {
         present: &comes,
         ..request(Awaited::YubiKey)
     };
-    assert_eq!(front.wait(&arrives, &mut || Wait::Skipped), Wait::Present);
+    assert_eq!(front.wait(&arrives), Wait::Present);
 
     seen.reply(Reply::Fail);
     assert_eq!(wait(device), Wait::TimedOut);
