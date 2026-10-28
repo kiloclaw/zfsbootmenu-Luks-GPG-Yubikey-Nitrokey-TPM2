@@ -589,7 +589,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | DM1 | Tidy: `zbm-menu` goes, `zbm-coreutils` folds into `zbm-platform`, the PSF parser into `zbm-display`; `docs/dev/architecture.md` and `crates/DESIGN.md` agree with the code; the new metric columns | mod | S | |
 | DM2 | One `Context`, and the `Interaction` port: the console leaves the domain, the `zbm-boot` → `zbm-luks` edge goes | mod | M | |
 | DM3 | The value types (`KernelCommandLine`, `HostId`, `Timeout`, `LogLevel`, `RetryDelay`, questions and answers) and typed options, converted crate by crate: `zbm-pool` (its `PoolRef` goes), `zbm-boot`, `zbm-luks` | mod, sec | M | |
-| DM4 | `KernelSelector`, a compiled regular expression, replaces a shell per kernel for `org.zfsbootmenu:kernel`; fuzzed | perf, sec | S/M | |
+| DM4 | Done: `KernelSelector`, a compiled regular expression, replaces a shell per kernel for `org.zfsbootmenu:kernel`; fuzzed | perf, sec | S/M | |
 | DM5 | (merged into SB2) | | | |
 | DM6 | The unlocker's core anew: the `LuksVolumes` port, the typestate unlocker, one `Result`-based registry of key methods with the token handlers in it, every attempt kept; the pilot goes | mod, stab | L | DM2, DM3 |
 | DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends; a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |

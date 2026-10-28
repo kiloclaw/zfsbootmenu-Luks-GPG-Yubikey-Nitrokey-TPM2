@@ -4192,6 +4192,7 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "proptest",
+ "regex",
  "thiserror",
  "uucore 0.12.0",
  "zbm-testkit",

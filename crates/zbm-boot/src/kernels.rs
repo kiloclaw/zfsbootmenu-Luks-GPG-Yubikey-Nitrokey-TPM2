@@ -14,9 +14,8 @@
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::exec::Runner;
 use zbm_platform::files::Files;
-pub use zbm_tools::programs::bash_regex_match;
+use zbm_types::KernelSelector;
 pub use zbm_types::version::version_sort;
 
 /// The kernel file names looked for in `/boot`, each also followed by `-` and
@@ -159,30 +158,26 @@ pub fn discover(files: &dyn Files, dataset: &str, mnt: &Path) -> Discovery {
     discovery
 }
 
-/// The kernel to boot: the last one, or the last one whose kernel path matches
-/// `property`, the value of `org.zfsbootmenu:kernel` (`-` when unset). `None`
-/// without kernels.
-pub fn select<'a>(
-    runner: &dyn Runner,
-    kernels: &'a [Kernel],
-    property: &str,
-) -> Option<&'a Kernel> {
-    let mut chosen = kernels.last()?;
-    if property != "-" {
-        for kernel in kernels {
-            if bash_regex_match(runner, &kernel.kernel, property) == Some(true) {
-                chosen = kernel;
-            }
-        }
-    }
-    Some(chosen)
+/// The kernel to boot: the last one, or the last one whose kernel path
+/// `selector` matches, from `org.zfsbootmenu:kernel`. `None` without
+/// kernels.
+pub fn select<'a>(kernels: &'a [Kernel], selector: Option<&KernelSelector>) -> Option<&'a Kernel> {
+    let chosen = kernels.last()?;
+    let Some(selector) = selector else {
+        return Some(chosen);
+    };
+    let matched = kernels
+        .iter()
+        .rev()
+        .find(|kernel| selector.matches(&kernel.kernel));
+    Some(matched.unwrap_or(chosen))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_platform::exec::SystemRunner;
     use zbm_platform::exec::{Command, Input, Stream};
+    use zbm_platform::exec::{Runner as _, SystemRunner};
     use zbm_platform::files::RealFiles;
     use zbm_testkit::fakes::FakeFiles;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, shell_quote};
@@ -344,21 +339,24 @@ mod tests {
         })
         .collect();
         let pick = |property: &str| {
-            select(&SystemRunner, &kernels, property)
+            let selector: KernelSelector = property.parse().unwrap();
+            select(&kernels, Some(&selector))
                 .map(|kernel| kernel.kernel.as_str())
                 .unwrap_or_default()
                 .to_owned()
         };
-        assert_eq!(pick("-"), "/boot/vmlinuz-6.12.9");
+        assert_eq!(
+            select(&kernels, None).unwrap().kernel,
+            "/boot/vmlinuz-6.12.9"
+        );
         assert_eq!(pick("6.6"), "/boot/vmlinuz-6.6.30");
         // The last match wins, and "." matches any character.
         assert_eq!(pick("6.1"), "/boot/vmlinuz-6.12.9");
         assert_eq!(pick("6\\.1\\.0"), "/boot/vmlinuz-6.1.0");
         assert_eq!(pick("^/boot/vmlinuz-6\\.6"), "/boot/vmlinuz-6.6.30");
         assert_eq!(pick("nothing"), "/boot/vmlinuz-6.12.9");
-        assert_eq!(pick("("), "/boot/vmlinuz-6.12.9");
         assert_eq!(pick(""), "/boot/vmlinuz-6.12.9");
-        assert_eq!(select(&SystemRunner, &[], "-"), None);
+        assert_eq!(select(&[], None), None);
     }
 
     /// Runs the legacy `find_be_initramfs` on a real file.
@@ -494,26 +492,5 @@ mod tests {
                 .collect();
             assert_eq!(rust, legacy, "case {case}");
         }
-    }
-
-    #[test]
-    fn regular_expressions_are_bash_ones() {
-        let runner = SystemRunner;
-        assert_eq!(
-            bash_regex_match(&runner, "/boot/vmlinuz-6.1", "6\\.1$"),
-            Some(true)
-        );
-        assert_eq!(
-            bash_regex_match(&runner, "/boot/vmlinuz-6.1", "^6"),
-            Some(false)
-        );
-        assert_eq!(
-            bash_regex_match(&runner, "a b", "a[[:space:]]b"),
-            Some(true)
-        );
-        assert_eq!(bash_regex_match(&runner, "x", "("), Some(false));
-        let missing = zbm_testkit::FakeRunner::new();
-        missing.respond_program("bash", 127, "");
-        assert_eq!(bash_regex_match(&missing, "x", "x"), None);
     }
 }

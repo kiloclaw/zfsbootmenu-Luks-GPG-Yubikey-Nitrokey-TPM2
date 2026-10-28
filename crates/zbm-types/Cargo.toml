@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+regex.workspace = true
 thiserror.workspace = true
 uucore.workspace = true
 

@@ -155,7 +155,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         "zbm-tui",
         &["fluent-bundle", "nucleo-matcher", "ratatui", "unic-langid"],
     ),
-    ("zbm-types", &["thiserror", "uucore"]),
+    ("zbm-types", &["regex", "thiserror", "uucore"]),
     (
         "zbm-vmtest",
         &["regex", "rustix", "serde_json", "thiserror", "vt100"],

@@ -380,6 +380,17 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The menu takes one kind of key press, `zbm_display::keys::KeyPress`, from the display's keyboards and from the bytes
   of a terminal alike; the terminal library's key types and the conversion between the two are gone.
 
+### Kernel selection without a shell (phase 1)
+
+- `org.zfsbootmenu:kernel` is compiled once, in the process (`zbm_types::KernelSelector`), instead of running a shell
+  for each kernel. It means what it meant to Bash's `[[ path =~ pattern ]]`: a POSIX extended regular expression
+  in the C locale, with glibc's brackets, classes, intervals and GNU operators, checked against Bash on thousands of
+  random patterns. A pattern with a back-reference (`\1`), which the new matcher has none of, is refused with a
+  warning, and the last kernel boots, as for a pattern that is not valid.
+- The mount points below a boot environment, unmounted one by one when `umount -R` fails, are found by their path,
+  no longer by a regular expression made of it.
+- A fuzz target, `kernel_selector`, covers the pattern's translation and matches.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

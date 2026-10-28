@@ -18,11 +18,6 @@ pub const BASH: &str = "/bin/bash";
 /// The environment variable that names the shell for the runtime's programs.
 pub const ENV: &str = "ZBM_SHELL";
 
-/// The script the shell runs for the regular expression match that
-/// `org.zfsbootmenu:kernel` needs (`zbm_boot::kernels::bash_regex_match`):
-/// `$1` matched against the pattern `$2`.
-pub const BASH_MATCH: &str = "[[ $1 =~ $2 ]]";
-
 /// The shell `zfsbootmenu-preinit` chooses: brush when the image has it
 /// (`has_brush`) and `wanted`, the value of `zbm.shell`, is not `bash`;
 /// GNU Bash otherwise.

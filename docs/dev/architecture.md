@@ -65,7 +65,7 @@ Third-party crates:
 - `zbm-platform`: `rustix`, `serde_json`, `tracing`, `tracing-subscriber`
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `fluent-bundle`, `nucleo-matcher`, `ratatui`, `unic-langid`
-- `zbm-types`: `thiserror`, `uucore`
+- `zbm-types`: `regex`, `thiserror`, `uucore`
 - `zbm-vmtest`: `regex`, `rustix`, `serde_json`, `thiserror`, `vt100`
 - `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 

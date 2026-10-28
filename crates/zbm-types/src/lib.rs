@@ -14,6 +14,7 @@
 //! | [`DatasetName`] | A ZFS dataset in a pool: `zroot/ROOT/void` |
 //! | [`SnapshotName`] | A ZFS snapshot: `zroot/ROOT/void@before-upgrade` |
 //! | [`KernelVersion`] | A kernel version, in `sort -V` order: `6.12.9_1` |
+//! | [`KernelSelector`] | The kernel to boot, as a regular expression: `6\.6` |
 //! | [`ImportPolicy`] | How pools another host used are imported |
 //! | [`Stage`] | A stage of the start-up program: `50-import-pools` |
 //! | [`HookStage`] | A stage that runs hooks: `teardown.d` |
@@ -35,9 +36,11 @@
 
 mod answer;
 mod device;
+mod ere;
 mod error;
 mod mapping;
 mod policy;
+mod selector;
 mod snapshot;
 mod stage;
 pub mod version;
@@ -48,6 +51,7 @@ pub use device::DevicePath;
 pub use error::{ParseError, Reason};
 pub use mapping::MappingName;
 pub use policy::ImportPolicy;
+pub use selector::KernelSelector;
 pub use snapshot::SnapshotName;
 pub use stage::{HookStage, Stage};
 pub use version::KernelVersion;

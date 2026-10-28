@@ -9,7 +9,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use zbm_platform::{BASH_MATCH, Command, Input, Output, Runner, Signal, Stream, shell};
+use zbm_platform::{Command, Input, Output, Runner, Signal, Stream, shell};
 
 /// The `errno` of a file the kernel cannot run.
 const ENOEXEC: i32 = 8;
@@ -197,28 +197,6 @@ pub fn edit(runner: &dyn Runner, editor: &str, file: &Path) -> io::Result<Output
     runner.run(&on_console(Command::new(editor).arg(file)))
 }
 
-/// Whether `text` matches the extended regular expression `pattern`, as
-/// Bash's `[[ text =~ pattern ]]` decides it. The shell runs the match
-/// ([`BASH_MATCH`]): the one the runtime chose, else Bash, so the regular
-/// expressions mean what they mean to the legacy code; `None` if it cannot
-/// be run.
-pub fn bash_regex_match(runner: &dyn Runner, text: &str, pattern: &str) -> Option<bool> {
-    let program = shell::chosen().unwrap_or_else(|| "bash".into());
-    let command = Command::new(program)
-        .args(["-c", BASH_MATCH, "bash", text, pattern])
-        .stdin(Input::Null)
-        .stdout(Stream::Null)
-        .stderr(Stream::Null)
-        .env("LC_ALL", "C");
-    let output = runner.run(&command).ok()?;
-    match output.status.code() {
-        Some(0) => Some(true),
-        // 2: the pattern is not a valid regular expression, which matches nothing
-        Some(1 | 2) => Some(false),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,28 +313,5 @@ mod tests {
             calls[2].get_env(),
             [("LUKS_RETRY".into(), Some("1".into()))]
         );
-    }
-
-    #[test]
-    fn bash_decides_regular_expression_matches() {
-        let runner = FakeRunner::new();
-        runner.on(|command| {
-            let matched = command
-                .get_args()
-                .last()
-                .is_some_and(|pattern| pattern == "6");
-            Some(Ok(Output::new(Status::exited(u8::from(!matched)), "")))
-        });
-
-        assert_eq!(bash_regex_match(&runner, "vmlinuz-6.1", "6"), Some(true));
-        assert_eq!(bash_regex_match(&runner, "vmlinuz-6.1", "7"), Some(false));
-        let broken = FakeRunner::new();
-        broken.respond_program("bash", 2, "");
-        assert_eq!(bash_regex_match(&broken, "x", "("), Some(false));
-        let killed = FakeRunner::new();
-        killed.respond_program("bash", 130, "");
-        assert_eq!(bash_regex_match(&killed, "x", "x"), None);
-        let calls = runner.calls();
-        assert_eq!(calls[0].get_env(), [("LC_ALL".into(), Some("C".into()))]);
     }
 }

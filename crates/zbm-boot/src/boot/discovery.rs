@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::spec::properties::KERNEL;
 use zbm_platform::System;
 use zbm_state::State;
+use zbm_types::KernelSelector;
 
 use super::mounts::{Noise, be_location, mount_zfs, umount};
 use super::zfs::zfs_value;
@@ -153,12 +154,21 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
     let property = zfs_value(system.runner, KERNEL.name, fs).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("{} set to {property}", KERNEL.name);
-        for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
-            let kernel = Kernel::parse(line);
-            if kernels::bash_regex_match(system.runner, &kernel.kernel, &property) == Some(true) {
-                zbm_trace::debug!("matched {} to {property}", kernel.kernel);
-                line.clone_into(&mut chosen);
+        match property.parse::<KernelSelector>() {
+            Ok(selector) => {
+                for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
+                    let kernel = Kernel::parse(line);
+                    if selector.matches(&kernel.kernel) {
+                        zbm_trace::debug!("matched {} to {property}", kernel.kernel);
+                        line.clone_into(&mut chosen);
+                    }
+                }
             }
+            // Bash matched nothing with a pattern that is not valid; a
+            // back-reference, which it took, is refused here.
+            Err(_) => zbm_trace::warn!(
+                "org.zfsbootmenu:kernel is not a pattern the runtime takes; the last kernel boots"
+            ),
         }
     }
     if chosen.is_empty() {

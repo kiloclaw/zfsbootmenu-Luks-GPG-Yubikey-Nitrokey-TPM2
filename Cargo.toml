@@ -84,7 +84,7 @@ sha2 = { version = "=0.11.1", default-features = false, features = ["zeroize"] }
 pbkdf2 = { version = "=0.13.0", default-features = false, features = ["hmac"] }
 base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
 
-# Used only by the developer tools (xtask, zbm-vmtest); never part of an image.
+# `org.zfsbootmenu:kernel` (zbm-types, ROADMAP.md DM4), and the VM tests' console patterns.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
 vt100 = { version = "0.18", default-features = false, features = ["std"] }
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }

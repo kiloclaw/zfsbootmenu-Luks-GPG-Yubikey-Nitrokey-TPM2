@@ -80,7 +80,7 @@ bytes into values; each one in this table must fail with an error on hostile inp
 | I1 | The kernel command line of ZFSBootMenu itself (`/proc/cmdline`, `zbm.*` options, `cmdline.d`) | A1 | `zbm_config` (`tokenize`, `ZbmArgs`, `ZbmOptions::parse`), `zbm_types` |
 | I2 | `/etc/zfsbootmenu.conf` in the image | A1 | `zbm_config::conf::Conf::parse` |
 | I3 | Pool, dataset and snapshot names | A3 | `zbm_types` (`PoolName`, `DatasetName`), `zbm_zfs::parse_table` |
-| I4 | `org.zfsbootmenu:commandline`, `:rootprefix`, `:kernel`, `:devicetree`, `:keysource`, `:active`, `:readonly`, `bootfs`, `keylocation` | A3 | `zbm_zfs`, `zbm_boot::commandline`, `zbm_boot::kernels` |
+| I4 | `org.zfsbootmenu:commandline`, `:rootprefix`, `:kernel`, `:devicetree`, `:keysource`, `:active`, `:readonly`, `bootfs`, `keylocation` | A3 | `zbm_zfs`, `zbm_boot::commandline`, `zbm_boot::kernels`, `zbm_types::KernelSelector` (`:kernel`) |
 | I5 | Files in a boot environment's `/boot` and its `os-release` | A3 | `zbm_boot::kernels` (names, version order), `zbm_boot::commandline` (`os-release`) |
 | I6 | Hooks below `zbm.hookroot` | A1 (names the root), A3 (fills it) | `zbm_boot::hooks` (they are run, not parsed); in Rust images, brush (`zbm-brush`) parses the hooks written for Bash or `sh` |
 | I7 | crypttab and key files on removable devices | A2 | `zbm_luks::config::load_config`, `zbm_luks::keyfile` |
@@ -149,6 +149,7 @@ night.
 | --- | --- | --- | --- |
 | `kernel_cmdline` | `zbm_config::kcl::tokenize`, `ZbmArgs::from_cmdline`, `ZbmOptions::parse`, `Conf::parse` | I1, I2 | A1 |
 | `domain_names` | `zbm_types`: `DevicePath`, `MappingName`, `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion`, `ImportPolicy`, `Stage`, `HookStage`, and the version order | I1, I3, I5, I7 | A1, A2, A3 |
+| `kernel_selector` | `zbm_types::KernelSelector`: the translation of `org.zfsbootmenu:kernel`, its compilation and matches | I4 | A3 |
 | `crypttab` | `zbm_luks::config::load_config` | I1, I7 | A1, A2 |
 | `luks_metadata` | `zbm_luks::tokens`: `parse_json_metadata`, `parse_dump_text`, `json_str`, `json_arr`, `json_bool` | I8 | A1, A2 |
 | `program_output` | `zbm_zfs::parse_table`, `zbm_pool::hostid::scrape_hostid`, `zbm_luks::mappings::parse_mappings` | I9, I11 | A2, A3 |

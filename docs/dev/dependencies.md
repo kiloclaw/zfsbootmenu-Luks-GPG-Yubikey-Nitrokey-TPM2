@@ -31,6 +31,7 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | `fluent-bundle`, `unic-langid` | `zbm-tui` | The menu's message catalogue ([text.md](menu-design/text.md)): Project Fluent's bundle, with plurals and attributes, and its language identifiers. Already built for `uucore`, which takes them through `fluent`; Apache-2.0 or MIT |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
 | `uucore` (`version-cmp`) | `zbm-types` | Version order, the `sort -V` of uutils coreutils, the images' coreutils. Its required dependencies (`clap`, `fluent`, `nix` and others) are built, but link-time optimization leaves only `version_cmp` in `zbm`: 6.8 KB of a 2.2 MB stripped binary |
+| `regex` | `zbm-types` | `org.zfsbootmenu:kernel` (`KernelSelector`, ROADMAP.md DM4), a POSIX extended regular expression translated into its syntax and matched in the process, instead of a shell per kernel; matches take linear time. Its engine, `regex-automata`, is already there for `alacritty_terminal` |
 | `drm` | `zbm-display` | The display without a terminal (ROADMAP.md #19, step 1): DRM dumb buffers, modes and outputs, in safe Rust over `rustix`, which the workspace already has. Smithay's crate, MIT. Pinned to 0.15.0 |
 | `drm-ffi`, `drm-sys`, `drm-fourcc`, `bytemuck`, `bytemuck_derive` | (`drm`) | Its dependencies: the ioctl structures and calls, pixel format codes, and plain-data casts (`bytemuck_derive` runs at build time only). `drm-sys` brings an older `linux-raw-sys` (0.9) beside the 0.12 of `rustix` |
 | `alacritty_terminal` | `zbm-console` | The console on the display (ROADMAP.md #19, step 2, `zbm.console=drm`): Alacritty's terminal state machine, with `vte`'s escape sequence parser, on a pseudo-terminal. Apache-2.0. Pinned to 0.26.0 without its default `serde` feature. It and `vte` 0.15.0 carry patches of ours for the Linux console's own sequences, blinking text, the reverse screen and the terminal's name ([patches/README.md](../../patches/README.md)) |
@@ -118,7 +119,7 @@ Used by the developer tools `xtask` and `zbm-vmtest` (the VM test harness), neve
 | `serde_json` | `xtask`, `zbm-vmtest` | Read `cargo metadata` and clippy's JSON messages, write `target/metrics.json`; the VM tests' `result.json` and `sfdisk --json` |
 | `vt100` | `zbm-vmtest` | A terminal emulator for the serial console: the screen as a user sees it, where Ratatui moves the cursor over blank cells instead of writing spaces |
 | `vte`, `arrayvec`, `itoa`, `unicode-width` | (`vt100`) | Its dependencies: the escape sequence parser |
-| `regex` | `zbm-vmtest` | The patterns the scenarios wait for on the console, as `pexpect` matched them |
+| `regex` | `zbm-vmtest` | The patterns the scenarios wait for on the console, as `pexpect` matched them; in the boot runtime too, for `zbm-types` |
 | `regex-automata`, `regex-syntax`, `aho-corasick`, `memchr` | (`regex`) | Its dependencies |
 | `thiserror` | `zbm-vmtest` | Its error enum |
 | `rustix` | `zbm-vmtest` | `flock` on each test image, so that harness processes run in parallel build it once; already in the workspace for `zbm-console` |

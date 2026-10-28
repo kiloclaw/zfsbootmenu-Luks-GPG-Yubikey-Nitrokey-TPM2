@@ -77,7 +77,6 @@ pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, Kerne
 pub use process::{Processes, Signal, SystemProcesses};
 pub use quiet::QuietRunner;
 pub use secret::Secret;
-pub use shell::BASH_MATCH;
 pub use traced::TracedRunner;
 
 /// One implementation of each system interface.

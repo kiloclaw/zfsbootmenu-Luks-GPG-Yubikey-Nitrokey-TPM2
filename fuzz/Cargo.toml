@@ -47,6 +47,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "kernel_selector"
+path = "fuzz_targets/kernel_selector.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "crypttab"
 path = "fuzz_targets/crypttab.rs"
 test = false

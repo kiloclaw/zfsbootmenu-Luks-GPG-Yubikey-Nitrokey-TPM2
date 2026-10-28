@@ -84,6 +84,9 @@ pub enum Reason {
     /// A name starts with `-`, which a program it is passed to would read
     /// as an option.
     LeadingDash,
+    /// A regular expression is not valid, or cannot be translated: why,
+    /// as a clause.
+    Pattern(&'static str),
 }
 
 impl fmt::Display for Reason {
@@ -100,6 +103,7 @@ impl fmt::Display for Reason {
             Reason::NotOneOf(names) => write!(formatter, "it is not one of {}", names.join(", ")),
             Reason::NotOneAt => write!(formatter, "it does not have exactly one '@'"),
             Reason::LeadingDash => write!(formatter, "it starts with '-', as an option does"),
+            Reason::Pattern(why) => formatter.write_str(why),
         }
     }
 }
@@ -133,6 +137,7 @@ mod tests {
             (Reason::EmptyComponent, "it has an empty component"),
             (Reason::NotOneOf(&["a", "b"]), "it is not one of a, b"),
             (Reason::NotOneAt, "it does not have exactly one '@'"),
+            (Reason::Pattern("it ends with '\\'"), "it ends with '\\'"),
         ];
 
         for (reason, text) in cases {

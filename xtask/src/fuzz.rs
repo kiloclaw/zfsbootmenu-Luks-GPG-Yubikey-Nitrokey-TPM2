@@ -16,6 +16,7 @@ use crate::process::Program;
 pub const TARGETS: &[&str] = &[
     "kernel_cmdline",
     "domain_names",
+    "kernel_selector",
     "crypttab",
     "luks_metadata",
     "program_output",

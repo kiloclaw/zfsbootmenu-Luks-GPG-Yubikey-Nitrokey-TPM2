@@ -11,7 +11,6 @@ use zbm_zfs::{Stderr, ZfsCommand};
 
 use super::zfs::{locked_root, substituted};
 use crate::error::BootError;
-use crate::kernels;
 
 /// The state directory of a boot environment, created if needed.
 pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
@@ -111,7 +110,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     {
         return Ok(());
     }
-    let pattern = format!("^{}", mountpoint.display());
+    let below = mountpoint.to_string_lossy();
     let table = system
         .files
         .read_to_string(Path::new("/proc/self/mounts"))
@@ -119,7 +118,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     let mut mounts: Vec<(usize, String)> = table
         .lines()
         .filter_map(|line| line.split_whitespace().nth(1).map(str::to_owned))
-        .filter(|mp| kernels::bash_regex_match(system.runner, mp, &pattern) == Some(true))
+        .filter(|mp| mp.starts_with(&*below))
         .map(|mp| (mp.matches('/').count(), mp))
         .collect();
     // sort -n -k1 -r on "depth,path"
