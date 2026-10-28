@@ -15,7 +15,8 @@
 //! console: the hung-up terminal tells the supervisor that the console is
 //! ending, and it waits for it before it starts anything else.
 //!
-//! Like the rest of the supervisor, this cannot panic.
+//! Like the rest of the supervisor, this cannot panic, and it starts the
+//! console itself.
 
 use std::fs::File;
 use std::io::{self, Write as _};
@@ -85,7 +86,7 @@ impl Attached {
             slave,
             keyboard,
             modes,
-            flavour: Flavour::of_image(|path| path.exists()),
+            flavour: Flavour::of_image(Path::exists),
         })
     }
 
@@ -206,7 +207,7 @@ mod tests {
     #[test]
     fn programs_run_in_a_session_of_their_own_on_the_terminal() {
         let dir = TempDir::new("zbm-supervisor-console");
-        let (_master, slave) = zbm_console::host::open_pty().unwrap();
+        let (master, slave) = zbm_console::host::open_pty().unwrap();
         // The supervisor's terminal, whose modes come back when the console
         // ended (`relay::SavedModes` has the test of the restoring).
         let (_kernel_master, kernel) = zbm_console::host::open_pty().unwrap();
@@ -233,7 +234,7 @@ mod tests {
 
         attached.write("hello").unwrap();
         let mut shown = [0_u8; 5];
-        std::io::Read::read_exact(&mut &_master, &mut shown).unwrap();
+        std::io::Read::read_exact(&mut &master, &mut shown).unwrap();
         assert_eq!(&shown, b"hello");
 
         attached.detach(dir.path());

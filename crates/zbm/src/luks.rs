@@ -47,7 +47,9 @@ pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf
         settings.skipped = path.into();
     }
     settings.base = base;
-    settings.retry_delay = conf.get("zbm_retry_delay").unwrap_or_default().to_owned();
+    conf.get("zbm_retry_delay")
+        .unwrap_or_default()
+        .clone_into(&mut settings.retry_delay);
     settings
 }
 
@@ -138,11 +140,9 @@ pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
         return 1;
     }
     let session = &mut session;
+    // `open` without the app's arguments is a usage error, as an unknown
+    // word is.
     match command {
-        "open" => {
-            let _ = io.stderr.write_all(USAGE.as_bytes());
-            1
-        }
         "status" => {
             print_status(session, io);
             0
@@ -181,7 +181,7 @@ fn print_status(session: &Unlocker<'_>, io: &mut Io) {
             let pools: String = session
                 .pools_on_device(&path)
                 .iter()
-                .map(|pool| format!("{pool} "))
+                .flat_map(|pool| [pool.as_str(), " "])
                 .collect();
             (colorize("green", "open"), pools)
         } else {
@@ -214,7 +214,7 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
             .into_iter()
             .map(|token| token.kind)
             .collect();
-        let tokens: String = kinds.iter().map(|kind| format!("{kind} ")).collect();
+        let tokens: String = kinds.iter().flat_map(|kind| [kind.as_str(), " "]).collect();
         let tokens = if tokens.is_empty() {
             String::new()
         } else {

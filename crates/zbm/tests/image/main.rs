@@ -9,6 +9,14 @@
 //! again. A `zbm` program that exists is written `$ZBM` in settings
 //! and results.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::too_many_lines,
+    reason = "integration tests build images from real files and fail loudly when they cannot"
+)]
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -441,10 +449,11 @@ fn dracut_images_start_the_selected_runtime() {
     // Rust images get the same fonts as 256-glyph subsets, which leave the
     // console all 16 colours, and the TrueType font of the console on the
     // display, with its licence.
-    let (outline, bitmap): (Vec<_>, Vec<_>) = rust
-        .fonts
-        .iter()
-        .partition(|(name, _)| !name.ends_with(".psf"));
+    let (outline, bitmap): (Vec<_>, Vec<_>) = rust.fonts.iter().partition(|(name, _)| {
+        std::path::Path::new(name)
+            .extension()
+            .is_none_or(|extension| extension != "psf")
+    });
     let names: Vec<&String> = bitmap.iter().map(|(name, _)| *name).collect();
     assert_eq!(names, legacy.fonts.keys().collect::<Vec<_>>());
     assert!(

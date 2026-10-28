@@ -263,7 +263,13 @@ mod tests {
         use zbm_platform::files::RealFiles;
 
         if !running_as_root() {
-            eprintln!("skipped: the legacy code runs as root");
+            #[allow(
+                clippy::disallowed_macros,
+                reason = "the test harness shows a skipped test's standard error"
+            )]
+            {
+                eprintln!("skipped: the legacy code runs as root");
+            }
             return;
         }
         let stage_dir = || {

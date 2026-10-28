@@ -49,7 +49,11 @@ fn spleen_is_the_console_font_of_rust_images_that_ask_for_it() {
     let ttf: Vec<&String> = image
         .fonts
         .keys()
-        .filter(|name| name.ends_with(".ttf"))
+        .filter(|name| {
+            std::path::Path::new(name)
+                .extension()
+                .is_some_and(|extension| extension == "ttf")
+        })
         .collect();
     assert_eq!(ttf, ["DejaVuSansMono.ttf"]);
     assert!(image.exists(&format!("{FONTS}/fallback/01-DejaVuSansMono-Bold.ttf")));
@@ -70,7 +74,11 @@ fn spleen_is_the_console_font_of_rust_images_that_ask_for_it() {
     // Another family is Terminus too.
     rust_settings[1] = ("zfsbootmenu_console_font", "comic");
     let other = dracut_install(&mut parity, &rust_settings);
-    let psf = other.fonts.keys().filter(|name| name.ends_with(".psf"));
+    let psf = other.fonts.keys().filter(|name| {
+        std::path::Path::new(name)
+            .extension()
+            .is_some_and(|extension| extension == "psf")
+    });
     assert!(psf.clone().count() == 6 && psf.clone().all(|name| name.starts_with("ter-v")));
     assert_eq!(
         other.warnings,

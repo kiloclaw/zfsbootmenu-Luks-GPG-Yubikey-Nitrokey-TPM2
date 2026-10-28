@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::testing::Redirect;
+use std::fmt::Write as _;
 use std::time::{Duration, SystemTime};
 use zbm_platform::exec::SystemRunner;
 use zbm_platform::files::RealFiles;
@@ -342,6 +343,10 @@ fn legacy_core() -> Bash {
 /// A starting point of `load_be_cmdline`: properties, files under the
 /// base directory, and the host ID setting.
 #[derive(Debug)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is one file or setting a scenario has or not"
+)]
 struct Scenario {
     /// `org.zfsbootmenu:commandline` of `tank/ROOT`.
     parent: Option<String>,
@@ -491,7 +496,7 @@ fn command_lines_match_the_legacy_function() {
         assert_eq!(rust_cache, cache, "case {case}: cache");
         let messages: String = log
             .iter()
-            .map(|message| format!("{}\n", message.stderr_line()))
+            .flat_map(|message| [message.stderr_line(), "\n".to_owned()])
             .collect();
         assert_eq!(without_base(&messages, &dir), logged, "case {case}: log");
     }
@@ -527,10 +532,10 @@ fn root_prefixes_match_the_legacy_function() {
             if rng.below(3) > 0 {
                 let mut text = String::from("NAME=\"Some Linux\"\n");
                 if rng.below(2) == 0 {
-                    text.push_str(&format!("ID={}\n", rng.choose(&ids)));
+                    let _ = writeln!(text, "ID={}", rng.choose(&ids));
                 }
                 if rng.below(2) == 0 {
-                    text.push_str(&format!("ID_LIKE={}\n", rng.choose(&ids)));
+                    let _ = writeln!(text, "ID_LIKE={}", rng.choose(&ids));
                 }
                 dir.write(file, text);
             }

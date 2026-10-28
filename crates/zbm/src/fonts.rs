@@ -44,7 +44,11 @@ pub fn convert(
         .read_dir(source)?
         .into_iter()
         .filter_map(|name| name.into_string().ok())
-        .filter(|name| name.ends_with(".psf") || name.ends_with(".psfu"))
+        .filter(|name| {
+            Path::new(name)
+                .extension()
+                .is_some_and(|extension| extension == "psf" || extension == "psfu")
+        })
         .collect();
     names.sort();
     files.create_dir_all(destination)?;

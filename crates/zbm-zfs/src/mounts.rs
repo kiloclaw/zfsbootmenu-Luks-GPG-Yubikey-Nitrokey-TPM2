@@ -56,6 +56,10 @@ impl MountTable {
     }
 
     /// Reads a mount table file, such as `/proc/self/mounts`.
+    ///
+    /// # Errors
+    ///
+    /// When the file cannot be read.
     pub fn read(path: impl AsRef<Path>) -> std::io::Result<MountTable> {
         Ok(MountTable::parse(&std::fs::read_to_string(path)?))
     }
@@ -262,12 +266,13 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
     fn unmount_order_matches_sort() {
         let table = MountTable::parse(MOUNTS);
         let mountpoint = "/zfsbootmenu";
-        let entries: String = table
+        let entries = table
             .entries()
             .iter()
             .filter(|entry| entry.target.starts_with(mountpoint))
             .map(|entry| format!("{},{}\n", entry.target.matches('/').count(), entry.target))
-            .collect();
+            .collect::<Vec<_>>()
+            .concat();
         let sorted = zbm_platform::exec::SystemRunner
             .run(
                 &Command::new("sort")

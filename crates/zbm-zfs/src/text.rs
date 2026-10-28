@@ -291,15 +291,12 @@ fn unescape(path: &str) -> String {
                     code.checked_mul(8)?.checked_add(digit - b'0')
                 })
             });
-        match code {
-            Some(byte) => {
-                decoded.push(byte);
-                rest = after.get(4..).unwrap_or_default();
-            }
-            None => {
-                decoded.push(first);
-                rest = after;
-            }
+        if let Some(byte) = code {
+            decoded.push(byte);
+            rest = after.get(4..).unwrap_or_default();
+        } else {
+            decoded.push(first);
+            rest = after;
         }
     }
     String::from_utf8_lossy(&decoded).into_owned()

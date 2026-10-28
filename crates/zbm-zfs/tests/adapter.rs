@@ -6,6 +6,12 @@
 //! that `ZfsCli` runs with the recording of the same listing, in the format
 //! the test chose.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration tests read their fixtures and fail loudly when they cannot"
+)]
 #![allow(clippy::unwrap_used, reason = "a missing fixture fails the test")]
 
 use std::path::{Path, PathBuf};

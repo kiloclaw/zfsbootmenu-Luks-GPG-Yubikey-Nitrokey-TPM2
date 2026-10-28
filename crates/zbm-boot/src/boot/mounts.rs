@@ -15,14 +15,11 @@ use crate::error::BootError;
 /// The state directory of a boot environment, created if needed.
 pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
     zbm_trace::debug!("fs set to {fs}");
-    match state.environment(fs) {
-        Ok(location) => location,
-        // `mkdir -p` failed; be_location gives the path all the same.
-        Err(_) => {
-            let mnt = state.mount_point(fs);
-            mnt.parent().map_or(mnt.clone(), Path::to_path_buf)
-        }
-    }
+    // When `mkdir -p` fails, be_location gives the path all the same.
+    state.environment(fs).unwrap_or_else(|_| {
+        let mnt = state.mount_point(fs);
+        mnt.parent().map_or(mnt.clone(), Path::to_path_buf)
+    })
 }
 
 /// How the output of `mount` reaches the user.

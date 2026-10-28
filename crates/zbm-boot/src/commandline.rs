@@ -162,18 +162,15 @@ fn kcl_files(
     let kernel_kcl = state
         .kcl_cache(dataset, kernel)
         .filter(|path| files.exists(path));
-    let cache = match &kernel_kcl {
-        Some(path) => {
-            log.push(Message::debug(format!(
-                "found kernel KCL {} on {dataset}, ignoring KCL cache",
-                path.display()
-            )));
-            None
-        }
-        None => {
-            log.push(location());
-            state.kcl_cache(dataset, "default")
-        }
+    let cache = if let Some(path) = &kernel_kcl {
+        log.push(Message::debug(format!(
+            "found kernel KCL {} on {dataset}, ignoring KCL cache",
+            path.display()
+        )));
+        None
+    } else {
+        log.push(location());
+        state.kcl_cache(dataset, "default")
     };
     (kernel_kcl, cache)
 }

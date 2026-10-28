@@ -168,6 +168,10 @@ impl<'a> ZfsCommand<'a> {
 
     /// Sets a property (`zfs set <property>=<value> <dataset>`); returns whether
     /// `zfs` succeeded.
+    ///
+    /// # Errors
+    ///
+    /// When `zfs` cannot be run.
     pub fn set(&self, property: &str, value: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
@@ -180,6 +184,10 @@ impl<'a> ZfsCommand<'a> {
 
     /// Removes a local property value (`zfs inherit <property> <dataset>`); returns
     /// whether `zfs` succeeded.
+    ///
+    /// # Errors
+    ///
+    /// When `zfs` cannot be run.
     pub fn inherit(&self, property: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
@@ -422,7 +430,7 @@ mod tests {
             assert_eq!(rust, prop, "dataset {dataset}");
             let messages: String = log
                 .iter()
-                .map(|m| format!("{}\n", m.stderr_line()))
+                .flat_map(|m| [m.stderr_line(), "\n".to_owned()])
                 .collect();
             assert_eq!(messages, logged, "dataset {dataset}");
             for (file, legacy) in [&kclfile, &missing].into_iter().zip(values) {

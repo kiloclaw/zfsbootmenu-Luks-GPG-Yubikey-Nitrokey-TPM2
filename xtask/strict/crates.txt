@@ -2,7 +2,9 @@
 # runs the strict lints over them and fails on any finding. A phase of ROADMAP.md adds each crate it
 # finishes; a crate is never taken off the list.
 xtask
+zbm
 zbm-app
+zbm-boot
 zbm-brush
 zbm-config
 zbm-console
@@ -12,8 +14,10 @@ zbm-luks
 zbm-platform
 zbm-pool
 zbm-startup
+zbm-state
 zbm-testkit
 zbm-tools
 zbm-trace
 zbm-tui
 zbm-types
+zbm-zfs

@@ -404,6 +404,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   kernel without pidfds, before Linux 5.3, the console is signalled by its ID, as before.
 - `zbm-sys` has 31 `unsafe` blocks instead of 32: the credentials and `kill` go through `rustix`.
 
+### No panics where process 1 runs and hostile input is parsed (phase 1)
+
+- `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state` join the strict crates: no `unwrap`, `expect`, `panic!` or indexing
+  outside tests, every fallible function says how it fails, and files, programs, the clock and the environment are
+  reached through the ports. The supervisor (process 1), the applets that `exec` the first programs, and the secret
+  search of test builds reach the system directly, each with its reason.
+- The state directory's console records are a module of their own (`zbm_state::console`).
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

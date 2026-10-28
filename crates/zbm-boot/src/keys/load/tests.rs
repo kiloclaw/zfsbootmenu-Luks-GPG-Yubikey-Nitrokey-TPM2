@@ -32,8 +32,8 @@ struct Machine {
     keys: Rc<RefCell<Keys>>,
 }
 
-fn output(stdout: &str) -> Option<std::io::Result<Output>> {
-    Some(Ok(Output::new(Status::exited(0), stdout.as_bytes())))
+fn output(stdout: &str) -> Output {
+    Output::new(Status::exited(0), stdout.as_bytes())
 }
 
 impl Machine {
@@ -45,11 +45,11 @@ impl Machine {
             let line = command.display();
             if let Some(root) = line.strip_prefix("zfs get -H -o value keystatus ") {
                 let unlocked = shared.borrow().unlocked.iter().any(|done| done == root);
-                return output(if unlocked {
+                return Some(Ok(output(if unlocked {
                     "available\n"
                 } else {
                     "unavailable\n"
-                });
+                })));
             }
             if line == "zfs get -H -o value keylocation tank/keys" {
                 let location = shared.borrow().source_location.clone();
@@ -58,7 +58,7 @@ impl Machine {
                 } else {
                     location
                 };
-                return output(&format!("{location}\n"));
+                return Some(Ok(output(&format!("{location}\n"))));
             }
             let rest = line.strip_prefix("zfs load-key -L ")?;
             let (location, root) = rest.split_once(' ')?;

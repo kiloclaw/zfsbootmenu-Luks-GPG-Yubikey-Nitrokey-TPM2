@@ -21,9 +21,15 @@
     clippy::panic,
     clippy::indexing_slicing
 )]
+#![allow(
+    clippy::disallowed_methods,
+    reason = "process 1 starts, waits for and times its children itself, without the ports \
+              (\"The supervisor\" in crates/DESIGN.md)"
+)]
 
 mod console;
 
+use std::fmt::Write as _;
 use std::io::Write;
 use std::os::fd::AsFd;
 use std::path::PathBuf;
@@ -326,7 +332,7 @@ impl Supervisor {
     fn round(&self, resume: bool, attached: &mut Option<Attached>, events: &mut dyn FnMut(Event)) {
         let extra: &[&str] = if resume { &["--resume"] } else { &[] };
         self.settle_console(attached, events);
-        let modes = self.modes(attached.as_ref());
+        let modes = Self::modes(attached.as_ref());
         let report = if let Some(pid) = self.spawn(&self.startup, extra, false, attached.as_ref()) {
             events(Event::Started(pid));
             let status = self.wait_for(pid, attached, events).unwrap_or(-1);
@@ -353,7 +359,7 @@ impl Supervisor {
 
     /// The modes of the terminal the programs run on, to give back to the
     /// recovery shell when the start-up program is killed in raw mode.
-    fn modes(&self, attached: Option<&Attached>) -> Option<Modes> {
+    fn modes(attached: Option<&Attached>) -> Option<Modes> {
         match attached {
             Some(console) => Modes::save(console.terminal()),
             None => Modes::save(std::io::stdin().as_fd()),
@@ -436,10 +442,11 @@ impl Supervisor {
         let mut message =
             String::from("\nZFSBootMenu ended unexpectedly; type 'exit' to start it again\n");
         if let Some(report) = report {
-            message.push_str(&format!(
-                "A crash report is in {}; 'zbm debug crash' shows it.\n",
+            let _ = writeln!(
+                message,
+                "A crash report is in {}; 'zbm debug crash' shows it.",
                 report.display()
-            ));
+            );
         }
         message.push('\n');
         // A program killed while it drew leaves the cursor hidden, and its

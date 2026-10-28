@@ -5,6 +5,14 @@
 //! runs are recorded as golden files (`zbm_testkit::parity`), as in
 //! `image.rs`.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::too_many_lines,
+    reason = "integration tests build images from real files and fail loudly when they cannot"
+)]
+
 use zbm_testkit::legacy::Bash;
 use zbm_testkit::parity::Parity;
 use zbm_testkit::{TempDir, parity};

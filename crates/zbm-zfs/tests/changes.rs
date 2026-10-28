@@ -4,6 +4,12 @@
 //! send and receive pipeline run for real against stand-ins for `zfs` and
 //! `mbuffer`.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration tests read their fixtures and fail loudly when they cannot"
+)]
 #![allow(clippy::unwrap_used, reason = "tests may panic")]
 
 use std::io;

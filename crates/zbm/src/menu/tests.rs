@@ -1,3 +1,9 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_wraps,
+    reason = "the stand-in menus have the signature of the menu's `Run`"
+)]
+
 use std::time::Duration;
 
 use zbm_config::args::ZbmArgs;

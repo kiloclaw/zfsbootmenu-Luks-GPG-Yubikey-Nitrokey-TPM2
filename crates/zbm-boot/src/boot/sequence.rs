@@ -439,7 +439,7 @@ mod tests {
             .runner
             .calls()
             .iter()
-            .map(|call| call.display())
+            .map(zbm_platform::exec::Command::display)
             .collect();
         assert_eq!(calls, ["/libexec/zbm console release"]);
     }
@@ -460,7 +460,7 @@ mod tests {
             .runner
             .calls()
             .iter()
-            .map(|call| call.display())
+            .map(zbm_platform::exec::Command::display)
             .collect();
         assert_eq!(calls, ["/libexec/zbm console reattach"]);
     }

@@ -52,9 +52,9 @@ pub fn unsupported(options: &ZbmOptions, facts: &Facts) -> Vec<Unsupported> {
     }
     // `[ "${menu_timeout}" -ge 0 ] && [ -n "${BOOTFS}" ]` decides between the
     // countdown and the menu
-    if !options
+    if options
         .menu_timeout_seconds()
-        .is_some_and(|timeout| timeout >= 0)
+        .is_none_or(|timeout| timeout < 0)
     {
         list.push(Unsupported::Menu("zbm.show"));
     } else if facts.bootfs.is_none() {

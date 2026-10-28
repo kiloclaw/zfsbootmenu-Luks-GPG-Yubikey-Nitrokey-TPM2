@@ -65,14 +65,14 @@ fn reset(files: &dyn Files, root: &Path, gpu: &Gpu, driver: &str) {
         .map(|text| text.trim().to_owned())
         .unwrap_or_default();
     let reset = device.join("reset");
-    let how = if !files.exists(&reset) {
-        "it has no reset".to_owned()
-    } else {
+    let how = if files.exists(&reset) {
         match files.write(&reset, b"1") {
             Ok(()) if methods.is_empty() => "reset".to_owned(),
             Ok(()) => format!("reset ({methods})"),
             Err(error) => format!("unable to reset it: {error}"),
         }
+    } else {
+        "it has no reset".to_owned()
     };
     zbm_trace::info!(
         "graphics: handed {} back: unbound from {driver}; {how}",

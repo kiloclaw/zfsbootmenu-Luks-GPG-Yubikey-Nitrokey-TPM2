@@ -163,13 +163,11 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
     let find = |name: &str| applets.iter().find(|applet| applet.name == name);
     let name = command_name(argv0);
     if name != "zbm" {
-        return match find(name) {
-            Some(applet) => (applet.run)(args, io),
-            None => {
-                let _ = writeln!(io.stderr, "zbm: {name}: unknown command");
-                NOT_FOUND
-            }
+        let Some(applet) = find(name) else {
+            let _ = writeln!(io.stderr, "zbm: {name}: unknown command");
+            return NOT_FOUND;
         };
+        return (applet.run)(args, io);
     }
     match args.first().map(String::as_str) {
         None => {
@@ -195,16 +193,16 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
             let _ = io.stderr.write_all(usage(applets).as_bytes());
             USAGE
         }
-        Some(command) => match find(command) {
-            Some(applet) => (applet.run)(&args[1..], io),
-            None => {
+        Some(command) => {
+            let Some(applet) = find(command) else {
                 let _ = writeln!(
                     io.stderr,
                     "zbm: {command}: unknown command (see zbm --list)"
                 );
-                NOT_FOUND
-            }
-        },
+                return NOT_FOUND;
+            };
+            (applet.run)(args.get(1..).unwrap_or_default(), io)
+        }
     }
 }
 

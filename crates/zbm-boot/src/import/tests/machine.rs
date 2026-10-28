@@ -398,7 +398,8 @@ impl Recovery for Shell {
         assert!(self.shells <= 3, "too many recovery shells");
         let shells = self.dir.join("shells");
         let mut text = std::fs::read_to_string(&shells).unwrap_or_default();
-        text.push_str(&format!("{message}\n"));
+        text.push_str(message);
+        text.push('\n');
         std::fs::write(&shells, text).unwrap();
         let status = std::process::Command::new("sh")
             .arg("./on_shell")

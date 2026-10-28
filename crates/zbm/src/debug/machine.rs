@@ -50,7 +50,8 @@ pub fn luks_lines(snapshot: &Snapshot) -> Vec<String> {
                 methods.join(", ")
             );
             if let Some(pool) = &volume.pool {
-                line.push_str(&format!("\tpool: {pool}"));
+                line.push_str("\tpool: ");
+                line.push_str(pool.as_str());
             }
             line
         })

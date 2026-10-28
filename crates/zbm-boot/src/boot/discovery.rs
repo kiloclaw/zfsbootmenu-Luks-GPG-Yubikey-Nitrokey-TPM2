@@ -154,21 +154,20 @@ pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option
     let property = zfs_value(system.runner, KERNEL.name, fs).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("{} set to {property}", KERNEL.name);
-        match property.parse::<KernelSelector>() {
-            Ok(selector) => {
-                for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
-                    let kernel = Kernel::parse(line);
-                    if selector.matches(&kernel.kernel) {
-                        zbm_trace::debug!("matched {} to {property}", kernel.kernel);
-                        line.clone_into(&mut chosen);
-                    }
+        if let Ok(selector) = property.parse::<KernelSelector>() {
+            for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
+                let kernel = Kernel::parse(line);
+                if selector.matches(&kernel.kernel) {
+                    zbm_trace::debug!("matched {} to {property}", kernel.kernel);
+                    line.clone_into(&mut chosen);
                 }
             }
+        } else {
             // Bash matched nothing with a pattern that is not valid; a
             // back-reference, which it took, is refused here.
-            Err(_) => zbm_trace::warn!(
+            zbm_trace::warn!(
                 "org.zfsbootmenu:kernel is not a pattern the runtime takes; the last kernel boots"
-            ),
+            );
         }
     }
     if chosen.is_empty() {

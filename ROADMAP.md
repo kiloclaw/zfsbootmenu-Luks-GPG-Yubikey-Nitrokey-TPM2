@@ -643,7 +643,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | SE1 | The threat model gains attackers A6 (the network: SSH, tailscale) and A7 (the supply chain), the logs and reports saved on the ESP, and a diagram of zones and data flows | sec | S | |
 | SE2 | Done: `overflow-checks` in release builds; actions pinned by commit, the container's base by digest; the checks for the shell gate, test features and `zbm.console_mirror` | sec | S | |
 | SE3 | Done: The edges of secrets: the masked field renders from the `Secret`, `Secret::ct_eq`, no implicit `Clone`, the journal's allow-list, the key cache written safely and removed before `kexec` | sec | S | |
-| SE4 | The strict lints (no panics) for `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state`, the crates that run as PID 1 or parse hostile input | stab, sec | M | |
+| SE4 | Done: the strict lints (no panics) for `zbm`, `zbm-boot`, `zbm-zfs` and `zbm-state`, the crates that run as PID 1 or parse hostile input | stab, sec | M | |
 | SE5 | `Untrusted<T>` and `Printable`; fuzz targets for files in `/boot` and `os-release`, hostile names through `view`, the message decoders, key input and the console's replies | sec | M | |
 | SE6 | `zbm-sys` on `rustix`, with a sanitizer job | sec | M | |
 | SE7 | The RustCrypto crates replace `zbm-luks/src/crypto.rs`; `argon2` for the PIN of #8, with SE9 | sec | S/M | decision 1 entry |

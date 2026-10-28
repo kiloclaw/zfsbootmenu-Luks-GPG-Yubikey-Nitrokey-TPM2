@@ -174,7 +174,7 @@ fn loader_partuuid(system: &System<'_>) -> Option<String> {
     let units: Vec<u16> = bytes
         .get(4..)?
         .chunks_exact(2)
-        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+        .filter_map(|pair| pair.first_chunk::<2>().copied().map(u16::from_le_bytes))
         .take_while(|&unit| unit != 0)
         .collect();
     let uuid = String::from_utf16(&units).ok()?.trim().to_ascii_lowercase();

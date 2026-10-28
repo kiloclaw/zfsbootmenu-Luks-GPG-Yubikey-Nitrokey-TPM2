@@ -5,6 +5,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 
 use zbm_config::conf::Conf;
+use zbm_platform::env::{Environment as _, ProcessEnvironment};
 use zbm_platform::{RealSystem, System, TracedRunner};
 use zbm_startup::autosize::{self, Outcome};
 use zbm_startup::preinit;
@@ -25,6 +26,11 @@ fn zbm() -> PathBuf {
 
 /// What the legacy scripts do when they cannot read their configuration:
 /// warn and start a shell.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the runtime's first programs replace this process (`exec`), \
+              which the Runner does not do"
+)]
 fn give_up(io: &mut Io, what: &str) -> i32 {
     let _ = writeln!(
         io.stderr,
@@ -69,6 +75,11 @@ pub fn parse_commandline(_args: &[String], io: &mut Io) -> i32 {
 /// of `/etc/zfsbootmenu.conf` and `/etc/profile` exported, as the legacy
 /// start-up program sources them, so every program it starts sees them, and
 /// with the shell chosen for them in `ZBM_SHELL` ([`zbm_platform::shell`]).
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the runtime's first programs replace this process (`exec`), \
+              which the Runner does not do"
+)]
 pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     let real = RealSystem::new();
     let terminal = match real.terminal() {
@@ -163,7 +174,7 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
             }
         }
     }
-    let var = |name: &str| std::env::var(name).unwrap_or_default();
+    let var = |name: &str| ProcessEnvironment.var(name).unwrap_or_default();
     modes.console |= is_on(&var("ZFSBOOTMENU_CONSOLE"));
     if is_on(&var("ZFSBOOTMENU_FORCE_INIT")) {
         modes.rerun = Rerun::All;

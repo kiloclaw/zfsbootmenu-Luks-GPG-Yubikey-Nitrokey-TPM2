@@ -100,7 +100,9 @@ pub fn line(record: &Value) -> String {
         })
         .unwrap_or_default();
     if !spans.is_empty() {
-        line.push_str(&format!(" [{}]", spans.join(" > ")));
+        line.push_str(" [");
+        line.push_str(&spans.join(" > "));
+        line.push(']');
     }
     line
 }

@@ -10,6 +10,13 @@
 //! `tfix/ROOT/other`, which sets `%{parent} rw`; `tfix/ROOT/other/child`
 //! inherits that value, and `tfix/secret` is encrypted.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "integration tests read their fixtures and fail loudly when they cannot"
+)]
+
 use std::path::{Path, PathBuf};
 
 use zbm_testkit::FakeRunner;

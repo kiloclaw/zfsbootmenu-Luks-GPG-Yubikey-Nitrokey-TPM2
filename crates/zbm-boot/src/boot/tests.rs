@@ -82,11 +82,12 @@ struct Outcome {
 impl Machine {
     fn dir(&self) -> TempDir {
         let dir = TempDir::new("zbm-boot");
-        let answers: String = self
+        let answers = self
             .answers
             .iter()
             .map(|(status, glob, output)| format!("{status}\t{glob}\t{output}\n"))
-            .collect();
+            .collect::<Vec<_>>()
+            .concat();
         dir.write("answers", answers);
         for program in PROGRAMS {
             dir.write_executable(format!("bin/{program}"), FAKE);
@@ -104,13 +105,7 @@ impl Machine {
         dir
     }
 
-    fn outcome(
-        dir: &TempDir,
-        log: &str,
-        shells: String,
-        prompts: usize,
-        result: String,
-    ) -> Outcome {
+    fn outcome(dir: &TempDir, log: &str, shells: &str, prompts: usize, result: &str) -> Outcome {
         let z = dir.path().to_string_lossy().into_owned();
         let read = |name: &str| std::fs::read_to_string(dir.join(name)).ok();
         let kcl_dir = dir.join(format!("base/environments/{FS}/kcl"));
@@ -194,7 +189,7 @@ impl Machine {
         let log = log_lines(&std::fs::read_to_string(dir.join("log")).unwrap_or_default());
         let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap_or_default();
         let prompts = read("prompts").lines().count();
-        Machine::outcome(&dir, &log, read("shells"), prompts, output.stdout_text())
+        Machine::outcome(&dir, &log, &read("shells"), prompts, &output.stdout_text())
     }
 
     /// Runs `call` with the Rust code; it returns the result.
@@ -255,7 +250,7 @@ impl Machine {
             .filter(|line| *line == "tput civis")
             .count();
         let shells = shells.messages.borrow().concat();
-        Machine::outcome(&dir, &log, shells, prompts, result)
+        Machine::outcome(&dir, &log, &shells, prompts, &result)
     }
 }
 
@@ -289,7 +284,7 @@ fn without_initramfs_search(log: &str) -> String {
             .iter()
             .any(|prefix| line.starts_with(prefix))
         })
-        .map(|line| format!("{line}\n"))
+        .flat_map(|line| [line, "\n"])
         .collect()
 }
 

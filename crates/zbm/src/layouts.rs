@@ -189,7 +189,11 @@ fn compile_all(files: &dyn Files, request: &Request, io: &mut Io) -> io::Result<
     let mut all = true;
     let mut index = String::new();
     for (position, name) in request.layouts.iter().enumerate() {
-        if request.layouts[..position].contains(name) {
+        if request
+            .layouts
+            .get(..position)
+            .is_some_and(|before| before.contains(name))
+        {
             continue;
         }
         match compile::keymap(&request.xkb, name) {

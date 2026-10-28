@@ -83,8 +83,16 @@ pub fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
 pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i32 {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     match args.as_slice() {
-        ["crash"] => match crash_reports(files, base).last() {
-            Some(name) => match files.read(&base.join(name)) {
+        ["crash"] => {
+            let Some(name) = crash_reports(files, base).last().cloned() else {
+                let _ = writeln!(
+                    io.stderr,
+                    "zbm debug: no crash report in {}",
+                    base.display()
+                );
+                return 1;
+            };
+            match files.read(&base.join(&name)) {
                 Ok(text) => {
                     let _ = io.stdout.write_all(&text);
                     0
@@ -93,16 +101,8 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
                     let _ = writeln!(io.stderr, "zbm debug: {name}: {error}");
                     1
                 }
-            },
-            None => {
-                let _ = writeln!(
-                    io.stderr,
-                    "zbm debug: no crash report in {}",
-                    base.display()
-                );
-                1
             }
-        },
+        }
         ["crash", "--list"] => {
             for name in crash_reports(files, base) {
                 let _ = writeln!(io.stdout, "{}", base.join(name).display());
@@ -135,8 +135,8 @@ pub fn run_in(files: &dyn Files, base: &Path, args: &[String], io: &mut Io) -> i
 /// `zbm debug`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    if let ["luks" | "pools"] = words.as_slice() {
-        return machine::run(words[0], io);
+    if let [what @ ("luks" | "pools")] = words.as_slice() {
+        return machine::run(what, io);
     }
     if matches!(words.first(), Some(&("saved" | "save"))) {
         let code = crate::saved::run(Path::new(BASE), &words, io);

@@ -31,7 +31,10 @@ const SHOWN: u64 = 4096;
 fn is_left_out(name: &str) -> bool {
     name == super::journal::JOURNAL
         || name == ".keys"
-        || (name.starts_with("crash-") && name.ends_with(".txt"))
+        || (name.starts_with("crash-")
+            && Path::new(name)
+                .extension()
+                .is_some_and(|extension| extension == "txt"))
 }
 
 /// The lines of `zbm debug config` for the command line `kcl`.

@@ -4,6 +4,7 @@
 //! lines with `tput`; `tput`'s output is captured and written to the console,
 //! so tests see it.
 
+use std::fmt::Write as _;
 use std::time::Duration;
 
 use zbm_platform::System;
@@ -51,30 +52,35 @@ impl TimedPrompt {
 
     /// `-d`: the delay in seconds; 0 answers at once, a negative delay waits
     /// without limit.
+    #[must_use]
     pub fn delay(mut self, seconds: i64) -> TimedPrompt {
         self.delay = Some(seconds);
         self
     }
 
     /// `-p`: the countdown line, given the seconds left.
+    #[must_use]
     pub fn prompt(mut self, text: impl Fn(u64) -> String + 'static) -> TimedPrompt {
         self.prompt = Some(Box::new(text));
         self
     }
 
     /// `-m`: a line of text.
+    #[must_use]
     pub fn message(mut self, text: impl Into<String>) -> TimedPrompt {
         self.messages.push(text.into());
         self
     }
 
     /// `-r`: what RETURN does.
+    #[must_use]
     pub fn on_return(self, text: &str) -> TimedPrompt {
         let line = format!("{} {text}", colorize("green", "[RETURN]"));
         self.message(line)
     }
 
     /// `-e`: what ESCAPE does.
+    #[must_use]
     pub fn on_escape(self, text: &str) -> TimedPrompt {
         let line = format!("{} {text}", colorize("red", "[ESCAPE]"));
         self.message(line)
@@ -126,7 +132,7 @@ fn default_prompt(infinite: bool, width: usize) -> PromptText {
         let mut text = format!("Press {} to continue", colorize("green", "[RETURN]"));
         if !infinite {
             let left = colorize("yellow", &format!("{seconds:0width$}"));
-            text.push_str(&format!(" or wait {left} seconds"));
+            let _ = write!(text, " or wait {left} seconds");
         }
         text
     })

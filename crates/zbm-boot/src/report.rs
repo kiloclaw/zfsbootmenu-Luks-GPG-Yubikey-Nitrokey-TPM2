@@ -176,7 +176,10 @@ fn state_files(files: &dyn Files, base: &Path, is_wanted: fn(&str) -> bool) -> V
 /// The crash reports of the state directory `base`, by name.
 fn crash_reports(files: &dyn Files, base: &Path) -> Vec<String> {
     state_files(files, base, |name| {
-        name.starts_with("crash-") && name.ends_with(".txt")
+        name.starts_with("crash-")
+            && Path::new(name)
+                .extension()
+                .is_some_and(|extension| extension == "txt")
     })
 }
 

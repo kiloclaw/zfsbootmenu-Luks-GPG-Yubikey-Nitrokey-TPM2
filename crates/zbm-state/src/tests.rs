@@ -9,41 +9,10 @@ fn path(text: &str) -> PathBuf {
 }
 
 #[test]
-fn markers_and_locks() {
+fn the_console_s_records() {
     let files = FakeFiles::new();
     let state = State::new(&files, BASE);
     state.create().unwrap();
-    assert!(!state.is_initialized());
-    state.mark_initialized().unwrap();
-    assert!(state.is_initialized());
-
-    assert!(!state.is_active());
-    assert_eq!(state.active_pid(), None);
-    let active = state.take_active(1234).unwrap().unwrap();
-    assert!(
-        state.take_active(99).unwrap().is_none(),
-        "one menu at a time"
-    );
-    assert_eq!(files.text("/zfsbootmenu/active").unwrap(), "1234\n");
-    assert_eq!(state.active_pid(), Some(1234));
-    files.file("/zfsbootmenu/active", "  77  \nextra\n");
-    assert_eq!(state.active_pid(), Some(77));
-    files.file("/zfsbootmenu/active", "garbage\n");
-    assert!(state.is_active());
-    assert_eq!(state.active_pid(), None);
-    drop(active);
-    assert!(!state.is_active());
-    assert_eq!(files.text("/zfsbootmenu/active"), None);
-    // A PID without the lock held is a menu that is gone.
-    files.file("/zfsbootmenu/active", "77\n");
-    assert_eq!(state.active_pid(), None);
-    let mappings = state.lock_mappings().unwrap();
-    assert!(state.lock_mappings().is_err(), "the fake does not wait");
-    drop(mappings);
-    files.dir("/zfsbootmenu/.keys/tank/keys");
-    let cache = state.try_lock_key_cache("tank/keys").unwrap();
-    assert!(cache.is_some());
-    assert!(state.try_lock_key_cache("tank/keys").unwrap().is_none());
 
     assert_eq!(state.console_pid(), None);
     state.set_console(42).unwrap();
@@ -108,6 +77,44 @@ fn markers_and_locks() {
     assert_eq!(state.console_pid(), None);
     assert_eq!(state.console_layout(), None);
     assert_eq!(state.console_font(), None);
+}
+
+#[test]
+fn markers_and_locks() {
+    let files = FakeFiles::new();
+    let state = State::new(&files, BASE);
+    state.create().unwrap();
+    assert!(!state.is_initialized());
+    state.mark_initialized().unwrap();
+    assert!(state.is_initialized());
+
+    assert!(!state.is_active());
+    assert_eq!(state.active_pid(), None);
+    let active = state.take_active(1234).unwrap().unwrap();
+    assert!(
+        state.take_active(99).unwrap().is_none(),
+        "one menu at a time"
+    );
+    assert_eq!(files.text("/zfsbootmenu/active").unwrap(), "1234\n");
+    assert_eq!(state.active_pid(), Some(1234));
+    files.file("/zfsbootmenu/active", "  77  \nextra\n");
+    assert_eq!(state.active_pid(), Some(77));
+    files.file("/zfsbootmenu/active", "garbage\n");
+    assert!(state.is_active());
+    assert_eq!(state.active_pid(), None);
+    drop(active);
+    assert!(!state.is_active());
+    assert_eq!(files.text("/zfsbootmenu/active"), None);
+    // A PID without the lock held is a menu that is gone.
+    files.file("/zfsbootmenu/active", "77\n");
+    assert_eq!(state.active_pid(), None);
+    let mappings = state.lock_mappings().unwrap();
+    assert!(state.lock_mappings().is_err(), "the fake does not wait");
+    drop(mappings);
+    files.dir("/zfsbootmenu/.keys/tank/keys");
+    let cache = state.try_lock_key_cache("tank/keys").unwrap();
+    assert!(cache.is_some());
+    assert!(state.try_lock_key_cache("tank/keys").unwrap().is_none());
 
     files.file("/zfsbootmenu/have_errors", "");
     assert!(state.has_errors() && !state.has_warnings());
@@ -339,13 +346,13 @@ fn degraded_checks_match_the_legacy_function() {
     let legacy: Vec<bool> = parity.legacy(input, || {
         let dir = TempDir::new("zbm-state");
         dir.write("degraded", &degraded);
-        let bash = legacy_core().env("BASE", &dir.path().to_string_lossy());
+        let shell = legacy_core().env("BASE", &dir.path().to_string_lossy());
         pools
             .iter()
-            .map(|pool| bash.call("is_degraded", &[pool], b"").status.is_success())
+            .map(|pool| shell.call("is_degraded", &[pool], b"").status.is_success())
             .collect()
     });
-    for (pool, legacy) in pools.iter().zip(legacy) {
-        assert_eq!(state.is_degraded(pool), legacy, "pool {pool:?}");
+    for (pool, expected) in pools.iter().zip(legacy) {
+        assert_eq!(state.is_degraded(pool), expected, "pool {pool:?}");
     }
 }
