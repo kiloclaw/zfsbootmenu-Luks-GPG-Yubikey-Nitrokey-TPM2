@@ -197,6 +197,33 @@ fn the_keyboard_puts_the_console_layout_first() {
 }
 
 #[test]
+fn the_keyboard_has_each_layouts_positions_from_its_keymap() {
+    // Compiled from the machine's XKB data (`xkb-data`), as the image build
+    // compiles them.
+    let compiled = |name: &str| {
+        zbm_display::layout::compile::keymap(Path::new(zbm_display::layout::compile::XKB), name)
+            .unwrap()
+    };
+    let fake = FakeSystem::new();
+    fake.files
+        .file("/layouts/layouts", "us\nde\nfr\n")
+        .file("/layouts/us.xkb", compiled("us"))
+        .file("/layouts/de.xkb", compiled("de"))
+        .file("/layouts/fr.xkb", "not a keymap");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+
+    let keyboard = keyboard(&fake.files, Path::new("/layouts"), &state, "tty1");
+
+    let names: Vec<&str> = keyboard.positions.keys().map(String::as_str).collect();
+    assert_eq!(names, ["de", "us"]);
+    let typed: String = "Y[rich"
+        .chars()
+        .map(|c| keyboard.positions["us"].translate(&keyboard.positions["de"], c))
+        .collect();
+    assert_eq!(typed, "Zürich");
+}
+
+#[test]
 fn the_log_holds_the_warnings_and_errors_of_the_journal() {
     let fake = FakeSystem::new();
     fake.files.file(

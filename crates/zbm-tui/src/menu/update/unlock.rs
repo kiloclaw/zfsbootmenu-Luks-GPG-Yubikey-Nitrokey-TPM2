@@ -7,7 +7,6 @@ use std::sync::Arc;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use zbm_platform::secret::Secret;
 
-use crate::menu::keyboard;
 use crate::menu::keymap::{Input, Intent};
 use crate::menu::model::{Dialog, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Method, Outcome, PcrChange};
@@ -81,19 +80,23 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
 }
 
 /// `key` as the chosen layout has it: the console's character for the key's
-/// position, turned into the chosen layout's. Keys with `Ctrl` or `Alt`,
-/// and keys from a serial terminal, are left as they are.
+/// position, turned into the chosen layout's, with the image's keymaps.
+/// Keys with `Ctrl` or `Alt`, keys from a serial terminal, and layouts
+/// whose keymap did not load are left as they are.
 pub(super) fn translated(model: &Model, mut key: KeyEvent) -> KeyEvent {
     let keyboard = &model.snapshot.keyboard;
     let held = key
         .modifiers
         .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
-    if let (KeyCode::Char(c), Some(from), Some(to)) =
-        (key.code, keyboard.layouts.first(), model.layout())
-        && keyboard.local
+    let positions = |name: Option<&str>| name.and_then(|name| keyboard.positions.get(name));
+    if let (KeyCode::Char(c), Some(from), Some(to)) = (
+        key.code,
+        positions(keyboard.layouts.first().map(String::as_str)),
+        positions(model.layout()),
+    ) && keyboard.local
         && !held
     {
-        key.code = KeyCode::Char(keyboard::translate(from, to, c));
+        key.code = KeyCode::Char(from.translate(to, c));
     }
     key
 }

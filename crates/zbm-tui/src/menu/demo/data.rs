@@ -98,8 +98,9 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
             .collect(),
         volumes: volumes(options),
         keyboard: Keyboard {
-            layouts: crate::menu::keyboard::known().map(str::to_owned).collect(),
+            layouts: super::keyboard::names(),
             local: true,
+            positions: super::keyboard::positions(),
         },
         log: log(),
         now: NOW,

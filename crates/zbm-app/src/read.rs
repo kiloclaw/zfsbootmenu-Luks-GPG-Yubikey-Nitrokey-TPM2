@@ -10,6 +10,7 @@
 
 use std::collections::BTreeSet;
 use std::path::Path;
+use zbm_display::layout::{Layout, Positions};
 
 use zbm_config::options::ZbmOptions;
 use zbm_luks::device::is_open;
@@ -34,6 +35,21 @@ const PROPERTIES: &[&str] = &["mountpoint", "canmount", "keystatus"];
 
 /// The index of the image's keyboard layouts, in their directory.
 const LAYOUT_INDEX: &str = "layouts";
+
+/// The compose rules of the layouts' dead keys, in their directory.
+const DEAD_KEYS: &str = "dead-keys";
+
+/// The characters by key position of the layout `name` in `directory`,
+/// from its keymap (`<name>.xkb`) and the dead keys' rules; `None` when it
+/// does not load.
+fn positions(files: &dyn Files, directory: &Path, name: &str) -> Option<Positions> {
+    let keymap = files.read(&directory.join(format!("{name}.xkb"))).ok()?;
+    let mut layout = Layout::from_keymap(name, &keymap).ok()?;
+    if let Ok(rules) = files.read(&directory.join(DEAD_KEYS)) {
+        layout = layout.with_dead_keys(&rules).ok()?;
+    }
+    Some(layout.positions())
+}
 
 /// The health of a pool, in the four the menu tells apart.
 fn health(health: &zbm_zfs::Health) -> Health {
@@ -277,9 +293,14 @@ pub fn keyboard(files: &dyn Files, directory: &Path, state: &State<'_>, console:
     let serial = ["ttyS", "ttyAMA", "ttyUSB", "hvc"]
         .iter()
         .any(|prefix| console.trim_start_matches("/dev/").starts_with(prefix));
+    let positions = layouts
+        .iter()
+        .filter_map(|name| Some((name.clone(), positions(files, directory, name)?)))
+        .collect();
     Keyboard {
         layouts,
         local: !serial,
+        positions,
     }
 }
 

@@ -1340,6 +1340,7 @@ dependencies = [
  "zbm-boot",
  "zbm-config",
  "zbm-crypt",
+ "zbm-display",
  "zbm-luks",
  "zbm-platform",
  "zbm-state",

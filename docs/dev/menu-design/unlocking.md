@@ -48,9 +48,12 @@ or French keyboard then cannot be typed: `z` and `y`, `a` and `q`, and most symb
 - The unlock dialog says which layout typing uses: *“Keyboard: us · Ctrl-K: layout · Ctrl-R: show”*.
 - After a wrong passphrase, that line turns into a warning that names the likely cause: *“Keyboard: us. Set with
   another layout? Ctrl-K changes it.”* (wireframe `unlock-wrong`).
-- `Ctrl-K` switches to the next layout the image knows (`us`, `de`, `fr`, `uk` in the prototype) and clears what was
-  typed, which was typed with the other one. The menu then translates each key from the console's layout to the
-  chosen one by its position, so the key labelled `Z` on a German keyboard types `z` (wireframe `unlock-layout`).
+- `Ctrl-K` switches to the next layout the image has (`zfsbootmenu_keyboard_layouts`; `us`, `de`, `fr` and `gb` on the
+  demo machine) and clears what was typed, which was typed with the other one. The menu then translates each key from
+  the console's layout to the chosen one by its position, with the image's own XKB keymaps (ROADMAP.md UI1), so the key
+  labelled `Z` on a German keyboard types `z` (wireframe `unlock-layout`), and variants such as `de(nodeadkeys)` or
+  `gb` translate as they type. A dead key gives the accent it types alone; the keys of the main block are translated,
+  the others pass unchanged.
 - The chosen layout applies to every key, in every view, until the menu ends: the key labelled `/` on a German
   keyboard (`Shift-7`) still opens the search. Keys with `Ctrl` or `Alt` are not translated.
 - `Ctrl-R` shows what is typed, and hides it again. It is off at every prompt and never on by default: the user turns

@@ -14,6 +14,9 @@ use kbvm::xkb::diagnostic::Diagnostic;
 use kbvm::{Components, Keycode, Keysym, ModifierMask, syms};
 
 pub mod compile;
+mod positions;
+
+pub use positions::{MAIN_BLOCK, Positions};
 
 /// Why a layout could not be compiled or loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]

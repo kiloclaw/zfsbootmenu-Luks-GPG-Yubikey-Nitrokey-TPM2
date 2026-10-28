@@ -276,3 +276,35 @@ fn the_accent_of_a_dead_key_waits_until_the_next_key() {
     decoder.feed_into(57, 1, &mut presses);
     assert!(presses.last().is_some_and(|press| press.logo));
 }
+
+/// The positions of the layout `name`, with its dead keys.
+fn positions(name: &str) -> Positions {
+    Layout::from_keymap(name, keymap(name).as_bytes())
+        .unwrap()
+        .with_dead_keys(dead_keys().as_bytes())
+        .unwrap()
+        .positions()
+}
+
+#[test]
+fn keys_translate_by_their_position_between_layouts() {
+    let us = positions("us");
+    let typed = |to: &Positions, text: &str| -> String {
+        text.chars().map(|c| us.translate(to, c)).collect()
+    };
+
+    // The keys a German user presses for "Zürich-2" on a US console.
+    assert_eq!(typed(&positions("de"), "Y[rich/@"), "Zürich-\"");
+    assert_eq!(typed(&positions("fr"), "qzm2"), "aw,é");
+    // The British layout: Shift-2 is the quote, and the key above Enter `#`.
+    assert_eq!(typed(&positions("gb"), "@\\"), "\"#");
+    // A variant: the key left of 1 is a dead circumflex in `de`, which
+    // types `^` alone, and `^` itself in `de(nodeadkeys)`.
+    assert_eq!(typed(&positions("de"), "`"), "^");
+    assert_eq!(typed(&positions("de(nodeadkeys)"), "`"), "^");
+    // Back to the console's, and what no key of the main block types.
+    assert_eq!(positions("de").translate(&us, 'z'), 'y');
+    assert_eq!(us.translate(&us, 'y'), 'y');
+    assert_eq!(us.translate(&positions("de"), '€'), '€');
+    assert_eq!(us.translate(&Positions::default(), 'y'), 'y');
+}

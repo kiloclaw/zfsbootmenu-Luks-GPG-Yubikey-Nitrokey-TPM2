@@ -103,6 +103,10 @@ pub struct Keyboard {
     /// console the terminal sends characters in its own layout, and the menu
     /// does not translate them.
     pub local: bool,
+    /// The characters of each layout by key position, from the image's
+    /// keymaps, which the menu translates what is typed with; a layout
+    /// whose keymap does not load has none, and is not translated.
+    pub positions: std::collections::BTreeMap<String, zbm_display::layout::Positions>,
 }
 
 #[cfg(test)]

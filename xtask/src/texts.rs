@@ -45,7 +45,10 @@ pub const NOT_TEXT: &[(&str, &str)] = &[
         "theme.rs",
         "the glyphs of the ASCII theme, symbols drawn with letters",
     ),
-    ("keyboard.rs", "the rows of keyboard layouts"),
+    (
+        "keyboard.rs",
+        "the name of the console's own keyboard layout",
+    ),
     ("display.rs", "device paths, and messages for developers"),
     ("display", "the display without a terminal, for developers"),
     ("terminal.rs", "the key log of the measures, for developers"),
