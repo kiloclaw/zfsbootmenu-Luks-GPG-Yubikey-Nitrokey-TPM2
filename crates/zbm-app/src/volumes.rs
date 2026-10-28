@@ -9,6 +9,7 @@ use zbm_config::spec::cmdline::luks::LUKS_KEY;
 use zbm_luks::device::resolve_device;
 use zbm_luks::mappings::{Mapping, Origin};
 use zbm_luks::unlocker::{Luks, Unlocker};
+use zbm_types::MappingName;
 
 use crate::model::{Action, Event, Outcome, UnlockOutcome};
 
@@ -75,8 +76,8 @@ fn skipped(session: &Unlocker<'_>) -> BTreeSet<String> {
 pub(crate) fn perform(luks: Luks<'_>, action: &Action) -> Option<Vec<Event>> {
     Some(match action {
         Action::UnlockAll => unlock_all(luks),
-        Action::Open { device, name } => open(luks, device, name),
-        Action::Close(only) => close(luks, only.as_deref()),
+        Action::Open { device, name } => open(luks, device, name.as_ref()),
+        Action::Close(only) => close(luks, only.as_ref()),
         _ => return None,
     })
 }
@@ -118,7 +119,7 @@ fn unlock_all(luks: Luks<'_>) -> Vec<Event> {
 }
 
 /// Opens the volume `spec` as `name`, with the key of `zbm.luks_key`.
-fn open(luks: Luks<'_>, spec: &str, name: &str) -> Vec<Event> {
+fn open(luks: Luks<'_>, spec: &str, name: Option<&MappingName>) -> Vec<Event> {
     let Some(mut session) = session(luks) else {
         return unavailable();
     };
@@ -134,14 +135,13 @@ fn open(luks: Luks<'_>, spec: &str, name: &str) -> Vec<Event> {
     session.forget_secrets();
     session.settle();
     // The name the run recorded, without asking cryptsetup again.
-    let volume = if name.is_empty() {
-        recorded(&session)
+    let volume = match name {
+        Some(name) => name.to_string(),
+        None => recorded(&session)
             .into_iter()
             .rev()
-            .find(|mapping| mapping.device == device)
-            .map_or_else(|| device.clone(), |mapping| mapping.name)
-    } else {
-        name.to_owned()
+            .find(|mapping| mapping.device == device.as_str())
+            .map_or_else(|| device.to_string(), |mapping| mapping.name),
     };
     match opened {
         Ok(_) => vec![
@@ -165,7 +165,7 @@ fn open(luks: Luks<'_>, spec: &str, name: &str) -> Vec<Event> {
 }
 
 /// Closes the mappings ZFSBootMenu opened, or the one named `only`.
-fn close(luks: Luks<'_>, only: Option<&str>) -> Vec<Event> {
+fn close(luks: Luks<'_>, only: Option<&MappingName>) -> Vec<Event> {
     let Some(mut session) = session(luks) else {
         return unavailable();
     };

@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use zbm_types::MappingName;
 use zbm_zfs::{Zfs, ZfsCli};
 
 use crate::device::is_block_device;
@@ -54,7 +55,7 @@ impl Unlocker<'_> {
     /// # Errors
     ///
     /// [`LuksError::NotClosed`] with the mappings that stay open.
-    pub fn close_all(&mut self, only: Option<&str>) -> Result<(), LuksError> {
+    pub fn close_all(&mut self, only: Option<&MappingName>) -> Result<(), LuksError> {
         let Some(mappings) = self.mappings().read() else {
             return Ok(());
         };
@@ -64,7 +65,7 @@ impl Unlocker<'_> {
         let mut gone: Vec<String> = Vec::new();
         let mut open: Vec<String> = Vec::new();
         for Mapping { name, .. } in mappings {
-            if only.is_some_and(|only| only != name) {
+            if only.is_some_and(|only| only.as_str() != name) {
                 continue;
             }
             let path = self
@@ -85,7 +86,10 @@ impl Unlocker<'_> {
                     zbm_trace::warn!("unable to export {pool}, which uses {name}");
                 }
             }
-            if self.cryptsetup_close(&name).is_ok() {
+            let closed = name
+                .parse::<MappingName>()
+                .is_ok_and(|mapping| self.cryptsetup_close(&mapping).is_ok());
+            if closed {
                 zbm_trace::info!("closed LUKS mapping {name}");
                 gone.push(name);
             } else {

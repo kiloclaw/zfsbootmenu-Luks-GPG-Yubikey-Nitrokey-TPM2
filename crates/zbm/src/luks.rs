@@ -10,7 +10,7 @@ use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
 use zbm_luks::unlocker::{Luks, Settings, Unlocker};
 use zbm_platform::{Context, RealSystem};
-use zbm_types::RetryDelay;
+use zbm_types::{MappingName, ParseError, RetryDelay};
 
 use crate::Io;
 
@@ -87,16 +87,26 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     run_zluks(luks, args, io)
 }
 
-/// The action of a `zluks` command that `zbm-app` performs, if it is one;
-/// `None` for the other commands, and for `open` without a device.
-fn app_action(command: &str, rest: &[String]) -> Option<Action> {
+/// The action of a `zluks` command that `zbm-app` performs, if it is one,
+/// or why its mapping name is not one; `None` for the other commands, and
+/// for `open` without a device.
+fn app_action(command: &str, rest: &[String]) -> Option<Result<Action, ParseError>> {
+    // An empty name is the default name, as in the legacy script.
+    let name = |at: usize| {
+        rest.get(at)
+            .filter(|name| !name.is_empty())
+            .map(|name| name.parse::<MappingName>())
+            .transpose()
+    };
     match command {
-        "unlock" => Some(Action::UnlockAll),
-        "open" => rest.first().map(|device| Action::Open {
-            device: device.clone(),
-            name: rest.get(1).cloned().unwrap_or_default(),
+        "unlock" => Some(Ok(Action::UnlockAll)),
+        "open" => rest.first().map(|device| {
+            Ok(Action::Open {
+                device: device.clone(),
+                name: name(1)?,
+            })
         }),
-        "close" => Some(Action::Close(rest.first().cloned())),
+        "close" => Some(name(0).map(Action::Close)),
         _ => None,
     }
 }
@@ -130,8 +140,13 @@ fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
 pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
     let command = args.first().map_or("unlock", String::as_str);
     let rest = args.get(1..).unwrap_or_default();
-    if let Some(action) = app_action(command, rest) {
-        return perform(luks, &action, io);
+    match app_action(command, rest) {
+        Some(Ok(action)) => return perform(luks, &action, io),
+        Some(Err(error)) => {
+            let _ = writeln!(io.stderr, "ERROR: {error}");
+            return 1;
+        }
+        None => {}
     }
     let mut session = Unlocker::new(luks);
     if !session.available() {
@@ -204,12 +219,16 @@ fn print_status(session: &Unlocker<'_>, io: &mut Io) {
 fn print_list(session: &Unlocker<'_>, io: &mut Io) {
     let system = *session.system();
     for device in session.discover_devices() {
-        let state = if is_open(system.files, &device, &session.settings().open_check) {
+        let state = if is_open(
+            system.files,
+            device.as_str(),
+            &session.settings().open_check,
+        ) {
             colorize("green", "in use")
         } else {
             colorize("yellow", "locked")
         };
-        let kinds: std::collections::BTreeSet<String> = list_tokens(&system, &device)
+        let kinds: std::collections::BTreeSet<String> = list_tokens(&system, device.as_str())
             .into_iter()
             .map(|token| token.kind)
             .collect();
@@ -222,7 +241,7 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
         let _ = writeln!(
             io.stdout,
             "{}\t{state}{tokens}",
-            describe_device(&system, &device)
+            describe_device(&system, device.as_str())
         );
     }
 }
@@ -303,6 +322,24 @@ mod tests {
         fake.runner.respond_program("lsblk", 0, "10G\n");
         fake.runner.respond_program("blkid", 2, "");
         fake
+    }
+
+    #[test]
+    fn a_name_that_is_no_mapping_name_is_refused() {
+        let fake = machine();
+        for args in [&["open", "/dev/sdb2", "--help"][..], &["close", "a/b"]] {
+            let (code, stdout, stderr) = call(&fake, args);
+            assert_eq!(code, 1, "{args:?}");
+            assert_eq!(stdout, "");
+            assert!(stderr.starts_with("ERROR: "), "{stderr}");
+            assert!(stderr.contains("is not a valid mapping name"), "{stderr}");
+        }
+        assert!(
+            fake.runner
+                .lines()
+                .iter()
+                .all(|line| !line.starts_with("cryptsetup open"))
+        );
     }
 
     #[test]

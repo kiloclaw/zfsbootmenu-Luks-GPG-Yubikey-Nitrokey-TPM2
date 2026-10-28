@@ -53,8 +53,9 @@ SUBCOMMANDS
   LUKS UUID, or **luks-**\ *UUID*, is also accepted.
 
   The mapping is created as */dev/mapper/*\ *name*. When *name* is omitted, the mapping is called **luks-**\ *UUID*,
-  which is also the default name used by systemd-cryptsetup and dracut. The key file given by **zbm.luks_key**, if
-  any, is tried before the volume's LUKS2 tokens and a passphrase prompt.
+  which is also the default name used by systemd-cryptsetup and dracut. A name has 1 to 127 printable ASCII
+  characters other than */* and the space, and does not start with **-**; **zluks** refuses another. The key file
+  given by **zbm.luks_key**, if any, is tried before the volume's LUKS2 tokens and a passphrase prompt.
 
 **close** [*name*]
 

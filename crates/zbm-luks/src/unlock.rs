@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use zbm_platform::console::Timed;
 use zbm_tools::devices::Devices;
+use zbm_types::{DevicePath, MappingName};
 
 use crate::ask::{Asked, SecretKind, SecretRequest, Told, VolumeRef};
 use crate::config::Options;
@@ -72,6 +73,28 @@ impl Unlocker<'_> {
         is_open(self.system().files, device, &self.settings().open_check)
     }
 
+    /// The name to open `device` as, with the LUKS header `header`: `name`,
+    /// or the default name, when no mapping has it yet.
+    fn free_name(
+        &self,
+        name: Option<&MappingName>,
+        header: &str,
+        device: &str,
+    ) -> Result<MappingName, LuksError> {
+        let name = mapping_name(self.system(), name, header)?;
+        if self
+            .system()
+            .files
+            .exists(Path::new(&self.mapper(name.as_str())))
+        {
+            zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
+            return Err(LuksError::MappingExists {
+                name: name.to_string(),
+            });
+        }
+        Ok(name)
+    }
+
     /// Records a mapping this run opened with `method`.
     fn opened(&self, name: &str, device: &str, origin: Origin, method: Method) -> Opened {
         self.mappings().record(name, device, origin);
@@ -81,23 +104,25 @@ impl Unlocker<'_> {
     /// Unlocks one volume, trying in order: a key script, a key file
     /// (decrypting a GnuPG key file), LUKS2 tokens, passphrases that unlocked
     /// other volumes, YubiKey challenge-response, and the passphrase prompt.
-    /// `name` is the mapping name (empty for the default), `keyspec`
+    /// `name` is the mapping name (`None` for the default), `keyspec`
     /// the key file specification (may be empty), `options` the crypttab
     /// options and `origin` how the volume was found.
     ///
     /// # Errors
     ///
     /// When the volume is not open afterwards: [`LuksError::NotLuks`],
-    /// [`LuksError::MappingExists`], or why the passphrase prompt ended
-    /// ([`LuksError::Skipped`], [`LuksError::NoConsole`]).
+    /// [`LuksError::Name`], [`LuksError::MappingExists`], or why the
+    /// passphrase prompt ended ([`LuksError::Skipped`],
+    /// [`LuksError::NoConsole`]).
     pub fn open_device(
         &mut self,
-        name: &str,
-        device: &str,
+        name: Option<&MappingName>,
+        device: &DevicePath,
         keyspec: &str,
         options_text: &str,
         origin: Origin,
     ) -> Result<Opened, LuksError> {
+        let device = device.as_str();
         let (options, messages) = Options::parse(options_text, self.settings().default_tries);
         log_all(&messages);
 
@@ -112,13 +137,10 @@ impl Unlocker<'_> {
             return Err(LuksError::NotLuks { header });
         }
 
-        let name = mapping_name(self.system(), name, &header);
-        if self.system().files.exists(Path::new(&self.mapper(&name))) {
-            zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
-            return Err(LuksError::MappingExists { name });
-        }
+        let name = self.free_name(name, &header, device)?;
+        let name = name.as_str();
         let volume = Volume {
-            name: &name,
+            name,
             device,
             header: &header,
             keyspec,
@@ -127,13 +149,13 @@ impl Unlocker<'_> {
         };
         for method in key_methods() {
             match method.try_open(self, &volume) {
-                Tried::Opened => return Ok(self.opened(&name, device, origin, method.method())),
+                Tried::Opened => return Ok(self.opened(name, device, origin, method.method())),
                 Tried::Elsewhere => return Ok(Opened::Elsewhere),
                 Tried::NotOpened => {}
             }
         }
         // Ask the user.
-        self.ask_passphrase(&name, device, &options, origin)
+        self.ask_passphrase(name, device, &options, origin)
     }
 
     /// The passphrase prompt, driven by [`PassphrasePrompt`]. Echo is off
@@ -285,7 +307,7 @@ impl Unlocker<'_> {
 
     /// Waits for the device of a specification; a missing device is skipped
     /// at once with `nofail`, and otherwise when the user says so.
-    pub fn wait_device(&self, spec: &str, nofail: bool) -> Option<String> {
+    pub fn wait_device(&self, spec: &str, nofail: bool) -> Option<DevicePath> {
         let system = *self.system();
         loop {
             if let Some(device) = resolve_device(&system, spec) {
@@ -316,25 +338,23 @@ impl Unlocker<'_> {
     }
 
     /// Every LUKS block device on the machine.
-    pub fn discover_devices(&self) -> Vec<String> {
+    pub fn discover_devices(&self) -> Vec<DevicePath> {
         let system = self.system();
         let output = Devices::new(system.runner, system.files).luks_devices();
-        let devices: BTreeSet<String> = output
+        let devices: BTreeSet<DevicePath> = output
             .lines()
-            .map(|line| line.trim().to_owned())
-            .collect::<Vec<_>>()
-            .into_iter()
+            .map(str::trim)
             .filter(|device| is_block_device(system.files, device))
-            .map(|device| canonical(system.files, &device))
+            .filter_map(|device| canonical(system.files, device).parse().ok())
             .collect();
         devices.into_iter().collect()
     }
 
     /// Whether an open mapping might hold a ZFS vdev: unknown contents (or a
     /// partitioned device) count as maybe.
-    pub fn may_hold_zfs(&self, name: &str) -> bool {
+    pub fn may_hold_zfs(&self, name: &MappingName) -> bool {
         let kind = Devices::new(self.system().runner, self.system().files)
-            .content_type(&self.mapper(name));
+            .content_type(&self.mapper(name.as_str()));
         kind.is_empty() || kind == "zfs_member"
     }
 
@@ -344,11 +364,11 @@ impl Unlocker<'_> {
     ///
     /// [`LuksError::Close`] when cryptsetup fails, for example because the
     /// mapping is in use.
-    pub fn cryptsetup_close(&self, name: &str) -> Result<(), LuksError> {
+    pub fn cryptsetup_close(&self, name: &MappingName) -> Result<(), LuksError> {
         self.cryptsetup()
-            .close_named(name)
+            .close_named(name.as_str())
             .map_err(|_| LuksError::Close {
-                name: name.to_owned(),
+                name: name.to_string(),
             })
     }
 }

@@ -294,7 +294,9 @@ fn unlock() {
     let c = case();
     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
     let resolved = c.with_session(&console, |_, system| {
-        let resolve = |spec: &str| zbm_luks::device::resolve_device(system, spec);
+        let resolve = |spec: &str| {
+            zbm_luks::device::resolve_device(system, spec).map(|device| device.to_string())
+        };
         resolve("LABEL=zfsA").as_deref() == Some(dev_a.as_str())
             && resolve("label=zfsA").as_deref() == Some(dev_a.as_str())
             && resolve(&uuid_a).as_deref() == Some(dev_a.as_str())

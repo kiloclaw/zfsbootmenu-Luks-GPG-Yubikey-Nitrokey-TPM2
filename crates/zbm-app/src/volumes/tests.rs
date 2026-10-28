@@ -64,7 +64,7 @@ fn without_cryptsetup_nothing_is_unlocked() {
     );
     let open = Action::Open {
         device: "/dev/sda2".into(),
-        name: String::new(),
+        name: None,
     };
     assert!(matches!(ended(&act(&fake, &open)), Outcome::Failed { .. }));
 }
@@ -78,7 +78,7 @@ fn an_open_volume_is_reported_open_under_the_name_recorded() {
     );
     let open = Action::Open {
         device: "/dev/sda2".into(),
-        name: String::new(),
+        name: None,
     };
 
     let events = act(&fake, &open);
@@ -101,7 +101,7 @@ fn a_device_that_is_not_there_is_named() {
     let fake = machine();
     let open = Action::Open {
         device: "/dev/none".into(),
-        name: "x".into(),
+        name: Some("x".parse().unwrap()),
     };
 
     let events = act(&fake, &open);
@@ -125,7 +125,7 @@ fn closing_without_mappings_is_done_at_once() {
         &Outcome::Done("closed the LUKS volumes".into())
     );
     assert_eq!(
-        ended(&act(&fake, &Action::Close(Some("a1".into())))),
+        ended(&act(&fake, &Action::Close(Some("a1".parse().unwrap())))),
         &Outcome::Done("closed a1".into())
     );
     let settings = Settings::new("/zfsbootmenu");
@@ -220,7 +220,7 @@ fn a_volume_that_does_not_open_is_reported_with_its_causes() {
     fake.runner.respond_program("cryptsetup", 2, "");
     let open = Action::Open {
         device: "/dev/sdb2".into(),
-        name: "b1".into(),
+        name: Some("b1".parse().unwrap()),
     };
 
     let events = act_in_app(&fake, &open);

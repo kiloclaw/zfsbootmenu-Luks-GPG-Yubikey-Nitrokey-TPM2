@@ -10,6 +10,7 @@ use std::path::Path;
 use zbm_platform::files::FileKind;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
+use zbm_types::DevicePath;
 
 use crate::ask::{Awaited, VolumeRef, WaitRequest};
 use crate::device::{device_present, resolve_device};
@@ -52,7 +53,7 @@ impl Unlocker<'_> {
             return found;
         };
         match self.key_device(device_spec, file, volume) {
-            Some(device) => self.mount_key_device(&device, file),
+            Some(device) => self.mount_key_device(device.as_str(), file),
             None => FoundKey::default(),
         }
     }
@@ -66,7 +67,7 @@ impl Unlocker<'_> {
         device_spec: &str,
         file: &str,
         volume: VolumeRef<'_>,
-    ) -> Option<String> {
+    ) -> Option<DevicePath> {
         let system = *self.system();
         if let Some(device) = resolve_device(&system, device_spec) {
             return Some(device);

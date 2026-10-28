@@ -198,6 +198,7 @@ pub fn volumes(session: &Unlocker<'_>) -> Vec<Volume> {
         .discover_devices()
         .into_iter()
         .map(|device| {
+            let device = device.to_string();
             let mapping = mappings.iter().find(|mapping| mapping.device == device);
             let open = is_open(system.files, &device, &settings.open_check);
             let mut methods: Vec<Method> = Vec::new();

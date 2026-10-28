@@ -7,6 +7,7 @@ use zbm_crypt::Cryptsetup;
 use zbm_platform::System;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::devices::Devices;
+use zbm_types::{DevicePath, MappingName, ParseError};
 
 /// The `/dev/disk` directory of each `KEY=value` device specification.
 const BY_KEY: [(&str, &str); 6] = [
@@ -56,7 +57,7 @@ fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
 /// a bare LUKS UUID or `luks-<UUID>`. Returns the canonical path of the block
 /// device, or `None` (after logging an error for a specification it does not
 /// understand).
-pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
+pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<DevicePath> {
     if spec.is_empty() {
         return None;
     }
@@ -87,18 +88,10 @@ pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
     // as sgdisk print GPT UUIDs in upper case, so either is accepted.
     let lower = value.to_lowercase();
     let files = system.files;
-    if !is_block_device(files, &device) {
-        let dir = match key.as_str() {
-            "UUID" => Some("/dev/disk/by-uuid/"),
-            "PARTUUID" => Some("/dev/disk/by-partuuid/"),
-            _ => None,
-        };
-        if let Some(dir) = dir {
-            let candidate = format!("{dir}{lower}");
-            if is_block_device(files, &candidate) {
-                device = candidate;
-            }
-        }
+    if !is_block_device(files, &device)
+        && let Some(link) = lower_case_link(files, &key, &lower)
+    {
+        device = link;
     }
 
     // udev links may be missing or escaped differently; blkid finds the
@@ -112,7 +105,22 @@ pub fn resolve_device(system: &System<'_>, spec: &str) -> Option<String> {
         }
     }
 
-    is_block_device(files, &device).then(|| canonical(files, &device))
+    is_block_device(files, &device)
+        .then(|| canonical(files, &device))?
+        .parse()
+        .ok()
+}
+
+/// The `/dev/disk/by-uuid` or `by-partuuid` link of the UUID `lower`, in
+/// lower case, for the key `key`, when it is a block device.
+fn lower_case_link(files: &dyn Files, key: &str, lower: &str) -> Option<String> {
+    let dir = match key {
+        "UUID" => "/dev/disk/by-uuid/",
+        "PARTUUID" => "/dev/disk/by-partuuid/",
+        _ => return None,
+    };
+    let link = format!("{dir}{lower}");
+    is_block_device(files, &link).then_some(link)
 }
 
 /// Whether the device a specification names exists.
@@ -156,22 +164,35 @@ pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
 
 /// The default mapping name of a LUKS device: `luks-<UUID>`, or
 /// `luks-<device name>` when the UUID cannot be read.
-pub fn default_name(system: &System<'_>, device: &str) -> String {
+///
+/// # Errors
+///
+/// When that is not a mapping name: the UUID comes from the header, which
+/// whoever wrote the device chose.
+pub fn default_name(system: &System<'_>, device: &str) -> Result<MappingName, ParseError> {
     match Cryptsetup::new(system.runner).luks_uuid(device) {
         Some(uuid) if !uuid.is_empty() => format!("luks-{uuid}"),
         _ => format!("luks-{}", device.rsplit('/').next().unwrap_or_default()),
     }
+    .parse()
 }
 
 /// The name a volume is opened as: `name` when given,
 /// else the default name of its LUKS `header`, which is the device itself
 /// unless crypttab gives a detached one. The unlock use cases name volumes
 /// with it.
-pub fn mapping_name(system: &System<'_>, name: &str, header: &str) -> String {
-    if name.is_empty() {
-        default_name(system, header)
-    } else {
-        name.to_owned()
+///
+/// # Errors
+///
+/// When the default name is not a mapping name.
+pub fn mapping_name(
+    system: &System<'_>,
+    name: Option<&MappingName>,
+    header: &str,
+) -> Result<MappingName, ParseError> {
+    match name {
+        Some(name) => Ok(name.clone()),
+        None => default_name(system, header),
     }
 }
 
@@ -242,7 +263,7 @@ mod tests {
         let fake = machine();
         let system = fake.system();
         let _log = log(&fake);
-        let resolve = |spec: &str| resolve_device(&system, spec);
+        let resolve = |spec: &str| resolve_device(&system, spec).map(|device| device.to_string());
         let sda = Some("/dev/sda1".to_owned());
         let sdb = Some("/dev/sdb".to_owned());
         assert_eq!(resolve("/dev/sda1"), sda);
@@ -450,13 +471,36 @@ mod tests {
     "#;
 
     #[test]
+    fn a_header_cannot_name_its_mapping_out_of_the_mapper() {
+        // The UUID comes from the header, which whoever wrote the device
+        // chose: a path out of /dev/mapper, a second word, a terminal
+        // escape sequence.
+        for uuid in ["../../etc", "a b", "\u{1b}[2J"] {
+            let fake = FakeSystem::new();
+            fake.runner
+                .respond("cryptsetup luksUUID /dev/sda1", 0, &format!("{uuid}\n"));
+            assert!(default_name(&fake.system(), "/dev/sda1").is_err(), "{uuid}");
+        }
+        let fake = FakeSystem::new();
+        let given: MappingName = "cryptroot".parse().unwrap();
+        assert_eq!(
+            mapping_name(&fake.system(), Some(&given), "/dev/sda1"),
+            Ok(given)
+        );
+    }
+
+    #[test]
     fn names_and_descriptions_match_the_legacy_code() {
         let mut parity = parity!("names_and_descriptions_match_the_legacy_code");
         for device in ["/dev/sda1", "/dev/sdb", "/dev/mapper/x", "/dev/dir/"] {
             let fake = describe_machine();
             let system = fake.system();
             for (function, rust) in [
-                ("luks_default_name", default_name(&system, device)),
+                (
+                    "luks_default_name",
+                    default_name(&system, device)
+                        .map_or_else(|_| String::new(), |name| name.to_string()),
+                ),
                 ("luks_describe_device", describe_device(&system, device)),
             ] {
                 let legacy: String = parity.legacy(format!("{function} {device}"), || {
@@ -470,7 +514,9 @@ mod tests {
         }
         let fake = describe_machine();
         assert_eq!(
-            default_name(&fake.system(), "/dev/sda1"),
+            default_name(&fake.system(), "/dev/sda1")
+                .unwrap()
+                .to_string(),
             format!("luks-{UUID}")
         );
         assert_eq!(

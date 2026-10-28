@@ -335,8 +335,9 @@ impl<'l> Case<'l> {
     /// `luks_close_all [only]`: 0 when it succeeded.
     pub fn close(&self, only: Option<&str>) -> i32 {
         let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
+        let only = only.map(|name| name.parse().expect("a mapping name"));
         self.with_session(&console, |session, _| {
-            i32::from(session.close_all(only).is_err())
+            i32::from(session.close_all(only.as_ref()).is_err())
         })
     }
 

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use zbm_platform::secret::Secret;
-use zbm_types::{Answer, DatasetName, ImportPolicy, PoolName, SnapshotName};
+use zbm_types::{Answer, DatasetName, ImportPolicy, MappingName, PoolName, SnapshotName};
 
 use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
 
@@ -90,16 +90,16 @@ pub enum Action {
     /// their key methods and prompts, as start-up does (`zluks unlock`).
     UnlockAll,
     /// Open one LUKS volume as a mapping of the name given, or its default
-    /// name when empty (`zluks open`).
+    /// name without one (`zluks open`).
     Open {
         /// The device: a path or a tag such as `UUID=...`.
         device: String,
-        /// The mapping name, or empty.
-        name: String,
+        /// The mapping name, if one is given.
+        name: Option<MappingName>,
     },
     /// Close the mappings ZFSBootMenu opened, or the one named
     /// (`zluks close`).
-    Close(Option<String>),
+    Close(Option<MappingName>),
     /// The recovery shell.
     Shell,
     /// Reboot into the firmware's setup.

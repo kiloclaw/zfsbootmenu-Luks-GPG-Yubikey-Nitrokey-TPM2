@@ -39,6 +39,10 @@ last line does not need a trailing newline.
   the name must match the mapping name used by the running system. When volumes are discovered automatically, they are
   named **luks-**\ *UUID*.
 
+  A name has 1 to 127 printable ASCII characters other than */* and the space, and does not start with **-**. In
+  images built with the Rust runtime, an entry with another name is not opened, and counts as a volume that failed;
+  so is a volume whose **luks-**\ *UUID* name, made from its header, is not one.
+
 *device*
 
   The LUKS volume, as a path below */dev* or in one of these forms:

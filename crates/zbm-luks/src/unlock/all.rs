@@ -10,8 +10,19 @@ use crate::config::{Mode, Options, load_config};
 use crate::device::{is_block_device, resolve_device};
 use crate::error::LuksError;
 use crate::unlocker::Unlocker;
+use zbm_types::{DevicePath, MappingName, ParseError};
 
 use super::UnlockSummary;
+
+/// The mapping name of a crypttab entry: `None` for the default, when the
+/// entry gives none.
+fn entry_name(name: &str) -> Result<Option<MappingName>, ParseError> {
+    if name.is_empty() {
+        Ok(None)
+    } else {
+        name.parse().map(Some)
+    }
+}
 
 /// The volumes unlocked so far, and those that could not be.
 #[derive(Clone, Copy, Debug, Default)]
@@ -116,16 +127,17 @@ impl Unlocker<'_> {
         let mut devices = self.discover_devices();
         // On retries, only volumes that appeared since the last pass matter.
         if retry {
-            devices.retain(|device| !self.retry_ignores(device));
+            devices.retain(|device| !self.retry_ignores(device.as_str()));
         }
         if devices.is_empty() {
             zbm_trace::debug!("no LUKS volumes found");
             return None;
         }
-        zbm_trace::info!("discovered LUKS volumes: {}", devices.join(" "));
+        let names: Vec<&str> = devices.iter().map(DevicePath::as_str).collect();
+        zbm_trace::info!("discovered LUKS volumes: {}", names.join(" "));
         let mut tally = Tally::default();
         for device in &devices {
-            let opened = self.open_device("", device, global_key, "", Origin::Discovered);
+            let opened = self.open_device(None, device, global_key, "", Origin::Discovered);
             tally.count(&opened);
         }
         Some(tally)
@@ -156,8 +168,16 @@ impl Unlocker<'_> {
                 zbm_trace::warn!("LUKS device {device} is configured more than once");
                 continue;
             }
+            let name = match entry_name(&entry.name) {
+                Ok(name) => name,
+                Err(error) => {
+                    zbm_trace::error!(%error, "not unlocking a crypttab entry");
+                    tally.failed += 1;
+                    continue;
+                }
+            };
             let opened = self.open_device(
-                &entry.name,
+                name.as_ref(),
                 &device,
                 key,
                 &entry.options,
@@ -178,10 +198,11 @@ impl Unlocker<'_> {
         options: &Options,
         retry: bool,
         tally: &mut Tally,
-    ) -> Option<String> {
+    ) -> Option<DevicePath> {
         if retry {
             let system = *self.system();
-            return resolve_device(&system, spec).filter(|device| !self.retry_ignores(device));
+            return resolve_device(&system, spec)
+                .filter(|device| !self.retry_ignores(device.as_str()));
         }
         let device = self.wait_device(spec, options.nofail);
         if device.is_none() && !options.nofail {
@@ -199,15 +220,18 @@ impl Unlocker<'_> {
         let mut closed: Vec<String> = Vec::new();
         for mapping in mappings {
             let name = mapping.name.as_str();
+            let Ok(typed) = name.parse::<MappingName>() else {
+                continue;
+            };
             if mapping.auto == "1"
                 && is_block_device(self.system().files, &self.mapper(name))
-                && !self.may_hold_zfs(name)
+                && !self.may_hold_zfs(&typed)
             {
                 zbm_trace::info!(
                     "closing {name}: {} does not contain a ZFS vdev",
                     mapping.device
                 );
-                if self.cryptsetup_close(name).is_ok() {
+                if self.cryptsetup_close(&typed).is_ok() {
                     closed.push(mapping.name.clone());
                     continue;
                 }

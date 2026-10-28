@@ -35,6 +35,10 @@ pub enum LuksError {
         /// The device or detached header.
         header: String,
     },
+    /// A volume's mapping name is not one: a crypttab name, or the default
+    /// name made from a LUKS header's UUID.
+    #[error(transparent)]
+    Name(#[from] zbm_types::ParseError),
     /// A mapping of that name exists already.
     #[error("the mapping {name} already exists")]
     MappingExists {

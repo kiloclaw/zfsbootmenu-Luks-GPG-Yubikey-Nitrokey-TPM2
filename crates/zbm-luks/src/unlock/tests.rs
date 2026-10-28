@@ -12,6 +12,17 @@ use zbm_testkit::machine::{FakeMachine, HOLDERS, LuksVolume};
 use crate::device::OpenCheck;
 use crate::error::LuksError;
 use crate::testing::{Prompts, log, warnings};
+use zbm_types::{DevicePath, MappingName};
+
+/// The mapping name `name`, or the default one when it is empty.
+fn named(name: &str) -> Option<MappingName> {
+    (!name.is_empty()).then(|| name.parse().unwrap())
+}
+
+/// The device at `path`.
+fn device(path: &str) -> DevicePath {
+    path.parse().unwrap()
+}
 use crate::unlock::{Method, Opened, UnlockSummary};
 use crate::unlocker::Answer;
 use crate::unlocker::{Luks, Settings, Unlocker};
@@ -277,7 +288,13 @@ fn volumes_unlocked_elsewhere_end_the_prompt() {
     settings.mappings = "/zfsbootmenu/luks-mappings".into();
     assert_eq!(
         with_session(&fake, &settings, &prompts, |session| {
-            session.open_device("v", "/dev/loop1", "", "", Origin::Configured)
+            session.open_device(
+                named("v").as_ref(),
+                &device("/dev/loop1"),
+                "",
+                "",
+                Origin::Configured,
+            )
         }),
         Ok(Opened::Elsewhere)
     );
@@ -335,6 +352,22 @@ fn crypttab_entries_use_key_files_options_and_names() {
 }
 
 #[test]
+fn a_crypttab_name_that_is_no_mapping_name_is_not_opened() {
+    // cryptsetup would read the name as an option.
+    let fake = machine(&[A, B], &[]);
+    fake.files.file(
+        "/etc/zfsbootmenu/crypttab",
+        "--test-passphrase /dev/loop1 none\npool-b /dev/loop2 none\n",
+    );
+    fake.console.secret(b"secret1");
+    let prompts = Prompts::default();
+    let summary = with_session(&fake, &settings(), &prompts, unlock_all).unwrap();
+    assert_eq!((summary.unlocked, summary.failed), (1, 1));
+    assert_eq!(mappings(&fake), "pool-b\t/dev/loop2\t0\n");
+    assert!(fake.kmsg().contains("not unlocking a crypttab entry"));
+}
+
+#[test]
 fn missing_devices_are_asked_about_and_duplicates_are_skipped() {
     let fake = machine(&[A], &[]);
     fake.files.file(
@@ -369,8 +402,8 @@ fn key_scripts_come_first() {
     assert_eq!(
         with_session(&fake, &settings(), &prompts, |session| {
             session.open_device(
-                "ks-a",
-                "/dev/loop1",
+                named("ks-a").as_ref(),
+                &device("/dev/loop1"),
                 "",
                 "keyscript=/etc/ks",
                 Origin::Configured,
@@ -421,17 +454,35 @@ fn volumes_in_use_and_taken_names_are_left_alone() {
     let prompts = Prompts::default();
     with_session(&fake, &settings(), &prompts, |session| {
         assert_eq!(
-            session.open_device("", "/dev/loop1", "", "", Origin::Configured),
+            session.open_device(
+                named("").as_ref(),
+                &device("/dev/loop1"),
+                "",
+                "",
+                Origin::Configured
+            ),
             Ok(Opened::AlreadyOpen)
         );
         assert_eq!(
-            session.open_device("taken", "/dev/loop3", "", "", Origin::Configured),
+            session.open_device(
+                named("taken").as_ref(),
+                &device("/dev/loop3"),
+                "",
+                "",
+                Origin::Configured
+            ),
             Err(LuksError::MappingExists {
                 name: "taken".to_owned()
             })
         );
         assert_eq!(
-            session.open_device("", "/dev/sdz", "", "", Origin::Configured),
+            session.open_device(
+                named("").as_ref(),
+                &device("/dev/sdz"),
+                "",
+                "",
+                Origin::Configured
+            ),
             Err(LuksError::NotLuks {
                 header: "/dev/sdz".to_owned()
             })
@@ -511,9 +562,10 @@ fn closing_exports_pools_first_and_keeps_busy_mappings() {
 
     // Only the named mapping is closed.
     let _ = fake.files.remove_file(Path::new("/fake/busy/b1"));
-    let close = |only| {
+    let close = |only: Option<&str>| {
+        let only = only.map(|name| name.parse::<MappingName>().unwrap());
         with_session(&fake, &settings(), &prompts, |session| {
-            session.close_all(only)
+            session.close_all(only.as_ref())
         })
     };
     assert_eq!(close(Some("a1")), Ok(()));
