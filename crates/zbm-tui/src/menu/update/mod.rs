@@ -3,7 +3,7 @@
 //! the focused element; machine events change the snapshot or open
 //! dialogs; ticks run the countdown.
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use zbm_display::keys::{Key, KeyPress};
 
 use super::keymap::{self, Input, Intent};
 use super::model::{Dialog, Model, Screen};
@@ -25,7 +25,7 @@ pub use text::palette_items;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Message {
     /// A key press.
-    Key(KeyEvent),
+    Key(KeyPress),
     /// Time passed, in milliseconds.
     Tick(u64),
     /// The machine said something; boxed, as a snapshot is large.
@@ -50,9 +50,9 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
 }
 
 /// A key press: it stops the countdown, then does what the key map says.
-fn key_press(model: &mut Model, key: KeyEvent) -> Vec<Action> {
+fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
     model.keys = model.keys.saturating_add(1);
-    if model.countdown.take().is_some() && key.code == KeyCode::Esc {
+    if model.countdown.take().is_some() && key.key == Key::Escape {
         return Vec::new();
     }
     if !matches!(model.notification, Some(Outcome::Failed { .. })) {

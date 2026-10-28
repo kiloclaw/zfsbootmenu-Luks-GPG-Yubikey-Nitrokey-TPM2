@@ -2,9 +2,9 @@
 //! or `Ctrl`, with their old meaning in their old view (decision 8 of
 //! `docs/dev/menu-design/keymap.md`).
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 
-use super::{Context, Intent, describe};
+use super::{Context, Intent, Modifiers, describe};
 use crate::text::{Id, text};
 use Context::{Kernels, Main, Pools, Snapshots};
 
@@ -54,13 +54,11 @@ pub const CLASSIC: &[(char, &[(Context, Intent)])] = &[
 ];
 
 /// The intent of a classic binding: `Alt` or `Ctrl` with a letter.
-pub(super) fn classic(context: Context, event: KeyEvent) -> Option<Intent> {
-    let KeyCode::Char(c) = event.code else {
+pub(super) fn classic(context: Context, press: KeyPress) -> Option<Intent> {
+    let Key::Char(c) = press.key else {
         return None;
     };
-    let modifier = event
-        .modifiers
-        .intersects(KeyModifiers::ALT | KeyModifiers::CONTROL);
+    let modifier = Modifiers::of(&press).has_any(Modifiers::ALT | Modifiers::CTRL);
     if !modifier || context == Context::Text {
         return None;
     }

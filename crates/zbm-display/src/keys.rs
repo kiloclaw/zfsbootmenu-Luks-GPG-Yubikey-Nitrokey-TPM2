@@ -98,14 +98,53 @@ pub struct KeyPress {
 
 impl KeyPress {
     /// What wiped key presses are overwritten with.
-    pub const BLANK: KeyPress = KeyPress {
-        key: Key::Char('\0'),
-        shift: false,
-        ctrl: false,
-        alt: false,
-        logo: false,
-        keypad: false,
-    };
+    pub const BLANK: KeyPress = KeyPress::new(Key::Char('\0'));
+
+    /// `key` pressed alone.
+    pub const fn new(key: Key) -> KeyPress {
+        KeyPress {
+            key,
+            shift: false,
+            ctrl: false,
+            alt: false,
+            logo: false,
+            keypad: false,
+        }
+    }
+
+    /// The same press with Shift held.
+    #[must_use]
+    pub const fn with_shift(mut self) -> KeyPress {
+        self.shift = true;
+        self
+    }
+
+    /// The same press with Ctrl held.
+    #[must_use]
+    pub const fn with_ctrl(mut self) -> KeyPress {
+        self.ctrl = true;
+        self
+    }
+
+    /// The same press with Alt held.
+    #[must_use]
+    pub const fn with_alt(mut self) -> KeyPress {
+        self.alt = true;
+        self
+    }
+
+    /// The same press with the logo key held.
+    #[must_use]
+    pub const fn with_logo(mut self) -> KeyPress {
+        self.logo = true;
+        self
+    }
+}
+
+impl From<Key> for KeyPress {
+    fn from(key: Key) -> KeyPress {
+        KeyPress::new(key)
+    }
 }
 
 /// The characters of the keys that type one, by key code: unshifted and

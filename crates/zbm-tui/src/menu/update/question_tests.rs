@@ -2,12 +2,12 @@
 //! the time running out answer, and what the alerts say.
 
 use pretty_assertions::assert_eq;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zbm_display::keys::Key;
 use zbm_types::Answer;
 
 use super::{Message, update};
 use crate::menu::caps::Capabilities;
-use crate::menu::keymap::Context;
+use crate::menu::keymap::{Context, Modifiers, press};
 use crate::menu::model::{Dialog, Model};
 use crate::menu::theme::Theme;
 use crate::menu::view::tests::screen;
@@ -26,8 +26,8 @@ fn event(model: Model, event: Event) -> Model {
     after(model, Message::Event(Box::new(event))).0
 }
 
-fn key(model: Model, code: KeyCode) -> (Model, Vec<Action>) {
-    after(model, Message::Key(KeyEvent::new(code, KeyModifiers::NONE)))
+fn key(model: Model, code: Key) -> (Model, Vec<Action>) {
+    after(model, Message::Key(press(code, Modifiers::NONE)))
 }
 
 fn asked(question: Question, seconds: Option<u64>) -> Model {
@@ -42,14 +42,14 @@ fn enter_goes_on_and_escape_stops() {
     let model = asked(question.clone(), Some(5));
     assert_eq!(model.context(), Context::Choose);
 
-    let (model, actions) = key(model, KeyCode::Char('x'));
+    let (model, actions) = key(model, Key::Char('x'));
     assert!(actions.is_empty() && model.dialog.is_some());
-    let (model, actions) = key(model, KeyCode::Enter);
+    let (model, actions) = key(model, Key::Enter);
     assert_eq!(actions, [Action::Answer(Answer::Continue)]);
     assert!(model.dialog.is_none());
 
     let model = asked(question, None);
-    let (_, actions) = key(model, KeyCode::Esc);
+    let (_, actions) = key(model, Key::Escape);
     assert_eq!(actions, [Action::Answer(Answer::Escape)]);
 }
 

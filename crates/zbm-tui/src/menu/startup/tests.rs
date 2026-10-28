@@ -4,19 +4,20 @@ use std::rc::Rc;
 
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 use zbm_testkit::fakes::FakeClock;
 use zbm_types::Answer;
 
 use super::*;
 use crate::menu::caps::Capabilities;
+use crate::menu::keymap::{Modifiers, press};
 use crate::menu::world::{Method, Question, Stage, StageState};
 
 /// What a read of the terminal gives.
 #[derive(Clone, Copy)]
 enum Read {
     /// A key.
-    Key(KeyEvent),
+    Key(KeyPress),
     /// No key before the read's time ran out: the time passes.
     Tick,
     /// No key, at once: bytes that make no key, as noise on a serial line.
@@ -37,10 +38,10 @@ struct Scripted {
 impl Scripted {
     fn typed(&self, text: &str) {
         let mut keys = self.keys.borrow_mut();
-        keys.extend(text.chars().map(|c| Read::Key(key(KeyCode::Char(c)))));
+        keys.extend(text.chars().map(|c| Read::Key(key(Key::Char(c)))));
     }
 
-    fn press(&self, code: KeyCode) {
+    fn press(&self, code: Key) {
         self.keys.borrow_mut().push_back(Read::Key(key(code)));
     }
 
@@ -59,12 +60,12 @@ impl Scripted {
     }
 }
 
-fn key(code: KeyCode) -> KeyEvent {
-    KeyEvent::new(code, KeyModifiers::NONE)
+fn key(code: Key) -> KeyPress {
+    press(code, Modifiers::NONE)
 }
 
 impl Keys for Scripted {
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
         let read = self.keys.borrow_mut().pop_front();
         match read.unwrap_or(Read::Tick) {
             Read::Key(key) => Ok(Some(key)),
@@ -168,7 +169,7 @@ fn the_stages_show_as_they_run_and_the_main_view_never_does() {
 fn a_secret_is_typed_into_the_dialog_and_comes_back_with_enter() {
     let keys = Scripted::default();
     keys.typed("hunter2");
-    keys.press(KeyCode::Enter);
+    keys.press(Key::Enter);
     let mut view = view(&keys);
 
     let answer = view.ask(&unlock_requested(None), &mut || None).unwrap();
@@ -184,7 +185,7 @@ fn a_secret_is_typed_into_the_dialog_and_comes_back_with_enter() {
 #[test]
 fn escape_skips_and_the_time_running_out_goes_on() {
     let keys = Scripted::default();
-    keys.press(KeyCode::Esc);
+    keys.press(Key::Escape);
     let mut view = view(&keys);
     let answer = view.ask(&unlock_requested(None), &mut || None).unwrap();
     assert_eq!(answer, Action::SkipUnlock("cryptroot".into()));

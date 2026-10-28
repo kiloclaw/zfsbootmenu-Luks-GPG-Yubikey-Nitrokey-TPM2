@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
-use ratatui::crossterm::event::KeyCode;
 use zbm_app::{App, BootError, Recovery};
+use zbm_display::keys::Key;
 use zbm_platform::Context;
 use zbm_testkit::fakes::FakeSystem;
 
@@ -51,8 +51,8 @@ fn actions_that_take_the_console_wait_for_the_front_end() {
     let mut session = Session::on(machine, theme());
     session.tick(0);
     // The recovery shell: the first of the recovery tools.
-    session.key(KeyCode::Char('!'));
-    session.key(KeyCode::Enter);
+    session.key(Key::Char('!'));
+    session.key(Key::Enter);
     let Some(action) = session.console_action() else {
         panic!("no console action: {:?}", session.actions);
     };

@@ -3,25 +3,25 @@
 //! snapshot tests. Change a view, then review and accept the new
 //! wireframes with `cargo insta review` or `cargo xtask bless`.
 
-use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
+use zbm_display::psf::{Font, repertoire};
 
 use super::tests::screen;
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
 use crate::menu::theme::Theme;
-use zbm_display::psf::{Font, repertoire};
 
 /// The sizes of the wireframes.
 const SIZES: [(u16, u16); 3] = [(120, 40), (80, 25), (52, 20)];
 
 /// A key press of a scenario.
 #[derive(Clone, Copy)]
-enum Key {
+enum Step {
     Char(char),
     Ctrl(char),
     /// Time passes until start-up is over or a dialog opens.
     Start,
-    Code(KeyCode),
+    Code(Key),
     Text(&'static str),
 }
 
@@ -30,7 +30,7 @@ struct Wireframe {
     name: &'static str,
     options: DemoOptions,
     ticks: usize,
-    keys: &'static [Key],
+    keys: &'static [Step],
 }
 
 /// The demo after a firmware update: the TPM keeps a volume's key.
@@ -69,7 +69,7 @@ fn wireframes() -> Vec<Wireframe> {
 
 /// The wireframes of naming a clone and a snapshot.
 fn naming_wireframes() -> Vec<Wireframe> {
-    use Key::{Char, Code, Text};
+    use Step::{Char, Code, Text};
     let frame = |name, keys| Wireframe {
         name,
         options: options(false, false),
@@ -79,13 +79,7 @@ fn naming_wireframes() -> Vec<Wireframe> {
     vec![
         frame(
             "clone-name",
-            &[
-                Char('s'),
-                Char('o'),
-                Code(KeyCode::Home),
-                Char('c'),
-                Text("-2"),
-            ],
+            &[Char('s'), Char('o'), Code(Key::Home), Char('c'), Text("-2")],
         ),
         frame("snapshot-name", &[Char('n')]),
     ]
@@ -93,7 +87,7 @@ fn naming_wireframes() -> Vec<Wireframe> {
 
 /// The wireframes of unlocking and of the packages since a snapshot.
 fn unlock_wireframes() -> Vec<Wireframe> {
-    use Key::{Char, Code, Ctrl, Start, Text};
+    use Step::{Char, Code, Ctrl, Start, Text};
     let frame = |name, options, keys| Wireframe {
         name,
         options,
@@ -105,25 +99,25 @@ fn unlock_wireframes() -> Vec<Wireframe> {
         frame(
             "unlock-wrong",
             options(true, false),
-            &[Code(KeyCode::Down), Text("dmeo"), Code(KeyCode::Enter)],
+            &[Code(Key::Down), Text("dmeo"), Code(Key::Enter)],
         ),
         frame(
             "unlock-layout",
             options(true, false),
-            &[Code(KeyCode::Down), Ctrl('k'), Text("Y[rich"), Ctrl('r')],
+            &[Code(Key::Down), Ctrl('k'), Text("Y[rich"), Ctrl('r')],
         ),
         frame(
             "reseal-confirm",
             tpm_changed(),
-            &[Text("demo"), Code(KeyCode::Enter)],
+            &[Text("demo"), Code(Key::Enter)],
         ),
         frame(
             "pools-tpm-changed",
             tpm_changed(),
             &[
                 Text("demo"),
-                Code(KeyCode::Enter),
-                Code(KeyCode::Esc),
+                Code(Key::Enter),
+                Code(Key::Escape),
                 Start,
                 Char('p'),
             ],
@@ -134,9 +128,9 @@ fn unlock_wireframes() -> Vec<Wireframe> {
             &[
                 Char('s'),
                 Char('o'),
-                Code(KeyCode::Home),
+                Code(Key::Home),
                 Char('f'),
-                Code(KeyCode::Right),
+                Code(Key::Right),
             ],
         ),
     ]
@@ -144,7 +138,7 @@ fn unlock_wireframes() -> Vec<Wireframe> {
 
 /// The wireframes of the views, and of boot health.
 fn first_wireframes() -> Vec<Wireframe> {
-    use Key::{Char, Code, Text};
+    use Step::{Char, Code, Text};
     let plain = || options(false, false);
     let frame = |name, options, ticks, keys| Wireframe {
         name,
@@ -170,37 +164,28 @@ fn first_wireframes() -> Vec<Wireframe> {
             "import-failed",
             options(false, true),
             50,
-            &[Code(KeyCode::Enter)],
+            &[Code(Key::Enter)],
         ),
         frame("palette", plain(), 50, &[Char(':'), Text("2026-09")]),
         frame("recovery", plain(), 50, &[Char('!')]),
         frame("log", plain(), 50, &[Char('l')]),
         frame("help", plain(), 50, &[Char('?')]),
         frame("power", plain(), 50, &[Char('x')]),
-        frame(
-            "notification",
-            plain(),
-            50,
-            &[Code(KeyCode::Down), Char('d')],
-        ),
+        frame("notification", plain(), 50, &[Code(Key::Down), Char('d')]),
         frame("main-fallback", health(true, false), 50, &[]),
         frame("main-next-boot", health(false, true), 50, &[]),
         frame(
             "may-not-boot",
             plain(),
             50,
-            &[
-                Code(KeyCode::Down),
-                Code(KeyCode::Down),
-                Code(KeyCode::Enter),
-            ],
+            &[Code(Key::Down), Code(Key::Down), Code(Key::Enter)],
         ),
     ]
 }
 
 /// The wireframes of the snapshots view, sorted newest first.
 fn snapshot_wireframes() -> Vec<Wireframe> {
-    use Key::{Char, Code, Text};
+    use Step::{Char, Code, Text};
     let frame = |name, keys| Wireframe {
         name,
         options: options(false, false),
@@ -208,41 +193,27 @@ fn snapshot_wireframes() -> Vec<Wireframe> {
         keys,
     };
     vec![
-        frame("snapshots", &[Char('s'), Char('o'), Code(KeyCode::Home)]),
+        frame("snapshots", &[Char('s'), Char('o'), Code(Key::Home)]),
         frame(
             "snapshot-actions",
-            &[
-                Char('s'),
-                Char('o'),
-                Code(KeyCode::Home),
-                Code(KeyCode::Enter),
-            ],
+            &[Char('s'), Char('o'), Code(Key::Home), Code(Key::Enter)],
         ),
         frame(
             "rollback-confirm",
-            &[
-                Char('s'),
-                Char('o'),
-                Code(KeyCode::Home),
-                Char('r'),
-                Text("vo"),
-            ],
+            &[Char('s'), Char('o'), Code(Key::Home), Char('r'), Text("vo")],
         ),
-        frame(
-            "diff",
-            &[Char('s'), Char('o'), Code(KeyCode::Home), Char('f')],
-        ),
+        frame("diff", &[Char('s'), Char('o'), Code(Key::Home), Char('f')]),
         frame(
             "diff-marked",
             &[
                 Char('s'),
                 Char('o'),
-                Code(KeyCode::Home),
+                Code(Key::Home),
                 Char('f'),
                 Char(' '),
-                Code(KeyCode::Down),
-                Code(KeyCode::Down),
-                Code(KeyCode::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
                 Char(' '),
             ],
         ),
@@ -251,14 +222,14 @@ fn snapshot_wireframes() -> Vec<Wireframe> {
             &[
                 Char('s'),
                 Char('o'),
-                Code(KeyCode::Home),
+                Code(Key::Home),
                 Char('f'),
                 Char(' '),
-                Code(KeyCode::Down),
-                Code(KeyCode::Down),
-                Code(KeyCode::Down),
+                Code(Key::Down),
+                Code(Key::Down),
+                Code(Key::Down),
                 Char(' '),
-                Code(KeyCode::Enter),
+                Code(Key::Enter),
                 Text("vo"),
             ],
         ),
@@ -277,11 +248,11 @@ fn play(wireframe: &Wireframe, capabilities: Capabilities) -> Session {
     }
     for key in wireframe.keys {
         match *key {
-            Key::Char(c) => session.key(KeyCode::Char(c)),
-            Key::Ctrl(c) => session.press(KeyCode::Char(c), KeyModifiers::CONTROL),
-            Key::Start => session.start(),
-            Key::Code(code) => session.key(code),
-            Key::Text(text) => session.type_text(text),
+            Step::Char(c) => session.key(Key::Char(c)),
+            Step::Ctrl(c) => session.press(KeyPress::new(Key::Char(c)).with_ctrl()),
+            Step::Start => session.start(),
+            Step::Code(key) => session.key(key),
+            Step::Text(text) => session.type_text(text),
         }
     }
     session

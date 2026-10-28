@@ -3,7 +3,7 @@
 //! the one-time boot, and restoring files from a snapshot.
 
 use pretty_assertions::assert_eq;
-use ratatui::crossterm::event::KeyCode;
+use zbm_display::keys::Key;
 
 use crate::menu::caps::Capabilities;
 use crate::menu::demo::{DemoOptions, Session};
@@ -31,10 +31,10 @@ fn selected(session: &Session) -> Option<String> {
 #[test]
 fn a_failed_check_asks_before_booting() {
     let mut session = started();
-    session.key(KeyCode::Down);
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
+    session.key(Key::Down);
 
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert_eq!(selected(&session).as_deref(), Some("tank/ROOT/debian"));
     assert_eq!(session.actions, []);
@@ -47,7 +47,7 @@ fn a_failed_check_asks_before_booting() {
         "{lines:?}"
     );
 
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert!(matches!(
         session.actions.as_slice(),
@@ -59,16 +59,16 @@ fn a_failed_check_asks_before_booting() {
 fn a_boot_from_the_palette_asks_too() {
     let mut session = started();
 
-    session.key(KeyCode::Char(':'));
+    session.key(Key::Char(':'));
     session.type_text("Boot tank/ROOT/debian");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert_eq!(session.actions, []);
     let Some(Dialog::Choose { title, .. }) = &session.model().dialog else {
         panic!("no sheet: {:?}", session.model().dialog);
     };
     assert_eq!(title, "tank/ROOT/debian May Not Boot");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
     assert!(matches!(
         session.actions.as_slice(),
         [Action::Boot { environment, .. }] if environment.as_str() == "tank/ROOT/debian"
@@ -78,16 +78,16 @@ fn a_boot_from_the_palette_asks_too() {
 #[test]
 fn a_warning_does_not_stop_a_boot_and_cancel_closes_the_sheet() {
     let mut session = started();
-    session.key(KeyCode::Down);
-    session.key(KeyCode::Enter);
+    session.key(Key::Down);
+    session.key(Key::Enter);
     assert!(matches!(session.actions.as_slice(), [Action::Boot { .. }]));
 
     let mut session = started();
-    session.key(KeyCode::Down);
-    session.key(KeyCode::Down);
-    session.key(KeyCode::Enter);
-    session.key(KeyCode::Down);
-    session.key(KeyCode::Enter);
+    session.key(Key::Down);
+    session.key(Key::Down);
+    session.key(Key::Enter);
+    session.key(Key::Down);
+    session.key(Key::Enter);
     assert_eq!(session.actions, []);
     assert_eq!(session.model().dialog, None);
 }
@@ -114,9 +114,9 @@ fn the_palette_gives_the_boot_tries_back() {
         ..DemoOptions::default()
     });
 
-    session.key(KeyCode::Char(':'));
+    session.key(Key::Char(':'));
     session.type_text("tries back");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     let name = "zroot/ROOT/void".parse().unwrap();
     assert_eq!(session.actions, [Action::ResetBootTries(name)]);
@@ -147,10 +147,10 @@ fn a_one_time_boot_is_selected_and_booted() {
 /// The differences of the newest snapshot of the default environment.
 fn diff() -> Session {
     let mut session = started();
-    session.key(KeyCode::Char('s'));
-    session.key(KeyCode::Char('o'));
-    session.key(KeyCode::Home);
-    session.key(KeyCode::Char('f'));
+    session.key(Key::Char('s'));
+    session.key(Key::Char('o'));
+    session.key(Key::Home);
+    session.key(Key::Char('f'));
     session
 }
 
@@ -158,15 +158,15 @@ fn diff() -> Session {
 fn marked_files_are_restored_after_the_name_is_typed() {
     let mut session = diff();
     assert_eq!(session.model().screen, Screen::Diff);
-    session.key(KeyCode::Char(' '));
+    session.key(Key::Char(' '));
     for _ in 0..3 {
-        session.key(KeyCode::Down);
+        session.key(Key::Down);
     }
-    session.key(KeyCode::Char(' '));
+    session.key(Key::Char(' '));
 
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
     session.type_text("void");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     let paths = vec!["/etc/fstab".to_owned(), "/usr/lib/libdrm.so.2".to_owned()];
     let snapshot = "zroot/ROOT/void@pre-upgrade".parse().unwrap();
@@ -193,9 +193,9 @@ fn marked_files_are_restored_after_the_name_is_typed() {
 #[test]
 fn a_file_created_since_cannot_be_restored() {
     let mut session = diff();
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
 
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert_eq!(session.model().dialog, None);
     let warned = matches!(
@@ -209,7 +209,7 @@ fn a_file_created_since_cannot_be_restored() {
 fn esc_returns_from_the_differences_to_the_snapshots() {
     let mut session = diff();
 
-    session.key(KeyCode::Esc);
+    session.key(Key::Escape);
 
     assert_eq!(session.model().screen, Screen::Snapshots);
     assert_eq!(session.model().diff, None);

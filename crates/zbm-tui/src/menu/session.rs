@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 
 use super::demo::FakeMachine;
 use super::machine::Machine;
@@ -106,8 +106,8 @@ impl<M: Machine> Session<M> {
     }
 
     /// A key press.
-    pub fn press(&mut self, code: KeyCode, modifiers: KeyModifiers) {
-        self.step(Message::Key(KeyEvent::new(code, modifiers)));
+    pub fn press(&mut self, key: KeyPress) {
+        self.step(Message::Key(key));
         let model = self.model();
         if model.screen == Screen::Startup && model.dialog.is_none() {
             self.machine.reask();
@@ -115,14 +115,14 @@ impl<M: Machine> Session<M> {
     }
 
     /// A plain key press.
-    pub fn key(&mut self, code: KeyCode) {
-        self.press(code, KeyModifiers::NONE);
+    pub fn key(&mut self, key: Key) {
+        self.press(KeyPress::new(key));
     }
 
     /// Types `text`, one key press per character.
     pub fn type_text(&mut self, text: &str) {
         for c in text.chars() {
-            self.key(KeyCode::Char(c));
+            self.key(Key::Char(c));
         }
     }
 

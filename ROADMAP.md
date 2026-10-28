@@ -620,8 +620,8 @@ code) and what it needs first. Code in the images changes with most items, so th
 
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
-| UI1 | The unlock dialog's key positions from the image's XKB keymaps, so `gb` and variants such as `de(nodeadkeys)` translate; the hand-written tables go | stab | S | |
-| UI2 | One key type, `KeyPress`, for the menu (`Message::Key`), from the console or decoded from terminal bytes | mod | S | |
+| UI1 | Done: the unlock dialog's key positions from the image's XKB keymaps, so `gb` and variants such as `de(nodeadkeys)` translate; the hand-written tables go | stab | S | |
+| UI2 | Done: one key type, `KeyPress`, for the menu (`Message::Key`), from the console or decoded from terminal bytes | mod | S | |
 | UI3 | One front end runtime, `Frontend<B: Backend, I: Input>`, for the start-up view, the menu and the demo | mod | M | UI2 |
 | UI4 | `CellRenderer`: the console's milestone M5 (C71, C72, C73, C75, C76), done once for every surface; C112 measures it | perf | M/L | |
 | UI5 | The seat as typestate on the control socket (PM7); milestone M4 on it: hotplug as "choose the output again, resize every surface" (C61), every monitor (C62), rotation (C63), a chosen mode (C60), blanking (C64), pixel formats (C65), another program on the display (C66), backlight (C67), scaling (C68), double buffering (C74) | stab | M, then M4's items | PM7, UI4 |
@@ -741,8 +741,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- UI1, UI2, UI13; SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at
-  `ec817dde`); SB1 and CD2 (28 October 2026; their VM run is left); SE1, DM1, CD1 and VE1 (28 October 2026).
+- UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1,
+  CD2, UI1 and UI2 (28 October 2026; their VM run is left); SE1, DM1, CD1 and VE1 (28 October 2026).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every

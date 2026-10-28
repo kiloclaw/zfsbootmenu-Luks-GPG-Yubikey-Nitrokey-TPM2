@@ -1,15 +1,17 @@
 use std::io::Write as _;
 
 use pretty_assertions::assert_eq;
+use zbm_display::keys::{Key, KeyPress};
 
 use super::*;
+use crate::menu::keymap::{Modifiers, press};
 
-fn with(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
-    KeyEvent::new(code, modifiers)
+fn with(code: Key, modifiers: Modifiers) -> KeyPress {
+    press(code, modifiers)
 }
 
 /// The keys `bytes` decode to, all of them having come.
-fn keys(bytes: &[u8]) -> Vec<KeyEvent> {
+fn keys(bytes: &[u8]) -> Vec<KeyPress> {
     let mut keys = Vec::new();
     assert_eq!(decode(bytes, true, &mut keys), bytes.len());
     keys
@@ -17,55 +19,55 @@ fn keys(bytes: &[u8]) -> Vec<KeyEvent> {
 
 #[test]
 fn characters_and_control_characters_decode_as_the_terminal_library_does() {
-    let shift = KeyModifiers::SHIFT;
-    let ctrl = KeyModifiers::CONTROL;
+    let shift = Modifiers::SHIFT;
+    let ctrl = Modifiers::CTRL;
     assert_eq!(
         keys("aZé€".as_bytes()),
         [
-            plain(KeyCode::Char('a')),
-            with(KeyCode::Char('Z'), shift),
-            plain(KeyCode::Char('é')),
-            plain(KeyCode::Char('€')),
+            plain(Key::Char('a')),
+            with(Key::Char('Z'), shift),
+            plain(Key::Char('é')),
+            plain(Key::Char('€')),
         ]
     );
     // CR LF is one Enter; CR or LF alone is one too.
     assert_eq!(
         keys(b"\r\n\n\r\t\x7f\x08\x12\x0b\x15\x1c\0"),
         [
-            plain(KeyCode::Enter),
-            plain(KeyCode::Enter),
-            plain(KeyCode::Enter),
-            plain(KeyCode::Tab),
-            plain(KeyCode::Backspace),
-            plain(KeyCode::Backspace),
-            with(KeyCode::Char('r'), ctrl),
-            with(KeyCode::Char('k'), ctrl),
-            with(KeyCode::Char('u'), ctrl),
-            with(KeyCode::Char('4'), ctrl),
-            with(KeyCode::Char(' '), ctrl),
+            plain(Key::Enter),
+            plain(Key::Enter),
+            plain(Key::Enter),
+            plain(Key::Tab),
+            plain(Key::Backspace),
+            plain(Key::Backspace),
+            with(Key::Char('r'), ctrl),
+            with(Key::Char('k'), ctrl),
+            with(Key::Char('u'), ctrl),
+            with(Key::Char('4'), ctrl),
+            with(Key::Char(' '), ctrl),
         ]
     );
     // Bytes that start no character are dropped.
-    assert_eq!(keys(b"\xffa\x80"), [plain(KeyCode::Char('a'))]);
+    assert_eq!(keys(b"\xffa\x80"), [plain(Key::Char('a'))]);
 }
 
 #[test]
 fn the_sequences_of_the_linux_console_and_of_xterm_name_keys() {
-    let sequences: [(&[u8], KeyCode); 14] = [
-        (b"\x1b[A", KeyCode::Up),
-        (b"\x1b[B", KeyCode::Down),
-        (b"\x1b[C", KeyCode::Right),
-        (b"\x1b[D", KeyCode::Left),
-        (b"\x1bOA", KeyCode::Up),
-        (b"\x1bOH", KeyCode::Home),
-        (b"\x1b[F", KeyCode::End),
-        (b"\x1b[1~", KeyCode::Home),
-        (b"\x1b[3~", KeyCode::Delete),
-        (b"\x1b[6~", KeyCode::PageDown),
-        (b"\x1b[[A", KeyCode::F(1)),
-        (b"\x1bOQ", KeyCode::F(2)),
-        (b"\x1b[15~", KeyCode::F(5)),
-        (b"\x1b[24~", KeyCode::F(12)),
+    let sequences: [(&[u8], Key); 14] = [
+        (b"\x1b[A", Key::Up),
+        (b"\x1b[B", Key::Down),
+        (b"\x1b[C", Key::Right),
+        (b"\x1b[D", Key::Left),
+        (b"\x1bOA", Key::Up),
+        (b"\x1bOH", Key::Home),
+        (b"\x1b[F", Key::End),
+        (b"\x1b[1~", Key::Home),
+        (b"\x1b[3~", Key::Delete),
+        (b"\x1b[6~", Key::PageDown),
+        (b"\x1b[[A", Key::F(1)),
+        (b"\x1bOQ", Key::F(2)),
+        (b"\x1b[15~", Key::F(5)),
+        (b"\x1b[24~", Key::F(12)),
     ];
     for (bytes, code) in sequences {
         assert_eq!(keys(bytes), [plain(code)], "{bytes:?}");
@@ -73,11 +75,11 @@ fn the_sequences_of_the_linux_console_and_of_xterm_name_keys() {
     assert_eq!(
         keys(b"\x1b[1;5A\x1b[Z\x1bx\x1b\x1b"),
         [
-            with(KeyCode::Up, KeyModifiers::CONTROL),
-            with(KeyCode::BackTab, KeyModifiers::SHIFT),
-            with(KeyCode::Char('x'), KeyModifiers::ALT),
-            plain(KeyCode::Esc),
-            plain(KeyCode::Esc),
+            with(Key::Up, Modifiers::CTRL),
+            with(Key::BackTab, Modifiers::SHIFT),
+            with(Key::Char('x'), Modifiers::ALT),
+            plain(Key::Escape),
+            plain(Key::Escape),
         ]
     );
     // Sequences of keys the menu has no use for are dropped.
@@ -101,7 +103,7 @@ fn a_sequence_that_is_not_whole_waits_for_the_rest_or_is_the_escape_key() {
     assert_eq!(decode(b"a\x1b[1", false, &mut keys), 1);
     assert_eq!(decode(b"\x1b[1", true, &mut keys), 3);
     assert_eq!(decode(b"\xc3", true, &mut keys), 1);
-    assert_eq!(keys, [plain(KeyCode::Char('a')), plain(KeyCode::Esc)]);
+    assert_eq!(keys, [plain(Key::Char('a')), plain(Key::Escape)]);
 }
 
 /// Keys read from a pipe, the rest of whose sequences may take
@@ -121,7 +123,7 @@ const TICK: Duration = Duration::from_millis(10);
     clippy::disallowed_methods,
     reason = "the reader waits on the wall clock, so the test measures it there"
 )]
-fn next_key(keys: &mut TerminalKeys) -> (Option<KeyEvent>, Duration) {
+fn next_key(keys: &mut TerminalKeys) -> (Option<KeyPress>, Duration) {
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(1) {
         if let Some(key) = keys.key(TICK).unwrap() {
@@ -138,22 +140,22 @@ fn keys_are_read_as_they_come_and_escape_alone_after_a_moment() {
     assert_eq!(keys.key(tick).unwrap(), None);
 
     writer.write_all(b"pw\r\x1b").unwrap();
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Char('p'))));
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Char('w'))));
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Enter)));
+    assert_eq!(keys.key(tick).unwrap(), Some(plain(Key::Char('p'))));
+    assert_eq!(keys.key(tick).unwrap(), Some(plain(Key::Char('w'))));
+    assert_eq!(keys.key(tick).unwrap(), Some(plain(Key::Enter)));
     // Escape is held back while the rest of a sequence may come.
     assert_eq!(keys.pending, [ESCAPE]);
-    assert_eq!(next_key(&mut keys).0, Some(plain(KeyCode::Esc)));
+    assert_eq!(next_key(&mut keys).0, Some(plain(Key::Escape)));
     assert!(keys.pending.is_empty());
 
     writer.write_all(b"\x1b[").unwrap();
     assert_eq!(keys.key(tick).unwrap(), None);
     writer.write_all(b"B").unwrap();
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Down)));
+    assert_eq!(keys.key(tick).unwrap(), Some(plain(Key::Down)));
 
     // What was not used yet is dropped when the terminal is handed over.
     writer.write_all(b"xy").unwrap();
-    assert_eq!(keys.key(tick).unwrap(), Some(plain(KeyCode::Char('x'))));
+    assert_eq!(keys.key(tick).unwrap(), Some(plain(Key::Char('x'))));
     keys.release().unwrap();
     assert_eq!(keys.key(tick).unwrap(), None);
 
@@ -170,14 +172,14 @@ fn escape_waits_for_the_rest_of_a_sequence_however_short_the_tick() {
     assert_eq!(keys.key(TICK).unwrap(), None);
     assert_eq!(keys.key(TICK).unwrap(), None);
     writer.write_all(b"[A").unwrap();
-    assert_eq!(keys.key(TICK).unwrap(), Some(plain(KeyCode::Up)));
+    assert_eq!(keys.key(TICK).unwrap(), Some(plain(Key::Up)));
 
     // Escape alone comes once the wait is over, counted from its byte.
     for wait in [CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT] {
         let (mut keys, mut writer) = piped(wait);
         writer.write_all(b"\x1b").unwrap();
         let (key, took) = next_key(&mut keys);
-        assert_eq!(key, Some(plain(KeyCode::Esc)));
+        assert_eq!(key, Some(plain(Key::Escape)));
         assert!(took >= wait, "Escape after {took:?}, before {wait:?}");
     }
     assert!(SERIAL_ESCAPE_WAIT > CONSOLE_ESCAPE_WAIT);
@@ -205,7 +207,7 @@ fn cr_lf_split_between_reads_is_one_enter() {
         assert!(keys.key(TICK).unwrap().is_some());
     }
     writer.write_all(b"\nx").unwrap();
-    assert_eq!(keys.key(TICK).unwrap(), Some(plain(KeyCode::Char('x'))));
+    assert_eq!(keys.key(TICK).unwrap(), Some(plain(Key::Char('x'))));
     assert_eq!(keys.key(TICK).unwrap(), None);
     // The list of keys never grows past what it was made with.
     writer.write_all(&[b'a'; 3 * BUFFER]).unwrap();

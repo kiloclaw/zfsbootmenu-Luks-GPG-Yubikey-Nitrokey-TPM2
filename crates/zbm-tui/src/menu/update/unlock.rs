@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 use zbm_platform::secret::Secret;
 
-use crate::menu::keymap::{Input, Intent};
+use crate::menu::keymap::{Input, Intent, Modifiers};
 use crate::menu::model::{Dialog, Model, Prompt, Screen, Then};
 use crate::menu::world::{Action, Method, Outcome, PcrChange};
 use crate::text::{self, Id, id, text};
@@ -83,20 +83,18 @@ fn other_method(model: &Model, volume: &str, method: Method, input: Input) -> Me
 /// position, turned into the chosen layout's, with the image's keymaps.
 /// Keys with `Ctrl` or `Alt`, keys from a serial terminal, and layouts
 /// whose keymap did not load are left as they are.
-pub(super) fn translated(model: &Model, mut key: KeyEvent) -> KeyEvent {
+pub(super) fn translated(model: &Model, mut key: KeyPress) -> KeyPress {
     let keyboard = &model.snapshot.keyboard;
-    let held = key
-        .modifiers
-        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+    let held = Modifiers::of(&key).has_any(Modifiers::CTRL | Modifiers::ALT);
     let positions = |name: Option<&str>| name.and_then(|name| keyboard.positions.get(name));
-    if let (KeyCode::Char(c), Some(from), Some(to)) = (
-        key.code,
+    if let (Key::Char(c), Some(from), Some(to)) = (
+        key.key,
         positions(keyboard.layouts.first().map(String::as_str)),
         positions(model.layout()),
     ) && keyboard.local
         && !held
     {
-        key.code = KeyCode::Char(from.translate(to, c));
+        key.key = Key::Char(from.translate(to, c));
     }
     key
 }

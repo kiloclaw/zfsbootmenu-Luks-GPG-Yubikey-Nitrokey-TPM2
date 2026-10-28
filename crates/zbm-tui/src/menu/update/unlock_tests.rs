@@ -3,7 +3,7 @@
 //! keyboard layout, and the packages segment of the changes.
 
 use pretty_assertions::assert_eq;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 
 use super::{Message, update};
 use crate::menu::caps::Capabilities;
@@ -42,7 +42,7 @@ fn prompt(session: &Session) -> &Prompt {
 }
 
 fn ctrl(session: &mut Session, c: char) {
-    session.press(KeyCode::Char(c), KeyModifiers::CONTROL);
+    session.press(KeyPress::new(Key::Char(c)).with_ctrl());
 }
 
 fn kept(session: &Session) -> bool {
@@ -70,7 +70,7 @@ fn a_changed_pcr_asks_for_the_passphrase_and_says_why() {
 fn the_session_keeps_no_secret_typed() {
     let mut session = tpm_changed();
     session.type_text("demo");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     let unlocks: Vec<&Action> = session
         .actions
@@ -88,7 +88,7 @@ fn the_session_keeps_no_secret_typed() {
 fn the_key_is_sealed_again_once_the_name_is_typed() {
     let mut session = tpm_changed();
     session.type_text("demo");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     let Some(Dialog::Confirm { title, name, .. }) = &session.model().dialog else {
         panic!("no confirmation: {:?}", session.model().dialog);
@@ -97,7 +97,7 @@ fn the_key_is_sealed_again_once_the_name_is_typed() {
     assert_eq!(name, "luks-zroot-a");
 
     session.type_text("luks-zroot-a");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert_eq!(
         session.actions.last(),
@@ -114,15 +114,15 @@ fn the_key_is_sealed_again_once_the_name_is_typed() {
 fn not_now_lets_start_up_finish_and_the_palette_offers_it_later() {
     let mut session = tpm_changed();
     session.type_text("demo");
-    session.key(KeyCode::Enter);
-    session.key(KeyCode::Esc);
+    session.key(Key::Enter);
+    session.key(Key::Escape);
     session.start();
 
     assert!(session.model().started);
     assert!(kept(&session));
-    session.key(KeyCode::Char(':'));
+    session.key(Key::Char(':'));
     session.type_text("re-seal");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert!(matches!(
         &session.model().dialog,
@@ -133,11 +133,11 @@ fn not_now_lets_start_up_finish_and_the_palette_offers_it_later() {
 #[test]
 fn the_tpm_pin_is_not_asked_while_the_tpm_keeps_the_key() {
     let mut session = tpm_changed();
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
     assert_eq!(prompt(&session).method, Method::Tpm2Pin);
 
     session.type_text("1234");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     let prompt = prompt(&session);
     assert_eq!(prompt.method, Method::Passphrase);
@@ -147,9 +147,9 @@ fn the_tpm_pin_is_not_asked_while_the_tpm_keeps_the_key() {
 #[test]
 fn a_wrong_passphrase_suggests_the_keyboard_layout() {
     let mut session = locked();
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
     session.type_text("dmeo");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert!(matches!(prompt(&session).notice, Some(Notice::Wrong(_))));
     let text = screen(session.model(), 80, 25);
@@ -159,7 +159,7 @@ fn a_wrong_passphrase_suggests_the_keyboard_layout() {
 #[test]
 fn another_layout_translates_keys_and_clears_what_was_typed() {
     let mut session = locked();
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
     session.type_text("abc");
 
     ctrl(&mut session, 'k');
@@ -176,7 +176,7 @@ fn another_layout_translates_keys_and_clears_what_was_typed() {
 
     assert!(!prompt(&session).revealed);
     assert!(!screen(session.model(), 80, 25).contains("Zürich"));
-    session.key(KeyCode::Backspace);
+    session.key(Key::Backspace);
     assert_eq!(prompt(&session).typed(), "Züric");
     for _ in 0..3 {
         ctrl(&mut session, 'k');
@@ -189,17 +189,17 @@ fn another_layout_translates_keys_and_clears_what_was_typed() {
 #[test]
 fn the_layout_applies_to_every_text_field() {
     let mut session = locked();
-    session.key(KeyCode::Down);
+    session.key(Key::Down);
     ctrl(&mut session, 'k');
     session.type_text("demo");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
     session.start();
     while session.model().dialog.is_some() {
-        session.key(KeyCode::Esc);
+        session.key(Key::Escape);
         session.start();
     }
     // A German keyboard has / on Shift-7, which a US console sends as &.
-    session.key(KeyCode::Char('&'));
+    session.key(Key::Char('&'));
 
     session.type_text("y");
 
@@ -218,8 +218,8 @@ fn keyboard_model(layouts: &[&str], local: bool) -> Model {
     model
 }
 
-fn press(model: Model, code: KeyCode, modifiers: KeyModifiers) -> Model {
-    update(model, Message::Key(KeyEvent::new(code, modifiers))).0
+fn press(model: Model, key: KeyPress) -> Model {
+    update(model, Message::Key(key)).0
 }
 
 #[test]
@@ -229,12 +229,12 @@ fn a_serial_terminal_or_a_single_layout_is_not_translated() {
         (&["us"][..], true, "one keyboard layout"),
     ] {
         let model = keyboard_model(layouts, local);
-        let model = press(model, KeyCode::Char('k'), KeyModifiers::CONTROL);
+        let model = press(model, KeyPress::new(Key::Char('k')).with_ctrl());
         assert!(matches!(
             &model.notification,
             Some(Outcome::Warning(text)) if text.contains(says)
         ));
-        let model = press(model, KeyCode::Char('y'), KeyModifiers::NONE);
+        let model = press(model, Key::Char('y').into());
 
         assert_eq!(model.layout, 0);
         let Some(Dialog::Unlock(prompt)) = &model.dialog else {
@@ -254,9 +254,9 @@ fn a_serial_terminal_or_a_single_layout_is_not_translated() {
 fn packages() -> Session {
     let mut session = session(&DemoOptions::default());
     for c in ['s', 'o', 'f'] {
-        session.key(KeyCode::Char(c));
+        session.key(Key::Char(c));
     }
-    session.key(KeyCode::Right);
+    session.key(Key::Right);
     session
 }
 
@@ -276,29 +276,29 @@ fn the_packages_segment_lists_what_the_upgrade_changed() {
         .collect();
     assert_eq!(names, ["libdrm", "nvidia", "mesa", "zfs", "linux-firmware"]);
 
-    session.key(KeyCode::Char(' '));
+    session.key(Key::Char(' '));
     assert!(diff(&session).marked.is_empty());
-    session.key(KeyCode::Char('/'));
+    session.key(Key::Char('/'));
     session.type_text("zf");
 
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
 
     assert_eq!(diff(&session).segment, Segment::Files);
     assert_eq!(
         diff(&session).selected().map(|c| c.path.as_str()),
         Some("/boot/initramfs-6.12.9_1.img")
     );
-    session.key(KeyCode::Left);
+    session.key(Key::Left);
     assert_eq!(diff(&session).segment, Segment::Packages);
 }
 
 #[test]
 fn a_restore_keeps_the_segment_and_no_database_says_so() {
     let mut session = packages();
-    session.key(KeyCode::Left);
-    session.key(KeyCode::Enter);
+    session.key(Key::Left);
+    session.key(Key::Enter);
     session.type_text("void");
-    session.key(KeyCode::Enter);
+    session.key(Key::Enter);
     assert_eq!(diff(&session).segment, Segment::Files);
     assert_eq!(session.model().screen, Screen::Diff);
 

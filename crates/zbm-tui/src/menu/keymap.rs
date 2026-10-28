@@ -6,7 +6,7 @@
 //! meaning in their old view ([`CLASSIC`]); they never collide with the new
 //! keys, which hold no modifier.
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use zbm_display::keys::{Key, KeyPress};
 
 use crate::text::{Id, id};
 
@@ -170,13 +170,81 @@ pub enum Footer {
     Keys(Id),
 }
 
+/// The modifiers held with a key, as the key map counts them.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Modifiers(u8);
+
+impl Modifiers {
+    /// None.
+    pub const NONE: Modifiers = Modifiers(0);
+    /// Shift.
+    pub const SHIFT: Modifiers = Modifiers(1);
+    /// Ctrl.
+    pub const CTRL: Modifiers = Modifiers(2);
+    /// Alt.
+    pub const ALT: Modifiers = Modifiers(4);
+    /// The logo key (Super).
+    pub const LOGO: Modifiers = Modifiers(8);
+
+    /// The modifiers of `press`. A character says itself whether Shift was
+    /// held (`A`, `?`), and so does Shift-Tab (`BackTab`): for them Shift is
+    /// left out, whatever the terminal or the keyboard reported.
+    pub fn of(press: &KeyPress) -> Modifiers {
+        let shift = press.shift && !matches!(press.key, Key::Char(_) | Key::BackTab);
+        [
+            (shift, Modifiers::SHIFT),
+            (press.ctrl, Modifiers::CTRL),
+            (press.alt, Modifiers::ALT),
+            (press.logo, Modifiers::LOGO),
+        ]
+        .into_iter()
+        .filter(|(held, _)| *held)
+        .fold(Modifiers::NONE, |all, (_, modifier)| all | modifier)
+    }
+
+    /// Whether every modifier of `other` is held.
+    pub fn contains(self, other: Modifiers) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// Whether a modifier of `other` is held.
+    pub fn has_any(self, other: Modifiers) -> bool {
+        self.0 & other.0 != 0
+    }
+}
+
+impl std::ops::BitOr for Modifiers {
+    type Output = Modifiers;
+
+    fn bitor(self, other: Modifiers) -> Modifiers {
+        Modifiers(self.0 | other.0)
+    }
+}
+
+impl std::ops::BitOrAssign for Modifiers {
+    fn bitor_assign(&mut self, other: Modifiers) {
+        self.0 |= other.0;
+    }
+}
+
+/// `key` pressed with `modifiers`.
+pub fn press(key: Key, modifiers: Modifiers) -> KeyPress {
+    KeyPress {
+        shift: modifiers.contains(Modifiers::SHIFT),
+        ctrl: modifiers.contains(Modifiers::CTRL),
+        alt: modifiers.contains(Modifiers::ALT),
+        logo: modifiers.contains(Modifiers::LOGO),
+        ..KeyPress::new(key)
+    }
+}
+
 /// A key binding.
 #[derive(Clone, Copy, Debug)]
 pub struct Binding {
     /// The key.
-    pub code: KeyCode,
+    pub key: Key,
     /// The modifiers that must be held.
-    pub modifiers: KeyModifiers,
+    pub modifiers: Modifiers,
     /// Where it applies.
     pub scope: Scope,
     /// What it asks for.
@@ -185,19 +253,19 @@ pub struct Binding {
     pub footer: Footer,
 }
 
-const NONE: KeyModifiers = KeyModifiers::NONE;
-const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+const NONE: Modifiers = Modifiers::NONE;
+const CTRL: Modifiers = Modifiers::CTRL;
 
 /// A binding; a function so that the table stays readable.
 const fn bind(
-    code: KeyCode,
-    modifiers: KeyModifiers,
+    key: Key,
+    modifiers: Modifiers,
     scope: Scope,
     intent: Intent,
     footer: Footer,
 ) -> Binding {
     Binding {
-        code,
+        key,
         modifiers,
         scope,
         intent,
@@ -208,7 +276,7 @@ const fn bind(
 /// A plain key bound in some views, shown in the footer as itself.
 const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
     bind(
-        KeyCode::Char(c),
+        Key::Char(c),
         NONE,
         Scope::Only(contexts),
         intent,
@@ -242,14 +310,14 @@ const TEXT: &[Context] = &[Context::Text];
 /// Every binding, in the order of the footer: most important first.
 pub const KEYMAP: &[Binding] = &[
     bind(
-        KeyCode::Enter,
+        Key::Enter,
         NONE,
         Scope::Everywhere,
         Intent::Primary,
         Footer::Key,
     ),
     bind(
-        KeyCode::Char('b'),
+        Key::Char('b'),
         NONE,
         Scope::Only(&[Main, Kernels, Snapshots]),
         Intent::Boot,
@@ -266,14 +334,14 @@ pub const KEYMAP: &[Binding] = &[
     key('p', &[Main], Intent::Pools),
     key('f', &[Snapshots], Intent::Diff),
     bind(
-        KeyCode::Right,
+        Key::Right,
         NONE,
         Scope::Only(CHANGES),
         Intent::Segment,
         Footer::Keys(id!("keys-left-right")),
     ),
     bind(
-        KeyCode::Left,
+        Key::Left,
         NONE,
         Scope::Only(CHANGES),
         Intent::Segment,
@@ -286,14 +354,14 @@ pub const KEYMAP: &[Binding] = &[
     key('h', &[Pools], Intent::Rewind),
     key('j', &[Main, Snapshots], Intent::Chroot),
     bind(
-        KeyCode::Char('/'),
+        Key::Char('/'),
         NONE,
         Scope::Only(LISTS),
         Intent::Filter,
         Footer::Key,
     ),
     bind(
-        KeyCode::Char(':'),
+        Key::Char(':'),
         NONE,
         Scope::Only(ALL_VIEWS),
         Intent::Palette,
@@ -304,119 +372,107 @@ pub const KEYMAP: &[Binding] = &[
     key('!', ALL_VIEWS, Intent::Recovery),
     key('x', ALL_VIEWS, Intent::Power),
     bind(
-        KeyCode::Char('?'),
+        Key::Char('?'),
         NONE,
         Scope::Only(ALL_VIEWS),
         Intent::Help,
         Footer::Key,
     ),
     bind(
-        KeyCode::F(1),
+        Key::F(1),
         NONE,
         Scope::Everywhere,
         Intent::Help,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Esc,
+        Key::Escape,
         NONE,
         Scope::Everywhere,
         Intent::Back,
         Footer::Key,
     ),
     bind(
-        KeyCode::Char('c'),
+        Key::Char('c'),
         CTRL,
         Scope::Everywhere,
         Intent::Back,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Char(' '),
+        Key::Char(' '),
         NONE,
         Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
         Footer::Key,
     ),
     bind(
-        KeyCode::Tab,
+        Key::Tab,
         NONE,
         Scope::Only(&[Snapshots, Diff]),
         Intent::Mark,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Up,
+        Key::Up,
         NONE,
         Scope::Everywhere,
         Intent::Up,
         Footer::Keys(id!("keys-up-down")),
     ),
     bind(
-        KeyCode::Down,
+        Key::Down,
         NONE,
         Scope::Everywhere,
         Intent::Down,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Char('p'),
+        Key::Char('p'),
         CTRL,
         Scope::Everywhere,
         Intent::Up,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Char('n'),
+        Key::Char('n'),
         CTRL,
         Scope::Everywhere,
         Intent::Down,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::PageUp,
+        Key::PageUp,
         NONE,
         Scope::Everywhere,
         Intent::PageUp,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::PageDown,
+        Key::PageDown,
         NONE,
         Scope::Everywhere,
         Intent::PageDown,
         Footer::Hidden,
     ),
+    bind(Key::Home, NONE, Scope::Views, Intent::First, Footer::Hidden),
+    bind(Key::End, NONE, Scope::Views, Intent::Last, Footer::Hidden),
     bind(
-        KeyCode::Home,
-        NONE,
-        Scope::Views,
-        Intent::First,
-        Footer::Hidden,
-    ),
-    bind(
-        KeyCode::End,
-        NONE,
-        Scope::Views,
-        Intent::Last,
-        Footer::Hidden,
-    ),
-    bind(
-        KeyCode::Char('l'),
+        Key::Char('l'),
         CTRL,
         Scope::Everywhere,
         Intent::Redraw,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Char('k'),
+        Key::Char('k'),
         CTRL,
         Scope::Only(TEXT),
         Intent::Layout,
         Footer::Hidden,
     ),
     bind(
-        KeyCode::Char('r'),
+        Key::Char('r'),
         CTRL,
         Scope::Only(TEXT),
         Intent::Reveal,
@@ -424,35 +480,30 @@ pub const KEYMAP: &[Binding] = &[
     ),
 ];
 
-/// What `event` means in `context`, if anything.
-pub fn input(context: Context, event: KeyEvent) -> Option<Input> {
-    if event.kind == KeyEventKind::Release {
-        return None;
-    }
+/// What `press` means in `context`, if anything.
+pub fn input(context: Context, press: KeyPress) -> Option<Input> {
+    let modifiers = Modifiers::of(&press);
     let bound = KEYMAP.iter().find(|binding| {
-        binding.code == event.code
-            && binding.modifiers == event.modifiers
+        binding.key == press.key
+            && binding.modifiers == modifiers
             && binding.scope.contains(context)
     });
     if let Some(binding) = bound {
         return Some(Input::Intent(binding.intent));
     }
     if context == Context::Text {
-        return text(event);
+        return text(press);
     }
-    classic(context, event).map(Input::Intent)
+    classic(context, press).map(Input::Intent)
 }
 
 /// What a key means in a text field.
-fn text(event: KeyEvent) -> Option<Input> {
-    match event.code {
-        KeyCode::Backspace => Some(Input::Erase),
-        KeyCode::Char('u') if event.modifiers == CTRL => Some(Input::Clear),
-        KeyCode::Char(c)
-            if !event
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-        {
+fn text(press: KeyPress) -> Option<Input> {
+    let modifiers = Modifiers::of(&press);
+    match press.key {
+        Key::Backspace => Some(Input::Erase),
+        Key::Char('u') if modifiers == CTRL => Some(Input::Clear),
+        Key::Char(c) if !modifiers.has_any(Modifiers::CTRL | Modifiers::ALT) => {
             Some(Input::Type(c))
         }
         _ => None,

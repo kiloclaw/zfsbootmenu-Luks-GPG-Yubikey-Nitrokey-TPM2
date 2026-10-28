@@ -372,6 +372,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The threat model (`docs/dev/threat-model.md`) gains a diagram of the zone and its data flows, attackers on the
   network (SSH, Tailscale) and in the supply chain, and the logs and reports saved on the ESP.
 
+### The new menu's keys (phase 0)
+
+- The unlock dialog translates what is typed with the image's own XKB keymaps, so every layout of
+  `zfsbootmenu_keyboard_layouts`, `gb` and variants such as `de(nodeadkeys)` included, types as it should; the rows
+  written by hand for `us`, `de`, `fr` and `uk` are left only as the demo's data.
+- The menu takes one kind of key press, `zbm_display::keys::KeyPress`, from the display's keyboards and from the bytes
+  of a terminal alike; the terminal library's key types and the conversion between the two are gone.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

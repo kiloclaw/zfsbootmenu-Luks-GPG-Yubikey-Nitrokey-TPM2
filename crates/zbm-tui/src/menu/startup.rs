@@ -13,8 +13,8 @@ use std::time::Duration;
 
 use ratatui::Terminal;
 use ratatui::backend::Backend;
-use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::{Position, Rect, Size};
+use zbm_display::keys::KeyPress;
 use zbm_platform::clock::{Clock, SystemClock};
 
 use super::model::Model;
@@ -35,7 +35,7 @@ pub trait Keys {
     /// # Errors
     ///
     /// When the terminal cannot be read.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>>;
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>>;
 
     /// Gives the terminal back to programs, as it was before the view.
     ///

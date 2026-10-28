@@ -5,19 +5,21 @@
 //! library's event reader, which keeps the last bytes it read in a buffer
 //! of its own until more come: a passphrase typed at start-up would stay in
 //! the memory of the start-up program, which runs until the boot
-//! (`crates/DESIGN.md`, "Secrets"). Keys decode as that reader decodes them,
-//! so that the key map means the same: Shift with capitals, Ctrl with the
-//! control characters, Alt with Escape before a key, and the sequences of
-//! the Linux console and of xterm for the keys that type nothing.
+//! (`crates/DESIGN.md`, "Secrets"). Keys decode into the presses the
+//! display's keyboards give ([`KeyPress`]), as that reader would decode
+//! them: Shift with capitals, Ctrl with the control characters, Alt with
+//! Escape before a key, and the sequences of the Linux console and of xterm
+//! for the keys that type nothing.
 
 use std::fs::File;
 use std::io::{self, Read as _};
 use std::os::fd::{AsFd as _, AsRawFd as _};
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::crossterm::terminal;
+use zbm_display::keys::{Key, KeyPress};
 
+use super::keymap::{Modifiers, press};
 use super::startup::Keys;
 
 /// `ESC`.
@@ -38,31 +40,25 @@ pub const SERIAL_ESCAPE_WAIT: Duration = Duration::from_millis(100);
 
 /// A key press decoded, or `None` for bytes that name no key, and how many
 /// bytes it took.
-type Decoded = (Option<KeyEvent>, usize);
+type Decoded = (Option<KeyPress>, usize);
 
 /// A key with no modifier.
-fn plain(code: KeyCode) -> KeyEvent {
-    KeyEvent::new(code, KeyModifiers::NONE)
+fn plain(code: Key) -> KeyPress {
+    press(code, Modifiers::NONE)
 }
 
 /// The key a control character or Delete sends, if `byte` is one.
-fn control(byte: u8) -> Option<KeyEvent> {
+fn control(byte: u8) -> Option<KeyPress> {
     let (code, modifiers) = match byte {
-        b'\r' | b'\n' => (KeyCode::Enter, KeyModifiers::NONE),
-        b'\t' => (KeyCode::Tab, KeyModifiers::NONE),
-        0x7f | 0x08 => (KeyCode::Backspace, KeyModifiers::NONE),
-        0x01..=0x1a => (
-            KeyCode::Char(char::from(byte - 1 + b'a')),
-            KeyModifiers::CONTROL,
-        ),
-        0x1c..=0x1f => (
-            KeyCode::Char(char::from(byte - 0x1c + b'4')),
-            KeyModifiers::CONTROL,
-        ),
-        0 => (KeyCode::Char(' '), KeyModifiers::CONTROL),
+        b'\r' | b'\n' => (Key::Enter, Modifiers::NONE),
+        b'\t' => (Key::Tab, Modifiers::NONE),
+        0x7f | 0x08 => (Key::Backspace, Modifiers::NONE),
+        0x01..=0x1a => (Key::Char(char::from(byte - 1 + b'a')), Modifiers::CTRL),
+        0x1c..=0x1f => (Key::Char(char::from(byte - 0x1c + b'4')), Modifiers::CTRL),
+        0 => (Key::Char(' '), Modifiers::CTRL),
         _ => return None,
     };
-    Some(KeyEvent::new(code, modifiers))
+    Some(press(code, modifiers))
 }
 
 /// The character at the front of `bytes`, Shift with a capital.
@@ -82,11 +78,11 @@ fn character(bytes: &[u8], last: bool) -> Option<Decoded> {
         .and_then(|text| text.chars().next())
         .map(|c| {
             let shift = if c.is_uppercase() {
-                KeyModifiers::SHIFT
+                Modifiers::SHIFT
             } else {
-                KeyModifiers::NONE
+                Modifiers::NONE
             };
-            KeyEvent::new(KeyCode::Char(c), shift)
+            press(Key::Char(c), shift)
         });
     Some((key, width))
 }
@@ -94,18 +90,18 @@ fn character(bytes: &[u8], last: bool) -> Option<Decoded> {
 /// A sequence that is not whole: the Escape key when nothing more comes,
 /// the rest dropped.
 fn unfinished(bytes: &[u8], last: bool) -> Option<Decoded> {
-    last.then_some((Some(plain(KeyCode::Esc)), bytes.len()))
+    last.then_some((Some(plain(Key::Escape)), bytes.len()))
 }
 
 /// The modifiers of the parameter `value` of a sequence: 1 plus Shift (1),
 /// Alt (2) and Ctrl (4).
-fn modifiers(value: u8) -> KeyModifiers {
+fn modifiers(value: u8) -> Modifiers {
     let mask = value.saturating_sub(1);
-    let mut modifiers = KeyModifiers::NONE;
+    let mut modifiers = Modifiers::NONE;
     for (bit, modifier) in [
-        (1, KeyModifiers::SHIFT),
-        (2, KeyModifiers::ALT),
-        (4, KeyModifiers::CONTROL),
+        (1, Modifiers::SHIFT),
+        (2, Modifiers::ALT),
+        (4, Modifiers::CTRL),
     ] {
         if mask & bit != 0 {
             modifiers |= modifier;
@@ -115,39 +111,39 @@ fn modifiers(value: u8) -> KeyModifiers {
 }
 
 /// The key of `ESC [ number ~`.
-fn numbered(number: u8) -> Option<KeyCode> {
+fn numbered(number: u8) -> Option<Key> {
     Some(match number {
-        1 | 7 => KeyCode::Home,
-        2 => KeyCode::Insert,
-        3 => KeyCode::Delete,
-        4 | 8 => KeyCode::End,
-        5 => KeyCode::PageUp,
-        6 => KeyCode::PageDown,
-        11..=15 => KeyCode::F(number - 10),
-        17..=21 => KeyCode::F(number - 11),
-        23..=24 => KeyCode::F(number - 12),
+        1 | 7 => Key::Home,
+        2 => Key::Insert,
+        3 => Key::Delete,
+        4 | 8 => Key::End,
+        5 => Key::PageUp,
+        6 => Key::PageDown,
+        11..=15 => Key::F(number - 10),
+        17..=21 => Key::F(number - 11),
+        23..=24 => Key::F(number - 12),
         _ => return None,
     })
 }
 
 /// The key of the control sequence `ESC [ parameters final`.
-fn sequence_key(last: u8, parameters: &[u8]) -> Option<KeyEvent> {
+fn sequence_key(last: u8, parameters: &[u8]) -> Option<KeyPress> {
     let text = std::str::from_utf8(parameters).ok()?;
     let mut values = text.split(';').map(|value| value.parse().unwrap_or(1));
     let first = values.next().unwrap_or(1);
     let modifiers = modifiers(values.next().unwrap_or(1));
     let code = match last {
-        b'A' => KeyCode::Up,
-        b'B' => KeyCode::Down,
-        b'C' => KeyCode::Right,
-        b'D' => KeyCode::Left,
-        b'H' => KeyCode::Home,
-        b'F' => KeyCode::End,
-        b'Z' => return Some(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT)),
+        b'A' => Key::Up,
+        b'B' => Key::Down,
+        b'C' => Key::Right,
+        b'D' => Key::Left,
+        b'H' => Key::Home,
+        b'F' => Key::End,
+        b'Z' => return Some(press(Key::BackTab, Modifiers::SHIFT)),
         b'~' => numbered(first)?,
         _ => return None,
     };
-    Some(KeyEvent::new(code, modifiers))
+    Some(press(code, modifiers))
 }
 
 /// The control sequence at the front of `bytes`, which start `ESC [`; the
@@ -158,7 +154,7 @@ fn control_sequence(bytes: &[u8], last: bool) -> Option<Decoded> {
         let Some(&letter) = body.get(1) else {
             return unfinished(bytes, last);
         };
-        let key = matches!(letter, b'A'..=b'E').then(|| plain(KeyCode::F(1 + letter - b'A')));
+        let key = matches!(letter, b'A'..=b'E').then(|| plain(Key::F(1 + letter - b'A')));
         return Some((key, 4));
     }
     let Some(end) = body.iter().position(|byte| (0x40..=0x7e).contains(byte)) else {
@@ -175,13 +171,13 @@ fn single_shift(bytes: &[u8], last: bool) -> Option<Decoded> {
         return unfinished(bytes, last);
     };
     let code = match letter {
-        b'A' => Some(KeyCode::Up),
-        b'B' => Some(KeyCode::Down),
-        b'C' => Some(KeyCode::Right),
-        b'D' => Some(KeyCode::Left),
-        b'H' => Some(KeyCode::Home),
-        b'F' => Some(KeyCode::End),
-        b'P'..=b'S' => Some(KeyCode::F(1 + letter - b'P')),
+        b'A' => Some(Key::Up),
+        b'B' => Some(Key::Down),
+        b'C' => Some(Key::Right),
+        b'D' => Some(Key::Left),
+        b'H' => Some(Key::Home),
+        b'F' => Some(Key::End),
+        b'P'..=b'S' => Some(Key::F(1 + letter - b'P')),
         _ => None,
     };
     Some((code.map(plain), 3))
@@ -196,13 +192,10 @@ fn escape(bytes: &[u8], last: bool) -> Option<Decoded> {
     match second {
         b'[' => control_sequence(bytes, last),
         b'O' => single_shift(bytes, last),
-        ESCAPE => Some((Some(plain(KeyCode::Esc)), 1)),
+        ESCAPE => Some((Some(plain(Key::Escape)), 1)),
         _ => {
             let (key, length) = next(bytes.get(1..).unwrap_or_default(), last)?;
-            let key = key.map(|mut key| {
-                key.modifiers |= KeyModifiers::ALT;
-                key
-            });
+            let key = key.map(KeyPress::with_alt);
             Some((key, length + 1))
         }
     }
@@ -218,7 +211,7 @@ fn next(bytes: &[u8], last: bool) -> Option<Decoded> {
     // A terminal that sends CR LF for Enter (telnet, some console servers)
     // presses it once.
     if bytes.starts_with(b"\r\n") {
-        return Some((Some(plain(KeyCode::Enter)), 2));
+        return Some((Some(plain(Key::Enter)), 2));
     }
     match control(first) {
         Some(key) => Some((Some(key), 1)),
@@ -229,7 +222,7 @@ fn next(bytes: &[u8], last: bool) -> Option<Decoded> {
 /// Decodes the key presses in `bytes` into `keys`, and says how many bytes
 /// they took: the bytes of a press that is not whole yet stay, unless
 /// `last`. Bytes that name no key are dropped.
-pub fn decode(bytes: &[u8], last: bool, keys: &mut Vec<KeyEvent>) -> usize {
+pub fn decode(bytes: &[u8], last: bool, keys: &mut Vec<KeyPress>) -> usize {
     let mut used = 0;
     while let Some((key, length)) = next(bytes.get(used..).unwrap_or_default(), last) {
         keys.extend(key);
@@ -239,8 +232,8 @@ pub fn decode(bytes: &[u8], last: bool, keys: &mut Vec<KeyEvent>) -> usize {
 }
 
 /// What a decoded key is overwritten with.
-fn blank() -> KeyEvent {
-    plain(KeyCode::Null)
+fn blank() -> KeyPress {
+    KeyPress::BLANK
 }
 
 /// The keys of the terminal on standard input, which is in raw mode while
@@ -253,7 +246,7 @@ pub struct TerminalKeys {
     /// What was read and not decoded yet: the start of a key's sequence.
     pending: Vec<u8>,
     /// The keys decoded, and the next one to give.
-    keys: Vec<KeyEvent>,
+    keys: Vec<KeyPress>,
     next: usize,
     /// How long the rest of a sequence may take
     /// ([`CONSOLE_ESCAPE_WAIT`], [`SERIAL_ESCAPE_WAIT`]).
@@ -383,7 +376,7 @@ impl TerminalKeys {
 
 impl Keys for TerminalKeys {
     /// The next key press, waiting at most `timeout` for it.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyEvent>> {
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
         if self.next >= self.keys.len() {
             self.forget();
             self.fill(timeout)?;

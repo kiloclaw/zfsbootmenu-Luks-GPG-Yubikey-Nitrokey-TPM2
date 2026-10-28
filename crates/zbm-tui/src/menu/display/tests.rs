@@ -1,11 +1,12 @@
 //! The menu drawn as pixels: colours as on the console, the text where the
-//! terminal draws it, keys as the menu takes them, and the loop.
+//! terminal draws it, and the loop.
 
 use std::collections::VecDeque;
 
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
 use ratatui::style::Style;
+use zbm_display::keys::{Key, KeyPress};
 use zbm_display::psf::Font;
 
 use super::*;
@@ -70,74 +71,6 @@ fn bold_brightens_the_base_colours_and_the_other_modifiers_apply() {
     assert_eq!(plain.decoration, Decoration::default());
     assert!(crossed.decoration.strikeout);
     assert_eq!((plain.fg, plain.bg), (Rgb(0xaa, 0xaa, 0xaa), Rgb::BLACK));
-}
-
-#[test]
-fn key_presses_become_the_events_the_menu_takes() {
-    let press = |key, shift, ctrl, alt| KeyPress {
-        key,
-        shift,
-        ctrl,
-        alt,
-        logo: false,
-        keypad: false,
-    };
-
-    assert_eq!(
-        key_event(press(Key::Char('A'), true, false, false)),
-        KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE)
-    );
-    assert_eq!(
-        key_event(press(Key::Char('k'), false, true, true)),
-        KeyEvent::new(
-            KeyCode::Char('k'),
-            KeyModifiers::CONTROL | KeyModifiers::ALT
-        )
-    );
-    assert_eq!(
-        key_event(press(Key::Up, true, false, false)),
-        KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT)
-    );
-    let codes: Vec<KeyCode> = [
-        Key::Enter,
-        Key::Escape,
-        Key::Backspace,
-        Key::Tab,
-        Key::BackTab,
-        Key::Down,
-        Key::Left,
-        Key::Right,
-        Key::Home,
-        Key::End,
-        Key::PageUp,
-        Key::PageDown,
-        Key::Insert,
-        Key::Delete,
-        Key::F(5),
-    ]
-    .into_iter()
-    .map(|key| key_event(press(key, false, false, false)).code)
-    .collect();
-    assert_eq!(
-        codes,
-        [
-            KeyCode::Enter,
-            KeyCode::Esc,
-            KeyCode::Backspace,
-            KeyCode::Tab,
-            KeyCode::BackTab,
-            KeyCode::Down,
-            KeyCode::Left,
-            KeyCode::Right,
-            KeyCode::Home,
-            KeyCode::End,
-            KeyCode::PageUp,
-            KeyCode::PageDown,
-            KeyCode::Insert,
-            KeyCode::Delete,
-            KeyCode::F(5),
-        ]
-    );
 }
 
 /// The demo's main view on the console theme.

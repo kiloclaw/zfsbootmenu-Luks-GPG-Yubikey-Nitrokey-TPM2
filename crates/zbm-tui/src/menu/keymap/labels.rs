@@ -1,9 +1,9 @@
 //! What keys say: the toolbar, the help view and the names of keys, from
 //! the catalogue.
 
-use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use zbm_display::keys::Key;
 
-use super::{Context, Footer, Intent, KEYMAP};
+use super::{Context, Footer, Intent, KEYMAP, Modifiers};
 use crate::text::{self, Id, id, text};
 use Context::{Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup};
 
@@ -70,7 +70,7 @@ pub fn bindings(context: Context) -> Vec<(Intent, String, Id)> {
         .filter_map(|binding| {
             let key = match binding.footer {
                 Footer::Hidden => return None,
-                Footer::Key => key_name(binding.code, binding.modifiers),
+                Footer::Key => key_name(binding.key, binding.modifiers),
                 Footer::Keys(id) => text::get(id),
             };
             Some((binding.intent, key, describe(context, binding.intent)))
@@ -139,25 +139,25 @@ pub fn footer(context: Context, width: usize) -> Vec<Tool> {
 }
 
 /// The name of a key, as the help view shows it.
-pub fn key_name(code: KeyCode, modifiers: KeyModifiers) -> String {
+pub fn key_name(code: Key, modifiers: Modifiers) -> String {
     let name = match code {
-        KeyCode::Enter => text!("key-enter"),
-        KeyCode::Esc => text!("key-esc"),
-        KeyCode::Tab => text!("key-tab"),
-        KeyCode::Up => text!("key-up"),
-        KeyCode::Down => text!("key-down"),
-        KeyCode::Left => text!("key-left"),
-        KeyCode::Right => text!("key-right"),
-        KeyCode::PageUp => text!("key-page-up"),
-        KeyCode::PageDown => text!("key-page-down"),
-        KeyCode::Home => text!("key-home"),
-        KeyCode::End => text!("key-end"),
-        KeyCode::F(number) => text!("key-function", number = number),
-        KeyCode::Char(' ') => text!("key-space"),
-        KeyCode::Char(c) => c.to_string(),
+        Key::Enter => text!("key-enter"),
+        Key::Escape => text!("key-esc"),
+        Key::Tab => text!("key-tab"),
+        Key::Up => text!("key-up"),
+        Key::Down => text!("key-down"),
+        Key::Left => text!("key-left"),
+        Key::Right => text!("key-right"),
+        Key::PageUp => text!("key-page-up"),
+        Key::PageDown => text!("key-page-down"),
+        Key::Home => text!("key-home"),
+        Key::End => text!("key-end"),
+        Key::F(number) => text!("key-function", number = number),
+        Key::Char(' ') => text!("key-space"),
+        Key::Char(c) => c.to_string(),
         other => format!("{other:?}"),
     };
-    if modifiers.contains(KeyModifiers::CONTROL) {
+    if modifiers.contains(Modifiers::CTRL) {
         text!("key-ctrl", key = name.to_uppercase())
     } else {
         name
@@ -172,7 +172,7 @@ pub fn help(context: Context) -> Vec<(String, Id)> {
         .iter()
         .filter(|binding| binding.scope.contains(context))
     {
-        let name = key_name(binding.code, binding.modifiers);
+        let name = key_name(binding.key, binding.modifiers);
         match lines
             .iter_mut()
             .find(|(intent, _)| *intent == binding.intent)

@@ -14,7 +14,6 @@ use std::time::Duration;
 
 use ratatui::backend::{Backend, ClearType, WindowSize};
 use ratatui::buffer::Cell;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MediaKeyCode};
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::style::{Color, Modifier};
 use ratatui::{Terminal, TerminalOptions, Viewport};
@@ -24,7 +23,6 @@ use zbm_display::faces::FontFace;
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
-use zbm_display::keys::{Key, KeyPress, Media};
 use zbm_display::palette;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 
@@ -104,56 +102,6 @@ pub fn cell_style(cell: &Cell) -> CellStyle {
             modifiers.contains(Modifier::ITALIC),
         ),
     }
-}
-
-/// The key event the menu takes for a key press.
-pub fn key_event(press: KeyPress) -> KeyEvent {
-    let code = match press.key {
-        Key::Char(c) => KeyCode::Char(c),
-        Key::Enter => KeyCode::Enter,
-        Key::Escape => KeyCode::Esc,
-        Key::Backspace => KeyCode::Backspace,
-        Key::Tab => KeyCode::Tab,
-        Key::BackTab => KeyCode::BackTab,
-        Key::Up => KeyCode::Up,
-        Key::Down => KeyCode::Down,
-        Key::Left => KeyCode::Left,
-        Key::Right => KeyCode::Right,
-        Key::Home => KeyCode::Home,
-        Key::End => KeyCode::End,
-        Key::PageUp => KeyCode::PageUp,
-        Key::PageDown => KeyCode::PageDown,
-        Key::Insert => KeyCode::Insert,
-        Key::Delete => KeyCode::Delete,
-        Key::F(number) => KeyCode::F(number),
-        Key::Print => KeyCode::PrintScreen,
-        Key::Pause => KeyCode::Pause,
-        Key::Menu => KeyCode::Menu,
-        Key::Media(media) => KeyCode::Media(match media {
-            Media::Mute => MediaKeyCode::MuteVolume,
-            Media::VolumeDown => MediaKeyCode::LowerVolume,
-            Media::VolumeUp => MediaKeyCode::RaiseVolume,
-            Media::PlayPause => MediaKeyCode::PlayPause,
-            Media::Stop => MediaKeyCode::Stop,
-            Media::Next => MediaKeyCode::TrackNext,
-            Media::Previous => MediaKeyCode::TrackPrevious,
-        }),
-    };
-    let mut modifiers = KeyModifiers::NONE;
-    // A character already says whether Shift was held.
-    if press.shift && !matches!(press.key, Key::Char(_) | Key::BackTab) {
-        modifiers |= KeyModifiers::SHIFT;
-    }
-    if press.ctrl {
-        modifiers |= KeyModifiers::CONTROL;
-    }
-    if press.alt {
-        modifiers |= KeyModifiers::ALT;
-    }
-    if press.logo {
-        modifiers |= KeyModifiers::SUPER;
-    }
-    KeyEvent::new(code, modifiers)
 }
 
 /// A Ratatui backend that draws cells as pixels into a frame, and keeps
@@ -299,10 +247,7 @@ pub fn run(
             return Ok(why.to_owned());
         }
         match keys.next(TICK)? {
-            Some(press) => {
-                let event = key_event(press);
-                session.press(event.code, event.modifiers);
-            }
+            Some(press) => session.press(press),
             None => session.tick(u64::try_from(TICK.as_millis()).unwrap_or(u64::MAX)),
         }
     }

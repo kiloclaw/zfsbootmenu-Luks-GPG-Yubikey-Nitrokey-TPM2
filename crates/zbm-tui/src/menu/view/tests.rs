@@ -1,6 +1,6 @@
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::KeyCode;
+use zbm_display::keys::Key;
 
 use super::*;
 use crate::menu::caps::Capabilities;
@@ -73,12 +73,12 @@ fn a_too_small_terminal_gets_a_notice() {
 #[test]
 fn every_view_draws_at_the_smallest_size() {
     let mut session = started(Capabilities::FULL);
-    session.key(KeyCode::Esc);
+    session.key(Key::Escape);
     for key in ['s', 'k', 'p', '!', 'l', '?', ':'] {
-        session.key(KeyCode::Char(key));
+        session.key(Key::Char(key));
         let text = screen(session.model(), 52, 20);
         assert!(text.lines().count() == 20, "{key}: {text}");
-        session.key(KeyCode::Esc);
+        session.key(Key::Escape);
     }
 }
 

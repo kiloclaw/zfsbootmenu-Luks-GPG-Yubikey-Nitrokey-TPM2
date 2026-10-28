@@ -10,7 +10,7 @@ use ratatui::crossterm::terminal;
 use ratatui::layout::{Position, Rect, Size};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use super::keymap::key_name;
+use super::keymap::{Modifiers, key_name};
 use super::machine::Machine;
 use super::secret::{Marker, is_asking_secret};
 use super::session::Session;
@@ -80,10 +80,10 @@ pub fn run<M: Machine>(
         let wait = TICK.saturating_sub(last_tick.elapsed());
         if let Some(key) = input.key(wait)? {
             if let Some(file) = &mut keys {
-                let name = key_name(key.code, key.modifiers);
+                let name = key_name(key.key, Modifiers::of(&key));
                 writeln!(file, "{} {name}", start.elapsed().as_millis())?;
             }
-            session.press(key.code, key.modifiers);
+            session.press(key);
         }
         if last_tick.elapsed() >= TICK {
             let elapsed = u64::try_from(last_tick.elapsed().as_millis()).unwrap_or(u64::MAX);

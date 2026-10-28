@@ -5,7 +5,7 @@
 //! `measured` and the table in the design.
 
 use pretty_assertions::assert_eq;
-use ratatui::crossterm::event::KeyCode;
+use zbm_display::keys::Key;
 
 use super::{DemoOptions, Session};
 use crate::menu::caps::Capabilities;
@@ -16,7 +16,7 @@ use crate::menu::world::{Action, VolumeState};
 #[derive(Clone, Copy)]
 enum Step {
     /// A key press, counted.
-    Key(KeyCode),
+    Press(Key),
     /// Text typed: a secret, a name, filter letters; not counted.
     Text(&'static str),
 }
@@ -51,8 +51,8 @@ fn boots(session: &Session, environment: &str) -> bool {
 
 /// The core tasks T1 to T4.
 fn first_tasks() -> Vec<Task> {
-    use KeyCode::{Char, Down, Enter};
-    use Step::{Key, Text};
+    use Key::{Char, Down, Enter};
+    use Step::{Press, Text};
     vec![
         Task {
             name: "T1 boot the default",
@@ -65,7 +65,7 @@ fn first_tasks() -> Vec<Task> {
         Task {
             name: "T2 boot another environment",
             options: options(false, false),
-            steps: &[Key(Down), Key(Enter)],
+            steps: &[Press(Down), Press(Enter)],
             measured: 2,
             budget: 4,
             done: |s| boots(s, "tank/ROOT/arch"),
@@ -73,7 +73,7 @@ fn first_tasks() -> Vec<Task> {
         Task {
             name: "T2 boot another environment, by filter",
             options: options(false, false),
-            steps: &[Key(Char('/')), Text("ubu"), Key(Enter)],
+            steps: &[Press(Char('/')), Text("ubu"), Press(Enter)],
             measured: 2,
             budget: 4,
             done: |s| boots(s, "zroot/ROOT/ubuntu"),
@@ -81,7 +81,7 @@ fn first_tasks() -> Vec<Task> {
         Task {
             name: "T3 boot another kernel",
             options: options(false, false),
-            steps: &[Key(Char('k')), Key(Down), Key(Enter)],
+            steps: &[Press(Char('k')), Press(Down), Press(Enter)],
             measured: 3,
             budget: 5,
             done: |s| {
@@ -94,7 +94,7 @@ fn first_tasks() -> Vec<Task> {
         Task {
             name: "T4 boot the newest snapshot",
             options: options(false, false),
-            steps: &[Key(Char('s')), Key(Char('o')), Key(Char('b'))],
+            steps: &[Press(Char('s')), Press(Char('o')), Press(Char('b'))],
             measured: 3,
             budget: 6,
             done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(_)]),
@@ -103,11 +103,11 @@ fn first_tasks() -> Vec<Task> {
             name: "T4 roll back to the newest snapshot",
             options: options(false, false),
             steps: &[
-                Key(Char('s')),
-                Key(Char('o')),
-                Key(Char('r')),
+                Press(Char('s')),
+                Press(Char('o')),
+                Press(Char('r')),
                 Text("void"),
-                Key(Enter),
+                Press(Enter),
             ],
             measured: 4,
             budget: 6,
@@ -118,13 +118,13 @@ fn first_tasks() -> Vec<Task> {
 
 /// The core tasks T5 to T8.
 fn more_tasks() -> Vec<Task> {
-    use KeyCode::{Char, Down, Enter};
-    use Step::{Key, Text};
+    use Key::{Char, Down, Enter};
+    use Step::{Press, Text};
     vec![
         Task {
             name: "T5 unlock a volume, from its prompt",
             options: options(true, false),
-            steps: &[Text("1234"), Key(Enter)],
+            steps: &[Text("1234"), Press(Enter)],
             measured: 1,
             budget: 1,
             done: |s| {
@@ -137,7 +137,7 @@ fn more_tasks() -> Vec<Task> {
         Task {
             name: "T6 edit the command line once",
             options: options(false, false),
-            steps: &[Key(Char('e')), Text(" single"), Key(Enter)],
+            steps: &[Press(Char('e')), Text(" single"), Press(Enter)],
             measured: 2,
             budget: 3,
             done: |s| {
@@ -150,7 +150,7 @@ fn more_tasks() -> Vec<Task> {
         Task {
             name: "T7 import a foreign pool, from the problem",
             options: options(false, true),
-            steps: &[Key(Down), Key(Enter)],
+            steps: &[Press(Down), Press(Enter)],
             measured: 2,
             budget: 2,
             done: |s| s.model().snapshot.pools.iter().all(|pool| pool.imported),
@@ -159,12 +159,12 @@ fn more_tasks() -> Vec<Task> {
             name: "T8 restore a file from the newest snapshot",
             options: options(false, false),
             steps: &[
-                Key(Char('s')),
-                Key(Char('o')),
-                Key(Char('f')),
-                Key(Enter),
+                Press(Char('s')),
+                Press(Char('o')),
+                Press(Char('f')),
+                Press(Enter),
                 Text("void"),
-                Key(Enter),
+                Press(Enter),
             ],
             measured: 5,
             budget: 6,
@@ -184,7 +184,7 @@ fn run(task: &Task) -> (Session, u32) {
     let mut typed = 0;
     for step in task.steps {
         match *step {
-            Step::Key(code) => session.key(code),
+            Step::Press(key) => session.key(key),
             Step::Text(text) => {
                 session.type_text(text);
                 typed += u32::try_from(text.chars().count()).unwrap();
