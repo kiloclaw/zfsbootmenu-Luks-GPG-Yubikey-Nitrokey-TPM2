@@ -17,6 +17,7 @@ passes `cargo xtask lint` and `cargo xtask test` locally passes those jobs.
 | `cargo xtask coverage [--check \| --bless]` | Prints line coverage per crate with `cargo llvm-cov` (below) |
 | `cargo xtask doc [--open]` | Builds the documentation with warnings as errors |
 | `cargo xtask gen-docs [--check]` | Writes the option sections of `zfsbootmenu(7)`, `zfsbootmenu-crypttab(5)` and `generate-zbm(5)` from the table of options in `zbm-config` (`zbm_config::spec`), between the `.. BEGIN generated` and `.. END generated` lines of each page; `--check` fails when one is out of date. Edit an option's entry in the table, never the generated text. It runs the example `gen_docs` of `zbm-config`, since `xtask` depends on no crate of the workspace |
+| `cargo xtask check-links [<binary>]` | Builds the release `zbm`, or takes `<binary>`, and fails when `readelf -d` lists a library other than glibc's and GCC's unwinder (`libgcc_s`): the boot runtime links no C library ([dependencies.md](dependencies.md)). A CI job runs it |
 | `cargo xtask check-deps [--bless]` | Checks the dependencies between crates against the layers ([architecture.md](architecture.md)); `--bless` regenerates the tables on that page |
 | `cargo xtask metrics [--check \| --bless]` | Prints code metrics per crate (below) |
 | `cargo xtask split-debug <binary> [<dir>]` | Moves the debug information of a release binary to `<dir>/<build-id>.debug` (default `target/debug-files`) with `objcopy` and strips the binary; image builds do this to `zbm` (below) |
@@ -133,6 +134,7 @@ so it knows which code is test code. It prints one row per crate and writes the 
 | unsafe | `unsafe` blocks | yes |
 | zfs cmds | ZFS command lines built outside `zbm-zfs` and outside tests: `Command::new("zfs")` (or `zpool`, `zdb`), and the raw `ZfsCommand` and `ZpoolCommand` builders, which SB2 replaces with the `Zfs` port | yes |
 | str params | Public functions of the domain crates (`zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot`) with a parameter that is a string (`&str`, `String`, `Option<&str>`, `&[String]` and the like) where a type of its own belongs (DM3); 0 in the other layers | yes |
+| C programs | In the row `rust-image` alone: the C programs that the lists of `legacy/zfsbootmenu/install-helpers.sh` give a Rust image, uutils coreutils and `fzf` aside ([dependencies.md](dependencies.md), CD1) | yes |
 | fmt logs | Log macros outside tests (`info!`, `warn!` and the others, of `zbm_trace` and `tracing`) whose message is a format string rather than a constant with fields (DM9) | yes |
 
 The debt columns may only go down. `xtask/metrics-baseline.txt` holds each crate's numbers at its last improvement,

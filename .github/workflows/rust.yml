@@ -133,6 +133,18 @@ jobs:
           sudo env "PATH=${PATH}" "RUSTUP_HOME=${RUSTUP_HOME:-${HOME}/.rustup}" \
             "CARGO_HOME=${CARGO_HOME:-${HOME}/.cargo}" cargo xtask test devices
 
+  links:
+    name: zbm links glibc alone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain
+        run: rustup toolchain install
+
+      # The release build, as images get it; readelf comes with binutils
+      - name: Check the linked libraries
+        run: cargo xtask check-links
+
   msrv:
     name: Minimum supported Rust version
     runs-on: ubuntu-latest

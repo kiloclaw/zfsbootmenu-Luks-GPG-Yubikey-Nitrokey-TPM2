@@ -8,6 +8,7 @@
 //! numbers as the new baseline.
 
 pub mod baseline;
+pub mod image;
 pub mod legacy;
 pub mod scan;
 pub mod tree;
@@ -112,6 +113,9 @@ pub struct Counts {
     /// Log macros whose message is a format string, rather than a constant
     /// with fields (DM9).
     pub format_logs: usize,
+    /// The C programs of the Rust image, in its row ([`image::ROW`]) alone
+    /// (CD1).
+    pub c_programs: usize,
 }
 
 /// One metric: how to read it from [`Counts`] and whether it is debt.
@@ -147,6 +151,7 @@ pub const METRICS: &[Metric] = &[
     metric("zfs_commands", "zfs cmds", true, |c| c.zfs_commands),
     metric("string_params", "str params", true, |c| c.string_params),
     metric("format_logs", "fmt logs", true, |c| c.format_logs),
+    metric("c_programs", "C programs", true, |c| c.c_programs),
 ];
 
 /// The crate that builds ZFS command lines; it is where they belong.
@@ -289,6 +294,11 @@ pub fn measure(workspace: &Workspace) -> Result<BTreeMap<String, Counts>> {
         }
         all.insert(package.name.clone(), counts);
     }
+    let image = Counts {
+        c_programs: image::count(&workspace.root)?,
+        ..Counts::default()
+    };
+    all.insert(image::ROW.to_owned(), image);
     Ok(all)
 }
 

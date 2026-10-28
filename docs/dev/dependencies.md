@@ -54,6 +54,33 @@ Their own dependencies are vendored with them; `cargo tree -e normal -p zbm` lis
 like, which `Cargo.lock` records for other platforms, and proc-macro helpers such as `darling` and `derive_more`,
 which run at build time only.
 
+## C libraries and programs of the boot runtime
+
+`zbm` links glibc alone (ROADMAP.md, decision 12): `cargo xtask check-links`, a CI job, builds the release binary and
+fails when `readelf -d` lists a library other than glibc's or GCC's unwinder (`libgcc_s`, which unwinds a panic).
+
+The programs a Rust image carries are C programs but for uutils coreutils (Rust, decision 4) and `fzf` (Go). `cargo
+xtask metrics` counts them in its `rust-image` row, from the lists of `legacy/zfsbootmenu/install-helpers.sh` that a Rust
+image gets, and the count may only go down (CD1; 45 on 28 October 2026). Each goes with the item that replaces it, or
+stays for a reason:
+
+| Programs | Replaced by | Or stays because |
+| --- | --- | --- |
+| `zfs`, `zpool`, `zdb`, `mount.zfs` | — | There is no Rust ZFS, and libzfs is ruled out (decision 11) |
+| `bash` | — | dracut's `/bin/sh`; brush is the runtime's shell |
+| `sed`, `grep`, `awk`, `ps`, `less`, `column`, `mbuffer` | — | Users' hooks and the recovery shell |
+| `blkid`, `udevadm` | — | No Rust udev is mature, and `cryptsetup` relies on the device-mapper rules |
+| `lsblk`, `dmesg`, `setsid`, `hostid` | CD2 (done: the runtime no longer runs them but as a fallback, until the VM suites pass the native code, and for the legacy runtime's code) | — |
+| `mount` | SB3 | — |
+| `kexec` | SB4 (`kexec_file_load`); `kexec` stays for device trees, Xen and old kernels | — |
+| `tput`, `stty` | PM11 | — |
+| `insmod`, `modinfo`, `lsmod`, `depmod` | CD4 | — |
+| `cryptsetup`, `dmsetup` | CD9; `cryptsetup` stays for enrolment and as the fallback | — |
+| `tpm2_*` | CD10; `tpm2-tools` stay in the recovery shell | — |
+| `fido2-token`, `fido2-assert` | CD7 | — |
+| `jose`, `luksmeta`, `curl` | CD8, CD11 | — |
+| `ykchalresp`, `ykinfo` | SB11 | — |
+
 ## Host tools
 
 | Crate | Used by | Why |

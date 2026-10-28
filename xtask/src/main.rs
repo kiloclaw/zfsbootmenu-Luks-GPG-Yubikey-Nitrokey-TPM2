@@ -19,6 +19,7 @@ mod deps;
 mod error;
 mod fuzz;
 mod gen_docs;
+mod links;
 mod lint;
 mod metrics;
 mod process;
@@ -68,6 +69,8 @@ Commands:
                          zfsbootmenu-crypttab(5) and generate-zbm(5) from
                          the table of options in zbm-config; --check fails
                          when one is out of date
+  check-links [<binary>] Check that the release zbm (built first), or
+                         <binary>, links no library but glibc's (readelf)
   check-deps [--bless]   Check the dependencies between crates against the
                          layers in xtask/src/deps.rs; --bless rewrites the
                          generated section of docs/dev/architecture.md
@@ -118,6 +121,8 @@ enum Command {
     GenDocs { check: bool },
     /// `check-deps`.
     CheckDeps { bless: bool },
+    /// `check-links`, with the binary to check, or none to build `zbm`.
+    CheckLinks(Option<PathBuf>),
     /// `metrics`.
     Metrics(Mode),
     /// `coverage`.
@@ -158,6 +163,8 @@ impl Command {
             ["doc", "--open"] => Command::Doc { open: true },
             ["gen-docs"] => Command::GenDocs { check: false },
             ["gen-docs", "--check"] => Command::GenDocs { check: true },
+            ["check-links"] => Command::CheckLinks(None),
+            ["check-links", binary] => Command::CheckLinks(Some(PathBuf::from(binary))),
             ["check-deps"] => Command::CheckDeps { bless: false },
             ["check-deps", "--bless"] => Command::CheckDeps { bless: true },
             ["metrics"] => Command::Metrics(Mode::Report),
@@ -277,6 +284,7 @@ fn run(command: Command) -> Result<()> {
         Command::Doc { open } => cargo::doc(&root, open),
         Command::GenDocs { check } => gen_docs::run(&root, check),
         Command::CheckDeps { bless } => deps::run(&Workspace::load(&root)?, bless),
+        Command::CheckLinks(binary) => links::run(&root, binary.as_deref()),
         Command::Metrics(mode) => metrics::run(&Workspace::load(&root)?, mode),
         Command::Coverage(mode) => coverage::run(&Workspace::load(&root)?, mode),
         Command::Fuzz { target, seconds } => fuzz::run(&root, target, seconds),
