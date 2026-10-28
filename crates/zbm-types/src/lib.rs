@@ -46,6 +46,7 @@
 
 mod answer;
 mod cmdline;
+pub mod code;
 mod device;
 mod ere;
 mod error;

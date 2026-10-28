@@ -3,6 +3,7 @@
 //! mounts and pools.
 
 use std::path::{Path, PathBuf};
+use zbm_types::code::{Coded as _, chain};
 
 use zbm_config::spec::properties::{DEVICETREE, ROOTPREFIX};
 use zbm_platform::System;
@@ -376,7 +377,10 @@ pub fn save_logs(
             Some(saved)
         }
         Err(error) => {
-            zbm_trace::warn!("unable to save the logs: {error}"; %error);
+            zbm_trace::warn!(
+                "unable to save the logs: {error}";
+                error = %chain(&error), error_code = %error.code()
+            );
             None
         }
     }
@@ -391,7 +395,10 @@ fn keep_hand_back(system: &System<'_>, state: &State<'_>, saved: Option<&Saved>)
         return;
     };
     if let Err(error) = saved_logs::update_logs(system, state.base(), saved) {
-        zbm_trace::warn!("unable to add the GPUs' hand-back to the saved logs: {error}"; %error);
+        zbm_trace::warn!(
+            "unable to add the GPUs' hand-back to the saved logs: {error}";
+            error = %chain(&error), error_code = %error.code()
+        );
     }
 }
 

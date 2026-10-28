@@ -447,6 +447,19 @@ The domain crates refactored in R1 have an error enum each, with the reasons the
 `resume::ResumeChoice`, and `zbm_types::Answer` for timed prompts. The step still logs what the legacy code logs; the
 error is for the code that decides what happens next, and `bool` is left for questions (`is_open`).
 
+An error keeps its cause as its `#[source]` rather than as text, and its message does not repeat it;
+`zbm_types::code::chain` gives the message with every cause, which is what logs and front ends show. Each error enum
+of the domain, the adapters and start-up has stable codes (`ZBM-E0412`), given with `zbm_types::error_codes!`, which
+matches every variant, so a new variant needs a code; `zbm explain` reads the tables. A code is never given to another
+error: the numbers of errors that go are not used again. The hundreds name the crate: 02 `zbm-zfs`, 03 `zbm-pool`,
+04 `zbm-luks`, 05 `zbm-crypt`, 06 `zbm-boot`, 07 `zbm-startup`. `zbm_types::code::report` gives the code, the
+message and the causes on one line, for standard error and the start-up screen; a log message keeps the legacy
+text and carries the code in the field `error_code`.
+
+Start-up's steps return `Result<StepOutcome, StartupError>`: done, skipped, or failed with an error, which
+`run_steps` logs with its code and the start-up screen shows. A failed stage is recorded as finished, and start-up
+goes on with the next one, as the legacy `init.d` scripts do.
+
 ### Where errors go
 
 The caller decides, at the same points as the legacy code:
@@ -486,8 +499,16 @@ JSON per event with the spans it happened in (stage, pool, volume) and the progr
 `zbm_platform::TracedRunner`, so a failed boot can be read back step by step. Each process writes at most 4 MiB.
 Secrets stay out by type (`Secret` prints as `Secret(..)`) and by name: only the fields of `zbm_trace::KEPT_FIELDS`
 are written, and any other is written as `"[redacted]"`, as is one named `passphrase`, `password`, `pin`, `secret`,
-`challenge` or `response` (or ending in `_` and one of them). A new field joins the list in the change that adds it, after a look at what it can hold; one
-that can carry free text, such as a program's `output`, stays out, and the message still shows its value.
+`challenge` or `response` (or ending in `_` and one of them). A new field joins the list in the change that adds
+it, after a look at what it can hold; one that can carry free text, such as a program's `output`, stays out, and the
+message still shows its value.
+
+Each level has one meaning. **error**: something failed that the person needs to know of, and the boot may not go on
+as asked (a pool that does not import, a stage that failed). **warn**: something failed and the runtime went on
+without it (a hook that could not be copied, logs that could not be saved). **notice**: a normal event the person
+should see. **info**: the progress of a normal boot (each stage, each pool imported). **debug**: what a developer
+needs to follow a boot: the values found and the commands' output. **trace**, in the journal alone: the steps inside
+an operation.
 
 ## External programs
 

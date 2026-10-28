@@ -104,3 +104,27 @@ pub enum CryptError {
     #[error("{0:?} starts with '-', which cryptsetup would read as an option")]
     LeadingDash(String),
 }
+
+zbm_types::error_codes! {
+    CryptError, CRYPT_CODES;
+    Start = 501 => "cryptsetup could not be started":
+        "cryptsetup is in the image but could not be run; the system may be out of memory or \
+         processes.",
+    NotInstalled = 502 => "cryptsetup is not installed":
+        "The image has no cryptsetup, so no LUKS volume can be opened. Rebuild the image with LUKS \
+         support.",
+    WrongKey = 503 => "no key slot accepts the key":
+        "The passphrase or key was wrong for every key slot of the volume. Check the key file, the \
+         keyboard layout of the console, or the token that gave the key.",
+    NoDevice = 504 => "the device is not a LUKS volume":
+        "The device does not exist, or has no LUKS header. Check the device in crypttab, and that \
+         its controller's driver is in the image.",
+    Busy = 505 => "the mapping exists already or is busy":
+        "A mapping of that name is open already, perhaps from an earlier unlock. Close it with \
+         cryptsetup close, or choose another name.",
+    Failed = 506 => "cryptsetup failed":
+        "cryptsetup ended with an error, whose output follows the code.",
+    LeadingDash = 507 => "a name would be read as an option":
+        "A device or mapping name starts with '-', which cryptsetup would read as an option. \
+         Rename it.",
+}

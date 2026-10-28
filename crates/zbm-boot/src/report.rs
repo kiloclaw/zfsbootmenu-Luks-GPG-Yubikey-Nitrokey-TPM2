@@ -215,9 +215,7 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
         .duration_since(UNIX_EPOCH)
         .map_or(0, |time| time.as_secs());
     let dir = parent.join(format!("zbm-report-{}", stamp(seconds)));
-    let failed = |path: &Path, error: std::io::Error| {
-        SaveError::Write(path.display().to_string(), error.to_string())
-    };
+    let failed = |path: &Path, source: std::io::Error| SaveError::write(path, source);
     system
         .files
         .create_dir_all(&dir)

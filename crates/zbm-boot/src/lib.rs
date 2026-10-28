@@ -43,4 +43,4 @@ pub mod writable;
 
 #[cfg(test)]
 mod testing;
-pub use error::BootError;
+pub use error::{BOOT_CODES, BootError};

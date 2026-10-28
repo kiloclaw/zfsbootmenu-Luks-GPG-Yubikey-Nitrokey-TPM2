@@ -128,6 +128,30 @@ pub enum AppError {
     Snapshot(#[from] SnapshotError),
 }
 
+impl zbm_types::code::Coded for SnapshotError {
+    fn code(&self) -> zbm_types::code::ErrorCode {
+        match self {
+            SnapshotError::Zfs(error) => zbm_types::code::Coded::code(error),
+        }
+    }
+}
+
+impl zbm_types::code::Coded for AppError {
+    fn code(&self) -> zbm_types::code::ErrorCode {
+        match self {
+            AppError::Unlock(error) => zbm_types::code::Coded::code(error),
+            AppError::Snapshot(error) => zbm_types::code::Coded::code(error),
+        }
+    }
+}
+
+/// The codes of the adapters' errors, which front ends reach through this
+/// crate, for `zbm explain`.
+pub mod codes {
+    pub use zbm_crypt::CRYPT_CODES;
+    pub use zbm_zfs::ZFS_CODES;
+}
+
 /// The application: the ports of a [`Context`] and the use cases on top.
 #[derive(Clone, Copy)]
 pub struct App<'a> {

@@ -496,6 +496,17 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   datasets, kernels, devices, GPUs and hooks; fields that can carry free text, such as a program's output, are still
   written as `[redacted]`, and the message still shows them.
 
+### Error codes (phase 1)
+
+- Errors of the Rust runtime have stable codes, such as `ZBM-E0412` (no key method opened a LUKS volume).
+  `zbm explain CODE` says what one means and what to do about it, and `zbm explain` lists them all. The start-up
+  screen, `zbm debug`, `zbm report` and `zluks --pilot open` show the code with the error and its causes; the
+  journal has it in the field `error_code`.
+- A start-up stage that fails is shown as failed, with its code, instead of done. The error of a `zbm.hookroot` that
+  cannot be read was dropped before; the image's own hooks still run. A ZFS module that does not load fails the
+  kernel modules stage, after the recovery shell, as before.
+- When the logs cannot be written on the EFI system partition, the error now says why, such as a full partition.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

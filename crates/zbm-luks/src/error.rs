@@ -121,6 +121,48 @@ pub enum LuksError {
     NothingNew,
 }
 
+zbm_types::error_codes! {
+    LuksError, LUKS_CODES;
+    NotLuks = 401 => "the device is not a LUKS volume":
+        "The device named in crypttab, or found by its UUID, has no LUKS header. Check the \
+         crypttab entry.",
+    Name = 402 => "a mapping name is not valid":
+        "The crypttab name, or the name made from the LUKS UUID, is not a device-mapper name: it \
+         is empty, too long, or holds a '/'. Rename the crypttab entry.",
+    MappingExists = 403 => "the mapping exists already":
+        "A mapping of that name is open already. Close it with cryptsetup close, or name the \
+         volume differently in crypttab.",
+    Open = 404 => "cryptsetup could not open the volume":
+        "cryptsetup refused the key, or could not set up the mapping. Its output is in the kernel \
+         log at loglevel 7 and in the journal.",
+    Close = 405 => "cryptsetup could not close a mapping":
+        "A mapping is still in use, for example by an imported pool. Export the pool, then close \
+         it.",
+    KeyScriptNotExecutable = 406 => "a key script cannot be run":
+        "The keyscript= option of crypttab names a file that is not executable in the image.",
+    Token = 407 => "a LUKS2 token did not open the volume":
+        "A TPM2, FIDO2 or other token was tried and gave no key; the reason follows the code. The \
+         other key methods, and then the passphrase, are tried next.",
+    NoToken = 408 => "no LUKS2 token opened the volume":
+        "The volume's tokens were tried and none gave a key. The passphrase is asked for next.",
+    YubiKey = 409 => "YubiKey challenge-response did not open the volume":
+        "No YubiKey answered, or its answer opened no key slot. Check that the key is plugged in \
+         and enrolled with the slot crypttab names.",
+    Skipped = 410 => "a volume was skipped":
+        "The person at the console chose to skip the volume; pools on it will not import.",
+    NoConsole = 411 => "no console to ask for a passphrase":
+        "The volume needs a passphrase and no console was there to ask, as in a script. Unlock it \
+         with zluks on a terminal.",
+    NotClosed = 413 => "some mappings could not be closed":
+        "Mappings stayed open, usually because a pool on them is still imported. Export it, then \
+         close them.",
+    NoneUnlocked = 414 => "no LUKS volume was unlocked":
+        "Volumes needed unlocking and every one failed. The codes logged before this one say why \
+         for each.",
+    NothingNew = 415 => "no new LUKS volume was unlocked":
+        "A retry of the pool import unlocked nothing more, so it found no new pool.",
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -51,4 +51,4 @@ pub mod unlocker;
 #[cfg(test)]
 mod testing;
 
-pub use error::{LuksError, TokenFailure};
+pub use error::{LUKS_CODES, LuksError, TokenFailure};

@@ -3,7 +3,7 @@
 
 use std::io::Write;
 
-fn main() {
+fn main() -> std::process::ExitCode {
     // Unlike the host tools, the runtime keeps SIGPIPE ignored (the Rust
     // default): a program that exits without reading all of its input, such as
     // `cryptsetup` refusing a device while a key is written to it, must not end
@@ -16,7 +16,7 @@ fn main() {
         Ok(split) => split,
         Err(message) => {
             let _ = writeln!(std::io::stderr(), "{message}");
-            std::process::exit(2);
+            return std::process::ExitCode::from(2);
         }
     };
     // A panic leaves a crash report in the state directory (see
@@ -39,5 +39,6 @@ fn main() {
         },
     );
     let _ = std::io::stdout().flush();
-    std::process::exit(code);
+    // As `exit` would: the status modulo 256.
+    std::process::ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1))
 }

@@ -13,6 +13,7 @@ use std::io::Write;
 pub mod applets;
 pub mod console;
 pub mod debug;
+pub mod explain;
 pub mod fonts;
 pub mod layouts;
 pub mod luks;
@@ -104,6 +105,12 @@ const REPORT: Applet = Applet {
     run: report::run,
 };
 
+const EXPLAIN: Applet = Applet {
+    name: "explain",
+    summary: "say what an error code (ZBM-E0412) means and what to do about it",
+    run: explain::run,
+};
+
 const MENU: Applet = Applet {
     name: "zfsbootmenu",
     summary: "the menu: boot environments, booting and the recovery shell",
@@ -123,6 +130,7 @@ pub const APPLETS: &[Applet] = &[
     MENU,
     DEBUG,
     REPORT,
+    EXPLAIN,
 ];
 
 /// The exit status for a command that does not exist, as a shell reports it.
@@ -320,6 +328,7 @@ mod tests {
             "zfsbootmenu",
             "debug",
             "report",
+            "explain",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

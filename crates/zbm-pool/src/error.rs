@@ -19,6 +19,19 @@ pub enum PoolError {
     WriteHostid,
 }
 
+zbm_types::error_codes! {
+    PoolError, POOL_CODES;
+    Import = 301 => "a pool could not be imported":
+        "zpool import failed. The pool may have been used by another host (see zbm.import_policy \
+         and spl_hostid), miss a device, or need a newer ZFS. zpool import in the recovery shell \
+         shows why.",
+    RewindAll = 302 => "a rewind to a checkpoint needs one pool":
+        "A rewind to a pool checkpoint was asked for every pool at once. Name the pool to rewind.",
+    WriteHostid = 303 => "/etc/hostid could not be written":
+        "The host ID from spl_hostid could not be written to /etc/hostid, so pools are imported \
+         with the host ID of the image. Pools last used by another host may then refuse to import.",
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

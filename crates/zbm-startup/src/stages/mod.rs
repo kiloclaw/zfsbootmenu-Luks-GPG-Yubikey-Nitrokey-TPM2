@@ -14,7 +14,8 @@ use zbm_platform::System;
 use zbm_pool::ImportSettings;
 use zbm_types::{HookStage, RetryDelay, Stage};
 
-use crate::step::{Step, StepContext};
+use crate::error::StartupError;
+use crate::step::{Step, StepContext, StepOutcome};
 
 /// `init.d/10-kmods`: loads `spl` and `zfs`.
 pub struct Modules;
@@ -24,8 +25,9 @@ impl Step for Modules {
         Stage::Modules
     }
 
-    fn run(&self, context: &mut StepContext<'_, '_>) {
-        modules::stage(context.system.runner, context.front.recovery());
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
+        modules::stage(context.system.runner, context.front.recovery())?;
+        Ok(StepOutcome::Done)
     }
 }
 
@@ -40,8 +42,9 @@ impl Step for HostId<'_> {
         Stage::HostId
     }
 
-    fn run(&self, context: &mut StepContext<'_, '_>) {
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
         hostid::stage(context.system.files, self.spl_hostid);
+        Ok(StepOutcome::Done)
     }
 }
 
@@ -58,11 +61,12 @@ impl Step for DeviceWait<'_> {
         Stage::DeviceWait
     }
 
-    fn run(&self, context: &mut StepContext<'_, '_>) {
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
         let (system, front) = (context.system, &mut *context.front);
         devices::stage_with(system, self.wait_for, self.retry_delay, &mut |delay| {
             front.devices_missing(system, delay)
         });
+        Ok(StepOutcome::Done)
     }
 }
 
@@ -84,9 +88,11 @@ impl Step for EarlyHooks<'_> {
 
     /// The hooks run with the console, which a front end that draws on it
     /// hands over only when there are hooks to run.
-    fn run(&self, context: &mut StepContext<'_, '_>) {
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
         let system = context.system;
-        hooks::prepare_early_stage(
+        // The image's own hooks run even when those of `zbm.hookroot`
+        // could not be imported; the stage then fails after them.
+        let prepared = hooks::prepare_early_stage(
             system,
             context.state,
             self.root,
@@ -99,6 +105,7 @@ impl Step for EarlyHooks<'_> {
         } else {
             context.front.with_console(system, &mut run);
         }
+        prepared.map(|()| StepOutcome::Done)
     }
 }
 
@@ -111,8 +118,9 @@ impl Step for LuksUnlock {
         Stage::LuksUnlock
     }
 
-    fn run(&self, context: &mut StepContext<'_, '_>) {
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
         context.front.unlock_luks(context.system);
+        Ok(StepOutcome::Done)
     }
 }
 
@@ -128,10 +136,11 @@ impl Step for ImportPools {
         Stage::ImportPools
     }
 
-    fn run(&self, context: &mut StepContext<'_, '_>) {
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
         let imported = context
             .front
             .import(context.system, context.state, &self.settings);
         context.bootfs = imported.bootfs;
+        Ok(StepOutcome::Done)
     }
 }

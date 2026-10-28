@@ -23,6 +23,8 @@ SYNOPSIS
 
 **/libexec/zbm debug** **save**
 
+**/libexec/zbm explain** [*code*]
+
 DESCRIPTION
 ===========
 
@@ -93,6 +95,17 @@ SUBCOMMANDS
 **save**
 
   Save this boot's logs on the EFI system partition now.
+
+ERROR CODES
+===========
+
+Errors of the Rust runtime carry a stable code, such as *ZBM-E0412*, in the kernel log, in the journal (the field
+*error_code*), in the start-up screen and in what **zbm debug** and **zbm report** print. A code names one kind of
+error, whatever the pool, device or file it is about, and is never given to another.
+
+**zbm explain** *code* says what a code means and what to do about it; the code can be written *ZBM-E0412*, *E0412*
+or *412*. **zbm explain** alone lists every code with a summary. The hundreds name the part of the runtime: 2 ZFS, 3
+pool import, 4 LUKS, 5 cryptsetup, 6 booting and saved logs, 7 start-up.
 
 FILES
 =====

@@ -63,7 +63,7 @@ impl Destination {
 }
 
 /// Why the logs could not be saved or listed.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum SaveError {
     /// The machine has no EFI system partition.
     #[error("no EFI system partition found")]
@@ -78,8 +78,41 @@ pub enum SaveError {
     #[error("unable to mount {0}")]
     Mount(String),
     /// A file cannot be written.
-    #[error("unable to write {0}: {1}")]
-    Write(String, String),
+    #[error("unable to write {path}")]
+    Write {
+        /// The file or directory.
+        path: String,
+        /// Why.
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+impl SaveError {
+    /// [`SaveError::Write`] for `path`.
+    pub fn write(path: &Path, source: std::io::Error) -> SaveError {
+        SaveError::Write {
+            path: path.display().to_string(),
+            source,
+        }
+    }
+}
+
+zbm_types::error_codes! {
+    SaveError, SAVE_CODES;
+    NoEsp = 621 => "no EFI system partition was found":
+        "zbm.save_logs found no EFI system partition to save the logs on. Name one with \
+         zbm.save_logs=PARTUUID=... or LABEL=....",
+    Ambiguous = 622 => "more than one EFI system partition":
+        "The machine has several EFI system partitions and the boot loader did not say which it \
+         booted from. Name one with zbm.save_logs=PARTUUID=....",
+    NoDevice = 623 => "the partition for the logs does not exist":
+        "The partition zbm.save_logs names was not found. Check its PARTUUID or label.",
+    Mount = 624 => "the partition for the logs could not be mounted":
+        "The partition zbm.save_logs names could not be mounted as FAT. Check that it is the EFI \
+         system partition and that the image has the vfat driver.",
+    Write = 625 => "the logs could not be written":
+        "A file could not be written on the partition for the logs; it may be full or read-only.",
 }
 
 /// What was saved, and where.
@@ -218,7 +251,7 @@ pub fn on_partition<T>(
 fn write(files: &dyn Files, path: &Path, contents: &[u8]) -> Result<(), SaveError> {
     files
         .write(path, contents)
-        .map_err(|error| SaveError::Write(path.display().to_string(), error.to_string()))
+        .map_err(|source| SaveError::write(path, source))
 }
 
 /// The names of the saved boots in `logs`, oldest first.
@@ -308,7 +341,7 @@ pub fn save(
         system
             .files
             .create_dir_all(&dir)
-            .map_err(|error| SaveError::Write(dir.display().to_string(), error.to_string()))?;
+            .map_err(|source| SaveError::write(&dir, source))?;
         let written = write_boot(system, base, &dir);
         // A boot not saved whole is removed, and the old ones are pruned
         // all the same: a full partition is the likely cause.
@@ -362,10 +395,8 @@ pub fn update_logs(system: &System<'_>, base: &Path, saved: &Saved) -> Result<()
     with_mounted(system, &saved.device, |root| {
         let dir = root.join(&saved.directory);
         if !system.files.is_dir(&dir) {
-            return Err(SaveError::Write(
-                dir.display().to_string(),
-                "the saved boot is gone".to_owned(),
-            ));
+            let gone = std::io::Error::new(std::io::ErrorKind::NotFound, "the saved boot is gone");
+            return Err(SaveError::write(&dir, gone));
         }
         if let Ok(journal) = system.files.read(&base.join(JOURNAL)) {
             write(system.files, &dir.join(JOURNAL), &journal)?;

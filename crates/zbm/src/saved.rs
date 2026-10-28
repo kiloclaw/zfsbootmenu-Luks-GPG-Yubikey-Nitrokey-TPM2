@@ -49,7 +49,7 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
                 0
             }
             Err(error) => {
-                let _ = writeln!(io.stderr, "zbm debug: {error}");
+                let _ = writeln!(io.stderr, "zbm debug: {}", zbm_types::code::report(&error));
                 1
             }
         },
@@ -67,7 +67,7 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[&str], io: &mut Io) -> i
                 0
             }
             Err(error) => {
-                let _ = writeln!(io.stderr, "zbm debug: {error}");
+                let _ = writeln!(io.stderr, "zbm debug: {}", zbm_types::code::report(&error));
                 1
             }
         },
@@ -87,7 +87,10 @@ pub fn after_crash_in(system: &System<'_>, base: &Path) -> Option<String> {
     let destination = destination(system.files, base)?;
     Some(match saved_logs::save(system, base, &destination) {
         Ok(saved) => format!("logs saved in {} on {}", saved.directory, saved.device),
-        Err(error) => format!("unable to save the logs: {error}"),
+        Err(error) => format!(
+            "unable to save the logs: {}",
+            zbm_types::code::report(&error)
+        ),
     })
 }
 
@@ -169,12 +172,12 @@ mod tests {
             (
                 1,
                 String::new(),
-                "zbm debug: no EFI system partition found\n".to_owned()
+                "zbm debug: ZBM-E0621: no EFI system partition found\n".to_owned()
             )
         );
         assert_eq!(
             call(&fake, &["save"]).2,
-            "zbm debug: no EFI system partition found\n"
+            "zbm debug: ZBM-E0621: no EFI system partition found\n"
         );
     }
 
@@ -196,7 +199,7 @@ mod tests {
         let told = after_crash_in(&failing.system(), Path::new("/zfsbootmenu"));
         assert_eq!(
             told.as_deref(),
-            Some("unable to save the logs: LABEL=none: no such partition")
+            Some("unable to save the logs: ZBM-E0623: LABEL=none: no such partition")
         );
     }
 

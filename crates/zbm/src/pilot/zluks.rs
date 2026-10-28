@@ -142,9 +142,10 @@ pub fn open(app: &App<'_>, request: UnlockRequest, io: &mut Io) -> i32 {
     }
 }
 
-/// The error, then every key method that was tried and why it failed.
+/// The error with its code and causes, then every key method that was tried
+/// and why it failed.
 fn describe_error(error: &AppError) -> String {
-    let mut text = format!("zluks: {error}\n");
+    let mut text = format!("zluks: {}\n", zbm_types::code::report(error));
     if let AppError::Unlock(failed) = error {
         for (method, refusal) in &failed.attempts {
             let _ = writeln!(text, "  {method}: {refusal}");
@@ -236,7 +237,8 @@ mod tests {
         assert_eq!(status, 1);
         assert_eq!(
             stderr,
-            "zluks: no key method opened /dev/sda2\n  key file: the key file /k does not exist\n"
+            "zluks: ZBM-E0412: no key method opened /dev/sda2\n  \
+             key file: the key file /k does not exist\n"
         );
     }
 }

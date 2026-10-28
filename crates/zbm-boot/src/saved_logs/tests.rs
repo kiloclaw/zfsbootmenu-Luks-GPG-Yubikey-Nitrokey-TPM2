@@ -60,33 +60,24 @@ fn the_partition_is_named_found_or_the_only_esp() {
     let system = fake.system();
     let named = |spec: &str| device(&system, &Destination::Device(spec.to_owned()));
 
-    assert_eq!(named("/dev/nvme0n1p1"), Ok("/dev/nvme0n1p1".to_owned()));
-    assert_eq!(named("LABEL=EFI"), Ok("/dev/sdb1".to_owned()));
-    assert_eq!(
-        named("LABEL=none"),
-        Err(SaveError::NoDevice("LABEL=none".to_owned()))
-    );
-    assert_eq!(
-        named("nonsense"),
-        Err(SaveError::NoDevice("nonsense".to_owned()))
-    );
-    assert_eq!(
-        device(&system, &Destination::Esp),
-        Ok("/dev/vda1".to_owned())
-    );
+    assert_eq!(named("/dev/nvme0n1p1").unwrap(), "/dev/nvme0n1p1");
+    assert_eq!(named("LABEL=EFI").unwrap(), "/dev/sdb1");
+    assert!(matches!(named("LABEL=none"), Err(SaveError::NoDevice(tag)) if tag == "LABEL=none"));
+    assert!(matches!(named("nonsense"), Err(SaveError::NoDevice(tag)) if tag == "nonsense"));
+    assert_eq!(device(&system, &Destination::Esp).unwrap(), "/dev/vda1");
 
     let none = FakeSystem::new();
-    assert_eq!(
+    assert!(matches!(
         device(&none.system(), &Destination::Esp),
         Err(SaveError::NoEsp)
-    );
+    ));
     let two = FakeSystem::new();
     let both = format!("{ONE_ESP}/dev/vdb1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b\n");
     two.runner.respond("lsblk -rnpo NAME,PARTTYPE", 0, &both);
     let error = device(&two.system(), &Destination::Esp).unwrap_err();
-    assert_eq!(
-        error,
-        SaveError::Ambiguous("/dev/vda1, /dev/vdb1".to_owned())
+    assert!(
+        matches!(&error, SaveError::Ambiguous(all) if all == "/dev/vda1, /dev/vdb1"),
+        "{error:?}"
     );
     assert!(
         error.to_string().contains("zbm.save_logs=PARTUUID="),
@@ -117,7 +108,7 @@ fn the_boot_loader_names_the_esp_it_loaded_from() {
 
     let found = device(&fake.system(), &Destination::Esp);
 
-    assert_eq!(found, Ok("/dev/vdb1".to_owned()));
+    assert_eq!(found.unwrap(), "/dev/vdb1");
     let lines = fake.runner.lines();
     assert!(
         lines.contains(&"mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o ro".to_owned()),
@@ -204,7 +195,7 @@ fn a_partition_that_does_not_mount_is_said_so() {
 
     let error = save(&system, Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
 
-    assert_eq!(error, SaveError::Mount("/dev/vda1".to_owned()));
+    assert!(matches!(&error, SaveError::Mount(device) if device == "/dev/vda1"));
     assert_eq!(error.to_string(), "unable to mount /dev/vda1");
     assert!(!fake.files.exists(Path::new(MOUNT_POINT)));
     assert!(list(&system, &Destination::Esp).is_err());
@@ -222,7 +213,7 @@ fn a_file_that_cannot_be_written_is_named() {
     let error = save(&fake.system(), Path::new("/zfsbootmenu"), &Destination::Esp).unwrap_err();
 
     assert!(
-        matches!(&error, SaveError::Write(path, _) if path.ends_with("kernel.log")),
+        matches!(&error, SaveError::Write { path, .. } if path.ends_with("kernel.log")),
         "{error}"
     );
     assert!(
@@ -306,7 +297,7 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
     };
     let error = update_logs(&system, Path::new("/zfsbootmenu"), &gone).unwrap_err();
     assert!(
-        error.to_string().contains("the saved boot is gone"),
+        zbm_types::code::chain(&error).contains("the saved boot is gone"),
         "{error}"
     );
 
@@ -315,8 +306,8 @@ fn the_logs_of_a_saved_boot_are_written_again_with_what_came_after() {
         32,
         "",
     );
-    assert_eq!(
+    assert!(matches!(
         update_logs(&system, Path::new("/zfsbootmenu"), &saved),
-        Err(SaveError::Mount("/dev/vda1".to_owned()))
-    );
+        Err(SaveError::Mount(device)) if device == "/dev/vda1"
+    ));
 }

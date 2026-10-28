@@ -73,6 +73,41 @@ pub enum BootError {
     },
 }
 
+zbm_types::error_codes! {
+    BootError, BOOT_CODES, delegate [Pool];
+    Export = 601 => "a pool could not be exported":
+        "zpool export failed before the kernel was booted, so the booted system imports a pool \
+         that was not exported. A dataset may still be busy; the booted system may need zpool \
+         import -f.",
+    KeyNotLoaded = 602 => "an encryption key could not be loaded":
+        "The key of an encrypted dataset was not loaded: the passphrase was wrong, or its \
+         keylocation could not be read. Its datasets cannot be mounted or booted.",
+    Mount = 603 => "a boot environment could not be mounted":
+        "The boot environment's dataset could not be mounted to find its kernels. Check that it \
+         exists, that its key is loaded, and that its mountpoint is / or legacy.",
+    NoKernel = 604 => "no kernel to boot was found":
+        "The boot environment has no kernel and initramfs pair in /boot that ZFSBootMenu \
+         recognizes. Install a kernel, or set org.zfsbootmenu:kernel.",
+    Unmount = 605 => "a mount point could not be unmounted":
+        "A file system stayed mounted, which can keep its pool from being exported before the \
+         boot.",
+    ResumeRefused = 606 => "a read-write import was refused for a hibernated system":
+        "A hibernated system on the pool may still be resumed, and a read-write import could \
+         corrupt it, so the import was declined at the prompt. Resume that system first, or allow \
+         the import, which loses its hibernated state.",
+    ReadWriteProhibited = 607 => "a pool may not be imported read-write":
+        "The pool's org.zfsbootmenu:readonly property is on, or the pool is degraded, so it stays \
+         read-only.",
+    PoolProperty = 608 => "a pool's properties could not be read":
+        "zpool get failed for the pool; it may have been exported meanwhile.",
+    NoCryptsetup = 609 => "cryptsetup is not available":
+        "The image has no cryptsetup, so LUKS volumes cannot be unlocked. Rebuild it with LUKS \
+         support.",
+    Zluks = 610 => "zluks unlock failed":
+        "Unlocking LUKS volumes from the recovery path failed; the codes logged before this one \
+         say why.",
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

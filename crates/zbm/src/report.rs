@@ -51,7 +51,7 @@ pub fn run_in(system: &System<'_>, base: &Path, args: &[String], io: &mut Io) ->
             0
         }
         Err(error) => {
-            let _ = writeln!(io.stderr, "zbm report: {error}");
+            let _ = writeln!(io.stderr, "zbm report: {}", zbm_types::code::report(&error));
             1
         }
     }
@@ -141,7 +141,7 @@ mod tests {
             (
                 1,
                 String::new(),
-                "zbm report: no EFI system partition found\n".to_owned()
+                "zbm report: ZBM-E0621: no EFI system partition found\n".to_owned()
             )
         );
     }

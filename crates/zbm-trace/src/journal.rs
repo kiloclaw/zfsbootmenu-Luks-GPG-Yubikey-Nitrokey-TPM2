@@ -47,6 +47,7 @@ pub const KEPT_FIELDS: &[&str] = &[
     "duration_ms",
     "encroot",
     "error",
+    "error_code",
     "file",
     "filesystem",
     "fs",

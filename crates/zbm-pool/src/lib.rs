@@ -45,7 +45,7 @@ pub mod settings;
 pub mod stage;
 pub mod text;
 
-pub use error::PoolError;
+pub use error::{POOL_CODES, PoolError};
 pub use settings::{Build, ImportSettings};
 pub use stage::{Imported, Late, Operator, choose_bootfs, stage};
 pub use zbm_types::{BootfsPreference, HostId, PoolRequirement, RetryDelay};

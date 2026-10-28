@@ -144,37 +144,59 @@ pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
 /// The start-up stage `init.d/40-early-hooks`: imports hooks from
 /// `zbm.hookroot`, applies `zbm.skip_hooks`, clears the screen and runs the
 /// `early-setup.d` hooks once.
-pub fn early_stage(system: &System<'_>, state: &State<'_>, hook_root: &str, skip: Option<&str>) {
-    early_stage_in(system, state, Path::new(HOOKS), hook_root, skip);
+///
+/// # Errors
+///
+/// As [`prepare_early_stage`], once the hooks ran.
+pub fn early_stage(
+    system: &System<'_>,
+    state: &State<'_>,
+    hook_root: &str,
+    skip: Option<&str>,
+) -> Result<(), StartupError> {
+    early_stage_in(system, state, Path::new(HOOKS), hook_root, skip)
 }
 
 /// [`early_stage`] with the hook directories below `root`.
+///
+/// # Errors
+///
+/// As [`prepare_early_stage`], once the hooks ran.
 pub fn early_stage_in(
     system: &System<'_>,
     state: &State<'_>,
     root: &Path,
     hook_root: &str,
     skip: Option<&str>,
-) {
-    prepare_early_stage(system, state, root, hook_root, skip);
+) -> Result<(), StartupError> {
+    let prepared = prepare_early_stage(system, state, root, hook_root, skip);
     run_early_stage(system, root);
+    prepared
 }
 
 /// What comes before the `early-setup.d` hooks below `root` run: the hooks
 /// of `zbm.hookroot` are imported, and those of `zbm.skip_hooks` skipped.
+///
+/// # Errors
+///
+/// As [`import_hooks`], once `zbm.skip_hooks` is applied: the image's own
+/// hooks still run.
 pub fn prepare_early_stage(
     system: &System<'_>,
     state: &State<'_>,
     root: &Path,
     hook_root: &str,
     skip: Option<&str>,
-) {
-    if !hook_root.is_empty() {
-        let _ = import_hooks(system, state, root, hook_root);
-    }
+) -> Result<(), StartupError> {
+    let imported = if hook_root.is_empty() {
+        Ok(())
+    } else {
+        import_hooks(system, state, root, hook_root)
+    };
     if let Some(skip) = skip {
         skip_hooks(system.files, root, skip);
     }
+    imported
 }
 
 /// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
@@ -375,7 +397,7 @@ mod tests {
             .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755)
             .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
-        early_stage(&fake.system(), &state, "", Some("20-b"));
+        assert!(early_stage(&fake.system(), &state, "", Some("20-b")).is_ok());
         assert_eq!(
             fake.runner.lines(),
             ["tput clear", "/libexec/hooks/early-setup.d/10-a"]
@@ -387,6 +409,23 @@ mod tests {
         assert!(
             fake.kmsg()
                 .contains("Disabling hook: /libexec/hooks/early-setup.d/20-b")
+        );
+    }
+
+    #[test]
+    fn a_hook_root_that_cannot_be_read_fails_the_stage_after_the_hooks() {
+        let fake = FakeSystem::new();
+        let _log = log(&fake);
+        fake.files
+            .file_with_mode("/libexec/hooks/early-setup.d/10-a", "", 0o755);
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let error = early_stage(&fake.system(), &state, "no-path", None).unwrap_err();
+        assert!(matches!(error, StartupError::HookRoot { .. }), "{error:?}");
+        // The image's own hooks ran all the same.
+        assert!(
+            fake.runner
+                .lines()
+                .contains(&"/libexec/hooks/early-setup.d/10-a".to_owned())
         );
     }
 }

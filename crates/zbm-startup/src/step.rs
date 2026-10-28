@@ -1,13 +1,16 @@
 //! The start-up program as a list of steps.
 //!
 //! Each start-up stage is a [`Step`]: it knows which [`Stage`] it is and runs
-//! against a [`StepContext`]. [`run_steps`] runs them in order, skips the
-//! stages an earlier run finished (unless forced), and records each stage
-//! when it ends, as the legacy `zfsbootmenu-init` does with its `init.d`
+//! against a [`StepContext`], ending [`StepOutcome::Done`] or
+//! [`StepOutcome::Skipped`], or with a [`StartupError`]. [`run_steps`] runs
+//! them in order, skips the stages an earlier run finished (unless forced),
+//! reports each failure with its code, and records each stage when it ends,
+//! failed or not, as the legacy `zfsbootmenu-init` does with its `init.d`
 //! scripts.
 //!
 //! ```
-//! use zbm_startup::step::{Rerun, Step, StepContext, run_steps};
+//! use zbm_startup::StartupError;
+//! use zbm_startup::step::{Rerun, Step, StepContext, StepOutcome, run_steps};
 //! use zbm_state::State;
 //! use zbm_testkit::fakes::FakeSystem;
 //! use zbm_types::Stage;
@@ -18,7 +21,12 @@
 //!     fn stage(&self) -> Stage {
 //!         Stage::HostId
 //!     }
-//!     fn run(&self, _context: &mut StepContext<'_, '_>) {}
+//!     fn run(
+//!         &self,
+//!         _context: &mut StepContext<'_, '_>,
+//!     ) -> Result<StepOutcome, StartupError> {
+//!         Ok(StepOutcome::Done)
+//!     }
 //! }
 //!
 //! let fake = FakeSystem::new();
@@ -37,8 +45,10 @@ use zbm_boot::error::BootError;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
 use zbm_state::State;
+use zbm_types::code::{Coded as _, chain, report};
 use zbm_types::{DatasetName, Stage};
 
+use crate::error::StartupError;
 use crate::front::Front;
 
 /// What a step runs with: the system, the state directory, the front end,
@@ -71,14 +81,29 @@ impl<'c, 'a> StepContext<'c, 'a> {
     }
 }
 
+/// How a step ended, when it did not fail.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum StepOutcome {
+    /// It did its work.
+    Done,
+    /// It had nothing to do on this machine.
+    Skipped,
+}
+
 /// One start-up stage.
 pub trait Step {
     /// The stage this step is.
     fn stage(&self) -> Stage;
 
-    /// Runs the stage. A stage does not fail: what goes wrong is logged, or
-    /// handled in the recovery shell.
-    fn run(&self, context: &mut StepContext<'_, '_>);
+    /// Runs the stage. Details are logged as it goes, and what the person
+    /// can fix is handled in the recovery shell.
+    ///
+    /// # Errors
+    ///
+    /// A [`StartupError`] when part of the stage failed. Start-up goes on
+    /// with the next stage, as the legacy runtime does.
+    fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError>;
 }
 
 /// Which steps run.
@@ -92,7 +117,9 @@ pub enum Rerun {
 }
 
 /// Runs `steps` in order, skipping finished ones unless `rerun` is
-/// [`Rerun::All`], and records each stage as finished.
+/// [`Rerun::All`], and records each stage as finished. A failed stage is
+/// logged with its code, shown as failed, and recorded too, so that a rerun
+/// does not repeat it.
 pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>, rerun: Rerun) {
     for step in steps {
         let stage = step.stage();
@@ -113,10 +140,20 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
         }
         zbm_trace::info!("running init stage {stage}"; %stage);
         context.front.send(Event::StageStarted(name.to_owned()));
-        step.run(context);
+        let ended = match step.run(context) {
+            Ok(StepOutcome::Done) => StageState::Done,
+            Ok(StepOutcome::Skipped) => StageState::Skipped,
+            Err(error) => {
+                zbm_trace::error!(
+                    "{error_code}: {error}";
+                    error_code = %error.code(), error = %chain(&error)
+                );
+                StageState::Failed(report(&error))
+            }
+        };
         context.front.send(Event::StageFinished {
             stage: name.to_owned(),
-            state: StageState::Done,
+            state: ended,
         });
         if let Err(error) = context.state.finish_stage(stage.as_str()) {
             zbm_trace::error!("{error}"; %error);
@@ -154,7 +191,72 @@ mod tests {
             self.0
         }
 
-        fn run(&self, _context: &mut StepContext<'_, '_>) {}
+        fn run(&self, _context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
+            Ok(StepOutcome::Done)
+        }
+    }
+
+    /// A step that ends as it is told.
+    struct Ends(Stage, fn() -> Result<StepOutcome, StartupError>);
+
+    impl Step for Ends {
+        fn stage(&self) -> Stage {
+            self.0
+        }
+
+        fn run(&self, _context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
+            (self.1)()
+        }
+    }
+
+    #[test]
+    fn a_failed_stage_is_reported_with_its_code_and_still_recorded() {
+        let fake = FakeSystem::new();
+        fake.files.dir("/zfsbootmenu");
+        let _log =
+            zbm_platform::KernelLog::new(&fake.files, "4", std::path::Path::new("/zfsbootmenu"), 1)
+                .install();
+        let system = fake.system();
+        let state = State::new(&fake.files, "/zfsbootmenu");
+        let mut front = crate::testing::Recording::default();
+        let steps: Vec<Box<dyn Step>> = vec![
+            Box::new(Ends(Stage::EarlyHooks, || {
+                Err(StartupError::HookMount {
+                    filesystem: "tank/hooks".to_owned(),
+                })
+            })),
+            Box::new(Ends(Stage::DeviceWait, || Ok(StepOutcome::Skipped))),
+        ];
+
+        let mut context = StepContext::new(&system, &state, &mut front);
+        run_steps(&steps, &mut context, Rerun::Pending);
+
+        let ended: Vec<&StageState> = front
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                Event::StageFinished { state, .. } => Some(state),
+                _ => None,
+            })
+            .collect();
+        let failure = "ZBM-E0702: unable to mount the hook file system tank/hooks";
+        assert_eq!(
+            ended,
+            [
+                &StageState::Failed(failure.to_owned()),
+                &StageState::Skipped
+            ]
+        );
+        assert!(
+            fake.kmsg()
+                .contains(&format!("<3>ZFSBootMenu: {failure}\n")),
+            "{}",
+            fake.kmsg()
+        );
+        assert_eq!(
+            state.finished_stages(),
+            ["40-early-hooks", "30-device-wait"]
+        );
     }
 
     #[test]

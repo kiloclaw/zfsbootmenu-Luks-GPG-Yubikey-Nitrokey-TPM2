@@ -36,4 +36,4 @@ pub mod step;
 #[cfg(test)]
 mod testing;
 
-pub use error::StartupError;
+pub use error::{STARTUP_CODES, StartupError};

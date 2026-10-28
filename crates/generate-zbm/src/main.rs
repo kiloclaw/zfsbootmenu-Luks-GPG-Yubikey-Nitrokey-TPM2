@@ -41,5 +41,8 @@ fn main() {
         },
     );
     let _ = std::io::stdout().flush();
+    // `exit`, not a returned `ExitCode`: returning would unblock the
+    // signals above before the process ends, and a pending SIGINT would end
+    // it with that signal instead of its status.
     std::process::exit(code);
 }

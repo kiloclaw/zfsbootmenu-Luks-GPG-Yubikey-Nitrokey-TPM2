@@ -43,6 +43,22 @@ pub enum ZfsError {
     Missing(String),
 }
 
+zbm_types::error_codes! {
+    ZfsError, ZFS_CODES;
+    Start = 201 => "a ZFS program could not be started":
+        "zfs or zpool could not be run: the image lacks them, or the system is out of memory or \
+         processes. Rebuild the image with the ZFS utilities of the running kernel's modules.",
+    Failed = 202 => "a ZFS command failed":
+        "zfs or zpool ended with an error, which follows the code. The pool may be busy, missing a \
+         device, or locked; zpool status in the recovery shell shows its state.",
+    Output = 203 => "a ZFS command gave unexpected output":
+        "ZFSBootMenu could not read what zfs or zpool printed. The ZFS utilities may be of a \
+         version it does not know; report it with the output of zbm report.",
+    Missing = 204 => "a dataset or pool does not exist":
+        "The dataset or pool named does not exist, or its pool is not imported. Check the name, \
+         for example the bootfs property or zbm.prefer.",
+}
+
 /// What ZFSBootMenu asks of ZFS.
 pub trait Zfs {
     /// The version of the tools and the kernel module.

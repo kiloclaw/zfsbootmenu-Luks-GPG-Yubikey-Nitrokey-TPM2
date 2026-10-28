@@ -6,6 +6,7 @@
 //! system may resume.
 
 use std::path::Path;
+use zbm_types::code::Coded as _;
 
 use zbm_platform::{Context, System};
 use zbm_pool::import::{Access, Import, import_pool};
@@ -124,7 +125,10 @@ pub fn set_rw_pool(
             %pool
         );
         if let Err(error) = import_pool(&context, state, import.access(Access::ReadOnly)) {
-            zbm_trace::error!("{pool} could not be imported again: {error}"; %pool, %error);
+            zbm_trace::error!(
+                "{pool} could not be imported again: {error}";
+                %pool, %error, error_code = %error.code()
+            );
         }
     }
     Ok(imported?)

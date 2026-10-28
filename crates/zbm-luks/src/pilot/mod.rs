@@ -38,6 +38,7 @@ pub use key_file::KeyFile;
 
 use std::fmt;
 use std::path::PathBuf;
+use zbm_types::code::{Coded, ErrorCode, Explanation};
 
 use tracing::{info, info_span, warn};
 use zbm_crypt::{Closed, CryptError, Mapping, Open, OpenOptions};
@@ -136,6 +137,20 @@ pub struct UnlockFailed {
     /// volume.
     pub attempts: Vec<(&'static str, Refusal)>,
 }
+
+impl Coded for UnlockFailed {
+    fn code(&self) -> ErrorCode {
+        UNLOCK_FAILED.code
+    }
+}
+
+/// The code of [`UnlockFailed`], for `zbm explain`.
+pub const UNLOCK_FAILED: Explanation = Explanation {
+    code: ErrorCode::new(412),
+    summary: "no key method opened the volume",
+    text: "Every key method was tried and none opened the volume; each attempt and why it failed \
+           follow the code. Check the key file, the token, the keyboard layout, or the passphrase.",
+};
 
 /// Key methods, tried in order until one opens a volume.
 pub struct KeyChain {
