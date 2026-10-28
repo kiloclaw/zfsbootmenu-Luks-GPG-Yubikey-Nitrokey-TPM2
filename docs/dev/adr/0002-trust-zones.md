@@ -1,6 +1,6 @@
 # ADR 0002: Trust zones
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 28 October 2026 (proposed the same day)
 - **Decides:** decision 13 of [ROADMAP.md](../../../ROADMAP.md#decisions)
 - **Governs:** PM6, PM9, PM10, SB10, SE9, SE11; supersedes, once phase 5 is done, decision 2 of
   [crates/DESIGN.md](../../../crates/DESIGN.md#decisions-for-review) ("the state directory stays the only shared
@@ -84,12 +84,13 @@ input an attacker controls is parsed where the secrets are not, and drawn where 
 - A VM test reads `/proc/<pid>/status` of each front end: no capabilities, `NoNewPrivs: 1`, `Seccomp: 2`.
 - Fuzz targets for every message decoder between zones (SE5).
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. **The recovery shell's zone.** It is root by design, and can do anything the zones prevent. Proposed: it stays in
-   Z0's care, started only through `ShellGate::open(&Authorized)` (SE9), so a locked menu (#8) keeps it closed.
-2. **Hooks.** User hooks run as root in Z2 today, with the session's environment. Proposed: they stay there, as users
-   expect, and the threat model keeps them as trusted by the user who installed them; what A3 can do is name a hook
-   root, which SE10 refuses on a pool imported under another host's ID.
-3. **SSH logins.** Proposed: a login shell is a front end in Z3 with the menu as its program, and reaches the recovery
-   shell only through the same gate.
+Accepted as proposed, on 28 October 2026:
+
+1. **The recovery shell's zone:** it stays in Z0's care, and starts only through `ShellGate::open(&Authorized)`
+   (SE9), so a locked menu (#8) keeps it closed.
+2. **Hooks:** they run as root in Z2, as users expect; the threat model keeps them as trusted by the user who
+   installed them. What A3 can do is name a hook root, which SE10 refuses on a pool imported under another host's ID.
+3. **SSH logins:** a login shell is a front end in Z3 with the menu as its program, and reaches the recovery shell
+   only through the same gate.

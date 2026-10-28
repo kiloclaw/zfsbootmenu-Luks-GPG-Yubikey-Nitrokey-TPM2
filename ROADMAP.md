@@ -742,7 +742,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's; the
-  process model accepted the same day.
+  process model and the trust zones accepted the same day.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -898,6 +898,11 @@ Decided on 28 October 2026:
 10. **One concurrency model:** threads and channels, one reactor per process, no async runtime
     ([ADR 0001](docs/dev/adr/0001-process-model.md), PM1): a mailbox bounded at 256 messages, deadlines in the poll's
     time-out, `async` only as `brush`'s own in `zbm-brush`.
+13. **Trust zones:** the four zones of [the target architecture](#processes-and-trust-zones)
+    ([ADR 0002](docs/dev/adr/0002-trust-zones.md)): Z0 the supervisor, Z1 the keyholder with every secret, Z2 the
+    session that parses and decides, Z3 the unprivileged front ends, talking over typed messages on Unix sockets; the
+    session first (PM9), the keyholder and the unprivileged front ends in phase 5 (SB10, SE11). The recovery shell
+    stays in Z0's care behind the shell gate (SE9), hooks run as root in Z2, and an SSH login is a front end in Z3.
 
 Decided on 27 October 2026:
 
@@ -917,7 +922,6 @@ Open:
 12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
     programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
     alternative, kept only if the Rust LUKS2 or TPM2 code (CD9, CD10) fails its review.
-13. **Trust zones:** the four zones of [the target architecture](#processes-and-trust-zones).
 14. **The crate map** of [crates and layers](#crates-and-layers).
 15. **The menu draws natively on the console** through the client channel (UI6), with a terminal only for programs
     that need one.
@@ -926,8 +930,8 @@ Open:
     one character only, nothing depends on case, keys by position on the display console, and a command line that
     knows every language (UI15).
 
-Decisions 12 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12 to
-16, awaiting acceptance; 10 accepted on 28 October 2026); decision 8 by the sessions that follow.
+Decisions 12, 14 to 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12
+and 14 to 16, awaiting acceptance; 10 and 13 accepted on 28 October 2026); decision 8 by the sessions that follow.
 
 ## Fixes left from the review of 27 October 2026
 

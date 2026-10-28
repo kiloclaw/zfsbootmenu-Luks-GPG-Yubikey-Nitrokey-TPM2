@@ -689,7 +689,9 @@ These choices shape the later phases and are the points to review:
    after a crash it restarts the start-up program without the countdown and the automatic boot.
 2. **The state directory stays the only shared state,** with the legacy layout, instead of a server process the
    others would ask over a socket: a crashed server would take the menu with it, hooks and users need the files, and
-   the documentation names some of them. One internal file is new: `.stages`.
+   the documentation names some of them. One internal file is new: `.stages`. Superseded, as the zones come, by
+   [ADR 0002](../docs/dev/adr/0002-trust-zones.md) (accepted 28 October 2026): the processes talk over typed
+   messages on Unix sockets, and the state directory stays for users, hooks and the recovery shell.
 3. **Every applet reads `/etc/zfsbootmenu.conf` itself,** like the legacy scripts, so a menu started over SSH works
    as one started on the console.
 4. **Applets keep the legacy names, arguments and subcommands,** so `fzf` bindings, documentation and habits stay
