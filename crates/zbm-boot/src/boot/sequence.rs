@@ -61,18 +61,8 @@ impl Default for BootSettings {
 fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
     zbm_trace::debug!("zfsbe_fs set to {fs}");
     zbm_trace::debug!("zfsbe_mnt set to {}", mnt.display());
-    if let Some(prefix) = zfs_value(system.runner, ROOTPREFIX.name, fs)
-        && prefix != "-"
-    {
-        zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}");
-        return prefix;
-    }
-    if let Some(prefix) = commandline::os_release_prefix(system.files, mnt) {
-        zbm_trace::debug!("using os-release: {prefix}");
-        return prefix;
-    }
-    zbm_trace::debug!("using default");
-    "root=zfs:".to_owned()
+    let property = zfs_value(system.runner, ROOTPREFIX.name, fs);
+    commandline::root_prefix(system.files, property.as_deref(), mnt)
 }
 
 /// Loads the key of `fs` if it is locked, with key sources and after
@@ -138,14 +128,23 @@ pub fn kexec_kernel(
 
     let cli_args = command_line(system, state, settings, fs, kernel);
     let root_prefix = find_root_prefix(system, fs, &mnt);
+    let Some(root) = commandline::root_argument(&root_prefix, fs) else {
+        zbm_trace::error!(
+            root_prefix,
+            fs,
+            "the root argument is not one kernel argument"
+        );
+        let _ = recursive_umount(system, &mnt);
+        recovery.emergency_shell(&format!("unable to boot {}", colorize("cyan", fs)));
+        return;
+    };
     let dtb = find_devicetree(system, fs, kernel, &mnt);
     let load = KexecLoad {
         mnt: &mnt_text,
-        dataset: fs,
         kernel,
         initramfs,
         dtb: dtb.as_deref(),
-        root_prefix: &root_prefix,
+        root: &root,
         args: &cli_args,
     };
     let Some(output) = load_kernel(system, &load, &mnt) else {
@@ -294,10 +293,9 @@ fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<
 fn log_loaded(load: &KexecLoad<'_>, output: &str) {
     let KexecLoad {
         mnt,
-        dataset,
         kernel,
         initramfs,
-        root_prefix,
+        root,
         args,
         ..
     } = load;
@@ -305,7 +303,7 @@ fn log_loaded(load: &KexecLoad<'_>, output: &str) {
     if zbm_trace::enabled(Level::Debug) {
         zbm_trace::debug!("");
         zbm_trace::debug!("loaded {mnt}{kernel} and {mnt}{initramfs} into memory");
-        zbm_trace::debug!("kernel command line: '{root_prefix}{dataset} {args}'");
+        zbm_trace::debug!("kernel command line: '{root} {args}'");
         zbm_trace::debug!("{}", output);
     }
 }

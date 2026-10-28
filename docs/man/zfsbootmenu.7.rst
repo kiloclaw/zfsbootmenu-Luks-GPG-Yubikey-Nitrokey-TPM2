@@ -535,6 +535,11 @@ The following properties can be set at any level of the boot-environment hierarc
 
   Set this property to override the value determined from inspecting the boot environment.
 
+  In images built with the Rust runtime, the prefix must start one argument: a name, *=* and the
+  start of a value, without spaces or quotes, such as *root=zfs:*. Another value is ignored, with a
+  warning, so that the property cannot add arguments to the command line; and the root argument is
+  quoted, *root="zfs:zroot/my ROOT"*, when the name of the boot environment has a space.
+
 **org.zfsbootmenu:keysource=<filesystem>**
 
   If specified, this provides the name of the ZFS filesystem from which keys for a particular boot

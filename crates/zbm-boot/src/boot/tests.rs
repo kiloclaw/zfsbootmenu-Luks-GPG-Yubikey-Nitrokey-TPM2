@@ -580,3 +580,5 @@ fn failed_exports_and_missing_kernels_are_errors() {
     let defaults = BootSettings::default();
     assert!(defaults.set_hostid && defaults.env.is_empty());
 }
+
+mod root_prefix;

@@ -183,6 +183,11 @@ fn zeroing_of_freed_memory_is_read_from_the_kernel_log_or_command_line() {
     assert_eq!(zeroes_freed_memory("", "quiet init_on_free=1"), Some(true));
     assert_eq!(zeroes_freed_memory("", "init_on_free=0"), Some(false));
     assert_eq!(zeroes_freed_memory("", "quiet"), None);
+    // The kernel takes the last one; quotes do not hide it.
+    assert_eq!(
+        zeroes_freed_memory("", "init_on_free=0 \"init_on_free=1\""),
+        Some(true)
+    );
     let fake = FakeSystem::new();
     fake.files.file("/proc/cmdline", "ro init_on_free=0\n");
     let text = summary(&fake.system(), Path::new("/zfsbootmenu"), 0);

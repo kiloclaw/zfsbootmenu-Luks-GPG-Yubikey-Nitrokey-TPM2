@@ -14,6 +14,7 @@ use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_tools::kexec;
 use zbm_trace::Message;
+use zbm_types::KernelArg;
 
 pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
@@ -335,9 +336,41 @@ fn unquote(raw: &str) -> Option<String> {
 /// its `os-release`, or `root=zfs:`.
 pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> String {
     if let Some(prefix) = property.filter(|prefix| *prefix != "-") {
-        return prefix.to_owned();
+        if is_root_prefix(prefix) {
+            zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}");
+            return prefix.to_owned();
+        }
+        zbm_trace::warn!(
+            prefix,
+            "ignoring org.zfsbootmenu:rootprefix: it does not start one kernel argument"
+        );
     }
-    os_release_prefix(files, mnt).unwrap_or_else(|| "root=zfs:".to_owned())
+    if let Some(prefix) = os_release_prefix(files, mnt) {
+        zbm_trace::debug!("using os-release: {prefix}");
+        return prefix;
+    }
+    zbm_trace::debug!("using default");
+    "root=zfs:".to_owned()
+}
+
+/// Whether `prefix` can start the `root=` argument: a name, `=` and the
+/// start of a value, with no space, quote or control character, so that the
+/// name of any boot environment after it makes one argument. Otherwise
+/// `org.zfsbootmenu:rootprefix` could add arguments to the command line
+/// (ROADMAP.md, bug 27).
+pub(crate) fn is_root_prefix(prefix: &str) -> bool {
+    !prefix.contains(|c: char| c.is_whitespace() || c.is_control() || c == '"')
+        && root_argument(prefix, "pool").is_some()
+}
+
+/// The `root=` argument that boots `fs`, after `prefix`: `root=zfs:` and
+/// `zroot/ROOT/void` make `root=zfs:zroot/ROOT/void`, and a name with a
+/// space is quoted, so the argument stays one. `None` when the two do not
+/// make one argument with a value: the prefix has no `=`, no name before
+/// it, or a quote.
+pub(crate) fn root_argument(prefix: &str, fs: &str) -> Option<KernelArg> {
+    let (name, value) = prefix.split_once('=')?;
+    KernelArg::new(name, Some(&format!("{value}{fs}"))).ok()
 }
 
 /// The prefix of the `root=` argument for the distribution named in `ID` or
@@ -426,16 +459,14 @@ const SEPARATOR: &str = "           ";
 pub struct KexecLoad<'a> {
     /// Where the boot environment is mounted.
     pub mnt: &'a str,
-    /// The boot environment.
-    pub dataset: &'a str,
     /// The kernel, relative to the boot environment's root.
     pub kernel: &'a str,
     /// The initramfs, relative to the boot environment's root.
     pub initramfs: &'a str,
     /// The device tree, a full path, if any.
     pub dtb: Option<&'a Path>,
-    /// The prefix of the root argument, such as `root=zfs:`.
-    pub root_prefix: &'a str,
+    /// The root argument, such as `root=zfs:zroot/ROOT/void`.
+    pub root: &'a KernelArg,
     /// The rest of the command line.
     pub args: &'a str,
 }
@@ -443,10 +474,7 @@ pub struct KexecLoad<'a> {
 impl KexecLoad<'_> {
     /// The command line the kernel gets.
     pub fn command_line(&self) -> String {
-        format!(
-            "{}{}{SEPARATOR}{}",
-            self.root_prefix, self.dataset, self.args
-        )
+        format!("{}{SEPARATOR}{}", self.root, self.args)
     }
 
     /// Calls `with` with what `kexec -l` loads.
@@ -480,5 +508,7 @@ impl KexecLoad<'_> {
 
 #[cfg(test)]
 mod devicetree_tests;
+#[cfg(test)]
+mod root_tests;
 #[cfg(test)]
 mod tests;

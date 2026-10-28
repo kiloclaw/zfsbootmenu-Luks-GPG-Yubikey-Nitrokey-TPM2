@@ -15,6 +15,8 @@
 //! | [`SnapshotName`] | A ZFS snapshot: `zroot/ROOT/void@before-upgrade` |
 //! | [`FilesystemName`] | A dataset or a snapshot, mounted to find kernels |
 //! | [`KernelVersion`] | A kernel version, in `sort -V` order: `6.12.9_1` |
+//! | [`KernelArg`] | One argument of a kernel command line: `root=zfs:zroot` |
+//! | [`KernelCommandLine`] | A kernel command line, split as the kernel does |
 //! | [`KernelSelector`] | The kernel to boot, as a regular expression: `6\.6` |
 //! | [`ImportPolicy`] | How pools another host used are imported |
 //! | [`Stage`] | A stage of the start-up program: `50-import-pools` |
@@ -43,6 +45,7 @@
 //! ```
 
 mod answer;
+mod cmdline;
 mod device;
 mod ere;
 mod error;
@@ -60,6 +63,7 @@ pub mod version;
 mod zfs;
 
 pub use answer::Answer;
+pub use cmdline::{KernelArg, KernelCommandLine};
 pub use device::DevicePath;
 pub use error::{ParseError, Reason};
 pub use filesystem::FilesystemName;

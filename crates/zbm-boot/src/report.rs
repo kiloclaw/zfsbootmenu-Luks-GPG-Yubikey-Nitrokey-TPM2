@@ -23,6 +23,7 @@ use zbm_crypt::tpm2::Tpm2;
 use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
 use zbm_tools::devices::Devices;
+use zbm_types::KernelCommandLine;
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::saved_logs::{self, SaveError, stamp};
@@ -130,7 +131,7 @@ fn tpm(system: &System<'_>, text: &mut String) {
 /// Whether the kernel zeroes the memory it frees (`init_on_free=1`), which
 /// wipes what processes and the kernel left in it (ROADMAP.md #1): from its
 /// start-up message (`mem auto-init: ..., heap free:on`) in `kernel_log`,
-/// else from its command line.
+/// else from its command line, whose last `init_on_free` the kernel takes.
 pub fn zeroes_freed_memory(kernel_log: &str, cmdline: &str) -> Option<bool> {
     let logged = kernel_log
         .lines()
@@ -138,10 +139,9 @@ pub fn zeroes_freed_memory(kernel_log: &str, cmdline: &str) -> Option<bool> {
         .find_map(|(_, rest)| rest.split_once("heap free:"))
         .map(|(_, rest)| rest.trim_start().starts_with("on"));
     logged.or_else(|| {
-        cmdline
-            .split_whitespace()
-            .find_map(|word| word.strip_prefix("init_on_free="))
-            .map(|value| matches!(value, "1" | "on" | "y" | "yes"))
+        let cmdline: KernelCommandLine = cmdline.parse().ok()?;
+        let value = cmdline.value("init_on_free")?;
+        Some(matches!(value, "1" | "on" | "y" | "yes"))
     })
 }
 

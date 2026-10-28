@@ -162,7 +162,7 @@ pub static ROOTPREFIX: OptionSpec = OptionSpec {
     examples: &["org.zfsbootmenu:rootprefix=root=ZFS="],
 };
 
-const ROOTPREFIX_DOC: &str = r"
+const ROOTPREFIX_DOC: &str = r#"
 This specifies the prefix added to the ZFS filesystem provided as the root filesystem on the
 kernel command line. For example, the command-line argument *root=zfs:zroot/ROOT/void* has root
 prefix *root=zfs:*.
@@ -174,7 +174,12 @@ the default is selected to match the expectation of the preferred initramfs gene
 distribution.
 
 Set this property to override the value determined from inspecting the boot environment.
-";
+
+In images built with the Rust runtime, the prefix must start one argument: a name, *=* and the
+start of a value, without spaces or quotes, such as *root=zfs:*. Another value is ignored, with a
+warning, so that the property cannot add arguments to the command line; and the root argument is
+quoted, *root="zfs:zroot/my ROOT"*, when the name of the boot environment has a space.
+"#;
 
 /// `org.zfsbootmenu:keysource`.
 pub static KEYSOURCE: OptionSpec = OptionSpec {

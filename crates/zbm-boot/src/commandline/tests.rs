@@ -233,47 +233,15 @@ fn host_ids_replace_those_of_the_command_line() {
 }
 
 #[test]
-fn root_prefixes() {
-    let files = FakeFiles::new();
-    let mnt = Path::new("/mnt");
-    assert_eq!(
-        root_prefix(&files, Some("root=custom:"), mnt),
-        "root=custom:"
-    );
-    assert_eq!(root_prefix(&files, Some("-"), mnt), "root=zfs:");
-    assert_eq!(root_prefix(&files, None, mnt), "root=zfs:");
-    files.file("/mnt/usr/lib/os-release", "NAME=\"Arch Linux\"\nID=arch\n");
-    assert_eq!(root_prefix(&files, None, mnt), "zfs=");
-    files.file("/mnt/etc/os-release", "ID='gentoo'\n");
-    assert_eq!(root_prefix(&files, None, mnt), "root=ZFS=");
-    files.file(
-        "/mnt/etc/os-release",
-        "ID=linuxmint\nID_LIKE=\"ubuntu debian\"\n",
-    );
-    assert_eq!(root_prefix(&files, None, mnt), "root=zfs:");
-    files.file("/mnt/etc/os-release", "ID=other\n");
-    files.file("/mnt/usr/lib/os-release", "ID_LIKE=alpine\n");
-    assert_eq!(root_prefix(&files, None, mnt), "root=ZFS=");
-    assert_eq!(
-        os_release("A=\"x \\\"y\\\" \\n\"\n# c\nB='z'\nC=a\\ b\nbad line\nD=\"open\n"),
-        [
-            ("A".to_owned(), "x \"y\" \\n".to_owned()),
-            ("B".to_owned(), "z".to_owned()),
-            ("C".to_owned(), "a b".to_owned()),
-        ]
-    );
-}
-
-#[test]
 fn kexec_commands() {
     let dtb = PathBuf::from("/mnt/boot/dtbs/x.dtb");
+    let root = root_argument("root=zfs:", "tank/ROOT/void").unwrap();
     let load = KexecLoad {
         mnt: "/zfsbootmenu/environments/tank/ROOT/void/mnt",
-        dataset: "tank/ROOT/void",
         kernel: "/boot/vmlinuz-6.12.9_1",
         initramfs: "/boot/initramfs-6.12.9_1.img",
         dtb: Some(&dtb),
-        root_prefix: "root=zfs:",
+        root: &root,
         args: "ro quiet",
     };
     let runner = zbm_testkit::FakeRunner::new();

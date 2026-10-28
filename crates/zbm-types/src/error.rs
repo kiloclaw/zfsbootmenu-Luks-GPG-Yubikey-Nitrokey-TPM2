@@ -93,6 +93,8 @@ pub enum Reason {
     Below(i64),
     /// The text is not a hexadecimal number.
     NotHexadecimal,
+    /// The text is more than one kernel argument.
+    NotOneArgument,
 }
 
 impl fmt::Display for Reason {
@@ -113,6 +115,7 @@ impl fmt::Display for Reason {
             Reason::NotAnInteger => write!(formatter, "it is not an integer"),
             Reason::Below(min) => write!(formatter, "it is below {min}"),
             Reason::NotHexadecimal => write!(formatter, "it is not a hexadecimal number"),
+            Reason::NotOneArgument => write!(formatter, "it is more than one argument"),
         }
     }
 }
@@ -150,6 +153,7 @@ mod tests {
             (Reason::NotAnInteger, "it is not an integer"),
             (Reason::Below(4), "it is below 4"),
             (Reason::NotHexadecimal, "it is not a hexadecimal number"),
+            (Reason::NotOneArgument, "it is more than one argument"),
         ];
 
         for (reason, text) in cases {
