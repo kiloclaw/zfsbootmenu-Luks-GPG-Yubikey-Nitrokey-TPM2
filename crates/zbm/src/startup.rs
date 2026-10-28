@@ -4,7 +4,7 @@
 //! [`MenuFront`] is the stages' front end ([`Front`]) on the start-up
 //! view ([`StartupScreen`]). It shows the stages as they run, and answers
 //! what they ask with the view's dialogs: the secrets and devices of LUKS
-//! volumes (its [`zbm_luks::unlocker::Prompter`], in `prompts`), the
+//! volumes (its [`zbm_platform::interaction::Interaction`], in `prompts`), the
 //! retries of the import stage ([`Operator`]) and the devices
 //! `zbm.wait_for` names. LUKS volumes are unlocked in this program, where
 //! their secrets are typed: secrets stay in locked memory and are wiped
@@ -159,7 +159,7 @@ impl<'a> MenuFront<'a> {
         let luks = Luks {
             system: *system,
             settings: &settings,
-            prompter: self,
+            interaction: self,
         };
         let app = App::new(Context::new(*system)).with_luks(luks);
         let events = app.act(&Action::UnlockAll);

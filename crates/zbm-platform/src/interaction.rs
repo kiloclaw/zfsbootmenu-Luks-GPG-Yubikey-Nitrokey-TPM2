@@ -1,14 +1,15 @@
-//! What unlocking asks of the person at the console, as requests a front
-//! end can show: a secret to type ([`SecretRequest`]), a device to plug in
-//! ([`WaitRequest`]), and what it says along the way ([`Tell`]).
+//! The person at the console, as a port: what domain code asks of them
+//! ([`PromptRequest`], [`SecretRequest`]), waits for ([`WaitRequest`]) and
+//! tells them ([`Tell`]), and the [`Interaction`] front ends implement.
 //!
-//! The [`Prompter`](crate::unlocker::Prompter) answers them. Its default
-//! answers are the plain console prompts, which each call site gives as a
-//! closure, so that the console shows what it showed before the requests
-//! existed; the menu answers them with its dialogs (ROADMAP.md, R5
-//! step 4).
+//! The requests are data a front end can show its own way: the menu answers
+//! them with its dialogs (ROADMAP.md, R5 step 4), the start-up program with
+//! the console prompts of the legacy runtime.
 
-use zbm_platform::secret::Secret;
+use crate::System;
+use crate::secret::Secret;
+pub use zbm_types::Answer;
+use zbm_types::RetryDelay;
 
 /// The volume a request is about.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -152,6 +153,108 @@ pub struct Tell<'r> {
     pub told: Told,
     /// The message.
     pub text: &'r str,
+}
+
+/// What a timed prompt of the LUKS code is about.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Subject {
+    /// A round of passphrases did not open a volume: RETURN tries again,
+    /// ESCAPE skips it.
+    Retry {
+        /// The name of its mapping.
+        name: String,
+        /// Its device.
+        device: String,
+    },
+    /// A device of the configuration is missing: RETURN looks again,
+    /// ESCAPE skips it.
+    Missing(String),
+}
+
+/// A timed prompt of the LUKS code: a message, what RETURN and ESCAPE do,
+/// and the countdown "Retrying in NN seconds".
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PromptRequest {
+    /// What it is about, for a front end that shows it otherwise.
+    pub subject: Subject,
+    /// `-d`: the delay; `None` for the default.
+    pub delay: Option<RetryDelay>,
+    /// `-m`: the message, shown in red.
+    pub message: String,
+    /// `-r`: what RETURN does.
+    pub on_return: String,
+    /// `-e`: what ESCAPE does.
+    pub on_escape: String,
+}
+
+impl PromptRequest {
+    /// The arguments of the legacy call, with the colours left out, as the
+    /// unit suites record them.
+    pub fn arguments(&self) -> Vec<String> {
+        let mut arguments = Vec::new();
+        if let Some(delay) = &self.delay {
+            arguments.extend(["-d".to_owned(), delay.to_string()]);
+        }
+        arguments.extend([
+            "-m".to_owned(),
+            self.message.clone(),
+            "-r".to_owned(),
+            self.on_return.clone(),
+            "-e".to_owned(),
+            self.on_escape.clone(),
+            "-p".to_owned(),
+            "Retrying in %0.2d seconds".to_owned(),
+        ]);
+        arguments
+    }
+}
+
+/// The person at the console, as domain code reaches them: what it asks,
+/// says and waits for. Front ends implement it: the start-up program on the
+/// console, the menu with its dialogs; the unit suites record and answer the
+/// timed prompts. Every request but the timed prompt comes with the plain
+/// console prompt as a closure, which the defaults run (ROADMAP.md, DM2:
+/// the closures go when the plain console becomes an implementation too).
+pub trait Interaction {
+    /// Shows the prompt and returns what the user did: RETURN or letting the
+    /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
+    fn ask(&self, request: &PromptRequest) -> Answer;
+
+    /// Asks for a secret; `console` asks on the plain console.
+    fn secret(&self, _request: &SecretRequest<'_>, console: &mut dyn FnMut() -> Asked) -> Asked {
+        console()
+    }
+
+    /// Waits for a device; `console` waits on the plain console.
+    fn wait(&self, _request: &WaitRequest<'_>, console: &mut dyn FnMut() -> Wait) -> Wait {
+        console()
+    }
+
+    /// Says something along the way; `console` says it on the plain console.
+    fn notify(&self, _tell: Tell<'_>, console: &mut dyn FnMut()) {
+        console();
+    }
+
+    /// Runs `run`, whose program needs the console: an interactive key
+    /// script, or `fido2-assert` asking for its PIN. A front end that draws
+    /// on the console steps aside meanwhile and gives `run` the system whose
+    /// programs reach it; on the plain console `run` gets `None` and uses
+    /// the unlocking's own system. `run` must not ask the prompter anything.
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&System<'_>>)) {
+        run(None);
+    }
+}
+
+/// How waiting for a device ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub enum Wait {
+    /// What was waited for is there.
+    Present,
+    /// The user pressed a key to stop waiting.
+    Skipped,
+    /// The time ran out, or there was no time to wait.
+    TimedOut,
 }
 
 #[cfg(test)]

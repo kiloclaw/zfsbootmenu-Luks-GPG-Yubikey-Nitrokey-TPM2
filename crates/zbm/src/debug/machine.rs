@@ -13,7 +13,8 @@ use std::path::Path;
 use zbm_app::App;
 use zbm_app::Encryption;
 use zbm_app::model::{Origin, Snapshot, VolumeState};
-use zbm_luks::unlocker::{Answer, Luks, PromptRequest, Prompter, Settings};
+use zbm_luks::unlocker::{Luks, Settings};
+use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
 use zbm_platform::{Context, System};
 
 use crate::Io;
@@ -21,8 +22,8 @@ use crate::Io;
 /// The prompter of a report, which shows no prompt.
 struct NoPrompts;
 
-impl Prompter for NoPrompts {
-    fn timed_prompt(&self, _: &PromptRequest) -> Answer {
+impl Interaction for NoPrompts {
+    fn ask(&self, _: &PromptRequest) -> Answer {
         Answer::Escape
     }
 }
@@ -118,7 +119,7 @@ pub fn run_in(system: &System<'_>, settings: &Settings, report: &str, io: &mut I
     let luks = Luks {
         system: *system,
         settings,
-        prompter: &NoPrompts,
+        interaction: &NoPrompts,
     };
     let app = App::new(Context::new(*system))
         .with_luks(luks)

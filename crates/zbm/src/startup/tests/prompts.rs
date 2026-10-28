@@ -1,11 +1,11 @@
 use std::cell::Cell;
 
 use zbm_app::model::{Notice, Volume, VolumeState};
-use zbm_luks::ask::{
+use zbm_platform::Clock;
+use zbm_platform::interaction::{
     Asked, Awaited, SecretKind, SecretRequest, Tell, Told, VolumeRef, WaitRequest,
 };
-use zbm_luks::unlocker::{PromptRequest, Prompter, Subject, Wait};
-use zbm_platform::Clock;
+use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
 
 use pretty_assertions::assert_eq;
@@ -68,7 +68,7 @@ fn waiting(method: Method, left: u64) -> Event {
 
 /// What the dialog gave for `request`.
 fn ask(front: &MenuFront<'_>, request: &SecretRequest<'_>) -> Asked {
-    front.ask_secret(request, &mut || panic!("the console asked"))
+    front.secret(request, &mut || panic!("the console asked"))
 }
 
 /// The secret in `asked`.
@@ -190,7 +190,7 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
         told: Told::Refused,
         text,
     };
-    front.tell(refused("The TPM refused."), &mut || panic!("console"));
+    front.notify(refused("The TPM refused."), &mut || panic!("console"));
     seen.reply(Reply::With(skip()));
     let _ = ask(&front, &request(SecretKind::Tpm2Pin, 1));
     let instead = Notice::Instead("The TPM refused.".into());
@@ -199,8 +199,8 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
         requested(Method::Tpm2Pin, Some(3), Some(instead))
     );
 
-    front.tell(refused("Wrong PIN."), &mut || {});
-    front.tell(refused("2 tries left."), &mut || {});
+    front.notify(refused("Wrong PIN."), &mut || {});
+    front.notify(refused("2 tries left."), &mut || {});
     seen.reply(Reply::With(skip()));
     let _ = ask(&front, &request(SecretKind::Tpm2Pin, 2));
     let wrong = Notice::Wrong("Wrong PIN. 2 tries left.".into());
@@ -211,7 +211,7 @@ fn what_failed_is_said_by_the_next_dialog_and_what_takes_a_while_meanwhile() {
 
     for told in [Told::Working, Told::Touch] {
         let text = "Unlocking /dev/sda2 ...";
-        front.tell(Tell { told, text }, &mut || {});
+        front.notify(Tell { told, text }, &mut || {});
         assert_eq!(seen.sent().last(), Some(&Event::Progress(text.into())));
     }
 }
@@ -231,7 +231,7 @@ fn the_timed_prompts_are_questions() {
         on_escape: "skip".into(),
     };
     seen.reply(Reply::With(Action::Answer(Answer::Escape)));
-    assert_eq!(front.timed_prompt(&prompt), Answer::Escape);
+    assert_eq!(front.ask(&prompt), Answer::Escape);
     let retry = Question::RetryUnlock {
         volume: VOLUME.name.into(),
     };
@@ -240,7 +240,7 @@ fn the_timed_prompts_are_questions() {
     prompt.subject = Subject::Missing("UUID=1234".into());
     prompt.delay = None;
     seen.reply(Reply::With(Action::Answer(Answer::Continue)));
-    assert_eq!(front.timed_prompt(&prompt), Answer::Continue);
+    assert_eq!(front.ask(&prompt), Answer::Continue);
     let missing = Question::MissingVolume {
         device: "UUID=1234".into(),
     };
@@ -310,7 +310,7 @@ fn a_program_that_asks_on_the_console_gets_it_and_the_whole_system() {
     let fake = FakeSystem::new();
     let (front, seen) = front(&fake);
     let mut given = false;
-    Prompter::on_console(&front, &mut |system| given = system.is_some());
+    Interaction::lease_console(&front, &mut |system| given = system.is_some());
     assert!(given);
     assert_eq!(seen.suspended(), 1);
 }

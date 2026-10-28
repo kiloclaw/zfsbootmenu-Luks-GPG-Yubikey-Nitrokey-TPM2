@@ -1368,7 +1368,6 @@ dependencies = [
  "tracing",
  "zbm-config",
  "zbm-crypt",
- "zbm-luks",
  "zbm-platform",
  "zbm-pool",
  "zbm-state",
@@ -1383,7 +1382,6 @@ name = "zbm-config"
 version = "0.1.0"
 dependencies = [
  "thiserror",
- "zbm-core",
  "zbm-platform",
  "zbm-trace",
  "zbm-types",
@@ -1400,13 +1398,6 @@ dependencies = [
  "zbm-state",
  "zbm-sys",
  "zbm-types",
-]
-
-[[package]]
-name = "zbm-core"
-version = "0.1.0"
-dependencies = [
- "zbm-sys",
 ]
 
 [[package]]
@@ -1479,6 +1470,7 @@ dependencies = [
  "tracing-subscriber",
  "zbm-sys",
  "zbm-trace",
+ "zbm-types",
 ]
 
 [[package]]

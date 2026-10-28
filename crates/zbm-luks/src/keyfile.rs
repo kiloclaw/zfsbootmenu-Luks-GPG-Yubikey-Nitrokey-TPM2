@@ -12,9 +12,10 @@ use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 use zbm_types::DevicePath;
 
-use crate::ask::{Awaited, VolumeRef, WaitRequest};
 use crate::device::{device_present, resolve_device};
-use crate::unlocker::{Unlocker, Wait};
+use crate::unlocker::Unlocker;
+use zbm_platform::interaction::Wait;
+use zbm_platform::interaction::{Awaited, VolumeRef, WaitRequest};
 
 /// What looking for a key file found.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -187,7 +188,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            prompter: &NoPrompts,
+            interaction: &NoPrompts,
         };
         body(&mut Unlocker::new(luks))
     }

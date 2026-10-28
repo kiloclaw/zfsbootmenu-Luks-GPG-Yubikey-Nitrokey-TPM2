@@ -82,7 +82,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
     let luks = Luks {
         system,
         settings: &settings,
-        prompter: &prompter,
+        interaction: &prompter,
     };
     run_zluks(luks, args, io)
 }
@@ -255,12 +255,12 @@ mod tests {
 
     struct NoPrompts;
 
-    impl zbm_luks::unlocker::Prompter for NoPrompts {
-        fn timed_prompt(
+    impl zbm_platform::interaction::Interaction for NoPrompts {
+        fn ask(
             &self,
-            _: &zbm_luks::unlocker::PromptRequest,
-        ) -> zbm_luks::unlocker::Answer {
-            zbm_luks::unlocker::Answer::Escape
+            _: &zbm_platform::interaction::PromptRequest,
+        ) -> zbm_platform::interaction::Answer {
+            zbm_platform::interaction::Answer::Escape
         }
     }
 
@@ -271,7 +271,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            prompter: &NoPrompts,
+            interaction: &NoPrompts,
         };
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());

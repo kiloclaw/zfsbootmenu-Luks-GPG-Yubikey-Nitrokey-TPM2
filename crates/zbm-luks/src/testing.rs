@@ -6,8 +6,8 @@ use std::path::Path;
 
 use zbm_platform::{Installed, KernelLog};
 
-use crate::ask::VolumeRef;
-use crate::unlocker::{Answer, PromptRequest, Prompter};
+use zbm_platform::interaction::VolumeRef;
+use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 
@@ -46,8 +46,8 @@ pub const VOLUME: VolumeRef<'static> = VolumeRef {
 /// A prompter for code that must not show a timed prompt.
 pub struct NoPrompts;
 
-impl Prompter for NoPrompts {
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
+impl Interaction for NoPrompts {
+    fn ask(&self, request: &PromptRequest) -> Answer {
         panic!("unexpected timed prompt {request:?}");
     }
 }
@@ -86,8 +86,8 @@ impl Prompts {
     }
 }
 
-impl Prompter for Prompts {
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
+impl Interaction for Prompts {
+    fn ask(&self, request: &PromptRequest) -> Answer {
         self.shown.borrow_mut().push(request.clone());
         self.answers
             .borrow_mut()
@@ -95,7 +95,7 @@ impl Prompter for Prompts {
             .unwrap_or(Answer::Escape)
     }
 
-    fn on_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
         self.consoles.set(self.consoles.get() + 1);
         run(None);
     }

@@ -10,10 +10,11 @@ use std::sync::atomic::AtomicU32;
 use std::time::{Duration, Instant};
 
 use zbm_luks::device::OpenCheck;
-use zbm_luks::unlocker::{Answer, Luks, PromptRequest, Prompter, Settings, Unlocker};
+use zbm_luks::unlocker::{Luks, Settings, Unlocker};
 use zbm_platform::console::{Console, Size, Timed};
 use zbm_platform::env::Environment;
 use zbm_platform::files::{Files, RealFiles};
+use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
 use zbm_platform::{KernelLog, Secret, System, SystemClock, SystemProcesses};
 
 use super::{DeviceRunner, Dump, Lab, record_name};
@@ -145,8 +146,8 @@ struct Recorded {
     delay: Duration,
 }
 
-impl Prompter for Recorded {
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
+impl Interaction for Recorded {
+    fn ask(&self, request: &PromptRequest) -> Answer {
         let mut text = std::fs::read_to_string(&self.prompts).unwrap_or_default();
         text.push_str(&format!("timed_prompt {}\n", request.arguments().join(" ")));
         let _ = std::fs::write(&self.prompts, text);
@@ -310,7 +311,7 @@ impl<'l> Case<'l> {
         let mut session = Unlocker::new(Luks {
             system,
             settings: &settings,
-            prompter: &prompter,
+            interaction: &prompter,
         });
         let result = body(&mut session, &system);
         self.console_output

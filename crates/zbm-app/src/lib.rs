@@ -443,7 +443,7 @@ mod tests {
         let luks = Luks {
             system: fake.system(),
             settings: &settings,
-            prompter: &prompter,
+            interaction: &prompter,
         };
 
         let snapshot = App::new(Context::new(fake.system()))

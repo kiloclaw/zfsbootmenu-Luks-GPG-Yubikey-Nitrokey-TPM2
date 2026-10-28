@@ -2,6 +2,7 @@ use super::*;
 use crate::testing::{NoPrompts, Prompts, log};
 use zbm_platform::clock::Clock;
 use zbm_platform::exec::{Output, Status};
+use zbm_platform::interaction::Subject;
 use zbm_testkit::fakes::{ConsoleInput, FakeSystem};
 
 #[test]
@@ -42,7 +43,7 @@ fn with_session(fake: &FakeSystem, body: impl FnOnce(&mut Unlocker<'_>)) {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &NoPrompts,
+        interaction: &NoPrompts,
     };
     body(&mut Unlocker::new(luks));
 }
@@ -102,11 +103,11 @@ fn a_device_that_appears_is_used_once_udev_settled() {
             checks.get() >= 3
         };
         let request = WaitRequest {
-            volume: crate::ask::VolumeRef {
+            volume: zbm_platform::interaction::VolumeRef {
                 name: "luks-1",
                 device: "/dev/vda2",
             },
-            awaited: crate::ask::Awaited::KeyDevice {
+            awaited: zbm_platform::interaction::Awaited::KeyDevice {
                 spec: "LABEL=KEYS".to_owned(),
                 file: "/keys/luks.key".to_owned(),
             },
@@ -121,11 +122,11 @@ fn a_device_that_appears_is_used_once_udev_settled() {
     let fake = FakeSystem::new();
     with_session(&fake, |session| {
         let request = WaitRequest {
-            volume: crate::ask::VolumeRef {
+            volume: zbm_platform::interaction::VolumeRef {
                 name: "luks-1",
                 device: "/dev/vda2",
             },
-            awaited: crate::ask::Awaited::YubiKey,
+            awaited: zbm_platform::interaction::Awaited::YubiKey,
             seconds: 5,
             present: &|| true,
         };
@@ -281,7 +282,7 @@ fn prompts_go_to_the_prompter() {
     let session = Unlocker::new(Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &prompts,
+        interaction: &prompts,
     });
     let request = PromptRequest {
         subject: Subject::Retry {

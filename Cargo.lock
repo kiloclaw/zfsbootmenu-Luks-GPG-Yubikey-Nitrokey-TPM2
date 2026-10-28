@@ -3942,7 +3942,6 @@ dependencies = [
  "tracing",
  "zbm-config",
  "zbm-crypt",
- "zbm-luks",
  "zbm-platform",
  "zbm-pool",
  "zbm-state",
@@ -4065,6 +4064,7 @@ dependencies = [
  "zbm-sys",
  "zbm-testkit",
  "zbm-trace",
+ "zbm-types",
 ]
 
 [[package]]

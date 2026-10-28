@@ -95,7 +95,6 @@ pub const LAYERS: &[Layer] = &[
 pub const SAME_LAYER: &[(&str, &str)] = &[
     ("zbm", "zbm-tui"),
     ("zbm", "zbm-console"),
-    ("zbm-boot", "zbm-luks"),
     ("zbm-boot", "zbm-pool"),
 ];
 

@@ -198,7 +198,7 @@ The runtime keeps the legacy process structure, for three reasons:
 On the console, the stages run on the menu's start-up view when the image has the menu (`/bin/zfsbootmenu`) and the
 terminal can run it (`TERM` set, and not `dumb`), except after `--resume` (ROADMAP.md, R5 step 4). The view
 shows the stages as they run, and its dialogs answer what they ask: the secrets and devices of LUKS volumes (the
-`Prompter` of `zbm-luks`), the retries of the import (the `Operator` of `zbm-pool`) and the devices `zbm.wait_for`
+`Interaction` of `zbm-platform`), the retries of the import (the `Operator` of `zbm-pool`) and the devices `zbm.wait_for`
 names, with the timeouts of the console prompts. LUKS volumes are unlocked in the start-up program, not by
 `zluks unlock`. The stages' programs run off the console, what they print going to the log
 (`zbm_platform::QuietRunner`); `early-setup.d` hooks and the recovery shell get the console, which the view hands

@@ -214,8 +214,8 @@ impl<'a> ConsolePrompter<'a> {
     }
 }
 
-impl zbm_luks::unlocker::Prompter for ConsolePrompter<'_> {
-    fn timed_prompt(&self, request: &zbm_luks::unlocker::PromptRequest) -> Answer {
+impl zbm_platform::interaction::Interaction for ConsolePrompter<'_> {
+    fn ask(&self, request: &zbm_platform::interaction::PromptRequest) -> Answer {
         let mut prompt = TimedPrompt::new();
         if let Some(delay) = request.delay {
             prompt = prompt.delay(retry_delay(delay));
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn luks_prompts_count_down_from_their_delay() {
-        use zbm_luks::unlocker::{PromptRequest, Prompter, Subject};
+        use zbm_platform::interaction::{Interaction, PromptRequest, Subject};
         let fake = setup();
         fake.console.timeout().keys(&[0x1b]);
         let request = PromptRequest {
@@ -380,7 +380,7 @@ mod tests {
             on_escape: "skip this device".to_owned(),
         };
         assert_eq!(
-            ConsolePrompter::new(fake.system()).timed_prompt(&request),
+            ConsolePrompter::new(fake.system()).ask(&request),
             Answer::Escape
         );
         let output = fake.console.output_text();

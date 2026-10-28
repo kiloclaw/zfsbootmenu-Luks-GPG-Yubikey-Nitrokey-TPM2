@@ -16,8 +16,9 @@ use zbm_crypt::gpg::{Decrypted, GnupgHome, start_pcscd};
 use zbm_platform::files::FileKind;
 use zbm_platform::secret::Secret;
 
-use crate::ask::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
-use crate::unlocker::{Unlocker, Wait};
+use crate::unlocker::Unlocker;
+use zbm_platform::interaction::Wait;
+use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 
 /// How many times a card PIN or a key file passphrase is asked for.
 const GPG_TRIES: u32 = 3;

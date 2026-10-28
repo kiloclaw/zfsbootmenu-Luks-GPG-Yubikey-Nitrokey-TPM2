@@ -9,11 +9,12 @@
 use zbm_platform::secret::Secret;
 
 use super::Target;
-use crate::ask::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 use crate::config::YubiKey;
 use crate::crypto::{hex, sha256};
 use crate::error::LuksError;
-use crate::unlocker::{Key, Unlocker, Wait};
+use crate::unlocker::{Key, Unlocker};
+use zbm_platform::interaction::Wait;
+use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 
 impl Unlocker<'_> {
     /// Whether a YubiKey is connected; without `ykinfo` in the image,

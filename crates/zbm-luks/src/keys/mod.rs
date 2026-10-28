@@ -216,14 +216,14 @@ pub(crate) mod tests {
     pub(crate) fn with_prompter<T>(
         fake: &FakeSystem,
         settings: &Settings,
-        prompter: &dyn crate::unlocker::Prompter,
+        prompter: &dyn zbm_platform::interaction::Interaction,
         body: impl FnOnce(&mut Unlocker<'_>) -> T,
     ) -> T {
         let _log = log(fake);
         let luks = Luks {
             system: fake.system(),
             settings,
-            prompter,
+            interaction: prompter,
         };
         body(&mut Unlocker::new(luks))
     }

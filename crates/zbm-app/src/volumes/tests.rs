@@ -38,7 +38,7 @@ fn act(fake: &FakeSystem, action: &Action) -> Vec<Event> {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &NoPrompts,
+        interaction: &NoPrompts,
     };
     perform(luks, action).unwrap()
 }
@@ -132,7 +132,7 @@ fn closing_without_mappings_is_done_at_once() {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &NoPrompts,
+        interaction: &NoPrompts,
     };
     assert!(perform(luks, &Action::Shell).is_none());
 }
@@ -173,9 +173,12 @@ fn an_unlocking_run_reports_the_volumes_skipped_and_how_it_ended() {
 /// A prompter that answers every timed prompt with ESCAPE.
 struct Escape;
 
-impl zbm_luks::unlocker::Prompter for Escape {
-    fn timed_prompt(&self, _: &zbm_luks::unlocker::PromptRequest) -> zbm_luks::unlocker::Answer {
-        zbm_luks::unlocker::Answer::Escape
+impl zbm_platform::interaction::Interaction for Escape {
+    fn ask(
+        &self,
+        _: &zbm_platform::interaction::PromptRequest,
+    ) -> zbm_platform::interaction::Answer {
+        zbm_platform::interaction::Answer::Escape
     }
 }
 
@@ -187,7 +190,7 @@ fn act_in_app(fake: &FakeSystem, action: &Action) -> Vec<Event> {
     let luks = Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &Escape,
+        interaction: &Escape,
     };
     crate::App::new(zbm_platform::Context::new(fake.system()))
         .with_luks(luks)

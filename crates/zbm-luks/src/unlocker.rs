@@ -24,10 +24,12 @@ use zbm_tools::{Shown, terminal, udev};
 pub use zbm_types::Answer;
 use zbm_types::RetryDelay;
 
-use crate::ask::{Asked, SecretRequest, Tell, Told, WaitRequest};
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
 use crate::error::LuksError;
+use zbm_platform::interaction::{
+    Asked, Interaction, PromptRequest, SecretRequest, Tell, Told, Wait, WaitRequest,
+};
 
 /// Where the image keeps public keys and settings for GnuPG.
 pub const GNUPG_DIR: &str = "/etc/zfsbootmenu/gnupg";
@@ -131,111 +133,6 @@ impl Settings {
     }
 }
 
-/// What a timed prompt of the LUKS code is about.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Subject {
-    /// A round of passphrases did not open a volume: RETURN tries again,
-    /// ESCAPE skips it.
-    Retry {
-        /// The name of its mapping.
-        name: String,
-        /// Its device.
-        device: String,
-    },
-    /// A device of the configuration is missing: RETURN looks again,
-    /// ESCAPE skips it.
-    Missing(String),
-}
-
-/// A timed prompt of the LUKS code: a message, what RETURN and ESCAPE do,
-/// and the countdown "Retrying in NN seconds".
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PromptRequest {
-    /// What it is about, for a front end that shows it otherwise.
-    pub subject: Subject,
-    /// `-d`: the delay; `None` for the default.
-    pub delay: Option<RetryDelay>,
-    /// `-m`: the message, shown in red.
-    pub message: String,
-    /// `-r`: what RETURN does.
-    pub on_return: String,
-    /// `-e`: what ESCAPE does.
-    pub on_escape: String,
-}
-
-impl PromptRequest {
-    /// The arguments of the legacy call, with the colours left out, as the
-    /// unit suites record them.
-    pub fn arguments(&self) -> Vec<String> {
-        let mut arguments = Vec::new();
-        if let Some(delay) = &self.delay {
-            arguments.extend(["-d".to_owned(), delay.to_string()]);
-        }
-        arguments.extend([
-            "-m".to_owned(),
-            self.message.clone(),
-            "-r".to_owned(),
-            self.on_return.clone(),
-            "-e".to_owned(),
-            self.on_escape.clone(),
-            "-p".to_owned(),
-            "Retrying in %0.2d seconds".to_owned(),
-        ]);
-        arguments
-    }
-}
-
-/// What the LUKS code asks of the person at the console (see
-/// [`crate::ask`]). The start-up program answers on the console or with the
-/// menu's dialogs; the unit suites record and answer the timed prompts.
-/// Every request but the timed prompt comes with the plain console prompt
-/// as a closure, which the defaults run.
-pub trait Prompter {
-    /// Shows the prompt and returns what the user did: RETURN or letting the
-    /// time pass is [`Answer::Continue`], ESCAPE is [`Answer::Escape`].
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer;
-
-    /// Asks for a secret; `console` asks on the plain console.
-    fn ask_secret(
-        &self,
-        _request: &SecretRequest<'_>,
-        console: &mut dyn FnMut() -> Asked,
-    ) -> Asked {
-        console()
-    }
-
-    /// Waits for a device; `console` waits on the plain console.
-    fn wait(&self, _request: &WaitRequest<'_>, console: &mut dyn FnMut() -> Wait) -> Wait {
-        console()
-    }
-
-    /// Says something along the way; `console` says it on the plain console.
-    fn tell(&self, _tell: Tell<'_>, console: &mut dyn FnMut()) {
-        console();
-    }
-
-    /// Runs `run`, whose program needs the console: an interactive key
-    /// script, or `fido2-assert` asking for its PIN. A front end that draws
-    /// on the console steps aside meanwhile and gives `run` the system whose
-    /// programs reach it; on the plain console `run` gets `None` and uses
-    /// the unlocking's own system. `run` must not ask the prompter anything.
-    fn on_console(&self, run: &mut dyn FnMut(Option<&System<'_>>)) {
-        run(None);
-    }
-}
-
-/// How [`Unlocker::wait_for`] ended.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[must_use]
-pub enum Wait {
-    /// What was waited for is there.
-    Present,
-    /// The user pressed a key to stop waiting.
-    Skipped,
-    /// The time ran out, or there was no time to wait.
-    TimedOut,
-}
-
 /// What the LUKS code works with.
 #[derive(Clone, Copy)]
 pub struct Luks<'a> {
@@ -243,8 +140,8 @@ pub struct Luks<'a> {
     pub system: System<'a>,
     /// The settings.
     pub settings: &'a Settings,
-    /// The timed prompts.
-    pub prompter: &'a dyn Prompter,
+    /// The person at the console.
+    pub interaction: &'a dyn Interaction,
 }
 
 /// How `cryptsetup open` gets the key.
@@ -383,25 +280,25 @@ impl<'a> Unlocker<'a> {
 
     /// Shows a timed prompt.
     pub fn timed_prompt(&self, request: &PromptRequest) -> Answer {
-        self.luks.prompter.timed_prompt(request)
+        self.luks.interaction.ask(request)
     }
 
-    /// Asks for a secret through the prompter; `console` is the plain
+    /// Asks for a secret through the interaction; `console` is the plain
     /// console prompt.
     pub fn ask(&self, request: &SecretRequest<'_>, mut console: impl FnMut() -> Asked) -> Asked {
-        self.luks.prompter.ask_secret(request, &mut console)
+        self.luks.interaction.secret(request, &mut console)
     }
 
     /// Runs `run` with the system whose programs reach the console
-    /// ([`Prompter::on_console`]): a front end that draws on it steps aside.
+    /// ([`Interaction::lease_console`]): a front end that draws on it steps aside.
     pub fn with_console(&self, run: &mut dyn FnMut(&System<'_>)) {
         let own = *self.system();
         self.luks
-            .prompter
-            .on_console(&mut |system| run(system.unwrap_or(&own)));
+            .interaction
+            .lease_console(&mut |system| run(system.unwrap_or(&own)));
     }
 
-    /// Waits for a device through the prompter; on the plain console, with
+    /// Waits for a device through the interaction; on the plain console, with
     /// `message` ([`Unlocker::wait_for`]). A device that appeared meanwhile
     /// is used once udev settled, so that its links and partitions are
     /// there, whichever front end waited.
@@ -409,28 +306,28 @@ impl<'a> Unlocker<'a> {
         let present = request.present;
         let was_present = present();
         let mut console = || self.wait_for(request.seconds, message, present);
-        let waited = self.luks.prompter.wait(request, &mut console);
+        let waited = self.luks.interaction.wait(request, &mut console);
         if waited == Wait::Present && !was_present {
             self.settle();
         }
         waited
     }
 
-    /// Says `text` (a line, with its newline) through the prompter; on the
+    /// Says `text` (a line, with its newline) through the interaction; on the
     /// plain console, in `color` when given.
     pub fn tell(&self, told: Told, color: Option<&str>, text: &str) {
         let shown = color.map_or_else(|| text.to_owned(), |color| self.paint(color, text));
         self.tell_with(told, text, || self.say(&shown));
     }
 
-    /// Says `text` through the prompter; `console` says it on the plain
+    /// Says `text` through the interaction; `console` says it on the plain
     /// console.
     pub fn tell_with(&self, told: Told, text: &str, mut console: impl FnMut()) {
         let tell = Tell {
             told,
             text: text.trim_end_matches('\n'),
         };
-        self.luks.prompter.tell(tell, &mut console);
+        self.luks.interaction.notify(tell, &mut console);
     }
 
     /// Asks for a secret on the console with echo off; `None` when the input

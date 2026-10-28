@@ -35,7 +35,6 @@
     )
 )]
 
-pub mod ask;
 pub mod close;
 pub mod config;
 pub mod crypto;

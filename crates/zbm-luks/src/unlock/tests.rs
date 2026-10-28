@@ -102,7 +102,7 @@ fn with_session<T>(
     let luks = Luks {
         system: fake.system(),
         settings,
-        prompter: prompts,
+        interaction: prompts,
     };
     body(&mut Unlocker::new(luks))
 }

@@ -40,7 +40,6 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 
 - `zbm` → `zbm-tui`
 - `zbm` → `zbm-console`
-- `zbm-boot` → `zbm-luks`
 - `zbm-boot` → `zbm-pool`
 
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
@@ -116,7 +115,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 - **application**: `zbm-app` is what front ends talk to: they read the `model::Snapshot` of the machine
   (`App::snapshot`), send a `model::Action` to `App::act`, and get `model::Event`s back, the last of them the
   outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
-  end answers through the `Prompter` it passes.
+  end answers through the `zbm_platform::Interaction` it passes.
 - **orchestration**: `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host
   ID, device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an
   earlier run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the

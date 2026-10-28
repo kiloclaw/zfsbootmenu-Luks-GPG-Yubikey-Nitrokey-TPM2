@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Notice, Question, Volume, VolumeState};
 use zbm_boot::prompt::retry_delay;
-use zbm_luks::ask::{
+use zbm_platform::Clock;
+use zbm_platform::interaction::{
     Asked, Awaited, SecretKind, SecretRequest, Tell, Told, VolumeRef, WaitRequest,
 };
-use zbm_luks::unlocker::{PromptRequest, Prompter, Subject, Wait};
-use zbm_platform::Clock;
+use zbm_platform::interaction::{Interaction, PromptRequest, Subject, Wait};
 use zbm_platform::secret::Secret;
 use zbm_types::Answer;
 
@@ -109,8 +109,8 @@ impl MenuFront<'_> {
     }
 }
 
-impl Prompter for MenuFront<'_> {
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
+impl Interaction for MenuFront<'_> {
+    fn ask(&self, request: &PromptRequest) -> Answer {
         let question = match &request.subject {
             Subject::Retry { name, .. } => Question::RetryUnlock {
                 volume: name.clone(),
@@ -126,11 +126,7 @@ impl Prompter for MenuFront<'_> {
     /// The unlock dialog: what was typed with Enter; empty with Esc, or when
     /// another method was chosen; nothing when another program opened the
     /// volume meanwhile, or the view is gone.
-    fn ask_secret(
-        &self,
-        request: &SecretRequest<'_>,
-        _console: &mut dyn FnMut() -> Asked,
-    ) -> Asked {
+    fn secret(&self, request: &SecretRequest<'_>, _console: &mut dyn FnMut() -> Asked) -> Asked {
         let method = secret_method(&request.kind);
         let notice = self.notice(method, request.attempt);
         self.list_volume(request.volume, method);
@@ -203,14 +199,14 @@ impl Prompter for MenuFront<'_> {
 
     /// The view steps aside while `run`'s program has the console, with the
     /// whole system rather than the quiet one of the stages.
-    fn on_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
+    fn lease_console(&self, run: &mut dyn FnMut(Option<&zbm_platform::System<'_>>)) {
         let system = self.system;
         self.hand_over(|| run(Some(&system)));
     }
 
     /// What goes wrong is said by the next dialog; what takes a while
     /// shows until the next event.
-    fn tell(&self, tell: Tell<'_>, _console: &mut dyn FnMut()) {
+    fn notify(&self, tell: Tell<'_>, _console: &mut dyn FnMut()) {
         match tell.told {
             Told::Refused => self.refused.borrow_mut().push(tell.text.to_owned()),
             Told::Working | Told::Touch => self.show(Event::Progress(tell.text.to_owned())),

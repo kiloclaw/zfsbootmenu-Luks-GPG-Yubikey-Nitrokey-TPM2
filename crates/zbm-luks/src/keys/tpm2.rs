@@ -19,11 +19,11 @@ use zbm_platform::secret::Secret;
 use zbm_tools::modules::Modules;
 
 use super::{Outcome, Target};
-use crate::ask::{SecretKind, SecretRequest, Told, VolumeRef};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
 use crate::error::{LuksError, TokenFailure};
 use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
+use zbm_platform::interaction::{SecretKind, SecretRequest, Told, VolumeRef};
 
 /// The authorization value of a TPM2 PIN, in hexadecimal: the SHA-256 of the
 /// PIN without trailing zero bytes. systemd 255 and later salt the PIN first:

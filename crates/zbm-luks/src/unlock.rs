@@ -11,14 +11,15 @@ use zbm_platform::console::Timed;
 use zbm_tools::devices::Devices;
 use zbm_types::{DevicePath, MappingName};
 
-use crate::ask::{Asked, SecretKind, SecretRequest, Told, VolumeRef};
 use crate::config::Options;
 use crate::device::{
     canonical, describe_device, is_block_device, is_open, mapping_name, resolve_device,
 };
 use crate::error::LuksError;
 use crate::mappings::Origin;
-use crate::unlocker::{Answer, Key, PromptRequest, Subject, Unlocker};
+use crate::unlocker::{Key, Unlocker};
+use zbm_platform::interaction::{Answer, PromptRequest, Subject};
+use zbm_platform::interaction::{Asked, SecretKind, SecretRequest, Told, VolumeRef};
 
 /// The key method that opened a volume.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

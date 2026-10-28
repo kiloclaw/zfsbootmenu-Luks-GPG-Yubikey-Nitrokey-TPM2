@@ -83,6 +83,6 @@ stays right when the snapshot changes under it.
 
 ## The ports of R3
 
-Start-up runs inside the menu: `zbm-luks`'s `Prompter` and `zbm-pool`'s `Operator` turn into `UnlockRequested` and
+Start-up runs inside the menu: `zbm_platform::Interaction` and `zbm-pool`'s `Operator` turn into `UnlockRequested` and
 `ImportProblem` events, and the menu answers with `Unlock`/`SkipUnlock` and `AnswerImportProblem`. Without a terminal
 that can run the menu, the plain console prompts of today answer the same ports.

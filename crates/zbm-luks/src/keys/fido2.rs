@@ -12,12 +12,13 @@ use std::path::Path;
 use zbm_platform::files::FileKind;
 
 use super::{Outcome, Target};
-use crate::ask::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
-use crate::unlocker::{Key, Unlocker, Wait};
+use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
 use zbm_crypt::fido2::{Assertion, Fido2};
+use zbm_platform::interaction::Wait;
+use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
 
 pub use zbm_crypt::fido2::{last_line, listed_devices};
 

@@ -1,6 +1,7 @@
 use pretty_assertions::assert_eq;
 use zbm_config::args::ZbmArgs;
-use zbm_luks::unlocker::{Answer, Luks, PromptRequest, Prompter, Settings};
+use zbm_luks::unlocker::{Luks, Settings};
+use zbm_platform::interaction::{Answer, Interaction, PromptRequest};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::zfs::FakeZfs;
 
@@ -9,8 +10,8 @@ use super::*;
 /// A prompter for code that must not show a timed prompt.
 pub(crate) struct NoPrompts;
 
-impl Prompter for NoPrompts {
-    fn timed_prompt(&self, request: &PromptRequest) -> Answer {
+impl Interaction for NoPrompts {
+    fn ask(&self, request: &PromptRequest) -> Answer {
         panic!("unexpected timed prompt {request:?}");
     }
 }
@@ -131,7 +132,7 @@ fn volumes_say_their_mapping_state_and_methods() {
     let session = Unlocker::new(Luks {
         system: fake.system(),
         settings: &settings,
-        prompter: &NoPrompts,
+        interaction: &NoPrompts,
     });
 
     let volumes = volumes(&session);
@@ -262,13 +263,13 @@ fn log_is_empty(fake: &FakeSystem, base: &str) -> bool {
 #[should_panic(expected = "unexpected timed prompt")]
 fn no_prompt_may_be_shown_while_reading() {
     let request = PromptRequest {
-        subject: zbm_luks::unlocker::Subject::Missing(String::new()),
+        subject: zbm_platform::interaction::Subject::Missing(String::new()),
         delay: None,
         message: String::new(),
         on_return: String::new(),
         on_escape: String::new(),
     };
-    let _ = NoPrompts.timed_prompt(&request);
+    let _ = NoPrompts.ask(&request);
 }
 
 #[test]

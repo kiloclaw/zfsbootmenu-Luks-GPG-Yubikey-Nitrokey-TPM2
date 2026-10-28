@@ -12,13 +12,13 @@ use std::path::Path;
 
 use zbm_tools::programs;
 
-use crate::ask::VolumeRef;
 use crate::config::Options;
 use crate::error::LuksError;
 use crate::keys::Target;
 use crate::keys::gpg::is_gpg_keyfile;
 use crate::unlock::Method;
 use crate::unlocker::{Key, Unlocker};
+use zbm_platform::interaction::VolumeRef;
 
 /// A volume being unlocked: what every key method needs to know.
 #[derive(Clone, Copy, Debug)]
