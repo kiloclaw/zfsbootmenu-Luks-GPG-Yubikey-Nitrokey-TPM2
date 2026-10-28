@@ -4,7 +4,8 @@
 //! records each function (its length, return type and whether it is test
 //! code), the out-of-line modules it declares, and a few things the refactor
 //! removes: doc comments that name a legacy function, uses of the
-//! shell-semantics helpers, and `unsafe` blocks.
+//! shell-semantics helpers, `unsafe` blocks, ZFS command lines built by
+//! hand, and log macros with a format string.
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -28,6 +29,18 @@ pub const SHELL_HELPERS: &[&str] = &[
 /// may only go down.
 pub const SHELL_STARTS: &[&str] = &["interactive_shell", "run_recovery_shell"];
 
+/// The ZFS programs, whose command lines `zbm-zfs` alone builds (SB2).
+pub const ZFS_PROGRAMS: &[&str] = &["zfs", "zpool", "zdb"];
+
+/// The raw command line builders of `zbm-zfs`, which SB2 replaces with the
+/// `Zfs` port everywhere else.
+pub const ZFS_BUILDERS: &[&str] = &["ZfsCommand", "ZpoolCommand"];
+
+/// The macros that log, of `zbm_trace` and `tracing`; a message of theirs
+/// that is a format string, rather than a constant with fields, is counted
+/// (DM9).
+pub const LOG_MACROS: &[&str] = &["error", "warn", "notice", "info", "debug", "trace"];
+
 /// What a file holds, as far as the metrics are concerned.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FileScan {
@@ -45,10 +58,20 @@ pub struct FileScan {
     pub shell_starts: usize,
     /// `unsafe` blocks.
     pub unsafe_blocks: usize,
+    /// ZFS command lines built outside tests: `Command::new` of a
+    /// [`ZFS_PROGRAMS`] program, or a [`ZFS_BUILDERS`] builder.
+    pub zfs_commands: usize,
+    /// Calls of [`LOG_MACROS`] outside tests whose message is a format
+    /// string.
+    pub format_logs: usize,
 }
 
 /// One function with a body.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts about one function, which the metrics count one by one"
+)]
 pub struct FnScan {
     /// The function's name.
     pub name: String,
@@ -61,6 +84,11 @@ pub struct FnScan {
     /// Whether the function implements a trait method, whose signature the
     /// trait decides.
     pub trait_impl: bool,
+    /// Whether the function is `pub`.
+    pub public: bool,
+    /// Whether one of its parameters is a string (`str` or `String`, by
+    /// reference or inside another type) rather than a type of its own.
+    pub string_params: bool,
     /// Whether the body refers to the legacy test helpers directly.
     pub runs_legacy: bool,
     /// The last segment of every path the body mentions.
@@ -162,8 +190,8 @@ struct Scanner<'n> {
 }
 
 impl Scanner<'_> {
-    /// Records a function and walks its body.
-    fn function(&mut self, attrs: &[Attribute], sig: &Signature, body: &Block) {
+    /// Records a function, `pub` or not, and walks its body.
+    fn function(&mut self, attrs: &[Attribute], public: bool, sig: &Signature, body: &Block) {
         let is_test = attrs.iter().any(is_test_attr);
         let start = sig.fn_token.span.start().line;
         let end = body.brace_token.span.close().end().line;
@@ -181,6 +209,11 @@ impl Scanner<'_> {
                 Role::Code
             },
             trait_impl: self.trait_impl,
+            public: public && !self.trait_impl,
+            string_params: sig.inputs.iter().any(|input| match input {
+                syn::FnArg::Typed(typed) => mentions_string(&typed.ty),
+                syn::FnArg::Receiver(_) => false,
+            }),
             ..FnScan::default()
         });
         self.current.push(self.scan.functions.len() - 1);
@@ -263,17 +296,19 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
     fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
         let saved = self.trait_impl;
         self.trait_impl = false;
-        self.function(&item.attrs, &item.sig, &item.block);
+        let public = matches!(item.vis, syn::Visibility::Public(_));
+        self.function(&item.attrs, public, &item.sig, &item.block);
         self.trait_impl = saved;
     }
 
     fn visit_impl_item_fn(&mut self, item: &'ast syn::ImplItemFn) {
-        self.function(&item.attrs, &item.sig, &item.block);
+        let public = matches!(item.vis, syn::Visibility::Public(_));
+        self.function(&item.attrs, public, &item.sig, &item.block);
     }
 
     fn visit_trait_item_fn(&mut self, item: &'ast syn::TraitItemFn) {
         match &item.default {
-            Some(body) => self.function(&item.attrs, &item.sig, body),
+            Some(body) => self.function(&item.attrs, false, &item.sig, body),
             None => visit::visit_trait_item_fn(self, item),
         }
     }
@@ -327,6 +362,13 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
         self.recording -= 1;
     }
 
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        if !self.test_code && is_zfs_command(call) {
+            self.scan.zfs_commands += 1;
+        }
+        visit::visit_expr_call(self, call);
+    }
+
     fn visit_expr_unsafe(&mut self, expr: &'ast syn::ExprUnsafe) {
         self.scan.unsafe_blocks += 1;
         visit::visit_expr_unsafe(self, expr);
@@ -334,6 +376,14 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
 
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
         visit::visit_macro(self, mac);
+        let logs = mac
+            .path
+            .segments
+            .last()
+            .is_some_and(|last| LOG_MACROS.contains(&last.ident.to_string().as_str()));
+        if logs && !self.test_code && has_format_message(mac.tokens.clone()) {
+            self.scan.format_logs += 1;
+        }
         let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
         match mac.parse_body_with(parser) {
             Ok(exprs) => {
@@ -350,6 +400,82 @@ impl<'ast> Visit<'ast> for Scanner<'_> {
 /// the input of a macro.
 fn visit_owned_expr(scanner: &mut Scanner<'_>, expr: &Expr) {
     scanner.visit_expr(expr);
+}
+
+/// Whether `call` builds a ZFS command line: `Command::new("zfs")` or
+/// another of [`ZFS_PROGRAMS`], or `ZfsCommand::new` and the other
+/// [`ZFS_BUILDERS`].
+fn is_zfs_command(call: &syn::ExprCall) -> bool {
+    let Expr::Path(function) = call.func.as_ref() else {
+        return false;
+    };
+    let names: Vec<String> = function
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect();
+    let builder = names.len() >= 2
+        && names.last().is_some_and(|last| last == "new")
+        && names
+            .get(names.len() - 2)
+            .is_some_and(|name| ZFS_BUILDERS.contains(&name.as_str()));
+    if builder {
+        return true;
+    }
+    if !names.ends_with(&["Command".to_owned(), "new".to_owned()]) {
+        return false;
+    }
+    matches!(
+        call.args.first(),
+        Some(Expr::Lit(syn::ExprLit { lit: Lit::Str(program), .. }))
+            if ZFS_PROGRAMS.contains(&program.value().as_str())
+    )
+}
+
+/// Whether the message of a log macro's input formats something: it holds
+/// a `{` that is not `{{`. The message is the first string literal at the
+/// top level that starts the input or follows a comma; one after `:` or `=`
+/// is the target or a field's value (`target: "x", key = "y",`).
+fn has_format_message(tokens: TokenStream) -> bool {
+    let mut starts_part = true;
+    for tree in tokens {
+        match &tree {
+            TokenTree::Literal(literal) if starts_part => {
+                if let Ok(Lit::Str(text)) = syn::parse_str::<Lit>(&literal.to_string()) {
+                    return text.value().replace("{{", "").contains('{');
+                }
+                starts_part = false;
+            }
+            TokenTree::Punct(punct) => starts_part = punct.as_char() == ',',
+            _ => starts_part = false,
+        }
+    }
+    false
+}
+
+/// Whether the type `ty` is a string, or holds one: `&str`, `String`,
+/// `Option<&str>`, `&[String]` and the like.
+fn mentions_string(ty: &Type) -> bool {
+    match ty {
+        Type::Reference(reference) => mentions_string(&reference.elem),
+        Type::Slice(slice) => mentions_string(&slice.elem),
+        Type::Array(array) => mentions_string(&array.elem),
+        Type::Path(path) => path.path.segments.iter().any(|segment| {
+            segment.ident == "str"
+                || segment.ident == "String"
+                || match &segment.arguments {
+                    syn::PathArguments::AngleBracketed(generics) => {
+                        generics.args.iter().any(|arg| match arg {
+                            syn::GenericArgument::Type(inner) => mentions_string(inner),
+                            _ => false,
+                        })
+                    }
+                    _ => false,
+                }
+        }),
+        _ => false,
+    }
 }
 
 /// Whether a path names the legacy test helpers of `zbm_testkit`: the

@@ -10,8 +10,8 @@ use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use zbm_platform::tree::{clear_mode_bits, copy_into, remove_tree};
 use zbm_platform::files::RealFiles;
+use zbm_platform::tree::{clear_mode_bits, copy_into, remove_tree};
 use zbm_testkit::TempDir;
 
 fn mode(path: &Path) -> u32 {

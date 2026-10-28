@@ -131,6 +131,9 @@ so it knows which code is test code. It prints one row per crate and writes the 
 | shell starts | Calls outside tests that start an interactive shell (`interactive_shell`, `run_recovery_shell`); SE9 brings them down to its `ShellGate` | yes |
 | legacy tests | Tests that run legacy Bash or Perl, directly or through a helper | yes |
 | unsafe | `unsafe` blocks | yes |
+| zfs cmds | ZFS command lines built outside `zbm-zfs` and outside tests: `Command::new("zfs")` (or `zpool`, `zdb`), and the raw `ZfsCommand` and `ZpoolCommand` builders, which SB2 replaces with the `Zfs` port | yes |
+| str params | Public functions of the domain crates (`zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot`) with a parameter that is a string (`&str`, `String`, `Option<&str>`, `&[String]` and the like) where a type of its own belongs (DM3); 0 in the other layers | yes |
+| fmt logs | Log macros outside tests (`info!`, `warn!` and the others, of `zbm_trace` and `tracing`) whose message is a format string rather than a constant with fields (DM9) | yes |
 
 The debt columns may only go down. `xtask/metrics-baseline.txt` holds each crate's numbers at its last improvement,
 and `cargo xtask metrics --check` (part of `lint`) fails when a crate goes above them; a crate that is not listed, such

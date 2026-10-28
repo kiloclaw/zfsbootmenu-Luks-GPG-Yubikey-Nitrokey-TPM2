@@ -467,7 +467,7 @@ review comments. `docs/dev/tooling.md` describes each command.
 | No panics in the runtime | `clippy::unwrap_used`, `expect_used`, `panic`, `indexing_slicing`, `unreachable`, `todo` | Denied in every crate that runs at boot; tests are exempt (`allow-unwrap-in-tests` and `allow-expect-in-tests` in `clippy.toml`) |
 | No hidden IO (7), adapters only | `disallowed-methods` and `disallowed-types` in `clippy.toml` | `std::process::Command`, `std::fs::*`, `std::env::var*`, `std::thread::sleep`, `SystemTime::now`, `Instant::now`, `println!` and `eprintln!` are disallowed; the real implementations allow them once per module, with a reason |
 | Layering (front ends never import adapters) | `xtask check-deps` | Fails on any dependency edge that the layer table in `xtask/src/deps.rs` does not allow; `docs/dev/architecture.md` is generated from that table |
-| Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts long functions and files, success flags, legacy-named doc lines, shell helpers, tests that run Bash and `unsafe` blocks per crate, against `xtask/metrics-baseline.txt`; a count may only go down |
+| Size (3), types over strings (4), errors (5) | `xtask metrics` | Counts long functions and files, success flags, legacy-named doc lines, shell helpers, shell starts, tests that run Bash, `unsafe` blocks, ZFS command lines outside `zbm-zfs`, string parameters of domain functions and format-string log macros per crate, against `xtask/metrics-baseline.txt`; a count may only go down |
 | Formatting and widths (1) | `cargo fmt --check`, `xtask lint` | `xtask lint` runs `rustfmt` and the width check |
 | Dependencies (9) | `cargo deny check` | Licences, advisories, duplicate versions and banned crates (`libzfs` bindings among them, for decision 11) |
 | Strict lints stay clean once reached | `xtask lint` with `xtask/strict/crates.txt` | The crates listed there must have no strict finding; each phase adds the crates it finishes |
@@ -479,9 +479,9 @@ New checks, added by the items that need them:
 | Rule | Tool | Item |
 | --- | --- | --- |
 | Domain crates reach programs only through adapter ports | `xtask check-deps` refuses `zbm_platform::Runner` in domain crates, and front ends that use domain crates other than through `zbm-app` | DM2, DM8 |
-| No raw ZFS command lines outside `zbm-zfs` | `xtask metrics` column, ratcheted to 0 | SB2 |
-| Names are newtypes in domain signatures | `xtask metrics` column: public domain functions taking a raw string | DM3 |
-| Structured logs | `xtask metrics` column: format-string log macros | DM9 |
+| No raw ZFS command lines outside `zbm-zfs` | `xtask metrics` column `zfs_commands` (DM1, 25 on 28 October 2026), ratcheted to 0 | SB2 |
+| Names are newtypes in domain signatures | `xtask metrics` column `string_params`: public domain functions taking a raw string (DM1, 99) | DM3 |
+| Structured logs | `xtask metrics` column `format_logs`: format-string log macros (DM1, 262) | DM9 |
 | No interactive shell outside its gate | `xtask metrics` column `shell_starts` (SE2), ratcheted down to `ShellGate` alone | SE9 |
 | Release images carry no test features | `xtask lint` step "test features": no feature but a test one turns one on, and no file that builds releases sets features (SE2, done) | SE2 |
 | Arithmetic overflow is caught | `overflow-checks = true` in the release profile (SE2, done) | SE2 |

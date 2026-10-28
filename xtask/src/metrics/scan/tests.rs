@@ -178,3 +178,65 @@ fn a_legacy_name_must_be_the_first_word_in_backticks() {
     ));
     assert!(!names_legacy_function("luks_open", &names));
 }
+
+#[test]
+fn zfs_command_lines_are_counted_outside_tests() {
+    let source = r#"
+fn list() {
+    let a = Command::new("zfs").arg("list");
+    let b = zbm_platform::Command::new("zpool");
+    let c = ZfsCommand::new(runner).get("x");
+    let d = ZpoolCommand::new(runner);
+    let e = Command::new("cryptsetup");
+    let f = Command::new(program);
+}
+"#;
+
+    assert_eq!(scan(source).zfs_commands, 4);
+    assert_eq!(scan_test(source, true).zfs_commands, 0);
+}
+
+#[test]
+fn public_functions_that_take_strings_are_marked() {
+    let source = r"
+pub fn by_name(name: &str) {}
+pub fn by_names(names: &[String], pool: Option<&str>) {}
+pub fn typed(pool: &PoolName, count: usize) {}
+fn private(name: &str) {}
+pub(crate) fn inner(name: String) {}
+struct S;
+impl S {
+    pub fn method(&self, device: &str) {}
+}
+impl Display for S {
+    fn fmt(&self, text: &str) {}
+}
+";
+
+    let file = scan(source);
+
+    let marked: Vec<&str> = file
+        .functions
+        .iter()
+        .filter(|function| function.public && function.string_params)
+        .map(|function| function.name.as_str())
+        .collect();
+    assert_eq!(marked, ["by_name", "by_names", "method"]);
+}
+
+#[test]
+fn log_macros_with_a_format_string_are_counted() {
+    let source = r#"
+fn log(pool: &str) {
+    zbm_trace::info!("importing {pool}");
+    tracing::warn!(target: "zbm", "failed: {}", pool);
+    tracing::info!(%pool, "imported");
+    debug!(count = 3, "done");
+    error!("a brace {{ shown as is }}");
+    println!("not a log {pool}");
+}
+"#;
+
+    assert_eq!(scan(source).format_logs, 2);
+    assert_eq!(scan_test(source, true).format_logs, 0);
+}
