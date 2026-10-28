@@ -218,6 +218,8 @@ fn the_boot_environment_is_preferred_then_taken_from_the_pools() {
     fake.runner
         .respond("zpool list -H -o bootfs tank", 0, "-\n");
     fake.runner.respond("zpool list -H -o bootfs --", 0, "");
+    fake.runner
+        .respond("zpool list -H -o bootfs other", 0, "tank/ROOT@snap\n");
     let runner = fake.system().runner;
     let choose = |prefer_pool: &str, prefer_bootfs: &str| {
         let settings = ImportSettings {
@@ -232,6 +234,8 @@ fn the_boot_environment_is_preferred_then_taken_from_the_pools() {
     assert_eq!(choose("", "tank@snap"), None);
     assert_eq!(choose("tank", ""), None);
     assert_eq!(choose("", ""), None);
+    // A `bootfs` that names no dataset is refused.
+    assert_eq!(choose("other", ""), None);
     let log = stub_lines(&fake.kmsg());
     assert!(log.contains("ERROR: bootfs value 'tank/ROOT/none' not a ZFS dataset"));
     assert!(log.contains("ERROR: bootfs value 'tank@snap' not a ZFS dataset"));

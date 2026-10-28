@@ -230,8 +230,9 @@ useful parts move into `zbm-platform`), `zbm-coreutils` (into `zbm-platform`), `
 
 - **No libzfs** (decision 11): no bindings to `libzfs`, `libzfs_core` or `libnvpair`, whose ABI changes between
   OpenZFS releases. The speed problem is the number of calls, not the CLI.
-- **The `Zfs` port on every path.** The raw `ZfsCommand` and `ZpoolCommand` builders, which the boot path uses today,
-  go; every call goes through `trait Zfs`, with `ZfsCli` (JSON with `-j -p`, the `-H -p` text fallback for OpenZFS 2.2)
+- **The `Zfs` port on every path.** The raw `ZfsCommand` and `ZpoolCommand` builders are private to `zbm-zfs` (SB2):
+  the boot path asks through `ZfsText`, typed calls that run the legacy text commands. Next, every call goes through
+  `trait Zfs`, with `ZfsCli` (JSON with `-j -p`, the `-H -p` text fallback for OpenZFS 2.2)
   and `FakeZfs`.
 - **Batched.** One `zpool list -j` for all pools and one `zfs list -j -p -r -o <the properties ZFSBootMenu reads>` per
   pool build the snapshot; the boot code reads properties from it, not with one `zfs get` each.
@@ -603,7 +604,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | ID | Item | Benefit | Effort | Needs |
 | --- | --- | --- | --- | --- |
 | SB1 | Process plumbing: one pipe instead of the `sh -c` wrapper, `setsid` in `pre_exec`, time-outs for every wait on hardware, a cap on captured output | perf, stab | S | |
-| SB2 | The boot path on the `Zfs` port, batched: one listing per pool, `DatasetName` instead of `&str`; `ZfsCommand` and `ZpoolCommand` go | perf, mod | M | DM3 |
+| SB2 | Done, first half: no ZFS command line outside `zbm-zfs` (25 before); the boot path, the start-up and `zbm-kcl` ask through `ZfsText`, typed (`DatasetName`, `PoolName`, `FilesystemName`) with the legacy command lines unchanged, and `Import` moved into `zbm-zfs`; `ZfsCommand` and `ZpoolCommand` private to it. Left: the boot path on `trait Zfs`, batched (one listing per pool, properties read from it), which changes the command lines and the legacy golden files | perf, mod | M | DM3 |
 | SB3 | The `Mounts` port: `mount(2)` and `umount2(2)` with `zfsutil`, `mount.zfs` as the fallback, `Mounted` unmounting on drop | perf | M | |
 | SB4 | The `KernelLoader` port: `kexec_file_load` and `reboot`, with `kexec-tools` for device trees, `ENOSYS` and hooks | sec, perf | M | |
 | SB5 | Built-in hooks as native `BootStep`s, the hook API version 2, the generated `zfunc` library | mod, sec | M | DM7 |

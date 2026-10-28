@@ -76,7 +76,7 @@ people and for AI tools alike:
   (`crates/*/tests/fixtures/`). `cargo xtask record-zfs` records what `zfs` and `zpool` print, in JSON and in text,
   into `crates/zbm-zfs/tests/fixtures/<major.minor>/`: it runs the commands of `xtask/src/record_zfs.rs` in a test VM
   (scenario `runtime-record-zfs`, root and QEMU). The older recordings in `crates/zbm-zfs/tests/fixtures/` (by
-  `zbm-vmtest run runtime-record-fixtures`) serve the legacy-compatible `ZfsCommand` until it goes;
+  `zbm-vmtest run runtime-record-fixtures`) serve `ZfsText`, the typed calls of the boot path that run the legacy text commands;
   `scripts/dev/record-luks-fixtures.sh` records `cryptsetup` output. `crates/zbm-boot/tests/fixtures/uutils-sort-v.txt`
   is uutils' `sort -V` order of generated kernel names, which kernel ordering must match; where the host's `sort` is
   uutils (the build container) the test checks the recording against it, and `ZBM_RECORD_UUTILS_ORDER=1` rewrites

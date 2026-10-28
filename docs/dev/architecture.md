@@ -96,7 +96,10 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   PSF console fonts with their parser, `psf`), keyboard layouts, evdev keys and the virtual terminal's hand-over.
 - **state**: `zbm-state` shares state between processes through the files of `/zfsbootmenu`. `zbm-config` holds the
   table of options and parses the kernel command line, `/etc/zfsbootmenu.conf` and crypttab files.
-- **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output. ZFS is never reached through `libzfs`
+- **adapters**: `zbm-zfs` runs `zfs` and `zpool` and parses their output, and is the only crate that builds their
+  command lines: the menu reads ZFS through the `Zfs` port (`ZfsCli`), and booting, the start-up and `zbm-kcl` ask
+  through `ZfsText`, typed calls that run the text commands of the legacy runtime; `import` is how `zpool import`
+  imports. ZFS is never reached through `libzfs`
   (ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
   `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
   programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:

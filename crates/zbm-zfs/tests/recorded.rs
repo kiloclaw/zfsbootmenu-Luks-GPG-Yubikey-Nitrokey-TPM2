@@ -68,7 +68,7 @@ fn datasets_and_properties() {
     assert_eq!(zfs.inherited_source("tfix/ROOT/other").as_deref(), Some(""));
 
     let tfix = "tfix".parse::<PoolName>().unwrap();
-    assert_eq!(zfs.imported(Stderr::Console), [tfix.clone()]);
+    assert_eq!(zfs.imported(Stderr::Console), std::slice::from_ref(&tfix));
     assert_eq!(
         zfs.pool_value(&tfix, "bootfs", Stderr::Console).as_deref(),
         Some("tfix/ROOT/be")

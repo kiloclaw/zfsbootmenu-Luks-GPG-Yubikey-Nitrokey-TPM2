@@ -458,6 +458,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - `zbm-boot` no longer depends on `zbm-luks`, and `cargo xtask check-deps` refuses `System` and `Console` in the
   domain crates' code outside tests, apart from `zbm-boot` until its prompts move to the front ends (DM7).
 
+### ZFS command lines in one crate (phase 1)
+
+- Every `zfs` and `zpool` command line is built in `zbm-zfs`: booting, the start-up and `zbm-kcl` ask it through typed
+  calls (`ZfsText`), with the same commands as before. Hand-built ZFS command lines elsewhere: 25 to 0.
+- `zbm-kcl` refuses a dataset argument that is not a dataset name before it runs `zfs`: the legacy tool passed one
+  such as `-a` to `zfs list`, which took it for an option. It still says "KCL source is not a ZFS filesystem or EFI
+  executable".
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
