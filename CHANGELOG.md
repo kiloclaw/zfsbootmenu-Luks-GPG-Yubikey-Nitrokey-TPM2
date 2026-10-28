@@ -359,6 +359,19 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   block devices' sizes and partition types from `/sys/class/block` and udev's records, without `dmesg` and `lsblk`,
   which run only where those cannot be read.
 
+### Guards and tidy-up (phase 0)
+
+- `zbm` links no library but glibc's: `cargo xtask check-links`, a CI job, fails when the release binary needs another,
+  and `cargo xtask metrics` counts the C programs a Rust image carries (45), which may only go down
+  (`docs/dev/dependencies.md` lists them with the item that replaces each).
+- `cargo xtask metrics` counts ZFS command lines built outside `zbm-zfs`, public domain functions that take strings,
+  and log macros with format strings, for the items that bring them to zero.
+- `cargo xtask coverage` leaves test code out of each crate's line coverage, and the baseline was measured again.
+- The crates: `zbm-menu`, an empty placeholder, is gone; `zbm-coreutils`'s file tree operations are in `zbm-platform`
+  (`zbm_platform::tree`); the PSF font parser is in `zbm-display` (`zbm_display::psf`).
+- The threat model (`docs/dev/threat-model.md`) gains a diagram of the zone and its data flows, attackers on the
+  network (SSH, Tailscale) and in the supply chain, and the logs and reports saved on the ESP.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
