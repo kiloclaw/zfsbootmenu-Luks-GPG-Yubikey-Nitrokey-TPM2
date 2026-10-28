@@ -16,11 +16,19 @@
 )]
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use zbm_coreutils::{clear_mode_bits, copy_into, remove_tree};
 use zbm_platform::files::Files;
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
+
+/// The longest a GnuPG command may run, for a smart card, its reader or
+/// `gpg-agent` that stopped answering; it never waits for typing (`--batch`).
+const TIMEOUT: Duration = Duration::from_secs(120);
+
+/// The longest `pcscd` may take to start, and `gpgconf` to end the agents.
+const DAEMON_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The serial number and the PIN attempts left of the card in
 /// `gpg --with-colons --card-status` output, `unknown` and `?` when missing.
@@ -92,6 +100,7 @@ pub struct PcscdFailed;
 /// [`PcscdFailed`] when it does not start.
 pub fn start_pcscd(runner: &dyn Runner) -> Result<(), PcscdFailed> {
     let command = Command::new("pcscd")
+        .timeout(DAEMON_TIMEOUT)
         .stdin(Input::Null)
         .stdout(Stream::Null)
         .stderr(Stream::Null);
@@ -174,6 +183,7 @@ impl<'a> GnupgHome<'a> {
         Command::new("gpg")
             .env("GNUPGHOME", self.text())
             .args(["--batch", "--no-tty"])
+            .timeout(TIMEOUT)
             .stdin(Input::Null)
     }
 
@@ -268,7 +278,8 @@ impl Drop for GnupgHome<'_> {
         self.quietly(
             Command::new("gpgconf")
                 .env("GNUPGHOME", &home)
-                .args(["--kill", "all"]),
+                .args(["--kill", "all"])
+                .timeout(DAEMON_TIMEOUT),
         );
         if let Err(error) = remove_tree(self.files, &self.path) {
             tracing::warn!(%error, "removing the GnuPG home {home}");

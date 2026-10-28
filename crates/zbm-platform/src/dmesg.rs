@@ -1,17 +1,23 @@
-//! Reading ZFSBootMenu's messages back from the kernel log, for the log
-//! viewer and the recovery shell.
+//! Reading the kernel log back: all of it, as `dmesg` prints it, for saved
+//! logs and reports ([`kernel_log`]), and ZFSBootMenu's messages of some
+//! levels, for the recovery shell ([`read_logs`]).
 //!
-//! util-linux `dmesg` filters by level and time itself; its timestamps are
-//! removed from the output. When that fails (BusyBox `dmesg` has no such
-//! options), the raw log is filtered by the level prefixes of its lines
-//! instead.
+//! The records are read from `/dev/kmsg` (ROADMAP.md CD2), without running
+//! `dmesg`. Where that cannot be read, `dmesg` is: util-linux `dmesg`
+//! filters by level and time itself, and its timestamps are removed from
+//! the output; when that fails (BusyBox `dmesg` has no such options), the
+//! raw log is filtered by the level prefixes of its lines instead.
 
 #![allow(
     clippy::disallowed_methods,
     reason = "the real implementation runs this program"
 )]
 
-use crate::exec::{Command, Runner, Stream};
+use std::fmt::Write as _;
+use std::path::Path;
+
+use crate::System;
+use crate::exec::{Command, Input, Runner, Stream};
 
 use zbm_trace::kmsg::Message;
 
@@ -107,12 +113,176 @@ pub fn filter_raw(raw: &str, levels: &str) -> String {
     text
 }
 
-/// Reads ZFSBootMenu's messages of the given levels from the kernel log.
+/// Where the kernel log is read and written.
+pub const KMSG: &str = "/dev/kmsg";
+
+/// The most of the kernel log that is read: the kernel keeps at most 32
+/// MiB (`log_buf_len`), and usually far less.
+const KMSG_LIMIT: usize = 32 << 20;
+
+/// The facility of messages from user space (`LOG_USER`), which those that
+/// ZFSBootMenu writes to `/dev/kmsg` without one get.
+const USER: u8 = 1;
+
+/// The level names of `dmesg -l`, by level.
+const LEVELS: [&str; 8] = [
+    "emerg", "alert", "crit", "err", "warn", "notice", "info", "debug",
+];
+
+/// A record of the kernel log, as `/dev/kmsg` gives it:
+/// `PRIORITY,SEQUENCE,MICROSECONDS,FLAGS;TEXT`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Record {
+    /// Who wrote it: 0 for the kernel, 1 for user space, and so on.
+    pub facility: u8,
+    /// How grave it is, 0 (`emerg`) to 7 (`debug`).
+    pub level: u8,
+    /// When, in microseconds since the boot.
+    pub micros: u64,
+    /// The text, with the kernel's `\xNN` escapes undone.
+    pub text: String,
+}
+
+/// The records in `raw`, what `/dev/kmsg` gave: a line each, after which
+/// lines that start with a space hold its dictionary (`KEY=value`), which
+/// is left out, as are lines that are no record.
+pub fn records(raw: &[u8]) -> Vec<Record> {
+    String::from_utf8_lossy(raw)
+        .split('\n')
+        .filter(|line| !line.starts_with(' '))
+        .filter_map(record)
+        .collect()
+}
+
+/// The record of one line of `/dev/kmsg`.
+fn record(line: &str) -> Option<Record> {
+    let (prefix, text) = line.split_once(';')?;
+    let mut fields = prefix.split(',');
+    let priority: u16 = fields.next()?.parse().ok()?;
+    let _sequence = fields.next()?;
+    let micros = fields.next()?.parse().ok()?;
+    Some(Record {
+        facility: u8::try_from(priority >> 3).ok()?,
+        level: u8::try_from(priority & 7).ok()?,
+        micros,
+        text: unescape(text),
+    })
+}
+
+/// `text` with the kernel's escapes (`\x0a` and the like, for control
+/// characters and for `\` itself) undone, as `dmesg` does.
+fn unescape(text: &str) -> String {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
+    while let Some((&byte, after)) = rest.split_first() {
+        let escaped = (byte == b'\\')
+            .then(|| after.strip_prefix(b"x"))
+            .flatten()
+            .and_then(|hex| hex.get(..2))
+            .and_then(|digits| std::str::from_utf8(digits).ok())
+            .and_then(|digits| u8::from_str_radix(digits, 16).ok());
+        if let Some(value) = escaped {
+            bytes.push(value);
+            rest = after.get(3..).unwrap_or_default();
+        } else {
+            bytes.push(byte);
+            rest = after;
+        }
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// The records of the kernel log, read from `/dev/kmsg`.
+///
+/// # Errors
+///
+/// When `/dev/kmsg` cannot be read.
+pub fn read_records(system: &System<'_>) -> std::io::Result<Vec<Record>> {
+    let raw = system.files.read_available(Path::new(KMSG), KMSG_LIMIT)?;
+    Ok(records(&raw))
+}
+
+/// `records` as `dmesg` prints them: `[SECONDS.MICROSECONDS] TEXT`.
+pub fn format_records(records: &[Record]) -> String {
+    let mut text = String::new();
+    for record in records {
+        let _ = writeln!(
+            text,
+            "[{:5}.{:06}] {}",
+            record.micros / 1_000_000,
+            record.micros % 1_000_000,
+            record.text
+        );
+    }
+    text
+}
+
+/// The kernel log as `dmesg` prints it, with its timestamps; empty when it
+/// cannot be read. `dmesg` reads it when `/dev/kmsg` cannot be.
+pub fn kernel_log(system: &System<'_>) -> String {
+    if let Ok(records) = read_records(system) {
+        return format_records(&records);
+    }
+    let command = Command::new("dmesg")
+        .stdin(Input::Null)
+        .stdout(Stream::Capture)
+        .stderr(Stream::Null);
+    system
+        .runner
+        .run(&command)
+        .map(|output| output.stdout_text())
+        .unwrap_or_default()
+}
+
+/// The levels that `levels` (comma-separated names, such as `err,warn`)
+/// selects; `None` when one is not a level's name.
+fn level_numbers(levels: &str) -> Option<Vec<u8>> {
+    levels
+        .split(',')
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            LEVELS
+                .iter()
+                .position(|level| *level == name)
+                .and_then(|level| u8::try_from(level).ok())
+        })
+        .collect()
+}
+
+/// Reads ZFSBootMenu's messages of the given levels from the kernel log,
+/// as `dmesg -f user -l LEVELS` prints them without their timestamps,
+/// ending with one newline.
 ///
 /// # Errors
 ///
 /// An error message, and nothing read, when no level is given.
-pub fn read_logs(
+pub fn read_logs(system: &System<'_>, levels: &str) -> Result<String, Message> {
+    if levels.is_empty() {
+        return Err(Message::error("levels is undefined"));
+    }
+    if let Some(wanted) = level_numbers(levels)
+        && let Ok(records) = read_records(system)
+    {
+        let mut text = String::new();
+        for record in records
+            .iter()
+            .filter(|record| record.facility == USER && wanted.contains(&record.level))
+        {
+            text.push_str(&record.text);
+            text.push('\n');
+        }
+        return Ok(format!("{}\n", text.trim_end_matches('\n')));
+    }
+    read_logs_with_dmesg(system.runner, levels, None)
+}
+
+/// Reads ZFSBootMenu's messages of the given levels with the `dmesg`
+/// program, as the legacy code does, also since a time.
+///
+/// # Errors
+///
+/// An error message, and nothing read, when no level is given.
+pub fn read_logs_with_dmesg(
     runner: &dyn Runner,
     levels: &str,
     since: Option<&str>,

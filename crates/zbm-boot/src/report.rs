@@ -20,9 +20,9 @@ use std::time::UNIX_EPOCH;
 
 use zbm_crypt::Cryptsetup;
 use zbm_crypt::tpm2::Tpm2;
+use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
 use zbm_tools::devices::Devices;
-use zbm_tools::programs::kernel_log;
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::saved_logs::{self, SaveError, stamp};
@@ -81,7 +81,7 @@ fn pools(system: &System<'_>, text: &mut String) {
 /// Each LUKS volume: its UUID and its tokens' IDs, types and key slots.
 fn luks(system: &System<'_>, text: &mut String) {
     let _ = writeln!(text, "== LUKS volumes");
-    let devices = Devices::new(system.runner).luks_devices();
+    let devices = Devices::new(system.runner, system.files).luks_devices();
     let cryptsetup = Cryptsetup::new(system.runner);
     let mut any = false;
     for device in devices.lines().filter(|line| !line.trim().is_empty()) {
@@ -152,7 +152,7 @@ fn memory(system: &System<'_>, text: &mut String) {
         .files
         .read_to_string(Path::new("/proc/cmdline"))
         .unwrap_or_default();
-    let line = match zeroes_freed_memory(&kernel_log(system.runner), &cmdline) {
+    let line = match zeroes_freed_memory(&kernel_log(system), &cmdline) {
         Some(true) => "freed memory is zeroed (init_on_free)",
         Some(false) => "freed memory is not zeroed: add init_on_free=1 to the command line",
         None => "unknown whether freed memory is zeroed",
@@ -227,10 +227,7 @@ pub fn write(system: &System<'_>, base: &Path, parent: &Path) -> Result<PathBuf,
             "report.txt".to_owned(),
             summary(system, base, seconds).into_bytes(),
         ),
-        (
-            "kernel.log".to_owned(),
-            kernel_log(system.runner).into_bytes(),
-        ),
+        ("kernel.log".to_owned(), kernel_log(system).into_bytes()),
     ];
     let mut copied = crash_reports(system.files, base);
     copied.push("journal.jsonl".to_owned());

@@ -322,7 +322,7 @@ impl Unlocker<'_> {
     /// Every LUKS block device on the machine.
     pub fn discover_devices(&self) -> Vec<String> {
         let system = self.system();
-        let output = Devices::new(system.runner).luks_devices();
+        let output = Devices::new(system.runner, system.files).luks_devices();
         let devices: BTreeSet<String> = output
             .lines()
             .map(|line| line.trim().to_owned())
@@ -337,7 +337,8 @@ impl Unlocker<'_> {
     /// Whether an open mapping might hold a ZFS vdev: unknown contents (or a
     /// partitioned device) count as maybe.
     pub fn may_hold_zfs(&self, name: &str) -> bool {
-        let kind = Devices::new(self.system().runner).content_type(&self.mapper(name));
+        let kind = Devices::new(self.system().runner, self.system().files)
+            .content_type(&self.mapper(name));
         kind.is_empty() || kind == "zfs_member"
     }
 

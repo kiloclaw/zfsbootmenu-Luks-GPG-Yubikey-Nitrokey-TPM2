@@ -34,8 +34,13 @@
 )]
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
+
+/// The longest a `tpm2_*` command may run, for a TPM that stopped
+/// answering; its commands take seconds at most.
+const TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The persistent handle of the storage root key of systemd 254 and later.
 pub const SRK_HANDLE: &str = "0x81000001";
@@ -74,10 +79,12 @@ impl<'a> Tpm2<'a> {
         Tpm2 { runner, tcti }
     }
 
-    /// A command of `program` for this TPM, quiet and with no input.
+    /// A command of `program` for this TPM, quiet and with no input, ended
+    /// after [`TIMEOUT`].
     fn command(&self, program: &str) -> Command {
         Command::new(program)
             .env("TPM2TOOLS_TCTI", self.tcti)
+            .timeout(TIMEOUT)
             .stdin(Input::Null)
             .stdout(Stream::Null)
             .stderr(Stream::Null)
@@ -342,5 +349,14 @@ mod tests {
             tpm.load(Path::new("/p"), Path::new("/r"), Path::new("/c")),
             Err(ToolFailed("tpm2_load"))
         );
+    }
+
+    #[test]
+    fn every_command_ends_after_its_time_out() {
+        let runner = FakeRunner::new();
+        let _ = Tpm2::new(&runner, "device:/dev/tpmrm0").in_lockout();
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].get_timeout(), Some(TIMEOUT));
     }
 }

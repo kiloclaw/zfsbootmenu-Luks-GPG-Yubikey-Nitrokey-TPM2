@@ -9,9 +9,14 @@
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::time::Duration;
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
 use crate::token::Token;
+
+/// The longest `clevis decrypt` may run: a Tang server over the network, or
+/// a TPM, that stopped answering.
+const TIMEOUT: Duration = Duration::from_secs(120);
 
 /// clevis and jose, run through a [`Runner`].
 #[derive(Clone, Copy)]
@@ -50,6 +55,7 @@ impl<'a> Clevis<'a> {
         let compact = self.filter(Command::new("jose").args(["jwe", "fmt", "-i-", "-c"]), jwe);
         let decrypt = Command::new("clevis")
             .arg("decrypt")
+            .timeout(TIMEOUT)
             .env("TPM2TOOLS_TCTI", self.tcti)
             .stdin(Input::Bytes(compact))
             .stdout(Stream::CaptureSecret)
@@ -119,5 +125,18 @@ mod tests {
             })
         });
         assert!(Clevis::new(&empty, "x").decrypt(&token).is_none());
+    }
+
+    #[test]
+    fn decrypting_ends_after_its_time_out() {
+        let runner = FakeRunner::new();
+        let token = Token::without_fields("0", "clevis");
+        let _ = Clevis::new(&runner, "device:/dev/tpmrm0").decrypt(&token);
+        let calls = runner.calls();
+        let decrypt = calls
+            .iter()
+            .find(|call| call.program() == "clevis")
+            .unwrap();
+        assert_eq!(decrypt.get_timeout(), Some(TIMEOUT));
     }
 }

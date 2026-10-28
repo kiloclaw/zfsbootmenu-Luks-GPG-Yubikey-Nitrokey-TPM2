@@ -495,8 +495,11 @@ mod tests {
     #[test]
     fn the_hand_back_goes_into_the_logs_saved_for_the_boot() {
         let fake = FakeSystem::new();
-        fake.runner
-            .respond("dmesg", 0, "[   42.0] ZFSBootMenu: graphics: handed back\n");
+        // The kernel log as reading `/dev/kmsg` gives it.
+        fake.files.file(
+            "/dev/kmsg",
+            "6,1,42000000,-;ZFSBootMenu: graphics: handed back\n",
+        );
         fake.files
             .dir("/run/zbm-saved-logs/EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z");
         let system = fake.system();

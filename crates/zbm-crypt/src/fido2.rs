@@ -10,7 +10,15 @@
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::time::Duration;
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
+
+/// The longest `fido2-token -L` may run.
+const LIST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The longest `fido2-assert` may run: the security key waits for a touch
+/// less long itself.
+const ASSERT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// What a systemd-fido2 token asks of the security key.
 #[derive(Clone, Copy, Debug)]
@@ -67,6 +75,7 @@ impl<'a> Fido2<'a> {
     pub fn devices(&self) -> Vec<String> {
         let list = Command::new("fido2-token")
             .arg("-L")
+            .timeout(LIST_TIMEOUT)
             .stdin(Input::Null)
             .stdout(Stream::Capture)
             .stderr(Stream::Null);
@@ -108,6 +117,7 @@ impl<'a> Fido2<'a> {
         );
         let assert = command
             .arg(device)
+            .timeout(ASSERT_TIMEOUT)
             .stdin(Input::Bytes(input.into_bytes()))
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Null);
@@ -186,5 +196,13 @@ mod tests {
         );
         assert_eq!(last_line(b"a\nb\n\n").expose(), b"");
         assert_eq!(last_line(b"only").expose(), b"only");
+    }
+
+    #[test]
+    fn listing_the_keys_ends_after_its_time_out() {
+        let runner = FakeRunner::new();
+        let _ = Fido2::new(&runner).devices();
+        let calls = runner.calls();
+        assert_eq!(calls[0].get_timeout(), Some(LIST_TIMEOUT));
     }
 }

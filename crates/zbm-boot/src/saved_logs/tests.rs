@@ -10,8 +10,8 @@ const ONE_ESP: &str =
 fn machine() -> FakeSystem {
     let fake = FakeSystem::new();
     fake.runner.respond("lsblk -rnpo NAME,PARTTYPE", 0, ONE_ESP);
-    fake.runner
-        .respond("dmesg", 0, "[    0.000000] Linux version\n");
+    // The kernel log as reading `/dev/kmsg` gives it.
+    fake.files.file("/dev/kmsg", "5,0,0,-;Linux version\n");
     fake.files
         .file("/zfsbootmenu/journal.jsonl", "{\"message\":\"boot\"}\n")
         .file(

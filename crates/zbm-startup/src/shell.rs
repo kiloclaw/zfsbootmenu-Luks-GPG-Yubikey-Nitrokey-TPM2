@@ -113,7 +113,7 @@ impl Recovery for Shell<'_, '_> {
         );
         let _ = system.console.write(banner.as_bytes());
         if self.state.has_errors() {
-            if let Ok(errors) = read_logs(system.runner, "err", None) {
+            if let Ok(errors) = read_logs(system, "err") {
                 let _ = system.console.write(errors.as_bytes());
             }
             let _ = system.console.write(b"\n");

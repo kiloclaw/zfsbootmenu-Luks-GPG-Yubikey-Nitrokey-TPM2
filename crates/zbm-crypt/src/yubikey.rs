@@ -8,7 +8,15 @@
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::time::Duration;
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
+
+/// The longest `ykinfo` may run.
+const INFO_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The longest `ykchalresp` may run: a slot that wants a touch waits 15
+/// seconds for it.
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// `ykinfo` and `ykchalresp`, run through a [`Runner`].
 #[derive(Clone, Copy)]
@@ -26,6 +34,7 @@ impl<'a> YubiKey<'a> {
     pub fn is_present(&self) -> bool {
         let command = Command::new("ykinfo")
             .arg("-s")
+            .timeout(INFO_TIMEOUT)
             .stdin(Input::Null)
             .stdout(Stream::Null)
             .stderr(Stream::Null);
@@ -39,6 +48,7 @@ impl<'a> YubiKey<'a> {
     pub fn response(&self, slot: u8, challenge: &Secret) -> Option<Secret> {
         let command = Command::new("ykchalresp")
             .args([format!("-{slot}"), "-i-".to_owned()])
+            .timeout(RESPONSE_TIMEOUT)
             .stdin(Input::secret(challenge.duplicate()))
             .stdout(Stream::CaptureSecret)
             .stderr(Stream::Null);
@@ -96,5 +106,15 @@ mod tests {
         let absent = FakeRunner::new();
         absent.respond_program("ykinfo", 1, "");
         assert!(!YubiKey::new(&absent).is_present());
+    }
+
+    #[test]
+    fn the_tools_end_after_their_time_outs() {
+        let runner = FakeRunner::new();
+        let yubikey = YubiKey::new(&runner);
+        let _ = yubikey.is_present();
+        let _ = yubikey.response(2, &Secret::copy_from(b"challenge"));
+        let timeouts: Vec<_> = runner.calls().iter().map(Command::get_timeout).collect();
+        assert_eq!(timeouts, [Some(INFO_TIMEOUT), Some(RESPONSE_TIMEOUT)]);
     }
 }

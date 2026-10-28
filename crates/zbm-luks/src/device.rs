@@ -48,7 +48,7 @@ fn is_uuid(text: &str) -> bool {
 /// What `blkid -c /dev/null -l -o device -t KEY=value` prints, without the
 /// final newlines.
 fn blkid_device(system: &System<'_>, key: &str, value: &str) -> String {
-    Devices::new(system.runner).find(key, value)
+    Devices::new(system.runner, system.files).find(key, value)
 }
 
 /// The device node a device specification names: `/dev/...`, `UUID=`,
@@ -178,7 +178,7 @@ pub fn mapping_name(system: &System<'_>, name: &str, header: &str) -> String {
 /// A short description of a device for prompts: the device, its label or
 /// partition label in quotes, and its size.
 pub fn describe_device(system: &System<'_>, device: &str) -> String {
-    let devices = Devices::new(system.runner);
+    let devices = Devices::new(system.runner, system.files);
     let size = devices.size(device);
     let label = devices.tag(device, "LABEL");
     let partlabel = devices.tag(device, "PARTLABEL");

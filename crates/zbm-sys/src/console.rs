@@ -20,7 +20,7 @@ unsafe extern "C" {
     // `int ioctl(int fd, unsigned long request, ...)` in glibc. musl takes an
     // `int` request, which arrives in the same register for these small
     // values.
-    fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
+    pub(crate) fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
 }
 
 /// `KDSETMODE`: text or graphics on a virtual terminal (`linux/kd.h`).

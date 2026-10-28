@@ -21,7 +21,7 @@ pub const SUSPEND_TYPES: [&str; 3] = ["suspend", "swsuspend", "swsupend"];
 /// the [`SUSPEND_TYPES`].
 pub fn has_resume_device(system: &System<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
-        let found = Devices::new(system.runner).has_type(kind);
+        let found = Devices::new(system.runner, system.files).has_type(kind);
         if found {
             zbm_trace::debug!("resume device: {kind}");
         }

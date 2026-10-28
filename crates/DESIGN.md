@@ -219,11 +219,14 @@ The dracut and mkinitcpio hooks stay shell scripts, as the roadmap requires, bec
   `/dev/root` to `/dev/null` itself, as the legacy script does, because dracut reads those variables from its own
   shell and a child process cannot set them.
 - **dracut `pre-mount` hook:** `exec /libexec/zbm zfsbootmenu-preinit`. The applet sets the console size, turns kernel
-  messages off, sets the host name and execs (the standard library's `exec`, with no FFI) `setsid bash -c '...'`, whose
-  script sources `/etc/zfsbootmenu.conf` and `/etc/profile` and execs `/libexec/zbm zfsbootmenu-init --supervise` with
-  the control terminal as its standard streams, so process 1 becomes the supervisor. The shell opens the terminal
-  after `setsid`, so it becomes the controlling terminal, as in the legacy hook; and the variables the legacy start-up
-  program exports by sourcing the two files reach every program the runtime starts, hooks included.
+  messages off, sets the host name and execs the runtime's shell (`bash -c '...'`) in a session of its own
+  (`zbm_sys::prepare_child`, a `setsid` before the `exec`, as the `setsid` program does: in a child, and this process
+  ends, when it leads its process group), whose script sources `/etc/zfsbootmenu.conf` and `/etc/profile` and execs
+  `/libexec/zbm zfsbootmenu-init --supervise` with the control terminal as its standard streams, so process 1 becomes
+  the supervisor. The shell opens the terminal in the new session, so it becomes the controlling terminal, as in the
+  legacy hook; and the variables the legacy start-up program exports by sourcing the two files reach every program the
+  runtime starts, hooks included. The supervisor starts the programs on the console's terminal in sessions of their
+  own with it as their controlling terminal (`setsid -c`) the same way, without the `setsid` program.
 - **mkinitcpio:** `/libexec/zfsbootmenu-initcpio` runs the two applets the same way.
 - The dracut `initqueue` checks (`zfsbootmenu-ready-set.sh`, `zfsbootmenu-ready-chk.sh`) stay as they are.
 - `zfsbootmenu_runtime=rust` selects these hooks (`packaging/dracut/zfsbootmenu-rust-*.sh` and the mkinitcpio entry

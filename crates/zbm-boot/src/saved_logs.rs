@@ -13,11 +13,11 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
 use zbm_tools::Shown;
 use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
-use zbm_tools::programs::kernel_log;
 
 /// The GPT partition type of an EFI system partition.
 pub const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
@@ -129,7 +129,7 @@ pub fn stamp(seconds: u64) -> String {
 ///
 /// When it does not exist, or there is no single ESP to take.
 pub fn device(system: &System<'_>, destination: &Destination) -> Result<String, SaveError> {
-    let devices = Devices::new(system.runner);
+    let devices = Devices::new(system.runner, system.files);
     match destination {
         Destination::Device(path) if path.starts_with('/') => Ok(path.clone()),
         Destination::Device(tag) => {
@@ -347,7 +347,7 @@ fn write_boot(system: &System<'_>, base: &Path, dir: &Path) -> Result<Vec<String
     write(
         system.files,
         &dir.join(KERNEL_LOG),
-        kernel_log(system.runner).as_bytes(),
+        kernel_log(system).as_bytes(),
     )?;
     written.push(KERNEL_LOG.to_owned());
     Ok(written)
@@ -378,7 +378,7 @@ pub fn update_logs(system: &System<'_>, base: &Path, saved: &Saved) -> Result<()
         write(
             system.files,
             &dir.join(KERNEL_LOG),
-            kernel_log(system.runner).as_bytes(),
+            kernel_log(system).as_bytes(),
         )
     })
 }

@@ -25,6 +25,14 @@ pub trait Processes {
     fn signal(&self, pid: u32, signal: Signal) -> io::Result<()>;
 }
 
+/// Whether this process leads its process group, as the first process of a
+/// service or of a shell's job does. Such a process cannot start a session
+/// of its own (`setsid` fails), so the `setsid` program then runs its
+/// program in a child that can.
+pub fn is_process_group_leader() -> bool {
+    rustix::process::getpgrp() == rustix::process::getpid()
+}
+
 /// The real processes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SystemProcesses;

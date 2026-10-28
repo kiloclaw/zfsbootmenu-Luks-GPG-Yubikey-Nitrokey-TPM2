@@ -130,8 +130,9 @@ impl Supervisor {
         }
     }
 
-    /// Starts `program`, on the console's terminal when it is `attached`;
-    /// the recovery shell gets the default `SIGINT` action, which the
+    /// Starts `program`, on the console's terminal when it is `attached`,
+    /// in a session of its own whose controlling terminal that is; the
+    /// recovery shell gets the default `SIGINT` action, which the
     /// supervisor ignores.
     fn spawn(
         &self,
@@ -141,6 +142,18 @@ impl Supervisor {
         attached: Option<&Attached>,
     ) -> Option<u32> {
         let on_console = attached.map(|attached| attached.command(program, extra));
+        let setup = zbm_sys::ChildSetup {
+            default_signals: if shell {
+                vec![Signal::Interrupt]
+            } else {
+                Vec::new()
+            },
+            session: if on_console.is_some() {
+                zbm_sys::Session::NewOnTerminal
+            } else {
+                zbm_sys::Session::Inherit
+            },
+        };
         let mut command = match on_console {
             Some(Ok(command)) => command,
             Some(Err(error)) => {
@@ -153,9 +166,7 @@ impl Supervisor {
                 command
             }
         };
-        if shell {
-            zbm_sys::restore_in_child(&mut command, &[Signal::Interrupt]);
-        }
+        zbm_sys::prepare_child(&mut command, &setup);
         match command.spawn() {
             // The child is collected with `waitpid(-1)`, not through `Child`.
             Ok(child) => Some(child.id()),

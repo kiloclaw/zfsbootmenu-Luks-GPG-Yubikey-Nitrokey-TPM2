@@ -5,6 +5,7 @@
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::time::Duration;
 use tracing::{debug, info_span};
 use zbm_platform::{Command, Input, Output, Runner, Secret, Stream};
 use zbm_types::{DevicePath, MappingName};
@@ -12,6 +13,12 @@ use zbm_types::{DevicePath, MappingName};
 use crate::CryptError;
 use crate::mapping::{Closed, Failed, Mapping, Open};
 use crate::token::{self, Token};
+
+/// The longest a `cryptsetup` command may run: a disk that stopped
+/// answering, or a token plugin that waits for a security key nobody
+/// touches, ends instead of holding up the boot. A slow key derivation and
+/// a touch take far less.
+const TIMEOUT: Duration = Duration::from_secs(180);
 
 /// How [`Cryptsetup::open`] opens a volume, beyond the key.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -58,11 +65,13 @@ impl<'a> Cryptsetup<'a> {
         self
     }
 
-    /// A `cryptsetup` command with `args`, standard input from `/dev/null`.
+    /// A `cryptsetup` command with `args`, standard input from `/dev/null`,
+    /// ended after [`TIMEOUT`].
     fn command(&self, args: &[&str]) -> Command {
         let command = Command::new("cryptsetup")
             .args(args.iter().copied())
-            .stdin(Input::Null);
+            .stdin(Input::Null)
+            .timeout(TIMEOUT);
         if self.without_udev {
             command.env("DM_DISABLE_UDEV", "1")
         } else {
@@ -555,5 +564,19 @@ mod tests {
         assert!(matches!(failed.error, CryptError::Start(_)));
         let closed = cryptsetup.close_named("root");
         assert!(matches!(closed, Err(CryptError::Start(_))));
+    }
+
+    #[test]
+    fn every_command_ends_after_its_time_out() {
+        let runner = FakeRunner::new();
+        let cryptsetup = Cryptsetup::new(&runner);
+        let _ = cryptsetup.is_luks("/dev/sda2");
+        let _ = cryptsetup.list_tokens("/dev/sda2");
+        let _ = cryptsetup.open(volume(), &key(), OpenOptions::default());
+        let calls = runner.calls();
+        assert!(calls.len() >= 3, "{calls:?}");
+        for call in calls {
+            assert_eq!(call.get_timeout(), Some(TIMEOUT), "{}", call.display());
+        }
     }
 }

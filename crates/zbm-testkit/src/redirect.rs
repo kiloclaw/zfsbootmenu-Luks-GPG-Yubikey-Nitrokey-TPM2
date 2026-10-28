@@ -44,6 +44,9 @@ impl Files for Redirect {
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
         RealFiles.read_prefix(self.map(path), len)
     }
+    fn read_available(&self, path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+        RealFiles.read_available(self.map(path), limit)
+    }
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         RealFiles.write(self.map(path), contents)
     }

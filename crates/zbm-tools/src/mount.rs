@@ -7,10 +7,16 @@
 
 use std::io;
 use std::path::Path;
+use std::time::Duration;
 
 use zbm_platform::{Command, Input, Output, Runner, Stream};
 
 use crate::Shown;
+
+/// The longest mounting a block device may take, for a disk or a USB stick
+/// that stopped answering. ZFS mounts have none: their time grows with the
+/// pool, and a suspended pool's cannot be ended anyway.
+const DEVICE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The mount points of the system, run through a [`Runner`].
 #[derive(Clone, Copy)]
@@ -60,7 +66,9 @@ impl<'a> Mount<'a> {
     ///
     /// The error that kept `mount` from starting.
     pub fn read_only(&self, device: &str, dir: &str) -> io::Result<Output> {
-        let command = Command::new("mount").args(["-o", "ro", device, dir]);
+        let command = Command::new("mount")
+            .args(["-o", "ro", device, dir])
+            .timeout(DEVICE_TIMEOUT);
         self.runner.run(&shown(command, Shown::Hidden))
     }
 
@@ -71,7 +79,11 @@ impl<'a> Mount<'a> {
     ///
     /// The error that kept `mount` from starting.
     pub fn read_only_shown(&self, source: &str, dir: &Path) -> io::Result<Output> {
-        let command = Command::new("mount").arg("-r").arg(source).arg(dir);
+        let command = Command::new("mount")
+            .arg("-r")
+            .arg(source)
+            .arg(dir)
+            .timeout(DEVICE_TIMEOUT);
         self.runner.run(&shown(command, Shown::Console))
     }
 
@@ -85,7 +97,8 @@ impl<'a> Mount<'a> {
     pub fn fat(&self, device: &str, dir: &Path) -> io::Result<Output> {
         let command = Command::new("mount")
             .args(["-t", "vfat", "-o", "rw,noatime", device])
-            .arg(dir);
+            .arg(dir)
+            .timeout(DEVICE_TIMEOUT);
         self.runner.run(&shown(command, Shown::Hidden))
     }
 

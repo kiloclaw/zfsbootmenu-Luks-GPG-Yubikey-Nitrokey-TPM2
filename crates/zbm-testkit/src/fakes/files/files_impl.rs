@@ -1,6 +1,7 @@
 //! The [`Files`] interface of [`FakeFiles`].
 
 use std::ffi::OsString;
+use std::fmt::Write as _;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -21,6 +22,25 @@ impl Drop for Held {
     }
 }
 
+/// The records that reading the kernel log gives for the lines written to
+/// it, as the kernel makes them: `<N>TEXT` becomes
+/// `PRIORITY,SEQUENCE,0,-;TEXT`, with the facility of user space when `N`
+/// names none, and a line without a level gets the default one (`<4>`).
+fn kmsg_records(written: &[u8]) -> Vec<u8> {
+    let mut records = String::new();
+    let text = String::from_utf8_lossy(written);
+    for (sequence, line) in text.lines().enumerate() {
+        let (priority, message) = line
+            .strip_prefix('<')
+            .and_then(|rest| rest.split_once('>'))
+            .and_then(|(number, message)| Some((number.parse::<u16>().ok()?, message)))
+            .unwrap_or((4, line));
+        let priority = if priority < 8 { priority + 8 } else { priority };
+        let _ = writeln!(records, "{priority},{sequence},0,-;{message}");
+    }
+    records.into_bytes()
+}
+
 impl Files for FakeFiles {
     fn shared(&self) -> Arc<dyn Files + Send + Sync> {
         Arc::new(self.clone())
@@ -29,6 +49,17 @@ impl Files for FakeFiles {
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
         let mut data = self.read(path)?;
         data.truncate(len);
+        Ok(data)
+    }
+
+    fn read_available(&self, path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+        let data = self.read(path)?;
+        let is_kmsg = path.ends_with("kmsg")
+            && self
+                .metadata(path)
+                .is_ok_and(|metadata| metadata.kind == FileKind::CharDevice);
+        let mut data = if is_kmsg { kmsg_records(&data) } else { data };
+        data.truncate(limit);
         Ok(data)
     }
 

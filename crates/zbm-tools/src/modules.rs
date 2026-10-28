@@ -6,8 +6,13 @@
 )]
 
 use std::io;
+use std::time::Duration;
 
 use zbm_platform::{Command, Input, Output, Runner, Stream};
+
+/// The longest loading a module may take: a driver waits for its device,
+/// and up to a minute for each firmware file it asks for.
+const LOAD_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The module tools, run through a [`Runner`].
 #[derive(Clone, Copy)]
@@ -26,6 +31,7 @@ impl<'a> Modules<'a> {
     pub fn probe_quietly(&self, module: &str) {
         let command = Command::new("modprobe")
             .args(["-q", module])
+            .timeout(LOAD_TIMEOUT)
             .stdin(Input::Null)
             .stdout(Stream::Null)
             .stderr(Stream::Null);
@@ -39,8 +45,12 @@ impl<'a> Modules<'a> {
     ///
     /// The error that kept `modprobe` from starting.
     pub fn load(&self, module: &str) -> io::Result<Output> {
-        self.runner
-            .run(&Command::new("modprobe").arg(module).merge_stderr())
+        self.runner.run(
+            &Command::new("modprobe")
+                .arg(module)
+                .timeout(LOAD_TIMEOUT)
+                .merge_stderr(),
+        )
     }
 
     /// The file of `module` (`modinfo -F filename MODULE`).
@@ -62,6 +72,7 @@ impl<'a> Modules<'a> {
     pub fn insert(&self, file: &str, parameters: &[&str]) -> io::Result<Output> {
         let command = Command::new("insmod")
             .arg(file)
+            .timeout(LOAD_TIMEOUT)
             .args(parameters.iter().copied())
             .merge_stderr();
         self.runner.run(&command)

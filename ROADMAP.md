@@ -249,9 +249,10 @@ Each operation is placed in one of three layers:
 | Rust in place of C, in `zbm-unlock` only | LUKS2 key slots and dm-crypt mappings, TPM2 commands, FIDO2, YubiKey challenge-response, GnuPG key files, the Clevis TPM2 pin ([C dependencies](#c-dependencies)) | Behind the same port traits as the programs they replace, with those programs as the fallback; no C library is linked, so every process stays linked to glibc only and a missing library cannot stop the boot |
 | Programs | `zfs` and `zpool`, `udevadm`, `modprobe`, `blkid`, `gpg` with `scdaemon` and `pcscd`, `clevis`, `kexec` (device trees, user hooks such as Xen), brush, uutils; `cryptsetup` and `tpm2-tools` for the recovery shell | Behind typed ports; every call has a time-out and a cap on its captured output, and runs without a shell wrapper |
 
-- **Process plumbing.** `Runner` gains `spawn() -> Child` with kill and wait, a default time-out per adapter, a cap on
-  captured output, and one pipe for standard output and error instead of `sh -c 'exec "$0" "$@" 2>&1'`, which today
-  doubles the processes of 15 call sites and makes Bash a dependency of the Rust runtime.
+- **Process plumbing.** `Runner` gains `spawn() -> Child` with kill and wait. Done in SB1 (October 2026): a default
+  time-out per adapter, a cap on captured output (64 MiB, 8 MiB for a secret), and one pipe for standard output and
+  error instead of `sh -c 'exec "$0" "$@" 2>&1'`, which doubled the processes of 15 call sites and made a shell a
+  dependency of the Rust runtime.
 - **Fakes are models, not scripts.** `FakeZfs`, `FakeLuks` (key slots, tokens) and `FakeTpm` (PCRs, lock-out) model
   behaviour; contract tests run one suite against each fake and, in a VM, against the real adapter. `FakeRunner` stays
   only for the CLI adapters' own tests, against recorded fixtures.
@@ -307,7 +308,7 @@ on-disk or device data take `Untrusted` input and are fuzzed; each new crate is 
 | --- | --- | --- | --- |
 | glibc's calls in `zbm-sys` (`ioctl`, `signal`, `mmap`, `mlock`, `poll`, `tcsetpgrp`) | System calls without a safe wrapper | `rustix`; glibc itself stays | SE6 |
 | `stty`, `tput` (ncurses) | Terminal set-up | `rustix` termios and escape sequences | PM11 |
-| `setsid`, `dmesg`, `lsblk`, `mount`, `umount`, `hostid` (util-linux) | Sessions, the kernel log, block devices, mounts | System calls, `/dev/kmsg`, `/sys/block`, `/etc/hostid` | SB1, SB3, CD2 |
+| `setsid`, `dmesg`, `lsblk`, `mount`, `umount`, `hostid` (util-linux) | Sessions, the kernel log, block devices, mounts | System calls, `/dev/kmsg`, `/sys/class/block` with udev's records, `/etc/hostid`; done but for `mount` and `umount` (SB3), with `dmesg` and `lsblk` as the fallback until the VM suites pass | SB1, SB3, CD2 |
 | `openssl`, `sha256sum`, `base64`, `cut`, `tr`, `wc` | Hashing, encoding and text in the LUKS and TPM2 paths | RustCrypto's `sha2` and `pbkdf2`, the `base64` crate; Rust images leave out the first three (October 2026), and `cut`, `tr` and `wc` stay for the recovery shell's legacy commands until SB6 | CD3 |
 | `setfont` (kbd) | The kernel console's font | The `KDFONTOP` ioctl with the PSF parser | CD5 |
 | `ykchalresp`, `ykinfo` (ykpers, at its end of life upstream) | YubiKey challenge-response | HID feature reports over `hidraw` | SB11 |
@@ -739,8 +740,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18).
-- SE1, SB1, DM1, UI1, UI2, UI13, VE1, CD1, CD2; SE2, SE3, SE8 and PM5 are done (27 October 2026; their VM runs
-  are left), and SE7 and CD3 (28 October 2026; their VM runs are left).
+- SE1, DM1, UI1, UI2, UI13, VE1, CD1; SE2, SE3, SE8 and PM5 are done (27 October 2026; their VM runs are left), and
+  SE7, CD3, SB1 and CD2 (28 October 2026; their VM runs are left).
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every

@@ -18,7 +18,7 @@ pub mod memory;
 mod process;
 mod stack;
 
-pub use process::{Ended, take_terminal, try_wait, wait_any};
+pub use process::{ChildSetup, Ended, Session, prepare_child, take_terminal, try_wait, wait_any};
 pub use stack::{MAX_FRAMES, return_addresses};
 
 use std::ffi::{c_int, c_ulong, c_void};
@@ -191,30 +191,6 @@ pub fn restore_default(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, SIG_DFL)
 }
 
-/// Makes the program `process` starts begin with the default action of each of
-/// `signals`, as `trap - SIG` before `exec` does, whatever this process does
-/// with them.
-pub fn restore_in_child(process: &mut std::process::Command, signals: &[Signal]) {
-    use std::os::unix::process::CommandExt;
-    let numbers: Vec<c_int> = signals.iter().map(|signal| signal.number()).collect();
-    let restore = move || {
-        for &number in &numbers {
-            // SAFETY: `signal` with `SIG_DFL` is async-signal-safe and touches no
-            // memory of this process.
-            if unsafe { signal_ffi(number, SIG_DFL) } == SIG_ERR {
-                return Err(std::io::Error::last_os_error());
-            }
-        }
-        Ok(())
-    };
-    // SAFETY: the closure runs between `fork` and `exec`, where only
-    // async-signal-safe functions may be called: it calls `signal` and reads
-    // `errno`, and allocates nothing.
-    unsafe {
-        process.pre_exec(restore);
-    }
-}
-
 /// Catches the given signals and records them instead of ending the process.
 ///
 /// A caught signal does not interrupt the program: system calls are restarted,
@@ -371,7 +347,11 @@ mod tests {
         ignore_signal(Signal::Interrupt).unwrap();
         let inherited = ignored_mask(&mut std::process::Command::new("grep"));
         let mut restored = std::process::Command::new("grep");
-        restore_in_child(&mut restored, &[Signal::Interrupt]);
+        let setup = ChildSetup {
+            default_signals: vec![Signal::Interrupt],
+            ..ChildSetup::default()
+        };
+        prepare_child(&mut restored, &setup);
         let restored = ignored_mask(&mut restored);
         restore_default(Signal::Interrupt).unwrap();
         assert_ne!(inherited & interrupt, 0, "{inherited:x}");

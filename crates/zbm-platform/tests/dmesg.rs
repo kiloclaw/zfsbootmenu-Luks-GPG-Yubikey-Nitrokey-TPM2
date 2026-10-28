@@ -9,8 +9,12 @@
     reason = "integration tests set up real files and fail loudly when they cannot"
 )]
 
+use std::path::Path;
+
+use zbm_platform::Files as _;
 use zbm_platform::dmesg::{
-    filter_raw, filtered_command, raw_prefixes, read_logs, strip_timestamps,
+    Record, filter_raw, filtered_command, format_records, kernel_log, raw_prefixes, read_logs,
+    read_logs_with_dmesg, records, strip_timestamps,
 };
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 use zbm_testkit::{FakeRunner, TempDir, parity};
@@ -68,12 +72,12 @@ fn read_logs_prefers_filtered_dmesg() {
         "[  1.0] ZFSBootMenu: one\n\n",
     );
     assert_eq!(
-        read_logs(&runner, "err", None).unwrap(),
+        read_logs_with_dmesg(&runner, "err", None).unwrap(),
         "ZFSBootMenu: one\n"
     );
     assert_eq!(runner.lines(), ["dmesg -f user --color=never -l err"]);
     assert_eq!(
-        read_logs(&runner, "", None),
+        read_logs_with_dmesg(&runner, "", None),
         Err(Message::error("levels is undefined"))
     );
 }
@@ -84,7 +88,7 @@ fn read_logs_falls_back_to_the_raw_log() {
     runner.respond("dmesg -f user --color=never -l warn", 1, "");
     runner.respond("dmesg -r", 0, "<4>[ 1] ZFSBootMenu: careful\n<6>[ 2] x\n");
     assert_eq!(
-        read_logs(&runner, "warn", None).unwrap(),
+        read_logs_with_dmesg(&runner, "warn", None).unwrap(),
         "ZFSBootMenu: careful \n"
     );
 }
@@ -144,9 +148,74 @@ fn read_logs_matches_print_kmsg_logs() {
             None => runner.respond(&filtered_line, 1, ""),
         }
         runner.respond("dmesg -r", 0, raw);
-        let rust = read_logs(&runner, levels, since_arg).unwrap();
+        let rust = read_logs_with_dmesg(&runner, levels, since_arg).unwrap();
         let input = format!("levels {levels:?}, since {since:?}, filtered {filtered:?}");
         let legacy: String = parity.legacy(input, || legacy_read(levels, since, filtered, raw));
         assert_eq!(rust, legacy, "levels {levels:?}, since {since:?}");
     }
+}
+
+/// Records of `/dev/kmsg`: the kernel's, ZFSBootMenu's at three levels, a
+/// dictionary line, an escaped character, and a line that is no record.
+const KMSG: &str = "6,1,921824,-;ZFSBootMenu: setting log level\n\
+    3,2,1093623,-;virtio-pci 0000:00:05.0: vgaarb\n\
+    \x20SUBSYSTEM=pci\n\
+    \x20DEVICE=+pci:0000:00:05.0\n\
+    11,3,2000001,-;ZFSBootMenu: broken\\x09pool\n\
+    12,4,2500000,-;ZFSBootMenu: careful\n\
+    14,5,3000000,c;ZFSBootMenu: info\n\
+    no record\n";
+
+#[test]
+fn records_are_read_from_kmsg_with_their_escapes_undone() {
+    let read = records(KMSG.as_bytes());
+    assert_eq!(read.len(), 5);
+    assert_eq!(
+        read[2],
+        Record {
+            facility: 1,
+            level: 3,
+            micros: 2_000_001,
+            text: "ZFSBootMenu: broken\tpool".to_owned(),
+        }
+    );
+    assert_eq!(
+        format_records(&read[..2]),
+        "[    0.921824] ZFSBootMenu: setting log level\n\
+         [    1.093623] virtio-pci 0000:00:05.0: vgaarb\n"
+    );
+}
+
+#[test]
+fn the_log_comes_from_kmsg_and_from_dmesg_without_it() {
+    let unreadable = zbm_testkit::fakes::FakeSystem::new();
+    unreadable
+        .files
+        .fail("/dev/kmsg", std::io::ErrorKind::PermissionDenied);
+    unreadable.runner.respond("dmesg", 0, "[ 1.0] from dmesg\n");
+    assert_eq!(kernel_log(&unreadable.system()), "[ 1.0] from dmesg\n");
+    // Written by ZFSBootMenu, read back as the kernel's records.
+    let fake = zbm_testkit::fakes::FakeSystem::new();
+    fake.files
+        .append(Path::new("/dev/kmsg"), b"<3>ZFSBootMenu: written\n")
+        .unwrap();
+    assert_eq!(
+        read_logs(&fake.system(), "err").unwrap(),
+        "ZFSBootMenu: written\n"
+    );
+    fake.files.file("/dev/kmsg", KMSG);
+    let log = kernel_log(&fake.system());
+    assert!(
+        log.starts_with("[    0.921824] ZFSBootMenu: setting"),
+        "{log}"
+    );
+    assert!(!log.contains("SUBSYSTEM"), "{log}");
+    // User messages of the levels asked for, as `dmesg -f user -l` prints
+    // them without their timestamps: not the kernel's error.
+    assert_eq!(
+        read_logs(&fake.system(), "err,warn").unwrap(),
+        "ZFSBootMenu: broken\tpool\nZFSBootMenu: careful\n"
+    );
+    assert_eq!(read_logs(&fake.system(), "debug").unwrap(), "\n");
+    assert!(read_logs(&fake.system(), "").is_err());
 }

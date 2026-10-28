@@ -60,6 +60,34 @@ fn merged_streams_keep_their_order() {
 }
 
 #[test]
+fn merged_streams_need_no_shell() {
+    // No `sh` can be found on this `PATH`: the program gets the pipe itself.
+    let output = SystemRunner
+        .run(
+            &Command::new("/bin/ls")
+                .args(["/proc/self/fd/1", "/zbm-no-such-file"])
+                .env("PATH", "/zbm-nowhere")
+                .merge_stderr(),
+        )
+        .unwrap();
+    let text = output.stdout_text();
+    assert!(text.contains("/proc/self/fd/1"), "{text}");
+    assert!(text.contains("zbm-no-such-file"), "{text}");
+    assert_eq!(output.status.code(), Some(2));
+    // Into nothing, and where this process's standard output goes.
+    let quiet = Command::new("/bin/ls")
+        .arg("/zbm-no-such-file")
+        .stdout(Stream::Null)
+        .merge_stderr();
+    let output = SystemRunner.run(&quiet).unwrap();
+    assert!(output.stdout.is_empty() && output.stderr.is_empty());
+    let shown = Command::new("/bin/true")
+        .stdout(Stream::Inherit)
+        .merge_stderr();
+    assert!(SystemRunner.run(&shown).unwrap().status.is_success());
+}
+
+#[test]
 fn merged_arguments_are_passed_unchanged() {
     let output = SystemRunner
         .run(
@@ -236,4 +264,33 @@ fn a_program_past_its_time_is_killed() {
         .timeout(Duration::from_secs(9));
     assert_eq!(limited.get_timeout(), Some(Duration::from_secs(5)));
     assert_eq!(Command::new("x").get_timeout(), None);
+}
+
+#[test]
+fn output_past_its_limit_is_an_error_and_ends_the_program() {
+    // `yes` writes for ever: past the limit its pipe is closed, and it ends.
+    let flood = Command::new("yes").output_limit(1000);
+    let error = SystemRunner.run(&flood).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    assert!(error.to_string().contains("1000 bytes"), "{error}");
+    let secret = Command::new("yes")
+        .stdout(Stream::CaptureSecret)
+        .output_limit(10);
+    assert!(SystemRunner.run(&secret).is_err());
+    let noisy = Command::new("sh")
+        .args(["-c", "yes >&2"])
+        .stderr(Stream::Capture)
+        .output_limit(10);
+    assert!(SystemRunner.run(&noisy).is_err());
+    // Up to the limit, everything is taken.
+    let exact = Command::new("printf").arg("0123456789").output_limit(10);
+    assert_eq!(SystemRunner.run(&exact).unwrap().stdout, b"0123456789");
+    assert_eq!(
+        Command::new("x").get_output_limit(Stream::Capture),
+        OUTPUT_LIMIT
+    );
+    assert_eq!(
+        Command::new("x").get_output_limit(Stream::CaptureSecret),
+        SECRET_LIMIT
+    );
 }

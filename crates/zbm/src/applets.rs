@@ -98,16 +98,32 @@ pub fn preinit(_args: &[String], io: &mut Io) -> i32 {
     let shell = preinit::shell(&system, Path::new("/"), &conf);
 
     // https://busybox.net/FAQ.html#job_control: the shell opens the terminal
-    // after `setsid`, so it becomes the session's controlling terminal.
+    // in a new session, so it becomes the session's controlling terminal.
     let script = "tty=$1; shift; source /etc/zfsbootmenu.conf; source /etc/profile; \
                   exec \"$@\" <\"${tty}\" >\"${tty}\" 2>&1";
-    let error = std::process::Command::new("setsid")
-        .args([shell, "-c", script, "zfsbootmenu-preinit"])
+    let mut supervisor = std::process::Command::new(shell);
+    supervisor
+        .args(["-c", script, "zfsbootmenu-preinit"])
         .env(zbm_platform::shell::ENV, shell)
         .arg(&options.control_term)
         .arg(zbm())
-        .args(["zfsbootmenu-init", "--supervise"])
-        .exec();
+        .args(["zfsbootmenu-init", "--supervise"]);
+    let session = zbm_sys::ChildSetup {
+        session: zbm_sys::Session::New,
+        ..zbm_sys::ChildSetup::default()
+    };
+    zbm_sys::prepare_child(&mut supervisor, &session);
+    // As the `setsid` program does: in this process, unless it leads its
+    // process group (the first process of a service), which cannot start a
+    // session; then in a child, and this process ends.
+    let error = if zbm_platform::process::is_process_group_leader() {
+        match supervisor.spawn() {
+            Ok(_) => return 0,
+            Err(error) => error,
+        }
+    } else {
+        supervisor.exec()
+    };
     let _ = writeln!(io.stderr, "zbm: unable to start the supervisor: {error}");
     1
 }

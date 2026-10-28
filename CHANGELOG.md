@@ -342,6 +342,23 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - Rust images with LUKS support leave out `openssl`, `sha256sum` and `base64`, which only the legacy runtime's LUKS
   and TPM2 code runs; `cut`, `tr` and `wc` stay, for the recovery shell's legacy commands. Legacy images are unchanged.
 
+### Process plumbing (phase 0)
+
+- Programs whose standard error goes with their standard output get one pipe for both, without the
+  `sh -c 'exec "$0" "$@" 2>&1'` that started a shell for each of them.
+- The supervisor starts programs on the console's terminal, and the pre-init applet starts the supervisor, in sessions
+  of their own with a `setsid` before the `exec`, as the `setsid` program did, without running it.
+- Programs that wait on a device, a daemon or the network end after a time-out instead of holding up the boot:
+  `cryptsetup` (3 minutes), `tpm2_*` (1 minute), `fido2-assert` (2 minutes) and `fido2-token` (30 seconds),
+  `ykchalresp` (1 minute) and `ykinfo` (30 seconds), `gpg` (2 minutes), `pcscd` and `gpgconf` (30 seconds),
+  `clevis decrypt` (2 minutes), `blkid` (1 minute), `modprobe` and `insmod` (5 minutes), and mounting a block device
+  (2 minutes). `zfs`, `zpool` and ZFS mounts have none: their time grows with the pool.
+- A program's captured output is taken up to 64 MiB a stream (8 MiB for a secret): one that writes more has its pipe
+  closed, and its run is an error, so it cannot fill memory.
+- The kernel log is read from `/dev/kmsg`, for saved logs, reports and the errors the recovery shell shows, and
+  block devices' sizes and partition types from `/sys/class/block` and udev's records, without `dmesg` and `lsblk`,
+  which run only where those cannot be read.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

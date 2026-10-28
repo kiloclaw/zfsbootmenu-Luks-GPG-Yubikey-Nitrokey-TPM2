@@ -19,11 +19,17 @@ use std::ffi::{OsStr, OsString};
 use std::io::{self, Read, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::secret::Secret;
 pub use zbm_sys::Signal;
+
+use self::streams::{Captured, Stdout, read_pipe, read_secret};
+use self::watchdog::Watchdog;
+
+mod streams;
+mod watchdog;
 
 /// Where standard output or standard error of a command goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,7 +79,17 @@ pub struct Command {
     env: Vec<(OsString, Option<OsString>)>,
     default_signals: Vec<Signal>,
     timeout: Option<Duration>,
+    output_limit: Option<usize>,
 }
+
+/// How many bytes of a command's standard output, and of its standard
+/// error, are taken by default: far more than any program the runtime runs
+/// writes, and little enough that a program gone wrong cannot fill memory.
+pub const OUTPUT_LIMIT: usize = 64 << 20;
+
+/// How many bytes of standard output captured as a secret are taken by
+/// default: the largest key file `cryptsetup` reads by default.
+pub const SECRET_LIMIT: usize = 8 << 20;
 
 impl Command {
     /// A command that runs `program`, inheriting standard input and standard error
@@ -90,6 +106,7 @@ impl Command {
             env: Vec::new(),
             default_signals: Vec::new(),
             timeout: None,
+            output_limit: None,
         }
     }
 
@@ -179,6 +196,25 @@ impl Command {
     /// How long the program may run, if that is limited.
     pub fn get_timeout(&self) -> Option<Duration> {
         self.timeout
+    }
+
+    /// Takes at most `bytes` of each captured stream instead of
+    /// [`OUTPUT_LIMIT`] or [`SECRET_LIMIT`]. A program that writes more gets
+    /// its pipe closed, and running it is an error.
+    #[must_use]
+    pub fn output_limit(mut self, bytes: usize) -> Command {
+        self.output_limit = Some(bytes);
+        self
+    }
+
+    /// How many bytes of `stream`, when it is captured, are taken.
+    pub fn get_output_limit(&self, stream: Stream) -> usize {
+        let default = if stream == Stream::CaptureSecret {
+            SECRET_LIMIT
+        } else {
+            OUTPUT_LIMIT
+        };
+        self.output_limit.unwrap_or(default)
     }
 
     /// The signals the program starts with the default action of.
@@ -358,13 +394,6 @@ fn stdio(stream: Stream) -> Stdio {
     }
 }
 
-/// Reads a pipe to its end.
-fn read_pipe(mut pipe: impl Read) -> io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    pipe.read_to_end(&mut bytes)?;
-    Ok(bytes)
-}
-
 fn not_found(command: &Command) -> io::Result<Output> {
     let message = format!("{}: command not found\n", command.program.to_string_lossy());
     let mut output = Output::new(Status::exited(127), Vec::new());
@@ -404,29 +433,42 @@ fn spawn(process: &mut std::process::Command) -> io::Result<std::process::Child>
     }
 }
 
-/// The process that runs `command`, not yet started.
-fn process(command: &Command) -> std::process::Command {
-    let mut process = if command.merge_stderr {
-        // `exec "$0" "$@" 2>&1` gives the program a single pipe for both streams, so
-        // their order is kept. Only messages of the shell itself go to the stderr
-        // setting.
-        let mut process = std::process::Command::new("sh");
-        process
-            .arg("-c")
-            .arg("exec \"$0\" \"$@\" 2>&1")
-            .arg(&command.program)
-            .args(&command.args)
-            .stderr(stdio(command.stderr));
-        process
+/// The process that runs `command`, not yet started, and the read end of
+/// the pipe that takes both of its output streams when standard error is
+/// merged into captured standard output.
+fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::PipeReader>)> {
+    let mut process = std::process::Command::new(&command.program);
+    process.args(&command.args);
+    let mut merged = None;
+    if command.merge_stderr {
+        // `2>&1`: one pipe, or one file, for both streams, so that their
+        // order is kept.
+        match command.stdout {
+            Stream::Capture | Stream::CaptureSecret => {
+                let (reader, writer) = io::pipe()?;
+                process
+                    .stdout(Stdio::from(writer.try_clone()?))
+                    .stderr(Stdio::from(writer));
+                merged = Some(reader);
+            }
+            Stream::Inherit => {
+                let stdout = std::os::fd::AsFd::as_fd(&io::stdout()).try_clone_to_owned()?;
+                process.stdout(Stdio::inherit()).stderr(Stdio::from(stdout));
+            }
+            Stream::Null => {
+                process.stdout(Stdio::null()).stderr(Stdio::null());
+            }
+        }
     } else {
-        let mut process = std::process::Command::new(&command.program);
-        process.args(&command.args).stderr(stdio(command.stderr));
         process
-    };
-    process.stdout(stdio(command.stdout));
-    if !command.default_signals.is_empty() {
-        zbm_sys::restore_in_child(&mut process, &command.default_signals);
+            .stdout(stdio(command.stdout))
+            .stderr(stdio(command.stderr));
     }
+    let setup = zbm_sys::ChildSetup {
+        default_signals: command.default_signals.clone(),
+        ..zbm_sys::ChildSetup::default()
+    };
+    zbm_sys::prepare_child(&mut process, &setup);
     process.stdin(match command.stdin {
         Input::Inherit => Stdio::inherit(),
         Input::Null => Stdio::null(),
@@ -438,20 +480,33 @@ fn process(command: &Command) -> std::process::Command {
             None => process.env_remove(key),
         };
     }
-    process
+    Ok((process, merged))
 }
 
 /// What a child wrote to its standard output and standard error.
-type Streams = (Option<io::Result<Captured>>, Option<io::Result<Vec<u8>>>);
+type Streams = (
+    Option<io::Result<Stdout>>,
+    Option<io::Result<Captured<Vec<u8>>>>,
+);
 
 /// Gives `child` the input of `command` and reads its output.
 ///
 /// Standard input is written, and standard error read, by other threads, so
 /// that a command that writes a lot before reading all of its input, or fills
 /// one pipe while this thread reads the other, cannot block.
-fn communicate(command: &Command, child: &mut std::process::Child) -> Streams {
+fn communicate(
+    command: &Command,
+    child: &mut std::process::Child,
+    merged: Option<io::PipeReader>,
+) -> Streams {
     let stdin = child.stdin.take();
-    let stdout = child.stdout.take();
+    let stdout: Option<Box<dyn Read + Send>> = match merged {
+        Some(reader) => Some(Box::new(reader)),
+        None => child
+            .stdout
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    };
     let stderr = child.stderr.take();
     let secret_stdout = command.stdout == Stream::CaptureSecret;
     std::thread::scope(|scope| {
@@ -467,12 +522,14 @@ fn communicate(command: &Command, child: &mut std::process::Child) -> Streams {
                 let _ = pipe.write_all(bytes);
             });
         }
-        let stderr = stderr.map(|pipe| scope.spawn(move || read_pipe(pipe)));
-        let stdout = stdout.map(|mut pipe| {
+        let stderr_limit = command.get_output_limit(Stream::Capture);
+        let stderr = stderr.map(|pipe| scope.spawn(move || read_pipe(pipe, stderr_limit)));
+        let stdout = stdout.map(|pipe| {
             if secret_stdout {
-                Secret::read_from(&mut pipe).map(Captured::Secret)
+                read_secret(pipe, command.get_output_limit(Stream::CaptureSecret))
+                    .map(Stdout::Secret)
             } else {
-                read_pipe(pipe).map(Captured::Plain)
+                read_pipe(pipe, command.get_output_limit(Stream::Capture)).map(Stdout::Plain)
             }
         });
         let stderr = stderr.map(|reader| {
@@ -486,7 +543,12 @@ fn communicate(command: &Command, child: &mut std::process::Child) -> Streams {
 
 impl Runner for SystemRunner {
     fn run(&self, command: &Command) -> io::Result<Output> {
-        let mut child = match spawn(&mut process(command)) {
+        let (mut process, merged) = process(command)?;
+        let spawned = spawn(&mut process);
+        // The child has its copies of the merged pipe's write end: this
+        // process's must close, or reading the pipe would never end.
+        drop(process);
+        let mut child = match spawned {
             Ok(child) => child,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return not_found(command),
             Err(error) => return Err(error),
@@ -494,7 +556,7 @@ impl Runner for SystemRunner {
         let watchdog = command
             .timeout
             .map(|timeout| Watchdog::start(child.id(), timeout));
-        let (stdout, stderr) = communicate(command, &mut child);
+        let (stdout, stderr) = communicate(command, &mut child, merged);
         // Wait before reporting a read error, so that no child is left behind.
         let status = match &watchdog {
             Some(watchdog) => watchdog.wait(&mut child)?,
@@ -502,71 +564,34 @@ impl Runner for SystemRunner {
         };
 
         let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
+        let mut over = false;
         match stdout.transpose()? {
-            Some(Captured::Plain(bytes)) => output.stdout = bytes,
-            Some(Captured::Secret(secret)) => output.secret = Some(Arc::new(secret)),
+            Some(Stdout::Plain(bytes)) => {
+                over |= bytes.over;
+                output.stdout = bytes.data;
+            }
+            Some(Stdout::Secret(secret)) => {
+                over |= secret.over;
+                output.secret = Some(Arc::new(secret.data));
+            }
             None => {}
         }
-        output.stderr = stderr.transpose()?.unwrap_or_default();
+        if let Some(bytes) = stderr.transpose()? {
+            over |= bytes.over;
+            output.stderr = bytes.data;
+        }
+        if over {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "{}: more output than the {} bytes taken",
+                    command.program.to_string_lossy(),
+                    command.get_output_limit(command.stdout)
+                ),
+            ));
+        }
         Ok(output)
     }
-}
-
-/// Kills a child that runs past its time. The kill and the collection of
-/// the child happen under one lock, so that the signal never reaches
-/// another process that got the child's ID once it was collected.
-struct Watchdog {
-    /// Whether the child was collected.
-    collected: Arc<Mutex<bool>>,
-    /// Ends the watchdog early, when the child ended in time.
-    done: mpsc::Sender<()>,
-}
-
-impl Watchdog {
-    /// How often a child that closed its output is looked at until it ends.
-    const POLL: Duration = Duration::from_millis(5);
-
-    /// Watches the child `pid`, which may run for `timeout`.
-    fn start(pid: u32, timeout: Duration) -> Watchdog {
-        let collected = Arc::new(Mutex::new(false));
-        let (done, ended) = mpsc::channel::<()>();
-        let watched = Arc::clone(&collected);
-        std::thread::spawn(move || {
-            if ended.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout) {
-                let collected = watched
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if !*collected {
-                    let _ = zbm_sys::send_signal(pid, Signal::Kill);
-                }
-            }
-        });
-        Watchdog { collected, done }
-    }
-
-    /// Waits for `child` to end, collecting it under the lock.
-    fn wait(&self, child: &mut std::process::Child) -> io::Result<std::process::ExitStatus> {
-        loop {
-            {
-                let mut collected = self
-                    .collected
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if let Some(status) = child.try_wait()? {
-                    *collected = true;
-                    let _ = self.done.send(());
-                    return Ok(status);
-                }
-            }
-            std::thread::sleep(Self::POLL);
-        }
-    }
-}
-
-/// Captured standard output.
-enum Captured {
-    Plain(Vec<u8>),
-    Secret(Secret),
 }
 
 #[cfg(test)]

@@ -45,11 +45,11 @@ fn machine() -> FakeSystem {
         0,
         METADATA,
     );
-    fake.runner.respond(
-        "dmesg",
-        0,
-        "[    0.1] mem auto-init: stack:all(zero), heap alloc:on, heap free:on\n\
-         [    1.0] zfsbootmenu: started\n",
+    // The kernel log as reading `/dev/kmsg` gives it.
+    fake.files.file(
+        "/dev/kmsg",
+        "6,1,100000,-;mem auto-init: stack:all(zero), heap alloc:on, heap free:on\n\
+         6,2,1000000,-;zfsbootmenu: started\n",
     );
     fake.files
         .file(

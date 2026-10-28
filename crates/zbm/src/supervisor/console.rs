@@ -101,16 +101,17 @@ impl Attached {
         }
     }
 
-    /// The command that runs `program` on the console's terminal.
+    /// The command that runs `program` on the console's terminal, which it
+    /// starts with as its standard streams; the caller has it start a
+    /// session of its own with that terminal ([`zbm_sys::Session::NewOnTerminal`],
+    /// as `setsid -c` does).
     ///
     /// # Errors
     ///
     /// When the terminal cannot be shared with it.
     pub fn command(&self, program: &Program, extra: &[&str]) -> io::Result<Command> {
-        let mut command = Command::new("setsid");
+        let mut command = Command::new(&program.path);
         command
-            .arg("-c")
-            .arg(&program.path)
             .args(&program.args)
             .args(extra)
             .stdin(Stdio::from(self.slave.try_clone()?))
@@ -227,8 +228,8 @@ mod tests {
             )
             .unwrap();
         let args: Vec<_> = command.get_args().collect();
-        assert_eq!(command.get_program(), "setsid");
-        assert_eq!(args, ["-c", "/libexec/zbm", "zfsbootmenu-init", "--resume"]);
+        assert_eq!(command.get_program(), "/libexec/zbm");
+        assert_eq!(args, ["zfsbootmenu-init", "--resume"]);
 
         attached.write("hello").unwrap();
         let mut shown = [0_u8; 5];
