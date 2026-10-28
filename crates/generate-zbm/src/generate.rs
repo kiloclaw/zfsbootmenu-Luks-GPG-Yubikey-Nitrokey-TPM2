@@ -77,8 +77,12 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    /// The context of a real run.
-    pub fn from_environment(runner: &'a dyn Runner, program: String) -> Context<'a> {
+    /// The context of a real run, which `signal` stops.
+    pub fn from_environment(
+        runner: &'a dyn Runner,
+        program: String,
+        signal: &'a dyn Fn() -> Option<zbm_sys::Signal>,
+    ) -> Context<'a> {
         let default_stubs = if cfg!(target_arch = "x86_64") {
             vec!["/usr/lib/systemd/boot/efi/linuxx64.efi.stub".to_owned()]
         } else if cfg!(target_arch = "aarch64") {
@@ -99,7 +103,7 @@ impl<'a> Context<'a> {
             dtb_dir: "/boot/dtbs".to_owned(),
             default_stubs,
             pci_devices: PathBuf::from("/sys/bus/pci/devices"),
-            signal: &zbm_sys::received_signal,
+            signal,
         }
     }
 }

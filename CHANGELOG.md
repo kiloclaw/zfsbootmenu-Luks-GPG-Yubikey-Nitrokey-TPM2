@@ -391,6 +391,19 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   no longer by a regular expression made of it.
 - A fuzz target, `kernel_selector`, covers the pattern's translation and matches.
 
+### Signals as data (phase 1)
+
+- The menu, the console and `generate-zbm` block the signals they wait for and read them from a `signalfd`
+  (`zbm_sys::Signals`, with a typed `SignalSet`), instead of handlers that stored the last signal in a global slot, or
+  `signal-hook`'s self-pipes in the console. Nothing runs in the middle of the program, and a request that comes
+  while the console relays on the kernel console is kept, not lost.
+- Every program the runtime starts begins with no signal blocked (`zbm_sys::prepare_child` clears the mask the
+  standard library would leave it), so hooks, `fzf` and the shells get their signals as before.
+- `zbm console release` and `layout` hold the console by a pidfd (`zbm_sys::Process`): the signal reaches the console
+  and not a process that took its ID, and a console that ends while it is waited for ends the wait at once. On a
+  kernel without pidfds, before Linux 5.3, the console is signalled by its ID, as before.
+- `zbm-sys` has 31 `unsafe` blocks instead of 32: the credentials and `kill` go through `rustix`.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

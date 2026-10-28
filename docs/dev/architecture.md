@@ -55,13 +55,14 @@ Third-party crates:
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
-- `zbm-console`: `alacritty_terminal`, `rustix`, `signal-hook`
+- `zbm-console`: `alacritty_terminal`, `rustix`
 - `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
 - `zbm-startup`: `thiserror`
+- `zbm-sys`: `rustix`
 - `zbm-platform`: `rustix`, `serde_json`, `tracing`, `tracing-subscriber`
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `fluent-bundle`, `nucleo-matcher`, `ratatui`, `unic-langid`

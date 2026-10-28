@@ -16,7 +16,7 @@ use zbm_platform::{Context, System};
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
 use zbm_startup::program::menu::Menu;
-use zbm_sys::Signal;
+use zbm_sys::{Signal, SignalSet, Signals};
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::machine::{Countdown, RealMachine};
 use zbm_tui::menu::session::Session;
@@ -41,6 +41,8 @@ fn on_terminal(session: Session<RealMachine<'_, '_>>, escape_wait: Duration) -> 
 /// The menu over the machine `system` reaches.
 struct Terminal<'s, 'a> {
     system: System<'a>,
+    /// The signals of a takeover, when they could be blocked.
+    signals: Option<&'s Signals>,
     options: &'s ZbmOptions,
     base: &'s Path,
     run: Run,
@@ -49,15 +51,15 @@ struct Terminal<'s, 'a> {
     error: Option<String>,
 }
 
-/// Whether the menu must end: another instance asked it to (`SIGUSR1` to
-/// it, or `SIGTERM` when it ran no child), or its terminal went away
+/// The signals that end the menu: another instance asks it to (`SIGUSR1`
+/// to it, or `SIGTERM` when it ran no child), or its terminal went away
 /// (`SIGHUP`, a dropped SSH session). It then returns and gives up the
 /// `active` lock, as the legacy EXIT trap did.
-fn is_taken_over() -> bool {
-    matches!(
-        zbm_sys::received_signal(),
-        Some(Signal::User1 | Signal::Terminate | Signal::Hangup)
-    )
+const TAKEOVER: SignalSet = SignalSet::of(&[Signal::User1, Signal::Terminate, Signal::Hangup]);
+
+/// Whether the menu must end, having `received` these signals.
+fn is_taken_over(received: SignalSet) -> bool {
+    TAKEOVER.iter().any(|signal| received.contains(signal))
 }
 
 impl Menu for Terminal<'_, '_> {
@@ -67,7 +69,8 @@ impl Menu for Terminal<'_, '_> {
             .with_base(self.base)
             .with_layouts(Path::new(layouts::DIRECTORY))
             .with_boot(settings);
-        let stop = is_taken_over;
+        let signals = self.signals;
+        let stop = || signals.is_some_and(|signals| is_taken_over(signals.received()));
         let machine = match RealMachine::new(app, self.system, recovery, &stop, self.countdown) {
             Ok(machine) => machine,
             Err(error) => {
@@ -86,12 +89,19 @@ impl Menu for Terminal<'_, '_> {
 }
 
 /// The menu program on `system` with the configuration `conf`, the menu
-/// run by `run`: its exit status, or why the menu could not run.
-fn menu(system: System<'_>, conf: &Conf, run: Run, countdown: Countdown) -> Result<i32, String> {
+/// run by `run`, ended by `signals`: its exit status, or why the menu
+/// could not run.
+fn menu(
+    system: System<'_>,
+    conf: &Conf,
+    (run, countdown): (Run, Countdown),
+    signals: Option<&Signals>,
+) -> Result<i32, String> {
     let options = ZbmOptions::from_conf(conf);
     let base = preinit::base(conf);
     let mut menu = Terminal {
         system,
+        signals,
         options: &options,
         base: &base,
         run,
@@ -116,13 +126,14 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             return crate::USAGE;
         }
     };
-    // trap '' SIGINT; the USR1 trap of a takeover; and SIGQUIT, which Bash
-    // ignores
+    // trap '' SIGINT; the USR1 trap of a takeover, whose signals wait to be
+    // read, first, before any thread starts; and SIGQUIT, which Bash ignores
+    let signals = Signals::block(TAKEOVER).ok();
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
     let _ = zbm_sys::discard_signal(Signal::Quit);
-    let _ = zbm_sys::record_signals(&[Signal::User1, Signal::Terminate, Signal::Hangup]);
     on_console(io, |system, conf, io| {
-        menu(system, conf, on_terminal, countdown).unwrap_or_else(|error| {
+        let run = (on_terminal as Run, countdown);
+        menu(system, conf, run, signals.as_ref()).unwrap_or_else(|error| {
             let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
             zbm_startup::program::menu::FAILED
         })

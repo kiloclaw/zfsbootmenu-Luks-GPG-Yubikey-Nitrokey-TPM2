@@ -340,8 +340,9 @@ The protocol stays as it is, because users rely on it (`remote-access.rst`): the
 `active`; a second `zfsbootmenu` sends `SIGUSR1` to that process, finds its deepest child through
 `/proc/<pid>/task/<pid>/children` and ends it, so the blocked `fzf` returns; the first menu exits on `SIGUSR1`, which
 removes `active`. The start-up sequence does not boot automatically while `active` exists, and opens the recovery
-shell instead. Signals are delivered through `zbm-sys`; a handler only records the signal, and the menu checks for it
-after each child process returns, which is when the legacy trap runs too.
+shell instead. The menu blocks `SIGUSR1`, `SIGTERM` and `SIGHUP` first thing, so they wait in a `signalfd`
+(`zbm_sys::Signals`, ROADMAP.md PM3), and reads them after each child process returns, which is when the legacy trap
+runs too.
 
 ### Signals
 
@@ -356,6 +357,14 @@ adds a VM test that records the ignored and caught signals (`SigIgn` and `SigCgt
 `fzf`, the chroot shell and the recovery shell, in a menu on the console and one over SSH, first against the legacy
 image. The supervisor, the start-up program and the menu ignore `SIGINT` through `zbm-sys`, so their children inherit
 the same disposition.
+
+A program that waits for signals blocks them and reads them from a `signalfd` (`zbm_sys::Signals`): the menu its
+takeover's, the console the requests of `zbm console release` and `layout`, `generate-zbm` `SIGINT` and `SIGTERM`; no
+handler runs in the middle of the program, and no global slot holds the last signal. A signal sent to the process
+reaches a thread that does not block it, so each blocks them before it starts a thread. Programs inherit the mask, and
+the standard library's `Command` keeps it: `zbm_sys::prepare_child` empties it in every child that `zbm-platform`
+starts, so hooks, `fzf` and the shells see the dispositions above and no blocked signal. A process that is signalled
+and waited for is held by a pidfd (`zbm_sys::Process`): `zbm console release` sees the console end.
 
 `SIGPIPE` stays ignored in every runtime process, unlike in the host tools, which restore its default action. In the
 legacy code, a value piped into a program (`printf '%s' "${pass}" | cryptsetup ...`) is written by a subshell, which

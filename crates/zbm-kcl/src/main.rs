@@ -8,9 +8,10 @@ use std::io::Write;
 fn main() {
     // Like the Bash script, end quietly on a closed pipe, and keep running on
     // SIGINT and SIGTERM (the script's trap runs its clean-up and carries on; child
-    // programs still receive the signals).
+    // programs still receive the signals): they are blocked, and never read.
     let _ = zbm_sys::restore_default_sigpipe();
-    let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
+    let carried_on = [zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate];
+    let _signals = zbm_sys::Signals::block(zbm_sys::SignalSet::of(&carried_on));
 
     let (argv0, args) = match zbm_core::args::split(std::env::args_os(), "zbm-kcl") {
         Ok(split) => split,

@@ -11,7 +11,7 @@
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, AsRawFd as _, OwnedFd};
+use std::os::fd::{AsFd, AsRawFd as _, BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Arc;
@@ -25,6 +25,7 @@ use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
 use zbm_sys::console::{Ready, Watch, wait_ready};
 
+use crate::release::Wake;
 use crate::run::{Host, Input};
 use crate::screen::zoom::Zoom;
 use crate::screen::{Locks, Status};
@@ -211,6 +212,17 @@ fn drain(file: &mut File) {
     while matches!(file.read(&mut buffer), Ok(length) if length > 0) {}
 }
 
+/// A file as a wake-up: what was written to it is read and dropped.
+impl Wake for File {
+    fn fd(&self) -> BorrowedFd<'_> {
+        self.as_fd()
+    }
+
+    fn take(&mut self) {
+        drain(self);
+    }
+}
+
 /// The pseudo-terminal, the keyboards, the request to hand the display
 /// back and the request for another keyboard layout.
 pub struct RealHost<'h, M> {
@@ -220,7 +232,7 @@ pub struct RealHost<'h, M> {
     release: Arc<AtomicBool>,
     layout: Option<(Arc<AtomicBool>, Switch<'h>)>,
     /// Readable when a request's signal came.
-    wake: Option<File>,
+    wake: Option<Box<dyn Wake + 'h>>,
     /// Readable when a device appeared in `/dev/input`.
     devices: Option<File>,
     /// Until when keyboards are looked for on every tick.
@@ -297,8 +309,8 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// The host, woken when `wake` becomes readable, as a request's signal
     /// makes it, rather than looking for requests on every tick.
     #[must_use]
-    pub fn with_wake(mut self, wake: File) -> Self {
-        self.wake = Some(wake);
+    pub fn with_wake(mut self, wake: impl Wake + 'h) -> Self {
+        self.wake = Some(Box::new(wake));
         self
     }
 
@@ -364,8 +376,11 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             read: !self.keyboards.is_scroll_lock(),
             write: !self.outgoing.is_empty(),
         });
-        for file in [&self.wake, &self.devices].into_iter().flatten() {
-            watches.push(Watch::read(file.as_raw_fd()));
+        if let Some(wake) = &self.wake {
+            watches.push(Watch::read(wake.fd().as_raw_fd()));
+        }
+        if let Some(devices) = &self.devices {
+            watches.push(Watch::read(devices.as_raw_fd()));
         }
         (watches, count)
     }
@@ -378,7 +393,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         let woken = self.wake.is_some() && extra.next().is_some_and(Ready::is_ready);
         let appeared = self.devices.is_some() && extra.next().is_some_and(Ready::is_ready);
         if woken && let Some(wake) = &mut self.wake {
-            drain(wake);
+            wake.take();
         }
         if appeared && let Some(devices) = &mut self.devices {
             drain(devices);
@@ -406,7 +421,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         if self.release.load(Ordering::SeqCst) {
             // The request's wake-up is taken with it.
             if let Some(wake) = &mut self.wake {
-                drain(wake);
+                wake.take();
             }
             return Ok(Input::Release);
         }

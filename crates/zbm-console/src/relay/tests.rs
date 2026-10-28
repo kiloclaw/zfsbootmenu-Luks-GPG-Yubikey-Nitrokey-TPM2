@@ -2,6 +2,7 @@
 
 use std::os::unix::net::UnixStream;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use pretty_assertions::assert_eq;
 use zbm_display::grid::Grid;
@@ -70,9 +71,10 @@ fn the_relay_serves_the_user_before_a_flood() {
 fn the_relay_ends_when_the_display_is_asked_for_again() {
     let (mut master, _program) = UnixStream::pair().unwrap();
     let (mut terminal, _user) = UnixStream::pair().unwrap();
-    let asked = Arc::new(AtomicBool::new(false));
-    let flag = Arc::clone(&asked);
-    let relay = std::thread::spawn(move || relay(&mut master, &mut terminal, Some(&flag), None));
+    let requests = Requests::default();
+    let asked = Arc::clone(&requests.release);
+    let relay =
+        std::thread::spawn(move || relay(&mut master, &mut terminal, Some(&requests), None));
 
     std::thread::sleep(Duration::from_millis(50));
     asked.store(true, Ordering::SeqCst);

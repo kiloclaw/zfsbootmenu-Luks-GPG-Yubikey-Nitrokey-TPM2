@@ -61,10 +61,9 @@ uucore = { version = "0.12", features = ["version-cmp"] }
 # The menu on the display without a terminal (ROADMAP.md #19, step 1): dumb buffers through DRM.
 drm = { version = "=0.15.0", default-features = false }
 # The console without the kernel's (ROADMAP.md #19, step 2): Alacritty's terminal on a pseudo-terminal, which
-# `rustix` opens, and the signal that hands the display back before `kexec`.
+# `rustix` opens; `rustix`'s pidfds hold the processes signalled (ROADMAP.md PM3).
 alacritty_terminal = { version = "=0.26.0", default-features = false }
 rustix = { version = "1", default-features = false, features = ["std", "pty", "termios", "process"] }
-signal-hook = { version = "0.4", default-features = false }
 # TrueType fonts for the console on the display (ROADMAP.md #19, step 3): parsed with skrifa, hinted and rasterized.
 swash = { version = "=0.2.10", default-features = false, features = ["std", "scale", "render"] }
 # Keyboard layouts for the console on the display (ROADMAP.md #19, step 4): XKB keymaps, compiled when the image is

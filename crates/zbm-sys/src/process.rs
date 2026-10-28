@@ -45,13 +45,15 @@ pub struct ChildSetup {
     pub session: Session,
 }
 
-/// Has the program that `process` starts set up as `setup` says. Starting
-/// a session fails when the child leads a process group, which a child
-/// that `spawn` forks never does; `exec` without a fork needs a process
-/// that leads none.
+/// Has the program that `process` starts set up as `setup` says, with no
+/// signal blocked: the signals this process reads from a
+/// [`Signals`](crate::Signals) reach it as usual. Starting a session fails
+/// when the child leads a process group, which a child that `spawn` forks
+/// never does; `exec` without a fork needs a process that leads none.
 pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
     use std::os::unix::process::CommandExt;
-    if *setup == ChildSetup::default() {
+    let unblock = super::signals::is_blocking_any();
+    if *setup == ChildSetup::default() && !unblock {
         return;
     }
     let numbers: Vec<c_int> = setup
@@ -64,6 +66,9 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
         // SAFETY: `signal` with `SIG_DFL`, `setsid` and `ioctl` with
         // `TIOCSCTTY` and an integer argument are async-signal-safe and
         // touch no memory of this process.
+        if unblock && super::signals::unblock_all() != 0 {
+            return Err(io::Error::last_os_error());
+        }
         unsafe {
             for &number in &numbers {
                 if signal(number, SIG_DFL) == SIG_ERR {
@@ -82,8 +87,9 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
         Ok(())
     };
     // SAFETY: the closure runs between `fork` and `exec`, where only
-    // async-signal-safe functions may be called: it calls `signal`,
-    // `setsid` and `ioctl`, reads `errno`, and allocates nothing.
+    // async-signal-safe functions may be called: it calls
+    // `pthread_sigmask`, `signal`, `setsid` and `ioctl`, reads `errno`, and
+    // allocates nothing.
     unsafe {
         process.pre_exec(prepare);
     }

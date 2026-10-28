@@ -40,15 +40,22 @@ fn no_terminal(_session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Resul
 #[test]
 fn the_menu_runs_on_the_machine_and_says_why_it_could_not() {
     let fake = started(0);
-    assert_eq!(menu(fake.system(), &conf(), ended, Countdown::Skip), Ok(0));
     assert_eq!(
-        menu(fake.system(), &conf(), no_terminal, Countdown::Run),
+        menu(fake.system(), &conf(), (ended, Countdown::Skip), None),
+        Ok(0)
+    );
+    assert_eq!(
+        menu(fake.system(), &conf(), (no_terminal, Countdown::Run), None),
         Err("not a terminal".to_owned())
     );
-    assert!(!is_taken_over());
+    assert!(!is_taken_over(SignalSet::EMPTY));
+    assert!(!is_taken_over(SignalSet::of(&[Signal::Interrupt])));
+    for signal in [Signal::User1, Signal::Terminate, Signal::Hangup] {
+        assert!(is_taken_over(SignalSet::of(&[signal])), "{signal:?}");
+    }
 
     let broken = started(1);
-    let error = menu(broken.system(), &conf(), ended, Countdown::Skip).unwrap_err();
+    let error = menu(broken.system(), &conf(), (ended, Countdown::Skip), None).unwrap_err();
     assert!(!error.is_empty());
 }
 
@@ -72,16 +79,19 @@ fn waiting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<Str
 #[test]
 fn the_menu_counts_down_only_at_the_end_of_start_up_with_a_chosen_environment() {
     let fake = started(0);
-    assert_eq!(menu(fake.system(), &conf(), waiting, Countdown::Run), Ok(0));
+    assert_eq!(
+        menu(fake.system(), &conf(), (waiting, Countdown::Run), None),
+        Ok(0)
+    );
     State::new(&fake.files, "/zfsbootmenu")
         .set_bootfs("tank/ROOT/void")
         .unwrap();
     assert_eq!(
-        menu(fake.system(), &conf(), counting, Countdown::Run),
+        menu(fake.system(), &conf(), (counting, Countdown::Run), None),
         Ok(0)
     );
     assert_eq!(
-        menu(fake.system(), &conf(), waiting, Countdown::Skip),
+        menu(fake.system(), &conf(), (waiting, Countdown::Skip), None),
         Ok(0)
     );
 }

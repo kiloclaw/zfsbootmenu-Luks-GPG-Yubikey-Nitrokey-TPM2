@@ -4,7 +4,6 @@
 use std::io::{Read as _, Write as _};
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use pretty_assertions::assert_eq;
@@ -139,25 +138,20 @@ fn the_hand_over_is_asked_for_and_waited_on() {
     assert_eq!(release(&base, timeout).unwrap(), Released::Done);
     assert!(!base.join("console").exists());
 
-    // This process plays the console, which removes its record once asked.
-    let requested = crate::release::on_request().unwrap();
-    std::fs::write(base.join("console"), format!("{}\n", std::process::id())).unwrap();
-    let record = base.join("console");
-    let console = std::thread::spawn(move || {
-        while !requested.load(Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        std::fs::remove_file(record).unwrap();
-    });
-    assert_eq!(release(&base, timeout).unwrap(), Released::Done);
-    console.join().unwrap();
-
-    // A console that never answers.
-    std::fs::write(base.join("console"), format!("{}\n", std::process::id())).unwrap();
+    // A console that never answers. (A console that does is in
+    // `tests/requests.rs`, where this process plays it.)
+    let mut console = std::process::Command::new("sh")
+        .args(["-c", "trap '' USR1; sleep 30"])
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(200));
+    std::fs::write(base.join("console"), format!("{}\n", console.id())).unwrap();
     assert_eq!(
         release(&base, Duration::from_millis(30)).unwrap(),
         Released::Late
     );
+    console.kill().unwrap();
+    console.wait().unwrap();
 }
 
 /// The German layout, from the XKB data of the machine (`xkb-data`).
@@ -192,38 +186,6 @@ fn a_layout_asked_for_is_taken_and_recorded() {
         "<6>ZFSBootMenu: console: keyboard de\n\
          <4>ZFSBootMenu: console: zz: no such keyboard layout; keeping keyboard de\n"
     );
-}
-
-#[test]
-fn a_layout_request_waits_for_the_console() {
-    let dir = TempDir::new("zbm-console-layout");
-    let places = places(&dir);
-    std::fs::create_dir_all(&places.base).unwrap();
-    let state = State::new(&RealFiles, &places.base);
-    let timeout = Duration::from_secs(5);
-
-    assert_eq!(
-        request_layout(&places.base, "de", timeout).unwrap(),
-        Switched::NoConsole
-    );
-    state.set_console(std::process::id()).unwrap();
-    let requested = crate::release::on_layout_request().unwrap();
-    let console_places = places.clone();
-    let console = std::thread::spawn(move || {
-        while !requested.swap(false, Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        let mut keyboards = Keyboards::from_files(Vec::new());
-        switch_layout(&console_places, &mut german, &mut keyboards);
-    });
-
-    let switched = request_layout(&places.base, "de", timeout).unwrap();
-    console.join().unwrap();
-
-    assert_eq!(switched, Switched::Done("de".to_owned()));
-    let late = request_layout(&places.base, "fr", Duration::from_millis(30)).unwrap();
-    assert_eq!(late, Switched::Late);
-    assert!(!state.has_console_layout_request());
 }
 
 #[test]
@@ -281,7 +243,7 @@ fn without_a_virtual_terminal_the_console_cannot_serve() {
 }
 
 #[test]
-fn a_new_input_device_and_a_request_s_signal_wake_the_console() {
+fn a_new_input_device_wakes_the_console() {
     let dir = TempDir::new("zbm-console-watch");
     std::fs::create_dir_all(dir.join("dev/input")).unwrap();
     let mut devices = watch_devices(&dir.join("dev")).unwrap();
@@ -290,22 +252,7 @@ fn a_new_input_device_and_a_request_s_signal_wake_the_console() {
     dir.write("dev/input/event7", "");
     assert!(devices.read(&mut buffer).unwrap() > 0);
     assert!(watch_devices(&dir.join("none")).is_none());
-
-    let mut wake = File::from(wake_on_requests().unwrap());
-    assert!(wake.read(&mut buffer).is_err(), "no request yet");
-    let me = rustix::process::Pid::from_raw(i32::try_from(std::process::id()).unwrap()).unwrap();
-    // The flags first, as the console registers them.
-    let _flag = crate::release::on_layout_request().unwrap();
-    rustix::process::kill_process(me, rustix::process::Signal::USR2).unwrap();
-    let start = std::time::Instant::now();
-    let woken = loop {
-        match wake.read(&mut buffer) {
-            Ok(length) => break length,
-            Err(_) if start.elapsed() < Duration::from_secs(5) => std::thread::yield_now(),
-            Err(error) => panic!("no wake-up: {error}"),
-        }
-    };
-    assert!(woken > 0);
+    // A request's signal wakes the console too: `tests/requests.rs`.
 }
 
 #[test]

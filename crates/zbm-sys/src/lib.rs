@@ -16,23 +16,20 @@
 pub mod console;
 pub mod memory;
 mod process;
+pub mod signals;
 mod stack;
 
 pub use process::{ChildSetup, Ended, Session, prepare_child, take_terminal, try_wait, wait_any};
+pub use signals::{Process, SignalSet, Signals};
 pub use stack::{MAX_FRAMES, return_addresses};
 
 use std::ffi::{c_int, c_ulong, c_void};
-use std::sync::atomic::{AtomicI32, Ordering};
 
 unsafe extern "C" {
     // `sighandler_t signal(int signum, sighandler_t handler)`; the handler is
     // passed as an address, so that the default action (`SIG_DFL`, address 0) and
     // real handlers can share one declaration.
     fn signal(signum: c_int, handler: usize) -> usize;
-    fn geteuid() -> u32;
-    fn getegid() -> u32;
-    fn getgroups(size: c_int, list: *mut u32) -> c_int;
-    fn kill(pid: c_int, sig: c_int) -> c_int;
     fn waitpid(pid: c_int, status: *mut c_int, options: c_int) -> c_int;
     // `nfds_t` is `unsigned long` in glibc and musl.
     fn poll(fds: *mut PollFd, nfds: c_ulong, timeout: c_int) -> c_int;
@@ -76,21 +73,25 @@ pub enum Signal {
     Quit,
     /// `SIGKILL`, which cannot be caught: for a program past its time.
     Kill,
-    /// `SIGUSR1`, which tells a running menu to give way to another instance.
+    /// `SIGUSR1`, which tells a running menu to give way to another
+    /// instance, and the console to hand the display back.
     User1,
+    /// `SIGUSR2`, which asks the console for another keyboard layout.
+    User2,
     /// `SIGPIPE`, sent when writing to a pipe that nobody reads.
     Pipe,
     /// `SIGTERM`, the default signal of `kill`.
     Terminate,
 }
 
-/// Every [`Signal`].
-const SIGNALS: [Signal; 7] = [
+/// Every [`Signal`], in the order of their numbers.
+const SIGNALS: [Signal; 8] = [
     Signal::Hangup,
     Signal::Interrupt,
     Signal::Quit,
     Signal::Kill,
     Signal::User1,
+    Signal::User2,
     Signal::Pipe,
     Signal::Terminate,
 ];
@@ -98,13 +99,14 @@ const SIGNALS: [Signal; 7] = [
 impl Signal {
     /// The signal number on Linux, which is the same on every supported
     /// architecture.
-    pub fn number(self) -> i32 {
+    pub const fn number(self) -> i32 {
         match self {
             Signal::Hangup => 1,
             Signal::Interrupt => 2,
             Signal::Quit => 3,
             Signal::Kill => 9,
             Signal::User1 => 10,
+            Signal::User2 => 12,
             Signal::Pipe => 13,
             Signal::Terminate => 15,
         }
@@ -118,6 +120,7 @@ impl Signal {
             Signal::Quit => "QUIT",
             Signal::Kill => "KILL",
             Signal::User1 => "USR1",
+            Signal::User2 => "USR2",
             Signal::Pipe => "PIPE",
             Signal::Terminate => "TERM",
         }
@@ -128,21 +131,12 @@ impl Signal {
     }
 }
 
-/// The last signal caught by [`record_signals`], or 0.
-static RECEIVED: AtomicI32 = AtomicI32::new(0);
-
-extern "C" fn record(signum: c_int) {
-    // Storing to an atomic integer is async-signal-safe.
-    RECEIVED.store(signum, Ordering::SeqCst);
-}
-
 extern "C" fn discard(_: c_int) {}
 
 fn set_handler(signal: Signal, handler: usize) -> std::io::Result<()> {
     // SAFETY: `signal` only changes the disposition of the given signal. The
-    // handler is `SIG_DFL`, `SIG_IGN`, `record`, which has the C ABI and only
-    // performs an async-signal-safe atomic store, or `discard`, which does
-    // nothing.
+    // handler is `SIG_DFL`, `SIG_IGN`, or `discard`, which has the C ABI and
+    // does nothing.
     let previous = unsafe { signal_ffi(signal.number(), handler) };
     if previous == SIG_ERR {
         Err(std::io::Error::last_os_error())
@@ -191,23 +185,6 @@ pub fn restore_default(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, SIG_DFL)
 }
 
-/// Catches the given signals and records them instead of ending the process.
-///
-/// A caught signal does not interrupt the program: system calls are restarted,
-/// and child processes still receive the default action, because handlers are
-/// reset when a program is executed. Call [`received_signal`] to find out
-/// whether one arrived.
-pub fn record_signals(signals: &[Signal]) -> std::io::Result<()> {
-    signals
-        .iter()
-        .try_for_each(|&signal| set_handler(signal, record as extern "C" fn(c_int) as usize))
-}
-
-/// The last signal recorded by [`record_signals`], if any.
-pub fn received_signal() -> Option<Signal> {
-    Signal::from_number(RECEIVED.load(Ordering::SeqCst))
-}
-
 /// Sends `signal` to the process `pid`, as `kill -SIG pid` does.
 pub fn send_signal(pid: u32, signal: Signal) -> std::io::Result<()> {
     // Process IDs above `i32::MAX` do not exist; refusing them also keeps the
@@ -218,12 +195,10 @@ pub fn send_signal(pid: u32, signal: Signal) -> std::io::Result<()> {
         // 0 would signal the caller's own process group.
         return Err(std::io::ErrorKind::InvalidInput.into());
     }
-    // SAFETY: `kill` takes two integers and touches no memory of this process.
-    if unsafe { kill(pid, signal.number()) } == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
+    let pid = rustix::process::Pid::from_raw(pid).ok_or(std::io::ErrorKind::InvalidInput)?;
+    let signal = rustix::process::Signal::from_named_raw(signal.number())
+        .ok_or(std::io::ErrorKind::InvalidInput)?;
+    Ok(rustix::process::kill_process(pid, signal)?)
 }
 
 /// Waits until `fd` has data to read, or end of file, for at most `timeout`
@@ -280,32 +255,13 @@ pub struct Credentials {
 /// Returns the effective credentials of the process, which decide file access
 /// as Perl's `-r` and `-x` tests do.
 pub fn credentials() -> Credentials {
-    // SAFETY: `geteuid` and `getegid` take no arguments and cannot fail.
-    let (uid, gid) = unsafe { (geteuid(), getegid()) };
+    use rustix::process::{Gid, getegid, geteuid, getgroups};
     Credentials {
-        uid,
-        gid,
-        groups: supplementary_groups(),
-    }
-}
-
-fn supplementary_groups() -> Vec<u32> {
-    // SAFETY: with a size of 0, `getgroups` only returns the number of groups and
-    // does not write to the list.
-    let count = unsafe { getgroups(0, std::ptr::null_mut()) };
-    let Ok(capacity) = usize::try_from(count) else {
-        return Vec::new();
-    };
-    let mut groups = vec![0_u32; capacity];
-    // SAFETY: `groups` holds `count` elements, so `getgroups` writes at most
-    // `count` IDs into valid memory.
-    let written = unsafe { getgroups(count, groups.as_mut_ptr()) };
-    match usize::try_from(written) {
-        Ok(written) => {
-            groups.truncate(written);
-            groups
-        }
-        Err(_) => Vec::new(),
+        uid: geteuid().as_raw(),
+        gid: getegid().as_raw(),
+        groups: getgroups()
+            .map(|groups| groups.into_iter().map(Gid::as_raw).collect())
+            .unwrap_or_default(),
     }
 }
 
@@ -389,23 +345,9 @@ mod tests {
         assert_eq!(Signal::from_number(31), None);
         assert_eq!(Signal::Hangup.number(), 1);
         assert_eq!(Signal::Hangup.name(), "HUP");
+        assert_eq!(Signal::User2.number(), 12);
+        assert_eq!(Signal::from_number(12), Some(Signal::User2));
         assert_eq!(Signal::from_number(1), Some(Signal::Hangup));
-    }
-
-    #[test]
-    fn recorded_signal_does_not_end_the_process() {
-        let _guard = PROCESSES.lock().unwrap();
-        record_signals(&[Signal::Terminate]).unwrap();
-        let status = std::process::Command::new("kill")
-            .args(["-TERM", &std::process::id().to_string()])
-            .status()
-            .unwrap();
-        assert!(status.success());
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while received_signal() != Some(Signal::Terminate) {
-            assert!(Instant::now() < deadline, "SIGTERM was not recorded");
-            std::thread::sleep(Duration::from_millis(10));
-        }
     }
 
     #[test]

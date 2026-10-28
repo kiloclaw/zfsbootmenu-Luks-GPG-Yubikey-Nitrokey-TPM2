@@ -10,8 +10,15 @@ fn main() {
     // its backup and the new one not in place. SIGPIPE stays ignored, as the
     // standard library sets it; programs it starts get the default action
     // back. SIGINT and SIGTERM unmount the boot partition and exit with status
-    // 1 (child programs still receive them).
-    let _ = zbm_sys::record_signals(&[zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate]);
+    // 1 (child programs still receive them): they wait to be read, blocked
+    // first, before any thread starts.
+    let stopping = [zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate];
+    let signals = zbm_sys::Signals::block(zbm_sys::SignalSet::of(&stopping)).ok();
+    let signal = || {
+        signals
+            .as_ref()
+            .and_then(|signals| signals.received().first())
+    };
 
     let (program, args) = match zbm_core::args::split(std::env::args_os(), "generate-zbm") {
         Ok(split) => split,
@@ -21,7 +28,7 @@ fn main() {
         }
     };
     let runner = zbm_platform::exec::SystemRunner;
-    let context = generate_zbm::generate::Context::from_environment(&runner, program);
+    let context = generate_zbm::generate::Context::from_environment(&runner, program, &signal);
 
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();

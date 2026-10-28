@@ -10,13 +10,13 @@
 
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, AsRawFd as _, OwnedFd};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use rustix::termios::{self, OptionalActions};
 use zbm_sys::console::{Watch, wait_ready};
 
 use crate::host::{CHUNK, Outgoing, read_output};
+use crate::release::Requests;
 use crate::run::Input;
 use crate::screen::Console;
 
@@ -102,7 +102,7 @@ pub enum Relayed {
 pub fn relay<M, T>(
     master: &mut M,
     terminal: &mut T,
-    reattach: Option<&AtomicBool>,
+    reattach: Option<&Requests>,
     kept: Option<&mut Console>,
 ) -> io::Result<Relayed>
 where
@@ -124,7 +124,7 @@ where
     // With a request to wait for, the relay looks for it every tick.
     let timeout = reattach.map(|_| crate::run::TICK);
     let outcome = loop {
-        if reattach.is_some_and(|asked| asked.swap(false, Ordering::SeqCst)) {
+        if reattach.is_some_and(Requests::was_release_requested) {
             break Ok(Relayed::Reattach);
         }
         match sides.step(timeout) {

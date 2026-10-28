@@ -3986,7 +3986,6 @@ dependencies = [
  "insta",
  "pretty_assertions",
  "rustix",
- "signal-hook 0.4.5",
  "zbm-core",
  "zbm-display",
  "zbm-platform",
@@ -4128,6 +4127,9 @@ dependencies = [
 [[package]]
 name = "zbm-sys"
 version = "0.1.0"
+dependencies = [
+ "rustix",
+]
 
 [[package]]
 name = "zbm-testkit"
