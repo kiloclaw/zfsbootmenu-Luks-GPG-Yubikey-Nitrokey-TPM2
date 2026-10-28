@@ -28,8 +28,9 @@ use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Runner, SystemRunner};
 use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_tools::efi as efi_tools;
-use zbm_zfs::ZfsCommand;
+use zbm_types::DatasetName;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
+use zbm_zfs::{Stderr, ZfsText};
 
 mod edit;
 pub mod efi;
@@ -193,8 +194,8 @@ impl Drop for TempFile {
 
 /// Where the command line comes from and goes to.
 enum Target {
-    /// A boot environment's property.
-    Zfs(String),
+    /// A boot environment's property, and the dataset the changes go to.
+    Zfs(DatasetName, DatasetName),
     /// An EFI image in the workspace.
     Efi(PathBuf),
 }
@@ -339,20 +340,32 @@ fn target(
     io: &mut Io,
     workspace: &mut Workspace,
     options: &Options,
-    zfs: &ZfsCommand,
+    zfs: &ZfsText,
 ) -> Result<Target, i32> {
     let (input, output) = (&options.input, &options.output);
     if input == "-" || is_file(input) {
-        efi_target(context, io, workspace, options)
-    } else if !zfs.exists(input) {
-        error(io, "KCL source is not a ZFS filesystem or EFI executable");
-        Err(1)
-    } else if output != input && !zfs.exists(output) {
-        error(io, "KCL destination is not a ZFS filesystem");
-        Err(1)
-    } else {
-        Ok(Target::Zfs(input.clone()))
+        return efi_target(context, io, workspace, options);
     }
+    // A name that is not a dataset's is no ZFS filesystem either.
+    let existing = |name: &str| {
+        name.parse::<DatasetName>()
+            .ok()
+            .filter(|dataset| zfs.exists(dataset))
+    };
+    let Some(source) = existing(input) else {
+        error(io, "KCL source is not a ZFS filesystem or EFI executable");
+        return Err(1);
+    };
+    let destination = if output == input {
+        Some(source.clone())
+    } else {
+        existing(output)
+    };
+    let Some(destination) = destination else {
+        error(io, "KCL destination is not a ZFS filesystem");
+        return Err(1);
+    };
+    Ok(Target::Zfs(source, destination))
 }
 
 /// Reads, tokenizes and modifies the command line into `temp_kcl`. As in the
@@ -363,14 +376,14 @@ fn read_tokens(
     io: &mut Io,
     options: &Options,
     target: &Target,
-    zfs: &ZfsCommand,
+    zfs: &ZfsText,
     temp_kcl: &Path,
 ) -> Result<String, i32> {
     let raw = if options.delete {
         String::new()
     } else {
         match target {
-            Target::Zfs(dataset) => raw_kcl_zfs(zfs, dataset),
+            Target::Zfs(dataset, _) => raw_kcl_zfs(zfs, dataset),
             Target::Efi(image) => raw_kcl_efi(context, io, image),
         }
     };
@@ -423,7 +436,7 @@ fn run_in(
 ) -> Result<(), i32> {
     let mut options = parse(context, args, io)?;
     default_input(context, io, &mut options)?;
-    let zfs = ZfsCommand::new(context.runner);
+    let zfs = ZfsText::new(context.runner);
     let target = target(context, io, workspace, &options, &zfs)?;
     let Ok(temp_kcl) = create_temp_file(&context.temp_dir, "tmp.XXXXXXXXXX") else {
         error(io, "failed to create temporary KCL file");
@@ -442,7 +455,7 @@ fn run_in(
         .map(|text| kcl::assemble(&String::from_utf8_lossy(&text)))
         .unwrap_or_default();
     let saved = match &target {
-        Target::Zfs(_) => save::to_dataset(&zfs, &assembled, &options.output),
+        Target::Zfs(_, destination) => save::to_dataset(&zfs, &assembled, destination),
         Target::Efi(image) => save::to_image(context, &assembled, image),
     };
     saved.map_err(|failure| report(io, failure, Some("failed to save KCL changes")))?;
@@ -453,8 +466,8 @@ fn run_in(
 }
 
 /// The property's value, empty when it is not set or cannot be read.
-fn raw_kcl_zfs(zfs: &ZfsCommand, dataset: &str) -> String {
-    match zfs.get_value(COMMANDLINE.name, dataset) {
+fn raw_kcl_zfs(zfs: &ZfsText, dataset: &DatasetName) -> String {
+    match zfs.value(dataset, COMMANDLINE.name, Stderr::Console) {
         Some(value) if value != "-" => format!("{value}\n"),
         _ => String::new(),
     }

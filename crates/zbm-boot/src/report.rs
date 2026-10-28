@@ -24,7 +24,7 @@ use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
 use zbm_tools::devices::Devices;
 use zbm_types::KernelCommandLine;
-use zbm_zfs::{Stderr, ZpoolCommand};
+use zbm_zfs::ZfsText;
 
 use crate::saved_logs::{self, SaveError, stamp};
 
@@ -67,10 +67,7 @@ fn versions(files: &dyn Files, text: &mut String) {
 /// The pools' status (`zpool status -P`).
 fn pools(system: &System<'_>, text: &mut String) {
     let _ = writeln!(text, "== pools");
-    let status = ZpoolCommand::new(system.runner)
-        .text(&["status", "-P"], Stderr::Hidden)
-        .map(|output| output.stdout_text())
-        .unwrap_or_default();
+    let status = ZfsText::new(system.runner).status();
     let status = if status.trim().is_empty() {
         "no pool is imported".to_owned()
     } else {

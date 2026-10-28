@@ -19,9 +19,11 @@
 
 use std::path::{Path, PathBuf};
 
+use zbm_config::parent::CommandLineSource;
 use zbm_testkit::FakeRunner;
+use zbm_types::{DatasetName, PoolName};
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
-use zbm_zfs::{ZfsCommand, ZpoolCommand, parse_table};
+use zbm_zfs::{Stderr, ZfsText, parse_table};
 
 fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -50,33 +52,25 @@ fn recorded() -> FakeRunner {
 #[test]
 fn datasets_and_properties() {
     let runner = recorded();
-    let zfs = ZfsCommand::new(&runner);
-    assert!(zfs.exists("tfix/ROOT/be"));
-    assert!(zfs.is_filesystem("tfix/ROOT/be"));
-    assert!(!zfs.is_filesystem("tfix/ROOT/be@one"));
+    let zfs = ZfsText::new(&runner);
+    let name = |name: &str| name.parse::<DatasetName>().unwrap();
+    assert!(zfs.exists(&name("tfix/ROOT/be")));
+    assert!(zfs.is_filesystem(&name("tfix/ROOT/be")));
     let property = "org.zfsbootmenu:commandline";
+    let value = |dataset: &str| zfs.value(&name(dataset), property, Stderr::Console);
+    assert_eq!(value("tfix/ROOT/other").as_deref(), Some("%{parent} rw"));
+    assert_eq!(value("tfix/ROOT/be").as_deref(), Some("quiet loglevel=4"));
+    assert_eq!(value("tfix").as_deref(), Some("-"));
     assert_eq!(
-        zfs.get_value(property, "tfix/ROOT/other").as_deref(),
-        Some("%{parent} rw")
-    );
-    assert_eq!(
-        zfs.get_value(property, "tfix/ROOT/be").as_deref(),
-        Some("quiet loglevel=4")
-    );
-    assert_eq!(zfs.get_value(property, "tfix").as_deref(), Some("-"));
-    assert_eq!(
-        zfs.inherited_source(property, "tfix/ROOT/be").as_deref(),
+        zfs.inherited_source("tfix/ROOT/be").as_deref(),
         Some("inherited from tfix/ROOT")
     );
-    assert_eq!(
-        zfs.inherited_source(property, "tfix/ROOT/other").as_deref(),
-        Some("")
-    );
+    assert_eq!(zfs.inherited_source("tfix/ROOT/other").as_deref(), Some(""));
 
-    let zpool = ZpoolCommand::new(&runner);
-    assert_eq!(zpool.imported(), ["tfix"]);
+    let tfix = "tfix".parse::<PoolName>().unwrap();
+    assert_eq!(zfs.imported(Stderr::Console), [tfix.clone()]);
     assert_eq!(
-        zpool.get_value("bootfs", "tfix").as_deref(),
+        zfs.pool_value(&tfix, "bootfs", Stderr::Console).as_deref(),
         Some("tfix/ROOT/be")
     );
 }
@@ -84,7 +78,7 @@ fn datasets_and_properties() {
 #[test]
 fn parent_references_expand_through_the_recorded_properties() {
     let runner = recorded();
-    let zfs = ZfsCommand::new(&runner);
+    let zfs = ZfsText::new(&runner);
     let mut log = Vec::new();
     assert_eq!(
         zbm_config::parent::read_kcl_prop(&zfs, "tfix/ROOT/other", &mut log).as_deref(),

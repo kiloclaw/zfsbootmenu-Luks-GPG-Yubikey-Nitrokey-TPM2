@@ -125,8 +125,7 @@ fn cache_kernel_kcl(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &str,
 
 /// The value of `org.zfsbootmenu:kernel` on `fs`, when it is set.
 pub fn kernel_property(system: &System<'_>, fs: &FilesystemName) -> Option<String> {
-    zfs_value(system.runner, KERNEL.name, &fs.to_string())
-        .filter(|value| !value.is_empty() && value != "-")
+    zfs_value(system.runner, KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
 }
 
 /// The kernel to boot from the kernel list of `fs`: the last one, or the last
@@ -153,7 +152,7 @@ pub fn select_kernel(
         .unwrap_or_default()
         .to_owned();
 
-    let property = zfs_value(system.runner, KERNEL.name, fs).unwrap_or_default();
+    let property = zfs_value(system.runner, KERNEL.name, filesystem).unwrap_or_default();
     if property != "-" {
         zbm_trace::debug!("{} set to {property}", KERNEL.name);
         if let Ok(selector) = property.parse::<KernelSelector>() {

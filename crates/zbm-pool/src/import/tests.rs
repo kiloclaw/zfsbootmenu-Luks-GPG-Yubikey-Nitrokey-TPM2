@@ -1,9 +1,11 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
+use zbm_platform::exec::Output;
 use zbm_platform::{Installed, KernelLog};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::stub_lines;
+use zbm_types::ImportPolicy;
 
 use super::*;
 use crate::hostid::ETC_HOSTID;
@@ -241,7 +243,11 @@ fn imported_pools_are_listed_by_name() {
     let fake = FakeSystem::new();
     fake.runner
         .respond("zpool list -H -o name", 0, "tank\nboot\n");
-    assert_eq!(imported_pools(fake.system().runner), ["tank", "boot"]);
+    let names: Vec<String> = imported_pools(fake.system().runner)
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(names, ["tank", "boot"]);
     let none = FakeSystem::new();
     none.runner.respond("zpool list -H -o name", 0, "");
     assert!(imported_pools(none.context().runner()).is_empty());

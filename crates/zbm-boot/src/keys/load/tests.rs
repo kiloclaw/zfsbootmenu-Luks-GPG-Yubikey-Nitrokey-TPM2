@@ -248,7 +248,7 @@ fn a_boot_chosen_in_the_menu_copies_the_key_from_its_key_source() {
         .loads("prompt", "tank/keys")
         .loads(&format!("file://{cached}"), "tank/ROOT");
     machine.fake.runner.respond(
-        "zfs get -o value -H mountpoint tank/keys",
+        "zfs get -H -o value mountpoint tank/keys",
         0,
         "/etc/zfs/keys\n",
     );

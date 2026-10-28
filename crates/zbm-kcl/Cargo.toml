@@ -13,6 +13,7 @@ zbm-config.workspace = true
 zbm-platform.workspace = true
 zbm-sys.workspace = true
 zbm-tools.workspace = true
+zbm-types.workspace = true
 zbm-zfs.workspace = true
 
 [dev-dependencies]

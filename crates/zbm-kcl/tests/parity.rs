@@ -267,7 +267,22 @@ fn compare(
         legacy.stderr,
         "stderr, {describe}"
     );
-    assert_eq!(sandbox.state(), legacy.state, "state, {describe}");
+    assert_eq!(
+        sandbox.state(),
+        without_option_lookups(&legacy.state),
+        "state, {describe}"
+    );
+}
+
+/// `state` without the `zfs list` runs the legacy tool made for a dataset
+/// argument such as `-a`, which `zfs` took for an option: the Rust tool
+/// refuses a name that is not a dataset's before it runs `zfs`.
+fn without_option_lookups(state: &str) -> String {
+    state
+        .lines()
+        .filter(|line| !line.starts_with("list -o name -H -"))
+        .flat_map(|line| [line, "\n"])
+        .collect()
 }
 
 #[test]

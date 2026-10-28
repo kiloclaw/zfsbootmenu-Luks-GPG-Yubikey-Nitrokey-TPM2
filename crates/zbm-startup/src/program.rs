@@ -33,7 +33,7 @@ use zbm_pool::Build;
 use zbm_state::State;
 use zbm_tools::programs;
 use zbm_types::{DatasetName, FilesystemName, PoolRequirement};
-use zbm_zfs::{Stderr, ZpoolCommand};
+use zbm_zfs::{Stderr, ZfsText};
 
 use crate::front::{ConsoleFront, Front};
 use crate::shell::Shell;
@@ -368,10 +368,8 @@ impl<'a> Startup<'a> {
             let reimport = Import::target(pool).policy(settings.policy);
             let context = Context::new(self.system);
             let _ = import::import_pool(&context, &self.state, reimport);
-            let output = ZpoolCommand::new(self.system.runner)
-                .text(&["list", "-H", "-o", "name,health"], Stderr::Hidden)
-                .map(|output| output.stdout_text())
-                .unwrap_or_default();
+            let output =
+                ZfsText::new(self.system.runner).pools_list(&["name", "health"], Stderr::Hidden);
             for line in import::tab_lines(&output) {
                 let (pool, health) = import::tab_fields(&line);
                 if !pool.is_empty() && health != "ONLINE" && !self.state.is_degraded(pool) {

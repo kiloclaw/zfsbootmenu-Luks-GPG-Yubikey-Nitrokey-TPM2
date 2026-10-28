@@ -20,7 +20,7 @@ use std::path::Path;
 use zbm_config::spec::properties::KEYSOURCE;
 use zbm_platform::{Files, Runner};
 use zbm_types::DatasetName;
-use zbm_zfs::{Stderr, ZfsCommand};
+use zbm_zfs::ZfsText;
 
 use crate::boot::{encryption_root, zfs_value};
 
@@ -67,28 +67,24 @@ impl fmt::Display for KeySource {
 
 /// The value of `org.zfsbootmenu:keysource` on `fs`, unset (`-`) as `None`.
 pub fn keysource_property(runner: &dyn Runner, fs: &DatasetName) -> Option<String> {
-    zfs_value(runner, KEYSOURCE.name, fs.as_str()).filter(|value| !value.is_empty() && value != "-")
+    zfs_value(runner, KEYSOURCE.name, fs).filter(|value| !value.is_empty() && value != "-")
 }
 
 /// The key source of `fs`: the filesystem its
 /// `org.zfsbootmenu:keysource` names, if that exists and is encrypted.
 pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
     zbm_trace::debug!("fs set to {fs}");
-    let Some(source) = zfs_value(runner, KEYSOURCE.name, fs.as_str()) else {
+    let Some(source) = zfs_value(runner, KEYSOURCE.name, fs) else {
         zbm_trace::warn!("failed to read {} on {fs}", KEYSOURCE.name);
         return None;
     };
     if source.is_empty() || source == "-" {
         return None;
     }
-    let listed = source.parse::<DatasetName>().ok().filter(|source| {
-        ZfsCommand::new(runner)
-            .text(
-                &["list", "-o", "name", "-H", source.as_str()],
-                Stderr::Hidden,
-            )
-            .is_ok_and(|output| output.status.is_success())
-    });
+    let listed = source
+        .parse::<DatasetName>()
+        .ok()
+        .filter(|source| ZfsText::new(runner).exists(source));
     let Some(source) = listed else {
         zbm_trace::debug!("keysource {source} for {fs} is not a filesystem");
         return None;
@@ -122,7 +118,7 @@ pub fn key_source(
     files: &dyn Files,
     fs: &DatasetName,
     path: BootPath,
-) -> Option<(String, KeySource)> {
+) -> Option<(DatasetName, KeySource)> {
     let root = encryption_root(runner, fs)?;
     let keylocation = zfs_value(runner, "keylocation", &root).unwrap_or_else(|| "prompt".into());
     if keylocation == "prompt" {

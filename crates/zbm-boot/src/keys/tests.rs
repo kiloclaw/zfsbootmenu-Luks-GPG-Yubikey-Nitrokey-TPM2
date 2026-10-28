@@ -55,7 +55,7 @@ fn source(fake: &FakeSystem) -> Option<KeySource> {
         BootPath::Menu,
     )
     .map(|(root, source)| {
-        assert_eq!(root, "tank/ROOT");
+        assert_eq!(root, name("tank/ROOT"));
         source
     })
 }
@@ -87,7 +87,7 @@ fn a_missing_key_file_is_copied_from_an_encrypted_key_source_from_the_menu() {
         &name("tank/ROOT/be"),
         BootPath::Countdown,
     );
-    assert_eq!(countdown, Some(("tank/ROOT".into(), KeySource::Prompt)));
+    assert_eq!(countdown, Some((name("tank/ROOT"), KeySource::Prompt)));
     assert_eq!(BootPath::default(), BootPath::Countdown);
 }
 

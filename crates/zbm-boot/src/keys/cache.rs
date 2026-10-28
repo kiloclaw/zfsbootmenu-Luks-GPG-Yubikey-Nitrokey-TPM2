@@ -10,7 +10,7 @@ use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 use zbm_types::{DatasetName, FilesystemName};
-use zbm_zfs::{Stderr, ZfsCommand};
+use zbm_zfs::{Stderr, ZfsText};
 
 use super::load::{KeyLoad, load_key};
 use super::{keysource, stripped};
@@ -107,7 +107,7 @@ fn copy_from_source(
         zbm_trace::error!("failed to mount {source}");
         return;
     };
-    if let Some(keypath) = key_in_source(system, source.as_str(), keyfile, &mnt) {
+    if let Some(keypath) = key_in_source(system, source, keyfile, &mnt) {
         copy_key(system.files, &keypath, keyfile, keycache);
     }
     let _ = Mount::new(system.runner).unmount(&mnt, Shown::Console);
@@ -136,15 +136,14 @@ fn relative_key(source: &str, keyfile: &str, ksmount: &str) -> String {
 
 /// The key file in `source`, mounted at `mnt`: at its path relative to the
 /// mount point of `source`, or else at its absolute path below `mnt`.
-fn key_in_source(system: &System<'_>, source: &str, keyfile: &str, mnt: &Path) -> Option<PathBuf> {
-    let ksmount = ZfsCommand::new(system.runner)
-        .text(
-            &["get", "-o", "value", "-H", "mountpoint", source],
-            Stderr::Hidden,
-        )
-        .ok()
-        .filter(|output| output.status.is_success())
-        .map(|output| output.stdout_text().trim_end_matches('\n').to_owned());
+fn key_in_source(
+    system: &System<'_>,
+    source: &DatasetName,
+    keyfile: &str,
+    mnt: &Path,
+) -> Option<PathBuf> {
+    let ksmount = ZfsText::new(system.runner).value(source, "mountpoint", Stderr::Hidden);
+    let source = source.as_str();
     let relative = ksmount.map_or_else(String::new, |m| relative_key(source, keyfile, &m));
     let keypath = if !relative.is_empty() && system.files.exists(&below(mnt, &relative)) {
         zbm_trace::debug!("caching key from mount-relative path {source}:{relative}");

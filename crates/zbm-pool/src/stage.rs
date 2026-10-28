@@ -15,9 +15,9 @@ use zbm_trace::Level;
 use zbm_types::{
     Answer, BootfsPreference, DatasetName, HostId, PoolName, PoolRequirement, RetryDelay,
 };
-use zbm_zfs::{Stderr, ZfsCommand, ZpoolCommand};
+use zbm_zfs::{Stderr, ZfsText};
 
-use crate::import::{Import, import_pool, imported_pools, log_unimportable, match_hostid, stdout};
+use crate::import::{Import, import_pool, imported_pools, log_unimportable, match_hostid};
 use crate::retry::{AfterImport, Found, ImportLoop, Matched, Next};
 use crate::settings::{Build, ImportSettings};
 use crate::text::{here_lines, tab_fields, tab_lines};
@@ -161,9 +161,8 @@ fn failed(
 
 /// Restricts read-write access to every pool that is not `ONLINE`.
 fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>) {
-    let list =
-        ZpoolCommand::new(runner).text(&["list", "-H", "-o", "name,health"], Stderr::Console);
-    for line in tab_lines(&stdout(list)) {
+    let list = ZfsText::new(runner).pools_list(&["name", "health"], Stderr::Console);
+    for line in tab_lines(&list) {
         let (pool, health) = tab_fields(&line);
         if health != "ONLINE" {
             if let Err(error) = state.restrict(pool) {
@@ -182,12 +181,9 @@ fn check_unsupported(
     settings: &ImportSettings,
     operator: &mut dyn Operator,
 ) {
-    let get = ZpoolCommand::new(runner).text(
-        &["get", "all", "-H", "-o", "name,property"],
-        Stderr::Console,
-    );
+    let get = ZfsText::new(runner).pool_properties(Stderr::Console);
     let mut found = Found::Nothing;
-    for line in tab_lines(&stdout(get)) {
+    for line in tab_lines(&get) {
         let (pool, property) = tab_fields(&line);
         if !property.contains("unsupported@") {
             continue;
@@ -230,12 +226,12 @@ fn find_bootfs(
 pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<DatasetName> {
     let preferred = match &settings.prefer_bootfs {
         BootfsPreference::FromPool => return pool_bootfs(runner, settings.prefer_pool.as_ref()),
+        BootfsPreference::Dataset(dataset) if ZfsText::new(runner).is_filesystem(dataset) => {
+            return Some(dataset.clone());
+        }
         BootfsPreference::Dataset(dataset) => dataset.as_str(),
         BootfsPreference::Invalid(text) => text.as_str(),
     };
-    if ZfsCommand::new(runner).is_filesystem(preferred) {
-        return preferred.parse().ok();
-    }
     zbm_trace::error!("bootfs value '{preferred}' not a ZFS dataset");
     None
 }
@@ -243,11 +239,9 @@ pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<D
 /// The `bootfs` property of `pool`, or of the first imported pool that sets
 /// it.
 fn pool_bootfs(runner: &dyn Runner, pool: Option<&PoolName>) -> Option<DatasetName> {
-    let pool = pool.map_or("--", PoolName::as_str);
-    let list =
-        ZpoolCommand::new(runner).text(&["list", "-H", "-o", BOOTFS.name, pool], Stderr::Console);
+    let list = ZfsText::new(runner).pool_list(pool, &[BOOTFS.name], Stderr::Console);
     // The first line that is not `-` decides; an empty one means none.
-    let bootfs = here_lines(&stdout(list))
+    let bootfs = here_lines(&list)
         .into_iter()
         .find(|line| line != "-")
         .filter(|line| !line.is_empty())?;

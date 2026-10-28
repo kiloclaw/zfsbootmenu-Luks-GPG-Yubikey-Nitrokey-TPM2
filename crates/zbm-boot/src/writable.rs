@@ -12,7 +12,7 @@ use zbm_pool::import::{Access, Import, import_pool};
 use zbm_state::State;
 use zbm_types::ImportPolicy;
 use zbm_types::PoolName;
-use zbm_zfs::ZpoolCommand;
+use zbm_zfs::{Stderr, ZfsText};
 
 use crate::boot::{export_pool, is_writable};
 use crate::error::BootError;
@@ -55,13 +55,14 @@ fn disable_risky_writes(system: &System<'_>) {
 fn prohibition(
     system: &System<'_>,
     state: &State<'_>,
-    pool: &str,
+    pool: &PoolName,
 ) -> Result<Option<String>, BootError> {
-    let flag = ZpoolCommand::new(system.runner)
-        .get_value(READONLY, pool)
+    let flag = ZfsText::new(system.runner)
+        .pool_value(pool, READONLY, Stderr::Console)
         .ok_or_else(|| BootError::PoolProperty {
-            pool: pool.to_owned(),
+            pool: pool.to_string(),
         })?;
+    let pool = pool.as_str();
     zbm_trace::debug!("{pool} {READONLY} property: {flag}");
     let mut reasons = Vec::new();
     if flag != "-" && flag != "off" {
@@ -101,7 +102,7 @@ pub fn set_rw_pool(
         return Ok(());
     }
     zbm_trace::debug!("{pool} is not already writable");
-    if let Some(reason) = prohibition(system, state, pool.as_str())? {
+    if let Some(reason) = prohibition(system, state, pool)? {
         return Err(BootError::ReadWriteProhibited {
             pool: pool.to_string(),
             reason,

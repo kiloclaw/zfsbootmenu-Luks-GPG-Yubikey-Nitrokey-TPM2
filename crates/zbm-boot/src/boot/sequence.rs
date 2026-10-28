@@ -10,7 +10,7 @@ use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
 use zbm_types::{DatasetName, FilesystemName, HookStage, ImportPolicy, KernelCommandLine};
-use zbm_zfs::ZfsCommand;
+use zbm_zfs::ZfsText;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
 use super::zfs::{export_writable_pools, substituted, zfs_value};
@@ -58,7 +58,7 @@ impl Default for BootSettings {
 
 /// The root prefix of `fs` mounted at `mnt`, with a debug message naming
 /// where it came from.
-fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
+fn find_root_prefix(system: &System<'_>, fs: &FilesystemName, mnt: &Path) -> String {
     zbm_trace::debug!("zfsbe_fs set to {fs}");
     zbm_trace::debug!("zfsbe_mnt set to {}", mnt.display());
     let property = zfs_value(system.runner, ROOTPREFIX.name, fs);
@@ -78,21 +78,23 @@ fn load_key(system: &System<'_>, state: &State<'_>, settings: &BootSettings, fs:
 }
 
 /// Loads the key of `fs` and mounts it, clearing the screen in between; the
-/// mount point, or `None` when it cannot be mounted. A kernel list line
-/// whose dataset is no name fails to mount.
+/// filesystem and its mount point, or `None` when it cannot be mounted. A
+/// kernel list line whose dataset is no name fails to mount.
 fn load_and_mount(
     system: &System<'_>,
     state: &State<'_>,
     settings: &BootSettings,
     fs: &str,
-) -> Option<PathBuf> {
+) -> Option<(FilesystemName, PathBuf)> {
     let filesystem = fs.parse::<FilesystemName>().ok();
     if let Some(filesystem) = &filesystem {
         load_key(system, state, settings, filesystem.dataset());
     }
     tput(system, &["cnorm"]);
     tput(system, &["clear"]);
-    mount_zfs(system, state, &filesystem?, Noise::Shown)
+    let filesystem = filesystem?;
+    let mnt = mount_zfs(system, state, &filesystem, Noise::Shown)?;
+    Some((filesystem, mnt))
 }
 
 /// Boots `selected`: mounts it, runs the `boot-sel.d` hooks, loads the kernel
@@ -118,7 +120,7 @@ pub fn kexec_kernel(
     }
     zbm_trace::debug!("fs: {fs}, kernel: {kernel}, initramfs: {initramfs}");
 
-    let Some(mnt) = load_and_mount(system, state, settings, fs) else {
+    let Some((filesystem, mnt)) = load_and_mount(system, state, settings, fs) else {
         recovery.emergency_shell(&format!("unable to mount {}", colorize("cyan", fs)));
         return;
     };
@@ -127,7 +129,7 @@ pub fn kexec_kernel(
     run_boot_sel_hooks(system, settings, &hook_env, &mnt_text);
 
     let cli_args = command_line(system, state, settings, fs, kernel);
-    let root_prefix = find_root_prefix(system, fs, &mnt);
+    let root_prefix = find_root_prefix(system, &filesystem, &mnt);
     let Some(root) = commandline::root_argument(&root_prefix, fs) else {
         zbm_trace::error!(
             root_prefix,
@@ -138,7 +140,7 @@ pub fn kexec_kernel(
         recovery.emergency_shell(&format!("unable to boot {}", colorize("cyan", fs)));
         return;
     };
-    let dtb = find_devicetree(system, fs, kernel, &mnt);
+    let dtb = find_devicetree(system, &filesystem, kernel, &mnt);
     let load = KexecLoad {
         mnt: &mnt_text,
         kernel,
@@ -205,7 +207,7 @@ fn command_line(
     kernel: &str,
 ) -> KernelCommandLine {
     let mut messages = Vec::new();
-    let zfs = ZfsCommand::new(system.runner);
+    let zfs = ZfsText::new(system.runner);
     let cli_args = match &settings.command_line {
         Some(line) => commandline::edited_cmdline(
             system.files,
@@ -234,7 +236,12 @@ fn command_line(
 /// The device tree file that `org.zfsbootmenu:devicetree` of `fs` names for
 /// `kernel` in the boot environment mounted at `mnt`, if the property is set
 /// and the file exists.
-fn find_devicetree(system: &System<'_>, fs: &str, kernel: &str, mnt: &Path) -> Option<PathBuf> {
+fn find_devicetree(
+    system: &System<'_>,
+    fs: &FilesystemName,
+    kernel: &str,
+    mnt: &Path,
+) -> Option<PathBuf> {
     let dtb_property = zfs_value(system.runner, DEVICETREE.name, fs);
     match dtb_property.as_deref() {
         Some(property) if !property.is_empty() && property != "-" => {

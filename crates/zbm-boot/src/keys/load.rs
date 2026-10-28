@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::{DatasetName, HookStage};
-use zbm_zfs::ZfsCommand;
+use zbm_zfs::ZfsText;
 
 use super::{BootPath, cache, keysource, stripped};
 use crate::boot::{locked_root, zfs_value};
@@ -46,21 +46,21 @@ enum KeyPath {
     Missing,
 }
 
-fn not_loaded(root: &str) -> BootError {
+fn not_loaded(root: &DatasetName) -> BootError {
     BootError::KeyNotLoaded {
-        root: root.to_owned(),
+        root: root.to_string(),
     }
 }
 
 /// Asks for the passphrase of `root` on the console, after clearing the
 /// screen when `clear` says so.
-fn prompt(system: &System<'_>, root: &str, clear: Clear) -> Result<(), BootError> {
+fn prompt(system: &System<'_>, root: &DatasetName, clear: Clear) -> Result<(), BootError> {
     if clear == Clear::Yes {
         tput(system, &["clear"]);
         tput(system, &["cup", "0", "0"]);
     }
     zbm_trace::debug!("prompting for passphrase for {root}");
-    let loaded = ZfsCommand::new(system.runner).load_key(root, "prompt");
+    let loaded = ZfsText::new(system.runner).load_key(root, "prompt");
     if loaded.unwrap_or(false) {
         Ok(())
     } else {
@@ -74,11 +74,11 @@ fn is_unlocked_by_hooks(
     system: &System<'_>,
     hooks_root: &Path,
     fs: &DatasetName,
-    root: &str,
+    root: &DatasetName,
 ) -> bool {
     let env = [
         ("ZBM_LOCKED_FS", fs.as_str()),
-        ("ZBM_ENCRYPTION_ROOT", root),
+        ("ZBM_ENCRYPTION_ROOT", root.as_str()),
     ];
     if hooks::run_stage(system, hooks_root, HookStage::LoadKey, false, &env) > 0
         && locked_root(system.runner, fs).is_none()
@@ -96,7 +96,7 @@ fn key_path(
     state: &State<'_>,
     how: &KeyLoad<'_>,
     fs: &DatasetName,
-    root: &str,
+    root: &DatasetName,
     keylocation: &str,
 ) -> KeyPath {
     let key = stripped(keylocation);
@@ -127,10 +127,15 @@ fn key_path(
 
 /// Loads the key of `root`, the encryption root of `fs`, from `keypath`
 /// if it is still locked; true when that unlocked it.
-fn is_loaded_from(system: &System<'_>, fs: &DatasetName, root: &str, keypath: &Path) -> bool {
+fn is_loaded_from(
+    system: &System<'_>,
+    fs: &DatasetName,
+    root: &DatasetName,
+    keypath: &Path,
+) -> bool {
     let location = format!("file://{}", keypath.display());
     let loaded = locked_root(system.runner, fs).is_some()
-        && ZfsCommand::new(system.runner)
+        && ZfsText::new(system.runner)
             .load_key(root, &location)
             .unwrap_or(false);
     if loaded {

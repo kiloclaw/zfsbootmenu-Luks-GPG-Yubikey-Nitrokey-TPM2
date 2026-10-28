@@ -8,9 +8,9 @@ use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
 use zbm_types::FilesystemName;
-use zbm_zfs::{Stderr, ZfsCommand};
+use zbm_zfs::{Stderr, ZfsText};
 
-use super::zfs::{locked_root, substituted};
+use super::zfs::locked_root;
 use crate::error::BootError;
 
 /// The state directory of a boot environment, created if needed.
@@ -66,9 +66,8 @@ pub fn mount_zfs(
         Noise::Shown => Stderr::Console,
         Noise::Hidden => Stderr::Hidden,
     };
-    let mountpoint = ZfsCommand::new(system.runner)
-        .text(&["get", "-H", "-o", "value", "mountpoint", &name], errors);
-    let legacy = substituted(mountpoint).1 == "legacy";
+    let mountpoint = ZfsText::new(system.runner).value(fs, "mountpoint", errors);
+    let legacy = mountpoint.as_deref() == Some("legacy");
     let mnt_text = mnt.to_string_lossy();
     let options = if legacy || fs.is_snapshot() {
         zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");

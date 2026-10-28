@@ -7,7 +7,8 @@ use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::Output;
 use zbm_platform::filetest::{create_temp_file, is_readable};
 use zbm_tools::efi as efi_tools;
-use zbm_zfs::ZfsCommand;
+use zbm_types::DatasetName;
+use zbm_zfs::ZfsText;
 
 use crate::{Context, Failure, TempFile, efi};
 
@@ -17,16 +18,20 @@ use crate::{Context, Failure, TempFile, efi};
 /// # Errors
 ///
 /// The message to print when `zfs` fails.
-pub(crate) fn to_dataset(zfs: &ZfsCommand, assembled: &str, dataset: &str) -> Result<(), Failure> {
+pub(crate) fn to_dataset(
+    zfs: &ZfsText,
+    assembled: &str,
+    dataset: &DatasetName,
+) -> Result<(), Failure> {
     // `kcl="$(cat)"` drops trailing newlines and NUL bytes.
     let kcl = assembled.trim_end_matches('\n').replace('\0', "");
     if kcl.is_empty() {
-        if !zfs.inherit(COMMANDLINE.name, dataset).unwrap_or(false) {
+        if !zfs.inherit(dataset, COMMANDLINE.name).unwrap_or(false) {
             return Err(Failure::of(format!(
                 "failed to clear KCL property on {dataset}"
             )));
         }
-    } else if !zfs.set(COMMANDLINE.name, &kcl, dataset).unwrap_or(false) {
+    } else if !zfs.set(dataset, COMMANDLINE.name, &kcl).unwrap_or(false) {
         return Err(Failure::of(format!(
             "failed to set KCL property on {dataset}"
         )));

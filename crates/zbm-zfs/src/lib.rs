@@ -1,7 +1,11 @@
-//! ZFS in the Rust port of ZFSBootMenu.
+//! ZFS in the Rust port of ZFSBootMenu: the only crate that builds `zfs`
+//! and `zpool` command lines.
 //!
-//! - [`ZfsCommand`] and [`ZpoolCommand`] run the `zfs` and `zpool` commands, as
-//!   the legacy code does, and parse their `-H` output.
+//! - [`Zfs`] is the port the menu reads ZFS through, and [`ZfsCli`] answers
+//!   it with the programs, in JSON where the version has it.
+//! - [`ZfsText`] is what booting, the start-up and `zbm-kcl` ask, as typed
+//!   calls that run the text commands of the legacy runtime; [`import`] is
+//!   how `zpool import` imports.
 //! - [`mounts`] reads the mount table and builds the mount and unmount commands
 //!   of `zfsbootmenu-core.sh`.
 //!
@@ -16,17 +20,17 @@
 use std::ffi::OsString;
 use std::io;
 
-use zbm_config::parent::CommandLineSource;
-use zbm_config::spec::properties::COMMANDLINE;
 use zbm_platform::exec::{Command, Input, Output, Runner, Stream};
 
 mod cli;
+pub mod import;
 pub mod json;
 mod model;
 pub mod mounts;
 mod port;
 mod rows;
 pub mod text;
+mod zfs_text;
 
 pub use cli::{Format, ZfsCli};
 
@@ -34,6 +38,7 @@ pub use model::{
     Dataset, DiffChange, Difference, Health, Pool, Property, Snapshot, Source, Version,
 };
 pub use port::{Zfs, ZfsError};
+pub use zfs_text::{ZfsName, ZfsText};
 
 /// Where the error messages of a text-mode `zfs` or `zpool` run go.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,19 +69,17 @@ pub fn parse_table(output: &str) -> Vec<Vec<String>> {
 }
 
 /// Runs the `zfs` command.
-pub struct ZfsCommand<'a> {
+pub(crate) struct ZfsCommand<'a> {
     runner: &'a dyn Runner,
     program: OsString,
 }
 
 impl<'a> ZfsCommand<'a> {
-    /// Runs `zfs` from `PATH`.
-    pub fn new(runner: &'a dyn Runner) -> ZfsCommand<'a> {
-        ZfsCommand::with_program(runner, "zfs")
-    }
-
     /// Runs the given program instead of `zfs`, for example a fake in tests.
-    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> ZfsCommand<'a> {
+    pub(crate) fn with_program(
+        runner: &'a dyn Runner,
+        program: impl Into<OsString>,
+    ) -> ZfsCommand<'a> {
         ZfsCommand {
             runner,
             program: program.into(),
@@ -89,19 +92,18 @@ impl<'a> ZfsCommand<'a> {
 
     /// Runs `zfs ARGS` in text mode, as the legacy shell code runs it, with
     /// the output captured and the error messages where `stderr` says. The
-    /// boot code's runs go through here until the typed port ([`Zfs`])
-    /// replaces them.
+    /// typed calls of [`ZfsText`] go through here.
     ///
     /// # Errors
     ///
     /// The error that kept `zfs` from starting.
-    pub fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
+    pub(crate) fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
         let command = with_stderr(self.command().args(args.iter().copied()), stderr);
         self.runner.run(&command)
     }
 
     /// Whether `dataset` exists (`zfs list -o name -H <dataset>`, quietly).
-    pub fn exists(&self, dataset: &str) -> bool {
+    pub(crate) fn exists(&self, dataset: &str) -> bool {
         let command = self
             .command()
             .args(["list", "-o", "name", "-H", dataset])
@@ -114,7 +116,7 @@ impl<'a> ZfsCommand<'a> {
 
     /// Whether `dataset` is a filesystem (`zfs list -H -o name -t filesystem
     /// <dataset>`, quietly).
-    pub fn is_filesystem(&self, dataset: &str) -> bool {
+    pub(crate) fn is_filesystem(&self, dataset: &str) -> bool {
         if dataset.is_empty() {
             return false;
         }
@@ -131,7 +133,7 @@ impl<'a> ZfsCommand<'a> {
     /// The value of a property (`zfs get -H -o value <property> <dataset>`), with
     /// the trailing newline removed, or `None` when the command fails. Error
     /// messages of `zfs` go to standard error, as in the legacy code.
-    pub fn get_value(&self, property: &str, dataset: &str) -> Option<String> {
+    pub(crate) fn get_value(&self, property: &str, dataset: &str) -> Option<String> {
         let command = self
             .command()
             .args(["get", "-H", "-o", "value", property, dataset]);
@@ -141,7 +143,7 @@ impl<'a> ZfsCommand<'a> {
     /// The source of an inherited property (`zfs get -H -o source -s inherited
     /// ...`, errors hidden): `inherited from <ancestor>`, or empty when the
     /// property is not inherited; `None` when the command fails.
-    pub fn inherited_source(&self, property: &str, dataset: &str) -> Option<String> {
+    pub(crate) fn inherited_source(&self, property: &str, dataset: &str) -> Option<String> {
         let command = self
             .command()
             .args([
@@ -172,7 +174,7 @@ impl<'a> ZfsCommand<'a> {
     /// # Errors
     ///
     /// When `zfs` cannot be run.
-    pub fn set(&self, property: &str, value: &str, dataset: &str) -> io::Result<bool> {
+    pub(crate) fn set(&self, property: &str, value: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
             .arg("set")
@@ -188,7 +190,7 @@ impl<'a> ZfsCommand<'a> {
     /// # Errors
     ///
     /// When `zfs` cannot be run.
-    pub fn inherit(&self, property: &str, dataset: &str) -> io::Result<bool> {
+    pub(crate) fn inherit(&self, property: &str, dataset: &str) -> io::Result<bool> {
         let command = self
             .command()
             .args(["inherit", property, dataset])
@@ -204,7 +206,7 @@ impl<'a> ZfsCommand<'a> {
     /// # Errors
     ///
     /// The error that kept `zfs` from starting.
-    pub fn load_key(&self, root: &str, location: &str) -> io::Result<bool> {
+    pub(crate) fn load_key(&self, root: &str, location: &str) -> io::Result<bool> {
         let command = self
             .command()
             .args(["load-key", "-L", location, root])
@@ -215,30 +217,18 @@ impl<'a> ZfsCommand<'a> {
     }
 }
 
-impl CommandLineSource for ZfsCommand<'_> {
-    fn commandline(&self, filesystem: &str) -> Option<String> {
-        self.get_value(COMMANDLINE.name, filesystem)
-    }
-
-    fn inherited_source(&self, filesystem: &str) -> Option<String> {
-        ZfsCommand::inherited_source(self, COMMANDLINE.name, filesystem)
-    }
-}
-
 /// Runs the `zpool` command.
-pub struct ZpoolCommand<'a> {
+pub(crate) struct ZpoolCommand<'a> {
     runner: &'a dyn Runner,
     program: OsString,
 }
 
 impl<'a> ZpoolCommand<'a> {
-    /// Runs `zpool` from `PATH`.
-    pub fn new(runner: &'a dyn Runner) -> ZpoolCommand<'a> {
-        ZpoolCommand::with_program(runner, "zpool")
-    }
-
     /// Runs the given program instead of `zpool`.
-    pub fn with_program(runner: &'a dyn Runner, program: impl Into<OsString>) -> ZpoolCommand<'a> {
+    pub(crate) fn with_program(
+        runner: &'a dyn Runner,
+        program: impl Into<OsString>,
+    ) -> ZpoolCommand<'a> {
         ZpoolCommand {
             runner,
             program: program.into(),
@@ -247,46 +237,17 @@ impl<'a> ZpoolCommand<'a> {
 
     /// Runs `zpool ARGS` in text mode, as the legacy shell code runs it, with
     /// the output captured and the error messages where `stderr` says. The
-    /// boot code's runs go through here until the typed port ([`Zfs`])
-    /// replaces them.
+    /// typed calls of [`ZfsText`] go through here.
     ///
     /// # Errors
     ///
     /// The error that kept `zpool` from starting.
-    pub fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
+    pub(crate) fn text(&self, args: &[&str], stderr: Stderr) -> io::Result<Output> {
         let command = with_stderr(
             Command::new(&self.program).args(args.iter().copied()),
             stderr,
         );
         self.runner.run(&command)
-    }
-
-    /// The names of the imported pools (`zpool list -H -o name`).
-    pub fn imported(&self) -> Vec<String> {
-        let command = Command::new(&self.program).args(["list", "-H", "-o", "name"]);
-        self.runner
-            .run(&command)
-            .ok()
-            .filter(|output| output.status.is_success())
-            .map(|output| {
-                parse_table(&output.stdout_text())
-                    .into_iter()
-                    .filter_map(|row| row.into_iter().next())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// The value of a pool property (`zpool get -H -o value <property> <pool>`), or
-    /// `None` when it fails.
-    pub fn get_value(&self, property: &str, pool: &str) -> Option<String> {
-        let command =
-            Command::new(&self.program).args(["get", "-H", "-o", "value", property, pool]);
-        let output = self.runner.run(&command).ok()?;
-        output
-            .status
-            .is_success()
-            .then(|| output.stdout_text().trim_end_matches('\n').to_owned())
     }
 }
 
@@ -294,67 +255,14 @@ impl<'a> ZpoolCommand<'a> {
 mod tests {
     use super::*;
     use zbm_config::parent::{read_kcl_prop, read_kcl_value};
+    use zbm_config::spec::properties::COMMANDLINE;
     use zbm_platform::exec::SystemRunner;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::zfs_script::ZfsScript;
-    use zbm_testkit::{FakeRunner, Rng, TempDir, parity};
+    use zbm_testkit::{Rng, TempDir, parity};
 
     #[test]
-    fn commands_match_the_legacy_ones() {
-        let runner = FakeRunner::new();
-        runner.respond(
-            "zfs get -H -o value org.zfsbootmenu:commandline pool/be",
-            0,
-            "quiet\n",
-        );
-        runner.respond("zfs list -o name -H missing", 1, "");
-        let zfs = ZfsCommand::new(&runner);
-        assert_eq!(
-            zfs.get_value(COMMANDLINE.name, "pool/be").as_deref(),
-            Some("quiet")
-        );
-        assert!(zfs.exists("pool/be"));
-        assert!(!zfs.exists("missing"));
-        assert!(!zfs.is_filesystem(""));
-        assert!(zfs.set(COMMANDLINE.name, "a b", "pool/be").unwrap());
-        assert!(zfs.inherit(COMMANDLINE.name, "pool/be").unwrap());
-        assert_eq!(
-            runner.lines(),
-            [
-                "zfs get -H -o value org.zfsbootmenu:commandline pool/be",
-                "zfs list -o name -H pool/be",
-                "zfs list -o name -H missing",
-                "zfs set org.zfsbootmenu:commandline=a b pool/be",
-                "zfs inherit org.zfsbootmenu:commandline pool/be",
-            ]
-        );
-    }
-
-    #[test]
-    fn keys_are_loaded_on_the_console() {
-        let runner = FakeRunner::new();
-        runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
-        let zfs = ZfsCommand::new(&runner);
-
-        assert!(!zfs.load_key("tank/ROOT", "prompt").unwrap());
-        assert!(zfs.load_key("tank/ROOT", "file:///etc/zfs/k").unwrap());
-        let calls = runner.calls();
-        assert_eq!(
-            calls[1].display(),
-            "zfs load-key -L file:///etc/zfs/k tank/ROOT"
-        );
-        assert!(matches!(calls[0].get_stdin(), Input::Inherit));
-        assert_eq!(calls[0].get_stdout(), Stream::Inherit);
-    }
-
-    #[test]
-    fn zpool_lists_pools() {
-        let runner = FakeRunner::new();
-        runner.respond("zpool list -H -o name", 0, "rpool\ntank\n");
-        runner.respond("zpool get -H -o value readonly tank", 0, "off\n");
-        let zpool = ZpoolCommand::new(&runner);
-        assert_eq!(zpool.imported(), ["rpool", "tank"]);
-        assert_eq!(zpool.get_value("readonly", "tank").as_deref(), Some("off"));
+    fn tables_split_into_fields() {
         assert_eq!(
             parse_table("a\tb\nc\t\t\n"),
             [vec!["a", "b"], vec!["c", "", ""]]
@@ -425,7 +333,7 @@ mod tests {
                     )
                 });
 
-            let zfs = ZfsCommand::with_program(&SystemRunner, fake.program());
+            let zfs = ZfsText::with_programs(&SystemRunner, fake.program(), "zpool");
             let mut log = Vec::new();
             let rust = read_kcl_prop(&zfs, dataset, &mut log);
             assert_eq!(rust, prop, "dataset {dataset}");

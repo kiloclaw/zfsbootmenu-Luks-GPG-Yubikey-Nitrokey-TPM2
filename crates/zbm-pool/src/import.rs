@@ -2,166 +2,21 @@
 //! matching for pools that another host used last, and what `zpool` says
 //! about the pools it cannot import.
 //!
-//! The command lines and log messages are those of the legacy runtime,
-//! which the parity tests of `zbm-boot`'s start-up stage compare.
+//! The command lines (built by `zbm-zfs`, which [`Import`] comes from) and
+//! log messages are those of the legacy runtime, which the parity tests of
+//! `zbm-boot`'s start-up stage compare.
 
-use zbm_platform::exec::Output;
 use zbm_platform::{Context, Runner};
 use zbm_state::State;
-use zbm_types::{ImportPolicy, PoolName};
-use zbm_zfs::{Stderr, ZpoolCommand};
+use zbm_types::PoolName;
+use zbm_zfs::{Stderr, ZfsText};
 
 use crate::error::PoolError;
 use crate::hostid::{self, HostId};
 use crate::settings::{Build, ImportSettings};
 use crate::text::here_lines;
 
-/// Which pools an import imports.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum Target<'a> {
-    /// Every pool that can be imported (`zpool import -a`).
-    #[default]
-    All,
-    /// One pool.
-    Pool(&'a PoolName),
-}
-
-/// Whether imported pools can be written.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum Access {
-    /// Read-only (`-o readonly=on`), as every import of the start-up is.
-    #[default]
-    ReadOnly,
-    /// Read-write (`-o readonly=off`).
-    ReadWrite,
-}
-
-/// Whether to rewind a pool to its checkpoint.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum Rewind {
-    /// No.
-    #[default]
-    No,
-    /// Yes (`--rewind-to-checkpoint`); only for one pool.
-    ToCheckpoint,
-}
-
-/// How `zpool import` imports, without mounting (`-N`).
-///
-/// ```
-/// use zbm_pool::import::{Access, Import};
-/// use zbm_types::PoolName;
-/// use zbm_types::ImportPolicy;
-///
-/// let tank = "tank".parse::<PoolName>().unwrap();
-/// let import = Import::pool(&tank)
-///     .policy(ImportPolicy::Force)
-///     .access(Access::ReadWrite);
-/// let args = ["import", "-N", "-f", "-o", "readonly=off", "tank"];
-/// assert_eq!(import.arguments(), args);
-/// let all = ["import", "-N", "-o", "readonly=on", "-a"];
-/// assert_eq!(Import::all().arguments(), all);
-/// ```
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Import<'a> {
-    target: Target<'a>,
-    policy: ImportPolicy,
-    access: Access,
-    rewind: Rewind,
-}
-
-impl<'a> Import<'a> {
-    /// An import of every pool, read-only, by this host's ID.
-    pub fn all() -> Import<'a> {
-        Import::default()
-    }
-
-    /// An import of `pool`, read-only, by this host's ID.
-    pub fn pool(pool: &'a PoolName) -> Import<'a> {
-        Import {
-            target: Target::Pool(pool),
-            ..Import::default()
-        }
-    }
-
-    /// An import of `target`: one pool, or every pool when `None`.
-    pub fn target(target: Option<&'a PoolName>) -> Import<'a> {
-        target.map_or_else(Import::all, Import::pool)
-    }
-
-    /// The same import under `policy`: [`ImportPolicy::Force`] imports pools
-    /// in use elsewhere (`-f`).
-    #[must_use]
-    pub fn policy(mut self, policy: ImportPolicy) -> Import<'a> {
-        self.policy = policy;
-        self
-    }
-
-    /// The same import with `access`.
-    #[must_use]
-    pub fn access(mut self, access: Access) -> Import<'a> {
-        self.access = access;
-        self
-    }
-
-    /// The same import with `rewind`.
-    #[must_use]
-    pub fn rewind(mut self, rewind: Rewind) -> Import<'a> {
-        self.rewind = rewind;
-        self
-    }
-
-    /// The options of `zpool import`.
-    fn options(self) -> Vec<&'static str> {
-        let mut args = vec!["-N"];
-        if self.policy == ImportPolicy::Force {
-            args.push("-f");
-        }
-        args.extend(match self.access {
-            Access::ReadWrite => ["-o", "readonly=off"],
-            Access::ReadOnly => ["-o", "readonly=on"],
-        });
-        if self.rewind == Rewind::ToCheckpoint {
-            args.push("--rewind-to-checkpoint");
-        }
-        args
-    }
-
-    /// Logs the options, one debug message each.
-    fn log_options(self) {
-        if self.policy == ImportPolicy::Force {
-            zbm_trace::debug!("import_policy set: force");
-        }
-        match self.access {
-            Access::ReadWrite => zbm_trace::debug!("read_write set: yes"),
-            Access::ReadOnly => zbm_trace::debug!("read_write unset"),
-        }
-        if self.rewind == Rewind::ToCheckpoint {
-            zbm_trace::debug!("rewind_to_checkpoint set: yes");
-        }
-    }
-
-    /// The pool argument: the pool, or `-a`.
-    fn pool_argument(self) -> &'a str {
-        match self.target {
-            Target::Pool(pool) => pool.as_str(),
-            Target::All => "-a",
-        }
-    }
-
-    /// The arguments of `zpool` for this import.
-    pub fn arguments(self) -> Vec<&'a str> {
-        let mut args = vec!["import"];
-        args.extend(self.options());
-        args.push(self.pool_argument());
-        args
-    }
-}
-
-/// The standard output of a run, empty when the program could not start.
-pub(crate) fn stdout(run: std::io::Result<Output>) -> String {
-    run.map(|output| output.stdout_text()).unwrap_or_default()
-}
+pub use zbm_zfs::import::{Access, Import, Rewind, Target};
 
 /// Imports pools without mounting them; on failure, logs the host ID ZFS
 /// used and what `zpool` said.
@@ -175,9 +30,9 @@ pub fn import_pool(
     state: &State<'_>,
     import: Import<'_>,
 ) -> Result<(), PoolError> {
-    match import.target {
+    match import.imports() {
         Target::Pool(pool) => zbm_trace::debug!("pool set to {pool}"),
-        Target::All if import.rewind == Rewind::ToCheckpoint => {
+        Target::All if import.rewinds() == Rewind::ToCheckpoint => {
             zbm_trace::error!("rewind only works on a specific pool");
             return Err(PoolError::RewindAll);
         }
@@ -187,10 +42,7 @@ pub fn import_pool(
     let args = import.arguments();
     let shown = args.get(1..).unwrap_or_default().join(" ");
     zbm_trace::debug!("zpool import arguments: {shown}");
-    let (code, output) = match ZpoolCommand::new(context.runner()).text(&args, Stderr::Merged) {
-        Ok(output) => (output.status.shell_code(), output.stdout_text()),
-        Err(error) => (126, error.to_string()),
-    };
+    let (code, output) = ZfsText::new(context.runner()).import(import);
     if code == 0 {
         zbm_trace::debug!("successful pool import");
         return Ok(());
@@ -211,13 +63,9 @@ pub fn import_pool(
     })
 }
 
-/// The pools that are imported, as `zpool list` names them.
-pub fn imported_pools(runner: &dyn Runner) -> Vec<String> {
-    let list = ZpoolCommand::new(runner).text(&["list", "-H", "-o", "name"], Stderr::Hidden);
-    here_lines(&stdout(list))
-        .into_iter()
-        .filter(|pool| !pool.is_empty())
-        .collect()
+/// The pools that are imported.
+pub fn imported_pools(runner: &dyn Runner) -> Vec<PoolName> {
+    ZfsText::new(runner).imported(Stderr::Hidden)
 }
 
 /// The importable pools `zpool import` lists as `ONLINE`, leaving out the
@@ -260,8 +108,8 @@ fn candidates(
     if let Some(pool) = single {
         return vec![pool.clone()];
     }
-    let list = ZpoolCommand::new(context.runner()).text(&["import"], Stderr::Hidden);
-    online_pools(&stdout(list), settings.prefer_pool.as_ref())
+    let list = ZfsText::new(context.runner()).importable();
+    online_pools(&list, settings.prefer_pool.as_ref())
         .iter()
         .filter_map(|pool| pool.parse::<PoolName>().ok())
         .collect()
@@ -280,13 +128,10 @@ pub fn match_hostid(
     let names: Vec<&str> = importable.iter().map(PoolName::as_str).collect();
     zbm_trace::debug!("importable pools: {}", names.join(" "));
 
+    let zpool = ZfsText::new(context.runner());
     for pool in importable {
         zbm_trace::debug!("trying to import: {pool}");
-        let probe = ZpoolCommand::new(context.runner()).text(
-            &["import", "-o", "readonly=on", "-N", pool.as_str()],
-            Stderr::Merged,
-        );
-        let output = stdout(probe);
+        let output = zpool.probe_import(&pool);
         let Some(hostid) = HostId::scrape(output.trim_end_matches('\n')) else {
             zbm_trace::debug!("unable to scrape hostid for {pool}, skipping");
             continue;
@@ -314,18 +159,16 @@ pub fn match_hostid(
 /// Logs why each `UNAVAIL` pool cannot be imported, in the words of
 /// `zpool import`.
 pub fn log_unimportable(runner: &dyn Runner) {
-    let zpool = ZpoolCommand::new(runner);
-    let list = zpool.text(&["import"], Stderr::Hidden);
+    let zpool = ZfsText::new(runner);
     let mut id = String::new();
-    for line in here_lines(&stdout(list)) {
+    for line in here_lines(&zpool.importable()) {
         if line.starts_with("id") {
             line.strip_prefix("id: ")
                 .unwrap_or(&line)
                 .clone_into(&mut id);
         } else if line.starts_with("state") {
             if line.strip_prefix("state: ").unwrap_or(&line) == "UNAVAIL" {
-                let import = zpool.text(&["import", "-N", &id], Stderr::Merged);
-                for error in here_lines(&stdout(import)) {
+                for error in here_lines(&zpool.probe_import_id(&id)) {
                     zbm_trace::error!("{}", error);
                 }
             }

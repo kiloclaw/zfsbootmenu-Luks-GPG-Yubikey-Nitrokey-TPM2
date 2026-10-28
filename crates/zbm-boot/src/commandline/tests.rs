@@ -11,7 +11,7 @@ use zbm_testkit::fakes::FakeFiles;
 use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
 use zbm_testkit::zfs_script::ZfsScript;
 use zbm_testkit::{Rng, TempDir, parity};
-use zbm_zfs::ZfsCommand;
+use zbm_zfs::ZfsText;
 
 #[test]
 fn host_ids_come_from_spl_then_etc_then_the_match() {
@@ -460,7 +460,7 @@ fn command_lines_match_the_legacy_function() {
         ]);
         let state = State::new(&files, base.as_str());
         let runner = SystemRunner;
-        let source = ZfsCommand::with_program(&runner, zfs.program());
+        let source = ZfsText::with_programs(&runner, zfs.program(), "zpool");
         let mut log = Vec::new();
         let rust = be_cmdline(
             &files,
