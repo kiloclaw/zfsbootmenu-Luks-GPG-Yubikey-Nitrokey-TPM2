@@ -1367,7 +1367,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "zbm-config",
- "zbm-core",
  "zbm-crypt",
  "zbm-luks",
  "zbm-platform",
@@ -1396,7 +1395,6 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "rustix",
- "zbm-core",
  "zbm-display",
  "zbm-platform",
  "zbm-state",
@@ -1462,7 +1460,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "zbm-config",
- "zbm-core",
  "zbm-crypt",
  "zbm-platform",
  "zbm-state",
@@ -1480,7 +1477,6 @@ dependencies = [
  "rustix",
  "tracing",
  "tracing-subscriber",
- "zbm-core",
  "zbm-sys",
  "zbm-trace",
 ]
@@ -1545,7 +1541,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
- "zbm-core",
 ]
 
 [[package]]
@@ -1565,7 +1560,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "zbm-config",
- "zbm-core",
  "zbm-platform",
  "zbm-trace",
  "zbm-types",

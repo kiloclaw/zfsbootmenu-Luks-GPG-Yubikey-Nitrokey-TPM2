@@ -87,27 +87,9 @@ pub fn command_substitution(output: &str) -> &str {
     output.trim_end_matches('\n')
 }
 
-/// Quotes `text` as one shell word, in single quotes, with each `'` written as
-/// `'\''`.
-pub fn quote(text: &str) -> String {
-    format!("'{}'", text.replace('\'', r"'\''"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn quoting_round_trips_through_sh() {
-        for text in ["", "a b", "it's", "$HOME", "a\nb", "'\\'", "*"] {
-            let output = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(format!("printf %s {}", quote(text)))
-                .output()
-                .unwrap();
-            assert_eq!(String::from_utf8(output.stdout).unwrap(), text);
-        }
-    }
 
     #[test]
     fn test_integers_follow_bash() {

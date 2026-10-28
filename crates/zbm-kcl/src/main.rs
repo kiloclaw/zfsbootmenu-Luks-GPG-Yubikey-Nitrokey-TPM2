@@ -13,7 +13,7 @@ fn main() {
     let carried_on = [zbm_sys::Signal::Interrupt, zbm_sys::Signal::Terminate];
     let _signals = zbm_sys::Signals::block(zbm_sys::SignalSet::of(&carried_on));
 
-    let (argv0, args) = match zbm_core::args::split(std::env::args_os(), "zbm-kcl") {
+    let (argv0, args) = match zbm_platform::args::split(std::env::args_os(), "zbm-kcl") {
         Ok(split) => split,
         Err(message) => {
             let _ = writeln!(std::io::stderr(), "{message}");

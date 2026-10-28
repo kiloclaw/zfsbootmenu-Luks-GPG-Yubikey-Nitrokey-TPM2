@@ -4,8 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use zbm_core::fs::{is_file, is_readable};
-use zbm_core::shell::quote;
+use zbm_platform::filetest::{is_file, is_readable};
+use zbm_platform::shell::quote;
 
 use super::{Generator, Step, Stop};
 use crate::glob::glob;

@@ -5,6 +5,14 @@
 //! read any file, and may execute any file with an execute bit set, and any
 //! directory. The functions here do the same, so the Rust tools accept and
 //! reject the same files.
+//!
+//! They are for the host tools, `generate-zbm` and `zbm-kcl`, which work on
+//! the build host's files directly; the runtime reaches files through
+//! [`Files`](crate::Files).
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the host tools' file tests and copies work on the build host's files directly"
+)]
 
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
@@ -125,6 +133,10 @@ pub fn is_executable(path: impl AsRef<Path>) -> bool {
 /// Creates a new, empty file readable and writable only by its owner, named
 /// after `template` in `dir`, as `mktemp` does: the trailing `X` characters of
 /// the template are replaced by random letters and digits.
+///
+/// # Errors
+///
+/// When the file cannot be created, or no unused name is found.
 pub fn create_temp_file(dir: &Path, template: &str) -> std::io::Result<std::path::PathBuf> {
     create_temp(dir, template, |path| {
         std::fs::OpenOptions::new()
@@ -138,6 +150,10 @@ pub fn create_temp_file(dir: &Path, template: &str) -> std::io::Result<std::path
 
 /// Creates a new directory accessible only by its owner, named after `template`
 /// in `dir`, as `mktemp -d` does.
+///
+/// # Errors
+///
+/// When the directory cannot be created, or no unused name is found.
 pub fn create_temp_dir(dir: &Path, template: &str) -> std::io::Result<std::path::PathBuf> {
     create_temp(dir, template, |path| {
         std::fs::DirBuilder::new().mode(0o700).create(path)
@@ -161,13 +177,13 @@ fn create_temp(
                 seed ^= seed >> 7;
                 seed ^= seed << 17;
                 let index = usize::try_from(seed % CHARS.len() as u64).unwrap_or_default();
-                char::from(CHARS[index])
+                char::from(CHARS.get(index).copied().unwrap_or(b'X'))
             })
             .collect();
         let path = dir.join(format!("{stem}{suffix}"));
         match create(&path) {
             Ok(()) => return Ok(path),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
         }
     }
@@ -232,8 +248,8 @@ impl CopyError {
 /// Rust adds.
 pub fn strerror(error: &std::io::Error) -> String {
     let text = error.to_string();
-    match text.rfind(" (os error ") {
-        Some(end) => text[..end].to_owned(),
+    match text.rsplit_once(" (os error ") {
+        Some((description, _)) => description.to_owned(),
         None => text,
     }
 }
@@ -242,6 +258,10 @@ pub fn strerror(error: &std::io::Error) -> String {
 /// keeps its permissions and is overwritten, a new one gets the permissions of
 /// the source less the umask, and a target that is a directory receives a file
 /// with the source's name.
+///
+/// # Errors
+///
+/// Which of reading the source, creating the target and writing it failed.
 pub fn copy_like_cp(source: &Path, target: &Path) -> Result<(), CopyError> {
     let target = if is_dir(target) {
         target.join(source.file_name().unwrap_or_default())

@@ -10,7 +10,6 @@ publish.workspace = true
 
 [dependencies]
 zbm-config.workspace = true
-zbm-core.workspace = true
 zbm-platform.workspace = true
 zbm-sys.workspace = true
 zbm-tools.workspace = true

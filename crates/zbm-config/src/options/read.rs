@@ -2,8 +2,8 @@
 //! `zfsbootmenu-parse-commandline.sh` does: its value or default, the
 //! messages the legacy script logs, and where the value came from.
 
-use zbm_core::shell::test_integer;
 use zbm_trace::Message;
+use zbm_types::number::shell_integer;
 use zbm_types::{
     BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
     Timeout,
@@ -203,7 +203,7 @@ impl<'a> Reader<'a> {
     /// a warning when the value is not one.
     fn positive(&mut self, spec: &'static OptionSpec, default: &str, unit: &str) -> Option<String> {
         let value = self.value(spec)?;
-        if test_integer(&value).is_some_and(|number| number > 0) {
+        if shell_integer(&value).is_some_and(|number| number > 0) {
             return Some(value);
         }
         self.warn(format!(

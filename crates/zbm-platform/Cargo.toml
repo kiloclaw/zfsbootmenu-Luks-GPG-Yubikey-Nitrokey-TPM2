@@ -12,7 +12,6 @@ publish.workspace = true
 rustix = { workspace = true, features = ["fs"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
-zbm-core.workspace = true
 zbm-sys.workspace = true
 zbm-trace.workspace = true
 

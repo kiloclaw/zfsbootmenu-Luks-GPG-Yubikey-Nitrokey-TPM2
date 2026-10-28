@@ -11,8 +11,9 @@
 mod hostid;
 mod read;
 
-use zbm_core::shell::{quote, test_integer};
+use zbm_platform::shell::quote;
 use zbm_trace::Message;
+use zbm_types::number::shell_integer;
 use zbm_types::{
     BootfsPreference, HostId, ImportPolicy, LogLevel, PoolName, PoolRequirement, RetryDelay,
     Timeout,
@@ -203,7 +204,7 @@ impl ZbmOptions {
             sort: get("zbm_sort"),
             hook_root: get("zbm_hook_root"),
             // `[ "${zbm_set_hostid}" -eq 1 ]`
-            set_hostid: test_integer(&get("zbm_set_hostid")) == Some(1),
+            set_hostid: shell_integer(&get("zbm_set_hostid")) == Some(1),
             kcl_override: None,
             wait_for_devices: get("zbm_wait_for_devices"),
             prefer_pool: get("zbm_prefer_pool").parse().ok(),

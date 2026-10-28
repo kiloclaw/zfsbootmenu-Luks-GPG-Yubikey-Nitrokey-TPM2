@@ -62,7 +62,7 @@ fn normalize(legacy: &str) -> String {
     legacy
         .lines()
         .map(|line| match line.strip_prefix("tries=") {
-            Some(tries) => format!("tries={}\n", test_integer(tries).unwrap_or(-1)),
+            Some(tries) => format!("tries={}\n", shell_integer(tries).unwrap_or(-1)),
             None => format!("{line}\n"),
         })
         .collect()

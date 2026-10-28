@@ -12,7 +12,7 @@ fn main() {
     // Secrets (ROADMAP.md #1): no core dump of the runtime, and no process but
     // root's may read its memory. A failure leaves it as it was.
     let _ = zbm_sys::memory::set_undumpable();
-    let (argv0, args) = match zbm_core::args::split(std::env::args_os(), "zbm") {
+    let (argv0, args) = match zbm_platform::args::split(std::env::args_os(), "zbm") {
         Ok(split) => split,
         Err(message) => {
             let _ = writeln!(std::io::stderr(), "{message}");

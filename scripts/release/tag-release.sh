@@ -19,7 +19,7 @@ if [ -n "$(echo "${release}" | sed 's/[0-9][A-Za-z0-9_.-]*$//')" ]; then
 fi
 
 # Make sure paths make sense
-if [ ! -e crates/zbm-core/src/version.rs ] || [ ! -e CHANGELOG.md ]; then
+if [ ! -e crates/zbm-platform/src/version.rs ] || [ ! -e CHANGELOG.md ]; then
   error "ERROR: run this script from the root of the zfsbootmenu tree"
 fi
 
@@ -137,7 +137,7 @@ fi
 
 # Push updates for the release
 git add CHANGELOG.md docs/ legacy/zfsbootmenu/zbm-release legacy/zfsbootmenu/help-files/ \
-  crates/zbm-core/src/version.rs
+  crates/zbm-platform/src/version.rs
 git commit -m "Bump to version ${release}"
 
 # Publish release, as prerelease if version contains alphabetics
@@ -238,7 +238,7 @@ echo "Pushed and tagged release ${release}"
 dver="${release}+dev"
 if ! (
   scripts/version.sh -v "${dver}" -u || exit 1
-  git add legacy/zfsbootmenu/zbm-release crates/zbm-core/src/version.rs || exit 1
+  git add legacy/zfsbootmenu/zbm-release crates/zbm-platform/src/version.rs || exit 1
   git commit -m "Bump to version ${dver}" || exit 1
   git push
 ); then

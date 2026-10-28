@@ -5,19 +5,7 @@
 //! on stays compatible; other changes are recorded in
 //! `CHANGES-FROM-LEGACY.md`.
 //!
-//! This crate holds what every other crate needs and that does no I/O through
-//! the system's ports: the command line as text ([`args`]), the file tests
-//! of Perl and the shell ([`fs`]), the colours of the menu and prompts
-//! ([`color`]), option parsing as `getopts` does it ([`getopts`]), the Bash
-//! semantics the legacy code relies on ([`shell`]), the release information
-//! in `/etc/zbm-release` ([`release`]) and the ZFSBootMenu version
-//! ([`version`]). Programs, secrets and the runtime's error type are in
-//! `zbm-platform`.
+//! What is left here is the Bash semantics that configuration parsing still
+//! relies on ([`shell`]); ROADMAP.md's DM11 removes it, and this crate.
 
-pub mod args;
-pub mod color;
-pub mod fs;
-pub mod getopts;
-pub mod release;
 pub mod shell;
-pub mod version;

@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::GLOBAL_BOOT_MOUNT_POINT;
-use zbm_core::fs::{is_dir, is_executable, is_file, is_writable, strerror};
-use zbm_core::shell::quote;
+use zbm_platform::filetest::{is_dir, is_executable, is_file, is_writable, strerror};
+use zbm_platform::shell::quote;
 
 use super::{Generator, Step, Stop};
 use crate::glob::glob;
@@ -119,7 +119,7 @@ impl Generator<'_, '_, '_> {
     /// Creates the work directory in the temporary directory.
     pub(super) fn work_dir(&mut self) -> Step<WorkDir> {
         let base = self.temp_base();
-        zbm_core::fs::create_temp_dir(&base, "XXXXXXXXXX")
+        zbm_platform::filetest::create_temp_dir(&base, "XXXXXXXXXX")
             .map(WorkDir)
             .map_err(|error| {
                 Stop::fatal(

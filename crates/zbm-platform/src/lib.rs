@@ -24,6 +24,11 @@
 //! [`CrashReporter`] is the panic hook that leaves crash reports in the state
 //! directory.
 //!
+//! Smaller helpers: a program's arguments as text ([`args`]), colours
+//! ([`color`]), shell quoting ([`shell::quote`]), the ZFSBootMenu version
+//! ([`version`]), and the file tests of Perl and the shell that the host tools
+//! use on the build host's files ([`filetest`]).
+//!
 //! A service (unlocking a volume, importing a pool) is given a [`Context`]:
 //! [`Context::new`] wraps the runner in a [`TracedRunner`], so every program
 //! a service runs appears in the journal of `zbm-trace` with its arguments,
@@ -51,7 +56,9 @@
     )
 )]
 
+pub mod args;
 pub mod clock;
+pub mod color;
 pub mod console;
 pub mod crash;
 pub mod dmesg;
@@ -59,6 +66,7 @@ pub mod env;
 pub mod error;
 pub mod exec;
 pub mod files;
+pub mod filetest;
 pub mod log;
 pub mod process;
 mod quiet;
@@ -66,6 +74,7 @@ pub mod secret;
 pub mod shell;
 mod traced;
 pub mod tree;
+pub mod version;
 
 pub use clock::{Clock, SystemClock};
 pub use console::{Console, NoConsole, Size, Terminal};

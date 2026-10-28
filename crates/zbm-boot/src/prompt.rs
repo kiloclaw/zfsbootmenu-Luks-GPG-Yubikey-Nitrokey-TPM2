@@ -12,7 +12,7 @@ use zbm_platform::exec::Input;
 use zbm_tools::terminal;
 use zbm_types::RetryDelay;
 
-pub use zbm_core::color::{colorize, decolorize};
+pub use zbm_platform::color::{colorize, decolorize};
 
 /// The delay of a retry prompt, `-d "${zbm_retry_delay:-5}"`, in the
 /// seconds [`TimedPrompt::delay`] takes.

@@ -8,8 +8,8 @@
 //! [table of options](crate::spec::crypttab): an option the table does not
 //! have is ignored and logged.
 
-use zbm_core::shell::test_integer;
 use zbm_trace::Message;
+use zbm_types::number::shell_integer;
 
 use crate::spec::{self, Source};
 
@@ -159,7 +159,7 @@ impl Options {
     /// a value.
     fn set_value(&mut self, name: &str, value: &str) -> Option<Validity> {
         let validity = match name {
-            "tries" => match test_integer(value) {
+            "tries" => match shell_integer(value) {
                 // `[ "${value}" -ge 0 ]`
                 Some(tries) if tries >= 0 => {
                     self.tries = tries.unsigned_abs();

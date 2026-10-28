@@ -4,8 +4,8 @@
 use std::path::Path;
 
 use zbm_config::spec::properties::COMMANDLINE;
-use zbm_core::fs::{create_temp_file, is_readable};
 use zbm_platform::exec::Output;
+use zbm_platform::filetest::{create_temp_file, is_readable};
 use zbm_tools::efi as efi_tools;
 use zbm_zfs::ZfsCommand;
 

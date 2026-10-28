@@ -31,8 +31,8 @@ use zbm_config::spec::generate::{
     COMPONENTS_ENABLED, EFI_ENABLED, GLOBAL_MANAGE_IMAGES, GLOBAL_POST_HOOKS_DIR,
     GLOBAL_PRE_HOOKS_DIR,
 };
-use zbm_core::shell::quote;
 use zbm_platform::exec::Runner;
+use zbm_platform::shell::quote;
 use zbm_tools::programs;
 
 use crate::cli::{self, Options, Outcome};
@@ -42,7 +42,7 @@ use settings::Settings;
 use system::WorkDir;
 
 /// The ZFSBootMenu version, `$VERSION` in the Perl program.
-pub const VERSION: &str = zbm_core::version::ZBM_VERSION;
+pub const VERSION: &str = zbm_platform::version::ZBM_VERSION;
 
 /// Where the generator finds things on the system; tests replace the paths.
 pub struct Context<'a> {

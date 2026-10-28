@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::spec::generate::{
     COMPONENTS_IMAGE_DIR, COMPONENTS_VERSIONS, EFI_IMAGE_DIR, EFI_VERSIONS,
 };
-use zbm_core::fs::{is_dir, is_file, strerror};
+use zbm_platform::filetest::{is_dir, is_file, strerror};
 
 use super::{Generator, Step, Stop};
 use crate::{images, perl};
@@ -142,7 +142,7 @@ impl Generator<'_, '_, '_> {
 
     /// Creates an empty temporary file in `dir` from `template`.
     fn temp_file(&self, dir: &str, template: &str) -> Step<String> {
-        zbm_core::fs::create_temp_file(Path::new(dir), template)
+        zbm_platform::filetest::create_temp_file(Path::new(dir), template)
             .map(|path| path.display().to_string())
             .map_err(|error| {
                 let template = if dir.is_empty() {

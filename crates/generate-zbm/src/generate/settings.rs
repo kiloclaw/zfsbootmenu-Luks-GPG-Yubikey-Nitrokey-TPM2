@@ -9,7 +9,7 @@ use zbm_config::spec::generate::{
     GLOBAL_INIT_CPIO_HOOK_DIRS, GLOBAL_MANAGE_IMAGES, GLOBAL_VERSION, KERNEL_COMMAND_LINE,
     KERNEL_PATH, KERNEL_PREFIX, KERNEL_VERSION,
 };
-use zbm_core::fs::{is_readable, strerror};
+use zbm_platform::filetest::{is_readable, strerror};
 
 use super::kernels::KernelRequest;
 use super::{Generator, Step, Stop, VERSION, has_value};

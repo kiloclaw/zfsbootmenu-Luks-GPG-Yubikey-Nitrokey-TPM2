@@ -10,7 +10,7 @@ use std::fmt;
 use std::io;
 
 use crate::exec::{Command, Output, Status};
-use zbm_core::fs::strerror;
+use crate::filetest::strerror;
 
 /// A failure of the runtime.
 #[derive(Debug)]

@@ -109,7 +109,7 @@ fn the_reverse_screen_swaps_the_colours_of_every_cell() {
 fn the_terminal_names_itself() {
     let mut console = console();
     console.feed(b"\x1b[>q");
-    let version = zbm_core::version::ZBM_VERSION;
+    let version = zbm_platform::version::ZBM_VERSION;
     let expected = format!("\x1bP>|ZFSBootMenu({version})\x1b\\");
     assert_eq!(String::from_utf8(console.take_replies()).unwrap(), expected);
     console.feed(b"\x1b[>c");

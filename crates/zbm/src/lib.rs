@@ -179,7 +179,7 @@ pub fn run_with(applets: &[Applet], argv0: &str, args: &[String], io: &mut Io) -
             0
         }
         Some("-V" | "--version") => {
-            let _ = writeln!(io.stdout, "zbm {}", zbm_core::version::ZBM_VERSION);
+            let _ = writeln!(io.stdout, "zbm {}", zbm_platform::version::ZBM_VERSION);
             0
         }
         Some("--list") => {
@@ -290,7 +290,10 @@ mod tests {
     fn the_built_in_options() {
         let (code, stdout, _) = call(APPLETS, "zbm", &["--version"]);
         assert_eq!(code, 0);
-        assert_eq!(stdout, format!("zbm {}\n", zbm_core::version::ZBM_VERSION));
+        assert_eq!(
+            stdout,
+            format!("zbm {}\n", zbm_platform::version::ZBM_VERSION)
+        );
         let (code, stdout, _) = call(APPLETS, "zbm", &["--help"]);
         assert_eq!(code, 0);
         assert!(!stdout.contains("No commands are available yet."));

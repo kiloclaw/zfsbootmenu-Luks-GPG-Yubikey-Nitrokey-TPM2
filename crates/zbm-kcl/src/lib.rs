@@ -22,17 +22,18 @@ use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::getopts::Opt;
 use zbm_config::kcl;
 use zbm_config::spec::properties::COMMANDLINE;
-use zbm_core::fs::{copy_like_cp, create_temp_file, is_file, is_readable};
-use zbm_core::getopts::{self, Opt};
 use zbm_platform::exec::{Runner, SystemRunner};
+use zbm_platform::filetest::{copy_like_cp, create_temp_file, is_file, is_readable};
 use zbm_tools::efi as efi_tools;
 use zbm_zfs::ZfsCommand;
 use zbm_zfs::mounts::{MountTable, RootFilesystem};
 
 mod edit;
 pub mod efi;
+mod getopts;
 mod save;
 
 pub use edit::strip_kcl;
@@ -103,14 +104,14 @@ fn find_in_path(name: &str, path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
                 dir.join(name)
             }
         })
-        .find(|candidate| is_file(candidate) && zbm_core::fs::is_executable(candidate))
+        .find(|candidate| is_file(candidate) && zbm_platform::filetest::is_executable(candidate))
 }
 
 /// Whether `command -v name` finds `name`: an executable file at a path, or one
 /// found in `path`.
 fn command_exists(name: &str, path: Option<&std::ffi::OsStr>) -> bool {
     if name.contains('/') {
-        is_file(name) && zbm_core::fs::is_executable(name)
+        is_file(name) && zbm_platform::filetest::is_executable(name)
     } else {
         find_in_path(name, path).is_some()
     }

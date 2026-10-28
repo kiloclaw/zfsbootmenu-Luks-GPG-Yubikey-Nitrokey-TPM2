@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
 use zbm_config::spec::generate::KERNEL_GRAPHICS_DRIVERS;
-use zbm_core::shell::quote;
+use zbm_platform::shell::quote;
 
 use super::settings::Settings;
 use super::{Generator, Step, Stop};

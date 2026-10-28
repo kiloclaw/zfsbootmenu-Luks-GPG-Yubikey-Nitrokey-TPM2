@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use zbm_config::kcl;
-use zbm_core::fs::{create_temp_file, is_readable};
+use zbm_platform::filetest::{create_temp_file, is_readable};
 use zbm_tools::programs;
 
 use crate::{Context, Failure, TempFile, command_exists};

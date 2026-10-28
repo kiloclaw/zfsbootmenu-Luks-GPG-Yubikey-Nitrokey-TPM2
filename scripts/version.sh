@@ -64,7 +64,7 @@ detect_version() (
   fi
 
   # If there is no zbm-release, look to the version the Rust programs report
-  rustver="crates/zbm-core/src/version.rs"
+  rustver="crates/zbm-platform/src/version.rs"
   if [ -r "${rustver}" ]; then
     if verline="$(grep '^pub const ZBM_VERSION' "${rustver}")"; then
       version="$(echo "${verline}" | head -n1 | sed -e 's/[^"]*"//' -e 's/".*//')" || version=""
@@ -106,7 +106,7 @@ update_version() {
   sedver="$( printf '%s\n' "${version}" | sed -e 's/[&|]/\\&/g' )"
 
   # Update the version the Rust programs report
-  rustver="crates/zbm-core/src/version.rs"
+  rustver="crates/zbm-platform/src/version.rs"
   if [ -w "${rustver}" ]; then
     echo "Updating ${rustver}"
     sed -e "s|^pub const ZBM_VERSION: .*|pub const ZBM_VERSION: \&str = \"${sedver}\";|" -i "${rustver}"

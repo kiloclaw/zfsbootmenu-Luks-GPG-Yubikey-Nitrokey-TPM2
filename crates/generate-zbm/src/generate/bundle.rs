@@ -3,8 +3,8 @@
 //! sections by objcopy.
 
 use zbm_config::spec::generate::{EFI_DEVICE_TREE, EFI_SPLASH_IMAGE, EFI_STUB};
-use zbm_core::fs::is_file;
-use zbm_core::shell::quote;
+use zbm_platform::filetest::is_file;
+use zbm_platform::shell::quote;
 
 use super::settings::Settings;
 use super::{Generator, Step, Stop};

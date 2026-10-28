@@ -3,7 +3,7 @@
 
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::generate::{GLOBAL_DRACUT_FLAGS, GLOBAL_INIT_CPIO_FLAGS};
-use zbm_core::shell::quote;
+use zbm_platform::shell::quote;
 
 use super::graphics::build_options;
 use super::settings::Settings;

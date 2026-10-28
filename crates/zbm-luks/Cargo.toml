@@ -14,7 +14,6 @@ pbkdf2.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-zbm-core.workspace = true
 zbm-config.workspace = true
 zbm-crypt.workspace = true
 zbm-trace.workspace = true

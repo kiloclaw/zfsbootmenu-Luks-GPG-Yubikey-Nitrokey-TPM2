@@ -20,7 +20,7 @@ fn main() {
             .and_then(|signals| signals.received().first())
     };
 
-    let (program, args) = match zbm_core::args::split(std::env::args_os(), "generate-zbm") {
+    let (program, args) = match zbm_platform::args::split(std::env::args_os(), "generate-zbm") {
         Ok(split) => split,
         Err(message) => {
             let _ = writeln!(std::io::stderr(), "{message}");

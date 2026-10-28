@@ -1,7 +1,7 @@
 //! The host ID of `spl_hostid` on the command line, as the legacy start-up
 //! reads it with Bash arithmetic and `printf`.
 
-use zbm_core::shell::test_integer;
+use zbm_types::number::shell_integer;
 
 /// The host ID the legacy script derives from `spl_hostid`, or `None` when the
 /// value is invalid.
@@ -21,7 +21,7 @@ pub fn parse_spl_hostid(value: &str) -> Option<String> {
         let digits: String = hex.chars().take(8).collect();
         return Some(printf_hex(&format!("0x{digits}")));
     }
-    if test_integer(hex) == Some(0) {
+    if shell_integer(hex) == Some(0) {
         return Some("0".to_owned());
     }
     None

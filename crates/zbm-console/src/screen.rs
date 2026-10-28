@@ -153,7 +153,7 @@ fn config() -> Config {
             blinking: false,
         }),
         name: NAME.to_owned(),
-        version: zbm_core::version::ZBM_VERSION.to_owned(),
+        version: zbm_platform::version::ZBM_VERSION.to_owned(),
         ..Config::default()
     }
 }

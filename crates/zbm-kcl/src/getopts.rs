@@ -9,7 +9,7 @@
 
 /// An option that was read.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Opt {
+pub(crate) enum Opt {
     /// An option without a value.
     Flag(char),
     /// An option with its value.
@@ -18,7 +18,7 @@ pub enum Opt {
 
 /// Why `getopts` stopped with an error.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Error {
+pub(crate) enum Error {
     /// An option letter that the option string does not list.
     Illegal(char),
     /// An option that needs a value, at the end of the arguments.
@@ -28,7 +28,7 @@ pub enum Error {
 impl Error {
     /// The message Bash prints for the error, with `program` being the script's
     /// `$0`.
-    pub fn message(self, program: &str) -> String {
+    pub(crate) fn message(self, program: &str) -> String {
         match self {
             Error::Illegal(option) => format!("{program}: illegal option -- {option}"),
             Error::MissingArgument(option) => {
@@ -40,7 +40,7 @@ impl Error {
 
 /// The result of reading options.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Parsed {
+pub(crate) struct Parsed {
     /// The options read before the end of the options or an error, in order.
     pub options: Vec<Opt>,
     /// The error that stopped reading, if any. Options after it are not read.
@@ -51,7 +51,7 @@ pub struct Parsed {
 
 /// Reads options from `args` as `while getopts "<optstring>" opt` does; a
 /// letter followed by `:` in `optstring` takes a value.
-pub fn parse(optstring: &str, args: &[String]) -> Parsed {
+pub(crate) fn parse(optstring: &str, args: &[String]) -> Parsed {
     let takes_value = |option: char| -> Option<bool> {
         let mut chars = optstring.chars().peekable();
         while let Some(letter) = chars.next() {

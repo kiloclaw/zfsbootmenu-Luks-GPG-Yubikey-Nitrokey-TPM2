@@ -36,7 +36,7 @@ fn sequence_len(text: &[u8]) -> Option<usize> {
     } else {
         return None;
     };
-    let rest = &text[introducer..];
+    let rest = text.get(introducer..)?;
     if rest.starts_with(b"[0m") {
         return Some(introducer + 3);
     }
@@ -54,15 +54,13 @@ fn sequence_len(text: &[u8]) -> Option<usize> {
 pub fn decolorize(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut kept = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match sequence_len(&bytes[i..]) {
-            Some(len) => i += len,
-            None => {
-                kept.push(bytes[i]);
-                i += 1;
-            }
-        }
+    let mut rest = bytes;
+    while let Some(&byte) = rest.first() {
+        let len = sequence_len(rest).unwrap_or_else(|| {
+            kept.push(byte);
+            1
+        });
+        rest = rest.get(len..).unwrap_or_default();
     }
     String::from_utf8_lossy(&kept).into_owned()
 }

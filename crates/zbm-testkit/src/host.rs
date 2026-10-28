@@ -24,7 +24,7 @@ pub fn repo_root() -> PathBuf {
 pub fn have_program(program: &str) -> bool {
     std::env::var_os("PATH").is_some_and(|path| {
         std::env::split_paths(&path).any(|dir| {
-            zbm_core::fs::is_executable(dir.join(program)) && dir.join(program).is_file()
+            zbm_platform::filetest::is_executable(dir.join(program)) && dir.join(program).is_file()
         })
     })
 }
