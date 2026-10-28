@@ -23,7 +23,7 @@ zbm-startup                0           0               0            0           
 zbm-state                  0           0               0            0              0             0             0              0             0              0            0           0
 zbm-sys                    0           0               0            0              0             0             0             31             0              0            0           0
 zbm-testkit                0           0               0            0              0             0             0              0             0              0            0           0
-zbm-tools                  0           0               0            0              0             0             0              0             0              0            0           0
+zbm-tools                  0           0               4            0              0             0             0              0             0              0            0           0
 zbm-trace                  0           0               0            0              0             0             0              0             0              0            5           0
 zbm-tui                    0           0               0            0              0             0             0              0             0              0            0           0
 zbm-types                  0           0               0            0              0             0             0              0             0              0            0           0

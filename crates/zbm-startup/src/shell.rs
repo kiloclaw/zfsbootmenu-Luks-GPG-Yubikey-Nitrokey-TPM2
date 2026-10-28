@@ -134,7 +134,8 @@ impl Recovery for Shell<'_, '_> {
             let (Some(mountpoint), Some("zfs")) = (fields.nth(1), fields.next()) else {
                 continue;
             };
-            let _ = Mount::new(system.runner).unmount(Path::new(mountpoint), Shown::Console);
+            let _ = Mount::new(system.runner, system.files)
+                .unmount(Path::new(mountpoint), Shown::Console);
             zbm_trace::debug!("unmounting: {mountpoint}");
         }
         boot::mount_efivarfs(system, "ro");

@@ -291,6 +291,30 @@ pub trait Files {
     /// kernel log's `tracing` layer writes through it.
     fn shared(&self) -> Arc<dyn Files + Send + Sync>;
 
+    /// Mounts the ZFS filesystem or snapshot `source` on `target` with the
+    /// `mount(2)` system call, read-only when `read_only`, as `mount.zfs`
+    /// mounts it. Only the real files do; the others refuse, and the caller
+    /// runs `mount` instead.
+    ///
+    /// # Errors
+    ///
+    /// The error of the system call; `Unsupported` where there is none.
+    fn mount_zfs(&self, source: &str, target: &Path, read_only: bool) -> io::Result<()> {
+        let _ = (source, target, read_only);
+        Err(io::ErrorKind::Unsupported.into())
+    }
+
+    /// Unmounts `target` with the `umount2(2)` system call. Only the real
+    /// files do; the others refuse, and the caller runs `umount` instead.
+    ///
+    /// # Errors
+    ///
+    /// The error of the system call; `Unsupported` where there is none.
+    fn unmount(&self, target: &Path) -> io::Result<()> {
+        let _ = target;
+        Err(io::ErrorKind::Unsupported.into())
+    }
+
     /// Copies a file's contents (`cp` without options).
     ///
     /// # Errors
@@ -309,6 +333,26 @@ pub struct RealFiles;
 impl Files for RealFiles {
     fn shared(&self) -> Arc<dyn Files + Send + Sync> {
         Arc::new(RealFiles)
+    }
+
+    fn mount_zfs(&self, source: &str, target: &Path, read_only: bool) -> io::Result<()> {
+        // `mount.zfs` tells the module the mount point, which the
+        // automounted snapshots of `.zfs` need.
+        let mut data = b"mntpoint=".to_vec();
+        data.extend_from_slice(target.as_os_str().as_encoded_bytes());
+        let data = std::ffi::CString::new(data)?;
+        let flags = if read_only {
+            rustix::mount::MountFlags::RDONLY
+        } else {
+            rustix::mount::MountFlags::empty()
+        };
+        rustix::mount::mount(source, target, "zfs", flags, data.as_c_str())?;
+        Ok(())
+    }
+
+    fn unmount(&self, target: &Path) -> io::Result<()> {
+        rustix::mount::unmount(target, rustix::mount::UnmountFlags::empty())?;
+        Ok(())
     }
 
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {

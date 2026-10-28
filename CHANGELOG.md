@@ -466,6 +466,15 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   such as `-a` to `zfs list`, which took it for an option. It still says "KCL source is not a ZFS filesystem or EFI
   executable".
 
+### Mounting without programs (phase 1)
+
+- Boot environments and key sources are mounted with the `mount(2)` system call, and mounts are undone with
+  `umount2(2)`: no `mount`, `mount.zfs` or `umount` process for them. Where a call fails, the programs run as before,
+  so older OpenZFS modules keep working. Key devices, hook filesystems, the EFI partition and `efivarfs` are still
+  mounted by `mount`.
+- A mount made for a while (to read a boot environment's kernels, copy a key, import hooks or save logs) is undone on
+  every way out of the code that made it.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

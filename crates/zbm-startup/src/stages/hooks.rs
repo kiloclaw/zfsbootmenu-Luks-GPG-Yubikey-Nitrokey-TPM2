@@ -10,7 +10,7 @@ use zbm_platform::System;
 use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_tools::mount::Mount;
-use zbm_tools::{Shown, programs};
+use zbm_tools::programs;
 use zbm_types::HookStage;
 
 use crate::error::StartupError;
@@ -33,17 +33,16 @@ pub fn import_hooks(
     let (filesystem, path) = split_hook_root(hook_root)?;
     let mount_point = state.external_hooks();
     let _ = system.files.create_dir_all(&mount_point);
-    if !Mount::new(system.runner)
-        .read_only_shown(filesystem, &mount_point)
-        .is_ok_and(|output| output.status.is_success())
-    {
+    let Ok(mounted) =
+        Mount::new(system.runner, system.files).read_only_shown(filesystem, &mount_point)
+    else {
         zbm_trace::error!("failed to mount hook filesystem {filesystem}");
         return Err(StartupError::HookMount {
             filesystem: filesystem.to_owned(),
         });
-    }
-    copy_stages(system, &mount_point.join(path), root);
-    let _ = Mount::new(system.runner).unmount(&mount_point, Shown::Console);
+    };
+    copy_stages(system, &mounted.path().join(path), root);
+    drop(mounted);
     Ok(())
 }
 

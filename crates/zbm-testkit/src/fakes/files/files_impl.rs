@@ -46,6 +46,15 @@ impl Files for FakeFiles {
         Arc::new(self.clone())
     }
 
+    fn mount_zfs(&self, source: &str, target: &Path, read_only: bool) -> io::Result<()> {
+        let mode = if read_only { " ro" } else { "" };
+        self.mount_call(format!("mount {source} {}{mode}", target.display()))
+    }
+
+    fn unmount(&self, target: &Path) -> io::Result<()> {
+        self.mount_call(format!("umount {}", target.display()))
+    }
+
     fn read_prefix(&self, path: &Path, len: usize) -> io::Result<Vec<u8>> {
         let mut data = self.read(path)?;
         data.truncate(len);

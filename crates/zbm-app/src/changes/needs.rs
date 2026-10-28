@@ -83,8 +83,9 @@ impl Needs for OnMachine<'_, '_> {
 
     fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>> {
         let filesystem = FilesystemName::from(filesystem.clone());
+        // Mounted until `unmount`, which unmounts what is below it too.
         kexec::mount_zfs(self.system, self.state, &filesystem, Noise::Hidden)
-            .map(|mounted| mounted.to_string_lossy().into_owned())
+            .map(|mounted| mounted.leave().to_string_lossy().into_owned())
             .ok_or_else(|| vec![format!("{filesystem} could not be mounted")])
     }
 

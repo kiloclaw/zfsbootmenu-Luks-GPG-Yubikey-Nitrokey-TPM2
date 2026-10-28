@@ -9,7 +9,7 @@ use std::path::Path;
 
 use zbm_platform::files::FileKind;
 use zbm_tools::Shown;
-use zbm_tools::mount::Mount;
+use zbm_tools::mount::{Mount, Mounted};
 use zbm_types::DevicePath;
 
 use crate::device::{device_present, resolve_device};
@@ -105,10 +105,12 @@ impl Unlocker<'_> {
             zbm_trace::error!("unable to create a mount point for key device {device}");
             return found;
         };
-        let mounted = Mount::new(self.context().runner())
-            .read_only(device, &dir)
-            .is_ok_and(|output| output.status.is_success());
-        if !mounted {
+        // Mounted until the run releases the key file
+        // ([`Unlocker::release_keyfile`]), after the methods that use it.
+        let mounted = Mount::new(self.context().runner(), files)
+            .read_only(device, Path::new(&dir))
+            .map(Mounted::leave);
+        if mounted.is_err() {
             zbm_trace::warn!("unable to mount LUKS key device {device}");
             let _ = files.remove_dir(Path::new(&dir));
             return found;
@@ -140,7 +142,9 @@ impl Unlocker<'_> {
         let Some(mount) = &found.mount else {
             return;
         };
-        let _ = Mount::new(self.context().runner()).unmount(Path::new(mount), Shown::Hidden);
+        let context = self.context();
+        let _ =
+            Mount::new(context.runner(), context.files()).unmount(Path::new(mount), Shown::Hidden);
         let _ = self.context().files().remove_dir(Path::new(mount));
     }
 

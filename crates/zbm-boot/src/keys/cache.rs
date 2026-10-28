@@ -7,8 +7,6 @@ use std::path::{Path, PathBuf};
 
 use zbm_platform::{Files, Secret, System};
 use zbm_state::State;
-use zbm_tools::Shown;
-use zbm_tools::mount::Mount;
 use zbm_types::{DatasetName, FilesystemName};
 use zbm_zfs::{Stderr, ZfsText};
 
@@ -103,14 +101,13 @@ fn copy_from_source(
         return;
     }
     let filesystem = FilesystemName::from(source.clone());
-    let Some(mnt) = mount_zfs(system, state, &filesystem, Noise::Shown) else {
+    let Some(mounted) = mount_zfs(system, state, &filesystem, Noise::Shown) else {
         zbm_trace::error!("failed to mount {source}");
         return;
     };
-    if let Some(keypath) = key_in_source(system, source, keyfile, &mnt) {
+    if let Some(keypath) = key_in_source(system, source, keyfile, mounted.path()) {
         copy_key(system.files, &keypath, keyfile, keycache);
     }
-    let _ = Mount::new(system.runner).unmount(&mnt, Shown::Console);
 }
 
 /// `keyfile` relative to the mount point of `source` (`ksmount`), or empty

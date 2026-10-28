@@ -72,7 +72,7 @@ stays for a reason:
 | `sed`, `grep`, `awk`, `ps`, `less`, `column`, `mbuffer` | — | Users' hooks and the recovery shell |
 | `blkid`, `udevadm` | — | No Rust udev is mature, and `cryptsetup` relies on the device-mapper rules |
 | `lsblk`, `dmesg`, `setsid`, `hostid` | CD2 (done: the runtime no longer runs them but as a fallback, until the VM suites pass the native code, and for the legacy runtime's code) | — |
-| `mount` | SB3 | — |
+| `mount` | SB3 (done for ZFS mounts and single unmounts, with `mount` as the fallback); `mount` stays for block devices, FAT, `efivarfs` and `umount -R` | — |
 | `kexec` | SB4 (`kexec_file_load`); `kexec` stays for device trees, Xen and old kernels | — |
 | `tput`, `stty` | PM11 | — |
 | `insmod`, `modinfo`, `lsmod`, `depmod` | CD4 | — |

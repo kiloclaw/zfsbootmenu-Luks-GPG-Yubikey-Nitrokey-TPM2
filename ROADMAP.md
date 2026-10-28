@@ -236,8 +236,8 @@ useful parts move into `zbm-platform`), `zbm-coreutils` (into `zbm-platform`), `
   and `FakeZfs`.
 - **Batched.** One `zpool list -j` for all pools and one `zfs list -j -p -r -o <the properties ZFSBootMenu reads>` per
   pool build the snapshot; the boot code reads properties from it, not with one `zfs get` each.
-- **Mounting without programs:** `mount(2)` and `umount2(2)` with `zfsutil`, behind the `Mounts` port, with
-  `mount.zfs` as the fallback.
+- **Mounting without programs:** `mount(2)` for ZFS and `umount2(2)`, through the `Files` port (SB3), with `mount`
+  and `mount.zfs` as the fallback; a `Mounted` unmounts when dropped.
 - The text fallback goes when the oldest supported distribution ships OpenZFS 2.3.
 
 ### The system boundary
@@ -605,7 +605,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | --- | --- | --- | --- | --- |
 | SB1 | Process plumbing: one pipe instead of the `sh -c` wrapper, `setsid` in `pre_exec`, time-outs for every wait on hardware, a cap on captured output | perf, stab | S | |
 | SB2 | Done, first half: no ZFS command line outside `zbm-zfs` (25 before); the boot path, the start-up and `zbm-kcl` ask through `ZfsText`, typed (`DatasetName`, `PoolName`, `FilesystemName`) with the legacy command lines unchanged, and `Import` moved into `zbm-zfs`; `ZfsCommand` and `ZpoolCommand` private to it. Left: the boot path on `trait Zfs`, batched (one listing per pool, properties read from it), which changes the command lines and the legacy golden files | perf, mod | M | DM3 |
-| SB3 | The `Mounts` port: `mount(2)` and `umount2(2)` with `zfsutil`, `mount.zfs` as the fallback, `Mounted` unmounting on drop | perf | M | |
+| SB3 | Done: `zbm-tools`'s `Mount` mounts ZFS filesystems with `mount(2)` and unmounts with `umount2(2)`, through the `Files` port (`mount_zfs`, `unmount`, which only `RealFiles` makes, so tests never mount), with the programs as the fallback; a `Mounted` unmounts when dropped (boot environments read for kernels, key sources, hook filesystems, the EFI partition for saved logs); the mount command builders of `zbm-zfs` go. Left: block devices, FAT and `efivarfs` still by `mount`, which needs the file system type; `umount -R` | perf | M | |
 | SB4 | The `KernelLoader` port: `kexec_file_load` and `reboot`, with `kexec-tools` for device trees, `ENOSYS` and hooks | sec, perf | M | |
 | SB5 | Built-in hooks as native `BootStep`s, the hook API version 2, the generated `zfunc` library | mod, sec | M | DM7 |
 | SB6 | The recovery tools as menu views and `zbm` applets (`zfs-chroot`, `zsnapshots`, `zkexec`, `mount_esp`, `reboot`, `firmware-setup`, `logs`, the help viewer); `fzf` leaves Rust images | mod | L | UI10 |

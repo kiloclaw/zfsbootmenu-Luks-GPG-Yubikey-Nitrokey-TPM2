@@ -9,7 +9,7 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::{FilesystemName, KernelSelector};
 
-use super::mounts::{Noise, be_location, mount_zfs, umount};
+use super::mounts::{Noise, be_location, mount_zfs};
 use super::zfs::zfs_value;
 use crate::error::BootError;
 use crate::kernels::{self, Kernel};
@@ -28,7 +28,7 @@ pub fn find_kernels(
 ) -> Result<(), BootError> {
     zbm_trace::debug!("fs set to {filesystem}");
     let fs = &filesystem.to_string();
-    let Some(mnt) = mount_zfs(system, state, filesystem, Noise::Hidden) else {
+    let Some(mounted) = mount_zfs(system, state, filesystem, Noise::Hidden) else {
         zbm_trace::error!("unable to mount {fs}");
         return Err(BootError::Mount { fs: fs.to_owned() });
     };
@@ -36,9 +36,9 @@ pub fn find_kernels(
     let _ = system.files.write(&records, b"");
 
     clear_kcl_cache(system, state, fs);
-    let list = kernel_list(system, state, fs, &mnt);
+    let list = kernel_list(system, state, fs, mounted.path());
     let _ = system.files.write(&records, &list);
-    umount(system.runner, &mnt);
+    drop(mounted);
 
     if !list.is_empty() && select_kernel(system, state, filesystem).is_some() {
         return Ok(());

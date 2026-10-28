@@ -6,8 +6,7 @@
 //! - [`ZfsText`] is what booting, the start-up and `zbm-kcl` ask, as typed
 //!   calls that run the text commands of the legacy runtime; [`import`] is
 //!   how `zpool import` imports.
-//! - [`mounts`] reads the mount table and builds the mount and unmount commands
-//!   of `zfsbootmenu-core.sh`.
+//! - [`mounts`] reads the mount table.
 //!
 //! The commands go through a [`Runner`], so tests can check what would run
 //! without a pool.

@@ -161,3 +161,23 @@ fn canonical_paths_have_no_links() {
         RealFiles.canonicalize(&dir.join("target")).unwrap()
     );
 }
+
+#[test]
+fn the_mount_system_calls_report_their_errors() {
+    // A mount point that does not exist: nothing can be mounted on it or
+    // unmounted from it, whoever runs the test.
+    let missing = Path::new("/nonexistent/zbm-mount-test");
+    assert!(
+        RealFiles
+            .mount_zfs("tank/ROOT/void", missing, true)
+            .is_err()
+    );
+    assert!(
+        RealFiles
+            .mount_zfs("tank/ROOT/void", missing, false)
+            .is_err()
+    );
+    assert!(RealFiles.unmount(missing).is_err());
+    let nul = Path::new("/nonexistent/a\0b");
+    assert!(RealFiles.mount_zfs("tank", nul, true).is_err());
+}

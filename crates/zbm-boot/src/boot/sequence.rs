@@ -93,7 +93,8 @@ fn load_and_mount(
     tput(system, &["cnorm"]);
     tput(system, &["clear"]);
     let filesystem = filesystem?;
-    let mnt = mount_zfs(system, state, &filesystem, Noise::Shown)?;
+    // Mounted until the teardown, or the recursive unmount of a failure.
+    let mnt = mount_zfs(system, state, &filesystem, Noise::Shown)?.leave();
     Some((filesystem, mnt))
 }
 
@@ -319,7 +320,7 @@ fn log_loaded(load: &KexecLoad<'_>, output: &str) {
 /// mounted at `mnt`, exports the pools imported read-write and runs the
 /// `teardown.d` hooks with `hook_env`.
 fn tear_down(system: &System<'_>, settings: &BootSettings, hook_env: &[(&str, &str)], mnt: &Path) {
-    umount(system.runner, mnt);
+    umount(system, mnt);
     export_writable_pools(system.runner);
     hooks::run_stage(
         system,

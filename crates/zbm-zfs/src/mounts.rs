@@ -1,9 +1,6 @@
-//! The mount table, and the mount and unmount commands of
-//! `zfsbootmenu-core.sh`.
+//! The mount table: what is mounted where, and the root filesystem.
 
 use std::path::Path;
-
-use zbm_platform::exec::{Command, Runner, Stream};
 
 /// One line of the mount table, split as `read -r dev path fs opts` splits it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -86,8 +83,8 @@ impl MountTable {
             .map(|entry| entry.target.as_str())
     }
 
-    /// The mount points [`unmount_recursive`] unmounts one by one when
-    /// `umount -R` fails, in that order.
+    /// The mount points that a recursive unmount unmounts one by one when
+    /// `umount -R` fails, in that order, as the legacy runtime orders them.
     ///
     /// These are the mount points that start with `mountpoint` read as the regular
     /// expression `^mountpoint`, so a `.` in it matches any character. They are
@@ -132,84 +129,10 @@ fn matches_prefix(prefix: &str, text: &str) -> bool {
     })
 }
 
-/// The command that mounts a dataset:
-/// `mount -o [zfsutil,]ro|rw -t zfs <dataset> <target>`.
-///
-/// `zfsutil` is needed for datasets with a non-legacy mount point, and must be
-/// left out for legacy mount points and for snapshots.
-pub fn zfs_mount_command(dataset: &str, target: &str, read_write: bool, zfsutil: bool) -> Command {
-    let mode = if read_write { "rw" } else { "ro" };
-    let options = if zfsutil {
-        format!("zfsutil,{mode}")
-    } else {
-        mode.to_owned()
-    };
-    Command::new("mount").args(["-o", &options, "-t", "zfs", dataset, target])
-}
-
-/// The command that mounts `efivarfs` read-only (`ro`) or read-write (`rw`)
-/// at `location`, or remounts it when it is already mounted there.
-pub fn efivarfs_mount_command(state: &str, location: &str, remount: bool) -> Command {
-    let options = if remount {
-        format!("remount,{state}")
-    } else {
-        state.to_owned()
-    };
-    Command::new("mount").args(["-t", "efivarfs", "efivarfs", location, "-o", &options])
-}
-
-/// Why [`unmount_recursive`] left something mounted.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-pub enum UnmountError {
-    /// The mount point was empty.
-    #[error("mountpoint undefined")]
-    NoMountpoint,
-    /// `umount -R` failed, and so did `umount` of these mount points.
-    #[error("unable to unmount {}", .0.join(", "))]
-    StillMounted(Vec<String>),
-}
-
-/// Unmounts `mountpoint` and everything below it: `umount -R` first, then,
-/// when that fails, each mount point in [`MountTable::unmount_order`].
-///
-/// # Errors
-///
-/// [`UnmountError::NoMountpoint`] when `mountpoint` is empty, and
-/// [`UnmountError::StillMounted`] with the mount points that `umount` could
-/// not unmount.
-pub fn unmount_recursive(
-    runner: &dyn Runner,
-    table: &MountTable,
-    mountpoint: &str,
-) -> Result<(), UnmountError> {
-    if mountpoint.is_empty() {
-        return Err(UnmountError::NoMountpoint);
-    }
-    let quiet = |command: Command| command.stdout(Stream::Null).stderr(Stream::Null);
-    let succeeded = |command: Command| {
-        runner
-            .run(&quiet(command))
-            .is_ok_and(|output| output.status.is_success())
-    };
-    if succeeded(Command::new("umount").args(["-R", mountpoint])) {
-        return Ok(());
-    }
-    let mounted: Vec<String> = table
-        .unmount_order(mountpoint)
-        .into_iter()
-        .filter(|target| !succeeded(Command::new("umount").arg(target)))
-        .collect();
-    if mounted.is_empty() {
-        Ok(())
-    } else {
-        Err(UnmountError::StillMounted(mounted))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testkit::FakeRunner;
+    use zbm_platform::exec::{Command, Runner};
 
     const MOUNTS: &str = "\
 pool/ROOT/be / zfs rw,relatime,xattr 0 0
@@ -287,57 +210,5 @@ pool/ROOT/be/usr /zfsbootmenu/environments/pool/ROOT/be/mnt/usr zfs ro 0 0
             .map(|line| line.split_once(',').unwrap().1)
             .collect();
         assert_eq!(table.unmount_order(mountpoint), expected);
-    }
-
-    #[test]
-    fn commands() {
-        assert_eq!(
-            zfs_mount_command("pool/be", "/mnt", false, true).display(),
-            "mount -o zfsutil,ro -t zfs pool/be /mnt"
-        );
-        assert_eq!(
-            zfs_mount_command("pool/be@snap", "/mnt", true, false).display(),
-            "mount -o rw -t zfs pool/be@snap /mnt"
-        );
-        assert_eq!(
-            efivarfs_mount_command("rw", "/sys/firmware/efi/efivars", true).display(),
-            "mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o remount,rw"
-        );
-    }
-
-    #[test]
-    fn unmount_recursive_falls_back_to_single_mounts() {
-        let table = MountTable::parse(MOUNTS);
-        let runner = FakeRunner::new();
-        runner.respond(
-            "umount -R /zfsbootmenu/environments/pool/ROOT/be/mnt",
-            32,
-            "",
-        );
-        runner.respond(
-            "umount /zfsbootmenu/environments/pool/ROOT/be/mnt/usr",
-            32,
-            "",
-        );
-        let result = unmount_recursive(
-            &runner,
-            &table,
-            "/zfsbootmenu/environments/pool/ROOT/be/mnt",
-        );
-        assert_eq!(runner.lines().len(), 5);
-        assert_eq!(
-            result,
-            Err(UnmountError::StillMounted(vec![
-                "/zfsbootmenu/environments/pool/ROOT/be/mnt/usr".to_owned()
-            ]))
-        );
-
-        let runner = FakeRunner::new();
-        assert_eq!(unmount_recursive(&runner, &table, "/x"), Ok(()));
-        assert_eq!(runner.lines(), ["umount -R /x"]);
-        assert_eq!(
-            unmount_recursive(&runner, &table, ""),
-            Err(UnmountError::NoMountpoint)
-        );
     }
 }

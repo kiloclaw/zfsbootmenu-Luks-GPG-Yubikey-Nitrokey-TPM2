@@ -91,6 +91,11 @@ pub struct FakeFiles {
     operations: Arc<Mutex<Vec<FileOperation>>>,
     failures: Arc<Mutex<Vec<(PathBuf, io::ErrorKind)>>>,
     ticks: Arc<AtomicU64>,
+    /// Whether the mount system calls are made, and succeed; `None` when
+    /// they are not, as by default, so that the programs run.
+    mount_calls: Arc<Mutex<Option<bool>>>,
+    /// The mount system calls made.
+    mounts_made: Arc<Mutex<Vec<String>>>,
 }
 
 impl Default for FakeFiles {
@@ -141,6 +146,37 @@ impl FakeFiles {
             operations: Arc::new(Mutex::new(Vec::new())),
             failures: Arc::new(Mutex::new(Vec::new())),
             ticks: Arc::new(AtomicU64::new(0)),
+            mount_calls: Arc::new(Mutex::new(None)),
+            mounts_made: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Makes the mount system calls
+    /// ([`Files::mount_zfs`](zbm_platform::Files::mount_zfs),
+    /// [`Files::unmount`](zbm_platform::Files::unmount)), which succeed
+    /// when `succeed` holds and fail with `PermissionDenied` otherwise; by
+    /// default they are not made.
+    pub fn mount_calls(&self, succeed: bool) -> &FakeFiles {
+        *lock(&self.mount_calls) = Some(succeed);
+        self
+    }
+
+    /// The mount system calls made, `mount SOURCE TARGET` (with ` ro` when
+    /// read-only) or `umount TARGET`.
+    pub fn mounts_made(&self) -> Vec<String> {
+        lock(&self.mounts_made).clone()
+    }
+
+    /// Records the mount system call `call`, and how it ends.
+    pub(crate) fn mount_call(&self, call: String) -> io::Result<()> {
+        let Some(succeed) = *lock(&self.mount_calls) else {
+            return Err(io::ErrorKind::Unsupported.into());
+        };
+        lock(&self.mounts_made).push(call);
+        if succeed {
+            Ok(())
+        } else {
+            Err(io::ErrorKind::PermissionDenied.into())
         }
     }
 

@@ -103,7 +103,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   (ROADMAP.md, "The ZFS boundary"). `zbm-crypt` runs `cryptsetup` with typed requests and errors; a
   `Mapping<Closed>` becomes a `Mapping<Open>` only through `Cryptsetup::open`, and its other modules run the key
   programs (`tpm2_*`, `fido2-*`, `clevis`, `ykchalresp`, `gpg`). `zbm-tools` runs the system's other programs:
-  `mount`, kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts, and reads block
+  `mount` (ZFS mounts and unmounts as system calls where the `Files` port makes them, with a `Mounted` that unmounts
+  when dropped), kernel modules, `udevadm`, the terminal, `kexec`, `blkid`, `objcopy` and user scripts, and reads block
   devices from `/sys/class/block` and udev's records; its `console` module is the plain console, the
   `ConsoleInteraction` that shows a service's questions on a terminal without the menu. Adapters are the only code
   that builds a `Command`: the

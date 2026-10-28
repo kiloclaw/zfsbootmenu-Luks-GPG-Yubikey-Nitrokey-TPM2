@@ -15,7 +15,6 @@ use std::time::UNIX_EPOCH;
 
 use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
-use zbm_tools::Shown;
 use zbm_tools::devices::Devices;
 use zbm_tools::mount::Mount;
 
@@ -168,7 +167,7 @@ fn loader_partuuid(system: &System<'_>) -> Option<String> {
         return None;
     }
     if !crate::boot::is_mount_point(system.files, efivars) {
-        let _ = Mount::new(system.runner).efivarfs(efivars, "ro");
+        let _ = Mount::new(system.runner, system.files).efivarfs(efivars, "ro");
     }
     let bytes = system.files.read(Path::new(LOADER_DEVICE)).ok()?;
     let units: Vec<u16> = bytes
@@ -190,16 +189,12 @@ fn with_mounted<T>(
 ) -> Result<T, SaveError> {
     let point = Path::new(MOUNT_POINT);
     let _ = system.files.create_dir_all(point);
-    let mount = Mount::new(system.runner);
-    if !mount
-        .fat(device, point)
-        .is_ok_and(|output| output.status.is_success())
-    {
+    let Ok(mounted) = Mount::new(system.runner, system.files).fat(device, point) else {
         let _ = system.files.remove_dir(point);
         return Err(SaveError::Mount(device.to_owned()));
-    }
-    let result = work(point);
-    let _ = mount.unmount(point, Shown::Hidden);
+    };
+    let result = work(mounted.path());
+    let _ = mounted.quietly().unmount();
     let _ = system.files.remove_dir(point);
     result
 }
