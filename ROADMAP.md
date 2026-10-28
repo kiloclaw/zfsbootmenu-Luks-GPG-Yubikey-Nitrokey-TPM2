@@ -482,7 +482,7 @@ New checks, added by the items that need them:
 | Domain crates reach programs only through adapter ports | `xtask check-deps` refuses `zbm_platform::Runner` in domain crates, and front ends that use domain crates other than through `zbm-app` | DM2, DM8 |
 | No raw ZFS command lines outside `zbm-zfs` | `xtask metrics` column `zfs_commands` (DM1, 25 on 28 October 2026), ratcheted to 0 | SB2 |
 | Names are newtypes in domain signatures | `xtask metrics` column `string_params`: public domain functions taking a raw string (DM1, 99; 73 after DM3, 41 of them in `zbm-luks` for DM6) | DM3, DM6 |
-| Structured logs | `xtask metrics` column `format_logs`: format-string log macros (DM1, 262) | DM9 |
+| Structured logs | `xtask metrics` column `format_logs`: format-string log macros (DM1, 262), ratcheted to 0 (DM9, done) | DM9 |
 | No interactive shell outside its gate | `xtask metrics` column `shell_starts` (SE2), ratcheted down to `ShellGate` alone | SE9 |
 | `zbm` links glibc alone; the Rust image's C programs go down | `cargo xtask check-links` in CI (`readelf -d`); `xtask metrics` row `rust-image`, column `c_programs` (45 on 28 October 2026) (CD1, done) | CD1 |
 | Release images carry no test features | `xtask lint` step "test features": no feature but a test one turns one on, and no file that builds releases sets features (SE2, done) | SE2 |

@@ -173,7 +173,7 @@ impl<'a> Startup<'a> {
             None => self.run_stages(modes.rerun),
         };
         if let Err(error) = self.state.mark_initialized() {
-            zbm_trace::error!("{}", error.to_string());
+            zbm_trace::error!("{error}"; %error);
         }
         if !modes.console {
             return 0;
@@ -383,7 +383,7 @@ impl<'a> Startup<'a> {
 /// Logs each item of `list` as an error.
 fn log_unsupported(list: &[support::Unsupported]) {
     for item in list {
-        zbm_trace::error!("{}: {item}", support::MESSAGE);
+        zbm_trace::error!("{support}: {item}"; support = %support::MESSAGE, %item);
     }
 }
 

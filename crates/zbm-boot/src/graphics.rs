@@ -269,7 +269,7 @@ pub fn load(system: &System<'_>, root: &Path, value: Option<&str>, untested: boo
         return;
     }
     let choice = Choice::parse(value).unwrap_or_else(|message| {
-        zbm_trace::warn!("{message}");
+        zbm_trace::warn!("{what}"; what = %message);
         Choice::All
     });
     if choice == Choice::Off {
@@ -278,17 +278,11 @@ pub fn load(system: &System<'_>, root: &Path, value: Option<&str>, untested: boo
     }
     let (drivable, chosen) = split(system.files, root, &drivers, &choice);
     if chosen.is_empty() {
-        let found: Vec<String> = drivable.iter().map(Gpu::describe).collect();
+        let found = described(&drivable);
         zbm_trace::warn!(
-            "no GPU for the graphics drivers {} (zbm.gpu={}; found: {}); \
-             the console stays on the firmware's framebuffer",
-            drivers.join(" "),
-            value.unwrap_or(""),
-            if found.is_empty() {
-                "none".to_owned()
-            } else {
-                found.join(", ")
-            }
+            "no GPU for the graphics drivers {drivers} (zbm.gpu={wanted}; found: {found}); \
+             the console stays on the firmware's framebuffer";
+            drivers = %drivers.join(" "), wanted = %value.unwrap_or(""), %found
         );
         return;
     }
@@ -311,35 +305,48 @@ fn known_of(chosen: &[Gpu], untested: bool) -> Vec<Gpu> {
     for gpu in chosen {
         match known::known_name(gpu) {
             Some(name) => {
-                zbm_trace::info!("graphics: {} is a {name}", gpu.describe());
+                zbm_trace::info!("graphics: {gpu} is a {name}"; gpu = %gpu.describe(), %name);
                 taken.push(gpu.clone());
             }
             None if untested => {
                 zbm_trace::warn!(
-                    "graphics: {} is not known to come back after kexec; \
-                     its driver loads for zbm.gpu_untested",
-                    gpu.describe()
+                    "graphics: {gpu} is not known to come back after kexec; \
+                     its driver loads for zbm.gpu_untested";
+                    gpu = %gpu.describe()
                 );
                 taken.push(gpu.clone());
             }
             None => zbm_trace::warn!(
-                "graphics: {} is not known to come back after kexec; it stays on \
-                 the firmware's framebuffer (zbm.gpu_untested tries its driver)",
-                gpu.describe()
+                "graphics: {gpu} is not known to come back after kexec; it stays on \
+                 the firmware's framebuffer (zbm.gpu_untested tries its driver)";
+                gpu = %gpu.describe()
             ),
         }
     }
     taken
 }
 
+/// The GPUs `gpus` for the log: `none`, or each described, joined by commas.
+fn described(gpus: &[Gpu]) -> String {
+    if gpus.is_empty() {
+        return "none".to_owned();
+    }
+    gpus.iter()
+        .map(Gpu::describe)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Keeps every driver from `gpu`.
 fn leave_alone(files: &dyn Files, root: &Path, gpu: &Gpu) {
     let path = root.join(PCI).join(&gpu.address).join("driver_override");
     match files.write(&path, format!("{NO_DRIVER}\n").as_bytes()) {
-        Ok(()) => zbm_trace::info!("graphics: leaving {} alone (zbm.gpu)", gpu.describe()),
+        Ok(()) => {
+            zbm_trace::info!("graphics: leaving {gpu} alone (zbm.gpu)"; gpu = %gpu.describe());
+        }
         Err(error) => zbm_trace::warn!(
-            "graphics: unable to keep the drivers from {}: {error}",
-            gpu.describe()
+            "graphics: unable to keep the drivers from {gpu}: {error}";
+            gpu = %gpu.describe(), %error
         ),
     }
 }
@@ -356,13 +363,15 @@ fn load_drivers(system: &System<'_>, drivers: &[String], chosen: &[Gpu]) {
             loaded.push(driver);
             match modules.load(driver) {
                 Ok(output) if output.status.is_success() => {
-                    zbm_trace::info!("graphics: loaded {driver}");
+                    zbm_trace::info!("graphics: loaded {driver}"; %driver);
                 }
                 Ok(output) => zbm_trace::warn!(
-                    "graphics: unable to load {driver}: {}",
-                    output.stdout_text().trim_end()
+                    "graphics: unable to load {driver}: {output}";
+                    %driver, output = %output.stdout_text().trim_end()
                 ),
-                Err(error) => zbm_trace::warn!("graphics: unable to load {driver}: {error}"),
+                Err(error) => {
+                    zbm_trace::warn!("graphics: unable to load {driver}: {error}"; %driver, %error);
+                }
             }
         }
     }
@@ -382,9 +391,8 @@ fn wait_for_cards(system: &System<'_>, root: &Path, chosen: &[Gpu]) {
         if system.clock.now() >= deadline {
             for gpu in missing {
                 zbm_trace::warn!(
-                    "graphics: no display device for {} after {} s",
-                    gpu.describe(),
-                    WAIT.as_secs()
+                    "graphics: no display device for {gpu} after {wait} s";
+                    gpu = %gpu.describe(), wait = %WAIT.as_secs()
                 );
             }
             break;
@@ -398,7 +406,10 @@ fn wait_for_cards(system: &System<'_>, root: &Path, chosen: &[Gpu]) {
             } else {
                 "no display connected"
             };
-            zbm_trace::info!("graphics: {} is {card}, {connected}", gpu.describe());
+            zbm_trace::info!(
+                "graphics: {gpu} is {card}, {connected}";
+                gpu = %gpu.describe(), %card, %connected
+            );
         }
     }
 }

@@ -234,10 +234,14 @@ fn log(pool: &str) {
     debug!(count = 3, "done");
     error!("a brace {{ shown as is }}");
     println!("not a log {pool}");
+    zbm_trace::debug!("pool set to {pool}"; %pool);
+    zbm_trace::warn!("{pool} is {state}"; pool, state = ?pool);
+    zbm_trace::warn!("{pool} is {missing}"; %pool);
 }
 "#;
 
-    assert_eq!(scan(source).format_logs, 2);
+    // The last template names a field it does not have.
+    assert_eq!(scan(source).format_logs, 3);
     assert_eq!(scan_test(source, true).format_logs, 0);
 }
 

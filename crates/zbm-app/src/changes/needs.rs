@@ -91,7 +91,7 @@ impl Needs for OnMachine<'_, '_> {
 
     fn unmount(&mut self, mounted: &str) {
         if let Err(error) = kexec::recursive_umount(self.system, Path::new(mounted)) {
-            tracing::warn!("{error}");
+            tracing::warn!(%error, "unmounting the boot environment");
         }
     }
 }

@@ -86,7 +86,10 @@ impl Unlocker<'_> {
             .files()
             .exists(Path::new(&self.mapper(name.as_str())))
         {
-            zbm_trace::error!("cannot unlock {device}: mapping {name} already exists");
+            zbm_trace::error!(
+                "cannot unlock {device}: mapping {name} already exists";
+                %device, %name
+            );
             return Err(LuksError::MappingExists {
                 name: name.to_string(),
             });
@@ -126,13 +129,16 @@ impl Unlocker<'_> {
         log_all(&messages);
 
         if self.is_device_open(device) {
-            zbm_trace::info!("LUKS device {device} is already in use, skipping");
+            zbm_trace::info!("LUKS device {device} is already in use, skipping"; %device);
             return Ok(Opened::AlreadyOpen);
         }
 
         let header = options.header.clone().unwrap_or_else(|| device.to_owned());
         if !self.cryptsetup().is_luks(&header) {
-            zbm_trace::warn!("{header} is not a LUKS volume (header), skipping {device}");
+            zbm_trace::warn!(
+                "{header} is not a LUKS volume (header), skipping {device}";
+                %header, %device
+            );
             return Err(LuksError::NotLuks { header });
         }
 
@@ -179,18 +185,18 @@ impl Unlocker<'_> {
                     let passphrase = match asked {
                         Asked::Secret(passphrase) => passphrase,
                         Asked::Elsewhere => {
-                            zbm_trace::info!("{device} was unlocked elsewhere");
+                            zbm_trace::info!("{device} was unlocked elsewhere"; %device);
                             return Ok(Opened::Elsewhere);
                         }
                         Asked::Ended => {
-                            zbm_trace::warn!("no console available to unlock {device}");
+                            zbm_trace::warn!("no console available to unlock {device}"; %device);
                             return Err(LuksError::NoConsole {
                                 device: device.to_owned(),
                             });
                         }
                     };
                     if passphrase.is_empty() {
-                        zbm_trace::info!("skipping LUKS volume {device} at user request");
+                        zbm_trace::info!("skipping LUKS volume {device} at user request"; %device);
                         return Err(self.skipped(device));
                     }
                     self.tell(Told::Working, &format!("Unlocking {device} ...\n"));
@@ -199,20 +205,23 @@ impl Unlocker<'_> {
                         .is_ok()
                     {
                         self.passphrases.push(passphrase);
-                        zbm_trace::info!("unlocked {device} as {name}");
+                        zbm_trace::info!("unlocked {device} as {name}"; %device, %name);
                         return Ok(self.opened(name, device, origin, Method::Passphrase));
                     }
                     drop(passphrase);
                     if self.is_device_open(device) {
-                        zbm_trace::info!("{device} was unlocked elsewhere");
+                        zbm_trace::info!("{device} was unlocked elsewhere"; %device);
                         return Ok(Opened::Elsewhere);
                     }
-                    zbm_trace::warn!("failed to unlock {device} (attempt {attempt})");
+                    zbm_trace::warn!(
+                        "failed to unlock {device} (attempt {attempt})";
+                        %device, %attempt
+                    );
                     prompt.failed()
                 }
                 Next::AskRetry => prompt.retry(self.ask_retry(volume, &description)),
                 Next::GiveUp => {
-                    zbm_trace::warn!("giving up on LUKS volume {device}");
+                    zbm_trace::warn!("giving up on LUKS volume {device}"; %device);
                     return Err(self.skipped(device));
                 }
             };
@@ -278,7 +287,7 @@ impl Unlocker<'_> {
                 return Some(device);
             }
             if nofail {
-                zbm_trace::info!("optional LUKS device {spec} not found, skipping");
+                zbm_trace::info!("optional LUKS device {spec} not found, skipping"; %spec);
                 return None;
             }
             let request = PromptRequest {
@@ -289,7 +298,7 @@ impl Unlocker<'_> {
                 on_escape: "skip this device".to_owned(),
             };
             if self.timed_prompt(&request) == Answer::Escape {
-                zbm_trace::error!("LUKS device {spec} not found");
+                zbm_trace::error!("LUKS device {spec} not found"; %spec);
                 return None;
             }
         }

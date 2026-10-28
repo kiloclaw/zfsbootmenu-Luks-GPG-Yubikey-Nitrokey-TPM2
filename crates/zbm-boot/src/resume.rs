@@ -24,7 +24,7 @@ pub fn has_resume_device(system: &System<'_>) -> bool {
     SUSPEND_TYPES.iter().any(|kind| {
         let found = Devices::new(system.runner, system.files).has_type(kind);
         if found {
-            zbm_trace::debug!("resume device: {kind}");
+            zbm_trace::debug!("resume device: {kind}"; %kind);
         }
         found
     })
@@ -93,7 +93,7 @@ pub fn resume_prompt(
     state: &State<'_>,
     pool: &PoolName,
 ) -> Result<ResumeChoice, BootError> {
-    zbm_trace::debug!("pool set to {pool}");
+    zbm_trace::debug!("pool set to {pool}"; %pool);
     if !has_resume_device(system) {
         return Ok(ResumeChoice::NoResumeDevice);
     }
@@ -119,7 +119,7 @@ pub fn resume_prompt(
         "DANGEROUS" => Ok(ResumeChoice::Dangerous),
         "NORESUME" => {
             if let Err(error) = state.set_noresume() {
-                zbm_trace::error!("{}", error.to_string());
+                zbm_trace::error!("{error}"; %error);
             }
             Ok(ResumeChoice::Noresume)
         }

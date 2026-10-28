@@ -126,7 +126,7 @@ impl Unlocker<'_> {
     fn unseal_plan(&self, token: &Token, pin: Option<&Secret>) -> Result<Unseal, Outcome> {
         let context = *self.context();
         if let Some(tool) = TOOLS.iter().find(|tool| !context.command_exists(tool)) {
-            zbm_trace::debug!("native TPM2 unlocking needs {tool}");
+            zbm_trace::debug!("native TPM2 unlocking needs {tool}"; %tool);
             return Err(Outcome::Unsupported);
         }
         // Signed PCR policies, pcrlock and pre-254 primary keys need the
@@ -240,7 +240,7 @@ impl Unlocker<'_> {
         let device = target.device;
         let failed = |failure| target.token_error("systemd-tpm2", id, failure);
         if !self.have_tpm2() {
-            zbm_trace::info!("no TPM2 available for token {id} on {device}");
+            zbm_trace::info!("no TPM2 available for token {id} on {device}"; %id, %device);
             return Err(failed(TokenFailure::NoTpm));
         }
         if token.flag("tpm2-pin") != Some(true) {
@@ -249,7 +249,8 @@ impl Unlocker<'_> {
         if self.tpm2_in_lockout() {
             self.tpm2_lockout_message();
             zbm_trace::warn!(
-                "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}"
+                "TPM2 in dictionary-attack lockout; skipping PIN token {id} on {device}";
+                %id, %device
             );
             return Err(failed(TokenFailure::Lockout));
         }
@@ -273,11 +274,11 @@ impl Unlocker<'_> {
         let result = self.tpm2_native_open(target, token, None);
         if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
             zbm_trace::warn!(
-                "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"
+                "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"; %id, %device
             );
         }
         result?;
-        zbm_trace::info!("unlocked {device} with TPM2");
+        zbm_trace::info!("unlocked {device} with TPM2"; %device);
         Ok(())
     }
 
@@ -302,7 +303,7 @@ impl Unlocker<'_> {
                     if cached.is_none() {
                         self.tpm2_pins.push(pin);
                     }
-                    zbm_trace::info!("unlocked {device} with TPM2 and PIN");
+                    zbm_trace::info!("unlocked {device} with TPM2 and PIN"; %device);
                     return Ok(());
                 }
                 drop(pin);
@@ -368,8 +369,8 @@ impl Unlocker<'_> {
             Ok(()) => Ok(true),
             Err(TokenFailure::Unsupported) => {
                 zbm_trace::warn!(
-                    "TPM2 token {id} on {} needs the systemd-tpm2 cryptsetup plugin",
-                    target.device
+                    "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin";
+                    %id, device = %target.device
                 );
                 Err(TokenFailure::Unsupported)
             }

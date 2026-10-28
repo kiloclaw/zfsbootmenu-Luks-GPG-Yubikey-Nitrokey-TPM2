@@ -15,7 +15,7 @@ use crate::error::BootError;
 
 /// The state directory of a boot environment, created if needed.
 pub(super) fn be_location(state: &State<'_>, fs: &str) -> PathBuf {
-    zbm_trace::debug!("fs set to {fs}");
+    zbm_trace::debug!("fs set to {fs}"; %fs);
     // When `mkdir -p` fails, be_location gives the path all the same.
     state.environment(fs).unwrap_or_else(|_| {
         let mnt = state.mount_point(fs);
@@ -53,8 +53,8 @@ pub fn mount_zfs<'a>(
     noise: Noise,
 ) -> Option<Mounted<'a>> {
     if locked_root(system.runner, fs.dataset()).is_some() {
-        zbm_trace::error!("{fs} is locked, unable to mount filesystem");
-        zbm_trace::debug!("{fs} is locked, returning");
+        zbm_trace::error!("{fs} is locked, unable to mount filesystem"; %fs);
+        zbm_trace::debug!("{fs} is locked, returning"; %fs);
         return None;
     }
     let name = fs.to_string();
@@ -71,14 +71,14 @@ pub fn mount_zfs<'a>(
     let mnt_text = mnt.to_string_lossy();
     let zfsutil = !legacy && !fs.is_snapshot();
     if zfsutil {
-        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo}) with zfsutil");
-        zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}");
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo}) with zfsutil"; %fs, %mnt_text, %rwo);
+        zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}"; %rwo, %fs, %mnt_text);
     } else {
-        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");
+        zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})"; %fs, %mnt_text, %rwo);
     }
     let mounted = Mount::new(system.runner, system.files).zfs(&name, &mnt, zfsutil, noise.shown());
     let code = mounted.as_ref().err().copied().unwrap_or(0);
-    zbm_trace::debug!("mount return code: {code}");
+    zbm_trace::debug!("mount return code: {code}"; %code);
     mounted.ok()
 }
 
@@ -114,7 +114,7 @@ pub fn recursive_umount(system: &System<'_>, mountpoint: &Path) -> Result<(), Bo
     let mut mounted = Vec::new();
     for (_, mp) in mounts {
         if !mount.unmount(Path::new(&mp), Shown::Hidden) {
-            zbm_trace::error!("unable to unmount {mp}");
+            zbm_trace::error!("unable to unmount {mp}"; %mp);
             mounted.push(mp);
         }
     }
@@ -151,10 +151,10 @@ pub fn mount_efivarfs(system: &System<'_>, mode: &str) {
     let mount = Mount::new(system.runner, system.files);
     let mounted = is_mount_point(system.files, location);
     let options = if mounted {
-        zbm_trace::debug!("remounting '{location}' '{mode}'");
+        zbm_trace::debug!("remounting '{location}' '{mode}'"; %location, %mode);
         format!("remount,{mode}")
     } else {
-        zbm_trace::debug!("mounting '{location}' '{mode}'");
+        zbm_trace::debug!("mounting '{location}' '{mode}'"; %location, %mode);
         mode.to_owned()
     };
     let _ = mount.efivarfs(location, &options);

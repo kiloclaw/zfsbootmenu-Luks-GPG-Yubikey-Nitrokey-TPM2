@@ -222,8 +222,7 @@ impl<'a> Unlocker<'a> {
                 .any(|rule| context.files().exists(Path::new(rule)))
         {
             zbm_trace::debug!(
-                "{}",
-                "95-dm-notify.rules missing, disabling udev synchronization for device-mapper",
+                "95-dm-notify.rules missing, disabling udev synchronization for device-mapper"
             );
             self.dm_disable_udev = true;
         }
@@ -344,7 +343,10 @@ impl<'a> Unlocker<'a> {
             Err(CryptError::Failed { status, output }) => (status, output),
             Err(error) => (127, error.to_string()),
         };
-        zbm_trace::debug!("cryptsetup open {device} {name} failed ({status}): {output}");
+        zbm_trace::debug!(
+            "cryptsetup open {device} {name} failed ({status}): {output}";
+            %device, %name, %status, %output
+        );
         Err(LuksError::Open {
             device: device.to_owned(),
             name: name.to_owned(),

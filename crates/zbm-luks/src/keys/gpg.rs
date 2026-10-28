@@ -90,7 +90,7 @@ impl Unlocker<'_> {
     /// attempts left, so no attempt is wasted.
     pub fn gpg_decrypt(&self, file: &str, volume: VolumeRef<'_>) -> Option<Secret> {
         let Some(home) = self.gpg_setup() else {
-            zbm_trace::warn!("GnuPG is not available to decrypt {file}");
+            zbm_trace::warn!("GnuPG is not available to decrypt {file_name}"; file_name = %file);
             return None;
         };
         self.gpg_decrypt_in(&home, file, volume)
@@ -121,8 +121,8 @@ impl Unlocker<'_> {
                 Decrypted::Key(key) => return Some(key),
                 Decrypted::Failed(status) => {
                     zbm_trace::debug!(
-                        "gpg failed to decrypt {file}: {}",
-                        status.trim_end_matches('\n')
+                        "gpg failed to decrypt {file_name}: {status}";
+                        file_name = %file, status = %status.trim_end_matches('\n')
                     );
                 }
             }
@@ -154,8 +154,8 @@ impl Unlocker<'_> {
         };
         if self.await_device(&request) != Wait::Present {
             zbm_trace::info!(
-                "no secret key for {file} (encrypted to {} )",
-                recipients.join(" ")
+                "no secret key for {file_name} (encrypted to {recipients} )";
+                file_name = %file, recipients = %recipients.join(" ")
             );
             return None;
         }

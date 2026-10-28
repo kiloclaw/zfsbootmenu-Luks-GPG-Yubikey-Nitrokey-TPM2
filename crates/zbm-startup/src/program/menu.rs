@@ -67,18 +67,18 @@ impl Startup<'_> {
                 // Another menu took it meanwhile: wait for that one.
                 Ok(None) => {}
                 Err(error) => {
-                    zbm_trace::error!("{}", error.to_string());
+                    zbm_trace::error!("{error}"; %error);
                     break None;
                 }
             }
         };
-        zbm_trace::debug!("holding {}/active.lock", self.state.base().display());
+        zbm_trace::debug!("holding {base}/active.lock"; base = %self.state.base().display());
 
         // The variables of `/etc/zfsbootmenu.conf`, as the legacy menu's
         // hooks got them from the script that sourced it.
         let mut env = self.conf_vars.clone();
         if let Some(bootfs) = self.state.bootfs() {
-            zbm_trace::debug!("setting BOOTFS to {bootfs}");
+            zbm_trace::debug!("setting BOOTFS to {bootfs}"; %bootfs);
             env.push(("BOOTFS".to_owned(), bootfs));
         }
         tput(system, &["clear"]);
@@ -136,14 +136,14 @@ impl Startup<'_> {
             return;
         };
         let processes = self.system.processes;
-        zbm_trace::info!("Stopping active zfsbootmenu with a PID of {pid}");
-        zbm_trace::debug!("sending USR1 to {pid}");
+        zbm_trace::info!("Stopping active zfsbootmenu with a PID of {pid}"; %pid);
+        zbm_trace::debug!("sending USR1 to {pid}"; %pid);
         if processes.signal(pid, Signal::User1).is_err() {
-            zbm_trace::info!("no process {pid}: waiting for the lock to be let go");
+            zbm_trace::info!("no process {pid}: waiting for the lock to be let go"; %pid);
             return;
         }
         let child = deepest_child(self.system.files, pid);
-        zbm_trace::debug!("killing child process {child}");
+        zbm_trace::debug!("killing child process {child}"; %child);
         let _ = processes.signal(child, Signal::Terminate);
     }
 
@@ -159,7 +159,7 @@ impl Startup<'_> {
                 .run(system);
             if answer == Answer::Escape {
                 let base = self.state.base().display();
-                zbm_trace::debug!("exited while waiting to own {base}/active");
+                zbm_trace::debug!("exited while waiting to own {base}/active"; %base);
                 tput(system, &["cnorm"]);
                 tput(system, &["clear"]);
                 return false;

@@ -55,14 +55,14 @@ pub(super) fn cache_key(
     fs: &DatasetName,
     keylocation: &str,
 ) {
-    zbm_trace::debug!("fs set to {fs}");
-    zbm_trace::debug!("keylocation set to {keylocation}");
+    zbm_trace::debug!("fs set to {fs}"; %fs);
+    zbm_trace::debug!("keylocation set to {keylocation}"; %keylocation);
     let keyfile = stripped(keylocation);
     if keyfile == keylocation || keyfile.is_empty() {
         return;
     }
     let Some(source) = keysource(system.runner, fs) else {
-        zbm_trace::debug!("no key source found for {fs}");
+        zbm_trace::debug!("no key source found for {fs}"; %fs);
         return;
     };
     let keycache = state.key_cache(source.as_str());
@@ -74,15 +74,18 @@ pub(super) fn cache_key(
     let _cache = match state.try_lock_key_cache(source.as_str()) {
         Ok(Some(lock)) => lock,
         Ok(None) => {
-            zbm_trace::debug!("will not repeat cache attempt for {source}:{keyfile}");
+            zbm_trace::debug!(
+                "will not repeat cache attempt for {source}:{keyfile}";
+                %source, %keyfile
+            );
             return;
         }
         Err(error) => {
-            zbm_trace::error!("{error}");
+            zbm_trace::error!("{error}"; %error);
             return;
         }
     };
-    zbm_trace::debug!("attempting to cache {source}:{keyfile}");
+    zbm_trace::debug!("attempting to cache {source}:{keyfile}"; %source, %keyfile);
     copy_from_source(system, state, how, &source, keyfile, &keycache);
 }
 
@@ -97,12 +100,12 @@ fn copy_from_source(
     keycache: &Path,
 ) {
     if load_key(system, state, how, source).is_err() {
-        zbm_trace::warn!("failed to load key for {source}");
+        zbm_trace::warn!("failed to load key for {source}"; %source);
         return;
     }
     let filesystem = FilesystemName::from(source.clone());
     let Some(mounted) = mount_zfs(system, state, &filesystem, Noise::Shown) else {
-        zbm_trace::error!("failed to mount {source}");
+        zbm_trace::error!("failed to mount {source}"; %source);
         return;
     };
     if let Some(keypath) = key_in_source(system, source, keyfile, mounted.path()) {
@@ -114,16 +117,25 @@ fn copy_from_source(
 /// when that tells nothing.
 fn relative_key(source: &str, keyfile: &str, ksmount: &str) -> String {
     if ksmount == "none" || ksmount == "legacy" {
-        zbm_trace::debug!("no discernable mountpoint for {source}, using only absolute key path");
+        zbm_trace::debug!(
+            "no discernable mountpoint for {source}, using only absolute key path";
+            %source
+        );
         return String::new();
     }
     let Some(ksmount) = ksmount.strip_prefix('/') else {
-        zbm_trace::warn!("ignoring nonsense mountpoint {ksmount} on filesystem {source}");
+        zbm_trace::warn!(
+            "ignoring nonsense mountpoint {ksmount} on filesystem {source}";
+            %ksmount, %source
+        );
         return String::new();
     };
     let relative = keyfile.strip_prefix(ksmount).unwrap_or(keyfile);
     let relative = relative.strip_prefix('/').unwrap_or(relative);
-    zbm_trace::debug!("{source} mounts at {ksmount}, trying relative path {relative}");
+    zbm_trace::debug!(
+        "{source} mounts at {ksmount}, trying relative path {relative}";
+        %source, %ksmount, %relative
+    );
     if relative == keyfile {
         zbm_trace::debug!("relative path  matches absolute, ignoring");
         return String::new();
@@ -143,21 +155,30 @@ fn key_in_source(
     let source = source.as_str();
     let relative = ksmount.map_or_else(String::new, |m| relative_key(source, keyfile, &m));
     let keypath = if !relative.is_empty() && system.files.exists(&below(mnt, &relative)) {
-        zbm_trace::debug!("caching key from mount-relative path {source}:{relative}");
+        zbm_trace::debug!(
+            "caching key from mount-relative path {source}:{relative}";
+            %source, %relative
+        );
         Some(below(mnt, &relative))
     } else if system.files.exists(&below(mnt, keyfile)) {
-        zbm_trace::debug!("caching key from absolute path {source}:{keyfile}");
+        zbm_trace::debug!("caching key from absolute path {source}:{keyfile}"; %source, %keyfile);
         Some(below(mnt, keyfile))
     } else {
-        zbm_trace::debug!("no key found at {source}:{keyfile}");
+        zbm_trace::debug!("no key found at {source}:{keyfile}"; %source, %keyfile);
         None
     };
     let Some(keypath) = keypath.and_then(|path| system.files.canonicalize(&path).ok()) else {
-        zbm_trace::debug!("failed to canonicalize key location {source}:{keyfile}");
+        zbm_trace::debug!(
+            "failed to canonicalize key location {source}:{keyfile}";
+            %source, %keyfile
+        );
         return None;
     };
     if !is_below(&keypath, mnt) {
-        zbm_trace::debug!("key file {keyfile} is not a proper child of {source}");
+        zbm_trace::debug!(
+            "key file {keyfile} is not a proper child of {source}";
+            %keyfile, %source
+        );
         return None;
     }
     Some(keypath)
@@ -182,16 +203,15 @@ fn copy_key(files: &dyn Files, keypath: &Path, keyfile: &str, keycache: &Path) {
     let destination = below(keycache, keyfile);
     let Some(keydest) = canonical_destination(files, &destination) else {
         zbm_trace::debug!(
-            "failed to canonicalize key destination {}",
-            destination.display()
+            "failed to canonicalize key destination {destination}";
+            destination = %destination.display()
         );
         return;
     };
     if !is_below(&keydest, keycache) {
         zbm_trace::debug!(
-            "key destination {} is no a proper child of {}",
-            keydest.display(),
-            keycache.display()
+            "key destination {keydest} is no a proper child of {keycache}";
+            keydest = %keydest.display(), keycache = %keycache.display()
         );
         return;
     }
@@ -204,15 +224,13 @@ fn copy_key(files: &dyn Files, keypath: &Path, keyfile: &str, keycache: &Path) {
         .and_then(|key| files.write_private(&keydest, key.expose()));
     if copied.is_err() {
         zbm_trace::error!(
-            "failed to copy {} to {}",
-            keypath.display(),
-            destination.display()
+            "failed to copy {keypath} to {destination}";
+            keypath = %keypath.display(), destination = %destination.display()
         );
         return;
     }
     zbm_trace::debug!(
-        "copied key {} to {}",
-        keypath.display(),
-        destination.display()
+        "copied key {keypath} to {destination}";
+        keypath = %keypath.display(), destination = %destination.display()
     );
 }

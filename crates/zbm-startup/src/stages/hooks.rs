@@ -36,7 +36,7 @@ pub fn import_hooks(
     let Ok(mounted) =
         Mount::new(system.runner, system.files).read_only_shown(filesystem, &mount_point)
     else {
-        zbm_trace::error!("failed to mount hook filesystem {filesystem}");
+        zbm_trace::error!("failed to mount hook filesystem {filesystem}"; %filesystem);
         return Err(StartupError::HookMount {
             filesystem: filesystem.to_owned(),
         });
@@ -61,11 +61,11 @@ fn split_hook_root(hook_root: &str) -> Result<(&str, &str), StartupError> {
             Ok((filesystem, path))
         }
         Some((filesystem, _)) if !filesystem.is_empty() => {
-            zbm_trace::error!("unable to find hook path: '{hook_root}' is malformed");
+            zbm_trace::error!("unable to find hook path: '{hook_root}' is malformed"; %hook_root);
             Err(malformed())
         }
         _ => {
-            zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed");
+            zbm_trace::error!("unable to find hook device: '{hook_root}' is malformed"; %hook_root);
             Err(malformed())
         }
     }
@@ -83,8 +83,8 @@ fn copy_stages(system: &System<'_>, source: &Path, root: &Path) {
         let target = root.join(&stage);
         if system.files.create_dir_all(&target).is_err() {
             zbm_trace::warn!(
-                "failed to create hook directory {}",
-                stage.to_string_lossy()
+                "failed to create hook directory {stage}";
+                stage = %stage.to_string_lossy()
             );
             continue;
         }
@@ -97,7 +97,7 @@ fn copy_stages(system: &System<'_>, source: &Path, root: &Path) {
             if !programs::copy_file(system.runner, &file, &target)
                 .is_ok_and(|output| output.status.is_success())
             {
-                zbm_trace::warn!("failed to copy user hook {}", file.display());
+                zbm_trace::warn!("failed to copy user hook {hook}"; hook = %file.display());
             }
         }
     }
@@ -120,7 +120,7 @@ pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
     if skip.is_empty() {
         return;
     }
-    zbm_trace::debug!("processing hook skip directives: {skip}");
+    zbm_trace::debug!("processing hook skip directives: {skip}"; %skip);
     let stages: Vec<_> = visible_entries(files, root)
         .into_iter()
         .filter(|name| name.as_encoded_bytes().ends_with(b".d"))
@@ -133,7 +133,7 @@ pub fn skip_hooks(files: &dyn Files, root: &Path, skip: &str) {
                 }
                 let hook = root.join(stage).join(hook);
                 if files.exists(&hook) {
-                    zbm_trace::info!("Disabling hook: {}", hook.display());
+                    zbm_trace::info!("Disabling hook: {hook}"; hook = %hook.display());
                     let _ = files.set_mode(&hook, 0);
                 }
             }

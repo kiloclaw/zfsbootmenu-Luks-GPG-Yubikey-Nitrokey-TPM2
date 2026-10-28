@@ -98,7 +98,7 @@ impl<'a> MenuFront<'a> {
         match show(view.as_deref_mut()?) {
             Ok(value) => Some(value),
             Err(error) => {
-                zbm_trace::error!("the start-up view failed: {error}");
+                zbm_trace::error!("the start-up view failed: {error}"; %error);
                 *view = None;
                 None
             }
@@ -207,7 +207,7 @@ impl Front for MenuFront<'_> {
         if let Some(view) = self.view.borrow_mut().take()
             && let Err(error) = view.close()
         {
-            zbm_trace::error!("the start-up view failed: {error}");
+            zbm_trace::error!("the start-up view failed: {error}"; %error);
         }
     }
 }
@@ -358,7 +358,7 @@ fn run_on(
     let view = match open(snapshot, theme) {
         Ok(view) => view,
         Err(error) => {
-            zbm_trace::error!("unable to show start-up in the menu: {error}");
+            zbm_trace::error!("unable to show start-up in the menu: {error}"; %error);
             return None;
         }
     };

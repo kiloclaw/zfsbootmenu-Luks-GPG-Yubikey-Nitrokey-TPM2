@@ -84,7 +84,10 @@ impl Unlocker<'_> {
                 if let Some(hmac) = self.fido2_assert(device, assertion) {
                     return Outcome::Key(hmac);
                 }
-                zbm_trace::debug!("fido2-assert on {device} (pin={pin}) did not produce a secret");
+                zbm_trace::debug!(
+                    "fido2-assert on {device} (pin={pin}) did not produce a secret";
+                    %device, %pin
+                );
             }
         }
         Outcome::Failed
@@ -141,7 +144,7 @@ impl Unlocker<'_> {
             present: &|| self.have_fido2_device(),
         };
         if self.await_device(&request) != Wait::Present {
-            zbm_trace::info!("no FIDO2 security key for token {id} on {device}");
+            zbm_trace::info!("no FIDO2 security key for token {id} on {device}"; %id, %device);
             return Err(failed(TokenFailure::NoDevice));
         }
         let heading = format!("Unlock {device} with a FIDO2 security key");
@@ -158,13 +161,13 @@ impl Unlocker<'_> {
                 Outcome::Unsupported => {
                     zbm_trace::warn!(
                         "FIDO2 token {id} on {device} needs fido2-tools or the systemd-fido2 \
-                         plugin"
+                         plugin"; %id, %device
                     );
                     return Err(failed(TokenFailure::Unsupported));
                 }
             }
         }
-        zbm_trace::info!("unlocked {device} with FIDO2 security key");
+        zbm_trace::info!("unlocked {device} with FIDO2 security key"; %device);
         Ok(())
     }
 

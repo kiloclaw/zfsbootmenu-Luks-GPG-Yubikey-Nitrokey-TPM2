@@ -114,7 +114,7 @@ impl<'a> MappingStore<'a> {
     pub fn write(&self, mappings: &[Mapping]) {
         let path = self.mappings;
         if let Err(error) = self.files.write(path, format_mappings(mappings).as_bytes()) {
-            zbm_trace::error!("unable to write {}: {error}", path.display());
+            zbm_trace::error!("unable to write {path}: {error}"; path = %path.display(), %error);
         }
     }
 
@@ -134,7 +134,7 @@ impl<'a> MappingStore<'a> {
             Ok(Some(_held)) => Some(work()),
             Ok(None) => None,
             Err(error) => {
-                zbm_trace::error!("unable to lock {}: {error}", lock.display());
+                zbm_trace::error!("unable to lock {lock}: {error}"; lock = %lock.display(), %error);
                 None
             }
         }
@@ -159,7 +159,10 @@ impl<'a> MappingStore<'a> {
                 };
                 let line = format!("{}\n", mapping.line());
                 if let Err(error) = self.files.append(path, line.as_bytes()) {
-                    zbm_trace::error!("unable to write {}: {error}", path.display());
+                    zbm_trace::error!(
+                        "unable to write {path}: {error}";
+                        path = %path.display(), %error
+                    );
                 }
             }
         });
@@ -201,7 +204,7 @@ impl<'a> MappingStore<'a> {
         if !self.is_skipped(device)
             && let Err(error) = self.files.append(path, format!("{device}\n").as_bytes())
         {
-            zbm_trace::error!("unable to write {}: {error}", path.display());
+            zbm_trace::error!("unable to write {path}: {error}"; path = %path.display(), %error);
         }
     }
 }

@@ -44,7 +44,7 @@ impl Unlocker<'_> {
             device: device.to_owned(),
         };
         if !self.context().command_exists("ykchalresp") {
-            zbm_trace::warn!("ykchalresp is not available to unlock {device}");
+            zbm_trace::warn!("ykchalresp is not available to unlock {device}"; %device);
             return Err(failed());
         }
         let mut attempt = 0;
@@ -61,7 +61,7 @@ impl Unlocker<'_> {
             {
                 // Other volumes enrolled with the same slot reuse the response.
                 self.passphrases.push(key);
-                zbm_trace::info!("unlocked {device} with YubiKey challenge-response");
+                zbm_trace::info!("unlocked {device} with YubiKey challenge-response"; %device);
                 return Ok(());
             }
             let wrong = "No key available with this passphrase.\n";
@@ -126,7 +126,7 @@ impl Unlocker<'_> {
             present: &|| self.ykchalresp_present(),
         };
         if self.await_device(&request) != Wait::Present {
-            zbm_trace::info!("no YubiKey present for {device}");
+            zbm_trace::info!("no YubiKey present for {device}"; %device);
             return None;
         }
         let request = SecretRequest {

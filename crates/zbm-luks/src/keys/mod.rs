@@ -120,8 +120,8 @@ impl Unlocker<'_> {
             Err(error) => (127, error.to_string()),
         };
         zbm_trace::debug!(
-            "token {id} on {} failed ({status}): {output}",
-            target.device
+            "token {id} on {device} failed ({status}): {output}";
+            %id, device = %target.device, %status, %output
         );
         Err(LuksError::Open {
             device: target.device.to_owned(),
@@ -166,10 +166,8 @@ impl Unlocker<'_> {
                     }
                     None if pass == Pass::Interactive => {
                         zbm_trace::debug!(
-                            "no support for {} token {} on {}",
-                            token.kind,
-                            token.id,
-                            target.device
+                            "no support for {kind} token {id} on {device}";
+                            kind = %token.kind, id = %token.id, device = %target.device
                         );
                         continue;
                     }

@@ -188,3 +188,21 @@ fn invalid_levels_write_nothing() {
     assert_eq!(kept.text(), "");
     assert!(kept.markers.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_template_reads_as_the_format_string_did() {
+    let kept = Kept::default();
+    with_layer(KmsgLayer::new(kept.clone(), "7", 1), || {
+        let pool = "tank";
+        let code = 2_u64;
+        crate::warn!("unable to import {pool}: status {code}"; %pool, code);
+        crate::info!("unable to import {}: status {code}", pool);
+        crate::debug!("{pool} is {state}"; pool, state = ?"ONLINE");
+    });
+    let text = kept.text();
+    assert!(text.starts_with(
+        "<4>ZFSBootMenu: unable to import tank: status 2\n\
+         <6>ZFSBootMenu: unable to import tank: status 2\n"
+    ));
+    assert!(text.ends_with("|tank is \"ONLINE\"\n"), "{text}");
+}

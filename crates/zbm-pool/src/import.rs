@@ -31,7 +31,7 @@ pub fn import_pool(
     import: Import<'_>,
 ) -> Result<(), PoolError> {
     match import.imports() {
-        Target::Pool(pool) => zbm_trace::debug!("pool set to {pool}"),
+        Target::Pool(pool) => zbm_trace::debug!("pool set to {pool}"; %pool),
         Target::All if import.rewinds() == Rewind::ToCheckpoint => {
             zbm_trace::error!("rewind only works on a specific pool");
             return Err(PoolError::RewindAll);
@@ -41,7 +41,7 @@ pub fn import_pool(
     import.log_options();
     let args = import.arguments();
     let shown = args.get(1..).unwrap_or_default().join(" ");
-    zbm_trace::debug!("zpool import arguments: {shown}");
+    zbm_trace::debug!("zpool import arguments: {shown}"; %shown);
     let (code, output) = ZfsText::new(context.runner()).import(import);
     if code == 0 {
         zbm_trace::debug!("successful pool import");
@@ -53,10 +53,10 @@ pub fn import_pool(
         message.emit();
     }
     zbm_trace::debug!(
-        "import process failed with code {code}, apparent hostid {}",
-        apparent.as_deref().unwrap_or("unknown")
+        "import process failed with code {code}, apparent hostid {hostid}";
+        %code, hostid = %apparent.as_deref().unwrap_or("unknown")
     );
-    zbm_trace::debug!("{}", output.trim_end_matches('\n'));
+    zbm_trace::debug!("{output}"; output = %output.trim_end_matches('\n'));
     Err(PoolError::Import {
         target: import.pool_argument().to_owned(),
         status: code,
@@ -126,28 +126,32 @@ pub fn match_hostid(
 ) -> Option<HostidMatch> {
     let importable = candidates(context, settings, single);
     let names: Vec<&str> = importable.iter().map(PoolName::as_str).collect();
-    zbm_trace::debug!("importable pools: {}", names.join(" "));
+    zbm_trace::debug!("importable pools: {names}"; names = %names.join(" "));
 
     let zpool = ZfsText::new(context.runner());
     for pool in importable {
-        zbm_trace::debug!("trying to import: {pool}");
+        zbm_trace::debug!("trying to import: {pool}"; %pool);
         let output = zpool.probe_import(&pool);
         let Some(hostid) = HostId::scrape(output.trim_end_matches('\n')) else {
-            zbm_trace::debug!("unable to scrape hostid for {pool}, skipping");
+            zbm_trace::debug!("unable to scrape hostid for {pool}, skipping"; %pool);
             continue;
         };
-        zbm_trace::debug!("discovered pool owner hostid: {hostid}");
+        zbm_trace::debug!("discovered pool owner hostid: {hostid}"; %hostid);
         if hostid::write(context.files(), &hostid).is_err() {
-            zbm_trace::debug!("failed to set hostid {hostid}, skipping import of pool {pool}");
+            zbm_trace::debug!(
+                "failed to set hostid {hostid}, skipping import of pool {pool}";
+                %hostid, %pool
+            );
             continue;
         }
         let import = Import::pool(&pool).policy(settings.policy);
         if import_pool(context, state, import).is_ok() {
-            zbm_trace::debug!("successfully imported {pool}");
+            zbm_trace::debug!("successfully imported {pool}"; %pool);
             if settings.build == Build::Local {
-                zbm_trace::warn!("imported {pool} with assumed hostid {hostid}");
+                zbm_trace::warn!("imported {pool} with assumed hostid {hostid}"; %pool, %hostid);
                 zbm_trace::warn!(
-                    "set spl_hostid={hostid} on ZBM KCL or regenerate with corrected /etc/hostid"
+                    "set spl_hostid={hostid} on ZBM KCL or regenerate with corrected /etc/hostid";
+                    %hostid
                 );
             }
             return Some(HostidMatch { pool, hostid });
@@ -169,7 +173,7 @@ pub fn log_unimportable(runner: &dyn Runner) {
         } else if line.starts_with("state") {
             if line.strip_prefix("state: ").unwrap_or(&line) == "UNAVAIL" {
                 for error in here_lines(&zpool.probe_import_id(&id)) {
-                    zbm_trace::error!("{}", error);
+                    zbm_trace::error!("{error}"; %error);
                 }
             }
             id.clear();

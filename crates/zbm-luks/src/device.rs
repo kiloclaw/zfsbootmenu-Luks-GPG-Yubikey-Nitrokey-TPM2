@@ -62,7 +62,7 @@ pub fn resolve_device(context: &Context<'_>, spec: &str) -> Option<DevicePath> {
         return None;
     }
     let unrecognized = || {
-        zbm_trace::error!("unrecognized LUKS device specification '{spec}'");
+        zbm_trace::error!("unrecognized LUKS device specification '{spec}'"; %spec);
         None
     };
     let (key, value, mut device) = if spec.starts_with("/dev/") {

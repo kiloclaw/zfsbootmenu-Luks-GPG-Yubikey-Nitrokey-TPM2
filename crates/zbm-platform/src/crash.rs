@@ -161,7 +161,7 @@ impl CrashReporter {
         );
         let line = format!("{} crashed: {message}; {place}", self.program);
         if has_logger() {
-            zbm_trace::error!("{line}");
+            zbm_trace::error!("{text_line}"; text_line = %line);
             tracing::error!(target: "zbm::crash", report = %report.render(), "crash report");
         } else {
             // A program without a logger, such as the console on the

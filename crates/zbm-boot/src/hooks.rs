@@ -48,15 +48,15 @@ pub fn run_stage(
     env: &[(&str, &str)],
 ) -> usize {
     if !system.files.is_dir(&root.join(stage.as_str())) {
-        zbm_trace::debug!("no hook directory for {stage}");
+        zbm_trace::debug!("no hook directory for {stage}"; %stage);
         return 0;
     }
     let hooks = executable_hooks(system.files, root, stage);
     for hook in &hooks {
-        zbm_trace::info!("processing {}", hook.display());
+        zbm_trace::info!("processing {hook}"; hook = %hook.display());
         programs::run_hook(system.runner, hook, env);
         if once {
-            zbm_trace::info!("Disabling hook after execution: {}", hook.display());
+            zbm_trace::info!("Disabling hook after execution: {hook}"; hook = %hook.display());
             let _ = system.files.set_mode(hook, 0);
             let mut completed = hook.clone().into_os_string();
             completed.push(".completed");

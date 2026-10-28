@@ -73,9 +73,9 @@ pub fn keysource_property(runner: &dyn Runner, fs: &DatasetName) -> Option<Strin
 /// The key source of `fs`: the filesystem its
 /// `org.zfsbootmenu:keysource` names, if that exists and is encrypted.
 pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
-    zbm_trace::debug!("fs set to {fs}");
+    zbm_trace::debug!("fs set to {fs}"; %fs);
     let Some(source) = zfs_value(runner, KEYSOURCE.name, fs) else {
-        zbm_trace::warn!("failed to read {} on {fs}", KEYSOURCE.name);
+        zbm_trace::warn!("failed to read {property} on {fs}"; property = %KEYSOURCE.name, %fs);
         return None;
     };
     if source.is_empty() || source == "-" {
@@ -86,11 +86,11 @@ pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
         .ok()
         .filter(|source| ZfsText::new(runner).exists(source));
     let Some(source) = listed else {
-        zbm_trace::debug!("keysource {source} for {fs} is not a filesystem");
+        zbm_trace::debug!("keysource {source} for {fs} is not a filesystem"; %source, %fs);
         return None;
     };
     if encryption_root(runner, &source).is_none() {
-        zbm_trace::warn!("keysource {source} for {fs} is not encrypted; ignoring");
+        zbm_trace::warn!("keysource {source} for {fs} is not encrypted; ignoring"; %source, %fs);
         return None;
     }
     Some(source)

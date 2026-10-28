@@ -166,7 +166,7 @@ impl<'a> GnupgHome<'a> {
     /// failure is left for the steps that follow to notice.
     pub fn import(&self, source: &Path) {
         if let Err(error) = copy_into(self.files, source, &self.path) {
-            tracing::debug!(%error, "copying {} into the GnuPG home", source.display());
+            tracing::debug!(%error, source = %source.display(), "copying into the GnuPG home");
         }
     }
 
@@ -282,7 +282,7 @@ impl Drop for GnupgHome<'_> {
                 .timeout(DAEMON_TIMEOUT),
         );
         if let Err(error) = remove_tree(self.files, &self.path) {
-            tracing::warn!(%error, "removing the GnuPG home {home}");
+            tracing::warn!(%error, %home, "removing the GnuPG home");
         }
     }
 }

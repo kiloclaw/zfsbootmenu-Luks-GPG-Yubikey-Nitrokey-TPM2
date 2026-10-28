@@ -71,7 +71,7 @@ impl<'s, 'a> Shell<'s, 'a> {
             return Ok(());
         }
         for item in list {
-            zbm_trace::error!("{}: {item}", support::MESSAGE);
+            zbm_trace::error!("{support}: {item}"; support = %support::MESSAGE, %item);
         }
         self.emergency_shell(support::MESSAGE);
         Err(StartupError::Unsupported {
@@ -136,7 +136,7 @@ impl Recovery for Shell<'_, '_> {
             };
             let _ = Mount::new(system.runner, system.files)
                 .unmount(Path::new(mountpoint), Shown::Console);
-            zbm_trace::debug!("unmounting: {mountpoint}");
+            zbm_trace::debug!("unmounting: {mountpoint}"; %mountpoint);
         }
         boot::mount_efivarfs(system, "ro");
     }

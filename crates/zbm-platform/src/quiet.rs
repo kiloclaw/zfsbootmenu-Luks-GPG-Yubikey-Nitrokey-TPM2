@@ -30,9 +30,9 @@ fn log(program: &str, text: &[u8], warning: bool) {
             continue;
         }
         if warning {
-            zbm_trace::warn!("{program}: {line}");
+            zbm_trace::warn!("{program}: {text_line}"; %program, text_line = %line);
         } else {
-            zbm_trace::info!("{program}: {line}");
+            zbm_trace::info!("{program}: {text_line}"; %program, text_line = %line);
         }
     }
 }

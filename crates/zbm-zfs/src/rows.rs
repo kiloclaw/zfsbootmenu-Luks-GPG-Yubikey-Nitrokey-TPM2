@@ -24,7 +24,7 @@ pub(crate) trait Readable<T, E>: Iterator<Item = Result<T, E>> + Sized {
             return Err(errors.swap_remove(0));
         }
         for error in errors {
-            zbm_trace::warn!("ZFS listed something unreadable, left out: {error}");
+            zbm_trace::warn!("ZFS listed something unreadable, left out: {error}"; %error);
         }
         Ok(rows)
     }

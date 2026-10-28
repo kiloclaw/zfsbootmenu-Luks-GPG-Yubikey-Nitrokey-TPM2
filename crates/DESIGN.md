@@ -471,7 +471,11 @@ opens the recovery shell, which says where the report is; `zbm debug crash` prin
 Messages go to `/dev/kmsg` in the legacy formats (`<N>ZFSBootMenu: message`, and `<7>ZBM:[pid]|trace|message` for
 debugging output, with the Rust caller as the trace), filtered by `loglevel`, and warnings and errors create
 `have_warnings` and `have_errors`. Code logs with the macros of `zbm-trace` (`zbm_trace::error!` and the others),
-which emit `tracing` events for the kernel log; no function takes a log as a parameter. `zbm-trace`'s `KmsgLayer`
+which emit `tracing` events for the kernel log; no function takes a log as a parameter. A message is a constant
+template with its values as fields, `zbm_trace::debug!("pool set to {pool}"; %pool)`: the kernel log shows the
+template with each `{name}` replaced by the field's value, as a format string would, and the journal keeps the
+template as the field `template`, so every event of one kind can be found by it. `xtask metrics` counts format strings
+(`fmt logs`) and holds them at 0. `zbm-trace`'s `KmsgLayer`
 formats and filters them, and `zbm-platform`'s `KernelLog` installs that layer for a process with a sink that writes
 through the files interface, so unit tests that install it on the fake files see every message. Other `tracing`
 events, such as the journal's, never reach the kernel log. The recovery commands read the log back with `dmesg`, as
@@ -482,7 +486,8 @@ JSON per event with the spans it happened in (stage, pool, volume) and the progr
 `zbm_platform::TracedRunner`, so a failed boot can be read back step by step. Each process writes at most 4 MiB.
 Secrets stay out by type (`Secret` prints as `Secret(..)`) and by name: only the fields of `zbm_trace::KEPT_FIELDS`
 are written, and any other is written as `"[redacted]"`, as is one named `passphrase`, `password`, `pin`, `secret`,
-`challenge` or `response` (or ending in `_` and one of them). A new field joins the list in the change that adds it.
+`challenge` or `response` (or ending in `_` and one of them). A new field joins the list in the change that adds it, after a look at what it can hold; one
+that can carry free text, such as a program's `output`, stays out, and the message still shows its value.
 
 ## External programs
 

@@ -40,7 +40,7 @@ fn disable_risky_writes(system: &System<'_>) {
     for (parameter, what) in PARAMETERS {
         let path = Path::new(parameter);
         if system.files.exists(path) {
-            zbm_trace::debug!("disabling {what} on writeable pools");
+            zbm_trace::debug!("disabling {what} on writeable pools"; %what);
             let _ = system.files.write(path, b"0");
         }
     }
@@ -63,17 +63,21 @@ fn prohibition(
             pool: pool.to_string(),
         })?;
     let pool = pool.as_str();
-    zbm_trace::debug!("{pool} {READONLY} property: {flag}");
+    zbm_trace::debug!("{pool} {readonly} property: {flag}"; %pool, readonly = %READONLY, %flag);
     let mut reasons = Vec::new();
     if flag != "-" && flag != "off" {
         zbm_trace::error!(
-            "read-write operation for '{pool}' prohibited - {READONLY} set to {flag}"
+            "read-write operation for '{pool}' prohibited - {readonly} set to {flag}";
+            %pool, readonly = %READONLY, %flag
         );
         reasons.push(format!("{READONLY} is {flag}"));
     }
     if state.is_degraded(pool) {
-        zbm_trace::debug!("prohibited: {pool} is marked as degraded");
-        zbm_trace::error!("read-write operation for '{pool}' prohibited - pool marked as degraded");
+        zbm_trace::debug!("prohibited: {pool} is marked as degraded"; %pool);
+        zbm_trace::error!(
+            "read-write operation for '{pool}' prohibited - pool marked as degraded";
+            %pool
+        );
         reasons.push("it is degraded".to_owned());
     }
     Ok((!reasons.is_empty()).then(|| reasons.join("; ")))
@@ -96,12 +100,12 @@ pub fn set_rw_pool(
     pool: &PoolName,
     policy: ImportPolicy,
 ) -> Result<(), BootError> {
-    zbm_trace::debug!("pool set to {pool}");
+    zbm_trace::debug!("pool set to {pool}"; %pool);
     disable_risky_writes(system);
     if is_writable(system.runner, pool) {
         return Ok(());
     }
-    zbm_trace::debug!("{pool} is not already writable");
+    zbm_trace::debug!("{pool} is not already writable"; %pool);
     if let Some(reason) = prohibition(system, state, pool)? {
         return Err(BootError::ReadWriteProhibited {
             pool: pool.to_string(),
@@ -113,11 +117,14 @@ pub fn set_rw_pool(
     let import = Import::pool(pool).policy(policy);
     let context = Context::new(*system);
     let imported = import_pool(&context, state, import.access(Access::ReadWrite));
-    zbm_trace::debug!("import_pool: {}", i32::from(imported.is_err()));
+    zbm_trace::debug!("import_pool: {status}"; status = %i32::from(imported.is_err()));
     if imported.is_err() {
-        zbm_trace::warn!("{pool} could not be imported read/write; importing it read-only again");
+        zbm_trace::warn!(
+            "{pool} could not be imported read/write; importing it read-only again";
+            %pool
+        );
         if let Err(error) = import_pool(&context, state, import.access(Access::ReadOnly)) {
-            zbm_trace::error!("{pool} could not be imported again: {error}");
+            zbm_trace::error!("{pool} could not be imported again: {error}"; %pool, %error);
         }
     }
     Ok(imported?)

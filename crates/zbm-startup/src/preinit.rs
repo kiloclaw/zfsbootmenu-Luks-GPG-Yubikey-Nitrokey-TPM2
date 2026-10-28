@@ -40,7 +40,7 @@ pub fn read_conf(system: &System<'_>, root: &Path) -> Result<Conf> {
         .map_err(|error| Error::io(format!("unable to read {}", path.display()), error))?;
     let conf = Conf::parse(&text);
     for skipped in conf.skipped() {
-        zbm_trace::warn!("{skipped}");
+        zbm_trace::warn!("{skipped}"; %skipped);
     }
     Ok(conf)
 }

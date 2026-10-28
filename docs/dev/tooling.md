@@ -135,7 +135,7 @@ so it knows which code is test code. It prints one row per crate and writes the 
 | zfs cmds | ZFS command lines built outside `zbm-zfs` and outside tests: `Command::new("zfs")` (or `zpool`, `zdb`), and the raw `ZfsCommand` and `ZpoolCommand` builders, private to `zbm-zfs` since SB2; at 0 | yes |
 | str params | Public functions of the domain crates (`zbm-luks`, `zbm-kcl`, `zbm-pool`, `zbm-boot`) with a parameter that is a string (`&str`, `String`, `Option<&str>`, `&[String]` and the like) where a type of its own belongs (DM3); 0 in the other layers | yes |
 | C programs | In the row `rust-image` alone: the C programs that the lists of `legacy/zfsbootmenu/install-helpers.sh` give a Rust image, uutils coreutils and `fzf` aside ([dependencies.md](dependencies.md), CD1) | yes |
-| fmt logs | Log macros outside tests (`info!`, `warn!` and the others, of `zbm_trace` and `tracing`) whose message is a format string rather than a constant with fields (DM9) | yes |
+| fmt logs | Log macros outside tests (`info!`, `warn!` and the others, of `zbm_trace` and `tracing`) whose message is a format string rather than a constant with fields; a template (`"text {name}"; %name`) counts only when a `{name}` has no field. At 0 since DM9 | yes |
 
 The debt columns may only go down. `xtask/metrics-baseline.txt` holds each crate's numbers at its last improvement,
 and `cargo xtask metrics --check` (part of `lint`) fails when a crate goes above them; a crate that is not listed, such

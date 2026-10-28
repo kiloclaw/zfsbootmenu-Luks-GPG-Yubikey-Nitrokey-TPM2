@@ -59,7 +59,7 @@ fn prompt(system: &System<'_>, root: &DatasetName, clear: Clear) -> Result<(), B
         tput(system, &["clear"]);
         tput(system, &["cup", "0", "0"]);
     }
-    zbm_trace::debug!("prompting for passphrase for {root}");
+    zbm_trace::debug!("prompting for passphrase for {root}"; %root);
     let loaded = ZfsText::new(system.runner).load_key(root, "prompt");
     if loaded.unwrap_or(false) {
         Ok(())
@@ -83,7 +83,7 @@ fn is_unlocked_by_hooks(
     if hooks::run_stage(system, hooks_root, HookStage::LoadKey, false, &env) > 0
         && locked_root(system.runner, fs).is_none()
     {
-        zbm_trace::debug!("fs {fs} unlocked by user hooks");
+        zbm_trace::debug!("fs {fs} unlocked by user hooks"; %fs);
         return true;
     }
     false
@@ -111,7 +111,7 @@ fn key_path(
     // It may be cached already, so whether this copies it does not matter.
     cache::cache_key(system, state, how, fs, keylocation);
     if locked_root(system.runner, fs).is_none() {
-        zbm_trace::debug!("cache attempt has unlocked {root}");
+        zbm_trace::debug!("cache attempt has unlocked {root}"; %root);
         return KeyPath::Unlocked;
     }
     let cached = PathBuf::from(format!(
@@ -121,7 +121,7 @@ fn key_path(
     if !system.files.exists(&cached) {
         return KeyPath::Missing;
     }
-    zbm_trace::debug!("cached key path for {fs} is {}", cached.display());
+    zbm_trace::debug!("cached key path for {fs} is {cached}"; %fs, cached = %cached.display());
     KeyPath::File(cached)
 }
 
@@ -139,7 +139,10 @@ fn is_loaded_from(
             .load_key(root, &location)
             .unwrap_or(false);
     if loaded {
-        zbm_trace::debug!("unlocked {root} from key at {}", keypath.display());
+        zbm_trace::debug!(
+            "unlocked {root} from key at {keypath}";
+            %root, keypath = %keypath.display()
+        );
     }
     loaded
 }
@@ -159,7 +162,7 @@ pub fn load_key(
     how: &KeyLoad<'_>,
     fs: &DatasetName,
 ) -> Result<(), BootError> {
-    zbm_trace::debug!("fs set to {fs}");
+    zbm_trace::debug!("fs set to {fs}"; %fs);
     let Some(root) = locked_root(system.runner, fs) else {
         return Ok(());
     };
@@ -167,7 +170,7 @@ pub fn load_key(
         return Ok(());
     }
     let keylocation = zfs_value(system.runner, "keylocation", &root).unwrap_or_else(|| {
-        zbm_trace::debug!("failed to read keylocation on {root}");
+        zbm_trace::debug!("failed to read keylocation on {root}"; %root);
         "prompt".to_owned()
     });
     if keylocation == "prompt" {
@@ -180,7 +183,10 @@ pub fn load_key(
     }
     let keyformat = zfs_value(system.runner, "keyformat", &root).unwrap_or_default();
     if keyformat != "passphrase" {
-        zbm_trace::debug!("unable to load key with format {keyformat} for {root}");
+        zbm_trace::debug!(
+            "unable to load key with format {keyformat} for {root}";
+            %keyformat, %root
+        );
         return Err(not_loaded(&root));
     }
     prompt(system, &root, how.clear)

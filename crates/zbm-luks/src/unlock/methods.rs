@@ -115,12 +115,12 @@ fn open_with_keyscript(
         .metadata(Path::new(script))
         .is_ok_and(|metadata| metadata.is_executable());
     if !executable {
-        zbm_trace::warn!("key script {script} is not executable");
+        zbm_trace::warn!("key script {script} is not executable"; %script);
         return Err(LuksError::KeyScriptNotExecutable {
             script: script.to_owned(),
         });
     }
-    zbm_trace::info!("unlocking {device} with key script {script}");
+    zbm_trace::info!("unlocking {device} with key script {script}"; %device, %script);
     let key = if volume.keyspec.is_empty() {
         "none"
     } else {
@@ -145,9 +145,12 @@ fn open_with_keyscript(
     let target = volume.target();
     let opened = session.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args);
     if opened.is_ok() {
-        zbm_trace::info!("unlocked {device} as {} with key script", target.name);
+        zbm_trace::info!(
+            "unlocked {device} as {name} with key script";
+            %device, name = %target.name
+        );
     } else {
-        zbm_trace::warn!("key script {script} failed to unlock {device}");
+        zbm_trace::warn!("key script {script} failed to unlock {device}"; %script, %device);
     }
     opened
 }
@@ -178,9 +181,8 @@ impl KeyMethod for KeyFile {
         };
         if tried == Tried::Opened {
             zbm_trace::info!(
-                "unlocked {} as {} with key file",
-                volume.device,
-                volume.name
+                "unlocked {device} as {name} with key file";
+                device = %volume.device, name = %volume.name
             );
             Tried::Opened
         } else {
@@ -196,7 +198,10 @@ fn open_with_decrypted(
     plain: &zbm_platform::Secret,
 ) -> Tried {
     let (device, keyspec) = (volume.device, volume.keyspec);
-    zbm_trace::info!("unlocking {device} with GnuPG key file {keyspec} (already decrypted)");
+    zbm_trace::info!(
+        "unlocking {device} with GnuPG key file {keyspec} (already decrypted)";
+        %device, %keyspec
+    );
     let target = volume.target();
     let opened = session
         .cryptsetup_open(target.name, device, Key::Stdin(plain), target.args)
@@ -211,9 +216,8 @@ fn outcome(opened: bool, volume: &Volume<'_>) -> Tried {
         return Tried::Opened;
     }
     zbm_trace::warn!(
-        "key file {} failed to unlock {}",
-        volume.keyspec,
-        volume.device
+        "key file {keyspec} failed to unlock {device}";
+        keyspec = %volume.keyspec, device = %volume.device
     );
     Tried::NotOpened
 }
@@ -235,7 +239,10 @@ fn open_with_keyfile(session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
     let opened = if volume.options.gpg || is_gpg_keyfile(path, "") {
         match session.gpg_decrypt(path, named) {
             Some(plain) => {
-                zbm_trace::info!("unlocking {device} with GnuPG key file {keyspec}");
+                zbm_trace::info!(
+                    "unlocking {device} with GnuPG key file {keyspec}";
+                    %device, %keyspec
+                );
                 let opened = session
                     .cryptsetup_open(target.name, device, Key::Stdin(&plain), target.args)
                     .is_ok();
@@ -246,7 +253,7 @@ fn open_with_keyfile(session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
             None => false,
         }
     } else {
-        zbm_trace::info!("unlocking {device} with key file {keyspec}");
+        zbm_trace::info!("unlocking {device} with key file {keyspec}"; %device, %keyspec);
         session
             .cryptsetup_open(target.name, device, Key::File(path), target.args)
             .is_ok()
@@ -304,9 +311,8 @@ impl KeyMethod for CachedPassphrases {
             return Tried::NotOpened;
         }
         zbm_trace::info!(
-            "unlocked {} as {} with a previously entered passphrase",
-            volume.device,
-            volume.name
+            "unlocked {device} as {name} with a previously entered passphrase";
+            device = %volume.device, name = %volume.name
         );
         Tried::Opened
     }

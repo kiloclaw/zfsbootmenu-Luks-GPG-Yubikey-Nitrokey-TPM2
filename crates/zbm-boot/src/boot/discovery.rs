@@ -26,10 +26,10 @@ pub fn find_kernels(
     state: &State<'_>,
     filesystem: &FilesystemName,
 ) -> Result<(), BootError> {
-    zbm_trace::debug!("fs set to {filesystem}");
+    zbm_trace::debug!("fs set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
     let Some(mounted) = mount_zfs(system, state, filesystem, Noise::Hidden) else {
-        zbm_trace::error!("unable to mount {fs}");
+        zbm_trace::error!("unable to mount {fs}"; %fs);
         return Err(BootError::Mount { fs: fs.to_owned() });
     };
     let records = state.kernels(fs);
@@ -43,7 +43,7 @@ pub fn find_kernels(
     if !list.is_empty() && select_kernel(system, state, filesystem).is_some() {
         return Ok(());
     }
-    zbm_trace::error!("failed to find kernels on {fs}");
+    zbm_trace::error!("failed to find kernels on {fs}"; %fs);
     let _ = system.files.remove_file(&records);
     Err(BootError::NoKernel { fs: fs.to_owned() })
 }
@@ -99,11 +99,14 @@ fn paired_kernel(
     kpath: &str,
 ) -> Option<Kernel> {
     let Some(initramfs) = kernels::find_initramfs(system.files, Path::new(path)) else {
-        zbm_trace::debug!("kernel {mnt}{kpath} has no initramfs");
+        zbm_trace::debug!("kernel {mnt}{kpath} has no initramfs"; %mnt, %kpath);
         return None;
     };
     let initramfs = initramfs.to_string_lossy();
-    zbm_trace::debug!("found kernel: {mnt}{kpath}, initramfs {mnt}{initramfs}");
+    zbm_trace::debug!(
+        "found kernel: {mnt}{kpath}, initramfs {mnt}{initramfs}";
+        %mnt, %kpath, %initramfs
+    );
     Some(Kernel {
         dataset: fs.to_owned(),
         kernel: kpath.to_owned(),
@@ -135,12 +138,12 @@ pub fn select_kernel(
     state: &State<'_>,
     filesystem: &FilesystemName,
 ) -> Option<Kernel> {
-    zbm_trace::debug!("zfsbe set to {filesystem}");
+    zbm_trace::debug!("zfsbe set to {filesystem}"; %filesystem);
     let fs = &filesystem.to_string();
     let list = be_location(state, fs).join("kernels");
     let text = system.files.read_to_string(&list).unwrap_or_default();
     if text.is_empty() {
-        zbm_trace::error!("kernel list '{}' missing or empty", list.display());
+        zbm_trace::error!("kernel list '{list}' missing or empty"; list = %list.display());
         return None;
     }
     // tail -1
@@ -154,12 +157,15 @@ pub fn select_kernel(
 
     let property = zfs_value(system.runner, KERNEL.name, filesystem).unwrap_or_default();
     if property != "-" {
-        zbm_trace::debug!("{} set to {property}", KERNEL.name);
+        zbm_trace::debug!("{name} set to {property}"; name = %KERNEL.name, %property);
         if let Ok(selector) = property.parse::<KernelSelector>() {
             for line in text.lines().map(|line| line.trim_matches([' ', '\t'])) {
                 let kernel = Kernel::parse(line);
                 if selector.matches(&kernel.kernel) {
-                    zbm_trace::debug!("matched {} to {property}", kernel.kernel);
+                    zbm_trace::debug!(
+                        "matched {kernel} to {property}";
+                        kernel = %kernel.kernel, %property
+                    );
                     line.clone_into(&mut chosen);
                 }
             }
@@ -172,9 +178,9 @@ pub fn select_kernel(
         }
     }
     if chosen.is_empty() {
-        zbm_trace::error!("failed to identify kexec arguments for {fs}");
+        zbm_trace::error!("failed to identify kexec arguments for {fs}"; %fs);
         return None;
     }
-    zbm_trace::debug!("using kexec args: {chosen}");
+    zbm_trace::debug!("using kexec args: {chosen}"; %chosen);
     Some(Kernel::parse(&chosen))
 }

@@ -83,7 +83,7 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 - **foundation**: `zbm-trace` sends `tracing` events to standard error and to a JSON journal (at boot,
   `/zfsbootmenu/journal.jsonl`), one line per event with its spans, only the fields of an allow-list kept; its macros
   (`zbm_trace::info!` and the others) log to the kernel log, which its `KmsgLayer` writes in the formats of the legacy
-  runtime.
+  runtime. Messages are constant templates with their values as fields (`"pool set to {pool}"; %pool`).
 - **platform**: `zbm-platform` defines the ports through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`), with their real implementations, the `System` bundle of front ends
   and the `Context` of services, which is the bundle without its console and whose runner reports every program it

@@ -488,6 +488,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   a watchdog thread per program, and can be cancelled. A program that left a child behind holding its output no
   longer keeps ZFSBootMenu waiting after it was stopped.
 
+### Log messages as templates (phase 1)
+
+- Every message of the Rust runtime is a constant template with its values as fields, such as
+  `pool set to {pool}` with the field `pool`. The kernel log reads as before. The journal keeps the template in the
+  field `template`, so one kind of event can be found whatever its values, and keeps the fields that name pools,
+  datasets, kernels, devices, GPUs and hooks; fields that can carry free text, such as a program's output, are still
+  written as `[redacted]`, and the message still shows them.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts

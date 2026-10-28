@@ -101,7 +101,7 @@ fn attempt(
     imported: &mut Imported,
 ) -> Next {
     if let Some(target) = retry.target() {
-        zbm_trace::debug!("attempting to import preferred pool {target}");
+        zbm_trace::debug!("attempting to import preferred pool {target}"; %target);
     }
     // Whether anything was imported is what counts, not the status.
     let _ = import_pool(
@@ -116,7 +116,7 @@ fn attempt(
     };
     if found == Found::Pools && settings.requirement == PoolRequirement::Only {
         let target = retry.target().map_or("", PoolName::as_str);
-        zbm_trace::debug!("only importing {target}");
+        zbm_trace::debug!("only importing {target}"; %target);
     }
     match retry.imported(found) {
         AfterImport::Next(next) => next,
@@ -124,9 +124,12 @@ fn attempt(
             let target = retry.target().cloned();
             let matched = match match_hostid(context, state, settings, target.as_ref()) {
                 Some(found) => {
-                    zbm_trace::debug!("match_hostid returned: {};{}", found.pool, found.hostid);
+                    zbm_trace::debug!(
+                        "match_hostid returned: {pool};{hostid}";
+                        pool = %found.pool, hostid = %found.hostid
+                    );
                     if let Err(error) = state.set_spl_hostid(found.hostid.as_str()) {
-                        zbm_trace::error!("{}", error.to_string());
+                        zbm_trace::error!("{error}"; %error);
                     }
                     imported.spl_hostid = Some(found.hostid);
                     Matched::Pool
@@ -147,7 +150,7 @@ fn failed(
     operator: &mut dyn Operator,
     attempt: u64,
 ) {
-    zbm_trace::info!("unable to import a pool on attempt {attempt}");
+    zbm_trace::info!("unable to import a pool on attempt {attempt}"; %attempt);
     if operator.unlock_late() == Late::Unlocked {
         zbm_trace::info!("unlocked LUKS volumes that appeared late, retrying import");
         return;
@@ -166,9 +169,9 @@ fn restrict_unhealthy(runner: &dyn Runner, state: &State<'_>) {
         let (pool, health) = tab_fields(&line);
         if health != "ONLINE" {
             if let Err(error) = state.restrict(pool) {
-                zbm_trace::error!("{}", error.to_string());
+                zbm_trace::error!("{error}"; %error);
             }
-            zbm_trace::error!("prohibiting read/write operations on {pool}");
+            zbm_trace::error!("prohibiting read/write operations on {pool}"; %pool);
         }
     }
 }
@@ -188,11 +191,11 @@ fn check_unsupported(
         if !property.contains("unsupported@") {
             continue;
         }
-        zbm_trace::error!("unsupported property: {property}");
+        zbm_trace::error!("unsupported property: {property}"; %property);
         if !state.is_degraded(pool)
             && let Err(error) = state.restrict(pool)
         {
-            zbm_trace::error!("{}", error.to_string());
+            zbm_trace::error!("{error}"; %error);
         }
         found = Found::Pools;
     }
@@ -203,7 +206,7 @@ fn check_unsupported(
         Build::Release => "Check for a new binary release of ZFSBootMenu",
         Build::Local => "Upgrade ZFS modules in ZFSBootMenu with generate-zbm",
     };
-    zbm_trace::error!("Unsupported features detected, {advice}");
+    zbm_trace::error!("Unsupported features detected, {advice}"; %advice);
     operator.unsupported_features(advice);
 }
 
@@ -215,7 +218,7 @@ fn find_bootfs(
 ) -> Option<DatasetName> {
     let bootfs = choose_bootfs(runner, settings)?;
     if let Err(error) = state.set_bootfs(bootfs.as_str()) {
-        zbm_trace::error!("{}", error.to_string());
+        zbm_trace::error!("{error}"; %error);
     }
     Some(bootfs)
 }
@@ -232,7 +235,7 @@ pub fn choose_bootfs(runner: &dyn Runner, settings: &ImportSettings) -> Option<D
         BootfsPreference::Dataset(dataset) => dataset.as_str(),
         BootfsPreference::Invalid(text) => text.as_str(),
     };
-    zbm_trace::error!("bootfs value '{preferred}' not a ZFS dataset");
+    zbm_trace::error!("bootfs value '{preferred}' not a ZFS dataset"; %preferred);
     None
 }
 
@@ -248,7 +251,7 @@ fn pool_bootfs(runner: &dyn Runner, pool: Option<&PoolName>) -> Option<DatasetNa
     match bootfs.parse() {
         Ok(dataset) => Some(dataset),
         Err(error) => {
-            zbm_trace::error!("{error}");
+            zbm_trace::error!("{error}"; %error);
             None
         }
     }

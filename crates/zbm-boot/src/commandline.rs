@@ -327,7 +327,7 @@ fn unquote(raw: &str) -> Option<String> {
 pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> String {
     if let Some(prefix) = property.filter(|prefix| *prefix != "-") {
         if is_root_prefix(prefix) {
-            zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}");
+            zbm_trace::debug!("using org.zfsbootmenu:rootprefix: {prefix}"; %prefix);
             return prefix.to_owned();
         }
         zbm_trace::warn!(
@@ -336,7 +336,7 @@ pub fn root_prefix(files: &dyn Files, property: Option<&str>, mnt: &Path) -> Str
         );
     }
     if let Some(prefix) = os_release_prefix(files, mnt) {
-        zbm_trace::debug!("using os-release: {prefix}");
+        zbm_trace::debug!("using os-release: {prefix}"; %prefix);
         return prefix;
     }
     zbm_trace::debug!("using default");
@@ -433,7 +433,10 @@ pub fn devicetree_candidate(property: &str, kernel: &str, mnt: &Path) -> Option<
         .components()
         .any(|part| part == Component::ParentDir)
     {
-        zbm_trace::warn!("ignoring the device tree {inside}: it leaves the boot environment");
+        zbm_trace::warn!(
+            "ignoring the device tree {inside}: it leaves the boot environment";
+            %inside
+        );
         return None;
     }
     Some(PathBuf::from(format!("{}{inside}", mnt.to_string_lossy())))

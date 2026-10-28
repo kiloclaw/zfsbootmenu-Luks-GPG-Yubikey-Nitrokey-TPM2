@@ -28,7 +28,7 @@
 //! let layer = KmsgLayer::new(lines.clone(), "6", 1);
 //! let subscriber = tracing_subscriber::registry().with(layer);
 //! tracing::subscriber::with_default(subscriber, || {
-//!     zbm_trace::info!("importing {}", "tank");
+//!     zbm_trace::info!("importing {pool}"; pool = "tank");
 //!     zbm_trace::debug!("not shown at loglevel 6");
 //!     tracing::info!("only for the journal");
 //! });
@@ -44,6 +44,8 @@ use tracing::subscriber::Interest;
 use tracing::{Event, Level as TracingLevel, Metadata, Subscriber};
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
+
+use crate::template::Values;
 
 /// The target of events for the kernel log.
 pub const KMSG: &str = "zbm";
@@ -169,11 +171,11 @@ impl Message {
         let caller = Location::caller();
         let (file, line, text) = (caller.file(), caller.line(), self.text.as_str());
         match self.level {
-            Level::Error => tracing::error!(target: KMSG, file, line, "{text}"),
-            Level::Warning => tracing::warn!(target: KMSG, file, line, "{text}"),
-            Level::Notice => tracing::info!(target: KMSG_NOTICE, file, line, "{text}"),
-            Level::Info => tracing::info!(target: KMSG, file, line, "{text}"),
-            Level::Debug => tracing::debug!(target: KMSG, file, line, "{text}"),
+            Level::Error => crate::error!("{text}"; file, line, text),
+            Level::Warning => crate::warn!("{text}"; file, line, text),
+            Level::Notice => crate::notice!("{text}"; file, line, text),
+            Level::Info => crate::info!("{text}"; file, line, text),
+            Level::Debug => crate::debug!("{text}"; file, line, text),
         }
     }
 }
@@ -388,6 +390,11 @@ impl<S: KmsgSink, R: Subscriber> Layer<R> for KmsgLayer<S> {
         }
         let mut fields = Fields::default();
         event.record(&mut fields);
+        let mut values = Values::default();
+        event.record(&mut values);
+        if let Some(message) = values.message() {
+            fields.message = message;
+        }
         let file = fields
             .file
             .unwrap_or_else(|| metadata.file().unwrap_or_default().to_owned());
@@ -430,42 +437,63 @@ impl Visit for Fields {
     }
 }
 
-/// Logs an error to the kernel log, with `format!` arguments.
+/// Logs an error to the kernel log, with `format!` arguments, or as a template
+/// with fields ([`TEMPLATE`](crate::TEMPLATE)): `("text {name}"; %name)`.
 #[macro_export]
 macro_rules! error {
+    ($template:literal; $($field:tt)+) => {
+        $crate::__tracing::error!(target: $crate::KMSG, $($field)+, template = $template)
+    };
     ($($arg:tt)+) => {
         $crate::__tracing::error!(target: $crate::KMSG, $($arg)+)
     };
 }
 
-/// Logs a warning to the kernel log, with `format!` arguments.
+/// Logs a warning to the kernel log, with `format!` arguments, or as a template
+/// with fields ([`TEMPLATE`](crate::TEMPLATE)): `("text {name}"; %name)`.
 #[macro_export]
 macro_rules! warn {
+    ($template:literal; $($field:tt)+) => {
+        $crate::__tracing::warn!(target: $crate::KMSG, $($field)+, template = $template)
+    };
     ($($arg:tt)+) => {
         $crate::__tracing::warn!(target: $crate::KMSG, $($arg)+)
     };
 }
 
-/// Logs a notice to the kernel log, with `format!` arguments.
+/// Logs a notice to the kernel log, with `format!` arguments, or as a template
+/// with fields ([`TEMPLATE`](crate::TEMPLATE)): `("text {name}"; %name)`.
 #[macro_export]
 macro_rules! notice {
+    ($template:literal; $($field:tt)+) => {
+        $crate::__tracing::info!(target: $crate::KMSG_NOTICE, $($field)+, template = $template)
+    };
     ($($arg:tt)+) => {
         $crate::__tracing::info!(target: $crate::KMSG_NOTICE, $($arg)+)
     };
 }
 
-/// Logs information to the kernel log, with `format!` arguments.
+/// Logs information to the kernel log, with `format!` arguments, or as a
+/// template with fields ([`TEMPLATE`](crate::TEMPLATE)):
+/// `("text {name}"; %name)`.
 #[macro_export]
 macro_rules! info {
+    ($template:literal; $($field:tt)+) => {
+        $crate::__tracing::info!(target: $crate::KMSG, $($field)+, template = $template)
+    };
     ($($arg:tt)+) => {
         $crate::__tracing::info!(target: $crate::KMSG, $($arg)+)
     };
 }
 
-/// Logs debugging output to the kernel log, with `format!` arguments; it
-/// names the file and line of the call.
+/// Logs debugging output to the kernel log, with `format!` arguments or a
+/// template with fields, as [`info!`](crate::info) does; it names the file
+/// and line of the call.
 #[macro_export]
 macro_rules! debug {
+    ($template:literal; $($field:tt)+) => {
+        $crate::__tracing::debug!(target: $crate::KMSG, $($field)+, template = $template)
+    };
     ($($arg:tt)+) => {
         $crate::__tracing::debug!(target: $crate::KMSG, $($arg)+)
     };

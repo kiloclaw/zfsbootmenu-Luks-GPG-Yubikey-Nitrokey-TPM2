@@ -15,14 +15,20 @@ use zbm_pool::hostid::{ETC_HOSTID, write};
 pub fn stage(files: &dyn Files, spl_hostid: Option<&HostId>) {
     if let Some(hostid) = spl_hostid {
         if write(files, hostid).is_ok() {
-            zbm_trace::info!("writing /etc/hostid from command line: {hostid}");
+            zbm_trace::info!("writing /etc/hostid from command line: {hostid}"; %hostid);
         } else {
             write_hex(files, DEFAULT_HOSTID);
-            zbm_trace::info!("defaulting hostid to {DEFAULT_HOSTID}");
+            zbm_trace::info!(
+                "defaulting hostid to {default_hostid}";
+                default_hostid = %DEFAULT_HOSTID
+            );
         }
     } else if !files.exists(Path::new(ETC_HOSTID)) {
         zbm_trace::info!("no hostid found on kernel command line or /etc/hostid");
-        zbm_trace::info!("defaulting hostid to {DEFAULT_HOSTID}");
+        zbm_trace::info!(
+            "defaulting hostid to {default_hostid}";
+            default_hostid = %DEFAULT_HOSTID
+        );
         write_hex(files, DEFAULT_HOSTID);
     }
 }

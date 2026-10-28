@@ -44,12 +44,14 @@
 pub mod crash;
 mod journal;
 pub mod kmsg;
+mod template;
 
 pub use journal::{
     JournalLayer, KEPT_FIELDS, LIMIT as JOURNAL_LIMIT, Lines, REDACTED, is_kept_field,
     is_secret_field,
 };
 pub use kmsg::{KMSG, KMSG_NOTICE, KmsgLayer, KmsgSink, Level, Message, enabled};
+pub use template::TEMPLATE;
 pub use tracing::level_filters::LevelFilter;
 
 /// `tracing`, for the macros of [`kmsg`], so that their callers need not

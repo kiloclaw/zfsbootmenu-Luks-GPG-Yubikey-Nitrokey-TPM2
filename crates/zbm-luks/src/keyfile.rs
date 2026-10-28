@@ -49,7 +49,7 @@ impl Unlocker<'_> {
             if self.context().files().exists(Path::new(file)) {
                 found.path = self.readable(file);
             } else {
-                zbm_trace::warn!("LUKS key file {file} not found");
+                zbm_trace::warn!("LUKS key file {file_name} not found"; file_name = %file);
             }
             return found;
         };
@@ -91,7 +91,7 @@ impl Unlocker<'_> {
         }
         if device.is_none() {
             self.keydev_absent.insert(device_spec.to_owned());
-            zbm_trace::warn!("LUKS key device {device_spec} not found");
+            zbm_trace::warn!("LUKS key device {device_spec} not found"; %device_spec);
         }
         device
     }
@@ -102,7 +102,7 @@ impl Unlocker<'_> {
         let files = self.context().files();
         let _ = files.create_dir_all(Path::new("/tmp"));
         let Some(dir) = self.temporary_dir("/tmp/luks-key") else {
-            zbm_trace::error!("unable to create a mount point for key device {device}");
+            zbm_trace::error!("unable to create a mount point for key device {device}"; %device);
             return found;
         };
         // Mounted until the run releases the key file
@@ -111,7 +111,7 @@ impl Unlocker<'_> {
             .read_only(device, Path::new(&dir))
             .map(Mounted::leave);
         if mounted.is_err() {
-            zbm_trace::warn!("unable to mount LUKS key device {device}");
+            zbm_trace::warn!("unable to mount LUKS key device {device}"; %device);
             let _ = files.remove_dir(Path::new(&dir));
             return found;
         }
@@ -120,7 +120,10 @@ impl Unlocker<'_> {
         if files.exists(Path::new(&path)) {
             found.path = self.readable(&path);
         } else {
-            zbm_trace::warn!("LUKS key file {file} not found on {device}");
+            zbm_trace::warn!(
+                "LUKS key file {file_name} not found on {device}";
+                file_name = %file, %device
+            );
         }
         found
     }
@@ -133,7 +136,10 @@ impl Unlocker<'_> {
         if matches!(kind, FileKind::File | FileKind::BlockDevice) {
             return Some(path.to_owned());
         }
-        zbm_trace::warn!("LUKS key file {path} is not a regular file or a block device, skipped");
+        zbm_trace::warn!(
+            "LUKS key file {path} is not a regular file or a block device, skipped";
+            %path
+        );
         None
     }
 

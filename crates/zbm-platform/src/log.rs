@@ -93,7 +93,7 @@ impl KmsgSink for FilesSink {
 /// let log = KernelLog::new(&RealFiles, "6", &dir, 1).with_device(&device);
 /// {
 ///     let _installed = log.install();
-///     zbm_trace::info!("importing {}", "tank");
+///     zbm_trace::info!("importing {pool}"; pool = "tank");
 /// }
 /// let text = std::fs::read_to_string(dir.join("kmsg")).unwrap();
 /// assert_eq!(text, "<6>ZFSBootMenu: importing tank\n");

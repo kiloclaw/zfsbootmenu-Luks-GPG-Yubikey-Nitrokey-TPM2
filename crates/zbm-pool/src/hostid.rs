@@ -39,10 +39,10 @@ pub use zbm_types::{HostId, scrape_hostid};
 /// When `/etc/hostid` cannot be written; it is logged.
 pub fn write(files: &dyn Files, hostid: &HostId) -> Result<(), crate::PoolError> {
     if files.write(Path::new(ETC_HOSTID), &hostid.bytes()).is_err() {
-        zbm_trace::error!("unable to write {hostid} to /etc/hostid");
+        zbm_trace::error!("unable to write {hostid} to /etc/hostid"; %hostid);
         return Err(crate::PoolError::WriteHostid);
     }
-    zbm_trace::debug!("wrote hostid {hostid} to /etc/hostid");
+    zbm_trace::debug!("wrote hostid {hostid} to /etc/hostid"; %hostid);
     let spl = Path::new(SPL_HOSTID);
     if files.exists(spl) && files.write(spl, b"0\n").is_err() {
         zbm_trace::warn!("failed to force spl.spl_hostid=0 for host ID matching");
@@ -54,7 +54,7 @@ pub fn write(files: &dyn Files, hostid: &HostId) -> Result<(), crate::PoolError>
 /// pool) to `/etc/hostid`. Returns the ID, or `None` after logging why not.
 pub fn write_hex(files: &dyn Files, value: &str) -> Option<HostId> {
     let Some(hostid) = HostId::from_hex(value) else {
-        zbm_trace::error!("invalid hostid {value}");
+        zbm_trace::error!("invalid hostid {value}"; %value);
         return None;
     };
     write(files, &hostid).ok()?;

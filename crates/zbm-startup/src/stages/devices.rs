@@ -73,7 +73,7 @@ pub fn stage_with(
                 Some(path) if system.files.exists(Path::new(&path)) => {}
                 Some(_) => missing.push(*device),
                 None => {
-                    zbm_trace::error!("malformed device: '{device}'");
+                    zbm_trace::error!("malformed device: '{device}'"; %device);
                 }
             }
         }
@@ -82,7 +82,7 @@ pub fn stage_with(
         }
         if prompt(retry_delay(delay)) == Answer::Escape {
             for device in missing {
-                zbm_trace::error!("required device '{device}' not found");
+                zbm_trace::error!("required device '{device}' not found"; %device);
             }
             return;
         }

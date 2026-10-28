@@ -37,16 +37,16 @@ fn load(runner: &dyn Runner) -> Result<()> {
     let modules = Modules::new(runner);
     let (loaded, output) = merged(modules.load("spl"));
     if !loaded {
-        zbm_trace::debug!("{}", output);
+        zbm_trace::debug!("{output}"; %output);
         let filename = modules
             .filename("spl")
             .map(|output| output.stdout_text().trim_end_matches('\n').to_owned())
             .unwrap_or_default();
         if !filename.is_empty() {
-            zbm_trace::info!("loading {filename}");
+            zbm_trace::info!("loading {filename}"; %filename);
             let (loaded, output) = merged(modules.insert(&filename, &["spl_hostid=0"]));
             if !loaded {
-                zbm_trace::warn!("{}", output);
+                zbm_trace::warn!("{output}"; %output);
                 zbm_trace::warn!("unable to load SPL kernel module; attempting to load ZFS anyway");
             }
         }
@@ -54,7 +54,7 @@ fn load(runner: &dyn Runner) -> Result<()> {
 
     let (loaded, output) = merged(modules.load("zfs"));
     if !loaded {
-        zbm_trace::error!("{}", output);
+        zbm_trace::error!("{output}"; %output);
         return Err(Error::invalid("unable to load ZFS kernel modules"));
     }
     Ok(())

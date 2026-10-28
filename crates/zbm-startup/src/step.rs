@@ -111,7 +111,7 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
             });
             continue;
         }
-        zbm_trace::info!("running init stage {stage}");
+        zbm_trace::info!("running init stage {stage}"; %stage);
         context.front.send(Event::StageStarted(name.to_owned()));
         step.run(context);
         context.front.send(Event::StageFinished {
@@ -119,7 +119,7 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
             state: StageState::Done,
         });
         if let Err(error) = context.state.finish_stage(stage.as_str()) {
-            zbm_trace::error!("{}", error.to_string());
+            zbm_trace::error!("{error}"; %error);
         }
     }
 }
@@ -135,7 +135,7 @@ impl Recovery for NoRecovery {
     }
 
     fn emergency_shell(&mut self, message: &str) {
-        zbm_trace::error!("no recovery shell for: {message}");
+        zbm_trace::error!("no recovery shell for: {what}"; what = %message);
     }
 }
 

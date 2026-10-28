@@ -32,7 +32,10 @@ impl Unlocker<'_> {
         let context = *self.context();
         let failed = |failure| target.token_error("clevis", id, failure);
         if !context.command_exists("clevis") || !context.command_exists("jose") {
-            zbm_trace::info!("clevis token {id} on {device} needs clevis and jose in the image");
+            zbm_trace::info!(
+                "clevis token {id} on {device} needs clevis and jose in the image";
+                %id, %device
+            );
             return Err(failed(TokenFailure::Unsupported));
         }
         let Some(slot) = token.keyslots().into_iter().next() else {
@@ -45,11 +48,14 @@ impl Unlocker<'_> {
         let key = Clevis::new(context.runner(), &self.settings().tpm2_tcti).decrypt(token);
 
         let Some(key) = key else {
-            zbm_trace::debug!("clevis could not recover the key for slot {slot} on {device}");
+            zbm_trace::debug!(
+                "clevis could not recover the key for slot {slot} on {device}";
+                %slot, %device
+            );
             return Err(failed(TokenFailure::NotReleased));
         };
         self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
-        zbm_trace::info!("unlocked {device} with clevis");
+        zbm_trace::info!("unlocked {device} with clevis"; %device);
         Ok(())
     }
 }

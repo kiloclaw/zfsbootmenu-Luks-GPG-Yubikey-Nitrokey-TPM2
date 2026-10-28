@@ -48,8 +48,8 @@ fn unbind(files: &dyn Files, root: &Path, gpu: &Gpu) -> Option<String> {
         Ok(()) => Some(name),
         Err(error) => {
             zbm_trace::warn!(
-                "graphics: unable to unbind {} from {name}: {error}",
-                gpu.describe()
+                "graphics: unable to unbind {gpu} from {name}: {error}";
+                gpu = %gpu.describe(), %name, %error
             );
             None
         }
@@ -75,8 +75,8 @@ fn reset(files: &dyn Files, root: &Path, gpu: &Gpu, driver: &str) {
         "it has no reset".to_owned()
     };
     zbm_trace::info!(
-        "graphics: handed {} back: unbound from {driver}; {how}",
-        gpu.describe()
+        "graphics: handed {gpu} back: unbound from {driver}; {how}";
+        gpu = %gpu.describe(), %driver, %how
     );
 }
 
@@ -92,8 +92,8 @@ pub fn take_back(system: &System<'_>, root: &Path, gpus: &[Gpu]) {
             .write(&root.join(PROBE), gpu.address.as_bytes())
         {
             zbm_trace::warn!(
-                "graphics: unable to have a driver take {} again: {error}",
-                gpu.describe()
+                "graphics: unable to have a driver take {gpu} again: {error}";
+                gpu = %gpu.describe(), %error
             );
         }
     }

@@ -32,6 +32,8 @@ use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 
+use crate::template::Values;
+
 /// What a redacted field's value is replaced with.
 pub const REDACTED: &str = "[redacted]";
 
@@ -39,21 +41,39 @@ pub const REDACTED: &str = "[redacted]";
 /// workspace record, none of them a secret. A new field joins the list in the
 /// change that adds it, after a look at what it can hold.
 pub const KEPT_FIELDS: &[&str] = &[
+    "attempt",
     "device",
+    "driver",
     "duration_ms",
+    "encroot",
     "error",
     "file",
+    "filesystem",
+    "fs",
+    "gpu",
+    "hook",
+    "hostid",
+    "id",
+    "initramfs",
+    "kernel",
     "kind",
     "line",
     "message",
     "method",
+    "mnt",
     "name",
+    "path",
     "pool",
     "program",
+    "property",
     "reason",
     "report",
+    "slot",
+    "stage",
     "status",
     "stdin",
+    "target",
+    "template",
 ];
 
 /// Whether the value of a field named `name` is written: it is in
@@ -202,7 +222,12 @@ where
     fn on_event(&self, event: &Event<'_>, context: Context<'_, S>) {
         let mut fields = Fields::default();
         event.record(&mut fields);
-        let message = fields.0.remove("message").unwrap_or(Value::Null);
+        let mut values = Values::default();
+        event.record(&mut values);
+        let message = match values.message() {
+            Some(message) => Value::String(message),
+            None => fields.0.remove("message").unwrap_or(Value::Null),
+        };
         let spans: Vec<Value> = context
             .event_scope(event)
             .map(|scope| {
@@ -444,6 +469,24 @@ mod tests {
         for (name, secret) in cases {
             assert_eq!(is_secret_field(name), secret, "{name}");
         }
+    }
+
+    #[test]
+    fn a_template_gives_the_message_and_is_kept_as_a_field() {
+        let (_, lines) = journal(|| {
+            let pool = "tank";
+            let mountpoint = "/mnt";
+            crate::info!("mounting {pool} on {mountpoint}"; pool, mountpoint);
+        });
+        let line = &lines[0];
+        assert_eq!(line["message"], "mounting tank on /mnt");
+        assert_eq!(
+            line["fields"]["template"],
+            "mounting {pool} on {mountpoint}"
+        );
+        assert_eq!(line["fields"]["pool"], "tank");
+        // A field not on the list is redacted; the message has its value.
+        assert_eq!(line["fields"]["mountpoint"], REDACTED);
     }
 
     #[test]

@@ -80,20 +80,20 @@ impl Unlocker<'_> {
             }
             let zfs = ZfsCli::new(self.context().runner());
             for pool in self.pools_on_device(&path) {
-                zbm_trace::debug!("exporting {pool} before closing {name}");
+                zbm_trace::debug!("exporting {pool} before closing {name}"; %pool, %name);
                 let exported = pool.parse().is_ok_and(|pool| zfs.export(&pool).is_ok());
                 if !exported {
-                    zbm_trace::warn!("unable to export {pool}, which uses {name}");
+                    zbm_trace::warn!("unable to export {pool}, which uses {name}"; %pool, %name);
                 }
             }
             let closed = name
                 .parse::<MappingName>()
                 .is_ok_and(|mapping| self.cryptsetup_close(&mapping).is_ok());
             if closed {
-                zbm_trace::info!("closed LUKS mapping {name}");
+                zbm_trace::info!("closed LUKS mapping {name}"; %name);
                 gone.push(name);
             } else {
-                zbm_trace::warn!("unable to close LUKS mapping {name}");
+                zbm_trace::warn!("unable to close LUKS mapping {name}"; %name);
                 open.push(name);
             }
         }

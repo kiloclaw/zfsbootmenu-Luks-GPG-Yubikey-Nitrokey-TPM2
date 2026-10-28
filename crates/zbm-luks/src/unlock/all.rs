@@ -91,7 +91,10 @@ impl Unlocker<'_> {
         tally.unlocked -= self.close_without_zfs();
 
         let Tally { unlocked, failed } = tally;
-        zbm_trace::info!("LUKS: {unlocked} volume(s) available, {failed} not unlocked");
+        zbm_trace::info!(
+            "LUKS: {unlocked} volume(s) available, {failed} not unlocked";
+            %unlocked, %failed
+        );
         if unlocked > 0 || (!retry && failed == 0) {
             Ok(UnlockSummary { unlocked, failed })
         } else if retry {
@@ -134,7 +137,7 @@ impl Unlocker<'_> {
             return None;
         }
         let names: Vec<&str> = devices.iter().map(DevicePath::as_str).collect();
-        zbm_trace::info!("discovered LUKS volumes: {}", names.join(" "));
+        zbm_trace::info!("discovered LUKS volumes: {names}"; names = %names.join(" "));
         let mut tally = Tally::default();
         for device in &devices {
             let opened = self.open_device(None, device, global_key, "", Origin::Discovered);
@@ -157,7 +160,7 @@ impl Unlocker<'_> {
             let (options, messages) = Options::parse(&entry.options, self.settings().default_tries);
             super::log_all(&messages);
             if options.noauto {
-                zbm_trace::debug!("not unlocking {} (noauto)", entry.spec);
+                zbm_trace::debug!("not unlocking {spec} (noauto)"; spec = %entry.spec);
                 continue;
             }
             let Some(device) = self.configured_device(&entry.spec, &options, retry, &mut tally)
@@ -165,7 +168,7 @@ impl Unlocker<'_> {
                 continue;
             };
             if !seen.insert(device.clone()) {
-                zbm_trace::warn!("LUKS device {device} is configured more than once");
+                zbm_trace::warn!("LUKS device {device} is configured more than once"; %device);
                 continue;
             }
             let name = match entry_name(&entry.name) {
@@ -228,14 +231,14 @@ impl Unlocker<'_> {
                 && !self.may_hold_zfs(&typed)
             {
                 zbm_trace::info!(
-                    "closing {name}: {} does not contain a ZFS vdev",
-                    mapping.device
+                    "closing {name}: {device} does not contain a ZFS vdev";
+                    %name, device = %mapping.device
                 );
                 if self.cryptsetup_close(&typed).is_ok() {
                     closed.push(mapping.name.clone());
                     continue;
                 }
-                zbm_trace::warn!("unable to close {name}");
+                zbm_trace::warn!("unable to close {name}"; %name);
             }
         }
         self.mappings().remove(&closed);

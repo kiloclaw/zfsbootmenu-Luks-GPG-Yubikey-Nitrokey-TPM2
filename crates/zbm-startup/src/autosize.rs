@@ -108,7 +108,7 @@ pub fn hook(system: &System<'_>, root: &Path, console: Option<String>) -> Result
 /// Sizes the font of the console of `settings` on the system below `root`.
 pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
     if let Some(reason) = reason_to_skip(system.files, root, settings) {
-        zbm_trace::debug!("console autosize skipped: {reason}");
+        zbm_trace::debug!("console autosize skipped: {reason}"; %reason);
         return Outcome::Skipped(reason);
     }
     let fonts = fonts(system.files, &root.join(FONTS));
@@ -118,7 +118,7 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
     let screen = framebuffer(system.files, root);
     let density = density(system.files, root);
     if let Some(density) = density {
-        zbm_trace::debug!("display density {} dpi", density.dpi());
+        zbm_trace::debug!("display density {dpi} dpi"; dpi = %density.dpi());
     } else {
         zbm_trace::debug!("display density unknown");
     }
@@ -146,7 +146,7 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
         let size = terminal::size_of(system.runner, console);
         return set(console, smallest, size);
     }
-    zbm_trace::warn!("unable to load a console font on {console}");
+    zbm_trace::warn!("unable to load a console font on {console}"; %console);
     Outcome::Failed
 }
 
@@ -158,8 +158,8 @@ fn set(console: &str, font: Candidate, size: Option<(u16, u16)>) -> Outcome {
         |(columns, rows)| format!("{columns}x{rows}"),
     );
     zbm_trace::info!(
-        "font set to {}{doubled}, {console} is {shown}",
-        font.path.display()
+        "font set to {font}{doubled}, {console} is {shown}";
+        font = %font.path.display(), %doubled, %console, %shown
     );
     Outcome::Set { font, size }
 }
