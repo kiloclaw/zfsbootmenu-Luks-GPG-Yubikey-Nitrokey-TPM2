@@ -412,6 +412,28 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   search of test builds reach the system directly, each with its reason.
 - The state directory's console records are a module of their own (`zbm_state::console`).
 
+### Domain values as types (phase 1)
+
+- The values of ZFSBootMenu's options are types, parsed once as the legacy shell read them (`zbm_types`: `Timeout`,
+  `RetryDelay`, `LogLevel`, `HostId`, `PoolRequirement`, `BootfsPreference`). `/etc/zfsbootmenu.conf` holds their
+  canonical forms: a timeout of `+3` is written `3`, a host ID of `0` is written `00000000`.
+- `zbm.prefer` names a pool by its name: a numeric pool ID, or a name no pool can have, prefers no pool.
+- Pools, datasets, snapshots, devices and mappings are passed as `PoolName`, `DatasetName`, `FilesystemName` (a
+  dataset or a snapshot), `DevicePath` and `MappingName` through `zbm-pool`, `zbm-boot` and `zbm-luks`'s entry points,
+  instead of text that every function checked for emptiness again.
+- Fix 27 of the review: `org.zfsbootmenu:rootprefix`, which a pool can set, could add arguments to the kernel command
+  line (`root=zfs: init=/bin/sh `). In images with the Rust runtime a prefix must start one argument (a name, `=` and
+  the start of a value, without spaces or quotes); another is ignored with a warning. The root argument is one
+  `zbm_types::KernelArg`, so a boot environment whose name has a space gets `root="zfs:tank/my ROOT"`, not two words.
+  `KernelCommandLine` splits a command line as the kernel's `next_arg` does, which a copy of the kernel's C code
+  confirmed on 20,000 random lines.
+- The default mapping name `luks-<UUID>` is checked: the UUID comes from the LUKS header, and a header whose UUID would
+  make a name with `/`, a space or a control character is not opened. A crypttab entry whose name is not a mapping
+  name (one starting with `-`, which `cryptsetup` would read as an option) is not opened and counts as failed, and
+  `zluks open` and `zluks close` refuse such a name.
+- The bug report (`zbm report`) reads `init_on_free` from the parsed command line, the last one winning, as in the
+  kernel.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
