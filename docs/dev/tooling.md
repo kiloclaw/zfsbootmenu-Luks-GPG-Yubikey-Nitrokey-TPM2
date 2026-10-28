@@ -164,9 +164,12 @@ whole crate.
 
 `cargo xtask coverage` runs the tests of the workspace and of the test build of `zbm` under
 [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) (`cargo install cargo-llvm-cov --locked` and
-`rustup component add llvm-tools`), adds up the lines of each source file per crate, test code included, and prints
-the line coverage of each crate with what it must reach. The report is in `target/coverage.json`, and the profiles
-stay, so `cargo llvm-cov report --html` shows the uncovered lines afterwards.
+`rustup component add llvm-tools`), adds up the lines of each source file per crate, and prints the line coverage of
+each crate with what it must reach. Test code is left out (ROADMAP.md VE1): files that are tests as a whole, and inline
+`#[cfg(test)]` modules and test functions, which the scanner of `cargo xtask metrics` finds; the tests run them, so
+they would raise every number. The report is LCOV's, in `target/coverage.lcov`, and the profiles stay, so `cargo
+llvm-cov report --html` shows the uncovered lines afterwards. The baseline was measured again without test code once,
+on 28 October 2026, which lowered most numbers.
 
 Coverage may only go up, to the whole percent: `xtask/coverage-baseline.txt` holds each crate's coverage, and
 `--check` fails when a crate drops below it. A crate that is not listed, such as a new one, must reach 80%. After

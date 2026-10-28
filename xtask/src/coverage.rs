@@ -53,7 +53,7 @@ pub struct TestLines {
 
 impl TestLines {
     /// Whether `line` is test code.
-    fn holds(&self, line: usize) -> bool {
+    fn is_test(&self, line: usize) -> bool {
         self.whole
             || self
                 .ranges
@@ -212,7 +212,7 @@ pub fn per_crate(
             let Some((package, file_tests)) = current else {
                 continue;
             };
-            if file_tests.is_some_and(|tests| tests.holds(number)) {
+            if file_tests.is_some_and(|tests| tests.is_test(number)) {
                 continue;
             }
             let total = all.entry(package.to_owned()).or_default();
