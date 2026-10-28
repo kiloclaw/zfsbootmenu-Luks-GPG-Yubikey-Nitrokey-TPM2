@@ -199,3 +199,25 @@ fn the_console_hands_the_display_back_and_the_environment_boots() {
     );
     cleanup(&settings);
 }
+
+#[test]
+fn the_saved_kernel_log_is_noted_by_zbm_lines_alone() {
+    let log = "[    0.0] Command line: zbm.console=drm\n\
+               [    1.2] ZFSBootMenu: the console on the display ended (wait status 134)\n\
+               [    1.3] zbm: console crashed: overflow; see crash-1.txt (at a.rs:1:2)\n\
+               [    1.4] virtio_gpu: something\n";
+
+    assert_eq!(
+        zbm_lines(log),
+        "[    1.2] ZFSBootMenu: the console on the display ended (wait status 134) | \
+         [    1.3] zbm: console crashed: overflow; see crash-1.txt (at a.rs:1:2)"
+    );
+    assert_eq!(
+        zbm_lines("[ 0.0] Command line: zbm.console=drm\n"),
+        "(nothing)"
+    );
+    let many: String = (0..30)
+        .map(|n| format!("ZFSBootMenu: line {n}\n"))
+        .collect();
+    assert!(zbm_lines(&many).starts_with("ZFSBootMenu: line 10 |"));
+}

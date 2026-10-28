@@ -306,7 +306,8 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 ### Security hardening (phase 0)
 
 - Release builds check arithmetic for overflow: an overflow ends the program with a crash report instead of wrapping
-  around to a wrong size or index.
+  around to a wrong size or index. A program that logs nowhere, such as the console on the display, names its crash
+  and the line of the panic in the kernel log itself.
 - The CI workflows name every action by its commit, and the build container's Ubuntu base image is pinned by digest.
   Another `UBUNTU_RELEASE` needs `--build-arg UBUNTU_DIGEST=` (or its own digest; `image-build.sh -u` does it), and
   the build fails when the release and the image disagree.

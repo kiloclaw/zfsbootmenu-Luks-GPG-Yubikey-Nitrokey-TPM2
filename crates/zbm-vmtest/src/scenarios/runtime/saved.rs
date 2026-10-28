@@ -203,6 +203,26 @@ fn check_on_disk(test: &Test, logs: &Path, boots: &[SavedBoot], written: &str) -
     Ok(())
 }
 
+/// The kernel log saved on the FAT disk `image`, of its first saved boot;
+/// empty when it holds none.
+pub(super) fn saved_kernel_log(image: &Path) -> Result<String> {
+    let listed = crate::disks::run(
+        Command::new("mdir")
+            .env("MTOOLS_SKIP_CHECK", "1")
+            .args(["-b", "-i"])
+            .arg(image)
+            .arg(format!("::/{LOGS}")),
+    )?;
+    let Some(boot) = listed
+        .lines()
+        .filter_map(|line| line.trim_end_matches('/').rsplit('/').next())
+        .find(|name| name.starts_with(|c: char| c.is_ascii_digit()))
+    else {
+        return Ok(String::new());
+    };
+    mtype(image, &format!("{LOGS}/{boot}/kernel.log"))
+}
+
 /// The file `inner` of the FAT disk image `image`.
 pub(super) fn mtype(image: &Path, inner: &str) -> Result<String> {
     let path: PathBuf = image.to_owned();

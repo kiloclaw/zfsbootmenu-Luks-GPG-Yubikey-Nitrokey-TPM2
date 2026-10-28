@@ -24,8 +24,6 @@
 //! (`zbm.save_logs`), whose saved kernel log must hold the hand-back, which
 //! comes after the save.
 
-use std::process::Command;
-
 use crate::boot::{Follow, follow_boot};
 use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
@@ -82,9 +80,6 @@ const LOGS_LABEL: &str = "ZBMGPULOGS";
 
 /// The command line of the boot that boots the environment.
 const KEXEC_APPEND: &str = "console=ttyS0 zbm.timeout=3 loglevel=7 zbm.save_logs=LABEL=ZBMGPULOGS";
-
-/// Where the saved logs are on the disk.
-const SAVED: &str = "EFI/zfsbootmenu/logs";
 
 /// A boot: its label, the `zbm.gpu` option, and the drivers the two GPUs
 /// must have.
@@ -178,31 +173,12 @@ fn check_kexec(test: &Test, image: &Image) -> Result<()> {
         &format!("kexec: the environment's kernel brought up both displays ({drm})"),
     );
     vm.kill();
-    let saved = saved_kernel_log(&logs)?;
+    let saved = super::saved::saved_kernel_log(&logs)?;
     test.check(
         saved.contains(&format!("graphics: handed {VIRTIO} (1af4:")),
         "kexec: the saved kernel log holds the hand-back",
     );
     Ok(())
-}
-
-/// The kernel log saved on the FAT disk `image`, of its first saved boot.
-fn saved_kernel_log(image: &std::path::Path) -> Result<String> {
-    let listed = crate::disks::run(
-        Command::new("mdir")
-            .env("MTOOLS_SKIP_CHECK", "1")
-            .args(["-b", "-i"])
-            .arg(image)
-            .arg(format!("::/{SAVED}")),
-    )?;
-    let Some(boot) = listed
-        .lines()
-        .filter_map(|line| line.trim_end_matches('/').rsplit('/').next())
-        .find(|name| name.starts_with(|c: char| c.is_ascii_digit()))
-    else {
-        return Ok(String::new());
-    };
-    super::saved::mtype(image, &format!("{SAVED}/{boot}/kernel.log"))
 }
 
 fn start<'t>(test: &'t Test, image: &Image, boot: &Boot) -> Result<Vm<'t>> {

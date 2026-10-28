@@ -28,10 +28,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::boot::prompt;
+use crate::disks::vfat_disk;
 use crate::error::{Error, Result};
 use crate::expect::regex;
 use crate::images::{Image, ImageSpec, zbm_image};
-use crate::qemu::Machine;
+use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::ZbmRuntime;
 use crate::vm::Vm;
@@ -43,6 +44,14 @@ use super::drm::Monitor;
 /// The command line of both boots, before the timeout.
 const APPEND: &str = "console=ttyS0 console=tty1 loglevel=7 zbm.console=drm \
     zbm.console_mirror=/dev/ttyS1";
+
+/// The label of the FAT disk the virtio boot saves its logs on, when it
+/// boots the environment: only when the console showed nothing.
+const LOGS_LABEL: &str = "ZBMCONLOGS";
+
+/// How long the boot environment may take to boot and power off, once the
+/// countdown ran out unseen.
+const BE_PATIENCE: u64 = 300;
 
 /// What the console writes to its mirror once it handed the display back.
 const RELEASED: &str = "zbm console: handed the display back";
@@ -133,11 +142,22 @@ pub(super) fn run(test: &Test) -> Result<()> {
         key: sendkey,
     };
     let mirror = mirror_path(test, "virtio");
-    let mut vm = boot(test, &image, "virtio", &mirror)?;
-    check_console(test, &mut vm, &mirror, &monitor, PACE)?;
+    let logs = vfat_disk(
+        &test.dir().join("virtio-logs.img"),
+        LOGS_LABEL,
+        &[],
+        "64M",
+        512,
+    )?;
+    let mut vm = boot(test, &image, "virtio", &mirror, Some(&logs))?;
+    let checked = check_console(test, &mut vm, &mirror, &monitor, PACE);
+    if wait_screen(&mirror, COUNTDOWN, 0)?.is_none() {
+        note_saved_log(test, &mut vm, &logs)?;
+    }
+    checked?;
     vm.kill();
     let mirror = mirror_path(test, "simpledrm");
-    let mut vm = boot(test, &image, "simpledrm", &mirror)?;
+    let mut vm = boot(test, &image, "simpledrm", &mirror, None)?;
     check_handover(test, &mut vm, &mirror, PACE)?;
     vm.kill();
     Ok(())
@@ -255,15 +275,27 @@ pub(super) fn wait_screen(path: &Path, pattern: &str, seconds: u64) -> Result<Op
 }
 
 /// Boots `image` on the display `name`, `virtio` or `simpledrm`, with the
-/// mirror written to `mirror`.
-fn boot<'t>(test: &'t Test, image: &Image, name: &str, mirror: &Path) -> Result<Vm<'t>> {
+/// mirror written to `mirror`, and the logs saved on the FAT disk `logs`
+/// when it boots the environment.
+fn boot<'t>(
+    test: &'t Test,
+    image: &Image,
+    name: &str,
+    mirror: &Path,
+    logs: Option<&Path>,
+) -> Result<Vm<'t>> {
     let settings = test.settings();
-    let append = if name == "simpledrm" {
+    let mut append = if name == "simpledrm" {
         format!("{APPEND} zbm.timeout=5 zbm.console_font=psf vga=0x318")
     } else {
         format!("{APPEND} zbm.timeout=30")
     };
-    let mut machine = Machine::boot(image, &append).with_disks([super::disk(settings, 0)?]);
+    let mut disks = vec![super::disk(settings, 0)?];
+    if let Some(logs) = logs {
+        append.push_str(&format!(" zbm.save_logs=LABEL={LOGS_LABEL}"));
+        disks.push(Disk::new(logs.to_owned(), "logs"));
+    }
+    let mut machine = Machine::boot(image, &append).with_disks(disks);
     machine.extra.extend(machine_extra(name, mirror));
     Vm::start(test, name, &machine)
 }
@@ -281,6 +313,40 @@ pub(super) fn machine_extra(name: &str, mirror: &Path) -> Vec<String> {
         "chardev:mirror".into(),
     ]);
     extra
+}
+
+/// When the console showed nothing: waits for the boot environment, which
+/// boots once the countdown runs out unseen, then keeps the kernel log the
+/// boot saved on `logs` (`virtio-kernel.log`) and notes what ZFSBootMenu
+/// says in it, such as how the console ended. ZFSBootMenu keeps the kernel
+/// log off the serial console, so this is where it can be read.
+fn note_saved_log(test: &Test, vm: &mut Vm<'_>, logs: &Path) -> Result<()> {
+    if vm.expect_eof(BE_PATIENCE).is_err() {
+        test.note("the boot environment did not power off: no saved kernel log");
+        return Ok(());
+    }
+    let saved = super::saved::saved_kernel_log(logs)?;
+    let kept = test.dir().join("virtio-kernel.log");
+    fs::write(&kept, &saved).map_err(Error::io(format!("writing {}", kept.display())))?;
+    test.note(&format!(
+        "the kernel log of ZFSBootMenu ({}): {}",
+        kept.display(),
+        zbm_lines(&saved)
+    ));
+    Ok(())
+}
+
+/// The last lines of ZFSBootMenu's own in the kernel log `log`, joined.
+fn zbm_lines(log: &str) -> String {
+    const KEPT: usize = 20;
+    let lines: Vec<&str> = log
+        .lines()
+        .filter(|line| line.contains("ZFSBootMenu: ") || line.contains("zbm: "))
+        .collect();
+    if lines.is_empty() {
+        return "(nothing)".to_owned();
+    }
+    lines[lines.len().saturating_sub(KEPT)..].join(" | ")
 }
 
 /// The countdown, the keys, the recovery shell on the console, and the

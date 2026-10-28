@@ -22,6 +22,15 @@ use crate::files::Files;
 /// Where the kernel shows the process itself.
 const PROC_SELF: &str = "/proc/self";
 
+/// The kernel log.
+const KMSG: &str = "/dev/kmsg";
+
+/// Whether this thread logs anywhere: a program without a logger, such as
+/// the console on the display, drops its `tracing` events.
+fn has_logger() -> bool {
+    tracing::dispatcher::get_default(|dispatch| !dispatch.is::<tracing::subscriber::NoSubscriber>())
+}
+
 /// Writes crash reports of one program to a state directory.
 #[derive(Clone)]
 pub struct CrashReporter {
@@ -33,6 +42,8 @@ pub struct CrashReporter {
     program: String,
     /// The process's directory in `/proc`, which holds `maps` and `exe`.
     proc: PathBuf,
+    /// The kernel log, which names a crash when nothing logs it.
+    kernel_log: PathBuf,
 }
 
 impl CrashReporter {
@@ -43,6 +54,7 @@ impl CrashReporter {
             base: base.to_owned(),
             program: program.to_owned(),
             proc: PathBuf::from(PROC_SELF),
+            kernel_log: PathBuf::from(KMSG),
         }
     }
 
@@ -51,6 +63,14 @@ impl CrashReporter {
     #[must_use]
     pub fn with_proc(mut self, dir: &Path) -> CrashReporter {
         dir.clone_into(&mut self.proc);
+        self
+    }
+
+    /// The same reporter, naming a crash nothing logs in `path` instead of
+    /// the kernel log.
+    #[must_use]
+    pub fn with_kernel_log(mut self, path: &Path) -> CrashReporter {
+        path.clone_into(&mut self.kernel_log);
         self
     }
 
@@ -125,6 +145,7 @@ impl CrashReporter {
             .wall()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |since| since.as_secs());
+        let at = location.clone().unwrap_or_else(|| "?".to_owned());
         let report = self.report(
             Reason::Panic {
                 message: message.clone(),
@@ -138,8 +159,17 @@ impl CrashReporter {
             || "it could not be saved".to_owned(),
             |path| format!("see {}", path.display()),
         );
-        zbm_trace::error!("{} crashed: {message}; {place}", self.program);
-        tracing::error!(target: "zbm::crash", report = %report.render(), "crash report");
+        let line = format!("{} crashed: {message}; {place}", self.program);
+        if has_logger() {
+            zbm_trace::error!("{line}");
+            tracing::error!(target: "zbm::crash", report = %report.render(), "crash report");
+        } else {
+            // A program without a logger, such as the console on the
+            // display, names its crash in the kernel log itself, so that it
+            // shows on a serial console and in `dmesg` whatever happens next.
+            let record = format!("<3>zbm: {line} (at {at})\n");
+            let _ = self.files.append(&self.kernel_log, record.as_bytes());
+        }
         path
     }
 
@@ -241,7 +271,10 @@ mod tests {
         std::panic::set_hook(Box::new(move |_| {
             counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }));
-        CrashReporter::new(&RealFiles, dir.path(), "zbm-test").install();
+        let log = TempDir::new("zbm-crash-log");
+        CrashReporter::new(&RealFiles, dir.path(), "zbm-test")
+            .with_kernel_log(&log.join("kmsg"))
+            .install();
 
         let detail = String::from("formatted");
         let first = std::panic::catch_unwind(|| panic!("a literal"));
@@ -267,7 +300,9 @@ mod tests {
 
     #[test]
     fn a_report_that_cannot_be_saved_is_still_logged() {
-        let reporter = CrashReporter::new(&RealFiles, Path::new("/nonexistent/zbm"), "zbm-test");
+        let log = TempDir::new("zbm-crash-log");
+        let reporter = CrashReporter::new(&RealFiles, Path::new("/nonexistent/zbm"), "zbm-test")
+            .with_kernel_log(&log.join("kmsg"));
         let _hook = panic_hook_lock();
         let previous = std::panic::take_hook();
         let recorded = std::sync::Arc::new(std::sync::Mutex::new(Some(PathBuf::new())));
@@ -281,12 +316,45 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(*recorded.lock().unwrap(), None);
+        // Nothing logs on this thread, so the reporter names the crash in
+        // the kernel log itself, with its place.
+        let record = std::fs::read_to_string(log.join("kmsg")).unwrap();
+        assert!(
+            record.starts_with(
+                "<3>zbm: zbm-test crashed: nowhere to write; it could not be saved \
+                 (at crates/zbm-platform/src/crash.rs:"
+            ) && record.ends_with(")\n"),
+            "{record:?}"
+        );
+    }
+
+    #[test]
+    fn a_crash_that_is_logged_stays_out_of_the_kernel_log_file() {
+        let log = TempDir::new("zbm-crash-log");
+        let reporter = CrashReporter::new(&RealFiles, Path::new("/nonexistent/zbm"), "zbm-test")
+            .with_kernel_log(&log.join("kmsg"));
+        let _hook = panic_hook_lock();
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            reporter.record_panic(info, &[]);
+        }));
+
+        let subscriber = tracing_subscriber::registry();
+        let result = tracing::subscriber::with_default(subscriber, || {
+            std::panic::catch_unwind(|| panic!("logged"))
+        });
+        std::panic::set_hook(previous);
+
+        assert!(result.is_err());
+        assert!(!log.join("kmsg").exists());
     }
 
     #[test]
     fn a_panic_leaves_a_report_with_its_message_place_and_build_id() {
         let dir = TempDir::new("zbm-crash");
-        let reporter = CrashReporter::new(&RealFiles, dir.path(), "zbm-test");
+        let log = TempDir::new("zbm-crash-log");
+        let reporter = CrashReporter::new(&RealFiles, dir.path(), "zbm-test")
+            .with_kernel_log(&log.join("kmsg"));
         let _hook = panic_hook_lock();
         let previous = std::panic::take_hook();
         let recorded = std::sync::Arc::new(std::sync::Mutex::new(None));
