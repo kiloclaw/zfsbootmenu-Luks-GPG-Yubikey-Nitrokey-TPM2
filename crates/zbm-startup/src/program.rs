@@ -32,7 +32,7 @@ use zbm_platform::{Installed, System};
 use zbm_pool::Build;
 use zbm_state::State;
 use zbm_tools::programs;
-use zbm_types::PoolRequirement;
+use zbm_types::{DatasetName, FilesystemName, PoolRequirement};
 use zbm_zfs::{Stderr, ZpoolCommand};
 
 use crate::front::{ConsoleFront, Front};
@@ -53,7 +53,7 @@ pub fn is_on(value: &str) -> bool {
 enum FirstRound<'b> {
     /// The menu counts down to booting the environment, if any; start-up
     /// counts down itself when the menu cannot start.
-    Countdown(Option<&'b str>),
+    Countdown(Option<&'b DatasetName>),
     /// The menu opens without counting down.
     Menu,
 }
@@ -178,11 +178,12 @@ impl<'a> Startup<'a> {
         if !modes.console {
             return 0;
         }
-        let bootfs = bootfs.or_else(|| self.state.bootfs());
+        // The state directory's copy is what an earlier start found.
+        let bootfs = bootfs.or_else(|| self.state.bootfs().and_then(|name| name.parse().ok()));
         // The menu counts down itself, showing the environments meanwhile.
         let has_menu = menu::has_menu(&self.system);
         if !modes.resume && !has_menu {
-            self.countdown(bootfs.as_deref());
+            self.countdown(bootfs.as_ref());
         }
         // Legacy never boots by itself once it saw another instance.
         let taken = self.state.is_active();
@@ -193,7 +194,7 @@ impl<'a> Startup<'a> {
         let first = if modes.resume || taken {
             FirstRound::Menu
         } else {
-            FirstRound::Countdown(bootfs.as_deref())
+            FirstRound::Countdown(bootfs.as_ref())
         };
         self.recovery_loop(rounds, &first);
         0
@@ -226,7 +227,7 @@ impl<'a> Startup<'a> {
 
     /// Runs the stages that `rerun` selects on the plain console, and
     /// returns the default boot environment the import found.
-    fn run_stages(&self, rerun: Rerun) -> Option<String> {
+    fn run_stages(&self, rerun: Rerun) -> Option<DatasetName> {
         let mut front = ConsoleFront::new(self.system, &self.state);
         self.run_stages_on(&self.system, &mut front, rerun)
     }
@@ -238,18 +239,18 @@ impl<'a> Startup<'a> {
         system: &System<'_>,
         front: &mut dyn Front,
         rerun: Rerun,
-    ) -> Option<String> {
+    ) -> Option<DatasetName> {
         let mut context = StepContext::new(system, &self.state, front);
         run_steps(&self.steps(), &mut context, rerun);
-        context.bootfs.map(|dataset| dataset.to_string())
+        context.bootfs
     }
 
     /// The countdown and the automatic boot of `bootfs`. Where the legacy
     /// program would show the menu, the loop that follows does; without the
     /// menu program, this logs why it cannot.
-    fn countdown(&self, bootfs: Option<&str>) {
+    fn countdown(&self, bootfs: Option<&DatasetName>) {
         let mut facts = Facts {
-            bootfs: bootfs.map(str::to_owned),
+            bootfs: bootfs.map(DatasetName::to_string),
             has_menu: menu::has_menu(&self.system),
             ..Facts::default()
         };
@@ -273,9 +274,9 @@ impl<'a> Startup<'a> {
 
     /// Counts down `seconds` before booting `bootfs`: RETURN boots at once,
     /// ESCAPE stops.
-    fn count_down(&self, bootfs: &str, seconds: u64) -> Answer {
+    fn count_down(&self, bootfs: &DatasetName, seconds: u64) -> Answer {
         let width = self.options.menu_timeout.to_string().len();
-        let name = colorize("cyan", bootfs);
+        let name = colorize("cyan", bootfs.as_str());
         TimedPrompt::new()
             .delay(i64::try_from(seconds).unwrap_or(i64::MAX))
             .prompt(move |seconds| {
@@ -289,7 +290,7 @@ impl<'a> Startup<'a> {
 
     /// Loads the key of `bootfs` and boots it with its selected kernel, or
     /// opens the recovery shell when the key cannot be loaded.
-    fn boot(&self, bootfs: &str) {
+    fn boot(&self, bootfs: &DatasetName) {
         let system = &self.system;
         // Clear the screen before a possible passphrase prompt.
         tput(system, &["clear"]);
@@ -300,18 +301,22 @@ impl<'a> Startup<'a> {
             clear: Clear::No,
         };
         if keys::load_key(system, &self.state, &how, bootfs).is_err() {
-            let message = format!("unable to load key for {}", colorize("cyan", bootfs));
+            let message = format!(
+                "unable to load key for {}",
+                colorize("cyan", bootfs.as_str())
+            );
             self.shell().emergency_shell(&message);
             return;
         }
-        if boot::find_kernels(system, &self.state, bootfs).is_ok() && !self.state.is_active() {
-            let selected = boot::select_kernel(system, &self.state, bootfs)
+        let filesystem = FilesystemName::from(bootfs.clone());
+        if boot::find_kernels(system, &self.state, &filesystem).is_ok() && !self.state.is_active() {
+            let selected = boot::select_kernel(system, &self.state, &filesystem)
                 .unwrap_or_else(|| Kernel::parse(""));
             // 50-import-pools exported BOOTFS in the legacy program.
             let settings = BootSettings {
                 set_hostid: self.options.set_hostid,
                 hooks: self.hooks.clone(),
-                env: vec![("BOOTFS".to_owned(), bootfs.to_owned())],
+                env: vec![("BOOTFS".to_owned(), bootfs.to_string())],
                 save_logs: self.save_logs(),
                 command_line: None,
                 import_policy: self.options.import_policy,

@@ -5,12 +5,6 @@
 /// for the code that decides what to do next.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BootError {
-    /// No pool was named.
-    #[error("the pool is undefined")]
-    NoPool,
-    /// No boot environment was named.
-    #[error("the boot environment is undefined")]
-    NoFilesystem,
     /// Pool import failed.
     #[error(transparent)]
     Pool(#[from] zbm_pool::PoolError),

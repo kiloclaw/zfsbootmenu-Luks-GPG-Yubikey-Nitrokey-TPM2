@@ -11,6 +11,7 @@ use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
+use crate::testing::name;
 
 const HOOKS: &str = "/libexec/hooks";
 const BE: &str = "tank/ROOT/be";
@@ -107,7 +108,7 @@ impl Machine {
             path,
             clear,
         };
-        load_key(&system, &state, &how, fs)
+        load_key(&system, &state, &how, &name(fs))
     }
 
     fn ran(&self, line: &str) -> bool {
@@ -151,8 +152,7 @@ fn an_unlocked_root_and_an_unencrypted_filesystem_need_nothing() {
         path: BootPath::Countdown,
         clear: Clear::No,
     };
-    assert_eq!(load_key(&plain.system(), &state, &how, BE), Ok(()));
-    assert_eq!(load_key(&plain.system(), &state, &how, ""), not_loaded(""));
+    assert_eq!(load_key(&plain.system(), &state, &how, &name(BE)), Ok(()));
 }
 
 #[test]

@@ -9,6 +9,7 @@
 use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::devices::Devices;
+use zbm_types::PoolName;
 
 use crate::error::BootError;
 use crate::prompt::{colorize, tput};
@@ -86,17 +87,12 @@ pub enum ResumeChoice {
 ///
 /// # Errors
 ///
-/// [`BootError::NoPool`] without a pool, [`BootError::ResumeRefused`] when
-/// the user typed neither choice.
+/// [`BootError::ResumeRefused`] when the user typed neither choice.
 pub fn resume_prompt(
     system: &System<'_>,
     state: &State<'_>,
-    pool: &str,
+    pool: &PoolName,
 ) -> Result<ResumeChoice, BootError> {
-    if pool.is_empty() {
-        zbm_trace::error!("pool is undefined");
-        return Err(BootError::NoPool);
-    }
     zbm_trace::debug!("pool set to {pool}");
     if !has_resume_device(system) {
         return Ok(ResumeChoice::NoResumeDevice);
@@ -109,7 +105,7 @@ pub fn resume_prompt(
     tput(system, &["clear"]);
     tput(system, &["cnorm"]);
     tput(system, &["cup", "0", "0"]);
-    let _ = system.console.write(warning(pool).as_bytes());
+    let _ = system.console.write(warning(pool.as_str()).as_bytes());
 
     // zfsbootmenu-input: `read -r -e -p "> "`, then `echo`
     let _ = system.console.write(b"> ");
@@ -128,7 +124,7 @@ pub fn resume_prompt(
             Ok(ResumeChoice::Noresume)
         }
         _ => Err(BootError::ResumeRefused {
-            pool: pool.to_owned(),
+            pool: pool.to_string(),
         }),
     }
 }
@@ -143,16 +139,6 @@ mod tests {
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{Bash, LOG_STUBS, log_lines};
     use zbm_testkit::{TempDir, parity};
-
-    #[test]
-    fn a_pool_must_be_named() {
-        let fake = FakeSystem::new();
-        let state = zbm_state::State::new(&fake.files, "/zfsbootmenu");
-        assert_eq!(
-            resume_prompt(&fake.system(), &state, ""),
-            Err(BootError::NoPool)
-        );
-    }
 
     fn legacy_core() -> Bash {
         Bash::new()
@@ -253,7 +239,7 @@ mod tests {
             }
             let state = State::new(&fake.files, "/zfsbootmenu");
             let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
-            let rust = resume_prompt(&fake.system(), &state, "tank");
+            let rust = resume_prompt(&fake.system(), &state, &crate::testing::name("tank"));
             assert_eq!(rust.is_ok(), success, "{case}");
             assert_eq!(
                 fake.files.exists(Path::new("/zfsbootmenu/noresume")),

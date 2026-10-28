@@ -9,9 +9,9 @@ rust-image                 0           0               0            0           
 xtask                      0           0               0            0              0             0             0              0             0              0            0           0
 zbm                        0           0               0            0              0             2             0              0             0              0            3           0
 zbm-app                    0           0               0            0              0             0             0              0             0              0            1           0
-zbm-boot                   0           0               0            0              0             0             0              0            14             35          115           0
+zbm-boot                   0           0               0            0              0             0             0              0            14             20          115           0
 zbm-brush                  0           0               0            0              0             0             0              0             0              0            0           0
-zbm-config                 0           0               0            0             21             0             0              0             0              0            0           0
+zbm-config                 0           0               0            0             18             0             0              0             0              0            0           0
 zbm-console                0           0               0            0              0             0             0              0             0              0            0           0
 zbm-core                   0           0               0            0              2             0             0              0             0              0            0           0
 zbm-crypt                  0           0               0            0              0             0             0              0             0              0            2           0
@@ -19,7 +19,7 @@ zbm-display                0           0               0            0           
 zbm-kcl                    0           0               0            0              0             0             0              0             1              7            0           0
 zbm-luks                   0           0               0            0              0             0             0              0             0             44           67           0
 zbm-platform               0           0               0            0              0             0             0              0             0              0            3           0
-zbm-pool                   0           0               0            0              0             0             0              0             9             12           29           0
+zbm-pool                   0           0               0            0              0             0             0              0             9              5           29           0
 zbm-startup                0           0               0            0              0             1             0              0             1              0           36           0
 zbm-state                  0           0               0            0              1             0             0              0             0              0            0           0
 zbm-sys                    0           0               0            0              0             0             0             31             0              0            0           0

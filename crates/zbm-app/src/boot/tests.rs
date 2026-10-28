@@ -21,6 +21,11 @@ impl Recovery for Shells {
 
 const BE: &str = "tank/ROOT/be";
 
+/// [`BE`] as a dataset name.
+fn be() -> DatasetName {
+    BE.parse().unwrap()
+}
+
 /// A machine with the unencrypted boot environment `tank/ROOT/be`, whose
 /// `/boot` holds two kernels with their initramfs.
 fn machine() -> FakeSystem {
@@ -71,7 +76,7 @@ fn versions_are_what_follows_the_kernel_s_name() {
 #[test]
 fn kernels_are_found_with_the_one_the_property_names() {
     let fake = machine();
-    let kernels = with_boot(&fake, |boot| boot.kernels(BE));
+    let kernels = with_boot(&fake, |boot| boot.kernels(&be()));
     let versions: Vec<&str> = kernels.iter().map(|k| k.version.as_str()).collect();
     assert_eq!(versions, ["6.6.2", "6.1.10"]);
     assert!(kernels.iter().all(|kernel| !kernel.is_default));
@@ -92,7 +97,7 @@ fn kernels_are_found_with_the_one_the_property_names() {
             ))
         })
     });
-    let kernels = with_boot(&named, |boot| boot.kernels(BE));
+    let kernels = with_boot(&named, |boot| boot.kernels(&be()));
     let marked: Vec<&str> = kernels
         .iter()
         .filter(|kernel| kernel.is_default)
@@ -102,7 +107,7 @@ fn kernels_are_found_with_the_one_the_property_names() {
 
     let missing = FakeSystem::new();
     missing.runner.respond_program("mount", 32, "");
-    assert_eq!(with_boot(&missing, |boot| boot.kernels(BE)), []);
+    assert_eq!(with_boot(&missing, |boot| boot.kernels(&be())), []);
 }
 
 #[test]
@@ -110,10 +115,10 @@ fn the_kernel_the_menu_shows_first_is_the_one_that_boots() {
     let fake = machine();
     let (shown, booted) = with_boot(&fake, |boot| {
         let shown = boot
-            .kernels(BE)
+            .kernels(&be())
             .first()
             .map(|kernel| kernel.version.clone());
-        let booted = kexec::select_kernel(boot.system, boot.state, BE)
+        let booted = kexec::select_kernel(boot.system, boot.state, &be().into())
             .map(|kernel| kernel_version(&kernel.kernel));
         (shown, booted)
     });

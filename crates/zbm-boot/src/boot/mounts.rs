@@ -7,6 +7,7 @@ use zbm_platform::{Files, Runner, System};
 use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
+use zbm_types::FilesystemName;
 use zbm_zfs::{Stderr, ZfsCommand};
 
 use super::zfs::{locked_root, substituted};
@@ -48,19 +49,16 @@ impl Noise {
 pub fn mount_zfs(
     system: &System<'_>,
     state: &State<'_>,
-    fs: &str,
+    fs: &FilesystemName,
     noise: Noise,
 ) -> Option<PathBuf> {
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return None;
-    }
-    if locked_root(system.runner, fs).is_some() {
+    if locked_root(system.runner, fs.dataset()).is_some() {
         zbm_trace::error!("{fs} is locked, unable to mount filesystem");
         zbm_trace::debug!("{fs} is locked, returning");
         return None;
     }
-    let mnt = be_location(state, fs).join("mnt");
+    let name = fs.to_string();
+    let mnt = be_location(state, &name).join("mnt");
     let _ = system.files.create_dir_all(&mnt);
     let rwo = "ro";
 
@@ -69,10 +67,10 @@ pub fn mount_zfs(
         Noise::Hidden => Stderr::Hidden,
     };
     let mountpoint = ZfsCommand::new(system.runner)
-        .text(&["get", "-H", "-o", "value", "mountpoint", fs], errors);
+        .text(&["get", "-H", "-o", "value", "mountpoint", &name], errors);
     let legacy = substituted(mountpoint).1 == "legacy";
     let mnt_text = mnt.to_string_lossy();
-    let options = if legacy || fs.contains('@') {
+    let options = if legacy || fs.is_snapshot() {
         zbm_trace::debug!("mounting {fs} at {mnt_text} ({rwo})");
         rwo.to_owned()
     } else {
@@ -80,7 +78,7 @@ pub fn mount_zfs(
         zbm_trace::debug!("mount -o zfsutil,{rwo} -t zfs {fs} {mnt_text}");
         format!("zfsutil,{rwo}")
     };
-    let code = match Mount::new(system.runner).zfs(fs, &mnt, &options, noise.shown()) {
+    let code = match Mount::new(system.runner).zfs(&name, &mnt, &options, noise.shown()) {
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };

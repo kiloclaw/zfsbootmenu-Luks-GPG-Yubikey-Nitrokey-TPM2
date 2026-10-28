@@ -13,7 +13,7 @@ use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
 use zbm_state::State;
-use zbm_types::DatasetName;
+use zbm_types::{DatasetName, FilesystemName};
 
 use crate::model::{self, Event, Outcome};
 
@@ -62,17 +62,18 @@ impl Boot<'_, '_> {
     /// `org.zfsbootmenu:kernel` names it; none when it cannot be mounted.
     /// The kernel list is oldest first, and without the property the last,
     /// the newest, boots: the first here.
-    pub fn kernels(&self, fs: &str) -> Vec<model::Kernel> {
-        if kexec::find_kernels(self.system, self.state, fs).is_err() {
+    pub fn kernels(&self, environment: &DatasetName) -> Vec<model::Kernel> {
+        let fs = FilesystemName::from(environment.clone());
+        if kexec::find_kernels(self.system, self.state, &fs).is_err() {
             return Vec::new();
         }
         let list = self
             .system
             .files
-            .read_to_string(&self.state.kernels(fs))
+            .read_to_string(&self.state.kernels(environment.as_str()))
             .unwrap_or_default();
-        let named = kexec::kernel_property(self.system, fs).is_some();
-        let chosen = kexec::select_kernel(self.system, self.state, fs);
+        let named = kexec::kernel_property(self.system, &fs).is_some();
+        let chosen = kexec::select_kernel(self.system, self.state, &fs);
         list.lines()
             .rev()
             .map(Kernel::parse)
@@ -105,16 +106,17 @@ impl Boot<'_, '_> {
             },
             clear: Clear::Yes,
         };
-        if let Err(error) = keys::load_key(self.system, self.state, &how, fs) {
+        if let Err(error) = keys::load_key(self.system, self.state, &how, environment) {
             return failed(
                 format!("unable to load key for {fs}"),
                 vec![error.to_string()],
             );
         }
-        if let Err(error) = kexec::find_kernels(self.system, self.state, fs) {
+        let filesystem = FilesystemName::from(environment.clone());
+        if let Err(error) = kexec::find_kernels(self.system, self.state, &filesystem) {
             return failed(format!("unable to boot {fs}"), vec![error.to_string()]);
         }
-        let Some(selected) = self.selected(fs, kernel) else {
+        let Some(selected) = self.selected(&filesystem, kernel) else {
             let version = kernel.unwrap_or_default();
             return failed(
                 format!("unable to boot {fs}"),
@@ -135,14 +137,14 @@ impl Boot<'_, '_> {
 
     /// The kernel of `fs` to boot: the one of version `version`, or the one
     /// its kernel list selects.
-    fn selected(&self, fs: &str, version: Option<&str>) -> Option<Kernel> {
+    fn selected(&self, fs: &FilesystemName, version: Option<&str>) -> Option<Kernel> {
         let Some(version) = version else {
             return kexec::select_kernel(self.system, self.state, fs);
         };
         let list = self
             .system
             .files
-            .read_to_string(&self.state.kernels(fs))
+            .read_to_string(&self.state.kernels(&fs.to_string()))
             .unwrap_or_default();
         list.lines()
             .rev()
@@ -155,9 +157,8 @@ impl Boot<'_, '_> {
 /// machine resets.
 fn export_writable(system: &System<'_>, pools: &[model::Pool]) {
     for pool in pools.iter().filter(|pool| pool.imported) {
-        let name = pool.name.as_str();
-        if kexec::is_writable(system.runner, name) {
-            let _ = kexec::export_pool(system.runner, name);
+        if kexec::is_writable(system.runner, &pool.name) {
+            let _ = kexec::export_pool(system.runner, &pool.name);
         }
     }
 }

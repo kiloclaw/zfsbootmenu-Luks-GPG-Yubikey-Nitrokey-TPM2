@@ -92,28 +92,24 @@ fn prohibition(
 pub fn set_rw_pool(
     system: &System<'_>,
     state: &State<'_>,
-    pool: &str,
+    pool: &PoolName,
     policy: ImportPolicy,
 ) -> Result<(), BootError> {
-    let Some(reference) = pool.parse::<PoolName>().ok() else {
-        zbm_trace::error!("pool is undefined");
-        return Err(BootError::NoPool);
-    };
     zbm_trace::debug!("pool set to {pool}");
     disable_risky_writes(system);
     if is_writable(system.runner, pool) {
         return Ok(());
     }
     zbm_trace::debug!("{pool} is not already writable");
-    if let Some(reason) = prohibition(system, state, pool)? {
+    if let Some(reason) = prohibition(system, state, pool.as_str())? {
         return Err(BootError::ReadWriteProhibited {
-            pool: pool.to_owned(),
+            pool: pool.to_string(),
             reason,
         });
     }
     let _choice = resume_prompt(system, state, pool)?;
     export_pool(system.runner, pool)?;
-    let import = Import::pool(&reference).policy(policy);
+    let import = Import::pool(pool).policy(policy);
     let imported = import_pool(system, state, import.access(Access::ReadWrite));
     zbm_trace::debug!("import_pool: {}", i32::from(imported.is_err()));
     if imported.is_err() {

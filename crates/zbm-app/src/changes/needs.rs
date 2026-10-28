@@ -9,7 +9,7 @@ use zbm_boot::keys::{self, BootPath, Clear, KeyLoad};
 use zbm_boot::writable::set_rw_pool;
 use zbm_platform::System;
 use zbm_state::State;
-use zbm_types::{DatasetName, PoolName, SnapshotName};
+use zbm_types::{DatasetName, FilesystemName, PoolName, SnapshotName};
 
 use crate::volumes::causes;
 
@@ -52,23 +52,18 @@ pub(crate) struct OnMachine<'s, 'a> {
 impl Needs for OnMachine<'_, '_> {
     fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>> {
         if !self.asks {
-            if kexec::is_writable(self.system.runner, pool.as_str()) {
+            if kexec::is_writable(self.system.runner, pool) {
                 return Ok(());
             }
             return Err(vec![format!("{pool} is imported read-only")]);
         }
-        set_rw_pool(
-            self.system,
-            self.state,
-            pool.as_str(),
-            self.settings.import_policy,
-        )
-        .map_err(|error| causes(&error))
+        set_rw_pool(self.system, self.state, pool, self.settings.import_policy)
+            .map_err(|error| causes(&error))
     }
 
     fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
         if !self.asks {
-            return match kexec::locked_root(self.system.runner, dataset.as_str()) {
+            return match kexec::locked_root(self.system.runner, dataset) {
                 None => Ok(()),
                 Some(root) => Err(vec![format!("the key of {root} is not loaded")]),
             };
@@ -78,16 +73,17 @@ impl Needs for OnMachine<'_, '_> {
             path: BootPath::Menu,
             clear: Clear::Yes,
         };
-        keys::load_key(self.system, self.state, &how, dataset.as_str())
-            .map_err(|error| causes(&error))
+        keys::load_key(self.system, self.state, &how, dataset).map_err(|error| causes(&error))
     }
 
     fn has_kernels(&mut self, snapshot: &SnapshotName) -> bool {
-        kexec::find_kernels(self.system, self.state, &snapshot.to_string()).is_ok()
+        let snapshot = FilesystemName::from(snapshot.clone());
+        kexec::find_kernels(self.system, self.state, &snapshot).is_ok()
     }
 
     fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>> {
-        kexec::mount_zfs(self.system, self.state, filesystem.as_str(), Noise::Hidden)
+        let filesystem = FilesystemName::from(filesystem.clone());
+        kexec::mount_zfs(self.system, self.state, &filesystem, Noise::Hidden)
             .map(|mounted| mounted.to_string_lossy().into_owned())
             .ok_or_else(|| vec![format!("{filesystem} could not be mounted")])
     }

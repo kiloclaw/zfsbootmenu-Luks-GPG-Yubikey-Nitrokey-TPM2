@@ -19,6 +19,7 @@ use std::path::Path;
 
 use zbm_config::spec::properties::KEYSOURCE;
 use zbm_platform::{Files, Runner};
+use zbm_types::DatasetName;
 use zbm_zfs::{Stderr, ZfsCommand};
 
 use crate::boot::{encryption_root, zfs_value};
@@ -48,7 +49,7 @@ pub enum KeySource {
     /// A key file in ZFSBootMenu's own file system.
     File(String),
     /// A key file copied from this key source filesystem.
-    Keysource(String),
+    Keysource(DatasetName),
     /// Nothing ZFSBootMenu can load the key with.
     Nothing,
 }
@@ -65,32 +66,33 @@ impl fmt::Display for KeySource {
 }
 
 /// The value of `org.zfsbootmenu:keysource` on `fs`, unset (`-`) as `None`.
-pub fn keysource_property(runner: &dyn Runner, fs: &str) -> Option<String> {
-    zfs_value(runner, KEYSOURCE.name, fs).filter(|value| !value.is_empty() && value != "-")
+pub fn keysource_property(runner: &dyn Runner, fs: &DatasetName) -> Option<String> {
+    zfs_value(runner, KEYSOURCE.name, fs.as_str()).filter(|value| !value.is_empty() && value != "-")
 }
 
 /// The key source of `fs`: the filesystem its
 /// `org.zfsbootmenu:keysource` names, if that exists and is encrypted.
-pub fn keysource(runner: &dyn Runner, fs: &str) -> Option<String> {
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return None;
-    }
+pub fn keysource(runner: &dyn Runner, fs: &DatasetName) -> Option<DatasetName> {
     zbm_trace::debug!("fs set to {fs}");
-    let Some(source) = zfs_value(runner, KEYSOURCE.name, fs) else {
+    let Some(source) = zfs_value(runner, KEYSOURCE.name, fs.as_str()) else {
         zbm_trace::warn!("failed to read {} on {fs}", KEYSOURCE.name);
         return None;
     };
     if source.is_empty() || source == "-" {
         return None;
     }
-    let listed = ZfsCommand::new(runner)
-        .text(&["list", "-o", "name", "-H", &source], Stderr::Hidden)
-        .is_ok_and(|output| output.status.is_success());
-    if !listed {
+    let listed = source.parse::<DatasetName>().ok().filter(|source| {
+        ZfsCommand::new(runner)
+            .text(
+                &["list", "-o", "name", "-H", source.as_str()],
+                Stderr::Hidden,
+            )
+            .is_ok_and(|output| output.status.is_success())
+    });
+    let Some(source) = listed else {
         zbm_trace::debug!("keysource {source} for {fs} is not a filesystem");
         return None;
-    }
+    };
     if encryption_root(runner, &source).is_none() {
         zbm_trace::warn!("keysource {source} for {fs} is not encrypted; ignoring");
         return None;
@@ -118,7 +120,7 @@ pub fn key_file(keylocation: &str) -> Option<&str> {
 pub fn key_source(
     runner: &dyn Runner,
     files: &dyn Files,
-    fs: &str,
+    fs: &DatasetName,
     path: BootPath,
 ) -> Option<(String, KeySource)> {
     let root = encryption_root(runner, fs)?;

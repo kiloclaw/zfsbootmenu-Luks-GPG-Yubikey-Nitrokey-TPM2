@@ -13,6 +13,7 @@
 //! | [`PoolName`] | A ZFS pool: `zroot` |
 //! | [`DatasetName`] | A ZFS dataset in a pool: `zroot/ROOT/void` |
 //! | [`SnapshotName`] | A ZFS snapshot: `zroot/ROOT/void@before-upgrade` |
+//! | [`FilesystemName`] | A dataset or a snapshot, mounted to find kernels |
 //! | [`KernelVersion`] | A kernel version, in `sort -V` order: `6.12.9_1` |
 //! | [`KernelSelector`] | The kernel to boot, as a regular expression: `6\.6` |
 //! | [`ImportPolicy`] | How pools another host used are imported |
@@ -45,6 +46,7 @@ mod answer;
 mod device;
 mod ere;
 mod error;
+mod filesystem;
 mod hostid;
 mod mapping;
 pub mod number;
@@ -60,6 +62,7 @@ mod zfs;
 pub use answer::Answer;
 pub use device::DevicePath;
 pub use error::{ParseError, Reason};
+pub use filesystem::FilesystemName;
 pub use hostid::{HostId, scrape_hostid};
 pub use mapping::MappingName;
 pub use policy::ImportPolicy;

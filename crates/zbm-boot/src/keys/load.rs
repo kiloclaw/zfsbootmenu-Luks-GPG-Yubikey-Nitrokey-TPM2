@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use zbm_platform::System;
 use zbm_state::State;
-use zbm_types::HookStage;
+use zbm_types::{DatasetName, HookStage};
 use zbm_zfs::ZfsCommand;
 
 use super::{BootPath, cache, keysource, stripped};
@@ -70,8 +70,16 @@ fn prompt(system: &System<'_>, root: &str, clear: Clear) -> Result<(), BootError
 
 /// Runs the `load-key.d` hooks for `fs`, whose encryption root `root` is
 /// locked; true when one ran and the root is unlocked now.
-fn is_unlocked_by_hooks(system: &System<'_>, hooks_root: &Path, fs: &str, root: &str) -> bool {
-    let env = [("ZBM_LOCKED_FS", fs), ("ZBM_ENCRYPTION_ROOT", root)];
+fn is_unlocked_by_hooks(
+    system: &System<'_>,
+    hooks_root: &Path,
+    fs: &DatasetName,
+    root: &str,
+) -> bool {
+    let env = [
+        ("ZBM_LOCKED_FS", fs.as_str()),
+        ("ZBM_ENCRYPTION_ROOT", root),
+    ];
     if hooks::run_stage(system, hooks_root, HookStage::LoadKey, false, &env) > 0
         && locked_root(system.runner, fs).is_none()
     {
@@ -87,7 +95,7 @@ fn key_path(
     system: &System<'_>,
     state: &State<'_>,
     how: &KeyLoad<'_>,
-    fs: &str,
+    fs: &DatasetName,
     root: &str,
     keylocation: &str,
 ) -> KeyPath {
@@ -106,7 +114,10 @@ fn key_path(
         zbm_trace::debug!("cache attempt has unlocked {root}");
         return KeyPath::Unlocked;
     }
-    let cached = PathBuf::from(format!("{}/{key}", state.key_cache(&source).display()));
+    let cached = PathBuf::from(format!(
+        "{}/{key}",
+        state.key_cache(source.as_str()).display()
+    ));
     if !system.files.exists(&cached) {
         return KeyPath::Missing;
     }
@@ -116,7 +127,7 @@ fn key_path(
 
 /// Loads the key of `root`, the encryption root of `fs`, from `keypath`
 /// if it is still locked; true when that unlocked it.
-fn is_loaded_from(system: &System<'_>, fs: &str, root: &str, keypath: &Path) -> bool {
+fn is_loaded_from(system: &System<'_>, fs: &DatasetName, root: &str, keypath: &Path) -> bool {
     let location = format!("file://{}", keypath.display());
     let loaded = locked_root(system.runner, fs).is_some()
         && ZfsCommand::new(system.runner)
@@ -141,12 +152,8 @@ pub fn load_key(
     system: &System<'_>,
     state: &State<'_>,
     how: &KeyLoad<'_>,
-    fs: &str,
+    fs: &DatasetName,
 ) -> Result<(), BootError> {
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return Err(not_loaded(fs));
-    }
     zbm_trace::debug!("fs set to {fs}");
     let Some(root) = locked_root(system.runner, fs) else {
         return Ok(());

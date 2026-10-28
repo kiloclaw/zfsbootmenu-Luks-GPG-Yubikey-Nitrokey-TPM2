@@ -6,6 +6,7 @@ use zbm_platform::{Installed, KernelLog};
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
+use crate::testing::name;
 
 const BCLONE: &str = "/sys/module/zfs/parameters/zfs_bclone_enabled";
 
@@ -32,7 +33,7 @@ fn a_read_only_pool_is_exported_and_imported_read_write() {
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    set_rw_pool(&system, &state, "tank", ImportPolicy::Force).unwrap();
+    set_rw_pool(&system, &state, &name("tank"), ImportPolicy::Force).unwrap();
 
     let lines = fake.runner.lines();
     assert_eq!(
@@ -54,13 +55,9 @@ fn a_writable_pool_is_left_as_it_is() {
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
 
-    set_rw_pool(&system, &state, "tank", ImportPolicy::default()).unwrap();
+    set_rw_pool(&system, &state, &name("tank"), ImportPolicy::default()).unwrap();
 
     assert_eq!(fake.runner.lines(), ["zpool get -H -o value readonly tank"]);
-    assert_eq!(
-        set_rw_pool(&system, &state, "", ImportPolicy::default()),
-        Err(BootError::NoPool)
-    );
 }
 
 #[test]
@@ -70,7 +67,7 @@ fn the_readonly_property_and_a_degraded_pool_forbid_it() {
     let state = State::new(&fake.files, "/zfsbootmenu");
     state.add_degraded("tank").unwrap();
 
-    let error = set_rw_pool(&system, &state, "tank", ImportPolicy::default()).unwrap_err();
+    let error = set_rw_pool(&system, &state, &name("tank"), ImportPolicy::default()).unwrap_err();
 
     assert_eq!(
         error.to_string(),
@@ -89,7 +86,7 @@ fn the_readonly_property_and_a_degraded_pool_forbid_it() {
     let system = unreadable.system();
     let state = State::new(&unreadable.files, "/zfsbootmenu");
     assert!(matches!(
-        set_rw_pool(&system, &state, "tank", ImportPolicy::default()),
+        set_rw_pool(&system, &state, &name("tank"), ImportPolicy::default()),
         Err(BootError::PoolProperty { .. })
     ));
 }
@@ -101,7 +98,7 @@ fn a_failed_import_or_export_keeps_it_read_only() {
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
     assert!(matches!(
-        set_rw_pool(&system, &state, "tank", ImportPolicy::default()),
+        set_rw_pool(&system, &state, &name("tank"), ImportPolicy::default()),
         Err(BootError::Export { .. })
     ));
 
@@ -111,7 +108,7 @@ fn a_failed_import_or_export_keeps_it_read_only() {
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
     assert!(matches!(
-        set_rw_pool(&system, &state, "tank", ImportPolicy::default()),
+        set_rw_pool(&system, &state, &name("tank"), ImportPolicy::default()),
         Err(BootError::Pool(_))
     ));
     // The export went through: the pool is imported read-only again, not

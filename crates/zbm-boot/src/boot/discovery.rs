@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::spec::properties::KERNEL;
 use zbm_platform::System;
 use zbm_state::State;
-use zbm_types::KernelSelector;
+use zbm_types::{FilesystemName, KernelSelector};
 
 use super::mounts::{Noise, be_location, mount_zfs, umount};
 use super::zfs::zfs_value;
@@ -19,16 +19,16 @@ use crate::kernels::{self, Kernel};
 ///
 /// # Errors
 ///
-/// [`BootError::NoFilesystem`] without a boot environment,
 /// [`BootError::Mount`] when it cannot be mounted, [`BootError::NoKernel`]
 /// when no kernel can be selected.
-pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> Result<(), BootError> {
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return Err(BootError::NoFilesystem);
-    }
-    zbm_trace::debug!("fs set to {fs}");
-    let Some(mnt) = mount_zfs(system, state, fs, Noise::Hidden) else {
+pub fn find_kernels(
+    system: &System<'_>,
+    state: &State<'_>,
+    filesystem: &FilesystemName,
+) -> Result<(), BootError> {
+    zbm_trace::debug!("fs set to {filesystem}");
+    let fs = &filesystem.to_string();
+    let Some(mnt) = mount_zfs(system, state, filesystem, Noise::Hidden) else {
         zbm_trace::error!("unable to mount {fs}");
         return Err(BootError::Mount { fs: fs.to_owned() });
     };
@@ -40,7 +40,7 @@ pub fn find_kernels(system: &System<'_>, state: &State<'_>, fs: &str) -> Result<
     let _ = system.files.write(&records, &list);
     umount(system.runner, &mnt);
 
-    if !list.is_empty() && select_kernel(system, state, fs).is_some() {
+    if !list.is_empty() && select_kernel(system, state, filesystem).is_some() {
         return Ok(());
     }
     zbm_trace::error!("failed to find kernels on {fs}");
@@ -124,18 +124,20 @@ fn cache_kernel_kcl(system: &System<'_>, state: &State<'_>, fs: &str, mnt: &str,
 }
 
 /// The value of `org.zfsbootmenu:kernel` on `fs`, when it is set.
-pub fn kernel_property(system: &System<'_>, fs: &str) -> Option<String> {
-    zfs_value(system.runner, KERNEL.name, fs).filter(|value| !value.is_empty() && value != "-")
+pub fn kernel_property(system: &System<'_>, fs: &FilesystemName) -> Option<String> {
+    zfs_value(system.runner, KERNEL.name, &fs.to_string())
+        .filter(|value| !value.is_empty() && value != "-")
 }
 
 /// The kernel to boot from the kernel list of `fs`: the last one, or the last
 /// one `org.zfsbootmenu:kernel` matches.
-pub fn select_kernel(system: &System<'_>, state: &State<'_>, fs: &str) -> Option<Kernel> {
-    if fs.is_empty() {
-        zbm_trace::error!("zfsbe is undefined");
-        return None;
-    }
-    zbm_trace::debug!("zfsbe set to {fs}");
+pub fn select_kernel(
+    system: &System<'_>,
+    state: &State<'_>,
+    filesystem: &FilesystemName,
+) -> Option<Kernel> {
+    zbm_trace::debug!("zfsbe set to {filesystem}");
+    let fs = &filesystem.to_string();
     let list = be_location(state, fs).join("kernels");
     let text = system.files.read_to_string(&list).unwrap_or_default();
     if text.is_empty() {

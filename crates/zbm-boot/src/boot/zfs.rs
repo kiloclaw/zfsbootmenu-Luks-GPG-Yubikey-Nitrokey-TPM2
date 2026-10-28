@@ -5,6 +5,8 @@
 use zbm_platform::Runner;
 use zbm_zfs::{Stderr, ZfsCommand, ZpoolCommand};
 
+use zbm_types::{DatasetName, PoolName};
+
 use crate::error::BootError;
 
 /// The lines `while read -r line ... done <<< "$( command )"` reads.
@@ -37,37 +39,27 @@ pub(crate) fn zfs_value(runner: &dyn Runner, property: &str, dataset: &str) -> O
     ok.then_some(value)
 }
 
-/// The encryption root of `fs` (a snapshot counts as its filesystem), or
-/// `None` when its pool does not use encryption or `fs` is not encrypted.
-pub fn encryption_root(runner: &dyn Runner, fs: &str) -> Option<String> {
-    // ${1%@*}
-    let fs = fs.rsplit_once('@').map_or(fs, |(fs, _)| fs);
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return None;
-    }
+/// The encryption root of `fs`, or `None` when its pool does not use
+/// encryption or `fs` is not encrypted. (A snapshot's is its dataset's.)
+pub fn encryption_root(runner: &dyn Runner, fs: &DatasetName) -> Option<String> {
     zbm_trace::debug!("fs set to {fs}");
-    let pool = fs.split('/').next().unwrap_or(fs);
+    let pool = fs.pool();
     let feature = ZpoolCommand::new(runner).text(
-        &["list", "-H", "-o", "feature@encryption", pool],
+        &["list", "-H", "-o", "feature@encryption", pool.as_str()],
         Stderr::Hidden,
     );
     if substituted(feature).1 != "active" {
         zbm_trace::debug!("feature@encryption not active on {pool}");
         return None;
     }
-    let encroot = zfs_value(runner, "encryptionroot", fs)?;
+    let encroot = zfs_value(runner, "encryptionroot", fs.as_str())?;
     zbm_trace::debug!("{fs} encryptionroot property: {encroot}");
     (encroot != "-").then_some(encroot)
 }
 
 /// The encryption root of `fs` if its key is not loaded: its `keystatus` is
 /// `unavailable`.
-pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
-    if fs.is_empty() {
-        zbm_trace::error!("fs is undefined");
-        return None;
-    }
+pub fn locked_root(runner: &dyn Runner, fs: &DatasetName) -> Option<String> {
     zbm_trace::debug!("fs set to {fs}");
     let encroot = encryption_root(runner, fs)?;
     zbm_trace::debug!("{encroot} discovered as encryption root for {fs}");
@@ -81,14 +73,10 @@ pub fn locked_root(runner: &dyn Runner, fs: &str) -> Option<String> {
 }
 
 /// Whether `pool` is imported read-write: its `readonly` property is `off`.
-pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
-    if pool.is_empty() {
-        zbm_trace::error!("pool is undefined");
-        return false;
-    }
+pub fn is_writable(runner: &dyn Runner, pool: &PoolName) -> bool {
     zbm_trace::debug!("pool set to {pool}");
     let (ok, readonly) = substituted(ZpoolCommand::new(runner).text(
-        &["get", "-H", "-o", "value", "readonly", pool],
+        &["get", "-H", "-o", "value", "readonly", pool.as_str()],
         Stderr::Hidden,
     ));
     if !ok {
@@ -102,15 +90,10 @@ pub fn is_writable(runner: &dyn Runner, pool: &str) -> bool {
 ///
 /// # Errors
 ///
-/// [`BootError::NoPool`] without a pool, [`BootError::Export`] when
-/// `zpool export` fails.
-pub fn export_pool(runner: &dyn Runner, pool: &str) -> Result<(), BootError> {
-    if pool.is_empty() {
-        zbm_trace::error!("pool is undefined");
-        return Err(BootError::NoPool);
-    }
+/// [`BootError::Export`] when `zpool export` fails.
+pub fn export_pool(runner: &dyn Runner, pool: &PoolName) -> Result<(), BootError> {
     zbm_trace::debug!("pool set to {pool}");
-    let code = match ZpoolCommand::new(runner).text(&["export", pool], Stderr::Console) {
+    let code = match ZpoolCommand::new(runner).text(&["export", pool.as_str()], Stderr::Console) {
         Ok(output) => output.status.shell_code(),
         Err(_) => 126,
     };
@@ -119,7 +102,7 @@ pub fn export_pool(runner: &dyn Runner, pool: &str) -> Result<(), BootError> {
         Ok(())
     } else {
         Err(BootError::Export {
-            pool: pool.to_owned(),
+            pool: pool.to_string(),
             status: code,
         })
     }
@@ -129,7 +112,11 @@ pub fn export_pool(runner: &dyn Runner, pool: &str) -> Result<(), BootError> {
 /// the kernel about to run finds them cleanly exported.
 pub(super) fn export_writable_pools(runner: &dyn Runner) {
     let pools = ZpoolCommand::new(runner).text(&["list", "-H", "-o", "name"], Stderr::Console);
-    for pool in here_lines(&substituted(pools).1) {
+    let pools = here_lines(&substituted(pools).1);
+    for pool in pools
+        .iter()
+        .filter_map(|pool| pool.parse::<PoolName>().ok())
+    {
         if is_writable(runner, &pool) {
             zbm_trace::debug!("{pool} is read/write, exporting");
             let _ = export_pool(runner, &pool);

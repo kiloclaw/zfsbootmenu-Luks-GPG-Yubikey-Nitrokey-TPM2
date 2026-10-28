@@ -9,7 +9,7 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_tools::{kexec, programs};
 use zbm_trace::Level;
-use zbm_types::{HookStage, ImportPolicy};
+use zbm_types::{DatasetName, FilesystemName, HookStage, ImportPolicy};
 use zbm_zfs::ZfsCommand;
 
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
@@ -78,13 +78,31 @@ fn find_root_prefix(system: &System<'_>, fs: &str, mnt: &Path) -> String {
 /// Loads the key of `fs` if it is locked, with key sources and after
 /// clearing the screen. The countdown has loaded it already, so this loads
 /// it for a boot chosen in the menu; a failure shows when mounting.
-fn load_key(system: &System<'_>, state: &State<'_>, settings: &BootSettings, fs: &str) {
+fn load_key(system: &System<'_>, state: &State<'_>, settings: &BootSettings, fs: &DatasetName) {
     let how = KeyLoad {
         hooks: &settings.hooks,
         path: BootPath::Menu,
         clear: Clear::Yes,
     };
     let _ = keys::load_key(system, state, &how, fs);
+}
+
+/// Loads the key of `fs` and mounts it, clearing the screen in between; the
+/// mount point, or `None` when it cannot be mounted. A kernel list line
+/// whose dataset is no name fails to mount.
+fn load_and_mount(
+    system: &System<'_>,
+    state: &State<'_>,
+    settings: &BootSettings,
+    fs: &str,
+) -> Option<PathBuf> {
+    let filesystem = fs.parse::<FilesystemName>().ok();
+    if let Some(filesystem) = &filesystem {
+        load_key(system, state, settings, filesystem.dataset());
+    }
+    tput(system, &["cnorm"]);
+    tput(system, &["clear"]);
+    mount_zfs(system, state, &filesystem?, Noise::Shown)
 }
 
 /// Boots `selected`: mounts it, runs the `boot-sel.d` hooks, loads the kernel
@@ -110,12 +128,7 @@ pub fn kexec_kernel(
     }
     zbm_trace::debug!("fs: {fs}, kernel: {kernel}, initramfs: {initramfs}");
 
-    load_key(system, state, settings, fs);
-
-    tput(system, &["cnorm"]);
-    tput(system, &["clear"]);
-
-    let Some(mnt) = mount_zfs(system, state, fs, Noise::Shown) else {
+    let Some(mnt) = load_and_mount(system, state, settings, fs) else {
         recovery.emergency_shell(&format!("unable to mount {}", colorize("cyan", fs)));
         return;
     };

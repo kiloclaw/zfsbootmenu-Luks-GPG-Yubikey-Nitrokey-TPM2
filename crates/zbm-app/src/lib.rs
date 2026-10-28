@@ -338,7 +338,7 @@ impl<'a> App<'a> {
         };
         for environment in &mut snapshot.environments {
             if environment.encryption != Encryption::Locked {
-                environment.kernels = boot.kernels(environment.name.as_str());
+                environment.kernels = boot.kernels(&environment.name);
             }
         }
     }

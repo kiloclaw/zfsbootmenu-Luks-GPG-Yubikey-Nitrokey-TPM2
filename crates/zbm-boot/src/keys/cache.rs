@@ -9,6 +9,7 @@ use zbm_platform::{Files, Secret, System};
 use zbm_state::State;
 use zbm_tools::Shown;
 use zbm_tools::mount::Mount;
+use zbm_types::{DatasetName, FilesystemName};
 use zbm_zfs::{Stderr, ZfsCommand};
 
 use super::load::{KeyLoad, load_key};
@@ -53,7 +54,7 @@ pub(super) fn cache_key(
     system: &System<'_>,
     state: &State<'_>,
     how: &KeyLoad<'_>,
-    fs: &str,
+    fs: &DatasetName,
     keylocation: &str,
 ) {
     zbm_trace::debug!("fs set to {fs}");
@@ -66,13 +67,13 @@ pub(super) fn cache_key(
         zbm_trace::debug!("no key source found for {fs}");
         return;
     };
-    let keycache = state.key_cache(&source);
+    let keycache = state.key_cache(source.as_str());
     if system.files.create_dir_all(&keycache).is_err() {
         return;
     }
     // Held while caching: by this process when the key source's own key comes
     // from it, or by another one caching the same key.
-    let _cache = match state.try_lock_key_cache(&source) {
+    let _cache = match state.try_lock_key_cache(source.as_str()) {
         Ok(Some(lock)) => lock,
         Ok(None) => {
             zbm_trace::debug!("will not repeat cache attempt for {source}:{keyfile}");
@@ -93,7 +94,7 @@ fn copy_from_source(
     system: &System<'_>,
     state: &State<'_>,
     how: &KeyLoad<'_>,
-    source: &str,
+    source: &DatasetName,
     keyfile: &str,
     keycache: &Path,
 ) {
@@ -101,11 +102,12 @@ fn copy_from_source(
         zbm_trace::warn!("failed to load key for {source}");
         return;
     }
-    let Some(mnt) = mount_zfs(system, state, source, Noise::Shown) else {
+    let filesystem = FilesystemName::from(source.clone());
+    let Some(mnt) = mount_zfs(system, state, &filesystem, Noise::Shown) else {
         zbm_trace::error!("failed to mount {source}");
         return;
     };
-    if let Some(keypath) = key_in_source(system, source, keyfile, &mnt) {
+    if let Some(keypath) = key_in_source(system, source.as_str(), keyfile, &mnt) {
         copy_key(system.files, &keypath, keyfile, keycache);
     }
     let _ = Mount::new(system.runner).unmount(&mnt, Shown::Console);

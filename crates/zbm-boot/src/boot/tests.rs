@@ -19,7 +19,7 @@ use crate::commandline::{ETC_HOSTID, SPL_HOSTID};
 use crate::error::BootError;
 use crate::kernels::Kernel;
 use crate::recovery::Recovery;
-use crate::testing::{LINE_LOG_STUBS, Redirect, stub_lines};
+use crate::testing::{LINE_LOG_STUBS, Redirect, name, stub_lines};
 
 /// A fake for every program the boot runs: it records each call and
 /// answers from `answers`, whose lines are `status<TAB>glob<TAB>output`
@@ -328,10 +328,11 @@ fn kernels_are_found_as_the_legacy_function_finds_them() {
             machine.run_legacy(&format!("find_be_kernels {FS} && select_kernel {FS}"))
         });
         let rust = machine.rust(|system, state, _, _| {
-            if find_kernels(system, state, FS).is_err() {
+            let fs = name(FS);
+            if find_kernels(system, state, &fs).is_err() {
                 return String::new();
             }
-            select_kernel(system, state, FS)
+            select_kernel(system, state, &fs)
                 .map(|kernel| kernel.line())
                 .unwrap_or_default()
         });
@@ -512,11 +513,9 @@ fn writable_pools_and_exports() {
     fake.runner
         .respond("zpool get -H -o value readonly gone", 1, "");
     let _log = fake_log(&fake);
-    assert!(is_writable(&fake.runner, "tank"));
-    assert!(!is_writable(&fake.runner, "gone"));
-    assert!(!is_writable(&fake.runner, ""));
-    assert_eq!(export_pool(&fake.runner, "tank"), Ok(()));
-    assert!(fake.kmsg().contains("<3>ZFSBootMenu: pool is undefined"));
+    assert!(is_writable(&fake.runner, &name("tank")));
+    assert!(!is_writable(&fake.runner, &name("gone")));
+    assert_eq!(export_pool(&fake.runner, &name("tank")), Ok(()));
     assert!(fake.kmsg().contains("tank export process return: 0"));
 }
 
@@ -556,7 +555,7 @@ fn boots_a_locked_environment_as_the_legacy_function_does() {
 }
 
 #[test]
-fn missing_arguments_and_failed_exports_are_errors() {
+fn failed_exports_and_missing_kernels_are_errors() {
     let fake = FakeSystem::new();
     let _log = fake_log(&fake);
     fake.files.dir("/zfsbootmenu");
@@ -564,27 +563,20 @@ fn missing_arguments_and_failed_exports_are_errors() {
         .respond("zpool export busy", 1, "pool is busy\n");
     let system = fake.system();
     let state = State::new(&fake.files, "/zfsbootmenu");
-    assert_eq!(export_pool(system.runner, ""), Err(BootError::NoPool));
     assert_eq!(
-        export_pool(system.runner, "busy"),
+        export_pool(system.runner, &name("busy")),
         Err(BootError::Export {
             pool: "busy".to_owned(),
             status: 1
         })
     );
-    assert_eq!(encryption_root(system.runner, "@snap"), None);
-    assert_eq!(locked_root(system.runner, ""), None);
-    assert_eq!(mount_zfs(&system, &state, "", Noise::Shown), None);
+    assert_eq!(encryption_root(system.runner, &name("tank/ROOT")), None);
+    assert_eq!(locked_root(system.runner, &name("tank/ROOT")), None);
     assert_eq!(
-        find_kernels(&system, &state, ""),
-        Err(BootError::NoFilesystem)
+        select_kernel(&system, &state, &name("tank/ROOT/none")),
+        None
     );
-    assert_eq!(select_kernel(&system, &state, ""), None);
-    assert_eq!(select_kernel(&system, &state, "tank/ROOT/none"), None);
-    let kmsg = fake.kmsg();
-    assert!(kmsg.contains("pool is undefined"));
-    assert!(kmsg.contains("fs is undefined"));
-    assert!(kmsg.contains("missing or empty"));
+    assert!(fake.kmsg().contains("missing or empty"));
     let defaults = BootSettings::default();
     assert!(defaults.set_hostid && defaults.env.is_empty());
 }
