@@ -11,7 +11,6 @@
     reason = "the checks use real files, threads and time"
 )]
 
-use std::os::fd::AsRawFd as _;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -43,17 +42,15 @@ fn places(dir: &TempDir) -> Places {
 
 fn a_request_s_signal_wakes_the_console(requests: &Requests) {
     let mut wake = requests.wake().unwrap();
-    let readable =
-        || zbm_sys::console::first_readable(&[wake.fd().as_raw_fd()], Some(Duration::ZERO));
+    let readable = || zbm_sys::console::first_readable(&[wake.fd()], Some(Duration::ZERO));
     assert_eq!(readable().unwrap(), None, "no request yet");
     zbm_sys::send_signal(std::process::id(), zbm_sys::Signal::User2).unwrap();
-    let woken =
-        zbm_sys::console::first_readable(&[wake.fd().as_raw_fd()], Some(Duration::from_secs(5)));
+    let woken = zbm_sys::console::first_readable(&[wake.fd()], Some(Duration::from_secs(5)));
     assert_eq!(woken.unwrap(), Some(0));
     wake.take();
     assert!(requests.layout.swap(false, Ordering::SeqCst));
     assert!(!requests.release.load(Ordering::SeqCst));
-    let readable = zbm_sys::console::first_readable(&[wake.fd().as_raw_fd()], Some(Duration::ZERO));
+    let readable = zbm_sys::console::first_readable(&[wake.fd()], Some(Duration::ZERO));
     assert_eq!(readable.unwrap(), None, "the wake-up was taken");
 }
 

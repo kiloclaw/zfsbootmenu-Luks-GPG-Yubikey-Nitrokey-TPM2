@@ -15,7 +15,6 @@
 
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::fd::AsRawFd;
 use std::time::Duration;
 
 use crate::exec::{Command, Input, Runner, Stream};
@@ -238,7 +237,7 @@ impl Console for Terminal<'_> {
 
     fn read_key(&self, timeout: Option<Duration>) -> io::Result<Option<u8>> {
         self.with_mode(&["-icanon", "-echo"], || {
-            if zbm_sys::wait_readable(self.input.as_raw_fd(), timeout)? {
+            if zbm_sys::wait_readable(&self.input, timeout)? {
                 self.read_byte()
             } else {
                 Ok(None)
@@ -260,7 +259,7 @@ impl Console for Terminal<'_> {
     }
 
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>> {
-        if !zbm_sys::wait_readable(self.input.as_raw_fd(), Some(timeout))? {
+        if !zbm_sys::wait_readable(&self.input, Some(timeout))? {
             return Ok(Timed::TimedOut);
         }
         Ok(match read_until_newline(|| self.read_byte())? {

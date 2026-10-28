@@ -66,6 +66,10 @@ pub fn return_addresses() -> Vec<usize> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
+)]
 mod tests {
     use super::*;
 

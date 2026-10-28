@@ -20,7 +20,7 @@
 
 use std::fs::File;
 use std::io::{self, Write as _};
-use std::os::fd::AsRawFd;
+use std::os::fd::AsFd as _;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -37,7 +37,9 @@ use zbm_console::keys::Flavour;
 use zbm_console::relay::SavedModes;
 
 /// The supervisor's terminal: its standard input.
-const TERMINAL: i32 = 0;
+fn terminal() -> std::io::Stdin {
+    std::io::stdin()
+}
 
 /// The console, running.
 #[derive(Debug)]
@@ -73,7 +75,7 @@ impl Attached {
     ///
     /// When the pseudo-terminal or the console cannot be had.
     pub fn start(program: &Program) -> io::Result<Attached> {
-        let keyboard = keyboard_mode(TERMINAL).ok();
+        let keyboard = keyboard_mode(terminal()).ok();
         let modes = SavedModes::of(io::stdin());
         let (master, slave) = zbm_console::host::open_pty()?;
         let child = Command::new(&program.path)
@@ -135,7 +137,7 @@ impl Attached {
     /// When the kernel refuses: the process may not, or another terminal
     /// has `/dev/console` already.
     pub fn redirect_console(&self) -> io::Result<()> {
-        redirect_console(self.slave.as_raw_fd())
+        redirect_console(&self.slave)
     }
 
     /// The programs' side of the terminal.
@@ -146,7 +148,7 @@ impl Attached {
     /// Whether the terminal was hung up: the console closed its side,
     /// which it does only as it ends. Programs started on it end at once.
     pub fn is_hung_up(&self) -> bool {
-        let watch = Watch::read(self.slave.as_raw_fd());
+        let watch = Watch::read(self.slave.as_fd());
         wait_ready(&[watch], Some(Duration::ZERO))
             .is_ok_and(|ready| ready.iter().any(|ready| ready.closed))
     }
@@ -165,8 +167,8 @@ impl Attached {
     /// state directory `base`.
     pub fn detach(self, base: &Path) {
         if let Some(keyboard) = self.keyboard {
-            let _ = set_display_mode(TERMINAL, DisplayMode::Text);
-            let _ = set_keyboard_mode(TERMINAL, keyboard);
+            let _ = set_display_mode(terminal(), DisplayMode::Text);
+            let _ = set_keyboard_mode(terminal(), keyboard);
         }
         if let Some(modes) = &self.modes {
             let _ = modes.restore();

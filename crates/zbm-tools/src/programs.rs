@@ -105,12 +105,9 @@ pub fn interactive_shell(runner: &dyn Runner) -> io::Result<Output> {
     let command = on_console(Command::new(program).arg("-i")).default_signal(Signal::Interrupt);
     let ran = runner.run(&command);
     // Not a terminal (a script, the tests): nothing to take back.
-    let _ = zbm_sys::take_terminal(STDIN);
+    let _ = zbm_sys::take_terminal(io::stdin());
     ran
 }
-
-/// Standard input, the console the shell ran on.
-const STDIN: i32 = 0;
 
 /// Runs the applet `program` of ZFSBootMenu with `args` and `env` on the
 /// console, in a process of its own, such as `zluks unlock`.

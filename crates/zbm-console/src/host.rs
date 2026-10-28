@@ -11,7 +11,7 @@
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, AsRawFd as _, BorrowedFd, OwnedFd};
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Arc;
@@ -366,21 +366,22 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     /// What the host waits on: the keyboards, the programs' terminal, and
     /// the wake-up and the device watch when it has them; and how many
     /// keyboards come first.
-    fn watches(&self) -> (Vec<Watch>, usize) {
-        let mut watches: Vec<Watch> = self.keyboards.fds().into_iter().map(Watch::read).collect();
+    fn watches(&self) -> (Vec<Watch<'_>>, usize) {
+        let mut watches: Vec<Watch<'_>> =
+            self.keyboards.fds().into_iter().map(Watch::read).collect();
         let count = watches.len();
         // Scroll Lock holds the programs' output: it waits in the terminal,
         // and they wait once it is full, as on the kernel console.
         watches.push(Watch {
-            fd: self.master.as_fd().as_raw_fd(),
+            fd: self.master.as_fd(),
             read: !self.keyboards.is_scroll_lock(),
             write: !self.outgoing.is_empty(),
         });
         if let Some(wake) = &self.wake {
-            watches.push(Watch::read(wake.fd().as_raw_fd()));
+            watches.push(Watch::read(wake.fd()));
         }
         if let Some(devices) = &self.devices {
-            watches.push(Watch::read(devices.as_raw_fd()));
+            watches.push(Watch::read(devices.as_fd()));
         }
         (watches, count)
     }

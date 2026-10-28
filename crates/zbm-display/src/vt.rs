@@ -10,7 +10,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io;
-use std::os::fd::AsRawFd as _;
+use std::os::fd::AsFd as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 
@@ -52,7 +52,7 @@ impl Terminal {
             .write(true)
             .custom_flags(O_NOCTTY)
             .open(path)?;
-        let fd = file.as_raw_fd();
+        let fd = file.as_fd();
         let keyboard = keyboard_mode(fd)?;
         set_keyboard_mode(fd, KeyboardMode::OFF)?;
         if let Err(error) = set_display_mode(fd, DisplayMode::Graphics) {
@@ -65,7 +65,7 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        let fd = self.file.as_raw_fd();
+        let fd = self.file.as_fd();
         let _ = set_display_mode(fd, DisplayMode::Text);
         let _ = set_keyboard_mode(fd, self.keyboard);
     }

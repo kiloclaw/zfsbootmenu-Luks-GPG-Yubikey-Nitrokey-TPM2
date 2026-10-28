@@ -71,7 +71,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 
 | Crate | Responsibility | Legacy counterpart |
 | --- | --- | --- |
-| `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, `waitpid`, credentials, wiping and locking memory, the child set-up between `fork` and `exec`, the virtual terminal's modes, the stack for crash reports. | Bash built-ins |
+| `zbm-sys` | The only FFI and the only crate with `unsafe`: signals, `kill`, `poll`, `waitpid`, credentials, wiping and locking memory, the child set-up between `fork` and `exec`, the virtual terminal's modes, the stack for crash reports; mostly through `rustix`, on borrowed descriptors, and tested under AddressSanitizer. | Bash built-ins |
 | `zbm-types` | Names and paths checked once, when parsed: devices, mappings, pools, datasets, snapshots, kernel versions, stages. | — |
 | `zbm-trace` | Tracing: the macros code logs with, the kernel log layer with its levels and legacy formats, the JSON journal, crash report formats. | `kmsg-log-lib.sh`, `echo-log-lib.sh` |
 | `zbm-platform` | The ports to the system: running programs (`Command`, `Runner`), files, clock, console, processes and environment, with their real implementations; the `System` bundle and the `Context` of services; the `Error` type, `Secret`, the kernel log writer and reader, crash reports, the command journal and file trees; shell quoting, colours, the version, and the file tests of Perl and the shell for the host tools. | `/dev/kmsg`, `tput`, `read`, `sleep`, `kill`, `cp -a`, `rm -rf`, variables |

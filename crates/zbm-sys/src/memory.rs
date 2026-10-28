@@ -12,37 +12,19 @@
 //! the anonymous one `MADV_WIPEONFORK`; the `memfd_secret` one is not mapped
 //! in child processes at all (`MADV_DONTFORK`).
 
-use std::ffi::{c_int, c_long, c_void};
+use std::ffi::{c_long, c_void};
 use std::io;
+use std::os::fd::{FromRawFd as _, OwnedFd};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use rustix::mm::{Advice, MapFlags, MlockAllFlags, ProtFlags};
+use rustix::process::DumpableBehavior;
+
 unsafe extern "C" {
-    fn mmap(
-        addr: *mut c_void,
-        len: usize,
-        prot: c_int,
-        flags: c_int,
-        fd: c_int,
-        off: i64,
-    ) -> *mut c_void;
-    fn munmap(addr: *mut c_void, len: usize) -> c_int;
-    fn mlock(addr: *const c_void, len: usize) -> c_int;
-    fn mlockall(flags: c_int) -> c_int;
-    fn madvise(addr: *mut c_void, len: usize, advice: c_int) -> c_int;
-    fn ftruncate(fd: c_int, length: i64) -> c_int;
-    fn close(fd: c_int) -> c_int;
-    fn sysconf(name: c_int) -> c_long;
+    // `rustix` has no `memfd_secret`.
     fn syscall(number: c_long, ...) -> c_long;
-    fn explicit_bzero(s: *mut c_void, n: usize);
-    fn prctl(option: c_int, ...) -> c_int;
 }
-
-/// `PR_SET_DUMPABLE`.
-const PR_SET_DUMPABLE: c_int = 4;
-
-/// `PR_GET_DUMPABLE`.
-const PR_GET_DUMPABLE: c_int = 3;
 
 /// Makes the process undumpable: no core dump, and only processes with
 /// `CAP_SYS_PTRACE` (root) may read its memory through `ptrace` or
@@ -53,18 +35,10 @@ const PR_GET_DUMPABLE: c_int = 3;
 ///
 /// When the kernel refuses.
 pub fn set_undumpable() -> io::Result<()> {
-    // SAFETY: `prctl(PR_SET_DUMPABLE, 0)` reads no memory of the caller; the
-    // argument is passed as a whole register.
-    if unsafe { prctl(PR_SET_DUMPABLE, 0 as c_long) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    Ok(rustix::process::set_dumpable_behavior(
+        DumpableBehavior::NotDumpable,
+    )?)
 }
-
-/// `MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT`: the pages the process has and
-/// will have, as they are first used.
-const LOCK_ALL: c_int = 1 | 2 | 4;
 
 /// Keeps all of the process's memory, now and later, out of swap, page by
 /// page as it is first used: what the console on the display keeps of the
@@ -75,49 +49,15 @@ const LOCK_ALL: c_int = 1 | 2 | 4;
 /// When the kernel refuses: without `CAP_IPC_LOCK`, beyond
 /// `RLIMIT_MEMLOCK`, or before Linux 4.4.
 pub fn lock_all_memory() -> io::Result<()> {
-    // SAFETY: `mlockall` reads no memory of the caller.
-    if unsafe { mlockall(LOCK_ALL) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    let all = MlockAllFlags::CURRENT | MlockAllFlags::FUTURE | MlockAllFlags::ONFAULT;
+    Ok(rustix::mm::mlockall(all)?)
 }
 
 /// Whether the process is dumpable.
 pub fn is_dumpable() -> bool {
-    // SAFETY: `prctl(PR_GET_DUMPABLE)` reads no memory of the caller.
-    unsafe { prctl(PR_GET_DUMPABLE) > 0 }
+    rustix::process::dumpable_behavior()
+        .is_ok_and(|behavior| behavior != DumpableBehavior::NotDumpable)
 }
-
-/// `PROT_READ | PROT_WRITE`.
-const READ_WRITE: c_int = 0x1 | 0x2;
-
-/// `MAP_SHARED`, for the `memfd_secret` file.
-const MAP_SHARED: c_int = 0x1;
-
-/// `MAP_PRIVATE`.
-const MAP_PRIVATE: c_int = 0x2;
-
-/// `MAP_ANONYMOUS`, which MIPS numbers differently.
-#[cfg(any(target_arch = "mips", target_arch = "mips64"))]
-const MAP_ANONYMOUS: c_int = 0x800;
-#[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
-const MAP_ANONYMOUS: c_int = 0x20;
-
-/// What `mmap` returns when it fails.
-const MAP_FAILED: *mut c_void = usize::MAX as *mut c_void;
-
-/// `MADV_DONTFORK`: child processes do not get the mapping.
-const MADV_DONTFORK: c_int = 10;
-
-/// `MADV_DONTDUMP`: core dumps leave the mapping out.
-const MADV_DONTDUMP: c_int = 16;
-
-/// `MADV_WIPEONFORK`: child processes get the mapping filled with zeros.
-const MADV_WIPEONFORK: c_int = 18;
-
-/// `_SC_PAGESIZE` in glibc and musl.
-const SC_PAGESIZE: c_int = 30;
 
 /// The number of `memfd_secret`, the same on every architecture that has it
 /// (the common numbering of new system calls).
@@ -168,18 +108,24 @@ unsafe impl Sync for Pages {}
 
 /// The size of a page of memory.
 pub fn page_size() -> usize {
-    // SAFETY: `sysconf` takes an integer and reads no memory of the caller.
-    let size = unsafe { sysconf(SC_PAGESIZE) };
-    usize::try_from(size)
-        .ok()
-        .filter(|size| *size > 0)
-        .unwrap_or(4096)
+    rustix::param::page_size()
 }
 
 /// `bytes` rounded up to whole pages, at least one.
 fn whole_pages(bytes: usize) -> Option<usize> {
     let page = page_size();
     bytes.max(1).checked_next_multiple_of(page)
+}
+
+/// `memfd_secret(O_CLOEXEC)`: a file whose pages are out of the kernel's
+/// map of memory, or `None` when the kernel has none.
+fn memfd_secret() -> Option<OwnedFd> {
+    // SAFETY: `memfd_secret(unsigned int flags)` reads no memory of the
+    // caller; the flags are passed as a whole register.
+    let fd = unsafe { syscall(SYS_MEMFD_SECRET, O_CLOEXEC) };
+    let fd = i32::try_from(fd).ok().filter(|fd| *fd >= 0)?;
+    // SAFETY: the kernel just made `fd`, and nothing else owns it.
+    Some(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 impl Pages {
@@ -221,28 +167,28 @@ impl Pages {
     }
 
     /// `len` bytes from `memfd_secret`, or `None` when the kernel refuses.
+    /// The file is closed once mapped, as the mapping keeps the memory; it
+    /// is closed on exec too, so a thread that starts a program meanwhile
+    /// does not hand it the secret.
     fn from_secretmem(len: usize) -> Option<Pages> {
-        let size = i64::try_from(len).ok()?;
-        // SAFETY: `memfd_secret(unsigned int flags)` reads no memory of the
-        // caller (the flags are passed as a whole register); the file it
-        // makes is sized, mapped as a new mapping that aliases no Rust
-        // memory, and closed, as the mapping keeps the memory. The advice
-        // applies to that mapping alone. The file is closed on exec: a
-        // thread that starts a program before the `close` below does not
-        // hand it the secret.
+        let fd = memfd_secret()?;
+        rustix::fs::ftruncate(&fd, u64::try_from(len).ok()?).ok()?;
+        let read_write = ProtFlags::READ | ProtFlags::WRITE;
+        // SAFETY: a new shared mapping of the file, which aliases no Rust
+        // memory; the advice applies to that mapping alone, and a failure of
+        // it leaves the mapping as it was.
         let start = unsafe {
-            let fd = syscall(SYS_MEMFD_SECRET, O_CLOEXEC);
-            let fd = c_int::try_from(fd).ok().filter(|fd| *fd >= 0)?;
-            let start = if ftruncate(fd, size) == 0 {
-                mmap(std::ptr::null_mut(), len, READ_WRITE, MAP_SHARED, fd, 0)
-            } else {
-                MAP_FAILED
-            };
-            close(fd);
-            if start != MAP_FAILED {
-                madvise(start, len, MADV_DONTDUMP);
-                madvise(start, len, MADV_DONTFORK);
-            }
+            let start = rustix::mm::mmap(
+                std::ptr::null_mut(),
+                len,
+                read_write,
+                MapFlags::SHARED,
+                &fd,
+                0,
+            )
+            .ok()?;
+            let _ = rustix::mm::madvise(start, len, Advice::LinuxDontDump);
+            let _ = rustix::mm::madvise(start, len, Advice::LinuxDontFork);
             start
         };
         Pages::mapped(start, len, Protection::Secret)
@@ -251,33 +197,32 @@ impl Pages {
     /// `len` bytes of anonymous memory, locked when `lock` says so and the
     /// process may.
     fn anonymous(len: usize, lock: bool) -> io::Result<Pages> {
-        let flags = MAP_PRIVATE | MAP_ANONYMOUS;
-        let mut locked = false;
+        let read_write = ProtFlags::READ | ProtFlags::WRITE;
         // SAFETY: an anonymous mapping takes no file and aliases no Rust
         // memory; the other calls apply to it alone, and a failure of them
         // leaves it as it was.
-        let start = unsafe {
-            let start = mmap(std::ptr::null_mut(), len, READ_WRITE, flags, -1, 0);
-            if start != MAP_FAILED {
-                locked = lock && mlock(start, len) == 0;
-                madvise(start, len, MADV_DONTDUMP);
-                madvise(start, len, MADV_WIPEONFORK);
-            }
-            start
+        let (start, locked) = unsafe {
+            let start = rustix::mm::mmap_anonymous(
+                std::ptr::null_mut(),
+                len,
+                read_write,
+                MapFlags::PRIVATE,
+            )?;
+            let locked = lock && rustix::mm::mlock(start, len).is_ok();
+            let _ = rustix::mm::madvise(start, len, Advice::LinuxDontDump);
+            let _ = rustix::mm::madvise(start, len, Advice::LinuxWipeOnFork);
+            (start, locked)
         };
         let protection = if locked {
             Protection::Locked
         } else {
             Protection::Unlocked
         };
-        Pages::mapped(start, len, protection).ok_or_else(io::Error::last_os_error)
+        Pages::mapped(start, len, protection).ok_or_else(|| io::ErrorKind::OutOfMemory.into())
     }
 
-    /// The region `mmap` returned, or `None` when it failed.
+    /// The region `mmap` returned.
     fn mapped(start: *mut c_void, len: usize, protection: Protection) -> Option<Pages> {
-        if start == MAP_FAILED {
-            return None;
-        }
         let start = NonNull::new(start.cast::<u8>())?;
         LIVE.fetch_add(1, Ordering::SeqCst);
         Some(Pages {
@@ -318,18 +263,19 @@ impl Pages {
 
 impl Drop for Pages {
     fn drop(&mut self) {
-        let start = self.start.as_ptr().cast::<c_void>();
-        // SAFETY: the region is this value's mapping of `len` bytes; it is
-        // wiped, then unmapped, and never used again.
-        unsafe {
-            explicit_bzero(start, self.len);
-            munmap(start, self.len);
-        }
+        crate::wipe(self.bytes_mut());
+        // SAFETY: the region is this value's mapping of `len` bytes, wiped
+        // above; it is unmapped, and never used again.
+        let _ = unsafe { rustix::mm::munmap(self.start.as_ptr().cast(), self.len) };
         LIVE.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
+)]
 mod tests {
     use super::*;
 

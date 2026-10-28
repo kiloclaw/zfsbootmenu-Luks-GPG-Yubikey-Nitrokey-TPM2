@@ -13,7 +13,7 @@
 
 use std::fs::File;
 use std::io::{self, Read as _};
-use std::os::fd::{AsFd as _, AsRawFd as _};
+use std::os::fd::AsFd as _;
 use std::time::{Duration, Instant};
 
 use ratatui::crossterm::terminal;
@@ -324,7 +324,7 @@ impl TerminalKeys {
     ///
     /// When the input cannot be read, or ended.
     fn read(&mut self, timeout: Duration) -> io::Result<bool> {
-        if !zbm_sys::wait_readable(self.input.as_raw_fd(), Some(timeout))? {
+        if !zbm_sys::wait_readable(&self.input, Some(timeout))? {
             return Ok(false);
         }
         let mut buffer = [0_u8; BUFFER];

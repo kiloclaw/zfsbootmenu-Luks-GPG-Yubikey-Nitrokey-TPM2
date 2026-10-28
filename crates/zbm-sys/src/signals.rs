@@ -19,7 +19,7 @@
 use std::ffi::{c_int, c_ulong};
 use std::fs::File;
 use std::io::{self, Read as _};
-use std::os::fd::{AsFd, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd};
+use std::os::fd::{AsFd, BorrowedFd, FromRawFd as _, OwnedFd};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -52,7 +52,7 @@ pub(crate) fn is_blocking_any() -> bool {
     let mut mask = SigSet::EMPTY;
     // SAFETY: no new mask is given; `mask` is a valid, writable `sigset_t`
     // for the old one.
-    let error = unsafe { pthread_sigmask(SIG_BLOCK, std::ptr::null(), &mut mask) };
+    let error = unsafe { pthread_sigmask(SIG_BLOCK, std::ptr::null(), &raw mut mask) };
     error != 0 || mask.0.iter().any(|&word| word != 0)
 }
 
@@ -84,10 +84,10 @@ impl SignalSet {
     /// The set of `signals`.
     pub const fn of(signals: &[Signal]) -> SignalSet {
         let mut set = SignalSet::EMPTY;
-        let mut index = 0;
-        while index < signals.len() {
-            set.0 |= bit(signals[index]);
-            index += 1;
+        let mut rest = signals;
+        while let [signal, tail @ ..] = rest {
+            set.0 |= bit(*signal);
+            rest = tail;
         }
         set
     }
@@ -139,7 +139,7 @@ impl SignalSet {
 /// The bit of `signal` in a [`SignalSet`].
 const fn bit(signal: Signal) -> u64 {
     // Linux numbers its signals from 1 to 64.
-    1 << ((signal.number() - 1) as u32 & 63)
+    1 << ((signal.number() - 1).unsigned_abs() & 63)
 }
 
 impl FromIterator<Signal> for SignalSet {
@@ -179,11 +179,11 @@ impl Signals {
         // -1 asks `signalfd` for a new descriptor, which nothing else owns
         // when it returns one.
         let fd = unsafe {
-            let error = pthread_sigmask(SIG_BLOCK, &mask, std::ptr::null_mut());
+            let error = pthread_sigmask(SIG_BLOCK, &raw const mask, std::ptr::null_mut());
             if error != 0 {
                 return Err(io::Error::from_raw_os_error(error));
             }
-            let fd = signalfd(-1, &mask, SFD_FLAGS);
+            let fd = signalfd(-1, &raw const mask, SFD_FLAGS);
             if fd < 0 {
                 return Err(io::Error::last_os_error());
             }
@@ -238,7 +238,7 @@ impl Signals {
     ///
     /// When the descriptor cannot be waited on or read.
     pub fn wait(&self, timeout: Option<Duration>) -> io::Result<SignalSet> {
-        console::first_readable(&[self.file.as_raw_fd()], timeout)?;
+        console::first_readable(&[self.file.as_fd()], timeout)?;
         self.take()
     }
 
@@ -305,7 +305,7 @@ impl Process {
     ///
     /// When the pidfd cannot be waited on.
     pub fn wait_exit(&self, timeout: Option<Duration>) -> io::Result<bool> {
-        let ready = console::first_readable(&[self.fd.as_raw_fd()], timeout)?;
+        let ready = console::first_readable(&[self.fd.as_fd()], timeout)?;
         Ok(ready.is_some())
     }
 
@@ -326,6 +326,10 @@ impl AsFd for Process {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
+)]
 #[allow(clippy::unwrap_used, reason = "tests may panic")]
 mod tests {
     use super::*;
@@ -365,8 +369,11 @@ mod tests {
         assert!(!process.wait_exit(Some(Duration::from_millis(20))).unwrap());
         process.signal(Signal::Terminate).unwrap();
         assert!(process.wait_exit(Some(Duration::from_secs(10))).unwrap());
-        use std::os::unix::process::ExitStatusExt;
-        assert_eq!(child.wait().unwrap().signal(), Some(15));
+        let status = child.wait().unwrap();
+        assert_eq!(
+            std::os::unix::process::ExitStatusExt::signal(&status),
+            Some(15)
+        );
         // Collected: the process is gone, and the pidfd says so.
         assert_eq!(
             process

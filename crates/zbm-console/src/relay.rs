@@ -9,7 +9,7 @@
 )]
 
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, AsRawFd as _, OwnedFd};
+use std::os::fd::{AsFd, OwnedFd};
 use std::time::Duration;
 
 use rustix::termios::{self, OptionalActions};
@@ -158,9 +158,9 @@ where
         // What is typed comes first, so that Ctrl-C reaches a program that
         // floods the terminal.
         let watches = [
-            Watch::read(self.terminal.as_fd().as_raw_fd()),
+            Watch::read(self.terminal.as_fd()),
             Watch {
-                fd: self.master.as_fd().as_raw_fd(),
+                fd: self.master.as_fd(),
                 read: true,
                 write: !self.outgoing.is_empty(),
             },

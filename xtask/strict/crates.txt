@@ -15,6 +15,7 @@ zbm-platform
 zbm-pool
 zbm-startup
 zbm-state
+zbm-sys
 zbm-testkit
 zbm-tools
 zbm-trace

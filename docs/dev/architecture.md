@@ -74,10 +74,13 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 
 ## How the layers are used
 
-- **unsafe**: `zbm-sys` wraps the C library calls the standard library lacks (signals, `waitpid`, `poll`,
-  `kexec_file_load`, wiping and locking memory, the child set-up between `fork` and `exec`: default signals, `setsid`
-  and the controlling terminal). It is the only crate that may contain `unsafe`; the workspace lints deny it
-  everywhere else.
+- **unsafe**: `zbm-sys` offers the system calls the standard library lacks (signals, `waitpid`, `poll`, wiping and
+  locking memory, the child set-up between `fork` and `exec`: default signals, `setsid` and the controlling terminal,
+  the virtual terminal's modes). Most are `rustix`'s safe calls on borrowed descriptors; what `rustix` has no safe
+  call for (signal dispositions, the signal mask and `signalfd`, the terminal and input device `ioctl`s, memory
+  mappings, `memfd_secret`, the unwinder) stays `unsafe` there, each block stating why it is sound, and its tests run
+  under AddressSanitizer in CI. It is the only crate that may contain `unsafe`; the workspace lints deny it everywhere
+  else.
 - **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
   `PoolName`, `DatasetName`, `SnapshotName`, `KernelVersion` and the stages. Nothing else can hold an invalid one.
 - **foundation**: `zbm-trace` sends `tracing` events to standard error and to a JSON journal (at boot,

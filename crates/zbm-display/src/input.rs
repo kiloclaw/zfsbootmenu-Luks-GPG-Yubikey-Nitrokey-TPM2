@@ -9,7 +9,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read as _, Write as _};
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsFd, BorrowedFd};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -312,7 +312,7 @@ impl Keyboards {
                 .any(|device| device.path.as_ref() == Some(&path));
             if !known && let Ok(file) = open_device(&path) {
                 if let Some((delay, period)) = self.repeat {
-                    let _ = zbm_sys::console::set_key_repeat(file.as_raw_fd(), delay, period);
+                    let _ = zbm_sys::console::set_key_repeat(&file, delay, period);
                 }
                 let id = DeviceId::of(sysfs, &path);
                 self.devices.push(Device::new(file, Some(path), id, None));
@@ -350,7 +350,7 @@ impl Keyboards {
     pub fn set_repeat(&mut self, delay: u32, period: u32) {
         self.repeat = Some((delay, period));
         for device in &self.devices {
-            let _ = zbm_sys::console::set_key_repeat(device.file.as_raw_fd(), delay, period);
+            let _ = zbm_sys::console::set_key_repeat(&device.file, delay, period);
         }
     }
 
@@ -404,10 +404,10 @@ impl Keyboards {
     }
 
     /// The open devices, for a caller that waits on them with other files.
-    pub fn fds(&self) -> Vec<i32> {
+    pub fn fds(&self) -> Vec<BorrowedFd<'_>> {
         self.devices
             .iter()
-            .map(|device| device.file.as_raw_fd())
+            .map(|device| device.file.as_fd())
             .collect()
     }
 
@@ -440,7 +440,7 @@ impl Keyboards {
         let mut down: Vec<u16> = indexes
             .iter()
             .filter_map(|&index| self.devices.get(index))
-            .filter_map(|device| zbm_sys::console::keys_down(device.file.as_raw_fd()).ok())
+            .filter_map(|device| zbm_sys::console::keys_down(&device.file).ok())
             .flatten()
             .collect();
         down.sort_unstable();

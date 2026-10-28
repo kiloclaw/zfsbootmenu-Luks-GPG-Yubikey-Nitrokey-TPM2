@@ -4,22 +4,22 @@
 //! taking the terminal back from a child that left it to its own process
 //! group.
 
-use std::ffi::{c_int, c_ulong};
+use std::ffi::c_int;
 use std::io;
+use std::os::fd::AsFd;
 
-use super::console::ioctl;
-use super::{ECHILD, SIG_DFL, SIG_ERR, SIG_IGN, Signal, signal, waitpid};
+use rustix::io::Errno;
+use rustix::ioctl::{IntegerSetter, Opcode, ioctl};
+use rustix::process::{Pid, WaitOptions, getpgrp, setsid};
+use rustix::termios::{tcgetpgrp, tcsetpgrp};
 
-unsafe extern "C" {
-    fn getpgrp() -> c_int;
-    fn setsid() -> c_int;
-    fn tcgetpgrp(fd: c_int) -> c_int;
-    fn tcsetpgrp(fd: c_int, pgrp: c_int) -> c_int;
-}
+use super::{SIG_DFL, SIG_ERR, SIG_IGN, Signal, signal};
 
-/// `TIOCSCTTY`: makes a terminal the controlling terminal of the session
-/// (the same on x86 and Arm).
-const TIOCSCTTY: c_ulong = 0x540E;
+/// `TIOCSCTTY`: makes a terminal the controlling terminal of the session,
+/// as `asm-generic/ioctls.h` numbers it for x86, Arm and RISC-V.
+/// `rustix`'s `ioctl_tiocsctty` passes 0, which does not take the terminal
+/// from another session; `setsid -c` passes 1.
+const TIOCSCTTY: Opcode = 0x540E;
 
 /// The session a child process runs in.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -63,33 +63,37 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
         .collect();
     let session = setup.session;
     let prepare = move || {
-        // SAFETY: `signal` with `SIG_DFL`, `setsid` and `ioctl` with
-        // `TIOCSCTTY` and an integer argument are async-signal-safe and
-        // touch no memory of this process.
         if unblock && super::signals::unblock_all() != 0 {
             return Err(io::Error::last_os_error());
         }
-        unsafe {
-            for &number in &numbers {
-                if signal(number, SIG_DFL) == SIG_ERR {
-                    return Err(io::Error::last_os_error());
-                }
-            }
-            if session != Session::Inherit && setsid() < 0 {
+        for &number in &numbers {
+            // SAFETY: `SIG_DFL` is a valid disposition, and `signal` is
+            // async-signal-safe.
+            if unsafe { signal(number, SIG_DFL) } == SIG_ERR {
                 return Err(io::Error::last_os_error());
             }
+        }
+        if session != Session::Inherit {
+            setsid()?;
+        }
+        if session == Session::NewOnTerminal {
             // 1: taken from another session that has it, as `setsid -c`
             // does.
-            if session == Session::NewOnTerminal && ioctl(0, TIOCSCTTY, 1 as c_int) < 0 {
-                return Err(io::Error::last_os_error());
-            }
+            // SAFETY: `TIOCSCTTY` takes its argument by value; the kernel
+            // reads nothing from this process's memory.
+            unsafe {
+                ioctl(
+                    rustix::stdio::stdin(),
+                    IntegerSetter::<TIOCSCTTY>::new_usize(1),
+                )
+            }?;
         }
         Ok(())
     };
     // SAFETY: the closure runs between `fork` and `exec`, where only
     // async-signal-safe functions may be called: it calls
-    // `pthread_sigmask`, `signal`, `setsid` and `ioctl`, reads `errno`, and
-    // allocates nothing.
+    // `pthread_sigmask`, `signal`, and the `setsid` and `ioctl` system
+    // calls, reads `errno`, and allocates nothing.
     unsafe {
         process.pre_exec(prepare);
     }
@@ -98,9 +102,6 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
 /// `SIGTTOU`, which the kernel sends a process of a background group that
 /// sets the terminal's foreground group (the same on x86 and Arm).
 const SIGTTOU: c_int = 22;
-
-/// `WNOHANG`: `waitpid` returns at once when the child still runs.
-const WNOHANG: c_int = 1;
 
 /// How a child process ended, as `waitpid` reports it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,10 +119,13 @@ pub struct Ended {
 ///
 /// When `waitpid` fails other than by a signal or for lack of children.
 pub fn wait_any() -> io::Result<Option<Ended>> {
-    match wait(-1, 0) {
-        Ok(ended) => Ok(ended),
-        Err(error) if error.raw_os_error() == Some(ECHILD) => Ok(None),
-        Err(error) => Err(error),
+    loop {
+        match rustix::process::wait(WaitOptions::empty()) {
+            Ok(ended) => return Ok(ended.map(ended_of)),
+            Err(Errno::CHILD) => return Ok(None),
+            Err(Errno::INTR) => {}
+            Err(error) => return Err(error.into()),
+        }
     }
 }
 
@@ -134,11 +138,25 @@ pub fn wait_any() -> io::Result<Option<Ended>> {
 /// already.
 pub fn try_wait(pid: u32) -> io::Result<Option<i32>> {
     // 0 and negative values would wait for process groups.
-    let pid = c_int::try_from(pid)
+    let pid = i32::try_from(pid)
         .ok()
-        .filter(|&pid| pid > 0)
+        .and_then(Pid::from_raw)
         .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
-    wait(pid, WNOHANG).map(|ended| ended.map(|ended| ended.status))
+    loop {
+        match rustix::process::waitpid(Some(pid), WaitOptions::NOHANG) {
+            Ok(ended) => return Ok(ended.map(|ended| ended_of(ended).status)),
+            Err(Errno::INTR) => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+/// What `waitpid` returned, as an [`Ended`].
+fn ended_of((pid, status): (Pid, rustix::process::WaitStatus)) -> Ended {
+    Ended {
+        pid: pid.as_raw_nonzero().get().unsigned_abs(),
+        status: status.as_raw(),
+    }
 }
 
 /// Makes this process's group the foreground group of the terminal open
@@ -151,49 +169,29 @@ pub fn try_wait(pid: u32) -> io::Result<Option<i32>> {
 /// # Errors
 ///
 /// When `fd` is not this process's controlling terminal.
-pub fn take_terminal(fd: i32) -> io::Result<()> {
-    // SAFETY: `getpgrp`, `tcgetpgrp` and `tcsetpgrp` take and return plain
-    // integers. `signal` gets `SIG_IGN`, then the disposition it returned,
+pub fn take_terminal(fd: impl AsFd) -> io::Result<()> {
+    let group = getpgrp();
+    if tcgetpgrp(&fd)? == group {
+        return Ok(());
+    }
+    // From a background group, setting the foreground group raises
+    // SIGTTOU, which would stop this process.
+    // SAFETY: `signal` gets `SIG_IGN`, then the disposition it returned,
     // which was installed before and is therefore valid.
-    unsafe {
-        let group = getpgrp();
-        let foreground = tcgetpgrp(fd);
-        if foreground < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        if foreground == group {
-            return Ok(());
-        }
-        // From a background group, setting the foreground group raises
-        // SIGTTOU, which would stop this process.
-        let previous = signal(SIGTTOU, SIG_IGN);
-        let result = tcsetpgrp(fd, group);
-        let error = io::Error::last_os_error();
-        if previous != SIG_ERR {
-            signal(SIGTTOU, previous);
-        }
-        if result < 0 { Err(error) } else { Ok(()) }
+    let previous = unsafe { signal(SIGTTOU, SIG_IGN) };
+    let result = tcsetpgrp(&fd, group);
+    if previous != SIG_ERR {
+        // SAFETY: as above.
+        unsafe { signal(SIGTTOU, previous) };
     }
-}
-
-/// `waitpid(pid, options)`, again when a signal interrupts it: the child
-/// that ended, `None` when `WNOHANG` found none.
-fn wait(pid: c_int, options: c_int) -> io::Result<Option<Ended>> {
-    let mut status: c_int = 0;
-    loop {
-        // SAFETY: `status` is a valid, writable `int` for the duration of the call.
-        let ended = unsafe { waitpid(pid, &mut status, options) };
-        if let Ok(pid) = u32::try_from(ended) {
-            return Ok((pid > 0).then_some(Ended { pid, status }));
-        }
-        let error = io::Error::last_os_error();
-        if error.kind() != io::ErrorKind::Interrupted {
-            return Err(error);
-        }
-    }
+    Ok(result?)
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
+)]
 #[allow(clippy::unwrap_used, reason = "tests may panic")]
 mod tests {
     use std::process::Command;
@@ -283,7 +281,7 @@ mod tests {
     #[test]
     fn only_a_terminal_can_be_taken_back() {
         let file = std::fs::File::open("/dev/null").unwrap();
-        let error = take_terminal(std::os::fd::AsRawFd::as_raw_fd(&file)).unwrap_err();
+        let error = take_terminal(&file).unwrap_err();
         assert_eq!(error.raw_os_error(), Some(25), "{error}"); // ENOTTY
     }
 }

@@ -291,7 +291,7 @@ impl Supervisor {
             match zbm_sys::wait_any() {
                 Ok(Some(Ended { pid: ended, status })) if ended == pid => {
                     // Not a terminal (the tests): nothing to take back.
-                    let _ = zbm_sys::take_terminal(0);
+                    let _ = zbm_sys::take_terminal(std::io::stdin());
                     return Some(status);
                 }
                 Ok(Some(Ended { pid: ended, status })) => {

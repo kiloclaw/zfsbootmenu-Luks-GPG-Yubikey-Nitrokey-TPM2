@@ -178,6 +178,26 @@ jobs:
       - name: Check
         run: cargo check --workspace --all-targets --locked --target ${{ matrix.target }}
 
+  sanitizer:
+    # zbm-sys holds the workspace's unsafe code (ROADMAP.md SE6): its tests,
+    # and those of zbm-platform, its main user, run under AddressSanitizer.
+    # Sanitizers need a nightly compiler; `--target` keeps the flags off the
+    # build scripts and procedural macros.
+    name: AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: Test under AddressSanitizer
+        run: >-
+          cargo +nightly test -p zbm-sys -p zbm-platform --lib --tests --locked
+          --target x86_64-unknown-linux-gnu --target-dir target/asan
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          ASAN_OPTIONS: detect_leaks=1
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

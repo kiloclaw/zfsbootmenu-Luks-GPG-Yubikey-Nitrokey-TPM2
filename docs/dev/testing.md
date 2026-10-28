@@ -132,6 +132,20 @@ Each run starts from the seeds in `fuzz/seeds/<target>` (committed) and grows a 
 target for five minutes each night (`.github/workflows/fuzz.yml`), and `cargo xtask lint` checks that the targets
 build, so a parser that moves takes its target along.
 
+### The unsafe code under AddressSanitizer
+
+The `unsafe` code of the workspace is in `zbm-sys`. CI runs its tests, and those of `zbm-platform`, its main user,
+under AddressSanitizer with leak detection (the `sanitizer` job of `.github/workflows/rust.yml`), which needs a nightly
+compiler. To run it locally:
+
+```sh
+rustup toolchain install nightly --profile minimal
+RUSTFLAGS=-Zsanitizer=address cargo +nightly test -p zbm-sys -p zbm-platform --lib --tests --locked \
+  --target x86_64-unknown-linux-gnu --target-dir target/asan
+```
+
+`--target` keeps the flag off build scripts and procedural macros, which the sanitizer's runtime would break.
+
 ## When a test fails
 
 - Rust tests print the seed and, for parity tests, both outputs; rerun one test with

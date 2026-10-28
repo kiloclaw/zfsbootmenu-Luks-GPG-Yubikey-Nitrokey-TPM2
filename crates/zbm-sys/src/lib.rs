@@ -1,4 +1,4 @@
-//! The few C library calls that the Rust standard library does not offer.
+//! The system calls that the Rust standard library does not offer.
 //!
 //! The legacy tools are Bash and Perl programs, and both react to signals and
 //! to the effective user in ways that the Rust standard library cannot
@@ -6,10 +6,15 @@
 //! cannot tell the effective user and groups of the process. The runtime also
 //! sends signals to other processes, wipes secrets from memory and reads the
 //! stack for crash reports ([`return_addresses`]); the menu on the display
-//! takes over the virtual terminal's modes ([`console`]). This crate wraps
-//! the C functions that provide them. It is the only crate in the
-//! workspace that may contain `unsafe` code, and each `unsafe` block states
-//! why it is sound.
+//! takes over the virtual terminal's modes ([`console`]).
+//!
+//! Most of them are `rustix`'s safe calls, on borrowed descriptors. What
+//! `rustix` has no safe call for stays here, `unsafe`, each block stating why
+//! it is sound: signal dispositions, the signal mask and `signalfd`, the
+//! terminal and input device `ioctl`s (through `rustix`'s typed `ioctl`),
+//! memory mappings, `memfd_secret`, `explicit_bzero`, a child's set-up
+//! between `fork` and `exec`, and the unwinder. It is the only crate in the
+//! workspace that may contain `unsafe` code.
 
 #![allow(unsafe_code)]
 
@@ -23,31 +28,18 @@ pub use process::{ChildSetup, Ended, Session, prepare_child, take_terminal, try_
 pub use signals::{Process, SignalSet, Signals};
 pub use stack::{MAX_FRAMES, return_addresses};
 
-use std::ffi::{c_int, c_ulong, c_void};
+use std::ffi::{c_int, c_void};
+use std::os::fd::AsFd;
 
 unsafe extern "C" {
     // `sighandler_t signal(int signum, sighandler_t handler)`; the handler is
     // passed as an address, so that the default action (`SIG_DFL`, address 0) and
     // real handlers can share one declaration.
     fn signal(signum: c_int, handler: usize) -> usize;
-    fn waitpid(pid: c_int, status: *mut c_int, options: c_int) -> c_int;
-    // `nfds_t` is `unsigned long` in glibc and musl.
-    fn poll(fds: *mut PollFd, nfds: c_ulong, timeout: c_int) -> c_int;
     // glibc 2.25 and musl 1.1.20 provide it: a `memset` to zero that the
     // compiler may not remove, even though the memory is not read afterwards.
     fn explicit_bzero(s: *mut c_void, n: usize);
 }
-
-/// `struct pollfd`, which has this layout on every Linux architecture.
-#[repr(C)]
-struct PollFd {
-    fd: c_int,
-    events: i16,
-    revents: i16,
-}
-
-/// `POLLIN`: data to read.
-const POLLIN: i16 = 1;
 
 /// The value `signal` returns when it fails.
 const SIG_ERR: usize = usize::MAX;
@@ -57,9 +49,6 @@ const SIG_DFL: usize = 0;
 
 /// The disposition that ignores a signal.
 const SIG_IGN: usize = 1;
-
-/// `ECHILD`: no child is left to wait for.
-const ECHILD: i32 = 10;
 
 /// The signals ZFSBootMenu handles or sends.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -163,12 +152,20 @@ unsafe fn signal_ffi(signum: c_int, handler: usize) -> usize {
 /// Bash and Perl programs end silently when they write to a closed pipe (for
 /// example in `zbm-kcl | head -n1`); with the default action restored, the Rust
 /// tools do too.
+///
+/// # Errors
+///
+/// When the kernel refuses the signal number, which it does not for these.
 pub fn restore_default_sigpipe() -> std::io::Result<()> {
     set_handler(Signal::Pipe, SIG_DFL)
 }
 
 /// Ignores `signal`, as `trap '' SIG` does in the shell. Programs this process
 /// starts inherit the ignored disposition.
+///
+/// # Errors
+///
+/// When the kernel refuses the signal number, which it does not for these.
 pub fn ignore_signal(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, SIG_IGN)
 }
@@ -176,16 +173,30 @@ pub fn ignore_signal(signal: Signal) -> std::io::Result<()> {
 /// Discards `signal` in this process, as Bash does with `SIGQUIT`: it is
 /// caught and nothing happens. Unlike an ignored signal, programs this
 /// process starts get the default action back.
+///
+/// # Errors
+///
+/// When the kernel refuses the signal number, which it does not for these.
 pub fn discard_signal(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, discard as extern "C" fn(c_int) as usize)
 }
 
 /// Restores the default action of `signal` in this process.
+///
+/// # Errors
+///
+/// When the kernel refuses the signal number, which it does not for these.
 pub fn restore_default(signal: Signal) -> std::io::Result<()> {
     set_handler(signal, SIG_DFL)
 }
 
 /// Sends `signal` to the process `pid`, as `kill -SIG pid` does.
+///
+/// # Errors
+///
+/// `InvalidInput` for 0 or a number beyond process IDs, which would signal
+/// process groups; `ESRCH` when no such process exists; `EPERM` when this
+/// process may not signal it.
 pub fn send_signal(pid: u32, signal: Signal) -> std::io::Result<()> {
     // Process IDs above `i32::MAX` do not exist; refusing them also keeps the
     // value from turning negative, which would signal a process group.
@@ -204,8 +215,12 @@ pub fn send_signal(pid: u32, signal: Signal) -> std::io::Result<()> {
 /// Waits until `fd` has data to read, or end of file, for at most `timeout`
 /// (`None`: without limit). Returns whether it is readable, as Bash's
 /// `read -t` decides whether to read.
-pub fn wait_readable(fd: i32, timeout: Option<std::time::Duration>) -> std::io::Result<bool> {
-    console::first_readable(&[fd], timeout).map(|ready| ready.is_some())
+///
+/// # Errors
+///
+/// When `poll` fails other than by a signal.
+pub fn wait_readable(fd: impl AsFd, timeout: Option<std::time::Duration>) -> std::io::Result<bool> {
+    console::first_readable(&[fd.as_fd()], timeout).map(|ready| ready.is_some())
 }
 
 /// Overwrites `bytes` with zeros in a way the compiler cannot optimise away,
@@ -266,6 +281,10 @@ pub fn credentials() -> Credentials {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
+)]
 mod tests {
     use super::*;
 
@@ -359,8 +378,10 @@ mod tests {
             .unwrap();
         send_signal(child.id(), Signal::Terminate).unwrap();
         let status = child.wait().unwrap();
-        use std::os::unix::process::ExitStatusExt;
-        assert_eq!(status.signal(), Some(15));
+        assert_eq!(
+            std::os::unix::process::ExitStatusExt::signal(&status),
+            Some(15)
+        );
         // The process is gone now.
         let error = send_signal(child.id(), Signal::Terminate).unwrap_err();
         assert_eq!(error.raw_os_error(), Some(3));
@@ -376,10 +397,9 @@ mod tests {
 
     #[test]
     fn waits_for_readable_input() {
-        let _guard = PROCESSES.lock().unwrap();
         use std::io::Write;
-        use std::os::fd::AsRawFd;
         use std::process::{Command, Stdio};
+        let _guard = PROCESSES.lock().unwrap();
 
         // A child that keeps a pipe open but writes nothing until told to.
         let mut child = Command::new("sh")
@@ -389,19 +409,15 @@ mod tests {
             .spawn()
             .unwrap();
         let output = child.stdout.take().unwrap();
-        let fd = output.as_raw_fd();
         let start = Instant::now();
-        assert!(!wait_readable(fd, Some(Duration::from_millis(50))).unwrap());
+        assert!(!wait_readable(&output, Some(Duration::from_millis(50))).unwrap());
         assert!(start.elapsed() >= Duration::from_millis(50));
 
         let mut input = child.stdin.take().unwrap();
         input.write_all(b"go\n").unwrap();
-        assert!(wait_readable(fd, None).unwrap());
+        assert!(wait_readable(&output, None).unwrap());
         drop(input);
         child.wait().unwrap();
-        drop(output);
-
-        assert!(wait_readable(-1, Some(Duration::ZERO)).is_ok());
     }
 
     #[test]

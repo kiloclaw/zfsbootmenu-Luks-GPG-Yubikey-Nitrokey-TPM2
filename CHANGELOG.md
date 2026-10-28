@@ -507,6 +507,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   kernel modules stage, after the recovery shell, as before.
 - When the logs cannot be written on the EFI system partition, the error now says why, such as a full partition.
 
+### zbm-sys on rustix (phase 1)
+
+- The few system calls the Rust runtime makes outside the standard library now go through `rustix` where it has
+  them: waits, process groups, the terminal's foreground group, memory locking and dump protection. The requests to
+  the virtual terminal and the input devices use opcodes built for the target architecture; the hand-written ones
+  were right on x86 and Arm only. Nothing changes on those machines.
+- CI runs the tests of the code that calls the kernel directly under AddressSanitizer.
+
 ### The parity-only parts removed
 
 The port no longer aims at doing exactly what the legacy code does (`REFACTOR-ROADMAP.md`, "Parity"), so the parts
