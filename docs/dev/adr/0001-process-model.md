@@ -103,6 +103,12 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   it, with the current span, into every worker that thread starts, so a process logs to one place whichever thread
   writes.
 
+- **PM4** (28 October 2026): the parts are in `zbm_platform::event`. A command with a time-out or a `CancelToken` is
+  run by its thread in a `poll` over its standard output, its `pidfd` and the token, until the deadline; there is no
+  watchdog thread. The command is killed, not its process group: a command that asks on the terminal, such as
+  `fido2-assert` for its PIN, must stay in the terminal's foreground group, which a group of its own would leave. The
+  runner stops reading when it kills, so a child the command left behind cannot hold it.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

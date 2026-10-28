@@ -90,8 +90,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   runs to the journal (the command journal); and the `Interaction` port, through which services ask the person
   (`interaction`: timed prompts, secrets, waits for devices, messages, and lending the console to a program that asks
   there itself), with `NoInteraction` for programs with no one to ask. The ports of the system are `Send + Sync`, and
-  threads start in `event` (`spawn_traced`, which carries the tracing of the thread that starts them; ADR 0001). It
-  holds
+  threads start in `event` (`spawn_traced`, which carries the tracing of the thread that starts them; ADR 0001), with
+  the reactor's parts: `Mailbox`, `Reactor`, `CancelToken`, `WorkPool` and `MemoryBudget`. It holds
   `Command` and `Secret`, the error type, the kernel log writer and reader (records read from `/dev/kmsg`), crash
   reports, the state directory's locks, and the file tree operations (copying, restricting and removing trees in
   process, `tree`). `zbm-display` is the display and keyboard without a terminal: DRM buffers, fonts (TrueType, and

@@ -187,6 +187,8 @@ fn a_second_process_waits_for_the_image_being_built() {
     let settings = settings("lock");
     let images = settings.work.join("zbm");
     let held = lock(&images, "auto").unwrap();
+    // Timed from before the sleep below, which the waiting thread must outlast.
+    let start = std::time::Instant::now();
     let waiting = {
         let images = images.clone();
         #[allow(
@@ -194,7 +196,6 @@ fn a_second_process_waits_for_the_image_being_built() {
             reason = "a developer tool, not the runtime of ADR 0001"
         )]
         std::thread::spawn(move || {
-            let start = std::time::Instant::now();
             drop(lock(&images, "auto").unwrap());
             start.elapsed()
         })

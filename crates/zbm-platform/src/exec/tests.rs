@@ -1,6 +1,7 @@
 //! Tests of running programs on the system.
 
 use super::*;
+use crate::event::CancelToken;
 
 #[test]
 fn programs_can_start_with_default_signal_actions() {
@@ -264,6 +265,74 @@ fn a_program_past_its_time_is_killed() {
         .timeout(Duration::from_secs(9));
     assert_eq!(limited.get_timeout(), Some(Duration::from_secs(5)));
     assert_eq!(Command::new("x").get_timeout(), None);
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the test measures that the program was stopped in real time"
+)]
+fn a_program_is_killed_on_time_while_its_output_stays_open() {
+    let started = std::time::Instant::now();
+    // What it printed before is kept; a child left holding the pipe does
+    // not keep the runner reading.
+    let output = SystemRunner
+        .run(
+            &Command::shell("echo started; sleep 30 & sleep 30")
+                .timeout(Duration::from_millis(200)),
+        )
+        .unwrap();
+    assert_eq!(output.stdout_text(), "started\n");
+    assert_eq!(output.status.signal(), Some(Signal::Kill.number()));
+    // One that closed its output is killed on time too.
+    let closed = SystemRunner
+        .run(&Command::shell("exec >&-; sleep 30").timeout(Duration::from_millis(100)))
+        .unwrap();
+    assert_eq!(closed.status.signal(), Some(Signal::Kill.number()));
+    assert!(started.elapsed() < Duration::from_secs(10));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the test measures that the program was stopped in real time"
+)]
+fn a_cancelled_program_is_killed() {
+    let started = std::time::Instant::now();
+    let token = CancelToken::new().unwrap();
+    let canceller = token.clone();
+    let cancel = crate::event::spawn_traced("canceller", move || {
+        std::thread::sleep(Duration::from_millis(100));
+        canceller.cancel();
+    })
+    .unwrap();
+    let output = SystemRunner
+        .run(&Command::shell("echo started; sleep 30").cancel(&token))
+        .unwrap();
+    cancel.join().unwrap();
+    assert_eq!(output.stdout_text(), "started\n");
+    assert_eq!(output.status.signal(), Some(Signal::Kill.number()));
+
+    // Cancelled already: it is killed at once, also without output to read.
+    let quiet = SystemRunner
+        .run(
+            &Command::new("sleep")
+                .arg("30")
+                .stdout(Stream::Null)
+                .cancel(&token),
+        )
+        .unwrap();
+    assert_eq!(quiet.status.signal(), Some(Signal::Kill.number()));
+    assert!(started.elapsed() < Duration::from_secs(10));
+
+    // A token that is not cancelled lets the program finish.
+    let left = CancelToken::new().unwrap();
+    let done = SystemRunner
+        .run(&Command::shell("echo done").cancel(&left))
+        .unwrap();
+    assert!(done.status.is_success() && done.stdout_text() == "done\n");
+    assert_eq!(Command::new("x").cancel(&left).get_cancel(), Some(&left));
+    assert_eq!(Command::new("x").get_cancel(), None);
 }
 
 #[test]

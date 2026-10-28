@@ -480,7 +480,13 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The interfaces through which the Rust runtime reaches the system, and their test doubles, can be used from several
   threads (ADR 0001, accepted: one event loop per process, no async runtime). Threads start in one place,
   `zbm_platform::event`, which carries the kernel log and the current span into each, so what a worker logs goes
-  where its starter's messages go. Nothing changes at boot yet: PM4 and PM8 put this to use.
+  where its starter's messages go.
+- The parts of the event loop (ADR 0001) are there: a mailbox workers send to, one `poll` over a process's sources
+  and deadlines, cancellation, a pool of worker threads and a memory budget for parallel work such as Argon2. Nothing
+  at boot uses them yet; the supervisor, the session and the menu will.
+- A program run with a time-out, such as the wait for a security key, is stopped by the thread that runs it, without
+  a watchdog thread per program, and can be cancelled. A program that left a child behind holding its output no
+  longer keeps ZFSBootMenu waiting after it was stopped.
 
 ### The parity-only parts removed
 

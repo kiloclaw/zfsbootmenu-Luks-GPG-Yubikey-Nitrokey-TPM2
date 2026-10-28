@@ -16,7 +16,7 @@
 )]
 
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -25,11 +25,12 @@ use std::time::Duration;
 use crate::secret::Secret;
 pub use zbm_sys::Signal;
 
-use self::streams::{Captured, Stdout, read_pipe, read_secret};
-use self::watchdog::Watchdog;
+use self::streams::{Stdout, communicate};
+use self::supervise::Supervisor;
+use crate::event::CancelToken;
 
 mod streams;
-mod watchdog;
+mod supervise;
 
 /// Where standard output or standard error of a command goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +80,7 @@ pub struct Command {
     env: Vec<(OsString, Option<OsString>)>,
     default_signals: Vec<Signal>,
     timeout: Option<Duration>,
+    cancel: Option<CancelToken>,
     output_limit: Option<usize>,
 }
 
@@ -106,6 +108,7 @@ impl Command {
             env: Vec::new(),
             default_signals: Vec::new(),
             timeout: None,
+            cancel: None,
             output_limit: None,
         }
     }
@@ -196,6 +199,18 @@ impl Command {
     /// How long the program may run, if that is limited.
     pub fn get_timeout(&self) -> Option<Duration> {
         self.timeout
+    }
+
+    /// Kills the program (`SIGKILL`) when `token` is cancelled.
+    #[must_use]
+    pub fn cancel(mut self, token: &CancelToken) -> Command {
+        self.cancel = Some(token.clone());
+        self
+    }
+
+    /// The token that cancels the program, if any.
+    pub fn get_cancel(&self) -> Option<&CancelToken> {
+        self.cancel.as_ref()
     }
 
     /// Takes at most `bytes` of each captured stream instead of
@@ -483,66 +498,6 @@ fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::P
     Ok((process, merged))
 }
 
-/// What a child wrote to its standard output and standard error.
-type Streams = (
-    Option<io::Result<Stdout>>,
-    Option<io::Result<Captured<Vec<u8>>>>,
-);
-
-/// Gives `child` the input of `command` and reads its output.
-///
-/// Standard input is written, and standard error read, by other threads, so
-/// that a command that writes a lot before reading all of its input, or fills
-/// one pipe while this thread reads the other, cannot block.
-fn communicate(
-    command: &Command,
-    child: &mut std::process::Child,
-    merged: Option<io::PipeReader>,
-) -> Streams {
-    let stdin = child.stdin.take();
-    let stdout: Option<Box<dyn Read + Send>> = match merged {
-        Some(reader) => Some(Box::new(reader)),
-        None => child
-            .stdout
-            .take()
-            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
-    };
-    let stderr = child.stderr.take();
-    let secret_stdout = command.stdout == Stream::CaptureSecret;
-    std::thread::scope(|scope| {
-        if let Some(mut pipe) = stdin {
-            let bytes = match &command.stdin {
-                Input::Bytes(bytes) => bytes.as_slice(),
-                Input::Secret(secret) => secret.expose(),
-                Input::Inherit | Input::Null => &[],
-            };
-            // A command may exit without reading all of its input; that is not
-            // an error here. Closing the pipe ends the input.
-            crate::event::spawn_scoped_traced(scope, move || {
-                let _ = pipe.write_all(bytes);
-            });
-        }
-        let stderr_limit = command.get_output_limit(Stream::Capture);
-        let stderr = stderr.map(|pipe| {
-            crate::event::spawn_scoped_traced(scope, move || read_pipe(pipe, stderr_limit))
-        });
-        let stdout = stdout.map(|pipe| {
-            if secret_stdout {
-                read_secret(pipe, command.get_output_limit(Stream::CaptureSecret))
-                    .map(Stdout::Secret)
-            } else {
-                read_pipe(pipe, command.get_output_limit(Stream::Capture)).map(Stdout::Plain)
-            }
-        });
-        let stderr = stderr.map(|reader| {
-            reader
-                .join()
-                .unwrap_or_else(|_| Err(io::Error::other("reading standard error failed")))
-        });
-        (stdout, stderr)
-    })
-}
-
 impl Runner for SystemRunner {
     fn run(&self, command: &Command) -> io::Result<Output> {
         let (mut process, merged) = process(command)?;
@@ -555,13 +510,11 @@ impl Runner for SystemRunner {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return not_found(command),
             Err(error) => return Err(error),
         };
-        let watchdog = command
-            .timeout
-            .map(|timeout| Watchdog::start(child.id(), timeout));
-        let (stdout, stderr) = communicate(command, &mut child, merged);
+        let supervisor = Supervisor::new(command, &child);
+        let (stdout, stderr) = communicate(command, &mut child, merged, supervisor.as_ref());
         // Wait before reporting a read error, so that no child is left behind.
-        let status = match &watchdog {
-            Some(watchdog) => watchdog.wait(&mut child)?,
+        let status = match &supervisor {
+            Some(supervisor) => supervisor.wait(&mut child)?,
             None => child.wait()?,
         };
 
