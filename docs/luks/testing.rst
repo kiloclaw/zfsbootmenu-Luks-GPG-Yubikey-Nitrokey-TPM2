@@ -485,64 +485,66 @@ Virtual-machine tests with the Rust runtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same tests, with images built with ``zfsbootmenu_runtime="rust"``, the default of the harness since 27 October
-2026, on 27 October 2026 with KVM (``ZBMTEST_ACCEL=kvm``), in four lanes at a time, at the commits from ``632e0c85``
-to ``c1cd05c2``, then again, all of them, for the fixes of the bug review at ``bd19d252`` (the console tests with the
-harness of ``f01851e6``, whose only change reads QEMU's replies); the images were rebuilt for each run but the last
-console run, which reused those of ``bd19d252`` (``ZBMTEST_REUSE=1``), and the durations include building them. The
-build container image was the same as above. The ``oldzfs`` tests used an image that ``tests/luks/vm/old-image.sh``
-built on Ubuntu 24.04 (Linux 6.8.0-147, OpenZFS 2.2.2); they did not run again for the review fixes, and their rows are
-of the earlier run. The table lists the last run of each test; durations are with KVM, which is several times faster
-than the software emulation of the table above.
+2026, with KVM (``ZBMTEST_ACCEL=kvm``), in four lanes at a time: on 27 October 2026 at the commits from ``632e0c85``
+to ``c1cd05c2``, then for the fixes of the bug review at ``bd19d252``, and on 28 October 2026, all of them, at
+``ec817dde``, which adds the security hardening of phase 0 (SE2, SE3, SE8, PM5) and the RustCrypto hashes (SE7,
+CD3). The images were rebuilt for each run, and the durations include building them. The build container image was
+the same as above. The ``oldzfs`` tests used an image that ``tests/luks/vm/old-image.sh`` built on Ubuntu 24.04 (Linux
+6.8.0-147, OpenZFS 2.2.2); they did not run again after 27 October, and their rows are of the earlier run. The table
+lists the last run of each test; durations are with KVM, which is several times faster than the software emulation of
+the table above. Once, at ``9ef915a3``, ``runtime-rust-console`` found the console's mirror empty on the virtio
+display; it passed at ``b3439ca2`` and ``ec817dde``, and the test now keeps the boot's saved kernel log
+(``virtio-kernel.log``) should it happen again.
 
 ================================  ======  ======  ========
 Test                              Passed  Failed  Duration
 ================================  ======  ======  ========
-``layouts-main-rust``             44      0       7 min
-``layouts-parity-rust``           37      0       6 min
+``layouts-main-rust``             44      0       10 min
+``layouts-parity-rust``           37      0       8 min
 ``layouts-parity-oldzfs-rust``    16      0       2 min
-``complex-setup-rust``            19      0       3 min
-``complex-healthy-rust``          37      0       4 min
+``complex-setup-rust``            19      0       4 min
+``complex-healthy-rust``          37      0       3 min
 ``complex-crypttab-rust``         36      0       6 min
 ``complex-degraded-rust``         30      0       4 min
 ``complex-hotplug-rust``          36      0       4 min
-``complex-hotplug-auto-rust``     36      0       5 min
+``complex-hotplug-auto-rust``     36      0       6 min
 ``complex-badkey-rust``           4       0       3 min
-``complex-skip-recover-rust``     40      0       5 min
+``complex-skip-recover-rust``     40      0       4 min
 ``complex-oldzfs-rust``           4       0       4 min
-``keys-setup-rust``               9       0       5 min
+``keys-setup-rust``               9       0       3 min
 ``keys-plugin-rust``              13      0       3 min
 ``keys-native-rust``              13      0       3 min
 ``keys-lockout-rust``             13      0       3 min
-``keys-notpm-rust``               13      0       2 min
-``firmware-setup-rust``           3       0       4 min
-``firmware-boot-rust``            14      0       3 min
+``keys-notpm-rust``               13      0       3 min
+``firmware-setup-rust``           3       0       2 min
+``firmware-boot-rust``            14      0       2 min
 ``firmware-usbkey-rust``          14      0       3 min
-``firmware-usblate-rust``         14      0       3 min
-``firmware-nostick-rust``         14      0       3 min
-``procedures-rust``               78      0       14 min
+``firmware-usblate-rust``         14      0       2 min
+``firmware-nostick-rust``         14      0       2 min
+``procedures-rust``               78      0       13 min
 ``secrets-setup-rust``            2       0       2 min
-``secrets-passphrase-rust``       4       0       2 min
-``secrets-keyfile-rust``          4       0       2 min
-``runtime-setup``                 4       0       1 min
+``secrets-passphrase-rust``       4       0       3 min
+``secrets-keyfile-rust``          4       0       3 min
+``runtime-setup``                 4       0       3 min
 ``runtime-rust``                  15      0       3 min
-``runtime-rust-hostid``           15      0       4 min
-``runtime-rust-strict``           2       0       4 min
+``runtime-rust-hostid``           15      0       3 min
+``runtime-rust-strict``           2       0       2 min
 ``runtime-rust-force``            3       0       2 min
-``runtime-rust-prefer``           16      0       4 min
-``runtime-rust-late``             15      0       4 min
-``runtime-rust-waitfor``          15      0       4 min
-``runtime-rust-hooks``            13      0       4 min
+``runtime-rust-prefer``           16      0       3 min
+``runtime-rust-late``             15      0       3 min
+``runtime-rust-waitfor``          15      0       3 min
+``runtime-rust-hooks``            13      0       3 min
 ``runtime-rust-signals``          3       0       2 min
 ``runtime-rust-keysource``        4       0       2 min
-``runtime-rust-pilot``            7       0       4 min
+``runtime-rust-pilot``            7       0       2 min
 ``runtime-rust-crash``            7       0       2 min
 ``runtime-rust-autosize``         9       0       4 min
 ``runtime-rust-colours``          5       0       2 min
 ``runtime-rust-drm``              12      0       3 min
-``runtime-rust-console``          23      0       11 min
-``runtime-rust-console-start``    16      0       9 min
-``runtime-rust-console-comfort``  12      0       17 min
-``runtime-rust-saved``            36      0       1 min
+``runtime-rust-console``          23      0       13 min
+``runtime-rust-console-start``    16      0       12 min
+``runtime-rust-console-comfort``  12      0       18 min
+``runtime-rust-saved``            36      0       3 min
 ``runtime-rust-gpu``              25      0       3 min
 Total                             804     0
 ================================  ======  ======  ========
