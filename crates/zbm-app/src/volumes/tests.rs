@@ -206,7 +206,7 @@ fn act_in_app(fake: &FakeSystem, action: &Action) -> Vec<Event> {
         settings: &settings,
         interaction: &Escape(ConsoleInteraction::new(fake.system()).colors(false)),
     };
-    crate::App::new(fake.context()).with_luks(luks).act(action)
+    crate::Volumes::new(luks).apply(action)
 }
 
 #[test]
@@ -254,10 +254,12 @@ fn a_volume_that_does_not_open_is_reported_with_its_causes() {
 #[test]
 fn actions_without_a_use_case_end_as_failed() {
     let fake = machine();
-    let app = crate::App::new(fake.context());
+    let runtime = crate::Runtime::default();
+    let app = crate::App::new(fake.context(), &runtime);
 
+    // Without a LUKS session, the volumes' actions too.
     for events in [
-        app.act(&Action::UnlockAll),
+        app.alone(&Action::UnlockAll),
         act_in_app(&fake, &Action::Shell),
     ] {
         let refused = |what: &String| what == "unable to do that here";

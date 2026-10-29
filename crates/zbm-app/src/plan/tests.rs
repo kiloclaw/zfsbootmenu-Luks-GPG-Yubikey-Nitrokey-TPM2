@@ -4,7 +4,7 @@ use zbm_platform::Context;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
-use crate::BootSettings;
+use crate::{Application as _, BootSettings, Runtime, Through};
 
 /// A machine whose pool `tank` reads `readonly` as given.
 fn machine(readonly: &str) -> FakeSystem {
@@ -34,9 +34,10 @@ fn changes(fake: &FakeSystem) -> Vec<String> {
 fn a_snapshot_plans_its_command_and_takes_nothing() {
     let fake = machine("off");
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let take = Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap());
 
     let plan = app.plan(&take, fake.system()).unwrap();
@@ -56,12 +57,16 @@ fn a_snapshot_plans_its_command_and_takes_nothing() {
 fn a_read_only_pool_plans_its_import_first() {
     let fake = machine("on");
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let default = Action::SetDefaultEnvironment("tank/ROOT/be".parse().unwrap());
 
-    let events = app.act_quietly(&Action::Plan(Box::new(default.clone())), fake.system());
+    let events = app.apply(
+        &Action::Plan(Box::new(default.clone())),
+        Through::Quietly(fake.system()),
+    );
 
     let [Event::Planned { action, plan }] = events.as_slice() else {
         panic!("not a plan: {events:?}");
@@ -90,21 +95,22 @@ fn a_read_only_pool_plans_its_import_first() {
 fn what_changes_nothing_has_no_plan() {
     let fake = machine("off");
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let snapshot: zbm_types::SnapshotName = "tank/ROOT/be@old".parse().unwrap();
     assert!(
         app.plan(&Action::Diff(snapshot, None), fake.system())
             .is_none()
     );
     assert!(app.plan(&Action::Reboot, fake.system()).is_none());
-    let bare = App::new(Context::new(fake.system()));
-    let take = Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap());
-    assert!(bare.plan(&take, fake.system()).is_none());
 
     // Without a plan, the action is answered as one that cannot be done.
-    let events = app.act_quietly(&Action::Plan(Box::new(Action::Reboot)), fake.system());
+    let events = app.apply(
+        &Action::Plan(Box::new(Action::Reboot)),
+        Through::Quietly(fake.system()),
+    );
     assert!(matches!(
         events.last(),
         Some(Event::Finished(Outcome::Failed { .. }))
@@ -188,9 +194,10 @@ fn every_change_of_zfs_is_a_step_with_its_command() {
 fn a_rollback_the_change_would_refuse_fails_its_plan() {
     let fake = machine("off");
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     // The snapshot has no kernel: nothing would be left to boot.
     let rollback = Action::Rollback("tank/ROOT/be@old".parse().unwrap());
 

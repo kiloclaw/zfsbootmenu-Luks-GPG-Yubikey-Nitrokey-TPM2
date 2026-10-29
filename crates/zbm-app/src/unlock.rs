@@ -43,7 +43,7 @@ pub(crate) fn perform(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::App;
+    use crate::pilot;
     use pretty_assertions::assert_eq;
     use zbm_testkit::fakes::FakeSystem;
 
@@ -61,9 +61,11 @@ mod tests {
         let fake = FakeSystem::new();
         fake.files.file("/keys/root.key", "secret");
 
-        let events = App::new(Context::new(fake.system()))
-            .perform(crate::Action::Unlock(request()))
-            .unwrap();
+        let events = pilot(
+            &Context::new(fake.system()),
+            crate::Action::Unlock(request()),
+        )
+        .unwrap();
 
         assert_eq!(
             events,
@@ -79,9 +81,11 @@ mod tests {
     fn a_failure_keeps_every_attempt() {
         let fake = FakeSystem::new();
 
-        let error = App::new(Context::new(fake.system()))
-            .perform(crate::Action::Unlock(request()))
-            .unwrap_err();
+        let error = pilot(
+            &Context::new(fake.system()),
+            crate::Action::Unlock(request()),
+        )
+        .unwrap_err();
 
         let AppError::Unlock(failed) = error else {
             panic!("expected an unlock failure, got {error}");

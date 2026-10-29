@@ -3,7 +3,7 @@ use std::os::fd::BorrowedFd;
 use std::time::Duration;
 
 use ratatui::backend::TestBackend;
-use zbm_app::{App, BootError, Recovery};
+use zbm_app::{App, BootError, Recovery, Runtime};
 use zbm_display::keys::{Key, KeyPress};
 use zbm_platform::Context;
 use zbm_testkit::Shared;
@@ -71,9 +71,10 @@ fn the_menu_goes_on_with_its_model_from_one_round_to_the_next() {
     // Each round ends once time passes: another instance took over.
     let stop = || true;
     let round = |screen: &mut SessionScreen<TestBackend, Scripted>| {
-        let app = App::new(Context::new(fake.system()));
+        let runtime = Runtime::default();
+        let app = App::new(Context::new(fake.system()), &runtime);
         let machine =
-            RealMachine::new(app, fake.system(), &NoShell, &stop, Countdown::Skip).unwrap();
+            RealMachine::new(&app, fake.system(), &NoShell, &stop, Countdown::Skip).unwrap();
         screen.run(machine).unwrap()
     };
 

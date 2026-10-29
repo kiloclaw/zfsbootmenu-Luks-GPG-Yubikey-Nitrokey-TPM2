@@ -9,8 +9,8 @@ use std::fs::OpenOptions as FileOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-use zbm_app::{Action, App, AppError, OpenOptions, UnlockRequest};
-use zbm_platform::RealSystem;
+use zbm_app::{Action, AppError, OpenOptions, UnlockRequest, pilot};
+use zbm_platform::{Context, RealSystem};
 use zbm_trace::{Config, LevelFilter};
 
 use crate::{Io, USAGE as USAGE_STATUS};
@@ -96,8 +96,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         return 1;
     }
     let real = RealSystem::new();
-    let app = App::new(real.context());
-    open(&app, parsed.request, io)
+    open(&real.context(), parsed.request, io)
 }
 
 /// Sends the program's traces to standard error and, if asked, the journal.
@@ -127,8 +126,8 @@ fn install_tracing(parsed: &OpenArgs) -> Result<(), String> {
 
 /// Opens the volume of `request` and reports the outcome; returns the exit
 /// status.
-pub fn open(app: &App<'_>, request: UnlockRequest, io: &mut Io) -> i32 {
-    match app.perform(Action::Unlock(request)) {
+pub fn open(context: &Context<'_>, request: UnlockRequest, io: &mut Io) -> i32 {
+    match pilot(context, Action::Unlock(request)) {
         Ok(events) => {
             for event in events {
                 let _ = writeln!(io.stdout, "{event}");
@@ -167,13 +166,13 @@ mod tests {
     /// and standard error.
     fn run_open(fake: &FakeSystem, line: &str) -> (i32, String, String) {
         let parsed = parse_open(&args(line)).unwrap();
-        let app = App::new(fake.context());
+        let context = fake.context();
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
         let mut io = Io {
             stdout: &mut stdout,
             stderr: &mut stderr,
         };
-        let status = open(&app, parsed.request, &mut io);
+        let status = open(&context, parsed.request, &mut io);
         let text = |bytes: Vec<u8>| String::from_utf8(bytes).unwrap();
         (status, text(stdout), text(stderr))
     }

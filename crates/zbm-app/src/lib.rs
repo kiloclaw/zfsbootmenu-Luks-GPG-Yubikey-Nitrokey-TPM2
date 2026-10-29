@@ -2,37 +2,40 @@
 //! what they get back.
 //!
 //! Front ends (the menu, `zluks`, the start-up program) talk only to this
-//! crate. They read the machine as a [`model::Snapshot`] ([`App::snapshot`]),
-//! send an [`Action`] to [`App::perform`], and get [`Event`]s back, or an
-//! [`AppError`] that keeps the cause of the failure. They never run programs
-//! or call the domain crates themselves, which `cargo xtask check-deps`
-//! enforces.
+//! crate. They read the machine as a [`model::Snapshot`]
+//! ([`Application::snapshot`]), send a [`model::Action`] to
+//! [`Application::apply`], and get [`model::Event`]s back, the last of them
+//! saying how the action ended. The application is [`App`]: the ports of a
+//! [`Context`] and what it knows of this boot, its [`Runtime`], which it
+//! always has (ROADMAP.md, DM8). The actions of the LUKS volumes alone are
+//! [`Volumes`]'. Front ends never run programs or call the domain crates
+//! themselves, which `cargo xtask check-deps` enforces.
 //!
 //! The vocabulary is [`model`], the lists of
 //! `docs/dev/menu-design/interfaces.md`, which the menu prototype tried on a
-//! fake machine. R4 of ROADMAP.md fills it from the real one; the
-//! actions and events below are still those of the pilot (R0), which R4
-//! replaces with the model's.
+//! fake machine. The [`Action`] and [`Event`] below are still those of the
+//! pilot (R0), `zluks --pilot`, which [`pilot`] performs.
 //!
 //! ```
-//! use zbm_app::{Action, App, Event, UnlockRequest};
+//! use zbm_app::{Action, Event, UnlockRequest, pilot};
 //! use zbm_platform::Context;
 //! use zbm_testkit::fakes::FakeSystem;
 //!
 //! let fake = FakeSystem::new();
 //! fake.files.file("/keys/root.key", "secret");
-//! let app = App::new(Context::new(fake.system()));
 //!
-//! let events = app.perform(Action::Unlock(UnlockRequest {
+//! let request = UnlockRequest {
 //!     device: "/dev/sda2".parse()?,
 //!     name: "cryptroot".parse()?,
 //!     key_file: "/keys/root.key".into(),
 //!     options: Default::default(),
-//! }))?;
+//! };
+//! let events = pilot(&Context::new(fake.system()), Action::Unlock(request))?;
 //! assert!(matches!(&events[0], Event::Unlocked { method: "key file", .. }));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod application;
 mod boot;
 mod changes;
 pub mod console;
@@ -45,6 +48,7 @@ mod unlock;
 mod volumes;
 pub mod wire;
 
+pub use application::{App, Application, LAYOUTS, Runtime, Through, Volumes};
 pub use boot::kernel_version;
 pub use model::Encryption;
 pub use read::stage_name;
@@ -56,14 +60,10 @@ pub use zbm_boot::recovery::Recovery;
 pub use zbm_crypt::OpenOptions;
 pub use zbm_luks::pilot::UnlockFailed;
 
-use std::path::Path;
-
-use zbm_config::options::ZbmOptions;
-use zbm_luks::unlocker::Luks;
-use zbm_platform::{Context, System};
+use zbm_platform::Context;
 use zbm_types::{DevicePath, MappingName};
 
-/// What a front end asks the application to do.
+/// What `zluks --pilot` asks the application to do.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Action {
@@ -157,310 +157,24 @@ pub mod codes {
     pub use zbm_zfs::ZFS_CODES;
 }
 
-/// The application: the ports of a [`Context`] and the use cases on top.
-#[derive(Clone, Copy)]
-pub struct App<'a> {
-    /// The ports the use cases reach the system through.
-    context: Context<'a>,
-    /// The options of this boot, when the front end read them.
-    options: Option<&'a ZbmOptions>,
-    /// The LUKS session, when the front end has one.
-    luks: Option<Luks<'a>>,
-    /// The state directory (`/zfsbootmenu`).
-    base: Option<&'a Path>,
-    /// The directory of the image's keyboard layouts.
-    layouts: Option<&'a Path>,
-    /// How to boot, when the front end can boot.
-    boot: Option<&'a BootSettings>,
-}
-
-impl<'a> App<'a> {
-    /// The application on `context`, knowing nothing of this boot yet.
-    pub fn new(context: Context<'a>) -> App<'a> {
-        App {
-            context,
-            options: None,
-            luks: None,
-            base: None,
-            layouts: None,
-            boot: None,
-        }
-    }
-
-    /// With the options of this boot: the countdown and the console.
-    #[must_use]
-    pub fn with_options(self, options: &'a ZbmOptions) -> App<'a> {
-        App {
-            options: Some(options),
-            ..self
-        }
-    }
-
-    /// With a LUKS session: the volumes.
-    #[must_use]
-    pub fn with_luks(self, luks: Luks<'a>) -> App<'a> {
-        App {
-            luks: Some(luks),
-            ..self
-        }
-    }
-
-    /// With the state directory `base`: the journal and the console's
-    /// layout.
-    #[must_use]
-    pub fn with_base(self, base: &'a Path) -> App<'a> {
-        App {
-            base: Some(base),
-            ..self
-        }
-    }
-
-    /// With what booting needs besides the state directory: the hooks, the
-    /// host ID and the saved logs.
-    #[must_use]
-    pub fn with_boot(self, settings: &'a BootSettings) -> App<'a> {
-        App {
-            boot: Some(settings),
-            ..self
-        }
-    }
-
-    /// With the directory of the image's keyboard layouts.
-    #[must_use]
-    pub fn with_layouts(self, directory: &'a Path) -> App<'a> {
-        App {
-            layouts: Some(directory),
-            ..self
-        }
-    }
-
-    /// The application with the programs of its context run by `runner`,
-    /// such as one that cancels them. A LUKS session keeps its own.
-    #[must_use]
-    pub fn with_runner<'b>(&self, runner: &'b dyn zbm_platform::Runner) -> App<'b>
-    where
-        'a: 'b,
-    {
-        App {
-            context: self.context.with_runner(runner),
-            ..*self
-        }
-    }
-
-    /// The runner of the application's context.
-    pub fn runner(&self) -> &dyn zbm_platform::Runner {
-        self.context.runner()
-    }
-
-    /// Performs `action`.
-    ///
-    /// # Errors
-    ///
-    /// [`AppError`] with the cause when the action fails.
-    pub fn perform(&self, action: Action) -> Result<Vec<Event>, AppError> {
-        let _span = tracing::info_span!("action", kind = action.kind()).entered();
-        match action {
-            Action::Unlock(request) => unlock::perform(&self.context, request),
-        }
-    }
-
-    /// Performs `action` of the model; what happened comes back as events,
-    /// the last of them saying how the action ended. Actions the runtime
-    /// cannot perform yet (most of them wait for R5) end as failed.
-    pub fn act(&self, action: &model::Action) -> Vec<model::Event> {
-        if let Some(luks) = self.luks
-            && let Some(events) = volumes::perform(luks, action)
-        {
-            return events;
-        }
-        vec![model::Event::Finished(model::Outcome::Failed {
-            what: "unable to do that here".to_owned(),
-            why: vec![format!("{action:?} is not available in this program yet")],
-            next: Vec::new(),
-        })]
-    }
-
-    /// Performs `action`, one that takes the console
-    /// ([`model::Action::needs_console`]): booting, which may ask for a
-    /// passphrase, the recovery shell, rebooting and powering off. It
-    /// returns only when the machine did not boot or reset, or the shell
-    /// ended, with how the action ended as the last event. `console` is the
-    /// front end's whole system, whose console the action takes; `recovery`
-    /// opens the shell, and the recovery shells of a failed boot.
-    pub fn act_on_console(
-        &self,
-        action: &model::Action,
-        console: System<'_>,
-        recovery: &dyn Recovery,
-    ) -> Vec<model::Event> {
-        let system = console.with_runner(self.context.runner());
-        let pools =
-            || read::pools(&zbm_zfs::ZfsCli::new(self.context.runner())).unwrap_or_default();
-        match action {
-            model::Action::Shell => {
-                recovery.emergency_shell("");
-                Vec::new()
-            }
-            model::Action::Reboot => boot::reset(&system, &pools(), "b"),
-            model::Action::PowerOff => boot::reset(&system, &pools(), "o"),
-            model::Action::FirmwareSetup => boot::firmware_setup(&system, &pools()),
-            change if change.is_change() => self.change(change, &system, true),
-            model::Action::Boot {
-                environment,
-                kernel,
-                command_line,
-                countdown,
-            } => {
-                let (Some(base), Some(settings)) = (self.base, self.boot) else {
-                    return self.act(action);
-                };
-                let state = zbm_state::State::new(system.files, base);
-                let boot = boot::Boot {
-                    system: &system,
-                    state: &state,
-                    settings,
-                };
-                boot.boot(
-                    environment,
-                    kernel.as_ref().map(|kernel| kernel.get().as_str()),
-                    command_line.as_ref().map(|line| line.get().as_str()),
-                    *countdown,
-                    recovery,
-                )
-            }
-            other => self.act(other),
-        }
-    }
-
-    /// Performs `action` without taking the console, as
-    /// [`App::act`] does, and the changes of package D
-    /// ([`model::Action::is_change`]) whose pool is writable and whose key
-    /// is loaded; one that would have to ask for something fails, so the
-    /// front end performs those with [`App::act_on_console`] when
-    /// [`model::Action::needs_console_on`] says so; and the dry runs of
-    /// [`model::Action::Plan`] ([`App::plan`]). `console` is the front
-    /// end's whole system; nothing is written to its console.
-    pub fn act_quietly(&self, action: &model::Action, console: System<'_>) -> Vec<model::Event> {
-        if let model::Action::Plan(planned) = action {
-            return self.planned(planned, console);
-        }
-        if !action.is_change() {
-            return self.act(action);
-        }
-        let system = console.with_runner(self.context.runner());
-        self.change(action, &system, false)
-    }
-
-    /// Performs the change `action` on `system`, asking on its console
-    /// when `asks`.
-    fn change(&self, action: &model::Action, system: &System<'_>, asks: bool) -> Vec<model::Event> {
-        let (Some(base), Some(settings)) = (self.base, self.boot) else {
-            return self.act(action);
-        };
-        let state = zbm_state::State::new(system.files, base);
-        let zfs = zbm_zfs::ZfsCli::new(system.runner);
-        let mut needs = changes::OnMachine {
-            system,
-            state: &state,
-            settings,
-            asks,
-        };
-        let mut changes = changes::Changes {
-            zfs: &zfs,
-            needs: &mut needs,
-        };
-        changes.perform(action).unwrap_or_else(|| self.act(action))
-    }
-
-    /// Fills in the kernels of the environments of `snapshot` whose keys are
-    /// loaded, by mounting each read-only, as the menu needs them; the
-    /// snapshot alone mounts nothing. `console` is the front end's whole
-    /// system.
-    pub fn read_kernels(&self, snapshot: &mut model::Snapshot, console: System<'_>) {
-        let (Some(base), Some(settings)) = (self.base, self.boot) else {
-            return;
-        };
-        let system = console.with_runner(self.context.runner());
-        let state = zbm_state::State::new(system.files, base);
-        let boot = boot::Boot {
-            system: &system,
-            state: &state,
-            settings,
-        };
-        for environment in &mut snapshot.environments {
-            if environment.encryption != Encryption::Locked {
-                environment.kernels = boot.kernels(&environment.name);
-            }
-        }
-    }
-
-    /// The keyboard layouts secrets can be typed with, and whether keys
-    /// come from the machine's own keyboard; it reads no pool, so start-up
-    /// can ask it before any is imported. Without the state and layout
-    /// directories, none.
-    pub fn keyboard(&self) -> model::Keyboard {
-        let (Some(layouts), Some(base)) = (self.layouts, self.base) else {
-            return model::Keyboard::default();
-        };
-        let files = self.context.files();
-        let state = zbm_state::State::new(files, base);
-        let console = self
-            .options
-            .map_or("", |options| options.control_term.as_str());
-        read::keyboard(files, layouts, &state, console)
-    }
-
-    /// Reads the machine: what every view of the menu reads. What the
-    /// application was not given (options, a LUKS session, the state and
-    /// layout directories) stays empty.
-    ///
-    /// # Errors
-    ///
-    /// [`AppError::Snapshot`] when `zfs` or `zpool` fails or prints something
-    /// unexpected.
-    pub fn snapshot(&self) -> Result<model::Snapshot, AppError> {
-        let zfs = zbm_zfs::ZfsCli::new(self.context.runner());
-        let files = self.context.files();
-        let now = self
-            .context
-            .clock()
-            .wall()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |time| time.as_secs());
-        let keyboard = self.keyboard();
-        let state = self.base.map(|base| zbm_state::State::new(files, base));
-        let startup = state.as_ref().map(read::startup).unwrap_or_default();
-        let bootfs = state
-            .and_then(|state| state.bootfs())
-            .and_then(|name| name.parse().ok());
-        Ok(model::Snapshot {
-            startup,
-            pools: read::pools(&zfs).map_err(SnapshotError::from)?,
-            environments: read::environments(&zfs).map_err(SnapshotError::from)?,
-            volumes: self
-                .luks
-                .map(|luks| read::volumes(&zbm_luks::unlocker::Unlocker::new(luks)))
-                .unwrap_or_default(),
-            timeout: self.options.map(read::timeout).unwrap_or_default(),
-            log: self
-                .base
-                .map(|base| read::log(files, base))
-                .unwrap_or_default(),
-            keyboard,
-            now,
-            bootfs,
-            ..model::Snapshot::default()
-        })
+/// Performs `action` of the pilot (R0) on the ports of `context`.
+///
+/// # Errors
+///
+/// [`AppError`] with the cause when the action fails.
+pub fn pilot(context: &Context<'_>, action: Action) -> Result<Vec<Event>, AppError> {
+    let _span = tracing::info_span!("action", kind = action.kind()).entered();
+    match action {
+        Action::Unlock(request) => unlock::perform(context, request),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbm_testkit::fakes::FakeSystem;
 
     #[test]
-    fn actions_name_their_kind_and_the_snapshot_reads_the_machine() {
+    fn actions_name_their_kind() {
         let request = UnlockRequest {
             device: "/dev/sda2".parse().unwrap(),
             name: "cryptroot".parse().unwrap(),
@@ -468,96 +182,5 @@ mod tests {
             options: zbm_crypt::OpenOptions::default(),
         };
         assert_eq!(Action::Unlock(request).kind(), "unlock");
-
-        let fake = FakeSystem::new();
-        fake.runner.respond_program("zpool", 0, "");
-        fake.runner.respond_program("zfs", 0, "");
-        let app = App::new(Context::new(fake.system()));
-        let snapshot = app.snapshot().unwrap();
-        assert!(snapshot.environments.is_empty() && snapshot.volumes.is_empty());
-    }
-
-    #[test]
-    fn the_snapshot_holds_what_the_app_was_given() {
-        let fake = FakeSystem::new();
-        fake.runner.respond_program("zpool", 0, "");
-        fake.runner.respond_program("zfs", 0, "");
-        fake.files.file("/layouts/layouts", "us\nde\n").file(
-            "/zfsbootmenu/journal.jsonl",
-            "{\"level\":\"WARN\",\"message\":\"slow\"}\n",
-        );
-        let (mut options, _) =
-            ZbmOptions::parse(&zbm_config::args::ZbmArgs::from_cmdline("zbm.timeout=7"));
-        options.control_term = "ttyS0".into();
-        let settings = zbm_luks::unlocker::Settings::new("/zfsbootmenu");
-        let prompter = crate::read::tests::NoPrompts;
-        let luks = Luks {
-            context: fake.context(),
-            settings: &settings,
-            interaction: &prompter,
-        };
-
-        let snapshot = App::new(Context::new(fake.system()))
-            .with_options(&options)
-            .with_luks(luks)
-            .with_base(Path::new("/zfsbootmenu"))
-            .with_layouts(Path::new("/layouts"))
-            .snapshot()
-            .unwrap();
-
-        assert_eq!(snapshot.timeout, model::Timeout::Seconds(7));
-        assert_eq!(snapshot.keyboard.layouts, ["us", "de"]);
-        assert!(!snapshot.keyboard.local);
-        assert_eq!(snapshot.log.count(model::Level::Warning), 1);
-        assert!(snapshot.volumes.is_empty() && snapshot.now > 0);
-    }
-
-    /// A recovery that opens no shell.
-    struct NoShell;
-
-    impl Recovery for NoShell {
-        fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
-            Err(zbm_boot::BootError::NoCryptsetup)
-        }
-
-        fn emergency_shell(&self, _message: &str) {}
-    }
-
-    #[test]
-    fn changes_run_quietly_or_on_the_console() {
-        let fake = FakeSystem::new();
-        fake.files.dir("/zfsbootmenu");
-        fake.runner
-            .respond("zpool get -H -o value readonly tank", 0, "off\n");
-        fake.runner
-            .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
-        let settings = BootSettings::default();
-        let app = App::new(Context::new(fake.system()))
-            .with_base(Path::new("/zfsbootmenu"))
-            .with_boot(&settings);
-        let take = model::Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap());
-        let is_done = |events: &[model::Event]| {
-            matches!(
-                events.last(),
-                Some(model::Event::Finished(model::Outcome::Done(_)))
-            )
-        };
-
-        assert!(is_done(&app.act_quietly(&take, fake.system())));
-        assert!(is_done(&app.act_on_console(&take, fake.system(), &NoShell)));
-        let taken = fake
-            .runner
-            .lines()
-            .into_iter()
-            .filter(|line| line == "zfs snapshot tank/ROOT/be@new")
-            .count();
-        assert_eq!(taken, 2);
-
-        // Without the state directory, or for other actions, as act does.
-        let bare = App::new(Context::new(fake.system()));
-        assert!(!is_done(&bare.act_quietly(&take, fake.system())));
-        assert!(!is_done(
-            &app.act_quietly(&model::Action::Reboot, fake.system())
-        ));
     }
 }

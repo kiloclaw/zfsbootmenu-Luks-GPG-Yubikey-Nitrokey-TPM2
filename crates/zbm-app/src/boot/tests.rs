@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
+use crate::Application as _;
 use crate::model::Health;
 
 /// The recovery of the tests: the shells it was asked to open.
@@ -314,13 +315,8 @@ fn the_app_reads_the_kernels_of_the_environments_it_can_mount() {
         ],
         ..model::Snapshot::default()
     };
-    let settings = settings();
-    let base = std::path::Path::new("/zfsbootmenu");
-    let unset = crate::App::new(fake.context());
-    unset.read_kernels(&mut snapshot, fake.system());
-    assert!(snapshot.environments[0].kernels.is_empty());
-
-    let app = unset.with_base(base).with_boot(&settings);
+    let runtime = crate::Runtime::default().with_boot(settings());
+    let app = crate::App::new(fake.context(), &runtime);
     app.read_kernels(&mut snapshot, fake.system());
     assert_eq!(snapshot.environments[0].kernels.len(), 2);
     assert!(snapshot.environments[1].kernels.is_empty());
@@ -336,26 +332,23 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     let fake = machine();
     fake.files.dir("/proc");
     fake.runner.respond_program("zpool", 0, "");
-    let settings = settings();
-    let base = std::path::Path::new("/zfsbootmenu");
-    let unset = crate::App::new(fake.context());
-    let app = unset.with_base(base).with_boot(&settings);
+    let runtime = crate::Runtime::default().with_boot(settings());
+    let app = crate::App::new(fake.context(), &runtime);
     let shells = Shells::default();
+    let on_console =
+        |action: &model::Action| app.apply(action, crate::Through::Console(fake.system(), &shells));
 
-    assert!(
-        app.act_on_console(&model::Action::Shell, fake.system(), &shells)
-            .is_empty()
-    );
+    assert!(on_console(&model::Action::Shell).is_empty());
     assert_eq!(*shells.0.lock().unwrap(), [""]);
 
     for (action, trigger) in [(model::Action::Reboot, "b"), (model::Action::PowerOff, "o")] {
-        app.act_on_console(&action, fake.system(), &shells);
+        on_console(&action);
         assert_eq!(
             fake.files.text("/proc/sysrq-trigger").as_deref(),
             Some(trigger)
         );
     }
-    let firmware = app.act_on_console(&model::Action::FirmwareSetup, fake.system(), &shells);
+    let firmware = on_console(&model::Action::FirmwareSetup);
     assert!(matches!(
         firmware.last(),
         Some(Event::Finished(Outcome::Failed { .. }))
@@ -369,7 +362,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     };
     assert!(boot.needs_console() && model::Action::Shell.needs_console());
     assert!(!model::Action::ResetBootTries(BE.parse().unwrap()).needs_console());
-    let booted = app.act_on_console(&boot, fake.system(), &shells);
+    let booted = on_console(&boot);
     assert!(matches!(
         booted.last(),
         Some(Event::Finished(Outcome::Failed { what, .. })) if what == "unable to boot tank/ROOT/be"
@@ -380,16 +373,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
             .any(|line| line.starts_with("kexec -a -l"))
     );
 
-    let unable = unset.act_on_console(&boot, fake.system(), &shells);
-    assert!(matches!(
-        unable.last(),
-        Some(Event::Finished(Outcome::Failed { what, .. })) if what == "unable to do that here"
-    ));
-    let other = app.act_on_console(
-        &model::Action::ResetBootTries(BE.parse().unwrap()),
-        fake.system(),
-        &shells,
-    );
+    let other = on_console(&model::Action::ResetBootTries(BE.parse().unwrap()));
     assert!(matches!(
         other.last(),
         Some(Event::Finished(Outcome::Failed { .. }))

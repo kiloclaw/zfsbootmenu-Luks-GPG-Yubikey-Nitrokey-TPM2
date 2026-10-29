@@ -182,8 +182,9 @@ One model for the whole runtime (decision 10): **threads and channels, one react
 
 27 crates become 24 ([ADR 0003](docs/dev/adr/0003-crate-map.md), accepted on 29 October 2026). Dependencies point
 down only; `cargo xtask check-deps` enforces the table, and two new rules join it: orchestration does not use
-adapters, and front ends reach the system only through `zbm-app` (both with DM8, once `zbm-startup` no longer uses
-`zbm-zfs` and `zbm-tools`).
+adapters, and front ends reach the system only through `zbm-app`. The second holds since DM8; the first waits for
+start-up's steps over `zbm-app`, as `zbm-startup` still runs `zfs`, `udevadm`, `setfont`, hooks and shells through
+`zbm-zfs` and `zbm-tools`.
 
 | Layer | Crates | Responsibility |
 | --- | --- | --- |
@@ -598,7 +599,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | DM5 | (merged into SB2) | | | |
 | DM6 | The unlocker's core anew: the `LuksVolumes` port, the typestate unlocker, one `Result`-based registry of key methods with the token handlers in it, every attempt kept, on `MappingName` and `DevicePath` inside as at its entry points (DM3); the pilot goes | mod, stab | L | DM2, DM3 |
 | DM7 | `zbm-bootenv` split out of `zbm-boot`; graphics policy to start-up, `report` to `zbm debug`, prompts to the front ends (the resume question, the boot message and key loading, so that `zbm-boot` takes a `Context` and leaves `check-deps`'s console exception, `xtask/src/deps/console.rs`); a narrow public API with `#[non_exhaustive]` | mod | L | DM2 |
-| DM8 | `zbm-app`: a required `Runtime` instead of five optional fields, one `apply`, the `Application` trait with `App` and `FakeMachine`; front ends reach the system only through it | mod | M | DM2 |
+| DM8 | Done: `zbm-app`'s `App` always has a `Runtime` (the options, the state directory, the layouts, how to boot) instead of five optional fields, and a LUKS session when the front end has one; one `apply(action, Through)` replaces `act`, `act_quietly` and `act_on_console`; the menu's machine reaches it through the `Application` trait (`snapshot`, `read_kernels`, `apply`); the volumes' actions alone are `Volumes`', and the pilot's `pilot`. `check-deps` refuses a crate behind `zbm-app` (adapters, domain, orchestration) as a dependency of `zbm-tui` or `zbm-console`. The tests of `App` run on `FakeSystem`, as before | mod | M | DM2 |
 | DM9 | Done: every log message a constant template with its values as fields (`fmt logs` at 0), the journal keeping the template and the fields that name things; stable error codes (`ZBM-E0412`) on every error enum of the domain, the adapters and start-up through `zbm_types::error_codes!`, which matches every variant, and `zbm explain`; causes kept as `#[source]` and shown with `zbm_types::code::chain` (`SaveError` keeps its `io::Error`); `Step::run` returns `Result<StepOutcome, StartupError>`, a failed stage logged with its code and shown failed (the `zbm.hookroot` import's error, dropped before, and a ZFS module that does not load); `zbm` returns `ExitCode`; one meaning per log level (`crates/DESIGN.md`). Left: the legacy unlock path's attempts and `LuksError::Open`'s cause go with the unlocker's rewrite (DM6); the kernel log keeps the legacy format, which the parity tests and the recovery shell's error printer read | stab | M | |
 | DM10 | `zbm-host` anew: `generate-zbm` as configuration → plan (pure) → build (adapters) → install (atomic), with argument vectors instead of `sh -c`; `zbm-kcl` on `KernelCommandLine`; the Perl and Bash emulation goes; new golden files | mod, stab | L | SB8 |
 | DM11 | Done: `zbm-core` dissolves (its parts into `zbm-platform`, `getopts` into `zbm-kcl`); shell helpers in configuration parsing at 0; the command line pipeline works on `KernelCommandLine`; `zbm-kcl` keeps the legacy tokenizer until DM10 | mod | S | DM3 |

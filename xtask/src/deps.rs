@@ -108,6 +108,18 @@ pub const SAME_LAYER: &[(&str, &str)] = &[
 /// crates, never through an adapter (ROADMAP.md, R4).
 pub const NOT_THROUGH: &[(&str, &str)] = &[("front ends", "adapters")];
 
+/// The front ends that reach the system only through `zbm-app`: they use no
+/// crate of the layers of [`BEHIND_APP`], but in tests ([ADR
+/// 0003](../../docs/dev/adr/0003-crate-map.md), rule 3). `zbm`, the binary
+/// that holds the front ends, is not one of them.
+pub const ONLY_THROUGH_APP: &[&str] = &["zbm-tui", "zbm-console"];
+
+/// Why a crate of [`ONLY_THROUGH_APP`] may not use one behind `zbm-app`.
+const BEHIND: &str = "the menu and the console reach the system only through zbm-app";
+
+/// The layers behind `zbm-app`, which [`ONLY_THROUGH_APP`] does not reach.
+pub const BEHIND_APP: &[&str] = &["adapters", "domain", "orchestration"];
+
 /// Crates that only tests may use.
 pub const TEST_SUPPORT: &[&str] = &["zbm-testkit"];
 
@@ -280,9 +292,14 @@ fn edge_problem(
         (_, Place::TestSupport) | (Place::TestSupport, Place::Layer(_)) => None,
         (Place::Layer(from), Place::Layer(to)) if to < from => {
             let name = |index: usize| LAYERS.get(index).map_or("", |layer| layer.name);
-            NOT_THROUGH
-                .contains(&(name(from), name(to)))
-                .then_some("front ends may not use adapters: go through zbm-app")
+            let behind = ONLY_THROUGH_APP.contains(&from_name)
+                && BEHIND_APP.contains(&name(to))
+                && kind != DependencyKind::Dev;
+            if NOT_THROUGH.contains(&(name(from), name(to))) {
+                Some("front ends may not use adapters: go through zbm-app")
+            } else {
+                behind.then_some(BEHIND)
+            }
         }
         (Place::Layer(from), Place::Layer(to)) if to == from => {
             if SAME_LAYER.contains(&(from_name, to_name)) {
@@ -326,6 +343,16 @@ pub fn markdown() -> String {
     for (from, to) in SAME_LAYER {
         let _ = writeln!(text, "- `{from}` → `{to}`");
     }
+    let only: Vec<String> = ONLY_THROUGH_APP
+        .iter()
+        .map(|name| format!("`{name}`"))
+        .collect();
+    let _ = writeln!(
+        text,
+        "\n{} use no crate of the layers {}: they reach the system only through `zbm-app`.",
+        only.join(" and "),
+        BEHIND_APP.join(", ")
+    );
     let support: Vec<String> = TEST_SUPPORT
         .iter()
         .map(|name| format!("`{name}`"))
@@ -411,161 +438,4 @@ fn write_if_changed(path: &Path, old: &str, new: &str) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::workspace::Dependency;
-    use std::path::PathBuf;
-
-    fn package(name: &str, dependencies: &[(&str, DependencyKind, bool)]) -> Package {
-        Package {
-            name: name.to_owned(),
-            dir: PathBuf::from(format!("/w/crates/{name}")),
-            targets: Vec::new(),
-            dependencies: dependencies
-                .iter()
-                .map(|(name, kind, member)| Dependency {
-                    name: (*name).to_owned(),
-                    kind: *kind,
-                    member: *member,
-                })
-                .collect(),
-        }
-    }
-
-    fn problems_of(package: &Package) -> Vec<String> {
-        package_problems(package)
-    }
-
-    #[test]
-    fn a_crate_may_depend_on_lower_layers() {
-        let luks = package("zbm-luks", &[("zbm-trace", DependencyKind::Normal, true)]);
-
-        assert_eq!(problems_of(&luks), Vec::<String>::new());
-    }
-
-    #[test]
-    fn a_crate_may_not_depend_on_a_higher_layer() {
-        let trace = package("zbm-trace", &[("zbm-boot", DependencyKind::Normal, true)]);
-
-        assert_eq!(
-            problems_of(&trace),
-            ["zbm-trace -> zbm-boot: depends on a higher layer"]
-        );
-    }
-
-    #[test]
-    fn same_layer_edges_must_be_listed() {
-        let listed = package("zbm-boot", &[("zbm-pool", DependencyKind::Normal, true)]);
-        let unlisted = package("zbm-pool", &[("zbm-boot", DependencyKind::Normal, true)]);
-
-        assert_eq!(problems_of(&listed), Vec::<String>::new());
-        assert_eq!(
-            problems_of(&unlisted),
-            ["zbm-pool -> zbm-boot: same layer, and not listed in SAME_LAYER"]
-        );
-    }
-
-    #[test]
-    fn test_support_is_only_a_development_dependency() {
-        let dev = package("zbm-luks", &[("zbm-testkit", DependencyKind::Dev, true)]);
-        let normal = package("zbm-luks", &[("zbm-testkit", DependencyKind::Normal, true)]);
-
-        assert_eq!(problems_of(&dev), Vec::<String>::new());
-        assert_eq!(
-            problems_of(&normal),
-            ["zbm-luks -> zbm-testkit: test support crates may only be development dependencies"]
-        );
-    }
-
-    #[test]
-    fn third_party_crates_must_be_listed_per_crate() {
-        let allowed = package(
-            "generate-zbm",
-            &[("yaml-rust2", DependencyKind::Normal, false)],
-        );
-        let refused = package("zbm-luks", &[("yaml-rust2", DependencyKind::Normal, false)]);
-
-        assert_eq!(problems_of(&allowed), Vec::<String>::new());
-        assert_eq!(
-            problems_of(&refused),
-            ["zbm-luks -> yaml-rust2: third-party crate not allowed in THIRD_PARTY"]
-        );
-    }
-
-    #[test]
-    fn test_crates_are_allowed_as_development_dependencies_only() {
-        let dev = package("zbm-luks", &[("insta", DependencyKind::Dev, false)]);
-        let normal = package("zbm-luks", &[("insta", DependencyKind::Normal, false)]);
-
-        assert_eq!(problems_of(&dev), Vec::<String>::new());
-        assert_eq!(
-            problems_of(&normal),
-            ["zbm-luks -> insta: third-party crate not allowed in THIRD_PARTY"]
-        );
-    }
-
-    #[test]
-    fn front_ends_go_through_the_application_layer() {
-        let menu = package("zbm-tui", &[("zbm-zfs", DependencyKind::Normal, true)]);
-        let startup = package(
-            "zbm-startup",
-            &[("zbm-tools", DependencyKind::Normal, true)],
-        );
-
-        assert_eq!(
-            problems_of(&menu),
-            ["zbm-tui -> zbm-zfs: front ends may not use adapters: go through zbm-app"]
-        );
-        assert_eq!(problems_of(&startup), Vec::<String>::new());
-    }
-
-    #[test]
-    fn nothing_depends_on_tools() {
-        let zbm = package("zbm", &[("xtask", DependencyKind::Dev, true)]);
-
-        assert_eq!(
-            problems_of(&zbm),
-            ["zbm -> xtask: no crate may depend on a developer tool"]
-        );
-    }
-
-    #[test]
-    fn crates_missing_from_the_tables_are_reported() {
-        let workspace = Workspace {
-            root: PathBuf::from("/w"),
-            packages: vec![package("zbm-new", &[])],
-        };
-
-        let problems = problems(&workspace);
-
-        assert_eq!(
-            problems[0],
-            "zbm-new is in no layer: add it to xtask/src/deps.rs"
-        );
-        assert!(
-            problems
-                .contains(&"zbm-sys is in xtask/src/deps.rs but not in the workspace".to_owned())
-        );
-    }
-
-    #[test]
-    fn the_generated_section_replaces_only_the_text_between_the_markers() {
-        let page = format!("# Title\n\n{BEGIN}\nold\n{END}\n\nAfter.\n");
-
-        let new = replace_section(&page, "new\n").unwrap();
-
-        assert_eq!(
-            new,
-            format!("# Title\n\n{BEGIN}\n\nnew\n\n{END}\n\nAfter.\n")
-        );
-    }
-
-    #[test]
-    fn the_generated_section_lists_layers_from_the_top() {
-        let text = markdown();
-
-        let front_ends = text.find("| front ends |").unwrap();
-        let unsafe_layer = text.find("| unsafe |").unwrap();
-        assert!(front_ends < unsafe_layer);
-    }
-}
+mod tests;

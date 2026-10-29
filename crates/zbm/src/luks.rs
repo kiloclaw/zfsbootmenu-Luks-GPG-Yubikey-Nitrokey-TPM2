@@ -5,7 +5,7 @@ use std::path::Path;
 use zbm_types::Printable;
 
 use zbm_app::model::{Action, Event, Outcome};
-use zbm_app::{App, NO_CRYPTSETUP, device_not_found};
+use zbm_app::{NO_CRYPTSETUP, Volumes, device_not_found};
 use zbm_boot::prompt::{ConsoleInteraction, colorize};
 use zbm_luks::device::{describe_device, is_block_device, is_open};
 use zbm_luks::tokens::list_tokens;
@@ -116,8 +116,7 @@ fn app_action(command: &str, rest: &[String]) -> Option<Result<Action, ParseErro
 /// that came before any volume was touched is said on standard error, as
 /// the legacy script said it; the others are in the log.
 fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
-    let app = App::new(luks.context).with_luks(luks);
-    match app.act(action).last() {
+    match Volumes::new(luks).apply(action).last() {
         Some(Event::Finished(Outcome::Done(_))) => 0,
         Some(Event::Finished(Outcome::Failed { why, .. })) => {
             let not_found = match action {

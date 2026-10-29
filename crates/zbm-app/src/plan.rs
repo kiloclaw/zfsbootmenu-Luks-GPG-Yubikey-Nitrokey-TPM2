@@ -48,17 +48,13 @@ impl App<'_> {
     /// What the change `action` would do on the machine `console`, the
     /// front end's whole system, without doing it: nothing is changed,
     /// imported or unlocked. `None` for an action that changes nothing,
-    /// such as the differences of a snapshot, or when the application has
-    /// no state directory.
+    /// such as the differences of a snapshot.
     pub fn plan(&self, action: &Action, console: System<'_>) -> Option<Plan> {
         if !action.is_change() || matches!(action, Action::Diff(..)) {
             return None;
         }
-        let (Some(base), Some(settings)) = (self.base, self.boot) else {
-            return None;
-        };
         let system = console.with_runner(self.context.runner());
-        let state = zbm_state::State::new(system.files, base);
+        let state = zbm_state::State::new(system.files, &self.runtime.base);
         let steps = Mutex::new(Vec::new());
         let real = ZfsCli::new(system.runner);
         let planned = |change: ZfsChange| {
@@ -70,7 +66,7 @@ impl App<'_> {
         let machine = OnMachine {
             system: &system,
             state: &state,
-            settings,
+            settings: &self.runtime.boot,
             asks: false,
         };
         let mut needs = Planning {
@@ -101,7 +97,7 @@ impl App<'_> {
                 action: Box::new(action.clone()),
                 plan,
             }],
-            None => self.act(action),
+            None => self.alone(action),
         }
     }
 }

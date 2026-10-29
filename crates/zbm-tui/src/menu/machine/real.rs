@@ -1,12 +1,13 @@
-//! The machine the menu boots: [`zbm_app::App`] reads it and performs the
-//! actions. With a [`ServiceHandle`], the actions that leave the console
-//! alone run on the service's worker while the menu goes on; those that
-//! take it run here, once the service is idle.
+//! The machine the menu boots: an [`Application`], the real one
+//! [`zbm_app::App`], reads it and applies the actions. With a
+//! [`ServiceHandle`], the actions that leave the console alone run on the
+//! service's worker while the menu goes on; those that take it run here,
+//! once the service is idle.
 
 use std::os::fd::{AsFd as _, BorrowedFd};
 
 use zbm_app::service::{Report, ServiceHandle};
-use zbm_app::{App, AppError, Recovery};
+use zbm_app::{AppError, Application, Recovery, Through};
 use zbm_platform::System;
 
 use super::Machine;
@@ -14,7 +15,7 @@ use crate::menu::world::{Action, Event, Snapshot, Timeout};
 
 /// The real machine, through the application layer.
 pub struct RealMachine<'a, 'r> {
-    app: App<'a>,
+    app: &'r dyn Application,
     /// The front end's whole system, whose console the actions that need it
     /// take.
     console: System<'a>,
@@ -51,13 +52,13 @@ impl<'a, 'r> RealMachine<'a, 'r> {
     ///
     /// [`AppError::Snapshot`] when the machine cannot be read.
     pub fn new(
-        app: App<'a>,
+        app: &'r dyn Application,
         console: System<'a>,
         recovery: &'r dyn Recovery,
         stop: &'r dyn Fn() -> bool,
         countdown: Countdown,
     ) -> Result<RealMachine<'a, 'r>, AppError> {
-        let snapshot = read(&app, console, countdown)?;
+        let snapshot = read(app, console, countdown)?;
         Ok(RealMachine {
             app,
             console,
@@ -104,7 +105,11 @@ impl<'a, 'r> RealMachine<'a, 'r> {
 
 /// The machine as the menu shows it; the countdown only when it is to run
 /// and start-up chose an environment, as in the legacy start-up program.
-fn read(app: &App<'_>, console: System<'_>, countdown: Countdown) -> Result<Snapshot, AppError> {
+fn read(
+    app: &dyn Application,
+    console: System<'_>,
+    countdown: Countdown,
+) -> Result<Snapshot, AppError> {
     let mut snapshot = app.snapshot()?;
     app.read_kernels(&mut snapshot, console);
     if countdown == Countdown::Skip || snapshot.bootfs.is_none() {
@@ -151,15 +156,15 @@ impl Machine for RealMachine<'_, '_> {
             }
             self.service = None;
         }
-        let mut events = if quiet {
-            self.app.act_quietly(&action, self.console)
+        let through = if quiet {
+            Through::Quietly(self.console)
         } else {
-            self.app
-                .act_on_console(&action, self.console, self.recovery)
+            Through::Console(self.console, self.recovery)
         };
+        let mut events = self.app.apply(&action, through);
         if (self.stop)() {
             events.push(Event::Leaving(String::new()));
-        } else if let Ok(snapshot) = read(&self.app, self.console, Countdown::Skip) {
+        } else if let Ok(snapshot) = read(self.app, self.console, Countdown::Skip) {
             self.snapshot = snapshot.clone();
             events.insert(0, Event::Changed(snapshot));
         }

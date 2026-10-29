@@ -12,7 +12,7 @@ use std::path::Path;
 
 use zbm_app::service::MachineService;
 use zbm_app::session::{self, Handover};
-use zbm_app::{App, BootSettings, Recovery};
+use zbm_app::{App, BootSettings, Recovery, Runtime};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_platform::{Context, System};
@@ -27,8 +27,8 @@ use zbm_tui::menu::session::Session;
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
 
+use crate::Io;
 use crate::applets::on_console;
-use crate::{Io, layouts};
 
 /// The size to draw in when the terminal reports none.
 pub(crate) const FALLBACK_SIZE: (u16, u16) = (80, 24);
@@ -71,17 +71,14 @@ fn is_taken_over(received: SignalSet) -> bool {
 
 impl Menu for Terminal<'_, '_> {
     fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
-        let app = App::new(Context::new(self.system))
-            .with_options(self.options)
-            .with_base(self.base)
-            .with_layouts(Path::new(layouts::DIRECTORY))
-            .with_boot(settings);
+        let runtime = Runtime::new(self.options.clone(), self.base).with_boot(settings.clone());
+        let app = App::new(Context::new(self.system), &runtime);
         let (signals, handover) = (self.signals, self.handover);
         let stop = || {
             signals.is_some_and(|signals| is_taken_over(signals.received()))
                 || handover.is_some_and(Handover::is_asked)
         };
-        let machine = match RealMachine::new(app, self.system, recovery, &stop, self.countdown) {
+        let machine = match RealMachine::new(&app, self.system, recovery, &stop, self.countdown) {
             Ok(machine) => machine,
             Err(error) => {
                 self.error = Some(error.to_string());

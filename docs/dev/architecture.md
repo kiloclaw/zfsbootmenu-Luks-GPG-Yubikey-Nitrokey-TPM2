@@ -42,6 +42,8 @@ A crate depends only on crates of lower layers, with these exceptions in its own
 - `zbm` → `zbm-console`
 - `zbm-boot` → `zbm-pool`
 
+`zbm-tui` and `zbm-console` use no crate of the layers adapters, domain, orchestration: they reach the system only through `zbm-app`.
+
 Test support (`zbm-testkit`) is only a development dependency. Tools (`xtask`, `zbm-vmtest`) use no crate of the workspace.
 
 Third-party crates:
@@ -128,9 +130,11 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   reports, and the prompts and recovery contract (`Recovery`) the start-up stages use; pool import runs through
   `zbm-pool`, with these prompts as its `Operator`. `zbm-kcl` handles the kernel command lines stored on boot
   environments.
-- **application**: `zbm-app` is what front ends talk to: they read the `model::Snapshot` of the machine
-  (`App::snapshot`), send a `model::Action` to `App::act`, and get `model::Event`s back, the last of them the
-  outcome. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
+- **application**: `zbm-app` is what front ends talk to, through the `Application` trait: they read the
+  `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
+  `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the
+  `Runtime` of this boot (the options, the state directory, the layouts, how to boot), which it always has; the
+  actions of the LUKS volumes alone are `Volumes`'. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
   end answers through the `zbm_platform::Interaction` it passes.
 - **orchestration**: `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host
   ID, device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an
@@ -158,8 +162,8 @@ template for the phases that follow.
 - **The menu:** the boot environment list, `zbm-menu-pilot`, which printed the boot environment chosen and booted
   nothing. The menu itself replaced it in R5 step 3: `/bin/zfsbootmenu` (`zbm zfsbootmenu`) →
   `zbm-startup` (`Startup::menu`: the lock, the setup hooks) → `zbm-tui` (`menu::session::Session` on
-  `menu::machine::RealMachine`, `menu::terminal::run`) → `zbm-app` (`App::snapshot`, `App::act`,
-  `App::act_on_console`) → `zbm-boot`.
+  `menu::machine::RealMachine`, `menu::terminal::run`) → `zbm-app` (`Application::snapshot`,
+  `Application::apply`) → `zbm-boot`.
 
 ## Changing a dependency
 

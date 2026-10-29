@@ -19,7 +19,7 @@ use zbm_platform::{Files, RealFiles};
 use crate::Io;
 
 /// Where images keep their layouts.
-pub const DIRECTORY: &str = "/usr/share/zfsbootmenu/layouts";
+pub const DIRECTORY: &str = zbm_app::LAYOUTS;
 
 /// The compose rules of the dead keys, in the layouts' directory.
 pub const DEAD_KEYS: &str = "dead-keys";

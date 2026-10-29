@@ -24,7 +24,7 @@ use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
 use zbm_app::session::{self, Handover, SessionSocket};
-use zbm_app::{App, BootError, Recovery};
+use zbm_app::{App, BootError, Recovery, Runtime, Volumes};
 use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -47,7 +47,6 @@ use zbm_tui::menu::theme::Theme;
 use zbm_types::Answer;
 use zbm_types::{DatasetName, PoolName};
 
-use crate::layouts;
 use crate::menu::{InSession, SESSION_TAKEOVER};
 
 /// How long a question waits when nothing says, as the console prompts
@@ -209,8 +208,7 @@ impl<'a> MenuFront<'a> {
             settings: &settings,
             interaction: self,
         };
-        let app = App::new(Context::new(*system)).with_luks(luks);
-        let events = app.act(&Action::UnlockAll);
+        let events = Volumes::new(luks).apply(&Action::UnlockAll);
         for event in &events {
             if matches!(event, Event::UnlockFinished { .. }) {
                 self.show(event.clone());
@@ -478,11 +476,8 @@ fn stages_on_view(
 ) -> Option<AfterView> {
     let options = ZbmOptions::from_conf(conf);
     let base = zbm_startup::preinit::base(conf);
-    let keyboard = App::new(Context::new(system))
-        .with_options(&options)
-        .with_base(&base)
-        .with_layouts(Path::new(layouts::DIRECTORY))
-        .keyboard();
+    let runtime = Runtime::new(options, &base);
+    let keyboard = App::new(Context::new(system), &runtime).keyboard();
     let snapshot = Snapshot {
         startup: stages(),
         keyboard,

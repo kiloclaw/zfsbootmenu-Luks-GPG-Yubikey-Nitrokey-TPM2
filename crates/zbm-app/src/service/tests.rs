@@ -11,7 +11,7 @@ use zbm_platform::exec::{Output, Status};
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
-use crate::BootSettings;
+use crate::{BootSettings, Runtime};
 
 /// A machine whose pool `tank` is writable, so that a snapshot is taken
 /// without the console.
@@ -48,9 +48,10 @@ fn until_done(handle: &mut ServiceHandle) -> Vec<Event> {
 fn the_worker_performs_an_action_and_reads_the_machine_again() {
     let fake = machine();
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let service = MachineService::new(app, fake.system());
 
     let events = std::thread::scope(|scope| {
@@ -91,9 +92,10 @@ fn a_cancelled_action_kills_its_program_and_ends_as_cancelled() {
         Some(Ok(Output::new(Status::from_raw(9), Vec::new())))
     });
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let service = MachineService::new(app, fake.system());
 
     let events = std::thread::scope(|scope| {
@@ -142,7 +144,11 @@ fn a_cancelled_action_kills_its_program_and_ends_as_cancelled() {
 #[test]
 fn an_action_performed_in_place_reads_the_machine_first() {
     let fake = machine();
-    let service = MachineService::new(App::new(Context::new(fake.system())), fake.system());
+    let runtime = Runtime::default();
+    let service = MachineService::new(
+        App::new(Context::new(fake.system()), &runtime),
+        fake.system(),
+    );
     let token = CancelToken::new().unwrap();
     token.cancel();
 
@@ -175,9 +181,10 @@ fn the_worker_ends_when_the_front_end_is_gone_while_it_works() {
         None
     });
     let settings = BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let service = MachineService::new(app, fake.system());
 
     std::thread::scope(|scope| {

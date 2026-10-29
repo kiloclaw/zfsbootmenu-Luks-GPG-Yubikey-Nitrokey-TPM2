@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use zbm_app::{App, BootError, Recovery};
+use zbm_app::{App, BootError, Recovery, Runtime};
 use zbm_display::keys::Key;
 use zbm_platform::Context;
 use zbm_testkit::fakes::FakeSystem;
@@ -87,11 +87,13 @@ fn fake() -> FakeSystem {
 #[test]
 fn the_real_machine_opens_the_menu_and_reads_itself_again_after_an_action() {
     let fake = fake();
-    let app = App::new(Context::new(fake.system()));
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
     let shells = Shells::default();
     let stopped = Cell::new(false);
     let stop = || stopped.get();
-    let mut machine = RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
+    let mut machine =
+        RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
     assert_eq!(machine.snapshot().timeout, Timeout::Wait);
     assert!(matches!(machine.tick().as_slice(), [Event::Changed(_)]));
     assert!(machine.tick().is_empty());
@@ -131,10 +133,11 @@ fn a_machine_that_cannot_be_read_is_an_error() {
     let fake = FakeSystem::new();
     fake.runner.respond_program("zpool", 1, "");
     fake.runner.respond_program("zfs", 1, "");
-    let app = App::new(Context::new(fake.system()));
+    let runtime = Runtime::default();
+    let app = App::new(Context::new(fake.system()), &runtime);
     let shells = Shells::default();
     let stop = || false;
-    assert!(RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run).is_err());
+    assert!(RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run).is_err());
 }
 
 /// The demo machine, on which taking a snapshot runs for a minute of ticks
@@ -257,15 +260,16 @@ fn with_a_service_the_real_machine_performs_quiet_actions_on_its_worker() {
     fake.runner
         .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
     let settings = zbm_app::BootSettings::default();
-    let app = App::new(Context::new(fake.system()))
+    let runtime = Runtime::default()
         .with_base(std::path::Path::new("/zfsbootmenu"))
-        .with_boot(&settings);
+        .with_boot(settings.clone());
+    let app = App::new(Context::new(fake.system()), &runtime);
     let shells = Shells::default();
     let stop = || false;
     let service = zbm_app::service::MachineService::new(app, fake.system());
 
     let events = std::thread::scope(|scope| {
-        let machine = RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run)
+        let machine = RealMachine::new(&app, fake.system(), &shells, &stop, Countdown::Run)
             .unwrap()
             .with_service(service.start(scope).unwrap());
         let mut machine = machine;

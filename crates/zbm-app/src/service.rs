@@ -12,8 +12,8 @@
 //! [`Outcome::Cancelled`].
 //!
 //! Actions that take the console stay with the front end, which gives the
-//! console to them ([`App::act_on_console`]); the service performs the
-//! others, as [`App::act_quietly`] does.
+//! console to them ([`Through::Console`]); the service applies the others
+//! [`Through::Quietly`].
 
 use std::collections::VecDeque;
 use std::io;
@@ -24,8 +24,8 @@ use std::thread::Scope;
 use zbm_platform::event::{CancelToken, MailSender, Mailbox, spawn_scoped_traced};
 use zbm_platform::{CancellingRunner, System};
 
-use crate::App;
 use crate::model::{Action, Event, Outcome, Snapshot};
+use crate::{App, Application as _, Through};
 
 /// What the service sends back.
 #[derive(Debug)]
@@ -67,7 +67,7 @@ impl<'a> MachineService<'a> {
         let mut events = if token.is_cancelled() {
             Vec::new()
         } else {
-            app.act_quietly(action, self.console)
+            app.apply(action, Through::Quietly(self.console))
         };
         if token.is_cancelled() {
             if matches!(events.last(), Some(Event::Finished(_))) {

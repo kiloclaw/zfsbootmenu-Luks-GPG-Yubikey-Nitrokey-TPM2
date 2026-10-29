@@ -95,8 +95,9 @@ On 29 October 2026, when the map was accepted:
   (rule 3), and `zbm-app` uses `zbm-sys` directly for the session's socket (PM10), a lower layer.
 - Left: `zbm-bootenv` (DM7), so `zbm-boot` → `zbm-pool` stays in `SAME_LAYER` until then; `zbm-host` (DM10), so
   `generate-zbm` and `zbm-kcl` stay two crates until then; and `zbm-startup` still uses `zbm-zfs` and `zbm-tools`
-  directly, so rule 2 joins `check-deps` once it no longer does (with DM8). Rule 3 is enforced today only as "front ends
-  do not use adapters"; the rest of it joins `check-deps` with DM8 too.
+  directly, so rule 2 joins `check-deps` once it no longer does, with start-up's steps over `zbm-app`. Rule 3 is
+  enforced since DM8 (29 October 2026): `zbm-tui` and `zbm-console` may use no crate of the adapters, the domain or
+  orchestration but in tests (`ONLY_THROUGH_APP` in `deps.rs`).
 
 ## Answers of the maintainer
 

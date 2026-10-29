@@ -10,9 +10,9 @@
 
 use std::path::Path;
 
-use zbm_app::App;
 use zbm_app::Encryption;
 use zbm_app::model::{Origin, Snapshot, VolumeState};
+use zbm_app::{App, Application as _, Runtime};
 use zbm_luks::unlocker::{Luks, Settings};
 use zbm_platform::interaction::NoInteraction;
 use zbm_platform::{Context, System};
@@ -113,9 +113,11 @@ pub fn run_in(system: &System<'_>, settings: &Settings, report: &str, io: &mut I
         settings,
         interaction: &NoInteraction,
     };
-    let app = App::new(Context::new(*system))
-        .with_luks(luks)
-        .with_base(&settings.base);
+    let runtime = Runtime {
+        base: settings.base.clone(),
+        ..Runtime::default()
+    };
+    let app = App::new(Context::new(*system), &runtime).with_luks(luks);
     let snapshot = match app.snapshot() {
         Ok(snapshot) => snapshot,
         Err(error) => {
