@@ -90,8 +90,8 @@ impl MenuFront<'_> {
     /// Lists `volume`, asked for with `method`, among the view's volumes,
     /// so that its dialog names its device.
     fn list_volume(&self, volume: VolumeRef<'_>, method: Method) {
-        let _ = self.with_view(|view| {
-            let mut snapshot = view.snapshot().clone();
+        let snapshot = {
+            let mut snapshot = super::lock(&self.known).clone();
             let known = Volume {
                 name: Untrusted::new(volume.name.to_owned()),
                 device: Untrusted::new(volume.device.to_owned()),
@@ -108,8 +108,9 @@ impl MenuFront<'_> {
                 Some(listed) => *listed = known,
                 None => snapshot.volumes.push(known),
             }
-            view.send(Event::Changed(snapshot))
-        });
+            snapshot
+        };
+        self.show(Event::Changed(snapshot));
     }
 }
 
@@ -142,11 +143,14 @@ impl Interaction for MenuFront<'_> {
             wait: None,
         };
         let mut every = EverySecond::new(self.system.clock);
-        let mut elsewhere = || {
-            let opened = request.opened_elsewhere?;
+        let mut elsewhere = |opened: &dyn Fn() -> bool| {
             (every.is_due() && opened()).then_some(Action::Answer(Answer::Escape))
         };
-        match self.with_view(|view| view.ask(&event, &mut elsewhere)) {
+        let answer = match request.opened_elsewhere {
+            Some(opened) => self.answer(event, Some(&mut || elsewhere(opened))),
+            None => self.answer(event, None),
+        };
+        match answer {
             Some(Action::Unlock {
                 method: chosen,
                 secret,
@@ -191,7 +195,7 @@ impl Interaction for MenuFront<'_> {
             let mut present = || {
                 (every.is_due() && (request.present)()).then_some(Action::Answer(Answer::Continue))
             };
-            match self.with_view(|view| view.ask(&event, &mut present)) {
+            match self.answer(event, Some(&mut present)) {
                 Some(Action::Answer(_)) => return Wait::Present,
                 Some(Action::SkipUnlock(_)) => return Wait::Skipped,
                 Some(_) if (request.present)() => return Wait::Present,

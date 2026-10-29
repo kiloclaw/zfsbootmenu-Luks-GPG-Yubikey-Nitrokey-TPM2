@@ -20,7 +20,7 @@ pub trait Front {
     fn send(&mut self, _event: Event) {}
 
     /// The recovery shell and the late unlocking of LUKS volumes.
-    fn recovery(&mut self) -> &mut dyn Recovery;
+    fn recovery(&mut self) -> &dyn Recovery;
 
     /// Unlocks the LUKS volumes, the stage `45-luks-unlock`, with
     /// `system`'s programs.
@@ -68,7 +68,7 @@ impl<'s, 'a> ConsoleFront<'s, 'a> {
 }
 
 impl Front for ConsoleFront<'_, '_> {
-    fn recovery(&mut self) -> &mut dyn Recovery {
+    fn recovery(&mut self) -> &dyn Recovery {
         &mut self.shell
     }
 
@@ -92,14 +92,14 @@ impl Front for ConsoleFront<'_, '_> {
         state: &State<'_>,
         settings: &ImportSettings,
     ) -> Imported {
-        import::stage(system, state, settings, &mut self.shell)
+        import::stage(system, state, settings, &self.shell)
     }
 }
 
 /// For code that runs without a console, such as tests and examples:
 /// nothing is unlocked, nobody waits for devices, and there is no shell.
 impl Front for NoRecovery {
-    fn recovery(&mut self) -> &mut dyn Recovery {
+    fn recovery(&mut self) -> &dyn Recovery {
         self
     }
 

@@ -19,7 +19,7 @@ pub struct RealMachine<'a, 'r> {
     /// take.
     console: System<'a>,
     /// Opens the recovery shell.
-    recovery: &'r mut dyn Recovery,
+    recovery: &'r dyn Recovery,
     /// Whether the menu should end: another instance took over.
     stop: &'r dyn Fn() -> bool,
     snapshot: Snapshot,
@@ -53,7 +53,7 @@ impl<'a, 'r> RealMachine<'a, 'r> {
     pub fn new(
         app: App<'a>,
         console: System<'a>,
-        recovery: &'r mut dyn Recovery,
+        recovery: &'r dyn Recovery,
         stop: &'r dyn Fn() -> bool,
         countdown: Countdown,
     ) -> Result<RealMachine<'a, 'r>, AppError> {
@@ -155,7 +155,7 @@ impl Machine for RealMachine<'_, '_> {
             self.app.act_quietly(&action, self.console)
         } else {
             self.app
-                .act_on_console(&action, self.console, &mut *self.recovery)
+                .act_on_console(&action, self.console, self.recovery)
         };
         if (self.stop)() {
             events.push(Event::Leaving(String::new()));

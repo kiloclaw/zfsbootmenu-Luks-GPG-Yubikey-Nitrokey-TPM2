@@ -386,13 +386,13 @@ fn late_luks_volumes_are_unlocked_as_retries() {
     let state = State::new(&fake.files, "/zfsbootmenu");
     let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
     fake.runner.respond("zluks unlock", 1, "");
-    let mut shell = Shell::new(fake.system(), &state);
+    let shell = Shell::new(fake.system(), &state);
     assert_eq!(shell.unlock_late(), Err(BootError::Zluks { status: 1 }));
     let retry = fake.runner.calls().pop().unwrap();
     assert_eq!(retry.display(), "zluks unlock");
     assert_eq!(retry.get_env(), [("LUKS_RETRY".into(), Some("1".into()))]);
     let fake = machine();
-    let mut shell = Shell::new(fake.system(), &state);
+    let shell = Shell::new(fake.system(), &state);
     assert_eq!(shell.unlock_late(), Err(BootError::NoCryptsetup));
     assert!(fake.runner.calls().is_empty());
 }

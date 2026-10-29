@@ -27,7 +27,7 @@ impl Front for Recording {
         self.events.push(event);
     }
 
-    fn recovery(&mut self) -> &mut dyn Recovery {
+    fn recovery(&mut self) -> &dyn Recovery {
         self.asked.push("recovery".to_owned());
         &mut self.recovery
     }

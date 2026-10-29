@@ -85,7 +85,7 @@ impl<'s, 'a> Shell<'s, 'a> {
 impl Recovery for Shell<'_, '_> {
     /// Unlocks LUKS volumes on disks that appeared late: `zluks unlock` as a
     /// retry, which succeeds only if it opened a volume.
-    fn unlock_late(&mut self) -> Result<(), BootError> {
+    fn unlock_late(&self) -> Result<(), BootError> {
         if !self.system.command_exists("cryptsetup") {
             return Err(BootError::NoCryptsetup);
         }
@@ -95,7 +95,7 @@ impl Recovery for Shell<'_, '_> {
     /// The recovery shell: a banner with the message and the errors logged since
     /// the last shell, then an interactive Bash with the default `SIGINT`
     /// action; afterwards, ZFS file systems mounted in it are unmounted.
-    fn emergency_shell(&mut self, message: &str) {
+    fn emergency_shell(&self, message: &str) {
         let system = &self.system;
         tput(system, &["clear"]);
         tput(system, &["cnorm"]);

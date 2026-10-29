@@ -287,7 +287,7 @@ impl<'a> App<'a> {
         &self,
         action: &model::Action,
         console: System<'_>,
-        recovery: &mut dyn Recovery,
+        recovery: &dyn Recovery,
     ) -> Vec<model::Event> {
         let system = console.with_runner(self.context.runner());
         let pools =
@@ -508,11 +508,11 @@ mod tests {
     struct NoShell;
 
     impl Recovery for NoShell {
-        fn unlock_late(&mut self) -> Result<(), zbm_boot::BootError> {
+        fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
             Err(zbm_boot::BootError::NoCryptsetup)
         }
 
-        fn emergency_shell(&mut self, _message: &str) {}
+        fn emergency_shell(&self, _message: &str) {}
     }
 
     #[test]
@@ -536,11 +536,7 @@ mod tests {
         };
 
         assert!(is_done(&app.act_quietly(&take, fake.system())));
-        assert!(is_done(&app.act_on_console(
-            &take,
-            fake.system(),
-            &mut NoShell
-        )));
+        assert!(is_done(&app.act_on_console(&take, fake.system(), &NoShell)));
         let taken = fake
             .runner
             .lines()

@@ -3,26 +3,29 @@ use std::time::Duration;
 
 use pretty_assertions::assert_eq;
 use zbm_config::args::ZbmArgs;
+use zbm_platform::event::{Awaiting, reply};
 use zbm_testkit::Shared;
 use zbm_testkit::fakes::{FakeClock, FakeSystem};
+use zbm_tui::menu::startup::ToView;
 
 use super::*;
 
 mod prompts;
 
-/// How the screen answers the next question.
+/// How the view answers the next question.
 enum Reply {
     /// With this action.
     With(Action),
     /// With this action, after this many seconds.
     Late(u64, Action),
-    /// With what the dialog's check gives, a second passing between checks.
+    /// Not at all: what the question waits for answers it, time passing as
+    /// the stages look at it.
     Check,
     /// The terminal fails.
     Fail,
 }
 
-/// What the screen was shown and did.
+/// What the view was shown and did.
 #[derive(Default)]
 struct Log {
     sent: Vec<Event>,
@@ -30,65 +33,102 @@ struct Log {
     replies: VecDeque<Reply>,
     suspended: usize,
     closed: bool,
+    /// The terminal failed: the view is gone.
+    failed: bool,
+    /// The reply of a question nothing answers, until it is withdrawn.
+    waiting: Option<zbm_platform::event::Reply<Action>>,
+    withdrawn: usize,
 }
 
-/// A start-up screen that answers from a script.
-struct Screen {
-    snapshot: Snapshot,
+/// A view that answers from a script, on the stages' own thread.
+struct Scripted {
     log: Shared<Log>,
     clock: FakeClock,
 }
 
-impl StartupScreen for Screen {
-    fn snapshot(&self) -> &Snapshot {
-        &self.snapshot
-    }
-
-    fn send(&mut self, event: Event) -> io::Result<()> {
-        if let Event::Changed(snapshot) = &event {
-            self.snapshot = snapshot.clone();
+impl ViewLink for Scripted {
+    fn show(&self, event: Event) -> bool {
+        let mut log = self.log.borrow_mut();
+        if !log.failed {
+            log.sent.push(event);
         }
-        self.log.borrow_mut().sent.push(event);
-        Ok(())
+        !log.failed
     }
 
-    fn ask(
-        &mut self,
-        event: &Event,
-        check: &mut dyn FnMut() -> Option<Action>,
-    ) -> io::Result<Action> {
-        let reply = {
+    fn ask(&self, event: Event) -> Option<Awaiting<Action>> {
+        let script = {
             let mut log = self.log.borrow_mut();
             log.asked.push(event.clone());
             log.replies.pop_front()
         };
-        match reply.unwrap_or_else(|| panic!("nothing answers {event:?}")) {
-            Reply::With(action) => Ok(action),
+        let (answer, awaiting) = reply();
+        match script.unwrap_or_else(|| panic!("nothing answers {event:?}")) {
+            Reply::With(action) => answer.send(action),
             Reply::Late(seconds, action) => {
                 self.clock.advance(Duration::from_secs(seconds));
-                Ok(action)
+                answer.send(action);
             }
-            Reply::Check => {
-                for _ in 0..100 {
-                    if let Some(action) = check() {
-                        return Ok(action);
-                    }
-                    self.clock.advance(Duration::from_secs(1));
-                }
-                panic!("the check never answered {event:?}");
+            Reply::Check => self.log.borrow_mut().waiting = Some(answer),
+            Reply::Fail => {
+                self.log.borrow_mut().failed = true;
+                return None;
             }
-            Reply::Fail => Err(io::Error::other("the terminal is gone")),
         }
+        Some(awaiting)
     }
 
-    fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()> {
+    fn withdraw(&self) {
+        let mut log = self.log.borrow_mut();
+        log.waiting = None;
+        log.withdrawn += 1;
+    }
+
+    fn lend(&self) {
         self.log.borrow_mut().suspended += 1;
-        run();
-        Ok(())
     }
 
-    fn close(self: Box<Self>) -> io::Result<()> {
+    fn resume(&self) {}
+
+    fn close(&self) {
         self.log.borrow_mut().closed = true;
+    }
+}
+
+/// The start-up view of [`run_on`], serving the mailbox as the real one
+/// does, its questions answered from the script.
+struct Screen(Shared<Log>);
+
+impl StartupScreen for Screen {
+    fn serve(
+        self: Box<Self>,
+        mailbox: Mailbox<ToView>,
+        running: &dyn Fn() -> bool,
+    ) -> io::Result<()> {
+        while running() {
+            let _ = zbm_sys::wait_readable(&mailbox, Some(Duration::from_millis(10)));
+            for message in mailbox.take() {
+                let mut log = self.0.borrow_mut();
+                match message {
+                    ToView::Show(event) => log.sent.push(*event),
+                    ToView::Ask { event, reply } => {
+                        log.asked.push(*event);
+                        if let Some(Reply::With(action)) = log.replies.pop_front() {
+                            reply.send(action);
+                        }
+                    }
+                    ToView::Lend { ready } => {
+                        log.suspended += 1;
+                        ready.send(());
+                    }
+                    ToView::Withdraw | ToView::Resume => {}
+                    ToView::Close { done } => {
+                        log.closed = true;
+                        done.send(());
+                        return Ok(());
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -130,24 +170,20 @@ impl Seen {
     }
 }
 
-/// A screen on `fake`'s clock, and what a test sees of it.
-fn screen(fake: &FakeSystem) -> (Box<dyn StartupScreen>, Seen) {
+/// The front end on a scripted view of `fake`, and what a test sees of
+/// the view.
+fn front(fake: &FakeSystem) -> (MenuFront<'_>, Seen) {
     let log = Shared::new(Log::default());
-    let screen = Screen {
-        snapshot: Snapshot::default(),
+    let view = Scripted {
         log: log.clone(),
         clock: fake.clock.clone(),
     };
-    (Box::new(screen), Seen(log))
-}
-
-/// The front end on a screen of `fake`.
-fn front(fake: &FakeSystem) -> (MenuFront<'_>, Seen) {
-    let (screen, seen) = screen(fake);
     let state = State::new(&fake.files, "/zfsbootmenu");
     let system = fake.system();
     let luks = Settings::new("/zfsbootmenu");
-    (MenuFront::new(screen, (system, system), state, luks), seen)
+    let link: Box<dyn ViewLink> = Box::new(view);
+    let front = MenuFront::new((link, Snapshot::default()), (system, system), state, luks);
+    (front, Seen(log))
 }
 
 fn asked(question: Question, seconds: Option<u64>) -> Event {
@@ -183,7 +219,7 @@ fn questions_go_on_by_themselves_and_stop_waiting_without_the_view() {
 #[test]
 fn the_import_asks_before_trying_again_and_says_what_it_cannot_import() {
     let fake = FakeSystem::new();
-    let (mut front, seen) = front(&fake);
+    let (front, seen) = front(&fake);
     seen.reply(Reply::With(Action::Answer(Answer::Continue)));
     let pool = "tank".parse::<PoolName>().unwrap();
     let answer = front.retry(Some(&pool), RetryDelay::or_default("3"));
@@ -215,7 +251,7 @@ fn the_console_is_handed_over_until_the_view_closes() {
     front.with_console(&system, &mut |_| ran += 1);
     assert_eq!((ran, seen.suspended()), (1, 1));
 
-    Operator::emergency_shell(&mut front, "unable to import a pool");
+    Operator::emergency_shell(&front, "unable to import a pool");
     assert_eq!(seen.suspended(), 2);
     let banner = fake.console.output_text();
     assert!(banner.contains("emergency shell"));
@@ -230,7 +266,7 @@ fn the_console_is_handed_over_until_the_view_closes() {
     front.finish();
     assert!(seen.is_closed());
     front.finish();
-    Recovery::emergency_shell(&mut front, "no pool");
+    Recovery::emergency_shell(&front, "no pool");
     front.with_console(&system, &mut |_| ran += 1);
     assert_eq!((ran, seen.suspended()), (2, 2));
     front.send(Event::StageStarted("Importing pools".into()));
@@ -241,17 +277,14 @@ fn the_console_is_handed_over_until_the_view_closes() {
 fn late_volumes_are_unlocked_only_with_cryptsetup_and_fail_unless_one_opens() {
     let fake = FakeSystem::new();
     let (mut front, seen) = front(&fake);
-    assert_eq!(
-        Recovery::unlock_late(&mut front),
-        Err(BootError::NoCryptsetup)
-    );
-    assert_eq!(Operator::unlock_late(&mut front), Late::Nothing);
+    assert_eq!(Recovery::unlock_late(&front), Err(BootError::NoCryptsetup));
+    assert_eq!(Operator::unlock_late(&front), Late::Nothing);
     front.unlock_luks(&fake.system());
 
     fake.environment.set("PATH", "/sbin");
     fake.files.file_with_mode("/sbin/cryptsetup", "", 0o755);
     assert_eq!(
-        Recovery::unlock_late(&mut front),
+        Recovery::unlock_late(&front),
         Err(BootError::Zluks { status: 1 })
     );
     front.unlock_luks(&fake.system());
@@ -287,11 +320,12 @@ fn machine() -> FakeSystem {
 fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let fake = machine();
     let startup = Startup::new(fake.system(), &conf());
-    let (screen, seen) = screen(&fake);
-    let screen = std::cell::RefCell::new(Some(screen));
+    let log = Shared::new(Log::default());
+    let seen = Seen(log.clone());
+    let screen = std::cell::RefCell::new(Some(Screen(log)));
     let open = |snapshot: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> {
         assert_eq!(snapshot.startup, stages());
-        Ok(screen.take().expect("one view"))
+        Ok(Box::new(screen.take().expect("one view")))
     };
     let theme = Theme::new(Capabilities::FULL);
     let modes = (Modes::default(), Some(0));

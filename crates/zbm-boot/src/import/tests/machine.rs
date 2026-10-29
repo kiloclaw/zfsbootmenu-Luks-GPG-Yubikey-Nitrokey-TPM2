@@ -359,11 +359,11 @@ impl Scenario {
         let _log = KernelLog::new(&files, "7", &dir.join("base"), 1)
             .with_device(&kmsg)
             .install();
-        let mut recovery = Shell {
+        let recovery = Shell {
             dir: dir.path().to_path_buf(),
-            shells: 0,
+            shells: std::sync::atomic::AtomicUsize::new(0),
         };
-        let imported = stage(&system, &state, &self.settings.import(), &mut recovery);
+        let imported = stage(&system, &state, &self.settings.import(), &recovery);
         let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
         // The marker files of warnings and errors are the Rust log's own.
         let _ = std::fs::remove_file(dir.join("base/have_errors"));
@@ -386,17 +386,20 @@ impl Scenario {
 /// The recovery shell of the Rust runs: the scenario's shell code.
 struct Shell {
     dir: PathBuf,
-    shells: usize,
+    shells: std::sync::atomic::AtomicUsize,
 }
 
 impl Recovery for Shell {
-    fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
+    fn unlock_late(&self) -> Result<(), crate::error::BootError> {
         Err(crate::error::BootError::NoCryptsetup)
     }
 
-    fn emergency_shell(&mut self, message: &str) {
-        self.shells += 1;
-        assert!(self.shells <= 3, "too many recovery shells");
+    fn emergency_shell(&self, message: &str) {
+        let shells = self
+            .shells
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        assert!(shells <= 3, "too many recovery shells");
         let shells = self.dir.join("shells");
         let mut text = std::fs::read_to_string(&shells).unwrap_or_default();
         text.push_str(message);

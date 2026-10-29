@@ -167,11 +167,11 @@ pub fn run_steps(steps: &[Box<dyn Step + '_>], context: &mut StepContext<'_, '_>
 pub struct NoRecovery;
 
 impl Recovery for NoRecovery {
-    fn unlock_late(&mut self) -> Result<(), BootError> {
+    fn unlock_late(&self) -> Result<(), BootError> {
         Err(BootError::NoCryptsetup)
     }
 
-    fn emergency_shell(&mut self, message: &str) {
+    fn emergency_shell(&self, message: &str) {
         zbm_trace::error!("no recovery shell for: {what}"; what = %message);
     }
 }

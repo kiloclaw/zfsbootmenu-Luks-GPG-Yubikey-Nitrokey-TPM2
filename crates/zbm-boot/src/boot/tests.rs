@@ -2,7 +2,6 @@
 //! legacy runtime on a fake machine, and the mount and pool helpers.
 
 use super::*;
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use zbm_platform::exec::{Command, Stream};
 use zbm_platform::{Installed, KernelLog, Runner, System};
@@ -249,7 +248,7 @@ impl Machine {
             .iter()
             .filter(|line| *line == "tput civis")
             .count();
-        let shells = shells.messages.borrow().concat();
+        let shells = shells.messages.lock().unwrap().concat();
         Machine::outcome(&dir, &log, &shells, prompts, &result)
     }
 }
@@ -257,16 +256,16 @@ impl Machine {
 /// Records the recovery shells the Rust code opens.
 #[derive(Default)]
 struct Shells {
-    messages: RefCell<Vec<String>>,
+    messages: std::sync::Mutex<Vec<String>>,
 }
 
 impl Recovery for Shells {
-    fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
+    fn unlock_late(&self) -> Result<(), crate::error::BootError> {
         Err(crate::error::BootError::NoCryptsetup)
     }
 
-    fn emergency_shell(&mut self, message: &str) {
-        self.messages.borrow_mut().push(format!("{message}\n"));
+    fn emergency_shell(&self, message: &str) {
+        self.messages.lock().unwrap().push(format!("{message}\n"));
     }
 }
 

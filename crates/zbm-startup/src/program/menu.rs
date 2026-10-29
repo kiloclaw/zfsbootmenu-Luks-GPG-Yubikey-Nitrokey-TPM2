@@ -37,7 +37,7 @@ pub fn has_menu(system: &System<'_>) -> bool {
 pub trait Menu {
     /// Runs the menu until it ends: it boots with `settings`, and opens the
     /// recovery shell with `recovery`.
-    fn show(&mut self, settings: &BootSettings, recovery: &mut dyn Recovery);
+    fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery);
 }
 
 impl Startup<'_> {
@@ -98,7 +98,7 @@ impl Startup<'_> {
             command_line: None,
             import_policy: self.options.import_policy,
         };
-        menu.show(&settings, &mut self.shell());
+        menu.show(&settings, &self.shell());
         0
     }
 

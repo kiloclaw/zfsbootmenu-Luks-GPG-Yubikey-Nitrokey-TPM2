@@ -53,6 +53,7 @@ mod ere;
 mod error;
 mod filesystem;
 mod hostid;
+pub mod interaction;
 mod mapping;
 pub mod number;
 mod policy;

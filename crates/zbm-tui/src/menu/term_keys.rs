@@ -457,14 +457,15 @@ impl TerminalKeys {
     }
 }
 
-impl TerminalKeys {
+impl Keys for TerminalKeys {
+    /// The next key press, waiting at most `timeout` for it.
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
+        self.key_or_wake(timeout, None)
+    }
+
     /// The next key press, waiting at most `timeout` for it, and no longer
     /// once `wake` is readable, as when the machine sent something.
-    ///
-    /// # Errors
-    ///
-    /// When the input cannot be read, or ended.
-    pub fn key_or_wake(
+    fn key_or_wake(
         &mut self,
         timeout: Duration,
         wake: Option<BorrowedFd<'_>>,
@@ -478,13 +479,6 @@ impl TerminalKeys {
             self.next += 1;
         }
         Ok(key)
-    }
-}
-
-impl Keys for TerminalKeys {
-    /// The next key press, waiting at most `timeout` for it.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
-        self.key_or_wake(timeout, None)
     }
 
     /// Ends raw mode; what was typed and not used is dropped.

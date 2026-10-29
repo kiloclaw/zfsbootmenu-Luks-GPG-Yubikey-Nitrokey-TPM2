@@ -111,7 +111,7 @@ pub fn kexec_kernel(
     state: &State<'_>,
     settings: &BootSettings,
     selected: &Kernel,
-    recovery: &mut dyn Recovery,
+    recovery: &dyn Recovery,
 ) {
     if !names_a_kernel(selected) {
         return;

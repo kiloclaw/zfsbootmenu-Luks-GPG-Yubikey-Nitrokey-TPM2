@@ -1,14 +1,19 @@
 //! Start-up on a terminal (ROADMAP.md, R5 step 4): the start-up
 //! view, drawn as the stages run, and the dialogs of what start-up asks.
 //!
-//! Start-up runs its stages itself, one after another, and shows their
-//! events with [`StartupView::send`]. When it needs an answer, it asks
-//! [`StartupView::ask`], which shows the dialog and reads keys until the
-//! dialog gives one: start-up waits for it, as it waits at a console
-//! prompt. The view never draws the main view; the menu does, once start-up
-//! is over.
+//! Start-up runs its stages on a worker, one after another, and sends
+//! their events and questions to the view ([`link`]), which
+//! [`StartupView::serve`] takes on the thread that owns the terminal. A
+//! question opens its dialog ([`StartupView::ask`]), which reads keys until
+//! it gives an answer, sent back on the question's reply: start-up waits
+//! for it, as it waits at a console prompt. The view never draws the main
+//! view; the menu does, once start-up is over.
 
+pub mod link;
+
+use std::collections::VecDeque;
 use std::io;
+use std::os::fd::{AsFd as _, BorrowedFd};
 use std::time::Duration;
 
 use ratatui::Terminal;
@@ -16,6 +21,8 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Position, Rect, Size};
 use zbm_display::keys::KeyPress;
 use zbm_platform::clock::{Clock, SystemClock};
+use zbm_platform::event::Mailbox;
+use zbm_types::Answer;
 
 use super::model::Model;
 use super::secret::{Marker, is_asking_secret};
@@ -24,6 +31,7 @@ use super::update::{Message, update};
 use super::view::view;
 use super::world::{Action, Event, Snapshot};
 use crate::quiet::QuietBackend;
+pub use link::{MailLink, ToView, ViewLink};
 
 /// How long the view waits for a key before time passes for its dialog.
 pub const TICK: Duration = Duration::from_millis(200);
@@ -36,6 +44,21 @@ pub trait Keys {
     ///
     /// When the terminal cannot be read.
     fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>>;
+
+    /// As [`Keys::key`], and no longer once `wake` is readable, as when a
+    /// message came: then `None`. Keys that come at once ignore it.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be read.
+    fn key_or_wake(
+        &mut self,
+        timeout: Duration,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> io::Result<Option<KeyPress>> {
+        let _ = wake;
+        self.key(timeout)
+    }
 
     /// Gives the terminal back to programs, as it was before the view.
     ///
@@ -72,43 +95,19 @@ impl<B: Backend> Resize for QuietBackend<B> {
 
 /// The start-up view, as start-up's front end uses it: on a terminal
 /// ([`StartupView`]), or scripted in tests.
-pub trait StartupScreen: Send {
-    /// The machine as the view shows it.
-    fn snapshot(&self) -> &Snapshot;
-
-    /// Shows `event`: a stage started or ended, a volume opened, what
-    /// start-up is doing.
+pub trait StartupScreen {
+    /// Serves start-up's stages, which send to `mailbox` from their thread,
+    /// until they close the view or `running` says they ended
+    /// ([`StartupView::serve`]).
     ///
     /// # Errors
     ///
-    /// When the terminal cannot be drawn on.
-    fn send(&mut self, event: Event) -> io::Result<()>;
-
-    /// Shows the dialog `event` opens, and returns its answer
-    /// ([`StartupView::ask`]).
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be read or drawn on.
-    fn ask(
-        &mut self,
-        event: &Event,
-        check: &mut dyn FnMut() -> Option<Action>,
-    ) -> io::Result<Action>;
-
-    /// Hands the terminal over to `run`, then draws the view again.
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be handed over or drawn on again.
-    fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()>;
-
-    /// Ends the view.
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be given back.
-    fn close(self: Box<Self>) -> io::Result<()>;
+    /// When the terminal cannot be read or drawn on: the view is gone.
+    fn serve(
+        self: Box<Self>,
+        mailbox: Mailbox<ToView>,
+        running: &dyn Fn() -> bool,
+    ) -> io::Result<()>;
 }
 
 /// The start-up view on a terminal.
@@ -262,6 +261,17 @@ where
         event: &Event,
         check: &mut dyn FnMut() -> Option<Action>,
     ) -> io::Result<Action> {
+        self.ask_waking(event, check, None)
+    }
+
+    /// [`StartupView::ask`], reading keys no longer than until `wake` is
+    /// readable, so that `check` sees what came at once.
+    fn ask_waking(
+        &mut self,
+        event: &Event,
+        check: &mut dyn FnMut() -> Option<Action>,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> io::Result<Action> {
         let _ = self.step(Message::Event(Box::new(event.clone())));
         let mut last_tick = self.clock.now();
         loop {
@@ -269,7 +279,7 @@ where
             // A read can end before the tick with no key, as noise on a
             // serial line does: the dialog's time is the time that passed.
             let passed = self.clock.now().saturating_sub(last_tick);
-            let mut answers = match self.keys.key(TICK.saturating_sub(passed))? {
+            let mut answers = match self.keys.key_or_wake(TICK.saturating_sub(passed), wake)? {
                 Some(key) => self.step(Message::Key(key)),
                 None => Vec::new(),
             };
@@ -332,34 +342,107 @@ where
     pub fn close(mut self) -> io::Result<()> {
         self.give_back()
     }
+
+    /// Serves start-up's stages, which send their events and questions to
+    /// `mailbox` from their thread, until they close the view, or `running`
+    /// says they ended. A question opens its dialog, whose answer goes back
+    /// on its reply; one withdrawn closes it, unanswered. The view gives the
+    /// terminal back before it returns, and the mailbox, dropped, tells the
+    /// stages that nothing will answer any more.
+    ///
+    /// # Errors
+    ///
+    /// When the terminal cannot be read or drawn on.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the mailbox is dropped when the view ends, which tells the stages"
+    )]
+    pub fn serve(mut self, mailbox: Mailbox<ToView>, running: &dyn Fn() -> bool) -> io::Result<()> {
+        let mut queue: VecDeque<ToView> = VecDeque::new();
+        loop {
+            if queue.is_empty() {
+                let _ = zbm_sys::wait_readable(mailbox.as_fd(), Some(TICK));
+                queue.extend(mailbox.take());
+            }
+            let Some(message) = queue.pop_front() else {
+                if !running() {
+                    return self.give_back();
+                }
+                self.draw()?;
+                continue;
+            };
+            match message {
+                ToView::Show(event) => self.send(*event)?,
+                ToView::Ask { event, reply } => {
+                    let mut withdrawn = || is_withdrawn(&mailbox, &mut queue);
+                    let answer = self.ask_waking(&event, &mut withdrawn, Some(mailbox.as_fd()))?;
+                    // A withdrawn question's answer goes to nobody.
+                    reply.send(answer);
+                }
+                ToView::Withdraw | ToView::Resume => {}
+                ToView::Lend { ready } => {
+                    let mut ready = Some(ready);
+                    self.suspend(&mut || {
+                        if let Some(ready) = ready.take() {
+                            ready.send(());
+                        }
+                        resumed(&mailbox, &mut queue, running);
+                    })?;
+                }
+                ToView::Close { done } => {
+                    self.give_back()?;
+                    done.send(());
+                    return Ok(());
+                }
+            }
+        }
+    }
 }
 
-impl<B: Resize + Send, K: Keys + Send> StartupScreen for StartupView<B, K>
+/// Whether the question asked last was withdrawn: what came is queued, but
+/// for the withdrawal, which the stages send while they wait for it, before
+/// they ask anything else.
+fn is_withdrawn(mailbox: &Mailbox<ToView>, queue: &mut VecDeque<ToView>) -> Option<Action> {
+    queue.extend(mailbox.take());
+    let at = queue
+        .iter()
+        .position(|message| matches!(message, ToView::Withdraw | ToView::Ask { .. }))?;
+    if !matches!(queue.get(at), Some(ToView::Withdraw)) {
+        return None;
+    }
+    queue.remove(at);
+    Some(Action::Answer(Answer::Escape))
+}
+
+/// Waits until the stages take the terminal back, or end; what else came
+/// meanwhile stays queued.
+fn resumed(mailbox: &Mailbox<ToView>, queue: &mut VecDeque<ToView>, running: &dyn Fn() -> bool) {
+    loop {
+        queue.extend(mailbox.take());
+        if let Some(at) = queue
+            .iter()
+            .position(|message| matches!(message, ToView::Resume))
+        {
+            queue.remove(at);
+            return;
+        }
+        if !running() {
+            return;
+        }
+        let _ = zbm_sys::wait_readable(mailbox.as_fd(), Some(TICK));
+    }
+}
+
+impl<B: Resize, K: Keys> StartupScreen for StartupView<B, K>
 where
     B::Error: Send + Sync + 'static,
 {
-    fn snapshot(&self) -> &Snapshot {
-        &self.model().snapshot
-    }
-
-    fn send(&mut self, event: Event) -> io::Result<()> {
-        StartupView::send(self, event)
-    }
-
-    fn ask(
-        &mut self,
-        event: &Event,
-        check: &mut dyn FnMut() -> Option<Action>,
-    ) -> io::Result<Action> {
-        StartupView::ask(self, event, check)
-    }
-
-    fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()> {
-        StartupView::suspend(self, run)
-    }
-
-    fn close(self: Box<Self>) -> io::Result<()> {
-        StartupView::close(*self)
+    fn serve(
+        self: Box<Self>,
+        mailbox: Mailbox<ToView>,
+        running: &dyn Fn() -> bool,
+    ) -> io::Result<()> {
+        StartupView::serve(*self, mailbox, running)
     }
 }
 

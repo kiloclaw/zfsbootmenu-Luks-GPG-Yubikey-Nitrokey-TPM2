@@ -64,15 +64,15 @@ fn actions_that_take_the_console_wait_for_the_front_end() {
 
 /// A recovery that counts its shells.
 #[derive(Default)]
-struct Shells(usize);
+struct Shells(std::sync::atomic::AtomicUsize);
 
 impl Recovery for Shells {
-    fn unlock_late(&mut self) -> Result<(), BootError> {
+    fn unlock_late(&self) -> Result<(), BootError> {
         Err(BootError::NoCryptsetup)
     }
 
-    fn emergency_shell(&mut self, _message: &str) {
-        self.0 += 1;
+    fn emergency_shell(&self, _message: &str) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -88,11 +88,10 @@ fn fake() -> FakeSystem {
 fn the_real_machine_opens_the_menu_and_reads_itself_again_after_an_action() {
     let fake = fake();
     let app = App::new(Context::new(fake.system()));
-    let mut shells = Shells::default();
+    let shells = Shells::default();
     let stopped = Cell::new(false);
     let stop = || stopped.get();
-    let mut machine =
-        RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run).unwrap();
+    let mut machine = RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run).unwrap();
     assert_eq!(machine.snapshot().timeout, Timeout::Wait);
     assert!(matches!(machine.tick().as_slice(), [Event::Changed(_)]));
     assert!(machine.tick().is_empty());
@@ -124,7 +123,7 @@ fn the_real_machine_opens_the_menu_and_reads_itself_again_after_an_action() {
         Some(Event::Leaving(_))
     ));
     drop(machine);
-    assert_eq!(shells.0, 0);
+    assert_eq!(shells.0.into_inner(), 0);
 }
 
 #[test]
@@ -133,9 +132,9 @@ fn a_machine_that_cannot_be_read_is_an_error() {
     fake.runner.respond_program("zpool", 1, "");
     fake.runner.respond_program("zfs", 1, "");
     let app = App::new(Context::new(fake.system()));
-    let mut shells = Shells::default();
+    let shells = Shells::default();
     let stop = || false;
-    assert!(RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run).is_err());
+    assert!(RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run).is_err());
 }
 
 /// The demo machine, on which taking a snapshot runs for a minute of ticks
@@ -261,12 +260,12 @@ fn with_a_service_the_real_machine_performs_quiet_actions_on_its_worker() {
     let app = App::new(Context::new(fake.system()))
         .with_base(std::path::Path::new("/zfsbootmenu"))
         .with_boot(&settings);
-    let mut shells = Shells::default();
+    let shells = Shells::default();
     let stop = || false;
     let service = zbm_app::service::MachineService::new(app, fake.system());
 
     let events = std::thread::scope(|scope| {
-        let machine = RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run)
+        let machine = RealMachine::new(app, fake.system(), &shells, &stop, Countdown::Run)
             .unwrap()
             .with_service(service.start(scope).unwrap());
         let mut machine = machine;

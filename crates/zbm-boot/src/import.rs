@@ -18,18 +18,18 @@ use crate::recovery::Recovery;
 /// program, and its recovery shell and late LUKS unlocking.
 pub struct Prompts<'s, 'a> {
     system: &'s System<'a>,
-    recovery: &'s mut dyn Recovery,
+    recovery: &'s dyn Recovery,
 }
 
 impl<'s, 'a> Prompts<'s, 'a> {
     /// The prompts of `system`, with `recovery`.
-    pub fn new(system: &'s System<'a>, recovery: &'s mut dyn Recovery) -> Prompts<'s, 'a> {
+    pub fn new(system: &'s System<'a>, recovery: &'s dyn Recovery) -> Prompts<'s, 'a> {
         Prompts { system, recovery }
     }
 }
 
 impl Operator for Prompts<'_, '_> {
-    fn unlock_late(&mut self) -> Late {
+    fn unlock_late(&self) -> Late {
         if self.recovery.unlock_late().is_ok() {
             Late::Unlocked
         } else {
@@ -37,7 +37,7 @@ impl Operator for Prompts<'_, '_> {
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
+    fn retry(&self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
         let pool = colorize("magenta", target.map_or("pool", PoolName::as_str));
         TimedPrompt::new()
             .delay(retry_delay(delay))
@@ -50,14 +50,14 @@ impl Operator for Prompts<'_, '_> {
             .run(self.system)
     }
 
-    fn unsupported_features(&mut self, advice: &str) {
+    fn unsupported_features(&self, advice: &str) {
         TimedPrompt::new()
             .message(colorize("red", "Unsupported features detected"))
             .message(colorize("red", advice))
             .run(self.system);
     }
 
-    fn emergency_shell(&mut self, message: &str) {
+    fn emergency_shell(&self, message: &str) {
         self.recovery.emergency_shell(message);
     }
 }
@@ -68,15 +68,10 @@ pub fn stage(
     system: &System<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
-    recovery: &mut dyn Recovery,
+    recovery: &dyn Recovery,
 ) -> Imported {
     let context = Context::new(*system);
-    zbm_pool::stage(
-        &context,
-        state,
-        settings,
-        &mut Prompts::new(system, recovery),
-    )
+    zbm_pool::stage(&context, state, settings, &Prompts::new(system, recovery))
 }
 
 #[cfg(test)]

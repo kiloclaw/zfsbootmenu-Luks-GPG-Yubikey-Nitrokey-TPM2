@@ -34,7 +34,7 @@ fn merged(run: std::io::Result<zbm_platform::Output>) -> (bool, String) {
 /// not be loaded.
 pub fn stage(
     runner: &dyn Runner,
-    recovery: &mut dyn Recovery,
+    recovery: &dyn Recovery,
 ) -> std::result::Result<(), StartupError> {
     let loaded = load(runner);
     if let Err(error) = &loaded {
@@ -82,15 +82,15 @@ mod tests {
 
     /// Records the recovery shells.
     #[derive(Default)]
-    struct Shells(Vec<String>);
+    struct Shells(std::sync::Mutex<Vec<String>>);
 
     impl Recovery for Shells {
-        fn unlock_late(&mut self) -> std::result::Result<(), zbm_boot::error::BootError> {
+        fn unlock_late(&self) -> std::result::Result<(), zbm_boot::error::BootError> {
             Err(zbm_boot::error::BootError::NoCryptsetup)
         }
 
-        fn emergency_shell(&mut self, message: &str) {
-            self.0.push(message.to_owned());
+        fn emergency_shell(&self, message: &str) {
+            self.0.lock().unwrap().push(message.to_owned());
         }
     }
 
@@ -103,7 +103,7 @@ mod tests {
     fn loads_spl_and_zfs() {
         let fake = FakeSystem::new();
         let _log = log(&fake);
-        assert!(stage(&fake.runner, &mut Shells::default()).is_ok());
+        assert!(stage(&fake.runner, &Shells::default()).is_ok());
         assert_eq!(
             fake.runner.lines(),
             ["modprobe spl", "modprobe zfs", "udevadm settle"]
@@ -128,7 +128,7 @@ mod tests {
             1,
             "insmod: File exists\n",
         );
-        assert!(stage(&fake.runner, &mut Shells::default()).is_ok());
+        assert!(stage(&fake.runner, &Shells::default()).is_ok());
         assert_eq!(
             fake.runner.lines(),
             [
@@ -148,7 +148,7 @@ mod tests {
         // Without a file name, ZFS is loaded at once.
         let fake = FakeSystem::new();
         fake.runner.respond("modprobe spl", 1, "");
-        assert!(stage(&fake.runner, &mut Shells::default()).is_ok());
+        assert!(stage(&fake.runner, &Shells::default()).is_ok());
         assert_eq!(
             fake.runner.lines(),
             [
@@ -166,9 +166,12 @@ mod tests {
         let _log = log(&fake);
         fake.runner
             .respond("modprobe zfs", 1, "modprobe: FATAL: Module zfs not found\n");
-        let mut shells = Shells::default();
-        let error = stage(&fake.runner, &mut shells).unwrap_err();
-        assert_eq!(shells.0, ["unable to load ZFS kernel modules"]);
+        let shells = Shells::default();
+        let error = stage(&fake.runner, &shells).unwrap_err();
+        assert_eq!(
+            *shells.0.lock().unwrap(),
+            ["unable to load ZFS kernel modules"]
+        );
         assert_eq!(
             zbm_types::code::report(&error),
             "ZBM-E0704: the kernel modules stage failed: unable to load ZFS kernel modules"

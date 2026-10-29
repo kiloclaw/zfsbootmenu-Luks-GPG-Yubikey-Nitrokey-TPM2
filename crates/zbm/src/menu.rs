@@ -64,7 +64,7 @@ fn is_taken_over(received: SignalSet) -> bool {
 }
 
 impl Menu for Terminal<'_, '_> {
-    fn show(&mut self, settings: &BootSettings, recovery: &mut dyn Recovery) {
+    fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
         let app = App::new(Context::new(self.system))
             .with_options(self.options)
             .with_base(self.base)

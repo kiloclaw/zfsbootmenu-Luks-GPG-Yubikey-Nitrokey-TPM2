@@ -10,18 +10,18 @@ use zbm_types::ImportPolicy;
 mod machine;
 
 /// Recovery whose late unlocking opens a volume once.
-struct OpensOnce(bool);
+struct OpensOnce(std::sync::atomic::AtomicBool);
 
 impl crate::recovery::Recovery for OpensOnce {
-    fn unlock_late(&mut self) -> Result<(), crate::error::BootError> {
-        if std::mem::take(&mut self.0) {
+    fn unlock_late(&self) -> Result<(), crate::error::BootError> {
+        if self.0.swap(false, std::sync::atomic::Ordering::Relaxed) {
             Ok(())
         } else {
             Err(crate::error::BootError::NoCryptsetup)
         }
     }
 
-    fn emergency_shell(&mut self, _message: &str) {}
+    fn emergency_shell(&self, _message: &str) {}
 }
 
 #[test]
@@ -29,8 +29,8 @@ fn the_operator_reports_late_volumes() {
     use zbm_pool::{Late, Operator};
     let fake = zbm_testkit::fakes::FakeSystem::new();
     let system = fake.system();
-    let mut recovery = OpensOnce(true);
-    let mut prompts = super::Prompts::new(&system, &mut recovery);
+    let recovery = OpensOnce(std::sync::atomic::AtomicBool::new(true));
+    let prompts = super::Prompts::new(&system, &recovery);
     assert_eq!(prompts.unlock_late(), Late::Unlocked);
     assert_eq!(prompts.unlock_late(), Late::Nothing);
 }

@@ -117,6 +117,14 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   that take the console run on the menu's thread once the service is idle. The test of "How it is checked" runs on
   the demo machine, whose snapshot takes a minute of ticks.
 
+- **PM8**, second part (29 October 2026): start-up's stages run on a worker of the start-up program, and the
+  start-up view on the thread that owns the terminal. A question to the person is a request with a one-shot reply
+  (`zbm_platform::event::reply`); what else may answer it, a device or another program, is looked at by the stage,
+  which withdraws the question when it comes first. The view's dialog still reads keys until it answers, but that
+  loop is the view's own, not a stage's. The questions and answers that borrow nothing are types of `zbm-types`
+  (`zbm_types::interaction`). `Operator` and `Recovery` take `&self` and are `Send + Sync`, as `Interaction` is;
+  folding them into it waits for the one front end of PM9 and UI3.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

@@ -17,40 +17,43 @@ use crate::import::tests::log;
 struct FakeOperator {
     /// The calls of `unlock_late` that open a volume, from 1.
     opens: Vec<usize>,
-    unlocks: usize,
+    unlocks: Shared<usize>,
     /// The answers to the retry prompts, in order; then RETURN.
-    answers: Vec<Answer>,
-    prompts: Vec<String>,
-    warnings: Vec<String>,
-    shells: Vec<String>,
+    answers: Shared<Vec<Answer>>,
+    prompts: Shared<Vec<String>>,
+    warnings: Shared<Vec<String>>,
+    shells: Shared<Vec<String>>,
 }
 
 impl Operator for FakeOperator {
-    fn unlock_late(&mut self) -> Late {
-        self.unlocks += 1;
-        if self.opens.contains(&self.unlocks) {
+    fn unlock_late(&self) -> Late {
+        *self.unlocks.borrow_mut() += 1;
+        if self.opens.contains(&self.unlocks.get()) {
             Late::Unlocked
         } else {
             Late::Nothing
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
+    fn retry(&self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
         let target = target.map_or("pool", PoolName::as_str);
-        self.prompts.push(format!("{target} {}", delay.seconds()));
-        if self.answers.is_empty() {
+        self.prompts
+            .borrow_mut()
+            .push(format!("{target} {}", delay.seconds()));
+        let mut answers = self.answers.borrow_mut();
+        if answers.is_empty() {
             Answer::Continue
         } else {
-            self.answers.remove(0)
+            answers.remove(0)
         }
     }
 
-    fn unsupported_features(&mut self, advice: &str) {
-        self.warnings.push(advice.to_owned());
+    fn unsupported_features(&self, advice: &str) {
+        self.warnings.borrow_mut().push(advice.to_owned());
     }
 
-    fn emergency_shell(&mut self, message: &str) {
-        self.shells.push(message.to_owned());
+    fn emergency_shell(&self, message: &str) {
+        self.shells.borrow_mut().push(message.to_owned());
     }
 }
 
@@ -91,13 +94,13 @@ fn late_luks_volumes_are_unlocked_before_retrying() {
     // The first failure finds a volume at once (call 1); the retry finds none
     // before importing (2), nor does the second failure (3), so the prompt
     // comes; the retry after it finds one before importing (4).
-    let mut operator = FakeOperator {
+    let operator = FakeOperator {
         opens: vec![1, 4],
         ..FakeOperator::default()
     };
-    stage(&fake.context(), &state, &strict(), &mut operator);
-    assert_eq!(operator.unlocks, 4);
-    assert_eq!(operator.prompts, ["pool 5"]);
+    stage(&fake.context(), &state, &strict(), &operator);
+    assert_eq!(operator.unlocks.get(), 4);
+    assert_eq!(operator.prompts.get(), ["pool 5"]);
     assert_eq!(
         info_lines(&fake),
         [
@@ -115,8 +118,8 @@ fn escape_opens_the_recovery_shell_after_logging_unavailable_pools() {
     let _log = log(&fake);
     pool_after(&fake, "tank\n", 2);
     let state = State::new(&fake.files, "/zfsbootmenu");
-    let mut operator = FakeOperator {
-        answers: vec![Answer::Escape],
+    let operator = FakeOperator {
+        answers: Shared::new(vec![Answer::Escape]),
         ..FakeOperator::default()
     };
     let settings = ImportSettings {
@@ -125,9 +128,12 @@ fn escape_opens_the_recovery_shell_after_logging_unavailable_pools() {
         retry_delay: RetryDelay::or_default("2"),
         ..strict()
     };
-    stage(&fake.context(), &state, &settings, &mut operator);
-    assert_eq!(operator.prompts, ["tank 2"]);
-    assert_eq!(operator.shells, ["unable to successfully import a pool"]);
+    stage(&fake.context(), &state, &settings, &operator);
+    assert_eq!(operator.prompts.get(), ["tank 2"]);
+    assert_eq!(
+        operator.shells.get(),
+        ["unable to successfully import a pool"]
+    );
     assert!(fake.runner.lines().contains(&"zpool import".to_owned()));
 }
 
@@ -158,12 +164,7 @@ fn host_id_matching_records_the_host_id() {
         policy: ImportPolicy::Hostid,
         ..ImportSettings::default()
     };
-    let imported = stage(
-        &fake.context(),
-        &state,
-        &settings,
-        &mut FakeOperator::default(),
-    );
+    let imported = stage(&fake.context(), &state, &settings, &FakeOperator::default());
     assert_eq!(
         imported.spl_hostid.as_ref().map(HostId::as_str),
         Some("deadbeef")
@@ -193,10 +194,10 @@ fn unhealthy_and_unsupported_pools_are_restricted() {
     let state = State::new(&fake.files, "/zfsbootmenu");
     for build in [Build::Local, Build::Release] {
         let settings = ImportSettings { build, ..strict() };
-        let mut operator = FakeOperator::default();
-        let imported = stage(&fake.context(), &state, &settings, &mut operator);
+        let operator = FakeOperator::default();
+        let imported = stage(&fake.context(), &state, &settings, &operator);
         assert_eq!(imported.bootfs.unwrap().as_str(), "tank/ROOT/a");
-        assert_eq!(operator.warnings.len(), 1);
+        assert_eq!(operator.warnings.borrow().len(), 1);
     }
     assert!(state.is_degraded("data"));
     assert!(state.is_degraded("tank"));

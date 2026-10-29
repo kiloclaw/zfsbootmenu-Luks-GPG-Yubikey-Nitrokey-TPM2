@@ -32,22 +32,22 @@ pub enum Late {
 }
 
 /// What the import stage needs from the program that runs it.
-pub trait Operator {
+pub trait Operator: Send + Sync {
     /// Unlocks LUKS volumes on disks that appeared since the last unlock.
-    fn unlock_late(&mut self) -> Late;
+    fn unlock_late(&self) -> Late;
 
     /// Says that `target` (every pool when `None`) cannot be imported and
     /// counts down `delay`: [`Answer::Continue`] retries, [`Answer::Escape`]
     /// opens the recovery shell.
-    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer;
+    fn retry(&self, target: Option<&PoolName>, delay: RetryDelay) -> Answer;
 
     /// Warns that a pool has features this ZFS does not support, with what
     /// to do about it.
-    fn unsupported_features(&mut self, advice: &str);
+    fn unsupported_features(&self, advice: &str);
 
     /// Opens the recovery shell with `message`; the stage carries on when it
     /// ends.
-    fn emergency_shell(&mut self, message: &str);
+    fn emergency_shell(&self, message: &str);
 }
 
 /// What the stage found.
@@ -64,7 +64,7 @@ pub fn stage(
     context: &Context<'_>,
     state: &State<'_>,
     settings: &ImportSettings,
-    operator: &mut dyn Operator,
+    operator: &dyn Operator,
 ) -> Imported {
     let mut imported = Imported::default();
     let mut retry = ImportLoop::new(settings);
@@ -147,7 +147,7 @@ fn failed(
     context: &Context<'_>,
     settings: &ImportSettings,
     retry: &ImportLoop,
-    operator: &mut dyn Operator,
+    operator: &dyn Operator,
     attempt: u64,
 ) {
     zbm_trace::info!("unable to import a pool on attempt {attempt}"; %attempt);
@@ -182,7 +182,7 @@ fn check_unsupported(
     runner: &dyn Runner,
     state: &State<'_>,
     settings: &ImportSettings,
-    operator: &mut dyn Operator,
+    operator: &dyn Operator,
 ) {
     let get = ZfsText::new(runner).pool_properties(Stderr::Console);
     let mut found = Found::Nothing;

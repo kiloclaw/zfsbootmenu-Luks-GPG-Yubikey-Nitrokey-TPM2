@@ -532,6 +532,8 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - The menu no longer freezes while it takes a snapshot, rolls back, clones or reads differences: the work runs on a
   thread of its own, the menu says how long it has run, and Escape cancels it. The program it waits for is killed,
   and nothing more starts; what was done before stays.
+- Start-up's view keeps drawing while a stage works, such as a slow pool import: the stages run on a thread of their
+  own, and ask the view their questions.
 
 ### The supervisor as one event loop (phase 2)
 

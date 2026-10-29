@@ -3,7 +3,8 @@
 //! input, among them the [`Mailbox`] through which its workers, started
 //! with [`spawn_traced`], send back what they did. Long work can be
 //! cancelled ([`CancelToken`]), and parallel work is bounded in threads
-//! ([`WorkPool`]) and in memory ([`MemoryBudget`]).
+//! ([`WorkPool`]) and in memory ([`MemoryBudget`]). A worker that asks the
+//! person waits for a one-shot [`Reply`].
 //!
 //! [ADR 0001]: ../../../docs/dev/adr/0001-process-model.md
 
@@ -12,6 +13,7 @@ mod cancel;
 mod mailbox;
 mod pool;
 pub(crate) mod reactor;
+mod reply;
 mod spawn;
 
 pub use budget::{MemoryBudget, Permit};
@@ -19,4 +21,5 @@ pub use cancel::{CancelToken, Cancelled};
 pub use mailbox::{MAILBOX_BOUND, MailSender, Mailbox};
 pub use pool::WorkPool;
 pub use reactor::{Reactor, Wake};
+pub use reply::{Awaiting, NoAnswer, Reply, reply};
 pub use spawn::{spawn_scoped_traced, spawn_traced};

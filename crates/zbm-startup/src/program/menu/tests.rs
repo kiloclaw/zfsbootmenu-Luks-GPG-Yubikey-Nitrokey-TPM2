@@ -18,7 +18,7 @@ struct Recorded {
 }
 
 impl Menu for Recorded {
-    fn show(&mut self, settings: &BootSettings, recovery: &mut dyn Recovery) {
+    fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
         self.shown.push(settings.env.clone());
         recovery.emergency_shell("");
     }
@@ -28,7 +28,7 @@ impl Menu for Recorded {
 struct Locked<'s, 'a>(&'s State<'a>, Vec<bool>);
 
 impl Menu for Locked<'_, '_> {
-    fn show(&mut self, _settings: &BootSettings, recovery: &mut dyn Recovery) {
+    fn show(&mut self, _settings: &BootSettings, recovery: &dyn Recovery) {
         self.1.push(self.0.active_pid() == Some(4242));
         assert!(matches!(
             recovery.unlock_late(),

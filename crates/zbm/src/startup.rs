@@ -18,6 +18,7 @@ mod prompts;
 
 use std::io;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -27,6 +28,7 @@ use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};
+use zbm_platform::event::{Mailbox, NoAnswer, spawn_scoped_traced};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
 use zbm_pool::{ImportSettings, Imported, Late, Operator, RetryDelay};
 use zbm_startup::front::Front;
@@ -35,7 +37,7 @@ use zbm_startup::program::{Modes, Startup};
 use zbm_startup::shell::Shell;
 use zbm_state::State;
 use zbm_tui::menu::caps::Capabilities;
-use zbm_tui::menu::startup::StartupScreen;
+use zbm_tui::menu::startup::{MailLink, StartupScreen, ViewLink};
 use zbm_tui::menu::term_keys::{CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT};
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
@@ -48,10 +50,21 @@ use crate::layouts;
 /// wait: 30 seconds.
 const DEFAULT_DELAY: i64 = 30;
 
-/// The start-up stages' front end on the menu's start-up view.
+/// How often a dialog that waits for something else, a device or another
+/// program, looks at it, on the system's clock.
+const CHECK_POLL: Duration = Duration::from_millis(50);
+
+/// The start-up stages' front end on the menu's start-up view, which runs
+/// on another thread: the stages reach it through a [`ViewLink`], and wait
+/// for the answers to their questions.
 pub struct MenuFront<'a> {
-    /// The view; `None` once start-up is over, or when the terminal failed.
-    view: Mutex<Option<Box<dyn StartupScreen + 'a>>>,
+    /// The view.
+    view: Box<dyn ViewLink + 'a>,
+    /// Whether the view is there: not once start-up is over, nor once its
+    /// terminal failed.
+    open: AtomicBool,
+    /// The machine as the view shows it, which the requests add volumes to.
+    known: Mutex<Snapshot>,
     /// The whole system: hooks and the recovery shell get its console.
     system: System<'a>,
     /// The system the stages run their programs on, off the console.
@@ -68,17 +81,19 @@ pub struct MenuFront<'a> {
 }
 
 impl<'a> MenuFront<'a> {
-    /// The front end on `view`: hooks and the recovery shell run on
-    /// `system`, unlocking on `quiet`, with the state directory `state` and
-    /// the LUKS settings `luks`.
+    /// The front end on `view`, which shows `snapshot`: hooks and the
+    /// recovery shell run on `system`, unlocking on `quiet`, with the state
+    /// directory `state` and the LUKS settings `luks`.
     pub fn new(
-        view: Box<dyn StartupScreen + 'a>,
+        (view, snapshot): (Box<dyn ViewLink + 'a>, Snapshot),
         (system, quiet): (System<'a>, System<'a>),
         state: State<'a>,
         luks: Settings,
     ) -> MenuFront<'a> {
         MenuFront {
-            view: Mutex::new(Some(view)),
+            view,
+            open: AtomicBool::new(true),
+            known: Mutex::new(snapshot),
             system,
             quiet,
             state,
@@ -88,26 +103,59 @@ impl<'a> MenuFront<'a> {
         }
     }
 
-    /// `show` on the view, if it is open; `None` when it is not, or when
-    /// the terminal failed, which closes it.
-    fn with_view<T>(
-        &self,
-        show: impl FnOnce(&mut (dyn StartupScreen + 'a)) -> io::Result<T>,
-    ) -> Option<T> {
-        let mut view = lock(&self.view);
-        match show(view.as_deref_mut()?) {
-            Ok(value) => Some(value),
-            Err(error) => {
-                zbm_trace::error!("the start-up view failed: {error}"; %error);
-                *view = None;
-                None
-            }
-        }
+    /// Whether the view is there.
+    fn is_open(&self) -> bool {
+        self.open.load(Ordering::Acquire)
+    }
+
+    /// The view is gone: nothing is shown or asked any more.
+    fn gone(&self) {
+        self.open.store(false, Ordering::Release);
     }
 
     /// Shows `event`.
     fn show(&self, event: Event) {
-        let _ = self.with_view(|view| view.send(event));
+        if let Event::Changed(snapshot) = &event {
+            *lock(&self.known) = snapshot.clone();
+        }
+        if self.is_open() && !self.view.show(event) {
+            self.gone();
+        }
+    }
+
+    /// The answer to `event`, from its dialog, or from `check`, which looks
+    /// every [`CHECK_POLL`] at what else may answer it, and then closes the
+    /// dialog; `None` when the view is gone.
+    fn answer(
+        &self,
+        event: Event,
+        check: Option<&mut dyn FnMut() -> Option<Action>>,
+    ) -> Option<Action> {
+        if !self.is_open() {
+            return None;
+        }
+        let Some(awaiting) = self.view.ask(event) else {
+            self.gone();
+            return None;
+        };
+        let answered = match check {
+            None => awaiting.wait(None),
+            Some(check) => loop {
+                match awaiting.wait(Some(Duration::ZERO)) {
+                    Err(NoAnswer::NotYet) => {}
+                    answered => break answered,
+                }
+                if let Some(action) = check() {
+                    self.view.withdraw();
+                    return Some(action);
+                }
+                self.system.clock.sleep(CHECK_POLL);
+            },
+        };
+        if answered.is_err() {
+            self.gone();
+        }
+        answered.ok()
     }
 
     /// Asks `question`, going on by itself after `delay` seconds (0: at
@@ -118,32 +166,28 @@ impl<'a> MenuFront<'a> {
             return Answer::Continue;
         }
         let seconds = u64::try_from(delay).ok();
-        let event = Event::Asked { question, seconds };
-        match self.with_view(|view| view.ask(&event, &mut || None)) {
+        match self.answer(Event::Asked { question, seconds }, None) {
             Some(Action::Answer(answer)) => answer,
             Some(_) => Answer::Continue,
             None => Answer::Escape,
         }
     }
 
-    /// Runs `run` with the console: the view hands it over first.
+    /// Runs `run` with the console: the view gives it up first, and takes
+    /// it back afterwards.
     fn hand_over(&self, run: impl FnOnce()) {
-        let mut run = Some(run);
-        let _ = self.with_view(|view| {
-            view.suspend(&mut || {
-                if let Some(run) = run.take() {
-                    run();
-                }
-            })
-        });
-        if let Some(run) = run {
+        if !self.is_open() {
             run();
+            return;
         }
+        self.view.lend();
+        run();
+        self.view.resume();
     }
 
     /// The recovery shell with `message`, on the console.
     fn shell(&self, message: &str) {
-        let mut shell = Shell::new(self.system, &self.state);
+        let shell = Shell::new(self.system, &self.state);
         self.hand_over(|| shell.emergency_shell(message));
     }
 
@@ -177,7 +221,7 @@ impl Front for MenuFront<'_> {
         self.show(event);
     }
 
-    fn recovery(&mut self) -> &mut dyn Recovery {
+    fn recovery(&mut self) -> &dyn Recovery {
         self
     }
 
@@ -204,10 +248,8 @@ impl Front for MenuFront<'_> {
     }
 
     fn finish(&mut self) {
-        if let Some(view) = lock(&self.view).take()
-            && let Err(error) = view.close()
-        {
-            zbm_trace::error!("the start-up view failed: {error}"; %error);
+        if self.open.swap(false, Ordering::AcqRel) {
+            self.view.close();
         }
     }
 }
@@ -215,7 +257,7 @@ impl Front for MenuFront<'_> {
 impl Recovery for MenuFront<'_> {
     /// Unlocks the volumes that appeared since the first unlock; it fails
     /// unless it opened one, as `zluks unlock` does as a retry.
-    fn unlock_late(&mut self) -> Result<(), BootError> {
+    fn unlock_late(&self) -> Result<(), BootError> {
         let quiet = self.quiet;
         if !quiet.command_exists("cryptsetup") {
             return Err(BootError::NoCryptsetup);
@@ -236,13 +278,13 @@ impl Recovery for MenuFront<'_> {
         }
     }
 
-    fn emergency_shell(&mut self, message: &str) {
+    fn emergency_shell(&self, message: &str) {
         self.shell(message);
     }
 }
 
 impl Operator for MenuFront<'_> {
-    fn unlock_late(&mut self) -> Late {
+    fn unlock_late(&self) -> Late {
         if Recovery::unlock_late(self).is_ok() {
             Late::Unlocked
         } else {
@@ -250,17 +292,17 @@ impl Operator for MenuFront<'_> {
         }
     }
 
-    fn retry(&mut self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
+    fn retry(&self, target: Option<&PoolName>, delay: RetryDelay) -> Answer {
         let pool = target.map(|target| target.as_str().to_owned());
         self.timed(Question::ImportFailed { pool }, retry_delay(delay))
     }
 
-    fn unsupported_features(&mut self, advice: &str) {
+    fn unsupported_features(&self, advice: &str) {
         let advice = advice.to_owned();
         let _ = self.timed(Question::Unsupported { advice }, DEFAULT_DELAY);
     }
 
-    fn emergency_shell(&mut self, message: &str) {
+    fn emergency_shell(&self, message: &str) {
         self.shell(message);
     }
 }
@@ -360,7 +402,7 @@ fn run_on(
         keyboard,
         ..Snapshot::default()
     };
-    let view = match open(snapshot, theme) {
+    let view = match open(snapshot.clone(), theme) {
         Ok(view) => view,
         Err(error) => {
             zbm_trace::error!("unable to show start-up in the menu: {error}"; %error);
@@ -375,8 +417,27 @@ fn run_on(
     };
     let state = State::new(system.files, &base);
     let luks = crate::luks::settings(&system, conf);
-    let mut front = MenuFront::new(view, (system, quiet), state, luks);
-    Some(startup.run_with(modes, rounds, Some((&quiet, &mut front))))
+    let mailbox = match Mailbox::new() {
+        Ok(mailbox) => mailbox,
+        Err(error) => {
+            zbm_trace::error!("unable to show start-up in the menu: {error}"; %error);
+            return None;
+        }
+    };
+    let link = MailLink::new(mailbox.sender());
+    let mut front = MenuFront::new((Box::new(link), snapshot), (system, quiet), state, luks);
+    // The stages run on a worker; this thread draws the view, until they
+    // close it, and then waits for them.
+    let status = std::thread::scope(|scope| {
+        let stages = spawn_scoped_traced(scope, || {
+            startup.run_with(modes, rounds, Some((&quiet, &mut front)))
+        });
+        if let Err(error) = view.serve(mailbox, &|| !stages.is_finished()) {
+            zbm_trace::error!("the start-up view failed: {error}"; %error);
+        }
+        stages.join()
+    });
+    Some(status.unwrap_or_else(|panic| std::panic::resume_unwind(panic)))
 }
 
 #[cfg(test)]

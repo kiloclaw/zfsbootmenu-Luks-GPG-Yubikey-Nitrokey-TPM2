@@ -95,7 +95,7 @@ impl Boot<'_, '_> {
         kernel: Option<&str>,
         command_line: Option<&str>,
         countdown: bool,
-        recovery: &mut dyn Recovery,
+        recovery: &dyn Recovery,
     ) -> Vec<Event> {
         let fs = environment.as_str();
         let how = KeyLoad {

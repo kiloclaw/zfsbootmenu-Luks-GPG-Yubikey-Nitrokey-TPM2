@@ -212,6 +212,13 @@ names, with the timeouts of the console prompts. LUKS volumes are unlocked in th
 over and takes back. The view closes before the countdown, which the menu shows. Otherwise, the stages run on the
 plain console, as in the legacy program (`zbm_startup::front::ConsoleFront`).
 
+The stages run on a worker thread, and the view on the thread that owns the terminal (ADR 0001): the stages send
+their events and questions to the view's `Mailbox` (`zbm_tui::menu::startup::link`), and each question is a request
+with a one-shot reply, which the stage waits for. A question that waits for something else as well, a security key
+that is plugged in or a volume another program opened, is looked at by the stage every 50 ms; when it comes first,
+the stage withdraws the question and the view closes its dialog. So the view draws while a stage works, and no
+loop of the view runs inside a stage.
+
 The legacy script runs each executable file in `/libexec/init.d` and then removes its permissions, so a stage runs
 once unless forced. The Rust image has no such files; the stages that have finished are listed in
 `/zfsbootmenu/.stages`, a new internal file with one stage name per line, which plays the part of the permission bits.

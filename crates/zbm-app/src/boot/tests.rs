@@ -7,15 +7,15 @@ use crate::model::Health;
 
 /// The recovery of the tests: the shells it was asked to open.
 #[derive(Default)]
-struct Shells(Vec<String>);
+struct Shells(std::sync::Mutex<Vec<String>>);
 
 impl Recovery for Shells {
-    fn unlock_late(&mut self) -> Result<(), zbm_boot::BootError> {
+    fn unlock_late(&self) -> Result<(), zbm_boot::BootError> {
         Err(zbm_boot::BootError::NoCryptsetup)
     }
 
-    fn emergency_shell(&mut self, message: &str) {
-        self.0.push(message.to_owned());
+    fn emergency_shell(&self, message: &str) {
+        self.0.lock().unwrap().push(message.to_owned());
     }
 }
 
@@ -133,14 +133,14 @@ fn a_typed_command_line_boots_once_without_root_and_with_noresume() {
     State::new(&fake.files, "/zfsbootmenu")
         .set_noresume()
         .unwrap();
-    let mut shells = Shells::default();
+    let shells = Shells::default();
     let events = with_boot(&fake, |boot| {
         boot.boot(
             &BE.parse().unwrap(),
             Some("6.1.10"),
             Some("root=zfs:tank/other quiet resume=/dev/sda2 single"),
             false,
-            &mut shells,
+            &shells,
         )
     });
 
@@ -180,9 +180,9 @@ fn a_boot_without_its_key_or_kernel_says_why() {
     );
     runner.respond("zfs get -H -o value keylocation tank/ROOT", 0, "prompt\n");
     runner.respond("zfs load-key -L prompt tank/ROOT", 1, "");
-    let mut shells = Shells::default();
+    let shells = Shells::default();
     let events = with_boot(&locked, |boot| {
-        boot.boot(&BE.parse().unwrap(), None, None, true, &mut shells)
+        boot.boot(&BE.parse().unwrap(), None, None, true, &shells)
     });
     assert!(matches!(
         events.last(),
@@ -192,7 +192,7 @@ fn a_boot_without_its_key_or_kernel_says_why() {
 
     let fake = machine();
     let events = with_boot(&fake, |boot| {
-        boot.boot(&BE.parse().unwrap(), Some("9.9"), None, false, &mut shells)
+        boot.boot(&BE.parse().unwrap(), Some("9.9"), None, false, &shells)
     });
     assert!(matches!(
         events.last(),
@@ -203,7 +203,7 @@ fn a_boot_without_its_key_or_kernel_says_why() {
         .runner
         .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
     let events = with_boot(&empty, |boot| {
-        boot.boot(&BE.parse().unwrap(), None, None, false, &mut shells)
+        boot.boot(&BE.parse().unwrap(), None, None, false, &shells)
     });
     assert!(matches!(
         events.last(),
@@ -340,22 +340,22 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     let base = std::path::Path::new("/zfsbootmenu");
     let unset = crate::App::new(fake.context());
     let app = unset.with_base(base).with_boot(&settings);
-    let mut shells = Shells::default();
+    let shells = Shells::default();
 
     assert!(
-        app.act_on_console(&model::Action::Shell, fake.system(), &mut shells)
+        app.act_on_console(&model::Action::Shell, fake.system(), &shells)
             .is_empty()
     );
-    assert_eq!(shells.0, [""]);
+    assert_eq!(*shells.0.lock().unwrap(), [""]);
 
     for (action, trigger) in [(model::Action::Reboot, "b"), (model::Action::PowerOff, "o")] {
-        app.act_on_console(&action, fake.system(), &mut shells);
+        app.act_on_console(&action, fake.system(), &shells);
         assert_eq!(
             fake.files.text("/proc/sysrq-trigger").as_deref(),
             Some(trigger)
         );
     }
-    let firmware = app.act_on_console(&model::Action::FirmwareSetup, fake.system(), &mut shells);
+    let firmware = app.act_on_console(&model::Action::FirmwareSetup, fake.system(), &shells);
     assert!(matches!(
         firmware.last(),
         Some(Event::Finished(Outcome::Failed { .. }))
@@ -369,7 +369,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     };
     assert!(boot.needs_console() && model::Action::Shell.needs_console());
     assert!(!model::Action::ResetBootTries(BE.parse().unwrap()).needs_console());
-    let booted = app.act_on_console(&boot, fake.system(), &mut shells);
+    let booted = app.act_on_console(&boot, fake.system(), &shells);
     assert!(matches!(
         booted.last(),
         Some(Event::Finished(Outcome::Failed { what, .. })) if what == "unable to boot tank/ROOT/be"
@@ -380,7 +380,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
             .any(|line| line.starts_with("kexec -a -l"))
     );
 
-    let unable = unset.act_on_console(&boot, fake.system(), &mut shells);
+    let unable = unset.act_on_console(&boot, fake.system(), &shells);
     assert!(matches!(
         unable.last(),
         Some(Event::Finished(Outcome::Failed { what, .. })) if what == "unable to do that here"
@@ -388,7 +388,7 @@ fn the_app_hands_the_console_to_the_shell_the_boot_and_the_resets() {
     let other = app.act_on_console(
         &model::Action::ResetBootTries(BE.parse().unwrap()),
         fake.system(),
-        &mut shells,
+        &shells,
     );
     assert!(matches!(
         other.last(),

@@ -321,8 +321,8 @@ impl<'a> Startup<'a> {
                 command_line: None,
                 import_policy: self.options.import_policy,
             };
-            let mut shell = self.shell();
-            boot::kexec_kernel(system, &self.state, &settings, &selected, &mut shell);
+            let shell = self.shell();
+            boot::kexec_kernel(system, &self.state, &settings, &selected, &shell);
         }
     }
 

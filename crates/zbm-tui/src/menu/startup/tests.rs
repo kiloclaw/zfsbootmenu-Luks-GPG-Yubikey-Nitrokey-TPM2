@@ -259,17 +259,15 @@ fn the_terminal_is_handed_over_and_given_back() {
     view.suspend(&mut || ran += 1).unwrap();
     assert_eq!(ran, 1);
     assert!(shown(&view).contains("STARTING ZFSBOOTMENU"));
-    let screen: &mut dyn StartupScreen = &mut view;
-    screen
-        .send(Event::Progress("Unlocking /dev/sda2 ...".into()))
+    view.send(Event::Progress("Unlocking /dev/sda2 ...".into()))
         .unwrap();
-    assert_eq!(screen.snapshot().startup.len(), 2);
-    screen.suspend(&mut || ran += 1).unwrap();
-    let answer = screen.ask(&unlock_requested(None), &mut || {
+    assert_eq!(view.model().snapshot.startup.len(), 2);
+    view.suspend(&mut || ran += 1).unwrap();
+    let answer = view.ask(&unlock_requested(None), &mut || {
         Some(Action::Answer(Answer::Escape))
     });
     assert_eq!(answer.unwrap(), Action::Answer(Answer::Escape));
-    Box::new(view).close().unwrap();
+    view.close().unwrap();
     assert_eq!(ran, 2);
     assert_eq!(
         *keys.modes.borrow(),
@@ -320,4 +318,55 @@ fn the_view_follows_the_terminal_after_a_hand_over_and_as_time_passes() {
     view.send(Event::Progress("Importing pools".into()))
         .unwrap();
     assert_eq!(drawn_size(&view), (60, 20, 60));
+}
+
+#[test]
+fn the_view_serves_the_stages_from_its_mailbox() {
+    let keys = Scripted::default();
+    keys.typed("hunter2");
+    keys.press(Key::Enter);
+    let view = view(&keys);
+    let mailbox = Mailbox::new().unwrap();
+    let link = MailLink::new(mailbox.sender());
+    // What the stages send, before the view serves it: a question waits
+    // for its answer before what comes after it is shown.
+    assert!(link.show(Event::StageStarted("Unlocking LUKS volumes".into())));
+    let secret = link.ask(unlock_requested(None)).unwrap();
+    let (ready, lent) = zbm_platform::event::reply();
+    mailbox.sender().send(ToView::Lend { ready }).unwrap();
+    link.resume();
+    // A question withdrawn before anything answers it.
+    let withdrawn = link.ask(unlock_requested(Some(30))).unwrap();
+    link.withdraw();
+    let (done, closed) = zbm_platform::event::reply();
+    mailbox.sender().send(ToView::Close { done }).unwrap();
+
+    Box::new(view).serve(mailbox, &|| true).unwrap();
+
+    let Ok(Action::Unlock { secret: typed, .. }) = secret.wait(None) else {
+        panic!("no secret");
+    };
+    assert_eq!(typed.unwrap().expose(), b"hunter2");
+    assert!(lent.wait(None).is_ok() && closed.wait(None).is_ok());
+    assert!(matches!(
+        withdrawn.wait(None),
+        Ok(Action::Answer(Answer::Escape))
+    ));
+    assert_eq!(*keys.modes.borrow(), ["release", "take", "release"]);
+}
+
+#[test]
+fn the_view_ends_when_the_stages_did_and_tells_them_it_is_gone() {
+    let keys = Scripted::default();
+    let view = view(&keys);
+    let mailbox = Mailbox::new().unwrap();
+    let link = MailLink::new(mailbox.sender());
+
+    Box::new(view).serve(mailbox, &|| false).unwrap();
+
+    assert!(!link.show(Event::StageStarted("Importing pools".into())));
+    assert!(link.ask(unlock_requested(None)).is_none());
+    link.lend();
+    link.close();
+    assert_eq!(*keys.modes.borrow(), ["release"]);
 }
