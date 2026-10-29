@@ -1,6 +1,6 @@
 # ADR 0006: The image plan and its backends
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 29 October 2026 (proposed 28 October 2026)
 - **Decides:** item SB8, and decision 16 of [ROADMAP.md](../../../ROADMAP.md#decisions) (a native image backend after
   the cutover)
 - **Governs:** SB5, SB7, SB12, DM10, CD12, SE12, RL2
@@ -81,12 +81,20 @@ cutover, with dracut and mkinitcpio kept as backends.**
 - `xtask compare-images` between the native backend and dracut, once SB12 starts.
 - B1 (image size) and B7 (process count) in the benchmarks.
 
-## Questions for the maintainer
+## Where the work stands
 
-1. **The manifest format.** Proposed: tab-separated lines (`file`, `link`, `dir`, `module`, `firmware`, `binary`), so
-   the shims read it with `while IFS=$'\t' read -r`. The alternative is JSON, which the shims would need `jq` or
-   `zbm` to read.
-2. **When the legacy runtime's plan goes.** Proposed: with the legacy runtime (RL1, RL2); until then both plans are
-   computed and tested.
-3. **Container images.** Proposed: the build container keeps dracut until the native backend passes the VM suites,
-   then switches to it, which drops dracut from the container.
+On 29 October 2026, when the decision was accepted, nothing of it is built: `packaging/dracut/module-setup.sh` (281
+lines), the mkinitcpio install hook (289 lines) and `legacy/zfsbootmenu/install-helpers.sh` (1,465 lines) still decide
+what goes into an image, and the mkinitcpio run hook still starts `zbm` with `exec bash`. SB8 needs no other item;
+its VM run needs the build container rebuilt, as it changes `packaging/`.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 29 October 2026:
+
+1. **The manifest format:** tab-separated lines (`file`, `link`, `dir`, `module`, `firmware`, `binary`), which the
+   shims read with `while IFS=$'\t' read -r`.
+2. **The legacy runtime's plan:** it goes with the legacy runtime (RL1, RL2); until then both plans are computed and
+   tested.
+3. **Container images:** the build container keeps dracut until the native backend passes the VM suites, then switches
+   to it, which drops dracut from the container.
