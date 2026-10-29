@@ -747,7 +747,7 @@ The ADRs of the target architecture, and the small fixes that need no design.
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
   lanes); DM11, DM2, SB2 and SB3 too (28 October 2026, at `1e5a5f6b`, all four lanes); PM2, PM4 and DM9 too (28
-  October 2026, at `a2fd0246`, all four lanes). The VM run of SE6, SE5, PM6 and PM8 is left.
+  October 2026, at `a2fd0246`, all four lanes). The VM run of SE6, SE5, PM6, PM8 and UI3 is left.
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
