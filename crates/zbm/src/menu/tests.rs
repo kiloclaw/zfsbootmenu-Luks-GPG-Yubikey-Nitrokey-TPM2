@@ -1,16 +1,15 @@
 #![allow(
     clippy::needless_pass_by_value,
     clippy::unnecessary_wraps,
-    reason = "the stand-in menus have the signature of the menu's `Run`"
+    reason = "the stand-in menus have the signature of the menu's `Show`"
 )]
-
-use std::time::Duration;
 
 use zbm_config::args::ZbmArgs;
 use zbm_state::State;
 use zbm_testkit::fakes::FakeSystem;
 
 use super::*;
+use zbm_tui::menu::machine::Machine as _;
 
 /// The configuration of a machine with the default boot environment
 /// `tank/ROOT/void`.
@@ -33,13 +32,13 @@ fn started(status: u8) -> FakeSystem {
 }
 
 /// A menu that ends at once, having seen the machine.
-fn ended(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
-    assert!(session.model().snapshot.environments.is_empty());
+fn ended(machine: RealMachine<'_, '_>) -> io::Result<String> {
+    assert!(machine.snapshot().environments.is_empty());
     Ok(String::new())
 }
 
 /// A menu whose terminal cannot be used.
-fn no_terminal(_session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
+fn no_terminal(_machine: RealMachine<'_, '_>) -> io::Result<String> {
     Err(io::Error::other("not a terminal"))
 }
 
@@ -47,11 +46,16 @@ fn no_terminal(_session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Resul
 fn the_menu_runs_on_the_machine_and_says_why_it_could_not() {
     let fake = started(0);
     assert_eq!(
-        menu(fake.system(), &conf(), (ended, Countdown::Skip), None),
+        menu(fake.system(), &conf(), (&mut ended, Countdown::Skip), None),
         Ok(0)
     );
     assert_eq!(
-        menu(fake.system(), &conf(), (no_terminal, Countdown::Run), None),
+        menu(
+            fake.system(),
+            &conf(),
+            (&mut no_terminal, Countdown::Run),
+            None
+        ),
         Err("not a terminal".to_owned())
     );
     assert!(!is_taken_over(SignalSet::EMPTY));
@@ -61,22 +65,28 @@ fn the_menu_runs_on_the_machine_and_says_why_it_could_not() {
     }
 
     let broken = started(1);
-    let error = menu(broken.system(), &conf(), (ended, Countdown::Skip), None).unwrap_err();
+    let error = menu(
+        broken.system(),
+        &conf(),
+        (&mut ended, Countdown::Skip),
+        None,
+    )
+    .unwrap_err();
     assert!(!error.is_empty());
 }
 
 /// A menu that checks that it counts down, then ends.
-fn counting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
-    let snapshot = &session.model().snapshot;
+fn counting(machine: RealMachine<'_, '_>) -> io::Result<String> {
+    let snapshot = machine.snapshot();
     assert_eq!(snapshot.bootfs, Some("tank/ROOT/void".parse().unwrap()));
     assert_eq!(snapshot.timeout, zbm_tui::menu::world::Timeout::Seconds(10));
     Ok(String::new())
 }
 
 /// A menu that checks that it waits for the user, then ends.
-fn waiting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<String> {
+fn waiting(machine: RealMachine<'_, '_>) -> io::Result<String> {
     assert_eq!(
-        session.model().snapshot.timeout,
+        machine.snapshot().timeout,
         zbm_tui::menu::world::Timeout::Wait
     );
     Ok(String::new())
@@ -86,24 +96,34 @@ fn waiting(session: Session<RealMachine<'_, '_>>, _: Duration) -> io::Result<Str
 fn the_menu_counts_down_only_at_the_end_of_start_up_with_a_chosen_environment() {
     let fake = started(0);
     assert_eq!(
-        menu(fake.system(), &conf(), (waiting, Countdown::Run), None),
+        menu(fake.system(), &conf(), (&mut waiting, Countdown::Run), None),
         Ok(0)
     );
     State::new(&fake.files, "/zfsbootmenu")
         .set_bootfs("tank/ROOT/void")
         .unwrap();
     assert_eq!(
-        menu(fake.system(), &conf(), (counting, Countdown::Run), None),
+        menu(
+            fake.system(),
+            &conf(),
+            (&mut counting, Countdown::Run),
+            None
+        ),
         Ok(0)
     );
     assert_eq!(
-        menu(fake.system(), &conf(), (waiting, Countdown::Skip), None),
+        menu(
+            fake.system(),
+            &conf(),
+            (&mut waiting, Countdown::Skip),
+            None
+        ),
         Ok(0)
     );
 }
 
 #[test]
-fn the_menu_takes_only_the_countdown_option() {
+fn the_menu_takes_no_option() {
     let mut out = Vec::new();
     let mut err = Vec::new();
     let mut io = Io {

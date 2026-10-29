@@ -288,7 +288,7 @@ where
     /// # Errors
     ///
     /// When the surface cannot be drawn on or the input read.
-    pub fn run<M: Machine>(mut self, mut session: Session<M>) -> io::Result<String> {
+    pub fn run<M: Machine>(&mut self, session: &mut Session<M>) -> io::Result<String> {
         let mut last_tick = self.clock.now();
         loop {
             self.draw(session.model())?;

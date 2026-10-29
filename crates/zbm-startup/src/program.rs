@@ -3,12 +3,14 @@
 //! [`Startup::run`] runs the start-up stages that have not run (all of them
 //! when forced), marks the start-up done, and on the console counts down and
 //! boots the default boot environment. Then, as the legacy loop does, it runs
-//! the menu program ([`menu`]) and the recovery shell after it, importing
-//! pools again between rounds. When the image has the menu program, the menu
-//! counts down instead, showing the boot environments meanwhile
-//! (`zfsbootmenu --countdown`). In an image without it, the program says
-//! what it cannot do where the legacy one shows the menu. See "Modes of the
-//! start-up program" and "The minimal runtime of Phase 5" in
+//! the menu and the recovery shell after it, importing pools again between
+//! rounds. In the session ([`menu::SessionMenu`], ROADMAP.md, PM9), the menu
+//! runs in this process, on the terminal start-up showed its stages on, and
+//! counts down instead, showing the boot environments meanwhile; on a
+//! console the session cannot draw on, start-up counts down itself and runs
+//! the menu program ([`menu::MENU`]). In an image without it, the program
+//! says what it cannot do where the legacy one shows the menu. See "Modes of
+//! the start-up program" and "The minimal runtime of Phase 5" in
 //! `crates/DESIGN.md`.
 
 pub mod menu;
@@ -51,8 +53,7 @@ pub fn is_on(value: &str) -> bool {
 
 /// What the first round of the recovery loop does.
 enum FirstRound<'b> {
-    /// The menu counts down to booting the environment, if any; start-up
-    /// counts down itself when the menu cannot start.
+    /// The session's menu counts down to booting the environment, if any.
     Countdown(Option<&'b DatasetName>),
     /// The menu opens without counting down.
     Menu,
@@ -148,19 +149,20 @@ impl<'a> Startup<'a> {
     /// otherwise it returns only after `rounds` rounds of the recovery loop
     /// (never, with `None`).
     pub fn run(&self, modes: Modes, rounds: Option<usize>) -> i32 {
-        self.run_with(modes, rounds, None)
+        let bootfs = self.start(modes, None);
+        self.after_stages(modes, rounds, bootfs, None)
     }
 
-    /// [`Startup::run`], with the stages on `stages` when given: their
+    /// The stages of [`Startup::run`], on `stages` when given: their
     /// programs on its system, and what they ask through its front end,
     /// such as the menu's start-up view, which they finish with. Otherwise
-    /// they run on the plain console.
-    pub fn run_with(
+    /// they run on the plain console. Start-up is then marked done; the
+    /// default boot environment the import found, if any.
+    pub fn start(
         &self,
         modes: Modes,
-        rounds: Option<usize>,
         stages: Option<(&System<'_>, &mut dyn Front)>,
-    ) -> i32 {
+    ) -> Option<DatasetName> {
         let _ = self.state.create();
         boot::mount_efivarfs(&self.system, "ro");
 
@@ -175,28 +177,41 @@ impl<'a> Startup<'a> {
         if let Err(error) = self.state.mark_initialized() {
             zbm_trace::error!("{error}"; %error);
         }
+        bootfs
+    }
+
+    /// What follows the stages of [`Startup::run`] on the console, with the
+    /// default boot environment `bootfs` they found: the countdown, then
+    /// `rounds` rounds of the recovery loop, with the session's `menu` when
+    /// it has one. That menu counts down itself, showing the environments
+    /// meanwhile; without it, start-up counts down.
+    pub fn after_stages(
+        &self,
+        modes: Modes,
+        rounds: Option<usize>,
+        bootfs: Option<DatasetName>,
+        menu: Option<&mut dyn menu::SessionMenu>,
+    ) -> i32 {
         if !modes.console {
             return 0;
         }
         // The state directory's copy is what an earlier start found.
         let bootfs = bootfs.or_else(|| self.state.bootfs().and_then(|name| name.parse().ok()));
-        // The menu counts down itself, showing the environments meanwhile.
-        let has_menu = menu::has_menu(&self.system);
-        if !modes.resume && !has_menu {
+        // Legacy never boots by itself once it saw another instance.
+        if !modes.resume && menu.is_none() && !self.state.is_active() {
             self.countdown(bootfs.as_ref());
         }
-        // Legacy never boots by itself once it saw another instance.
         let taken = self.state.is_active();
         if taken {
             self.shell()
                 .emergency_shell("an active instance is already running");
         }
-        let first = if modes.resume || taken {
+        let first = if modes.resume || taken || menu.is_none() {
             FirstRound::Menu
         } else {
             FirstRound::Countdown(bootfs.as_ref())
         };
-        self.recovery_loop(rounds, &first);
+        self.recovery_loop(rounds, &first, menu);
         0
     }
 
@@ -326,34 +341,27 @@ impl<'a> Startup<'a> {
         }
     }
 
-    /// The loop of the legacy program: the menu program, as `first` says
-    /// the first time, and the recovery shell, then pools that became
-    /// importable in them are imported read-only, and unhealthy ones
-    /// restricted. Without the menu program, the shell says that the menu
-    /// is not supported.
-    fn recovery_loop(&self, rounds: Option<usize>, first: &FirstRound<'_>) {
+    /// The loop of the legacy program: the menu, the session's `menu`
+    /// counting down as `first` says the first time, else the menu program,
+    /// and the recovery shell, then pools that became importable in them are
+    /// imported read-only, and unhealthy ones restricted. Without a menu,
+    /// the shell says that the menu is not supported.
+    fn recovery_loop(
+        &self,
+        rounds: Option<usize>,
+        first: &FirstRound<'_>,
+        mut menu: Option<&mut dyn menu::SessionMenu>,
+    ) {
         let mut round = 0;
         while rounds.is_none_or(|rounds| round < rounds) {
             round += 1;
-            if menu::has_menu(&self.system) {
-                let countdown = match first {
-                    FirstRound::Countdown(bootfs) if round == 1 => Some(*bootfs),
-                    _ => None,
-                };
-                let args: &[&str] = if countdown.is_some() {
-                    &["--countdown"]
-                } else {
-                    &[]
-                };
-                let ran = programs::applet(self.system.runner, menu::MENU, args, &[]);
-                // Anything but a clean end is a failure: the menu could not
-                // read the machine or use the terminal (`menu::FAILED`), it
-                // panicked, a signal killed it, or it did not start.
-                let failed = !ran.is_ok_and(|output| output.status.is_success());
-                if let Some(bootfs) = countdown.filter(|_| failed) {
-                    // The automatic boot must not depend on the menu.
-                    zbm_trace::warn!("the menu could not start; counting down without it");
-                    self.countdown(bootfs);
+            let countdown = matches!(first, FirstRound::Countdown(Some(_))) && round == 1;
+            if let Some(menu) = &mut menu {
+                menu.run(self, countdown);
+                self.shell().emergency_shell("");
+            } else if menu::has_menu(&self.system) {
+                if let Err(error) = programs::applet(self.system.runner, menu::MENU, &[], &[]) {
+                    zbm_trace::error!("unable to start the menu: {error}"; %error);
                 }
                 self.shell().emergency_shell("");
             } else {

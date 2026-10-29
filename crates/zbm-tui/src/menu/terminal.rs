@@ -13,6 +13,7 @@ use ratatui::layout::Size;
 
 use super::frontend::Frontend;
 use super::machine::Machine;
+use super::screen::{MenuScreen, SessionScreen};
 use super::secret::Marker;
 use super::session::Session;
 use super::startup::{StartupScreen, StartupView};
@@ -61,7 +62,8 @@ pub fn run<M: Machine>(
     if let Some(file) = keys {
         frontend = frontend.with_key_log(file);
     }
-    frontend.run(session)
+    let mut session = session;
+    frontend.run(&mut session)
 }
 
 /// The start-up view of `snapshot` on standard output, of `size` (columns
@@ -81,6 +83,24 @@ pub fn startup_view(
 ) -> io::Result<Box<dyn StartupScreen>> {
     let frontend = on_terminal(size, escape_wait)?;
     Ok(Box::new(StartupView::new(frontend, snapshot, theme)?))
+}
+
+/// The menu's screen in the session, on standard output, without the
+/// start-up view: as it opens after `--resume`. Its keys and size as
+/// [`startup_view`]'s; the terminal is the console's until the menu takes
+/// it.
+///
+/// # Errors
+///
+/// When the terminal cannot be set up.
+pub fn menu_screen(
+    theme: Theme,
+    size: (u16, u16),
+    escape_wait: Duration,
+) -> io::Result<Box<dyn MenuScreen>> {
+    let mut frontend = on_terminal(size, escape_wait)?;
+    frontend.give_back()?;
+    Ok(Box::new(SessionScreen::new(frontend, None, theme)))
 }
 
 /// The size to draw in: the terminal's, else `fallback`.

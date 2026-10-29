@@ -248,6 +248,20 @@ impl Model {
         model
     }
 
+    /// Gets the model ready for another round of the menu, as the session
+    /// runs it after the recovery shell: the menu's own view, without what
+    /// ended the last round.
+    pub fn begin_round(&mut self) {
+        self.leaving = None;
+        self.dialog = None;
+        self.progress = None;
+        self.working = None;
+        self.countdown = None;
+        if self.started {
+            self.screen = Screen::Main;
+        }
+    }
+
     /// Takes the machine's new `snapshot`, keeping the environment and the
     /// snapshot selected by name wherever the new lists put them.
     pub fn replace_snapshot(&mut self, snapshot: Snapshot) {

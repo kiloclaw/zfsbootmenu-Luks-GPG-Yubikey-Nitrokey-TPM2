@@ -52,6 +52,17 @@ impl<M: Machine> Session<M> {
         }
     }
 
+    /// The menu on `machine`, going on from `model`, as the session's menu
+    /// goes on from the start-up view and from its last round.
+    pub fn with_model(machine: M, model: Model) -> Session<M> {
+        Session {
+            model: Some(model),
+            machine,
+            actions: Vec::new(),
+            console: VecDeque::new(),
+        }
+    }
+
     /// The menu.
     #[allow(
         clippy::unreachable,

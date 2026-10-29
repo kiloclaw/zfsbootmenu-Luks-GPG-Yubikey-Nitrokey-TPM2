@@ -186,10 +186,9 @@ pub fn init(args: &[String], io: &mut Io) -> i32 {
     let _ = zbm_sys::discard_signal(Signal::Quit);
     on_console(io, |system, conf, _| {
         let startup = Startup::new(system, conf);
-        // On the console at boot, the stages run in the menu's start-up
-        // view when the terminal can run it; resumed, they are done.
+        // On the console, start-up is the session when the terminal can run
+        // the menu: the stages on its start-up view, then the menu.
         if modes.console
-            && !modes.resume
             && let Some(status) = crate::startup::run_in_menu(&startup, system, conf, modes)
         {
             return status;

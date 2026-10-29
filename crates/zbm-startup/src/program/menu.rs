@@ -22,7 +22,7 @@ use super::{Modes, Startup};
 pub const MENU: &str = "/bin/zfsbootmenu";
 
 /// The exit status of the menu program when it could not read the machine
-/// or use the terminal: start-up then counts down without it.
+/// or use the terminal.
 pub const FAILED: i32 = 1;
 
 /// Whether the image has the menu program.
@@ -31,6 +31,16 @@ pub fn has_menu(system: &System<'_>) -> bool {
         .files
         .metadata(Path::new(MENU))
         .is_ok_and(|metadata| metadata.is_executable())
+}
+
+/// The menu in the start-up program's own process, the session (ROADMAP.md,
+/// PM9): it goes on with the terminal and the model start-up showed its
+/// stages on, and the recovery loop runs it each round.
+pub trait SessionMenu {
+    /// Runs the menu, around what the menu program does first
+    /// ([`Startup::menu`]), counting down to booting the default boot
+    /// environment first when `countdown`, until it ends.
+    fn run(&mut self, startup: &Startup<'_>, countdown: bool);
 }
 
 /// The menu of a front end.

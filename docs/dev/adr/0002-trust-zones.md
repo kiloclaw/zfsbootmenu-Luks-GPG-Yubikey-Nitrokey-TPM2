@@ -84,6 +84,13 @@ input an attacker controls is parsed where the secrets are not, and drawn where 
 - A VM test reads `/proc/<pid>/status` of each front end: no capabilities, `NoNewPrivs: 1`, `Seccomp: 2`.
 - Fuzz targets for every message decoder between zones (SE5).
 
+## Notes from the implementation
+
+- **PM9** (29 October 2026): the session is the start-up program. On a console it can draw on, it runs the stages
+  on its start-up view and then the menu in the same process, with the same screen and model, each round of the
+  recovery loop; the menu program stays for SSH and the recovery shell, and for consoles the session cannot draw on.
+  A takeover still uses `SIGUSR1` and the `active` lock until the session socket (PM10).
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

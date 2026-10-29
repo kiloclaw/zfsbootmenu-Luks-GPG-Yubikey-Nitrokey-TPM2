@@ -32,19 +32,22 @@ use zbm_platform::event::{Mailbox, NoAnswer, spawn_scoped_traced};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
 use zbm_pool::{ImportSettings, Imported, Late, Operator, RetryDelay};
 use zbm_startup::front::Front;
-use zbm_startup::program::menu::has_menu;
+use zbm_startup::program::menu::{SessionMenu, has_menu};
 use zbm_startup::program::{Modes, Startup};
 use zbm_startup::shell::Shell;
 use zbm_state::State;
+use zbm_sys::Signals;
 use zbm_tui::menu::caps::Capabilities;
+use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::startup::{MailLink, StartupScreen, ViewLink};
 use zbm_tui::menu::term_keys::{CONSOLE_ESCAPE_WAIT, SERIAL_ESCAPE_WAIT};
 use zbm_tui::menu::terminal;
 use zbm_tui::menu::theme::Theme;
 use zbm_types::Answer;
-use zbm_types::PoolName;
+use zbm_types::{DatasetName, PoolName};
 
 use crate::layouts;
+use crate::menu::{InSession, SESSION_TAKEOVER};
 
 /// How long a question waits when nothing says, as the console prompts
 /// wait: 30 seconds.
@@ -326,9 +329,22 @@ fn stages() -> Vec<Stage> {
 /// Opens the start-up view on a snapshot, drawn with a theme.
 type Open<'o> = &'o dyn Fn(Snapshot, Theme) -> io::Result<Box<dyn StartupScreen>>;
 
-/// Runs the start-up program `startup` with `modes`, its stages on the
-/// menu's start-up view, when the image has the menu and the terminal can
-/// run it: its exit status. `None` when it cannot, for the plain console.
+/// Opens the menu's screen without the start-up view, drawn with a theme.
+type OpenMenu<'o> = &'o dyn Fn(Theme) -> io::Result<Box<dyn MenuScreen>>;
+
+/// How the session draws: its theme, and how it opens the start-up view
+/// and, resumed, the menu's screen.
+type Screens<'o> = (Theme, Open<'o>, OpenMenu<'o>);
+
+/// What the stages on the view leave: the default boot environment they
+/// found, and the screen the menu goes on with, unless the view failed.
+type AfterView = (Option<DatasetName>, Option<Box<dyn MenuScreen>>);
+
+/// Runs the start-up program `startup` with `modes` as the session, when
+/// the image has the menu and the terminal can run it: its stages on the
+/// menu's start-up view, then the menu in this process, going on from the
+/// view (ROADMAP.md, PM9); resumed, the stages are done and the menu opens
+/// at once. Its exit status; `None` when it cannot, for the plain console.
 pub fn run_in_menu(
     startup: &Startup<'_>,
     system: System<'_>,
@@ -340,24 +356,30 @@ pub fn run_in_menu(
     if !capabilities.interactive || !has_menu(&system) {
         return None;
     }
+    // The menu's takeover signals wait to be read: blocked before any
+    // thread starts, so that every thread blocks them.
+    let signals = Signals::block(SESSION_TAKEOVER).ok();
     let escape_wait = escape_wait(&ZbmOptions::from_conf(conf).control_term);
-    let open = |snapshot, theme| {
+    let sized = || {
         let size = terminal::size(crate::menu::FALLBACK_SIZE);
-        if !fits(size) {
+        if fits(size) {
+            Ok(size)
+        } else {
             // Its dialogs would not show, while they wait for an answer.
-            return Err(io::Error::other(format!(
+            Err(io::Error::other(format!(
                 "the terminal ({}x{}) is smaller than the start-up view needs",
                 size.0, size.1
-            )));
+            )))
         }
-        terminal::startup_view(snapshot, theme, size, escape_wait)
     };
+    let open = |snapshot, theme| terminal::startup_view(snapshot, theme, sized()?, escape_wait);
+    let open_menu = |theme| terminal::menu_screen(theme, sized()?, escape_wait);
     run_on(
         startup,
-        system,
-        conf,
+        (system, conf),
         (modes, None),
-        (Theme::new(capabilities), &open),
+        (Theme::new(capabilities), &open, &open_menu),
+        signals.as_ref(),
     )
 }
 
@@ -381,15 +403,47 @@ pub(crate) fn escape_wait(control_term: &str) -> Duration {
     }
 }
 
-/// [`run_in_menu`] on the view `open` opens with `theme`, the recovery
-/// loop limited to `rounds`.
+/// [`run_in_menu`] on the screens of `screens`, the recovery loop limited
+/// to `rounds`, the menu ended by the takeover `signals`.
 fn run_on(
     startup: &Startup<'_>,
-    system: System<'_>,
-    conf: &Conf,
+    (system, conf): (System<'_>, &Conf),
     (modes, rounds): (Modes, Option<usize>),
-    (theme, open): (Theme, Open<'_>),
+    (theme, open, open_menu): Screens<'_>,
+    signals: Option<&Signals>,
 ) -> Option<i32> {
+    let (bootfs, screen) = if modes.resume {
+        // Resumed, the stages are done, and the menu waits for the user.
+        let bootfs = startup.start(modes, None);
+        let screen = open_menu(theme)
+            .inspect_err(|error| zbm_trace::error!("unable to show the menu: {error}"; %error))
+            .ok();
+        (bootfs, screen)
+    } else {
+        stages_on_view(startup, (system, conf), modes, (theme, open))?
+    };
+    let mut session = screen.map(|screen| InSession {
+        screen,
+        system,
+        conf,
+        signals,
+    });
+    let menu = session
+        .as_mut()
+        .map(|session| session as &mut dyn SessionMenu);
+    Some(startup.after_stages(modes, rounds, bootfs, menu))
+}
+
+/// Runs the stages of `startup` with `modes` on the start-up view `open`
+/// opens with `theme`: the default boot environment they found, and the
+/// screen the menu goes on with, unless the view failed. `None` when the
+/// view cannot open, for the plain console.
+fn stages_on_view(
+    startup: &Startup<'_>,
+    (system, conf): (System<'_>, &Conf),
+    modes: Modes,
+    (theme, open): (Theme, Open<'_>),
+) -> Option<AfterView> {
     let options = ZbmOptions::from_conf(conf);
     let base = zbm_startup::preinit::base(conf);
     let keyboard = App::new(Context::new(system))
@@ -426,18 +480,20 @@ fn run_on(
     };
     let link = MailLink::new(mailbox.sender());
     let mut front = MenuFront::new((Box::new(link), snapshot), (system, quiet), state, luks);
-    // The stages run on a worker; this thread draws the view, until they
-    // close it, and then waits for them.
-    let status = std::thread::scope(|scope| {
-        let stages = spawn_scoped_traced(scope, || {
-            startup.run_with(modes, rounds, Some((&quiet, &mut front)))
-        });
-        if let Err(error) = view.serve(mailbox, &|| !stages.is_finished()) {
-            zbm_trace::error!("the start-up view failed: {error}"; %error);
-        }
-        stages.join()
+    // The stages run on a worker; this thread draws the view until they
+    // close it, and then the menu goes on from it.
+    let (bootfs, screen) = std::thread::scope(|scope| {
+        let stages =
+            spawn_scoped_traced(scope, || startup.start(modes, Some((&quiet, &mut front))));
+        let screen = view
+            .serve(mailbox, &|| !stages.is_finished())
+            .inspect_err(|error| zbm_trace::error!("the start-up view failed: {error}"; %error))
+            .ok()
+            .flatten();
+        (stages.join(), screen)
     });
-    Some(status.unwrap_or_else(|panic| std::panic::resume_unwind(panic)))
+    let bootfs = bootfs.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    Some((bootfs, screen))
 }
 
 #[cfg(test)]

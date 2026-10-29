@@ -527,6 +527,14 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - Over SSH or a serial line, Enter is no longer lost after a broken character or escape sequence, nor taken twice
   when a terminal's CR LF comes in two reads.
 
+### One session from start-up to the menu (phase 2)
+
+- On the console, the start-up view turns into the menu: the menu runs in the start-up program, on the same screen,
+  instead of as a program of its own started after it. Nothing is redrawn from nothing between them, and a choice made
+  on the start-up view, such as the keyboard layout, stays.
+- When the menu cannot run on the console, start-up counts down itself before the menu program, as without a menu:
+  there is one countdown, never two.
+
 ### The menu goes on while it works (phase 2)
 
 - The menu no longer freezes while it takes a snapshot, rolls back, clones or reads differences: the work runs on a

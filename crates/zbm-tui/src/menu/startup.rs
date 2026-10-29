@@ -22,6 +22,7 @@ use zbm_types::Answer;
 use super::frontend::Frontend;
 pub use super::frontend::{Input, Surface, TICK};
 use super::model::Model;
+use super::screen::{MenuScreen, SessionScreen};
 use super::theme::Theme;
 use super::update::{Message, update};
 use super::world::{Action, Event, Snapshot};
@@ -32,7 +33,8 @@ pub use link::{MailLink, ToView, ViewLink};
 pub trait StartupScreen {
     /// Serves start-up's stages, which send to `mailbox` from their thread,
     /// until they close the view or `running` says they ended
-    /// ([`StartupView::serve`]).
+    /// ([`StartupView::serve`]); the screen the session's menu goes on
+    /// with, once they closed it.
     ///
     /// # Errors
     ///
@@ -41,7 +43,7 @@ pub trait StartupScreen {
         self: Box<Self>,
         mailbox: Mailbox<ToView>,
         running: &dyn Fn() -> bool,
-    ) -> io::Result<()>;
+    ) -> io::Result<Option<Box<dyn MenuScreen>>>;
 }
 
 /// The start-up view on a front end: the start-up screen of the menu's
@@ -219,7 +221,9 @@ where
     /// says they ended. A question opens its dialog, whose answer goes back
     /// on its reply; one withdrawn closes it, unanswered. The view gives the
     /// terminal back before it returns, and the mailbox, dropped, tells the
-    /// stages that nothing will answer any more.
+    /// stages that nothing will answer any more. Once they closed it, its
+    /// front end and its model are the menu's screen
+    /// ([`SessionScreen`]); `None` when they ended without closing it.
     ///
     /// # Errors
     ///
@@ -228,7 +232,11 @@ where
         clippy::needless_pass_by_value,
         reason = "the mailbox is dropped when the view ends, which tells the stages"
     )]
-    pub fn serve(mut self, mailbox: Mailbox<ToView>, running: &dyn Fn() -> bool) -> io::Result<()> {
+    pub fn serve(
+        mut self,
+        mailbox: Mailbox<ToView>,
+        running: &dyn Fn() -> bool,
+    ) -> io::Result<Option<SessionScreen<B, I>>> {
         let mut queue: VecDeque<ToView> = VecDeque::new();
         loop {
             if queue.is_empty() {
@@ -237,7 +245,8 @@ where
             }
             let Some(message) = queue.pop_front() else {
                 if !running() {
-                    return self.give_back();
+                    self.give_back()?;
+                    return Ok(None);
                 }
                 self.draw()?;
                 continue;
@@ -263,7 +272,8 @@ where
                 ToView::Close { done } => {
                     self.give_back()?;
                     done.send(());
-                    return Ok(());
+                    let theme = self.model().theme;
+                    return Ok(Some(SessionScreen::new(self.frontend, self.model, theme)));
                 }
             }
         }
@@ -304,7 +314,7 @@ fn resumed(mailbox: &Mailbox<ToView>, queue: &mut VecDeque<ToView>, running: &dy
     }
 }
 
-impl<B: Surface, I: Input> StartupScreen for StartupView<B, I>
+impl<B: Surface + 'static, I: Input + 'static> StartupScreen for StartupView<B, I>
 where
     B::Error: Send + Sync + 'static,
 {
@@ -312,8 +322,9 @@ where
         self: Box<Self>,
         mailbox: Mailbox<ToView>,
         running: &dyn Fn() -> bool,
-    ) -> io::Result<()> {
-        StartupView::serve(*self, mailbox, running)
+    ) -> io::Result<Option<Box<dyn MenuScreen>>> {
+        let screen = StartupView::serve(*self, mailbox, running)?;
+        Ok(screen.map(|screen| Box::new(screen) as Box<dyn MenuScreen>))
     }
 }
 

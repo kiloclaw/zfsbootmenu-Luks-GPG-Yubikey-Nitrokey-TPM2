@@ -89,14 +89,14 @@ fn the_demo_runs_on_any_surface_and_its_keys_are_logged() {
     input.press(&[Key::Down, Key::Enter]);
     let dir = TempDir::new("zbm-tui-frontend");
     let log = dir.join("keys");
-    let session = Session::on(
+    let mut session = Session::on(
         FakeMachine::new(&DemoOptions::default()),
         Theme::new(Capabilities::FULL),
     );
 
     let why = frontend(&input)
         .with_key_log(File::create(&log).unwrap())
-        .run(session)
+        .run(&mut session)
         .unwrap();
 
     assert!(why.starts_with("Booting"), "{why}");
@@ -149,7 +149,7 @@ fn the_console_is_lent_to_what_takes_it_and_the_size_followed() {
     input.press(&[Key::Char('!'), Key::Enter]);
     input.size.set(Some((100, 30)));
     input.wait(3);
-    let session = Session::on(
+    let mut session = Session::on(
         Shell {
             snapshot: Snapshot::default(),
             ran: false,
@@ -161,7 +161,7 @@ fn the_console_is_lent_to_what_takes_it_and_the_size_followed() {
     assert_eq!(frontend.terminal().backend().buffer().area.width, 100);
     assert!(!shown(&frontend).trim().is_empty());
 
-    let why = frontend.run(session).unwrap();
+    let why = frontend.run(&mut session).unwrap();
 
     assert_eq!(why, "");
     assert_eq!(*input.modes.borrow(), ["release", "take", "release"]);

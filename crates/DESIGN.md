@@ -178,10 +178,19 @@ The runtime keeps the legacy process structure, for three reasons:
 | --- | --- | --- |
 | Supervisor | `zfsbootmenu-init --supervise` | Process 1. Starts `zfsbootmenu-init` on the console and reaps every child, including orphans. If `zfsbootmenu-init` ends for any reason, it logs that, opens a recovery shell and then starts it again. Contains no ZFS logic. |
 | Start-up | `zfsbootmenu-init` | The start-up sequence, the countdown and the automatic boot, then the loop of menu and recovery shell, as in `libexec/zfsbootmenu-init`. Its modes are described below. |
-| Menu | `zfsbootmenu` | The menu loop of `bin/zfsbootmenu`. Holds `/zfsbootmenu/active`. |
+| Menu | `zfsbootmenu` | The menu loop of `bin/zfsbootmenu`, as users run it over SSH or from the recovery shell. Holds `/zfsbootmenu/active`. On the console the menu runs in the start-up program itself (below). |
 | `fzf` callbacks | `zfsbootmenu-preview`, `zfsbootmenu-help`, `zfsbootmenu-diff`, `zlogtail`, `ztrace`, `zfunc` | Short-lived; read the configuration, the state directory and ZFS, draw or act, and exit. |
 | LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, so that passphrases leave memory when it ends, as the legacy subshell in `init.d/45-luks-unlock` ensures. On the menu's start-up view, the start-up program unlocks itself, asking in the view's dialogs (below, and [Secrets](#secrets)). |
 | Recovery shell | `bash -i` | Unchanged. The recovery commands it offers are applets. |
+
+On the console, the start-up program is the session (ADR 0002, PM9): when the terminal can run the menu, the stages
+run on its start-up view, and the menu then runs in the same process, on the same terminal and with the same model,
+so that the start-up view turns into the menu. Each round of the recovery loop runs it again, with what the menu
+program does first (the takeover, the `active` lock, the `setup.d` hooks); the first round counts down, and resumed
+by the supervisor, the menu waits for the user. The session blocks `SIGUSR1` and `SIGTERM`, the signals of a takeover,
+before any thread starts, and forgets those that came before each round; the terminal's hang-up still ends the
+program, for the supervisor to start it again. On a console the session cannot draw on, start-up counts down itself,
+then runs the menu program as its child, so that there is one countdown either way.
 
 Inside the menu, the machine is a service (`zbm_app::service`, ADR 0001): a worker thread owns the application,
 performs the actions that leave the console alone one after another, and sends back what happened through a
@@ -698,8 +707,8 @@ If the list is not empty, the runtime logs each item as an error and opens the r
 The LUKS configuration is checked before the stages run, LUKS volumes when the LUKS stage or a retry of the import
 would unlock them, and the rest before the boot. Where the legacy program starts the menu, the Phase 5 runtime opened
 the recovery shell with the same message, and kept doing so, importing pools again between shells as the legacy loop
-does. Since R5 step 3 that loop runs the menu program and then the recovery shell, as the legacy loop does, and the
-countdown runs in the menu (`zfsbootmenu --countdown`).
+does. Since R5 step 3 that loop runs the menu and then the recovery shell, as the legacy loop does, and the
+countdown runs in the menu; since PM9 the menu runs in the start-up program, the session (see "Processes").
 
 Until package F replaces them with the compatibility library, the Rust image keeps the legacy shell libraries, the
 recovery shell's tools and the bundled hooks, which source those libraries; only the legacy start-up program and

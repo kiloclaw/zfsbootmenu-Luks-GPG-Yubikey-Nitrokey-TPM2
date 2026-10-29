@@ -222,28 +222,54 @@ fn the_loop_runs_the_menu_program_then_the_shell() {
     );
 }
 
-#[test]
-fn the_menu_counts_down_the_first_time_and_the_program_does_not() {
+/// A session's menu that records whether each round counted down.
+#[derive(Default)]
+struct Rounds(Vec<bool>);
+
+impl SessionMenu for Rounds {
+    fn run(&mut self, _: &Startup<'_>, countdown: bool) {
+        self.0.push(countdown);
+    }
+}
+
+/// A machine whose start-up is over, with the menu program.
+fn finished() -> FakeSystem {
     let fake = started();
     let state = State::new(&fake.files, "/zfsbootmenu");
     for stage in zbm_types::Stage::ALL {
         state.finish_stage(stage.as_str()).unwrap();
     }
     fake.files.file_with_mode(MENU, "", 0o755);
-    let console = Modes {
-        console: true,
-        ..Modes::default()
-    };
-    Startup::new(fake.system(), &conf()).run(console, Some(2));
-    let menus: Vec<String> = fake
-        .runner
-        .calls()
-        .iter()
-        .filter(|call| call.program() == MENU)
-        .map(zbm_platform::Command::display)
-        .collect();
-    assert_eq!(menus, [format!("{MENU} --countdown"), MENU.to_owned()]);
+    fake
+}
+
+const CONSOLE: Modes = Modes {
+    console: true,
+    rerun: crate::step::Rerun::Pending,
+    resume: false,
+};
+
+#[test]
+fn the_session_s_menu_counts_down_the_first_time_and_the_program_does_not() {
+    let fake = finished();
+    let startup = Startup::new(fake.system(), &conf());
+    let mut rounds = Rounds::default();
+
+    let bootfs = startup.start(CONSOLE, None);
+    startup.after_stages(CONSOLE, Some(2), bootfs, Some(&mut rounds));
+
+    assert_eq!(rounds.0, [true, false]);
+    assert!(menu_calls(&fake).is_empty(), "{:?}", menu_calls(&fake));
     assert!(!fake.console.output_text().contains("Booting"));
+
+    // Resumed, the menu waits for the user.
+    let mut rounds = Rounds::default();
+    let resume = Modes {
+        resume: true,
+        ..CONSOLE
+    };
+    startup.after_stages(resume, Some(1), None, Some(&mut rounds));
+    assert_eq!(rounds.0, [false]);
 }
 
 /// The calls of the menu program, as command lines.
@@ -257,50 +283,24 @@ fn menu_calls(fake: &FakeSystem) -> Vec<String> {
 }
 
 #[test]
-fn start_up_counts_down_itself_when_the_menu_cannot_start() {
-    let fake = started();
-    let state = State::new(&fake.files, "/zfsbootmenu");
-    for stage in zbm_types::Stage::ALL {
-        state.finish_stage(stage.as_str()).unwrap();
-    }
-    fake.files.file_with_mode(MENU, "", 0o755);
-    // zfs list failed: the menu could not read the machine.
-    fake.runner
-        .respond_program(MENU, u8::try_from(FAILED).unwrap(), "");
-    let console = Modes {
-        console: true,
-        ..Modes::default()
-    };
-    Startup::new(fake.system(), &conf()).run(console, Some(2));
-    assert_eq!(
-        menu_calls(&fake),
-        [format!("{MENU} --countdown"), MENU.to_owned()]
-    );
-    let shown = fake.console.output_text();
-    assert!(shown.contains("Booting"), "{shown}");
-}
-
-#[test]
-fn start_up_counts_down_itself_when_the_menu_crashes() {
-    // A panic exits with 101; SIGSEGV (11) gives no exit code at all.
-    for status in [Status::exited(101), Status::from_raw(11)] {
-        let fake = started();
-        let state = State::new(&fake.files, "/zfsbootmenu");
-        for stage in zbm_types::Stage::ALL {
-            state.finish_stage(stage.as_str()).unwrap();
-        }
-        fake.files.file_with_mode(MENU, "", 0o755);
+fn without_the_session_start_up_counts_down_and_runs_the_menu_program() {
+    // A menu that cannot start, crashes or ends: the shell follows it.
+    for status in [Status::exited(1), Status::exited(101), Status::from_raw(11)] {
+        let fake = finished();
         fake.runner
             .on(move |command| (command.program() == MENU).then(|| Ok(Output::new(status, ""))));
-        let console = Modes {
-            console: true,
-            ..Modes::default()
-        };
 
-        Startup::new(fake.system(), &conf()).run(console, Some(2));
+        Startup::new(fake.system(), &conf()).run(CONSOLE, Some(2));
 
+        assert_eq!(menu_calls(&fake), [MENU.to_owned(), MENU.to_owned()]);
         let shown = fake.console.output_text();
-        assert!(shown.contains("Booting"), "{status:?}: {shown}");
+        // One countdown, from ten: start-up's, before the first round.
+        assert_eq!(
+            shown.matches("in \x1b[1;33m10").count(),
+            1,
+            "{status:?}: {shown}"
+        );
+        assert_eq!(shown.matches("emergency shell").count(), 2, "{status:?}");
     }
 }
 

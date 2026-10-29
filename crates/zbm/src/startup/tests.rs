@@ -6,6 +6,8 @@ use zbm_config::args::ZbmArgs;
 use zbm_platform::event::{Awaiting, reply};
 use zbm_testkit::Shared;
 use zbm_testkit::fakes::{FakeClock, FakeSystem};
+use zbm_tui::menu::machine::RealMachine;
+use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::startup::ToView;
 
 use super::*;
@@ -38,6 +40,8 @@ struct Log {
     /// The reply of a question nothing answers, until it is withdrawn.
     waiting: Option<zbm_platform::event::Reply<Action>>,
     withdrawn: usize,
+    /// The countdown of each round of the menu that went on from the view.
+    rounds: Vec<zbm_app::model::Timeout>,
 }
 
 /// A view that answers from a script, on the stages' own thread.
@@ -103,7 +107,7 @@ impl StartupScreen for Screen {
         self: Box<Self>,
         mailbox: Mailbox<ToView>,
         running: &dyn Fn() -> bool,
-    ) -> io::Result<()> {
+    ) -> io::Result<Option<Box<dyn MenuScreen>>> {
         while running() {
             let _ = zbm_sys::wait_readable(&mailbox, Some(Duration::from_millis(10)));
             for message in mailbox.take() {
@@ -124,12 +128,25 @@ impl StartupScreen for Screen {
                     ToView::Close { done } => {
                         log.closed = true;
                         done.send(());
-                        return Ok(());
+                        return Ok(Some(Box::new(Rounds(self.0.clone()))));
                     }
                 }
             }
         }
-        Ok(())
+        Ok(None)
+    }
+}
+
+/// The menu's screen after the view: it records how each round's machine
+/// counts down, and ends the round at once.
+struct Rounds(Shared<Log>);
+
+impl MenuScreen for Rounds {
+    fn run(&mut self, machine: RealMachine<'_, '_>) -> io::Result<String> {
+        use zbm_tui::menu::machine::Machine as _;
+        let timeout = machine.snapshot().timeout;
+        self.0.borrow_mut().rounds.push(timeout);
+        Ok(String::new())
     }
 }
 
@@ -327,9 +344,11 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
         assert_eq!(snapshot.startup, stages());
         Ok(Box::new(screen.take().expect("one view")))
     };
+    let no_menu = |_: Theme| -> io::Result<Box<dyn MenuScreen>> { panic!("not resumed") };
     let theme = Theme::new(Capabilities::FULL);
     let modes = (Modes::default(), Some(0));
-    let status = run_on(&startup, fake.system(), &conf(), modes, (theme, &open));
+    let screens = (theme, &open as Open<'_>, &no_menu as OpenMenu<'_>);
+    let status = run_on(&startup, (fake.system(), &conf()), modes, screens, None);
     assert_eq!(status, Some(0));
     assert!(seen.is_closed());
     let sent = seen.sent();
@@ -347,12 +366,89 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let failed = |_: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> {
         Err(io::Error::other("not a terminal"))
     };
-    let theme = Theme::new(Capabilities::FULL);
-    let modes = (Modes::default(), Some(0));
+    let screens = (theme, &failed as Open<'_>, &no_menu as OpenMenu<'_>);
     assert_eq!(
-        run_on(&startup, fake.system(), &conf(), modes, (theme, &failed)),
+        run_on(&startup, (fake.system(), &conf()), modes, screens, None),
         None
     );
+}
+
+#[test]
+fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
+    let fake = machine();
+    fake.files.file("/dev/zfs", "");
+    let startup = Startup::new(fake.system(), &conf());
+    let log = Shared::new(Log::default());
+    let seen = Seen(log.clone());
+    let screen = std::cell::RefCell::new(Some(Screen(log)));
+    let open = |_: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> {
+        Ok(Box::new(screen.take().expect("one view")))
+    };
+    let no_menu = |_: Theme| -> io::Result<Box<dyn MenuScreen>> { panic!("not resumed") };
+    let console = Modes {
+        console: true,
+        ..Modes::default()
+    };
+    let screens = (
+        Theme::new(Capabilities::FULL),
+        &open as Open<'_>,
+        &no_menu as OpenMenu<'_>,
+    );
+
+    let status = run_on(
+        &startup,
+        (fake.system(), &conf()),
+        (console, Some(2)),
+        screens,
+        None,
+    );
+
+    assert_eq!(status, Some(0));
+    assert!(seen.is_closed());
+    let rounds = seen.0.borrow().rounds.clone();
+    assert_eq!(
+        rounds,
+        [
+            zbm_app::model::Timeout::Seconds(10),
+            zbm_app::model::Timeout::Wait
+        ]
+    );
+    // No menu program: the menu ran in this process.
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("/bin/zfsbootmenu"))
+    );
+
+    // Resumed, the menu opens at once, waiting for the user.
+    let log = Shared::new(Log::default());
+    let resumed = Seen(log.clone());
+    let menu = std::cell::RefCell::new(Some(Rounds(log)));
+    let open_menu = |_: Theme| -> io::Result<Box<dyn MenuScreen>> {
+        Ok(Box::new(menu.take().expect("one screen")))
+    };
+    let no_view =
+        |_: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> { panic!("resumed") };
+    let resume = Modes {
+        resume: true,
+        ..console
+    };
+    let screens = (
+        Theme::new(Capabilities::FULL),
+        &no_view as Open<'_>,
+        &open_menu as OpenMenu<'_>,
+    );
+    let status = run_on(
+        &startup,
+        (fake.system(), &conf()),
+        (resume, Some(1)),
+        screens,
+        None,
+    );
+    assert_eq!(status, Some(0));
+    assert_eq!(resumed.0.borrow().rounds, [zbm_app::model::Timeout::Wait]);
 }
 
 #[test]

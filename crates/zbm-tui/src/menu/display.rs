@@ -328,9 +328,10 @@ pub fn run<M: Machine>(
     clock: impl Clock + 'static,
 ) -> io::Result<String> {
     let surface = Presented::new(grid, screen, shown);
+    let mut session = session;
     Frontend::new(surface, Keyboard(keys))?
         .with_clock(clock)
-        .run(session)
+        .run(&mut session)
 }
 
 /// Runs `session` on the display: the DRM card `card` (else the first),
