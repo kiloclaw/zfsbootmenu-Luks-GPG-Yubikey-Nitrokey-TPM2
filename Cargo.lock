@@ -3928,6 +3928,7 @@ dependencies = [
  "zbm-luks",
  "zbm-platform",
  "zbm-state",
+ "zbm-sys",
  "zbm-testkit",
  "zbm-types",
  "zbm-zfs",

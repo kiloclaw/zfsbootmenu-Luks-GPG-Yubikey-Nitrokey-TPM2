@@ -383,6 +383,16 @@ shell instead. The menu blocks `SIGUSR1`, `SIGTERM` and `SIGHUP` first thing, so
 (`zbm_sys::Signals`, ROADMAP.md PM3), and reads them after each child process returns, which is when the legacy trap
 runs too.
 
+The session's menu (ROADMAP.md, PM9) is ended by a handshake instead (PM10, ADR 0002): the start-up program listens
+on `/run/zfsbootmenu/session.sock` (`zbm_app::session`), a `SOCK_SEQPACKET` socket in a directory only root reaches,
+and refuses a peer the kernel names as another user. A second `zfsbootmenu` that finds `active` held sends
+`{"version":1,"request":"takeover"}`; the session's socket thread marks the menu as asked, the menu sees it at its
+next tick (as it sees the signals), ends and lets go of the lock, and only then does the thread answer `yielded`. The
+second menu takes the lock without a signal. When the session runs no menu it yields at once; when the lock is still
+held after that (a menu over SSH, or the menu program on a console the session cannot draw on), when the session
+answers `busy` (its menu did not end within 4 seconds, as while a program holds the terminal), or when no session
+listens, the signals above end the holder, as before.
+
 ### Signals
 
 The legacy code ignores `SIGINT` in `zfsbootmenu-init` and in `bin/zfsbootmenu` (`trap '' SIGINT`). An ignored signal

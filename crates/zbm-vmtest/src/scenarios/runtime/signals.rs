@@ -3,7 +3,9 @@
 //! recorded in `signals.json`. The hook and the shell must report them, and
 //! the shell must take Ctrl-C: the start-up program ignores `SIGINT`, and
 //! the shell gets its default action back. The menu of the Rust runtime
-//! runs no fzf, and opens the shell from its recovery tools.
+//! runs no fzf, and opens the shell from its recovery tools; there the
+//! start-up program, the session, listens on the socket another menu takes
+//! its menu over by (ROADMAP.md, PM10).
 
 use std::fmt::Write as _;
 use std::fs;
@@ -55,6 +57,9 @@ const SIG_KEYS: [&str; 3] = ["SigBlk", "SigIgn", "SigCgt"];
 /// The processes whose dispositions are recorded, as `signals.json` names
 /// them.
 const PROCESSES: [&str; 3] = ["hook", "fzf", "shell"];
+
+/// Where the session of the Rust runtime listens.
+const SESSION_SOCKET: &str = "/run/zfsbootmenu/session.sock";
 
 /// Signal masks by disposition, in the order reported.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -224,6 +229,13 @@ fn observe(vm: &mut Vm<'_>, runtime: ZbmRuntime) -> Result<Dispositions> {
     vm.shell_ready()?;
     let (_, out) = vm.sh_show(SHELL_COMMAND)?;
     let (fzf, shell) = split_output(&out)?;
+    if runtime != ZbmRuntime::Legacy {
+        let (status, _) = vm.sh(&format!("[ -S {SESSION_SOCKET} ]"))?;
+        vm.test().check(
+            status == 0,
+            &format!("the session listens on {SESSION_SOCKET}"),
+        );
+    }
     Ok(Dispositions { hook, fzf, shell })
 }
 

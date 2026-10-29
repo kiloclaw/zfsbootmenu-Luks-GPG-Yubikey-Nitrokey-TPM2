@@ -39,6 +39,7 @@ pub mod model;
 mod plan;
 mod read;
 pub mod service;
+pub mod session;
 mod unlock;
 mod volumes;
 

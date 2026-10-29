@@ -534,6 +534,10 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   on the start-up view, such as the keyboard layout, stays.
 - When the menu cannot run on the console, start-up counts down itself before the menu program, as without a menu:
   there is one countdown, never two.
+- `zfsbootmenu` over SSH takes the console's menu over by asking the start-up program on its socket
+  (`/run/zfsbootmenu/session.sock`, root only), which ends its menu and says so, instead of a signal to whatever the
+  menu runs. A menu that does not end within 4 seconds, as while a program holds the console, and a menu started some
+  other way, are still ended with signals.
 
 ### The menu goes on while it works (phase 2)
 

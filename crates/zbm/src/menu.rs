@@ -2,7 +2,8 @@
 //! (ROADMAP.md, R5 step 3), as users run it over SSH or from the recovery
 //! shell, and as the start-up program runs it in its own process, the
 //! session (`InSession`, PM9), where the legacy loop runs
-//! `bin/zfsbootmenu`. The program around the menu is
+//! `bin/zfsbootmenu`. Over SSH it takes the session's menu over by the
+//! session's socket (PM10). The program around the menu is
 //! `zbm_startup::program::menu`; the menu is `zbm_tui::menu` on the real
 //! machine.
 
@@ -10,6 +11,7 @@ use std::io;
 use std::path::Path;
 
 use zbm_app::service::MachineService;
+use zbm_app::session::{self, Handover};
 use zbm_app::{App, BootSettings, Recovery};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -39,6 +41,10 @@ struct Terminal<'s, 'a> {
     system: System<'a>,
     /// The signals of a takeover, when they could be blocked.
     signals: Option<&'s Signals>,
+    /// The session's socket asks its menu to end, in the session.
+    handover: Option<&'s Handover>,
+    /// The session's socket, which another instance asks first.
+    session: Option<&'s Path>,
     options: &'s ZbmOptions,
     base: &'s Path,
     show: Show<'s>,
@@ -70,8 +76,11 @@ impl Menu for Terminal<'_, '_> {
             .with_base(self.base)
             .with_layouts(Path::new(layouts::DIRECTORY))
             .with_boot(settings);
-        let signals = self.signals;
-        let stop = || signals.is_some_and(|signals| is_taken_over(signals.received()));
+        let (signals, handover) = (self.signals, self.handover);
+        let stop = || {
+            signals.is_some_and(|signals| is_taken_over(signals.received()))
+                || handover.is_some_and(Handover::is_asked)
+        };
         let machine = match RealMachine::new(app, self.system, recovery, &stop, self.countdown) {
             Ok(machine) => machine,
             Err(error) => {
@@ -91,6 +100,10 @@ impl Menu for Terminal<'_, '_> {
             self.error = Some(error.to_string());
         }
     }
+
+    fn session_socket(&self) -> Option<&Path> {
+        self.session
+    }
 }
 
 /// The menu program on `system` with the configuration `conf`, the menu
@@ -107,6 +120,8 @@ fn menu(
     let mut menu = Terminal {
         system,
         signals,
+        handover: None,
+        session: Some(Path::new(session::SOCKET)),
         options: &options,
         base: &base,
         show,
@@ -119,9 +134,10 @@ fn menu(
 
 /// The menu in the start-up program, the session (ROADMAP.md, PM9): each
 /// round of the recovery loop runs it on `screen`, which went on from the
-/// start-up view, around what the menu program does first. Its takeover
-/// signals ([`SESSION_TAKEOVER`]) are blocked by the program before any
-/// thread starts.
+/// start-up view, around what the menu program does first. Another
+/// instance ends it by the session's socket, or by its takeover signals
+/// ([`SESSION_TAKEOVER`]), which the program blocks before any thread
+/// starts.
 pub(crate) struct InSession<'s, 'a> {
     /// The screen the menu goes on with.
     pub screen: Box<dyn MenuScreen + 's>,
@@ -131,6 +147,8 @@ pub(crate) struct InSession<'s, 'a> {
     pub conf: &'s Conf,
     /// The takeover signals, when they could be blocked.
     pub signals: Option<&'s Signals>,
+    /// What the menu shares with the session's socket, when it listens.
+    pub handover: Option<&'s Handover>,
 }
 
 impl SessionMenu for InSession<'_, '_> {
@@ -149,6 +167,8 @@ impl SessionMenu for InSession<'_, '_> {
         let mut menu = Terminal {
             system: self.system,
             signals: self.signals,
+            handover: self.handover,
+            session: None,
             options: &options,
             base: &base,
             show: &mut show,
@@ -159,7 +179,15 @@ impl SessionMenu for InSession<'_, '_> {
             },
             error: None,
         };
+        if let Some(handover) = self.handover {
+            handover.enter();
+        }
         let _ = startup.menu(&mut menu);
+        // The menu let go of the `active` lock: the instance that asked can
+        // take it.
+        if let Some(handover) = self.handover {
+            handover.leave();
+        }
         if let Some(error) = menu.error {
             zbm_trace::error!("the menu could not run: {error}"; %error);
         }

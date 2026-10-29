@@ -90,6 +90,12 @@ input an attacker controls is parsed where the secrets are not, and drawn where 
   on its start-up view and then the menu in the same process, with the same screen and model, each round of the
   recovery loop; the menu program stays for SSH and the recovery shell, and for consoles the session cannot draw on.
   A takeover still uses `SIGUSR1` and the `active` lock until the session socket (PM10).
+- **PM10, the handshake** (29 October 2026): the session listens on `/run/zfsbootmenu/session.sock`
+  (`zbm_app::session`, on `zbm_sys::socket`: `SOCK_SEQPACKET`, the peer's user checked with `SO_PEERCRED`, messages of
+  at most 64 KiB, JSON with a version, fuzzed in `messages`). `Takeover` ends the session's menu, and `Yielded` comes
+  once it let go of the `active` lock. The lock stays, as the record of which menu runs for hooks and users, and the
+  signals stay as the fallback for a menu the session does not hold or that does not end in time. The menu over SSH as
+  a remote front end, with no menu of its own, is the rest of PM10.
 
 ## Answers of the maintainer
 

@@ -5,8 +5,9 @@
 //! reproduce: Rust ignores `SIGPIPE` at start-up, has no signal handlers, and
 //! cannot tell the effective user and groups of the process. The runtime also
 //! sends signals to other processes, wipes secrets from memory and reads the
-//! stack for crash reports ([`return_addresses`]); the menu on the display
-//! takes over the virtual terminal's modes ([`console`]).
+//! stack for crash reports ([`return_addresses`]), and its processes talk
+//! over sockets of packets ([`socket`]); the menu on the display takes over
+//! the virtual terminal's modes ([`console`]).
 //!
 //! Most of them are `rustix`'s safe calls, on borrowed descriptors. What
 //! `rustix` has no safe call for stays here, `unsafe`, each block stating why
@@ -22,6 +23,7 @@ pub mod console;
 pub mod memory;
 mod process;
 pub mod signals;
+pub mod socket;
 mod stack;
 
 pub use process::{

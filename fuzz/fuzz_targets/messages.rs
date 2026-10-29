@@ -4,7 +4,8 @@
 //! default boot environment, degraded pools, the command line override, the
 //! console's process and its layout and font requests), and the saved
 //! command line. Only ZFSBootMenu writes them, but hooks (I6) can, so
-//! reading them may not panic or hang.
+//! reading them may not panic or hang. Also the messages on the session's
+//! socket (I17), which a root login can send.
 
 #![no_main]
 
@@ -35,6 +36,19 @@ fuzz_target!(|data: &[u8]| {
     let _ = zbm_display::layout::compile::split(&text);
     let _ = zbm_platform::console::parse_size(&text);
     let _ = zbm_config::args::ZbmArgs::from_cmdline(&text);
+    if let Ok(request) = zbm_app::session::Request::decode(data) {
+        assert_eq!(
+            zbm_app::session::Request::decode(&request.encode()),
+            Ok(request)
+        );
+    }
+    if let Some((_, answer)) = zbm_app::session::Answer::decode(data) {
+        let encoded = answer.encode();
+        assert_eq!(
+            zbm_app::session::Answer::decode(&encoded),
+            Some((zbm_app::session::VERSION, answer))
+        );
+    }
 
     let files = FakeFiles::new();
     files.dir("/zfsbootmenu");

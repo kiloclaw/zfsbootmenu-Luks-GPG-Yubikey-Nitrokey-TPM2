@@ -22,6 +22,7 @@ vte = { path = "../patches/vte-0.15.0" }
 [dependencies]
 libfuzzer-sys = "0.4"
 ratatui = { version = "0.30", default-features = false, features = ["std", "crossterm", "layout-cache", "unstable-rendered-line-info"] }
+zbm-app = { path = "../crates/zbm-app" }
 zbm-boot = { path = "../crates/zbm-boot" }
 zbm-config = { path = "../crates/zbm-config" }
 zbm-console = { path = "../crates/zbm-console" }

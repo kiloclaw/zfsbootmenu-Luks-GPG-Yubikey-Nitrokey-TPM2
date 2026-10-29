@@ -19,6 +19,7 @@ zbm-display.workspace = true
 zbm-luks.workspace = true
 zbm-platform.workspace = true
 zbm-state.workspace = true
+zbm-sys.workspace = true
 zbm-types.workspace = true
 zbm-zfs.workspace = true
 

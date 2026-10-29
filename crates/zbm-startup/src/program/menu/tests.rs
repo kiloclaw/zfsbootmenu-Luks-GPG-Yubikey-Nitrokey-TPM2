@@ -1,7 +1,12 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
+use zbm_app::session::SessionSocket;
 use zbm_boot::error::BootError;
 use zbm_config::args::ZbmArgs;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_platform::exec::{Output, Status};
 use zbm_platform::files::Files;
 use zbm_state::State;
@@ -22,6 +27,46 @@ impl Menu for Recorded {
         self.shown.push(settings.env.clone());
         recovery.emergency_shell("");
     }
+}
+
+/// A menu of another instance, which asks the session at `socket` first.
+struct Asking {
+    socket: PathBuf,
+    shown: usize,
+}
+
+impl Menu for Asking {
+    fn show(&mut self, _settings: &BootSettings, _recovery: &dyn Recovery) {
+        self.shown += 1;
+    }
+
+    fn session_socket(&self) -> Option<&Path> {
+        Some(&self.socket)
+    }
+}
+
+/// A path for the session's socket, in a new directory of its own.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session's socket is a real one, in a directory of the test's own"
+)]
+fn socket_path(name: &str) -> PathBuf {
+    let directory =
+        std::env::temp_dir().join(format!("zbm-startup-menu-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    directory.join("session.sock")
+}
+
+/// Runs `client` while `socket` serves; what it returns.
+fn served<T>(socket: &SessionSocket, client: impl FnOnce() -> T) -> T {
+    let token = CancelToken::new().unwrap();
+    std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve(&token));
+        let result = client();
+        token.cancel();
+        server.join().unwrap();
+        result
+    })
 }
 
 /// A menu that checks the lock while it runs.
@@ -164,6 +209,86 @@ fn another_menu_is_asked_to_end_and_waited_for() {
             .contains("Waiting for other ZFSBootMenu instance to terminate")
     );
     assert_eq!(state.active_pid(), Some(77));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session's menu ends on its own thread, in real time"
+)]
+fn the_session_ends_its_menu_when_asked_and_no_signal_is_sent() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let path = socket_path("yields");
+    let socket = SessionSocket::bind(&path).unwrap();
+    let handover = socket.handover();
+    // The session's menu, 77, holds the lock.
+    let session_menu = state.take_active(77).unwrap().unwrap();
+    handover.enter();
+    let startup = Startup::new(fake.system(), &conf());
+    let mut menu = Asking {
+        socket: path,
+        shown: 0,
+    };
+
+    let status = served(&socket, || {
+        std::thread::scope(|scope| {
+            // It ends once asked, letting go of the lock first.
+            spawn_scoped_traced(scope, move || {
+                while !handover.is_asked() {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                drop(session_menu);
+                handover.leave();
+            });
+            startup.menu(&mut menu)
+        })
+    });
+
+    assert_eq!(status, 0);
+    assert_eq!(menu.shown, 1);
+    assert!(fake.processes.signals().is_empty());
+    assert!(!state.is_active());
+}
+
+#[test]
+fn a_menu_the_session_does_not_hold_or_cannot_end_is_signalled() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    // Another menu, 77, holds the lock, not the session.
+    let _other = state.take_active(77).unwrap().unwrap();
+    fake.files.file("/proc/77/task/77/children", "78\n");
+    let startup = Startup::new(fake.system(), &conf());
+    let path = socket_path("other");
+    let socket = SessionSocket::bind(&path).unwrap();
+    let mut menu = Asking {
+        socket: path.clone(),
+        shown: 0,
+    };
+
+    fake.console.keys(&[0x1b]);
+    assert_eq!(served(&socket, || startup.menu(&mut menu)), 0);
+    assert_eq!(
+        fake.processes.signals(),
+        [(77, Signal::User1), (78, Signal::Terminate)]
+    );
+
+    // The session's menu, which does not end in time.
+    drop(socket);
+    let socket = SessionSocket::bind(&path)
+        .unwrap()
+        .with_yield_wait(Duration::from_millis(20));
+    socket.handover().enter();
+    fake.console.keys(&[0x1b]);
+    assert_eq!(served(&socket, || startup.menu(&mut menu)), 0);
+    assert_eq!(fake.processes.signals().len(), 4);
+
+    // No session listens.
+    drop(socket);
+    fake.console.keys(&[0x1b]);
+    assert_eq!(startup.menu(&mut menu), 0);
+    assert_eq!(fake.processes.signals().len(), 6);
+    assert_eq!(menu.shown, 0);
 }
 
 #[test]

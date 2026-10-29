@@ -1910,6 +1910,7 @@ dependencies = [
  "zbm-luks",
  "zbm-platform",
  "zbm-state",
+ "zbm-sys",
  "zbm-types",
  "zbm-zfs",
 ]
@@ -1984,6 +1985,7 @@ version = "0.1.0"
 dependencies = [
  "libfuzzer-sys",
  "ratatui",
+ "zbm-app",
  "zbm-boot",
  "zbm-config",
  "zbm-console",

@@ -136,3 +136,74 @@ fn the_menu_takes_no_option() {
         "zfsbootmenu: unknown options --bogus\n"
     );
 }
+
+/// The session's menu: it reads the machine until it is told to leave.
+struct UntilLeaving(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl MenuScreen for UntilLeaving {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the menu waits in real time for the socket's thread"
+    )]
+    fn run(&mut self, mut machine: RealMachine<'_, '_>) -> io::Result<String> {
+        use std::sync::atomic::Ordering;
+        self.0.store(true, Ordering::Release);
+        loop {
+            let events = machine.tick();
+            if events
+                .iter()
+                .any(|event| matches!(event, zbm_tui::menu::world::Event::Leaving(_)))
+            {
+                return Ok(String::new());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session's socket is a real one, in a directory of the test's own"
+)]
+fn the_session_s_menu_ends_when_another_instance_asks_by_the_socket() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use zbm_app::session::{Answer, SessionSocket, ask_takeover};
+    use zbm_platform::event::{CancelToken, spawn_scoped_traced};
+
+    let fake = started(0);
+    let directory = std::env::temp_dir().join(format!("zbm-menu-session-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    let path = directory.join("session.sock");
+    let socket = SessionSocket::bind(&path).unwrap();
+    let running = Arc::new(AtomicBool::new(false));
+    let conf = conf();
+    let mut session = InSession {
+        screen: Box::new(UntilLeaving(running.clone())),
+        system: fake.system(),
+        conf: &conf,
+        signals: None,
+        handover: Some(socket.handover()),
+    };
+    let startup = Startup::new(fake.system(), &conf);
+    let token = CancelToken::new().unwrap();
+
+    let answer = std::thread::scope(|scope| {
+        spawn_scoped_traced(scope, || socket.serve(&token));
+        let asked = spawn_scoped_traced(scope, || {
+            while !running.load(Ordering::Acquire) {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            ask_takeover(&path)
+        });
+        session.run(&startup, false);
+        let answer = asked.join().unwrap();
+        token.cancel();
+        answer
+    });
+
+    assert_eq!(answer, Some(Answer::Yielded));
+    assert!(!State::new(&fake.files, "/zfsbootmenu").is_active());
+    assert!(!socket.handover().is_asked());
+}

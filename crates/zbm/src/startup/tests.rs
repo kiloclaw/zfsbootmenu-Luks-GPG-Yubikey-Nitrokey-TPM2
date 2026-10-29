@@ -348,7 +348,13 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let theme = Theme::new(Capabilities::FULL);
     let modes = (Modes::default(), Some(0));
     let screens = (theme, &open as Open<'_>, &no_menu as OpenMenu<'_>);
-    let status = run_on(&startup, (fake.system(), &conf()), modes, screens, None);
+    let status = run_on(
+        &startup,
+        (fake.system(), &conf()),
+        modes,
+        screens,
+        (None, None),
+    );
     assert_eq!(status, Some(0));
     assert!(seen.is_closed());
     let sent = seen.sent();
@@ -368,7 +374,13 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     };
     let screens = (theme, &failed as Open<'_>, &no_menu as OpenMenu<'_>);
     assert_eq!(
-        run_on(&startup, (fake.system(), &conf()), modes, screens, None),
+        run_on(
+            &startup,
+            (fake.system(), &conf()),
+            modes,
+            screens,
+            (None, None)
+        ),
         None
     );
 }
@@ -400,7 +412,7 @@ fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
         (fake.system(), &conf()),
         (console, Some(2)),
         screens,
-        None,
+        (None, None),
     );
 
     assert_eq!(status, Some(0));
@@ -445,7 +457,7 @@ fn the_session_s_menu_goes_on_from_the_view_and_counts_down_the_first_time() {
         (fake.system(), &conf()),
         (resume, Some(1)),
         screens,
-        None,
+        (None, None),
     );
     assert_eq!(status, Some(0));
     assert_eq!(resumed.0.borrow().rounds, [zbm_app::model::Timeout::Wait]);

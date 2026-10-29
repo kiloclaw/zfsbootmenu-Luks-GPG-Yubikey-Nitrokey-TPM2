@@ -1,12 +1,14 @@
 //! The menu program, `/bin/zfsbootmenu`: what runs around the menu, as the
 //! legacy `bin/zfsbootmenu` does before it draws the list. It waits for
-//! start-up, takes the menu over from another instance, holds the `active`
-//! lock, runs the `setup.d` hooks, then hands over to the menu of the front
-//! end ([`Menu`]). See "Concurrent instances and takeover" in
+//! start-up, takes the menu over from another instance (the session's by a
+//! handshake on its socket, any other by signals), holds the `active` lock,
+//! runs the `setup.d` hooks, then hands over to the menu of the front end
+//! ([`Menu`]). See "Concurrent instances and takeover" in
 //! `crates/DESIGN.md`.
 
 use std::path::Path;
 
+use zbm_app::session;
 use zbm_boot::boot::BootSettings;
 use zbm_boot::hooks;
 use zbm_boot::prompt::{Answer, TimedPrompt, colorize, tput};
@@ -48,6 +50,13 @@ pub trait Menu {
     /// Runs the menu until it ends: it boots with `settings`, and opens the
     /// recovery shell with `recovery`.
     fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery);
+
+    /// The session's socket, which the menu asks first to give the menu up
+    /// ([`session::ask_takeover`]); `None` for the session's own menu,
+    /// which would ask itself.
+    fn session_socket(&self) -> Option<&Path> {
+        None
+    }
 }
 
 impl Startup<'_> {
@@ -64,7 +73,7 @@ impl Startup<'_> {
             return 0;
         }
         if self.state.is_active() {
-            self.take_over();
+            self.take_over(menu.session_socket());
         }
         // Held until the menu ends; the kernel lets go of it if this process
         // dies, so no lock is left behind.
@@ -139,9 +148,23 @@ impl Startup<'_> {
         true
     }
 
-    /// Asks the menu holding the lock to end: `SIGUSR1` to it, then `SIGTERM`
-    /// to its deepest child, so that what it waits for returns.
-    fn take_over(&self) {
+    /// Asks the menu holding the lock to end: the session, by its `socket`,
+    /// first; when it did not yield, or another menu holds the lock,
+    /// `SIGUSR1` to that one, then `SIGTERM` to its deepest child, so that
+    /// what it waits for returns.
+    fn take_over(&self, socket: Option<&Path>) {
+        match socket.and_then(session::ask_takeover) {
+            Some(session::Answer::Yielded) => {
+                zbm_trace::info!("the session's menu ended");
+                if !self.state.is_active() {
+                    return;
+                }
+            }
+            Some(session::Answer::Refused(refusal)) => {
+                zbm_trace::info!("the session refused the takeover: {refusal}"; %refusal);
+            }
+            None => {}
+        }
         let Some(pid) = self.state.active_pid() else {
             return;
         };

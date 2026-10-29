@@ -23,12 +23,13 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
+use zbm_app::session::{self, Handover, SessionSocket};
 use zbm_app::{App, BootError, Recovery};
 use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};
-use zbm_platform::event::{Mailbox, NoAnswer, spawn_scoped_traced};
+use zbm_platform::event::{CancelToken, Mailbox, NoAnswer, spawn_scoped_traced};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
 use zbm_pool::{ImportSettings, Imported, Late, Operator, RetryDelay};
 use zbm_startup::front::Front;
@@ -336,6 +337,9 @@ type OpenMenu<'o> = &'o dyn Fn(Theme) -> io::Result<Box<dyn MenuScreen>>;
 /// and, resumed, the menu's screen.
 type Screens<'o> = (Theme, Open<'o>, OpenMenu<'o>);
 
+/// What ends the session's menu: its takeover signals, and its socket.
+type Takeover<'t> = (Option<&'t Signals>, Option<&'t Handover>);
+
 /// What the stages on the view leave: the default boot environment they
 /// found, and the screen the menu goes on with, unless the view failed.
 type AfterView = (Option<DatasetName>, Option<Box<dyn MenuScreen>>);
@@ -344,7 +348,9 @@ type AfterView = (Option<DatasetName>, Option<Box<dyn MenuScreen>>);
 /// the image has the menu and the terminal can run it: its stages on the
 /// menu's start-up view, then the menu in this process, going on from the
 /// view (ROADMAP.md, PM9); resumed, the stages are done and the menu opens
-/// at once. Its exit status; `None` when it cannot, for the plain console.
+/// at once. Another instance takes the menu over by the session's socket
+/// (PM10), which a thread serves meanwhile. Its exit status; `None` when it
+/// cannot, for the plain console.
 pub fn run_in_menu(
     startup: &Startup<'_>,
     system: System<'_>,
@@ -374,13 +380,38 @@ pub fn run_in_menu(
     };
     let open = |snapshot, theme| terminal::startup_view(snapshot, theme, sized()?, escape_wait);
     let open_menu = |theme| terminal::menu_screen(theme, sized()?, escape_wait);
-    run_on(
-        startup,
-        (system, conf),
-        (modes, None),
-        (Theme::new(capabilities), &open, &open_menu),
-        signals.as_ref(),
-    )
+    let screens: Screens<'_> = (Theme::new(capabilities), &open, &open_menu);
+    let Some((socket, token)) = listen(Path::new(session::SOCKET)) else {
+        let takeover = (signals.as_ref(), None);
+        return run_on(startup, (system, conf), (modes, None), screens, takeover);
+    };
+    std::thread::scope(|scope| {
+        // Cancelled however this ends, so that the scope can end too.
+        let _stop = Stop(&token);
+        spawn_scoped_traced(scope, || socket.serve(&token));
+        let takeover = (signals.as_ref(), Some(socket.handover()));
+        run_on(startup, (system, conf), (modes, None), screens, takeover)
+    })
+}
+
+/// Cancels its token when dropped.
+struct Stop<'t>(&'t CancelToken);
+
+impl Drop for Stop<'_> {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
+
+/// The session's socket at `path`, and the token that ends its thread;
+/// `None` when it cannot listen, as when another session does.
+fn listen(path: &Path) -> Option<(SessionSocket, CancelToken)> {
+    let listened = CancelToken::new().and_then(|token| Ok((SessionSocket::bind(path)?, token)));
+    listened
+        .inspect_err(|error| {
+            zbm_trace::error!("the session's socket cannot listen: {error}"; %error);
+        })
+        .ok()
 }
 
 /// Whether a terminal of `size` (columns, rows) shows the start-up view:
@@ -404,13 +435,13 @@ pub(crate) fn escape_wait(control_term: &str) -> Duration {
 }
 
 /// [`run_in_menu`] on the screens of `screens`, the recovery loop limited
-/// to `rounds`, the menu ended by the takeover `signals`.
+/// to `rounds`, the menu ended by the takeover's signals and socket.
 fn run_on(
     startup: &Startup<'_>,
     (system, conf): (System<'_>, &Conf),
     (modes, rounds): (Modes, Option<usize>),
     (theme, open, open_menu): Screens<'_>,
-    signals: Option<&Signals>,
+    (signals, handover): Takeover<'_>,
 ) -> Option<i32> {
     let (bootfs, screen) = if modes.resume {
         // Resumed, the stages are done, and the menu waits for the user.
@@ -427,6 +458,7 @@ fn run_on(
         system,
         conf,
         signals,
+        handover,
     });
     let menu = session
         .as_mut()
