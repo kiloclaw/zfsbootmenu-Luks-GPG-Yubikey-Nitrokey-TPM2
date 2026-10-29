@@ -83,6 +83,14 @@ cells and receives key presses. Programs that need a terminal keep one.**
 - The VM test of secrets searches the console's memory, scrollback and mirror for a typed passphrase.
 - `runtime-rust-console` and its sibling VM tests run on the cell surface once UI6 lands.
 
+## Notes from the implementation
+
+- **UI3** (29 October 2026): the front end runtime is `zbm_tui::menu::frontend::Frontend<B: Surface, I: Input>`. A
+  `Surface` is a Ratatui backend that is told its size and presents each frame (the terminal's `QuietBackend`, the
+  display's pixels, the test backend); an `Input` gives keys, and may wake for the machine's mailbox. The menu's loop
+  is `Frontend::run`, for any machine on any surface, and the start-up view is the start-up screen of the model on a
+  `Frontend`. The cell surface of the client channel (UI6) is a `Surface` too.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

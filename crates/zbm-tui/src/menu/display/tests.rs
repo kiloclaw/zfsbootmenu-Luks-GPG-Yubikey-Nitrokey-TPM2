@@ -14,6 +14,9 @@ use crate::menu::caps::Capabilities;
 use crate::menu::demo::DemoOptions;
 use crate::menu::theme::Theme;
 use crate::menu::view::tests::screen;
+use crate::menu::view::view;
+use ratatui::Terminal;
+use zbm_testkit::fakes::FakeClock;
 
 /// The image's Terminus 8×14, the font VGA text mode can draw too.
 const TER_V14B: &[u8] = include_bytes!("../../../../../legacy/zfsbootmenu/fonts/ter-v14b.psf");
@@ -153,13 +156,19 @@ impl Screen for FakeScreen {
     }
 }
 
-/// Keys from a script: a press, or `None` for time passing without one;
-/// time passes once it ends.
-struct FakeKeys(VecDeque<Option<KeyPress>>);
+/// Keys from a script: a press, or `None` for the time asked passing
+/// without one on the clock; time passes once it ends.
+struct FakeKeys(VecDeque<Option<KeyPress>>, Option<FakeClock>);
 
 impl KeySource for FakeKeys {
-    fn next(&mut self, _: Duration) -> io::Result<Option<KeyPress>> {
-        Ok(self.0.pop_front().flatten())
+    fn next(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
+        let key = self.0.pop_front().flatten();
+        if key.is_none()
+            && let Some(clock) = &self.1
+        {
+            clock.advance(timeout);
+        }
+        Ok(key)
     }
 }
 
@@ -176,16 +185,23 @@ fn press(key: Key) -> KeyPress {
 
 #[test]
 fn the_loop_draws_takes_keys_and_ends_when_the_menu_boots() {
-    let session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::CONSOLE));
+    let session =
+        crate::menu::demo::Session::new(&DemoOptions::default(), Theme::new(Capabilities::CONSOLE));
     let mut screen = FakeScreen { presented: 0 };
     let mut script: VecDeque<Option<KeyPress>> = std::iter::repeat_n(None, 20).collect();
     script.extend([Key::Down, Key::Enter, Key::Escape].map(|key| Some(press(key))));
-    let mut keys = FakeKeys(script);
+    let mut keys = FakeKeys(script, None);
     let mut texts = Vec::new();
 
-    let why = run(session, &mut screen, &mut keys, grid(), &mut |text| {
-        texts.push(text.to_owned());
-    })
+    let clock = FakeClock::new();
+    keys.1 = Some(clock.clone());
+    let why = run(
+        session,
+        (&mut screen, &mut keys),
+        grid(),
+        &mut |text| texts.push(text.to_owned()),
+        clock,
+    )
     .unwrap();
 
     assert!(why.starts_with("Booting"), "{why}");
@@ -200,7 +216,8 @@ fn the_loop_draws_takes_keys_and_ends_when_the_menu_boots() {
 
 #[test]
 fn without_a_card_nothing_is_taken_over() {
-    let session = Session::new(&DemoOptions::default(), Theme::new(Capabilities::CONSOLE));
+    let session =
+        crate::menu::demo::Session::new(&DemoOptions::default(), Theme::new(Capabilities::CONSOLE));
     let mut asked = false;
 
     let error = run_on_display(

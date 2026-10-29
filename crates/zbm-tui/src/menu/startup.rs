@@ -14,84 +14,18 @@ pub mod link;
 use std::collections::VecDeque;
 use std::io;
 use std::os::fd::{AsFd as _, BorrowedFd};
-use std::time::Duration;
 
 use ratatui::Terminal;
-use ratatui::backend::Backend;
-use ratatui::layout::{Position, Rect, Size};
-use zbm_display::keys::KeyPress;
-use zbm_platform::clock::{Clock, SystemClock};
 use zbm_platform::event::Mailbox;
 use zbm_types::Answer;
 
+use super::frontend::Frontend;
+pub use super::frontend::{Input, Surface, TICK};
 use super::model::Model;
-use super::secret::{Marker, is_asking_secret};
 use super::theme::Theme;
 use super::update::{Message, update};
-use super::view::view;
 use super::world::{Action, Event, Snapshot};
-use crate::quiet::QuietBackend;
 pub use link::{MailLink, ToView, ViewLink};
-
-/// How long the view waits for a key before time passes for its dialog.
-pub const TICK: Duration = Duration::from_millis(200);
-
-/// The keys of the terminal the view draws on, its mode and its size.
-pub trait Keys {
-    /// The next key pressed within `timeout`; `None` when none was.
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be read.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>>;
-
-    /// As [`Keys::key`], and no longer once `wake` is readable, as when a
-    /// message came: then `None`. Keys that come at once ignore it.
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be read.
-    fn key_or_wake(
-        &mut self,
-        timeout: Duration,
-        wake: Option<BorrowedFd<'_>>,
-    ) -> io::Result<Option<KeyPress>> {
-        let _ = wake;
-        self.key(timeout)
-    }
-
-    /// Gives the terminal back to programs, as it was before the view.
-    ///
-    /// # Errors
-    ///
-    /// When its mode cannot be set.
-    fn release(&mut self) -> io::Result<()>;
-
-    /// Takes the terminal again, after [`Keys::release`].
-    ///
-    /// # Errors
-    ///
-    /// When its mode cannot be set.
-    fn take(&mut self) -> io::Result<()>;
-
-    /// The terminal's size now, in columns and rows, if it can be measured.
-    /// It changes when a program that had the terminal changed the console
-    /// font, as `30-console-autosize` does, or when its window was resized.
-    fn size(&mut self) -> Option<(u16, u16)>;
-}
-
-/// A backend that is told the size of the terminal it draws on, as the
-/// view measures it ([`Keys::size`]).
-pub trait Resize: Backend {
-    /// Records the terminal's new size.
-    fn set_size(&mut self, size: Size);
-}
-
-impl<B: Backend> Resize for QuietBackend<B> {
-    fn set_size(&mut self, size: Size) {
-        QuietBackend::set_size(self, size);
-    }
-}
 
 /// The start-up view, as start-up's front end uses it: on a terminal
 /// ([`StartupView`]), or scripted in tests.
@@ -110,16 +44,11 @@ pub trait StartupScreen {
     ) -> io::Result<()>;
 }
 
-/// The start-up view on a terminal.
-pub struct StartupView<B: Backend, K: Keys> {
+/// The start-up view on a front end: the start-up screen of the menu's
+/// model.
+pub struct StartupView<B: Surface, I: Input> {
     model: Option<Model>,
-    terminal: Terminal<B>,
-    keys: K,
-    /// Where the view records its secret prompts for the console on the
-    /// display, if anywhere.
-    marker: Option<Marker>,
-    /// The clock the dialogs' time passes on.
-    clock: Box<dyn Clock>,
+    frontend: Frontend<B, I>,
 }
 
 /// Whether `action` answers a dialog of start-up.
@@ -130,54 +59,26 @@ fn is_answer(action: &Action) -> bool {
     )
 }
 
-/// A result of the backend `B`, with its error as an I/O error.
-fn drawn<T, E>(result: Result<T, E>) -> io::Result<T>
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    result.map_err(io::Error::other)
-}
-
-impl<B: Resize, K: Keys> StartupView<B, K>
+impl<B: Surface, I: Input> StartupView<B, I>
 where
     B::Error: Send + Sync + 'static,
 {
-    /// The view of `snapshot`, drawn on `terminal`, which `keys` reads.
+    /// The view of `snapshot` on `frontend`, drawn at once.
     ///
     /// # Errors
     ///
-    /// When the terminal cannot be drawn on.
+    /// When the surface cannot be drawn on.
     pub fn new(
-        terminal: Terminal<B>,
-        keys: K,
+        frontend: Frontend<B, I>,
         snapshot: Snapshot,
         theme: Theme,
-    ) -> io::Result<StartupView<B, K>> {
+    ) -> io::Result<StartupView<B, I>> {
         let mut view = StartupView {
             model: Some(Model::new(snapshot, theme)),
-            terminal,
-            keys,
-            marker: None,
-            clock: Box::new(SystemClock::new()),
+            frontend,
         };
-        drawn(view.terminal.clear())?;
         view.draw()?;
         Ok(view)
-    }
-
-    /// The view, which records its secret prompts with `marker` for the
-    /// console on the display.
-    #[must_use]
-    pub fn with_marker(mut self, marker: Marker) -> StartupView<B, K> {
-        self.marker = Some(marker);
-        self
-    }
-
-    /// The view, which measures the time of its dialogs on `clock`.
-    #[must_use]
-    pub fn with_clock(mut self, clock: impl Clock + 'static) -> StartupView<B, K> {
-        self.clock = Box::new(clock);
-        self
     }
 
     /// The menu the view draws.
@@ -191,7 +92,7 @@ where
 
     /// The terminal, for the tests that read what it shows.
     pub fn terminal(&self) -> &Terminal<B> {
-        &self.terminal
+        self.frontend.terminal()
     }
 
     /// `message`; the actions it asked for.
@@ -204,36 +105,13 @@ where
         actions
     }
 
-    /// Draws the start-up view in the terminal's size now, unless start-up
-    /// is over: the menu draws the main view.
+    /// Draws the start-up view, unless start-up is over: the menu draws
+    /// the main view.
     fn draw(&mut self) -> io::Result<()> {
-        if self.model.as_ref().is_none_or(|model| model.started) {
-            return Ok(());
+        match self.model.as_ref() {
+            Some(model) if !model.started => self.frontend.draw(model),
+            _ => Ok(()),
         }
-        self.fit()?;
-        let Some(model) = self.model.as_ref() else {
-            return Ok(());
-        };
-        drawn(self.terminal.draw(|frame| view(model, frame)))?;
-        if let Some(marker) = &mut self.marker {
-            marker.show(is_asking_secret(model));
-        }
-        Ok(())
-    }
-
-    /// Follows the terminal's size, when it changed since the last frame.
-    fn fit(&mut self) -> io::Result<()> {
-        let Some((columns, rows)) = self.keys.size().filter(|&(c, r)| c > 0 && r > 0) else {
-            return Ok(());
-        };
-        let area = Rect::new(0, 0, columns, rows);
-        if self.terminal.get_frame().area() == area {
-            return Ok(());
-        }
-        self.terminal
-            .backend_mut()
-            .set_size(Size::new(columns, rows));
-        drawn(self.terminal.resize(area))
     }
 
     /// Shows `event`: a stage started or ended, a volume opened.
@@ -273,19 +151,19 @@ where
         wake: Option<BorrowedFd<'_>>,
     ) -> io::Result<Action> {
         let _ = self.step(Message::Event(Box::new(event.clone())));
-        let mut last_tick = self.clock.now();
+        let mut last_tick = self.frontend.now();
         loop {
             self.draw()?;
             // A read can end before the tick with no key, as noise on a
             // serial line does: the dialog's time is the time that passed.
-            let passed = self.clock.now().saturating_sub(last_tick);
-            let mut answers = match self.keys.key_or_wake(TICK.saturating_sub(passed), wake)? {
+            let passed = self.frontend.now().saturating_sub(last_tick);
+            let mut answers = match self.frontend.key(TICK.saturating_sub(passed), wake)? {
                 Some(key) => self.step(Message::Key(key)),
                 None => Vec::new(),
             };
-            let passed = self.clock.now().saturating_sub(last_tick);
+            let passed = self.frontend.now().saturating_sub(last_tick);
             if !answers.iter().any(is_answer) && passed >= TICK {
-                last_tick = self.clock.now();
+                last_tick = self.frontend.now();
                 let ms = u64::try_from(passed.as_millis()).unwrap_or(u64::MAX);
                 answers.extend(self.step(Message::Tick(ms)));
             }
@@ -311,13 +189,7 @@ where
     /// Leaves the terminal as it was before the view: cleared, with the
     /// cursor at the top and shown.
     fn give_back(&mut self) -> io::Result<()> {
-        if let Some(marker) = &mut self.marker {
-            marker.show(false);
-        }
-        drawn(self.terminal.clear())?;
-        drawn(self.terminal.set_cursor_position(Position::ORIGIN))?;
-        drawn(self.terminal.show_cursor())?;
-        self.keys.release()
+        self.frontend.give_back()
     }
 
     /// Hands the terminal over to `run`, such as hooks or the recovery
@@ -329,8 +201,7 @@ where
     pub fn suspend(&mut self, run: &mut dyn FnMut()) -> io::Result<()> {
         self.give_back()?;
         run();
-        self.keys.take()?;
-        drawn(self.terminal.clear())?;
+        self.frontend.take_back()?;
         self.draw()
     }
 
@@ -433,7 +304,7 @@ fn resumed(mailbox: &Mailbox<ToView>, queue: &mut VecDeque<ToView>, running: &dy
     }
 }
 
-impl<B: Resize, K: Keys> StartupScreen for StartupView<B, K>
+impl<B: Surface, I: Input> StartupScreen for StartupView<B, I>
 where
     B::Error: Send + Sync + 'static,
 {

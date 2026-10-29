@@ -9,31 +9,29 @@
 //! the same on either.
 
 use std::io;
+use std::os::fd::BorrowedFd;
 use std::path::Path;
 use std::time::Duration;
 
 use ratatui::backend::{Backend, ClearType, WindowSize};
 use ratatui::buffer::Cell;
-use ratatui::layout::{Position, Rect, Size};
+use ratatui::layout::{Position, Size};
 use ratatui::style::{Color, Modifier};
-use ratatui::{Terminal, TerminalOptions, Viewport};
 use zbm_display::decor::Decoration;
 use zbm_display::display::{Display, Screen, first_card};
 use zbm_display::faces::FontFace;
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
+use zbm_display::keys::KeyPress;
 use zbm_display::palette;
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
+use zbm_platform::Clock;
+use zbm_platform::clock::SystemClock;
 
-use super::demo::Session;
-use super::view::view;
-
-/// How often time passes for the menu, when no key comes.
-const TICK: Duration = Duration::from_millis(200);
-
-/// How long the last frame stays before the menu ends.
-const LAST_FRAME: Duration = Duration::from_millis(1500);
+use super::frontend::{Frontend, Input, Surface};
+use super::machine::Machine;
+use super::session::Session;
 
 /// The console's number of a named colour; `None` for the others.
 fn console_number(colour: Color) -> Option<u8> {
@@ -218,39 +216,121 @@ impl Backend for PixelBackend {
     }
 }
 
-/// Runs `session` on `screen`, drawn with `grid`, with keys from `keys`;
-/// returns why the menu ended. After each frame, `shown` gets the text of
-/// the screen.
+/// The pixels of a [`PixelBackend`] presented on a screen after each frame,
+/// whose text goes to `shown`: the surface of the menu on the display.
+pub struct Presented<'s> {
+    backend: PixelBackend,
+    screen: &'s mut dyn Screen,
+    shown: &'s mut dyn FnMut(&str),
+}
+
+impl<'s> Presented<'s> {
+    /// `grid`'s cells on `screen`, in as many as fit; `shown` gets the text
+    /// of each frame.
+    pub fn new(
+        grid: Grid,
+        screen: &'s mut dyn Screen,
+        shown: &'s mut dyn FnMut(&str),
+    ) -> Presented<'s> {
+        let backend = PixelBackend::new(grid, screen.size());
+        Presented {
+            backend,
+            screen,
+            shown,
+        }
+    }
+}
+
+impl Backend for Presented<'_> {
+    type Error = io::Error;
+
+    fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)>,
+    {
+        self.backend.draw(content)
+    }
+
+    fn hide_cursor(&mut self) -> io::Result<()> {
+        self.backend.hide_cursor()
+    }
+
+    fn show_cursor(&mut self) -> io::Result<()> {
+        self.backend.show_cursor()
+    }
+
+    fn get_cursor_position(&mut self) -> io::Result<Position> {
+        self.backend.get_cursor_position()
+    }
+
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
+        self.backend.set_cursor_position(position)
+    }
+
+    fn clear(&mut self) -> io::Result<()> {
+        self.backend.clear()
+    }
+
+    fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
+        self.backend.clear_region(clear_type)
+    }
+
+    fn size(&self) -> io::Result<Size> {
+        self.backend.size()
+    }
+
+    fn window_size(&mut self) -> io::Result<WindowSize> {
+        self.backend.window_size()
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.backend.flush()
+    }
+}
+
+impl Surface for Presented<'_> {
+    /// The display's size is its mode's: nothing tells it another.
+    fn set_size(&mut self, _: Size) {}
+
+    fn present(&mut self) -> io::Result<()> {
+        self.screen.present(self.backend.frame_mut())?;
+        (self.shown)(&self.backend.text());
+        Ok(())
+    }
+}
+
+/// The keys of the keyboards, as the front end's input. They do not wake
+/// for the machine: what it sends shows within a tick.
+pub struct Keyboard<'k>(pub &'k mut dyn KeySource);
+
+impl Input for Keyboard<'_> {
+    fn key_or_wake(
+        &mut self,
+        timeout: Duration,
+        _: Option<BorrowedFd<'_>>,
+    ) -> io::Result<Option<KeyPress>> {
+        self.0.next(timeout)
+    }
+}
+
+/// Runs `session` on `screen`, drawn with `grid`, with keys from `keys`,
+/// its time on `clock`; returns why the menu ended. After each frame,
+/// `shown` gets the text of the screen ([`Frontend::run`]).
 ///
 /// # Errors
 ///
 /// When the screen cannot be drawn on or the keys read.
-pub fn run(
-    mut session: Session,
-    screen: &mut dyn Screen,
-    keys: &mut dyn KeySource,
+pub fn run<M: Machine>(
+    session: Session<M>,
+    (screen, keys): (&mut dyn Screen, &mut dyn KeySource),
     grid: Grid,
     shown: &mut dyn FnMut(&str),
+    clock: impl Clock + 'static,
 ) -> io::Result<String> {
-    let backend = PixelBackend::new(grid, screen.size());
-    let size = backend.size;
-    let viewport = Viewport::Fixed(Rect::new(0, 0, size.width, size.height));
-    let mut terminal = Terminal::with_options(backend, TerminalOptions { viewport })?;
-    loop {
-        terminal.draw(|frame| view(session.model(), frame))?;
-        let backend = terminal.backend_mut();
-        screen.present(backend.frame_mut())?;
-        shown(&backend.text());
-        if let Some(why) = session.leaving() {
-            // The last frame stays a moment; keys pressed meanwhile are lost.
-            while keys.next(LAST_FRAME)?.is_some() {}
-            return Ok(why.to_owned());
-        }
-        match keys.next(TICK)? {
-            Some(press) => session.press(press),
-            None => session.tick(u64::try_from(TICK.as_millis()).unwrap_or(u64::MAX)),
-        }
-    }
+    let surface = Presented::new(grid, screen, shown);
+    Frontend::new(surface, Keyboard(keys))?
+        .with_clock(clock)
+        .run(session)
 }
 
 /// Runs `session` on the display: the DRM card `card` (else the first),
@@ -261,8 +341,8 @@ pub fn run(
 /// # Errors
 ///
 /// When there is no card, output or keyboard, or one cannot be used.
-pub fn run_on_display(
-    session: Session,
+pub fn run_on_display<M: Machine>(
+    session: Session<M>,
     card: Option<&Path>,
     grid: &mut dyn FnMut((u32, u32)) -> io::Result<Grid>,
     shown: &mut dyn FnMut(&str),
@@ -281,7 +361,13 @@ pub fn run_on_display(
         .map(|path| VirtualTerminal::take(&path))
         .transpose()?;
     let mut keys = Keyboards::open(sysfs, dev)?;
-    let why = run(session, &mut display, &mut keys, grid, shown);
+    let why = run(
+        session,
+        (&mut display, &mut keys),
+        grid,
+        shown,
+        SystemClock::new(),
+    );
     // The output goes back to the kernel console before the terminal does.
     drop(display);
     drop(terminal);

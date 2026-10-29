@@ -18,6 +18,7 @@ pub mod demo;
 pub mod display;
 pub mod filter;
 pub mod format;
+pub mod frontend;
 pub mod keyboard;
 pub mod keymap;
 pub mod machine;

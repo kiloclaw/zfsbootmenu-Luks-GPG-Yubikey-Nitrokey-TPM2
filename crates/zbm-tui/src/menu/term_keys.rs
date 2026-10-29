@@ -20,8 +20,8 @@ use ratatui::crossterm::terminal;
 use zbm_display::keys::{Key, KeyPress};
 use zbm_sys::console::Watch;
 
+use super::frontend::Input;
 use super::keymap::{Modifiers, press};
-use super::startup::Keys;
 
 /// `ESC`.
 const ESCAPE: u8 = 0x1b;
@@ -457,7 +457,7 @@ impl TerminalKeys {
     }
 }
 
-impl Keys for TerminalKeys {
+impl Input for TerminalKeys {
     /// The next key press, waiting at most `timeout` for it.
     fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
         self.key_or_wake(timeout, None)

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::time::Duration;
 use zbm_testkit::Shared;
 
 use pretty_assertions::assert_eq;
@@ -63,8 +64,12 @@ fn key(code: Key) -> KeyPress {
     press(code, Modifiers::NONE)
 }
 
-impl Keys for Scripted {
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
+impl Input for Scripted {
+    fn key_or_wake(
+        &mut self,
+        timeout: Duration,
+        _: Option<BorrowedFd<'_>>,
+    ) -> io::Result<Option<KeyPress>> {
         let read = self.keys.borrow_mut().pop_front();
         match read.unwrap_or(Read::Tick) {
             Read::Key(key) => Ok(Some(key)),
@@ -91,12 +96,6 @@ impl Keys for Scripted {
     }
 }
 
-impl Resize for TestBackend {
-    fn set_size(&mut self, size: Size) {
-        self.resize(size.width, size.height);
-    }
-}
-
 /// The stages of start-up, all pending.
 fn snapshot() -> Snapshot {
     let stage = |name: &str| Stage {
@@ -110,11 +109,11 @@ fn snapshot() -> Snapshot {
 }
 
 fn view(keys: &Scripted) -> StartupView<TestBackend, Scripted> {
-    let terminal = Terminal::new(TestBackend::new(80, 25)).unwrap();
-    let theme = Theme::new(Capabilities::FULL);
-    StartupView::new(terminal, keys.clone(), snapshot(), theme)
+    let frontend = Frontend::new(TestBackend::new(80, 25), keys.clone())
         .unwrap()
-        .with_clock(keys.clock.clone())
+        .with_clock(keys.clock.clone());
+    let theme = Theme::new(Capabilities::FULL);
+    StartupView::new(frontend, snapshot(), theme).unwrap()
 }
 
 /// What the terminal of `view` shows.
