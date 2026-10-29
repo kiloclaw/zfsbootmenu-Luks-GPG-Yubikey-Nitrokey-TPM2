@@ -228,6 +228,12 @@ fn a_console_that_ends_starts_again_until_its_tries_are_used_up() {
     assert_eq!(text.lines().count(), 3, "{text}");
     let kmsg = std::fs::read_to_string(dir.join("kmsg")).unwrap();
     assert!(kmsg.contains("ended 3 times in a row"), "{kmsg}");
+    assert_eq!(
+        kmsg.matches("<5>ZFSBootMenu: the console on the display started again")
+            .count(),
+        2,
+        "{kmsg}"
+    );
 }
 
 #[test]

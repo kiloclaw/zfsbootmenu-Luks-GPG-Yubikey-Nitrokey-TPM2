@@ -113,9 +113,10 @@ fn the_machine_has_the_display_and_the_mirror_s_serial_port() {
 }
 
 const LOGGED: &str = "speed 38400 baud; isig icanon\r\nSigIgn: 0000000000000000\r\n\
-    zbm-state-end\r\nzbm-flood-ok\r\nzbm-back-/dev/console\r\n\
+    zbm-state-end\r\nzbm-flood-ok\r\nzbm-back-/dev/pts/1\r\n\
     [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
-    going on on the kernel console\r\n";
+    going on on the kernel console\r\n\
+    [   41.2] ZFSBootMenu: the console on the display started again (process 812)\r\n";
 
 #[test]
 fn the_console_shows_takes_keys_and_falls_back() {
@@ -130,7 +131,8 @@ fn the_console_shows_takes_keys_and_falls_back() {
          \x0cemergency shell\n\x0c# tty\n/dev/pts/0\n\
          \x0c# layout de\nkeyboard: de\n\x0c# cat\nzyê\nzyê\n\
          \x0czfsbootmenu / > echo zyê\nzyê\n\x0c# layout us\nkeyboard: us\n\
-         \x0czbm console: handed the display back\n\x0c# echo zbm-reattached\nzbm-reattached\n",
+         \x0czbm console: handed the display back\n\x0c# echo zbm-reattached\nzbm-reattached\n\
+         \x0cZFSBootMenu ended unexpectedly; type 'exit' to start it again\n",
     )
     .unwrap();
     let (mut vm, guest) = scripted(&test, vec![Step::Say(LOGGED)]);

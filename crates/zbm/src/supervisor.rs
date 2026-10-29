@@ -141,8 +141,19 @@ impl Supervisor {
     /// Writes an error to the kernel log at level 3, with the `ZFSBootMenu:`
     /// prefix; failures are ignored.
     fn error(&self, text: &str) {
+        self.log_at(3, text);
+    }
+
+    /// Writes a notice to the kernel log at level 5, as [`Supervisor::error`]
+    /// does an error.
+    fn notice(&self, text: &str) {
+        self.log_at(5, text);
+    }
+
+    /// Writes `text` to the kernel log at `level`.
+    fn log_at(&self, level: u8, text: &str) {
         if let Ok(mut kmsg) = std::fs::OpenOptions::new().append(true).open(&self.log) {
-            let _ = writeln!(kmsg, "<3>ZFSBootMenu: {text}");
+            let _ = writeln!(kmsg, "<{level}>ZFSBootMenu: {text}");
         }
     }
 

@@ -1,7 +1,7 @@
 //! The checks of `runtime-rust-console` that end with the console: Ctrl-C
-//! stops a program that floods it, and once it is killed, the runtime goes
-//! on on the kernel console, whose shell takes keys and finds the
-//! supervisor's message in the kernel log.
+//! stops a program that floods it, and once it is killed, the supervisor
+//! starts it again (ROADMAP.md, PM6), with the recovery shell on it, which
+//! takes keys and finds the supervisor's messages in the kernel log.
 
 use std::fs;
 use std::path::Path;
@@ -13,25 +13,28 @@ use crate::vm::Vm;
 
 use super::super::colours::screen_colours;
 use super::super::drm::Monitor;
-use super::{Pace, last_screen, type_text};
+use super::{Pace, last_screen, type_text, wait_screen};
 
 /// Typed in the recovery shell: ends the console.
 pub(super) const KILL: &str = "kill -9 $(cat /zfsbootmenu/console)\n";
 
-/// Typed on the kernel console afterwards: a line on the serial console,
-/// which the test reads, made by the shell, so that keys that reached
-/// something else (the menu's command line, which a kernel prints) fail;
-/// it names the shell's terminal, which must not be the console's
-/// pseudo-terminal.
+/// What the supervisor shows before the recovery shell that follows the
+/// start-up program, which ended with the console's terminal.
+pub(super) const SHELL_AGAIN: &str = "type 'exit' to start it again";
+
+/// Typed in that shell: a line on the serial console, which the test reads,
+/// made by the shell, so that keys that reached something else (the menu's
+/// command line, which a kernel prints) fail; it names the shell's
+/// terminal, the pseudo-terminal of the console that started again.
 pub(super) const BACK: &str = "echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0\n";
 
-/// What [`BACK`] prints from a shell on the kernel console.
-pub(super) const BACK_LINE: &str = r"zbm-back-/dev/(tty\d+|console)\b";
+/// What [`BACK`] prints from a shell on the console.
+pub(super) const BACK_LINE: &str = r"zbm-back-/dev/pts/\d+\b";
 
-/// Typed on the kernel console then: the supervisor's line of the kernel
-/// log, on the serial console. The whole log can take longer than the test
-/// waits to cross the serial line.
-pub(super) const LOG: &str = "dmesg | grep display.ended > /dev/ttyS0\n";
+/// Typed in the shell then: the supervisor's lines of the kernel log about
+/// the console, on the serial console. The whole log can take longer than
+/// the test waits to cross the serial line.
+pub(super) const LOG: &str = "dmesg | grep on.the.display > /dev/ttyS0\n";
 
 /// Typed in the recovery shell: floods the console, until Ctrl-C, with a
 /// program the image has (it has no `yes`).
@@ -51,6 +54,9 @@ pub(super) const STATE: [&str; 3] = [
 
 /// The supervisor's message when the console ended.
 pub(super) const ENDED: &str = r"console on the display ended";
+
+/// The supervisor's message when it started the console again.
+pub(super) const RESTARTED: &str = r"console on the display started again";
 
 /// Ctrl-C typed while a program floods the console stops it: the keys come
 /// before the program's output.
@@ -102,8 +108,8 @@ fn note_state(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Re
     Ok(())
 }
 
-/// The console killed from its shell: the kernel console takes keys again,
-/// and the supervisor's message is in the kernel log.
+/// The console killed from its shell: it starts again, the recovery shell
+/// on it takes keys, and the supervisor's messages are in the kernel log.
 pub(super) fn check_fallback(
     test: &Test,
     vm: &mut Vm<'_>,
@@ -120,17 +126,22 @@ pub(super) fn check_fallback(
     test.note(&format!(
         "virtio: after the kill, {colours:?} colours on the display; the console showed: {screen}"
     ));
-    type_text(vm, monitor, BACK, pace.pause)?;
-    let back = vm.expect(&[BACK_LINE], pace.patience.min(30)).is_ok();
+    let again = wait_screen(mirror, SHELL_AGAIN, pace.patience.min(60))?.is_some();
+    let back = again && {
+        type_text(vm, monitor, BACK, pace.pause)?;
+        vm.expect(&[BACK_LINE], pace.patience.min(30)).is_ok()
+    };
     test.check(
         back,
-        "virtio: once the console ended, a shell on the kernel console takes keys",
+        "virtio: once the console ended, it starts again, and the recovery shell on it takes keys",
     );
     type_text(vm, monitor, LOG, pace.pause)?;
-    let ended = back && vm.expect(&[ENDED], pace.patience.min(30)).is_ok();
+    let logged = back
+        && vm.expect(&[ENDED], pace.patience.min(30)).is_ok()
+        && vm.expect(&[RESTARTED], pace.patience.min(30)).is_ok();
     test.check(
-        ended,
-        "virtio: the supervisor logged that the console ended",
+        logged,
+        "virtio: the supervisor logged that the console ended and started again",
     );
     Ok(())
 }

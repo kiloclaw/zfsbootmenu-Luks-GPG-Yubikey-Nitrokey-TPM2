@@ -8,8 +8,9 @@
 //! - On a virtio GPU: the countdown shows on the console, in colour; Escape
 //!   typed on QEMU's keyboard reaches it, and the recovery shell runs on
 //!   the console's pseudo-terminal. Killing the console from that shell
-//!   puts the runtime back on the kernel console, whose shell takes keys
-//!   again and finds the console's start and end in the kernel log.
+//!   ends the start-up program with its terminal; the supervisor starts the
+//!   console again, then the recovery shell on it, which takes keys and
+//!   finds the console's end and restart in the kernel log.
 //!   The console draws with the image's TrueType font, anti-aliased. It
 //!   starts with the image's first keyboard layout, `us`; switched to `de`
 //!   from the shell (`zbm console layout`, step 4), the keys of `y` and `z`

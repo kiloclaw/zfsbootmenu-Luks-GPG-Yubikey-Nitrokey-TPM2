@@ -333,11 +333,13 @@ Following a boot
   ``ê``, and the same keys after ``echo`` at the shell's prompt must show and print ``zyê``; the same command for
   ``us``, typed with the German layout, must switch back. Ctrl-C typed while ``od -v /dev/zero`` floods the console must
   stop it (the image has no ``yes``). After ``kill -9`` of the console, a screenshot is kept (``virtio-fallback.ppm``)
-  and noted with the console's last screen; the shell on the kernel console must take ``echo zbm-back-$(readlink
-  /proc/self/fd/0) > /dev/ttyS0`` and print ``zbm-back-/dev/tty1`` or ``zbm-back-/dev/console``, not a pseudo-terminal
-  (the shell makes the line the test waits for, so keys that reached something else, or a console that did not end,
-  cannot pass for it), and ``dmesg | grep display.ended > /dev/ttyS0`` must show the supervisor's message that the
-  console ended. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start must name a
+  and noted with the console's last screen; the start-up program ends with the console's terminal, and the supervisor
+  starts the console again, then the recovery shell on it (``ROADMAP.md``, PM6), whose message must show on the
+  console; the shell must take ``echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0`` and print
+  ``zbm-back-/dev/pts/N`` (the shell makes the line the test waits for, so keys that reached something else cannot
+  pass for it), and ``dmesg | grep on.the.display > /dev/ttyS0`` must show the supervisor's messages that the console
+  ended and started again. The shell on the kernel console, once the console is given up, is tested by the
+  supervisor's own tests. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start must name a
   ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the boot
   environment must boot.
 

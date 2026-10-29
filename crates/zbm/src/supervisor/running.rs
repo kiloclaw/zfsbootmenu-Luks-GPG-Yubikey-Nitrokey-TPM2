@@ -306,6 +306,10 @@ impl Running<'_, '_> {
         };
         match Attached::start(program) {
             Ok(attached) => {
+                supervisor.notice(&format!(
+                    "the console on the display started again (process {})",
+                    attached.pid
+                ));
                 self.event(Event::Console(format!("restarted {}", attached.pid)));
                 supervisor.redirect(&attached);
                 self.display = Display::On {
