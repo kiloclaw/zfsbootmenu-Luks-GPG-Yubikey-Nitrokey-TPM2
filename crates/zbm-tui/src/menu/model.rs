@@ -260,6 +260,10 @@ impl Model {
         if self.started {
             self.screen = Screen::Main;
         }
+        // The round's machine opens the main view again, with its own
+        // countdown: the start-up view saw start-up end, but counted
+        // nothing down, as it knew no timeout.
+        self.started = false;
     }
 
     /// Takes the machine's new `snapshot`, keeping the environment and the

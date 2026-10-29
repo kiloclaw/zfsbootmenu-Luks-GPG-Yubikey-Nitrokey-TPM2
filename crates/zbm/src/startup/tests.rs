@@ -493,3 +493,36 @@ fn a_terminal_too_small_for_the_view_keeps_the_plain_console() {
     assert!(fits((80, 25)) && fits((52, 20)));
     assert!(!fits((51, 25)) && !fits((80, 19)));
 }
+
+#[test]
+fn the_snapshot_a_dialog_shows_keeps_the_stages_progress() {
+    let fake = FakeSystem::new();
+    let (front, _) = front(&fake);
+    *lock(&front.known) = Snapshot {
+        startup: stages(),
+        ..Snapshot::default()
+    };
+    let modules = zbm_app::stage_name(zbm_types::Stage::Modules);
+    let unlock = zbm_app::stage_name(zbm_types::Stage::LuksUnlock);
+    front.show(Event::StageFinished {
+        stage: modules.to_owned(),
+        state: StageState::Done,
+    });
+    front.show(Event::StageStarted(unlock.to_owned()));
+
+    // A volume listed for its dialog shows the machine as the view knows it.
+    let known = lock(&front.known).clone();
+    let state = |name: &str| {
+        known
+            .startup
+            .iter()
+            .find(|stage| stage.name == name)
+            .map(|stage| stage.state.clone())
+    };
+    assert_eq!(state(modules), Some(StageState::Done));
+    assert_eq!(state(unlock), Some(StageState::Running));
+    assert_eq!(
+        state(zbm_app::stage_name(zbm_types::Stage::ImportPools)),
+        Some(StageState::Pending)
+    );
+}

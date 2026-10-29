@@ -116,10 +116,16 @@ impl<'a> MenuFront<'a> {
         self.open.store(false, Ordering::Release);
     }
 
-    /// Shows `event`.
+    /// Shows `event`, and keeps what it changed of the machine, so that a
+    /// snapshot shown later, with a volume added, keeps the stages' progress.
     fn show(&self, event: Event) {
-        if let Event::Changed(snapshot) = &event {
-            *lock(&self.known) = snapshot.clone();
+        match &event {
+            Event::Changed(snapshot) => *lock(&self.known) = snapshot.clone(),
+            Event::StageStarted(name) => reached(&mut lock(&self.known), name, StageState::Running),
+            Event::StageFinished { stage, state } => {
+                reached(&mut lock(&self.known), stage, state.clone());
+            }
+            _ => {}
         }
         if self.is_open() && !self.view.show(event) {
             self.gone();
@@ -215,6 +221,13 @@ impl<'a> MenuFront<'a> {
             }
         }
         events
+    }
+}
+
+/// Records in `snapshot` that the start-up stage `name` reached `state`.
+fn reached(snapshot: &mut Snapshot, name: &str, state: StageState) {
+    if let Some(stage) = snapshot.startup.iter_mut().find(|stage| stage.name == name) {
+        stage.state = state;
     }
 }
 

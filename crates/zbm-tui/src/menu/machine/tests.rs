@@ -298,3 +298,53 @@ fn with_a_service_the_real_machine_performs_quiet_actions_on_its_worker() {
             .contains(&"zfs snapshot tank/ROOT/be@new".to_owned())
     );
 }
+
+#[test]
+fn the_menu_counts_down_after_a_start_up_view_that_saw_every_stage_end() {
+    use crate::menu::model::Model;
+    use crate::menu::update::{Message, update};
+    use crate::menu::world::StageState;
+
+    let theme = Theme::new(Capabilities::FULL);
+    let options = crate::menu::demo::DemoOptions::default();
+    let mut machine = crate::menu::demo::FakeMachine::new(&options)
+        .snapshot()
+        .clone();
+    for stage in &mut machine.startup {
+        stage.state = StageState::Done;
+    }
+    machine.timeout = Timeout::Seconds(3);
+    // The start-up view's model: the stages, all pending, then done.
+    let pending = machine
+        .startup
+        .iter()
+        .map(|stage| crate::menu::world::Stage {
+            state: StageState::Pending,
+            ..stage.clone()
+        })
+        .collect();
+    let mut model = Model::new(
+        Snapshot {
+            startup: pending,
+            ..Snapshot::default()
+        },
+        theme,
+    );
+    for stage in &machine.startup {
+        let done = Event::StageFinished {
+            stage: stage.name.clone(),
+            state: StageState::Done,
+        };
+        model = update(model, Message::Event(Box::new(done))).0;
+    }
+    model.begin_round();
+
+    let recorded = Recorded {
+        snapshot: machine,
+        applied: Vec::new(),
+    };
+    let mut session = Session::with_model(recorded, model);
+    session.tick(0);
+
+    assert_eq!(session.model().countdown_seconds(), Some(3));
+}
