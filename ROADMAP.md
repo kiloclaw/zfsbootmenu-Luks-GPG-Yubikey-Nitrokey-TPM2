@@ -754,11 +754,12 @@ The ADRs of the target architecture, and the small fixes that need no design.
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
   lanes); DM11, DM2, SB2 and SB3 too (28 October 2026, at `1e5a5f6b`, all four lanes); PM2, PM4 and DM9 too (28
-  October 2026, at `a2fd0246`, all four lanes). The VM run of SE6, SE5, PM6, PM8, UI3, PM9, PM10's handshake, PM7 and PM11 is left; its
-  layouts, procedures and firmware lane passed on 29 October 2026 but for `firmware-usbkey`, whose menu did not
-  count down after a start-up that asked nothing (from PM9; fixed). In the runtime lane, `runtime-rust-console`
-  failed on the same bug, and its fallback checks still expected the kernel console after the console was killed,
-  where PM6 now starts it again: the test follows PM6 now.
+  October 2026, at `a2fd0246`, all four lanes). The VM run of SE6, SE5, PM6, PM8, UI3, PM9, PM10's handshake, PM7, PM11 and DM8 found
+  two bugs, both fixed: the menu did not count down after a start-up that asked nothing (`firmware-usbkey`,
+  `runtime-rust-console`; from PM9), and `runtime-rust-console` still expected the kernel console after the console
+  was killed, where PM6 now starts it again. At `bcb041d9`, the keys and secrets, complex, and layouts, procedures
+  and firmware lanes pass (29 October 2026; 71, 238 and 218 checks; the `oldzfs` tests did not run); the runtime
+  lane is left.
 - The [fixes left from the review](#fixes-left-from-the-review-of-27-october-2026): in on 27 October 2026, but for
   those that go with later items, with their VM runs passing (all but the two `oldzfs` tests, which did not run).
 - The VM runs of the October 2026 fixes, and of M3 (`runtime-rust-console-comfort`): done on 27 October 2026, every
