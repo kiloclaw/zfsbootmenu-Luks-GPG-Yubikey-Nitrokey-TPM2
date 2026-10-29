@@ -1,6 +1,6 @@
 # ADR 0007: The menu as a workspace, and keys that work on every keyboard
 
-- **Status:** proposed, 29 October 2026
+- **Status:** accepted, 29 October 2026 (proposed the same day)
 - **Decides:** decision 18 of [ROADMAP.md](../../../ROADMAP.md#decisions) (keys that work on every keyboard), and the
   design of UI13; proposes the key map of decision 8, which the usability sessions (UI11) decide
 - **Governs:** UI10, UI11, UI14, UI15; the key map of `zbm-tui` (`menu/keymap.rs`), UI6's `Key` message
@@ -146,3 +146,16 @@ unlocks; the forced import and the rewind are choices of the import page, and co
    The alternative translates unbound characters through the image's layout, a guess that can run the wrong action.
 5. **The start-up view.** Proposed: the Boot tab until start-up ends, so the Log tab and the command line work during
    it. The alternative keeps it a screen of its own, as today.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 29 October 2026:
+
+1. **Case:** a capital is its letter; Caps Lock changes no action.
+2. **One meaning per key in the whole workspace,** with the moves above: `i` imports, `!` looks inside, `f` restores,
+   `u` unlocks, and the log is a tab.
+3. **`Tab`:** the next tab; `Space` marks.
+4. **Serial and SSH users on other layouts:** characters only, with the arrows and the command line.
+5. **The start-up view:** the Boot tab until start-up ends.
+
+Decision 8, the key map itself, stays open until the usability sessions (UI11) compare it with the current map.

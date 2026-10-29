@@ -287,7 +287,7 @@ design pages of `docs/dev/menu-design/` and the prototype's wireframes; UI10 bui
 - **The same workspace everywhere.** At 80×24 over a serial line, in ASCII and reverse video without colour, the
   layout keeps its parts, shorter.
 
-Keys work on every keyboard ([decision 18](#decisions)):
+Keys work on every keyboard ([decision 18](#decisions), [ADR 0007](docs/dev/adr/0007-menu-workspace.md)):
 
 1. **No action needs one character only.** Arrows, `Enter`, `Esc`, `Tab` and the command line reach everything;
    `j` `k` `h` `l` move as the arrows do, and the digit row only shortens the way to a tab.
@@ -748,7 +748,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's,
   drafted on 29 October ([ADR 0007](docs/dev/adr/0007-menu-workspace.md)); the process model, the trust zones and the
-  client channel accepted the same day, the crate map, C dependencies and the image plan on 29 October.
+  client channel accepted the same day, the crate map, C dependencies, the image plan and the menu workspace on 29
+  October.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -919,6 +920,11 @@ Decided on 29 October 2026:
     checked against dracut's output; the build container keeps dracut until it passes the VM suites. Dracut stays a
     backend for remote unlock and distribution packages, mkinitcpio for Arch; the legacy runtime's plan goes with the
     legacy runtime.
+18. **Keys that work on every keyboard** ([ADR 0007](docs/dev/adr/0007-menu-workspace.md)): the four rules of
+    [the menu](#the-menu-a-workspace): nothing needs one character only, a capital is its letter, keys by position on
+    the display console (an unbound character counts as the US key in its place, through the layout's `Positions`),
+    and a command line that knows every language (UI15). One meaning per key in the whole workspace; `Tab` the next
+    tab; over a serial line or SSH characters only; the start-up view is the Boot tab until start-up ends.
 
 Decided on 28 October 2026:
 
@@ -950,17 +956,12 @@ Open:
 7. **Nucleo or its matcher:** decided by the 10,000-snapshot test (UI10).
 8. **The key map:** proposed, the workspace keys of UI13 (`j` `k` `h` `l` and the arrows to move, numbered tabs, one
    letter per action, `:` for the command line), with the classic `MOD+key` aliases of the `fzf` menu; this changes
-   rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions. Decided by the usability sessions
+   rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions; the map in full is in
+   [ADR 0007](docs/dev/adr/0007-menu-workspace.md#the-key-map-proposed-decision-8). Decided by the usability sessions
    (UI11), which compare it with the current map.
-18. **Keys that work on every keyboard:** proposed, the four rules of [the menu](#the-menu-a-workspace): nothing needs
-    one character only, nothing depends on case, keys by position on the display console, and a command line that
-    knows every language (UI15). Proposed in [ADR 0007](docs/dev/adr/0007-menu-workspace.md), with the key map of
-    decision 8 for the sessions.
 
-Decision 18 is decided by UI13's ADR in phase 0, [ADR 0007](docs/dev/adr/0007-menu-workspace.md), proposed on 29
-October 2026; the others of phase 0 are accepted
-([docs/dev/adr/](docs/dev/adr/): 10, 13 and 15 on 28 October 2026, 12, 14 and 16 on 29 October). Decision 8 is
-decided by the sessions that follow.
+The decisions of phase 0 are accepted ([docs/dev/adr/](docs/dev/adr/): 10, 13 and 15 on 28 October 2026, 12, 14,
+16 and 18 on 29 October). Decision 8 is decided by the usability sessions that follow (UI11).
 
 ## Fixes left from the review of 27 October 2026
 
