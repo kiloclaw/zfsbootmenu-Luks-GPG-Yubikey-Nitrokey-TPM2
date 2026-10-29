@@ -347,4 +347,6 @@ fn the_menu_counts_down_after_a_start_up_view_that_saw_every_stage_end() {
     session.tick(0);
 
     assert_eq!(session.model().countdown_seconds(), Some(3));
+    // The view, which knew no environment, warned of none.
+    assert_eq!(session.model().notification, None);
 }

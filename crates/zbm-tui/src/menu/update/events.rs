@@ -85,7 +85,10 @@ fn unlocked(volume: &str, outcome: UnlockOutcome) -> Outcome {
 }
 
 /// Records how far the start-up stage `name` got, adding it when the
-/// snapshot did not list it, and opens the main view once start-up is over.
+/// snapshot did not list it, and notes when start-up is over. Only the
+/// start-up view gets these events, and its snapshot lists no environment
+/// and no timeout: the menu opens the main view, and counts down, with the
+/// machine's first snapshot.
 fn stage(model: &mut Model, name: String, reached: StageState) {
     let startup = &mut model.snapshot.startup;
     match startup.iter_mut().find(|known| known.name == name) {
@@ -95,7 +98,9 @@ fn stage(model: &mut Model, name: String, reached: StageState) {
             state: reached,
         }),
     }
-    start(model);
+    if model.is_started() {
+        model.started = true;
+    }
 }
 
 /// Opens the main view and arms the countdown once start-up is over and no
