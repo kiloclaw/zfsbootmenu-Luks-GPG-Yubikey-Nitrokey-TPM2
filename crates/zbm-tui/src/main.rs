@@ -36,6 +36,8 @@ Options:
   --next-boot            the running system asked to boot tank/ROOT/arch once
   --tpm-changed          the firmware was updated: the TPM keeps the key of
                          luks-zroot-a, and the passphrase is asked instead
+  --workspace            the workspace of the redesign (ADR 0007): its tabs,
+                         and its keys (j k h l move, 1-4 and Tab the tabs)
   --theme <name>         colour, console, mono or ascii (default: from TERM,
                          NO_COLOR and the locale)
   --size <cols>x<rows>   the size when the terminal reports none
@@ -86,6 +88,7 @@ fn parse(args: &[String]) -> Result<Arguments, String> {
             "--failing" => parsed.options.failing = true,
             "--next-boot" => parsed.options.next_boot = true,
             "--tpm-changed" => parsed.options.tpm_changed = true,
+            "--workspace" => parsed.options.workspace = true,
             "--theme" => {
                 let name = args.next().ok_or("--theme needs a name")?;
                 parsed.theme =
@@ -213,12 +216,12 @@ mod tests {
     #[test]
     fn the_demo_options_are_parsed() {
         let line = "--demo --locked --foreign --wait --failing --next-boot --tpm-changed \
-                    --theme ascii --size 52x20 --log-keys k --language pseudo";
+                    --workspace --theme ascii --size 52x20 --log-keys k --language pseudo";
         let parsed = arguments(line).unwrap();
 
         assert!(parsed.options.locked && parsed.options.foreign);
         assert!(parsed.options.failing && parsed.options.next_boot);
-        assert!(parsed.options.tpm_changed);
+        assert!(parsed.options.tpm_changed && parsed.options.workspace);
         assert_eq!(parsed.options.timeout, None);
         assert_eq!(parsed.theme, Some(Capabilities::ASCII));
         assert_eq!(parsed.size, Some((52, 20)));

@@ -123,6 +123,12 @@ pub enum Intent {
     Reveal,
     /// The other segment of the changes: files or packages.
     Segment,
+    /// This tab of the workspace.
+    Tab(Tab),
+    /// The next tab of the workspace.
+    NextTab,
+    /// The previous tab of the workspace.
+    PreviousTab,
 }
 
 /// What a key press means in a context.
@@ -286,10 +292,12 @@ const fn key(c: char, contexts: &'static [Context], intent: Intent) -> Binding {
 
 mod classic;
 mod labels;
+mod workspace;
 
 use self::classic::classic;
 pub use self::classic::{CLASSIC, classic_bindings};
 pub use self::labels::{TOOLBAR, TOOLBAR_GAP, Tool, bindings, describe, footer, help, key_name};
+pub use self::workspace::{Map, Tab, WORKSPACE};
 
 use Context::{Diff, Kernels, Log, Main, Packages, Pools, Recovery, Snapshots, Startup};
 
@@ -480,10 +488,10 @@ pub const KEYMAP: &[Binding] = &[
     ),
 ];
 
-/// What `press` means in `context`, if anything.
-pub fn input(context: Context, press: KeyPress) -> Option<Input> {
+/// What `press` means in `context` with the key map `map`, if anything.
+pub fn input(map: Map, context: Context, press: KeyPress) -> Option<Input> {
     let modifiers = Modifiers::of(&press);
-    let bound = KEYMAP.iter().find(|binding| {
+    let bound = map.table().into_iter().find(|binding| {
         binding.key == press.key
             && binding.modifiers == modifiers
             && binding.scope.contains(context)

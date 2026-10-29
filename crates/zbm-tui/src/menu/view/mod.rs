@@ -25,9 +25,13 @@ mod question;
 mod screens;
 mod status;
 mod unlock;
+mod workspace;
 
 /// The smallest size the menu lays out for.
 pub const MINIMUM: (u16, u16) = (52, 20);
+
+/// From this height the workspace says how to reach its command line.
+const HINT_FROM: u16 = 24;
 
 /// Draws `model` into `frame`.
 pub fn view(model: &Model, frame: &mut Frame<'_>) {
@@ -48,13 +52,26 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     let notification = u16::from(
         model.working.is_some() || model.notification.is_some() || model.progress.is_some(),
     );
-    let [top, body, note, bottom] = Layout::vertical([
+    let hint = u16::from(
+        model.map == keymap::Map::Workspace
+            && model.screen != Screen::Startup
+            && area.height >= HINT_FROM,
+    );
+    let [top, body, note, command, bottom] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(5),
         Constraint::Length(notification),
+        Constraint::Length(hint),
         Constraint::Length(1),
     ])
     .areas(area);
+    if hint > 0 {
+        let line = Line::styled(
+            format!(" {}", text!("workspace-hint")),
+            model.theme.style(Role::Muted),
+        );
+        frame.render_widget(Paragraph::new(line), command);
+    }
     status::render(model, frame, top);
     render_screen(model, frame, body);
     if let Some(ran) = model.working {
@@ -73,6 +90,9 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
 fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     match model.screen {
         Screen::Startup => screens::startup(model, frame, area),
+        Screen::Main if model.map == keymap::Map::Workspace => {
+            workspace::render(model, frame, area);
+        }
         Screen::Main => main_view::render(model, frame, area),
         Screen::Snapshots => screens::snapshots(model, frame, area),
         Screen::Kernels => screens::kernels(model, frame, area),
@@ -140,7 +160,7 @@ fn footer(model: &Model, width: u16) -> Line<'static> {
     let gap = " ".repeat(keymap::TOOLBAR_GAP);
     let mut spans = vec![Span::raw(" ")];
     let mut used = 0;
-    for (index, tool) in keymap::footer(model.context(), width)
+    for (index, tool) in keymap::footer(model.map, model.context(), width)
         .into_iter()
         .enumerate()
     {

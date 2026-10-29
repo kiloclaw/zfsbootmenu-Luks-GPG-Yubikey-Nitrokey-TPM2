@@ -96,11 +96,24 @@ Detected once at start, from the environment the menu was started with; the kern
 
 ## Layout by size
 
+The current map's views:
+
 | Size class | Inspector | Navigation bar | Toolbar |
 | --- | --- | --- | --- |
 | wide, 100 columns and more | right of the list, 42% (split view), with kernels and snapshots when tall | full | five actions and `? More` |
 | regular, 80×25 | below the list, 6 lines | short status | five actions and `? More` |
 | compact, down to 52×20 | below the list, 3 lines | short status, `‹` alone | as many actions as fit, and `? More` |
+
+The workspace's Boot tab ([ADR 0007](../adr/0007-menu-workspace.md)) keeps its parts at every size, shorter:
+
+| Size class | Sidebar | Inspector | Tab bar | Command hint |
+| --- | --- | --- | --- | --- |
+| wide, 110 columns and more | pools, volumes and what needs attention, 26 columns | right of the list, with the next steps, the checks, the kernels and snapshots when tall | the name, the tabs, the full status | from 24 rows |
+| regular, 80×24, as over a serial line | what needs attention as one line above the list, with the tab of the first | below the list | the tabs, the short status | from 24 rows |
+| compact, down to 52×20 | none | below the list | the tabs and the count of what needs attention, then short names, then digits | none |
+
+Over a serial line without colour, the workspace draws in ASCII and reverse video: the current tab in brackets, the
+selection with `>`, every state written out (`workspace-80x24-ascii`).
 
 ## Motion and redraw
 

@@ -37,9 +37,13 @@ Each file is one screen as text, after the scenario named in `wireframes.rs` (th
 | `unlock-layout` | typing with the German layout, what is typed shown with `Ctrl-R` |
 | `reseal-confirm` | the alert that seals the TPM2 key again, once the volume is open |
 | `pools-tpm-changed` | a volume whose TPM2 key is out of date, in the pools view |
+| `workspace` | the workspace's Boot tab (`--workspace`): the tab bar, the sidebar of pools, volumes and what needs attention, the boot environments, the inspector with its next steps |
+| `workspace-kernels` | `l` from the Boot tab: the kernels column of the second environment |
+| `workspace-pools` | `3`: the Pools tab |
 
 Every name comes at three sizes: `-120x40`, `-80x25` and `-52x20`, the smallest the menu lays out for. The `-ascii`
-files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). Colour
+files are the main view and dialogs at 80×25 for terminals without line drawing or UTF-8 (`--theme ascii`). The
+workspace comes at 80×24 too, as over a serial line, in colour and in ASCII (`-80x24`, `-80x24-ascii`). Colour
 is not in the text: colour and monochrome draw the same characters, which a test checks, so nothing depends on
 colour alone. Another test reads the Unicode tables of the image's console fonts and fails if a wireframe uses a
 glyph they lack. The design rules they follow are in [../apple-hig.md](../apple-hig.md).

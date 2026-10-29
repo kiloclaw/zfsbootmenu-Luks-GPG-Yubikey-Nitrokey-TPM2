@@ -638,7 +638,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | UI10 | The rest of the menu, built as the workspace of UI13 (steps 5 to 7 of R5 in the old plan): tabs and drill-down columns, the attention sidebar, the boot history (#9), review pages for rollback, forced import and destroy; VM tests of each snapshot change, the previews of a diff and of package changes, the palette's entries; kernels and the command line editor, pools and LUKS volumes (unlock and import from the menu), help, power; the exit: the key binding section of the man page generated from `keymap.rs`, the 10,000-snapshot test (decision 7), the hostile-names fuzz target, the pseudo-language at 52×20, `CHANGES-FROM-LEGACY.md` as a migration guide | mod | L | PM8 for pools and LUKS |
 | UI11 | The menu design's exit (phase D of the old plan): usability sessions with at least five users, one on a serial console and one with a non-US layout, on the workspace prototype of UI13; the design review; decisions 8 and 18 | | maintainer | |
 | UI12 | The console's other items, unchanged in substance: M6's C79, C80, C82, C106; M7's C45, C46, C92 to C100 (C110 with SE3); M8's C7, C13, C15, C32, C33; M9's C101, C102, C107, C111, and C103, the default, after UI6 | | per item | |
-| UI13 | The workspace design: the ADR for it and its key map (decisions 8 and 18), `docs/dev/menu-design/` rewritten from the eight mockups, new task measures, and the main and serial screens in `zbm-tui --demo` for the sessions of UI11 | mod | S/M | |
+| UI13 | Done: the workspace design: [ADR 0007](docs/dev/adr/0007-menu-workspace.md) (decision 18 accepted, decision 8's map proposed), `docs/dev/menu-design/` rewritten from the eight mockups, the measures of both key maps, and `zbm-tui --demo --workspace` for the sessions of UI11: the workspace's keys (`keymap/workspace.rs`), the tab bar, and the Boot tab with its sidebar, attention line and next steps at 120×40, as the serial form at 80×24 in ASCII, and at 52×20, with their wireframes | mod | S/M | |
 | UI14 | The command line: completion grouped by kind with keys and costs, history, and the dry run of a plan's steps and commands, translated through the catalogue | mod, sec | M | PM8, UI13 |
 | UI15 | Keys on every keyboard: the four rules of [the menu](#the-menu-a-workspace), with the snapshot and VM tests typing on `us`, `de`, `fr`, `uk`, `ru` and Dvorak | stab | S/M | UI2, UI13 |
 
@@ -750,7 +750,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
   drafted on 29 October ([ADR 0007](docs/dev/adr/0007-menu-workspace.md)); the process model, the trust zones and the
   client channel accepted the same day, the crate map, C dependencies, the image plan and the menu workspace on 29
   October.
-- UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
+- UI13 is done (29 October 2026): the prototype of the workspace for the usability sessions. SE2, SE3, SE8, PM5, SE7
+  and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
   lanes); DM11, DM2, SB2 and SB3 too (28 October 2026, at `1e5a5f6b`, all four lanes); PM2, PM4 and DM9 too (28

@@ -3,7 +3,7 @@
 use zbm_types::{ImportPolicy, Untrusted};
 
 use super::dialogs;
-use crate::menu::keymap::{Context, Intent};
+use crate::menu::keymap::{Context, Intent, Tab};
 use crate::menu::model::{Choice, Editor, ListState, Model, RECOVERY, RecoveryTool, Screen, Then};
 use crate::menu::world::{Action, Environment, Method, Outcome, Verdict};
 use crate::text::text;
@@ -109,6 +109,40 @@ pub(super) fn focus(model: &mut Model, environment: zbm_types::DatasetName, scre
         });
     }
     model.screen = screen;
+}
+
+/// Opens the workspace's `tab`: the snapshots are those of the environment
+/// the snapshots or kernels show, else of the selected one; without one
+/// the tab stays.
+pub(super) fn open_tab(model: &mut Model, tab: Tab) {
+    match tab {
+        Tab::Boot => {
+            model.screen = Screen::Main;
+            model.marked.clear();
+            model.diff = None;
+        }
+        Tab::Snapshots => {
+            let shown = model
+                .focus
+                .clone()
+                .filter(|_| matches!(model.screen, Screen::Kernels | Screen::CommandLine));
+            let environment = shown.or_else(|| {
+                model
+                    .selected_environment()
+                    .map(|environment| environment.name.clone())
+            });
+            if let Some(name) = environment
+                && model.tab() != Tab::Snapshots
+            {
+                focus(model, name, Screen::Snapshots);
+            }
+        }
+        Tab::Pools => model.screen = Screen::Pools,
+        Tab::Log => {
+            model.screen = Screen::Log;
+            model.scroll = 0;
+        }
+    }
 }
 
 /// The main view.

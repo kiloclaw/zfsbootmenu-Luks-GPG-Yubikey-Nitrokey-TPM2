@@ -1,0 +1,43 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ ZFSBootMenu [1 Boot] 2 Snapshots  3 Pools  4 Log                     tank DEGRADED · 3/3 volumes open · ! 1 in the log
+ Booting zroot/ROOT/void in 10 s. Press any key to choose another.
+┌ POOLS ────────────── 2 ┐┌ BOOT ENVIRONMENTS ──────────────────────────── 4 ┐┌ zroot/ROOT/void ────────────── default ┐
+│ zroot        ONLINE ro ││ ▶ zroot/ROOT/void              default  6.12.9_1 ││       Checks  √ all 5 passed           │
+│ tank       DEGRADED ro ││   tank/ROOT/arch       1 warning  6.11.5-arch1-1 ││   Boot Tries  3 of 3 left              │
+└────────────────────────┘│   tank/ROOT/debian     1 problem  6.1.0-26-amd64 ││         Pool  zroot · ONLINE · read-o… │
+┌ VOLUMES ─────── 3 of 3 ┐│   zroot/ROOT/ubuntu             6.8.0-47-generic ││       Kernel  6.12.9_1 · 3 kernels     │
+│ luks-zroot-a      open ││                                                  ││    Snapshots  400 · newest pre-upgrad… │
+│ luks-zroot-b      open ││                                                  ││   Encryption  key loaded               │
+│ luks-tank         open ││                                                  ││ Command Line  quiet loglevel=4 · from… │
+└────────────────────────┘│                                                  ││                                        │
+┌ ATTENTION ────────── 4 ┐│                                                  ││ NEXT STEPS                             │
+│ ! tank DEGRADED        ││                                                  ││   l kernels         s snapshots        │
+│   3 Pools              ││                                                  ││   e edit            d default          │
+│ ! arch: 1 warning      ││                                                  ││                                        │
+│   1 Boot               ││                                                  ││ CHECKS                                 │
+│ × debian: 1 problem    ││                                                  ││   √ Kernel and initramfs: 6.12.9_1 wi… │
+│   1 Boot               ││                                                  ││   √ ZFS module: zfs 2.4.4 for 6.12.9_1 │
+│ ! 1 in the log         ││                                                  ││   √ Pool features: its ZFS reads ever… │
+│   4 Log                ││                                                  ││   √ Root dataset: mountpoint / and ca… │
+│                        ││                                                  ││   √ Free space: 62% of the pool is fr… │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││ KERNELS                                │
+│                        ││                                                  ││   6.12.9_1                       boots │
+│                        ││                                                  ││   6.12.8_1                             │
+│                        ││                                                  ││   6.8.0_1                              │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││ NEWEST SNAPSHOTS                       │
+│                        ││                                                  ││   pre-upgrade                 12 h ago │
+│                        ││                                                  ││   autosnap_2026-10-22_daily    1 d ago │
+│                        ││                                                  ││   autosnap_2026-10-21_daily    2 d ago │
+│                        ││                                                  ││   autosnap_2026-10-20_daily    3 d ago │
+│                        ││                                                  ││   autosnap_2026-10-19_daily    4 d ago │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
+│                        ││                                                  ││                                        │
+└────────────────────────┘└──────────────────────────────────────────────────┘└────────────────────────────────────────┘
+ : commands   / filter   ? every key
+ Enter Boot   l Kernels   s Snapshots   e Edit   d Default                                                       ? More

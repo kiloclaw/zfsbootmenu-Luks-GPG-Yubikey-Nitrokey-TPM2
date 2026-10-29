@@ -338,7 +338,7 @@ pub(super) fn help(model: &Model, frame: &mut Frame<'_>, area: Rect, context: Co
             ]));
         }
     };
-    section(text!("help-this-view"), keymap::help(context));
+    section(text!("help-this-view"), keymap::help(model.map, context));
     section(text!("help-classic"), keymap::classic_bindings(context));
     let shown = usize::from(area.height.saturating_sub(2));
     let scroll = model.scroll.min(lines.len().saturating_sub(shown));

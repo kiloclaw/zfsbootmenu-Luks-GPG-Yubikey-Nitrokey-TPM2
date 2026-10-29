@@ -65,7 +65,7 @@ fn key_press(model: &mut Model, key: KeyPress) -> Vec<Action> {
         model.notification = None;
     }
     let key = unlock::translated(model, key);
-    match keymap::input(model.context(), key) {
+    match keymap::input(model.map, model.context(), key) {
         Some(input) => handle(model, input),
         None => Vec::new(),
     }
@@ -115,6 +115,9 @@ fn global(model: &mut Model, intent: Intent) -> Option<Vec<Action>> {
         Intent::Power => dialogs::power(model),
         Intent::Redraw => {}
         Intent::Back => back(model),
+        Intent::Tab(tab) => screens::open_tab(model, tab),
+        Intent::NextTab => screens::open_tab(model, model.tab().next()),
+        Intent::PreviousTab => screens::open_tab(model, model.tab().previous()),
         Intent::Filter => {
             if let Some(list) = model.list_mut() {
                 list.filtering = true;

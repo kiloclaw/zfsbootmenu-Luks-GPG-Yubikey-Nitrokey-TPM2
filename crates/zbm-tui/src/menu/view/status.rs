@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::menu::format::fit;
-use crate::menu::keymap::Context;
+use crate::menu::keymap::{self, Context, Intent, Map, Tab};
 use crate::menu::model::{Model, Screen};
 use crate::menu::theme::{Glyph, Role};
 use crate::menu::world::{Health, Level, VolumeState, worst_pool};
@@ -17,11 +17,19 @@ use crate::text::text;
 /// Below this width the status takes its short forms.
 const NARROW: u16 = 100;
 
+/// The letters a long tab name keeps on narrow screens.
+const SHORT_TAB: usize = 4;
+
 /// Text with its role.
 type Part = (String, Role);
 
-/// Draws the navigation bar.
+/// Draws the navigation bar, or the tab bar of the workspace once start-up
+/// is over.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+    if model.map == Map::Workspace && model.screen != Screen::Startup {
+        frame.render_widget(Paragraph::new(tab_bar(model, area.width)), area);
+        return;
+    }
     let width = usize::from(area.width);
     let status = facts(model, area.width < NARROW);
     let right = joined(model, &status);
@@ -50,6 +58,102 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         });
     let line = bar(model, (&left, &title, &status), width);
     frame.render_widget(Paragraph::new(line), area);
+}
+
+/// The forms of the tabs, longest first: the program's name and the tabs'
+/// names, the names alone, the short names, the digits.
+fn tab_forms(model: &Model) -> Vec<Vec<(String, bool)>> {
+    let current = model.tab();
+    let name = |tab: Tab, short: bool| {
+        let what = keymap::describe(Context::Main, Intent::Tab(tab));
+        let title = crate::text::title(what);
+        // A short name keeps the first letters of a long one: `Snap`.
+        let title = if short && title.chars().count() > SHORT_TAB + 1 {
+            title.chars().take(SHORT_TAB).collect()
+        } else {
+            title
+        };
+        format!("{} {title}", tab.digit())
+    };
+    let tabs = |short: bool| -> Vec<(String, bool)> {
+        Tab::ALL
+            .iter()
+            .map(|tab| (name(*tab, short), *tab == current))
+            .collect()
+    };
+    let mut named = vec![(text!("workspace-name"), false)];
+    named.extend(tabs(false));
+    let digits = Tab::ALL
+        .iter()
+        .map(|tab| (tab.digit().to_string(), *tab == current))
+        .collect();
+    vec![named, tabs(false), tabs(true), digits]
+}
+
+/// The columns `tabs` take, the current one in brackets.
+fn tabs_width(tabs: &[(String, bool)]) -> usize {
+    tabs.iter()
+        .map(|(text, _)| text.chars().count() + 2)
+        .sum::<usize>()
+        + 1
+}
+
+/// The tab bar of the workspace: the tabs on the left, the current one in
+/// brackets, and the status on the right, in the longest forms that fit;
+/// narrow, the status is the count of what needs attention.
+fn tab_bar(model: &Model, width: u16) -> Line<'static> {
+    let theme = model.theme;
+    let width = usize::from(width);
+    let full = facts(model, width < usize::from(NARROW));
+    let count = super::workspace::attention_count(model);
+    let counted: Vec<Part> = if count > 0 {
+        vec![(
+            format!("{} {count}", theme.glyph(Glyph::Warning)),
+            Role::Warning,
+        )]
+    } else {
+        Vec::new()
+    };
+    let forms = tab_forms(model);
+    let form = |index: usize| forms.get(index).cloned().unwrap_or_default();
+    let candidates = [
+        (form(0), full.clone()),
+        (form(1), full.clone()),
+        (form(1), counted.clone()),
+        (form(2), full),
+        (form(2), counted.clone()),
+        (form(3), counted),
+    ];
+    let fits = |(tabs, status): &(Vec<(String, bool)>, Vec<Part>)| {
+        tabs_width(tabs) + joined(model, status).chars().count() + 2 <= width
+    };
+    let (tabs, status) = candidates
+        .into_iter()
+        .find(fits)
+        .unwrap_or_else(|| (form(3), Vec::new()));
+    let program = text!("workspace-name");
+    let mut spans = vec![Span::raw(" ")];
+    for (text, current) in &tabs {
+        let (text, role) = if *text == program {
+            (format!("{text} "), Role::Title)
+        } else if *current {
+            (format!("[{text}]"), Role::Title)
+        } else {
+            (format!(" {text} "), Role::Muted)
+        };
+        spans.push(Span::styled(text, theme.style(role)));
+    }
+    let right = joined(model, &status);
+    let used: usize = spans.iter().map(Span::width).sum();
+    let gap = width.saturating_sub(used + right.chars().count() + 1);
+    spans.push(Span::raw(" ".repeat(gap.max(1))));
+    for (index, (text, role)) in status.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::styled(theme.dot(), theme.style(Role::Muted)));
+        }
+        spans.push(Span::styled(text.clone(), theme.style(*role)));
+    }
+    Line::from(spans)
 }
 
 /// The bar: `left` at the start, `title` centred if it can be, else just

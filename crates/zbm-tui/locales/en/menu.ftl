@@ -90,6 +90,18 @@ action-show-typed = show what is typed
     .title = Show What Is Typed
 action-segment = files/packages
     .title = Files/Packages
+action-tab-boot = the Boot tab
+    .title = Boot
+action-tab-snapshots = the Snapshots tab, of the selected environment
+    .title = Snapshots
+action-tab-pools = the Pools tab
+    .title = Pools
+action-tab-log = the Log tab
+    .title = Log
+action-next-tab = the next tab
+    .title = Next Tab
+action-previous-tab = the previous tab
+    .title = Previous Tab
 action-more = more
     .title = More
 
@@ -98,6 +110,7 @@ action-more = more
 key-enter = Enter
 key-esc = Esc
 key-tab = Tab
+key-shift-tab = Shift-Tab
 key-up = Up
 key-down = Down
 key-left = Left
@@ -276,6 +289,24 @@ status-pools-ok = { $count } pools ok
 status-volumes-open = { $open }/{ $total } volumes open
     .short = { $open }/{ $total } open
 status-log-problems = { $count } in the log
+
+## The workspace of the redesign (ADR 0007): its tab bar, sidebar and
+## command hint.
+
+workspace-name = ZFSBootMenu
+workspace-hint = : commands   / filter   ? every key
+sidebar-pools = Pools
+sidebar-volumes = Volumes
+sidebar-attention = Attention
+sidebar-open = { $open } of { $total }
+sidebar-ro = ro
+sidebar-rw = rw
+sidebar-not-imported = not imported
+attention-none = nothing
+attention-foreign = { $pool }: host { $hostid }
+attention-not-imported = { $pool }: not imported
+attention-failed = failed
+details-next-steps = NEXT STEPS
 
 ## The main view: the list of boot environments and its inspector.
 

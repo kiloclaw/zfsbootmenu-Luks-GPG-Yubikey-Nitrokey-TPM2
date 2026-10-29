@@ -1,9 +1,57 @@
 # The key map
 
-One table, `keymap.rs` of `zbm-tui`, turns key presses into intents, writes the footer and the help view, and will
-generate the key binding section of `zfsbootmenu(7)` in R5. This page is the design of that table.
+One table, `keymap.rs` of `zbm-tui`, turns key presses into intents, writes the toolbar and the help view, and will
+generate the key binding section of `zfsbootmenu(7)`. It holds two maps until the usability sessions (UI11) choose one
+([decision 8](../../../ROADMAP.md#decisions)): the **workspace's** ([ADR 0007](../adr/0007-menu-workspace.md)), and the
+**current** one, which the menu uses today. `zbm-tui --demo --workspace` reads keys with the first, `--demo` with the
+second.
 
-## Rules
+## Keys on every keyboard
+
+Decision 18, for both maps:
+
+1. **No action needs one character only.** The arrows, `Enter`, `Esc`, `Tab` and the command line reach every action:
+   each action bound to a character is also a command and an entry of the `Enter` menu of what it applies to. `j` `k`
+   `h` `l` move as the arrows do; the digits only shorten the way to a tab or a start-up choice.
+2. **No action depends on case.** A letter and its capital are one key; Shift and Caps Lock change no action. Risky
+   actions open their review page instead of hiding behind Shift.
+3. **Keys by position on the display console.** A character the map does not bind counts as the character the same key
+   types on the US layout, at the same level, through the layout's `Positions` (UI1): `й` is `q`, AZERTY's `&` is `1`,
+   `Ctrl` with the key labelled `с` is `Ctrl-C`. Characters the map binds count as typed. Text fields take characters
+   as typed. Over a serial line or SSH only characters arrive, and rule 1 covers them.
+4. **The command line knows every language.** It matches the command names of the catalogue in the menu's language
+   and the English names.
+
+A test checks rule 2 and one meaning per key on both tables. Rule 1's commands and rule 4 come with the command line
+(UI14), rule 3 with UI15.
+
+## The workspace's map
+
+One meaning per key in the whole workspace, no capital letters, and the classic `MOD+key` aliases below.
+
+| Where | Keys |
+| --- | --- |
+| Everywhere | `Enter` the primary action; `Esc` back, out of a column, closes a page; arrows and `j` `k` `h` `l` move, `h` `l` out of and into a column; `PgUp` `PgDn` `Home` `End`; `Tab` and `Shift-Tab` the next and previous tab, `1` to `4` a tab; `/` filter; `:` command line; `?` and `F1` help; `!` a shell: into the selection (read-only for a snapshot), or the recovery tools; `x` power; `Ctrl-L` redraw |
+| Boot | `b` boot the selection; `e` edit the command line once; `d` make it the default; `s` its snapshots; `n` a new snapshot |
+| Snapshots | `Enter` what to do with it; `b` boot it as a clone; `c` clone…; `m` clone and promote…; `y` duplicate…; `r` roll back…; `f` the files and packages changed since, or between the marked ones, and restoring them; `Space` mark; `z` fold or unfold; `o` sort; `n` a new snapshot |
+| Pools | `i` import…: read-only, read/write, as the host that owns it, at its checkpoint, or forced; `w` read/write…; `u` unlock…; `Enter` on a device: its kernel messages |
+| Start-up | `1` to `9` a choice, as do `j` `k` and `Enter` |
+| Text fields | `Tab` completes; `Ctrl-W` deletes a word; `Ctrl-R` searches the history (the command line) or shows what is typed (the unlock dialog); `Ctrl-K` the next keyboard layout |
+
+Against the current map: `j` `k` `h` `l` move, so chroot leaves `j` for `!`, the kernels leave `k` for `l`, the rewind
+leaves `h` for the import page, and the log leaves `l` for its tab; the pools are tab 3, so `p` is free; `Tab` goes to
+the next tab, so `Space` alone marks.
+
+**In the prototype** (`keymap/workspace.rs`): its bindings come before the current map's, whose bindings of the same
+keys and `p` it drops: `j` `k` `h` move, `l` goes into the kernels, `1` to `4`, `Tab` and `Shift-Tab` choose the tab.
+The other keys are the current map's until UI10: `!` opens the recovery tools, and the pools keep `i`, `u` and `w`;
+the rewind, which the current map has on `h`, waits for the import page of UI10.
+
+## The current map
+
+The menu's map today, which the sessions compare with the workspace's.
+
+### Its rules
 
 1. **One meaning per key.** A key does the same thing, or nothing, in every view. Where the `fzf` menu gave `MOD+D`
    three meanings, the new map gives each action its own key.
@@ -21,7 +69,7 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
    by its position, view keys too: the key labelled `/` filters wherever the layout puts it
    ([unlocking](unlocking.md)).
 
-## Every view
+### Every view
 
 | Key | Intent |
 | --- | --- |
@@ -36,7 +84,7 @@ generate the key binding section of `zfsbootmenu(7)` in R5. This page is the des
 | `Ctrl-K` | in a text field: the next keyboard layout ([unlocking](unlocking.md)) |
 | `Ctrl-R` | in the unlock dialog: show what is typed, or hide it (not during start-up) |
 
-## Actions
+### Actions
 
 | Key | Intent | Views |
 | --- | --- | --- |

@@ -64,7 +64,33 @@ fn wireframes() -> Vec<Wireframe> {
     all.extend(snapshot_wireframes());
     all.extend(unlock_wireframes());
     all.extend(naming_wireframes());
+    all.extend(workspace_wireframes());
     all
+}
+
+/// The demo in the workspace (ADR 0007).
+fn workspace() -> DemoOptions {
+    DemoOptions {
+        workspace: true,
+        ..DemoOptions::default()
+    }
+}
+
+/// The wireframes of the workspace: the Boot tab, and the kernels column
+/// it goes into.
+fn workspace_wireframes() -> Vec<Wireframe> {
+    use Step::{Char, Code};
+    let frame = |name, keys| Wireframe {
+        name,
+        options: workspace(),
+        ticks: 50,
+        keys,
+    };
+    vec![
+        frame("workspace", &[]),
+        frame("workspace-kernels", &[Code(Key::Down), Char('l')]),
+        frame("workspace-pools", &[Char('3')]),
+    ]
 }
 
 /// The wireframes of naming a clone and a snapshot.
@@ -274,6 +300,25 @@ fn every_view_at_three_sizes() {
             for (width, height) in SIZES {
                 let name = format!("{}-{width}x{height}", wireframe.name);
                 insta::assert_snapshot!(name, screen(session.model(), width, height));
+            }
+        }
+    });
+}
+
+/// The workspace over a serial line: 80×24, in colour and in ASCII.
+#[test]
+fn the_workspace_on_a_serial_console() {
+    settings().bind(|| {
+        for wireframe in workspace_wireframes() {
+            for (capabilities, suffix) in
+                [(Capabilities::FULL, ""), (Capabilities::ASCII, "-ascii")]
+            {
+                let session = play(&wireframe, capabilities);
+                let text = screen(session.model(), 80, 24);
+                if suffix == "-ascii" {
+                    assert!(text.is_ascii(), "{}: {text}", wireframe.name);
+                }
+                insta::assert_snapshot!(format!("{}-80x24{suffix}", wireframe.name), text);
             }
         }
     });

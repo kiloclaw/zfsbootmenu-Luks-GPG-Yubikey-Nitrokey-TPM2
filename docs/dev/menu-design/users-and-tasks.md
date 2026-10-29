@@ -109,3 +109,18 @@ menu's key help, to be checked in the sessions.
 | T6 | `e`, the edit, Enter | 2 | 3 | about 3 (Esc, `MOD+E`, the edit, Enter) |
 | T7 | Down, Enter from the problem | 2 | 2 | depends on `zbm.import_policy`; otherwise the recovery shell |
 | T8 | `s`, `o`, `f`, Enter, the name, Enter | 5 | 6 | none: chroot, then copy from `.zfs/snapshot` by hand |
+
+The same tasks with the workspace's keys (`--demo --workspace`), which the sessions compare (decision 8); T1, T5 and
+T7 are the same in both maps:
+
+| Task | Path in the workspace | Keys | Current map |
+| --- | --- | --- | --- |
+| T2 | `j`, Enter | 2 | 2 |
+| T3 | `l` (into the kernels), `j`, Enter | 3 | 3 |
+| T4, boot a snapshot | `2` (the Snapshots tab), `o`, `b` | 3 | 3 |
+| T4, roll back | `2`, `o`, `r`, the name, Enter | 4 | 4 |
+| T8 | `2`, `o`, `f`, Enter, the name, Enter | 5 | 5 |
+
+The counts are the same: the workspace changes where the keys are, not how many. What the sessions measure is the
+rest: whether the tabs and the sidebar are found, whether `j` `k` `h` `l` or the arrows are used, and the time and
+errors on each task.

@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log            tank DEGRADED | 3/3 open | ! 1
+ Booting zroot/ROOT/void in 10 s. Press any key to choose another.
+ ! tank DEGRADED   ! arch: 1 warning   x debian: 1 problem           3 Pools
++ BOOT ENVIRONMENTS -------------------------------------------------------- 4 +
+| > zroot/ROOT/void                                          default  6.12.9_1 |
+|   tank/ROOT/arch                                   1 warning  6.11.5-arch1-1 |
+|   tank/ROOT/debian                                 1 problem  6.1.0-26-amd64 |
+|   zroot/ROOT/ubuntu                                         6.8.0-47-generic |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
++------------------------------------------------------------------------------+
++ zroot/ROOT/void ---------------------------------------------------- default +
+|       Checks  * all 5 passed                                                 |
+|   Boot Tries  3 of 3 left                                                    |
+|         Pool  zroot | ONLINE | read-only                                     |
+|       Kernel  6.12.9_1 | 3 kernels                                           |
+|    Snapshots  400 | newest pre-upgrade, 12 h ago                             |
+|   Encryption  key loaded                                                     |
+| Command Line  quiet loglevel=4 | from zroot/ROOT                             |
++------------------------------------------------------------------------------+
+ : commands   / filter   ? every key
+ Enter Boot   l Kernels   s Snapshots   e Edit   d Default               ? More

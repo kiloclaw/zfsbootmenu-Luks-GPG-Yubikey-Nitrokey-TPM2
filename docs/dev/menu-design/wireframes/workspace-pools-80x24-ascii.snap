@@ -1,0 +1,27 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+  1 Boot  2 Snapshots [3 Pools] 4 Log            tank DEGRADED | 3/3 open | ! 1
++ POOLS AND LUKS VOLUMES --------------------------------------------------- 5 +
+| > Pool    zroot                                         read-only | ONLINE   |
+|   Pool    tank                                          read-only | DEGRADED |
+|   Volume  luks-zroot-a                             /dev/nvme0n1p2 | open     |
+|   Volume  luks-zroot-b                             /dev/nvme1n1p2 | open     |
+|   Volume  luks-tank                                     /dev/sda2 | open     |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
+|                                                                              |
++------------------------------------------------------------------------------+
+ : commands   / filter   ? every key
+ Enter Details   u Unlock   i Import   w Read/Write   / Filter           ? More

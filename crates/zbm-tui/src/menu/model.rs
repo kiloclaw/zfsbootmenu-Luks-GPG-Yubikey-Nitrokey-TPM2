@@ -17,7 +17,7 @@ pub use self::prompt::{Asking, Prompt};
 pub use self::sort::Sort;
 
 use super::filter::Ranked;
-use super::keymap::Context;
+use super::keymap::{Context, Map, Tab};
 use super::theme::Theme;
 use super::world::{Action, Environment, Outcome, Snapshot, SnapshotInfo, Timeout};
 use crate::text::{self, Id, id};
@@ -212,6 +212,8 @@ pub struct Model {
     /// The keyboard layout typing is translated into, as an index of the
     /// snapshot's layouts: 0 is the console's own.
     pub layout: usize,
+    /// The key map: the current one, or the workspace's.
+    pub map: Map,
 }
 
 impl Model {
@@ -242,6 +244,7 @@ impl Model {
             scroll: 0,
             diff: None,
             layout: 0,
+            map: Map::Classic,
             snapshot,
         };
         model.refresh();
@@ -460,6 +463,19 @@ impl Model {
                 super::world::StageState::Pending | super::world::StageState::Running
             )
         })
+    }
+
+    /// The tab of the workspace the current screen belongs to.
+    pub fn tab(&self) -> Tab {
+        use Context::{Diff, Packages};
+        match self.screen {
+            Screen::Snapshots
+            | Screen::Diff
+            | Screen::Help(Context::Snapshots | Diff | Packages) => Tab::Snapshots,
+            Screen::Pools | Screen::Help(Context::Pools) => Tab::Pools,
+            Screen::Log | Screen::Help(Context::Log) => Tab::Log,
+            _ => Tab::Boot,
+        }
     }
 
     /// The key map context of the focus.

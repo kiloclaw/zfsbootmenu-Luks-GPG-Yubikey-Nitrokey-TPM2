@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use zbm_display::keys::{Key, KeyPress};
 
 use super::demo::FakeMachine;
+use super::keymap::Map;
 use super::machine::Machine;
 use super::model::{Model, Screen};
 use super::theme::Theme;
@@ -70,6 +71,13 @@ impl<M: Machine> Session<M> {
     )]
     pub fn model(&self) -> &Model {
         self.model.as_ref().unwrap_or_else(|| unreachable!())
+    }
+
+    /// Reads keys with the key map `map` from now on.
+    pub fn set_map(&mut self, map: Map) {
+        if let Some(model) = self.model.as_mut() {
+            model.map = map;
+        }
     }
 
     /// The menu, taken out of the session; the model is not `Clone`, as an

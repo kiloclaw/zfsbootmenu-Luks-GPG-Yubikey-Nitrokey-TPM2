@@ -177,6 +177,85 @@ fn more_tasks() -> Vec<Task> {
     ]
 }
 
+/// The demo in the workspace (ADR 0007).
+fn workspace() -> DemoOptions {
+    DemoOptions {
+        workspace: true,
+        ..DemoOptions::default()
+    }
+}
+
+/// The core tasks with the workspace's keys, which the sessions compare with
+/// the current map's (decision 8); T5 and T7 answer the same dialogs.
+fn workspace_tasks() -> Vec<Task> {
+    use Key::{Char, Enter};
+    use Step::{Press, Text};
+    vec![
+        Task {
+            name: "workspace: T2 boot another environment",
+            options: workspace(),
+            steps: &[Press(Char('j')), Press(Enter)],
+            measured: 2,
+            budget: 4,
+            done: |s| boots(s, "tank/ROOT/arch"),
+        },
+        Task {
+            name: "workspace: T3 boot another kernel",
+            options: workspace(),
+            steps: &[Press(Char('l')), Press(Char('j')), Press(Enter)],
+            measured: 3,
+            budget: 5,
+            done: |s| {
+                matches!(
+                    s.actions.as_slice(),
+                    [Action::Boot { kernel: Some(k), .. }] if k.get() == "6.12.8_1"
+                )
+            },
+        },
+        Task {
+            name: "workspace: T4 boot the newest snapshot",
+            options: workspace(),
+            steps: &[Press(Char('2')), Press(Char('o')), Press(Char('b'))],
+            measured: 3,
+            budget: 6,
+            done: |s| matches!(s.actions.as_slice(), [Action::BootSnapshot(_)]),
+        },
+        Task {
+            name: "workspace: T4 roll back to the newest snapshot",
+            options: workspace(),
+            steps: &[
+                Press(Char('2')),
+                Press(Char('o')),
+                Press(Char('r')),
+                Text("void"),
+                Press(Enter),
+            ],
+            measured: 4,
+            budget: 6,
+            done: |s| matches!(s.actions.as_slice(), [Action::Rollback { .. }]),
+        },
+        Task {
+            name: "workspace: T8 restore a file from the newest snapshot",
+            options: workspace(),
+            steps: &[
+                Press(Char('2')),
+                Press(Char('o')),
+                Press(Char('f')),
+                Press(Enter),
+                Text("void"),
+                Press(Enter),
+            ],
+            measured: 5,
+            budget: 6,
+            done: |s| {
+                s.actions
+                    .iter()
+                    .any(|a| matches!(a, Action::RestoreFiles { .. }))
+            },
+        },
+    ]
+}
+
 /// Runs `task` from power-on; returns the session and the keys counted.
 fn run(task: &Task) -> (Session, u32) {
     let mut session = Session::new(&task.options, Theme::new(Capabilities::FULL));
@@ -203,7 +282,11 @@ fn run(task: &Task) -> (Session, u32) {
 
 #[test]
 fn every_core_task_is_done_within_its_budget() {
-    for task in first_tasks().into_iter().chain(more_tasks()) {
+    for task in first_tasks()
+        .into_iter()
+        .chain(more_tasks())
+        .chain(workspace_tasks())
+    {
         let (session, keys) = run(&task);
 
         assert!((task.done)(&session), "{}: not done", task.name);

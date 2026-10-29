@@ -1,0 +1,23 @@
+---
+source: crates/zbm-tui/src/menu/view/wireframes.rs
+---
+ [1 Boot] 2 Snapshots  3 Pools  4 Log           ! 4
+┌ KERNELS ────────────────────────────────────── 2 ┐
+│ ▶ 6.11.5-arch1-1                                 │
+│   6.10.10-arch1-1                                │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+│                                                  │
+└──────────────────────────────────────────────────┘
+ Enter Boot   e Edit   d Default             ? More

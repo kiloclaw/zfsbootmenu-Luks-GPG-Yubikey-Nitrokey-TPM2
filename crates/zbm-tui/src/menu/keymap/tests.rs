@@ -32,7 +32,11 @@ fn letters_are_actions_in_views_and_typing_in_text_fields() {
     ];
 
     for (context, event, expected) in cases {
-        assert_eq!(input(context, event), expected, "{context:?} {event:?}");
+        assert_eq!(
+            input(Map::Classic, context, event),
+            expected,
+            "{context:?} {event:?}"
+        );
     }
 }
 
@@ -40,15 +44,15 @@ fn letters_are_actions_in_views_and_typing_in_text_fields() {
 fn the_keys_of_every_view_work_in_text_fields_too() {
     for context in [Main, Context::Text, Context::Choose] {
         assert_eq!(
-            input(context, press(Key::Enter, NONE)),
+            input(Map::Classic, context, press(Key::Enter, NONE)),
             Some(Input::Intent(Intent::Primary))
         );
         assert_eq!(
-            input(context, press(Key::Escape, NONE)),
+            input(Map::Classic, context, press(Key::Escape, NONE)),
             Some(Input::Intent(Intent::Back))
         );
         assert_eq!(
-            input(context, press(Key::Char('n'), CTRL)),
+            input(Map::Classic, context, press(Key::Char('n'), CTRL)),
             Some(Input::Intent(Intent::Down))
         );
     }
@@ -99,31 +103,34 @@ fn classic_bindings_keep_their_meaning_in_their_view() {
 
     for (context, event, intent) in cases {
         assert_eq!(
-            input(context, event),
+            input(Map::Classic, context, event),
             Some(Input::Intent(intent)),
             "{context:?} {event:?}"
         );
     }
-    assert_eq!(input(Pools, alt('k')), None);
-    assert_eq!(input(Context::Text, alt('k')), None);
+    assert_eq!(input(Map::Classic, Pools, alt('k')), None);
+    assert_eq!(input(Map::Classic, Context::Text, alt('k')), None);
 }
 
 #[test]
 fn ctrl_keys_of_the_new_map_win_over_classic_ones() {
     assert_eq!(
-        input(Main, press(Key::Char('p'), CTRL)),
+        input(Map::Classic, Main, press(Key::Char('p'), CTRL)),
         Some(Input::Intent(Intent::Up))
     );
     assert_eq!(
-        input(Snapshots, press(Key::Char('n'), CTRL)),
+        input(Map::Classic, Snapshots, press(Key::Char('n'), CTRL)),
         Some(Input::Intent(Intent::Down))
     );
-    assert_eq!(input(Main, press(Key::Char('n'), Modifiers::ALT)), None);
+    assert_eq!(
+        input(Map::Classic, Main, press(Key::Char('n'), Modifiers::ALT)),
+        None
+    );
 }
 
 /// The toolbar of `context` at `width` columns, as (key, label).
 fn toolbar(context: Context, width: usize) -> Vec<(String, String)> {
-    footer(context, width)
+    footer(Map::Classic, context, width)
         .into_iter()
         .map(|tool| (tool.key, tool.label))
         .collect()
@@ -159,7 +166,11 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
         owned(&[("Enter", "Choose"), ("?", "More")])
     );
     assert_eq!(toolbar(Main, 5), []);
-    assert!(footer(Context::Choose, 80).iter().all(|tool| !tool.is_more));
+    assert!(
+        footer(Map::Classic, Context::Choose, 80)
+            .iter()
+            .all(|tool| !tool.is_more)
+    );
     assert_eq!(
         toolbar(Context::Diff, 80)[1],
         ("Left/Right".to_owned(), "Files/Packages".to_owned())
@@ -168,7 +179,7 @@ fn the_toolbar_shows_five_whole_actions_then_more() {
 
 #[test]
 fn help_lists_every_key_of_an_intent_together() {
-    let help = help(Main);
+    let help = help(Map::Classic, Main);
     let has = |keys: &str, what| help.contains(&(keys.to_owned(), what));
 
     assert!(has("Enter", id!("action-boot")));
@@ -207,7 +218,7 @@ fn every_action_has_a_title() {
         Context::Text,
     ];
     for context in contexts {
-        for binding in KEYMAP {
+        for binding in KEYMAP.iter().chain(WORKSPACE) {
             let what = describe(context, binding.intent);
             let title = crate::text::title(what);
             assert_ne!(
@@ -217,4 +228,98 @@ fn every_action_has_a_title() {
             );
         }
     }
+}
+
+#[test]
+fn the_workspace_moves_with_j_k_h_l_and_chooses_tabs_with_digits_and_tab() {
+    let workspace = |context, event| input(Map::Workspace, context, event);
+    let intent = |intent| Some(Input::Intent(intent));
+    let cases = [
+        (Main, plain('j'), intent(Intent::Down)),
+        (Snapshots, plain('k'), intent(Intent::Up)),
+        (Kernels, plain('h'), intent(Intent::Back)),
+        (Main, plain('l'), intent(Intent::Kernels)),
+        (Main, plain('2'), intent(Intent::Tab(Tab::Snapshots))),
+        (Context::Log, plain('1'), intent(Intent::Tab(Tab::Boot))),
+        (Pools, press(Key::Tab, NONE), intent(Intent::NextTab)),
+        (Main, press(Key::BackTab, NONE), intent(Intent::PreviousTab)),
+        // The current map's keys the workspace keeps, and its aliases.
+        (Main, plain('s'), intent(Intent::Snapshots)),
+        (
+            Main,
+            press(Key::Char('k'), Modifiers::ALT),
+            intent(Intent::Kernels),
+        ),
+        // What it takes over or frees.
+        (Context::Log, plain('l'), None),
+        (Main, plain('p'), None),
+        (Snapshots, press(Key::Tab, NONE), intent(Intent::NextTab)),
+        (Snapshots, plain(' '), intent(Intent::Mark)),
+        // Text fields still type the letters, and the start-up view has no
+        // tabs.
+        (Context::Text, plain('j'), Some(Input::Type('j'))),
+        (Context::Startup, plain('2'), None),
+    ];
+
+    for (context, event, expected) in cases {
+        assert_eq!(workspace(context, event), expected, "{context:?} {event:?}");
+    }
+    // The current map is unchanged.
+    assert_eq!(
+        input(Map::Classic, Main, plain('k')),
+        intent(Intent::Kernels)
+    );
+    assert_eq!(
+        input(Map::Classic, Main, plain('j')),
+        intent(Intent::Chroot)
+    );
+}
+
+#[test]
+fn every_key_has_one_meaning_and_no_letter_depends_on_case() {
+    for map in [Map::Classic, Map::Workspace] {
+        let table = map.table();
+        for (index, binding) in table.iter().enumerate() {
+            let twice = table.iter().skip(index + 1).find(|other| {
+                other.key == binding.key
+                    && other.modifiers == binding.modifiers
+                    && other.intent != binding.intent
+            });
+            assert!(twice.is_none(), "{map:?}: {binding:?} has two meanings");
+            let capital = matches!(binding.key, Key::Char(c) if c.is_uppercase());
+            assert!(!capital, "{map:?}: {binding:?} needs Shift");
+        }
+    }
+}
+
+#[test]
+fn the_workspace_toolbar_goes_into_the_kernels_with_l() {
+    let tools: Vec<(String, String)> = footer(Map::Workspace, Main, 80)
+        .into_iter()
+        .map(|tool| (tool.key, tool.label))
+        .collect();
+    assert_eq!(
+        tools,
+        owned(&[
+            ("Enter", "Boot"),
+            ("l", "Kernels"),
+            ("s", "Snapshots"),
+            ("e", "Edit"),
+            ("d", "Default"),
+            ("?", "More"),
+        ])
+    );
+    let help = help(Map::Workspace, Main);
+    assert!(help.contains(&("2".to_owned(), id!("action-tab-snapshots"))));
+    assert!(help.contains(&("Tab".to_owned(), id!("action-next-tab"))));
+    assert!(help.contains(&("Shift-Tab".to_owned(), id!("action-previous-tab"))));
+    assert!(help.contains(&("j, Down, Ctrl-N".to_owned(), id!("action-select"))));
+}
+
+#[test]
+fn the_tabs_go_round() {
+    assert_eq!(Tab::Boot.next(), Tab::Snapshots);
+    assert_eq!(Tab::Log.next(), Tab::Boot);
+    assert_eq!(Tab::Boot.previous(), Tab::Log);
+    assert_eq!(Tab::ALL.map(Tab::digit), ['1', '2', '3', '4']);
 }

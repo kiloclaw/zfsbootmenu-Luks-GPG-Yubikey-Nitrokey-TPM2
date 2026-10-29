@@ -43,6 +43,10 @@ pub struct DemoOptions {
     /// The firmware was updated: PCR 0 changed, and the TPM keeps the key
     /// of `luks-zroot-a`, which starts locked.
     pub tpm_changed: bool,
+    /// The menu reads keys with the workspace's key map and draws its tabs
+    /// (ADR 0007), for the usability sessions to compare with the current
+    /// one.
+    pub workspace: bool,
 }
 
 impl Default for DemoOptions {
@@ -55,6 +59,7 @@ impl Default for DemoOptions {
             failing: false,
             next_boot: false,
             tpm_changed: false,
+            workspace: false,
         }
     }
 }

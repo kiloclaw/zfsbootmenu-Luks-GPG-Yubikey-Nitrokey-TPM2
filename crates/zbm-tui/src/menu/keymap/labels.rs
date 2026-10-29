@@ -3,7 +3,7 @@
 
 use zbm_display::keys::Key;
 
-use super::{Context, Footer, Intent, KEYMAP, Modifiers};
+use super::{Context, Footer, Intent, Map, Modifiers, Tab};
 use crate::text::{self, Id, id, text};
 use Context::{Diff, Kernels, Main, Packages, Pools, Recovery, Snapshots, Startup};
 
@@ -56,15 +56,21 @@ pub fn describe(context: Context, intent: Intent) -> Id {
         (_, Intent::Layout) => id!("action-keyboard-layout"),
         (_, Intent::Reveal) => id!("action-show-typed"),
         (_, Intent::Segment) => id!("action-segment"),
+        (_, Intent::Tab(Tab::Boot)) => id!("action-tab-boot"),
+        (_, Intent::Tab(Tab::Snapshots)) => id!("action-tab-snapshots"),
+        (_, Intent::Tab(Tab::Pools)) => id!("action-tab-pools"),
+        (_, Intent::Tab(Tab::Log)) => id!("action-tab-log"),
+        (_, Intent::NextTab) => id!("action-next-tab"),
+        (_, Intent::PreviousTab) => id!("action-previous-tab"),
     }
 }
 
-/// The bindings of `context` shown in the toolbar, in order: (intent, key,
-/// what it does).
-pub fn bindings(context: Context) -> Vec<(Intent, String, Id)> {
+/// The bindings of `context` in the key map `map` shown in the toolbar, in
+/// order: (intent, key, what it does).
+pub fn bindings(map: Map, context: Context) -> Vec<(Intent, String, Id)> {
     let idle = matches!(context, Context::Startup | Context::Help | Context::Log);
-    KEYMAP
-        .iter()
+    map.table()
+        .into_iter()
         .filter(|binding| binding.scope.contains(context))
         .filter(|binding| !(idle && binding.intent == Intent::Primary))
         .filter_map(|binding| {
@@ -102,12 +108,13 @@ impl Tool {
     }
 }
 
-/// The toolbar of `context` for a screen `width` columns wide: at most
+/// The toolbar of `context` in the key map `map` for a screen `width`
+/// columns wide: at most
 /// [`TOOLBAR`] actions that fit whole, as `Enter Boot`, the most important
 /// first; then `? More`, which opens help with every key, wherever help can
 /// be opened.
-pub fn footer(context: Context, width: usize) -> Vec<Tool> {
-    let all = bindings(context);
+pub fn footer(map: Map, context: Context, width: usize) -> Vec<Tool> {
+    let all = bindings(map, context);
     let more = all
         .iter()
         .find(|(intent, ..)| *intent == Intent::Help)
@@ -144,6 +151,7 @@ pub fn key_name(code: Key, modifiers: Modifiers) -> String {
         Key::Enter => text!("key-enter"),
         Key::Escape => text!("key-esc"),
         Key::Tab => text!("key-tab"),
+        Key::BackTab => text!("key-shift-tab"),
         Key::Up => text!("key-up"),
         Key::Down => text!("key-down"),
         Key::Left => text!("key-left"),
@@ -164,12 +172,13 @@ pub fn key_name(code: Key, modifiers: Modifiers) -> String {
     }
 }
 
-/// Every binding of `context` for the help view, the keys of one intent
-/// together: (keys, what they do).
-pub fn help(context: Context) -> Vec<(String, Id)> {
+/// Every binding of `context` in the key map `map` for the help view, the
+/// keys of one intent together: (keys, what they do).
+pub fn help(map: Map, context: Context) -> Vec<(String, Id)> {
     let mut lines: Vec<(Intent, Vec<String>)> = Vec::new();
-    for binding in KEYMAP
-        .iter()
+    for binding in map
+        .table()
+        .into_iter()
         .filter(|binding| binding.scope.contains(context))
     {
         let name = key_name(binding.key, binding.modifiers);

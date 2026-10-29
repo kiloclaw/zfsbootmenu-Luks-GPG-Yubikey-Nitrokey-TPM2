@@ -173,3 +173,50 @@ fn leaving_actions_end_the_menu() {
         )]
     );
 }
+
+#[test]
+fn the_workspace_s_tabs_open_with_digits_and_go_round_with_tab() {
+    use crate::menu::caps::Capabilities;
+    use crate::menu::keymap::{Map, Tab};
+    use crate::menu::model::Screen;
+    use crate::menu::theme::Theme;
+    use zbm_display::keys::Key;
+
+    let options = DemoOptions {
+        workspace: true,
+        ..DemoOptions::default()
+    };
+    let mut session = Session::new(&options, Theme::new(Capabilities::FULL));
+    session.start();
+    assert_eq!(session.model().map, Map::Workspace);
+    let at = |session: &Session| (session.model().screen, session.model().tab());
+
+    // Down to the second environment, then its snapshots.
+    session.key(Key::Char('j'));
+    let second = session
+        .model()
+        .selected_environment()
+        .map(|e| e.name.clone());
+    session.key(Key::Char('2'));
+    assert_eq!(at(&session), (Screen::Snapshots, Tab::Snapshots));
+    assert_eq!(session.model().focus, second);
+    session.key(Key::Tab);
+    assert_eq!(at(&session), (Screen::Pools, Tab::Pools));
+    session.key(Key::Tab);
+    assert_eq!(at(&session), (Screen::Log, Tab::Log));
+    session.key(Key::Tab);
+    assert_eq!(at(&session), (Screen::Main, Tab::Boot));
+    session.key(Key::BackTab);
+    assert_eq!(at(&session), (Screen::Log, Tab::Log));
+    session.key(Key::Char('1'));
+    // Into the kernels column and out of it.
+    session.key(Key::Char('l'));
+    assert_eq!(at(&session), (Screen::Kernels, Tab::Boot));
+    session.key(Key::Char('2'));
+    assert_eq!(session.model().focus, second);
+    assert_eq!(at(&session), (Screen::Snapshots, Tab::Snapshots));
+    session.key(Key::Char('1'));
+    session.key(Key::Char('l'));
+    session.key(Key::Char('h'));
+    assert_eq!(at(&session), (Screen::Main, Tab::Boot));
+}

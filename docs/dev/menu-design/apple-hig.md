@@ -24,6 +24,10 @@ Line 1 of every view, as a navigation bar: the back label on the left (`‹ Boot
 to; none on the main view), the title in the middle in bold, and the status of the machine on the right. No inverse
 bar (deference). On narrow screens the back label shortens to `‹`, then the status takes its short forms.
 
+In the workspace ([ADR 0007](../adr/0007-menu-workspace.md)) the line is a **tab bar** instead, as a macOS window's
+toolbar of segments: the tabs with their digits, the current one in brackets, and the same status on the right. A tab
+replaces the back label: `Esc` still goes back one step within the tab.
+
 ### 2. Banners for what happens without asking
 
 The countdown is a one-line banner under the navigation bar, in the tint colour: `Booting zroot/ROOT/void in 10 s.

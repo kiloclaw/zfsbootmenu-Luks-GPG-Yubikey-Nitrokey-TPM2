@@ -1,6 +1,7 @@
 //! The menu on the fake machine: what `--demo` runs.
 
 use super::{DemoOptions, FakeMachine};
+use crate::menu::keymap::Map;
 use crate::menu::machine::Machine;
 use crate::menu::session::Session;
 use crate::menu::theme::Theme;
@@ -9,7 +10,11 @@ use crate::menu::world::{Action, Event, Snapshot};
 impl Session<FakeMachine> {
     /// The menu on the demo machine `options` describe, at power-on.
     pub fn new(options: &DemoOptions, theme: Theme) -> Session<FakeMachine> {
-        Session::on(FakeMachine::new(options), theme)
+        let mut session = Session::on(FakeMachine::new(options), theme);
+        if options.workspace {
+            session.set_map(Map::Workspace);
+        }
+        session
     }
 }
 

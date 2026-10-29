@@ -23,22 +23,7 @@ const LABEL: usize = 12;
 
 /// Draws the main view.
 pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
-    let banner = health::banner(model);
-    let [top, area] = Layout::vertical([
-        Constraint::Length(u16::from(banner.is_some())),
-        Constraint::Min(1),
-    ])
-    .areas(area);
-    if let Some((forms, role)) = banner {
-        let width = usize::from(top.width);
-        let text = forms
-            .iter()
-            .find(|form| form.chars().count() <= width)
-            .or(forms.last())
-            .cloned()
-            .unwrap_or_default();
-        frame.render_widget(Paragraph::new(health::banner_line(model, &text, role)), top);
-    }
+    let area = render_banner(model, frame, area);
     let (list, detail) = if area.width >= WIDE {
         let [list, detail] =
             Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
@@ -54,9 +39,31 @@ pub(super) fn render(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     render_detail(model, frame, detail);
 }
 
+/// Draws the countdown banner at the top of `area`, while it runs; the rest
+/// of `area`.
+pub(super) fn render_banner(model: &Model, frame: &mut Frame<'_>, area: Rect) -> Rect {
+    let banner = health::banner(model);
+    let [top, rest] = Layout::vertical([
+        Constraint::Length(u16::from(banner.is_some())),
+        Constraint::Min(1),
+    ])
+    .areas(area);
+    if let Some((forms, role)) = banner {
+        let width = usize::from(top.width);
+        let text = forms
+            .iter()
+            .find(|form| form.chars().count() <= width)
+            .or(forms.last())
+            .cloned()
+            .unwrap_or_default();
+        frame.render_widget(Paragraph::new(health::banner_line(model, &text, role)), top);
+    }
+    rest
+}
+
 /// The boot environments: the name, then its labels and the kernel that
 /// boots, right-aligned.
-fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+pub(super) fn render_list(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let environments = &model.snapshot.environments;
     let width = lists::row_width(area);
@@ -106,8 +113,9 @@ fn facts(model: &Model, environment: &Environment) -> Vec<Span<'static>> {
 }
 
 /// The inspector of the selected environment: its name as the title,
-/// `default` on the right, the facts that decide whether to boot it.
-fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
+/// `default` on the right, the facts that decide whether to boot it; in
+/// the workspace, its next steps first when tall.
+pub(super) fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     let theme = model.theme;
     let Some(environment) = model.selected_environment() else {
         let block = lists::block(theme, &text!("details-title"));
@@ -140,11 +148,12 @@ fn render_detail(model: &Model, frame: &mut Frame<'_>, area: Rect) {
         .collect();
     let room = usize::from(area.height.saturating_sub(2));
     for section in [
+        super::workspace::next_steps(model, width),
         health::check_lines(model, environment, width),
         kernel_lines(model, environment, width),
         snapshot_lines(model, environment, width),
     ] {
-        if lines.len() + section.len() < room {
+        if !section.is_empty() && lines.len() + section.len() < room {
             lines.push(Line::default());
             lines.extend(section);
         }

@@ -133,6 +133,19 @@ unlocks; the forced import and the rewind are choices of the import page, and co
 - The usability sessions (UI11): at least five users, one on a serial console and one with a non-US layout, on the
   prototype, against the task budgets of [users-and-tasks.md](../menu-design/users-and-tasks.md).
 
+## Notes from the implementation
+
+- **UI13** (29 October 2026): `zbm-tui --demo --workspace` is the prototype for the sessions. The key map has two
+  tables, `Map::Classic` and `Map::Workspace` (`keymap/workspace.rs`): the workspace's bindings come first, and the
+  current map's bindings of the same keys, and `p`, are dropped; a test checks one meaning per key and no capital in
+  both. It has `j` `k` `h` `l`, `l` into the kernels, the digits, `Tab` and `Shift-Tab`; the other keys are the
+  current map's until UI10. The Boot tab draws the tab bar, the sidebar (pools, volumes, what needs attention), the
+  environments and the inspector with its next steps from 110 columns; the attention line above the list and the
+  inspector below it at 80×24, in ASCII over a serial line; the list and the inspector at 52×20, with the attention
+  counted in the tab bar. The other tabs show the current views. The measures of the core tasks are the same in both
+  maps. The boot history, the grouping by pool, the timeline, the command line with its dry run, the review pages and
+  rule 3 are UI10, UI14 and UI15.
+
 ## Questions for the maintainer
 
 1. **Case.** Proposed: a capital is its letter (Caps Lock harmless). The alternative leaves capitals unbound, so Caps
