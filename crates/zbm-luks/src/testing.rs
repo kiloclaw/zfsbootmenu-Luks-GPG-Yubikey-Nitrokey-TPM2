@@ -1,6 +1,5 @@
 //! Helpers for the tests of this crate.
 
-use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::path::Path;
 
@@ -9,6 +8,7 @@ use zbm_platform::{Installed, KernelLog};
 use zbm_platform::interaction::{
     Answer, Asked, Interaction, PromptRequest, SecretRequest, Tell, VolumeRef, Wait, WaitRequest,
 };
+use zbm_testkit::Shared;
 use zbm_testkit::fakes::FakeSystem;
 use zbm_testkit::legacy::{Bash, LOG_STUBS};
 use zbm_tools::console::ConsoleInteraction;
@@ -84,9 +84,9 @@ impl Interaction for NoPrompts<'_> {
 /// colours.
 pub struct Prompts<'a> {
     console: ConsoleInteraction<'a>,
-    answers: RefCell<VecDeque<Answer>>,
-    shown: RefCell<Vec<PromptRequest>>,
-    consoles: Cell<usize>,
+    answers: Shared<VecDeque<Answer>>,
+    shown: Shared<Vec<PromptRequest>>,
+    consoles: Shared<usize>,
 }
 
 impl Prompts<'_> {
@@ -99,9 +99,9 @@ impl Prompts<'_> {
     pub fn answering<'a>(fake: &'a FakeSystem, answers: &[Answer]) -> Prompts<'a> {
         Prompts {
             console: ConsoleInteraction::new(fake.system()).colors(false),
-            answers: RefCell::new(answers.iter().copied().collect()),
-            shown: RefCell::new(Vec::new()),
-            consoles: Cell::new(0),
+            answers: Shared::new(answers.iter().copied().collect()),
+            shown: Shared::default(),
+            consoles: Shared::default(),
         }
     }
 
@@ -142,7 +142,7 @@ impl Interaction for Prompts<'_> {
     }
 
     fn lease_console(&self, run: &mut dyn FnMut(Option<&dyn zbm_platform::Runner>)) {
-        self.consoles.set(self.consoles.get() + 1);
+        *self.consoles.borrow_mut() += 1;
         run(None);
     }
 }

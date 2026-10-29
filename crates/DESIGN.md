@@ -183,6 +183,13 @@ The runtime keeps the legacy process structure, for three reasons:
 | LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, so that passphrases leave memory when it ends, as the legacy subshell in `init.d/45-luks-unlock` ensures. On the menu's start-up view, the start-up program unlocks itself, asking in the view's dialogs (below, and [Secrets](#secrets)). |
 | Recovery shell | `bash -i` | Unchanged. The recovery commands it offers are applets. |
 
+Inside the menu, the machine is a service (`zbm_app::service`, ADR 0001): a worker thread owns the application,
+performs the actions that leave the console alone one after another, and sends back what happened through a
+`Mailbox`, whose `eventfd` wakes the menu's loop. The menu goes on drawing and taking keys meanwhile, and shows how
+long the action has run. Escape cancels it: every program the action runs carries the action's `CancelToken`
+(`CancellingRunner`), so the program it waits for is killed and nothing more starts. Actions that take the console,
+such as booting, wait until the service is idle and run on the menu's thread, with the terminal handed over.
+
 #### Modes of the start-up program
 
 `zfsbootmenu-init` keeps the three modes of the legacy script:

@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::time::Duration;
 
 use pretty_assertions::assert_eq;
 use zbm_config::args::ZbmArgs;
+use zbm_testkit::Shared;
 use zbm_testkit::fakes::{FakeClock, FakeSystem};
 
 use super::*;
@@ -35,7 +35,7 @@ struct Log {
 /// A start-up screen that answers from a script.
 struct Screen {
     snapshot: Snapshot,
-    log: Rc<RefCell<Log>>,
+    log: Shared<Log>,
     clock: FakeClock,
 }
 
@@ -95,7 +95,7 @@ impl StartupScreen for Screen {
 
 /// What a test sees of the screen.
 #[derive(Clone)]
-struct Seen(Rc<RefCell<Log>>);
+struct Seen(Shared<Log>);
 
 impl Seen {
     /// Answers the next question with `reply`.
@@ -132,10 +132,10 @@ impl Seen {
 
 /// A screen on `fake`'s clock, and what a test sees of it.
 fn screen(fake: &FakeSystem) -> (Box<dyn StartupScreen>, Seen) {
-    let log = Rc::new(RefCell::new(Log::default()));
+    let log = Shared::new(Log::default());
     let screen = Screen {
         snapshot: Snapshot::default(),
-        log: Rc::clone(&log),
+        log: log.clone(),
         clock: fake.clock.clone(),
     };
     (Box::new(screen), Seen(log))
@@ -288,7 +288,7 @@ fn start_up_runs_on_the_view_which_closes_before_the_menu() {
     let fake = machine();
     let startup = Startup::new(fake.system(), &conf());
     let (screen, seen) = screen(&fake);
-    let screen = RefCell::new(Some(screen));
+    let screen = std::cell::RefCell::new(Some(screen));
     let open = |snapshot: Snapshot, _: Theme| -> io::Result<Box<dyn StartupScreen>> {
         assert_eq!(snapshot.startup, stages());
         Ok(screen.take().expect("one view"))

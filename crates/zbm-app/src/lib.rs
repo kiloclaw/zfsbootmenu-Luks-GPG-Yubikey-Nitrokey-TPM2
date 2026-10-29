@@ -37,6 +37,7 @@ mod boot;
 mod changes;
 pub mod model;
 mod read;
+pub mod service;
 mod unlock;
 mod volumes;
 
@@ -227,6 +228,24 @@ impl<'a> App<'a> {
             layouts: Some(directory),
             ..self
         }
+    }
+
+    /// The application with the programs of its context run by `runner`,
+    /// such as one that cancels them. A LUKS session keeps its own.
+    #[must_use]
+    pub fn with_runner<'b>(&self, runner: &'b dyn zbm_platform::Runner) -> App<'b>
+    where
+        'a: 'b,
+    {
+        App {
+            context: self.context.with_runner(runner),
+            ..*self
+        }
+    }
+
+    /// The runner of the application's context.
+    pub fn runner(&self) -> &dyn zbm_platform::Runner {
+        self.context.runner()
     }
 
     /// Performs `action`.

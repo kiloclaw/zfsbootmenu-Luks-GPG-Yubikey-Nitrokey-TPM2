@@ -335,6 +335,8 @@ pub enum Outcome {
         /// What the user can do next.
         next: Vec<String>,
     },
+    /// Cancelled by the user before it ended; what it did meanwhile stays.
+    Cancelled,
 }
 
 /// How unlocking a volume ended.

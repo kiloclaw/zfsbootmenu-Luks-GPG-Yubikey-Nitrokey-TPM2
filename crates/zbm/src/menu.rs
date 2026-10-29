@@ -9,6 +9,7 @@ use std::io;
 use std::path::Path;
 use std::time::Duration;
 
+use zbm_app::service::MachineService;
 use zbm_app::{App, BootSettings, Recovery};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
@@ -80,9 +81,18 @@ impl Menu for Terminal<'_, '_> {
         };
         let environment = self.system.environment;
         let capabilities = Capabilities::detect(|name| environment.var(name));
-        let session = Session::on(machine, Theme::new(capabilities));
         let escape_wait = crate::startup::escape_wait(&self.options.control_term);
-        if let Err(error) = (self.run)(session, escape_wait) {
+        // The service performs the actions that leave the console alone on
+        // a worker, while the menu draws; it ends with the menu.
+        let service = MachineService::new(app, self.system);
+        let ran = std::thread::scope(|scope| {
+            let machine = match service.start(scope) {
+                Ok(handle) => machine.with_service(handle),
+                Err(_) => machine,
+            };
+            (self.run)(Session::on(machine, Theme::new(capabilities)), escape_wait)
+        });
+        if let Err(error) = ran {
             self.error = Some(error.to_string());
         }
     }

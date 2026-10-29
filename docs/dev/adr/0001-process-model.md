@@ -109,6 +109,14 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   `fido2-assert` for its PIN, must stay in the terminal's foreground group, which a group of its own would leave. The
   runner stops reading when it kills, so a child the command left behind cannot hold it.
 
+- **PM8**, first part (29 October 2026): the menu's machine is a service (`zbm_app::service`). Its worker, in a
+  `std::thread::scope` of the menu, owns the `App` and performs the actions that leave the console alone, one after
+  another; reports come back through a `Mailbox`, whose `eventfd` the menu's key reader polls with the terminal.
+  Each action gets a `CancelToken`, which `CancellingRunner` adds to every command it runs, and starts nothing once it
+  is cancelled. `Interaction` is `Send + Sync`, so that an `App` with a LUKS session can move to a worker. Actions
+  that take the console run on the menu's thread once the service is idle. The test of "How it is checked" runs on
+  the demo machine, whose snapshot takes a minute of ticks.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

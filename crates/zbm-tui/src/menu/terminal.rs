@@ -38,7 +38,9 @@ const LAST_FRAME: Duration = Duration::from_millis(1500);
 /// [`super::term_keys::SERIAL_ESCAPE_WAIT`]), so that a sequence split on
 /// a serial console reached through the network is not taken for Escape.
 /// Actions that take the console get the terminal as it was before the
-/// menu, and the menu is drawn anew after them.
+/// menu, and the menu is drawn anew after them. While the machine performs
+/// an action on its own, the menu goes on drawing and taking keys, and
+/// what the machine sends wakes it.
 ///
 /// # Errors
 ///
@@ -78,7 +80,10 @@ pub fn run<M: Machine>(
             break why.to_owned();
         }
         let wait = TICK.saturating_sub(last_tick.elapsed());
-        if let Some(key) = input.key(wait)? {
+        // What the machine sends wakes the loop too, to be drawn at once.
+        let key = input.key_or_wake(wait, session.waker())?;
+        session.poll();
+        if let Some(key) = key {
             if let Some(file) = &mut keys {
                 let name = key_name(key.key, Modifiers::of(&key));
                 writeln!(file, "{} {name}", start.elapsed().as_millis())?;

@@ -527,6 +527,12 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
 - Over SSH or a serial line, Enter is no longer lost after a broken character or escape sequence, nor taken twice
   when a terminal's CR LF comes in two reads.
 
+### The menu goes on while it works (phase 2)
+
+- The menu no longer freezes while it takes a snapshot, rolls back, clones or reads differences: the work runs on a
+  thread of its own, the menu says how long it has run, and Escape cancels it. The program it waits for is killed,
+  and nothing more starts; what was done before stays.
+
 ### The supervisor as one event loop (phase 2)
 
 - When the console on the display ends, the supervisor starts it again, after 1, 2 and then 4 seconds, between two

@@ -2,6 +2,8 @@
 //! the view of the current screen, and dialogs over it
 //! (`docs/dev/menu-design/information-architecture.md`).
 
+use std::borrow::Cow;
+
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
@@ -43,7 +45,9 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     frame
         .buffer_mut()
         .set_style(area, model.theme.style(Role::Text));
-    let notification = u16::from(model.notification.is_some() || model.progress.is_some());
+    let notification = u16::from(
+        model.working.is_some() || model.notification.is_some() || model.progress.is_some(),
+    );
     let [top, body, note, bottom] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(5),
@@ -53,7 +57,10 @@ pub fn view(model: &Model, frame: &mut Frame<'_>) {
     .areas(area);
     status::render(model, frame, top);
     render_screen(model, frame, body);
-    if let Some(outcome) = &model.notification {
+    if let Some(ran) = model.working {
+        let working = text!("working", seconds = ran / 1000);
+        frame.render_widget(Paragraph::new(progress_line(model, &working)), note);
+    } else if let Some(outcome) = &model.notification {
         frame.render_widget(Paragraph::new(notification_line(model, outcome)), note);
     } else if let Some(what) = &model.progress {
         frame.render_widget(Paragraph::new(progress_line(model, what)), note);
@@ -78,8 +85,8 @@ fn render_screen(model: &Model, frame: &mut Frame<'_>, area: Rect) {
     }
 }
 
-/// The notification line while start-up does something that may take a
-/// while.
+/// The notification line while start-up or an action does something that
+/// may take a while.
 fn progress_line<'a>(model: &Model, what: &'a str) -> Line<'a> {
     let theme = model.theme;
     Line::from(vec![
@@ -95,24 +102,33 @@ fn progress_line<'a>(model: &Model, what: &'a str) -> Line<'a> {
 /// glyph and a word.
 fn notification_line<'a>(model: &Model, outcome: &'a Outcome) -> Line<'a> {
     let theme = model.theme;
-    let (glyph, word, role, what) = match outcome {
-        Outcome::Done(what) => (Glyph::Done, text!("outcome-done"), Role::Good, what),
+    let (glyph, word, role, what): (_, _, _, Cow<'a, str>) = match outcome {
+        Outcome::Done(what) => (Glyph::Done, text!("outcome-done"), Role::Good, what.into()),
         Outcome::Warning(what) => (
             Glyph::Warning,
             text!("outcome-warning"),
             Role::Warning,
-            what,
+            what.into(),
         ),
-        Outcome::Failed { what, .. } => {
-            (Glyph::Failed, text!("outcome-failed"), Role::Danger, what)
-        }
+        Outcome::Failed { what, .. } => (
+            Glyph::Failed,
+            text!("outcome-failed"),
+            Role::Danger,
+            what.into(),
+        ),
+        Outcome::Cancelled => (
+            Glyph::Warning,
+            text!("outcome-cancelled"),
+            Role::Warning,
+            text!("outcome-cancelled.what").into(),
+        ),
     };
     Line::from(vec![
         Span::styled(
             format!(" {} {word}: ", theme.glyph(glyph)),
             theme.style(role),
         ),
-        Span::styled(what.as_str(), theme.style(Role::Text)),
+        Span::styled(what, theme.style(Role::Text)),
     ])
 }
 

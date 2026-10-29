@@ -30,6 +30,8 @@ pub enum Message {
     Tick(u64),
     /// The machine said something; boxed, as a snapshot is large.
     Event(Box<Event>),
+    /// The machine started performing an action on its own, or ended.
+    Busy(bool),
 }
 
 /// The menu after `message`, and the actions it asks the machine for.
@@ -43,6 +45,10 @@ pub fn update(mut model: Model, message: Message) -> (Model, Vec<Action>) {
         Message::Tick(ms) => tick(&mut model, ms),
         Message::Event(event) => {
             events::apply(&mut model, *event);
+            Vec::new()
+        }
+        Message::Busy(busy) => {
+            model.working = busy.then(|| model.working.unwrap_or(0));
             Vec::new()
         }
     };
@@ -152,6 +158,9 @@ fn back(model: &mut Model) {
 /// the default environment, the one asked for once, or the fallback of a
 /// default that used up its boot tries. It never asks: nobody may be there.
 fn tick(model: &mut Model, ms: u64) -> Vec<Action> {
+    if let Some(ran) = &mut model.working {
+        *ran = ran.saturating_add(ms);
+    }
     if model.dialog.is_some() {
         return dialogs::count_down(model, ms);
     }

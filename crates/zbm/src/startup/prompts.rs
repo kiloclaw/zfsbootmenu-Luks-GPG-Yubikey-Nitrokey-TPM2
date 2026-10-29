@@ -73,8 +73,8 @@ impl MenuFront<'_> {
     /// said went wrong since the last request, a wrong secret when the same
     /// method asks again, or another method that failed.
     fn notice(&self, method: Method, attempt: u32) -> Option<Notice> {
-        let refused = self.refused.take();
-        let again = self.last.replace(Some(method)) == Some(method) && attempt > 1;
+        let refused = std::mem::take(&mut *super::lock(&self.refused));
+        let again = super::lock(&self.last).replace(method) == Some(method) && attempt > 1;
         if !refused.is_empty() {
             let text = refused.join(" ");
             return Some(if again {
@@ -212,7 +212,7 @@ impl Interaction for MenuFront<'_> {
     /// shows until the next event.
     fn notify(&self, tell: Tell<'_>) {
         match tell.told {
-            Told::Refused => self.refused.borrow_mut().push(tell.text.to_owned()),
+            Told::Refused => super::lock(&self.refused).push(tell.text.to_owned()),
             Told::Working | Told::Touch | Told::Heading => {
                 self.show(Event::Progress(tell.text.to_owned()));
             }

@@ -13,11 +13,12 @@
 
 use std::fs::File;
 use std::io::{self, Read as _};
-use std::os::fd::AsFd as _;
+use std::os::fd::{AsFd as _, BorrowedFd};
 use std::time::{Duration, Instant};
 
 use ratatui::crossterm::terminal;
 use zbm_display::keys::{Key, KeyPress};
+use zbm_sys::console::Watch;
 
 use super::keymap::{Modifiers, press};
 use super::startup::Keys;
@@ -371,7 +372,7 @@ impl TerminalKeys {
         clippy::disallowed_methods,
         reason = "the key reader is the terminal's adapter; gaps between bytes are wall-clock time"
     )]
-    fn fill(&mut self, timeout: Duration) -> io::Result<()> {
+    fn fill(&mut self, timeout: Duration, wake: Option<BorrowedFd<'_>>) -> io::Result<()> {
         let since = self.last_read.map(|at| at.elapsed());
         let wait = match since {
             Some(since) if !self.pending.is_empty() => {
@@ -379,7 +380,7 @@ impl TerminalKeys {
             }
             _ => timeout,
         };
-        if self.read(wait)? {
+        if self.read(wait, wake)? {
             self.last_read = Some(Instant::now());
         }
         let waited = self
@@ -389,13 +390,17 @@ impl TerminalKeys {
         Ok(())
     }
 
-    /// Reads what came within `timeout`: whether anything did.
+    /// Reads what came within `timeout`, or until `wake` is readable:
+    /// whether anything came.
     ///
     /// # Errors
     ///
     /// When the input cannot be read, or ended.
-    fn read(&mut self, timeout: Duration) -> io::Result<bool> {
-        if !zbm_sys::wait_readable(&self.input, Some(timeout))? {
+    fn read(&mut self, timeout: Duration, wake: Option<BorrowedFd<'_>>) -> io::Result<bool> {
+        let mut watches = vec![Watch::read(self.input.as_fd())];
+        watches.extend(wake.map(Watch::read));
+        let ready = zbm_sys::console::wait_ready(&watches, Some(timeout))?;
+        if !ready.first().is_some_and(|input| input.is_ready()) {
             return Ok(false);
         }
         let mut buffer = [0_u8; BUFFER];
@@ -452,18 +457,34 @@ impl TerminalKeys {
     }
 }
 
-impl Keys for TerminalKeys {
-    /// The next key press, waiting at most `timeout` for it.
-    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
+impl TerminalKeys {
+    /// The next key press, waiting at most `timeout` for it, and no longer
+    /// once `wake` is readable, as when the machine sent something.
+    ///
+    /// # Errors
+    ///
+    /// When the input cannot be read, or ended.
+    pub fn key_or_wake(
+        &mut self,
+        timeout: Duration,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> io::Result<Option<KeyPress>> {
         if self.next >= self.keys.len() {
             self.forget();
-            self.fill(timeout)?;
+            self.fill(timeout, wake)?;
         }
         let key = self.keys.get(self.next).copied();
         if key.is_some() {
             self.next += 1;
         }
         Ok(key)
+    }
+}
+
+impl Keys for TerminalKeys {
+    /// The next key press, waiting at most `timeout` for it.
+    fn key(&mut self, timeout: Duration) -> io::Result<Option<KeyPress>> {
+        self.key_or_wake(timeout, None)
     }
 
     /// Ends raw mode; what was typed and not used is dropped.

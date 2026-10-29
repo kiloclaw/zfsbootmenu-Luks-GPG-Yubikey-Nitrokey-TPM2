@@ -4,11 +4,14 @@
 use zbm_types::{DatasetName, PoolName, SnapshotName, Untrusted};
 
 mod diff;
+mod list;
 mod naming;
 mod prompt;
 mod sort;
 
 pub use self::diff::{DiffView, Segment};
+use self::list::keep;
+pub use self::list::{ListState, refilter};
 pub use self::naming::{Make, Naming, is_name_char, timestamp};
 pub use self::prompt::{Asking, Prompt};
 pub use self::sort::Sort;
@@ -42,26 +45,6 @@ pub enum Screen {
     Help(Context),
     /// What changed since a snapshot.
     Diff,
-}
-
-/// A list's selection and filter.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct ListState {
-    /// The filter text, while filtering or when one was kept.
-    pub filter: String,
-    /// Whether the filter field has the focus.
-    pub filtering: bool,
-    /// The items the filter matches, best first, as indexes of the list.
-    pub matches: Vec<Ranked>,
-    /// The index in `matches` of the selection.
-    pub selected: usize,
-}
-
-impl ListState {
-    /// The index in the list of the selection, if anything matches.
-    pub fn selected_item(&self) -> Option<usize> {
-        self.matches.get(self.selected).map(|ranked| ranked.index)
-    }
 }
 
 /// A choice in a [`Dialog::Choose`].
@@ -215,6 +198,9 @@ pub struct Model {
     pub notification: Option<Outcome>,
     /// What start-up is doing that may take a while, until its next event.
     pub progress: Option<String>,
+    /// How long the action the machine performs has run, in milliseconds,
+    /// while it runs: Escape cancels it.
+    pub working: Option<u64>,
     /// Why the menu ends, once it does.
     pub leaving: Option<String>,
     /// The key presses so far, for the measures of the core tasks.
@@ -250,6 +236,7 @@ impl Model {
             started: false,
             notification: None,
             progress: None,
+            working: None,
             leaving: None,
             keys: 0,
             scroll: 0,
@@ -572,28 +559,6 @@ pub enum RecoveryTool {
     Reboot,
     /// Power off.
     PowerOff,
-}
-
-/// Matches a list's filter against its items again, keeping the selection
-/// in range.
-pub fn refilter<'a>(list: &mut ListState, items: impl IntoIterator<Item = &'a str>) {
-    list.matches = super::filter::rank(items, &list.filter);
-    list.selected = list.selected.min(list.matches.len().saturating_sub(1));
-}
-
-/// Selects the match whose item is called `name`, if one is.
-fn keep<T>(list: &mut ListState, items: &[T], name: Option<String>, label: impl Fn(&T) -> String) {
-    let Some(name) = name else {
-        return;
-    };
-    let found = list.matches.iter().position(|ranked| {
-        items
-            .get(ranked.index)
-            .is_some_and(|item| label(item) == name)
-    });
-    if let Some(position) = found {
-        list.selected = position;
-    }
 }
 
 #[cfg(test)]

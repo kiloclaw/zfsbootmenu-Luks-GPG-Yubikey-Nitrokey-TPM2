@@ -1,6 +1,5 @@
-use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::rc::Rc;
+use zbm_testkit::Shared;
 
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
@@ -29,10 +28,10 @@ enum Read {
 /// terminal's size, when known.
 #[derive(Clone, Default)]
 struct Scripted {
-    keys: Rc<RefCell<VecDeque<Read>>>,
+    keys: Shared<VecDeque<Read>>,
     clock: FakeClock,
-    modes: Rc<RefCell<Vec<&'static str>>>,
-    size: Rc<Cell<Option<(u16, u16)>>>,
+    modes: Shared<Vec<&'static str>>,
+    size: Shared<Option<(u16, u16)>>,
 }
 
 impl Scripted {

@@ -121,6 +121,10 @@ menu-too-small = The menu needs { $width }x{ $height } at least.
 outcome-done = Done
 outcome-warning = Warning
 outcome-failed = Failed
+outcome-cancelled = Cancelled
+    .what = what was done before it stays
+# An action that runs while the menu goes on, in the notification line.
+working = Working for { $seconds } s; Esc cancels
 
 ## Lists: their count, the search and their empty states.
 

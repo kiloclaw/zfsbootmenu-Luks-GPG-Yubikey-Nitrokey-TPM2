@@ -137,3 +137,161 @@ fn a_machine_that_cannot_be_read_is_an_error() {
     let stop = || false;
     assert!(RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run).is_err());
 }
+
+/// The demo machine, on which taking a snapshot runs for a minute of ticks
+/// of a second each, as a slow `zfs` would, while the menu goes on.
+struct Slow {
+    inner: crate::menu::demo::FakeMachine,
+    /// The snapshot being taken, and the ticks it still takes.
+    running: Option<(Action, u32)>,
+    /// What [`Machine::poll`] gives next.
+    outbox: Vec<Event>,
+}
+
+impl Machine for Slow {
+    fn snapshot(&self) -> &Snapshot {
+        self.inner.snapshot()
+    }
+
+    fn tick(&mut self) -> Vec<Event> {
+        match self.running.take() {
+            Some((action, 1)) => return self.inner.apply(action),
+            Some((action, left)) => self.running = Some((action, left - 1)),
+            None => {}
+        }
+        self.inner.tick()
+    }
+
+    fn poll(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.outbox)
+    }
+
+    fn apply(&mut self, action: Action) -> Vec<Event> {
+        if matches!(action, Action::CreateSnapshot(_)) {
+            self.running = Some((action, 60));
+            return Vec::new();
+        }
+        self.inner.apply(action)
+    }
+
+    fn is_busy(&self) -> bool {
+        self.running.is_some()
+    }
+
+    fn cancel(&mut self) {
+        if self.running.take().is_some() {
+            self.outbox.push(Event::Finished(Outcome::Cancelled));
+        }
+    }
+}
+
+/// The menu as drawn at the console's size.
+fn drawn(session: &Session<Slow>) -> String {
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 25)).unwrap();
+    terminal
+        .draw(|frame| crate::menu::view::view(session.model(), frame))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    buffer
+        .content()
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect()
+}
+
+#[test]
+fn the_menu_draws_and_counts_while_an_action_runs_and_escape_cancels_it() {
+    let options = crate::menu::demo::DemoOptions::default();
+    let machine = Slow {
+        inner: crate::menu::demo::FakeMachine::new(&options),
+        running: None,
+        outbox: Vec::new(),
+    };
+    let mut session = Session::on(machine, theme());
+    session.start();
+    let snapshots = session.model().snapshot.environments[0].snapshots.len();
+    session.key(Key::Char('s'));
+    session.key(Key::Char('n'));
+    session.key(Key::Enter);
+    assert!(matches!(
+        session.actions.last(),
+        Some(Action::CreateSnapshot(_))
+    ));
+
+    // Half a minute of fake time: the menu draws each second, counting.
+    for second in 1..=30_u64 {
+        session.tick(1000);
+        assert_eq!(session.model().working, Some(second * 1000));
+        let screen = drawn(&session);
+        assert!(
+            screen.contains(&format!("Working for {second} s")),
+            "{screen}"
+        );
+    }
+    // Keys still move the menu; Escape cancels the action.
+    session.key(Key::Down);
+    session.key(Key::Escape);
+    session.poll();
+
+    assert_eq!(session.model().working, None);
+    assert_eq!(session.model().notification, Some(Outcome::Cancelled));
+    assert!(drawn(&session).contains("Cancelled"));
+    for _ in 0..60 {
+        session.tick(1000);
+    }
+    let taken = session.model().snapshot.environments[0].snapshots.len();
+    assert_eq!(taken, snapshots, "the cancelled snapshot was taken");
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the service's worker runs on its own thread, in real time"
+)]
+fn with_a_service_the_real_machine_performs_quiet_actions_on_its_worker() {
+    // Unanswered, a command succeeds without output: no pool, no
+    // environment, and `tank` writable.
+    let fake = FakeSystem::new();
+    fake.files.dir("/zfsbootmenu");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "off\n");
+    fake.runner
+        .respond("zpool list -H -o feature@encryption tank", 0, "disabled\n");
+    let settings = zbm_app::BootSettings::default();
+    let app = App::new(Context::new(fake.system()))
+        .with_base(std::path::Path::new("/zfsbootmenu"))
+        .with_boot(&settings);
+    let mut shells = Shells::default();
+    let stop = || false;
+    let service = zbm_app::service::MachineService::new(app, fake.system());
+
+    let events = std::thread::scope(|scope| {
+        let machine = RealMachine::new(app, fake.system(), &mut shells, &stop, Countdown::Run)
+            .unwrap()
+            .with_service(service.start(scope).unwrap());
+        let mut machine = machine;
+        let _ = machine.tick();
+        assert!(machine.waker().is_some());
+        let take = Action::CreateSnapshot("tank/ROOT/be@new".parse().unwrap());
+        assert!(machine.apply(take).is_empty());
+        let mut events = Vec::new();
+        while machine.is_busy() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            events.extend(machine.poll());
+        }
+        events
+    });
+
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::Changed(snapshot), .., Event::Finished(_)] if snapshot.timeout == Timeout::Wait
+        ),
+        "{events:?}"
+    );
+    assert!(
+        fake.runner
+            .lines()
+            .contains(&"zfs snapshot tank/ROOT/be@new".to_owned())
+    );
+}

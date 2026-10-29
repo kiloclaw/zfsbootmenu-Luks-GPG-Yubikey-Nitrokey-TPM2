@@ -72,7 +72,7 @@ impl<B: Backend> Resize for QuietBackend<B> {
 
 /// The start-up view, as start-up's front end uses it: on a terminal
 /// ([`StartupView`]), or scripted in tests.
-pub trait StartupScreen {
+pub trait StartupScreen: Send {
     /// The machine as the view shows it.
     fn snapshot(&self) -> &Snapshot;
 
@@ -334,7 +334,7 @@ where
     }
 }
 
-impl<B: Resize, K: Keys> StartupScreen for StartupView<B, K>
+impl<B: Resize + Send, K: Keys + Send> StartupScreen for StartupView<B, K>
 where
     B::Error: Send + Sync + 'static,
 {

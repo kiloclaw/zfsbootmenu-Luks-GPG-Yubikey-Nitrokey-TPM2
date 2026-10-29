@@ -10,7 +10,7 @@ use super::machine::Machine;
 use super::model::{Model, Screen};
 use super::theme::Theme;
 use super::update::{Message, update};
-use super::world::Action;
+use super::world::{Action, Event};
 
 /// How many ticks start-up may take at most in [`Session::start`].
 const START_TICKS: usize = 50;
@@ -88,16 +88,40 @@ impl<M: Machine> Session<M> {
     }
 
     fn apply(&mut self, action: Action) {
-        for event in self.machine.apply(action) {
+        let events = self.machine.apply(action);
+        self.events(events);
+    }
+
+    /// Steps `events`, then tells the menu whether the machine works.
+    fn events(&mut self, events: Vec<Event>) {
+        for event in events {
             self.step(Message::Event(Box::new(event)));
+        }
+        let busy = self.machine.is_busy();
+        if busy != self.model().working.is_some() {
+            self.step(Message::Busy(busy));
         }
     }
 
-    /// The next action that takes the console. The front end hands the
-    /// console over, calls [`Session::perform`] with it, and takes the
-    /// console back.
+    /// The next action that takes the console, once the machine performs
+    /// nothing on its own. The front end hands the console over, calls
+    /// [`Session::perform`] with it, and takes the console back.
     pub fn console_action(&mut self) -> Option<Action> {
+        if self.machine.is_busy() {
+            return None;
+        }
         self.console.pop_front()
+    }
+
+    /// What the machine sent since: the events of what it performs.
+    pub fn poll(&mut self) {
+        let events = self.machine.poll();
+        self.events(events);
+    }
+
+    /// Readable when [`Session::poll`] has something.
+    pub fn waker(&self) -> Option<std::os::fd::BorrowedFd<'_>> {
+        self.machine.waker()
     }
 
     /// Performs an action of [`Session::console_action`].
@@ -105,8 +129,13 @@ impl<M: Machine> Session<M> {
         self.apply(action);
     }
 
-    /// A key press.
+    /// A key press. While the machine performs an action, Escape cancels
+    /// it, unless a dialog is open.
     pub fn press(&mut self, key: KeyPress) {
+        if key.key == Key::Escape && self.machine.is_busy() && self.model().dialog.is_none() {
+            self.machine.cancel();
+            return;
+        }
         self.step(Message::Key(key));
         let model = self.model();
         if model.screen == Screen::Startup && model.dialog.is_none() {
@@ -128,9 +157,8 @@ impl<M: Machine> Session<M> {
 
     /// Time passes: start-up goes a step further, and the countdown runs.
     pub fn tick(&mut self, ms: u64) {
-        for event in self.machine.tick() {
-            self.step(Message::Event(Box::new(event)));
-        }
+        let events = self.machine.tick();
+        self.events(events);
         self.step(Message::Tick(ms));
     }
 

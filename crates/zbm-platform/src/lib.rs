@@ -57,6 +57,7 @@
 )]
 
 pub mod args;
+mod cancelling;
 pub mod clock;
 pub mod color;
 pub mod console;
@@ -78,6 +79,7 @@ mod traced;
 pub mod tree;
 pub mod version;
 
+pub use cancelling::CancellingRunner;
 pub use clock::{Clock, SystemClock};
 pub use console::{Console, NoConsole, Size, Terminal};
 pub use crash::CrashReporter;
@@ -222,6 +224,18 @@ impl<'a> Context<'a> {
     /// External programs.
     pub fn runner(&self) -> &dyn Runner {
         &self.runner
+    }
+
+    /// These ports with the programs `runner` runs, traced, such as a
+    /// [`CancellingRunner`] around [`Context::runner`].
+    pub fn with_runner<'b>(&self, runner: &'b dyn Runner) -> Context<'b>
+    where
+        'a: 'b,
+    {
+        Context {
+            runner: TracedRunner::new(runner, self.clock),
+            ..*self
+        }
     }
 
     /// Files, directories and device nodes.

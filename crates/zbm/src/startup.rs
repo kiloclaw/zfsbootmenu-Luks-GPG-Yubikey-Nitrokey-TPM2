@@ -16,9 +16,9 @@
 
 mod prompts;
 
-use std::cell::{Cell, RefCell};
 use std::io;
 use std::path::Path;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use zbm_app::model::{Action, Event, Method, Question, Snapshot, Stage, StageState, UnlockOutcome};
@@ -51,7 +51,7 @@ const DEFAULT_DELAY: i64 = 30;
 /// The start-up stages' front end on the menu's start-up view.
 pub struct MenuFront<'a> {
     /// The view; `None` once start-up is over, or when the terminal failed.
-    view: RefCell<Option<Box<dyn StartupScreen + 'a>>>,
+    view: Mutex<Option<Box<dyn StartupScreen + 'a>>>,
     /// The whole system: hooks and the recovery shell get its console.
     system: System<'a>,
     /// The system the stages run their programs on, off the console.
@@ -62,9 +62,9 @@ pub struct MenuFront<'a> {
     luks: Settings,
     /// What unlocking said went wrong since the last request: why the next
     /// one asks.
-    refused: RefCell<Vec<String>>,
+    refused: Mutex<Vec<String>>,
     /// The method the last request asked for.
-    last: Cell<Option<Method>>,
+    last: Mutex<Option<Method>>,
 }
 
 impl<'a> MenuFront<'a> {
@@ -78,13 +78,13 @@ impl<'a> MenuFront<'a> {
         luks: Settings,
     ) -> MenuFront<'a> {
         MenuFront {
-            view: RefCell::new(Some(view)),
+            view: Mutex::new(Some(view)),
             system,
             quiet,
             state,
             luks,
-            refused: RefCell::new(Vec::new()),
-            last: Cell::new(None),
+            refused: Mutex::new(Vec::new()),
+            last: Mutex::new(None),
         }
     }
 
@@ -94,7 +94,7 @@ impl<'a> MenuFront<'a> {
         &self,
         show: impl FnOnce(&mut (dyn StartupScreen + 'a)) -> io::Result<T>,
     ) -> Option<T> {
-        let mut view = self.view.borrow_mut();
+        let mut view = lock(&self.view);
         match show(view.as_deref_mut()?) {
             Ok(value) => Some(value),
             Err(error) => {
@@ -204,7 +204,7 @@ impl Front for MenuFront<'_> {
     }
 
     fn finish(&mut self) {
-        if let Some(view) = self.view.borrow_mut().take()
+        if let Some(view) = lock(&self.view).take()
             && let Err(error) = view.close()
         {
             zbm_trace::error!("the start-up view failed: {error}"; %error);
@@ -263,6 +263,11 @@ impl Operator for MenuFront<'_> {
     fn emergency_shell(&mut self, message: &str) {
         self.shell(message);
     }
+}
+
+/// `mutex`, locked: what it holds stays usable after a panic elsewhere.
+fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The stages of start-up, none started yet.
