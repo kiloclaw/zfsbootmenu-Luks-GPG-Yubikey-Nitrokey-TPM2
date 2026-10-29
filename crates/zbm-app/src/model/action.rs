@@ -8,7 +8,7 @@ use zbm_types::{
     Answer, DatasetName, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
 };
 
-use super::{Change, Method, Notice, PackageDiff, Snapshot, StageState};
+use super::{Change, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
 
 /// The name of the safety snapshot restoring files takes first:
 /// `<environment>@before-restore`.
@@ -111,6 +111,9 @@ pub enum Action {
     Reboot,
     /// Power off.
     PowerOff,
+    /// What a change would do, step by step, without doing it: the dry
+    /// run, which [`Event::Planned`] brings.
+    Plan(Box<Action>),
 }
 
 impl Action {
@@ -282,6 +285,13 @@ pub enum Event {
         /// The packages that changed; `None` when no package database was
         /// found.
         packages: Option<PackageDiff>,
+    },
+    /// What an [`Action::Plan`] asked for: the plan of the change.
+    Planned {
+        /// The change.
+        action: Box<Action>,
+        /// What it would do.
+        plan: Plan,
     },
     /// An action finished.
     Finished(Outcome),

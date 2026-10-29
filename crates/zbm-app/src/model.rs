@@ -10,6 +10,7 @@ mod action;
 mod diff;
 mod health;
 mod packages;
+mod plan;
 mod unlock;
 
 use zbm_types::Untrusted;
@@ -19,6 +20,7 @@ pub use self::action::{Action, Event, Outcome, Question, RESTORE_SNAPSHOT, Unloc
 pub use self::diff::{Change, ChangeKind};
 pub use self::health::{Check, Fallback, Target, Tries, Verdict, worst};
 pub use self::packages::{PackageChange, PackageDiff, PackageKind};
+pub use self::plan::{Plan, Step, StepKind};
 pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
 
 /// The encryption of a boot environment.

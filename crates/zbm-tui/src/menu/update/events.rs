@@ -39,31 +39,36 @@ pub(super) fn apply(model: &mut Model, event: Event) {
             to,
             changes,
             packages,
-        } => {
-            let kept = model
-                .diff
-                .as_ref()
-                .filter(|diff| diff.from == from)
-                .map(|diff| (diff.list.selected, diff.segment));
-            let mut view = DiffView::new((from, to), changes, packages);
-            let last = view.list.matches.len().saturating_sub(1);
-            let (selected, segment) = kept.unwrap_or_default();
-            view.list.selected = selected.min(last);
-            view.segment = segment;
-            model.diff = Some(view);
-            model.screen = Screen::Diff;
-        }
+        } => diff_ready(model, DiffView::new((from, to), changes, packages)),
         Event::Finished(outcome) => {
             super::show_failure(model, &outcome);
             model.notification = Some(outcome);
         }
         Event::Leaving(why) => model.leaving = Some(why),
+        // The dry run's pages come with the command line (ROADMAP.md, UI14).
+        Event::Planned { .. } => {}
         Event::StageStarted(name) => stage(model, name, StageState::Running),
         Event::StageFinished { stage: name, state } => stage(model, name, state),
         Event::UnlockFinished { volume, outcome } => {
             model.notification = Some(unlocked(&volume, outcome));
         }
     }
+}
+
+/// Opens the differences `view`, keeping the selection and the segment of
+/// the differences of the same snapshot shown before.
+fn diff_ready(model: &mut Model, mut view: DiffView) {
+    let kept = model
+        .diff
+        .as_ref()
+        .filter(|diff| diff.from == view.from)
+        .map(|diff| (diff.list.selected, diff.segment));
+    let last = view.list.matches.len().saturating_sub(1);
+    let (selected, segment) = kept.unwrap_or_default();
+    view.list.selected = selected.min(last);
+    view.segment = segment;
+    model.diff = Some(view);
+    model.screen = Screen::Diff;
 }
 
 /// The notification of how unlocking `volume` ended.

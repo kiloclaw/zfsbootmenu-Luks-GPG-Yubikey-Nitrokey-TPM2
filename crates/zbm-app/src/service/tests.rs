@@ -160,3 +160,34 @@ fn an_action_performed_in_place_reads_the_machine_first() {
             .any(|line| line.starts_with("zfs snapshot"))
     );
 }
+
+#[test]
+fn the_worker_ends_when_the_front_end_is_gone_while_it_works() {
+    let fake = machine();
+    let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen = started.clone();
+    // The snapshot waits until the front end is gone.
+    fake.runner.first(move |command| {
+        if command.display() == "zfs snapshot tank/ROOT/be@new" {
+            seen.store(true, std::sync::atomic::Ordering::Release);
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        None
+    });
+    let settings = BootSettings::default();
+    let app = App::new(Context::new(fake.system()))
+        .with_base(Path::new("/zfsbootmenu"))
+        .with_boot(&settings);
+    let service = MachineService::new(app, fake.system());
+
+    std::thread::scope(|scope| {
+        let mut handle = service.start(scope).unwrap();
+        assert!(zbm_platform::event::Mailbox::<()>::new().is_ok());
+        let _readable = handle.as_fd();
+        handle.send(take()).unwrap();
+        while !started.load(std::sync::atomic::Ordering::Acquire) {
+            std::thread::yield_now();
+        }
+        drop(handle);
+    });
+}

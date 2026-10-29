@@ -11,6 +11,7 @@ use zbm_platform::System;
 use zbm_state::State;
 use zbm_types::{DatasetName, FilesystemName, PoolName, SnapshotName};
 
+use crate::model::{Step, StepKind};
 use crate::volumes::causes;
 
 /// What a change needs besides ZFS. A failure is its reasons, outermost
@@ -93,6 +94,56 @@ impl Needs for OnMachine<'_, '_> {
         if let Err(error) = kexec::recursive_umount(self.system, Path::new(mounted)) {
             tracing::warn!(%error, "unmounting the boot environment");
         }
+    }
+}
+
+/// What a change needs, planned instead of done: a pool imported
+/// read-only and a key that is not loaded become steps of the plan, and
+/// what is read, such as the kernels of a snapshot, is read from the
+/// machine.
+pub(crate) struct Planning<'s, 'm> {
+    /// The machine, without the console.
+    pub machine: OnMachine<'s, 'm>,
+    /// The plan's steps, which the ZFS port of the dry run adds to too.
+    pub steps: &'s std::sync::Mutex<Vec<Step>>,
+}
+
+impl Planning<'_, '_> {
+    fn step(&self, kind: StepKind) {
+        if let Ok(mut steps) = self.steps.lock() {
+            steps.push(Step {
+                kind,
+                command: None,
+            });
+        }
+    }
+}
+
+impl Needs for Planning<'_, '_> {
+    fn writable(&mut self, pool: &PoolName) -> Result<(), Vec<String>> {
+        if !kexec::is_writable(self.machine.system.runner, pool) {
+            self.step(StepKind::ImportReadWrite(pool.clone()));
+        }
+        Ok(())
+    }
+
+    fn load_key(&mut self, dataset: &DatasetName) -> Result<(), Vec<String>> {
+        if let Some(root) = kexec::locked_root(self.machine.system.runner, dataset) {
+            self.step(StepKind::LoadKey(root));
+        }
+        Ok(())
+    }
+
+    fn has_kernels(&mut self, snapshot: &SnapshotName) -> bool {
+        self.machine.has_kernels(snapshot)
+    }
+
+    fn mount(&mut self, filesystem: &DatasetName) -> Result<String, Vec<String>> {
+        self.machine.mount(filesystem)
+    }
+
+    fn unmount(&mut self, mounted: &str) {
+        self.machine.unmount(mounted);
     }
 }
 

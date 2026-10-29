@@ -19,7 +19,7 @@
 
 mod needs;
 
-pub(crate) use needs::{Needs, OnMachine};
+pub(crate) use needs::{Needs, OnMachine, Planning};
 
 use zbm_types::Untrusted;
 use zbm_types::{DatasetName, PoolName, SnapshotName};

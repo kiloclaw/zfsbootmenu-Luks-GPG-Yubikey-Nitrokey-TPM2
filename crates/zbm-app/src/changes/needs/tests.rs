@@ -165,3 +165,48 @@ fn keys_mounts_and_kernels_on_the_console() {
         needs.unmount("/nowhere");
     });
 }
+
+#[test]
+fn planned_needs_are_steps_and_what_they_read_comes_from_the_machine() {
+    let fake = encrypted("unavailable");
+    fake.runner
+        .respond("zpool get -H -o value readonly tank", 0, "on\n");
+    let steps = std::sync::Mutex::new(Vec::new());
+    with_needs(&fake, false, |machine| {
+        let machine = OnMachine {
+            system: machine.system,
+            state: machine.state,
+            settings: machine.settings,
+            asks: false,
+        };
+        let mut planning = Planning {
+            machine,
+            steps: &steps,
+        };
+        assert_eq!(planning.writable(&pool("tank")), Ok(()));
+        assert_eq!(planning.load_key(&dataset("tank/ROOT/void")), Ok(()));
+        assert!(!planning.has_kernels(&"tank/ROOT/void@old".parse().unwrap()));
+        assert!(planning.mount(&dataset("tank/ROOT/void")).is_err());
+        planning.unmount("/nowhere");
+    });
+    let kinds: Vec<StepKind> = steps
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|step| step.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            StepKind::ImportReadWrite(pool("tank")),
+            StepKind::LoadKey(dataset("tank/ROOT")),
+        ]
+    );
+    assert!(
+        !fake
+            .runner
+            .lines()
+            .iter()
+            .any(|line| line.starts_with("zfs load-key"))
+    );
+}

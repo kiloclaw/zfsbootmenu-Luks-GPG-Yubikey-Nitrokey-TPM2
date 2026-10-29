@@ -21,6 +21,7 @@ use std::io;
 
 use zbm_platform::exec::{Command, Input, Output, Runner, Stream};
 
+mod change;
 mod cli;
 pub mod import;
 pub mod json;
@@ -31,6 +32,7 @@ mod rows;
 pub mod text;
 mod zfs_text;
 
+pub use change::{DryRun, ZfsChange};
 pub use cli::{Format, ZfsCli};
 
 pub use model::{

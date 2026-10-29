@@ -36,6 +36,7 @@
 mod boot;
 mod changes;
 pub mod model;
+mod plan;
 mod read;
 pub mod service;
 mod unlock;
@@ -333,9 +334,13 @@ impl<'a> App<'a> {
     /// ([`model::Action::is_change`]) whose pool is writable and whose key
     /// is loaded; one that would have to ask for something fails, so the
     /// front end performs those with [`App::act_on_console`] when
-    /// [`model::Action::needs_console_on`] says so. `console` is the front
+    /// [`model::Action::needs_console_on`] says so; and the dry runs of
+    /// [`model::Action::Plan`] ([`App::plan`]). `console` is the front
     /// end's whole system; nothing is written to its console.
     pub fn act_quietly(&self, action: &model::Action, console: System<'_>) -> Vec<model::Event> {
+        if let model::Action::Plan(planned) = action {
+            return self.planned(planned, console);
+        }
         if !action.is_change() {
             return self.act(action);
         }

@@ -10,6 +10,7 @@ use std::cell::OnceCell;
 use zbm_platform::exec::{Command, Input, Runner, Stream};
 use zbm_types::{DatasetName, PoolName, SnapshotName};
 
+use crate::change::ZfsChange;
 use crate::model::{Dataset, Difference, Pool, Property, Snapshot, Version};
 use crate::port::{Zfs, ZfsError};
 use crate::{json, text};
@@ -67,6 +68,21 @@ impl<'a> ZfsCli<'a> {
             Command::new(program).args(args.iter().copied()),
             args.last().copied(),
         )
+    }
+
+    /// Makes `change`, as [`ZfsCli::change`] does.
+    fn make(&self, change: &ZfsChange) -> Result<(), ZfsError> {
+        let (program, args) = change.command();
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.change(program, &args)
+    }
+
+    /// Runs `change` as [`ZfsCli::run`] does, its last argument the name a
+    /// failure may say is missing.
+    fn run_change(&self, change: &ZfsChange) -> Result<(), ZfsError> {
+        let (program, args) = change.command();
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.run(program, &args).map(drop)
     }
 
     /// Runs a change: as [`ZfsCli::run`], but every failure is
@@ -164,14 +180,6 @@ else
   zfs send -p -w \"$snapshot\" | zfs recv \"$@\"
 fi";
 
-/// `-o name=value` for each of `properties`.
-fn property_options(properties: &[(String, String)]) -> Vec<String> {
-    properties
-        .iter()
-        .flat_map(|(name, value)| ["-o".to_owned(), format!("{name}={value}")])
-        .collect()
-}
-
 impl Zfs for ZfsCli<'_> {
     fn version(&self) -> Result<Version, ZfsError> {
         match self.format() {
@@ -214,7 +222,7 @@ impl Zfs for ZfsCli<'_> {
     }
 
     fn export(&self, pool: &PoolName) -> Result<(), ZfsError> {
-        self.run("zpool", &["export", pool.as_str()]).map(drop)
+        self.run_change(&ZfsChange::Export(pool.clone()))
     }
 
     fn pool_property(&self, pool: &PoolName, property: &str) -> Result<Property, ZfsError> {
@@ -280,14 +288,18 @@ impl Zfs for ZfsCli<'_> {
     }
 
     fn set(&self, dataset: &DatasetName, property: &str, value: &str) -> Result<(), ZfsError> {
-        let assignment = format!("{property}={value}");
-        self.run("zfs", &["set", &assignment, dataset.as_str()])
-            .map(drop)
+        self.run_change(&ZfsChange::Set {
+            dataset: dataset.clone(),
+            property: property.to_owned(),
+            value: value.to_owned(),
+        })
     }
 
     fn inherit(&self, dataset: &DatasetName, property: &str) -> Result<(), ZfsError> {
-        self.run("zfs", &["inherit", property, dataset.as_str()])
-            .map(drop)
+        self.run_change(&ZfsChange::Inherit {
+            dataset: dataset.clone(),
+            property: property.to_owned(),
+        })
     }
 
     fn set_pool_property(
@@ -296,8 +308,11 @@ impl Zfs for ZfsCli<'_> {
         property: &str,
         value: &str,
     ) -> Result<(), ZfsError> {
-        let assignment = format!("{property}={value}");
-        self.change("zpool", &["set", &assignment, pool.as_str()])
+        self.make(&ZfsChange::SetPool {
+            pool: pool.clone(),
+            property: property.to_owned(),
+            value: value.to_owned(),
+        })
     }
 
     fn snapshot_property(
@@ -330,11 +345,11 @@ impl Zfs for ZfsCli<'_> {
     }
 
     fn create_snapshot(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
-        self.change("zfs", &["snapshot", &snapshot.to_string()])
+        self.make(&ZfsChange::Snapshot(snapshot.clone()))
     }
 
     fn rollback(&self, snapshot: &SnapshotName) -> Result<(), ZfsError> {
-        self.change("zfs", &["rollback", "-r", &snapshot.to_string()])
+        self.make(&ZfsChange::Rollback(snapshot.clone()))
     }
 
     fn clone_snapshot(
@@ -343,16 +358,15 @@ impl Zfs for ZfsCli<'_> {
         target: &DatasetName,
         properties: &[(String, String)],
     ) -> Result<(), ZfsError> {
-        let options = property_options(properties);
-        let snapshot = snapshot.to_string();
-        let mut args = vec!["clone"];
-        args.extend(options.iter().map(String::as_str));
-        args.extend([snapshot.as_str(), target.as_str()]);
-        self.change("zfs", &args)
+        self.make(&ZfsChange::Clone {
+            snapshot: snapshot.clone(),
+            target: target.clone(),
+            properties: properties.to_vec(),
+        })
     }
 
     fn promote(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
-        self.change("zfs", &["promote", dataset.as_str()])
+        self.make(&ZfsChange::Promote(dataset.clone()))
     }
 
     fn send_receive(
@@ -363,17 +377,21 @@ impl Zfs for ZfsCli<'_> {
     ) -> Result<(), ZfsError> {
         // The shell the runtime chose (brush in Rust images), else Bash.
         let shell = zbm_platform::shell::chosen().unwrap_or_else(|| "bash".into());
+        let change = ZfsChange::SendReceive {
+            snapshot: snapshot.clone(),
+            target: target.clone(),
+            properties: properties.to_vec(),
+        };
+        let (_, receive) = change.command();
         let command = Command::new(shell)
             .args(["-c", SEND_RECEIVE, "zfs-send-receive"])
             .arg(snapshot.to_string())
-            .arg("-u")
-            .args(property_options(properties))
-            .arg(target.as_str());
+            .args(receive);
         self.run_command(command, None).map(drop)
     }
 
     fn inherit_key(&self, dataset: &DatasetName) -> Result<(), ZfsError> {
-        self.change("zfs", &["change-key", "-i", dataset.as_str()])
+        self.make(&ZfsChange::InheritKey(dataset.clone()))
     }
 
     fn diff(

@@ -125,6 +125,11 @@ The reactor's parts are in `zbm_platform::event` (PM4): `Mailbox`, `Reactor` (th
   (`zbm_types::interaction`). `Operator` and `Recovery` take `&self` and are `Send + Sync`, as `Interaction` is;
   folding them into it waits for the one front end of PM9 and UI3.
 
+- **PM8**, third part (29 October 2026): a change is a plan of steps. `App::plan` runs the change against
+  `zbm_zfs::DryRun`, a ZFS port that answers reads from the machine and records each `ZfsChange` it would make, and
+  against needs that record the read/write import and the key it would load; `ZfsCli` builds its commands from the
+  same `ZfsChange`, so each step carries the command that would run. Nothing is changed, imported or unlocked.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:
