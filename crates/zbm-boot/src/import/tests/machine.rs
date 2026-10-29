@@ -3,10 +3,10 @@
 //! against the same pools, and what each run leaves behind.
 
 use std::path::PathBuf;
-use zbm_testkit::Shared;
 
 use serde::{Deserialize, Serialize};
-use zbm_platform::exec::{Command, Output, Status, Stream, SystemRunner};
+use zbm_platform::console::Screen;
+use zbm_platform::exec::{Command, Stream, SystemRunner};
 use zbm_platform::{KernelLog, Runner, System};
 use zbm_pool::{BootfsPreference, Build, ImportSettings, PoolRequirement, RetryDelay};
 use zbm_state::State;
@@ -312,8 +312,6 @@ impl Scenario {
         let dir = self.machine();
         let fake = FakeSystem::new();
         let bin = dir.join("bin");
-        let prompts = Shared::new(0);
-        let counter = prompts.clone();
         fake.runner.on(move |command| {
             let program = command.program().to_string_lossy().into_owned();
             match program.as_str() {
@@ -328,17 +326,6 @@ impl Scenario {
                         real.stderr(Stream::Null)
                     };
                     Some(SystemRunner.run(&real))
-                }
-                "tput" if command.get_args() == ["civis"] => {
-                    counter.set(counter.get() + 1);
-                    assert!(counter.get() <= 10, "too many prompts");
-                    None
-                }
-                "tput" if command.get_args() == ["lines"] => {
-                    Some(Ok(Output::new(Status::exited(0), "25\n")))
-                }
-                "tput" if command.get_args() == ["cols"] => {
-                    Some(Ok(Output::new(Status::exited(0), "80\n")))
                 }
                 _ => None,
             }
@@ -372,7 +359,8 @@ impl Scenario {
             .bootfs
             .map(|bootfs| bootfs.to_string())
             .unwrap_or_default();
-        Scenario::outcome(&dir, log, bootfs, prompts.get())
+        let prompts = fake.console.screen_count(Screen::HideCursor);
+        Scenario::outcome(&dir, log, bootfs, prompts)
     }
 
     pub(super) fn check(&self, parity: &mut Parity) -> Outcome {

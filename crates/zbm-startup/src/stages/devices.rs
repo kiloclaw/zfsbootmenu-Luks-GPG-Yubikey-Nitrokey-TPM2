@@ -119,8 +119,6 @@ mod tests {
     fn setup() -> FakeSystem {
         let fake = FakeSystem::new();
         fake.files.dir("/zfsbootmenu");
-        fake.runner.respond("tput lines", 0, "25\n");
-        fake.runner.respond("tput cols", 0, "80\n");
         fake
     }
 
@@ -147,11 +145,8 @@ mod tests {
             RetryDelay::new(3).unwrap(),
         );
         let prompts = fake
-            .runner
-            .lines()
-            .iter()
-            .filter(|line| *line == "tput civis")
-            .count();
+            .console
+            .screen_count(zbm_platform::console::Screen::HideCursor);
         assert_eq!(prompts, 2);
         assert!(
             fake.console
@@ -198,11 +193,8 @@ mod tests {
             let _log = KernelLog::new(&fake.files, "7", Path::new("/zfsbootmenu"), 1).install();
             stage(&fake.system(), wait_for, RetryDelay::DEFAULT);
             let prompts = fake
-                .runner
-                .lines()
-                .iter()
-                .filter(|line| *line == "tput civis")
-                .count();
+                .console
+                .screen_count(zbm_platform::console::Screen::HideCursor);
             assert_eq!(prompts, legacy_prompts, "{wait_for}");
             assert_eq!(stub_lines(&fake.kmsg()), logged, "{wait_for}");
         }

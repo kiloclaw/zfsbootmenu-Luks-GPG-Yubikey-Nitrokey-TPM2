@@ -114,6 +114,12 @@ impl Machine {
         self.fake.runner.lines().iter().any(|ran| ran == line)
     }
 
+    /// Whether the screen was cleared.
+    fn cleared(&self) -> bool {
+        let clear = zbm_platform::console::Screen::Clear;
+        self.fake.console.screen_count(clear) > 0
+    }
+
     fn ran_program(&self, program: &str) -> bool {
         self.fake
             .runner
@@ -159,7 +165,7 @@ fn a_prompt_location_asks_for_the_passphrase() {
     let machine = Machine::new("prompt", "passphrase", "-");
     machine.loads("prompt", "tank/ROOT");
     assert_eq!(machine.load(BootPath::Countdown, Clear::Yes), Ok(()));
-    assert!(machine.ran("tput clear"));
+    assert!(machine.cleared());
     assert!(machine.ran("zfs load-key -L prompt tank/ROOT"));
 
     let wrong = Machine::new("prompt", "passphrase", "-");
@@ -167,7 +173,7 @@ fn a_prompt_location_asks_for_the_passphrase() {
         wrong.load(BootPath::Countdown, Clear::No),
         not_loaded("tank/ROOT")
     );
-    assert!(!wrong.ran("tput clear"));
+    assert!(!wrong.cleared());
 }
 
 #[test]
@@ -223,7 +229,7 @@ fn without_a_key_file_only_a_passphrase_is_asked_for() {
     passphrase.loads("prompt", "tank/ROOT");
     assert_eq!(passphrase.load(BootPath::Countdown, Clear::Yes), Ok(()));
     assert!(passphrase.ran("zfs load-key -L file:///etc/zfs/tank.key tank/ROOT"));
-    assert!(passphrase.ran("tput clear"));
+    assert!(passphrase.cleared());
 
     // A raw key without its file cannot be loaded.
     let raw = Machine::new("file:///etc/zfs/tank.key", "raw", "-");

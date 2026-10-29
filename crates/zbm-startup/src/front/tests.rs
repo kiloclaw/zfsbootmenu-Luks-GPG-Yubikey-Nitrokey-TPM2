@@ -86,8 +86,6 @@ fn early_hooks_take_the_console_only_when_there_are_some() {
 fn the_console_front_asks_on_the_console() {
     let fake = FakeSystem::new();
     fake.files.dir("/zfsbootmenu");
-    fake.runner.respond("tput lines", 0, "25\n");
-    fake.runner.respond("tput cols", 0, "80\n");
     fake.console.keys(b"\x1b");
     let state = State::new(&fake.files, "/zfsbootmenu");
     let system = fake.system();

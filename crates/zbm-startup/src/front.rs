@@ -5,9 +5,10 @@
 
 use zbm_app::model::Event;
 use zbm_boot::import::{self, ImportSettings, Imported};
-use zbm_boot::prompt::{Answer, tput};
+use zbm_boot::prompt::Answer;
 use zbm_boot::recovery::Recovery;
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_state::State;
 
 use crate::shell::{Attempt, Shell, zluks_unlock};
@@ -78,7 +79,7 @@ impl Front for ConsoleFront<'_, '_> {
     fn unlock_luks(&mut self, system: &System<'_>) {
         if system.command_exists("cryptsetup") {
             let _ = zluks_unlock(system, Attempt::First);
-            tput(system, &["clear"]);
+            system.console.screen(Screen::Clear);
         }
     }
 

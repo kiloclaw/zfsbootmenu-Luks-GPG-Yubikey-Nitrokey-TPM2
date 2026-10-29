@@ -4,20 +4,17 @@
 //! output, which are the control terminal; it uses `stty` to switch echo off
 //! and ignores `stty`'s failures, so the same code also reads from a pipe,
 //! which is how the LUKS unit suites feed it passphrases. [`Terminal`] does the
-//! same. Full-screen output (`tput clear`, cursor movement) is text written
-//! with [`Console::write`]; `fzf` and other interactive programs use the
-//! terminal directly.
-
-#![allow(
-    clippy::disallowed_methods,
-    reason = "the real implementation runs this program"
-)]
+//! same with the terminal's settings themselves (`termios`), without `stty`
+//! (ROADMAP.md, PM11). Full-screen output, which the legacy code drew with
+//! `tput`, is a [`Screen`] change written with [`Console::screen`]; `fzf` and
+//! other interactive programs use the terminal directly.
 
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::time::Duration;
 
-use crate::exec::{Command, Input, Runner, Stream};
+use rustix::termios::{self, LocalModes, OptionalActions, SpecialCodeIndex};
+
 use crate::secret::Secret;
 
 /// The size of the screen.
@@ -27,6 +24,41 @@ pub struct Size {
     pub rows: u16,
     /// Columns.
     pub columns: u16,
+}
+
+/// A change of a full screen, as the legacy code made it with `tput`: the
+/// sequences of ECMA-48 (ANSI) that the Linux console, xterm and the serial
+/// terminals ZFSBootMenu runs on all understand, so no terminal description
+/// is needed to find them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Screen {
+    /// Clears the screen, the cursor at the top left (`tput clear`).
+    Clear,
+    /// Shows the cursor (`tput cnorm`).
+    ShowCursor,
+    /// Hides the cursor (`tput civis`).
+    HideCursor,
+    /// Moves the cursor to `row` and `column`, from 0 (`tput cup`).
+    MoveTo {
+        /// The row.
+        row: u16,
+        /// The column.
+        column: u16,
+    },
+}
+
+impl Screen {
+    /// The sequence that makes the change.
+    pub fn sequence(self) -> String {
+        match self {
+            Screen::Clear => "\x1b[H\x1b[2J".to_owned(),
+            Screen::ShowCursor => "\x1b[?25h".to_owned(),
+            Screen::HideCursor => "\x1b[?25l".to_owned(),
+            Screen::MoveTo { row, column } => {
+                format!("\x1b[{};{}H", u32::from(row) + 1, u32::from(column) + 1)
+            }
+        }
+    }
 }
 
 /// What a read with a time limit got.
@@ -55,6 +87,23 @@ pub trait Console: Send + Sync {
     ///
     /// When the console cannot be read or written.
     fn size(&self) -> io::Result<Size>;
+
+    /// Changes the screen as `screen` says, ignoring failures, as `tput`'s
+    /// were.
+    fn screen(&self, screen: Screen) {
+        let _ = self.write(screen.sequence().as_bytes());
+    }
+
+    /// Tells the programs on the console that the screen is `size`, as a
+    /// serial terminal cannot (`stty rows`, `stty cols`).
+    ///
+    /// # Errors
+    ///
+    /// When the console is not a terminal.
+    fn resize(&self, size: Size) -> io::Result<()> {
+        let _ = size;
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
 
     /// Waits for one key press, without echo and without Enter, for at most
     /// `timeout` (`None`: without limit), as `read -s -N 1 -t` does. Returns the
@@ -131,63 +180,56 @@ impl Console for NoConsole {
 }
 
 /// The console on standard input and standard output, as the legacy code
-/// uses it; the start-up sequence connects both to the control terminal.
-pub struct Terminal<'a> {
-    runner: &'a dyn Runner,
+/// uses it; the start-up sequence connects both to the control terminal,
+/// whose settings are those of standard input, as `stty`'s are.
+pub struct Terminal {
     input: File,
     output: File,
 }
 
-impl<'a> Terminal<'a> {
-    /// The terminal on the process's standard input and output; `runner` runs
-    /// `stty`, which acts on the inherited standard input.
+impl Terminal {
+    /// The terminal on the process's standard input and output.
     ///
     /// # Errors
     ///
     /// When standard input or output cannot be duplicated.
-    pub fn standard(runner: &'a dyn Runner) -> io::Result<Terminal<'a>> {
+    pub fn standard() -> io::Result<Terminal> {
         let input = io::stdin().as_fd_clone()?;
         let output = io::stdout().as_fd_clone()?;
-        Ok(Terminal::new(runner, input, output))
+        Ok(Terminal::new(input, output))
     }
 
-    /// A terminal that reads `input` and writes `output`.
-    pub fn new(runner: &'a dyn Runner, input: File, output: File) -> Terminal<'a> {
-        Terminal {
-            runner,
-            input,
-            output,
+    /// A terminal that reads `input`, whose settings it changes, and writes
+    /// `output`.
+    pub fn new(input: File, output: File) -> Terminal {
+        Terminal { input, output }
+    }
+
+    /// Changes the settings of the terminal with `change`; nothing when it
+    /// is not a terminal, as `stty` failed.
+    fn change_modes(&self, change: impl FnOnce(&mut termios::Termios)) {
+        if let Ok(mut modes) = termios::tcgetattr(&self.input) {
+            change(&mut modes);
+            let _ = termios::tcsetattr(&self.input, OptionalActions::Now, &modes);
         }
     }
 
-    /// Runs `stty` with `args` and returns its output, or `None` if it failed,
-    /// as when the input is not a terminal.
-    fn stty(&self, args: &[&str]) -> Option<String> {
-        let command = Command::new("stty")
-            .args(args)
-            .stdin(Input::Inherit)
-            .stderr(Stream::Null);
-        match self.runner.run(&command) {
-            Ok(output) if output.status.is_success() => Some(output.stdout_text()),
-            _ => None,
-        }
-    }
-
-    /// Runs `body` with the terminal settings `mode` and restores the previous
-    /// settings afterwards. If the settings cannot be read (no terminal), `body`
-    /// runs without changes.
-    fn with_mode<T>(&self, mode: &[&str], body: impl FnOnce() -> T) -> T {
-        let saved = self.stty(&["-g"]);
-        let saved = saved
-            .as_deref()
-            .map(str::trim)
-            .filter(|saved| !saved.is_empty());
+    /// Runs `body` with the local modes `off` switched off (`stty -icanon
+    /// -echo`), and restores the settings afterwards. When the input is not
+    /// a terminal, `body` runs without changes.
+    fn without<T>(&self, off: LocalModes, body: impl FnOnce() -> T) -> T {
+        let saved = termios::tcgetattr(&self.input).ok();
         if saved.is_some() {
-            self.stty(mode);
+            self.change_modes(|modes| {
+                modes.local_modes.remove(off);
+                // A read returns with each byte, as after `stty -icanon`.
+                modes.special_codes[SpecialCodeIndex::VMIN] = 1;
+                modes.special_codes[SpecialCodeIndex::VTIME] = 0;
+            });
         }
         let result = body();
         if let Some(saved) = saved {
-            self.stty(&[saved]);
+            let _ = termios::tcsetattr(&self.input, OptionalActions::Now, &saved);
         }
         result
     }
@@ -221,7 +263,7 @@ fn read_until_newline(
     }
 }
 
-impl Console for Terminal<'_> {
+impl Console for Terminal {
     fn write(&self, bytes: &[u8]) -> io::Result<()> {
         let mut output = &self.output;
         output.write_all(bytes)?;
@@ -229,14 +271,23 @@ impl Console for Terminal<'_> {
     }
 
     fn size(&self) -> io::Result<Size> {
-        let text = self
-            .stty(&["size"])
-            .ok_or_else(|| io::Error::other("stty size failed"))?;
-        parse_size(&text).ok_or_else(|| io::Error::other(format!("unexpected stty size: {text}")))
+        let size = termios::tcgetwinsize(&self.input)?;
+        Ok(Size {
+            rows: size.ws_row,
+            columns: size.ws_col,
+        })
+    }
+
+    fn resize(&self, size: Size) -> io::Result<()> {
+        let mut winsize = termios::tcgetwinsize(&self.input)?;
+        winsize.ws_row = size.rows;
+        winsize.ws_col = size.columns;
+        termios::tcsetwinsize(&self.input, winsize)?;
+        Ok(())
     }
 
     fn read_key(&self, timeout: Option<Duration>) -> io::Result<Option<u8>> {
-        self.with_mode(&["-icanon", "-echo"], || {
+        self.without(LocalModes::ICANON | LocalModes::ECHO, || {
             if zbm_sys::wait_readable(&self.input, timeout)? {
                 self.read_byte()
             } else {
@@ -246,7 +297,7 @@ impl Console for Terminal<'_> {
     }
 
     fn read_secret(&self) -> io::Result<Option<Secret>> {
-        self.with_mode(&["-echo"], || read_until_newline(|| self.read_byte()))
+        self.without(LocalModes::ECHO, || read_until_newline(|| self.read_byte()))
     }
 
     fn read_line(&self) -> io::Result<Option<String>> {
@@ -255,7 +306,7 @@ impl Console for Terminal<'_> {
     }
 
     fn set_echo(&self, on: bool) {
-        self.stty(&[if on { "echo" } else { "-echo" }]);
+        self.change_modes(|modes| modes.local_modes.set(LocalModes::ECHO, on));
     }
 
     fn read_secret_within(&self, timeout: Duration) -> io::Result<Timed<Secret>> {

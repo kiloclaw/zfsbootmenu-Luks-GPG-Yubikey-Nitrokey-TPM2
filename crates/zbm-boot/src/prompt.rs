@@ -3,5 +3,5 @@
 //! moves the prompts to the front ends.
 
 pub use zbm_tools::console::{
-    Answer, ConsoleInteraction, TimedPrompt, colorize, decolorize, retry_delay, tput,
+    Answer, ConsoleInteraction, TimedPrompt, colorize, decolorize, retry_delay,
 };

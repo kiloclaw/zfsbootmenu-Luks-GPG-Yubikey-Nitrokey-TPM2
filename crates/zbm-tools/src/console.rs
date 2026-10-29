@@ -2,15 +2,15 @@
 //! [`Interaction`](zbm_platform::Interaction) of a terminal without the
 //! menu, and its timed prompt, [`TimedPrompt`].
 //!
-//! The prompt draws centred lines with `tput`; `tput`'s output is captured
-//! and written to the console, so tests see it.
+//! The prompt draws centred lines with the console's screen changes
+//! (`zbm_platform::console::Screen`), as the legacy prompt did with `tput`,
+//! without starting a program.
 
 use std::fmt::Write as _;
 use std::time::Duration;
 
-use crate::terminal;
 use zbm_platform::System;
-use zbm_platform::exec::Input;
+use zbm_platform::console::Screen;
 use zbm_types::RetryDelay;
 
 pub use zbm_platform::color::{colorize, decolorize};
@@ -103,10 +103,12 @@ impl TimedPrompt {
         let mut messages = self.messages;
         messages.push(String::new());
 
-        tput(system, &["civis"]);
-        let height = tput_number(system, "lines");
-        let columns = tput_number(system, "cols");
-        tput(system, &["clear"]);
+        let console = system.console;
+        console.screen(Screen::HideCursor);
+        let size = console.size().ok();
+        let height = size.map_or(0, |size| i64::from(size.rows));
+        let columns = size.map_or(0, |size| i64::from(size.columns));
+        console.screen(Screen::Clear);
 
         let lines = i64::try_from(messages.len()).unwrap_or(i64::MAX);
         let mut row = (height / 2 - lines).max(0);
@@ -143,7 +145,11 @@ fn default_prompt(infinite: bool, width: usize) -> PromptText {
 fn draw_centred(system: &System<'_>, row: i64, columns: i64, text: &str) {
     let len = i64::try_from(decolorize(text).chars().count()).unwrap_or(0);
     let column = ((columns - len) / 2).max(0);
-    tput(system, &["cup", &row.to_string(), &column.to_string()]);
+    let place = |at: i64| u16::try_from(at).unwrap_or(0);
+    system.console.screen(Screen::MoveTo {
+        row: place(row),
+        column: place(column),
+    });
     let _ = system.console.write(text.as_bytes());
 }
 
@@ -194,17 +200,6 @@ impl Countdown {
         }
         Answer::Continue
     }
-}
-
-/// Runs `tput` with `args` and writes what it prints to the console.
-pub fn tput(system: &System<'_>, args: &[&str]) {
-    let output = terminal::tput(system.runner, args, Input::Inherit);
-    let _ = system.console.write(&output);
-}
-
-/// `$( tput <capability> )` as a number, 0 when it cannot be read.
-fn tput_number(system: &System<'_>, capability: &str) -> i64 {
-    i64::try_from(terminal::tput_number(system.runner, capability)).unwrap_or(0)
 }
 
 mod interaction;
@@ -278,10 +273,7 @@ mod tests {
     }
 
     fn setup() -> FakeSystem {
-        let fake = FakeSystem::new();
-        fake.runner.respond("tput lines", 0, "25\n");
-        fake.runner.respond("tput cols", 0, "80\n");
-        fake
+        FakeSystem::new()
     }
 
     #[test]
@@ -299,14 +291,19 @@ mod tests {
         assert_eq!(fake.clock.now(), Duration::from_secs(3));
         // Two lines (the message and a blank) centred on 25 rows: rows 10 and 11,
         // then the countdown on row 12.
-        let lines = fake.runner.lines();
+        assert!(fake.runner.lines().is_empty());
+        let at = |row, column| Screen::MoveTo { row, column };
+        let screens = fake.console.screens();
         assert_eq!(
-            lines[..4],
-            ["tput civis", "tput lines", "tput cols", "tput clear"]
+            screens[..4],
+            [
+                Screen::HideCursor,
+                Screen::Clear,
+                at(10, (80 - 29) / 2),
+                at(11, 40)
+            ]
         );
-        assert_eq!(lines[4], format!("tput cup 10 {}", (80 - 29) / 2));
-        assert_eq!(lines[5], "tput cup 11 40");
-        assert!(lines[6].starts_with("tput cup 12 "));
+        assert!(matches!(screens[4], Screen::MoveTo { row: 12, .. }));
         assert!(fake.console.remaining().is_empty());
     }
 

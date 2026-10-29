@@ -91,8 +91,6 @@ fn conf() -> Conf {
 /// environment `tank/ROOT/void`.
 fn started() -> FakeSystem {
     let fake = FakeSystem::new();
-    fake.runner.respond("tput lines", 0, "25\n");
-    fake.runner.respond("tput cols", 0, "80\n");
     fake.files.file("/dev/zfs", "");
     let state = State::new(&fake.files, "/zfsbootmenu");
     state.create().unwrap();

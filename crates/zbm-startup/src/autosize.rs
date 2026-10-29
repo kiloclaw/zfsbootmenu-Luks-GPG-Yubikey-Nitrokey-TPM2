@@ -79,7 +79,7 @@ pub enum Outcome {
     Set {
         /// The font.
         font: Candidate,
-        /// The size of the console with it, when `stty` could tell.
+        /// The size of the console with it, when the kernel could tell.
         size: Option<(u16, u16)>,
     },
     /// No font could be loaded.
@@ -129,7 +129,7 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
         {
             continue;
         }
-        let size = terminal::size_of(system.runner, console);
+        let size = terminal_size(system, console);
         let columns = size
             .map(|(columns, _)| columns)
             .or_else(|| screen.map(|(width, _)| width / candidate.cell.width));
@@ -143,11 +143,18 @@ pub fn run(system: &System<'_>, root: &Path, settings: &Settings) -> Outcome {
     if terminal::setfont(system.runner, console, &smallest.path, false)
         .is_ok_and(|output| output.status.is_success())
     {
-        let size = terminal::size_of(system.runner, console);
+        let size = terminal_size(system, console);
         return set(console, smallest, size);
     }
     zbm_trace::warn!("unable to load a console font on {console}"; %console);
     Outcome::Failed
+}
+
+/// The columns and rows of the terminal `console`, or `None` when it
+/// cannot tell.
+fn terminal_size(system: &System<'_>, console: &str) -> Option<(u16, u16)> {
+    let size = system.files.terminal_size(Path::new(console)).ok()?;
+    Some((size.columns, size.rows))
 }
 
 /// Logs the font that was kept.

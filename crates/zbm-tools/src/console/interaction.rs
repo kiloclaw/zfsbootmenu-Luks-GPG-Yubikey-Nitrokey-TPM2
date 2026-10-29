@@ -4,15 +4,13 @@
 use std::time::Duration;
 
 use zbm_platform::System;
-use zbm_platform::console::Timed;
-use zbm_platform::exec::Input;
+use zbm_platform::console::{Screen, Timed};
 use zbm_platform::interaction::{
     Asked, Awaited, Interaction, PromptRequest, SecretKind, SecretRequest, Subject, Tell, Told,
     Wait, WaitRequest,
 };
 
 use super::{Answer, TimedPrompt, colorize, retry_delay};
-use crate::terminal;
 
 /// The plain console, the [`Interaction`] of a terminal without the menu:
 /// timed prompts as [`TimedPrompt`]s, secrets read with echo off, devices
@@ -51,13 +49,6 @@ impl<'a> ConsoleInteraction<'a> {
         let _ = self.system.console.write(text.as_bytes());
     }
 
-    /// `tput <args>`, without the console as its input, written to the
-    /// console.
-    fn tput(&self, args: &[&str]) {
-        let output = terminal::tput(self.system.runner, args, Input::Null);
-        let _ = self.system.console.write(&output);
-    }
-
     /// A blank line, then `heading` in cyan with `device` in it highlighted.
     fn heading(&self, heading: &str, device: &str) {
         let highlighted = if device.is_empty() {
@@ -75,7 +66,7 @@ impl<'a> ConsoleInteraction<'a> {
     fn read_secret(&self, prompt: &str) -> Asked {
         let console = self.system.console;
         console.set_echo(false);
-        self.tput(&["cnorm"]);
+        self.system.console.screen(Screen::ShowCursor);
         self.say(prompt);
         let secret = console.read_secret().ok().flatten();
         console.set_echo(true);
@@ -90,7 +81,7 @@ impl<'a> ConsoleInteraction<'a> {
         let console = self.system.console;
         let description = request.description.unwrap_or(request.volume.device);
         console.set_echo(false);
-        self.tput(&["cnorm"]);
+        self.system.console.screen(Screen::ShowCursor);
         self.say("\n");
         let line = format!("Unlock LUKS volume {}\n", self.paint("yellow", description));
         self.say(&self.paint("cyan", &line));
@@ -191,8 +182,8 @@ impl Interaction for ConsoleInteraction<'_> {
             Subject::Missing(_) => answer == Answer::Escape,
         };
         if clear {
-            self.tput(&["cnorm"]);
-            self.tput(&["clear"]);
+            self.system.console.screen(Screen::ShowCursor);
+            self.system.console.screen(Screen::Clear);
         }
         answer
     }

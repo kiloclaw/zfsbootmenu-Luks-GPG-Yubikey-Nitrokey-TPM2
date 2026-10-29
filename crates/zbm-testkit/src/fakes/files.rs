@@ -98,6 +98,8 @@ pub struct FakeFiles {
     mount_calls: Arc<Mutex<Option<bool>>>,
     /// The mount system calls made.
     mounts_made: Arc<Mutex<Vec<String>>>,
+    /// The terminals, by path, and their sizes.
+    terminals: Arc<Mutex<BTreeMap<PathBuf, zbm_platform::console::Size>>>,
 }
 
 impl Default for FakeFiles {
@@ -145,6 +147,7 @@ impl FakeFiles {
             ticks: Arc::new(AtomicU64::new(0)),
             mount_calls: Arc::new(Mutex::new(None)),
             mounts_made: Arc::new(Mutex::new(Vec::new())),
+            terminals: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -156,6 +159,19 @@ impl FakeFiles {
     pub fn mount_calls(&self, succeed: bool) -> &FakeFiles {
         *lock(&self.mount_calls) = Some(succeed);
         self
+    }
+
+    /// Makes `path` a terminal of `columns` and `rows`, which
+    /// [`Files::terminal_size`](zbm_platform::Files::terminal_size) reads.
+    pub fn terminal(&self, path: impl AsRef<Path>, columns: u16, rows: u16) -> &FakeFiles {
+        let size = zbm_platform::console::Size { rows, columns };
+        lock(&self.terminals).insert(path.as_ref().to_owned(), size);
+        self
+    }
+
+    /// The size of the terminal at `path`, if it is one.
+    pub(crate) fn terminal_at(&self, path: &Path) -> Option<zbm_platform::console::Size> {
+        lock(&self.terminals).get(path).copied()
     }
 
     /// The mount system calls made, `mount SOURCE TARGET` (with ` ro` when

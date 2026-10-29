@@ -7,14 +7,15 @@ use std::path::Path;
 
 use zbm_boot::boot;
 use zbm_boot::error::BootError;
-use zbm_boot::prompt::{colorize, tput};
+use zbm_boot::prompt::colorize;
 use zbm_boot::recovery::Recovery;
 use zbm_boot::support::{self, Unsupported};
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_platform::dmesg::read_logs;
 use zbm_state::State;
 use zbm_tools::mount::Mount;
-use zbm_tools::{Shown, programs, terminal};
+use zbm_tools::{Shown, programs};
 use zbm_types::Printable;
 
 use crate::error::StartupError;
@@ -97,9 +98,9 @@ impl Recovery for Shell<'_, '_> {
     /// action; afterwards, ZFS file systems mounted in it are unmounted.
     fn emergency_shell(&self, message: &str) {
         let system = &self.system;
-        tput(system, &["clear"]);
-        tput(system, &["cnorm"]);
-        terminal::stty(system.runner, &["echo"]);
+        system.console.screen(Screen::Clear);
+        system.console.screen(Screen::ShowCursor);
+        system.console.set_echo(true);
 
         let suffix = if message.is_empty() {
             String::new()

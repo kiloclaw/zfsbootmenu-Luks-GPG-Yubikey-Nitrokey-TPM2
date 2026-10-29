@@ -315,6 +315,14 @@ pub trait Files: Send + Sync {
         Err(io::ErrorKind::Unsupported.into())
     }
 
+    /// The columns and rows of the terminal device at `path`, as `stty -F
+    /// PATH size` reads them.
+    ///
+    /// # Errors
+    ///
+    /// When `path` cannot be opened, or is not a terminal.
+    fn terminal_size(&self, path: &Path) -> io::Result<crate::console::Size>;
+
     /// Copies a file's contents (`cp` without options).
     ///
     /// # Errors
@@ -353,6 +361,18 @@ impl Files for RealFiles {
     fn unmount(&self, target: &Path) -> io::Result<()> {
         rustix::mount::unmount(target, rustix::mount::UnmountFlags::empty())?;
         Ok(())
+    }
+
+    fn terminal_size(&self, path: &Path) -> io::Result<crate::console::Size> {
+        use rustix::fs::{Mode, OFlags};
+        // Neither the controlling terminal nor a wait for a carrier.
+        let flags = OFlags::RDONLY | OFlags::NOCTTY | OFlags::NONBLOCK | OFlags::CLOEXEC;
+        let terminal = rustix::fs::open(path, flags, Mode::empty())?;
+        let size = rustix::termios::tcgetwinsize(&terminal)?;
+        Ok(crate::console::Size {
+            rows: size.ws_row,
+            columns: size.ws_col,
+        })
     }
 
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {

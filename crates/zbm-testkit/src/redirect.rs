@@ -68,6 +68,9 @@ impl Files for Redirect {
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         RealFiles.create_dir_all(self.map(path))
     }
+    fn terminal_size(&self, path: &Path) -> io::Result<zbm_platform::console::Size> {
+        RealFiles.terminal_size(self.map(path))
+    }
     fn remove_file(&self, path: &Path) -> io::Result<()> {
         RealFiles.remove_file(self.map(path))
     }

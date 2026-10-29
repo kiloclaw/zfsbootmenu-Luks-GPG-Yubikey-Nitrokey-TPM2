@@ -243,11 +243,8 @@ impl Machine {
         let result = call(&system, &state, &mut shells, &dir.join("hooks"));
         let log = stub_lines(&std::fs::read_to_string(&kmsg).unwrap_or_default());
         let prompts = fake
-            .runner
-            .lines()
-            .iter()
-            .filter(|line| *line == "tput civis")
-            .count();
+            .console
+            .screen_count(zbm_platform::console::Screen::HideCursor);
         let shells = shells.messages.lock().unwrap().concat();
         Machine::outcome(&dir, &log, &shells, prompts, &result)
     }

@@ -160,8 +160,8 @@ impl RealSystem {
     /// # Errors
     ///
     /// When standard input or output cannot be duplicated.
-    pub fn terminal(&self) -> std::io::Result<Terminal<'_>> {
-        Terminal::standard(&self.runner)
+    pub fn terminal(&self) -> std::io::Result<Terminal> {
+        Terminal::standard()
     }
 
     /// The ports of the real system without a console, for programs that

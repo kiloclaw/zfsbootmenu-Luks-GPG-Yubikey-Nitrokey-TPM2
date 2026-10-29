@@ -1,6 +1,7 @@
 use super::*;
 use zbm_boot::error::BootError;
 use zbm_platform::KernelLog;
+use zbm_platform::console::Screen;
 use zbm_platform::exec::{Input, Signal};
 use zbm_testkit::fakes::FakeSystem;
 use zbm_types::Stage;
@@ -20,8 +21,6 @@ fn machine() -> FakeSystem {
 fn machine_with_health(health: &str) -> FakeSystem {
     let fake = FakeSystem::new();
     let runner = &fake.runner;
-    runner.respond("tput lines", 0, "25\n");
-    runner.respond("tput cols", 0, "80\n");
     runner.respond("zpool list -H -o name", 0, "tank\n");
     runner.respond("zpool list -H -o name,health", 0, health);
     runner.respond("zpool list -H -o bootfs --", 0, "tank/ROOT/void\n");
@@ -92,11 +91,11 @@ fn stages_run_once_unless_forced() {
     );
     assert!(state.is_initialized());
     assert_eq!(state.bootfs().as_deref(), Some("tank/ROOT/void"));
+    assert!(fake.console.screen_count(Screen::Clear) > 0);
     for line in [
         "modprobe spl",
         "modprobe zfs",
         "udevadm settle",
-        "tput clear",
         "zpool import -N -o readonly=on -a",
     ] {
         assert!(has(&fake, line), "{line}");
@@ -358,13 +357,13 @@ fn luks_volumes_are_unlocked_by_zluks() {
     assert_eq!(zluks.display(), "zluks unlock");
     assert_eq!(*zluks.get_stdin(), Input::Inherit);
     assert!(zluks.get_env().is_empty());
-    // After the stage, before the import.
+    // After the stage, the screen is cleared, before the import.
     let lines = fake.runner.lines();
     let unlock = lines
         .iter()
         .position(|line| line == "zluks unlock")
         .unwrap();
-    assert_eq!(lines[unlock + 1], "tput clear");
+    assert!(fake.console.screen_count(Screen::Clear) > 0);
     assert!(
         lines[unlock..]
             .iter()

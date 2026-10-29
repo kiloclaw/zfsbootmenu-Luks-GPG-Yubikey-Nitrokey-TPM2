@@ -3,6 +3,7 @@
 //! mounts and pools.
 
 use std::path::{Path, PathBuf};
+use zbm_platform::console::Screen;
 use zbm_types::code::{Coded as _, chain};
 
 use zbm_config::spec::properties::{DEVICETREE, ROOTPREFIX};
@@ -22,7 +23,7 @@ use crate::graphics;
 use crate::hooks;
 use crate::kernels::Kernel;
 use crate::keys::{self, BootPath, Clear, KeyLoad};
-use crate::prompt::{TimedPrompt, colorize, tput};
+use crate::prompt::{TimedPrompt, colorize};
 use crate::recovery::Recovery;
 use crate::saved_logs::{self, Destination, Saved};
 
@@ -93,8 +94,8 @@ fn load_and_mount(
     if let Some(filesystem) = &filesystem {
         load_key(system, state, settings, filesystem.dataset());
     }
-    tput(system, &["cnorm"]);
-    tput(system, &["clear"]);
+    system.console.screen(Screen::ShowCursor);
+    system.console.screen(Screen::Clear);
     let filesystem = filesystem?;
     // Mounted until the teardown, or the recursive unmount of a failure.
     let mnt = mount_zfs(system, state, &filesystem, Noise::Shown)?.leave();

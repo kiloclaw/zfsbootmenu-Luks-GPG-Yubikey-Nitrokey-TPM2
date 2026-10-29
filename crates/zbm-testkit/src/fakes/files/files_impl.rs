@@ -51,6 +51,11 @@ impl Files for FakeFiles {
         self.mount_call(format!("mount {source} {}{mode}", target.display()))
     }
 
+    fn terminal_size(&self, path: &Path) -> io::Result<zbm_platform::console::Size> {
+        self.terminal_at(path)
+            .ok_or_else(|| error(io::ErrorKind::NotFound, path))
+    }
+
     fn unmount(&self, target: &Path) -> io::Result<()> {
         self.mount_call(format!("umount {}", target.display()))
     }

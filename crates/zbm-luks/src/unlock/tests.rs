@@ -277,11 +277,8 @@ fn volumes_unlocked_elsewhere_end_the_prompt() {
     fake.console.timeout();
     // The second poll finds the volume open, as zluks over SSH would leave it.
     let files = fake.files.clone();
-    fake.runner.on(move |command| {
-        (command.program() == "tput").then(|| {
-            files.file("/fake/holders/loop1", "elsewhere\n");
-            Ok(Output::new(Status::exited(0), ""))
-        })
+    fake.console.on_screen(move |_| {
+        files.file("/fake/holders/loop1", "elsewhere\n");
     });
     let prompts = Prompts::new(&fake);
     let mut settings = settings();

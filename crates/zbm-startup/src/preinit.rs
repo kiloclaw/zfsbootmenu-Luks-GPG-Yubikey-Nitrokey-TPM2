@@ -15,9 +15,9 @@ use std::path::{Path, PathBuf};
 use zbm_config::args::{ZbmArgs, cmdline_files};
 use zbm_config::conf::{self, Conf};
 use zbm_config::options::ZbmOptions;
+use zbm_platform::console::Size;
 use zbm_platform::error::{Error, Result};
 use zbm_platform::{KernelLog, System};
-use zbm_tools::terminal;
 use zbm_types::KernelCommandLine;
 
 /// The state directory when the configuration names none.
@@ -169,17 +169,24 @@ pub fn is_virtual_console(control_term: &str) -> bool {
 
 /// What `zfsbootmenu-preinit.sh` does before it starts the start-up program:
 /// turns kernel messages on the console off, sets the size of a serial
-/// terminal (on standard input, as `stty` does), and names the host. The
+/// terminal (on standard input, as `stty` did), and names the host. The
 /// options come from the command line again, for `zbm.lines` and
 /// `zbm.columns`, which the configuration does not hold.
 pub fn prepare(system: &System<'_>, root: &Path, options: &ZbmOptions) {
     let files = system.files;
     let _ = files.write(&root.join("proc/sys/kernel/printk"), b"0\n");
     if !is_virtual_console(&options.control_term) {
-        let lines = options.lines.as_deref().unwrap_or("25");
-        let columns = options.columns.as_deref().unwrap_or("80");
-        for (setting, value) in [("rows", lines), ("cols", columns)] {
-            terminal::stty(system.runner, &[setting, value]);
+        let number = |value: Option<&str>, default| value.unwrap_or(default).parse().ok();
+        let rows = number(options.lines.as_deref(), "25");
+        let columns = number(options.columns.as_deref(), "80");
+        // A console that is no terminal keeps its size, and so does a side
+        // that is no number, as when `stty` failed.
+        if let Ok(size) = system.console.size() {
+            let size = Size {
+                rows: rows.unwrap_or(size.rows),
+                columns: columns.unwrap_or(size.columns),
+            };
+            let _ = system.console.resize(size);
         }
     }
     let _ = files.write(&root.join("proc/sys/kernel/hostname"), b"ZFSBootMenu\n");
@@ -289,7 +296,14 @@ export embedded_kcl=\"rd.hostonly=0\"
         let options = saved_options(&fake.system(), Path::new("/"), &conf);
         assert_eq!(options.lines.as_deref(), Some("40"));
         prepare(&fake.system(), Path::new("/"), &options);
-        assert_eq!(fake.runner.lines(), ["stty rows 40", "stty cols 80"]);
+        assert!(fake.runner.lines().is_empty());
+        assert_eq!(
+            zbm_platform::console::Console::size(&fake.console).unwrap(),
+            zbm_platform::console::Size {
+                rows: 40,
+                columns: 80
+            }
+        );
         assert_eq!(
             fake.files.text("/proc/sys/kernel/printk").as_deref(),
             Some("0\n")

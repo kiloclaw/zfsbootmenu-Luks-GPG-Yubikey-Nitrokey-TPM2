@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_state::State;
 use zbm_types::{DatasetName, HookStage};
 use zbm_zfs::ZfsText;
@@ -12,7 +13,6 @@ use super::{BootPath, cache, keysource, stripped};
 use crate::boot::{locked_root, zfs_value};
 use crate::error::BootError;
 use crate::hooks;
-use crate::prompt::tput;
 
 /// Whether the screen is cleared before a passphrase is asked for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,8 +56,8 @@ fn not_loaded(root: &DatasetName) -> BootError {
 /// screen when `clear` says so.
 fn prompt(system: &System<'_>, root: &DatasetName, clear: Clear) -> Result<(), BootError> {
     if clear == Clear::Yes {
-        tput(system, &["clear"]);
-        tput(system, &["cup", "0", "0"]);
+        system.console.screen(Screen::Clear);
+        system.console.screen(Screen::MoveTo { row: 0, column: 0 });
     }
     zbm_trace::debug!("prompting for passphrase for {root}"; %root);
     let loaded = ZfsText::new(system.runner).load_key(root, "prompt");

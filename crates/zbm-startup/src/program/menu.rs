@@ -11,10 +11,11 @@ use std::path::Path;
 use zbm_app::session;
 use zbm_boot::boot::BootSettings;
 use zbm_boot::hooks;
-use zbm_boot::prompt::{Answer, TimedPrompt, colorize, tput};
+use zbm_boot::prompt::{Answer, TimedPrompt, colorize};
 use zbm_boot::recovery::Recovery;
 use zbm_platform::Signal;
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_platform::process::deepest_child;
 use zbm_types::HookStage;
 
@@ -100,14 +101,14 @@ impl Startup<'_> {
             zbm_trace::debug!("setting BOOTFS to {bootfs}"; %bootfs);
             env.push(("BOOTFS".to_owned(), bootfs));
         }
-        tput(system, &["clear"]);
+        system.console.screen(Screen::Clear);
         let pairs: Vec<(&str, &str)> = env
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
         hooks::run_stage(system, &self.hooks, HookStage::Setup, false, &pairs);
         // Clear the screen before a possible passphrase prompt.
-        tput(system, &["clear"]);
+        system.console.screen(Screen::Clear);
 
         let settings = BootSettings {
             set_hostid: self.options.set_hostid,
@@ -135,8 +136,8 @@ impl Startup<'_> {
                 .on_return("initialize")
                 .on_escape("abort     ")
                 .run(system);
-            tput(system, &["cnorm"]);
-            tput(system, &["clear"]);
+            system.console.screen(Screen::ShowCursor);
+            system.console.screen(Screen::Clear);
             if answer == Answer::Escape {
                 zbm_trace::debug!("aborted while waiting for initialization");
                 return false;
@@ -193,8 +194,8 @@ impl Startup<'_> {
             if answer == Answer::Escape {
                 let base = self.state.base().display();
                 zbm_trace::debug!("exited while waiting to own {base}/active"; %base);
-                tput(system, &["cnorm"]);
-                tput(system, &["clear"]);
+                system.console.screen(Screen::ShowCursor);
+                system.console.screen(Screen::Clear);
                 return false;
             }
         }

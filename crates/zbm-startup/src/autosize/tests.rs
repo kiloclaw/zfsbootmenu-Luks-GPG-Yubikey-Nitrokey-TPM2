@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use zbm_testkit::Shared;
 
 use pretty_assertions::assert_eq;
 use zbm_platform::exec::{Output, Status};
@@ -184,10 +183,12 @@ impl Machine {
         Machine::failing(screen, tall_fonts, None)
     }
 
-    /// The machine of [`Machine::new`], on which `program` fails.
+    /// The machine of [`Machine::new`], on which `program` fails; `stty`
+    /// for a console whose size cannot be read.
     fn failing(screen: (u16, u16), tall_fonts: bool, program: Option<&str>) -> Machine {
         let fake = FakeSystem::new();
-        if let Some(program) = program {
+        let sized = program != Some("stty");
+        if let Some(program) = program.filter(|_| sized) {
             fake.runner.respond_program(program, 1, "");
         }
         for (name, width, height) in TERMINUS {
@@ -201,8 +202,7 @@ impl Machine {
         let geometry = format!("{},{}\n", screen.0, screen.1);
         fake.files
             .file("/sys/class/graphics/fb0/virtual_size", geometry);
-        let cell: Shared<Option<(u16, u16)>> = Shared::default();
-        let current = cell.clone();
+        let files = fake.files.clone();
         fake.runner.on(move |command| {
             let line = command.display();
             let words: Vec<&str> = line.split_whitespace().collect();
@@ -216,13 +216,11 @@ impl Machine {
                     if height > 32 && !tall_fonts {
                         return Some(output(1, String::new()));
                     }
-                    *current.borrow_mut() = Some((width, height));
+                    // The kernel's console takes the size the font leaves.
+                    if sized {
+                        files.terminal("/dev/tty1", screen.0 / width, screen.1 / height);
+                    }
                     Some(output(0, String::new()))
-                }
-                Some("stty") => {
-                    let (width, height) = (*current.borrow())?;
-                    let size = format!("{} {}\n", screen.1 / height, screen.0 / width);
-                    Some(output(0, size))
                 }
                 _ => None,
             }
@@ -272,10 +270,7 @@ fn a_4k_laptop_gets_a_doubled_font() {
     assert_eq!(set(&outcome), Some(font("ter-v28b.psf", true, (137, 42))));
     assert_eq!(
         machine.fake.runner.lines(),
-        [
-            "setfont -C /dev/tty1 -d /usr/share/zfsbootmenu/fonts/ter-v28b.psf",
-            "stty -F /dev/tty1 size",
-        ]
+        ["setfont -C /dev/tty1 -d /usr/share/zfsbootmenu/fonts/ter-v28b.psf",]
     );
 }
 

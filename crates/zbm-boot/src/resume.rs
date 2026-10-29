@@ -7,12 +7,13 @@
 //! to the boot environment's command line.
 
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_state::State;
 use zbm_tools::devices::Devices;
 use zbm_types::PoolName;
 
 use crate::error::BootError;
-use crate::prompt::{colorize, tput};
+use crate::prompt::colorize;
 
 /// The partition types of a hibernation image, from dracut's `95resume`
 /// module.
@@ -102,9 +103,9 @@ pub fn resume_prompt(
         return Ok(ResumeChoice::Noresume);
     }
 
-    tput(system, &["clear"]);
-    tput(system, &["cnorm"]);
-    tput(system, &["cup", "0", "0"]);
+    system.console.screen(Screen::Clear);
+    system.console.screen(Screen::ShowCursor);
+    system.console.screen(Screen::MoveTo { row: 0, column: 0 });
     let _ = system.console.write(warning(pool.as_str()).as_bytes());
 
     // zfsbootmenu-input: `read -r -e -p "> "`, then `echo`

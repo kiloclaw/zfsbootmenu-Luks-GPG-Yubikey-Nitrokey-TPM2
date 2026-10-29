@@ -194,10 +194,10 @@ fn a_retry_prompt_leaves_the_screen_clear() {
         on_escape: "skip it".to_owned(),
     };
     assert_eq!(console(&fake).ask(&request), Answer::Continue);
+    let screens = fake.console.screens();
     assert!(
-        fake.runner
-            .lines()
-            .ends_with(&["tput cnorm".to_owned(), "tput clear".to_owned()])
+        screens.ends_with(&[Screen::ShowCursor, Screen::Clear]),
+        "{screens:?}"
     );
 }
 

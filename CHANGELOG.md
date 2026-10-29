@@ -544,6 +544,11 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   it is. The menu tells the console of a passphrase prompt the same way, for as long as the prompt shows: a menu that
   is killed no longer leaves a record that keeps the console from saving its scrollback. The files
   `console-layout-request`, `console-font-request` and `secret-prompt` are no longer written in `/zfsbootmenu`.
+- The Rust runtime starts no `tput` and no `stty`: the prompts of the plain console clear the screen, move and hide
+  the cursor with the terminal's sequences themselves, and echo, single keys, the screen's size and a serial
+  terminal's size (`zbm.lines`, `zbm.columns`) are set and read with the terminal's settings. A prompt or a countdown
+  starts a few processes fewer, each second of a countdown one fewer. The sequences are those every terminal
+  ZFSBootMenu runs on knows (ECMA-48); `TERM` no longer changes them.
 
 ### The menu goes on while it works (phase 2)
 

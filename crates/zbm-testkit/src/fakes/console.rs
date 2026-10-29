@@ -5,7 +5,7 @@ use std::io;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use zbm_platform::console::{Console, Size, Timed};
+use zbm_platform::console::{Console, Screen, Size, Timed};
 use zbm_platform::secret::Secret;
 
 use super::clock::FakeClock;
@@ -40,7 +40,13 @@ pub struct FakeConsole {
     size: Mutex<Size>,
     clock: Option<FakeClock>,
     echo: Mutex<Vec<bool>>,
+    screens: Mutex<Vec<Screen>>,
+    /// Run on every change of the screen.
+    on_screen: Mutex<Option<ScreenHook>>,
 }
+
+/// What runs on a change of the screen.
+type ScreenHook = Box<dyn Fn(Screen) + Send + Sync>;
 
 impl Default for FakeConsole {
     fn default() -> FakeConsole {
@@ -60,6 +66,8 @@ impl FakeConsole {
             }),
             clock: None,
             echo: Mutex::new(Vec::new()),
+            screens: Mutex::new(Vec::new()),
+            on_screen: Mutex::new(None),
         }
     }
 
@@ -115,6 +123,27 @@ impl FakeConsole {
         String::from_utf8_lossy(&lock(&self.output)).into_owned()
     }
 
+    /// Every change of the screen, in order. They are kept apart from the
+    /// output, which holds the text alone, as the legacy code's did with its
+    /// `tput` stubbed.
+    pub fn screens(&self) -> Vec<Screen> {
+        lock(&self.screens).clone()
+    }
+
+    /// Runs `hook` on every change of the screen, as when a prompt starts,
+    /// so that a test changes the machine at that moment.
+    pub fn on_screen(&self, hook: impl Fn(Screen) + Send + Sync + 'static) {
+        *lock(&self.on_screen) = Some(Box::new(hook));
+    }
+
+    /// How many times the screen changed as `screen` says.
+    pub fn screen_count(&self, screen: Screen) -> usize {
+        lock(&self.screens)
+            .iter()
+            .filter(|&&made| made == screen)
+            .count()
+    }
+
     /// Every switch of echo, in order: `true` for on.
     pub fn echo_changes(&self) -> Vec<bool> {
         lock(&self.echo).clone()
@@ -160,6 +189,18 @@ impl Console for FakeConsole {
 
     fn size(&self) -> io::Result<Size> {
         Ok(*lock(&self.size))
+    }
+
+    fn screen(&self, screen: Screen) {
+        lock(&self.screens).push(screen);
+        if let Some(hook) = lock(&self.on_screen).as_ref() {
+            hook(screen);
+        }
+    }
+
+    fn resize(&self, size: Size) -> io::Result<()> {
+        *lock(&self.size) = size;
+        Ok(())
     }
 
     fn read_key(&self, timeout: Option<Duration>) -> io::Result<Option<u8>> {

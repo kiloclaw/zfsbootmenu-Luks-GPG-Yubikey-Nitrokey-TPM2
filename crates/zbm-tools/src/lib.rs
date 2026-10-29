@@ -11,14 +11,14 @@
 //!
 //! | Module | Programs |
 //! | --- | --- |
-//! | [`console`] | `tput`: the plain console's prompts |
+//! | [`console`] | none: the plain console's prompts |
 //! | [`devices`] | `blkid`, `lsblk` |
 //! | [`efi`] | `objcopy`, `objdump` |
 //! | [`kexec`] | `kexec` |
 //! | [`modules`] | `modprobe`, `modinfo`, `insmod` |
 //! | [`mount`] | `mount`, `umount`, `mountpoint` |
 //! | [`programs`] | hooks, key scripts, editors, shells, Bash's `=~`, `cp` |
-//! | [`terminal`] | `tput`, `stty` |
+//! | [`terminal`] | `setfont` |
 //! | [`udev`] | `udevadm` |
 
 #![cfg_attr(

@@ -5,8 +5,8 @@
 use std::path::Path;
 
 use zbm_boot::hooks::{HOOKS, run_stage};
-use zbm_boot::prompt::tput;
 use zbm_platform::System;
+use zbm_platform::console::Screen;
 use zbm_platform::files::Files;
 use zbm_state::State;
 use zbm_tools::mount::Mount;
@@ -201,7 +201,7 @@ pub fn prepare_early_stage(
 
 /// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
 pub fn run_early_stage(system: &System<'_>, root: &Path) {
-    tput(system, &["clear"]);
+    system.console.screen(Screen::Clear);
     run_stage(system, root, HookStage::EarlySetup, true, &[]);
 }
 
@@ -398,9 +398,10 @@ mod tests {
             .file_with_mode("/libexec/hooks/early-setup.d/20-b", "", 0o755);
         let state = State::new(&fake.files, "/zfsbootmenu");
         assert!(early_stage(&fake.system(), &state, "", Some("20-b")).is_ok());
+        assert_eq!(fake.runner.lines(), ["/libexec/hooks/early-setup.d/10-a"]);
         assert_eq!(
-            fake.runner.lines(),
-            ["tput clear", "/libexec/hooks/early-setup.d/10-a"]
+            fake.console.screens(),
+            [zbm_platform::console::Screen::Clear]
         );
         assert!(
             fake.files
