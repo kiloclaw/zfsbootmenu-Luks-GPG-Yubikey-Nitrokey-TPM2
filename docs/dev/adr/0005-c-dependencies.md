@@ -1,6 +1,6 @@
 # ADR 0005: C dependencies
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 29 October 2026 (proposed 28 October 2026)
 - **Decides:** decision 12 of [ROADMAP.md](../../../ROADMAP.md#decisions)
 - **Governs:** CD4 to CD12, SB3, SB4, SB10, SB11, SE6, SE13; the table "C dependencies" of ROADMAP.md
 
@@ -89,12 +89,23 @@ the least to the most sensitive (SB11, CD6, CD8, CD7, then CD9 and CD10 with the
 - Fuzz targets for every parser of LUKS headers, tokens, TPM2 responses and CTAP2 replies.
 - SE13's review of CD9 and CD10 before `zbm.native=` is on by default.
 
-## Questions for the maintainer
+## Where the work stands
 
-1. **When the native key methods become the default.** Proposed: LUKS2 and TPM2 after SE13's review; the others
-   (GnuPG files, the Clevis TPM2 pin, YubiKey) once their VM tests pass, since their programs stay as the fallback.
-2. **Whether release images keep the fallback programs.** Proposed: yes until the release after the native code
-   became the default, then only in images that ask for them, through a new option of `generate-zbm`'s
-   configuration.
-3. **FIDO2: a crate or our own CTAP2.** Proposed: Mozilla's `authenticator` if it covers hmac-secret without its
-   async parts; otherwise a small CTAP2 client of our own over `hidraw`.
+On 29 October 2026, when the decision was accepted:
+
+- Done: `cargo xtask check-links` fails CI when `zbm` links a library other than glibc's, and the metric `c_programs`
+  is ratcheted (CD1; 45 programs on 28 October 2026). `openssl`, `sha256sum` and `base64` left Rust images (CD3, SE7);
+  `dmesg` and `lsblk` have their replacements, with the programs as the fallback (CD2); ZFS filesystems are mounted
+  with `mount(2)`, with `mount.zfs` as the fallback (SB3).
+- To come: CD4 to CD12, SB4 and SB11, in the order above. `zbm.native=` arrives with CD9 and CD10.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 29 October 2026:
+
+1. **When the native key methods become the default:** LUKS2 and TPM2 after SE13's review; the others (GnuPG files,
+   the Clevis TPM2 pin, YubiKey) once their VM tests pass, since their programs stay as the fallback.
+2. **The fallback programs in release images:** kept until the release after the native code became the default,
+   then only in images that ask for them, through a new option of `generate-zbm`'s configuration.
+3. **FIDO2:** Mozilla's `authenticator` if it covers hmac-secret without its async parts; otherwise a small CTAP2
+   client of our own over `hidraw`.

@@ -300,7 +300,8 @@ Keys work on every keyboard ([decision 18](#decisions)):
 
 ### C dependencies
 
-`zbm` links no C library but glibc. The C code is in the programs the images run and in the host's tools. Each one
+Decided by [ADR 0005](docs/dev/adr/0005-c-dependencies.md), accepted on 29 October 2026. `zbm` links no C library but
+glibc. The C code is in the programs the images run and in the host's tools. Each one
 that a Rust implementation can replace without losing what users need is replaced, behind the same port as the
 program, which stays as the fallback until the VM suites, and for the LUKS2 and TPM2 code a security review of its
 own, have passed it. Differential tests run the Rust code and the program on the same volumes and devices; parsers of
@@ -744,7 +745,8 @@ The ADRs of the target architecture, and the small fixes that need no design.
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
   decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's; the
-  process model, the trust zones and the client channel accepted the same day, the crate map on 29 October.
+  process model, the trust zones and the client channel accepted the same day, the crate map and C dependencies on 29
+  October.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -897,6 +899,13 @@ Decided, and kept from the old plans:
 
 Decided on 29 October 2026:
 
+12. **C dependencies** ([ADR 0005](docs/dev/adr/0005-c-dependencies.md)): no C library linked, `zbm` stays linked to
+    glibc only; programs replaced by Rust behind the same port where that keeps what users need, the program as the
+    fallback until the VM suites pass the Rust code, and never after a secret was tried; the key methods in Rust in
+    `zbm-unlock` (CD6 to CD10), LUKS2 and TPM2 behind `zbm.native=` until SE13's review, the others the default once
+    their VM tests pass; release images keep the fallback programs until the release after, then only on request;
+    FIDO2 with `authenticator` if it covers hmac-secret without its async parts, otherwise our own CTAP2. Linking
+    libcryptsetup, tss2-esys and libfido2 stays the way back if the Rust LUKS2 or TPM2 code fails its review.
 14. **The crate map** of [crates and layers](#crates-and-layers) ([ADR 0003](docs/dev/adr/0003-crate-map.md)): 24
     crates in 11 layers, dependencies pointing down only, with two new rules for `check-deps`: orchestration does not
     use adapters, and front ends reach the system only through `zbm-app`. The keyholder is an applet of `zbm`
@@ -934,16 +943,13 @@ Open:
    letter per action, `:` for the command line), with the classic `MOD+key` aliases of the `fzf` menu; this changes
    rule 1 of `docs/dev/menu-design/keymap.md`, which gave `j` and `k` to actions. Decided by the usability sessions
    (UI11), which compare it with the current map.
-12. **C dependencies:** proposed, no C library linked: the key methods in Rust in `zbm-unlock` (CD6 to CD10), the C
-    programs as the fallback and in the recovery shell. Linking libcryptsetup, tss2-esys and libfido2 is the
-    alternative, kept only if the Rust LUKS2 or TPM2 code (CD9, CD10) fails its review.
 16. **A native image backend after the cutover** (SB12), with dracut kept as a backend.
 18. **Keys that work on every keyboard:** proposed, the four rules of [the menu](#the-menu-a-workspace): nothing needs
     one character only, nothing depends on case, keys by position on the display console, and a command line that
     knows every language (UI15).
 
-Decisions 12, 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 12 and
-16, awaiting acceptance; 10, 13 and 15 accepted on 28 October 2026, 14 on 29 October); decision 8 by the sessions that
+Decisions 16 and 18 are decided by their ADRs in phase 0 ([docs/dev/adr/](docs/dev/adr/): proposed for 16, awaiting
+acceptance; 10, 13 and 15 accepted on 28 October 2026, 12 and 14 on 29 October); decision 8 by the sessions that
 follow.
 
 ## Fixes left from the review of 27 October 2026
