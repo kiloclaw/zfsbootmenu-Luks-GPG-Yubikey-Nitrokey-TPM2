@@ -1,6 +1,6 @@
 # ADR 0003: The crate map
 
-- **Status:** proposed, 28 October 2026
+- **Status:** accepted, 29 October 2026 (proposed 28 October 2026)
 - **Decides:** decision 14 of [ROADMAP.md](../../../ROADMAP.md#decisions)
 - **Governs:** DM2, DM7, DM8, DM10, DM11, SB10, SE6; `xtask/src/deps.rs` and
   [architecture.md](../architecture.md)
@@ -86,9 +86,24 @@ the smaller attack surface of a binary without the menu.
 - The metric columns (`cargo xtask metrics`): ZFS command lines outside `zbm-zfs` and string parameters in domain
   crates at zero by the end of phase 1.
 
-## Questions for the maintainer
+## Where the workspace stands
 
-1. **The keyholder as an applet of `zbm`** (proposed) or a binary of its own from the start.
-2. **The name `zbm-host`** for the host tools' crate; the alternative is `zbm-build`.
-3. **`zbm-bootenv` or a module of `zbm-boot`.** Proposed: a crate, so that `zbm-boot` (loading and booting) cannot reach
-   pool import except through ports.
+On 29 October 2026, when the map was accepted:
+
+- Done: `zbm-core` is gone (DM11), and so is the `zbm-boot` → `zbm-luks` exception (DM2); `zbm-sys` is on `rustix`
+  (SE6); no domain crate takes a `Runner`. `zbm-tui` and `zbm-console` already depend on no domain or adapter crate
+  (rule 3), and `zbm-app` uses `zbm-sys` directly for the session's socket (PM10), a lower layer.
+- Left: `zbm-bootenv` (DM7), so `zbm-boot` → `zbm-pool` stays in `SAME_LAYER` until then; `zbm-host` (DM10), so
+  `generate-zbm` and `zbm-kcl` stay two crates until then; and `zbm-startup` still uses `zbm-zfs` and `zbm-tools`
+  directly, so rule 2 joins `check-deps` once it no longer does (with DM8). Rule 3 is enforced today only as "front ends
+  do not use adapters"; the rest of it joins `check-deps` with DM8 too.
+
+## Answers of the maintainer
+
+Accepted as proposed, on 29 October 2026:
+
+1. **The keyholder:** an applet of `zbm` (`zbm unlock serve`), so the image keeps one Rust binary; a binary of its own
+   only if SE11's sandbox profiles need it.
+2. **The host tools' crate:** `zbm-host`.
+3. **`zbm-bootenv`:** a crate of its own, so that `zbm-boot` (loading and booting) cannot reach pool import except
+   through ports.
