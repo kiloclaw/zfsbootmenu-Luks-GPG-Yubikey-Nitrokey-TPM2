@@ -746,9 +746,9 @@ The ADRs of the target architecture, and the small fixes that need no design.
 
 - ADRs: the process model (PM1, decision 10), the trust zones (decision 13), the crate map (decision 14), the client
   channel (decision 15), C dependencies (decision 12), the image plan (SB8), the menu workspace and its keys (UI13,
-  decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's; the
-  process model, the trust zones and the client channel accepted the same day, the crate map, C dependencies and the
-  image plan on 29 October.
+  decisions 8 and 18). Drafted for review on 28 October 2026 in [docs/dev/adr/](docs/dev/adr/), but for UI13's,
+  drafted on 29 October ([ADR 0007](docs/dev/adr/0007-menu-workspace.md)); the process model, the trust zones and the
+  client channel accepted the same day, the crate map, C dependencies and the image plan on 29 October.
 - UI13. SE2, SE3, SE8, PM5, SE7 and CD3 are done, with their VM runs passing (28 October 2026, at `ec817dde`); SB1
   and CD2 too (28 October 2026, at `a054ad23`, all four lanes); SE1, DM1, CD1, VE1, UI1 and UI2 too (28 October 2026,
   at `f8374569`, all four lanes); phase 1's DM4, PM3, SE4 and DM3 too (28 October 2026, at `5f2d61b0`, all four
@@ -954,9 +954,11 @@ Open:
    (UI11), which compare it with the current map.
 18. **Keys that work on every keyboard:** proposed, the four rules of [the menu](#the-menu-a-workspace): nothing needs
     one character only, nothing depends on case, keys by position on the display console, and a command line that
-    knows every language (UI15).
+    knows every language (UI15). Proposed in [ADR 0007](docs/dev/adr/0007-menu-workspace.md), with the key map of
+    decision 8 for the sessions.
 
-Decision 18 is decided by UI13's ADR in phase 0, still to be drafted; the others of phase 0 are accepted
+Decision 18 is decided by UI13's ADR in phase 0, [ADR 0007](docs/dev/adr/0007-menu-workspace.md), proposed on 29
+October 2026; the others of phase 0 are accepted
 ([docs/dev/adr/](docs/dev/adr/): 10, 13 and 15 on 28 October 2026, 12, 14 and 16 on 29 October). Decision 8 is
 decided by the sessions that follow.
 
