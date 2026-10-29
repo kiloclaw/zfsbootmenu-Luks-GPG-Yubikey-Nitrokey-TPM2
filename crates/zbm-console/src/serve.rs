@@ -1,8 +1,9 @@
 //! `zbm console` itself: the display, the keyboards and the virtual
 //! terminal taken in that order, the loop on them, and the relay on the
-//! kernel console once the display is handed back or cannot be had;
-//! `zbm console release`, which asks for the hand-over, and
-//! `zbm console layout`, which asks for another keyboard layout.
+//! kernel console once the display is handed back or cannot be had, with
+//! its control socket served meanwhile; and the requests to it:
+//! `zbm console release`, which asks for the hand-over, `reattach`,
+//! `layout`, `font` and `status`.
 //!
 //! The places it uses ([`Places`]) are the system's, or a test's.
 
@@ -17,20 +18,20 @@ use std::os::fd::AsFd as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use zbm_display::display::{Display, Screen as _, first_card};
 use zbm_display::input::{DeviceId, Keyboards};
 use zbm_display::layout::{Layout, Source};
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::RealFiles;
+use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_state::State;
+use zbm_sys::socket::Listener;
 
+use crate::control::{Control, ControlWake};
 use crate::host::{RealHost, Switch, set_size};
 use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
-pub use crate::release::Requests;
 use crate::run::{Ended, Shown, run};
 use crate::screen::{Console, Ring};
 pub use layouts::{next_layout, switch_layout};
@@ -53,6 +54,8 @@ pub struct Places {
     pub base: PathBuf,
     /// The kernel log.
     pub kmsg: PathBuf,
+    /// The control socket.
+    pub socket: PathBuf,
 }
 
 impl Places {
@@ -63,6 +66,7 @@ impl Places {
             dev: PathBuf::from("/dev"),
             base: PathBuf::from(zbm_state::BASE),
             kmsg: PathBuf::from("/dev/kmsg"),
+            socket: PathBuf::from(zbm_app::console::SOCKET),
         }
     }
 
@@ -162,18 +166,16 @@ fn watch_devices(dev: &Path) -> Option<File> {
 ///
 /// # Errors
 ///
-/// When the requests' signals, standard input or the virtual terminal
-/// cannot be had, or the relay fails.
+/// When standard input or the virtual terminal cannot be had, or the relay
+/// fails.
 pub fn serve(
     settings: &Settings,
     places: &Places,
     grid: MakeGrid<'_>,
     layouts: Layouts<'_>,
 ) -> io::Result<()> {
-    // Their signals blocked first, before the console starts a thread.
-    let requests = Requests::listen()?;
-    // The console records itself, once it can take requests: a console
-    // that ended before is never waited for by `zbm console release`.
+    let (control, mut wake) = Control::new()?;
+    // The console records itself, as hooks and users read it.
     let state = State::new(&RealFiles, &places.base);
     let _ = state.create();
     let _ = state.set_console(std::process::id());
@@ -190,7 +192,40 @@ pub fn serve(
         terminal: &mut terminal,
         vt: &vt,
     };
-    serve_on(settings, places, (grid, layouts), console, &requests)
+    let control = (&control, &mut wake);
+    with_socket(places, control.0, || {
+        serve_on(settings, places, (grid, layouts), console, control)
+    })
+}
+
+/// Runs `console` while a thread serves the control socket of `places`
+/// for `control`; without the socket, as when it cannot be made, the
+/// console runs and takes no request.
+///
+/// # Errors
+///
+/// What `console` fails with.
+pub fn with_socket<T>(
+    places: &Places,
+    control: &Arc<Control>,
+    console: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    let listener = Listener::bind(&places.socket)
+        .inspect_err(|error| {
+            let socket = places.socket.display();
+            places.log(4, &format!("{socket}: {error}; taking no request"));
+        })
+        .ok();
+    let until = CancelToken::new()?;
+    std::thread::scope(|scope| {
+        if let Some(listener) = &listener {
+            spawn_scoped_traced(scope, || crate::control::serve(control, listener, &until));
+        }
+        let ran = console();
+        control.end();
+        until.cancel();
+        ran
+    })
 }
 
 /// The programs' terminal and the kernel console's.
@@ -205,11 +240,11 @@ pub struct Terminals<'t> {
 }
 
 /// Runs the console on the display, with the font's grid and the keyboard
-/// layouts of `fonts`, until the programs are gone, or until `requests`
-/// asks for the display back; then relays on the kernel console, as it
-/// does at once when it cannot use the display. Relaying after the
-/// hand-over, it takes the display again when asked (`zbm console
-/// reattach`, after `kexec` failed), with the layout it had.
+/// layouts of `fonts`, until the programs are gone, or until `control`
+/// asks for the display back, which `wake` tells; then relays on the
+/// kernel console, as it does at once when it cannot use the display.
+/// Relaying after the hand-over, it takes the display again when asked
+/// (`zbm console reattach`, after `kexec` failed), with the layout it had.
 ///
 /// # Errors
 ///
@@ -219,7 +254,7 @@ pub fn serve_on(
     places: &Places,
     fonts: (MakeGrid<'_>, Layouts<'_>),
     terminals: Terminals<'_>,
-    requests: &Requests,
+    (control, wake): (&Arc<Control>, &mut ControlWake),
 ) -> io::Result<()> {
     let Terminals {
         master,
@@ -247,7 +282,7 @@ pub fn serve_on(
             places,
             (&mut *grid, layouts),
             (&mut *master, vt),
-            requests,
+            (control, &mut *wake),
             &mut kept,
         );
         let Some((text, released)) = after_display(settings, places, shown) else {
@@ -256,14 +291,7 @@ pub fn serve_on(
         if let Some(layout) = released.as_deref().filter(|&layout| layout != "us") {
             first = load(layout).ok();
         }
-        // Recorded as released before the record that tells the hand-over
-        // is done goes, so that a failed `kexec` finds the console.
-        let reattach = released.is_some().then(|| {
-            requests.release.store(false, Ordering::SeqCst);
-            let _ = state.set_released_console(std::process::id());
-            requests
-        });
-        state.clear_console();
+        let reattach = handed_back(&state, control, released.is_some());
         let _ = terminal.write_all(format!("\x1b[H\x1b[J{}\n", text.trim_end()).as_bytes());
         let relayed = relay(master, terminal, reattach, kept.as_mut());
         state.clear_released_console();
@@ -272,6 +300,26 @@ pub fn serve_on(
         }
         places.log(6, "taking the display again");
         let _ = state.set_console(std::process::id());
+    }
+}
+
+/// Records in `state` that the console left the display, `released` when
+/// it handed it back rather than failed to have it, and answers `control`:
+/// what the relay waits on to take the display again, if it may.
+fn handed_back<'c>(state: &State<'_>, control: &'c Control, released: bool) -> Option<&'c Control> {
+    // Recorded as released, which the boot reads to know that a failed
+    // `kexec` has a console to take the display again; then the hand-over
+    // is answered.
+    if released {
+        let _ = state.set_released_console(std::process::id());
+    }
+    state.clear_console();
+    if released {
+        control.released();
+        Some(control)
+    } else {
+        control.relaying();
+        None
     }
 }
 
@@ -369,7 +417,7 @@ fn on_display(
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
     (master, vt): (&mut File, &Path),
-    requests: &Requests,
+    (control, wake): (&Arc<Control>, &mut ControlWake),
     kept: &mut Option<Console>,
 ) -> io::Result<(Ended, String, String)> {
     let card = match &settings.card {
@@ -394,6 +442,7 @@ fn on_display(
     };
     announce(settings, places, &started);
     let _ = State::new(&RealFiles, &places.base).set_console_font(&console.font_text());
+    control.shown(&started.keyboard, &console.font_text());
     let mut mirror = settings
         .mirror
         .as_deref()
@@ -401,7 +450,7 @@ fn on_display(
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch = layouts::switcher(places, names, load);
-    let host = real_host(&mut *master, keyboards, requests, places, switch);
+    let host = real_host(&mut *master, keyboards, (control, wake), places, switch);
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run(&mut console, &mut display, &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
@@ -415,117 +464,30 @@ fn on_display(
 }
 
 /// The host of the loop on the display: the programs' terminal `master`,
-/// the keyboards and the requests, woken by them and by new devices in
-/// `places` where the system allows, with the records of secret prompts in
-/// its state directory.
+/// the keyboards and what `control` asks, woken by `wake` and by new
+/// devices in `places` where the system allows, with its state directory.
 fn real_host<'h>(
     master: &'h mut File,
     keyboards: Keyboards,
-    requests: &Requests,
+    (control, wake): (&Arc<Control>, &'h mut ControlWake),
     places: &Places,
     switch: Switch<'h>,
 ) -> RealHost<'h, &'h mut File> {
-    let mut host = RealHost::new(master, keyboards, Arc::clone(&requests.release))
-        .with_layouts(Arc::clone(&requests.layout), switch)
-        .with_state(&places.base);
-    if let Some(wake) = requests.wake() {
-        host = host.with_wake(wake);
-    }
+    let mut host = RealHost::new(master, keyboards, Arc::clone(control))
+        .with_layouts(switch)
+        .with_state(&places.base)
+        .with_wake(wake);
     if let Some(devices) = watch_devices(&places.dev) {
         host = host.with_device_watch(devices);
     }
     host
 }
 
-/// What became of a request to hand the display back.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Released {
-    /// It was handed back, or no console held it.
-    Done,
-    /// The console did not hand it back in time.
-    Late,
-}
-
-/// `zbm console release`: asks the console recorded in the state directory
-/// `base` to hand the display back, and waits at most `timeout`.
-///
-/// # Errors
-///
-/// When the request cannot be sent.
-pub fn release(base: &Path, timeout: Duration) -> io::Result<Released> {
-    let files = RealFiles;
-    let state = State::new(&files, base);
-    let Some(pid) = state.console_pid() else {
-        return Ok(Released::Done);
-    };
-    if crate::release::request(pid, timeout, &mut || state.console_pid().is_none())? {
-        state.clear_console();
-        Ok(Released::Done)
-    } else {
-        Ok(Released::Late)
-    }
-}
-
-/// `zbm console reattach`, after a failed `kexec`: asks the console that
-/// handed the display back to take it again, and waits at most `timeout`
-/// until it did. Returns whether it did; without such a console there is
-/// nothing to do, and it is `true`.
-///
-/// # Errors
-///
-/// When the request cannot be sent.
-pub fn reattach(base: &Path, timeout: Duration) -> io::Result<bool> {
-    let files = RealFiles;
-    let state = State::new(&files, base);
-    let Some(pid) = state.released_console_pid() else {
-        return Ok(true);
-    };
-    crate::release::request(pid, timeout, &mut || state.console_pid().is_some())
-}
-
-/// What became of a request for a keyboard layout, or a font's size.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Switched {
-    /// The console took it, and types with this layout now: the one asked
-    /// for, or the one it kept.
-    Done(String),
-    /// No console reads the keyboards.
-    NoConsole,
-    /// The console did not take it in time.
-    Late,
-}
-
-/// `zbm console layout <name>`: asks the console recorded in the state
-/// directory `base` for the keyboard layout `name`, and waits at most
-/// `timeout` until it took the request.
-///
-/// # Errors
-///
-/// When the request cannot be written or sent.
-pub fn request_layout(base: &Path, name: &str, timeout: Duration) -> io::Result<Switched> {
-    let files = RealFiles;
-    let state = State::new(&files, base);
-    let Some(pid) = state.console_pid() else {
-        return Ok(Switched::NoConsole);
-    };
-    state
-        .request_console_layout(name)
-        .map_err(|error| io::Error::other(error.to_string()))?;
-    let taken =
-        crate::release::request_layout(pid, timeout, &mut || !state.has_console_layout_request())?;
-    if taken && !state.has_console_layout_request() {
-        Ok(Switched::Done(state.console_layout().unwrap_or_default()))
-    } else {
-        state.clear_console_layout_request();
-        Ok(Switched::Late)
-    }
-}
-
-mod font;
+mod client;
 mod layouts;
 mod setup;
 
-pub use font::request_font;
+pub use client::{Released, Switched, reattach, release, request_font, request_layout, status};
 
 #[cfg(test)]
 mod tests;

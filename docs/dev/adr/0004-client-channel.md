@@ -90,6 +90,14 @@ cells and receives key presses. Programs that need a terminal keep one.**
   display's pixels, the test backend); an `Input` gives keys, and may wake for the machine's mailbox. The menu's loop
   is `Frontend::run`, for any machine on any surface, and the start-up view is the start-up screen of the model on a
   `Frontend`. The cell surface of the client channel (UI6) is a `Surface` too.
+- **PM7** (29 October 2026): the control socket is `/run/zfsbootmenu/console.sock`, served by a thread of the console
+  on `zbm_sys::socket`, root peers only. The messages are in `zbm_app::console`, beside the session's, with a version
+  in each, and the console's side is `zbm_console::control`. There is no `Hello`: each request carries the version,
+  and one of another version is refused with `version`, in the console's version. Besides the requests above, the
+  menu's secret prompt is a `secret` request held open for as long as the prompt shows, instead of a record of the
+  process; it becomes `Input { secret }` on the client channel with UI6. `SIGUSR1`, `SIGUSR2` and the request files
+  are gone; the records of the console's process, its hand-over, its layout and its font stay, for hooks, users and
+  the boot.
 
 ## Answers of the maintainer
 

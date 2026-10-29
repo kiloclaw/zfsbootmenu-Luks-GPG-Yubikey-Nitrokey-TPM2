@@ -18,15 +18,15 @@
 
 use std::fmt;
 use std::io;
-use std::os::fd::AsFd as _;
 use std::path::Path;
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde_json::{Value, json};
 use zbm_platform::event::CancelToken;
-use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::{Connection, Listener};
+
+use crate::wire::{self, Unread, message};
 
 /// Where the session listens, beside the console's socket (ADR 0004).
 pub const SOCKET: &str = "/run/zfsbootmenu/session.sock";
@@ -40,9 +40,6 @@ pub const YIELD_WAIT: Duration = Duration::from_secs(4);
 /// How long a menu waits for the session's answer: a moment longer than
 /// the session waits for its menu.
 pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
-
-/// How long the session waits for a peer's request once it connected.
-const REQUEST_WAIT: Duration = Duration::from_secs(1);
 
 /// What a menu asks the session.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -104,15 +101,6 @@ impl Refusal {
     }
 }
 
-/// The object of a message, with the version it carries.
-fn message(bytes: &[u8]) -> Option<(u64, serde_json::Map<String, Value>)> {
-    let Ok(Value::Object(object)) = serde_json::from_slice(bytes) else {
-        return None;
-    };
-    let version = object.get("version")?.as_u64()?;
-    Some((version, object))
-}
-
 impl Request {
     /// The message that carries it.
     pub fn encode(self) -> Vec<u8> {
@@ -158,7 +146,7 @@ impl Answer {
         let (version, object) = message(bytes)?;
         let answer = match object.get("reply")?.as_str()? {
             "yielded" => Answer::Yielded,
-            "refused" => Answer::Refused(Refusal::named(object.get("reason")?.as_str()?)?),
+            "refused" => Answer::Refused(Refusal::named(wire::text(&object, "reason")?)?),
             _ => return None,
         };
         Some((version, answer))
@@ -264,24 +252,9 @@ impl SessionSocket {
 
     /// Answers the peers that connect until `until` is cancelled.
     pub fn serve(&self, until: &CancelToken) {
-        loop {
-            let watches = [
-                Watch::read(self.listener.as_fd()),
-                Watch::read(until.as_fd()),
-            ];
-            let ready = wait_ready(&watches, None);
-            if until.is_cancelled() {
-                return;
-            }
-            // A peer that went before it was accepted is none.
-            match ready.and_then(|_| self.listener.accept(Some(Duration::ZERO))) {
-                Ok(peer) => peer.iter().for_each(|peer| self.answer(peer)),
-                Err(error) => {
-                    tracing::error!(%error, "the session's socket failed");
-                    return;
-                }
-            }
-        }
+        wire::accept_until(&self.listener, until, "session", |peer| {
+            self.answer(&peer);
+        });
     }
 
     /// Answers the request of `peer`.
@@ -304,18 +277,10 @@ impl SessionSocket {
 
     /// What `peer` asks, unless it is refused.
     fn request_of(&self, peer: &Connection) -> Result<Request, Refusal> {
-        // Read before the answer even when it is refused: a peer whose
-        // request was left unread would get no answer, but a reset.
-        let request = peer.receive(Some(REQUEST_WAIT));
-        let trusted = peer
-            .peer()
-            .is_ok_and(|credentials| credentials.uid == self.user);
-        if !trusted {
-            return Err(Refusal::NotRoot);
-        }
-        match request {
-            Ok(Some(bytes)) => Request::decode(&bytes),
-            _ => Err(Refusal::Malformed),
+        match wire::request_of(peer, self.user) {
+            Ok(bytes) => Request::decode(&bytes),
+            Err(Unread::Stranger) => Err(Refusal::NotRoot),
+            Err(Unread::Nothing) => Err(Refusal::Malformed),
         }
     }
 }

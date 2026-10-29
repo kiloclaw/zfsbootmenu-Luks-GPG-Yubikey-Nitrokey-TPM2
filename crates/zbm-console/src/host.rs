@@ -1,7 +1,8 @@
 //! The real host of the console's loop: the controlling side of the
-//! pseudo-terminal, the keyboards, and the request to hand the display
-//! back. The relay that carries the terminal over to the kernel console
-//! afterwards is in [`crate::relay`].
+//! pseudo-terminal, the keyboards, and the requests of the control socket
+//! ([`Control`]): the display handed back, a keyboard layout, a font's
+//! size, a secret prompt. The relay that carries the terminal over to the
+//! kernel console afterwards is in [`crate::relay`].
 
 #![allow(
     clippy::disallowed_methods,
@@ -11,11 +12,10 @@
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::os::fd::{AsFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use alacritty_terminal::event::WindowSize;
@@ -25,7 +25,7 @@ use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
 use zbm_sys::console::{Ready, Watch, wait_ready};
 
-use crate::release::Wake;
+use crate::control::{Control, Wake};
 use crate::run::{Host, Input};
 use crate::screen::zoom::Zoom;
 use crate::screen::{Locks, Status};
@@ -186,16 +186,16 @@ pub fn set_size(master: impl AsFd, size: &WindowSize) -> io::Result<()> {
 
 /// Which keyboard layout is asked for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Change {
-    /// The one `zbm console layout` asked for.
-    Requested,
+pub enum Change<'n> {
+    /// The one `zbm console layout` asked for, by name.
+    Requested(&'n str),
     /// The image's next one (Super+Space).
     Next,
 }
 
 /// What the console does when another keyboard layout is asked for: gives
-/// the keyboards the layout.
-pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards, Change) + 'h>;
+/// the keyboards the layout, when the image has it.
+pub type Switch<'h> = Box<dyn FnMut(&mut Keyboards, Change<'_>) + 'h>;
 
 /// How long the loop waits when the host is woken by everything it waits
 /// for: once a minute is a safety net, not a poll.
@@ -212,33 +212,24 @@ fn drain(file: &mut File) {
     while matches!(file.read(&mut buffer), Ok(length) if length > 0) {}
 }
 
-/// A file as a wake-up: what was written to it is read and dropped.
-impl Wake for File {
-    fn fd(&self) -> BorrowedFd<'_> {
-        self.as_fd()
-    }
-
-    fn take(&mut self) {
-        drain(self);
-    }
-}
-
-/// The pseudo-terminal, the keyboards, the request to hand the display
-/// back and the request for another keyboard layout.
+/// The pseudo-terminal, the keyboards, and the requests of the control
+/// socket.
 pub struct RealHost<'h, M> {
     master: M,
     outgoing: Outgoing,
     keyboards: Keyboards,
-    release: Arc<AtomicBool>,
-    layout: Option<(Arc<AtomicBool>, Switch<'h>)>,
-    /// Readable when a request's signal came.
+    /// What the control socket asks.
+    control: Arc<Control>,
+    /// Gives the keyboards another layout.
+    switch: Option<Switch<'h>>,
+    /// Readable when a request came.
     wake: Option<Box<dyn Wake + 'h>>,
     /// Readable when a device appeared in `/dev/input`.
     devices: Option<File>,
     /// Until when keyboards are looked for on every tick.
     rescan_until: Option<Instant>,
-    /// The runtime's state directory: secret prompts, the scrollback
-    /// saved and the font's size asked for.
+    /// The runtime's state directory: the scrollback and screenshots
+    /// saved, and the font the console draws with.
     state: Option<StateDir>,
     /// Makes the grids of the image's fonts.
     fonts: Option<Fonts<'h>>,
@@ -260,16 +251,16 @@ impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
 }
 
 impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
-    /// A host on `master`, with keys from `keyboards`; `release` is set
-    /// when the display must be handed back. `master` stops blocking.
-    pub fn new(master: M, keyboards: Keyboards, release: Arc<AtomicBool>) -> RealHost<'h, M> {
+    /// A host on `master`, with keys from `keyboards`, which does what
+    /// `control` asks. `master` stops blocking.
+    pub fn new(master: M, keyboards: Keyboards, control: Arc<Control>) -> RealHost<'h, M> {
         let _ = rustix::io::ioctl_fionbio(&master, true);
         RealHost {
             master,
             outgoing: Outgoing::default(),
             keyboards,
-            release,
-            layout: None,
+            control,
+            switch: None,
             wake: None,
             devices: None,
             rescan_until: None,
@@ -281,8 +272,8 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         }
     }
 
-    /// The host, which reads the record of a secret prompt in the
-    /// runtime's state directory `base`, and saves the scrollback there.
+    /// The host, which saves the scrollback and screenshots in the
+    /// runtime's state directory `base`, and records the font there.
     #[must_use]
     pub fn with_state(mut self, base: &std::path::Path) -> Self {
         self.state = Some(StateDir {
@@ -306,8 +297,8 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         self
     }
 
-    /// The host, woken when `wake` becomes readable, as a request's signal
-    /// makes it, rather than looking for requests on every tick.
+    /// The host, woken when `wake` becomes readable, as a request makes
+    /// it, rather than looking for requests on every tick.
     #[must_use]
     pub fn with_wake(mut self, wake: impl Wake + 'h) -> Self {
         self.wake = Some(Box::new(wake));
@@ -331,11 +322,11 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
                 .is_some_and(|until| Instant::now() < until)
     }
 
-    /// The host, which runs `switch` when `requested` is set: a keyboard
-    /// layout was asked for.
+    /// The host, which runs `switch` when another keyboard layout is asked
+    /// for.
     #[must_use]
-    pub fn with_layouts(mut self, requested: Arc<AtomicBool>, switch: Switch<'h>) -> Self {
-        self.layout = Some((requested, switch));
+    pub fn with_layouts(mut self, switch: Switch<'h>) -> Self {
+        self.switch = Some(switch);
         self
     }
 
@@ -404,14 +395,16 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
     }
 
     /// Takes the requests that came: gives the keyboards the layout asked
-    /// for, if one was, and keeps the font's size asked for.
+    /// for, if one was, and answers; keeps the font's size asked for.
     fn take_requests(&mut self) {
-        if let Some((requested, switch)) = &mut self.layout
-            && requested.swap(false, Ordering::SeqCst)
-        {
-            switch(&mut self.keyboards, Change::Requested);
-            let asked = self.state.as_ref().and_then(StateDir::font_request);
-            self.font_request = asked.or(self.font_request);
+        if let Some(name) = self.control.take_layout() {
+            if let Some(switch) = &mut self.switch {
+                switch(&mut self.keyboards, Change::Requested(&name));
+            }
+            self.control.layout_answered(&name, self.keyboards.layout());
+        }
+        if let Some(zoom) = self.control.take_font() {
+            self.font_request = Some(zoom);
         }
     }
 }
@@ -419,7 +412,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
 impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     fn wait(&mut self, timeout: Duration) -> io::Result<Input> {
         self.beeper.quiet(Instant::now());
-        if self.release.load(Ordering::SeqCst) {
+        if self.control.is_release_asked() {
             // The request's wake-up is taken with it.
             if let Some(wake) = &mut self.wake {
                 wake.take();
@@ -441,7 +434,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         if (master.read && !self.keyboards.is_scroll_lock()) || master.closed {
             return read_output(&mut self.master);
         }
-        if self.release.load(Ordering::SeqCst) {
+        if self.control.is_release_asked() {
             return Ok(Input::Release);
         }
         if !master.write && self.is_rescanning() {
@@ -472,8 +465,9 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
     }
 
     fn next_layout(&mut self) {
-        if let Some((_, switch)) = &mut self.layout {
+        if let Some(switch) = &mut self.switch {
             switch(&mut self.keyboards, Change::Next);
+            self.control.layout_set(self.keyboards.layout());
         }
     }
 
@@ -523,6 +517,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         if let Some(state) = &self.state {
             state.font_shown(font);
         }
+        self.control.font_shown(font);
         set_size(&self.master, size)
     }
 
@@ -534,11 +529,7 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             modes.contains(termios::LocalModes::ICANON)
                 && !modes.contains(termios::LocalModes::ECHO)
         });
-        is_password
-            || self
-                .state
-                .as_ref()
-                .is_some_and(StateDir::is_secret_prompt_open)
+        is_password || self.control.is_secret()
     }
 }
 

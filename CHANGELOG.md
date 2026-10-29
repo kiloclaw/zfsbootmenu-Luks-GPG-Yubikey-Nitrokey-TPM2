@@ -538,6 +538,12 @@ and install it next to `zbm`; `zfsbootmenu_brush` names another one. It adds abo
   (`/run/zfsbootmenu/session.sock`, root only), which ends its menu and says so, instead of a signal to whatever the
   menu runs. A menu that does not end within 4 seconds, as while a program holds the console, and a menu started some
   other way, are still ended with signals.
+- `zbm console release`, `reattach`, `layout` and `font` ask the console on the display on its socket
+  (`/run/zfsbootmenu/console.sock`, root only) and get a reply once it did what they asked, instead of a signal
+  followed by a look at its records every 20 ms. `zbm console layout` and `font` without arguments ask the console how
+  it is. The menu tells the console of a passphrase prompt the same way, for as long as the prompt shows: a menu that
+  is killed no longer leaves a record that keeps the console from saving its scrollback. The files
+  `console-layout-request`, `console-font-request` and `secret-prompt` are no longer written in `/zfsbootmenu`.
 
 ### The menu goes on while it works (phase 2)
 

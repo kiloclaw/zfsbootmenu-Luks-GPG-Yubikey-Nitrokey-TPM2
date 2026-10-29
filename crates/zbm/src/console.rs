@@ -80,7 +80,7 @@ use zbm_console::scheme::{HIGH_CONTRAST, Scheme};
 use zbm_console::screen::Ring;
 use zbm_console::screen::zoom::Zoom;
 use zbm_console::serve::{
-    Layouts, Places, Released, Settings, Switched, reattach, release, request_font, serve,
+    Layouts, Places, Released, Settings, Switched, reattach, release, request_font, serve, status,
 };
 use zbm_display::input::DeviceId;
 use zbm_display::keys::compose_key;
@@ -385,7 +385,7 @@ fn run_release(args: &[String], io: &mut Io) -> i32 {
         let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
         return USAGE;
     };
-    match release(&Places::system().base, timeout) {
+    match release(&Places::system().socket, timeout) {
         Ok(Released::Done) => 0,
         Ok(Released::Late) => {
             let _ = writeln!(io.stderr, "zbm console: the display was not handed back");
@@ -405,7 +405,7 @@ fn run_reattach(args: &[String], io: &mut Io) -> i32 {
         let _ = io.stderr.write_all(USAGE_TEXT.as_bytes());
         return USAGE;
     };
-    match reattach(&Places::system().base, timeout) {
+    match reattach(&Places::system().socket, timeout) {
         Ok(true) => 0,
         Ok(false) => {
             let _ = writeln!(io.stderr, "zbm console: the display was not taken again");
@@ -424,12 +424,13 @@ const FONT_TIMEOUT: Duration = Duration::from_secs(3);
 /// `zbm console font`: says which font the console draws with, or asks it
 /// for a size.
 fn run_font(args: &[String], io: &mut Io) -> i32 {
-    let base = Places::system().base;
+    let socket = Places::system().socket;
     let size = match args {
         [] => {
-            let state = zbm_state::State::new(&RealFiles, &base);
-            let font = state.console_font();
-            let font = font.as_deref().unwrap_or("none, no console on the display");
+            let status = status(&socket, FONT_TIMEOUT).filter(|status| status.shown);
+            let font = status.map_or("none, no console on the display".to_owned(), |status| {
+                status.font
+            });
             let _ = writeln!(io.stdout, "font: {font}");
             return 0;
         }
@@ -439,12 +440,12 @@ fn run_font(args: &[String], io: &mut Io) -> i32 {
             return USAGE;
         }
     };
-    let failure = match request_font(&base, size, FONT_TIMEOUT) {
+    let failure = match request_font(&socket, size, FONT_TIMEOUT) {
         Ok(Switched::Done(font)) => {
             let _ = writeln!(io.stdout, "font: {font}");
             return 0;
         }
-        Ok(Switched::NoConsole) => "no console on the display".to_owned(),
+        Ok(Switched::NoConsole | Switched::NoSuchLayout) => "no console on the display".to_owned(),
         Ok(Switched::Late) => "the console did not answer".to_owned(),
         Err(error) => error.to_string(),
     };

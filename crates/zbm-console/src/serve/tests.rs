@@ -18,6 +18,7 @@ fn places(dir: &TempDir) -> Places {
         dev: dir.join("dev"),
         base: dir.join("zfsbootmenu"),
         kmsg: dir.write("kmsg", ""),
+        socket: dir.join("run/console.sock"),
     }
 }
 
@@ -51,12 +52,13 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             names: Vec::new(),
             load: &mut |name: &str| Err(format!("{name}: not in this image")),
         };
+        let (control, mut wake) = Control::new().unwrap();
         let served = serve_on(
             &settings,
             &places,
             (&mut grid, layouts),
             terminals,
-            &Requests::default(),
+            (&control, &mut wake),
         );
         served.map(|()| asked)
     });
@@ -124,34 +126,25 @@ fn the_mirror_gets_lines_of_their_own() {
 }
 
 #[test]
-fn the_hand_over_is_asked_for_and_waited_on() {
+fn without_a_console_there_is_nothing_to_hand_back_and_a_silent_one_is_late() {
     let dir = TempDir::new("zbm-console-release");
-    let base = dir.join("zfsbootmenu");
-    std::fs::create_dir_all(&base).unwrap();
+    let socket = places(&dir).socket;
     let timeout = Duration::from_secs(5);
 
-    // No console: nothing to do.
-    assert_eq!(release(&base, timeout).unwrap(), Released::Done);
+    // No console: nothing to do, nothing to take again, nobody to ask.
+    assert_eq!(release(&socket, timeout).unwrap(), Released::Done);
+    assert!(reattach(&socket, timeout).unwrap());
+    let switched = request_layout(&socket, "de", timeout).unwrap();
+    assert_eq!(switched, Switched::NoConsole);
+    assert_eq!(status(&socket, timeout), None);
 
-    // A console that is gone.
-    std::fs::write(base.join("console"), "4194000\n").unwrap();
-    assert_eq!(release(&base, timeout).unwrap(), Released::Done);
-    assert!(!base.join("console").exists());
-
-    // A console that never answers. (A console that does is in
-    // `tests/requests.rs`, where this process plays it.)
-    let mut console = std::process::Command::new("sh")
-        .args(["-c", "trap '' USR1; sleep 30"])
-        .spawn()
-        .unwrap();
-    std::thread::sleep(Duration::from_millis(200));
-    std::fs::write(base.join("console"), format!("{}\n", console.id())).unwrap();
-    assert_eq!(
-        release(&base, Duration::from_millis(30)).unwrap(),
-        Released::Late
-    );
-    console.kill().unwrap();
-    console.wait().unwrap();
+    // A console that never answers. (One that does is in the tests of
+    // `crate::control`.)
+    let _silent = Listener::bind(&socket).unwrap();
+    let short = Duration::from_millis(30);
+    assert_eq!(release(&socket, short).unwrap(), Released::Late);
+    assert!(!reattach(&socket, short).unwrap());
+    assert_eq!(request_font(&socket, "+", short).unwrap(), Switched::Late);
 }
 
 /// The German layout, from the XKB data of the machine (`xkb-data`).
@@ -169,17 +162,12 @@ fn a_layout_asked_for_is_taken_and_recorded() {
     let state = State::new(&RealFiles, &places.base);
     let mut keyboards = Keyboards::from_files(Vec::new());
 
-    switch_layout(&places, &mut german, &mut keyboards);
-    assert_eq!(state.console_layout().as_deref(), Some("us"));
-    state.request_console_layout("de").unwrap();
-    switch_layout(&places, &mut german, &mut keyboards);
+    switch_layout(&places, &mut german, &mut keyboards, "de");
     assert_eq!(keyboards.layout(), "de");
-    state.request_console_layout("zz").unwrap();
-    switch_layout(&places, &mut german, &mut keyboards);
+    switch_layout(&places, &mut german, &mut keyboards, "zz");
 
     assert_eq!(keyboards.layout(), "de");
     assert_eq!(state.console_layout().as_deref(), Some("de"));
-    assert!(!state.has_console_layout_request());
     let log = std::fs::read_to_string(dir.join("kmsg")).unwrap();
     assert_eq!(
         log,
@@ -252,7 +240,7 @@ fn a_new_input_device_wakes_the_console() {
     dir.write("dev/input/event7", "");
     assert!(devices.read(&mut buffer).unwrap() > 0);
     assert!(watch_devices(&dir.join("none")).is_none());
-    // A request's signal wakes the console too: `tests/requests.rs`.
+    // A request wakes the console too: the tests of `crate::control`.
 }
 
 #[test]

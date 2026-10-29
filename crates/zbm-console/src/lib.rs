@@ -15,7 +15,10 @@
 //!   on a [`run::Host`] that tests replace;
 //! - [`host`]: the real one;
 //! - [`relay`]: the relay that carries the terminal over to the kernel
-//!   console once the display is handed back.
+//!   console once the display is handed back;
+//! - [`control`]: the control socket, on which other processes ask it to
+//!   hand the display back, take it again, switch layouts or font sizes,
+//!   or keep a secret prompt out of its scrollback.
 //!
 //! Before `kexec`, `zbm console release` asks it to hand the display, the
 //! keyboards and the virtual terminal back; it then relays between the
@@ -23,11 +26,11 @@
 //! the console over as it does today, and a failed boot is still seen.
 
 pub mod colour;
+pub mod control;
 pub mod host;
 pub mod keys;
 pub mod mirror;
 pub mod relay;
-pub mod release;
 pub mod run;
 pub mod scheme;
 pub mod screen;

@@ -2,10 +2,11 @@
 //! docs/dev/threat-model.md): crash reports, the kernel log they read back,
 //! the state files of `/zfsbootmenu` (finished stages, the active menu, the
 //! default boot environment, degraded pools, the command line override, the
-//! console's process and its layout and font requests), and the saved
-//! command line. Only ZFSBootMenu writes them, but hooks (I6) can, so
-//! reading them may not panic or hang. Also the messages on the session's
-//! socket (I17), which a root login can send.
+//! console's process, the console that handed the display back, and its
+//! layout), and the saved command line. Only ZFSBootMenu writes them, but
+//! hooks (I6) can, so reading them may not panic or hang. Also the messages
+//! on the session's and the console's sockets (I17), which a root login can
+//! send.
 
 #![no_main]
 
@@ -22,8 +23,8 @@ const STATE: [&str; 8] = [
     "degraded",
     "cmdline",
     "console",
-    "console-layout-request",
-    "console-font-request",
+    "console-layout",
+    "console-released",
 ];
 
 fuzz_target!(|data: &[u8]| {
@@ -40,6 +41,18 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(
             zbm_app::session::Request::decode(&request.encode()),
             Ok(request)
+        );
+    }
+    if let Ok(request) = zbm_app::console::Request::decode(data) {
+        assert_eq!(
+            zbm_app::console::Request::decode(&request.encode()),
+            Ok(request)
+        );
+    }
+    if let Some((_, reply)) = zbm_app::console::Reply::decode(data) {
+        assert_eq!(
+            zbm_app::console::Reply::decode(&reply.encode()),
+            Some((zbm_app::console::VERSION, reply))
         );
     }
     if let Some((_, answer)) = zbm_app::session::Answer::decode(data) {
@@ -65,10 +78,8 @@ fuzz_target!(|data: &[u8]| {
     let _ = state.degraded_pools();
     let _ = state.cmdline_override();
     let _ = state.console_pid();
-    if let Some(name) = state.console_layout_request() {
+    let _ = state.released_console_pid();
+    if let Some(name) = state.console_layout() {
         let _ = zbm_display::layout::compile::split(&name);
-    }
-    if let Some(zoom) = state.console_font_request() {
-        let _ = zbm_console::screen::zoom::Zoom::parse(&zoom);
     }
 });

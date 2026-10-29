@@ -15,8 +15,8 @@ use std::time::Duration;
 use rustix::termios::{self, OptionalActions};
 use zbm_sys::console::{Watch, wait_ready};
 
+use crate::control::Control;
 use crate::host::{CHUNK, Outgoing, read_output};
-use crate::release::Requests;
 use crate::run::Input;
 use crate::screen::Console;
 
@@ -92,9 +92,9 @@ pub enum Relayed {
 
 /// Relays between the programs on `master` and `terminal`, the kernel
 /// console, until the programs are gone, or until `reattach`, when given,
-/// is set: what they write is shown there, and fed to `kept`, the
-/// console's terminal kept for when the display is taken again; what is
-/// typed there reaches them. The programs get the console's size.
+/// asks for the display again: what they write is shown there, and fed to
+/// `kept`, the console's terminal kept for when the display is taken again;
+/// what is typed there reaches them. The programs get the console's size.
 ///
 /// # Errors
 ///
@@ -102,7 +102,7 @@ pub enum Relayed {
 pub fn relay<M, T>(
     master: &mut M,
     terminal: &mut T,
-    reattach: Option<&Requests>,
+    reattach: Option<&Control>,
     kept: Option<&mut Console>,
 ) -> io::Result<Relayed>
 where
@@ -124,7 +124,7 @@ where
     // With a request to wait for, the relay looks for it every tick.
     let timeout = reattach.map(|_| crate::run::TICK);
     let outcome = loop {
-        if reattach.is_some_and(Requests::was_release_requested) {
+        if reattach.is_some_and(Control::is_reattach_asked) {
             break Ok(Relayed::Reattach);
         }
         match sides.step(timeout) {

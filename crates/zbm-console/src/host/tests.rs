@@ -5,9 +5,15 @@ use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 
 use pretty_assertions::assert_eq;
+use zbm_app::console::Reply;
 use zbm_display::keys::{Key, KeyPress};
 
 use super::*;
+
+/// What a host does when nothing asks it anything.
+fn control() -> Arc<Control> {
+    Control::new().unwrap().0
+}
 
 /// A reader that fails with `error`.
 struct Failing(i32);
@@ -75,9 +81,9 @@ fn event(code: u16, value: i32) -> Vec<u8> {
 fn the_host_waits_on_the_programs_the_keyboards_and_the_release() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, mut typing) = UnixStream::pair().unwrap();
-    let release = Arc::new(AtomicBool::new(false));
+    let control = control();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::clone(&release));
+    let mut host = RealHost::new(master, keyboards, Arc::clone(&control));
     let timeout = Duration::from_millis(10);
 
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
@@ -100,7 +106,7 @@ fn the_host_waits_on_the_programs_the_keyboards_and_the_release() {
     program.read_exact(&mut sent).unwrap();
     assert_eq!(&sent, b"in");
 
-    release.store(true, Ordering::SeqCst);
+    control.ask_release();
     assert_eq!(host.wait(timeout).unwrap(), Input::Release);
     assert!(format!("{host:?}").starts_with("RealHost"));
     drop(program);
@@ -113,31 +119,40 @@ fn a_layout_asked_for_reaches_the_keyboards() {
     let (master, _program) = UnixStream::pair().unwrap();
     let (keyboard, _typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let requested = Arc::new(AtomicBool::new(false));
+    let control = control();
     let mut switched = Vec::new();
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false))).with_layouts(
-        Arc::clone(&requested),
-        Box::new(|keyboards: &mut Keyboards, change| {
-            switched.push((keyboards.layout().to_owned(), change));
-        }),
-    );
+    let mut host = RealHost::new(master, keyboards, Arc::clone(&control)).with_layouts(Box::new(
+        |keyboards: &mut Keyboards, change: Change<'_>| {
+            switched.push((keyboards.layout().to_owned(), format!("{change:?}")));
+        },
+    ));
     let timeout = Duration::from_millis(10);
 
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
-    requested.store(true, Ordering::SeqCst);
+    control.ask_layout("de");
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    // The keyboards kept their layout: the image has none of that name.
+    assert_eq!(
+        control.replies().0,
+        Some(Reply::NoSuchLayout("de".to_owned()))
+    );
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
     // Super+Space asks for the next one.
     host.next_layout();
-    // Not a terminal, nor a recorded prompt: no secret prompt.
+    // Not a terminal, nor a prompt held: no secret prompt.
     assert!(!host.is_secret());
+    control.set_secrets(1);
+    assert!(host.is_secret());
     assert_eq!(host.pending_accent(), None);
     drop(host);
 
     let us = "us".to_owned();
     assert_eq!(
         switched,
-        [(us.clone(), Change::Requested), (us, Change::Next)]
+        [
+            (us.clone(), "Requested(\"de\")".to_owned()),
+            (us, "Next".to_owned())
+        ]
     );
 }
 
@@ -146,7 +161,7 @@ fn scroll_lock_holds_the_programs_output() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, mut typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let timeout = Duration::from_millis(10);
 
     typing
@@ -183,7 +198,7 @@ fn a_keyboard_that_moves_a_mouse_holds_up_no_output() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, mut typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let timeout = Duration::from_millis(10);
 
     program.write_all(b"out").unwrap();
@@ -199,7 +214,7 @@ fn keys_come_before_a_flood_of_output() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, mut typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let timeout = Duration::from_millis(10);
 
     program.write_all(&[b'y'; 4096]).unwrap();
@@ -220,7 +235,7 @@ fn typing_to_a_program_that_reads_nothing_does_not_block() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let timeout = Duration::from_millis(10);
 
     // Far more than a socket's buffer: the rest waits in the host.
@@ -256,7 +271,7 @@ fn a_keyboard_that_goes_away_leaves_the_host_running() {
     let (master, mut program) = UnixStream::pair().unwrap();
     let (keyboard, typing) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let timeout = Duration::from_millis(10);
 
     drop(typing);
@@ -324,14 +339,11 @@ fn a_terminal_left_raw_gets_its_modes_back() {
 fn a_host_woken_by_its_requests_and_devices_sleeps_long() {
     let (master, _program) = UnixStream::pair().unwrap();
     let (keyboard, _typing) = UnixStream::pair().unwrap();
-    let (wake, mut alarm) = UnixStream::pair().unwrap();
     let (devices, mut appeared) = UnixStream::pair().unwrap();
-    wake.set_nonblocking(true).unwrap();
     devices.set_nonblocking(true).unwrap();
-    let release = Arc::new(AtomicBool::new(false));
+    let (control, wake) = Control::new().unwrap();
     let keyboards = Keyboards::from_files(vec![File::from(OwnedFd::from(keyboard))]);
-    let host = RealHost::new(master, keyboards, Arc::clone(&release))
-        .with_wake(File::from(OwnedFd::from(wake)));
+    let host = RealHost::new(master, keyboards, Arc::clone(&control)).with_wake(wake);
     // Without a watch on the devices, it still looks for keyboards.
     assert_eq!(host.idle(), crate::run::TICK);
     let mut host = host.with_device_watch(File::from(OwnedFd::from(devices)));
@@ -344,26 +356,24 @@ fn a_host_woken_by_its_requests_and_devices_sleeps_long() {
     host.rescan_until = Some(Instant::now());
     assert_eq!(host.idle(), IDLE);
 
-    // A request's signal wakes it at once, long before the time runs out.
-    let signal = std::thread::spawn({
-        let release = Arc::clone(&release);
+    // A request wakes it at once, long before the time runs out.
+    let asking = std::thread::spawn({
+        let control = Arc::clone(&control);
         move || {
             std::thread::sleep(Duration::from_millis(50));
-            release.store(true, Ordering::SeqCst);
-            alarm.write_all(b"x").unwrap();
-            alarm
+            control.ask_release();
         }
     });
     let start = Instant::now();
     assert_eq!(host.wait(IDLE).unwrap(), Input::Release);
     assert!(start.elapsed() < Duration::from_secs(5));
-    let mut alarm = signal.join().unwrap();
+    asking.join().unwrap();
     // Asked again before the next wait: it is taken at once, with its
     // wake-up.
-    alarm.write_all(b"x").unwrap();
+    control.ask_release();
     assert_eq!(host.wait(IDLE).unwrap(), Input::Release);
     // The wake-up was taken: the next wait does not return at once.
-    release.store(false, Ordering::SeqCst);
+    control.released();
     let start = Instant::now();
     assert_eq!(
         host.wait(Duration::from_millis(50)).unwrap(),
@@ -373,21 +383,11 @@ fn a_host_woken_by_its_requests_and_devices_sleeps_long() {
 }
 
 #[test]
-fn the_state_directory_records_secret_prompts_and_keeps_the_scrollback() {
+fn the_state_directory_keeps_the_scrollback_and_screenshots() {
     let dir = zbm_testkit::TempDir::new("zbm-console-host");
     let (master, _program) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(Vec::new());
-    let release = Arc::new(AtomicBool::new(false));
-    let mut host = RealHost::new(master, keyboards, release).with_state(dir.path());
-    let state = zbm_state::State::new(&zbm_platform::RealFiles, dir.path());
-
-    assert!(!host.is_secret());
-    // A living process records a prompt: this one.
-    state.set_secret_prompt(std::process::id()).unwrap();
-    assert!(host.is_secret());
-    // One that is gone does not count.
-    state.set_secret_prompt(u32::MAX).unwrap();
-    assert!(!host.is_secret());
+    let mut host = RealHost::new(master, keyboards, control()).with_state(dir.path());
 
     let status = host.status().unwrap();
     assert_eq!(status.layout, "us");
@@ -407,7 +407,7 @@ fn the_state_directory_records_secret_prompts_and_keeps_the_scrollback() {
 fn a_host_without_a_state_directory_saves_nothing() {
     let (master, _program) = UnixStream::pair().unwrap();
     let keyboards = Keyboards::from_files(Vec::new());
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)));
+    let mut host = RealHost::new(master, keyboards, control());
     let error = host.save_scrollback(b"x").unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::Unsupported);
     let error = host.save_screenshot(b"x", b"y").unwrap_err();
@@ -415,33 +415,31 @@ fn a_host_without_a_state_directory_saves_nothing() {
 }
 
 #[test]
-fn a_font_request_is_taken_with_the_layout_s_signal_and_answered() {
+fn a_font_request_is_taken_and_answered() {
     let dir = zbm_testkit::TempDir::new("zbm-console-host");
     let (master, _program) = open_pty().unwrap();
     let keyboards = Keyboards::from_files(Vec::new());
-    let requested = Arc::new(AtomicBool::new(false));
+    let control = control();
     let mut grids = Vec::new();
     let mut fonts = |pixels: (u32, u32), height: Option<u16>| {
         grids.push((pixels, height));
         Err(io::Error::other("no font"))
     };
-    let mut host = RealHost::new(master, keyboards, Arc::new(AtomicBool::new(false)))
-        .with_layouts(Arc::clone(&requested), Box::new(|_: &mut Keyboards, _| {}))
+    let mut host = RealHost::new(master, keyboards, Arc::clone(&control))
+        .with_layouts(Box::new(|_: &mut Keyboards, _: Change<'_>| {}))
         .with_state(dir.path())
         .with_fonts(&mut fonts);
     let state = zbm_state::State::new(&zbm_platform::RealFiles, dir.path());
     let timeout = Duration::from_millis(10);
 
-    state.request_console_font("+").unwrap();
-    // Not until the signal comes.
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
     assert_eq!(host.font_request(), None);
-    requested.store(true, Ordering::SeqCst);
+    control.ask_font(Zoom::Bigger);
     assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
     assert_eq!(host.font_request(), Some(Zoom::Bigger));
     assert_eq!(host.font_request(), None);
     assert!(host.grid((640, 480), Some(32)).is_none());
-    // Answered: the font recorded, the request gone, the size told.
+    // Answered: the font recorded, the reply given, the size told.
     let size = WindowSize {
         num_lines: 25,
         num_cols: 80,
@@ -449,16 +447,14 @@ fn a_font_request_is_taken_with_the_layout_s_signal_and_answered() {
         cell_height: 16,
     };
     host.font_shown("ter-v16b.psf 8x16, 80x25", &size).unwrap();
-    assert!(!state.has_console_font_request());
+    assert_eq!(
+        control.replies().1.as_deref(),
+        Some("ter-v16b.psf 8x16, 80x25")
+    );
     assert_eq!(
         state.console_font().as_deref(),
         Some("ter-v16b.psf 8x16, 80x25")
     );
-    // One that cannot be read asks for nothing.
-    state.request_console_font("huge").unwrap();
-    requested.store(true, Ordering::SeqCst);
-    host.wait(timeout).unwrap();
-    assert_eq!(host.font_request(), Some(Zoom::Height(0)));
     drop(host);
     assert_eq!(grids, [((640, 480), Some(32))]);
 }

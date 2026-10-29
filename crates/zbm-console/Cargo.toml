@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 alacritty_terminal.workspace = true
+zbm-app.workspace = true
 rustix = { workspace = true, features = ["fs"] }
 zbm-display.workspace = true
 zbm-platform.workspace = true
@@ -24,7 +25,3 @@ zbm-testkit.workspace = true
 
 [lints]
 workspace = true
-
-[[test]]
-name = "requests"
-harness = false

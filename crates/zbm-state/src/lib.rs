@@ -210,10 +210,12 @@ impl<'a> State<'a> {
     /// When the lock cannot be taken.
     pub fn lock_mappings(&self) -> Result<FileLock> {
         let path = self.path("luks-mappings.lock");
-        self.lock_path(&path, LockWait::Block)?.ok_or_else(|| {
-            let held = std::io::Error::from(std::io::ErrorKind::WouldBlock);
-            Error::io(format!("unable to lock {}", path.display()), held)
-        })
+        // A wait that returns without the lock is a lock that is held.
+        let held = || std::io::Error::from(std::io::ErrorKind::WouldBlock);
+        self.files
+            .lock(&path, LockWait::Block)
+            .and_then(|lock| lock.ok_or_else(held))
+            .map_err(|error| Error::io(format!("unable to lock {}", path.display()), error))
     }
 
     /// Takes the lock of the cache of key files from the key source

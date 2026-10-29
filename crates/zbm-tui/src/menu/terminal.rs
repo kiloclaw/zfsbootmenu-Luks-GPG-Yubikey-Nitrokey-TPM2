@@ -36,7 +36,7 @@ fn on_terminal(
         Size::new(columns, rows),
     );
     // The console on the display keeps nothing while a secret is typed.
-    let marker = Marker::new(Path::new(zbm_state::BASE));
+    let marker = Marker::new(Path::new(zbm_app::console::SOCKET));
     Ok(Frontend::new(backend, keys)?.with_marker(marker))
 }
 

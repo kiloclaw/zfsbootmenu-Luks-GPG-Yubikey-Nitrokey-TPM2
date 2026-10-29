@@ -3982,6 +3982,7 @@ dependencies = [
  "insta",
  "pretty_assertions",
  "rustix",
+ "zbm-app",
  "zbm-display",
  "zbm-platform",
  "zbm-state",

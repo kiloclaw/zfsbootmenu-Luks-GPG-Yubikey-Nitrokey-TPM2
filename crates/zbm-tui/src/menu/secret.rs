@@ -1,13 +1,14 @@
 //! Telling the console on the display (`zbm.console=drm`) that the menu
 //! shows a secret prompt, which it cannot see: the menu reads the keys
-//! itself, without the terminal's echo. While the record is in the
-//! runtime's state directory, the console keeps no scrollback and shows
-//! nothing being typed.
+//! itself, without the terminal's echo. While the menu holds a `secret`
+//! request open on the console's control socket
+//! ([`zbm_app::console::hold_secret`]), the console keeps no scrollback and
+//! shows nothing being typed; the request ends when the prompt does, or
+//! the menu ends, however it ends.
 
 use std::path::{Path, PathBuf};
 
-use zbm_platform::RealFiles;
-use zbm_state::State;
+use zbm_app::console::{SecretHold, hold_secret};
 
 use super::model::{Dialog, Model};
 
@@ -17,48 +18,48 @@ pub fn is_asking_secret(model: &Model) -> bool {
     matches!(&model.dialog, Some(Dialog::Unlock(prompt)) if prompt.wait.is_none())
 }
 
-/// The record of the menu's secret prompt in a state directory.
+/// The menu's secret prompt, as the console listening at a socket knows
+/// it.
 #[derive(Debug)]
 pub struct Marker {
-    base: PathBuf,
+    socket: PathBuf,
     shown: bool,
+    held: Option<SecretHold>,
 }
 
 impl Marker {
-    /// A record in the state directory `base`, not written yet.
-    pub fn new(base: &Path) -> Marker {
+    /// The marker for the console listening at `socket`, which knows of no
+    /// prompt yet.
+    pub fn new(socket: &Path) -> Marker {
         Marker {
-            base: base.to_owned(),
+            socket: socket.to_owned(),
             shown: false,
+            held: None,
         }
     }
 
-    /// Records that a secret prompt is shown, or removes the record, when
-    /// that changed; failures are ignored, as without a state directory
-    /// there is no console to tell.
+    /// Tells the console that a secret prompt is shown, or no longer is,
+    /// when that changed; without a console there is nobody to tell.
     pub fn show(&mut self, secret: bool) {
         if secret == self.shown {
             return;
         }
         self.shown = secret;
-        let state = State::new(&RealFiles, &self.base);
-        if secret {
-            let _ = state.set_secret_prompt(std::process::id());
+        self.held = if secret {
+            hold_secret(&self.socket)
         } else {
-            state.clear_secret_prompt();
-        }
+            None
+        };
     }
-}
 
-impl Drop for Marker {
-    fn drop(&mut self) {
-        self.show(false);
+    /// Whether the console noted the prompt.
+    pub fn is_held(&self) -> bool {
+        self.held.is_some()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use zbm_testkit::TempDir;
 
     use super::*;
@@ -83,21 +84,12 @@ mod tests {
     }
 
     #[test]
-    fn the_record_follows_the_secret_prompt() {
+    fn without_a_console_nobody_is_told() {
         let dir = TempDir::new("zbm-tui-secret");
-        let state = State::new(&RealFiles, dir.path());
-        let mut marker = Marker::new(dir.path());
+        let mut marker = Marker::new(&dir.path().join("console.sock"));
+        marker.show(true);
+        assert!(!marker.is_held());
         marker.show(false);
-        assert_eq!(state.secret_prompt_pid(), None);
-        marker.show(true);
-        assert_eq!(state.secret_prompt_pid(), Some(std::process::id()));
-        marker.show(true);
-        marker.show(false);
-        assert_eq!(state.secret_prompt_pid(), None);
-        marker.show(true);
-        drop(marker);
-        assert_eq!(state.secret_prompt_pid(), None);
-        // Without a state directory, nothing happens.
-        Marker::new(&dir.path().join("none")).show(true);
+        assert!(!marker.is_held());
     }
 }

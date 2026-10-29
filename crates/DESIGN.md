@@ -408,12 +408,24 @@ image. The supervisor, the start-up program and the menu ignore `SIGINT` through
 the same disposition.
 
 A program that waits for signals blocks them and reads them from a `signalfd` (`zbm_sys::Signals`): the menu its
-takeover's, the console the requests of `zbm console release` and `layout`, `generate-zbm` `SIGINT` and `SIGTERM`; no
+takeover's, `generate-zbm` `SIGINT` and `SIGTERM`; no
 handler runs in the middle of the program, and no global slot holds the last signal. A signal sent to the process
 reaches a thread that does not block it, so each blocks them before it starts a thread. Programs inherit the mask, and
 the standard library's `Command` keeps it: `zbm_sys::prepare_child` empties it in every child that `zbm-platform`
 starts, so hooks, `fzf` and the shells see the dispositions above and no blocked signal. A process that is signalled
-and waited for is held by a pidfd (`zbm_sys::Process`): `zbm console release` sees the console end.
+and waited for is held by a pidfd (`zbm_sys::Process`).
+
+The console on the display takes no signal: `zbm console release`, `reattach`, `layout` and `font`, and the menu's
+secret prompts, are requests on its control socket, `/run/zfsbootmenu/console.sock` (ROADMAP.md PM7, ADR 0004; the
+messages in `zbm_app::console`, the console's side in `zbm_console::control`). A thread accepts the peers, root only,
+and answers each on a thread of its own; what they ask goes to the console's loop through a `Control` it shares with
+them, which wakes the loop through a mailbox, and the reply goes back once the loop did it: the display handed back
+(`released`), taken again (`reattached`), the layout set or not in the image (`layout set`, `no such layout`), the
+font shown (`font set`). A request the loop does not do within 10 seconds is answered `busy`. The menu holds a
+`secret` request open while it shows a passphrase or PIN prompt: the console keeps no scrollback and shows nothing
+being typed until the connection closes, which it does when the prompt does, or when the menu ends however it ends.
+The records `console`, `console-released`, `console-layout` and `console-font` stay in the state directory, for hooks,
+users and the boot, which reads the first two to know whether a console runs.
 
 `SIGPIPE` stays ignored in every runtime process, unlike in the host tools, which restore its default action. In the
 legacy code, a value piped into a program (`printf '%s' "${pass}" | cryptsetup ...`) is written by a subshell, which

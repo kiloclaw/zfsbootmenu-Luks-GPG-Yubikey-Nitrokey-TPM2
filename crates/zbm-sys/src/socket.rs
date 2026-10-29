@@ -328,6 +328,12 @@ mod tests {
             one.send(&long).unwrap_err().kind(),
             io::ErrorKind::InvalidInput
         );
+        // Sent past the check, as another program could: refused on receipt.
+        rustix::net::send(&other, &long, SendFlags::empty()).unwrap();
+        let readable = wait_ready(&[Watch::read(one.as_fd())], Some(Duration::from_secs(5)));
+        assert!(readable.unwrap().first().is_some_and(|ready| ready.read));
+        let error = one.receive(Some(Duration::ZERO)).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         drop(other);
         assert!(one.send(b"gone").is_err());
     }

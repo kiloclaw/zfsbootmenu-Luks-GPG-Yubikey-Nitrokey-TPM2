@@ -153,15 +153,16 @@ fn the_console_starts_with_the_layout_asked_for_or_the_first() {
     );
 }
 
-/// Runs `zbm console layout` with `args`; its status, output and errors.
-fn switching(files: &dyn Files, base: &Path, args: &[&str]) -> (i32, String, String) {
+/// Runs `zbm console layout` with `args`, asking the console at `socket`;
+/// its status, output and errors.
+fn switching(files: &dyn Files, socket: &Path, args: &[&str]) -> (i32, String, String) {
     let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
     let mut io = Io {
         stdout: &mut stdout,
         stderr: &mut stderr,
     };
     let args: Vec<String> = args.iter().map(|&arg| arg.to_owned()).collect();
-    let status = switch(files, Path::new("/layouts"), base, &args, &mut io);
+    let status = switch(files, Path::new("/layouts"), socket, &args, &mut io);
     let text = |bytes: Vec<u8>| String::from_utf8(bytes).unwrap();
     (status, text(stdout), text(stderr))
 }
@@ -170,12 +171,13 @@ fn switching(files: &dyn Files, base: &Path, args: &[&str]) -> (i32, String, Str
 fn switching_names_the_layouts_and_needs_a_console() {
     let files = FakeFiles::new();
     files.file("/layouts/layouts", "de\nfr\n");
-    let base = zbm_testkit::TempDir::new("zbm-layout-switch");
+    let dir = zbm_testkit::TempDir::new("zbm-layout-switch");
+    let socket = dir.join("console.sock");
 
-    let shown = switching(&files, base.path(), &[]);
-    let missing = switching(&files, base.path(), &["gb"]);
-    let alone = switching(&files, base.path(), &["fr"]);
-    let wrong = switching(&files, base.path(), &["fr", "de"]);
+    let shown = switching(&files, &socket, &[]);
+    let missing = switching(&files, &socket, &["gb"]);
+    let alone = switching(&files, &socket, &["fr"]);
+    let wrong = switching(&files, &socket, &["fr", "de"]);
 
     let none = "keyboard: none, no console reads the keyboards\nlayouts: de fr\n";
     assert_eq!(shown, (0, none.to_owned(), String::new()));
@@ -184,9 +186,23 @@ fn switching_names_the_layouts_and_needs_a_console() {
     let no_console = "zbm console: no console on the display reads the keyboards\n";
     assert_eq!(alone, (1, String::new(), no_console.to_owned()));
     assert_eq!(wrong.0, crate::USAGE);
-    let state = zbm_state::State::new(&RealFiles, base.path());
-    state.set_console_layout("de").unwrap();
-    assert_eq!(switching(&RealFiles, base.path(), &[]).0, 0);
-    let (_, current, _) = switching(&RealFiles, base.path(), &[]);
-    assert!(current.starts_with("keyboard: de\nlayouts: "), "{current}");
+
+    // A console on the display, which types on the German layout.
+    let (control, _wake) = zbm_console::control::Control::new().unwrap();
+    control.shown("de", "ter-v16b.psf 8x16, 80x25");
+    let listener = zbm_sys::socket::Listener::bind(&socket).unwrap();
+    let until = zbm_platform::event::CancelToken::new().unwrap();
+    let current = std::thread::scope(|scope| {
+        zbm_platform::event::spawn_scoped_traced(scope, || {
+            zbm_console::control::serve(&control, &listener, &until);
+        });
+        let current = switching(&RealFiles, &socket, &[]);
+        until.cancel();
+        current
+    });
+    assert_eq!(current.0, 0);
+    assert!(
+        current.1.starts_with("keyboard: de\nlayouts: "),
+        "{current:?}"
+    );
 }

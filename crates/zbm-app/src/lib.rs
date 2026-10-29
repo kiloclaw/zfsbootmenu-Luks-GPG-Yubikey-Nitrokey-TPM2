@@ -35,6 +35,7 @@
 
 mod boot;
 mod changes;
+pub mod console;
 pub mod model;
 mod plan;
 mod read;
@@ -42,6 +43,7 @@ pub mod service;
 pub mod session;
 mod unlock;
 mod volumes;
+pub mod wire;
 
 pub use boot::kernel_version;
 pub use model::Encryption;

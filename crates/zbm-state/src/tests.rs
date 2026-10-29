@@ -25,23 +25,6 @@ fn the_console_s_records() {
     assert_eq!(state.console_pid(), Some(42));
     state.set_console_layout("de").unwrap();
     assert_eq!(state.console_layout().as_deref(), Some("de"));
-    state.request_console_layout("fr").unwrap();
-    assert!(state.has_console_layout_request());
-    assert_eq!(state.console_layout_request().as_deref(), Some("fr"));
-    state.clear_console_layout_request();
-    assert!(!state.has_console_layout_request());
-    assert_eq!(state.console_layout_request(), None);
-    assert_eq!(state.secret_prompt_pid(), None);
-    state.set_secret_prompt(44).unwrap();
-    assert_eq!(state.secret_prompt_pid(), Some(44));
-    state.clear_secret_prompt();
-    assert_eq!(state.secret_prompt_pid(), None);
-    assert_eq!(state.console_font_request(), None);
-    state.request_console_font("32").unwrap();
-    assert!(state.has_console_font_request());
-    assert_eq!(state.console_font_request().as_deref(), Some("32"));
-    state.clear_console_font_request();
-    assert!(!state.has_console_font_request());
     state.set_console_font("ter-v32b.psf 16x32, 80x25").unwrap();
     assert_eq!(
         state.console_font().as_deref(),

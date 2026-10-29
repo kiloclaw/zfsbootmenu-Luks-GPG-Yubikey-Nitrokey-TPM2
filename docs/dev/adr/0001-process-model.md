@@ -17,7 +17,7 @@ on the plain console. Inside each, work is done in a straight line:
 - Threads exist only around a command: a watchdog per time-out and a reader per output stream (SB1).
 - Processes coordinate through the state directory, with `flock` locks since PM5, and through signals, which PM3 made
   data: blocked, and read from a `signalfd`. `zbm console release` still learns that the console is done by looking
-  at its records every 20 ms.
+  at its records every 20 ms (until PM7, which gives each request a reply on the console's control socket).
 
 The work ahead needs more than one thing at a time in a process: the menu drawing while the session works (PM8), the
 supervisor waiting on children, signals and restarts at once (PM6), cancelling a command (PM4), and running checks in

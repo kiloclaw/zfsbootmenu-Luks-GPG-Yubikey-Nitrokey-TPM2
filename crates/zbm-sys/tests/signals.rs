@@ -10,6 +10,7 @@
     reason = "the checks run real programs and read the clock"
 )]
 
+use std::os::fd::AsFd as _;
 use std::os::unix::process::ExitStatusExt as _;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -37,6 +38,10 @@ fn blocked_signals_wait_to_be_read(signals: &Signals) {
     assert!(signals.take().unwrap().is_empty());
     // SIGTERM would end the process, were it not blocked.
     send_signal(me(), Signal::Terminate).unwrap();
+    // Readable, as a loop that polls it sees.
+    let readable =
+        zbm_sys::console::first_readable(&[signals.as_fd()], Some(Duration::from_secs(5)));
+    assert_eq!(readable.unwrap(), Some(0));
     let taken = signals.wait(Some(Duration::from_secs(5))).unwrap();
     assert_eq!(taken, SignalSet::of(&[Signal::Terminate]));
     assert!(signals.take().unwrap().is_empty());

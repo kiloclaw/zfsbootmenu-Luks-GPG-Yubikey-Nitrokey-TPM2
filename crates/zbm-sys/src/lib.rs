@@ -67,9 +67,10 @@ pub enum Signal {
     /// `SIGKILL`, which cannot be caught: for a program past its time.
     Kill,
     /// `SIGUSR1`, which tells a running menu to give way to another
-    /// instance, and the console to hand the display back.
+    /// instance, when the session's socket cannot.
     User1,
-    /// `SIGUSR2`, which asks the console for another keyboard layout.
+    /// `SIGUSR2`, which the runtime no longer sends: the console takes its
+    /// requests on its control socket.
     User2,
     /// `SIGPIPE`, sent when writing to a pipe that nobody reads.
     Pipe,

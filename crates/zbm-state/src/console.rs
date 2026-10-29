@@ -1,6 +1,8 @@
 //! The records of the console on the display (`zbm console`, ROADMAP.md
-//! #19): its process, the layout and font it uses and those asked of it,
-//! the process showing a secret prompt, and its screenshots and scrollback.
+//! #19): its process, the layout and font it uses, and its screenshots and
+//! scrollback. They are for those who read them, hooks and users, and tell
+//! the boot whether a console runs; what is asked of the console goes on
+//! its control socket (`zbm_app::console`).
 
 use std::path::PathBuf;
 
@@ -11,8 +13,7 @@ use super::{MAX_SCREENSHOTS, SCROLLBACK, State};
 impl State<'_> {
     /// The process ID of the console on the display (`zbm console`,
     /// ROADMAP.md #19), while it holds the display: the console writes it
-    /// once it can take requests, and removes it once it handed the
-    /// display back.
+    /// when it starts, and removes it once it handed the display back.
     pub fn console_pid(&self) -> Option<u32> {
         self.read_line("console")?.parse().ok()
     }
@@ -70,33 +71,6 @@ impl State<'_> {
         self.write("console-layout", format!("{name}\n").as_bytes())
     }
 
-    /// Asks the console for the keyboard layout `name`
-    /// (`zbm console layout`); the console takes the request.
-    ///
-    /// # Errors
-    ///
-    /// When the file cannot be written.
-    pub fn request_console_layout(&self, name: &str) -> Result<()> {
-        self.write("console-layout-request", format!("{name}\n").as_bytes())
-    }
-
-    /// Whether a request for a keyboard layout waits for the console.
-    pub fn has_console_layout_request(&self) -> bool {
-        self.files.exists(&self.path("console-layout-request"))
-    }
-
-    /// The keyboard layout asked for, while the request waits.
-    pub fn console_layout_request(&self) -> Option<String> {
-        self.read_line("console-layout-request")
-            .filter(|name| !name.is_empty())
-    }
-
-    /// Removes the request for a keyboard layout: the console took it, or
-    /// it came too late.
-    pub fn clear_console_layout_request(&self) {
-        self.remove("console-layout-request");
-    }
-
     /// The font the console on the display draws with: its name, its
     /// cells' size and how many.
     pub fn console_font(&self) -> Option<String> {
@@ -111,54 +85,6 @@ impl State<'_> {
     /// When the file cannot be written.
     pub fn set_console_font(&self, font: &str) -> Result<()> {
         self.write("console-font", format!("{font}\n").as_bytes())
-    }
-
-    /// Asks the console for the font's size `size` (`zbm console font`);
-    /// the console takes the request.
-    ///
-    /// # Errors
-    ///
-    /// When the file cannot be written.
-    pub fn request_console_font(&self, size: &str) -> Result<()> {
-        self.write("console-font-request", format!("{size}\n").as_bytes())
-    }
-
-    /// Whether a request for a font's size waits for the console.
-    pub fn has_console_font_request(&self) -> bool {
-        self.files.exists(&self.path("console-font-request"))
-    }
-
-    /// The font's size asked for, while the request waits.
-    pub fn console_font_request(&self) -> Option<String> {
-        self.read_line("console-font-request")
-            .filter(|size| !size.is_empty())
-    }
-
-    /// Removes the request for a font's size: the console took it, or it
-    /// came too late.
-    pub fn clear_console_font_request(&self) {
-        self.remove("console-font-request");
-    }
-
-    /// The process ID of the program that shows a secret prompt now (a
-    /// passphrase, a PIN): the console on the display keeps no scrollback
-    /// and shows nothing typed while it is there.
-    pub fn secret_prompt_pid(&self) -> Option<u32> {
-        self.read_line("secret-prompt")?.parse().ok()
-    }
-
-    /// Records that process `pid` shows a secret prompt.
-    ///
-    /// # Errors
-    ///
-    /// When the file cannot be written.
-    pub fn set_secret_prompt(&self, pid: u32) -> Result<()> {
-        self.write("secret-prompt", format!("{pid}\n").as_bytes())
-    }
-
-    /// Records that no secret prompt is shown.
-    pub fn clear_secret_prompt(&self) {
-        self.remove("secret-prompt");
     }
 
     /// Saves a screenshot of the console, its `text` and its `image` (a

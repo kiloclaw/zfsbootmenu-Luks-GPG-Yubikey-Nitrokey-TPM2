@@ -10,7 +10,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use zbm_console::serve::{Switched, request_layout};
+use zbm_console::serve::{Switched, request_layout, status};
 
 use zbm_display::layout::compile::{self, COMPOSE, XKB};
 use zbm_display::layout::{Layout, LayoutError, Source};
@@ -99,24 +99,24 @@ pub fn first(
 pub fn run_switch(args: &[String], io: &mut Io) -> i32 {
     let files = RealFiles;
     let directory = Path::new(DIRECTORY);
-    let base = Path::new(zbm_state::BASE);
-    switch(&files, directory, base, args, io)
+    let socket = Path::new(zbm_app::console::SOCKET);
+    switch(&files, directory, socket, args, io)
 }
 
 /// How long `zbm console layout` waits for the console.
 const SWITCH_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// `zbm console layout` on the layouts of `directory` and the state
-/// directory `base`.
-fn switch(files: &dyn Files, directory: &Path, base: &Path, args: &[String], io: &mut Io) -> i32 {
+/// `zbm console layout` on the layouts of `directory`, asking the console
+/// listening at `socket`.
+fn switch(files: &dyn Files, directory: &Path, socket: &Path, args: &[String], io: &mut Io) -> i32 {
     let available = available(files, directory);
-    let state = zbm_state::State::new(files, base);
     let name = match args {
         [] => {
-            let current = state.console_layout();
-            let current = current
-                .as_deref()
-                .unwrap_or("none, no console reads the keyboards");
+            let status = status(socket, SWITCH_TIMEOUT).filter(|status| status.shown);
+            let current = status.map_or(
+                "none, no console reads the keyboards".to_owned(),
+                |status| status.layout,
+            );
             let _ = writeln!(io.stdout, "keyboard: {current}");
             let _ = writeln!(io.stdout, "layouts: {}", available.join(" "));
             return 0;
@@ -135,13 +135,14 @@ fn switch(files: &dyn Files, directory: &Path, base: &Path, args: &[String], io:
         );
         return 1;
     }
-    let outcome = request_layout(base, name, SWITCH_TIMEOUT);
+    let outcome = request_layout(socket, name, SWITCH_TIMEOUT);
     let failure = match outcome {
         Ok(Switched::Done(now)) if now == *name => {
             let _ = writeln!(io.stdout, "keyboard: {now}");
             return 0;
         }
         Ok(Switched::Done(now)) => format!("{name} did not load; the keyboard stays {now}"),
+        Ok(Switched::NoSuchLayout) => format!("{name} did not load; the keyboard keeps its layout"),
         Ok(Switched::NoConsole) => "no console on the display reads the keyboards".to_owned(),
         Ok(Switched::Late) => "the console did not answer".to_owned(),
         Err(error) => error.to_string(),
