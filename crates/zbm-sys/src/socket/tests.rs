@@ -199,3 +199,28 @@ fn too_many_descriptors_or_bytes_are_refused() {
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     drop(other);
 }
+
+#[test]
+fn what_a_peer_sent_before_it_went_with_packets_unread_still_comes() {
+    let wait = Some(Duration::from_secs(5));
+    for with_fds in [false, true] {
+        let (one, other) = Connection::pair().unwrap();
+        // `one` sends a packet `other` never reads, `other` answers, and
+        // goes: the kernel resets the connection.
+        one.send(b"unread").unwrap();
+        other.send(b"last words").unwrap();
+        drop(other);
+        let last = if with_fds {
+            one.receive_with(wait).unwrap().unwrap().0
+        } else {
+            one.receive(wait).unwrap().unwrap()
+        };
+        assert_eq!(last, b"last words");
+        // Then the peer is gone.
+        let after = one.receive(wait);
+        assert!(
+            matches!(&after, Ok(Some(bytes)) if bytes.is_empty()) || after.is_err(),
+            "{after:?}"
+        );
+    }
+}

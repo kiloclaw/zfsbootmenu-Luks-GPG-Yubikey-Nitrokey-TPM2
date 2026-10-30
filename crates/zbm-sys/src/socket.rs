@@ -57,6 +57,24 @@ fn is_readable(fd: BorrowedFd<'_>, timeout: Option<Duration>) -> io::Result<bool
         .is_some_and(|ready| ready.read || ready.closed))
 }
 
+/// Receives with `receive`, and once more without waiting when the first
+/// says the peer reset the connection: a peer that went with packets of
+/// ours unread resets it, and the kernel reports that before the packets
+/// the peer sent first, which are still there. The reset when there are
+/// none.
+fn after_reset<T>(mut receive: impl FnMut(RecvFlags) -> rustix::io::Result<T>) -> io::Result<T> {
+    match receive(RecvFlags::empty()) {
+        Err(rustix::io::Errno::CONNRESET) => receive(RecvFlags::DONTWAIT).map_err(|error| {
+            if error == rustix::io::Errno::AGAIN {
+                io::Error::from(rustix::io::Errno::CONNRESET)
+            } else {
+                io::Error::from(error)
+            }
+        }),
+        result => result.map_err(io::Error::from),
+    }
+}
+
 /// A socket that peers connect to at a path, which it removes when it is
 /// dropped.
 #[derive(Debug)]
@@ -324,7 +342,8 @@ impl Connection {
             return Ok(None);
         }
         let mut buffer = vec![0; MAX_MESSAGE];
-        let (_, length) = recv(&self.fd, &mut buffer[..], RecvFlags::TRUNC)?;
+        let (_, length) =
+            after_reset(|flags| recv(&self.fd, &mut buffer[..], RecvFlags::TRUNC | flags))?;
         if length > MAX_MESSAGE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -390,12 +409,14 @@ impl Connection {
         let mut buffer = vec![0; MAX_MESSAGE];
         let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(MAX_FDS))];
         let mut control = RecvAncillaryBuffer::new(&mut space);
-        let received = recvmsg(
-            &self.fd,
-            &mut [io::IoSliceMut::new(&mut buffer)],
-            &mut control,
-            RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
-        )?;
+        let received = after_reset(|flags| {
+            recvmsg(
+                &self.fd,
+                &mut [io::IoSliceMut::new(&mut buffer)],
+                &mut control,
+                RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC | flags,
+            )
+        })?;
         let fds: Vec<OwnedFd> = control
             .drain()
             .filter_map(|message| match message {

@@ -4,10 +4,12 @@
 //! menu boots, through `zbm-app` (ROADMAP.md, R5 step 3).
 
 mod real;
+mod remote;
 
 use std::os::fd::BorrowedFd;
 
 pub use real::{Countdown, RealMachine};
+pub use remote::RemoteMachine;
 
 use super::world::{Action, Event, Snapshot};
 

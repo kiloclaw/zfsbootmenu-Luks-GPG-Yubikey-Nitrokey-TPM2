@@ -170,6 +170,12 @@ impl Startup<'_> {
             return;
         };
         let processes = self.system.processes;
+        // A menu of this process, which the session serves to a menu over
+        // SSH: no signal ends it, its socket did ask.
+        if pid == processes.id() {
+            zbm_trace::info!("a menu of this process holds the lock: waiting for it");
+            return;
+        }
         zbm_trace::info!("Stopping active zfsbootmenu with a PID of {pid}"; %pid);
         zbm_trace::debug!("sending USR1 to {pid}"; %pid);
         if processes.signal(pid, Signal::User1).is_err() {

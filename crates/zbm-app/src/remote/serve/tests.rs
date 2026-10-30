@@ -167,8 +167,8 @@ fn an_action_that_takes_the_console_runs_on_the_terminal_once_none_runs() {
         }
         .send(menu, &[])
         .unwrap();
-        // Refused while the snapshot is taken.
-        let refused = next(menu);
+        // Refused while the snapshot is taken: it failed.
+        let refused = until_done(menu);
         ToSession::Attach.send(menu, &[]).unwrap();
         assert_eq!(next(menu), ToMenu::Refused("already attached".to_owned()));
         held.store(false, Ordering::Relaxed);
@@ -181,7 +181,14 @@ fn an_action_that_takes_the_console_runs_on_the_terminal_once_none_runs() {
         (refused, until_done(menu))
     });
     ended.unwrap();
-    assert!(matches!(refused, ToMenu::Refused(_)), "{refused:?}");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [ToMenu::Event(event), ToMenu::Done]
+                if matches!(**event, Event::Finished(Outcome::Failed { .. }))
+        ),
+        "{refused:?}"
+    );
     assert_eq!(consoles.load(Ordering::Relaxed), 1);
     assert!(done.first().is_some_and(is_changed), "{done:?}");
     assert_eq!(

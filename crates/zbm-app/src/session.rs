@@ -212,8 +212,9 @@ impl Handover {
     }
 
     /// Asks the menu that runs, if one does, to end, and waits at most
-    /// `wait` for it to; whether none runs.
-    fn has_yielded(&self, wait: Duration) -> bool {
+    /// `wait` for it to; whether none runs. The session's own menu asks
+    /// a remote menu it serves so, to take the menu back.
+    pub fn has_yielded(&self, wait: Duration) -> bool {
         let mut menu = self.menu();
         if menu.running {
             menu.asked = true;

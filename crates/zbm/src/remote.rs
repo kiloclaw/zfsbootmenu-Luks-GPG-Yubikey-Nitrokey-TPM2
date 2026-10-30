@@ -9,7 +9,6 @@
 
 use std::fs::File;
 use std::io;
-use std::path::Path;
 
 use zbm_app::model::Action;
 use zbm_app::remote::{self, Served};
@@ -28,7 +27,7 @@ use zbm_sys::socket::Connection;
 /// Why the session tells a remote menu it ended without serving it: the
 /// menu program stopped before its menu, as when start-up was not over
 /// and the user did not have it run.
-const NOT_SERVED: &str = "the menu program ended before its menu";
+pub(crate) const NOT_SERVED: &str = "the menu program ended before its menu";
 
 /// What a remote menu is served with: the session's whole system, whose
 /// console and programs go to the menu's terminal instead, and its
@@ -122,11 +121,6 @@ impl Menu for RemoteMenu<'_, '_> {
             stop: &stop,
         };
         self.served = Some(remote::serve(self.peer, &served));
-    }
-
-    /// The session's own: it would ask itself.
-    fn session_socket(&self) -> Option<&Path> {
-        None
     }
 }
 

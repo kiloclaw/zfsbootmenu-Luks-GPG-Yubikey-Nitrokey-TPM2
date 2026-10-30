@@ -6,7 +6,7 @@
 
 use std::io::Read as _;
 use std::os::fd::AsFd as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use pretty_assertions::assert_eq;
@@ -143,12 +143,13 @@ fn a_remote_menu_is_told_when_the_menu_program_ends_before_its_menu() {
     let path = socket_path("ended");
     let socket = SessionSocket::bind(&path).unwrap();
     let token = CancelToken::new().unwrap();
+    // Its programs on the menu's terminal, as in the image: none runs.
     let remotes = Remotes {
         system: fake.system(),
         conf: &conf,
         handover: socket.handover(),
         until: &token,
-        runner: Some(&fake.runner),
+        runner: None,
     };
     let remote = |peer: Connection| remotes.serve(&peer);
 
@@ -160,6 +161,13 @@ fn a_remote_menu_is_told_when_the_menu_program_ends_before_its_menu() {
         // and the user stops it.
         std::io::Write::write_all(&mut &terminal.keys, b"\x1b").unwrap();
         let told = ToMenu::receive(&menu, WAIT).unwrap();
+        // A menu that sends something else first is not served.
+        let other = ask_remote(&path).unwrap();
+        ToSession::Read.send(&other, &[]).unwrap();
+        assert!(matches!(
+            ToMenu::receive(&other, WAIT).unwrap(),
+            Some(ToMenu::Refused(_))
+        ));
         token.cancel();
         server.join().unwrap();
         drop(terminal.output);
@@ -170,4 +178,65 @@ fn a_remote_menu_is_told_when_the_menu_program_ends_before_its_menu() {
     let mut text = String::new();
     screen.read_to_string(&mut text).unwrap();
     assert!(text.contains("ZFSBootMenu must be initialized"), "{text}");
+}
+
+#[test]
+fn the_menu_over_ssh_is_served_until_the_session_s_own_menu_takes_it_back() {
+    use zbm_tui::menu::machine::{Machine as _, RemoteMachine};
+    use zbm_tui::menu::world::{Event, Outcome};
+
+    let fake = started();
+    let conf = conf();
+    let path = socket_path("client");
+    let socket = SessionSocket::bind(&path).unwrap();
+    let token = CancelToken::new().unwrap();
+    let remotes = Remotes {
+        system: fake.system(),
+        conf: &conf,
+        handover: socket.handover(),
+        until: &token,
+        runner: Some(&fake.runner),
+    };
+    let remote = |peer: Connection| remotes.serve(&peer);
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let never = || false;
+
+    let (performed, left) = std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve_with(&token, Some(&remote)));
+        let terminal = pipes();
+        let session = ask_remote(&path).unwrap();
+        let fds = (terminal.input.as_fd(), terminal.output.as_fd());
+        let mut machine = RemoteMachine::attach(session, fds, &never).unwrap();
+        assert!(matches!(machine.tick().as_slice(), [Event::Changed(_)]));
+        assert!(state.is_active());
+
+        machine.apply(Action::ResetBootTries("tank/ROOT/void".parse().unwrap()));
+        let mut performed = Vec::new();
+        while machine.is_busy() {
+            std::thread::sleep(Duration::from_millis(1));
+            performed.extend(machine.poll());
+        }
+
+        // The console takes the menu back.
+        assert!(socket.handover().has_yielded(Duration::from_secs(10)));
+        assert!(!state.is_active());
+        let mut left = Vec::new();
+        while left.is_empty() {
+            std::thread::sleep(Duration::from_millis(1));
+            left = machine.poll();
+        }
+        drop(machine);
+        token.cancel();
+        server.join().unwrap();
+        (performed, left)
+    });
+
+    assert!(
+        performed.iter().any(|event| matches!(
+            event,
+            Event::Finished(Outcome::Done(_) | Outcome::Failed { .. })
+        )),
+        "{performed:?}"
+    );
+    assert_eq!(left, [Event::Leaving(String::new())]);
 }

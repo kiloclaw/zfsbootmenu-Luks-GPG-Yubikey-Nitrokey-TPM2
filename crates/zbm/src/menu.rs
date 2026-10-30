@@ -8,6 +8,7 @@
 //! machine.
 
 use std::io;
+use std::os::fd::{AsFd as _, BorrowedFd};
 use std::path::Path;
 
 use zbm_app::service::MachineService;
@@ -21,7 +22,7 @@ use zbm_startup::program::Startup;
 use zbm_startup::program::menu::{Menu, SessionMenu};
 use zbm_sys::{Signal, SignalSet, Signals};
 use zbm_tui::menu::caps::Capabilities;
-use zbm_tui::menu::machine::{Countdown, RealMachine};
+use zbm_tui::menu::machine::{Countdown, RealMachine, RemoteMachine};
 use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::session::Session;
 use zbm_tui::menu::terminal;
@@ -177,6 +178,12 @@ impl SessionMenu for InSession<'_, '_> {
             error: None,
         };
         if let Some(handover) = self.handover {
+            // A remote menu the session serves meanwhile ends: the console
+            // takes the menu back, as it took it from a menu over SSH by
+            // its signals before.
+            if !handover.has_yielded(session::YIELD_WAIT) {
+                zbm_trace::info!("the remote menu did not end: waiting for it");
+            }
             handover.enter();
         }
         let _ = startup.menu(&mut menu);
@@ -209,6 +216,25 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         let environment = system.environment;
         let theme = Theme::new(Capabilities::detect(|name| environment.var(name)));
         let escape_wait = crate::startup::escape_wait(&ZbmOptions::from_conf(conf).control_term);
+        // The session's menu, when it serves one; else this process's.
+        let stop = || {
+            signals
+                .as_ref()
+                .is_some_and(|signals| is_taken_over(signals.received()))
+        };
+        let show_remote = |machine: RemoteMachine<'_>| {
+            let session = Session::on(machine, theme);
+            terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
+        };
+        let (input, output) = (io::stdin(), io::stdout());
+        let served = Remote {
+            socket: Path::new(session::SOCKET),
+            terminal: (input.as_fd(), output.as_fd()),
+            stop: &stop,
+        };
+        if let Some(status) = served.run(show_remote, io) {
+            return status;
+        }
         let mut show = |machine: RealMachine<'_, '_>| {
             let session = Session::on(machine, theme);
             terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
@@ -219,6 +245,51 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             zbm_startup::program::menu::FAILED
         })
     })
+}
+
+/// The menu as a client of the session (ROADMAP.md, PM10), which runs the
+/// menu program on this terminal and performs the menu's actions.
+struct Remote<'s> {
+    /// The session's socket.
+    socket: &'s Path,
+    /// The terminal's input and output, which the session takes.
+    terminal: (BorrowedFd<'s>, BorrowedFd<'s>),
+    /// Whether the menu is to end.
+    stop: &'s dyn Fn() -> bool,
+}
+
+impl Remote<'_> {
+    /// Shows the menu with `show` on the session's machine: its exit
+    /// status; `None` when no session serves one, for the menu in this
+    /// process.
+    fn run(
+        &self,
+        show: impl FnOnce(RemoteMachine<'_>) -> io::Result<String>,
+        io: &mut Io,
+    ) -> Option<i32> {
+        let connection = match session::ask_remote(self.socket) {
+            Ok(connection) => connection,
+            Err(Some(session::Answer::Refused(refusal))) => {
+                zbm_trace::info!("the session serves no menu: {refusal}"; %refusal);
+                return None;
+            }
+            Err(_) => return None,
+        };
+        zbm_trace::info!("the session serves the menu");
+        let shown = RemoteMachine::attach(connection, self.terminal, self.stop).and_then(show);
+        let status = match shown {
+            Ok(_) => 0,
+            // Start-up was not over, and the user did not have it run; or
+            // the menu was to end before it showed.
+            Err(error) if error.to_string() == crate::remote::NOT_SERVED => 0,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => 0,
+            Err(error) => {
+                let _ = writeln!(io.stderr, "zfsbootmenu: {error}");
+                zbm_startup::program::menu::FAILED
+            }
+        };
+        Some(status)
+    }
 }
 
 #[cfg(test)]

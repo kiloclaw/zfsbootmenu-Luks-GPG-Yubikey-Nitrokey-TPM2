@@ -294,6 +294,12 @@ the menu interface over the remote connection::
 
 You may then use the menu as if you were connected locally.
 
+In images with the Rust runtime, ``zfsbootmenu`` asks the start-up program, which owns the machine, for its menu: the
+menu on the console makes way, and the start-up program runs the menu for you on your terminal. Booting, the
+passphrase prompts and the other actions that take the terminal happen there too. Choosing the recovery shell in this
+menu ends it, back to your SSH shell. When the start-up program does not answer, ``zfsbootmenu`` runs the menu itself,
+as before.
+
 .. note::
 
   Recent versions of ZFSBootMenu automatically set the ``TERM`` environment variable to ``linux``. If you are running an
@@ -326,6 +332,9 @@ local instance to show the interactive menu immediately.
   to eliminate the indicator of the other running instance. You may then run ``zfsbootmenu`` again to launch the menu.
 
   In images with the Rust runtime, the indicator is a lock that belongs to the process holding it: removing the file
-  does not end it, and the lock goes when that instance ends, however it ends. End the other instance instead::
+  does not end it, and the lock goes when that instance ends, however it ends. A menu run over SSH asks the start-up
+  program to end the menu it shows, so this wait is rare: it lasts while that menu performs an action that takes the
+  terminal, such as a boot waiting for a passphrase. When the instance holding the lock is a process of its own, end
+  it instead::
 
     kill "$(cat /zfsbootmenu/active)"

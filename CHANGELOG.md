@@ -116,6 +116,13 @@ no privileges.
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 
+### Rust runtime, the menu over SSH
+
+`zfsbootmenu` over SSH, or from the recovery shell, asks the start-up program for its menu: the menu on the console
+makes way, and the start-up program runs the menu on the SSH terminal, booting and asking for passphrases there. The
+console's menu comes back when its recovery shell ends, which ends the menu over SSH. When the start-up program does
+not answer, `zfsbootmenu` runs the menu itself, as before.
+
 ### Rust runtime, encrypted boot environments
 
 The Rust runtime boots a default boot environment whose encryption root is locked, as the legacy runtime does: it

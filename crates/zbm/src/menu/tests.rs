@@ -207,3 +207,154 @@ fn the_session_s_menu_ends_when_another_instance_asks_by_the_socket() {
     assert!(!State::new(&fake.files, "/zfsbootmenu").is_active());
     assert!(!socket.handover().is_asked());
 }
+
+#[test]
+fn the_menu_asks_the_instance_holding_the_lock_to_end_and_waits() {
+    let fake = started(0);
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    // Another instance, 77, holds the lock, and no session listens.
+    let _other = state.take_active(77).unwrap().unwrap();
+    fake.console.keys(&[0x1b]);
+    let mut unreached = |_: RealMachine<'_, '_>| -> io::Result<String> { panic!("no menu") };
+    let show = (&mut unreached as Show<'_>, Countdown::Skip);
+    assert_eq!(menu(fake.system(), &conf(), show, None), Ok(0));
+    assert_eq!(fake.processes.signals().first(), Some(&(77, Signal::User1)));
+}
+
+/// What `zfsbootmenu` does with a session at `name`'s socket, which
+/// `session` plays when given, showing the menu with `show`: its exit
+/// status, and what it wrote on standard error.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session's socket is a real one, in a directory of the test's own"
+)]
+fn remotely(
+    name: &str,
+    session: Option<&(dyn Fn(zbm_sys::socket::Connection) + Sync)>,
+    show: impl FnOnce(RemoteMachine<'_>) -> io::Result<String>,
+) -> (Option<i32>, String) {
+    use zbm_app::session::SessionSocket;
+    use zbm_platform::event::{CancelToken, spawn_scoped_traced};
+
+    let directory =
+        std::env::temp_dir().join(format!("zbm-menu-remote-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    let path = directory.join("session.sock");
+    let (terminal, _other) = zbm_sys::socket::Connection::pair().unwrap();
+    let never = || false;
+    let remote = Remote {
+        socket: &path,
+        terminal: (terminal.as_fd(), terminal.as_fd()),
+        stop: &never,
+    };
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    let mut io = Io {
+        stdout: &mut stdout,
+        stderr: &mut stderr,
+    };
+    let Some(session) = session else {
+        return (remote.run(show, &mut io), String::new());
+    };
+    let socket = SessionSocket::bind(&path).unwrap();
+    let token = CancelToken::new().unwrap();
+    let status = std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve_with(&token, Some(session)));
+        let status = remote.run(show, &mut io);
+        token.cancel();
+        server.join().unwrap();
+        status
+    });
+    (status, String::from_utf8(stderr).unwrap())
+}
+
+/// A session that serves the machine until the menu detaches.
+fn serving(peer: zbm_sys::socket::Connection) {
+    use zbm_app::remote::{ToMenu, ToSession, attach};
+    let _terminal = attach(&peer).unwrap();
+    let wait = Some(std::time::Duration::from_secs(5));
+    let read = ToSession::receive(&peer, wait).unwrap().unwrap();
+    assert_eq!(read.message, ToSession::Read);
+    ToMenu::Snapshot(Some(Box::default())).send(&peer).unwrap();
+    let detach = ToSession::receive(&peer, wait).unwrap().unwrap();
+    assert_eq!(detach.message, ToSession::Detach);
+}
+
+/// A session that ends the menu program before its menu, for `reason`.
+fn ending(reason: &str, peer: &zbm_sys::socket::Connection) {
+    use zbm_app::remote::{ToMenu, attach};
+    let _terminal = attach(peer).unwrap();
+    ToMenu::Refused(reason.to_owned()).send(peer).unwrap();
+}
+
+#[test]
+fn zfsbootmenu_shows_the_session_s_menu_when_it_serves_one() {
+    let shown = |machine: RemoteMachine<'_>| {
+        assert!(machine.snapshot().environments.is_empty());
+        Ok(String::new())
+    };
+    assert_eq!(
+        remotely("served", Some(&serving), shown),
+        (Some(0), String::new())
+    );
+
+    let broken = |_: RemoteMachine<'_>| Err(io::Error::other("not a terminal"));
+    let (status, stderr) = remotely("broken", Some(&serving), broken);
+    assert_eq!(status, Some(zbm_startup::program::menu::FAILED));
+    assert_eq!(stderr, "zfsbootmenu: not a terminal\n");
+}
+
+#[test]
+fn zfsbootmenu_ends_with_the_menu_program_the_session_ran_for_it() {
+    let unreached = |_: RemoteMachine<'_>| -> io::Result<String> { panic!("no menu shows") };
+    // The user did not have start-up run.
+    let not_served = |peer| ending(crate::remote::NOT_SERVED, &peer);
+    assert_eq!(
+        remotely("not-served", Some(&not_served), unreached),
+        (Some(0), String::new())
+    );
+    let failed = |peer| ending("the machine could not be read", &peer);
+    let (status, stderr) = remotely("failed", Some(&failed), unreached);
+    assert_eq!(status, Some(zbm_startup::program::menu::FAILED));
+    assert!(stderr.contains("could not be read"), "{stderr}");
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session's socket is a real one, in a directory of the test's own"
+)]
+fn without_a_session_that_serves_menus_zfsbootmenu_runs_its_own() {
+    use zbm_app::session::SessionSocket;
+    use zbm_platform::event::{CancelToken, spawn_scoped_traced};
+
+    let unreached = |_: RemoteMachine<'_>| -> io::Result<String> { panic!("no menu shows") };
+    assert_eq!(remotely("none", None, unreached), (None, String::new()));
+
+    // A session that serves none.
+    let directory =
+        std::env::temp_dir().join(format!("zbm-menu-remote-{}-own", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    let path = directory.join("session.sock");
+    let socket = SessionSocket::bind(&path).unwrap();
+    let token = CancelToken::new().unwrap();
+    let never = || false;
+    let (terminal, _other) = zbm_sys::socket::Connection::pair().unwrap();
+    let remote = Remote {
+        socket: &path,
+        terminal: (terminal.as_fd(), terminal.as_fd()),
+        stop: &never,
+    };
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    let mut io = Io {
+        stdout: &mut stdout,
+        stderr: &mut stderr,
+    };
+    let status = std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve(&token));
+        let status = remote.run(unreached, &mut io);
+        token.cancel();
+        server.join().unwrap();
+        status
+    });
+    assert_eq!(status, None);
+}

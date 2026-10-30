@@ -10,7 +10,7 @@ use zbm_sys::console::{Watch, wait_ready};
 use zbm_sys::socket::Connection;
 
 use super::{Received, ToMenu, ToSession};
-use crate::model::{Action, Event};
+use crate::model::{Action, Event, Outcome};
 use crate::service::{MachineService, Report, ServiceHandle};
 
 /// How long the menu may take to attach once the session yielded.
@@ -119,12 +119,12 @@ fn answer(
         }
         ToSession::Send { action } => {
             if handle.send(action).is_err() {
-                refuse(connection, "the machine's service ended")?;
+                fail(connection, "the machine's service ended")?;
             }
         }
         // The terminal is the menu's again only once the action is done.
         ToSession::Console { .. } if handle.is_busy() => {
-            refuse(connection, "an action is being performed")?;
+            fail(connection, "another action is being performed")?;
         }
         ToSession::Console { action } => {
             let mut events = (served.console)(&action);
@@ -154,6 +154,17 @@ fn forward(connection: &Connection, handle: &mut ServiceHandle) -> io::Result<()
         }
     }
     Ok(())
+}
+
+/// Ends an action that cannot be performed, for `reason`: it failed.
+fn fail(connection: &Connection, reason: &str) -> io::Result<()> {
+    let failed = Event::Finished(Outcome::Failed {
+        what: "unable to perform the action".to_owned(),
+        why: vec![reason.to_owned()],
+        next: Vec::new(),
+    });
+    ToMenu::Event(Box::new(failed)).send(connection)?;
+    ToMenu::Done.send(connection)
 }
 
 /// Refuses a request, for `reason`.

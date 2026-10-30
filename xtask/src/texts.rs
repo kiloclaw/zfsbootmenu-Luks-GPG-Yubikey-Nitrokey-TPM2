@@ -57,6 +57,10 @@ pub const NOT_TEXT: &[(&str, &str)] = &[
         "the client channel's variable, and errors the menu does not show",
     ),
     (
+        "machine/remote.rs",
+        "the session's socket: errors the menu does not show",
+    ),
+    (
         "model/naming.rs",
         "the names the legacy menu offers for new environments and snapshots",
     ),

@@ -281,7 +281,9 @@ Following a boot
   * ``-hooks``: ``zbm.hookroot`` adds a teardown hook from a FAT disk; ``zbm.skip_hooks`` disables a test hook.
   * ``-signals``: the signal dispositions (``SigBlk``, ``SigIgn``, ``SigCgt``) of an early-setup hook and of the
     recovery shell, on the console, recorded in ``signals.json``: both report them, and the shell does not ignore
-    Ctrl-C (``SIGINT``), which the start-up program does. The legacy run records ``fzf``'s in the menu too.
+    Ctrl-C (``SIGINT``), which the start-up program does. The legacy run records ``fzf``'s in the menu too. The Rust
+    run then runs ``zfsbootmenu`` from the recovery shell, which the session serves the menu to (ROADMAP.md, PM10), and
+    leaves it by its recovery shell.
   * ``runtime-rust-keysource``: ``tkeys`` alone, booted from the countdown, which skips key sources: ZFSBootMenu
     asks for the boot environment's own passphrase. The boot environment itself is not followed, as its initramfs
     has no key file. ``runtime-legacy-keysource`` also boots it from the legacy menu (``zbm.show``), which asks for

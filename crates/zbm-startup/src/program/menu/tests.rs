@@ -6,6 +6,7 @@ use zbm_boot::error::BootError;
 use zbm_config::args::ZbmArgs;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_platform::Processes as _;
 use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_platform::exec::{Output, Status};
 use zbm_platform::files::Files;
@@ -287,6 +288,26 @@ fn a_menu_the_session_does_not_hold_or_cannot_end_is_signalled() {
     assert_eq!(startup.menu(&mut menu), 0);
     assert_eq!(fake.processes.signals().len(), 6);
     assert_eq!(menu.shown, 0);
+}
+
+#[test]
+fn a_menu_of_this_process_is_waited_for_and_never_signalled() {
+    let fake = started();
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    // The session serves a remote menu, which holds the lock in the
+    // session's own process.
+    let _remote = state.take_active(fake.processes.id()).unwrap().unwrap();
+    fake.console.keys(&[0x1b]);
+    let startup = Startup::new(fake.system(), &conf());
+    let mut menu = Recorded::default();
+    assert_eq!(startup.menu(&mut menu), 0);
+    assert!(menu.shown.is_empty());
+    assert!(fake.processes.signals().is_empty());
+    assert!(
+        fake.console
+            .output_text()
+            .contains("Waiting for other ZFSBootMenu instance to terminate")
+    );
 }
 
 #[test]

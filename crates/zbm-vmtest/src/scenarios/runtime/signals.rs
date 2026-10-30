@@ -5,7 +5,8 @@
 //! the shell gets its default action back. The menu of the Rust runtime
 //! runs no fzf, and opens the shell from its recovery tools; there the
 //! start-up program, the session, listens on the socket another menu takes
-//! its menu over by (ROADMAP.md, PM10).
+//! its menu over by (ROADMAP.md, PM10), and serves the menu of a
+//! `zfsbootmenu` run from the shell.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -235,8 +236,30 @@ fn observe(vm: &mut Vm<'_>, runtime: ZbmRuntime) -> Result<Dispositions> {
             status == 0,
             &format!("the session listens on {SESSION_SOCKET}"),
         );
+        remote_menu(vm)?;
     }
     Ok(Dispositions { hook, fzf, shell })
+}
+
+/// How many times the session served a menu, in its journal.
+const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl";
+
+/// Runs `zfsbootmenu` from the recovery shell: the session serves it the
+/// menu (ROADMAP.md, PM10), which shows on the shell's terminal, and its
+/// recovery shell ends it, back to this one.
+fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
+    vm.test()
+        .step("recovery shell -> zfsbootmenu: the session serves the menu");
+    vm.sendline("clear; zfsbootmenu")?;
+    vm.expect1(crate::boot::prompt::NEW_MENU, 120)?;
+    crate::boot::ask_menu_for_shell(vm)?;
+    let (_, served) = vm.sh(SERVED)?;
+    let served = served.trim().parse::<u32>().unwrap_or(0);
+    vm.test().check(
+        served >= 1,
+        &format!("the session served the menu ({served} times in its journal)"),
+    );
+    Ok(())
 }
 
 /// `SIGINT` in a mask of `/proc/<pid>/status`: bit 1 (signal 2).
