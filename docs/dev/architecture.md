@@ -80,7 +80,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   locking memory, the child set-up between `fork` and `exec`: default signals, `setsid` and the controlling terminal,
   the virtual terminal's modes). Most are `rustix`'s safe calls on borrowed descriptors; what `rustix` has no safe
   call for (signal dispositions, the signal mask and `signalfd`, the terminal and input device `ioctl`s, memory
-  mappings, `memfd_secret`, the unwinder) stays `unsafe` there, each block stating why it is sound, and its tests run
+  mappings, `memfd_secret`, the unwinder, and `sandbox`'s seccomp filter, landlock ruleset and user change for every
+  thread) stays `unsafe` there, each block stating why it is sound, and its tests run
   under AddressSanitizer in CI. It is the only crate that may contain `unsafe`; the workspace lints deny it everywhere
   else.
 - **types**: `zbm-types` holds the names and paths that are checked once, when parsed: `DevicePath`, `MappingName`,
@@ -89,7 +90,9 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `/zfsbootmenu/journal.jsonl`), one line per event with its spans, only the fields of an allow-list kept; its macros
   (`zbm_trace::info!` and the others) log to the kernel log, which its `KmsgLayer` writes in the formats of the legacy
   runtime. Messages are constant templates with their values as fields (`"pool set to {pool}"; %pool`).
-- **platform**: `zbm-platform` defines the ports through which runtime code reaches the system (`Runner`, `Files`,
+- **platform**: `zbm-platform` holds the sandbox profiles of the processes (`sandbox`, ROADMAP.md SE11: a sealed
+  `Profile` for the console and one for the keyholder, and `Sandboxed::sandboxed` for a program started confined),
+  and defines the ports through which runtime code reaches the system (`Runner`, `Files`,
   `Clock`, `Console`, `Processes`, `Environment`), with their real implementations, the `System` bundle of front ends
   and the `Context` of services, which is the bundle without its console and whose runner reports every program it
   runs to the journal (the command journal); and the `Interaction` port, through which services ask the person

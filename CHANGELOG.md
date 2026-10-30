@@ -107,6 +107,12 @@ each unlocking run, which asks them for passphrases and PINs and ends with the r
 volumes, decrypted key files and unsealed TPM2 keys are only ever in the keyholder, never in the start-up program or
 the menu, which hand on what is typed and drop it. A run that cannot start a keyholder unlocks as before, and logs why.
 
+The console on the display (`zbm.console=drm`) confines itself once it starts: it keeps two capabilities (the
+virtual terminal's modes and its locked memory), reaches only its devices, `/sys`, `/proc`, the image's fonts and
+layouts and its state, can run no program, and makes only the system calls it needs; any other fails, and the
+kernel logs it as an audit record (type 1326), which `dmesg` shows. The keyholder and the programs it runs can gain
+no privileges.
+
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 

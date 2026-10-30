@@ -108,6 +108,17 @@ input an attacker controls is parsed where the secrets are not, and drawn where 
   runs (start-up's and one over SSH) apart as before, by the state directory's locks, and ends each run's secrets
   with its process. When no keyholder can be started, the client unlocks itself and logs why. The PCR extension of
   SE10 and a keyholder that lives longer can follow when SE10 or SE11 needs one.
+- **SE11, the console and the keyholder confined** (30 October 2026): `zbm_sys::sandbox` applies `no_new_privs`, a
+  seccomp allow-list (`EPERM` and an audit record for any other call, so a call a rare path needs shows in the
+  kernel log), a landlock ruleset and the capabilities kept; `zbm_platform::sandbox` holds the profiles. The console
+  confines itself before its threads start, but stays user 0, with `CAP_SYS_TTY_CONFIG` and `CAP_IPC_LOCK`: it opens
+  the display, the virtual terminal and the keyboards again when it takes the display back after a failed `kexec`,
+  writes the state files the boot reads to `/zfsbootmenu` and its log lines to `/dev/kmsg` through paths, locks its
+  memory beyond `RLIMIT_MEMLOCK`, and sets the terminal's modes. An unprivileged user needs those as descriptors it
+  keeps or is handed, which is what is left of SE11 for the console. The keyholder gains no privileges; a filter of
+  its calls waits for the key methods in Rust. The menu runs in the session until it is a client of it (the rest of
+  PM10), and is confined then. The VM check reads `NoNewPrivs: 1`, `Seccomp: 2` and the two capabilities, rather
+  than none.
 
 ## Answers of the maintainer
 

@@ -647,6 +647,27 @@ The legacy code is close to this but not the same, and the Rust runtime is stric
   `/zfsbootmenu/.keys`) remain files, passed by path, because the features are defined that way and `cryptsetup` and
   `zfs load-key` read them by path. They are the user's files, not secrets the runtime created.
 
+## Sandboxes
+
+Processes give up what they do not need once they opened what they do (ROADMAP.md SE11, ADR 0002).
+`zbm_sys::sandbox::confine` applies a `Confinement` to the whole process: its user, the capabilities it keeps (the
+others leave the bounding set too), `no_new_privs`, a landlock ruleset of the paths it may still reach (best effort:
+a kernel without landlock leaves files to their permissions), and a seccomp allow-list of its calls, which fails
+the others with `EPERM` and logs them as audit records (type 1326) rather than killing the process, so that a call
+a rare path needs shows in the kernel log. The profiles are in `zbm_platform::sandbox`, a sealed trait, so a review
+reads them in one place:
+
+- **the console** (`zbm console`) confines itself before it starts its threads, as capabilities are each thread's:
+  it stays user 0, as it opens the display, the virtual terminal and the keyboards again when it takes the display
+  back after a failed `kexec`, and writes the state files the boot reads; it keeps `CAP_SYS_TTY_CONFIG` and
+  `CAP_IPC_LOCK`, reaches `/dev/dri`, `/dev/input`, the virtual terminals, `/dev/kmsg`, `/sys`, `/proc`, the
+  image's fonts and layouts, the state directory and the sockets' directory, and runs nothing (no `execve`, `kill`
+  or `ptrace`; `prctl` only to name a thread);
+- **the keyholder** (`zbm unlock serve`) and the programs it runs gain no privileges (`no_new_privs`): they stay
+  root, for the device mapper and the TPM, and read key files wherever a key device is mounted.
+
+Coverage builds (`--cfg coverage`) also let a confined process write its coverage profile.
+
 ## Testing
 
 ### System interfaces
