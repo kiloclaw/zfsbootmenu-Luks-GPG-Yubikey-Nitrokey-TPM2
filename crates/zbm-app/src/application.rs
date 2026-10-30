@@ -12,6 +12,7 @@ use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;
 use zbm_platform::{Context, System};
 
+use crate::keyholder::{self, Keyholders, UnlockRequest};
 use crate::model::{Action, Encryption, Event, Keyboard, Outcome, Snapshot};
 use crate::{AppError, SnapshotError, boot, changes, read, volumes};
 
@@ -121,18 +122,53 @@ pub trait Application {
 /// The actions of the LUKS volumes alone, which need no more than a LUKS
 /// session: `zbm luks` and start-up's unlocking.
 #[derive(Clone, Copy)]
-pub struct Volumes<'a>(Luks<'a>);
+pub struct Volumes<'a> {
+    luks: Luks<'a>,
+    keyholders: Option<&'a dyn Keyholders>,
+}
 
 impl<'a> Volumes<'a> {
-    /// The volumes of the LUKS session `luks`.
+    /// The volumes of the LUKS session `luks`, opened in this process.
     pub fn new(luks: Luks<'a>) -> Volumes<'a> {
-        Volumes(luks)
+        Volumes {
+            luks,
+            keyholders: None,
+        }
+    }
+
+    /// The same volumes, opened by a keyholder of `keyholders` (ADR 0002,
+    /// zone Z1) and in this process only when none can start.
+    #[must_use]
+    pub fn through(self, keyholders: &'a dyn Keyholders) -> Volumes<'a> {
+        Volumes {
+            keyholders: Some(keyholders),
+            ..self
+        }
+    }
+
+    /// The LUKS session the volumes are of.
+    pub fn luks(&self) -> Luks<'a> {
+        self.luks
     }
 
     /// Applies `action`, which ends as failed unless it is one of the
     /// volumes'.
     pub fn apply(&self, action: &Action) -> Vec<Event> {
-        volumes::perform(self.0, action).unwrap_or_else(|| unavailable(action))
+        if let Some(keyholders) = self.keyholders
+            && keyholder::is_unlocking(action)
+        {
+            let request = UnlockRequest {
+                action: action.clone(),
+                retry: self.luks.settings.retry,
+            };
+            match keyholder::unlock(keyholders, self.luks.interaction, &request) {
+                Ok(events) => return events,
+                Err(error) => {
+                    tracing::error!(%error, "no keyholder started, so this process unlocks");
+                }
+            }
+        }
+        volumes::perform(self.luks, action).unwrap_or_else(|| unavailable(action))
     }
 }
 

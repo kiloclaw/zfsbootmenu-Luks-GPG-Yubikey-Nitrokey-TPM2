@@ -20,6 +20,7 @@ mod application;
 mod boot;
 mod changes;
 pub mod console;
+pub mod keyholder;
 pub mod model;
 mod plan;
 mod read;

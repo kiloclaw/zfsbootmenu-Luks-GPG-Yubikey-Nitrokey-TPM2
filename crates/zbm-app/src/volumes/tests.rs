@@ -327,3 +327,68 @@ fn a_key_file_alone_opens_a_volume_or_every_reason_it_did_not_is_said() {
         "{events:?}"
     );
 }
+
+/// The events of `action` on `fake`, answered on its console, through a
+/// keyholder on a thread of its own: `keyholders` when it is given, one on
+/// a socket pair otherwise.
+fn act_through_keyholder(fake: &FakeSystem, action: &Action, none: bool) -> Vec<Event> {
+    let mut settings = Settings::new("/zfsbootmenu");
+    settings.open_check = OpenCheck::Markers("/fake/holders".into());
+    let front = Escape(ConsoleInteraction::new(fake.system()).colors(false));
+    let (client, keyholder) = zbm_sys::socket::Connection::pair().unwrap();
+    let keyholders = if none {
+        crate::keyholder::tests::Given::none()
+    } else {
+        crate::keyholder::tests::Given::new(client)
+    };
+    std::thread::scope(|scope| {
+        if !none {
+            zbm_platform::event::spawn_scoped_traced(scope, || {
+                crate::keyholder::serve(&keyholder, &fake.runner, |interaction, request| {
+                    let mut settings = settings.clone();
+                    settings.retry = request.retry;
+                    let luks = Luks {
+                        context: fake.context(),
+                        settings: &settings,
+                        interaction,
+                    };
+                    crate::Volumes::new(luks).apply(&request.action)
+                })
+                .unwrap();
+            });
+        }
+        let luks = Luks {
+            context: fake.context(),
+            settings: &settings,
+            interaction: &front,
+        };
+        crate::Volumes::new(luks).through(&keyholders).apply(action)
+    })
+}
+
+#[test]
+fn a_keyholder_unlocks_as_this_process_did_and_this_one_does_when_none_starts() {
+    let in_process = machine();
+    in_process.console.secret(b"pw");
+    let expected = act_in_app(&in_process, &Action::UnlockAll);
+
+    for none in [false, true] {
+        let fake = machine();
+        fake.console.secret(b"pw");
+
+        let events = act_through_keyholder(&fake, &Action::UnlockAll, none);
+
+        assert_eq!(events, expected, "without a keyholder: {none}");
+        assert_eq!(
+            zbm_testkit::assert::quoted_calls(&fake.runner),
+            zbm_testkit::assert::quoted_calls(&in_process.runner)
+        );
+    }
+    // Closing takes no secret: it stays in this process.
+    let fake = machine();
+    let events = act_through_keyholder(&fake, &Action::Close(None), true);
+    assert_eq!(
+        ended(&events),
+        &Outcome::Done("closed the LUKS volumes".into())
+    );
+}
