@@ -1176,6 +1176,10 @@ install_zbm_luks_tokens() {
   tpm2=( "${zfsbootmenu_luks_tpm2_binaries[@]}" )
   # shellcheck disable=SC2154
   [ "${ZBM_RUNTIME}" = "rust" ] || tpm2+=( "${zfsbootmenu_luks_legacy_tpm2_binaries[@]}" )
+  # Measured boot reads and extends PCRs 8 and 9 before kexec (ROADMAP.md SE10)
+  if [ "${ZBM_RUNTIME}" = "rust" ]; then
+    tpm2+=( "tpm2_pcrread" "tpm2_pcrextend" )
+  fi
   zbm_install_executables "${tpm2[@]}" \
     || zbm_info "${tpm2[*]}: incomplete; native TPM2 unlocking may be unavailable"
   # shellcheck disable=SC2154

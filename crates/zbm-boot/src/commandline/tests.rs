@@ -252,6 +252,7 @@ fn kexec_commands() {
         dtb: Some(&dtb),
         root: &root,
         args: &"ro quiet".parse().unwrap(),
+        copies: None,
     };
     let runner = zbm_testkit::FakeRunner::new();
     load.run(&zbm_platform::NoKernelLoader, &runner, None)

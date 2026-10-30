@@ -114,3 +114,60 @@ fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
         fake.kmsg()
     );
 }
+
+#[test]
+fn a_measured_boot_loads_the_copies_and_removes_them_after() {
+    let _secrets = crate::testing::booting();
+    let fake = FakeSystem::new();
+    let _log = fake_log(&fake);
+    fake.files.device("/dev/tpmrm0");
+    fake.kernel.answer(Loads::Accepted);
+    fake.runner
+        .respond("tpm2_getcap pcrs", 0, "selected-pcrs:\n  - sha256: [ 0 ]\n");
+    fake.runner.respond_program("tpm2_pcrextend", 0, "");
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "-\n");
+    fake.runner.respond_program("mount", 0, "");
+    fake.runner.respond_program("umount", 0, "");
+    fake.runner.respond("kexec -e -i", 1, "");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    // The boot environment's files, wherever it is mounted.
+    let kernel = "/boot/vmlinuz-6.1.10";
+    let initramfs = "/boot/initramfs-6.1.10.img";
+    let mnt = crate::boot::mounts::be_location(&state, FS).join("mnt");
+    fake.files
+        .file(mnt.join(&kernel[1..]), b"KERNEL")
+        .file(mnt.join(&initramfs[1..]), b"INITRD");
+    let selected = Kernel {
+        dataset: FS.to_owned(),
+        kernel: kernel.to_owned(),
+        initramfs: initramfs.to_owned(),
+    };
+
+    kexec_kernel(
+        &fake.system(),
+        &state,
+        &BootSettings::default(),
+        &selected,
+        &Shells::default(),
+    );
+
+    let loaded = fake.kernel.loaded();
+    assert_eq!(loaded.len(), 1, "{:?}", fake.runner.lines());
+    let copies = std::path::Path::new("/zfsbootmenu/measured");
+    assert_eq!(loaded[0].kernel, copies.join("kernel"));
+    assert_eq!(loaded[0].initrd, copies.join("initramfs"));
+    // Loaded, the copies go.
+    assert!(
+        !fake
+            .files
+            .paths()
+            .iter()
+            .any(|path| path.starts_with(copies) && path != copies)
+    );
+    let log = fake
+        .files
+        .text("/zfsbootmenu/tpm-measure.json")
+        .unwrap_or_default();
+    assert!(log.contains("zbm-unsealed"), "{log}");
+}

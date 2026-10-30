@@ -38,6 +38,8 @@ use std::time::Duration;
 
 use zbm_platform::{Command, Input, Runner, Secret, Stream};
 
+use crate::measure::{self, Bank, Digests};
+
 /// The longest a `tpm2_*` command may run, for a TPM that stopped
 /// answering; its commands take seconds at most.
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -60,6 +62,30 @@ pub const TOOLS: [&str; 7] = [
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0} failed")]
 pub struct ToolFailed(pub &'static str);
+
+/// The values `tpm2_pcrread` prints: a line `  sha256:` for each bank,
+/// then `    9 : 0x1A2B...` for each PCR, as (bank, PCR, value).
+fn pcr_values(text: &str) -> Vec<(Bank, u32, Vec<u8>)> {
+    let mut bank = None;
+    let mut values = Vec::new();
+    for line in text.lines().map(str::trim) {
+        if let Some(name) = line.strip_suffix(':') {
+            bank = Bank::named(name);
+            continue;
+        }
+        let parsed = line.split_once(':').and_then(|(pcr, value)| {
+            let pcr = pcr.trim().parse().ok()?;
+            let hex = value.trim().strip_prefix("0x")?;
+            Some((pcr, measure::unhex(&hex.to_ascii_lowercase())?))
+        });
+        if let (Some(bank), Some((pcr, value))) = (bank, parsed)
+            && value.len() == bank.length()
+        {
+            values.push((bank, pcr, value));
+        }
+    }
+    values
+}
 
 /// tpm2-tools for one TPM, run through a [`Runner`].
 #[derive(Clone, Copy)]
@@ -112,6 +138,83 @@ impl<'a> Tpm2<'a> {
             line.split_once("inLockout:")
                 .is_some_and(|(_, value)| value.trim_start_matches(' ').starts_with('1'))
         })
+    }
+
+    /// The PCR banks the TPM has active, with PCRs selected in them
+    /// (`tpm2_getcap pcrs`): `selected-pcrs:` and a line `- sha256: [ 0, 1,
+    /// ... ]` for each; `None` when the TPM does not answer.
+    pub fn active_banks(&self) -> Option<Vec<Bank>> {
+        let getcap = self
+            .command("tpm2_getcap")
+            .arg("pcrs")
+            .stdout(Stream::Capture);
+        let output = self.runner.run(&getcap).ok()?;
+        if !output.status.is_success() {
+            return None;
+        }
+        let banks = output
+            .stdout_text()
+            .lines()
+            .filter_map(|line| {
+                let (name, pcrs) = line.trim().strip_prefix("- ")?.split_once(':')?;
+                let pcrs = pcrs.trim().trim_start_matches('[').trim_end_matches(']');
+                Bank::named(name.trim()).filter(|_| !pcrs.trim().is_empty())
+            })
+            .collect();
+        Some(banks)
+    }
+
+    /// The values of `pcrs` in each of `banks` (`tpm2_pcrread
+    /// sha256:8,9`), as [`Digests`] by PCR; `None` when the TPM does not
+    /// give them all.
+    pub fn read_pcrs(&self, pcrs: &[u32], banks: &[Bank]) -> Option<Vec<(u32, Digests)>> {
+        let list: Vec<String> = pcrs.iter().map(u32::to_string).collect();
+        let selection: Vec<String> = banks
+            .iter()
+            .map(|bank| format!("{}:{}", bank.name(), list.join(",")))
+            .collect();
+        let read = self
+            .command("tpm2_pcrread")
+            .arg(selection.join("+"))
+            .stdout(Stream::Capture);
+        let output = self.runner.run(&read).ok()?;
+        if !output.status.is_success() {
+            return None;
+        }
+        let values = pcr_values(&output.stdout_text());
+        pcrs.iter()
+            .map(|&pcr| {
+                let digests = banks
+                    .iter()
+                    .map(|&bank| {
+                        let value = values.iter().find(|(b, p, _)| *b == bank && *p == pcr)?;
+                        Some((bank, value.2.clone()))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some((pcr, Digests::new(digests)))
+            })
+            .collect()
+    }
+
+    /// Extends `pcr` in each of `banks` with its digest of `digests`
+    /// (`tpm2_pcrextend 9:sha1=...,sha256=...`).
+    ///
+    /// # Errors
+    ///
+    /// When `tpm2_pcrextend` fails.
+    pub fn extend(&self, pcr: u32, digests: &Digests, banks: &[Bank]) -> Result<(), ToolFailed> {
+        let values: Vec<String> = banks
+            .iter()
+            .filter_map(|&bank| {
+                digests
+                    .get(bank)
+                    .map(|digest| format!("{}={}", bank.name(), measure::hex(digest)))
+            })
+            .collect();
+        let extend = self
+            .command("tpm2_pcrextend")
+            .arg(format!("{pcr}:{}", values.join(",")));
+        self.run("tpm2_pcrextend", &extend)
     }
 
     /// Loads a sealed object below the storage root key into `context`
@@ -348,6 +451,89 @@ mod tests {
         assert_eq!(
             tpm.load(Path::new("/p"), Path::new("/r"), Path::new("/c")),
             Err(ToolFailed("tpm2_load"))
+        );
+    }
+
+    #[test]
+    fn the_active_banks_are_those_with_pcrs_selected() {
+        let runner = FakeRunner::new();
+        runner.respond(
+            "tpm2_getcap pcrs",
+            0,
+            "selected-pcrs:\n  - sha1: [ 0, 1, 2 ]\n  - sha256: [ 0, 1, 2 ]\n  - sha384: [ ]\n",
+        );
+        let banks = Tpm2::new(&runner, "x").active_banks();
+        assert_eq!(banks, Some(vec![Bank::Sha1, Bank::Sha256]));
+        let refusing = FakeRunner::new();
+        refusing.respond("tpm2_getcap pcrs", 1, "");
+        assert_eq!(Tpm2::new(&refusing, "x").active_banks(), None);
+        let failing = FakeRunner::new();
+        failing.on(|_| Some(Err(std::io::Error::other("no tool"))));
+        assert_eq!(Tpm2::new(&failing, "x").active_banks(), None);
+    }
+
+    #[test]
+    fn the_values_of_pcrs_are_read_in_each_bank() {
+        let runner = FakeRunner::new();
+        let sha1 = "0x00000000000000000000000000000000000000AB";
+        let sha256 = format!("0x{}", "11".repeat(32));
+        runner.respond(
+            "tpm2_pcrread sha1:8,9+sha256:8,9",
+            0,
+            &format!(
+                "  sha1:\n    8 : {sha1}\n    9 : {sha1}\n  sha256:\n    8 : {sha256}\n    \
+                 9 : {sha256}\n"
+            ),
+        );
+        let tpm = Tpm2::new(&runner, "x");
+
+        let values = tpm.read_pcrs(&[8, 9], &[Bank::Sha1, Bank::Sha256]).unwrap();
+
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[1].0, 9);
+        let mut expected = vec![0; 20];
+        expected[19] = 0xab;
+        assert_eq!(values[1].1.get(Bank::Sha1), Some(expected.as_slice()));
+        assert_eq!(values[0].1.get(Bank::Sha256), Some([0x11; 32].as_slice()));
+        // A bank it left out, or a TPM that refuses, gives nothing.
+        assert_eq!(tpm.read_pcrs(&[8], &[Bank::Sha384]), None);
+        let refusing = FakeRunner::new();
+        refusing.respond_program("tpm2_pcrread", 1, "");
+        assert_eq!(
+            Tpm2::new(&refusing, "x").read_pcrs(&[8], &[Bank::Sha1]),
+            None
+        );
+        let failing = FakeRunner::new();
+        failing.on(|_| Some(Err(std::io::Error::other("no tool"))));
+        assert_eq!(
+            Tpm2::new(&failing, "x").read_pcrs(&[8], &[Bank::Sha1]),
+            None
+        );
+        // A value of the wrong length, or no number, is no value.
+        let values = pcr_values("  sha1:\n    8 : 0x00\n    x : 0x00\n  md5:\n    8 : 0x00\n");
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn a_pcr_is_extended_in_each_bank_given() {
+        let runner = FakeRunner::new();
+        let tpm = Tpm2::new(&runner, "x");
+        let digests = Digests::of_bytes(b"quiet");
+
+        tpm.extend(8, &digests, &[Bank::Sha1, Bank::Sha256])
+            .unwrap();
+
+        let line = &runner.lines()[0];
+        let sha1 = measure::hex(digests.get(Bank::Sha1).unwrap());
+        let sha256 = measure::hex(digests.get(Bank::Sha256).unwrap());
+        assert_eq!(
+            line,
+            &format!("tpm2_pcrextend 8:sha1={sha1},sha256={sha256}")
+        );
+        runner.respond_program("tpm2_pcrextend", 1, "");
+        assert_eq!(
+            tpm.extend(9, &digests, &[Bank::Sha256]),
+            Err(ToolFailed("tpm2_pcrextend"))
         );
     }
 

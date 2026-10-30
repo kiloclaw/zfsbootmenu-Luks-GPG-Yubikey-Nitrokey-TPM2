@@ -56,7 +56,7 @@ Third-party crates:
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`
-- `zbm-crypt`: `serde`, `serde_json`, `thiserror`, `tracing`
+- `zbm-crypt`: `serde`, `serde_json`, `sha1`, `sha2`, `thiserror`, `tracing`
 - `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `serde`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
@@ -67,7 +67,7 @@ Third-party crates:
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `fluent-bundle`, `nucleo-matcher`, `ratatui`, `unic-langid`
 - `zbm-types`: `regex`, `serde`, `serde_json`, `thiserror`, `uucore`
-- `zbm-vmtest`: `regex`, `rustix`, `serde_json`, `thiserror`, `vt100`
+- `zbm-vmtest`: `regex`, `rustix`, `serde_json`, `sha2`, `thiserror`, `vt100`
 - `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 
 Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as development dependencies.

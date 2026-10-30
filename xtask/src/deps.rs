@@ -140,7 +140,14 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("zbm-console", &["alacritty_terminal", "rustix"]),
     (
         "zbm-crypt",
-        &["serde", "serde_json", "thiserror", "tracing"],
+        &[
+            "serde",
+            "serde_json",
+            "sha1",
+            "sha2",
+            "thiserror",
+            "tracing",
+        ],
     ),
     (
         "zbm-display",
@@ -179,7 +186,14 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ),
     (
         "zbm-vmtest",
-        &["regex", "rustix", "serde_json", "thiserror", "vt100"],
+        &[
+            "regex",
+            "rustix",
+            "serde_json",
+            "sha2",
+            "thiserror",
+            "vt100",
+        ],
     ),
     ("zbm-zfs", &["serde", "serde_json", "thiserror"]),
 ];

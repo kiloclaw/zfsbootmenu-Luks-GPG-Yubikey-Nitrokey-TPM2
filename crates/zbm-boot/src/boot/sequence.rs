@@ -16,6 +16,7 @@ use zbm_types::{
 };
 use zbm_zfs::ZfsText;
 
+use super::measured;
 use super::mounts::{Noise, mount_zfs, recursive_umount, umount};
 use super::zfs::{export_writable_pools, substituted, zfs_value};
 use crate::commandline::{self, KexecLoad};
@@ -150,8 +151,9 @@ pub fn kexec_kernel(
         dtb: dtb.as_deref(),
         root: &root,
         args: &cli_args,
+        copies: None,
     };
-    let Some(output) = load_kernel(system, &load, &mnt) else {
+    let Some(output) = load_measured(system, state, &load, &mnt) else {
         return;
     };
     log_loaded(&load, &output);
@@ -287,6 +289,28 @@ fn find_devicetree(
             None
         }
     }
+}
+
+/// Measures `load` into the TPM, if there is one (ROADMAP.md SE10), and
+/// loads the copies that went into it, or the boot environment's files
+/// when nothing was measured, as [`load_kernel`] does; the copies go once
+/// they are loaded, or failed to load.
+fn load_measured(
+    system: &System<'_>,
+    state: &State<'_>,
+    load: &KexecLoad<'_>,
+    mnt: &Path,
+) -> Option<String> {
+    let copies = measured::measure(system, state, load);
+    let measured = KexecLoad {
+        copies: copies.as_ref(),
+        ..*load
+    };
+    let loaded = load_kernel(system, &measured, mnt);
+    if let Some(copies) = &copies {
+        copies.remove(system);
+    }
+    loaded
 }
 
 /// Loads the kernel and initramfs of `load` into memory, with a second try

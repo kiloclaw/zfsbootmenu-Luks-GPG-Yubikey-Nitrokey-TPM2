@@ -18,6 +18,7 @@ fn machine() -> FakeSystem {
             "/zfsbootmenu/crash-1767225600-77.txt",
             "ZFSBootMenu crash report\n",
         )
+        .file("/zfsbootmenu/tpm-measure.json", "\u{1e}{}\n")
         .file("/zfsbootmenu/bootfs", "pool/ROOT/be\n");
     fake
 }
@@ -133,7 +134,12 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
     assert_eq!(saved.directory, "EFI/zfsbootmenu/logs/2026-01-01T00-00-00Z");
     assert_eq!(
         saved.files,
-        ["crash-1767225600-77.txt", "journal.jsonl", "kernel.log"]
+        [
+            "crash-1767225600-77.txt",
+            "journal.jsonl",
+            "tpm-measure.json",
+            "kernel.log"
+        ]
     );
     let dir = logs.join("2026-01-01T00-00-00Z");
     assert_eq!(
@@ -179,7 +185,7 @@ fn a_save_writes_the_logs_and_keeps_the_newest_boots() {
         ]
     );
     let newest = boots.last().unwrap();
-    assert_eq!(newest.files.len(), 3);
+    assert_eq!(newest.files.len(), 4);
     assert!(newest.files.contains(&("journal.jsonl".to_owned(), 19)));
 }
 

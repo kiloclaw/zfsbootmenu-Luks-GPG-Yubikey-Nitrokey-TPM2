@@ -6,12 +6,17 @@
 #                                              QEMU's GPU drivers
 #   <out>/payload/rootfs/                      busybox root with zfs, zpool, dmsetup
 #
+# The initramfs keeps ZFSBootMenu's TPM event log in /run/log/zfsbootmenu/
+# with the host packages' dracut module (packaging/dracut-measured, mounted
+# at /measured).
+#
 # The initramfs contains /etc/zbmtest/be.key and be-other.key (the test LUKS
 # passphrases "pw" and "other" as key files) and /etc/hostid, so the boot environment unlocks its LUKS volumes
 # with rd.luks.uuid= and rd.luks.key= parameters and no crypttab.
 #
 # Usage (from the host):
 #   docker run --rm -v <work>:/out -v <repo>/tests/luks/vm/be:/be:ro \
+#     -v <repo>/packaging/dracut-measured:/measured:ro \
 #     --entrypoint /be/build-be.sh localhost/zbm-builder /out
 
 set -e
@@ -30,12 +35,15 @@ printf 'other' > /etc/zbmtest/be-other.key
 chmod 0400 /etc/zbmtest/be.key /etc/zbmtest/be-other.key
 cp "${out}/hostid" /etc/hostid
 
+rm -rf /usr/lib/dracut/modules.d/90zfsbootmenu-measured
+cp -r /measured /usr/lib/dracut/modules.d/90zfsbootmenu-measured
+
 mkdir -p "${out}/payload/boot"
 cp "/boot/vmlinuz-${kver}" "${out}/payload/boot/vmlinuz-${kver}"
 chmod 0644 "${out}/payload/boot/vmlinuz-${kver}"
 
 dracut --force --no-hostonly --no-early-microcode --kver "${kver}" \
-  --add "systemd zfs crypt" --omit "plymouth network" \
+  --add "systemd zfs crypt zfsbootmenu-measured" --omit "plymouth network" \
   --add-drivers "virtio_gpu bochs" \
   --install "/etc/zbmtest/be.key /etc/zbmtest/be-other.key" \
   "${out}/payload/boot/initramfs-${kver}.img"

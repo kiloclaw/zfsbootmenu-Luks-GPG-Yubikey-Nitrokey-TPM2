@@ -17,6 +17,7 @@ pub mod explain;
 pub mod fonts;
 pub mod layouts;
 pub mod luks;
+pub mod measure;
 pub mod menu;
 pub mod menu_demo;
 mod remote;
@@ -118,6 +119,12 @@ const EXPLAIN: Applet = Applet {
     run: explain::run,
 };
 
+const MEASURE: Applet = Applet {
+    name: "measure",
+    summary: "replay the TPM event log of this boot, or predict a boot's PCR values",
+    run: measure::run,
+};
+
 const MENU: Applet = Applet {
     name: "zfsbootmenu",
     summary: "the menu: boot environments, booting and the recovery shell",
@@ -139,6 +146,7 @@ pub const APPLETS: &[Applet] = &[
     DEBUG,
     REPORT,
     EXPLAIN,
+    MEASURE,
 ];
 
 /// The exit status for a command that does not exist, as a shell reports it.
@@ -338,6 +346,7 @@ mod tests {
             "debug",
             "report",
             "explain",
+            "measure",
         ];
         assert_eq!(names, expected);
         let (code, _, stderr) = call(APPLETS, "zbm", &["zfsbootmenu-init", "--bogus"]);

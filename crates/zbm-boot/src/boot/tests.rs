@@ -226,12 +226,14 @@ impl Machine {
             }
             (program == "tput").then(|| Ok(Output::new(Status::exited(0), "")))
         });
-        // The legacy function reads no lockdown: whatever the host has,
-        // the Rust boot finds no securityfs to mount.
+        // The legacy function reads no lockdown and measures nothing: the
+        // Rust boot finds no securityfs to mount and no TPM, whatever the host has.
         let files = Redirect::new(&[
             (ETC_HOSTID, &dir.join("etc_hostid")),
             (SPL_HOSTID, &dir.join("spl_hostid")),
             ("/sys/kernel/security", &dir.join("no-securityfs")),
+            ("/dev/tpmrm0", &dir.join("no-tpm")),
+            ("/dev/tpm0", &dir.join("no-tpm")),
         ]);
         let system = System {
             files: &files,
@@ -397,7 +399,11 @@ fn boot(machine: &Machine, parity: &mut Parity) {
         kexec_kernel(system, state, &settings, &selected, shells);
         String::new()
     });
-    assert_eq!(rust, legacy);
+    // Measured boot is the Rust boot's alone (ROADMAP.md SE10)
+    let log = rust
+        .log
+        .replace("DEBUG: no TPM: the boot is not measured\n", "");
+    assert_eq!(Outcome { log, ..rust }, legacy);
 }
 
 #[test]

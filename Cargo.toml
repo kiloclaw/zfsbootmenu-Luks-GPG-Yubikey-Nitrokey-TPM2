@@ -79,6 +79,8 @@ unic-langid = "0.9"
 # hash states are wiped when dropped (`zeroize`, which HMAC's take from SHA-2's), and the `base64` crate, already
 # vendored for `alacritty_terminal`.
 sha2 = { version = "=0.11.1", default-features = false, features = ["zeroize"] }
+# Measured boot (ROADMAP.md SE10, ADR 0008): the SHA-1 bank of a TPM, which is often active beside SHA-256.
+sha1 = { version = "=0.11.0", default-features = false }
 pbkdf2 = { version = "=0.13.0", default-features = false, features = ["hmac"] }
 base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
 

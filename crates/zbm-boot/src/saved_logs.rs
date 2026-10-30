@@ -290,8 +290,8 @@ fn prune(files: &dyn Files, logs: &Path, saved: Option<&str>) {
     }
 }
 
-/// The files of the state directory `base` to save: the journal and the
-/// crash reports.
+/// The files of the state directory `base` to save: the journal, the
+/// crash reports and the TPM's event log of measured boot.
 fn state_files(files: &dyn Files, base: &Path) -> Vec<String> {
     let mut names: Vec<String> = files
         .read_dir(base)
@@ -300,6 +300,7 @@ fn state_files(files: &dyn Files, base: &Path) -> Vec<String> {
         .filter_map(|name| name.into_string().ok())
         .filter(|name| {
             name == JOURNAL
+                || name == crate::boot::measured::LOG
                 || (name.starts_with("crash-")
                     && std::path::Path::new(name)
                         .extension()

@@ -16,6 +16,8 @@ use zbm_tools::kexec;
 use zbm_trace::Message;
 use zbm_types::{KernelArg, KernelCommandLine};
 
+use crate::boot::measured::Copies;
+
 pub use zbm_pool::hostid::{ETC_HOSTID, SPL_HOSTID, apparent_hostid as spl_hostid};
 
 /// The command line of a boot environment that sets none.
@@ -463,6 +465,9 @@ pub struct KexecLoad<'a> {
     pub root: &'a KernelArg,
     /// The rest of the command line.
     pub args: &'a KernelCommandLine,
+    /// The measured copies to load in place of the kernel and initramfs
+    /// of the boot environment, after measured boot (ROADMAP.md SE10).
+    pub copies: Option<&'a Copies>,
 }
 
 impl KexecLoad<'_> {
@@ -473,8 +478,16 @@ impl KexecLoad<'_> {
 
     /// Calls `with` with what `kexec -l` loads.
     fn with_image<T>(&self, with: impl FnOnce(&kexec::Image<'_>) -> T) -> T {
-        let kernel = format!("{}{}", self.mnt, self.kernel);
-        let initrd = format!("{}{}", self.mnt, self.initramfs);
+        let (kernel, initrd) = match self.copies {
+            Some(copies) => (
+                copies.kernel.to_string_lossy().into_owned(),
+                copies.initramfs.to_string_lossy().into_owned(),
+            ),
+            None => (
+                format!("{}{}", self.mnt, self.kernel),
+                format!("{}{}", self.mnt, self.initramfs),
+            ),
+        };
         let command_line = self.command_line();
         with(&kexec::Image {
             kernel: &kernel,

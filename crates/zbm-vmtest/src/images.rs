@@ -75,8 +75,9 @@ pub fn hostid_arg(settings: &Settings) -> Result<String> {
 /// Builds the ZFS test boot environment (kernel, initramfs, root file
 /// system) unless it was built from the same inputs: the files of
 /// `tests/luks/vm/be`, whose `init.sh` prints every `BE-` line the checks
-/// read, and the build container. Harness processes run in parallel build
-/// it once.
+/// read, the dracut module that keeps ZFSBootMenu's TPM event log
+/// (`packaging/dracut-measured`), and the build container. Harness
+/// processes run in parallel build it once.
 ///
 /// # Errors
 ///
@@ -85,10 +86,12 @@ pub fn build_be(settings: &Settings) -> Result<()> {
     hostid_file(settings)?;
     let _lock = lock(&settings.work, "payload")?;
     let be = settings.guest_files().join("be");
+    let measured = settings.repo.join("packaging/dracut-measured");
     let stamp_path = settings.work.join("payload-inputs.txt");
     let stamp = format!(
-        "be {}\ncontainer {}\n",
+        "be {}\nmeasured {}\ncontainer {}\n",
         source::fingerprint_of(&be),
+        source::fingerprint_of(&measured),
         container_id(settings)
     );
     let built = settings.work.join("payload/kver").exists();
@@ -98,7 +101,11 @@ pub fn build_be(settings: &Settings) -> Result<()> {
     let output = container(
         settings,
         &["/out"],
-        &[(&settings.work, "/out"), (&be, "/be:ro")],
+        &[
+            (&settings.work, "/out"),
+            (&be, "/be:ro"),
+            (&measured, "/measured:ro"),
+        ],
         "/be/build-be.sh",
         &[],
     )?;

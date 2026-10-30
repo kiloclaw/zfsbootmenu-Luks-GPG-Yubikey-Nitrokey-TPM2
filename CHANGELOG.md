@@ -99,6 +99,15 @@ and any kernel the call refuses, as on a kernel built without it; a teardown hoo
 own, which then boots. Under lockdown or Secure Boot, the call alone loads: a kernel it refuses (an unsigned one) or a
 device tree is not loaded at all, and the boot stops with the reason in the log.
 
+On a machine with a TPM, the Rust runtime measures what it boots (ADR 0008): the kernel and the initramfs into PCR 9
+and the command line into PCR 8, in every active bank, then the separator `zbm-unsealed` into PCR 9, so that a TPM2
+token bound to PCR 9 unseals for ZFSBootMenu and not for the system it booted. The event log (CEL-JSON) goes to the
+booted system in its initramfs at `/.extra/zfsbootmenu/tpm-measure.json`, which the new dracut module and mkinitcpio
+hook `zfsbootmenu-measured` of the host packages keep in `/run/log/zfsbootmenu/`, and with the saved logs on the ESP.
+`zbm measure log` replays it, and `zbm measure predict DATASET [KERNEL]` prints the values a boot of that boot
+environment would leave, for `systemd-cryptenroll --tpm2-pcrs=`. Images of the Rust runtime include `tpm2_pcrread`
+and `tpm2_pcrextend`; the `sha1` crate computes the SHA-1 bank's digests.
+
 When every LUKS volume unlocked itself (a TPM2 token without a PIN, Clevis, a key file or a key script), nobody chose
 what boots, so the Rust runtime holds to those volumes: the import policy `hostid`, the default, imports as
 `strict`, adopting no other machine's host ID, and the countdown (and `zbm.skip`) boots the default boot environment

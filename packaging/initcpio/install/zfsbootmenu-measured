@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# The boot environment's side of measured boot (ROADMAP.md SE10, ADR 0008):
+# keeps ZFSBootMenu's TPM event log, which it appends to the initramfs at
+# /.extra/zfsbootmenu/tpm-measure.json, in /run/log/zfsbootmenu/ of the
+# booted system. Add zfsbootmenu-measured to HOOKS of the boot environment's
+# mkinitcpio.conf.
+
+build() {
+    # Images with the busybox init run the late hook
+    add_runscript
+    # Images with the systemd hook run units instead of hooks
+    add_binary install
+    add_file "/usr/lib/initcpio/zfsbootmenu-measured.service" \
+        "/usr/lib/systemd/system/zfsbootmenu-measured.service"
+    add_symlink "/usr/lib/systemd/system/initrd.target.wants/zfsbootmenu-measured.service" \
+        "../zfsbootmenu-measured.service"
+}
+
+help() {
+    cat <<HELPEOF
+This hook keeps the TPM event log of a boot that ZFSBootMenu measured in
+/run/log/zfsbootmenu/tpm-measure.json, where 'zbm measure log' reads it.
+HELPEOF
+}

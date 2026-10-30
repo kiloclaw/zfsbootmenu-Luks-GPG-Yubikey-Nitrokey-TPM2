@@ -37,6 +37,18 @@ for card in /sys/class/drm/card*; do
 done
 echo "BE-DRM: ${drm}"
 
+# Measured boot (ROADMAP.md SE10): PCRs 8 and 9 as ZFSBootMenu left them,
+# and its event log, which the initramfs kept
+for pcr in 8 9; do
+  value="$($bb cat "/sys/class/tpm/tpm0/pcr-sha256/${pcr}" 2>/dev/null)"
+  [ -n "${value}" ] && echo "BE-PCR: ${pcr}:sha256=$(echo "${value}" | $bb tr 'A-F' 'a-f')"
+done
+if [ -f /run/log/zfsbootmenu/tpm-measure.json ]; then
+  echo "BE-MEASURE-LOG-BEGIN"
+  $bb tr '\036' ' ' < /run/log/zfsbootmenu/tpm-measure.json | $bb sed 's/^/BE-ML| /'
+  echo "BE-MEASURE-LOG-END"
+fi
+
 echo "BE-MAPPER: $($bb ls /dev/mapper | $bb tr '\n' ' ')"
 echo "BE-DMTABLE-BEGIN"
 /usr/sbin/dmsetup table 2>&1 | $bb sed 's/^/BE-DM| /'

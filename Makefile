@@ -51,6 +51,7 @@ core: zbm-release
 
 dracut:
 	./scripts/install-tree.sh packaging/dracut "$(DESTDIR)/$(DRACUTDIR)/90zfsbootmenu"
+	./scripts/install-tree.sh packaging/dracut-measured "$(DESTDIR)/$(DRACUTDIR)/90zfsbootmenu-measured"
 	install -m 0644 -t \
 		"$(DESTDIR)/$(CONFDIR)/dracut.conf.d/" \
 		-D config/zfsbootmenu/dracut.conf.d/*

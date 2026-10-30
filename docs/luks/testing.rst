@@ -380,9 +380,10 @@ Following a boot
   the terminal's cells hold its characters a cell apart; this shows the search works. ``stty -echo`` opens a prompt
   without echo and a key is typed: the same search must then find nothing in the console's memory.
 
-* ``integrity-setup``, ``integrity-unattended`` and ``integrity-lockdown`` check the boot's integrity in the Rust
-  runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it with
-  ``systemd-cryptenroll`` for TPM2 without a PIN (no PCRs, a software TPM), then creates, in the recovery shell, the
+* ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown`` and ``integrity-measured`` check the boot's
+  integrity in the Rust runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it
+  with ``systemd-cryptenroll`` for TPM2 without a PIN, bound to PCR 9 as it is before ZFSBootMenu measures the boot
+  (zeros, a software TPM; SeaBIOS leaves PCRs 8 and 9 alone), then creates, in the recovery shell, the
   pool ``tauto`` on it, ``tplain`` on d1 and ``tforeign`` on d2, left imported by the host ``deadbeef``, each with the
   test boot environment. ``unattended`` boots three times. With the TPM and ``zbm.prefer=tauto``, the volume unlocks
   itself with nothing asked, start-up says it holds to it, ``tforeign`` is not adopted (``hostid`` imports as
@@ -392,6 +393,13 @@ Following a boot
   ``lockdown=integrity`` and only d1: the boot environment's kernel, which is not signed, must not be loaded, and
   ZFSBootMenu must say that lockdown kept it to ``kexec_file_load``. It needs a ZFSBootMenu kernel with the lockdown
   LSM; with one that lacks it, or a signed boot environment kernel, the kernel boots and the check fails.
+  ``measured`` boots ``tauto``'s boot environment with the TPM and only d0 (ADR 0008). The token must unseal (PCR 9
+  is unchanged before the measurement); in the boot environment, whose initramfs has the host packages' dracut module
+  ``zfsbootmenu-measured``, the event log must be in ``/run/log/zfsbootmenu`` and hold the starts of PCRs 8 and 9,
+  the kernel, the initramfs, the command line and the separator; PCRs 8 and 9 (``/sys/class/tpm/tpm0/pcr-sha256``)
+  must be what the log replays to; the kernel's and the initramfs's digests must be those of the payload's files, as
+  ``zbm measure predict`` computes them; the command line measured must be the one the kernel got; and PCR 9 must
+  have moved on from the value the token is bound to, so the booted system cannot unseal it.
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long

@@ -11,6 +11,7 @@
 //! re-exported here.
 
 mod discovery;
+pub mod measured;
 mod mounts;
 mod sequence;
 mod zfs;

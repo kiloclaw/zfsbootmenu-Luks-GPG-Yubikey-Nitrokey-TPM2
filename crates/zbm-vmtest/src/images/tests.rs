@@ -172,12 +172,30 @@ fn the_boot_environment_is_built_again_when_its_inputs_change() {
     let be = settings.repo.join("tests/luks/vm/be");
     fs::create_dir_all(&be).unwrap();
     fs::write(be.join("init.sh"), "echo BE-INIT-START\n").unwrap();
-    let stamp = format!("be {}\ncontainer \n", source::fingerprint_of(&be));
-    fs::write(settings.work.join("payload-inputs.txt"), stamp).unwrap();
+    let measured = settings.repo.join("packaging/dracut-measured");
+    fs::create_dir_all(&measured).unwrap();
+    fs::write(measured.join("module-setup.sh"), "check() { return 0; }\n").unwrap();
+    let stamp = || {
+        format!(
+            "be {}\nmeasured {}\ncontainer \n",
+            source::fingerprint_of(&be),
+            source::fingerprint_of(&measured)
+        )
+    };
+    fs::write(settings.work.join("payload-inputs.txt"), stamp()).unwrap();
     build_be(&settings).unwrap();
     assert_eq!(be_kver(&settings).unwrap(), "7.3.1-zbm");
 
     fs::write(be.join("init.sh"), "echo BE-INIT-START; echo BE-NEW\n").unwrap();
+    assert!(matches!(build_be(&settings), Err(Error::Build { .. })));
+    // The dracut module that keeps the event log is an input too.
+    fs::write(settings.work.join("payload-inputs.txt"), stamp()).unwrap();
+    build_be(&settings).unwrap();
+    fs::write(
+        measured.join("module-setup.sh"),
+        "check() { return 255; }\n",
+    )
+    .unwrap();
     assert!(matches!(build_be(&settings), Err(Error::Build { .. })));
     cleanup(&settings);
 }

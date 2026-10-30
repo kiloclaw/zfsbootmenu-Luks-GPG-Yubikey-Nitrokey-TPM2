@@ -27,28 +27,42 @@ event in a TCG Canonical Event Log (CEL-JSON), and extends a separator once its 
 predicts the values for a boot environment.**
 
 1. **Which PCRs.** GRUB's convention: the command line into **PCR 8**, the kernel and the initramfs into **PCR 9**,
-   each with the SHA-256 of the bytes `kexec_file_load` reads (the files ZFSBootMenu opens, not a second read of their
-   paths). Policy tools (systemd-pcrlock, `tpm2_eventlog`) and documentation already know these two as "the boot
+   each with the digest of the bytes `kexec_file_load` reads: ZFSBootMenu reads each file once, measures it, and
+   loads its copy in the state directory, so that what is measured is what loads, and is the file as it is on the boot
+   environment, which the prediction reads. Policy tools (systemd-pcrlock, `tpm2_eventlog`) and documentation already know these two as "the boot
    loader's"; systemd's own (11 to 15) belong to systemd-stub and the booted system.
 2. **Which banks.** Every active PCR bank of the TPM (SHA-256 at least, SHA-1 when it is active), as `TPM2_PCR_Extend`
    takes one digest per bank.
-3. **The event log.** A CEL-JSON record per extension (`recnum`, `pcr`, `digests`, `content_type` `"zbm"`, the
-   content: the path of the kernel or initramfs inside the boot environment, or the command line). It is written:
-   - to `/run/log/zfsbootmenu/tpm-measure.json` of the booted system, as a cpio appended to the initramfs the kernel
-     loads, so that the booted system's tools find it without a mount; and
+3. **The event log.** A CEL-JSON record per extension, as JSON text sequences (RFC 7464): `recnum`, `pcr`,
+   `digests`, `content_type` `"zfsbootmenu"`, the content: the path of the kernel or initramfs inside the boot
+   environment, the command line, or the separator. It starts with a record `start` for PCR 8 and one for PCR 9,
+   which hold what the PCRs held before ZFSBootMenu's first extension: on a UEFI machine the firmware or the EFI stub
+   of ZFSBootMenu's own kernel may have extended PCR 9 already, so a replay from zeros would be wrong. It is written:
+   - into the initramfs the kernel loads, at `/.extra/zfsbootmenu/tpm-measure.json`, in a cpio archive appended to
+     the copy of the initramfs; the initramfs is freed at `switch_root`, and `/run` is a tmpfs over the initramfs's
+     own, so the host packages' dracut module and mkinitcpio hook `zfsbootmenu-measured`, in the boot environment's
+     initramfs, copy it to `/run/log/zfsbootmenu/tpm-measure.json`, which the booted system keeps; and
    - to the saved logs on the ESP (`EFI/zfsbootmenu/logs/<boot>/`, ROADMAP.md #9) when they are saved.
 
-   The appended cpio is itself measured as part of the initramfs, which the log says.
+   The log is not measured: it cannot hold its own digest, and the prediction needs the initramfs as it is on the
+   boot environment. It is evidence, which the PCRs check by replay. A second boot attempt in the same run of
+   ZFSBootMenu continues the log, as the PCRs continue.
 4. **The separator.** Once the last LUKS volume of the boot is open, before any hook of the boot environment runs,
-   ZFSBootMenu extends **PCR 9** with the event `"zbm-unsealed"`. A TPM2 token of ZFSBootMenu's volumes that includes
+   ZFSBootMenu extends **PCR 9** with the event `"zbm-unsealed"`: right after the command line, before `kexec`, also
+   when the files could not be measured. After a boot attempt that failed, tokens bound to PCR 9 do not unseal
+   until the next start of the machine. A TPM2 token of ZFSBootMenu's volumes that includes
    PCR 9 in its policy then no longer unseals in the booted system. The documentation tells users to bind their tokens
    to PCR 9 (with 7, the Secure Boot state) for that; tokens bound to other PCRs stay unsealable, as today.
 5. **The prediction.** `zbm measure predict DATASET [KERNEL]` prints the PCR 8 and 9 values ZFSBootMenu would leave
-   for that boot environment and kernel, with its command line, from the files on the dataset; `zbm measure log` reads
-   a CEL-JSON log and replays it. The host packages ship `zbm`, so it runs on the booted system before an upgrade too.
-6. **The extension itself.** `tpm2_pcrextend` until CD10 makes `PCR_Extend` a call of `zbm-crypt`; with no TPM, or a
-   TPM that refuses, the boot goes on and the log says so (measured boot is evidence for the booted system, not a
-   gate of ZFSBootMenu's).
+   for that boot environment and kernel (the one ZFSBootMenu picks, by `org.zfsbootmenu:kernel` or the version, when
+   none is given), from the files on the dataset, mounted, with the command line of this boot's log (or
+   `--command-line`), from the starts in this boot's log: what the firmware and the same ZFSBootMenu image leave there
+   again. It prints them as `9:sha256=HEX`, which `systemd-cryptenroll --tpm2-pcrs=` takes. `zbm measure log` reads a
+   log and replays it. The host packages ship `zbm`, so it runs on the booted system before an upgrade too.
+6. **The extension itself.** `tpm2_pcrextend` (and `tpm2_getcap pcrs`, `tpm2_pcrread`) until CD10 makes
+   `PCR_Extend` a call of `zbm-crypt`; with no TPM (`/dev/tpmrm0`, `/dev/tpm0`), or a TPM that refuses, the boot goes
+   on, ZFSBootMenu's log says so, and the event log leaves out the extensions that did not happen (measured boot is
+   evidence for the booted system, not a gate of ZFSBootMenu's). A device tree is not measured.
 
 ## Consequences
 
@@ -58,7 +72,10 @@ predicts the values for a boot environment.**
   after kexec" gap.
 - Each upgrade of a kernel changes PCR 9, so a booted system's own sealing needs the prediction before the upgrade,
   as with GRUB.
-- The appended cpio costs one copy of the initramfs in memory before `kexec` (the kernel reads one initramfs file).
+- The copies cost the kernel and the initramfs once more in memory (the state directory is a tmpfs) until the
+  kernel has loaded them, and the initramfs once in the process while it is read and measured.
+- SHA-1 is computed for the SHA-1 bank, which TPMs often keep active beside SHA-256: the `sha1` crate, which signs
+  and checks nothing.
 
 ## Alternatives considered
 
@@ -71,13 +88,21 @@ predicts the values for a boot environment.**
 
 ## How it is checked
 
-A VM test with swtpm boots a boot environment, reads PCRs 8 and 9 there (`tpm2_pcrread`), compares them with
-`zbm measure predict` run before the boot and with the replayed log, and checks that a TPM2 token bound to PCR 9 no
-longer unseals in the booted system.
+The VM test `integrity-measured` boots, with swtpm, a boot environment on a volume whose TPM2 token is bound to PCR 9,
+which must unseal; the boot environment reads PCRs 8 and 9 (`/sys/class/tpm/tpm0/pcr-sha256`) and prints the log its
+initramfs kept; they must agree by replay, the log's digests of the kernel and initramfs must be those of the files on
+the dataset, which `zbm measure predict` reads, the command line measured must be the one the kernel got, and PCR 9
+must have moved on from the value the token is bound to, so that it no longer unseals in the booted system. Unit tests
+check the PCR values against digests computed apart, the log and the cpio archive, and that the prediction gives
+what the boot extends.
 
 ## Where the work stands
 
-Accepted; the work has not started. The rest of SE10 is done (see Context).
+Implemented, with the rest of SE10 (see Context): `zbm_crypt::measure` (the digests, the log, the replay, the cpio),
+`zbm_crypt::tpm2` (`active_banks`, `read_pcrs`, `extend`), `zbm_boot::boot::measured` (the measurement before
+`kexec`, the copies), `zbm measure`, and the host packages' `zfsbootmenu-measured` for dracut and mkinitcpio. The log
+went to `/.extra` and the boot environment's initramfs rather than straight to `/run/log`, which the booted system
+cannot see (point 3); the starts were added for UEFI machines.
 
 ## Answers of the maintainer
 

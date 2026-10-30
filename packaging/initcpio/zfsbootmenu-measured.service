@@ -1,0 +1,12 @@
+# Keeps ZFSBootMenu's TPM event log of this boot (ROADMAP.md SE10) in a
+# systemd-based initramfs: from the initramfs, which switch_root frees, to
+# /run, which the booted system keeps.
+[Unit]
+Description=Keep ZFSBootMenu's TPM event log
+DefaultDependencies=no
+ConditionPathExists=/.extra/zfsbootmenu/tpm-measure.json
+Before=initrd-switch-root.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/install -D -m 0644 /.extra/zfsbootmenu/tpm-measure.json /run/log/zfsbootmenu/tpm-measure.json

@@ -18,6 +18,9 @@ rustix = { workspace = true, features = ["fs"] }
 serde_json.workspace = true
 thiserror.workspace = true
 vt100.workspace = true
+# The replay of measured boot's event log, apart from the runtime's
+# (ROADMAP.md SE10)
+sha2.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
