@@ -447,6 +447,8 @@ mod tests {
 
     #[test]
     fn nothing_waits_when_no_peer_comes_and_too_long_a_message_is_refused() {
+        // A child forked meanwhile would hold the peer open until its exec.
+        let _guard = crate::tests::PROCESSES.lock().unwrap();
         let path = socket_path("nothing");
         let listener = Listener::bind(&path).unwrap();
         assert!(listener.accept(Some(Duration::ZERO)).unwrap().is_none());

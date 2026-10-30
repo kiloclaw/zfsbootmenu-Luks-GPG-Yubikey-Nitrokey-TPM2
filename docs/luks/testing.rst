@@ -287,11 +287,10 @@ Following a boot
     has no key file. ``runtime-legacy-keysource`` also boots it from the legacy menu (``zbm.show``), which asks for
     the key source's passphrase instead and copies the key file from it.
 
-* ``runtime-rust-pilot`` runs the pilots of ``ROADMAP.md`` in the Rust image, from the recovery shell on the
-  serial console: the new menu (``zbm-menu-pilot``) with ``TERM=vt100`` and ``TERM=linux``, where typing filters the
-  list and Enter chooses ``tplain/ROOT/be``, with the frame times and serial bytes it reports; and
-  ``zluks --pilot open`` on a LUKS volume formatted in the VM, refused with a wrong key file and opened with the
-  right one, with its JSON journal.
+* ``runtime-rust-keyfile`` runs ``zluks open --key-file`` in the Rust image, from the recovery shell on the serial
+  console, on a LUKS volume formatted in the VM: the unlocker with the key file alone, refused with a wrong key file
+  and opened with the right one, with its JSON journal, which records the refused and the successful attempt and
+  holds no key. It took over from ``runtime-rust-pilot`` and ``zluks --pilot open`` (ROADMAP.md, DM6).
 
 * ``runtime-rust-autosize`` boots the Rust image, with the ``virtio_gpu`` driver added, on a virtio GPU with a
   3840×2400 display, and runs ``zbm console-autosize --console /dev/tty1`` from the recovery shell on the serial

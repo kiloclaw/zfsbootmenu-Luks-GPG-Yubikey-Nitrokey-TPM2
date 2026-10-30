@@ -108,3 +108,48 @@ impl<T: LuksVolumes + ?Sized> LuksVolumes for &T {
         (**self).close_named(name)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zbm_testkit::FakeRunner;
+
+    use super::*;
+    use crate::Cryptsetup;
+
+    /// The lines `volumes` runs for each call of the port.
+    fn every_call(volumes: impl LuksVolumes) {
+        let header = Path::new("/dev/sda2");
+        let closed = Mapping::new("/dev/sda2".parse().unwrap(), "v".parse().unwrap());
+        assert!(volumes.is_luks(header));
+        assert_eq!(volumes.uuid(header).as_deref(), Some("0b5c-41"));
+        assert!(volumes.tokens(header).is_empty());
+        let open = volumes
+            .open(closed, Key::File(Path::new("/k")), &[])
+            .unwrap();
+        assert!(volumes.close(open).is_ok());
+        assert!(volumes.close_named(&"w".parse().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn a_reference_answers_as_what_it_refers_to() {
+        let runner = FakeRunner::new();
+        runner.respond("cryptsetup luksUUID /dev/sda2", 0, "0b5c-41\n");
+        let cryptsetup = Cryptsetup::new(&runner);
+
+        let by_reference: &Cryptsetup<'_> = &cryptsetup;
+        every_call(by_reference);
+
+        assert_eq!(
+            runner.lines(),
+            [
+                "cryptsetup isLuks /dev/sda2",
+                "cryptsetup luksUUID /dev/sda2",
+                "cryptsetup luksDump --dump-json-metadata /dev/sda2",
+                "cryptsetup luksDump /dev/sda2",
+                "cryptsetup open --type luks --key-file=/k /dev/sda2 v",
+                "cryptsetup close v",
+                "cryptsetup close w",
+            ]
+        );
+    }
+}

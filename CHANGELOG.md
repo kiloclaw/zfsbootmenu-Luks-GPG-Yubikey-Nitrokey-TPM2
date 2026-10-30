@@ -841,9 +841,12 @@ keeps its codes and the line characters their codes of code page 437. The six Te
 application layer and front ends) and a new menu on Ratatui. Two pilots run the new layers beside today's code in
 images built with `zfsbootmenu_runtime="rust"`; nothing uses them unless asked:
 
-- `zluks --pilot open DEVICE NAME --key-file PATH` opens one LUKS volume with a key file, which goes to `cryptsetup`
-  on standard input; `--journal FILE` writes every step, and every program run, as JSON lines. Mappings it opens are
-  not closed by the teardown hook.
+- `zluks --pilot open DEVICE NAME --key-file PATH` opened one LUKS volume with a key file, which went to
+  `cryptsetup` on standard input; `--journal FILE` wrote every step, and every program run, as JSON lines. Mappings
+  it opened were not closed by the teardown hook. It is gone: `zluks open DEVICE NAME --key-file PATH` opens the
+  volume through the unlocker itself with the key file alone, which `cryptsetup` reads where it is, as the crypttab's
+  key files are; it takes `--allow-discards`, `--read-only`, `--journal FILE` and `--verbose`, records the mapping so
+  that the teardown hook closes it, and says why each key method failed when none opened the volume.
 - `zbm-menu-pilot` (run as `/libexec/zbm zbm-menu-pilot`) shows the boot environments of the imported pools in the
   new menu and prints the one chosen; it boots nothing. `--demo` shows an example machine.
 

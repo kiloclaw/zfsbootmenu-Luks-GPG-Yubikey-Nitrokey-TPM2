@@ -352,7 +352,13 @@ mod tests {
                 .unwrap_err();
 
             assert_eq!(failed.error.to_string(), message, "status {status}");
+            assert_eq!(failed.error.status(), i32::from(status));
         }
+        let unrun = [
+            CryptError::Start(std::io::Error::other("no exec")),
+            CryptError::LeadingDash("-x".to_owned()),
+        ];
+        assert_eq!(unrun.map(|error| error.status()), [127, 1]);
     }
 
     #[test]

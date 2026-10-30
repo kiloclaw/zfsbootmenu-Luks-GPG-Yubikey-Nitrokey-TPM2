@@ -165,7 +165,7 @@ impl RealSystem {
     }
 
     /// The ports of the real system without a console, for programs that
-    /// need none, such as `zluks --pilot`.
+    /// need none, such as `zluks`.
     pub fn context(&self) -> Context<'_> {
         Context::new(self.with_console(&NoConsole))
     }

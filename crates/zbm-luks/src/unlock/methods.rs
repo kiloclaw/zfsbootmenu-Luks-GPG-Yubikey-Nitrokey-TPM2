@@ -169,7 +169,7 @@ impl Registry {
         let _span =
             info_span!("unlock", device = %volume.device(), name = %volume.name()).entered();
         let mut attempts = Vec::new();
-        let mut unlocked = None;
+        let mut outcome = None;
         for method in self.methods.iter() {
             let id = method.method();
             let _method = info_span!("key_method", method = ?id).entered();
@@ -180,7 +180,7 @@ impl Registry {
                         method: id,
                         refusal: None,
                     });
-                    unlocked = Some(Ok((open, id)));
+                    outcome = Some(Ok((open, id)));
                     break;
                 }
                 Err(Refusal::Elsewhere) => {
@@ -189,7 +189,7 @@ impl Registry {
                         method: id,
                         refusal: Some(Refusal::Elsewhere),
                     });
-                    unlocked = Some(Err(()));
+                    outcome = Some(Err(()));
                     break;
                 }
                 Err(Refusal::NotApplicable) => debug!("not applicable"),
@@ -205,7 +205,7 @@ impl Registry {
             }
         }
         unlocker.keep_attempts(volume.device(), &attempts);
-        match unlocked {
+        match outcome {
             Some(Ok((open, id))) => Ok(Unlocked::Opened(volume.opened(open), id)),
             Some(Err(())) => Ok(Unlocked::Elsewhere),
             None => Err(NotUnlocked { volume, attempts }),

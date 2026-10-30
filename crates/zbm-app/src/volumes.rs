@@ -219,9 +219,12 @@ fn open_with_key_file(
         Err(error) => {
             let mut why = causes(&error);
             if let LuksError::NotUnlocked { attempts, .. } = &error {
+                // A volume not unlocked keeps only the methods that failed.
                 why.extend(attempts.iter().filter_map(|attempt| {
-                    let refusal = attempt.refusal.as_ref()?;
-                    Some(format!("{:?}: {}", attempt.method, describe(refusal)))
+                    let Some(Refusal::Failed(error)) = &attempt.refusal else {
+                        return None;
+                    };
+                    Some(format!("{:?}: {error}", attempt.method))
                 }));
             }
             vec![
@@ -232,15 +235,6 @@ fn open_with_key_file(
                 failed(&format!("unable to open {device}"), why),
             ]
         }
-    }
-}
-
-/// Why a key method did not open a volume, for people.
-fn describe(refusal: &Refusal) -> String {
-    match refusal {
-        Refusal::NotApplicable => "does not apply".to_owned(),
-        Refusal::Elsewhere => "opened elsewhere".to_owned(),
-        Refusal::Failed(error) => error.to_string(),
     }
 }
 

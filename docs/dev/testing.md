@@ -16,9 +16,9 @@ documentation tests, which nextest cannot run, under `cargo test --doc`; without
 `cargo test`. The profiles are in `.config/nextest.toml`; CI uses `NEXTEST_PROFILE=ci`, which reports every failure
 instead of stopping at the first. `cargo xtask coverage` measures line coverage per crate ([tooling.md](tooling.md)).
 
-`runtime-rust-pilot` (`zbm-vmtest run runtime-rust-pilot`) runs the pilots of ROADMAP.md in the
-Rust image: the menu on the serial console with `TERM=vt100` and `TERM=linux`, and `zluks --pilot open` on a LUKS
-volume formatted inside the VM.
+`runtime-rust-keyfile` (`zbm-vmtest run runtime-rust-keyfile`) runs `zluks open --key-file` in the Rust image on a
+LUKS volume formatted inside the VM: the unlocker with the key file alone, which took over from the first pilot of
+ROADMAP.md.
 
 [docs/luks/testing.rst](../luks/testing.rst) describes every LUKS test and its latest results. CI runs the Rust tests
 and both LUKS unit suites on every pull request that touches the code they cover.

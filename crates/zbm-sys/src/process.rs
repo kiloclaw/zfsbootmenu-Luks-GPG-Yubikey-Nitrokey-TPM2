@@ -341,6 +341,8 @@ mod tests {
 
     #[test]
     fn a_descriptor_passed_reaches_that_child_alone() {
+        // A test that reaps any child must not collect this one.
+        let _guard = PROCESSES.lock().unwrap();
         let file = std::fs::File::open("/dev/null").unwrap();
         let is_open_in_child = |pass: bool| {
             let mut command = std::process::Command::new("/bin/sh");

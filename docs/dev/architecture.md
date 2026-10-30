@@ -119,11 +119,13 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   allow. Each adapter gives the programs that wait on a device a time-out.
 - **domain**: domain crates take a `Context`, which has no console, and ask the person through the `Interaction`
   they are given; `check-deps` refuses `System` and `Console` in their code outside tests, apart from `zbm-boot`
-  until its prompts move to the front ends (ROADMAP.md, DM7). `zbm-luks` unlocks and closes LUKS volumes with every key method. Its `Unlocker` tries the key methods
-  of `unlock::methods` (`KeyMethod` strategies, in the order `key_methods` lists them), LUKS2 tokens through the
-  `TokenHandler` registry of `keys::handlers` in two passes (silent, then interactive), and then the passphrase prompt,
+  until its prompts move to the front ends (ROADMAP.md, DM7). `zbm-luks` unlocks and closes LUKS volumes with every key method, through
+  the LUKS port of `zbm-crypt` (`LuksVolumes`), whose open alone turns a `Mapping<Closed>` into a `Mapping<Open>`.
+  Its `Unlocker` runs a `unlock::methods::Registry` of `KeyMethod`s on a `volume::Volume<Closed>`: each method
+  opens it or says why not (a `Refusal`), and every attempt is kept. LUKS2 tokens go through the `TokenHandler`
+  registry of `keys::handlers` in two passes (silent, then interactive), and the passphrase prompt comes last,
   whose `PassphrasePrompt` state machine decides between another try, the retry prompt and giving up; a
-  `MappingStore` keeps the mappings and skipped volumes. `pilot` is the key-file slice of R0 (`KeyChain`). `zbm-pool`
+  `MappingStore` keeps the mappings and skipped volumes. `zbm-pool`
   imports pools: the import settings as types, `zpool import` with typed options, host IDs, and the retry loop of the
   start-up stage as a state machine (`ImportLoop`) whose transitions are pure; the stage reaches the console only
   through its `Operator` port. `zbm-boot` boots: kernel selection, command lines, hooks, `kexec`, saved logs and
@@ -134,8 +136,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
   `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the
   `Runtime` of this boot (the options, the state directory, the layouts, how to boot), which it always has; the
-  actions of the LUKS volumes alone are `Volumes`'. The LUKS actions (`UnlockAll`, `Open`, `Close`) run as unlocking runs of `zbm-luks`, whose requests a front
-  end answers through the `zbm_platform::Interaction` it passes.
+  actions of the LUKS volumes alone are `Volumes`'. The LUKS actions (`UnlockAll`, `Open`, `OpenWithKeyFile`, `Close`) run as
+  unlocking runs of `zbm-luks`, whose requests a front end answers through the `zbm_platform::Interaction` it passes.
 - **orchestration**: `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host
   ID, device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an
   earlier run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the
@@ -157,9 +159,10 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 ROADMAP.md (R0) built two thin features through every layer before any crate is migrated; they are the
 template for the phases that follow.
 
-- **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::Unlock`) →
-  `zbm-luks::pilot` (`KeyChain`, `KeyFile`) → `zbm-crypt` (`Cryptsetup::open`) → `zbm-platform`
-  (`TracedRunner`) → `cryptsetup`. Every step is a span in the journal (`--journal FILE`).
+- **Key-file unlock:** `zluks --pilot open DEVICE NAME --key-file PATH`, with a key chain of its own. DM6 replaced
+  it with the unlocker itself: `zluks open DEVICE NAME --key-file PATH` → `zbm-app` (`Action::OpenWithKeyFile`) →
+  `zbm-luks` (`Unlocker` with `Registry::key_file`) → `zbm-crypt` (`LuksVolumes::open`) → `zbm-platform`
+  (`TracedRunner`) → `cryptsetup`. Every key method is a span in the journal (`--journal FILE`).
 - **The menu:** the boot environment list, `zbm-menu-pilot`, which printed the boot environment chosen and booted
   nothing. The menu itself replaced it in R5 step 3: `/bin/zfsbootmenu` (`zbm zfsbootmenu`) →
   `zbm-startup` (`Startup::menu`: the lock, the setup hooks) → `zbm-tui` (`menu::session::Session` on

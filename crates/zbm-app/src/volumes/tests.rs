@@ -269,3 +269,61 @@ fn actions_without_a_use_case_end_as_failed() {
         );
     }
 }
+
+#[test]
+fn a_key_file_alone_opens_a_volume_or_every_reason_it_did_not_is_said() {
+    let fake = machine();
+    fake.files.file("/keys/b.key", "secret");
+    let with = |key_file: &str| Action::OpenWithKeyFile {
+        device: "/dev/sdb2".parse().unwrap(),
+        name: "b1".parse().unwrap(),
+        key_file: key_file.into(),
+        options: OpenOptions {
+            allow_discards: true,
+            read_only: true,
+        },
+    };
+
+    let events = act(&fake, &with("/keys/b.key"));
+
+    assert_eq!(
+        events[0],
+        Event::UnlockFinished {
+            volume: "b1".into(),
+            outcome: UnlockOutcome::Opened,
+        }
+    );
+    assert_eq!(
+        ended(&events),
+        &Outcome::Done("opened /dev/sdb2 as /dev/mapper/b1 (key file)".into())
+    );
+    let calls = zbm_testkit::assert::quoted_calls(&fake.runner);
+    let open = calls
+        .iter()
+        .rfind(|call| call.starts_with("cryptsetup open"))
+        .unwrap();
+    assert!(open.contains("--key-file=/keys/b.key"), "{open}");
+    assert!(
+        open.contains("--allow-discards") && open.contains("--readonly"),
+        "{open}"
+    );
+
+    let events = act(&fake, &with("/keys/none.key"));
+
+    let Outcome::Failed { what, why, .. } = ended(&events) else {
+        panic!("{events:?}");
+    };
+    assert_eq!(what, "unable to open /dev/sdb2");
+    let reason = "KeyFile: the key file /keys/none.key of /dev/sdb2 could not be read";
+    assert_eq!(why.last().unwrap(), reason, "{why:?}");
+    assert!(matches!(
+        &events[0],
+        Event::UnlockFinished { outcome: UnlockOutcome::Failed(text), .. } if text.ends_with(reason)
+    ));
+
+    let events = act(&FakeSystem::new(), &with("/keys/b.key"));
+    assert!(
+        matches!(ended(&events), Outcome::Failed { why, .. } if why == &[NO_CRYPTSETUP]),
+        "{events:?}"
+    );
+}

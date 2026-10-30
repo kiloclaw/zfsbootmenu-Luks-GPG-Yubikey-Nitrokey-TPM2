@@ -6,10 +6,11 @@
 //! ([`Application::snapshot`]), send a [`model::Action`] to
 //! [`Application::apply`], and get [`model::Event`]s back, the last of them
 //! saying how the action ended. The application is [`App`]: the ports of a
-//! [`Context`] and what it knows of this boot, its [`Runtime`], which it
-//! always has (ROADMAP.md, DM8). The actions of the LUKS volumes alone are
-//! [`Volumes`]'. Front ends never run programs or call the domain crates
-//! themselves, which `cargo xtask check-deps` enforces.
+//! [`zbm_platform::Context`] and what it knows of this boot, its
+//! [`Runtime`], which it always has (ROADMAP.md, DM8). The actions of the
+//! LUKS volumes alone are [`Volumes`]'. Front ends never run programs or
+//! call the domain crates themselves, which `cargo xtask check-deps`
+//! enforces.
 //!
 //! The vocabulary is [`model`], the lists of
 //! `docs/dev/menu-design/interfaces.md`, which the menu prototype tried on a
@@ -76,4 +77,24 @@ impl zbm_types::code::Coded for AppError {
 pub mod codes {
     pub use zbm_crypt::CRYPT_CODES;
     pub use zbm_zfs::ZFS_CODES;
+}
+
+#[cfg(test)]
+mod tests {
+    use zbm_types::code::Coded;
+
+    use super::*;
+
+    #[test]
+    fn an_error_of_the_application_has_the_code_of_its_cause() {
+        let zfs = || zbm_zfs::ZfsError::Failed {
+            command: "zpool list".to_owned(),
+            status: 1,
+            message: "no pools".to_owned(),
+        };
+
+        let error = AppError::from(SnapshotError::from(zfs()));
+
+        assert_eq!(error.code(), zfs().code());
+    }
 }
