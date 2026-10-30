@@ -267,6 +267,136 @@ impl Profile for Console {
     }
 }
 
+/// The menu as a client of the session (`zfsbootmenu` over SSH, ROADMAP.md
+/// PM10; zone Z4), once it attached: the session performs its actions, so
+/// it keeps no capability, runs nothing and starts no thread. It stays user
+/// 0, the owner of the kernel log and the state directory, which its log
+/// and a crash report write; reaches its terminal, the directory of the
+/// sockets, where it tells the console of a secret prompt, and its program,
+/// which a crash report reads; and makes the calls of [`MENU_CALLS`] alone.
+#[derive(Clone, Debug)]
+pub struct Menu {
+    /// The state directory, `/zfsbootmenu`.
+    pub state: PathBuf,
+    /// The directory of the sockets, `/run/zfsbootmenu`.
+    pub sockets: PathBuf,
+}
+
+/// The calls of the menu over SSH: its loop (`ppoll`, `read`, `write`, the
+/// terminal's `ioctl`), the session's socket and the console's, its log,
+/// its memory and its time. Not `clone`, `execve`, `kill`, `ptrace`,
+/// `prctl` or a user change.
+pub const MENU_CALLS: &[&str] = &[
+    // Reading, writing and waiting.
+    "read",
+    "write",
+    "readv",
+    "writev",
+    "lseek",
+    "ioctl",
+    "fcntl",
+    "close",
+    "dup",
+    "dup3",
+    "poll",
+    "ppoll",
+    "pselect6",
+    // Its log, a crash report, and the terminal it opens again.
+    "openat",
+    "fstat",
+    "newfstatat",
+    "statx",
+    "faccessat2",
+    "readlink",
+    "readlinkat",
+    "getcwd",
+    "fsync",
+    "fdatasync",
+    "rename",
+    "renameat",
+    "renameat2",
+    "unlink",
+    "unlinkat",
+    // The session's socket and the console's.
+    "socket",
+    "connect",
+    "sendto",
+    "recvfrom",
+    "sendmsg",
+    "recvmsg",
+    "getsockopt",
+    "setsockopt",
+    "shutdown",
+    // Memory, a secret's locked.
+    "brk",
+    "mmap",
+    "munmap",
+    "mremap",
+    "mprotect",
+    "madvise",
+    "mlock",
+    "munlock",
+    // Signals and time.
+    "futex",
+    "rt_sigaction",
+    "rt_sigprocmask",
+    "rt_sigreturn",
+    "sigaltstack",
+    "restart_syscall",
+    "nanosleep",
+    "clock_nanosleep",
+    "clock_gettime",
+    "clock_getres",
+    "gettimeofday",
+    "exit",
+    "exit_group",
+    // What the process is.
+    "getpid",
+    "gettid",
+    "getuid",
+    "geteuid",
+    "getgid",
+    "getegid",
+    "uname",
+    "prlimit64",
+    "getrandom",
+];
+
+impl Menu {
+    /// The paths it reaches, and how.
+    fn files(&self) -> Vec<(PathBuf, Access)> {
+        let mut files = vec![
+            // Its terminal, as `/dev/tty` opens it again.
+            (PathBuf::from("/dev/tty"), Access::Device),
+            (PathBuf::from("/dev/kmsg"), Access::ReadWrite),
+            (PathBuf::from("/dev/null"), Access::ReadWrite),
+            (self.state.clone(), Access::Full),
+            (self.sockets.clone(), Access::ReadWrite),
+        ];
+        if let Ok(program) = std::env::current_exe() {
+            files.push((program, Access::Read));
+        }
+        files
+    }
+}
+
+impl sealed::Sealed for Menu {}
+
+impl Profile for Menu {
+    fn name(&self) -> &'static str {
+        "menu"
+    }
+
+    fn confinement(&self) -> Confinement {
+        Confinement {
+            user: None,
+            files: Some(self.files()),
+            calls: Some(MENU_CALLS),
+            capabilities: Some(Vec::new()),
+        }
+    }
+}
+
 /// Says what `applied` confined, for the log: `no new privileges,
 /// seccomp, landlock 7`.
 pub fn describe(applied: &Applied) -> String {

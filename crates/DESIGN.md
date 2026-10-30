@@ -663,6 +663,12 @@ reads them in one place:
   `CAP_IPC_LOCK`, reaches `/dev/dri`, `/dev/input`, the virtual terminals, `/dev/kmsg`, `/sys`, `/proc`, the
   image's fonts and layouts, the state directory and the sockets' directory, and runs nothing (no `execve`, `kill`
   or `ptrace`; `prctl` only to name a thread);
+- **the menu over SSH** (`zfsbootmenu`, a client of the session, ROADMAP.md PM10) confines itself once it attached
+  and before it draws: the session performs its actions, so it stays user 0 only as the owner of the kernel log and
+  the state directory, which its log and a crash report write; it keeps no capability, reaches `/dev/tty` (its
+  terminal, which crossterm opens again), `/dev/kmsg`, the state directory, the sockets' directory (the console's,
+  told of a secret prompt) and its own program, and makes no `clone`, `execve`, `kill`, `prctl`, `bind` or
+  `accept4`. The menu run in its own process, when no session serves one, runs programs and is not confined;
 - **the keyholder** (`zbm unlock serve`) and the programs it runs gain no privileges (`no_new_privs`): they stay
   root, for the device mapper and the TPM, and read key files wherever a key device is mounted.
 

@@ -45,5 +45,9 @@ ratatui.workspace = true
 serde.workspace = true
 zbm-testkit.workspace = true
 
+[[test]]
+name = "menu_confine"
+harness = false
+
 [lints]
 workspace = true

@@ -121,7 +121,9 @@ Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, 
 `zfsbootmenu` over SSH, or from the recovery shell, asks the start-up program for its menu: the menu on the console
 makes way, and the start-up program runs the menu on the SSH terminal, booting and asking for passphrases there. The
 console's menu comes back when its recovery shell ends, which ends the menu over SSH. When the start-up program does
-not answer, `zfsbootmenu` runs the menu itself, as before.
+not answer, `zfsbootmenu` runs the menu itself, as before. Served by the start-up program, `zfsbootmenu` confines
+itself before it draws: it keeps no privileges, can run no program, and reaches only its terminal, its log and the
+start-up program's sockets; a refused system call shows in `dmesg` as an audit record (type 1326).
 
 ### Rust runtime, encrypted boot environments
 

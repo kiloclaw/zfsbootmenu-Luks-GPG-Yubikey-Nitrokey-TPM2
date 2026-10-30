@@ -68,3 +68,54 @@ fn the_console_keeps_two_capabilities_and_reaches_its_places_alone() {
         "no new privileges, no landlock"
     );
 }
+
+#[test]
+fn the_menu_over_ssh_keeps_no_capability_and_reaches_its_terminal_log_and_sockets() {
+    let menu = Menu {
+        state: "/zfsbootmenu".into(),
+        sockets: "/run/zfsbootmenu".into(),
+    };
+
+    let confinement = menu.confinement();
+
+    assert_eq!(menu.name(), "menu");
+    assert_eq!(confinement.user, None);
+    assert_eq!(confinement.capabilities, Some(Vec::new()));
+    let files = confinement.files.unwrap();
+    let access = |path: &str| {
+        files
+            .iter()
+            .find(|(file, _)| file == std::path::Path::new(path))
+            .map(|(_, access)| *access)
+    };
+    assert_eq!(access("/dev/tty"), Some(Access::Device));
+    assert_eq!(access("/zfsbootmenu"), Some(Access::Full));
+    assert_eq!(access("/run/zfsbootmenu"), Some(Access::ReadWrite));
+    assert_eq!(access("/dev/kmsg"), Some(Access::ReadWrite));
+    for nowhere in ["/dev", "/dev/input", "/dev/dri", "/sys", "/proc", "/etc"] {
+        assert_eq!(access(nowhere), None, "{nowhere}");
+    }
+    for call in MENU_CALLS {
+        assert!(zbm_sys::sandbox::is_known_call(call), "{call}");
+    }
+    // Nothing runs, no thread starts, nothing is signalled or listened on.
+    for refused in [
+        "execve",
+        "execveat",
+        "clone",
+        "clone3",
+        "fork",
+        "vfork",
+        "kill",
+        "tgkill",
+        "ptrace",
+        "setresuid",
+        "prctl",
+        "bind",
+        "listen",
+        "accept4",
+        "mount",
+    ] {
+        assert!(!MENU_CALLS.contains(&refused), "{refused}");
+    }
+}

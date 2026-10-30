@@ -16,6 +16,7 @@ use zbm_app::session::{self, Handover};
 use zbm_app::{App, BootSettings, Recovery, Runtime};
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
+use zbm_platform::sandbox::{self, Profile as _};
 use zbm_platform::{Context, System};
 use zbm_startup::preinit;
 use zbm_startup::program::Startup;
@@ -213,6 +214,10 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
     let _ = zbm_sys::ignore_signal(Signal::Interrupt);
     let _ = zbm_sys::discard_signal(Signal::Quit);
     on_console(io, |system, conf, io| {
+        // Its messages in the kernel log and the journal, as the other
+        // programs' are.
+        let base = preinit::base(conf);
+        let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &base);
         let environment = system.environment;
         let theme = Theme::new(Capabilities::detect(|name| environment.var(name)));
         let escape_wait = crate::startup::escape_wait(&ZbmOptions::from_conf(conf).control_term);
@@ -222,7 +227,13 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
                 .as_ref()
                 .is_some_and(|signals| is_taken_over(signals.received()))
         };
+        let sockets = Path::new(session::SOCKET)
+            .parent()
+            .unwrap_or(Path::new("/"));
         let show_remote = |machine: RemoteMachine<'_>| {
+            // The session performs the actions: this process needs no more
+            // than its terminal and the sockets.
+            confine_remote(&base, sockets);
             let session = Session::on(machine, theme);
             terminal::run(session, terminal::size(FALLBACK_SIZE), None, escape_wait)
         };
@@ -245,6 +256,25 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
             zbm_startup::program::menu::FAILED
         })
     })
+}
+
+/// Confines this process as the menu over SSH (ROADMAP.md, SE11), with
+/// its state in `state` and the sessions' sockets in `sockets`, before it
+/// draws: the session performs what it asks, so it keeps no capability,
+/// runs nothing and starts no thread. What it could not confine is logged,
+/// and the menu runs on.
+pub fn confine_remote(state: &Path, sockets: &Path) {
+    let profile = sandbox::Menu {
+        state: state.to_owned(),
+        sockets: sockets.to_owned(),
+    };
+    match profile.confine() {
+        Ok(applied) => {
+            let described = sandbox::describe(&applied);
+            zbm_trace::info!("the menu is confined: {described}"; %described);
+        }
+        Err(error) => zbm_trace::warn!("the menu is not wholly confined: {error}"; %error),
+    }
 }
 
 /// The menu as a client of the session (ROADMAP.md, PM10), which runs the

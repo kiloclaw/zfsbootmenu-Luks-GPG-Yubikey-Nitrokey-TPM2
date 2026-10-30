@@ -283,7 +283,8 @@ Following a boot
     recovery shell, on the console, recorded in ``signals.json``: both report them, and the shell does not ignore
     Ctrl-C (``SIGINT``), which the start-up program does. The legacy run records ``fzf``'s in the menu too. The Rust
     run then runs ``zfsbootmenu`` from the recovery shell, which the session serves the menu to (ROADMAP.md, PM10), and
-    leaves it by its recovery shell.
+    leaves it by its recovery shell: the menu said it was confined, with a seccomp filter, and the kernel logged no
+    call it refused (SE11).
   * ``runtime-rust-keysource``: ``tkeys`` alone, booted from the countdown, which skips key sources: ZFSBootMenu
     asks for the boot environment's own passphrase. The boot environment itself is not followed, as its initramfs
     has no key file. ``runtime-legacy-keysource`` also boots it from the legacy menu (``zbm.show``), which asks for

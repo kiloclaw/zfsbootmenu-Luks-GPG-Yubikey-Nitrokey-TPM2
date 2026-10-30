@@ -221,4 +221,16 @@ mod tests {
             "{told}"
         );
     }
+
+    #[test]
+    fn the_command_on_the_machine_says_how_it_is_used() {
+        let base = zbm_testkit::TempDir::new("zbm-saved-usage");
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+        let mut io = Io {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+        };
+        assert_eq!(run(base.path(), &["nonsense"], &mut io), USAGE);
+        assert!(stdout.is_empty());
+    }
 }

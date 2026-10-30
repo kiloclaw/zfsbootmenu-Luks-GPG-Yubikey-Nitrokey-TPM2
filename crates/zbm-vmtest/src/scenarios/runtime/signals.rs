@@ -6,7 +6,7 @@
 //! runs no fzf, and opens the shell from its recovery tools; there the
 //! start-up program, the session, listens on the socket another menu takes
 //! its menu over by (ROADMAP.md, PM10), and serves the menu of a
-//! `zfsbootmenu` run from the shell.
+//! `zfsbootmenu` run from the shell, which confines itself (SE11).
 
 use std::fmt::Write as _;
 use std::fs;
@@ -241,6 +241,16 @@ fn observe(vm: &mut Vm<'_>, runtime: ZbmRuntime) -> Result<Dispositions> {
     Ok(Dispositions { hook, fzf, shell })
 }
 
+/// How many times the menu over SSH said it was confined with a filter, in
+/// the journal.
+const CONFINED: &str =
+    "grep -c 'the menu is confined: no new privileges, seccomp' /zfsbootmenu/journal.jsonl";
+
+/// How many calls a seccomp filter refused since the boot, as the kernel
+/// logged them (audit type 1326): the keyholder and the console on the
+/// terminal have none, so any are the menu's.
+const REFUSED: &str = "dmesg | grep -c 'type=1326'";
+
 /// How many times the session served a menu, in its journal.
 const SERVED: &str = "grep -c 'a remote menu attached' /zfsbootmenu/journal.jsonl";
 
@@ -258,6 +268,16 @@ fn remote_menu(vm: &mut Vm<'_>) -> Result<()> {
     vm.test().check(
         served >= 1,
         &format!("the session served the menu ({served} times in its journal)"),
+    );
+    let (_, confined) = vm.sh(CONFINED)?;
+    let (_, refused) = vm.sh(REFUSED)?;
+    let (confined, refused) = (confined.trim(), refused.trim());
+    vm.test().check(
+        confined.parse::<u32>().is_ok_and(|count| count >= 1) && refused == "0",
+        &format!(
+            "the menu over SSH was confined, with a seccomp filter, and its filter refused no \
+             call it made ({confined:?} confined, {refused:?} refused)"
+        ),
     );
     Ok(())
 }

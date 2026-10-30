@@ -145,4 +145,16 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn the_command_on_the_machine_says_how_it_is_used() {
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+        let mut io = Io {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+        };
+        assert_eq!(run(&["--help".to_owned()], &mut io), USAGE);
+        assert!(stdout.is_empty());
+        assert_eq!(String::from_utf8(stderr).unwrap(), USAGE_TEXT);
+    }
 }
