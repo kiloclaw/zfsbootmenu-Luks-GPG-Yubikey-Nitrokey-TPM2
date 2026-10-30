@@ -60,6 +60,25 @@ pub(super) const CELLS_LOG: &str = "dmesg | grep draws.on.its.cells > /dev/ttyS0
 /// (`zbm_console::run::GREETED`).
 pub(super) const CELLS: &str = r"the menu draws on its cells \(client channel version \d+\)";
 
+/// Typed in the recovery shell: what the console gave up (ROADMAP.md,
+/// SE11), to the serial console; then the calls its filter refused, which
+/// the kernel logs as audit records of type 1326, and how often a console
+/// said it was confined. In the characters the test can type: `.` stands
+/// for `=` and `: `.
+pub(super) const STATUS_LOG: &str = "cat /proc/$(cat /zfsbootmenu/console)/status > /dev/ttyS0\n";
+pub(super) const COUNTS_LOG: &str = "echo zbmtest-denied $(dmesg | grep -c type.1326) \
+    zbmtest-confined $(dmesg | grep -c console..confined) > /dev/ttyS0\n";
+
+/// The lines of the console's status, in their order, and of the counts.
+pub(super) const CAPABILITIES: &str = r"CapEff:\s+([0-9a-f]+)";
+pub(super) const NO_NEW_PRIVILEGES: &str = r"NoNewPrivs:\s+(\d+)";
+pub(super) const SECCOMP: &str = r"Seccomp:\s+(\d+)";
+pub(super) const COUNTS: &str = r"zbmtest-denied (\d+) zbmtest-confined (\d+)";
+
+/// The capabilities the console keeps: `CAP_IPC_LOCK` and
+/// `CAP_SYS_TTY_CONFIG`.
+pub(super) const CONSOLE_CAPABILITIES: &str = "0000000004004000";
+
 /// The supervisor's message when the console ended.
 pub(super) const ENDED: &str = r"console on the display ended";
 
@@ -156,6 +175,45 @@ pub(super) fn check_fallback(
     test.check(
         drew,
         "virtio: the menu drew on the console's cells, over the client channel",
+    );
+    check_confined(test, vm, monitor, pace)
+}
+
+/// The console, started again, gave up what its profile says, and its
+/// filter refused none of the calls it made since the boot: the hand-back
+/// and the reattach, the layouts and the fonts ran confined.
+fn check_confined(test: &Test, vm: &mut Vm<'_>, monitor: &Monitor, pace: Pace) -> Result<()> {
+    let wait = pace.patience.min(30);
+    let read = |vm: &mut Vm<'_>, pattern: &str| {
+        vm.expect(&[pattern], wait)
+            .map(|_| vm.group(1))
+            .unwrap_or_default()
+    };
+    type_text(vm, monitor, STATUS_LOG, pace.pause)?;
+    let capabilities = read(vm, CAPABILITIES);
+    let privileges = read(vm, NO_NEW_PRIVILEGES);
+    let seccomp = read(vm, SECCOMP);
+    test.check(
+        privileges == "1" && seccomp == "2" && capabilities == CONSOLE_CAPABILITIES,
+        &format!(
+            "virtio: the console is confined: no new privileges, a seccomp filter, two \
+             capabilities (NoNewPrivs {privileges:?}, Seccomp {seccomp:?}, CapEff \
+             {capabilities:?})"
+        ),
+    );
+    type_text(vm, monitor, COUNTS_LOG, pace.pause)?;
+    let counted = vm.expect(&[COUNTS], wait).is_ok();
+    let (denied, confined) = if counted {
+        (vm.group(1), vm.group(2))
+    } else {
+        (String::new(), String::new())
+    };
+    test.check(
+        denied == "0" && confined.parse::<u32>().is_ok_and(|count| count >= 2),
+        &format!(
+            "virtio: each console said it was confined, and its filter refused no call it \
+             made ({confined:?} confined, {denied:?} refused)"
+        ),
     );
     Ok(())
 }

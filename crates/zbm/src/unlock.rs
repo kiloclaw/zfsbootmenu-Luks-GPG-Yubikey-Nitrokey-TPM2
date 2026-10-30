@@ -31,6 +31,7 @@ use zbm_app::keyholder::{KEYHOLDER_FD, Keyholder, Keyholders, serve};
 use zbm_app::model::{Event, Outcome};
 use zbm_luks::unlocker::Luks;
 use zbm_platform::env::{Environment as _, ProcessEnvironment};
+use zbm_platform::sandbox::{self, Sandboxed as _};
 use zbm_platform::{Context, QuietRunner, RealSystem, System};
 use zbm_sys::Signal;
 use zbm_sys::signals::Process;
@@ -227,6 +228,7 @@ impl Keyholders for ProcessKeyholders {
         let end = std::os::fd::AsFd::as_fd(&theirs).try_clone_to_owned()?;
         let number = zbm_sys::pass_fd(&mut command, end);
         command.env(KEYHOLDER_FD, number.to_string());
+        command.sandboxed(&sandbox::Keyholder)?;
         let child = command.spawn()?;
         // The keyholder's end is its alone now.
         drop(command);

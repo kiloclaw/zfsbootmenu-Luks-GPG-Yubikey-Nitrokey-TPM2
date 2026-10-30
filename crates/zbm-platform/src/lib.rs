@@ -73,6 +73,7 @@ pub mod interaction;
 pub mod log;
 pub mod process;
 mod quiet;
+pub mod sandbox;
 pub mod secret;
 pub mod shell;
 mod traced;

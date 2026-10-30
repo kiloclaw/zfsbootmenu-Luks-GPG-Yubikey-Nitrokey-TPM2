@@ -23,3 +23,7 @@ zbm-testkit.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "console_sandbox"
+harness = false

@@ -85,6 +85,7 @@ use zbm_console::serve::{
 use zbm_display::input::DeviceId;
 use zbm_display::keys::compose_key;
 use zbm_platform::RealFiles;
+use zbm_platform::sandbox::{self, Profile as _};
 
 use crate::{Io, USAGE};
 
@@ -358,6 +359,28 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
     }
 }
 
+/// Confines the console (ROADMAP.md, SE11) before it starts its threads,
+/// with its directories made first, as their rules need them; what it
+/// could not confine is logged, and it runs on.
+fn confine(places: &Places, mirror: Option<&Path>) {
+    let _ = RealFiles.create_dir_all(&places.base);
+    let _ = zbm_sys::socket::make_directory(&places.socket);
+    let profile = sandbox::Console {
+        state: places.base.clone(),
+        sockets: places
+            .socket
+            .parent()
+            .map(Path::to_owned)
+            .unwrap_or_default(),
+        share: PathBuf::from("/usr/share/zfsbootmenu"),
+        mirror: mirror.map(Path::to_owned),
+    };
+    match profile.confine() {
+        Ok(applied) => places.log(6, &format!("confined: {}", sandbox::describe(&applied))),
+        Err(error) => places.log(3, &format!("not wholly confined: {error}")),
+    }
+}
+
 /// `zbm console`, or `zbm console release`, `reattach` or `layout`.
 pub fn run(args: &[String], io: &mut Io) -> i32 {
     match args.first().map(String::as_str) {
@@ -388,6 +411,7 @@ pub fn run(args: &[String], io: &mut Io) -> i32 {
         names: crate::layouts::available(&files, directory),
         load: &mut load,
     };
+    confine(&places, options.mirror.as_deref());
     match serve(&settings, &places, &mut grid, layouts) {
         Ok(()) => 0,
         Err(error) => {
