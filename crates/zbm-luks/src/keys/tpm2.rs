@@ -21,9 +21,10 @@ use zbm_tools::modules::Modules;
 use super::{Outcome, Target};
 use crate::crypto::{base64_decode, base64_encode, hex, pbkdf2_hmac_sha256, sha256};
 use crate::error::{LuksError, TokenFailure};
+use crate::keys::OpenMapping;
 use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
-use zbm_platform::interaction::{SecretKind, SecretRequest, Told, VolumeRef};
+use zbm_platform::interaction::{SecretKind, SecretRequest, Told};
 
 /// The authorization value of a TPM2 PIN, in hexadecimal: the SHA-256 of the
 /// PIN without trailing zero bytes. systemd 255 and later salt the PIN first:
@@ -211,10 +212,10 @@ impl Unlocker<'_> {
         target: Target<'_>,
         token: &Token,
         pin: Option<&Secret>,
-    ) -> Result<(), TokenFailure> {
+    ) -> Result<OpenMapping, TokenFailure> {
         match self.tpm2_native_unseal(token, pin) {
             Outcome::Key(key) => self
-                .cryptsetup_open(target.name, target.device, Key::Stdin(&key), target.args)
+                .cryptsetup_open(target, Key::Stdin(&key))
                 .map_err(|_| TokenFailure::NotReleased),
             Outcome::Failed => Err(TokenFailure::NotReleased),
             Outcome::Unsupported => Err(TokenFailure::Unsupported),
@@ -236,8 +237,8 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), LuksError> {
-        let device = target.device;
+    ) -> Result<OpenMapping, LuksError> {
+        let device = target.device();
         let failed = |failure| target.token_error("systemd-tpm2", id, failure);
         if !self.have_tpm2() {
             zbm_trace::info!("no TPM2 available for token {id} on {device}"; %id, %device);
@@ -264,12 +265,12 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), TokenFailure> {
-        let device = target.device;
+    ) -> Result<OpenMapping, TokenFailure> {
+        let device = target.device();
         if self.have_token_plugin("systemd-tpm2")
-            && self.open_token_plugin(target, id, None).is_ok()
+            && let Ok(open) = self.open_token_plugin(target, id, None)
         {
-            return Ok(());
+            return Ok(open);
         }
         let result = self.tpm2_native_open(target, token, None);
         if result == Err(TokenFailure::Unsupported) && !self.have_token_plugin("systemd-tpm2") {
@@ -277,9 +278,9 @@ impl Unlocker<'_> {
                 "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin"; %id, %device
             );
         }
-        result?;
+        let open = result?;
         zbm_trace::info!("unlocked {device} with TPM2"; %device);
-        Ok(())
+        Ok(open)
     }
 
     /// A token with a PIN: each PIN that worked before, once, then up to
@@ -289,8 +290,8 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), TokenFailure> {
-        let device = target.device;
+    ) -> Result<OpenMapping, TokenFailure> {
+        let device = target.device();
         let mut asked = 0;
         let cached: Vec<Secret> = self.tpm2_pins.iter().map(Secret::duplicate).collect();
         for cached in cached.iter().map(Some).chain([None]) {
@@ -299,12 +300,12 @@ impl Unlocker<'_> {
                     Some(pin) => pin.duplicate(),
                     None => self.ask_tpm2_pin(target, &mut asked)?,
                 };
-                if self.tpm2_open_with_pin(target, id, token, &pin)? {
+                if let Some(open) = self.tpm2_open_with_pin(target, id, token, &pin)? {
                     if cached.is_none() {
                         self.tpm2_pins.push(pin);
                     }
                     zbm_trace::info!("unlocked {device} with TPM2 and PIN"; %device);
-                    return Ok(());
+                    return Ok(open);
                 }
                 drop(pin);
                 if self.tpm2_in_lockout() {
@@ -329,12 +330,8 @@ impl Unlocker<'_> {
         if *asked > TRIES {
             return Err(TokenFailure::TooManyTries);
         }
-        let device = target.device;
         let request = SecretRequest {
-            volume: VolumeRef {
-                name: target.name,
-                device,
-            },
+            volume: target.volume(),
             kind: SecretKind::Tpm2Pin,
             attempt: *asked,
             tries: Some(TRIES),
@@ -348,8 +345,8 @@ impl Unlocker<'_> {
             .ok_or(TokenFailure::NoPin)
     }
 
-    /// Tries `pin`, with the plugin or ZFSBootMenu's own unsealing; whether
-    /// the volume opened.
+    /// Tries `pin`, with the plugin or ZFSBootMenu's own unsealing; the
+    /// mapping, when the volume opened.
     ///
     /// # Errors
     ///
@@ -361,20 +358,20 @@ impl Unlocker<'_> {
         id: &str,
         token: &Token,
         pin: &Secret,
-    ) -> Result<bool, TokenFailure> {
+    ) -> Result<Option<OpenMapping>, TokenFailure> {
         if self.have_token_plugin("systemd-tpm2") {
-            return Ok(self.open_token_plugin(target, id, Some(pin)).is_ok());
+            return Ok(self.open_token_plugin(target, id, Some(pin)).ok());
         }
         match self.tpm2_native_open(target, token, Some(pin)) {
-            Ok(()) => Ok(true),
+            Ok(open) => Ok(Some(open)),
             Err(TokenFailure::Unsupported) => {
                 zbm_trace::warn!(
                     "TPM2 token {id} on {device} needs the systemd-tpm2 cryptsetup plugin";
-                    %id, device = %target.device
+                    %id, device = %target.device()
                 );
                 Err(TokenFailure::Unsupported)
             }
-            Err(_) => Ok(false),
+            Err(_) => Ok(None),
         }
     }
 }

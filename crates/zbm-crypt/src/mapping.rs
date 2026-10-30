@@ -62,6 +62,15 @@ impl Mapping<Closed> {
     }
 }
 
+/// A closed mapping is only a description, which every attempt to open the
+/// volume may copy; an open one is not, as it stands for the mapping that
+/// exists.
+impl Clone for Mapping<Closed> {
+    fn clone(&self) -> Mapping<Closed> {
+        Mapping::new(self.device.clone(), self.name.clone())
+    }
+}
+
 impl Mapping<Open> {
     /// The device node of the open mapping: `/dev/mapper/NAME`.
     pub fn path(&self) -> String {

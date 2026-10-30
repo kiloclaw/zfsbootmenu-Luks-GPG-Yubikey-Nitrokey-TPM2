@@ -14,11 +14,12 @@ use zbm_platform::files::FileKind;
 use super::{Outcome, Target};
 use crate::crypto::base64_encode;
 use crate::error::{LuksError, TokenFailure};
+use crate::keys::OpenMapping;
 use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
 use zbm_crypt::fido2::{Assertion, Fido2};
 use zbm_platform::interaction::Wait;
-use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
+use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, WaitRequest};
 
 pub use zbm_crypt::fido2::{last_line, listed_devices};
 
@@ -131,14 +132,11 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), LuksError> {
-        let device = target.device;
+    ) -> Result<OpenMapping, LuksError> {
+        let device = target.device();
         let failed = |failure| target.token_error("systemd-fido2", id, failure);
         let request = WaitRequest {
-            volume: VolumeRef {
-                name: target.name,
-                device,
-            },
+            volume: target.volume(),
             awaited: Awaited::SecurityKey,
             seconds: self.token_wait(),
             present: &|| self.have_fido2_device(),
@@ -148,15 +146,13 @@ impl Unlocker<'_> {
             return Err(failed(TokenFailure::NoDevice));
         }
         let heading = format!("Unlock {device} with a FIDO2 security key");
-        self.heading(&heading, device);
-        if self.have_token_plugin("systemd-fido2") {
-            self.fido2_plugin_open(target, id, token).map_err(failed)?;
+        self.heading(&heading, device.as_str());
+        let open = if self.have_token_plugin("systemd-fido2") {
+            self.fido2_plugin_open(target, id, token).map_err(failed)?
         } else {
             // Without the plugin, fido2-assert asks for the PIN itself.
             match self.fido2_native(token) {
-                Outcome::Key(key) => {
-                    self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
-                }
+                Outcome::Key(key) => self.cryptsetup_open(target, Key::Stdin(&key))?,
                 Outcome::Failed => return Err(failed(TokenFailure::NotReleased)),
                 Outcome::Unsupported => {
                     zbm_trace::warn!(
@@ -166,9 +162,9 @@ impl Unlocker<'_> {
                     return Err(failed(TokenFailure::Unsupported));
                 }
             }
-        }
+        };
         zbm_trace::info!("unlocked {device} with FIDO2 security key"; %device);
-        Ok(())
+        Ok(open)
     }
 
     /// Opens the volume with the token through cryptsetup's plugin, asking
@@ -178,7 +174,7 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), TokenFailure> {
+    ) -> Result<OpenMapping, TokenFailure> {
         let touch = token.flag("fido2-up-required") != Some(false);
         let touch_message = || {
             if touch {
@@ -194,10 +190,7 @@ impl Unlocker<'_> {
         }
         for attempt in 1..=FIDO2_TRIES {
             let request = SecretRequest {
-                volume: VolumeRef {
-                    name: target.name,
-                    device: target.device,
-                },
+                volume: target.volume(),
                 kind: SecretKind::Fido2Pin,
                 attempt,
                 tries: Some(FIDO2_TRIES),
@@ -210,8 +203,8 @@ impl Unlocker<'_> {
                 .filter(|pin| !pin.is_empty())
                 .ok_or(TokenFailure::NoPin)?;
             touch_message();
-            if self.open_token_plugin(target, id, Some(&pin)).is_ok() {
-                return Ok(());
+            if let Ok(open) = self.open_token_plugin(target, id, Some(&pin)) {
+                return Ok(open);
             }
             let refused = "The security key did not release the key.\n";
             self.tell(Told::Refused, refused);
@@ -287,17 +280,13 @@ mod tests {
         .unwrap()
         .replace(r#""fido2-clientPin-required":false,"#, "");
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         // The assertion with a PIN gets the console: fido2-assert asks there.
         let prompts = crate::testing::Prompts::new(&fake);
         let settings = Settings::new("/zfsbootmenu");
         with_prompter(&fake, &settings, &prompts, |session| {
             let token = Token::from_export("0", &json).unwrap();
-            assert_eq!(session.try_fido2_token(target, "0", &token), Ok(()));
+            assert!(session.try_fido2_token(target, "0", &token).is_ok());
         });
         assert_eq!(prompts.consoles(), 1);
         let lines = fake.runner.lines();
@@ -341,11 +330,7 @@ mod tests {
             .file("/zfsbootmenu/cmdline.d/zbm.luks_token_wait", "1");
         fake.console.timeout().timeout();
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             let token = crate::keys::tests::token("{}");
             assert!(session.try_fido2_token(target, "3", &token).is_err());
@@ -399,22 +384,20 @@ mod tests {
     #[test]
     fn the_plugin_asks_for_the_pin_when_the_token_needs_one() {
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         let fake = plugin_machine();
         fake.console.secret(b"bad").secret(b"1234");
         let settings = Settings::new("/zfsbootmenu");
         with_session(&fake, &settings, |session| {
-            assert_eq!(
-                session.try_fido2_token(target, "0", &fido2_token(true)),
-                Ok(())
+            assert!(
+                session
+                    .try_fido2_token(target, "0", &fido2_token(true))
+                    .is_ok()
             );
-            assert_eq!(
-                session.try_fido2_token(target, "0", &fido2_token(false)),
-                Ok(())
+            assert!(
+                session
+                    .try_fido2_token(target, "0", &fido2_token(false))
+                    .is_ok()
             );
         });
         let output = fake.console.output_text();

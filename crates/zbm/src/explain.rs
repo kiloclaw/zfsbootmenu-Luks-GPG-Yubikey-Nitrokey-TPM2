@@ -18,7 +18,6 @@ const TABLES: &[&[Explanation]] = &[
     zbm_app::codes::ZFS_CODES,
     zbm_pool::POOL_CODES,
     zbm_luks::LUKS_CODES,
-    std::slice::from_ref(&zbm_luks::pilot::UNLOCK_FAILED),
     zbm_app::codes::CRYPT_CODES,
     zbm_boot::BOOT_CODES,
     zbm_boot::saved_logs::SAVE_CODES,

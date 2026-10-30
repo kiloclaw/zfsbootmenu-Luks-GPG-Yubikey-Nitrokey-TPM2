@@ -155,3 +155,10 @@ pub fn warnings(fake: &FakeSystem) -> Vec<String> {
         .map(str::to_owned)
         .collect()
 }
+
+/// The volume `device`, opened as `name` with `args`, as the key methods
+/// get it; its closed mapping lives as long as the test.
+pub fn target<'a>(name: &str, device: &str, args: &'a [String]) -> crate::keys::Target<'a> {
+    let mapping = zbm_crypt::Mapping::new(device.parse().unwrap(), name.parse().unwrap());
+    crate::keys::Target::new(Box::leak(Box::new(mapping)), args)
+}

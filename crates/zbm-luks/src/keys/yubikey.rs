@@ -12,6 +12,7 @@ use super::Target;
 use crate::config::YubiKey;
 use crate::crypto::{hex, sha256};
 use crate::error::LuksError;
+use crate::keys::OpenMapping;
 use crate::unlocker::{Key, Unlocker};
 use zbm_platform::interaction::Wait;
 use zbm_platform::interaction::{Awaited, SecretKind, SecretRequest, Told, VolumeRef, WaitRequest};
@@ -38,10 +39,10 @@ impl Unlocker<'_> {
         target: Target<'_>,
         yubikey: &YubiKey,
         tries: u64,
-    ) -> Result<(), LuksError> {
-        let device = target.device;
+    ) -> Result<OpenMapping, LuksError> {
+        let device = target.device();
         let failed = || LuksError::YubiKey {
-            device: device.to_owned(),
+            device: device.to_string(),
         };
         if !self.context().command_exists("ykchalresp") {
             zbm_trace::warn!("ykchalresp is not available to unlock {device}"; %device);
@@ -55,14 +56,11 @@ impl Unlocker<'_> {
                 Attempt::NoResponse => continue,
                 Attempt::Stop => return Err(failed()),
             };
-            if self
-                .cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)
-                .is_ok()
-            {
+            if let Ok(open) = self.cryptsetup_open(target, Key::Stdin(&key)) {
                 // Other volumes enrolled with the same slot reuse the response.
                 self.passphrases.push(key);
                 zbm_trace::info!("unlocked {device} with YubiKey challenge-response"; %device);
-                return Ok(());
+                return Ok(open);
             }
             let wrong = "No key available with this passphrase.\n";
             self.tell(Told::Refused, wrong);
@@ -78,10 +76,7 @@ impl Unlocker<'_> {
         yubikey: &YubiKey,
         (attempt, tries): (u64, u64),
     ) -> Attempt {
-        let volume = VolumeRef {
-            name: target.name,
-            device: target.device,
-        };
+        let volume = target.volume();
         let Some(pass) = self.ykchalresp_passphrase(volume, yubikey, (attempt, tries)) else {
             return Attempt::Stop;
         };
@@ -200,13 +195,9 @@ mod tests {
             concat: false,
         };
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
-            assert_eq!(session.try_ykchalresp(target, &yubikey, 3), Ok(()));
+            assert!(session.try_ykchalresp(target, &yubikey, 3).is_ok());
             assert_eq!(session.passphrases.len(), 1);
         });
         let output = fake.console.output_text();
@@ -234,13 +225,9 @@ mod tests {
             concat: true,
         };
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
-            assert_eq!(session.try_ykchalresp(target, &yubikey, 1), Ok(()));
+            assert!(session.try_ykchalresp(target, &yubikey, 1).is_ok());
         });
         assert!(
             fake.runner
@@ -259,11 +246,7 @@ mod tests {
             concat: false,
         };
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(session.try_ykchalresp(target, &yubikey, 0).is_err());
         });

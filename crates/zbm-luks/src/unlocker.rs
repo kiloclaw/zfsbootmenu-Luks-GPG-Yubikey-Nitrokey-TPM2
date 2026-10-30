@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::args::{Args, CmdlineDir};
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::luks::{LUKS_TOKEN_WAIT, LUKS_TOKENS};
-use zbm_crypt::{Closed, Cryptsetup, LuksVolumes, Mapping};
+use zbm_crypt::{Cryptsetup, LuksVolumes};
 use zbm_platform::secret::Secret;
 use zbm_platform::{Context, Environment, Runner};
 use zbm_tools::{Shown, udev};
@@ -24,9 +24,12 @@ use zbm_types::RetryDelay;
 use crate::config::{CRYPTTAB, DEFAULT_TRIES};
 use crate::device::OpenCheck;
 use crate::error::LuksError;
+use crate::keys::{OpenMapping, Target};
+use crate::unlock::methods::{Attempt, Registry};
 use zbm_platform::interaction::{
     Asked, Interaction, PromptRequest, SecretRequest, Tell, Told, Wait, WaitRequest,
 };
+use zbm_types::DevicePath;
 
 /// Where the image keeps public keys and settings for GnuPG.
 pub const GNUPG_DIR: &str = "/etc/zfsbootmenu/gnupg";
@@ -145,7 +148,7 @@ pub struct Luks<'a> {
 #[derive(Clone, Copy)]
 pub enum Key<'a> {
     /// A key file, read by `cryptsetup`.
-    File(&'a str),
+    File(&'a Path),
     /// Key material on standard input (`--key-file=-`).
     Stdin(&'a Secret),
 }
@@ -170,6 +173,10 @@ pub struct Unlocker<'a> {
     /// Whether `udev`'s device-mapper rules are missing, so `cryptsetup` must
     /// not wait for `udev` (`DM_DISABLE_UDEV=1`).
     pub(crate) dm_disable_udev: bool,
+    /// The key methods, in the order they are tried.
+    pub(crate) registry: Registry,
+    /// Every attempt to open each volume of the run, in order.
+    attempts: BTreeMap<DevicePath, Vec<Attempt>>,
 }
 
 impl<'a> Unlocker<'a> {
@@ -184,6 +191,8 @@ impl<'a> Unlocker<'a> {
             keydev_absent: BTreeSet::new(),
             tpm2_probed: false,
             dm_disable_udev: false,
+            registry: Registry::standard(),
+            attempts: BTreeMap::new(),
         }
     }
 
@@ -205,6 +214,27 @@ impl<'a> Unlocker<'a> {
                 Cryptsetup::new(self.context().runner()).without_udev(self.dm_disable_udev),
             ),
         }
+    }
+
+    /// The run, which tries the key methods of `registry`.
+    #[must_use]
+    pub fn with_registry(mut self, registry: Registry) -> Unlocker<'a> {
+        self.registry = registry;
+        self
+    }
+
+    /// Every attempt to open `device` in the run, in order; none when it
+    /// was not tried.
+    pub fn attempts(&self, device: &DevicePath) -> &[Attempt] {
+        self.attempts.get(device).map_or(&[], Vec::as_slice)
+    }
+
+    /// Keeps the `attempts` to open `device`, after those before.
+    pub(crate) fn keep_attempts(&mut self, device: &DevicePath, attempts: &[Attempt]) {
+        self.attempts
+            .entry(device.clone())
+            .or_default()
+            .extend_from_slice(attempts);
     }
 
     /// The ports to the system.
@@ -350,37 +380,32 @@ impl<'a> Unlocker<'a> {
     /// [`LuksError::Open`] with cryptsetup's exit status.
     pub fn cryptsetup_open(
         &self,
-        name: &str,
-        device: &str,
+        target: Target<'_>,
         key: Key<'_>,
-        args: &[String],
-    ) -> Result<(), LuksError> {
+    ) -> Result<OpenMapping, LuksError> {
         let key = match key {
-            Key::File(path) => zbm_crypt::Key::File(Path::new(path)),
+            Key::File(path) => zbm_crypt::Key::File(path),
             Key::Stdin(secret) => zbm_crypt::Key::Secret(secret),
         };
-        let (status, output) = match closed_mapping(name, device) {
-            Some(mapping) => match self.volumes().open(mapping, key, args) {
-                Ok(_) => return Ok(()),
-                Err(failed) => (failed.error.status(), failed.output),
-            },
-            None => (1, "not a device or mapping name".to_owned()),
+        let failed = match self
+            .volumes()
+            .open(target.mapping().clone(), key, target.args())
+        {
+            Ok(open) => return Ok(open),
+            Err(failed) => failed,
         };
+        let (status, output) = (failed.error.status(), failed.output);
+        let (device, name) = (target.device(), target.name());
         zbm_trace::debug!(
             "cryptsetup open {device} {name} failed ({status}): {output}";
             %device, %name, %status, %output
         );
         Err(LuksError::Open {
-            device: device.to_owned(),
-            name: name.to_owned(),
+            device: device.to_string(),
+            name: name.to_string(),
             status,
         })
     }
-}
-
-/// The closed mapping of `device` as `name`, when both are what they say.
-pub(crate) fn closed_mapping(name: &str, device: &str) -> Option<Mapping<Closed>> {
-    Some(Mapping::new(device.parse().ok()?, name.parse().ok()?))
 }
 
 #[cfg(test)]

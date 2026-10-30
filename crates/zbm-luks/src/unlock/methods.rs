@@ -1,83 +1,216 @@
-//! The key methods tried before the passphrase prompt, as strategies.
+//! The registry of key methods (ROADMAP.md DM6).
 //!
-//! Each way of getting a volume's key is a [`KeyMethod`]; [`key_methods`]
-//! lists them in the order they are tried, which is the legacy order: a key
-//! script, a key file (decrypting a GnuPG key file), LUKS2 tokens,
-//! passphrases that opened other volumes, and YubiKey challenge-response. A
-//! method that does not apply to a volume, or whose key does not open it,
-//! answers [`Tried::NotOpened`], and the next one is tried; the passphrase
-//! prompt comes after them all.
+//! Each way of getting a volume's key is a [`KeyMethod`]; a [`Registry`]
+//! tries its methods in order until one opens the volume. The standard
+//! one ([`Registry::standard`]) is the legacy order: a key script, a key
+//! file (decrypting a GnuPG key file), the LUKS2 tokens, with the handlers
+//! of their types in it ([`crate::keys::handlers`]), passphrases that
+//! opened other volumes, YubiKey challenge-response, and the passphrase
+//! prompt last; another lists fewer, such as the key file alone of `zluks
+//! open --key-file`.
+//!
+//! A method gets the volume closed and gives back the mapping it opened,
+//! which only the LUKS port makes, or why it did not ([`Refusal`]). Every
+//! attempt is kept ([`Attempt`]): with the volume when none opened it
+//! ([`NotUnlocked`]), and in the run ([`Unlocker::attempts`]).
 
 use std::path::Path;
+use std::rc::Rc;
 
+use tracing::{debug, info, info_span};
+use zbm_crypt::Closed;
 use zbm_tools::programs;
 
-use crate::config::Options;
 use crate::error::LuksError;
-use crate::keys::Target;
+use crate::keys::OpenMapping;
 use crate::keys::gpg::is_gpg_keyfile;
 use crate::unlock::Method;
 use crate::unlocker::{Key, Unlocker};
-use zbm_platform::interaction::VolumeRef;
+use crate::volume::Volume;
+use zbm_crypt::Open;
 
-/// A volume being unlocked: what every key method needs to know.
-#[derive(Clone, Copy, Debug)]
-pub struct Volume<'v> {
-    /// The mapping name.
-    pub name: &'v str,
-    /// The LUKS device.
-    pub device: &'v str,
-    /// The LUKS header: the device, or a detached header.
-    pub header: &'v str,
-    /// The key file specification of the crypttab, or empty.
-    pub keyspec: &'v str,
-    /// The crypttab options.
-    pub options: &'v Options,
-    /// The crypttab options as written, for key scripts.
-    pub options_text: &'v str,
-}
-
-impl<'v> Volume<'v> {
-    /// The volume as the key methods of [`crate::keys`] open it.
-    fn target(&self) -> Target<'v> {
-        Target {
-            name: self.name,
-            device: self.device,
-            args: &self.options.args,
-        }
-    }
-}
-
-/// What a key method did with a volume.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Tried {
-    /// It opened the volume.
-    Opened,
-    /// Another program opened the volume while the method tried.
+/// Why a key method did not open a volume.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Refusal {
+    /// It does not apply to the volume: no key script, no key file, tokens
+    /// turned off.
+    NotApplicable,
+    /// Another program opened the volume while it tried, such as `zluks`
+    /// over SSH: nothing more is tried.
     Elsewhere,
-    /// It does not apply, or its key did not open the volume.
-    NotOpened,
+    /// It tried, and failed for this reason.
+    Failed(LuksError),
+}
+
+/// One key method tried on a volume, and what came of it: `None` when it
+/// opened the volume.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Attempt {
+    /// The method.
+    pub method: Method,
+    /// Why it did not open the volume, if it did not.
+    pub refusal: Option<Refusal>,
 }
 
 /// One way of getting the key of a volume and opening it.
 pub trait KeyMethod {
-    /// The method, as [`crate::unlock::Opened`] reports it.
+    /// The method, as attempts and [`crate::unlock::Opened`] report it.
     fn method(&self) -> Method;
 
-    /// Tries to open `volume`, with the secrets of `session` that earlier
-    /// volumes left.
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried;
+    /// Opens `volume`, with the secrets that earlier volumes of the run
+    /// left in `unlocker`.
+    ///
+    /// # Errors
+    ///
+    /// Why it did not.
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal>;
 }
 
-/// The key methods, in the order they are tried.
-pub fn key_methods() -> Vec<Box<dyn KeyMethod>> {
-    vec![
-        Box::new(KeyScript),
-        Box::new(KeyFile),
-        Box::new(Tokens),
-        Box::new(CachedPassphrases),
-        Box::new(YubiKey),
-    ]
+/// What the methods of a [`Registry`] came to, when the volume is open.
+#[derive(Debug)]
+pub enum Unlocked {
+    /// A method opened it.
+    Opened(Volume<Open>, Method),
+    /// Another program opened it meanwhile.
+    Elsewhere,
+}
+
+/// No method opened the volume: it, still closed, and every attempt in
+/// order.
+#[derive(Debug)]
+pub struct NotUnlocked {
+    /// The volume.
+    pub volume: Volume<Closed>,
+    /// Each method tried, with why it did not open the volume.
+    pub attempts: Vec<Attempt>,
+}
+
+impl NotUnlocked {
+    /// The error it comes to: why the last method that could have opened
+    /// the volume gave up when that ends the attempts, as the passphrase
+    /// prompt does when the volume is skipped or there is no console;
+    /// otherwise that no method opened it, with every attempt.
+    pub fn into_error(self) -> LuksError {
+        let ending = self
+            .attempts
+            .last()
+            .and_then(|attempt| match &attempt.refusal {
+                Some(Refusal::Failed(
+                    error @ (LuksError::Skipped { .. } | LuksError::NoConsole { .. }),
+                )) => Some(error.clone()),
+                _ => None,
+            });
+        ending.unwrap_or_else(|| LuksError::NotUnlocked {
+            device: self.volume.device().to_string(),
+            attempts: self.attempts,
+        })
+    }
+}
+
+/// Key methods, tried in order until one opens a volume.
+#[derive(Clone)]
+pub struct Registry {
+    methods: Rc<[Rc<dyn KeyMethod>]>,
+}
+
+impl std::fmt::Debug for Registry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.methods()).finish()
+    }
+}
+
+impl Registry {
+    /// The methods of `methods`, in this order.
+    pub fn of(methods: Vec<Rc<dyn KeyMethod>>) -> Registry {
+        Registry {
+            methods: methods.into(),
+        }
+    }
+
+    /// The legacy order: a key script, a key file, the LUKS2 tokens,
+    /// passphrases that opened other volumes, YubiKey challenge-response,
+    /// and the passphrase prompt.
+    pub fn standard() -> Registry {
+        Registry::of(vec![
+            Rc::new(KeyScript),
+            Rc::new(KeyFile),
+            Rc::new(Tokens),
+            Rc::new(CachedPassphrases),
+            Rc::new(YubiKey),
+            Rc::new(Passphrase),
+        ])
+    }
+
+    /// The key file alone, as `zluks open --key-file` opens a volume.
+    pub fn key_file() -> Registry {
+        Registry::of(vec![Rc::new(KeyFile)])
+    }
+
+    /// The methods, in order.
+    pub fn methods(&self) -> impl Iterator<Item = Method> + '_ {
+        self.methods.iter().map(|method| method.method())
+    }
+
+    /// Opens `volume` with the first method that can, each in a
+    /// `key_method` span, and keeps every attempt in `unlocker`.
+    ///
+    /// # Errors
+    ///
+    /// [`NotUnlocked`] with the volume, still closed, and every attempt.
+    pub fn unlock(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: Volume<Closed>,
+    ) -> Result<Unlocked, NotUnlocked> {
+        let _span =
+            info_span!("unlock", device = %volume.device(), name = %volume.name()).entered();
+        let mut attempts = Vec::new();
+        let mut unlocked = None;
+        for method in self.methods.iter() {
+            let id = method.method();
+            let _method = info_span!("key_method", method = ?id).entered();
+            match method.try_open(unlocker, &volume) {
+                Ok(open) => {
+                    info!("opened");
+                    attempts.push(Attempt {
+                        method: id,
+                        refusal: None,
+                    });
+                    unlocked = Some(Ok((open, id)));
+                    break;
+                }
+                Err(Refusal::Elsewhere) => {
+                    info!("opened elsewhere");
+                    attempts.push(Attempt {
+                        method: id,
+                        refusal: Some(Refusal::Elsewhere),
+                    });
+                    unlocked = Some(Err(()));
+                    break;
+                }
+                Err(Refusal::NotApplicable) => debug!("not applicable"),
+                Err(refusal @ Refusal::Failed(_)) => {
+                    if let Refusal::Failed(error) = &refusal {
+                        debug!(%error, "refused");
+                    }
+                    attempts.push(Attempt {
+                        method: id,
+                        refusal: Some(refusal),
+                    });
+                }
+            }
+        }
+        unlocker.keep_attempts(volume.device(), &attempts);
+        match unlocked {
+            Some(Ok((open, id))) => Ok(Unlocked::Opened(volume.opened(open), id)),
+            Some(Err(())) => Ok(Unlocked::Elsewhere),
+            None => Err(NotUnlocked { volume, attempts }),
+        }
+    }
 }
 
 /// A key script of the crypttab prints the key (Debian's crypttab
@@ -89,27 +222,27 @@ impl KeyMethod for KeyScript {
         Method::KeyScript
     }
 
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-        let Some(script) = &volume.options.keyscript else {
-            return Tried::NotOpened;
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        let Some(script) = &volume.options().keyscript else {
+            return Err(Refusal::NotApplicable);
         };
-        if open_with_keyscript(session, volume, script).is_ok() {
-            Tried::Opened
-        } else {
-            Tried::NotOpened
-        }
+        open_with_keyscript(unlocker, volume, script).map_err(Refusal::Failed)
     }
 }
 
 /// Runs a key script with the crypttab variables and opens the volume with
 /// what it prints.
 fn open_with_keyscript(
-    session: &Unlocker<'_>,
-    volume: &Volume<'_>,
+    unlocker: &Unlocker<'_>,
+    volume: &Volume<Closed>,
     script: &str,
-) -> Result<(), LuksError> {
-    let device = volume.device;
-    let executable = session
+) -> Result<OpenMapping, LuksError> {
+    let device = volume.device();
+    let executable = unlocker
         .context()
         .files()
         .metadata(Path::new(script))
@@ -121,33 +254,32 @@ fn open_with_keyscript(
         });
     }
     zbm_trace::info!("unlocking {device} with key script {script}"; %device, %script);
-    let key = if volume.keyspec.is_empty() {
+    let key = if volume.keyspec().is_empty() {
         "none"
     } else {
-        volume.keyspec
+        volume.keyspec()
     };
-    let mut env = session.exported().to_vec();
+    let mut env = unlocker.exported().to_vec();
     env.extend([
-        ("CRYPTTAB_NAME", volume.name),
-        ("CRYPTTAB_SOURCE", device),
+        ("CRYPTTAB_NAME", volume.name().as_str()),
+        ("CRYPTTAB_SOURCE", device.as_str()),
         ("CRYPTTAB_KEY", key),
-        ("CRYPTTAB_OPTIONS", volume.options_text),
+        ("CRYPTTAB_OPTIONS", volume.entry().options_text.as_str()),
         ("CRYPTTAB_TRIED", "0"),
     ]);
     // The script may ask on the console, which it gets for the time.
     let mut printed = None;
-    session.with_console(&mut |runner| {
+    unlocker.with_console(&mut |runner| {
         printed = programs::key_script(runner, script, key, &env)
             .ok()
             .and_then(zbm_platform::Output::into_secret);
     });
     let printed = printed.unwrap_or_default();
-    let target = volume.target();
-    let opened = session.cryptsetup_open(target.name, device, Key::Stdin(&printed), target.args);
+    let opened = unlocker.cryptsetup_open(volume.target(), Key::Stdin(&printed));
     if opened.is_ok() {
         zbm_trace::info!(
             "unlocked {device} as {name} with key script";
-            %device, name = %target.name
+            %device, name = %volume.name()
         );
     } else {
         zbm_trace::warn!("key script {script} failed to unlock {device}"; %script, %device);
@@ -165,105 +297,95 @@ impl KeyMethod for KeyFile {
         Method::KeyFile
     }
 
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-        let keyspec = volume.keyspec;
-        if keyspec.is_empty() || volume.options.keyscript.is_some() {
-            return Tried::NotOpened;
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        let keyspec = volume.keyspec();
+        if keyspec.is_empty() || volume.options().keyscript.is_some() {
+            return Err(Refusal::NotApplicable);
         }
-        let cached = session
+        let cached = unlocker
             .gpg_plain
             .get(keyspec)
             .filter(|plain| !plain.is_empty())
             .map(zbm_platform::Secret::duplicate);
-        let tried = match cached {
-            Some(plain) => open_with_decrypted(session, volume, &plain),
-            None => open_with_keyfile(session, volume),
+        let opened = match cached {
+            Some(plain) => open_with_decrypted(unlocker, volume, &plain),
+            None => open_with_keyfile(unlocker, volume),
         };
-        if tried == Tried::Opened {
-            zbm_trace::info!(
-                "unlocked {device} as {name} with key file";
-                device = %volume.device, name = %volume.name
+        let Some(open) = opened else {
+            zbm_trace::warn!(
+                "key file {keyspec} failed to unlock {device}";
+                %keyspec, device = %volume.device()
             );
-            Tried::Opened
-        } else {
-            Tried::NotOpened
-        }
+            return Err(Refusal::Failed(LuksError::KeyFile {
+                keyspec: keyspec.to_owned(),
+                device: volume.device().to_string(),
+            }));
+        };
+        zbm_trace::info!(
+            "unlocked {device} as {name} with key file";
+            device = %volume.device(), name = %volume.name()
+        );
+        Ok(open)
     }
 }
 
 /// Opens `volume` with a GnuPG key file decrypted for an earlier volume.
 fn open_with_decrypted(
-    session: &Unlocker<'_>,
-    volume: &Volume<'_>,
+    unlocker: &Unlocker<'_>,
+    volume: &Volume<Closed>,
     plain: &zbm_platform::Secret,
-) -> Tried {
-    let (device, keyspec) = (volume.device, volume.keyspec);
+) -> Option<OpenMapping> {
+    let (device, keyspec) = (volume.device(), volume.keyspec());
     zbm_trace::info!(
         "unlocking {device} with GnuPG key file {keyspec} (already decrypted)";
         %device, %keyspec
     );
-    let target = volume.target();
-    let opened = session
-        .cryptsetup_open(target.name, device, Key::Stdin(plain), target.args)
-        .is_ok();
-    outcome(opened, volume)
-}
-
-/// [`Tried::Opened`] when `opened`; otherwise the key file failed, which is
-/// logged.
-fn outcome(opened: bool, volume: &Volume<'_>) -> Tried {
-    if opened {
-        return Tried::Opened;
-    }
-    zbm_trace::warn!(
-        "key file {keyspec} failed to unlock {device}";
-        keyspec = %volume.keyspec, device = %volume.device
-    );
-    Tried::NotOpened
+    unlocker
+        .cryptsetup_open(volume.target(), Key::Stdin(plain))
+        .ok()
 }
 
 /// Finds the key file of `volume` (mounting its key device if it has one),
 /// decrypts it if it is a GnuPG key file, and opens the volume with it.
-fn open_with_keyfile(session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-    let (device, keyspec) = (volume.device, volume.keyspec);
-    let named = VolumeRef {
-        name: volume.name,
-        device,
-    };
-    let found = session.find_keyfile(keyspec, named);
+fn open_with_keyfile(unlocker: &mut Unlocker<'_>, volume: &Volume<Closed>) -> Option<OpenMapping> {
+    let (device, keyspec) = (volume.device(), volume.keyspec());
+    let named = volume.target().volume();
+    let found = unlocker.find_keyfile(keyspec, named);
     let Some(path) = &found.path else {
-        session.release_keyfile(&found);
-        return Tried::NotOpened;
+        unlocker.release_keyfile(&found);
+        return None;
     };
     let target = volume.target();
-    let opened = if volume.options.gpg || is_gpg_keyfile(path, "") {
-        match session.gpg_decrypt(path, named) {
+    let opened = if volume.options().gpg || is_gpg_keyfile(path, "") {
+        match unlocker.gpg_decrypt(path, named) {
             Some(plain) => {
                 zbm_trace::info!(
                     "unlocking {device} with GnuPG key file {keyspec}";
                     %device, %keyspec
                 );
-                let opened = session
-                    .cryptsetup_open(target.name, device, Key::Stdin(&plain), target.args)
-                    .is_ok();
+                let opened = unlocker.cryptsetup_open(target, Key::Stdin(&plain)).ok();
                 // Kept for other volumes until the secrets are forgotten.
-                session.gpg_plain.insert(keyspec.to_owned(), plain);
+                unlocker.gpg_plain.insert(keyspec.to_owned(), plain);
                 opened
             }
-            None => false,
+            None => None,
         }
     } else {
         zbm_trace::info!("unlocking {device} with key file {keyspec}"; %device, %keyspec);
-        session
-            .cryptsetup_open(target.name, device, Key::File(path), target.args)
-            .is_ok()
+        unlocker
+            .cryptsetup_open(target, Key::File(Path::new(path)))
+            .ok()
     };
-    session.release_keyfile(&found);
-    outcome(opened, volume)
+    unlocker.release_keyfile(&found);
+    opened
 }
 
-/// LUKS2 tokens: TPM2, FIDO2 security keys and clevis, unless the crypttab
-/// or the configuration turns them off.
+/// LUKS2 tokens: TPM2, FIDO2 security keys and clevis, through the handlers
+/// of their types, unless the crypttab or the configuration turns them off.
 pub struct Tokens;
 
 impl KeyMethod for Tokens {
@@ -271,18 +393,19 @@ impl KeyMethod for Tokens {
         Method::Token
     }
 
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-        if volume.options.notoken || !session.tokens_enabled() {
-            return Tried::NotOpened;
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        if volume.options().notoken || !unlocker.tokens_enabled() {
+            return Err(Refusal::NotApplicable);
         }
-        if session.try_tokens(volume.target(), volume.header).is_ok() {
-            return Tried::Opened;
-        }
-        // Another tool may have unlocked the device meanwhile.
-        if session.is_device_open(volume.device) {
-            Tried::Elsewhere
-        } else {
-            Tried::NotOpened
+        match unlocker.try_tokens(volume.target(), volume.header()) {
+            Ok(open) => Ok(open),
+            // Another tool may have unlocked the device meanwhile.
+            Err(_) if unlocker.is_device_open(volume.device().as_str()) => Err(Refusal::Elsewhere),
+            Err(error) => Err(Refusal::Failed(error)),
         }
     }
 }
@@ -295,26 +418,28 @@ impl KeyMethod for CachedPassphrases {
         Method::CachedPassphrase
     }
 
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-        let target = volume.target();
-        let opened = session.passphrases.iter().any(|passphrase| {
-            session
-                .cryptsetup_open(
-                    target.name,
-                    target.device,
-                    Key::Stdin(passphrase),
-                    target.args,
-                )
-                .is_ok()
-        });
-        if !opened {
-            return Tried::NotOpened;
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        if unlocker.passphrases.is_empty() {
+            return Err(Refusal::NotApplicable);
         }
-        zbm_trace::info!(
-            "unlocked {device} as {name} with a previously entered passphrase";
-            device = %volume.device, name = %volume.name
-        );
-        Tried::Opened
+        let mut last = None;
+        for passphrase in &unlocker.passphrases {
+            match unlocker.cryptsetup_open(volume.target(), Key::Stdin(passphrase)) {
+                Ok(open) => {
+                    zbm_trace::info!(
+                        "unlocked {device} as {name} with a previously entered passphrase";
+                        device = %volume.device(), name = %volume.name()
+                    );
+                    return Ok(open);
+                }
+                Err(error) => last = Some(error),
+            }
+        }
+        Err(last.map_or(Refusal::NotApplicable, Refusal::Failed))
     }
 }
 
@@ -326,27 +451,47 @@ impl KeyMethod for YubiKey {
         Method::YubiKey
     }
 
-    fn try_open(&self, session: &mut Unlocker<'_>, volume: &Volume<'_>) -> Tried {
-        let Some(yubikey) = &volume.options.yubikey else {
-            return Tried::NotOpened;
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        let Some(yubikey) = &volume.options().yubikey else {
+            return Err(Refusal::NotApplicable);
         };
-        if session
-            .try_ykchalresp(volume.target(), yubikey, volume.options.tries)
-            .is_ok()
-        {
-            Tried::Opened
-        } else {
-            Tried::NotOpened
-        }
+        unlocker
+            .try_ykchalresp(volume.target(), yubikey, volume.options().tries)
+            .map_err(Refusal::Failed)
+    }
+}
+
+/// The passphrase prompt, until the person at the console types one that
+/// opens the volume, skips it, or another program opens it.
+pub struct Passphrase;
+
+impl KeyMethod for Passphrase {
+    fn method(&self) -> Method {
+        Method::Passphrase
+    }
+
+    fn try_open(
+        &self,
+        unlocker: &mut Unlocker<'_>,
+        volume: &Volume<Closed>,
+    ) -> Result<OpenMapping, Refusal> {
+        unlocker.ask_passphrase(volume)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::DEFAULT_TRIES;
+    use crate::config::{DEFAULT_TRIES, Options};
     use crate::keys::tests::with_session;
+    use crate::mappings::Origin;
     use crate::unlocker::Settings;
+    use crate::volume::Entry;
+    use zbm_crypt::Mapping;
     use zbm_platform::Secret;
     use zbm_testkit::machine::{FakeMachine, LuksVolume};
 
@@ -359,33 +504,43 @@ mod tests {
             .with_file("/keys/bad.key", "wrong")
     }
 
-    /// Tries `method` on the volume with the key file `keyspec` and the
-    /// crypttab options `text`, after `prepare`.
+    /// The volume, closed, with the key file `keyspec` and the crypttab
+    /// options `text`.
+    fn volume(keyspec: &str, text: &str) -> Volume<Closed> {
+        let (options, _) = Options::parse(text, DEFAULT_TRIES);
+        let entry = Entry {
+            header: DEVICE.into(),
+            keyspec: keyspec.to_owned(),
+            options,
+            options_text: text.to_owned(),
+            origin: Origin::Configured,
+        };
+        Volume::new(
+            Mapping::new(DEVICE.parse().unwrap(), "v".parse().unwrap()),
+            entry,
+        )
+    }
+
+    /// Tries `method` on [`volume`], after `prepare`.
     fn try_method(
         machine: &FakeMachine,
         method: &dyn KeyMethod,
-        keyspec: &str,
-        text: &str,
+        (keyspec, text): (&str, &str),
         prepare: impl FnOnce(&mut Unlocker<'_>),
-    ) -> Tried {
-        let (options, _) = Options::parse(text, DEFAULT_TRIES);
-        let volume = Volume {
-            name: "v",
-            device: DEVICE,
-            header: DEVICE,
-            keyspec,
-            options: &options,
-            options_text: text,
-        };
+    ) -> Result<String, Refusal> {
         with_session(machine, &Settings::new("/zfsbootmenu"), |session| {
             prepare(session);
-            method.try_open(session, &volume)
+            method
+                .try_open(session, &volume(keyspec, text))
+                .map(|open| open.path())
         })
     }
 
+    const OPEN: &str = "/dev/mapper/v";
+
     #[test]
     fn the_methods_are_tried_in_the_legacy_order() {
-        let order: Vec<Method> = key_methods().iter().map(|method| method.method()).collect();
+        let order: Vec<Method> = Registry::standard().methods().collect();
         assert_eq!(
             order,
             [
@@ -394,34 +549,45 @@ mod tests {
                 Method::Token,
                 Method::CachedPassphrase,
                 Method::YubiKey,
+                Method::Passphrase,
             ]
         );
+        let alone: Vec<Method> = Registry::key_file().methods().collect();
+        assert_eq!(alone, [Method::KeyFile]);
+        assert!(format!("{:?}", Registry::key_file()).contains("KeyFile"));
     }
 
     #[test]
     fn key_files_open_volumes_with_their_contents() {
         let none = |_: &mut Unlocker<'_>| {};
         let good = machine();
-        assert_eq!(
-            try_method(&good, &KeyFile, "/keys/good.key", "", none),
-            Tried::Opened
-        );
+        let opened = try_method(&good, &KeyFile, ("/keys/good.key", ""), none);
+        assert_eq!(opened.as_deref(), Ok(OPEN));
         let bad = machine();
-        assert_eq!(
-            try_method(&bad, &KeyFile, "/keys/bad.key", "", none),
-            Tried::NotOpened
-        );
+        let refused = try_method(&bad, &KeyFile, ("/keys/bad.key", ""), none);
+        assert!(matches!(
+            refused,
+            Err(Refusal::Failed(LuksError::KeyFile { ref keyspec, .. })) if keyspec == "/keys/bad.key"
+        ));
         assert!(
             bad.kmsg()
                 .contains("key file /keys/bad.key failed to unlock /dev/loop1")
         );
         let missing = machine();
-        let tried = try_method(&missing, &KeyFile, "/keys/none.key", "", none);
-        assert_eq!(tried, Tried::NotOpened);
-        // Not with a key script, whose argument the key file is.
+        let tried = try_method(&missing, &KeyFile, ("/keys/none.key", ""), none);
+        assert!(matches!(
+            tried,
+            Err(Refusal::Failed(LuksError::KeyFile { .. }))
+        ));
+        // Not with a key script, whose argument the key file is, nor without
+        // one.
         let script = machine();
-        let tried = try_method(&script, &KeyFile, "/keys/good.key", "keyscript=/s", none);
-        assert_eq!(tried, Tried::NotOpened);
+        let tried = try_method(&script, &KeyFile, ("/keys/good.key", "keyscript=/s"), none);
+        assert_eq!(tried, Err(Refusal::NotApplicable));
+        assert_eq!(
+            try_method(&machine(), &KeyFile, ("", ""), none),
+            Err(Refusal::NotApplicable)
+        );
     }
 
     #[test]
@@ -433,25 +599,117 @@ mod tests {
             }
         };
         let good = machine();
-        let tried = try_method(&good, &KeyFile, "/keys/k.gpg", "", cache(b"secret"));
-        assert_eq!(tried, Tried::Opened);
+        let tried = try_method(&good, &KeyFile, ("/keys/k.gpg", ""), cache(b"secret"));
+        assert_eq!(tried.as_deref(), Ok(OPEN));
         assert!(
             good.kmsg()
                 .contains("with GnuPG key file /keys/k.gpg (already decrypted)")
         );
         let bad = machine();
-        let tried = try_method(&bad, &KeyFile, "/keys/k.gpg", "", cache(b"wrong"));
-        assert_eq!(tried, Tried::NotOpened);
+        let tried = try_method(&bad, &KeyFile, ("/keys/k.gpg", ""), cache(b"wrong"));
+        assert!(tried.is_err());
     }
 
     #[test]
-    fn yubikeys_are_only_tried_when_asked_for() {
+    fn passphrases_that_opened_other_volumes_are_tried() {
+        let cached = |key: &'static [u8]| {
+            move |session: &mut Unlocker<'_>| session.passphrases.push(Secret::copy_from(key))
+        };
+        let none = |_: &mut Unlocker<'_>| {};
+        assert_eq!(
+            try_method(&machine(), &CachedPassphrases, ("", ""), none),
+            Err(Refusal::NotApplicable)
+        );
+        let opened = try_method(&machine(), &CachedPassphrases, ("", ""), cached(b"secret"));
+        assert_eq!(opened.as_deref(), Ok(OPEN));
+        let refused = try_method(&machine(), &CachedPassphrases, ("", ""), cached(b"wrong"));
+        assert!(matches!(
+            refused,
+            Err(Refusal::Failed(LuksError::Open { .. }))
+        ));
+    }
+
+    #[test]
+    fn yubikeys_and_key_scripts_are_only_tried_when_asked_for() {
         let none = |_: &mut Unlocker<'_>| {};
         let plain = machine();
-        assert_eq!(try_method(&plain, &YubiKey, "", "", none), Tried::NotOpened);
-        // No ykchalresp answers on the fake machine.
+        assert_eq!(
+            try_method(&plain, &YubiKey, ("", ""), none),
+            Err(Refusal::NotApplicable)
+        );
+        assert_eq!(
+            try_method(&plain, &KeyScript, ("", ""), none),
+            Err(Refusal::NotApplicable)
+        );
+        // No ykchalresp answers on the fake machine, and no key script is
+        // there to run.
         let asked = machine();
-        let tried = try_method(&asked, &YubiKey, "", "yubikey=2", none);
-        assert_eq!(tried, Tried::NotOpened);
+        let tried = try_method(&asked, &YubiKey, ("", "ykchalresp=2"), none);
+        assert!(matches!(
+            tried,
+            Err(Refusal::Failed(LuksError::YubiKey { .. }))
+        ));
+        let tried = try_method(&asked, &KeyScript, ("", "keyscript=/missing"), none);
+        assert!(matches!(
+            tried,
+            Err(Refusal::Failed(LuksError::KeyScriptNotExecutable { .. }))
+        ));
+    }
+
+    #[test]
+    fn every_attempt_is_kept_and_the_volume_handed_back() {
+        let fake = machine();
+        let registry = Registry::of(vec![Rc::new(KeyScript), Rc::new(KeyFile)]);
+        let (failed, attempts) = with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            let not = registry
+                .unlock(session, volume("/keys/bad.key", ""))
+                .unwrap_err();
+            let device = not.volume.device().clone();
+            (not, session.attempts(&device).to_vec())
+        });
+        // The key script did not apply, and is not an attempt.
+        assert_eq!(failed.attempts, attempts);
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].method, Method::KeyFile);
+        assert_eq!(failed.volume.name().as_str(), "v");
+        let error = failed.into_error();
+        assert_eq!(error.to_string(), "no key method opened /dev/loop1");
+        assert!(
+            matches!(error, LuksError::NotUnlocked { ref attempts, .. } if attempts.len() == 1)
+        );
+
+        let good = machine();
+        let opened = with_session(&good, &Settings::new("/zfsbootmenu"), |session| {
+            let unlocked = registry.unlock(session, volume("/keys/good.key", ""));
+            let device: zbm_types::DevicePath = DEVICE.parse().unwrap();
+            (unlocked, session.attempts(&device).to_vec())
+        });
+        match opened {
+            (Ok(Unlocked::Opened(volume, Method::KeyFile)), attempts) => {
+                assert_eq!(volume.mapping().path(), OPEN);
+                assert_eq!(
+                    attempts,
+                    [Attempt {
+                        method: Method::KeyFile,
+                        refusal: None
+                    }]
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_prompt_ends_the_attempts_with_why() {
+        let skipped = NotUnlocked {
+            volume: volume("", ""),
+            attempts: vec![Attempt {
+                method: Method::Passphrase,
+                refusal: Some(Refusal::Failed(LuksError::Skipped {
+                    device: DEVICE.to_owned(),
+                })),
+            }],
+        };
+        assert!(matches!(skipped.into_error(), LuksError::Skipped { .. }));
     }
 }

@@ -13,6 +13,7 @@ use zbm_crypt::Token;
 
 use super::Target;
 use crate::error::LuksError;
+use crate::keys::OpenMapping;
 use crate::unlocker::Unlocker;
 
 /// The pass in which a token is tried.
@@ -47,7 +48,7 @@ pub trait TokenHandler {
         session: &mut Unlocker<'_>,
         target: Target<'_>,
         token: &Token,
-    ) -> Result<(), LuksError>;
+    ) -> Result<OpenMapping, LuksError>;
 }
 
 /// The handlers, one per token type with code of its own.
@@ -76,7 +77,7 @@ impl TokenHandler for Tpm2 {
         session: &mut Unlocker<'_>,
         target: Target<'_>,
         token: &Token,
-    ) -> Result<(), LuksError> {
+    ) -> Result<OpenMapping, LuksError> {
         session.try_tpm2_token(target, &token.id, token)
     }
 }
@@ -98,7 +99,7 @@ impl TokenHandler for Clevis {
         session: &mut Unlocker<'_>,
         target: Target<'_>,
         token: &Token,
-    ) -> Result<(), LuksError> {
+    ) -> Result<OpenMapping, LuksError> {
         session.try_clevis_token(target, &token.id, token)
     }
 }
@@ -120,7 +121,7 @@ impl TokenHandler for Fido2 {
         session: &mut Unlocker<'_>,
         target: Target<'_>,
         token: &Token,
-    ) -> Result<(), LuksError> {
+    ) -> Result<OpenMapping, LuksError> {
         session.try_fido2_token(target, &token.id, token)
     }
 }

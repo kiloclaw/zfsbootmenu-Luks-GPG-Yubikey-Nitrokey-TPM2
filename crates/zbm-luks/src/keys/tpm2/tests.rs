@@ -213,19 +213,11 @@ fn pins_are_asked_for_and_kept_for_other_volumes() {
     fake.console.secret(b"0000").secret(b"1234");
     let args = [];
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
-        let a = Target {
-            name: "a",
-            device: "/dev/sda",
-            args: &args,
-        };
-        assert_eq!(session.try_tpm2_token(a, "0", &json), Ok(()));
+        let a = crate::testing::target("a", "/dev/sda", &args);
+        assert!(session.try_tpm2_token(a, "0", &json).is_ok());
         // The second volume gets the PIN that worked, without asking.
-        let b = Target {
-            name: "b",
-            device: "/dev/sdb",
-            args: &args,
-        };
-        assert_eq!(session.try_tpm2_token(b, "0", &json), Ok(()));
+        let b = crate::testing::target("b", "/dev/sdb", &args);
+        assert!(session.try_tpm2_token(b, "0", &json).is_ok());
     });
     let output = fake.console.output_text();
     assert_eq!(output.matches("TPM2 PIN (leave empty").count(), 2);
@@ -256,11 +248,7 @@ fn a_locked_tpm_is_not_asked_for_pins() {
         "TPM2_PT_PERMANENT:\n  inLockout:                 1\n",
     );
     let args = [];
-    let target = Target {
-        name: "a",
-        device: "/dev/sda",
-        args: &args,
-    };
+    let target = crate::testing::target("a", "/dev/sda", &args);
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
         assert!(
             session
@@ -284,11 +272,7 @@ fn missing_tpm_devices_are_probed_once() {
     let fake = FakeSystem::new();
     fake.files.dir("/sys/class/tpm");
     let args = [];
-    let target = Target {
-        name: "a",
-        device: "/dev/sda",
-        args: &args,
-    };
+    let target = crate::testing::target("a", "/dev/sda", &args);
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
         assert!(
             session
@@ -336,28 +320,27 @@ fn plugin_machine() -> (FakeSystem, Settings) {
 #[test]
 fn the_plugin_opens_tokens_with_and_without_a_pin() {
     let args = [];
-    let target = Target {
-        name: "v",
-        device: "/dev/sda",
-        args: &args,
-    };
+    let target = crate::testing::target("v", "/dev/sda", &args);
     let (fake, settings) = plugin_machine();
     fake.console.secret(b"bad").secret(b"1234");
     with_session(&fake, &settings, |session| {
-        assert_eq!(
-            session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json")),
-            Ok(())
+        assert!(
+            session
+                .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+                .is_ok()
         );
         // The PIN that worked is tried first on the next volume.
         assert_eq!(session.tpm2_pins.len(), 1);
-        assert_eq!(
-            session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json")),
-            Ok(())
+        assert!(
+            session
+                .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+                .is_ok()
         );
         assert_eq!(session.tpm2_pins.len(), 1);
-        assert_eq!(
-            session.try_tpm2_token(target, "0", &token("token-tpm2.json")),
-            Ok(())
+        assert!(
+            session
+                .try_tpm2_token(target, "0", &token("token-tpm2.json"))
+                .is_ok()
         );
     });
     let output = fake.console.output_text();
@@ -396,11 +379,7 @@ fn without_plugin_or_tools_a_pin_token_is_unsupported() {
     let mut settings = Settings::new("/zfsbootmenu");
     settings.tpm2_tcti = "swtpm:port=2321".to_owned();
     let args = [];
-    let target = Target {
-        name: "v",
-        device: "/dev/sda",
-        args: &args,
-    };
+    let target = crate::testing::target("v", "/dev/sda", &args);
     let result = with_session(&fake, &settings, |session| {
         session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
     });

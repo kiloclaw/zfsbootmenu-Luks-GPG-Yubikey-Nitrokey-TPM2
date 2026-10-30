@@ -47,6 +47,7 @@ pub mod pilot;
 pub mod tokens;
 pub mod unlock;
 pub mod unlocker;
+pub mod volume;
 
 #[cfg(test)]
 mod testing;

@@ -14,8 +14,11 @@ use crate::device::{
     canonical, describe_device, is_block_device, is_open, mapping_name, resolve_device,
 };
 use crate::error::LuksError;
+use crate::keys::OpenMapping;
 use crate::mappings::Origin;
 use crate::unlocker::{Key, Unlocker};
+use crate::volume::{Entry, Volume};
+use zbm_crypt::{Closed, Mapping, Open};
 use zbm_platform::interaction::{Answer, PromptRequest, Subject};
 use zbm_platform::interaction::{Asked, SecretKind, SecretRequest, Told, VolumeRef};
 
@@ -98,24 +101,27 @@ impl Unlocker<'_> {
     }
 
     /// Records a mapping this run opened with `method`.
-    fn opened(&self, name: &str, device: &str, origin: Origin, method: Method) -> Opened {
-        self.mappings().record(name, device, origin);
+    fn opened(&self, volume: &Volume<Open>, method: Method) -> Opened {
+        let (name, device) = (volume.name().as_str(), volume.device().as_str());
+        self.mappings().record(name, device, volume.entry().origin);
         Opened::Unlocked(method)
     }
 
-    /// Unlocks one volume, trying in order: a key script, a key file
-    /// (decrypting a GnuPG key file), LUKS2 tokens, passphrases that unlocked
-    /// other volumes, YubiKey challenge-response, and the passphrase prompt.
-    /// `name` is the mapping name (`None` for the default), `keyspec`
-    /// the key file specification (may be empty), `options` the crypttab
-    /// options and `origin` how the volume was found.
+    /// Unlocks one volume with the key methods of the run's registry
+    /// ([`methods::Registry::standard`] unless another was given): in
+    /// order, a key script, a key file (decrypting a GnuPG key file), LUKS2
+    /// tokens, passphrases that unlocked other volumes, YubiKey
+    /// challenge-response, and the passphrase prompt. `name` is the mapping
+    /// name (`None` for the default), `keyspec` the key file specification
+    /// (may be empty), `options` the crypttab options and `origin` how the
+    /// volume was found. Every attempt is kept ([`Unlocker::attempts`]).
     ///
     /// # Errors
     ///
     /// When the volume is not open afterwards: [`LuksError::NotLuks`],
-    /// [`LuksError::Name`], [`LuksError::MappingExists`], or why the
-    /// passphrase prompt ended ([`LuksError::Skipped`],
-    /// [`LuksError::NoConsole`]).
+    /// [`LuksError::Name`], [`LuksError::MappingExists`], why the passphrase
+    /// prompt ended ([`LuksError::Skipped`], [`LuksError::NoConsole`]), or,
+    /// without the prompt, [`LuksError::NotUnlocked`] with every attempt.
     pub fn open_device(
         &mut self,
         name: Option<&MappingName>,
@@ -124,16 +130,15 @@ impl Unlocker<'_> {
         options_text: &str,
         origin: Origin,
     ) -> Result<Opened, LuksError> {
-        let device = device.as_str();
         let (options, messages) = Options::parse(options_text, self.settings().default_tries);
         log_all(&messages);
 
-        if self.is_device_open(device) {
+        if self.is_device_open(device.as_str()) {
             zbm_trace::info!("LUKS device {device} is already in use, skipping"; %device);
             return Ok(Opened::AlreadyOpen);
         }
 
-        let header = options.header.clone().unwrap_or_else(|| device.to_owned());
+        let header = options.header.clone().unwrap_or_else(|| device.to_string());
         if !self.volumes().is_luks(Path::new(&header)) {
             zbm_trace::warn!(
                 "{header} is not a LUKS volume (header), skipping {device}";
@@ -142,76 +147,66 @@ impl Unlocker<'_> {
             return Err(LuksError::NotLuks { header });
         }
 
-        let name = self.free_name(name, &header, device)?;
-        let name = name.as_str();
-        let volume = Volume {
-            name,
-            device,
-            header: &header,
-            keyspec,
-            options: &options,
-            options_text,
+        let name = self.free_name(name, &header, device.as_str())?;
+        let entry = Entry {
+            header: header.into(),
+            keyspec: keyspec.to_owned(),
+            options,
+            options_text: options_text.to_owned(),
+            origin,
         };
-        for method in key_methods() {
-            match method.try_open(self, &volume) {
-                Tried::Opened => return Ok(self.opened(name, device, origin, method.method())),
-                Tried::Elsewhere => return Ok(Opened::Elsewhere),
-                Tried::NotOpened => {}
-            }
+        let volume = Volume::new(Mapping::new(device.clone(), name), entry);
+        let registry = self.registry.clone();
+        match registry.unlock(self, volume) {
+            Ok(Unlocked::Opened(volume, method)) => Ok(self.opened(&volume, method)),
+            Ok(Unlocked::Elsewhere) => Ok(Opened::Elsewhere),
+            Err(not_unlocked) => Err(not_unlocked.into_error()),
         }
-        // Ask the user.
-        self.ask_passphrase(name, device, &options, origin)
     }
 
-    /// The passphrase prompt, driven by [`PassphrasePrompt`]. Echo is off
-    /// while a passphrase is read, and input is polled, so that an unlock
-    /// performed elsewhere (`zluks` over SSH) is noticed while the prompt
-    /// waits.
-    fn ask_passphrase(
-        &mut self,
-        name: &str,
-        device: &str,
-        options: &Options,
-        origin: Origin,
-    ) -> Result<Opened, LuksError> {
+    /// The passphrase prompt of `volume`, driven by [`PassphrasePrompt`].
+    /// Echo is off while a passphrase is read, and input is polled, so
+    /// that an unlock performed elsewhere (`zluks` over SSH) is noticed
+    /// while the prompt waits.
+    fn ask_passphrase(&mut self, volume: &Volume<Closed>) -> Result<OpenMapping, Refusal> {
+        let device = volume.device().as_str();
         let description = describe_device(self.context(), device);
-        let volume = VolumeRef { name, device };
-        let mut prompt = PassphrasePrompt::new(options.tries);
+        let named = volume.target().volume();
+        let tries = volume.options().tries;
+        let mut prompt = PassphrasePrompt::new(tries);
         let mut next = prompt.start();
         loop {
             next = match next {
                 Next::Ask { attempt } => {
-                    let asked = self.passphrase(volume, &description, attempt, options.tries);
-                    let passphrase = match asked {
+                    let passphrase = match self.passphrase(named, &description, attempt, tries) {
                         Asked::Secret(passphrase) => passphrase,
                         Asked::Elsewhere => {
                             zbm_trace::info!("{device} was unlocked elsewhere"; %device);
-                            return Ok(Opened::Elsewhere);
+                            return Err(Refusal::Elsewhere);
                         }
                         Asked::Ended => {
                             zbm_trace::warn!("no console available to unlock {device}"; %device);
-                            return Err(LuksError::NoConsole {
+                            return Err(Refusal::Failed(LuksError::NoConsole {
                                 device: device.to_owned(),
-                            });
+                            }));
                         }
                     };
                     if passphrase.is_empty() {
                         zbm_trace::info!("skipping LUKS volume {device} at user request"; %device);
-                        return Err(self.skipped(device));
+                        return Err(Refusal::Failed(self.skipped(device)));
                     }
                     self.tell(Told::Working, &format!("Unlocking {device} ...\n"));
-                    if self
-                        .cryptsetup_open(name, device, Key::Stdin(&passphrase), &options.args)
-                        .is_ok()
+                    if let Ok(open) = self.cryptsetup_open(volume.target(), Key::Stdin(&passphrase))
                     {
                         self.passphrases.push(passphrase);
+                        let name = volume.name();
                         zbm_trace::info!("unlocked {device} as {name}"; %device, %name);
-                        return Ok(self.opened(name, device, origin, Method::Passphrase));
+                        return Ok(open);
                     }
                     drop(passphrase);
                     if self.is_device_open(device) {
                         zbm_trace::info!("{device} was unlocked elsewhere"; %device);
-                        return Ok(Opened::Elsewhere);
+                        return Err(Refusal::Elsewhere);
                     }
                     zbm_trace::warn!(
                         "failed to unlock {device} (attempt {attempt})";
@@ -219,10 +214,10 @@ impl Unlocker<'_> {
                     );
                     prompt.failed()
                 }
-                Next::AskRetry => prompt.retry(self.ask_retry(volume, &description)),
+                Next::AskRetry => prompt.retry(self.ask_retry(named, &description)),
                 Next::GiveUp => {
                     zbm_trace::warn!("giving up on LUKS volume {device}"; %device);
-                    return Err(self.skipped(device));
+                    return Err(Refusal::Failed(self.skipped(device)));
                 }
             };
         }
@@ -344,7 +339,7 @@ mod all;
 pub mod methods;
 pub mod prompt;
 
-use methods::{Tried, Volume, key_methods};
+use methods::{Refusal, Unlocked};
 use prompt::{Next, PassphrasePrompt};
 
 /// Logs the messages of a configuration step.

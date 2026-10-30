@@ -15,22 +15,59 @@ pub mod yubikey;
 
 use std::path::Path;
 
-use zbm_crypt::Token;
+use zbm_crypt::{Closed, Mapping, Open, Token};
+use zbm_platform::interaction::VolumeRef;
 use zbm_platform::secret::Secret;
+use zbm_types::{DevicePath, MappingName};
 
 use crate::error::{LuksError, TokenFailure};
 use crate::unlocker::Unlocker;
 use handlers::Pass;
 
-/// The volume a key method opens.
+/// A mapping that a key method opened: only the LUKS port makes one.
+pub type OpenMapping = Mapping<Open>;
+
+/// The volume a key method opens: its mapping, closed, and the further
+/// arguments of `cryptsetup open`.
 #[derive(Clone, Copy, Debug)]
 pub struct Target<'v> {
+    mapping: &'v Mapping<Closed>,
+    args: &'v [String],
+}
+
+impl<'v> Target<'v> {
+    /// The volume of `mapping`, opened with `args`.
+    pub fn new(mapping: &'v Mapping<Closed>, args: &'v [String]) -> Target<'v> {
+        Target { mapping, args }
+    }
+
+    /// The mapping, closed.
+    pub fn mapping(&self) -> &'v Mapping<Closed> {
+        self.mapping
+    }
+
     /// The mapping name.
-    pub name: &'v str,
+    pub fn name(&self) -> &'v MappingName {
+        self.mapping.name()
+    }
+
     /// The LUKS device.
-    pub device: &'v str,
-    /// More arguments for `cryptsetup open`.
-    pub args: &'v [String],
+    pub fn device(&self) -> &'v DevicePath {
+        self.mapping.device()
+    }
+
+    /// The further arguments of `cryptsetup open`.
+    pub fn args(&self) -> &'v [String] {
+        self.args
+    }
+
+    /// The volume, as the person at the console is asked about it.
+    pub fn volume(&self) -> VolumeRef<'v> {
+        VolumeRef {
+            name: self.name().as_str(),
+            device: self.device().as_str(),
+        }
+    }
 }
 
 /// What a key method's own implementation of a token got.
@@ -58,7 +95,7 @@ impl Target<'_> {
         LuksError::Token {
             kind: kind.to_owned(),
             id: id.to_owned(),
-            device: self.device.to_owned(),
+            device: self.device().to_string(),
             failure,
         }
     }
@@ -104,22 +141,23 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         pin: Option<&Secret>,
-    ) -> Result<(), LuksError> {
+    ) -> Result<OpenMapping, LuksError> {
         let key = zbm_crypt::Key::Token { id, pin };
-        let (status, output) = match crate::unlocker::closed_mapping(target.name, target.device) {
-            Some(mapping) => match self.volumes().open(mapping, key, target.args) {
-                Ok(_) => return Ok(()),
-                Err(failed) => (failed.error.status(), failed.output),
-            },
-            None => (1, "not a device or mapping name".to_owned()),
+        let failed = match self
+            .volumes()
+            .open(target.mapping().clone(), key, target.args())
+        {
+            Ok(open) => return Ok(open),
+            Err(failed) => failed,
         };
+        let (status, output) = (failed.error.status(), failed.output);
         zbm_trace::debug!(
             "token {id} on {device} failed ({status}): {output}";
-            %id, device = %target.device, %status, %output
+            %id, device = %target.device(), %status, %output
         );
         Err(LuksError::Open {
-            device: target.device.to_owned(),
-            name: target.name.to_owned(),
+            device: target.device().to_string(),
+            name: target.name().to_string(),
             status,
         })
     }
@@ -134,13 +172,17 @@ impl Unlocker<'_> {
     ///
     /// [`LuksError::NoToken`] when no token opened the volume; each token's
     /// own failure is logged by its method.
-    pub fn try_tokens(&mut self, target: Target<'_>, header: &str) -> Result<(), LuksError> {
+    pub fn try_tokens(
+        &mut self,
+        target: Target<'_>,
+        header: &Path,
+    ) -> Result<OpenMapping, LuksError> {
         let none_opened = || LuksError::NoToken {
-            device: target.device.to_owned(),
+            device: target.device().to_string(),
         };
         let tokens: Vec<Token> = self
             .volumes()
-            .tokens(Path::new(header))
+            .tokens(header)
             .into_iter()
             .filter(Token::has_fields)
             .collect();
@@ -161,15 +203,15 @@ impl Unlocker<'_> {
                     None if pass == Pass::Interactive => {
                         zbm_trace::debug!(
                             "no support for {kind} token {id} on {device}";
-                            kind = %token.kind, id = %token.id, device = %target.device
+                            kind = %token.kind, id = %token.id, device = %target.device()
                         );
                         continue;
                     }
                     // Tried in the other pass, or not at all.
                     Some(_) | None => continue,
                 };
-                if result.is_ok() {
-                    return Ok(());
+                if let Ok(open) = result {
+                    return Ok(open);
                 }
             }
         }
@@ -259,15 +301,12 @@ pub(crate) mod tests {
             )))
         });
         let args = ["--readonly".to_owned()];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
-            assert_eq!(
-                session.open_token_plugin(target, "0", Some(&Secret::copy_from(b"1234"))),
-                Ok(())
+            assert!(
+                session
+                    .open_token_plugin(target, "0", Some(&Secret::copy_from(b"1234")))
+                    .is_ok()
             );
             assert!(session.open_token_plugin(target, "1", None).is_err());
         });
@@ -330,13 +369,9 @@ pub(crate) mod tests {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.tpm2_tcti = "device:/dev/none".to_owned();
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &settings, |session| {
-            assert!(session.try_tokens(target, "/dev/sda").is_err());
+            assert!(session.try_tokens(target, Path::new("/dev/sda")).is_err());
         });
         let infos: Vec<String> = fake
             .kmsg()

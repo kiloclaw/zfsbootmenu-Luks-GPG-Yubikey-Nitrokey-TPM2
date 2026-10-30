@@ -10,6 +10,7 @@
 use super::Target;
 use crate::error::LuksError;
 use crate::error::TokenFailure;
+use crate::keys::OpenMapping;
 use crate::unlocker::{Key, Unlocker};
 use zbm_crypt::Token;
 use zbm_crypt::clevis::Clevis;
@@ -27,8 +28,8 @@ impl Unlocker<'_> {
         target: Target<'_>,
         id: &str,
         token: &Token,
-    ) -> Result<(), LuksError> {
-        let device = target.device;
+    ) -> Result<OpenMapping, LuksError> {
+        let device = target.device();
         let context = *self.context();
         let failed = |failure| target.token_error("clevis", id, failure);
         if !context.command_exists("clevis") || !context.command_exists("jose") {
@@ -54,9 +55,9 @@ impl Unlocker<'_> {
             );
             return Err(failed(TokenFailure::NotReleased));
         };
-        self.cryptsetup_open(target.name, device, Key::Stdin(&key), target.args)?;
+        let open = self.cryptsetup_open(target, Key::Stdin(&key))?;
         zbm_trace::info!("unlocked {device} with clevis"; %device);
-        Ok(())
+        Ok(open)
     }
 }
 
@@ -98,15 +99,11 @@ mod tests {
         let mut settings = Settings::new("/zfsbootmenu");
         settings.tpm2_tcti = "swtpm:port=1".to_owned();
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &settings, |session| {
             let json = r#"{"type":"clevis","keyslots":["3","4"],"jwe":{"protected":"x"}}"#;
             let token = Token::from_export("2", json).unwrap();
-            assert_eq!(session.try_clevis_token(target, "2", &token), Ok(()));
+            assert!(session.try_clevis_token(target, "2", &token).is_ok());
             assert!(
                 session
                     .try_clevis_token(
@@ -134,11 +131,7 @@ mod tests {
     fn failures_are_logged_and_tools_are_required() {
         let fake = clevis_machine(b"");
         let args = [];
-        let target = Target {
-            name: "v",
-            device: "/dev/sda",
-            args: &args,
-        };
+        let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session

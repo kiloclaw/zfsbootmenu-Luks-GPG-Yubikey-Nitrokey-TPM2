@@ -1,5 +1,5 @@
 use super::*;
-use crate::testing::{NoPrompts, Prompts, log};
+use crate::testing::{NoPrompts, Prompts, log, target};
 use zbm_platform::exec::{Input, Output, Status};
 use zbm_platform::interaction::Subject;
 use zbm_testkit::fakes::FakeSystem;
@@ -153,10 +153,11 @@ fn cryptsetup_gets_keys_on_standard_input() {
         let args = ["--allow-discards".to_owned()];
         let right = Secret::copy_from(b"pw");
         let wrong = Secret::copy_from(b"no");
-        let open = |key| session.cryptsetup_open("v", "/dev/sda", key, &[]);
-        assert_eq!(
-            session.cryptsetup_open("v", "/dev/sda", Key::Stdin(&right), &args),
-            Ok(())
+        let open = |key| session.cryptsetup_open(target("v", "/dev/sda", &[]), key);
+        assert!(
+            session
+                .cryptsetup_open(target("v", "/dev/sda", &args), Key::Stdin(&right))
+                .is_ok()
         );
         assert_eq!(
             open(Key::Stdin(&wrong)),
@@ -166,7 +167,7 @@ fn cryptsetup_gets_keys_on_standard_input() {
                 status: 2
             })
         );
-        assert!(open(Key::File("/k")).is_err());
+        assert!(open(Key::File(Path::new("/k"))).is_err());
     });
     assert_eq!(
         fake.runner.lines(),
@@ -182,7 +183,7 @@ fn cryptsetup_gets_keys_on_standard_input() {
         .on(|_| Some(Err(std::io::Error::other("no cryptsetup"))));
     with_session(&missing, |session| {
         assert!(matches!(
-            session.cryptsetup_open("v", "/dev/sda", Key::File("/k"), &[]),
+            session.cryptsetup_open(target("v", "/dev/sda", &[]), Key::File(Path::new("/k"))),
             Err(LuksError::Open { status: 127, .. })
         ));
     });

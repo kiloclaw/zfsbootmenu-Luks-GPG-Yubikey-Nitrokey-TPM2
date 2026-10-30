@@ -119,6 +119,24 @@ pub enum LuksError {
     /// A retry of the import loop unlocked nothing new.
     #[error("no new LUKS volume was unlocked")]
     NothingNew,
+    /// No key method opened the volume.
+    #[error("no key method opened {device}")]
+    NotUnlocked {
+        /// The LUKS device.
+        device: String,
+        /// Each method that was tried, in order, with why it did not open
+        /// the volume.
+        attempts: Vec<crate::unlock::methods::Attempt>,
+    },
+    /// A key file, or the GnuPG key file decrypted, did not open the
+    /// volume, or could not be read.
+    #[error("the key file {keyspec} did not open {device}")]
+    KeyFile {
+        /// The key file specification.
+        keyspec: String,
+        /// The LUKS device.
+        device: String,
+    },
 }
 
 zbm_types::error_codes! {
@@ -161,6 +179,13 @@ zbm_types::error_codes! {
          for each.",
     NothingNew = 415 => "no new LUKS volume was unlocked":
         "A retry of the pool import unlocked nothing more, so it found no new pool.",
+    NotUnlocked = 412 => "no key method opened the volume":
+        "Every key method was tried and none opened the volume; each attempt and why it failed \
+         follow the code. Check the key file, the token, the keyboard layout, or the passphrase.",
+    KeyFile = 416 => "a key file did not open the volume":
+        "The key file of crypttab, or of zluks open --key-file, is missing, cannot be read or \
+         decrypted, or holds a key that no key slot accepts. Check the path, its key device, and \
+         the key slot.",
 }
 
 #[cfg(test)]
