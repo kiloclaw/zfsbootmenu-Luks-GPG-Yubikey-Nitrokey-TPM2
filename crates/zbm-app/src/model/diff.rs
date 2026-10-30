@@ -4,7 +4,7 @@
 use zbm_types::Untrusted;
 
 /// What happened to a path since the snapshot.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ChangeKind {
     /// Removed since: the snapshot has it.
     Removed,
@@ -29,7 +29,7 @@ impl ChangeKind {
 }
 
 /// One changed path.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Change {
     /// What happened.
     pub kind: ChangeKind,

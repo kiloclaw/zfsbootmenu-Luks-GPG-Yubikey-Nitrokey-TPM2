@@ -53,46 +53,4 @@ impl Subscriber for Sometimes {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use super::*;
-
-    /// A subscriber that counts the events it gets.
-    struct Counting(Arc<AtomicUsize>);
-
-    impl Subscriber for Counting {
-        fn enabled(&self, _: &Metadata<'_>) -> bool {
-            true
-        }
-        fn new_span(&self, _: &span::Attributes<'_>) -> span::Id {
-            span::Id::from_u64(1)
-        }
-        fn record(&self, _: &span::Id, _: &span::Record<'_>) {}
-        fn record_follows_from(&self, _: &span::Id, _: &span::Id) {}
-        fn event(&self, _: &Event<'_>) {
-            self.0.fetch_add(1, Ordering::Relaxed);
-        }
-        fn enter(&self, _: &span::Id) {}
-        fn exit(&self, _: &span::Id) {}
-    }
-
-    /// One call site, fired each time.
-    fn fire() {
-        tracing::warn!("a warning");
-    }
-
-    #[test]
-    fn an_event_first_fired_without_a_log_reaches_a_log_installed_later() {
-        keep_interest();
-        keep_interest();
-        // No log on this thread: the call site registers, and wants
-        // asking each time, not never.
-        fire();
-        let count = Arc::new(AtomicUsize::new(0));
-        tracing::subscriber::with_default(Counting(Arc::clone(&count)), fire);
-        assert_eq!(count.load(Ordering::Relaxed), 1);
-        assert!(KEPT.get().is_some());
-    }
-}
+mod tests;

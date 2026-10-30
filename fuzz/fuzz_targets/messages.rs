@@ -5,9 +5,10 @@
 //! console's process, the console that handed the display back, and its
 //! layout), and the saved command line. Only ZFSBootMenu writes them, but
 //! hooks (I6) can, so reading them may not panic or hang. Also the messages
-//! on the session's and the console's sockets (I17), which a root login can
-//! send, on the client channel between the console and the menu (I18), and
-//! between a client and the keyholder that opens its volumes (I19).
+//! on the session's and the console's sockets (I17), a remote menu's among
+//! them, which a root login can send, on the client channel between the
+//! console and the menu (I18), and between a client and the keyholder that
+//! opens its volumes (I19).
 
 #![no_main]
 
@@ -76,6 +77,22 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(
             zbm_app::keyholder::FromKeyholder::decode(&message.encode()),
             Ok(message)
+        );
+    }
+    // A remote menu on the session's socket (I17): what is decoded
+    // encodes to a message that decodes the same.
+    if let Ok(message) = zbm_app::remote::ToSession::decode(data) {
+        let encoded = message.encode().expect("a decoded request has an encoding");
+        assert_eq!(
+            zbm_app::remote::ToSession::decode(&encoded).ok(),
+            Some(message)
+        );
+    }
+    if let Ok(message) = zbm_app::remote::ToMenu::decode(data) {
+        let encoded = message.encode().expect("a decoded message has an encoding");
+        assert_eq!(
+            zbm_app::remote::ToMenu::decode(&encoded).ok(),
+            Some(message)
         );
     }
     // The client channel between the console and the menu (I18): what is

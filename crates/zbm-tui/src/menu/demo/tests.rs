@@ -220,3 +220,28 @@ fn the_workspace_s_tabs_open_with_digits_and_go_round_with_tab() {
     session.key(Key::Char('h'));
     assert_eq!(at(&session), (Screen::Main, Tab::Boot));
 }
+
+#[test]
+fn the_whole_machine_crosses_to_a_remote_menu_as_it_is() {
+    use zbm_app::remote::ToMenu;
+    let options = DemoOptions {
+        locked: true,
+        foreign: true,
+        failing: true,
+        next_boot: true,
+        tpm_changed: true,
+        ..DemoOptions::default()
+    };
+    for options in [DemoOptions::default(), options] {
+        let mut machine = FakeMachine::new(&options);
+        for _ in 0..50 {
+            machine.tick();
+        }
+        let message = ToMenu::Snapshot(Some(Box::new(machine.snapshot().clone())));
+        let packet = message.encode().unwrap();
+        assert_eq!(ToMenu::decode(&packet).unwrap(), message);
+        let message = ToMenu::Snapshot(Some(Box::new(data::machine(&options))));
+        let packet = message.encode().unwrap();
+        assert_eq!(ToMenu::decode(&packet).unwrap(), message);
+    }
+}

@@ -10,7 +10,7 @@ use zbm_types::{DatasetName, PoolName, SnapshotName};
 use super::Outcome;
 
 /// What a step does.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum StepKind {
     /// The pool, imported read-only, is imported read/write, which may ask
     /// about a hibernated system.
@@ -73,7 +73,7 @@ pub enum StepKind {
 
 /// A step of a plan: what it does, and the command it runs, when one
 /// command does it.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Step {
     /// What it does.
     pub kind: StepKind,
@@ -82,7 +82,7 @@ pub struct Step {
 }
 
 /// What an action would do.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Plan {
     /// Its steps, in order.
     pub steps: Vec<Step>,

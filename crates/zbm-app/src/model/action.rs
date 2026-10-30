@@ -17,7 +17,7 @@ use super::{Change, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
 pub const RESTORE_SNAPSHOT: &str = "before-restore";
 
 /// What the menu asks the machine to do.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Action {
     /// Boot an environment with a kernel and a command line, its own when
     /// `None`.
@@ -84,6 +84,9 @@ pub enum Action {
         method: Method,
         /// The secret typed, for typed methods; a clone of the action shares
         /// it.
+        // A secret never crosses in the message: it follows as a packet
+        // of its own (`zbm_app::remote`).
+        #[serde(skip)]
         secret: Option<Arc<Secret>>,
     },
     /// Leave a volume locked, or try its next key method.
@@ -231,7 +234,7 @@ impl Action {
 }
 
 /// What the machine tells the menu.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Event {
     /// The snapshot changed.
     Changed(Snapshot),
@@ -315,7 +318,7 @@ pub enum Event {
 
 /// What start-up asks, besides secrets: [`Answer::Continue`] goes on, as
 /// when the time runs out, and [`Answer::Escape`] stops.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Question {
     /// No passphrase opened a volume this round: try again, or skip it.
     RetryUnlock {
@@ -344,7 +347,7 @@ pub enum Question {
 }
 
 /// How an action ended.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Outcome {
     /// Done, with what happened.
     Done(String),
@@ -364,7 +367,7 @@ pub enum Outcome {
 }
 
 /// How unlocking a volume ended.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum UnlockOutcome {
     /// It is open.
     Opened,

@@ -5,7 +5,9 @@
 use zbm_types::{DatasetName, SnapshotName};
 
 /// How a check came out.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
 pub enum Verdict {
     /// Nothing in the way.
     Pass,
@@ -16,7 +18,7 @@ pub enum Verdict {
 }
 
 /// One check of whether an environment will boot.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Check {
     /// What is checked, for people: `ZFS module`.
     pub name: String,
@@ -41,7 +43,7 @@ pub fn worst(checks: &[Check]) -> Option<(Verdict, usize)> {
 
 /// Boot counting of an environment (`zbm.boot_tries`): each boot uses a
 /// try, and the booted system gives them back once it is up.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Tries {
     /// Tries left.
     pub left: u8,
@@ -50,7 +52,7 @@ pub struct Tries {
 }
 
 /// What boots instead of an environment that used up its tries.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Target {
     /// Another environment: the last one the booted system marked good.
     Environment(DatasetName),
@@ -59,7 +61,7 @@ pub enum Target {
 }
 
 /// The default environment failed to start: what boots instead.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Fallback {
     /// The environment that used up its tries.
     pub failed: DatasetName,

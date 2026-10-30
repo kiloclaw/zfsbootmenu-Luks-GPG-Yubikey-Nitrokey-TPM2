@@ -64,6 +64,7 @@ mod snapshot;
 mod stage;
 mod untrusted;
 pub mod version;
+mod wire;
 mod zfs;
 
 pub use answer::Answer;

@@ -22,6 +22,9 @@ use crate::console::{Watch, wait_ready};
 /// The longest message a socket receives; a longer one is refused.
 pub const MAX_MESSAGE: usize = 64 * 1024;
 
+/// The most descriptors one packet carries ([`Connection::send_with`]).
+pub const MAX_FDS: usize = 4;
+
 /// How many peers may wait to be accepted.
 const BACKLOG: i32 = 4;
 
@@ -333,6 +336,85 @@ impl Connection {
     }
 }
 
+impl Connection {
+    /// Sends `message` as one packet with copies of `fds`, for the peer to
+    /// take ([`Connection::receive_with`]), as a front end hands the
+    /// session its terminal.
+    ///
+    /// # Errors
+    ///
+    /// When the message is longer than [`MAX_MESSAGE`], there are more
+    /// than [`MAX_FDS`] descriptors, or the other end is gone.
+    pub fn send_with(&self, message: &[u8], fds: &[BorrowedFd<'_>]) -> io::Result<()> {
+        use rustix::net::{SendAncillaryBuffer, SendAncillaryMessage, sendmsg};
+        use std::mem::MaybeUninit;
+        if message.len() > MAX_MESSAGE || fds.len() > MAX_FDS {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(MAX_FDS))];
+        let mut control = SendAncillaryBuffer::new(&mut space);
+        if !fds.is_empty() && !control.push(SendAncillaryMessage::ScmRights(fds)) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let sent = sendmsg(
+            &self.fd,
+            &[io::IoSlice::new(message)],
+            &mut control,
+            SendFlags::NOSIGNAL,
+        )?;
+        if sent == message.len() {
+            Ok(())
+        } else {
+            Err(io::ErrorKind::WriteZero.into())
+        }
+    }
+
+    /// The next packet and the descriptors it carries, closed on `exec`,
+    /// waiting at most `timeout` (without limit when `None`): `None` when
+    /// none came in time.
+    ///
+    /// # Errors
+    ///
+    /// When the socket cannot be read, the packet is longer than
+    /// [`MAX_MESSAGE`], or it carried more than [`MAX_FDS`] descriptors,
+    /// which are closed then.
+    pub fn receive_with(
+        &self,
+        timeout: Option<Duration>,
+    ) -> io::Result<Option<(Vec<u8>, Vec<OwnedFd>)>> {
+        use rustix::net::{RecvAncillaryBuffer, RecvAncillaryMessage, ReturnFlags, recvmsg};
+        use std::mem::MaybeUninit;
+        if !is_readable(self.fd.as_fd(), timeout)? {
+            return Ok(None);
+        }
+        let mut buffer = vec![0; MAX_MESSAGE];
+        let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(MAX_FDS))];
+        let mut control = RecvAncillaryBuffer::new(&mut space);
+        let received = recvmsg(
+            &self.fd,
+            &mut [io::IoSliceMut::new(&mut buffer)],
+            &mut control,
+            RecvFlags::CMSG_CLOEXEC | RecvFlags::TRUNC,
+        )?;
+        let fds: Vec<OwnedFd> = control
+            .drain()
+            .filter_map(|message| match message {
+                RecvAncillaryMessage::ScmRights(fds) => Some(fds),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        if received.bytes > MAX_MESSAGE || received.flags.contains(ReturnFlags::CTRUNC) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("a message of {} bytes", received.bytes),
+            ));
+        }
+        buffer.truncate(received.bytes);
+        Ok(Some((buffer, fds)))
+    }
+}
+
 impl AsFd for Connection {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.fd.as_fd()
@@ -340,149 +422,4 @@ impl AsFd for Connection {
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::disallowed_methods,
-    reason = "zbm-sys is tested against the kernel itself: real programs, files and time"
-)]
-mod tests {
-    use super::*;
-
-    /// A path for a socket, in a new directory of its own.
-    fn socket_path(name: &str) -> PathBuf {
-        let directory =
-            std::env::temp_dir().join(format!("zbm-sys-socket-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&directory);
-        directory.join("run").join("test.sock")
-    }
-
-    #[test]
-    fn packets_come_whole_and_in_order_from_a_peer_the_kernel_names() {
-        let path = socket_path("whole");
-        let listener = Listener::bind(&path).unwrap();
-        assert_eq!(listener.path(), path);
-        let client = Connection::connect(&path).unwrap();
-        let server = listener
-            .accept(Some(Duration::from_secs(5)))
-            .unwrap()
-            .unwrap();
-
-        client.send(b"one").unwrap();
-        client.send(b"").unwrap();
-        client.send(b"three").unwrap();
-
-        let wait = Some(Duration::from_secs(5));
-        assert_eq!(server.receive(wait).unwrap().unwrap(), b"one");
-        assert_eq!(server.receive(wait).unwrap().unwrap(), b"");
-        assert_eq!(server.receive(wait).unwrap().unwrap(), b"three");
-        assert_eq!(server.receive(Some(Duration::ZERO)).unwrap(), None);
-        let peer = server.peer().unwrap();
-        assert_eq!(peer.pid, std::process::id());
-        assert_eq!(peer.uid, crate::credentials().uid);
-        // The directory is the owner's alone.
-        let mode = fs::metadata(path.parent().unwrap()).unwrap();
-        assert_eq!(
-            std::os::unix::fs::PermissionsExt::mode(&mode.permissions()) & 0o777,
-            0o700
-        );
-
-        drop(client);
-        assert_eq!(server.receive(wait).unwrap().unwrap(), b"");
-        drop(listener);
-        assert!(!path.exists());
-    }
-
-    #[test]
-    fn a_connection_passed_to_this_process_is_taken_once() {
-        use std::os::fd::AsRawFd as _;
-        let (one, other) = Connection::pair().unwrap();
-        let number = one.fd.into_raw_fd();
-
-        let taken = Connection::inherited(number).unwrap();
-        assert_eq!(taken.as_fd().as_raw_fd(), number);
-        let error = Connection::inherited(number).unwrap_err();
-        assert!(error.to_string().contains("taken before"), "{error}");
-        taken.set_nonblocking().unwrap();
-        // A whole second, which the kernel's clock ticks keep as it is.
-        other.set_send_timeout(Duration::from_secs(1)).unwrap();
-        assert_eq!(
-            sockopt::socket_timeout(&other.fd, sockopt::Timeout::Send).unwrap(),
-            Some(Duration::from_secs(1))
-        );
-        other.send(b"hello").unwrap();
-        assert_eq!(
-            taken.receive(Some(Duration::ZERO)).unwrap().unwrap(),
-            b"hello"
-        );
-        // Without room, at once.
-        let error = loop {
-            if let Err(error) = other.try_send(&[0; 1024]) {
-                break error;
-            }
-        };
-        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
-        assert!(other.try_send(&vec![0; MAX_MESSAGE + 1]).is_err());
-        // Closed on `exec`, as it was not when passed.
-        let flags = rustix::io::fcntl_getfd(&taken).unwrap();
-        assert!(flags.contains(rustix::io::FdFlags::CLOEXEC));
-
-        // Neither a standard stream, a file, a closed number nor a socket
-        // of another kind, which is left open.
-        let file = fs::File::open("/dev/null").unwrap();
-        let stream = rustix::net::socket(AddressFamily::UNIX, SocketType::STREAM, None).unwrap();
-        for (number, why) in [
-            (0, "standard stream"),
-            (file.as_raw_fd(), "not a socket"),
-            (stream.as_raw_fd(), "of packets"),
-        ] {
-            let error = Connection::inherited(number).unwrap_err();
-            assert!(error.to_string().contains(why), "{number}: {error}");
-        }
-        assert!(Connection::inherited(i32::MAX).is_err());
-        assert!(sockopt::socket_type(&stream).is_ok());
-    }
-
-    #[test]
-    fn a_socket_in_use_is_kept_and_one_left_behind_is_replaced() {
-        let path = socket_path("in-use");
-        let listener = Listener::bind(&path).unwrap();
-        let error = Listener::bind(&path).unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::AddrInUse);
-        // The attempt connected to see whether it was in use.
-        assert!(listener.accept(Some(Duration::ZERO)).unwrap().is_some());
-        drop(listener);
-
-        // A socket nobody listens on, as a process that ended leaves.
-        let left = packet_socket().unwrap();
-        bind(&left, &SocketAddrUnix::new(&path).unwrap()).unwrap();
-        drop(left);
-        assert!(path.exists());
-        let listener = Listener::bind(&path).unwrap();
-        assert!(Connection::connect(&path).is_ok());
-        drop(listener);
-    }
-
-    #[test]
-    fn nothing_waits_when_no_peer_comes_and_too_long_a_message_is_refused() {
-        // A child forked meanwhile would hold the peer open until its exec.
-        let _guard = crate::tests::PROCESSES.lock().unwrap();
-        let path = socket_path("nothing");
-        let listener = Listener::bind(&path).unwrap();
-        assert!(listener.accept(Some(Duration::ZERO)).unwrap().is_none());
-        assert!(Connection::connect(&path.with_file_name("none.sock")).is_err());
-
-        let (one, other) = Connection::pair().unwrap();
-        let long = vec![0; MAX_MESSAGE + 1];
-        assert_eq!(
-            one.send(&long).unwrap_err().kind(),
-            io::ErrorKind::InvalidInput
-        );
-        // Sent past the check, as another program could: refused on receipt.
-        rustix::net::send(&other, &long, SendFlags::empty()).unwrap();
-        let readable = wait_ready(&[Watch::read(one.as_fd())], Some(Duration::from_secs(5)));
-        assert!(readable.unwrap().first().is_some_and(|ready| ready.read));
-        let error = one.receive(Some(Duration::ZERO)).unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
-        drop(other);
-        assert!(one.send(b"gone").is_err());
-    }
-}
+mod tests;

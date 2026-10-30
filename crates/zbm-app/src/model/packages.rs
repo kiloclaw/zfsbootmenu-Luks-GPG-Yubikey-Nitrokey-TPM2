@@ -3,7 +3,7 @@
 //! (`docs/dev/menu-design/boot-health.md`).
 
 /// What happened to a package since the snapshot.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PackageKind {
     /// Installed since.
     Installed,
@@ -40,7 +40,7 @@ impl PackageKind {
 }
 
 /// One package that changed.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PackageChange {
     /// Its name.
     pub name: String,
@@ -67,7 +67,7 @@ impl PackageChange {
 }
 
 /// The packages that changed, and the package manager that says so.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PackageDiff {
     /// The package manager whose database was read: `xbps`, `dpkg`,
     /// `pacman`, `rpm`.

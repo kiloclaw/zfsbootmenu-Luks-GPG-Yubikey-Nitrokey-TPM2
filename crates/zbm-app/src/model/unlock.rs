@@ -3,7 +3,7 @@
 //! (`docs/dev/menu-design/unlocking.md`).
 
 /// A TPM2 key of a volume, sealed to some PCRs.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Tpm2Seal {
     /// The PCRs the key is sealed to.
     pub pcrs: Vec<u8>,
@@ -29,7 +29,7 @@ impl Tpm2Seal {
 }
 
 /// A PCR that changed since a key was sealed to it.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PcrChange {
     /// The PCR.
     pub index: u8,
@@ -71,7 +71,7 @@ pub fn pcr_name(index: u8) -> &'static str {
 }
 
 /// Why the unlock dialog asks what it asks.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Notice {
     /// The last secret typed was wrong.
     Wrong(String),
@@ -94,7 +94,7 @@ impl Notice {
 }
 
 /// The keyboard layouts a secret can be typed with.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Keyboard {
     /// The layouts, the console's own first: `us`, then those the menu can
     /// translate into.

@@ -24,7 +24,7 @@ pub use self::plan::{Plan, Step, StepKind};
 pub use self::unlock::{Keyboard, Notice, PcrChange, Tpm2Seal, pcr_name};
 
 /// The encryption of a boot environment.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Encryption {
     /// Not encrypted.
     None,
@@ -35,7 +35,7 @@ pub enum Encryption {
 }
 
 /// The machine, as every view reads it.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Snapshot {
     /// The stages of start-up.
     pub startup: Vec<Stage>,
@@ -64,7 +64,7 @@ pub struct Snapshot {
 }
 
 /// One stage of start-up.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Stage {
     /// What it does, for people.
     pub name: String,
@@ -73,7 +73,7 @@ pub struct Stage {
 }
 
 /// How far a stage of start-up got.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum StageState {
     /// Not started.
     Pending,
@@ -88,7 +88,7 @@ pub enum StageState {
 }
 
 /// The countdown before the default environment boots.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Timeout {
     /// Boot after this many seconds.
     Seconds(u32),
@@ -100,7 +100,9 @@ pub enum Timeout {
 }
 
 /// The health of a pool, as `zpool status` names it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Health {
     /// Every device works.
     Online,
@@ -125,7 +127,7 @@ impl Health {
 }
 
 /// A pool.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Pool {
     /// Its name.
     pub name: PoolName,
@@ -142,7 +144,7 @@ pub struct Pool {
 }
 
 /// A boot environment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Environment {
     /// The filesystem.
     pub name: DatasetName,
@@ -175,7 +177,7 @@ impl Environment {
 }
 
 /// A kernel of a boot environment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Kernel {
     /// Its version.
     pub version: Untrusted<String>,
@@ -184,7 +186,7 @@ pub struct Kernel {
 }
 
 /// The command line of a boot environment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommandLine {
     /// The command line.
     pub value: Untrusted<String>,
@@ -193,7 +195,7 @@ pub struct CommandLine {
 }
 
 /// Where a property was set.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Origin {
     /// On the dataset itself.
     Local,
@@ -204,7 +206,7 @@ pub enum Origin {
 }
 
 /// A snapshot of a boot environment.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotInfo {
     /// Its name.
     pub name: SnapshotName,
@@ -215,7 +217,7 @@ pub struct SnapshotInfo {
 }
 
 /// A LUKS volume.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Volume {
     /// The name of its mapping.
     pub name: Untrusted<String>,
@@ -232,7 +234,7 @@ pub struct Volume {
 }
 
 /// The state of a LUKS volume.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum VolumeState {
     /// Not open.
     Locked,
@@ -245,7 +247,7 @@ pub enum VolumeState {
 }
 
 /// A way to unlock a volume.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Method {
     /// A passphrase.
     Passphrase,
@@ -308,7 +310,7 @@ impl Method {
 
 /// The log since start: R5 loads the entries with a `LoadLog` action; the
 /// prototype holds them.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Log {
     /// The entries, oldest first.
     pub entries: Vec<LogEntry>,
@@ -325,7 +327,7 @@ impl Log {
 }
 
 /// An entry of the log.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LogEntry {
     /// Its level.
     pub level: Level,
@@ -334,7 +336,7 @@ pub struct LogEntry {
 }
 
 /// The level of a log entry.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Level {
     /// Information.
     Info,

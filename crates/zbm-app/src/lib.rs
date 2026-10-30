@@ -24,6 +24,7 @@ pub mod keyholder;
 pub mod model;
 mod plan;
 mod read;
+pub mod remote;
 pub mod service;
 pub mod session;
 mod volumes;

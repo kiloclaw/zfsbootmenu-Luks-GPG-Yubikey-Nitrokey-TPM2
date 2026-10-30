@@ -133,15 +133,18 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     // Ratatui in tests alone: the menu on the console's cells against its
     // test backend.
     ("zbm", &["ratatui", "serde_json", "tracing"]),
-    ("zbm-app", &["serde_json", "thiserror", "tracing"]),
+    ("zbm-app", &["serde", "serde_json", "thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
     ("zbm-brush", &["brush-shell", "rustix"]),
     ("zbm-config", &["thiserror"]),
     ("zbm-console", &["alacritty_terminal", "rustix"]),
-    ("zbm-crypt", &["serde_json", "thiserror", "tracing"]),
+    (
+        "zbm-crypt",
+        &["serde", "serde_json", "thiserror", "tracing"],
+    ),
     (
         "zbm-display",
-        &["drm", "kbvm", "miniz_oxide", "swash", "thiserror"],
+        &["drm", "kbvm", "miniz_oxide", "serde", "swash", "thiserror"],
     ),
     ("zbm-testkit", &["serde", "serde_json"]),
     (
@@ -170,7 +173,10 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
         "zbm-tui",
         &["fluent-bundle", "nucleo-matcher", "ratatui", "unic-langid"],
     ),
-    ("zbm-types", &["regex", "thiserror", "uucore"]),
+    (
+        "zbm-types",
+        &["regex", "serde", "serde_json", "thiserror", "uucore"],
+    ),
     (
         "zbm-vmtest",
         &["regex", "rustix", "serde_json", "thiserror", "vt100"],

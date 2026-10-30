@@ -51,13 +51,13 @@ Third-party crates:
 - `generate-zbm`: `yaml-rust2`
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
 - `zbm`: `ratatui`, `serde_json`, `tracing`
-- `zbm-app`: `serde_json`, `thiserror`, `tracing`
+- `zbm-app`: `serde`, `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-brush`: `brush-shell`, `rustix`
 - `zbm-config`: `thiserror`
 - `zbm-console`: `alacritty_terminal`, `rustix`
-- `zbm-crypt`: `serde_json`, `thiserror`, `tracing`
-- `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `swash`, `thiserror`
+- `zbm-crypt`: `serde`, `serde_json`, `thiserror`, `tracing`
+- `zbm-display`: `drm`, `kbvm`, `miniz_oxide`, `serde`, `swash`, `thiserror`
 - `zbm-testkit`: `serde`, `serde_json`
 - `zbm-luks`: `base64`, `pbkdf2`, `sha2`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-pool`: `thiserror`
@@ -66,7 +66,7 @@ Third-party crates:
 - `zbm-platform`: `rustix`, `serde_json`, `tracing`, `tracing-subscriber`
 - `zbm-trace`: `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`
 - `zbm-tui`: `fluent-bundle`, `nucleo-matcher`, `ratatui`, `unic-langid`
-- `zbm-types`: `regex`, `thiserror`, `uucore`
+- `zbm-types`: `regex`, `serde`, `serde_json`, `thiserror`, `uucore`
 - `zbm-vmtest`: `regex`, `rustix`, `serde_json`, `thiserror`, `vt100`
 - `zbm-zfs`: `serde`, `serde_json`, `thiserror`
 

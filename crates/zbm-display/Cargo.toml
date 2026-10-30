@@ -13,6 +13,7 @@ thiserror.workspace = true
 drm.workspace = true
 kbvm.workspace = true
 miniz_oxide.workspace = true
+serde.workspace = true
 swash.workspace = true
 zbm-sys.workspace = true
 zbm-types.workspace = true

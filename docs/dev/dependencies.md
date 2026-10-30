@@ -25,8 +25,8 @@ licences and advisories (`deny.toml`). Adding one is a decision for the pull req
 | --- | --- | --- |
 | `thiserror` | `zbm-types`, `zbm-trace`, `zbm-crypt`, `zbm-zfs`, `zbm-luks`, `zbm-pool`, `zbm-app`, `zbm-boot`, `zbm-startup` | Error enums with their causes; runs at build time only |
 | `tracing`, `tracing-subscriber` | `zbm-trace`, `zbm-platform`, `zbm-crypt`, `zbm-luks`, `zbm-app`; `tracing` in `zbm` and `zbm-boot` | Spans and events; the stderr output and the JSON journal |
-| `serde_json` | `zbm-trace`, `zbm-zfs`, `zbm-crypt` | The JSON journal; the JSON output of `zfs` and `zpool`; LUKS2 metadata from `cryptsetup` |
-| `serde` | `zbm-zfs` | The shape of that output, derived (`derive`) |
+| `serde_json` | `zbm-trace`, `zbm-zfs`, `zbm-crypt`, `zbm-app` | The JSON journal; the JSON output of `zfs` and `zpool`; LUKS2 metadata from `cryptsetup`; the keyholder's and the remote menu's messages |
+| `serde` | `zbm-zfs`, `zbm-types`, `zbm-crypt`, `zbm-display`, `zbm-app` | The shape of that output, derived (`derive`); the vocabulary of `zbm_app::model` as a remote menu reads it on the session's socket (ROADMAP.md PM10, `zbm_app::remote`), its names parsed again as they are read |
 | `ratatui` (with `crossterm`) | `zbm-tui` | The menu: layout, widgets and terminal output (the menu decodes keys itself, into `zbm_display::keys::KeyPress`); `unstable-rendered-line-info` measures how tall a dialog's wrapped text is. `crossterm` 0.29.0, which brush's line editors use too, carries a patch of ours that reads a burst of input longer than 1 KiB whole ([patches/README.md](../../patches/README.md)) |
 | `fluent-bundle`, `unic-langid` | `zbm-tui` | The menu's message catalogue ([text.md](menu-design/text.md)): Project Fluent's bundle, with plurals and attributes, and its language identifiers. Already built for `uucore`, which takes them through `fluent`; Apache-2.0 or MIT |
 | `nucleo-matcher` | `zbm-tui` | Fuzzy matching of the filter text, the matcher of Helix's Nucleo; MPL-2.0 (see `deny.toml`) |
@@ -126,9 +126,8 @@ Used by the developer tools `xtask` and `zbm-vmtest` (the VM test harness), neve
 
 ## Agreed, not used yet
 
-Pinned in `[workspace.dependencies]` and vendored when a crate first uses them: `serde` with `derive` for
-`zbm-crypt` (which reads JSON through `serde_json::Value` so far). `crossterm` is pinned for direct use but
-reached through `ratatui::crossterm` so far, which keeps one version.
+`crossterm` is pinned in `[workspace.dependencies]` for direct use but reached through `ratatui::crossterm` so
+far, which keeps one version.
 
 ## Vendored but never built
 

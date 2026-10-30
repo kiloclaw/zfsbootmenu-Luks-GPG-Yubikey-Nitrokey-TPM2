@@ -10,11 +10,13 @@ publish.workspace = true
 
 [dependencies]
 regex.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 uucore.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+serde_json.workspace = true
 proptest.workspace = true
 zbm-testkit.workspace = true
 

@@ -24,7 +24,7 @@ use crate::token::{self, Token};
 const TIMEOUT: Duration = Duration::from_secs(180);
 
 /// How a volume is opened, beyond the key, as `zluks open --key-file` asks.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OpenOptions {
     /// Pass discard (TRIM) requests through (`--allow-discards`).
     pub allow_discards: bool,

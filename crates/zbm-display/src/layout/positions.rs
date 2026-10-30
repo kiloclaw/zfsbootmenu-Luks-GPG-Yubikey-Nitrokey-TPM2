@@ -18,7 +18,7 @@ pub const MAIN_BLOCK: &[u16] = &[
 /// What each key of the main block types, plain and with Shift. A dead key
 /// gives the accent it types alone (as followed by the space bar), when
 /// the layout has the compose rules of its dead keys.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Positions {
     /// By key code: the plain character and the shifted one.
     keys: Vec<(u16, Option<char>, Option<char>)>,
