@@ -276,3 +276,17 @@ fn super_space_goes_to_the_image_s_next_layout() {
     );
     assert_eq!(keyboards.layout(), "us");
 }
+
+#[test]
+fn a_card_that_is_not_there_is_not_waited_for() {
+    let dir = TempDir::new("zbm-console-seat");
+    let places = places(&dir);
+    let seat = Seat::new(dir.join("dri/card0"), None);
+    let start = std::time::Instant::now();
+
+    let (back, error) = take_seat(&places, seat, std::time::Duration::from_secs(10)).unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound, "{error}");
+    assert_eq!(back.card(), dir.join("dri/card0"));
+    assert!(start.elapsed() < std::time::Duration::from_secs(5));
+}

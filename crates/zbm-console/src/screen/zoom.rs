@@ -162,6 +162,36 @@ impl Console {
 
     /// Paints the frame with the scheme's background, to be drawn whole
     /// again.
+    /// Blanks the screen (C64): the frame black, all of it to be
+    /// presented; the programs' output is still drawn into it meanwhile.
+    pub fn blank(&mut self) {
+        let (width, height) = self.frame.size();
+        let area = Area {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        };
+        self.frame.fill(area, zbm_display::frame::Rgb::BLACK);
+    }
+
+    /// Shows the screen again after blanking: drawn again as a whole.
+    pub fn unblank(&mut self) {
+        self.repaint();
+    }
+
+    /// How long without a key blanks the screen, if it does.
+    pub fn blank_after(&self) -> Option<std::time::Duration> {
+        self.blank_after
+    }
+
+    /// The console, blanking after `after` without a key (C64).
+    #[must_use]
+    pub fn with_blank(mut self, after: Option<std::time::Duration>) -> Console {
+        self.blank_after = after;
+        self
+    }
+
     pub(super) fn repaint(&mut self) {
         let (width, height) = self.frame.size();
         let area = Area {

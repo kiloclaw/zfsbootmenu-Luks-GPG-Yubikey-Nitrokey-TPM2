@@ -20,6 +20,9 @@ use crate::keys;
 use crate::screen::zoom::Zoom;
 use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
+use blank::Blanking;
+
+mod blank;
 
 /// How long the loop waits when nothing is due, so that a request to hand
 /// the display back is seen soon.
@@ -274,26 +277,21 @@ pub fn run(
     let mut burst: Option<Instant> = None;
     let mut typing = Typing::default();
     let mut pacing = Pacing::new(screen.interval());
+    let mut blanking = Blanking::new(console.blank_after(), Instant::now());
     loop {
         if let Some(shown) = shown.as_deref_mut() {
             shown.flush();
         }
-        let idle = if shown.as_deref().is_some_and(Shown::is_pending) {
-            host.idle().min(MIRROR_RETRY)
-        } else {
-            host.idle()
-        };
-        let timeout = if burst.is_some() {
-            Duration::ZERO
-        } else {
-            let deadline = console.deadline().into_iter().chain(pacing.due()).min();
-            deadline.map_or(idle, |deadline| {
-                deadline.saturating_duration_since(Instant::now()).min(idle)
-            })
-        };
+        let is_mirror_pending = shown.as_deref().is_some_and(Shown::is_pending);
+        let deadlines = [console.deadline(), pacing.due(), blanking.due()];
+        let timeout = timeout(host, burst.is_some(), is_mirror_pending, &deadlines);
         let input = host.wait(timeout)?;
         console.set_secret(host.is_secret());
         let is_output = matches!(input, Input::Output(_));
+        if matches!(input, Input::Keys(_)) && blanking.is_woken_by_key(Instant::now()) {
+            screen.set_power(true);
+            console.unblank();
+        }
         if let Some(ended) = take(console, host, &mut typing, input)? {
             // A frame that waited for its time is not lost.
             pacing.present(console, screen, &mut shown, None)?;
@@ -311,8 +309,46 @@ pub fn run(
         }
         burst = None;
         pacing.waiting |= console.draw() > 0;
-        pacing.present(console, screen, &mut shown, Some(now))?;
+        if blanking.is_due(now) {
+            blank(console, screen)?;
+            blanking.blanked();
+        }
+        if !blanking.is_blanked() {
+            pacing.present(console, screen, &mut shown, Some(now))?;
+        }
     }
+}
+
+/// How long the loop may wait: not at all within a burst of output, else
+/// until the first of `deadlines`, and no longer than the host is idle, or
+/// than [`MIRROR_RETRY`] while the mirror has text to write.
+fn timeout(
+    host: &dyn Host,
+    is_burst: bool,
+    is_mirror_pending: bool,
+    deadlines: &[Option<Instant>],
+) -> Duration {
+    if is_burst {
+        return Duration::ZERO;
+    }
+    let idle = if is_mirror_pending {
+        host.idle().min(MIRROR_RETRY)
+    } else {
+        host.idle()
+    };
+    let deadline = deadlines.iter().flatten().min();
+    deadline.map_or(idle, |deadline| {
+        deadline.saturating_duration_since(Instant::now()).min(idle)
+    })
+}
+
+/// Blanks the screen (C64): black, shown at once, then the display's power
+/// off.
+fn blank(console: &mut Console, screen: &mut dyn Screen) -> io::Result<()> {
+    console.blank();
+    screen.present(console.frame_mut())?;
+    screen.set_power(false);
+    Ok(())
 }
 
 /// Frames presented at the display's refresh rate at most (C75): when the

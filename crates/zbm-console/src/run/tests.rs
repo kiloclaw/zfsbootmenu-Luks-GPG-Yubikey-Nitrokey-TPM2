@@ -571,4 +571,5 @@ fn the_host_says_the_status_sounds_the_bell_and_keeps_screenshots() {
     bare.ring();
 }
 
+mod blanking;
 mod pacing;

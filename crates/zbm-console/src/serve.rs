@@ -19,10 +19,11 @@ use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use zbm_display::display::{Display, Screen as _, first_card};
+use zbm_display::display::first_card;
 use zbm_display::input::{DeviceId, Keyboards};
 use zbm_display::layout::{Layout, Source};
-use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
+use zbm_display::seat::{self, Seat};
+use zbm_display::vt::active_terminal;
 use zbm_platform::RealFiles;
 use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_state::State;
@@ -108,6 +109,11 @@ pub struct Settings {
     pub compose_key: Option<u16>,
     /// The keyboards with a layout of their own (`zbm.keyboard_layouts`).
     pub device_layouts: Vec<(DeviceId, Source)>,
+    /// The mode of the display (`zbm.console_mode`), when it has one of
+    /// this size: width and height.
+    pub mode: Option<(u16, u16)>,
+    /// How long without a key blanks the screen (`zbm.console_blank`).
+    pub blank: Option<std::time::Duration>,
 }
 
 impl Settings {
@@ -269,8 +275,10 @@ pub fn serve_on(
     } = layouts;
     let state = State::new(&RealFiles, &places.base);
     // The console's terminal while the display is handed back: the relay
-    // keeps its screen up, which a failed `kexec` finds again.
+    // keeps its screen up, which a failed `kexec` finds again; and the
+    // seat handed back, to take again.
     let mut kept = None;
+    let mut seat = None;
     loop {
         let layouts = Layouts {
             first: first.take(),
@@ -283,7 +291,7 @@ pub fn serve_on(
             (&mut *grid, layouts),
             (&mut *master, vt),
             (control, &mut *wake),
-            &mut kept,
+            (&mut kept, &mut seat),
         );
         let Some((text, released)) = after_display(settings, places, shown) else {
             return Ok(());
@@ -411,26 +419,22 @@ fn open_keyboards(settings: &Settings, places: &Places, layout: Option<Layout>) 
 /// terminal `vt` taken over, until they are gone or `requests` asks for
 /// the display back; returns why, the screen's last text and the keyboard
 /// layout. The console's terminal is `kept` when the display is handed
-/// back, for when it is taken again after a failed `kexec`.
+/// back, for when it is taken again after a failed `kexec`, and so is the
+/// seat, handed back.
 fn on_display(
     settings: &Settings,
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
     (master, vt): (&mut File, &Path),
     (control, wake): (&Arc<Control>, &mut ControlWake),
-    kept: &mut Option<Console>,
+    (kept, seat): (&mut Option<Console>, &mut Option<Seat<seat::Released>>),
 ) -> io::Result<(Ended, String, String)> {
-    let card = match &settings.card {
-        Some(card) => card.clone(),
-        None => first_card(&places.dev)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no DRM card"))?,
-    };
-    let mut display = Display::open(&card)?;
-    let size = display.size();
+    let mut held = held_seat(settings, places, vt, seat)?;
+    let card = held.card().to_path_buf();
+    let size = held.size();
     let mut console = settle(console_for(kept, &mut *grid, size)?, settings);
     let Layouts { first, names, load } = layouts;
     let keyboards = open_keyboards(settings, places, first);
-    let taken = VirtualTerminal::take(vt)?;
     set_size(&*master, &console.window_size())?;
     let started = Started {
         card: card.clone(),
@@ -452,15 +456,102 @@ fn on_display(
     let switch = layouts::switcher(places, names, load);
     let host = real_host(&mut *master, keyboards, (control, wake), places, switch);
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
-    let ended = run(&mut console, &mut display, &mut host, shown)?;
+    let ended = run(&mut console, held.screen(), &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
-    drop(taken);
+    *seat = Some(held.release());
     let text = console.text();
     if ended == Ended::Released {
         *kept = Some(console);
     }
     Ok((ended, text, layout))
+}
+
+/// The seat of the console, taken: the one handed back before, else that
+/// of the card of `settings` and the virtual terminal `vt`; said in the log
+/// with how it draws. A seat that cannot be taken stays in `seat`.
+fn held_seat(
+    settings: &Settings,
+    places: &Places,
+    vt: &Path,
+    seat: &mut Option<Seat<seat::Released>>,
+) -> io::Result<Seat<seat::Held>> {
+    let options = zbm_display::display::Options {
+        mode: settings.mode,
+        single: false,
+    };
+    let released = match seat.take() {
+        Some(released) => released,
+        None => Seat::new(card(settings, places)?, Some(vt.to_path_buf())).with_options(options),
+    };
+    let mut held = take_seat(places, released, HOLD_WAIT).map_err(|(released, error)| {
+        *seat = Some(released);
+        error
+    })?;
+    let buffers = if held.screen().is_flipping() {
+        "two buffers flipped on vertical blank"
+    } else {
+        "one buffer"
+    };
+    let format = held.screen().format();
+    places.log(6, &format!("drawing in {format:?} pixels, {buffers}"));
+    Ok(held)
+}
+
+/// How long the console waits for a display another program holds (C66).
+const HOLD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How often it tries again meanwhile.
+const HOLD_RETRY: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Takes `seat`; when another program is the card's master, as Plymouth
+/// may be until it quits, says which and tries again for up to `wait`.
+fn take_seat(
+    places: &Places,
+    seat: Seat<seat::Released>,
+    wait: std::time::Duration,
+) -> Result<Seat<seat::Held>, (Seat<seat::Released>, io::Error)> {
+    let until = std::time::Instant::now() + wait;
+    let mut seat = seat;
+    let mut said = false;
+    loop {
+        match seat.take() {
+            Ok(held) => return Ok(held),
+            Err((back, error))
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy
+                ) && std::time::Instant::now() < until =>
+            {
+                if !std::mem::replace(&mut said, true) {
+                    let holders = zbm_display::display::holders::holders(
+                        &places.sys.with_file_name("proc"),
+                        back.card(),
+                    );
+                    let names: Vec<String> = holders.iter().map(ToString::to_string).collect();
+                    let who = if names.is_empty() {
+                        "another program".to_owned()
+                    } else {
+                        names.join(", ")
+                    };
+                    places.log(5, &format!("{who} holds the display; waiting for it"));
+                }
+                seat = back;
+                std::thread::sleep(HOLD_RETRY);
+            }
+            Err(failed) => return Err(failed),
+        }
+    }
+}
+
+/// The DRM card the console draws on: the one `settings` names, else the
+/// first.
+fn card(settings: &Settings, places: &Places) -> io::Result<PathBuf> {
+    match &settings.card {
+        Some(card) => Ok(card.clone()),
+        None => first_card(&places.dev)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no DRM card")),
+    }
 }
 
 /// The host of the loop on the display: the programs' terminal `master`,

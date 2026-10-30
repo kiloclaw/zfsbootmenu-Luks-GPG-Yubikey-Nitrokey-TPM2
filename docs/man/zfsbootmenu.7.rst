@@ -303,6 +303,17 @@ These options are set on the kernel command line when booting the initramfs or U
     What the bell does: the screen's border flashes (**visual**), the PC speaker sounds (**audible**),
     **both**, or nothing (**none**). The speaker needs the **pcspkr** module in the image.
 
+  **zbm.console_mode=1024x768**
+
+    The console shows its display in a mode of this size when the display has one, as **video=**
+    chooses the kernel console's; the mode the display shows already otherwise.
+
+  **zbm.console_blank=10**
+
+    After this many minutes without a key, the screen goes black and the display's power off, as
+    **setterm -blank** and **-powerdown** do; a key turns it on again, and reaches the programs. The
+    screen does not blank by default.
+
   Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
   ``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
 

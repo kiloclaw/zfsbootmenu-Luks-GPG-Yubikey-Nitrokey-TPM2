@@ -160,6 +160,17 @@ configuration. The default, **zbm.console=kernel**, keeps the kernel console.
   What the bell does: the screen's border flashes (**visual**), the PC speaker sounds (**audible**),
   **both**, or nothing (**none**). The speaker needs the **pcspkr** module in the image.
 
+**zbm.console_mode=1024x768**
+
+  The console shows its display in a mode of this size when the display has one, as **video=**
+  chooses the kernel console's; the mode the display shows already otherwise.
+
+**zbm.console_blank=10**
+
+  After this many minutes without a key, the screen goes black and the display's power off, as
+  **setterm -blank** and **-powerdown** do; a key turns it on again, and reaches the programs. The
+  screen does not blank by default.
+
 Print Screen saves the screen's text and image in ``/zfsbootmenu/screenshot-N.txt`` and
 ``screenshot-N.png``, which **zbm report** adds to its report; there is none at a secret prompt.
 
@@ -374,6 +385,54 @@ pub static CONSOLE_BELL: OptionSpec = OptionSpec {
     deprecation: None,
     examples: &["zbm.console_bell=audible"],
 };
+
+/// `zbm.console_mode`: the size of the display's mode, as `1024x768`.
+pub static CONSOLE_MODE: OptionSpec = OptionSpec {
+    name: "zbm.console_mode",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Text,
+    default: None,
+    summary: "The size of the mode the console on the display shows",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_mode=1024x768"],
+};
+
+/// `zbm.console_blank`: the minutes without a key after which the console
+/// on the display blanks.
+pub static CONSOLE_BLANK: OptionSpec = OptionSpec {
+    name: "zbm.console_blank",
+    aliases: &[],
+    source: Source::KernelCommandLine,
+    value: Value::Integer,
+    default: None,
+    summary: "The minutes without a key after which the console on the display blanks",
+    reader: Reader::Rust,
+    doc: Doc::Within("zbm.console"),
+    deprecation: None,
+    examples: &["zbm.console_blank=10"],
+};
+
+/// The width and height `value` (`1024x768`) names, when both are numbers
+/// greater than 0.
+///
+/// ```
+/// use zbm_config::spec::cmdline::console::mode_size;
+///
+/// assert_eq!(mode_size("1024x768"), Some((1024, 768)));
+/// assert_eq!(mode_size("1024"), None);
+/// assert_eq!(mode_size("0x768"), None);
+/// ```
+pub fn mode_size(value: &str) -> Option<(u16, u16)> {
+    let (width, height) = value.trim().split_once('x')?;
+    let (width, height): (u16, u16) = (width.parse().ok()?, height.parse().ok()?);
+    (width > 0 && height > 0).then_some((width, height))
+}
+
+/// The most minutes `zbm.console_blank` takes: a day.
+pub const MAX_BLANK_MINUTES: u32 = 24 * 60;
 
 /// `zbm.lines`: the number of lines of the console.
 pub static LINES: OptionSpec = OptionSpec {

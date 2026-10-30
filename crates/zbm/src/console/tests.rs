@@ -29,6 +29,8 @@ fn options_are_parsed_and_wrong_ones_refused() {
             bell: Ring::Visual,
             compose_key: None,
             device_layouts: Vec::new(),
+            mode: None,
+            blank_minutes: None,
         })
     );
     let keys = parse(&args("--numlock on --repeat 250,30")).unwrap();
@@ -51,6 +53,13 @@ fn options_are_parsed_and_wrong_ones_refused() {
         Some(100)
     );
     assert_eq!(parse(&args("--compose pause")), None);
+    let display = parse(&args("--mode 1024x768 --blank 10")).unwrap();
+    assert_eq!(
+        (display.mode, display.blank_minutes),
+        (Some((1024, 768)), Some(10))
+    );
+    assert_eq!(parse(&args("--mode 1024")), None);
+    assert_eq!(parse(&args("--blank 0")), None);
     let rules = parse(&args(
         "--keyboard 046d:c31c=de --keyboard 1a2c:0e24=fr(azerty)",
     ))

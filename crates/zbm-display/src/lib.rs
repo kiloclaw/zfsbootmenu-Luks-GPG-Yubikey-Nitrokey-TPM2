@@ -49,5 +49,6 @@ pub mod palette;
 pub mod png;
 pub mod psf;
 pub mod render;
+pub mod seat;
 pub mod speaker;
 pub mod vt;

@@ -19,7 +19,7 @@ use ratatui::buffer::Cell;
 use ratatui::layout::{Position, Size};
 use ratatui::style::{Color, Modifier};
 use zbm_display::decor::Decoration;
-use zbm_display::display::{Display, Screen, first_card};
+use zbm_display::display::{Screen, first_card};
 use zbm_display::faces::FontFace;
 use zbm_display::frame::{Area, Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid};
@@ -27,7 +27,8 @@ use zbm_display::input::{KeySource, Keyboards};
 use zbm_display::keys::KeyPress;
 use zbm_display::palette;
 use zbm_display::render::{CellRenderer, warm_chars};
-use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
+use zbm_display::seat::Seat;
+use zbm_display::vt::active_terminal;
 use zbm_platform::Clock;
 use zbm_platform::clock::SystemClock;
 
@@ -360,23 +361,20 @@ pub fn run_on_display<M: Machine>(
             first_card(dev).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no DRM card"))?
         }
     };
-    let mut display = Display::open(&card)?;
-    let grid = grid(display.size())?;
     // Without a virtual terminal (a serial console only), nothing is taken.
-    let terminal = active_terminal(sysfs, dev)
-        .map(|path| VirtualTerminal::take(&path))
-        .transpose()?;
+    let seat = Seat::new(card, active_terminal(sysfs, dev));
+    let mut held = seat.take().map_err(|(_, error)| error)?;
+    let grid = grid(held.size())?;
     let mut keys = Keyboards::open(sysfs, dev)?;
     let why = run(
         session,
-        (&mut display, &mut keys),
+        (held.screen(), &mut keys),
         grid,
         shown,
         SystemClock::new(),
     );
     // The output goes back to the kernel console before the terminal does.
-    drop(display);
-    drop(terminal);
+    held.release();
     why
 }
 

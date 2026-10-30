@@ -6,7 +6,8 @@
 //! (`zbm.keyboard_repeat`), the scrollback (`zbm.console_scrollback`), the
 //! colour scheme (`zbm.console_palette`), large text
 //! (`zbm.console_large`), the status line (`zbm.console_status`), the bell
-//! (`zbm.console_bell`), and the mirror of the VM tests.
+//! (`zbm.console_bell`), the display's mode (`zbm.console_mode`), blanking
+//! (`zbm.console_blank`), and the mirror of the VM tests.
 
 use std::path::Path;
 
@@ -14,10 +15,10 @@ use zbm_config::args::{Args, ZbmArgs};
 use zbm_config::conf::Conf;
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::{
-    AUTOSIZE, BELLS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_LARGE, CONSOLE_MIRROR, CONSOLE_PALETTE,
-    CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE, DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE,
-    KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT, MAX_SCROLLBACK, NUM_LOCK, PALETTES,
-    is_layout_name,
+    AUTOSIZE, BELLS, COMPOSE_KEYS, CONSOLE_BELL, CONSOLE_BLANK, CONSOLE_LARGE, CONSOLE_MIRROR,
+    CONSOLE_MODE, CONSOLE_PALETTE, CONSOLE_SCROLLBACK, CONSOLE_STATUS, DISPLAY_CONSOLE,
+    DISPLAY_CONSOLE_FONT, KEYBOARD_COMPOSE, KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KEYBOARD_REPEAT,
+    MAX_BLANK_MINUTES, MAX_SCROLLBACK, NUM_LOCK, PALETTES, is_layout_name, mode_size,
 };
 use zbm_platform::System;
 
@@ -91,7 +92,7 @@ type IsValid = fn(&str) -> bool;
 
 /// The options with a value that the console gets as they are, with its
 /// argument for each, when the value is right.
-const VALUES: [(&OptionSpec, &str, IsValid); 7] = [
+const VALUES: [(&OptionSpec, &str, IsValid); 9] = [
     (&NUM_LOCK, "--numlock", |value| {
         matches!(value, "on" | "off")
     }),
@@ -107,6 +108,12 @@ const VALUES: [(&OptionSpec, &str, IsValid); 7] = [
         PALETTES.contains(&value)
     }),
     (&CONSOLE_BELL, "--bell", |value| BELLS.contains(&value)),
+    (&CONSOLE_MODE, "--mode", |value| mode_size(value).is_some()),
+    (&CONSOLE_BLANK, "--blank", |value| {
+        value
+            .parse::<u32>()
+            .is_ok_and(|minutes| (1..=MAX_BLANK_MINUTES).contains(&minutes))
+    }),
     (&KEYBOARD_COMPOSE, "--compose", |value| {
         COMPOSE_KEYS.contains(&value)
     }),
@@ -195,6 +202,14 @@ mod tests {
                  zbm.console_status=on zbm.console_bell=both zbm.keyboard_compose=menu"
             ),
             words("console --palette tango --bell both --compose menu --large --status")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.console_mode=1024x768 zbm.console_blank=10"),
+            words("console --mode 1024x768 --blank 10")
+        );
+        assert_eq!(
+            console("zbm.console=drm zbm.console_mode=big zbm.console_blank=0"),
+            words("console")
         );
         assert_eq!(
             console("zbm.console=drm zbm.console_palette=rainbow zbm.console_large=off"),

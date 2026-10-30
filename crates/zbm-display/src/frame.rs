@@ -22,7 +22,7 @@ impl Rgb {
 }
 
 /// A rectangle of pixels: from `x`, `y`, `width` wide and `height` high.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Area {
     /// The left edge.
     pub x: u32,

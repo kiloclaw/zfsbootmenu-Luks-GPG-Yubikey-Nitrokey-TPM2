@@ -118,6 +118,8 @@ pub struct Console {
     damaged: Vec<(usize, usize, usize)>,
     /// The hashes of the rows to draw, kept for the same reason.
     hashes: Vec<u64>,
+    /// How long without a key blanks the screen (C64).
+    blank_after: Option<std::time::Duration>,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -203,6 +205,7 @@ impl Console {
             is_shot: false,
             damaged: Vec::new(),
             hashes: Vec::new(),
+            blank_after: None,
         };
         console.warm();
         console.draw();

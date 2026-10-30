@@ -144,6 +144,10 @@ pub struct Options {
     pub compose_key: Option<u16>,
     /// The keyboards with a layout of their own, by USB id.
     pub device_layouts: Vec<(DeviceId, String)>,
+    /// The size of the display's mode: width and height.
+    pub mode: Option<(u16, u16)>,
+    /// The minutes without a key that blank the screen.
+    pub blank_minutes: Option<u32>,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -178,6 +182,11 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--bell" => options.bell = Ring::parse(args.next()?)?,
             "--compose" => options.compose_key = Some(compose_key(args.next()?)?),
             "--keyboard" => options.device_layouts.push(device_layout(args.next()?)?),
+            "--mode" => options.mode = Some(zbm_config::spec::cmdline::mode_size(args.next()?)?),
+            "--blank" => {
+                options.blank_minutes =
+                    Some(args.next()?.parse().ok().filter(|&minutes| minutes > 0)?);
+            }
             _ => return None,
         }
     }
@@ -325,6 +334,10 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
         status_line: options.status,
         bell: options.bell,
         compose_key: options.compose_key,
+        mode: options.mode,
+        blank: options
+            .blank_minutes
+            .map(|minutes| Duration::from_secs(u64::from(minutes) * 60)),
         device_layouts: options
             .device_layouts
             .iter()

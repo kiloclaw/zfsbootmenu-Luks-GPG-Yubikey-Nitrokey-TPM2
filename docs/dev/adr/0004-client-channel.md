@@ -101,6 +101,10 @@ cells and receives key presses. Programs that need a terminal keep one.**
 - **UI4** (30 October 2026): the one renderer is `zbm_display::render::CellRenderer`, over the `Grid` of a font. The
   console's terminal draws through it, and so does the menu's pixel backend until the cell surface of UI6 replaces
   it: a `Surface::Cells` will be drawn by the same renderer.
+- **UI5** (30 October 2026): the seat is `zbm_display::seat::Seat<S>`, with `Held` (the display and the virtual
+  terminal taken) and `Released`: only `Seat<Held>` gives the screen, and `release()` gives the output back before
+  the terminal. The keyboards are not part of it: they come and go with hotplug, and the loop that reads them owns
+  them. `reattach` takes the same seat again, with the options it had.
 
 ## Answers of the maintainer
 

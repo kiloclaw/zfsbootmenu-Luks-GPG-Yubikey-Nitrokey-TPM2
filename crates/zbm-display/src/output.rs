@@ -67,6 +67,13 @@ pub struct Choice {
 /// the one that scans it out, else the first it can use that scans out no
 /// other connector, so that no monitor goes dark.
 pub fn choose(connectors: &[ConnectorDesc]) -> Option<Choice> {
+    choose_mode(connectors, None)
+}
+
+/// [`choose`], in a mode of `wanted` (width, height) when the connector has
+/// one, as `zbm.console_mode` asks (C60): its preferred one of that size,
+/// else the first.
+pub fn choose_mode(connectors: &[ConnectorDesc], wanted: Option<(u16, u16)>) -> Option<Choice> {
     let busy: Vec<usize> = connectors.iter().filter_map(|c| c.current_crtc).collect();
     let usable = |links: &'static [Link]| {
         let busy = &busy;
@@ -74,7 +81,7 @@ pub fn choose(connectors: &[ConnectorDesc]) -> Option<Choice> {
             .iter()
             .enumerate()
             .filter(move |(_, connector)| links.contains(&connector.link))
-            .filter_map(move |(index, connector)| choice(index, connector, busy))
+            .filter_map(move |(index, connector)| choice(index, connector, busy, wanted))
     };
     usable(&[Link::Connected, Link::Unknown])
         .find(|choice| {
@@ -89,9 +96,21 @@ pub fn choose(connectors: &[ConnectorDesc]) -> Option<Choice> {
 /// The connector at `index`, its mode and CRTC, when it has both; `busy`
 /// are the CRTCs that scan out a connector now, which only that connector
 /// may take.
-fn choice(index: usize, connector: &ConnectorDesc, busy: &[usize]) -> Option<Choice> {
-    let mode = connector
-        .current_mode
+fn choice(
+    index: usize,
+    connector: &ConnectorDesc,
+    busy: &[usize],
+    wanted: Option<(u16, u16)>,
+) -> Option<Choice> {
+    let sized = |preferred: bool| {
+        let (width, height) = wanted?;
+        connector.modes.iter().position(|mode| {
+            (mode.width, mode.height) == (width, height) && (mode.preferred || !preferred)
+        })
+    };
+    let mode = sized(true)
+        .or_else(|| sized(false))
+        .or(connector.current_mode)
         .filter(|&mode| mode < connector.modes.len())
         .or_else(|| connector.modes.iter().position(|mode| mode.preferred))
         .or_else(|| {
@@ -128,6 +147,31 @@ mod tests {
             height,
             preferred,
         }
+    }
+
+    #[test]
+    fn a_mode_of_the_size_asked_for_is_chosen_when_there_is_one() {
+        let display = ConnectorDesc {
+            link: Link::Connected,
+            modes: vec![
+                mode(1920, 1080, true),
+                mode(1024, 768, false),
+                mode(800, 600, false),
+            ],
+            current_crtc: Some(0),
+            current_mode: Some(0),
+            possible_crtcs: vec![0],
+        };
+        let mode_of = |wanted| {
+            choose_mode(std::slice::from_ref(&display), wanted)
+                .unwrap()
+                .mode
+        };
+
+        assert_eq!(mode_of(Some((1024, 768))), 1);
+        // A size it does not have: the mode shown now.
+        assert_eq!(mode_of(Some((640, 480))), 0);
+        assert_eq!(mode_of(None), 0);
     }
 
     #[test]

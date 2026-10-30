@@ -35,7 +35,8 @@ pub(super) fn settle(console: Console, settings: &Settings) -> Console {
         .with_flavour(settings.flavour)
         .with_scrollback(settings.scrollback)
         .with_scheme(settings.scheme.unwrap_or(&crate::scheme::LINUX))
-        .with_bell(settings.bell);
+        .with_bell(settings.bell)
+        .with_blank(settings.blank);
     if settings.status_line {
         console.with_status_line()
     } else {
