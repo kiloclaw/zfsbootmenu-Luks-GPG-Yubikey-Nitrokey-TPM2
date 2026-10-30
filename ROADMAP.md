@@ -690,7 +690,7 @@ fallback behind the same port, until its VM tests pass. CD9 and CD10 come after 
 | VE2 | Fault injection: `FaultyRunner` and `FaultyFiles`, and the property that start-up always ends in a menu or a shell | stab | M | |
 | VE3 | Contract tests of the fakes against the real adapters, in a VM | stab | M | |
 | VE4 | Mutation testing on the code where a missed case costs most | stab, sec | M | |
-| VE5 | The VM tiers: smoke on CI with KVM, nightly, release; in phase 1, so that VM runs stop waiting on one machine | stab | M | |
+| VE5 | Decided, 30 October 2026: the VM suite runs on the maintainer's machine, with KVM, in four lanes; CI keeps the `runtime` job of `build.yml` (the start-up and pool import tests of each runtime on a GitHub runner with KVM) as its smoke tier. Nightly and release tiers on CI wait until the maintainer wants them (GitHub's standard runners would do, the repository being public) | stab | M | |
 | VE6 | The first benchmark baseline: `cargo xtask bench` and the `bench-*` scenarios (B1 to B12) | perf | M | |
 | VE7 | The upstream test VMs as `zbm-vmtest` scenarios; `scripts/` and the build container's scripts as `xtask` commands (R7 of the old plan) | mod | L | |
 | VE8 | The developer guides (R8 of the old plan): the boot flow, how to add a key method, a menu view and a boot step, how to debug a boot, the ADRs, `cargo doc` published | mod | M | |
@@ -774,7 +774,7 @@ sessions.
 PM2, PM3, PM4, DM2, DM3, DM4, SB2, SB3, DM9, DM11, SE4, SE5, SE6, VE5; the usability sessions of UI11 on the
 workspace prototype, in parallel.
 
-**Exit:** the smoke tier of the VM suite runs on CI with KVM; no domain crate takes a `Runner` or a console; no ZFS
+**Exit:** the smoke tier of the VM suite runs on CI with KVM (the `runtime` job, VE5); no domain crate takes a `Runner` or a console; no ZFS
 command line outside `zbm-zfs`; the new metric columns at 0; the strict lints on every crate that runs at boot.
 
 ### Phase 2: the session
@@ -881,7 +881,8 @@ extras (#22, #23) wait for phase 6 and move nothing.
 
 ### Risks to the dates
 
-- **VM runs:** until VE5 is done, every change to the images waits on the maintainer's machine.
+- **VM runs:** every change to the images waits on the maintainer's machine, which runs the VM suite (VE5); the
+  hand-off after each item says which lanes to run.
 - **The design risks,** UI6 (the client channel) and PM8 (the machine actor): their ADRs in phase 0 settle them, and
   a wrong turn there costs a phase.
 - **The workspace in the sessions:** if UI11 rejects it, phase 3 builds the current design, as planned before; the
