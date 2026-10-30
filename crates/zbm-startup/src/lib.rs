@@ -32,6 +32,7 @@ pub mod program;
 pub mod shell;
 pub mod stages;
 pub mod step;
+pub mod unattended;
 
 #[cfg(test)]
 mod testing;

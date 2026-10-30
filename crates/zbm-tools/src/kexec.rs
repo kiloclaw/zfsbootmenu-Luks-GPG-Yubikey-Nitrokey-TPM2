@@ -5,17 +5,67 @@
 //! `kexec` program loads what the call does not take, a device tree, which
 //! `kexec_file_load` has no argument for, and what it refuses, as on a
 //! kernel without the call (`ENOSYS`) or with a compressed arm64 kernel
-//! (`ENOEXEC`); and starts the kernel when the call cannot.
+//! (`ENOEXEC`); and starts the kernel when the call cannot. Under lockdown
+//! or Secure Boot (ROADMAP.md, SE10), the call alone loads: what it
+//! refuses, and a device tree, are not loaded at all, as `kexec_load`
+//! would load them unchecked.
 
 #![allow(
     clippy::disallowed_methods,
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::fmt;
 use std::io;
 use std::path::Path;
 
-use zbm_platform::{Command, KernelLoader, Output, Runner, Status};
+use zbm_platform::{Command, Files, KernelLoader, Output, Runner, Status};
+
+/// The kernel's lockdown state: `none [integrity] confidentiality`, the
+/// mode in brackets.
+const LOCKDOWN: &str = "/sys/kernel/security/lockdown";
+
+/// The firmware's Secure Boot variable: four bytes of attributes, then 1
+/// when it is on.
+const SECURE_BOOT: &str =
+    "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c";
+
+/// What requires the kernel to check what it boots.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CheckedBoot {
+    /// The kernel's lockdown, `lockdown=integrity` or `confidentiality`.
+    Lockdown,
+    /// The firmware's Secure Boot, which locks most distributions' kernels
+    /// down.
+    SecureBoot,
+}
+
+impl fmt::Display for CheckedBoot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            CheckedBoot::Lockdown => "lockdown",
+            CheckedBoot::SecureBoot => "Secure Boot",
+        })
+    }
+}
+
+/// What requires the kernel to check what it boots, if anything.
+pub fn checked_boot(files: &dyn Files) -> Option<CheckedBoot> {
+    let lockdown = files.read(Path::new(LOCKDOWN)).unwrap_or_default();
+    let mode = String::from_utf8_lossy(&lockdown)
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix('[')?.strip_suffix(']').map(str::to_owned));
+    if mode.is_some_and(|mode| mode != "none") {
+        return Some(CheckedBoot::Lockdown);
+    }
+    let secure_boot = files.read(Path::new(SECURE_BOOT)).unwrap_or_default();
+    (secure_boot.get(4) == Some(&1)).then_some(CheckedBoot::SecureBoot)
+}
+
+/// A load refused for `why`, as the program's failure.
+fn refused(why: &str) -> Output {
+    Output::new(Status::exited(1), format!("{why}\n"))
+}
 
 /// What `kexec -l` loads.
 #[derive(Clone, Copy, Debug)]
@@ -62,7 +112,9 @@ fn log_fallback(call: &str, error: &io::Error) {
 
 /// Loads `image` with `loader`'s `kexec_file_load`, or with `kexec -a -l`
 /// when it has a device tree or the call did not load it; the program's
-/// error messages in the output.
+/// error messages in the output. When `checked` names what requires the
+/// kernel to check what it boots ([`checked_boot`]), the call alone loads,
+/// and a refusal fails the load.
 ///
 /// # Errors
 ///
@@ -71,7 +123,27 @@ pub fn load(
     loader: &dyn KernelLoader,
     runner: &dyn Runner,
     image: &Image<'_>,
+    checked: Option<CheckedBoot>,
 ) -> io::Result<Output> {
+    if let Some(checked) = checked {
+        if image.dtb.is_some() {
+            return Ok(refused(&format!(
+                "{checked} is on: kexec_file_load takes no device tree, so {} is not loaded",
+                image.kernel
+            )));
+        }
+        let kernel = (Path::new(image.kernel), Path::new(image.initrd));
+        return Ok(match loader.load(kernel.0, kernel.1, image.command_line) {
+            Ok(()) => {
+                zbm_trace::debug!("kexec_file_load loaded {kernel}"; kernel = image.kernel);
+                Output::new(Status::exited(0), Vec::new())
+            }
+            Err(error) => refused(&format!(
+                "{checked} is on: the kernel refused {}, which kexec would load unchecked: {error}",
+                image.kernel
+            )),
+        });
+    }
     if image.dtb.is_none() {
         let kernel = (Path::new(image.kernel), Path::new(image.initrd));
         match loader.load(kernel.0, kernel.1, image.command_line) {
@@ -115,8 +187,14 @@ mod tests {
             command_line: "root=zfs:tank/ROOT/void quiet",
         };
 
-        load(&NoKernelLoader, &runner, &image).unwrap();
-        load(&NoKernelLoader, &runner, &Image { dtb: None, ..image }).unwrap();
+        load(&NoKernelLoader, &runner, &image, None).unwrap();
+        load(
+            &NoKernelLoader,
+            &runner,
+            &Image { dtb: None, ..image },
+            None,
+        )
+        .unwrap();
         execute(&NoKernelLoader, &runner).unwrap();
 
         let line = "kexec -a -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initramfs.img";
@@ -147,7 +225,7 @@ mod tests {
             command_line: "root=zfs:tank/ROOT/void quiet",
         };
 
-        let outcome = load(&loader, &runner, &image).unwrap();
+        let outcome = load(&loader, &runner, &image, None).unwrap();
         assert!(outcome.status.is_success());
         assert_eq!(
             loader.loaded(),
@@ -168,11 +246,12 @@ mod tests {
                 dtb: Some(dtb),
                 ..image
             },
+            None,
         )
         .unwrap();
         // A kernel the call refuses: the program too.
         loader.answer(Loads::Refused(8));
-        load(&loader, &runner, &image).unwrap();
+        load(&loader, &runner, &image, None).unwrap();
         assert_eq!(loader.loaded().len(), 1);
         assert_eq!(runner.lines().len(), 2);
         assert!(runner.lines()[0].contains("--dtb="));
@@ -181,5 +260,63 @@ mod tests {
         execute(&loader, &runner).unwrap();
         assert_eq!(loader.starts(), 1);
         assert_eq!(runner.lines()[2], "kexec -e -i");
+    }
+
+    #[test]
+    fn under_lockdown_the_kernel_alone_loads_and_a_refusal_fails_the_boot() {
+        use zbm_testkit::fakes::FakeFiles;
+
+        let files = FakeFiles::new();
+        assert_eq!(checked_boot(&files), None);
+        files.file(LOCKDOWN, "[none] integrity confidentiality\n");
+        assert_eq!(checked_boot(&files), None);
+        files.file(SECURE_BOOT, b"\x06\x00\x00\x00\x01".as_slice());
+        assert_eq!(checked_boot(&files), Some(CheckedBoot::SecureBoot));
+        files.file(LOCKDOWN, "none [integrity] confidentiality\n");
+        assert_eq!(checked_boot(&files), Some(CheckedBoot::Lockdown));
+        assert_eq!(CheckedBoot::SecureBoot.to_string(), "Secure Boot");
+
+        let runner = FakeRunner::new();
+        let loader = FakeKernelLoader::default();
+        let image = Image {
+            kernel: "/mnt/boot/vmlinuz",
+            initrd: "/mnt/boot/initramfs.img",
+            dtb: None,
+            command_line: "quiet",
+        };
+        // The call takes it: loaded.
+        loader.answer(Loads::Accepted);
+        let taken = load(&loader, &runner, &image, Some(CheckedBoot::Lockdown)).unwrap();
+        assert!(taken.status.is_success());
+        // The call refuses it, or cannot load: not loaded, and kexec never
+        // runs.
+        for refusal in [Loads::Refused(129), Loads::None] {
+            loader.answer(refusal);
+            let refused = load(&loader, &runner, &image, Some(CheckedBoot::Lockdown)).unwrap();
+            assert!(!refused.status.is_success());
+            assert!(
+                refused
+                    .stdout_text()
+                    .starts_with("lockdown is on: the kernel refused")
+            );
+        }
+        let dtb = Path::new("/mnt/boot/board.dtb");
+        let tree = load(
+            &loader,
+            &runner,
+            &Image {
+                dtb: Some(dtb),
+                ..image
+            },
+            Some(CheckedBoot::SecureBoot),
+        );
+        let tree = tree.unwrap();
+        assert!(!tree.status.is_success());
+        assert!(
+            tree.stdout_text().contains("takes no device tree"),
+            "{}",
+            tree.stdout_text()
+        );
+        assert!(runner.lines().is_empty());
     }
 }

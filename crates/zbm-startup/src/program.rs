@@ -42,6 +42,7 @@ use crate::front::{ConsoleFront, Front};
 use crate::shell::Shell;
 use crate::stages;
 use crate::step::{Rerun, Step, StepContext, run_steps};
+use crate::unattended;
 
 /// Whether a variable such as `ZFSBOOTMENU_FORCE_INIT` is on: `yes`, `y`,
 /// `true`, `t` or `1`, in any case.
@@ -196,8 +197,12 @@ impl<'a> Startup<'a> {
         if !modes.console {
             return 0;
         }
-        // The state directory's copy is what an earlier start found.
-        let bootfs = bootfs.or_else(|| self.state.bootfs().and_then(|name| name.parse().ok()));
+        // The state directory's copy is what an earlier start found. After
+        // the volumes unlocked themselves, nothing boots by itself from a
+        // pool on none of them (ROADMAP.md, SE10).
+        let bootfs = bootfs
+            .or_else(|| self.state.bootfs().and_then(|name| name.parse().ok()))
+            .filter(|bootfs| unattended::may_boot_by_itself(&self.system, &self.state, bootfs));
         // Legacy never boots by itself once it saw another instance.
         if !modes.resume && menu.is_none() && !self.state.is_active() {
             self.countdown(bootfs.as_ref());

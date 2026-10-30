@@ -339,3 +339,22 @@ fn degraded_checks_match_the_legacy_function() {
         assert_eq!(state.is_degraded(pool), expected, "pool {pool:?}");
     }
 }
+
+#[test]
+fn a_boot_is_unattended_when_silent_key_methods_opened_every_volume() {
+    let files = FakeFiles::new();
+    files.dir("/zfsbootmenu");
+    let state = State::new(&files, "/zfsbootmenu");
+    // Nothing opened: nobody was needed, nothing to hold to.
+    assert_eq!(state.unattended_mappings(), None);
+    state.record_unlocked("luks-a", false).unwrap();
+    state.record_unlocked("luks-b", false).unwrap();
+    assert_eq!(
+        state.unattended_mappings(),
+        Some(vec!["luks-a".to_owned(), "luks-b".to_owned()])
+    );
+    // A person opened one: the boot was attended.
+    state.record_unlocked("luks-c", true).unwrap();
+    assert_eq!(state.unattended_mappings(), None);
+    assert!(state.luks_unlocked().ends_with("luks-unlocked"));
+}

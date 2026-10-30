@@ -254,7 +254,8 @@ fn kexec_commands() {
         args: &"ro quiet".parse().unwrap(),
     };
     let runner = zbm_testkit::FakeRunner::new();
-    load.run(&zbm_platform::NoKernelLoader, &runner).unwrap();
+    load.run(&zbm_platform::NoKernelLoader, &runner, None)
+        .unwrap();
     let command = &runner.calls()[0];
     assert_eq!(command.program(), "kexec");
     let args: Vec<String> = command

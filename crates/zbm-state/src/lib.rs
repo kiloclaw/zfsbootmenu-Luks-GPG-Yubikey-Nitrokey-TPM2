@@ -443,6 +443,47 @@ impl<'a> State<'a> {
         self.path("luks-mappings")
     }
 
+    /// How each LUKS mapping of this boot was opened, closed since or not
+    /// (`luks-unlocked`): a
+    /// line `name<TAB>unattended` for a volume a silent key method opened,
+    /// a TPM2 token without a PIN or Clevis, and `name<TAB>attended` for
+    /// one a person opened, with a passphrase, a PIN, a security key or a
+    /// key device ([`State::record_unlocked`]).
+    pub fn luks_unlocked(&self) -> PathBuf {
+        self.path("luks-unlocked")
+    }
+
+    /// Records that this boot opened the LUKS mapping `name`, by a person
+    /// when `attended`.
+    ///
+    /// # Errors
+    ///
+    /// When the file cannot be written.
+    pub fn record_unlocked(&self, name: &str, attended: bool) -> Result<()> {
+        let how = if attended { "attended" } else { "unattended" };
+        let path = self.luks_unlocked();
+        self.files
+            .append(&path, format!("{name}\t{how}\n").as_bytes())
+            .map_err(|error| Error::io(format!("unable to write {}", path.display()), error))
+    }
+
+    /// The LUKS mappings this boot opened when no person opened any of them
+    /// (ROADMAP.md, SE10): every volume opened by a silent key method, so
+    /// the machine unlocked itself. `None` when a person opened one, or none
+    /// was opened.
+    pub fn unattended_mappings(&self) -> Option<Vec<String>> {
+        let text = self.files.read(&self.luks_unlocked()).ok()?;
+        let text = String::from_utf8_lossy(&text);
+        let mut names = Vec::new();
+        for line in text.lines().filter(|line| !line.is_empty()) {
+            match line.rsplit_once('\t') {
+                Some((name, "unattended")) if !name.is_empty() => names.push(name.to_owned()),
+                _ => return None,
+            }
+        }
+        (!names.is_empty()).then_some(names)
+    }
+
     /// The LUKS volumes the user skipped (`luks-skipped`), documented in
     /// `zluks(8)`.
     pub fn luks_skipped(&self) -> PathBuf {

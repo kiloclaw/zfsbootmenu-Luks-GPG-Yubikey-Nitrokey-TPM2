@@ -137,9 +137,14 @@ impl Step for ImportPools {
     }
 
     fn run(&self, context: &mut StepContext<'_, '_>) -> Result<StepOutcome, StartupError> {
+        // Held to the volumes that unlocked themselves, if they did.
+        let settings = ImportSettings {
+            policy: crate::unattended::import_policy(context.state, self.settings.policy),
+            ..self.settings.clone()
+        };
         let imported = context
             .front
-            .import(context.system, context.state, &self.settings);
+            .import(context.system, context.state, &settings);
         context.bootfs = imported.bootfs;
         Ok(StepOutcome::Done)
     }

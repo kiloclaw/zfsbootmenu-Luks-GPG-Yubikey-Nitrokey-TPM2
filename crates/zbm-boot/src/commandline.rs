@@ -491,13 +491,20 @@ impl KexecLoad<'_> {
 
     /// Loads the kernel: with `kexec_file_load` through `loader`, or with
     /// `kexec -a -l ...` on `runner` for a device tree or what the call does
-    /// not load, its two output streams merged as `2>&1` merges them.
+    /// not load, its two output streams merged as `2>&1` merges them; with
+    /// the call alone when `checked` names what requires the kernel to check
+    /// what it boots (`zbm_tools::kexec::checked_boot`).
     ///
     /// # Errors
     ///
     /// The error that kept `kexec` from starting.
-    pub fn run(&self, loader: &dyn KernelLoader, runner: &dyn Runner) -> std::io::Result<Output> {
-        self.with_image(|image| kexec::load(loader, runner, image))
+    pub fn run(
+        &self,
+        loader: &dyn KernelLoader,
+        runner: &dyn Runner,
+        checked: Option<kexec::CheckedBoot>,
+    ) -> std::io::Result<Output> {
+        self.with_image(|image| kexec::load(loader, runner, image, checked))
     }
 }
 

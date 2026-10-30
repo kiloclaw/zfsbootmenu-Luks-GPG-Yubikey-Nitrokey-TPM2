@@ -177,6 +177,8 @@ pub struct Unlocker<'a> {
     pub(crate) registry: Registry,
     /// Every attempt to open each volume of the run, in order.
     attempts: BTreeMap<DevicePath, Vec<Attempt>>,
+    /// The devices a token of the silent pass opened, which needed nobody.
+    pub(crate) silently_opened: BTreeSet<String>,
 }
 
 impl<'a> Unlocker<'a> {
@@ -193,6 +195,7 @@ impl<'a> Unlocker<'a> {
             dm_disable_udev: false,
             registry: Registry::standard(),
             attempts: BTreeMap::new(),
+            silently_opened: BTreeSet::new(),
         }
     }
 

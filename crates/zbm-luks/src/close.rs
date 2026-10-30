@@ -15,16 +15,7 @@ use crate::error::LuksError;
 use crate::mappings::Mapping;
 use crate::unlocker::Unlocker;
 
-/// Whether the vdev `device` is `target` or a partition of it: `/dev/dm-3`
-/// or `/dev/dm-3p1` for `/dev/dm-3`.
-pub fn is_on(device: &str, target: &str) -> bool {
-    device == target
-        || device.strip_prefix(target).is_some_and(|rest| {
-            rest.strip_prefix('p').is_some_and(|digits| {
-                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
-            })
-        })
-}
+pub use zbm_tools::devices::is_on;
 
 impl Unlocker<'_> {
     /// The imported pools with a vdev on `device` or one of its partitions.

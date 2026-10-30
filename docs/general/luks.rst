@@ -65,6 +65,13 @@ covers passphrases, YubiKey responses, TPM2 PINs, and GnuPG key files, which are
 Every interactive method can be skipped by answering with an empty line, which moves on to the next one, so the
 LUKS passphrase always remains available as a fallback.
 
+In images with the Rust runtime, a boot whose volumes all unlocked themselves (TPM2 without a PIN, clevis, a key file
+or a key script) is held to those volumes, since nobody chose what it boots: pools import only with this machine's
+host ID (``zbm.import_policy=hostid``, the default, acts as ``strict``; ``force`` stays), and the countdown boots the
+default boot environment only when its pool is on one of the unlocked volumes, so that a disk plugged into the
+machine cannot boot by itself. Otherwise the menu waits for someone to choose. A boot where someone typed a
+passphrase or a PIN, or touched a security key, keeps the usual defaults.
+
 Choosing which volumes to unlock
 --------------------------------
 

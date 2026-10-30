@@ -212,6 +212,9 @@ impl Unlocker<'_> {
                     Some(_) | None => continue,
                 };
                 if let Ok(open) = result {
+                    if pass == Pass::Silent {
+                        self.silently_opened.insert(target.device().to_string());
+                    }
                     return Ok(open);
                 }
             }

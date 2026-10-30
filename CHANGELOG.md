@@ -96,7 +96,14 @@ shell. The legacy runtime stays the default; see `zfsbootmenu(7)`.
 The Rust runtime loads the boot environment's kernel with the kernel's own `kexec_file_load` and starts it with
 `reboot`, without running `kexec`. `kexec` still loads a kernel with a device tree (`org.zfsbootmenu:devicetree`),
 and any kernel the call refuses, as on a kernel built without it; a teardown hook can still load a kernel of its
-own, which then boots.
+own, which then boots. Under lockdown or Secure Boot, the call alone loads: a kernel it refuses (an unsigned one) or a
+device tree is not loaded at all, and the boot stops with the reason in the log.
+
+When every LUKS volume unlocked itself (a TPM2 token without a PIN, Clevis, a key file or a key script), nobody chose
+what boots, so the Rust runtime holds to those volumes: the import policy `hostid`, the default, imports as
+`strict`, adopting no other machine's host ID, and the countdown (and `zbm.skip`) boots the default boot environment
+only when its pool is on one of the volumes that unlocked; otherwise the menu waits for someone to choose. A person
+who types a passphrase or a PIN, or touches a security key, keeps the usual defaults.
 
 ### Rust runtime, LUKS
 

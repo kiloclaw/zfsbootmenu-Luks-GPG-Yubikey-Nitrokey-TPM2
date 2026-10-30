@@ -124,6 +124,29 @@ mod tests {
     }
 
     #[test]
+    fn a_clevis_token_opens_in_the_silent_pass_which_needs_nobody() {
+        let fake = clevis_machine(b"clevis-key");
+        let dump = r#"{"keyslots":{"3":{"type":"luks2"}},"tokens":{"0":{"type":"clevis"}}}"#;
+        fake.runner
+            .respond("cryptsetup luksDump --dump-json-metadata /dev/sda", 0, dump);
+        fake.runner.respond(
+            "cryptsetup token export --token-id 0 /dev/sda",
+            0,
+            r#"{"type":"clevis","keyslots":["3"],"jwe":{"protected":"x"}}"#,
+        );
+        let args = [];
+        let target = crate::testing::target("v", "/dev/sda", &args);
+        with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
+            assert!(
+                session
+                    .try_tokens(target, std::path::Path::new("/dev/sda"))
+                    .is_ok()
+            );
+            assert!(session.silently_opened.contains("/dev/sda"));
+        });
+    }
+
+    #[test]
     fn failures_are_logged_and_tools_are_required() {
         let fake = clevis_machine(b"");
         let args = [];

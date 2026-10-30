@@ -15,6 +15,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use zbm_platform::{Command, Files, Input, Runner, Stream};
 
+/// Whether the vdev `device` is `target` or a partition of it: `/dev/dm-3`
+/// or `/dev/dm-3p1` for `/dev/dm-3`.
+pub fn is_on(device: &str, target: &str) -> bool {
+    device == target
+        || device.strip_prefix(target).is_some_and(|rest| {
+            rest.strip_prefix('p').is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+}
+
 /// The longest a probe may run, for a device that stopped answering.
 const TIMEOUT: Duration = Duration::from_secs(60);
 

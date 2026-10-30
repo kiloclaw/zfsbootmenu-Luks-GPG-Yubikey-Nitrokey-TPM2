@@ -295,8 +295,11 @@ fn find_devicetree(
 /// returns `None`.
 fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<String> {
     let mut output = String::new();
+    // Lockdown or Secure Boot: the kernel checks what it boots, and loads
+    // nothing it refuses (ROADMAP.md, SE10).
+    let checked = kexec::checked_boot(system.files);
     for _ in 0..2 {
-        let (ok, text) = substituted(load.run(system.kernel, system.runner));
+        let (ok, text) = substituted(load.run(system.kernel, system.runner, checked));
         if ok {
             return Some(text);
         }

@@ -59,3 +59,53 @@ fn the_kernel_loads_the_boot_environment_s_kernel_and_kexec_starts_it_when_it_ca
     assert_eq!(lines.last().map(String::as_str), Some("kexec -e -i"));
     assert!(fake.console.output_text().contains("failed!"));
 }
+
+#[test]
+fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
+    let _secrets = crate::testing::booting();
+    let fake = FakeSystem::new();
+    let _log = fake_log(&fake);
+    fake.files.dir("/zfsbootmenu");
+    fake.files.file(
+        "/sys/kernel/security/lockdown",
+        "none [integrity] confidentiality\n",
+    );
+    // EKEYREJECTED: an unsigned kernel.
+    fake.kernel.answer(Loads::Refused(129));
+    fake.runner.respond_program("zpool", 0, "");
+    fake.runner.respond_program("zfs", 0, "-\n");
+    fake.runner.respond_program("mount", 0, "");
+    fake.runner.respond_program("umount", 0, "");
+    let state = State::new(&fake.files, "/zfsbootmenu");
+    let selected = Kernel {
+        dataset: FS.to_owned(),
+        kernel: "/boot/vmlinuz-6.1.10".to_owned(),
+        initramfs: "/boot/initramfs-6.1.10.img".to_owned(),
+    };
+    let shells = Shells::default();
+
+    kexec_kernel(
+        &fake.system(),
+        &state,
+        &BootSettings::default(),
+        &selected,
+        &shells,
+    );
+
+    let lines = fake.runner.lines();
+    assert!(
+        !lines.iter().any(|line| line.starts_with("kexec")),
+        "{lines:?}"
+    );
+    assert_eq!(fake.kernel.starts(), 0);
+    assert!(
+        fake.console
+            .output_text()
+            .contains("Unable to load kernel or initramfs into memory")
+    );
+    assert!(
+        fake.kmsg().contains("lockdown is on: the kernel refused"),
+        "{}",
+        fake.kmsg()
+    );
+}

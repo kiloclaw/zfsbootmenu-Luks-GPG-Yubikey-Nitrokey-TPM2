@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use zbm_state::State;
 use zbm_tools::devices::Devices;
 use zbm_types::{DevicePath, MappingName};
 
@@ -100,11 +101,30 @@ impl Unlocker<'_> {
         Ok(name)
     }
 
-    /// Records a mapping this run opened with `method`.
+    /// Records a mapping this run opened with `method`, and whether a
+    /// person opened it (ROADMAP.md, SE10).
     fn opened(&self, volume: &Volume<Open>, method: Method) -> Opened {
         self.mappings()
             .record(volume.name(), volume.device(), volume.entry().origin);
+        let attended = self.is_attended(method, volume.device());
+        let state = State::new(self.context().files(), &self.settings().base);
+        if let Err(error) = state.record_unlocked(volume.name().as_str(), attended) {
+            zbm_trace::error!("{error}"; %error);
+        }
         Opened::Unlocked(method)
+    }
+
+    /// Whether a person opened `device` with `method`: typed a passphrase
+    /// (this one, one typed for another volume, a YubiKey's challenge) or
+    /// a token's PIN, or touched a security key. A silent token (TPM2
+    /// without a PIN, Clevis), a key file and a key script need nobody:
+    /// a key file may sit in the image or on a device that stays plugged.
+    fn is_attended(&self, method: Method, device: &DevicePath) -> bool {
+        match method {
+            Method::Passphrase | Method::CachedPassphrase | Method::YubiKey => true,
+            Method::Token => !self.silently_opened.contains(device.as_str()),
+            Method::KeyFile | Method::KeyScript => false,
+        }
     }
 
     /// Unlocks one volume with the key methods of the run's registry
