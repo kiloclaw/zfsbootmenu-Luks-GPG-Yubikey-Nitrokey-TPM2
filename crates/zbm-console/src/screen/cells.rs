@@ -13,9 +13,11 @@ use zbm_display::channel::Run;
 use zbm_display::faces::FontFace;
 use zbm_display::frame::{Frame, Rgb};
 use zbm_display::grid::{CellStyle, Neighbour, Text};
+use zbm_display::palette;
 use zbm_display::render::CellRenderer;
 
 use super::Console;
+use crate::scheme::Scheme;
 
 /// A cell of the surface: its text, a grapheme, or empty for the second
 /// cell of a wide character; and its style.
@@ -77,10 +79,11 @@ impl Surface {
         self.cells.get(index).map(|cell| cell.text.as_str())
     }
 
-    /// Takes the cells of `runs`: those beyond the surface are dropped, and
-    /// control characters shown as spaces.
-    fn put(&mut self, runs: &[Run]) {
+    /// Takes the cells of `runs`, in the colours of `scheme`: those beyond
+    /// the surface are dropped, and control characters shown as spaces.
+    fn put(&mut self, runs: &[Run], scheme: &Scheme) {
         for run in runs {
+            let style = in_scheme(run.style, scheme);
             let columns = (run.column..self.columns).zip(&run.cells);
             for (column, text) in columns {
                 let Some(index) = self.index(column, run.row) else {
@@ -92,11 +95,11 @@ impl Surface {
                     break;
                 };
                 let is_same =
-                    cell.style == run.style && cell.text.chars().eq(text.chars().map(printable));
+                    cell.style == style && cell.text.chars().eq(text.chars().map(printable));
                 if !is_same {
                     cell.text.clear();
                     cell.text.extend(text.chars().map(printable));
-                    cell.style = run.style;
+                    cell.style = style;
                     *changed = true;
                 }
             }
@@ -283,6 +286,27 @@ impl Drop for Surface {
     }
 }
 
+/// `style` in `scheme`: the Linux console's colours, which the menu draws
+/// in, become the scheme's, as the terminal shows them, its default text
+/// and background too.
+fn in_scheme(style: CellStyle, scheme: &Scheme) -> CellStyle {
+    let shown = |colour: Rgb, default: (Rgb, Rgb)| {
+        if colour == default.0 {
+            return default.1;
+        }
+        palette::CONSOLE
+            .iter()
+            .zip(&scheme.base)
+            .find_map(|(&linux, &own)| (linux == colour).then_some(own))
+            .unwrap_or(colour)
+    };
+    CellStyle {
+        fg: shown(style.fg, (palette::FOREGROUND, scheme.foreground)),
+        bg: shown(style.bg, (palette::BACKGROUND, scheme.background)),
+        ..style
+    }
+}
+
 /// `c`, or a space for a control character, which has no glyph and would
 /// end the mirror's lines and screens.
 fn printable(c: char) -> char {
@@ -319,7 +343,7 @@ impl Console {
     /// Takes the client's `runs` of cells, shown once its frame is whole.
     pub fn put_cells(&mut self, runs: &[Run]) {
         if let Some(cells) = &mut self.cells {
-            cells.put(runs);
+            cells.put(runs, self.scheme);
         }
     }
 

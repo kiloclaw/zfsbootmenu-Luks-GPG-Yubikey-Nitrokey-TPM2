@@ -33,7 +33,7 @@ use crate::control::{Control, ControlWake};
 use crate::host::{RealHost, Switch, set_size};
 use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
-use crate::run::{Ended, Shown, run};
+use crate::run::{Client, Ended, Shown, run_with_client};
 use crate::screen::{Console, Ring};
 pub use layouts::{next_layout, switch_layout};
 use setup::{console_for, settle, with_bell};
@@ -292,6 +292,7 @@ pub fn serve_on(
     // seat handed back, to take again.
     let mut kept = None;
     let mut seat = None;
+    let mut client = Client::default();
     loop {
         let layouts = Layouts {
             first: first.take(),
@@ -303,6 +304,7 @@ pub fn serve_on(
             places,
             (&mut *grid, layouts),
             (&mut *master, vt, cells),
+            &mut client,
             (control, &mut *wake),
             (&mut kept, &mut seat),
         );
@@ -439,6 +441,7 @@ fn on_display(
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
     (master, vt, cells): (&mut File, &Path, Option<&Connection>),
+    client: &mut Client,
     (control, wake): (&Arc<Control>, &mut ControlWake),
     (kept, seat): (&mut Option<Console>, &mut Option<Seat<seat::Released>>),
 ) -> io::Result<(Ended, String, String)> {
@@ -472,7 +475,7 @@ fn on_display(
         host = host.with_client(cells);
     }
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
-    let ended = run(&mut console, held.screen(), &mut host, shown)?;
+    let ended = run_with_client(&mut console, held.screen(), &mut host, shown, client)?;
     let layout = host.keyboard_layout().to_owned();
     drop(host);
     *seat = Some(held.release());

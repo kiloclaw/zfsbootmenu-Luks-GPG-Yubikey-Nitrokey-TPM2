@@ -130,7 +130,9 @@ pub const TOOLS: &[&str] = &["xtask", "zbm-vmtest"];
 pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     ("generate-zbm", &["yaml-rust2"]),
     ("xtask", &["proc-macro2", "serde_json", "syn"]),
-    ("zbm", &["serde_json", "tracing"]),
+    // Ratatui in tests alone: the menu on the console's cells against its
+    // test backend.
+    ("zbm", &["ratatui", "serde_json", "tracing"]),
     ("zbm-app", &["serde_json", "thiserror", "tracing"]),
     ("zbm-boot", &["thiserror", "tracing"]),
     ("zbm-brush", &["brush-shell", "rustix"]),

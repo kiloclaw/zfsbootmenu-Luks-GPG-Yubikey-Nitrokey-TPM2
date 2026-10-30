@@ -3893,6 +3893,7 @@ name = "zbm"
 version = "0.1.0"
 dependencies = [
  "pretty_assertions",
+ "ratatui",
  "serde",
  "serde_json",
  "tracing",

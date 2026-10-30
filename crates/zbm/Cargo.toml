@@ -41,6 +41,7 @@ console-mirror = ["zbm-startup/console-mirror"]
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+ratatui.workspace = true
 serde.workspace = true
 zbm-testkit.workspace = true
 

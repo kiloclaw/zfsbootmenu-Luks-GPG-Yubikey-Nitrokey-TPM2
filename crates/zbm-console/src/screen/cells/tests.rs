@@ -198,6 +198,27 @@ fn the_keys_of_search_and_scrolling_are_the_clients() {
 }
 
 #[test]
+fn the_consoles_colours_are_those_of_its_scheme() {
+    use crate::scheme::HIGH_CONTRAST;
+    let mut console = console().with_scheme(&HIGH_CONTRAST);
+    console.show_cells();
+    let red = palette::CONSOLE[1];
+    console.put_cells(&[
+        run(0, 0, &["a"], style(red, palette::BACKGROUND)),
+        run(1, 0, &["b"], style(palette::FOREGROUND, RED)),
+    ]);
+    console.end_cells_frame(None);
+    console.draw();
+    let mut first = vec![HIGH_CONTRAST.background, HIGH_CONTRAST.base[1]];
+    first.sort_by_key(|rgb| (rgb.0, rgb.1, rgb.2));
+    assert_eq!(colours(&mut console, 0, 0), first);
+    // A colour beyond the 16 stays as it is.
+    let found = colours(&mut console, 0, 1);
+    assert_eq!(found.len(), 2);
+    assert!(found.contains(&RED) && found.contains(&HIGH_CONTRAST.foreground));
+}
+
+#[test]
 fn the_cells_are_wiped_with_the_screen() {
     let mut console = console();
     console.show_cells();

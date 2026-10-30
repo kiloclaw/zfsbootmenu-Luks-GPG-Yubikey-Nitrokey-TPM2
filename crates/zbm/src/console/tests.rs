@@ -242,3 +242,71 @@ fn what_the_console_answers_presses_no_key() {
     assert_eq!(decode(&replies, true, &mut keys), replies.len());
     assert!(keys.is_empty(), "{keys:?} from {replies:?}");
 }
+
+#[test]
+/// The menu drawn on the console's cells through the client channel shows
+/// what Ratatui's test backend shows of the same view (ADR 0004).
+fn the_menu_on_the_cells_shows_what_it_draws() {
+    use std::sync::Arc;
+
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use zbm_console::screen::Console;
+    use zbm_display::channel::{Caps, FromClient};
+    use zbm_display::psf::Font;
+    use zbm_sys::socket::Connection;
+    use zbm_tui::menu::caps::Capabilities;
+    use zbm_tui::menu::cells::CellSurface;
+    use zbm_tui::menu::demo::{DemoOptions, data};
+    use zbm_tui::menu::frontend::Surface as _;
+    use zbm_tui::menu::theme::Theme;
+    use zbm_tui::menu::{Model, view};
+
+    let (columns, rows) = (100, 30);
+    let font = Font::parse(include_bytes!(
+        "../../../../legacy/zfsbootmenu/fonts/ter-v14b.psf"
+    ))
+    .unwrap();
+    let mut console = Console::new(
+        Grid::new(font, 1),
+        (u32::from(columns) * 8, u32::from(rows) * 14),
+    );
+    console.show_cells();
+    let model = Model::new(
+        data::machine(&DemoOptions::default()),
+        Theme::new(Capabilities::CONSOLE),
+    );
+    let (menu, console_end) = Connection::pair().unwrap();
+    let caps = Caps {
+        columns,
+        rows,
+        true_colour: true,
+    };
+    let mut cells = Terminal::new(CellSurface::new(Arc::new(menu), caps)).unwrap();
+    let mut expected = Terminal::new(TestBackend::new(columns, rows)).unwrap();
+
+    for _ in 0..2 {
+        cells.draw(|frame| view(&model, frame)).unwrap();
+        cells.backend_mut().present().unwrap();
+        expected.draw(|frame| view(&model, frame)).unwrap();
+    }
+    let wait = Some(Duration::from_millis(50));
+    while let Some(packet) = console_end.receive(wait).unwrap() {
+        match FromClient::decode(&packet).unwrap() {
+            FromClient::Cells(runs) => console.put_cells(&runs),
+            FromClient::Cursor(cursor) => console.end_cells_frame(cursor),
+            other => panic!("{other:?}"),
+        }
+    }
+    console.draw();
+
+    let buffer = expected.backend().buffer();
+    let shown: String = (0..rows)
+        .map(|y| {
+            let row: String = (0..columns).map(|x| buffer[(x, y)].symbol()).collect();
+            format!("{}\n", row.trim_end())
+        })
+        .collect();
+    assert!(shown.contains("STARTING ZFSBOOTMENU"), "{shown}");
+    assert_eq!(console.text(), shown);
+}

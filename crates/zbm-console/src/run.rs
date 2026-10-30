@@ -22,7 +22,7 @@ use crate::screen::zoom::Zoom;
 use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
 use blank::Blanking;
-use client::Client;
+pub use client::Client;
 
 mod blank;
 mod client;
@@ -295,14 +295,30 @@ pub fn run(
     console: &mut Console,
     screen: &mut dyn Screen,
     host: &mut dyn Host,
+    shown: Option<&mut dyn Shown>,
+) -> io::Result<Ended> {
+    run_with_client(console, screen, host, shown, &mut Client::default())
+}
+
+/// [`run`], with what the console knows of the client of the channel,
+/// which outlives the loop: the display handed back and taken again after
+/// a failed `kexec` finds the menu as it was.
+///
+/// # Errors
+///
+/// When the screen cannot be drawn on, or the host fails.
+pub fn run_with_client(
+    console: &mut Console,
+    screen: &mut dyn Screen,
+    host: &mut dyn Host,
     mut shown: Option<&mut dyn Shown>,
+    client: &mut Client,
 ) -> io::Result<Ended> {
     screen.present(console.frame_mut())?;
     show(console, &mut shown);
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
     let mut typing = Typing::default();
-    let mut client = Client::default();
     let mut pacing = Pacing::new(screen.interval());
     let mut blanking = Blanking::new(console.blank_after(), Instant::now());
     loop {
@@ -319,12 +335,12 @@ pub fn run(
             screen.set_power(true);
             console.unblank();
         }
-        if let Some(ended) = take(console, host, (&mut typing, &mut client), input)? {
+        if let Some(ended) = take(console, host, (&mut typing, &mut *client), input)? {
             // A frame that waited for its time is not lost.
             pacing.present(console, screen, &mut shown, None)?;
             return Ok(ended);
         }
-        zoom(console, host, &client)?;
+        zoom(console, host, client)?;
         tell(console, host);
         let now = Instant::now();
         console.tick(now);

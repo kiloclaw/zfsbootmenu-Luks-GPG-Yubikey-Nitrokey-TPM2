@@ -389,8 +389,13 @@ pub fn run_in_menu(
             )))
         }
     };
-    let open = |snapshot, theme| terminal::startup_view(snapshot, theme, sized()?, escape_wait);
-    let open_menu = |theme| terminal::menu_screen(theme, sized()?, escape_wait);
+    // The console on the display's client channel, which the supervisor
+    // passed.
+    let cells = environment.var(zbm_tui::menu::cells::CELLS_FD);
+    let cells = cells.as_deref();
+    let open =
+        |snapshot, theme| terminal::startup_view(snapshot, theme, (sized()?, cells), escape_wait);
+    let open_menu = |theme| terminal::menu_screen(theme, (sized()?, cells), escape_wait);
     let screens: Screens<'_> = (Theme::new(capabilities), &open, &open_menu);
     let Some((socket, token)) = listen(Path::new(session::SOCKET)) else {
         let takeover = (signals.as_ref(), None);

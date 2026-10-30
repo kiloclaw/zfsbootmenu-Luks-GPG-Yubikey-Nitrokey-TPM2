@@ -229,6 +229,17 @@ impl Connection {
         Ok(())
     }
 
+    /// Has [`Connection::send`] wait at most `wait` for room, then fail with
+    /// [`io::ErrorKind::WouldBlock`], while the other end reads nothing.
+    ///
+    /// # Errors
+    ///
+    /// When the socket cannot be changed.
+    pub fn set_send_timeout(&self, wait: Duration) -> io::Result<()> {
+        sockopt::set_socket_timeout(&self.fd, sockopt::Timeout::Send, Some(wait))?;
+        Ok(())
+    }
+
     /// Who is at the other end.
     ///
     /// # Errors
@@ -360,6 +371,12 @@ mod tests {
         let error = Connection::inherited(number).unwrap_err();
         assert!(error.to_string().contains("taken before"), "{error}");
         taken.set_nonblocking().unwrap();
+        // A whole second, which the kernel's clock ticks keep as it is.
+        other.set_send_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(
+            sockopt::socket_timeout(&other.fd, sockopt::Timeout::Send).unwrap(),
+            Some(Duration::from_secs(1))
+        );
         other.send(b"hello").unwrap();
         assert_eq!(
             taken.receive(Some(Duration::ZERO)).unwrap().unwrap(),

@@ -9,9 +9,10 @@ use zbm_display::keys::KeyPress;
 use super::Host;
 use crate::screen::Console;
 
-/// What the console knows of its client.
+/// What the console knows of its client: whether it said hello, and asks
+/// for a secret.
 #[derive(Debug, Default)]
-pub(super) struct Client {
+pub struct Client {
     /// Whether it said hello in the console's version.
     is_greeted: bool,
     /// Whether the keys that come belong to a secret.

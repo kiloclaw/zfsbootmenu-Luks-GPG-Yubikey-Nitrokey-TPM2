@@ -11,9 +11,11 @@
 //! - [`demo`]: a fake machine that answers the actions, for
 //!   `zbm-tui --demo`;
 //! - [`terminal`] and [`display`]: the menu on a terminal, or on the
-//!   display without one (ROADMAP.md #19).
+//!   display without one (ROADMAP.md #19); [`cells`]: on the cells of the
+//!   console on the display (UI6).
 
 pub mod caps;
+pub mod cells;
 pub mod demo;
 pub mod display;
 pub mod filter;

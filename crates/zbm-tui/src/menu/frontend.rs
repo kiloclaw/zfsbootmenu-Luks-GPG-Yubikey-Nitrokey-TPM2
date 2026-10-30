@@ -100,6 +100,12 @@ pub trait Surface: Backend {
     fn present(&mut self) -> io::Result<()> {
         Ok(())
     }
+
+    /// Says whether the keys that follow belong to a secret, where the
+    /// surface carries the flag with its frames (the console's cells).
+    fn set_secret(&mut self, secret: bool) {
+        let _ = secret;
+    }
 }
 
 impl<B: Backend> Surface for QuietBackend<B> {
@@ -216,10 +222,13 @@ where
     pub fn draw(&mut self, model: &Model) -> io::Result<()> {
         self.fit()?;
         drawn(self.terminal.draw(|frame| view(model, frame)))?;
+        let secret = is_asking_secret(model);
         if let Some(marker) = &mut self.marker {
-            marker.show(is_asking_secret(model));
+            marker.show(secret);
         }
-        self.terminal.backend_mut().present()
+        let surface = self.terminal.backend_mut();
+        surface.set_secret(secret);
+        surface.present()
     }
 
     /// The next key within `timeout`, or until `wake` is readable; logged
@@ -252,6 +261,7 @@ where
         if let Some(marker) = &mut self.marker {
             marker.show(false);
         }
+        self.terminal.backend_mut().set_secret(false);
         drawn(self.terminal.clear())?;
         drawn(self.terminal.set_cursor_position(Position::ORIGIN))?;
         drawn(self.terminal.show_cursor())?;
