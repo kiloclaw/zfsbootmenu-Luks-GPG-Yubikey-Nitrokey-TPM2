@@ -30,6 +30,7 @@ use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};
 
+use crate::remote::Remotes;
 use crate::unlock::ProcessKeyholders;
 use zbm_platform::event::{CancelToken, Mailbox, NoAnswer, spawn_scoped_traced};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
@@ -40,6 +41,7 @@ use zbm_startup::program::{Modes, Startup};
 use zbm_startup::shell::Shell;
 use zbm_state::State;
 use zbm_sys::Signals;
+use zbm_sys::socket::Connection;
 use zbm_tui::menu::caps::Capabilities;
 use zbm_tui::menu::screen::MenuScreen;
 use zbm_tui::menu::startup::{MailLink, StartupScreen, ViewLink};
@@ -418,10 +420,19 @@ pub fn run_in_menu(
         let takeover = (signals.as_ref(), None);
         return run_on(startup, (system, conf), (modes, None), screens, takeover);
     };
+    // A menu over SSH that asks for one is served on its terminal.
+    let remotes = Remotes {
+        system,
+        conf,
+        handover: socket.handover(),
+        until: &token,
+        runner: None,
+    };
+    let remote = |peer: Connection| remotes.serve(&peer);
     std::thread::scope(|scope| {
         // Cancelled however this ends, so that the scope can end too.
         let _stop = Stop(&token);
-        spawn_scoped_traced(scope, || socket.serve(&token));
+        spawn_scoped_traced(scope, || socket.serve_with(&token, Some(&remote)));
         let takeover = (signals.as_ref(), Some(socket.handover()));
         run_on(startup, (system, conf), (modes, None), screens, takeover)
     })

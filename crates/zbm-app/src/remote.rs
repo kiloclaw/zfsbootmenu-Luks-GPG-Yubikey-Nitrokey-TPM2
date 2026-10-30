@@ -39,6 +39,10 @@ use zbm_sys::socket::{Connection, MAX_MESSAGE};
 
 use crate::model::{Action, Event, Snapshot};
 
+mod serve;
+
+pub use self::serve::{ATTACH_WAIT, Attached, Served, TAKEN_OVER, attach, serve};
+
 /// The version of the protocol.
 pub const VERSION: u64 = 1;
 

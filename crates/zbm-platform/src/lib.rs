@@ -85,7 +85,7 @@ pub use clock::{Clock, SystemClock};
 pub use console::{Console, NoConsole, Size, Terminal};
 pub use crash::CrashReporter;
 pub use env::{Environment, ProcessEnvironment};
-pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner};
+pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner, TerminalRunner};
 pub use files::{FileKind, FileLock, Files, LockWait, Metadata, RealFiles};
 pub use interaction::Interaction;
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};

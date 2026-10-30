@@ -15,6 +15,11 @@
 //! {"version":1,"reply":"yielded"}
 //! {"version":1,"reply":"refused","reason":"busy"}
 //! ```
+//!
+//! A menu that is to be a client of the session asks for the menu as
+//! `remote` instead: the session's menu yields as for a takeover, and the
+//! connection goes on in the protocol of `zbm_app::remote`, served on a
+//! thread of its own by what [`SessionSocket::serve_with`] was given.
 
 use std::fmt;
 use std::io;
@@ -23,7 +28,7 @@ use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde_json::{Value, json};
-use zbm_platform::event::CancelToken;
+use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_sys::socket::{Connection, Listener};
 
 use crate::wire::{self, Unread, message};
@@ -46,6 +51,9 @@ pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
 pub enum Request {
     /// End the menu, if one runs, and say so.
     Takeover,
+    /// End the menu, as [`Request::Takeover`], and serve one for the peer
+    /// on this connection (`zbm_app::remote`).
+    Remote,
 }
 
 /// Why the session refused a request.
@@ -60,6 +68,8 @@ pub enum Refusal {
     /// The menu did not end in time ([`YIELD_WAIT`]), as when a program it
     /// runs holds the terminal.
     Busy,
+    /// The session serves no remote menu: the peer runs its own.
+    NoRemote,
 }
 
 impl fmt::Display for Refusal {
@@ -85,6 +95,7 @@ impl Refusal {
             Refusal::Version => "version",
             Refusal::Malformed => "malformed",
             Refusal::Busy => "busy",
+            Refusal::NoRemote => "no remote",
         }
     }
 
@@ -95,6 +106,7 @@ impl Refusal {
             Refusal::Version,
             Refusal::Malformed,
             Refusal::Busy,
+            Refusal::NoRemote,
         ]
         .into_iter()
         .find(|refusal| refusal.name() == name)
@@ -104,8 +116,11 @@ impl Refusal {
 impl Request {
     /// The message that carries it.
     pub fn encode(self) -> Vec<u8> {
-        let Request::Takeover = self;
-        json!({"version": VERSION, "request": "takeover"})
+        let name = match self {
+            Request::Takeover => "takeover",
+            Request::Remote => "remote",
+        };
+        json!({"version": VERSION, "request": name})
             .to_string()
             .into_bytes()
     }
@@ -123,6 +138,7 @@ impl Request {
         }
         match object.get("request").and_then(Value::as_str) {
             Some("takeover") => Ok(Request::Takeover),
+            Some("remote") => Ok(Request::Remote),
             _ => Err(Refusal::Malformed),
         }
     }
@@ -210,6 +226,9 @@ impl Handover {
     }
 }
 
+/// What serves a remote menu on the connection it asked for one on.
+pub type RemoteMenu<'r> = dyn Fn(Connection) + Sync + 'r;
+
 /// The session's socket: it answers the peers that connect, one at a time,
 /// from the thread that runs [`SessionSocket::serve`].
 #[derive(Debug)]
@@ -250,17 +269,34 @@ impl SessionSocket {
         &self.handover
     }
 
-    /// Answers the peers that connect until `until` is cancelled.
+    /// Answers the peers that connect until `until` is cancelled; it
+    /// serves no remote menu.
     pub fn serve(&self, until: &CancelToken) {
-        wire::accept_until(&self.listener, until, "session", |peer| {
-            self.answer(&peer);
+        self.serve_with(until, None);
+    }
+
+    /// Answers the peers that connect until `until` is cancelled, and has
+    /// `remote` serve the menu of each peer that asks for one, on a thread
+    /// of its own, which ends before this returns: `remote` ends when
+    /// `until` is cancelled, or when the menu it serves is asked to end
+    /// ([`Handover::is_asked`]).
+    pub fn serve_with(&self, until: &CancelToken, remote: Option<&RemoteMenu<'_>>) {
+        std::thread::scope(|scope| {
+            wire::accept_until(&self.listener, until, "session", |peer| {
+                if let (Some(peer), Some(remote)) = (self.answer(peer, remote.is_some()), remote) {
+                    spawn_scoped_traced(scope, move || remote(peer));
+                }
+            });
         });
     }
 
-    /// Answers the request of `peer`.
-    fn answer(&self, peer: &Connection) {
-        let answer = match self.request_of(peer) {
-            Ok(Request::Takeover) => {
+    /// Answers the request of `peer`; the connection, when it is a remote
+    /// menu's that the session is to serve, which it can when `remote`.
+    fn answer(&self, peer: Connection, remote: bool) -> Option<Connection> {
+        let request = self.request_of(&peer);
+        let answer = match request {
+            Ok(Request::Remote) if !remote => Answer::Refused(Refusal::NoRemote),
+            Ok(Request::Takeover | Request::Remote) => {
                 tracing::info!("another menu takes the menu over");
                 if self.handover.has_yielded(self.yield_wait) {
                     Answer::Yielded
@@ -272,7 +308,9 @@ impl SessionSocket {
         };
         if let Err(error) = peer.send(&answer.encode()) {
             tracing::debug!(%error, "the peer went before the answer");
+            return None;
         }
+        (request == Ok(Request::Remote) && answer == Answer::Yielded).then_some(peer)
     }
 
     /// What `peer` asks, unless it is refused.
@@ -293,6 +331,29 @@ pub fn ask_takeover(path: &Path) -> Option<Answer> {
     let bytes = session.receive(Some(ANSWER_WAIT)).ok()??;
     let (version, answer) = Answer::decode(&bytes)?;
     (version == VERSION || answer == Answer::Refused(Refusal::Version)).then_some(answer)
+}
+
+/// Asks the session listening at `path` to serve this process a menu: the
+/// connection, which goes on in the protocol of `zbm_app::remote`; else
+/// the session's answer, `None` when no session listens there or it did not
+/// answer in [`ANSWER_WAIT`].
+///
+/// # Errors
+///
+/// The session's answer when it serves no menu.
+pub fn ask_remote(path: &Path) -> Result<Connection, Option<Answer>> {
+    let session = Connection::connect(path).map_err(|_| None)?;
+    session.send(&Request::Remote.encode()).map_err(|_| None)?;
+    let bytes = session
+        .receive(Some(ANSWER_WAIT))
+        .ok()
+        .flatten()
+        .ok_or(None)?;
+    match Answer::decode(&bytes) {
+        Some((VERSION, Answer::Yielded)) => Ok(session),
+        Some((_, answer)) => Err(Some(answer)),
+        None => Err(None),
+    }
 }
 
 #[cfg(test)]

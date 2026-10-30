@@ -19,6 +19,7 @@ pub mod layouts;
 pub mod luks;
 pub mod menu;
 pub mod menu_demo;
+mod remote;
 pub mod report;
 pub mod saved;
 #[cfg(any(test, feature = "secret-test"))]

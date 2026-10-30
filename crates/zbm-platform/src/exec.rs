@@ -16,7 +16,7 @@
 )]
 
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Write};
+use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -31,6 +31,10 @@ use crate::event::CancelToken;
 
 mod streams;
 mod supervise;
+mod terminal;
+
+use self::terminal::Inherited;
+pub use self::terminal::TerminalRunner;
 
 /// Where standard output or standard error of a command goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -401,15 +405,15 @@ pub trait Runner: Send + Sync {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SystemRunner;
 
-fn stdio(stream: Stream) -> Stdio {
+fn stdio(stream: Stream, inherited: Inherited<'_>) -> io::Result<Stdio> {
     match stream {
-        Stream::Inherit => Stdio::inherit(),
-        Stream::Capture | Stream::CaptureSecret => Stdio::piped(),
-        Stream::Null => Stdio::null(),
+        Stream::Inherit => inherited.output(),
+        Stream::Capture | Stream::CaptureSecret => Ok(Stdio::piped()),
+        Stream::Null => Ok(Stdio::null()),
     }
 }
 
-fn not_found(command: &Command) -> io::Result<Output> {
+fn not_found(command: &Command, inherited: Inherited<'_>) -> io::Result<Output> {
     let message = format!("{}: command not found\n", command.program.to_string_lossy());
     let mut output = Output::new(Status::exited(127), Vec::new());
     let target = if command.merge_stderr {
@@ -418,7 +422,7 @@ fn not_found(command: &Command) -> io::Result<Output> {
         command.stderr
     };
     match target {
-        Stream::Inherit => io::stderr().write_all(message.as_bytes())?,
+        Stream::Inherit => inherited.write_error(message.as_bytes())?,
         Stream::CaptureSecret => {
             output.secret = Some(Arc::new(Secret::from_vec(message.into_bytes())));
         }
@@ -451,7 +455,10 @@ fn spawn(process: &mut std::process::Command) -> io::Result<std::process::Child>
 /// The process that runs `command`, not yet started, and the read end of
 /// the pipe that takes both of its output streams when standard error is
 /// merged into captured standard output.
-fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::PipeReader>)> {
+fn process(
+    command: &Command,
+    inherited: Inherited<'_>,
+) -> io::Result<(std::process::Command, Option<io::PipeReader>)> {
     let mut process = std::process::Command::new(&command.program);
     process.args(&command.args);
     let mut merged = None;
@@ -467,8 +474,9 @@ fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::P
                 merged = Some(reader);
             }
             Stream::Inherit => {
-                let stdout = std::os::fd::AsFd::as_fd(&io::stdout()).try_clone_to_owned()?;
-                process.stdout(Stdio::inherit()).stderr(Stdio::from(stdout));
+                process
+                    .stdout(inherited.output()?)
+                    .stderr(inherited.merged_error()?);
             }
             Stream::Null => {
                 process.stdout(Stdio::null()).stderr(Stdio::null());
@@ -476,16 +484,22 @@ fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::P
         }
     } else {
         process
-            .stdout(stdio(command.stdout))
-            .stderr(stdio(command.stderr));
+            .stdout(stdio(command.stdout, inherited)?)
+            .stderr(stdio(command.stderr, inherited)?);
     }
     let setup = zbm_sys::ChildSetup {
         default_signals: command.default_signals.clone(),
-        ..zbm_sys::ChildSetup::default()
+        // On a terminal of another session, a session of its own: no
+        // `/dev/tty` reaches this process's.
+        session: if inherited.terminal.is_some() {
+            zbm_sys::Session::New
+        } else {
+            zbm_sys::Session::Inherit
+        },
     };
     zbm_sys::prepare_child(&mut process, &setup);
     process.stdin(match command.stdin {
-        Input::Inherit => Stdio::inherit(),
+        Input::Inherit => inherited.input()?,
         Input::Null => Stdio::null(),
         Input::Bytes(_) | Input::Secret(_) => Stdio::piped(),
     });
@@ -500,53 +514,60 @@ fn process(command: &Command) -> io::Result<(std::process::Command, Option<io::P
 
 impl Runner for SystemRunner {
     fn run(&self, command: &Command) -> io::Result<Output> {
-        let (mut process, merged) = process(command)?;
-        let spawned = spawn(&mut process);
-        // The child has its copies of the merged pipe's write end: this
-        // process's must close, or reading the pipe would never end.
-        drop(process);
-        let mut child = match spawned {
-            Ok(child) => child,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return not_found(command),
-            Err(error) => return Err(error),
-        };
-        let supervisor = Supervisor::new(command, &child);
-        let (stdout, stderr) = communicate(command, &mut child, merged, supervisor.as_ref());
-        // Wait before reporting a read error, so that no child is left behind.
-        let status = match &supervisor {
-            Some(supervisor) => supervisor.wait(&mut child)?,
-            None => child.wait()?,
-        };
-
-        let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
-        let mut over = false;
-        match stdout.transpose()? {
-            Some(Stdout::Plain(bytes)) => {
-                over |= bytes.over;
-                output.stdout = bytes.data;
-            }
-            Some(Stdout::Secret(secret)) => {
-                over |= secret.over;
-                output.secret = Some(Arc::new(secret.data));
-            }
-            None => {}
-        }
-        if let Some(bytes) = stderr.transpose()? {
-            over |= bytes.over;
-            output.stderr = bytes.data;
-        }
-        if over {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "{}: more output than the {} bytes taken",
-                    command.program.to_string_lossy(),
-                    command.get_output_limit(command.stdout)
-                ),
-            ));
-        }
-        Ok(output)
+        run_on(command, Inherited::default())
     }
+}
+
+/// Runs `command`, its inherited streams `inherited`.
+fn run_on(command: &Command, inherited: Inherited<'_>) -> io::Result<Output> {
+    let (mut process, merged) = process(command, inherited)?;
+    let spawned = spawn(&mut process);
+    // The child has its copies of the merged pipe's write end: this
+    // process's must close, or reading the pipe would never end.
+    drop(process);
+    let mut child = match spawned {
+        Ok(child) => child,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return not_found(command, inherited);
+        }
+        Err(error) => return Err(error),
+    };
+    let supervisor = Supervisor::new(command, &child);
+    let (stdout, stderr) = communicate(command, &mut child, merged, supervisor.as_ref());
+    // Wait before reporting a read error, so that no child is left behind.
+    let status = match &supervisor {
+        Some(supervisor) => supervisor.wait(&mut child)?,
+        None => child.wait()?,
+    };
+
+    let mut output = Output::new(Status::from_raw(status.into_raw()), Vec::new());
+    let mut over = false;
+    match stdout.transpose()? {
+        Some(Stdout::Plain(bytes)) => {
+            over |= bytes.over;
+            output.stdout = bytes.data;
+        }
+        Some(Stdout::Secret(secret)) => {
+            over |= secret.over;
+            output.secret = Some(Arc::new(secret.data));
+        }
+        None => {}
+    }
+    if let Some(bytes) = stderr.transpose()? {
+        over |= bytes.over;
+        output.stderr = bytes.data;
+    }
+    if over {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "{}: more output than the {} bytes taken",
+                command.program.to_string_lossy(),
+                command.get_output_limit(command.stdout)
+            ),
+        ));
+    }
+    Ok(output)
 }
 
 #[cfg(test)]

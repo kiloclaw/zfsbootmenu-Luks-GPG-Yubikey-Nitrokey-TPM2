@@ -363,3 +363,60 @@ fn output_past_its_limit_is_an_error_and_ends_the_program() {
         SECRET_LIMIT
     );
 }
+
+/// A terminal of pipes: what a program reads, and what it writes.
+fn pipe_terminal(typed: &[u8]) -> (TerminalRunner, io::PipeReader) {
+    let (input, mut keys) = io::pipe().unwrap();
+    let (screen, output) = io::pipe().unwrap();
+    std::io::Write::write_all(&mut keys, typed).unwrap();
+    drop(keys);
+    (TerminalRunner::new(input.into(), output.into()), screen)
+}
+
+/// What `runner`'s programs wrote, once it is dropped.
+fn written(runner: TerminalRunner, mut screen: io::PipeReader) -> String {
+    drop(runner);
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut screen, &mut text).unwrap();
+    text
+}
+
+#[test]
+fn programs_on_a_terminal_read_and_write_it_in_a_session_of_their_own() {
+    let (runner, screen) = pipe_terminal(b"typed\n");
+    let script = "read line; echo \"got $line\"; echo err >&2; \
+                  [ \"$(ps -o sid= -p $$)\" -eq $$ ] && echo leader; \
+                  (exec 3</dev/tty) 2>/dev/null || echo no tty";
+    let output = runner
+        .run(&Command::shell(script).stdout(Stream::Inherit))
+        .unwrap();
+    assert!(output.status.is_success());
+    // Captured streams are captured, as on any runner.
+    let captured = runner.run(&Command::shell("echo kept")).unwrap();
+    assert_eq!(captured.stdout, b"kept\n");
+    let merged = runner
+        .run(
+            &Command::shell("echo both >&2")
+                .stdout(Stream::Inherit)
+                .merge_stderr(),
+        )
+        .unwrap();
+    assert!(merged.status.is_success());
+    let missing = runner
+        .run(&Command::new("zbm-no-such-program").stdout(Stream::Inherit))
+        .unwrap();
+    assert_eq!(missing.status.code(), Some(127));
+
+    let text = written(runner, screen);
+    assert!(text.contains("got typed\n"), "{text}");
+    assert!(text.contains("err\n"), "{text}");
+    assert!(text.contains("leader\n"), "{text}");
+    // No controlling terminal: opening `/dev/tty` fails.
+    assert!(text.contains("no tty\n"), "{text}");
+    assert!(text.contains("both\n"), "{text}");
+    assert!(!text.contains("kept"), "{text}");
+    assert!(
+        text.contains("zbm-no-such-program: command not found"),
+        "{text}"
+    );
+}

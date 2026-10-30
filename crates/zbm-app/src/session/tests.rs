@@ -46,6 +46,7 @@ fn messages_carry_the_version_and_come_back_as_they_were_sent() {
         Answer::Refused(Refusal::Version),
         Answer::Refused(Refusal::Malformed),
         Answer::Refused(Refusal::Busy),
+        Answer::Refused(Refusal::NoRemote),
     ] {
         assert_eq!(Answer::decode(&answer.encode()), Some((VERSION, answer)));
     }
@@ -241,4 +242,48 @@ fn without_a_session_nobody_answers() {
         ask_takeover(&path)
     });
     assert_eq!(answer, None);
+}
+
+#[test]
+fn a_menu_asks_for_one_the_session_serves_on_its_connection() {
+    let path = socket_path("remote");
+    let socket = SessionSocket::bind(&path).unwrap();
+    assert_eq!(
+        Request::decode(&Request::Remote.encode()),
+        Ok(Request::Remote)
+    );
+    // A session that serves none says so.
+    let answer = served(&socket, || ask_remote(&path).map(drop));
+    assert_eq!(answer, Err(Some(Answer::Refused(Refusal::NoRemote))));
+
+    // One that does serves it on the connection, on a thread of its own.
+    let token = CancelToken::new().unwrap();
+    let remote = |peer: Connection| {
+        peer.send(b"served").unwrap();
+    };
+    let received = std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve_with(&token, Some(&remote)));
+        let session = ask_remote(&path).unwrap();
+        let received = session.receive(Some(Duration::from_secs(5))).unwrap();
+        token.cancel();
+        server.join().unwrap();
+        received
+    });
+    assert_eq!(received.as_deref(), Some(&b"served"[..]));
+
+    // A menu that does not end in time keeps it.
+    let socket = socket.with_yield_wait(Duration::from_millis(10));
+    socket.handover().enter();
+    let token = CancelToken::new().unwrap();
+    let answer = std::thread::scope(|scope| {
+        let server = spawn_scoped_traced(scope, || socket.serve_with(&token, Some(&remote)));
+        let answer = ask_remote(&path).map(drop);
+        token.cancel();
+        server.join().unwrap();
+        answer
+    });
+    assert_eq!(answer, Err(Some(Answer::Refused(Refusal::Busy))));
+    // No session there.
+    drop(socket);
+    assert_eq!(ask_remote(&path).map(drop), Err(None));
 }
