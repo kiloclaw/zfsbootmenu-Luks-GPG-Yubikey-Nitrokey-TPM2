@@ -20,6 +20,7 @@
 #![allow(unsafe_code)]
 
 pub mod console;
+pub mod drm;
 pub mod memory;
 mod process;
 pub mod signals;

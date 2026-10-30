@@ -31,7 +31,7 @@
 //! frame.fill(Area { x: 1, y: 0, width: 2, height: 1 }, Rgb(255, 0, 0));
 //!
 //! assert_eq!(frame.pixel(2, 0), Some(Rgb(255, 0, 0)));
-//! assert_eq!(frame.take_damage().map(|area| area.width), Some(2));
+//! assert_eq!(frame.take_damage().first().map(|area| area.width), Some(2));
 //! ```
 
 pub mod boxes;
@@ -48,5 +48,6 @@ pub mod output;
 pub mod palette;
 pub mod png;
 pub mod psf;
+pub mod render;
 pub mod speaker;
 pub mod vt;

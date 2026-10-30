@@ -613,6 +613,39 @@ Observations
   can import other pools; see the note in :doc:`zfs-versions`. The ``oldzfs`` tests therefore pass the host ID with
   ``spl_hostid=``.
 
+Benchmarks
+----------
+
+The benchmarks of ``ROADMAP.md`` (*Benchmarks*) are recorded here, each with the machine, the commit and how it ran.
+
+B9, the console on the display, in process
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``cargo run --release -p zbm-console --example render`` feeds the console's terminal a ``cat`` of 10 MB of text and a
+flood of 5 MB in eight colours, in reads of 64 KiB as the console reads a burst before it draws, and presents each frame
+into a buffer of 1920×1080 pixels as the display's would be, with the image's console font and with its TrueType
+font; each time is the fastest of three runs. The time to the first frame includes making the console. The kernel
+console and the VM part of B9 (the console on ``virtio-gpu`` and ``simpledrm``, against the kernel console) are not
+measured yet.
+
+Measured on 30 October 2026 on a cloud machine (Intel Xeon at 2.1 GHz, four processors), before UI4 at ``502c6834``
+and with UI4's cell renderer (C71), damage areas (C73) and lean drawing (C76):
+
+=========================  ==================  ===========  ==========  ===========
+Font                       Run                 Before UI4   UI4         Per frame
+=========================  ==================  ===========  ==========  ===========
+``ter-v32b.psf``, 120×33   first frame         14 ms        6 ms
+``ter-v32b.psf``, 120×33   ``cat`` of 10 MB    5.6 MB/s     29.2 MB/s   11.0 → 2.1 ms
+``ter-v32b.psf``, 120×33   coloured flood      5.8 MB/s     27.8 MB/s   10.7 → 2.2 ms
+DejaVu Sans Mono 24 px     first frame         15 ms        8 ms
+DejaVu Sans Mono 24 px     ``cat`` of 10 MB    5.6 MB/s     24.6 MB/s   11.1 → 2.5 ms
+DejaVu Sans Mono 24 px     coloured flood      5.3 MB/s     20.0 MB/s   11.7 → 3.1 ms
+=========================  ==================  ===========  ==========  ===========
+
+The machine's other work makes single runs vary by a third; the fastest of three is steadier. Keeping the dumb buffer
+mapped (C72) and presenting at the display's refresh rate at most (C75) save more on a display, which the benchmark
+does not have: it copies into memory.
+
 Not Covered
 -----------
 

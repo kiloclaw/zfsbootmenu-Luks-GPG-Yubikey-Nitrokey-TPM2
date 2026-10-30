@@ -27,8 +27,10 @@ use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
-use zbm_display::frame::Frame;
-use zbm_display::grid::{Grid, Neighbour, Text};
+use zbm_display::faces::FontFace;
+use zbm_display::frame::{Frame, Rgb};
+use zbm_display::grid::{CellStyle, Grid, Neighbour, Text};
+use zbm_display::render::{CellRenderer, warm_chars};
 
 use crate::colour::{self, Shown, Table};
 use crate::keys::{self, Flavour, Modes};
@@ -67,7 +69,8 @@ pub struct Console {
     term: Term<Events>,
     parser: Processor,
     events: Events,
-    grid: Grid,
+    /// The font's grid, through the cache of drawn cells.
+    grid: CellRenderer,
     frame: Frame,
     columns: u16,
     rows: u16,
@@ -110,6 +113,11 @@ pub struct Console {
     status_said: Option<(Status, Option<String>, u16)>,
     /// Whether Print Screen asked for a screenshot.
     is_shot: bool,
+    /// The lines Alacritty says changed, kept so that drawing a frame
+    /// allocates nothing.
+    damaged: Vec<(usize, usize, usize)>,
+    /// The hashes of the rows to draw, kept for the same reason.
+    hashes: Vec<u64>,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -170,7 +178,7 @@ impl Console {
             term: Term::new(config(), &size, events.clone()),
             parser: Processor::new(),
             events,
-            grid,
+            grid: CellRenderer::new(grid),
             frame: Frame::new(pixels.0, pixels.1),
             columns,
             rows,
@@ -193,14 +201,29 @@ impl Console {
             status_at: None,
             status_said: None,
             is_shot: false,
+            damaged: Vec::new(),
+            hashes: Vec::new(),
         };
+        console.warm();
         console.draw();
         console
     }
 
+    /// Draws ASCII and the lines of boxes in the screen's colours into the
+    /// cache of cells, so that the first frames only copy them.
+    fn warm(&mut self) {
+        let style = CellStyle {
+            fg: self.scheme.foreground,
+            bg: self.scheme.background,
+            decoration: zbm_display::decor::Decoration::default(),
+            face: FontFace::Regular,
+        };
+        self.grid.warm(warm_chars(), style);
+    }
+
     /// The font's grid the cells are drawn with.
     pub fn grid(&self) -> &Grid {
-        &self.grid
+        self.grid.grid()
     }
 
     /// The size of the frame in pixels: width and height.
@@ -304,13 +327,14 @@ impl Console {
     /// Blinking text shown or hidden draws the screen again, which draws
     /// the rows that changed.
     pub fn draw(&mut self) -> usize {
-        let damaged: Option<Vec<(usize, usize, usize)>> = match self.term.damage() {
-            TermDamage::Full => None,
-            TermDamage::Partial(lines) => Some(
-                lines
-                    .map(|bounds| (bounds.line, bounds.left, bounds.right))
-                    .collect(),
-            ),
+        let mut lines = std::mem::take(&mut self.damaged);
+        lines.clear();
+        let is_full = match self.term.damage() {
+            TermDamage::Full => true,
+            TermDamage::Partial(damage) => {
+                lines.extend(damage.map(|bounds| (bounds.line, bounds.left, bounds.right)));
+                false
+            }
         };
         self.term.reset_damage();
         let cursor = self.drawn_cursor();
@@ -319,10 +343,13 @@ impl Console {
         self.overlay = overlay;
         let is_whole =
             self.text_blink.has_turned() | std::mem::take(&mut self.redraw) | is_new_overlay;
-        let drawn = match damaged {
-            Some(lines) if !is_whole => self.draw_lines(&lines, cursor),
-            _ => self.draw_screen(cursor),
-        } + self.draw_flash();
+        let drawn = if is_full || is_whole {
+            self.draw_screen(cursor)
+        } else {
+            self.draw_lines(&lines, cursor)
+        } + self.draw_edges(cursor)
+            + self.draw_flash();
+        self.damaged = lines;
         self.text_blink.follow(self.has_blinking_text());
         drawn
     }
@@ -404,7 +431,9 @@ impl Console {
     /// moved first when it scrolled, then the rows that differ are drawn.
     fn draw_screen(&mut self, cursor: Option<Cursor>) -> usize {
         let rows = usize::from(self.display_rows());
-        let next: Vec<u64> = (0..rows).map(|line| self.row_hash(line, cursor)).collect();
+        let mut next = std::mem::take(&mut self.hashes);
+        next.clear();
+        next.extend((0..rows).map(|line| self.row_hash(line, cursor)));
         let shift = scroll::best_shift(&self.drawn_rows, &next);
         let (_, cell) = self.grid.cell();
         let pixels = |rows: usize| u32::try_from(rows).unwrap_or(u32::MAX).saturating_mul(cell);
@@ -427,6 +456,7 @@ impl Console {
                 *row = Some(hash);
             }
         }
+        self.hashes = next;
         drawn
     }
 
@@ -450,11 +480,19 @@ impl Console {
 
     /// The characters next to the cells from `column`, `span` wide, whose
     /// glyphs may reach into them: the one before, from the start of its
-    /// cells, and the one after.
-    fn neighbours(&self, line: usize, column: usize, span: usize) -> Vec<Neighbour> {
+    /// cells, and the one after; as an array and how many of it there are,
+    /// so that drawing a cell allocates nothing.
+    fn neighbours(&self, line: usize, column: usize, span: usize) -> ([Neighbour; 2], usize) {
         let (cell, _) = self.grid.cell();
         let width = i64::from(cell);
-        let mut found = Vec::with_capacity(2);
+        let none = Neighbour {
+            c: ' ',
+            fg: Rgb::BLACK,
+            face: FontFace::Regular,
+            offset: 0,
+        };
+        let mut found = [none; 2];
+        let mut count = 0;
         let before = column.checked_sub(1).map(|left| {
             let is_spacer = self
                 .flags(line, left)
@@ -470,16 +508,18 @@ impl Console {
             if let Some((c, style, ..)) =
                 look(&self.term, (line, at), None, self.shown(), &self.overlay)
                 && c != ' '
+                && let Some(slot) = found.get_mut(count)
             {
-                found.push(Neighbour {
+                *slot = Neighbour {
                     c,
                     fg: style.fg,
                     face: style.face,
                     offset,
-                });
+                };
+                count += 1;
             }
         }
-        found
+        (found, count)
     }
 
     /// Draws the cell at `line`, `column`, with the cursor over it when it
@@ -507,10 +547,10 @@ impl Console {
             .flags(line, column)
             .is_some_and(|flags| flags.contains(Flags::WIDE_CHAR));
         let span = if is_wide { 2 } else { 1 };
-        let neighbours = self.neighbours(line, column, usize::from(span));
+        let (neighbours, count) = self.neighbours(line, column, usize::from(span));
         let text = Text { c, style, span };
-        self.grid
-            .draw_text(&mut self.frame, x, y, text, &neighbours);
+        let neighbours = neighbours.get(..count).unwrap_or_default();
+        self.grid.draw_text(&mut self.frame, x, y, text, neighbours);
         // Combining marks, such as the accent of an `e` followed by U+0301,
         // are drawn over the character they belong to.
         for &mark in marks {

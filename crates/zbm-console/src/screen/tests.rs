@@ -81,7 +81,7 @@ fn cells_are_drawn_in_their_colours_and_the_cursor_as_a_block() {
     console.feed(b"\x1b[?25l");
     console.draw();
     assert_eq!(colours(&mut console, 4, 0), [Rgb::BLACK]);
-    assert!(console.frame_mut().take_damage().is_some());
+    assert!(!console.frame_mut().take_damage().is_empty());
 }
 
 #[test]

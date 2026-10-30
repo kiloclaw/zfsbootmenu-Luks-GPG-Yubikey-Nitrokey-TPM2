@@ -1,5 +1,6 @@
 //! The bell (BEL): the frame's border flashes, the PC speaker sounds,
-//! both, or neither (`zbm.console_bell`).
+//! both, or neither (`zbm.console_bell`). When the flash ends, only the
+//! cells under the border are drawn again (review fix 16).
 
 use std::time::{Duration, Instant};
 
@@ -58,6 +59,9 @@ pub(super) struct Bell {
     until: Option<Instant>,
     /// Whether the border was drawn for this flash.
     is_drawn: bool,
+    /// Whether the cells under the border of a flash that ended are to be
+    /// drawn again.
+    is_edged: bool,
 }
 
 impl Bell {
@@ -103,8 +107,58 @@ impl Console {
     /// Starts or ends the flash at `now`; one that ended is drawn over.
     pub(super) fn tick_bell(&mut self, now: Instant) {
         if self.bell.has_ended(now) {
-            self.repaint();
+            self.clear_flash();
         }
+    }
+
+    /// The flash ended: the margins beyond the cells are painted again now,
+    /// and the cells under the border are drawn on the next frame, the
+    /// first and last rows and columns, not the whole screen.
+    fn clear_flash(&mut self) {
+        let (width, height) = self.frame.size();
+        let (cell_width, cell_height) = self.grid.cell();
+        let right = u32::from(self.columns) * cell_width;
+        let bottom = u32::from(self.display_rows()) * cell_height;
+        let margins = [
+            Area {
+                x: right,
+                y: 0,
+                width: width.saturating_sub(right),
+                height,
+            },
+            Area {
+                x: 0,
+                y: bottom,
+                width,
+                height: height.saturating_sub(bottom),
+            },
+        ];
+        for margin in margins {
+            self.frame.fill(margin, self.scheme.background);
+        }
+        let last = self.drawn_rows.len().saturating_sub(1);
+        for line in [0, last] {
+            if let Some(row) = self.drawn_rows.get_mut(line) {
+                *row = None;
+            }
+        }
+        self.bell.is_edged = true;
+        self.redraw = true;
+    }
+
+    /// Draws the first and last cell of each row after a flash ended;
+    /// returns the cells drawn.
+    pub(super) fn draw_edges(&mut self, cursor: Option<super::Cursor>) -> usize {
+        if !std::mem::take(&mut self.bell.is_edged) {
+            return 0;
+        }
+        let last = usize::from(self.columns).saturating_sub(1);
+        let rows = usize::from(self.display_rows());
+        for line in 0..rows {
+            self.draw_cell(line, 0, cursor);
+            self.draw_cell(line, last, cursor);
+        }
+        rows * 2
     }
 
     /// Draws the border of a flash that started; returns the cells drawn,

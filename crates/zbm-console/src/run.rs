@@ -273,6 +273,7 @@ pub fn run(
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
     let mut typing = Typing::default();
+    let mut pacing = Pacing::new(screen.interval());
     loop {
         if let Some(shown) = shown.as_deref_mut() {
             shown.flush();
@@ -285,7 +286,8 @@ pub fn run(
         let timeout = if burst.is_some() {
             Duration::ZERO
         } else {
-            console.deadline().map_or(idle, |deadline| {
+            let deadline = console.deadline().into_iter().chain(pacing.due()).min();
+            deadline.map_or(idle, |deadline| {
                 deadline.saturating_duration_since(Instant::now()).min(idle)
             })
         };
@@ -293,6 +295,8 @@ pub fn run(
         console.set_secret(host.is_secret());
         let is_output = matches!(input, Input::Output(_));
         if let Some(ended) = take(console, host, &mut typing, input)? {
+            // A frame that waited for its time is not lost.
+            pacing.present(console, screen, &mut shown, None)?;
             return Ok(ended);
         }
         zoom(console, host)?;
@@ -306,10 +310,55 @@ pub fn run(
             continue;
         }
         burst = None;
-        if console.draw() > 0 {
-            screen.present(console.frame_mut())?;
-            show(console, &mut shown);
+        pacing.waiting |= console.draw() > 0;
+        pacing.present(console, screen, &mut shown, Some(now))?;
+    }
+}
+
+/// Frames presented at the display's refresh rate at most (C75): when the
+/// last was, and whether one drawn since waits for its time.
+struct Pacing {
+    interval: Duration,
+    presented: Instant,
+    waiting: bool,
+}
+
+impl Pacing {
+    /// Frames `interval` apart; the first is presented at once.
+    fn new(interval: Duration) -> Pacing {
+        let presented = Instant::now()
+            .checked_sub(interval)
+            .unwrap_or_else(Instant::now);
+        Pacing {
+            interval,
+            presented,
+            waiting: false,
         }
+    }
+
+    /// When the frame that waits is due, if one does.
+    fn due(&self) -> Option<Instant> {
+        self.waiting.then(|| self.presented + self.interval)
+    }
+
+    /// Presents the frame that waits, if its time came at `now`, or at once
+    /// without `now`, and shows its text.
+    fn present(
+        &mut self,
+        console: &mut Console,
+        screen: &mut dyn Screen,
+        shown: &mut Option<&mut dyn Shown>,
+        now: Option<Instant>,
+    ) -> io::Result<()> {
+        let is_due = now.is_none_or(|now| now.duration_since(self.presented) >= self.interval);
+        if !self.waiting || !is_due {
+            return Ok(());
+        }
+        screen.present(console.frame_mut())?;
+        show(console, shown);
+        self.presented = now.unwrap_or_else(Instant::now);
+        self.waiting = false;
+        Ok(())
     }
 }
 

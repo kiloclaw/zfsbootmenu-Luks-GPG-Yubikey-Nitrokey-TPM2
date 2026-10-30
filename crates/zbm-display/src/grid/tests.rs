@@ -87,7 +87,7 @@ fn a_doubled_font_draws_each_pixel_as_a_square() {
             "##.............."
         ]
     );
-    assert!(frame.take_damage().is_some());
+    assert!(!frame.take_damage().is_empty());
 }
 
 /// A grid of the image's TrueType font in cells 20 pixels high.

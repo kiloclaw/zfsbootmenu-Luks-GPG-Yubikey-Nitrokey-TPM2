@@ -135,11 +135,19 @@ fn the_bell_flashes_the_border_or_asks_the_speaker() {
     console.tick(start + FLASH / 2);
     console.tick(start + FLASH);
     assert_eq!(console.bell.at(), None);
-    console.draw();
-    assert_eq!(
-        console.frame_mut().pixel(20 * 8 - 1, 35).unwrap(),
-        Rgb::BLACK
-    );
+    // Only the cells under the border are drawn again: the first and last
+    // rows, and the first and last cells of the others.
+    let (columns, rows) = console.size();
+    let drawn = console.draw();
+    assert!(drawn < usize::from(columns) * usize::from(rows), "{drawn}");
+    let (width, height) = console.pixels();
+    for (x, y) in [(width - 1, 35), (0, 35), (40, 0), (40, height - 1)] {
+        assert_eq!(
+            console.frame_mut().pixel(x, y).unwrap(),
+            Rgb::BLACK,
+            "{x} {y}"
+        );
+    }
 
     let mut audible = super::console().with_bell(Ring::Audible);
     audible.feed(b"\x07\x07");

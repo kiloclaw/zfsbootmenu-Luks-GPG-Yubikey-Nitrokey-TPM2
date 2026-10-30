@@ -11,20 +11,41 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::fd::{AsFd, BorrowedFd};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use drm::buffer::DrmFourcc;
+use drm::buffer::{Buffer as _, DrmFourcc};
 use drm::control::dumbbuffer::DumbBuffer;
 use drm::control::{
     ClipRect, Device as ControlDevice, ModeTypeFlags, ResourceHandles, connector, crtc, framebuffer,
 };
 
-use crate::frame::{Area, Frame};
+use zbm_sys::drm::Mapped;
+
+use crate::frame::{Area, DAMAGE_AREAS, Frame};
+
+/// The time between two frames at 60 Hz, when the mode says no rate.
+pub const FRAME: Duration = Duration::from_micros(16_667);
+
+/// The time between two frames at `hertz`.
+fn interval(hertz: u32) -> Duration {
+    if hertz == 0 {
+        FRAME
+    } else {
+        Duration::from_secs(1) / hertz
+    }
+}
 use crate::output::{ConnectorDesc, Link, ModeDesc, choose};
 
 /// What frames are presented on.
 pub trait Screen {
     /// The size, as (width, height) in pixels.
     fn size(&self) -> (u32, u32);
+
+    /// The time between two frames of the display: no more frames than its
+    /// refresh rate are presented (C75).
+    fn interval(&self) -> Duration {
+        FRAME
+    }
 
     /// Shows what was drawn on `frame` since it was last presented.
     ///
@@ -97,8 +118,12 @@ pub struct Display {
     /// The CRTC as the kernel console left it, restored when dropped.
     saved: crtc::Info,
     buffer: Option<DumbBuffer>,
+    /// The buffer's memory, mapped from the start to the end (C72).
+    mapping: Option<Mapped>,
     framebuffer: framebuffer::Handle,
     size: (u32, u32),
+    /// The time between two frames of the mode shown.
+    interval: Duration,
 }
 
 /// An error with what was being done.
@@ -132,13 +157,19 @@ impl Display {
         let framebuffer = card
             .add_framebuffer(&buffer, 24, 32)
             .map_err(context("framebuffer"))?;
+        let length = usize::try_from(u64::from(buffer.pitch()) * u64::from(size.1))
+            .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
+        let mapping = Mapped::dumb_buffer(card.as_fd(), buffer.handle().into(), length)
+            .map_err(context("map"))?;
         let display = Display {
             card,
             connector,
             saved,
             buffer: Some(buffer),
+            mapping: Some(mapping),
             framebuffer,
             size,
+            interval: interval(mode.vrefresh()),
         };
         display
             .card
@@ -218,27 +249,38 @@ impl Screen for Display {
     }
 
     fn present(&mut self, frame: &mut Frame) -> io::Result<()> {
-        let Some(area) = frame.take_damage() else {
+        let (Some(buffer), Some(mapping)) = (self.buffer.as_ref(), self.mapping.as_mut()) else {
+            frame.clear_damage();
             return Ok(());
         };
-        let Some(buffer) = self.buffer.as_mut() else {
+        if frame.damage().is_empty() {
             return Ok(());
-        };
+        }
         let pitch = usize::try_from(drm::buffer::Buffer::pitch(buffer)).unwrap_or(0);
-        let mut mapping = self.card.map_dumb_buffer(buffer).map_err(context("map"))?;
-        copy_area(frame, area, mapping.as_mut(), pitch);
-        drop(mapping);
         let edge = |value: u32| u16::try_from(value).unwrap_or(u16::MAX);
-        let clip = ClipRect::new(
-            edge(area.x),
-            edge(area.y),
-            edge(area.x + area.width),
-            edge(area.y + area.height),
-        );
+        let none = ClipRect::new(0, 0, 0, 0);
+        let mut clips = [none; DAMAGE_AREAS];
+        for (clip, &area) in clips.iter_mut().zip(frame.damage()) {
+            copy_area(frame, area, mapping.bytes_mut(), pitch);
+            *clip = ClipRect::new(
+                edge(area.x),
+                edge(area.y),
+                edge(area.x + area.width),
+                edge(area.y + area.height),
+            );
+        }
+        let count = frame.damage().len().min(DAMAGE_AREAS);
+        frame.clear_damage();
         // Drivers that scan the buffer out directly do without; the others
         // (virtio-gpu, simpledrm's shadow buffer) copy what is marked dirty.
-        let _ = self.card.dirty_framebuffer(self.framebuffer, &[clip]);
+        let _ = self
+            .card
+            .dirty_framebuffer(self.framebuffer, clips.get(..count).unwrap_or_default());
         Ok(())
+    }
+
+    fn interval(&self) -> Duration {
+        self.interval
     }
 }
 
@@ -253,6 +295,8 @@ impl Drop for Display {
             saved.mode(),
         );
         let _ = self.card.destroy_framebuffer(self.framebuffer);
+        // Unmapped before the buffer goes.
+        drop(self.mapping.take());
         if let Some(buffer) = self.buffer.take() {
             let _ = self.card.destroy_dumb_buffer(buffer);
         }

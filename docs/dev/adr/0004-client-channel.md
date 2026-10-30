@@ -98,6 +98,9 @@ cells and receives key presses. Programs that need a terminal keep one.**
   process; it becomes `Input { secret }` on the client channel with UI6. `SIGUSR1`, `SIGUSR2` and the request files
   are gone; the records of the console's process, its hand-over, its layout and its font stay, for hooks, users and
   the boot.
+- **UI4** (30 October 2026): the one renderer is `zbm_display::render::CellRenderer`, over the `Grid` of a font. The
+  console's terminal draws through it, and so does the menu's pixel backend until the cell surface of UI6 replaces
+  it: a `Surface::Cells` will be drawn by the same renderer.
 
 ## Answers of the maintainer
 

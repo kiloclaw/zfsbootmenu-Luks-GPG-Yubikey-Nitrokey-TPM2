@@ -362,8 +362,8 @@ ZFSBootMenu runs shell code for the recovery shell, user hooks and SSH logins. R
   `Surface::Terminal`, today's Alacritty terminal on a pseudo-terminal, for the shell, hooks and `/dev/console`. Layers
   on top: the status line, search, kernel messages (C77).
 - **One renderer,** `zbm_display::render::CellRenderer`: a cell cache keyed by character and style (C71), the buffer
-  mapped once (C72), several damage rectangles (C73), double buffering on vertical blank (C74). The demo's own pixel
-  backend in `zbm-tui` goes.
+  mapped once (C72), several damage rectangles (C73), double buffering on vertical blank (C74). Done in UI4 but for C74
+  (UI5); the demo's own pixel backend in `zbm-tui` draws through it, and goes with the cell surfaces of UI6.
 - **The client channel.** A socket pair the supervisor hands the session: from the client, `Cells`, `Cursor`,
   `Input { secret }`, `SwitchLayout(name)`, `Announce(text)`; from the console, `Caps` (cells, true colour, which
   characters the font has), `Key(KeyPress)` with the layout's name, `Resize`, `Bell`. The secret flag travels in the
@@ -629,7 +629,7 @@ code) and what it needs first. Code in the images changes with most items, so th
 | UI1 | Done: the unlock dialog's key positions from the image's XKB keymaps, so `gb` and variants such as `de(nodeadkeys)` translate; the hand-written tables go | stab | S | |
 | UI2 | Done: one key type, `KeyPress`, for the menu (`Message::Key`), from the console or decoded from terminal bytes | mod | S | |
 | UI3 | Done: one front end runtime, `zbm_tui::menu::frontend::Frontend<B: Surface, I: Input>`: it draws the model, follows the size, reads keys (woken by the machine's mailbox), counts time on a `Clock`, records secret prompts for the console on the display, logs the keys of the usability sessions, lends the terminal and keeps the last frame; `Frontend::run` is the menu's loop on a terminal (`terminal::run`), on the display's pixels (`display::run`, for any machine) and on Ratatui's test backend, and the start-up view is a model on a `Frontend` | mod | M | UI2 |
-| UI4 | `CellRenderer`: the console's milestone M5 (C71, C72, C73, C75, C76), done once for every surface; C112 measures it | perf | M/L | |
+| UI4 | Done: `zbm_display::render::CellRenderer`, the console's milestone M5, which the console's terminal and the menu's pixel backend draw through: cells cached by character, style and width and copied in rows, a cell a neighbour's glyph reaches into drawn without the cache (C71); the dumb buffer mapped once, `zbm_sys::drm::Mapped` (C72); up to eight damage areas a frame, each its own clip (C73); frames at the display's refresh rate at most, the last one never lost (C75); ASCII and the lines of boxes drawn into the cache at start, and no allocation in drawing a frame (C76); fix 16 of the review, the end of a bell's flash drawing the border's cells only. C112: `examples/render.rs` of `zbm-console`, B9 in process, about five times faster (docs/luks/testing.rst, *Benchmarks*); the VM part of B9 is left | perf | M/L | |
 | UI5 | The seat as typestate on the control socket (PM7); milestone M4 on it: hotplug as "choose the output again, resize every surface" (C61), every monitor (C62), rotation (C63), a chosen mode (C60), blanking (C64), pixel formats (C65), another program on the display (C66), backlight (C67), scaling (C68), double buffering (C74) | stab | M, then M4's items | PM7, UI4 |
 | UI6 | The client channel, cell surfaces and the menu's backend for them: the menu draws natively on the console; C104 becomes unnecessary (the capabilities come in the handshake), C105 is done (`SwitchLayout`), C52's secret detection travels in band, C96 and C110 shrink, C89 is a reconnect | perf, sec | L | UI3, UI5 |
 | UI7 | Surfaces and focus: a second terminal (C55, now M), the shown terminal and a layout for each (C56), kernel messages as a layer (C77), terminal switches (C57); M8's mouse and selection on surfaces (C48 to C51) | mod | M | UI6 |
@@ -976,9 +976,9 @@ with the items that replace the code they are in:
 
 | # | Fix | Where | With |
 | --- | --- | --- | --- |
-| 13 | A stale `console-released` record survives a dead console | `zbm-console`, supervisor | PM7 |
-| 14 | The font keys race `zbm console font` | `zbm-console` | PM7 |
-| 16 | The full repaint for a bell | `zbm-console` | UI4 |
+| 13 | A stale `console-released` record survives a dead console | `zbm-console`, supervisor | PM7: done, the record went with the signals |
+| 14 | The font keys race `zbm console font` | `zbm-console` | PM7: done, a request with its reply |
+| 16 | The full repaint for a bell | `zbm-console` | UI4: done, the border's cells only |
 | 21 | Options on a hook's `#!` line are dropped | `zbm-tools/src/programs.rs` | SB5 |
 | 22 | Compiled hooks are handed to the shell | `zbm-platform/src/shell.rs` | SB5 |
 | 23 | The initramfs of prefixes other than `vmlinuz` changed name without a warning; `contrib/syslinux-update.sh` | `generate-zbm` | DM10 |

@@ -131,7 +131,7 @@ fn clearing_blanks_the_pixels_and_the_text() {
 
     assert_eq!(backend.text(), "\n");
     assert_eq!(backend.frame_mut().pixel(0, 0), Some(Rgb::BLACK));
-    assert!(backend.frame_mut().take_damage().is_some());
+    assert!(!backend.frame_mut().take_damage().is_empty());
     backend.set_cursor_position(Position::new(1, 0)).unwrap();
     assert_eq!(backend.get_cursor_position().unwrap(), Position::new(1, 0));
     backend.hide_cursor().unwrap();

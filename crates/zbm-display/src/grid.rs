@@ -154,6 +154,25 @@ impl Grid {
         }
     }
 
+    /// Whether the glyph of `neighbour` reaches into the cells, `span`
+    /// wide, it is the neighbour of: an italic letter or a wide one may;
+    /// a console font's never do, nor the shapes [`boxes`] draws.
+    pub fn is_reaching(&mut self, neighbour: &Neighbour, span: u16) -> bool {
+        let width = i64::from(self.cell().0) * i64::from(span.max(1));
+        let Face::Outline(faces) = &mut self.face else {
+            return false;
+        };
+        if boxes::is_drawn(neighbour.c) {
+            return false;
+        }
+        let Some(glyph) = faces.glyph(neighbour.face, neighbour.c) else {
+            return false;
+        };
+        let from = neighbour.offset + i64::from(glyph.left);
+        let to = from + i64::from(glyph.width);
+        from < width && to > 0
+    }
+
     /// Draws `c` in the cell at `column`, `row`.
     pub fn draw(&mut self, frame: &mut Frame, column: u16, row: u16, c: char, style: CellStyle) {
         let text = Text { c, style, span: 1 };

@@ -8,6 +8,7 @@ use alacritty_terminal::term::test::TermSize;
 use zbm_display::frame::Area;
 use zbm_display::grid::Grid;
 use zbm_display::keys::{Key, KeyPress};
+use zbm_display::render::CellRenderer;
 
 use super::Console;
 use crate::scheme::Scheme;
@@ -136,7 +137,8 @@ impl Console {
         let (columns, rows) = grid.dimensions(self.pixels());
         let status = u16::from(self.has_status_line());
         let (columns, rows) = (columns.max(1), rows.saturating_sub(status).max(1));
-        self.grid = grid;
+        self.grid = CellRenderer::new(grid);
+        self.warm();
         self.columns = columns;
         self.rows = rows;
         self.term

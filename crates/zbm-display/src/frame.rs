@@ -35,6 +35,15 @@ pub struct Area {
 }
 
 impl Area {
+    /// Whether the two overlap or touch, so that one area holds both with
+    /// nothing more.
+    fn is_touching(self, other: Area) -> bool {
+        self.x <= other.x + other.width
+            && other.x <= self.x + self.width
+            && self.y <= other.y + other.height
+            && other.y <= self.y + self.height
+    }
+
     /// The smallest area that holds both.
     fn union(self, other: Area) -> Area {
         let x = self.x.min(other.x);
@@ -50,14 +59,19 @@ impl Area {
     }
 }
 
-/// An image of `width` by `height` pixels, row by row, with the area drawn
+/// The most areas drawn that a frame keeps apart (the console's C73); more
+/// are joined into the one that holds them all.
+pub const DAMAGE_AREAS: usize = 8;
+
+/// An image of `width` by `height` pixels, row by row, with the areas drawn
 /// since it was last presented.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Frame {
     width: u32,
     height: u32,
     pixels: Vec<u32>,
-    damage: Option<Area>,
+    /// The areas drawn, apart from each other; at most [`DAMAGE_AREAS`].
+    damage: Vec<Area>,
 }
 
 impl Frame {
@@ -68,12 +82,12 @@ impl Frame {
             width,
             height,
             pixels: vec![0; count],
-            damage: Some(Area {
+            damage: vec![Area {
                 x: 0,
                 y: 0,
                 width,
                 height,
-            }),
+            }],
         }
     }
 
@@ -109,6 +123,37 @@ impl Frame {
         for y in area.y..bottom {
             for x in area.x..right {
                 self.set(x, y, colour);
+            }
+        }
+        self.touch(area);
+    }
+
+    /// Copies `pixels`, rows of `area.width` pixels as `XRGB8888`, into
+    /// `area`, clipped to the frame, row by row.
+    pub fn blit(&mut self, area: Area, pixels: &[u32]) {
+        let (Ok(width), Ok(stride)) = (usize::try_from(area.width), usize::try_from(self.width))
+        else {
+            return;
+        };
+        let Ok(x) = usize::try_from(area.x) else {
+            return;
+        };
+        let shown = width.min(stride.saturating_sub(x));
+        for (row, source) in pixels.chunks_exact(width.max(1)).enumerate() {
+            let Some(y) = u32::try_from(row)
+                .ok()
+                .and_then(|row| area.y.checked_add(row))
+            else {
+                break;
+            };
+            let Some(start) = self.index(area.x, y) else {
+                break;
+            };
+            if let (Some(target), Some(source)) = (
+                self.pixels.get_mut(start..start + shown),
+                source.get(..shown),
+            ) {
+                target.copy_from_slice(source);
             }
         }
         self.touch(area);
@@ -163,13 +208,22 @@ impl Frame {
         if clipped.width == 0 || clipped.height == 0 {
             return;
         }
-        self.damage = Some(self.damage.map_or(clipped, |damage| damage.union(clipped)));
+        // An area joins those it meets, which may then meet others.
+        let mut joined = clipped;
+        while let Some(index) = self.damage.iter().position(|area| area.is_touching(joined)) {
+            joined = joined.union(self.damage.swap_remove(index));
+        }
+        if self.damage.len() == DAMAGE_AREAS {
+            joined = self.damage.drain(..).fold(joined, Area::union);
+        }
+        self.damage.push(joined);
     }
 
     /// Records that the whole frame is to be presented, as on a new
     /// display.
     pub fn damage_all(&mut self) {
-        self.damage = Some(Area {
+        self.damage.clear();
+        self.damage.push(Area {
             x: 0,
             y: 0,
             width: self.width,
@@ -177,10 +231,24 @@ impl Frame {
         });
     }
 
-    /// The area drawn since the last call, which presenting copies to the
-    /// display; `None` when nothing changed.
-    pub fn take_damage(&mut self) -> Option<Area> {
-        self.damage.take()
+    /// The areas drawn since the damage was last cleared, apart from each
+    /// other: what presenting copies to the display.
+    pub fn damage(&self) -> &[Area] {
+        &self.damage
+    }
+
+    /// Forgets the areas drawn, once presented; keeps their memory, so
+    /// that the next frame allocates nothing.
+    pub fn clear_damage(&mut self) {
+        self.damage.clear();
+    }
+
+    /// The areas drawn since the last call, apart from each other; empty
+    /// when nothing changed.
+    pub fn take_damage(&mut self) -> Vec<Area> {
+        let areas = self.damage.clone();
+        self.damage.clear();
+        areas
     }
 }
 
@@ -212,14 +280,14 @@ mod tests {
             width: 4,
             height: 3,
         };
-        assert_eq!(frame.take_damage(), Some(all));
-        assert_eq!(frame.take_damage(), None);
+        assert_eq!(frame.take_damage(), [all]);
+        assert_eq!(frame.take_damage(), []);
         frame.damage_all();
-        assert_eq!(frame.take_damage(), Some(all));
+        assert_eq!(frame.take_damage(), [all]);
     }
 
     #[test]
-    fn fills_are_clipped_and_their_damage_grows_to_hold_them() {
+    fn fills_are_clipped_and_their_damage_kept() {
         let mut frame = Frame::new(4, 3);
         frame.take_damage();
         let red = Rgb(255, 0, 0);
@@ -245,20 +313,105 @@ mod tests {
 
         assert_eq!(frame.row(1), Some(&[0, 0, 0, 0x00ff_0000][..]));
         assert_eq!(frame.pixel(0, 0), Some(red));
-        let damage = Area {
-            x: 0,
-            y: 0,
-            width: 4,
-            height: 2,
-        };
-        assert_eq!(frame.take_damage(), Some(damage));
+        // Clipped, and apart: two areas.
+        let fills = [
+            Area {
+                x: 3,
+                y: 1,
+                width: 1,
+                height: 1,
+            },
+            Area {
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+            },
+        ];
+        assert_eq!(frame.take_damage(), fills);
         frame.touch(Area {
             x: 9,
             y: 9,
             width: 2,
             height: 2,
         });
-        assert_eq!(frame.take_damage(), None);
+        assert_eq!(frame.take_damage(), []);
+    }
+
+    #[test]
+    fn pixels_are_copied_in_rows_and_clipped_to_the_frame() {
+        let mut frame = Frame::new(4, 3);
+        frame.take_damage();
+        let area = Area {
+            x: 2,
+            y: 1,
+            width: 3,
+            height: 3,
+        };
+
+        frame.blit(area, &[1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        assert_eq!(frame.row(0), Some(&[0, 0, 0, 0][..]));
+        assert_eq!(frame.row(1), Some(&[0, 0, 1, 2][..]));
+        assert_eq!(frame.row(2), Some(&[0, 0, 4, 5][..]));
+        let damage = frame.take_damage()[0];
+        assert_eq!(
+            (damage.x, damage.y, damage.width, damage.height),
+            (2, 1, 2, 2)
+        );
+        // Nothing of an area outside the frame.
+        frame.blit(Area { x: 9, ..area }, &[1; 9]);
+        assert_eq!(frame.take_damage(), []);
+    }
+
+    #[test]
+    fn areas_apart_stay_apart_until_there_are_too_many() {
+        let mut frame = Frame::new(100, 100);
+        frame.take_damage();
+        let cell = |x, y| Area {
+            x,
+            y,
+            width: 2,
+            height: 2,
+        };
+
+        // Two cells side by side are one area; one far away another.
+        frame.touch(cell(0, 0));
+        frame.touch(cell(2, 0));
+        frame.touch(cell(50, 50));
+        assert_eq!(
+            frame.damage(),
+            [
+                Area {
+                    width: 4,
+                    ..cell(0, 0)
+                },
+                cell(50, 50)
+            ]
+        );
+        // An area that meets both joins them.
+        frame.touch(Area {
+            x: 3,
+            y: 1,
+            width: 48,
+            height: 50,
+        });
+        assert_eq!(frame.damage().len(), 1);
+        frame.clear_damage();
+        assert_eq!(frame.damage(), []);
+        // Past the most kept, all are one.
+        for index in 0..=u32::try_from(DAMAGE_AREAS).unwrap() {
+            frame.touch(cell(index * 10, index * 10));
+        }
+        assert_eq!(
+            frame.take_damage(),
+            [Area {
+                x: 0,
+                y: 0,
+                width: 82,
+                height: 82
+            }]
+        );
     }
 
     #[test]
@@ -282,7 +435,10 @@ mod tests {
         frame.shift_rows(1, 3, 1, true);
         assert_eq!(column(&frame), [0, 2, 3, 3, 4]);
         assert_eq!(
-            frame.take_damage().map(|area| (area.y, area.height)),
+            frame
+                .take_damage()
+                .first()
+                .map(|area| (area.y, area.height)),
             Some((1, 3))
         );
         frame.shift_rows(0, 5, 2, false);
@@ -290,7 +446,7 @@ mod tests {
         // Nothing to move, or more than there is.
         frame.shift_rows(0, 5, 0, true);
         frame.shift_rows(3, 9, 2, true);
-        assert_eq!(frame.take_damage().map(|area| area.height), Some(5));
+        assert_eq!(frame.take_damage().first().map(|area| area.height), Some(5));
         assert_eq!(column(&frame), [0, 2, 0, 2, 3]);
     }
 }

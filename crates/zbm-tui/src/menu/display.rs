@@ -1,6 +1,7 @@
 //! Running the menu on the display, without a terminal (ROADMAP.md #19,
 //! step 1): Ratatui's cells drawn as pixels with the image's console font
-//! (`zbm_display::grid`), presented on a DRM output, and keys read from the
+//! through the console's cell renderer (`zbm_display::render`, UI4),
+//! presented on a DRM output, and keys read from the
 //! keyboards' input devices.
 //!
 //! The pixels follow the Linux console: its 16-colour palette, bold drawn
@@ -25,6 +26,7 @@ use zbm_display::grid::{CellStyle, Grid};
 use zbm_display::input::{KeySource, Keyboards};
 use zbm_display::keys::KeyPress;
 use zbm_display::palette;
+use zbm_display::render::{CellRenderer, warm_chars};
 use zbm_display::vt::{Terminal as VirtualTerminal, active_terminal};
 use zbm_platform::Clock;
 use zbm_platform::clock::SystemClock;
@@ -106,7 +108,7 @@ pub fn cell_style(cell: &Cell) -> CellStyle {
 /// the text of the screen, which the VM tests read.
 #[derive(Debug)]
 pub struct PixelBackend {
-    grid: Grid,
+    grid: CellRenderer,
     frame: Frame,
     size: Size,
     text: Vec<String>,
@@ -118,6 +120,9 @@ impl PixelBackend {
     /// as many cells as fit.
     pub fn new(grid: Grid, pixels: (u32, u32)) -> PixelBackend {
         let (columns, rows) = grid.dimensions(pixels);
+        let mut grid = CellRenderer::new(grid);
+        let plain = cell_style(&Cell::default());
+        grid.warm(warm_chars(), plain);
         PixelBackend {
             grid,
             frame: Frame::new(pixels.0, pixels.1),
