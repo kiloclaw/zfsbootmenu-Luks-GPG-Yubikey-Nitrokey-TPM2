@@ -99,6 +99,8 @@ impl Machine {
     }
 
     fn load_fs(&self, fs: &str, path: BootPath, clear: Clear) -> Result<(), BootError> {
+        // Copying a key from a key source holds it as a secret a moment.
+        let _secrets = crate::testing::holding_a_secret();
         let system = self.fake.system();
         let state = State::new(&self.fake.files, "/zfsbootmenu");
         let _log = KernelLog::new(&self.fake.files, "7", Path::new("/zfsbootmenu"), 1).install();

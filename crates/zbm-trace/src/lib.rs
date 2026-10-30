@@ -42,10 +42,12 @@
 //! ```
 
 pub mod crash;
+mod interest;
 mod journal;
 pub mod kmsg;
 mod template;
 
+pub use interest::keep_interest;
 pub use journal::{
     JournalLayer, KEPT_FIELDS, LIMIT as JOURNAL_LIMIT, Lines, REDACTED, is_kept_field,
     is_secret_field,
@@ -101,6 +103,7 @@ fn redacted_fields() -> impl for<'w> tracing_subscriber::fmt::FormatFields<'w> +
 ///
 /// [`InstallError`] when a subscriber is installed already.
 pub fn install(config: Config) -> Result<(), InstallError> {
+    keep_interest();
     let stderr = tracing_subscriber::fmt::layer()
         .fmt_fields(redacted_fields())
         .with_writer(std::io::stderr)

@@ -156,6 +156,7 @@ impl KernelLog {
     /// Sends this thread's messages to the log until the returned guard is
     /// dropped; then the log installed before, if any, takes them again.
     pub fn install(self) -> Installed {
+        zbm_trace::keep_interest();
         let journal = self.journal.map(|path| {
             JournalLayer::new(FilesAppender::new(&*self.sink.files, &path))
                 .with_limit(JOURNAL_LIMIT)

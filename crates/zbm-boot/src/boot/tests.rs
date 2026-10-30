@@ -370,6 +370,7 @@ fn boot_machine() -> Machine {
 }
 
 fn boot(machine: &Machine, parity: &mut Parity) {
+    let _secrets = crate::testing::booting();
     let selected = Kernel {
         dataset: FS.to_owned(),
         kernel: "/boot/vmlinuz-6.1.10".to_owned(),

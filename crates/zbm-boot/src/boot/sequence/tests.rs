@@ -117,6 +117,7 @@ fn the_hand_back_goes_into_the_logs_saved_for_the_boot() {
 
 #[test]
 fn the_page_cache_is_dropped_and_live_secrets_named_before_kexec() {
+    let _secrets = crate::testing::holding_a_secret();
     let fake = FakeSystem::new();
     fake.files.dir("/proc/sys/vm");
     let system = fake.system();
