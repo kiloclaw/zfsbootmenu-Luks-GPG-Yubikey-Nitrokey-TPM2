@@ -23,7 +23,7 @@
 use std::path::PathBuf;
 use std::process::{Command as Process, Stdio};
 
-use zbm_crypt::{Closed, CryptError, Cryptsetup, Mapping, OpenOptions};
+use zbm_crypt::{Closed, CryptError, Cryptsetup, Key, LuksVolumes, Mapping};
 use zbm_platform::{Secret, SystemRunner};
 
 /// The passphrase of the test volumes.
@@ -128,8 +128,8 @@ fn the_right_key_opens_the_volume_and_close_removes_the_mapping() {
     let open = cryptsetup
         .open(
             volume.mapping(&name),
-            &Secret::copy_from(KEY),
-            OpenOptions::default(),
+            Key::Secret(&Secret::copy_from(KEY)),
+            &[],
         )
         .expect("open with the right key");
 
@@ -149,8 +149,8 @@ fn a_wrong_key_is_reported_as_such() {
     let failed = Cryptsetup::new(&SystemRunner)
         .open(
             volume.mapping(&name),
-            &Secret::copy_from(b"not it"),
-            OpenOptions::default(),
+            Key::Secret(&Secret::copy_from(b"not it")),
+            &[],
         )
         .expect_err("a wrong key must not open the volume");
 

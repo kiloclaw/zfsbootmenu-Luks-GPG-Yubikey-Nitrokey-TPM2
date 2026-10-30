@@ -19,7 +19,7 @@ pub enum Open {}
 /// [`Closed`] or [`Open`].
 ///
 /// Anyone can describe a closed mapping with [`Mapping::new`]; only
-/// [`Cryptsetup::open`](crate::Cryptsetup::open) produces an open one.
+/// [`LuksVolumes::open`](crate::LuksVolumes::open) produces an open one.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Mapping<S> {
     /// The LUKS volume.
@@ -79,6 +79,8 @@ pub struct Failed<S> {
     pub mapping: Mapping<S>,
     /// Why the operation failed.
     pub error: CryptError,
+    /// What the program printed, trimmed; empty when it did not run.
+    pub output: String,
 }
 
 impl<S> fmt::Display for Failed<S> {
@@ -103,6 +105,7 @@ mod tests {
         let failed = Failed {
             mapping,
             error: CryptError::NotInstalled,
+            output: String::new(),
         };
 
         assert_eq!(failed.to_string(), "v: cryptsetup is not installed");

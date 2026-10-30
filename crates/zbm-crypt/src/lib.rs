@@ -5,18 +5,20 @@
 //! the `Runner` port, and the program's answer into Rust values. No other
 //! crate builds `cryptsetup` command lines.
 //!
-//! A mapping is a [`Mapping<Closed>`](Mapping) until [`Cryptsetup::open`]
-//! opens it and returns a [`Mapping<Open>`](Mapping); only an open mapping can
-//! be closed, and closing hands back a closed one. The compiler therefore
-//! rejects closing a volume that was never opened. A failure hands the
-//! mapping back unchanged, in [`Failed`], with a [`CryptError`] that says
-//! why.
+//! Unlocking reaches LUKS volumes through the [`LuksVolumes`] port, which
+//! [`Cryptsetup`] implements. A mapping is a [`Mapping<Closed>`](Mapping)
+//! until [`LuksVolumes::open`] opens it and returns a
+//! [`Mapping<Open>`](Mapping); only an open mapping can be closed, and
+//! closing hands back a closed one. The compiler therefore rejects closing a
+//! volume that was never opened. A failure hands the mapping back unchanged,
+//! in [`Failed`], with a [`CryptError`] that says why.
 //!
-//! Keys reach `cryptsetup` only on standard input (`--key-file=-`), never as
-//! an argument or a file (see "Secrets" in `crates/DESIGN.md`).
+//! Key material reaches `cryptsetup` only on standard input
+//! (`--key-file=-`), never as an argument (see "Secrets" in
+//! `crates/DESIGN.md`); a key file on a file system is read where it is.
 //!
 //! ```
-//! use zbm_crypt::{Closed, Cryptsetup, CryptError, Mapping, OpenOptions};
+//! use zbm_crypt::{Closed, Cryptsetup, Key, LuksVolumes, Mapping};
 //! use zbm_platform::Secret;
 //! use zbm_testkit::FakeRunner;
 //!
@@ -25,8 +27,9 @@
 //! let (device, name) = ("/dev/sda2".parse()?, "cryptroot".parse()?);
 //! let volume = Mapping::<Closed>::new(device, name);
 //!
+//! let key = Secret::copy_from(b"key");
 //! let open = cryptsetup
-//!     .open(volume, &Secret::copy_from(b"key"), OpenOptions::default())
+//!     .open(volume, Key::Secret(&key), &[])
 //!     .map_err(|failed| failed.error)?;
 //! assert_eq!(open.path(), "/dev/mapper/cryptroot");
 //! assert_eq!(
@@ -49,12 +52,14 @@ mod cryptsetup;
 pub mod fido2;
 pub mod gpg;
 mod mapping;
+mod port;
 pub mod token;
 pub mod tpm2;
 pub mod yubikey;
 
-pub use cryptsetup::{Cryptsetup, KeySource, OpenOptions};
+pub use cryptsetup::{Cryptsetup, OpenOptions};
 pub use mapping::{Closed, Failed, Mapping, Open};
+pub use port::{Key, LuksVolumes};
 pub use token::{Token, TokenError};
 
 use zbm_types::{DevicePath, MappingName};
@@ -103,6 +108,22 @@ pub enum CryptError {
     /// as an option, so it is not run.
     #[error("{0:?} starts with '-', which cryptsetup would read as an option")]
     LeadingDash(String),
+}
+
+impl CryptError {
+    /// The exit status that `cryptsetup` ended with, as a shell reports it:
+    /// 127 when it could not be started or is missing, 1 when it was not
+    /// run.
+    pub fn status(&self) -> i32 {
+        match self {
+            CryptError::Start(_) | CryptError::NotInstalled => 127,
+            CryptError::WrongKey { .. } => 2,
+            CryptError::NoDevice { .. } => 4,
+            CryptError::Busy { .. } => 5,
+            CryptError::Failed { status, .. } => *status,
+            CryptError::LeadingDash(_) => 1,
+        }
+    }
 }
 
 zbm_types::error_codes! {

@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use zbm_config::args::{Args, CmdlineDir};
 use zbm_config::spec::OptionSpec;
 use zbm_config::spec::cmdline::luks::{LUKS_TOKEN_WAIT, LUKS_TOKENS};
-use zbm_crypt::{CryptError, Cryptsetup, KeySource};
+use zbm_crypt::{Closed, Cryptsetup, LuksVolumes, Mapping};
 use zbm_platform::secret::Secret;
 use zbm_platform::{Context, Environment, Runner};
 use zbm_tools::{Shown, udev};
@@ -154,6 +154,9 @@ pub enum Key<'a> {
 pub struct Unlocker<'a> {
     /// What the run works with.
     pub luks: Luks<'a>,
+    /// What answers for the LUKS volumes instead of `cryptsetup`, as a
+    /// test's.
+    volumes: Option<&'a dyn LuksVolumes>,
     /// Passphrases (and YubiKey responses) that unlocked a volume.
     pub(crate) passphrases: Vec<Secret>,
     /// TPM2 PINs that unsealed a volume's key.
@@ -173,6 +176,7 @@ impl<'a> Unlocker<'a> {
     /// A run without secrets.
     pub fn new(luks: Luks<'a>) -> Unlocker<'a> {
         Unlocker {
+            volumes: None,
             luks,
             passphrases: Vec::new(),
             tpm2_pins: Vec::new(),
@@ -180,6 +184,26 @@ impl<'a> Unlocker<'a> {
             keydev_absent: BTreeSet::new(),
             tpm2_probed: false,
             dm_disable_udev: false,
+        }
+    }
+
+    /// The run, with `volumes` answering for the LUKS volumes instead of
+    /// `cryptsetup`.
+    #[must_use]
+    pub fn with_volumes(mut self, volumes: &'a dyn LuksVolumes) -> Unlocker<'a> {
+        self.volumes = Some(volumes);
+        self
+    }
+
+    /// The LUKS port: `cryptsetup` through the context's runner, with
+    /// device-mapper's udev synchronization off when
+    /// [`Unlocker::available`] turned it off.
+    pub fn volumes(&self) -> Box<dyn LuksVolumes + '_> {
+        match self.volumes {
+            Some(volumes) => Box::new(volumes),
+            None => Box::new(
+                Cryptsetup::new(self.context().runner()).without_udev(self.dm_disable_udev),
+            ),
         }
     }
 
@@ -332,16 +356,15 @@ impl<'a> Unlocker<'a> {
         args: &[String],
     ) -> Result<(), LuksError> {
         let key = match key {
-            Key::File(path) => KeySource::File(path),
-            Key::Stdin(secret) => KeySource::Secret(secret),
+            Key::File(path) => zbm_crypt::Key::File(Path::new(path)),
+            Key::Stdin(secret) => zbm_crypt::Key::Secret(secret),
         };
-        let result = Cryptsetup::new(self.context().runner())
-            .without_udev(self.dm_disable_udev)
-            .open_described(device, name, key, args);
-        let (status, output) = match result {
-            Ok(()) => return Ok(()),
-            Err(CryptError::Failed { status, output }) => (status, output),
-            Err(error) => (127, error.to_string()),
+        let (status, output) = match closed_mapping(name, device) {
+            Some(mapping) => match self.volumes().open(mapping, key, args) {
+                Ok(_) => return Ok(()),
+                Err(failed) => (failed.error.status(), failed.output),
+            },
+            None => (1, "not a device or mapping name".to_owned()),
         };
         zbm_trace::debug!(
             "cryptsetup open {device} {name} failed ({status}): {output}";
@@ -353,6 +376,11 @@ impl<'a> Unlocker<'a> {
             status,
         })
     }
+}
+
+/// The closed mapping of `device` as `name`, when both are what they say.
+pub(crate) fn closed_mapping(name: &str, device: &str) -> Option<Mapping<Closed>> {
+    Some(Mapping::new(device.parse().ok()?, name.parse().ok()?))
 }
 
 #[cfg(test)]

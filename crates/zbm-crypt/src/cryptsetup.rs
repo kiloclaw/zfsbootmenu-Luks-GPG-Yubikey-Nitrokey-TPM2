@@ -1,17 +1,20 @@
-//! `cryptsetup`: opening and closing volumes, and reading their tokens.
+//! `cryptsetup`: opening and closing volumes, and reading their tokens; the
+//! [`LuksVolumes`] port's answer through the program.
 
 #![allow(
     clippy::disallowed_methods,
     reason = "an adapter: these command lines are built here and nowhere else"
 )]
 
+use std::path::Path;
 use std::time::Duration;
 use tracing::{debug, info_span};
-use zbm_platform::{Command, Input, Output, Runner, Secret, Stream};
+use zbm_platform::{Command, Input, Output, Runner, Stream};
 use zbm_types::{DevicePath, MappingName};
 
 use crate::CryptError;
 use crate::mapping::{Closed, Failed, Mapping, Open};
+use crate::port::{Key, LuksVolumes};
 use crate::token::{self, Token};
 
 /// The longest a `cryptsetup` command may run: a disk that stopped
@@ -20,7 +23,7 @@ use crate::token::{self, Token};
 /// a touch take far less.
 const TIMEOUT: Duration = Duration::from_secs(180);
 
-/// How [`Cryptsetup::open`] opens a volume, beyond the key.
+/// How a volume is opened, beyond the key, as `zluks open --key-file` asks.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct OpenOptions {
     /// Pass discard (TRIM) requests through (`--allow-discards`).
@@ -29,13 +32,18 @@ pub struct OpenOptions {
     pub read_only: bool,
 }
 
-/// Where `cryptsetup open` gets the key.
-#[derive(Clone, Copy, Debug)]
-pub enum KeySource<'k> {
-    /// A key file on a mounted file system.
-    File(&'k str),
-    /// A secret, given on standard input.
-    Secret(&'k Secret),
+impl OpenOptions {
+    /// The arguments of `cryptsetup open` they stand for.
+    pub fn args(self) -> Vec<String> {
+        [
+            (self.allow_discards, "--allow-discards"),
+            (self.read_only, "--readonly"),
+        ]
+        .into_iter()
+        .filter(|(is_on, _)| *is_on)
+        .map(|(_, arg)| arg.to_owned())
+        .collect()
+    }
 }
 
 /// `cryptsetup`, run through a [`Runner`].
@@ -94,7 +102,8 @@ impl<'a> Cryptsetup<'a> {
     /// luksDump --dump-json-metadata`, with their fields, or, for cryptsetup
     /// before 2.4, from the `luksDump` text, without them. A volume that
     /// cannot be read has no tokens.
-    pub fn list_tokens(&self, header: &str) -> Vec<Token> {
+    pub fn list_tokens(&self, header: &Path) -> Vec<Token> {
+        let header = &header.to_string_lossy();
         let metadata = self.quietly(&["luksDump", "--dump-json-metadata", header]);
         if let Some(Ok(tokens)) = metadata.as_deref().map(token::from_metadata) {
             return tokens;
@@ -103,99 +112,12 @@ impl<'a> Cryptsetup<'a> {
         token::from_dump_text(&text)
     }
 
-    /// The LUKS2 tokens of a volume or detached header with their fields,
-    /// which `cryptsetup token export` reads for the tokens that
-    /// [`Cryptsetup::list_tokens`] found without them.
-    pub fn tokens(&self, header: &str) -> Vec<Token> {
-        self.list_tokens(header)
-            .into_iter()
-            .map(|listed| {
-                if listed.has_fields() {
-                    listed
-                } else {
-                    self.token(header, &listed.id).unwrap_or(listed)
-                }
-            })
-            .collect()
-    }
-
     /// One token with its fields (`cryptsetup token export`), or `None` when
     /// it cannot be read.
-    pub fn token(&self, header: &str, id: &str) -> Option<Token> {
+    pub fn token(&self, header: &Path, id: &str) -> Option<Token> {
+        let header = &header.to_string_lossy();
         let text = self.quietly(&["token", "export", "--token-id", id, header])?;
         Token::from_export(id, &text).ok()
-    }
-
-    /// Whether `header` is a LUKS volume or detached header
-    /// (`cryptsetup isLuks`).
-    pub fn is_luks(&self, header: &str) -> bool {
-        let command = self
-            .command(&["isLuks", header])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        self.runner
-            .run(&command)
-            .is_ok_and(|output| output.status.is_success())
-    }
-
-    /// The UUID of the LUKS volume `device` (`cryptsetup luksUUID`), or
-    /// `None` when it cannot be read.
-    pub fn luks_uuid(&self, device: &str) -> Option<String> {
-        self.quietly(&["luksUUID", device])
-            .map(|text| text.trim_end_matches('\n').to_owned())
-    }
-
-    /// Opens `device` as `name` with `key`, and `options` before the device:
-    /// `cryptsetup open --type luks --key-file=<file or -> [options] DEVICE
-    /// NAME`, for volumes described by text, as in a crypttab.
-    ///
-    /// # Errors
-    ///
-    /// [`CryptError::Failed`] with cryptsetup's exit status and output,
-    /// [`CryptError::Start`] when it cannot be started, and
-    /// [`CryptError::LeadingDash`] for a device or name that would be read
-    /// as an option.
-    pub fn open_described(
-        &self,
-        device: &str,
-        name: &str,
-        key: KeySource<'_>,
-        options: &[String],
-    ) -> Result<(), CryptError> {
-        if let Some(option) = [device, name]
-            .into_iter()
-            .find(|text| text.starts_with('-'))
-        {
-            return Err(CryptError::LeadingDash(option.to_owned()));
-        }
-        let (key_file, stdin) = match key {
-            KeySource::File(path) => (path, Input::Null),
-            KeySource::Secret(secret) => ("-", Input::secret(secret.duplicate())),
-        };
-        let key_option = format!("--key-file={key_file}");
-        let command = self
-            .command(&["open", "--type", "luks", &key_option])
-            .args(options.iter().map(String::as_str))
-            .args([device, name])
-            .stdin(stdin)
-            .stdout(Stream::Capture)
-            .merge_stderr();
-        self.finish(&command)
-    }
-
-    /// Closes the mapping `name` (`cryptsetup close`), quietly.
-    ///
-    /// # Errors
-    ///
-    /// [`CryptError::Failed`] when cryptsetup fails, for example because the
-    /// mapping is in use, and [`CryptError::Start`] when it cannot be
-    /// started.
-    pub fn close_named(&self, name: &str) -> Result<(), CryptError> {
-        let command = self
-            .command(&["close", name])
-            .stdout(Stream::Null)
-            .stderr(Stream::Null);
-        self.finish(&command)
     }
 
     /// Runs `command`; a failure is [`CryptError::Failed`] with its status
@@ -211,103 +133,130 @@ impl<'a> Cryptsetup<'a> {
         })
     }
 
-    /// Opens `device` as `name` with the token `id` through cryptsetup's
-    /// token plugin (`--token-only`), with `options` before the device; a
-    /// PIN goes to standard input, followed by a newline.
-    ///
-    /// # Errors
-    ///
-    /// [`CryptError::Failed`] with cryptsetup's exit status and output, and
-    /// [`CryptError::Start`] when it cannot be started.
-    pub fn open_with_token(
-        &self,
-        device: &str,
-        name: &str,
-        id: &str,
-        options: &[String],
-        pin: Option<&Secret>,
-    ) -> Result<(), CryptError> {
-        let stdin = pin.map_or(Input::Null, |pin| {
-            let mut line = pin.duplicate();
-            line.push(b'\n');
-            Input::secret(line)
-        });
-        let command = self
-            .command(&["open", "--type", "luks", "--token-only", "--token-id", id])
-            .args(options.iter().map(String::as_str))
-            .args([device, name])
-            .stdin(stdin)
-            .stdout(Stream::Capture)
-            .merge_stderr();
-        self.finish(&command)
-    }
-
-    /// Opens `mapping` with `key`:
-    /// `cryptsetup open --type luks --key-file=- [options] DEVICE NAME`, with
-    /// the key on standard input.
-    ///
-    /// # Errors
-    ///
-    /// [`Failed`] with the closed mapping and a [`CryptError`]:
-    /// [`CryptError::WrongKey`] when no key slot accepts the key, and the
-    /// other variants as their documentation says.
-    pub fn open(
-        &self,
-        mapping: Mapping<Closed>,
-        key: &Secret,
-        options: OpenOptions,
-    ) -> Result<Mapping<Open>, Failed<Closed>> {
-        let _span =
-            info_span!("cryptsetup_open", device = %mapping.device(), name = %mapping.name())
-                .entered();
-        let mut command = self.command(&["open", "--type", "luks", "--key-file=-"]);
-        if options.allow_discards {
-            command = command.arg("--allow-discards");
-        }
-        if options.read_only {
-            command = command.arg("--readonly");
-        }
-        let command = command
-            .args([mapping.device().as_str(), mapping.name().as_str()])
-            .stdin(Input::secret(key.duplicate()));
-        match self.run(command, mapping.device(), mapping.name()) {
-            Ok(()) => Ok(mapping.into_state()),
-            Err(error) => Err(Failed { mapping, error }),
-        }
-    }
-
-    /// Closes `mapping`: `cryptsetup close NAME`.
-    ///
-    /// # Errors
-    ///
-    /// [`Failed`] with the mapping, still open, and a [`CryptError`]:
-    /// [`CryptError::Busy`] when something still uses it.
-    pub fn close(&self, mapping: Mapping<Open>) -> Result<Mapping<Closed>, Failed<Open>> {
-        let _span = info_span!("cryptsetup_close", name = %mapping.name()).entered();
-        let command = self.command(&["close", mapping.name().as_str()]);
-        match self.run(command, mapping.device(), mapping.name()) {
-            Ok(()) => Ok(mapping.into_state()),
-            Err(error) => Err(Failed { mapping, error }),
-        }
-    }
-
     /// Runs `command` with its output captured, and turns a failure into the
     /// [`CryptError`] that its exit status means for the mapping `name` of
-    /// `device`.
+    /// `device`, with what `cryptsetup` printed.
     fn run(
         &self,
         command: Command,
         device: &DevicePath,
         name: &MappingName,
-    ) -> Result<(), CryptError> {
+    ) -> Result<(), (CryptError, String)> {
         let command = command.stdout(Stream::Capture).merge_stderr();
-        let output = self.runner.run(&command).map_err(CryptError::Start)?;
+        let output = self
+            .runner
+            .run(&command)
+            .map_err(|error| (CryptError::Start(error), String::new()))?;
         if output.status.is_success() {
             return Ok(());
         }
         let error = classify(&output, device, name);
         debug!(%error, "cryptsetup failed");
-        Err(error)
+        Err((
+            error,
+            output.stdout_text().trim_end_matches('\n').to_owned(),
+        ))
+    }
+}
+
+impl LuksVolumes for Cryptsetup<'_> {
+    /// `cryptsetup isLuks`.
+    fn is_luks(&self, header: &Path) -> bool {
+        let command = self
+            .command(&["isLuks", &header.to_string_lossy()])
+            .stdout(Stream::Null)
+            .stderr(Stream::Null);
+        self.runner
+            .run(&command)
+            .is_ok_and(|output| output.status.is_success())
+    }
+
+    /// `cryptsetup luksUUID`.
+    fn uuid(&self, header: &Path) -> Option<String> {
+        self.quietly(&["luksUUID", &header.to_string_lossy()])
+            .map(|text| text.trim_end_matches('\n').to_owned())
+    }
+
+    /// The tokens of [`Cryptsetup::list_tokens`], those found without their
+    /// fields read with `cryptsetup token export`.
+    fn tokens(&self, header: &Path) -> Vec<Token> {
+        self.list_tokens(header)
+            .into_iter()
+            .map(|listed| {
+                if listed.has_fields() {
+                    listed
+                } else {
+                    self.token(header, &listed.id).unwrap_or(listed)
+                }
+            })
+            .collect()
+    }
+
+    /// `cryptsetup open --type luks --key-file=<file or -> [args] DEVICE
+    /// NAME`, or with a token through its plugin (`--token-only
+    /// --token-id ID`), a PIN on standard input followed by a newline.
+    fn open(
+        &self,
+        mapping: Mapping<Closed>,
+        key: Key<'_>,
+        args: &[String],
+    ) -> Result<Mapping<Open>, Failed<Closed>> {
+        let _span =
+            info_span!("cryptsetup_open", device = %mapping.device(), name = %mapping.name())
+                .entered();
+        let key_option;
+        let (options, stdin): (Vec<&str>, Input) = match key {
+            Key::File(path) => {
+                key_option = format!("--key-file={}", path.display());
+                (vec![key_option.as_str()], Input::Null)
+            }
+            Key::Secret(secret) => (vec!["--key-file=-"], Input::secret(secret.duplicate())),
+            Key::Token { id, pin } => {
+                let stdin = pin.map_or(Input::Null, |pin| {
+                    let mut line = pin.duplicate();
+                    line.push(b'\n');
+                    Input::secret(line)
+                });
+                (vec!["--token-only", "--token-id", id], stdin)
+            }
+        };
+        let command = self
+            .command(&["open", "--type", "luks"])
+            .args(options)
+            .args(args.iter().map(String::as_str))
+            .args([mapping.device().as_str(), mapping.name().as_str()])
+            .stdin(stdin);
+        match self.run(command, mapping.device(), mapping.name()) {
+            Ok(()) => Ok(mapping.into_state()),
+            Err((error, output)) => Err(Failed {
+                mapping,
+                error,
+                output,
+            }),
+        }
+    }
+
+    /// `cryptsetup close NAME`.
+    fn close(&self, mapping: Mapping<Open>) -> Result<Mapping<Closed>, Failed<Open>> {
+        let _span = info_span!("cryptsetup_close", name = %mapping.name()).entered();
+        let command = self.command(&["close", mapping.name().as_str()]);
+        match self.run(command, mapping.device(), mapping.name()) {
+            Ok(()) => Ok(mapping.into_state()),
+            Err((error, output)) => Err(Failed {
+                mapping,
+                error,
+                output,
+            }),
+        }
+    }
+
+    /// `cryptsetup close NAME`, quietly.
+    fn close_named(&self, name: &MappingName) -> Result<(), CryptError> {
+        let command = self
+            .command(&["close", name.as_str()])
+            .stdout(Stream::Null)
+            .stderr(Stream::Null);
+        self.finish(&command)
     }
 }
 
@@ -334,6 +283,7 @@ fn classify(output: &Output, device: &DevicePath, name: &MappingName) -> CryptEr
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use zbm_platform::Secret;
     use zbm_testkit::FakeRunner;
 
     fn volume() -> Mapping<Closed> {
@@ -349,7 +299,7 @@ mod tests {
         let runner = FakeRunner::new();
 
         let open = Cryptsetup::new(&runner)
-            .open(volume(), &key(), OpenOptions::default())
+            .open(volume(), Key::Secret(&key()), &[])
             .unwrap();
 
         assert_eq!(open.path(), "/dev/mapper/cryptroot");
@@ -371,7 +321,7 @@ mod tests {
         };
 
         Cryptsetup::new(&runner)
-            .open(volume(), &key(), options)
+            .open(volume(), Key::Secret(&key()), &options.args())
             .unwrap();
 
         assert_eq!(
@@ -398,7 +348,7 @@ mod tests {
             runner.respond_program("cryptsetup", status, "bad option\n");
 
             let failed = Cryptsetup::new(&runner)
-                .open(volume(), &key(), OpenOptions::default())
+                .open(volume(), Key::Secret(&key()), &[])
                 .unwrap_err();
 
             assert_eq!(failed.error.to_string(), message, "status {status}");
@@ -411,7 +361,7 @@ mod tests {
         runner.respond_program("cryptsetup", 2, "");
 
         let failed = Cryptsetup::new(&runner)
-            .open(volume(), &key(), OpenOptions::default())
+            .open(volume(), Key::Secret(&key()), &[])
             .unwrap_err();
 
         assert_eq!(failed.mapping, volume());
@@ -421,9 +371,7 @@ mod tests {
     fn close_runs_cryptsetup_close_and_returns_the_closed_mapping() {
         let runner = FakeRunner::new();
         let cryptsetup = Cryptsetup::new(&runner);
-        let open = cryptsetup
-            .open(volume(), &key(), OpenOptions::default())
-            .unwrap();
+        let open = cryptsetup.open(volume(), Key::Secret(&key()), &[]).unwrap();
 
         let closed = cryptsetup.close(open).unwrap();
 
@@ -435,9 +383,7 @@ mod tests {
     fn a_busy_mapping_stays_open() {
         let runner = FakeRunner::new();
         let cryptsetup = Cryptsetup::new(&runner);
-        let open = cryptsetup
-            .open(volume(), &key(), OpenOptions::default())
-            .unwrap();
+        let open = cryptsetup.open(volume(), Key::Secret(&key()), &[]).unwrap();
         runner.respond("cryptsetup close cryptroot", 5, "");
 
         let failed = cryptsetup.close(open).unwrap_err();
@@ -447,44 +393,50 @@ mod tests {
     }
 
     #[test]
-    fn described_volumes_open_with_a_key_file_or_a_secret() {
+    fn volumes_open_with_a_key_file_a_secret_or_a_token() {
         let runner = FakeRunner::new();
         runner.respond(
-            "cryptsetup open --type luks --key-file=- --readonly /dev/sdb2 data",
+            "cryptsetup open --type luks --key-file=- --readonly /dev/sda2 cryptroot",
             2,
             "No key available with this passphrase.\n\n",
         );
         let cryptsetup = Cryptsetup::new(&runner).without_udev(true);
         let options = ["--readonly".to_owned()];
+        let pin = Secret::copy_from(b"1234");
 
         cryptsetup
-            .open_described("/dev/sda2", "root", KeySource::File("/key"), &[])
+            .open(volume(), Key::File(Path::new("/key")), &[])
             .unwrap();
-        let error = cryptsetup
-            .open_described("/dev/sdb2", "data", KeySource::Secret(&key()), &options)
+        let failed = cryptsetup
+            .open(volume(), Key::Secret(&key()), &options)
             .unwrap_err();
+        let token = Key::Token {
+            id: "3",
+            pin: Some(&pin),
+        };
+        cryptsetup.open(volume(), token, &[]).unwrap();
 
-        assert!(matches!(
-            error,
-            CryptError::Failed { status: 2, ref output }
-                if output == "No key available with this passphrase."
-        ));
-        // A crypttab name that looks like an option runs nothing.
-        assert!(matches!(
-            cryptsetup.open_described("/dev/sda2", "--help", KeySource::File("/key"), &[]),
-            Err(CryptError::LeadingDash(ref name)) if name == "--help"
-        ));
+        assert!(matches!(failed.error, CryptError::WrongKey { .. }));
+        assert_eq!(failed.error.status(), 2);
+        assert_eq!(failed.output, "No key available with this passphrase.");
         let calls = runner.calls();
-        assert_eq!(calls.len(), 2);
         assert_eq!(
             calls[0].display(),
-            "cryptsetup open --type luks --key-file=/key /dev/sda2 root"
+            "cryptsetup open --type luks --key-file=/key /dev/sda2 cryptroot"
         );
         assert_eq!(*calls[0].get_stdin(), Input::Null);
         assert_eq!(*calls[1].get_stdin(), Input::secret(key()));
         assert_eq!(
             calls[1].get_env(),
             [("DM_DISABLE_UDEV".into(), Some("1".into()))]
+        );
+        assert_eq!(
+            calls[2].display(),
+            "cryptsetup open --type luks --token-only --token-id 3 /dev/sda2 cryptroot"
+        );
+        assert_eq!(
+            *calls[2].get_stdin(),
+            Input::secret(Secret::copy_from(b"1234\n"))
         );
     }
 
@@ -497,15 +449,15 @@ mod tests {
         runner.respond("cryptsetup close busy", 5, "");
         let cryptsetup = Cryptsetup::new(&runner);
 
-        assert!(cryptsetup.is_luks("/dev/sda2"));
-        assert!(!cryptsetup.is_luks("/dev/sdc"));
+        assert!(cryptsetup.is_luks(Path::new("/dev/sda2")));
+        assert!(!cryptsetup.is_luks(Path::new("/dev/sdc")));
         assert_eq!(
-            cryptsetup.luks_uuid("/dev/sda2").as_deref(),
+            cryptsetup.uuid(Path::new("/dev/sda2")).as_deref(),
             Some("0b5c-41")
         );
-        assert_eq!(cryptsetup.luks_uuid("/dev/sdc"), None);
-        assert!(cryptsetup.close_named("root").is_ok());
-        let busy = cryptsetup.close_named("busy");
+        assert_eq!(cryptsetup.uuid(Path::new("/dev/sdc")), None);
+        assert!(cryptsetup.close_named(&"root".parse().unwrap()).is_ok());
+        let busy = cryptsetup.close_named(&"busy".parse().unwrap());
         assert!(matches!(busy, Err(CryptError::Failed { status: 5, .. })));
     }
 
@@ -518,7 +470,7 @@ mod tests {
             r#"{"tokens":{"1":{"type":"systemd-tpm2","keyslots":["0"],"tpm2-pcrs":[7]}}}"#,
         );
 
-        let tokens = Cryptsetup::new(&runner).tokens("/dev/sda2");
+        let tokens = Cryptsetup::new(&runner).tokens(Path::new("/dev/sda2"));
 
         assert_eq!(tokens.len(), 1);
         assert!(tokens[0].has_fields());
@@ -543,7 +495,7 @@ mod tests {
             r#"{"type":"clevis","keyslots":["1"],"jwe":{}}"#,
         );
 
-        let tokens = Cryptsetup::new(&runner).tokens("/dev/sdb");
+        let tokens = Cryptsetup::new(&runner).tokens(Path::new("/dev/sdb"));
 
         assert_eq!(tokens.len(), 2);
         assert!(tokens[0].has_fields());
@@ -556,13 +508,13 @@ mod tests {
         runner.on(|_| Some(Err(std::io::Error::other("no cryptsetup"))));
         let cryptsetup = Cryptsetup::new(&runner);
 
-        assert!(cryptsetup.tokens("/dev/sda2").is_empty());
-        assert!(!cryptsetup.is_luks("/dev/sda2"));
+        assert!(cryptsetup.tokens(Path::new("/dev/sda2")).is_empty());
+        assert!(!cryptsetup.is_luks(Path::new("/dev/sda2")));
         let failed = cryptsetup
-            .open(volume(), &key(), OpenOptions::default())
+            .open(volume(), Key::Secret(&key()), &[])
             .unwrap_err();
         assert!(matches!(failed.error, CryptError::Start(_)));
-        let closed = cryptsetup.close_named("root");
+        let closed = cryptsetup.close_named(&"root".parse().unwrap());
         assert!(matches!(closed, Err(CryptError::Start(_))));
     }
 
@@ -570,9 +522,9 @@ mod tests {
     fn every_command_ends_after_its_time_out() {
         let runner = FakeRunner::new();
         let cryptsetup = Cryptsetup::new(&runner);
-        let _ = cryptsetup.is_luks("/dev/sda2");
-        let _ = cryptsetup.list_tokens("/dev/sda2");
-        let _ = cryptsetup.open(volume(), &key(), OpenOptions::default());
+        let _ = cryptsetup.is_luks(Path::new("/dev/sda2"));
+        let _ = cryptsetup.list_tokens(Path::new("/dev/sda2"));
+        let _ = cryptsetup.open(volume(), Key::Secret(&key()), &[]);
         let calls = runner.calls();
         assert!(calls.len() >= 3, "{calls:?}");
         for call in calls {

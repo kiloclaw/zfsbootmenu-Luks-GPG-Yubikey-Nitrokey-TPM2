@@ -80,7 +80,7 @@ impl Unlocker<'_> {
         header: &str,
         device: &str,
     ) -> Result<MappingName, LuksError> {
-        let name = mapping_name(self.context(), name, header)?;
+        let name = mapping_name(&*self.volumes(), name, Path::new(header))?;
         if self
             .context()
             .files()
@@ -134,7 +134,7 @@ impl Unlocker<'_> {
         }
 
         let header = options.header.clone().unwrap_or_else(|| device.to_owned());
-        if !self.cryptsetup().is_luks(&header) {
+        if !self.volumes().is_luks(Path::new(&header)) {
             zbm_trace::warn!(
                 "{header} is not a LUKS volume (header), skipping {device}";
                 %header, %device
@@ -332,8 +332,8 @@ impl Unlocker<'_> {
     /// [`LuksError::Close`] when cryptsetup fails, for example because the
     /// mapping is in use.
     pub fn cryptsetup_close(&self, name: &MappingName) -> Result<(), LuksError> {
-        self.cryptsetup()
-            .close_named(name.as_str())
+        self.volumes()
+            .close_named(name)
             .map_err(|_| LuksError::Close {
                 name: name.to_string(),
             })

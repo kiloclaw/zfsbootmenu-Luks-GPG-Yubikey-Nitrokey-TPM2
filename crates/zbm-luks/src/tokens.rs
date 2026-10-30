@@ -17,7 +17,7 @@ use zbm_platform::Context;
 /// installed, cryptsetup 2.8 (systemd 261) prints the text of every token
 /// after the first to standard error, so the `luksDump` text misses them.
 pub fn list_tokens(context: &Context<'_>, device: &str) -> Vec<Token> {
-    Cryptsetup::new(context.runner()).list_tokens(device)
+    Cryptsetup::new(context.runner()).list_tokens(std::path::Path::new(device))
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use zbm_crypt::{Closed, Cryptsetup, Failed, Mapping, OpenOptions};
+use zbm_crypt::{Closed, Cryptsetup, Failed, LuksVolumes as _, Mapping, OpenOptions};
 use zbm_platform::files::FileKind;
 use zbm_platform::{Context, Secret};
 
@@ -73,9 +73,14 @@ impl KeyMethod for KeyFile {
                 return Attempt::Unavailable { mapping, reason };
             }
         };
-        match Cryptsetup::new(context.runner()).open(mapping, &key, options) {
+        let opened = Cryptsetup::new(context.runner()).open(
+            mapping,
+            zbm_crypt::Key::Secret(&key),
+            &options.args(),
+        );
+        match opened {
             Ok(open) => Attempt::Opened(open),
-            Err(Failed { mapping, error }) => Attempt::Refused { mapping, error },
+            Err(Failed { mapping, error, .. }) => Attempt::Refused { mapping, error },
         }
     }
 }

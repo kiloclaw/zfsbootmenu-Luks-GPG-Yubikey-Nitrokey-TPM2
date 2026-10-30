@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use pretty_assertions::assert_eq;
 use tracing_subscriber::layer::SubscriberExt;
-use zbm_crypt::{Closed, Cryptsetup, Mapping, OpenOptions};
+use zbm_crypt::{Closed, Cryptsetup, Key, LuksVolumes as _, Mapping, OpenOptions};
 use zbm_luks::pilot::{Attempt, KeyChain, KeyFile, KeyMethod};
 use zbm_platform::{Context, Secret};
 use zbm_testkit::fakes::FakeSystem;
@@ -34,7 +34,8 @@ impl KeyMethod for Opens {
         options: OpenOptions,
     ) -> Attempt {
         let key = Secret::copy_from(b"scripted");
-        let open = Cryptsetup::new(context.runner()).open(mapping, &key, options);
+        let open =
+            Cryptsetup::new(context.runner()).open(mapping, Key::Secret(&key), &options.args());
         Attempt::Opened(open.unwrap())
     }
 }

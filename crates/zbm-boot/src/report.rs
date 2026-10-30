@@ -18,8 +18,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use zbm_crypt::Cryptsetup;
 use zbm_crypt::tpm2::Tpm2;
+use zbm_crypt::{Cryptsetup, LuksVolumes as _};
 use zbm_platform::dmesg::kernel_log;
 use zbm_platform::{Files, System};
 use zbm_tools::devices::Devices;
@@ -85,10 +85,10 @@ fn luks(system: &System<'_>, text: &mut String) {
     for device in devices.lines().filter(|line| !line.trim().is_empty()) {
         any = true;
         let uuid = cryptsetup
-            .luks_uuid(device)
+            .uuid(std::path::Path::new(device))
             .unwrap_or_else(|| "unknown".to_owned());
         let tokens: Vec<String> = cryptsetup
-            .list_tokens(device)
+            .list_tokens(std::path::Path::new(device))
             .iter()
             .map(|token| {
                 let slots = token.keyslots().join(",");

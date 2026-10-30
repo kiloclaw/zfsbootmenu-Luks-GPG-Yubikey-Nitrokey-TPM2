@@ -15,7 +15,7 @@ pub mod yubikey;
 
 use std::path::Path;
 
-use zbm_crypt::{CryptError, Cryptsetup, Token};
+use zbm_crypt::Token;
 use zbm_platform::secret::Secret;
 
 use crate::error::{LuksError, TokenFailure};
@@ -93,12 +93,6 @@ impl Unlocker<'_> {
             .any(|dir| files.exists(&Path::new(dir).join(&library)))
     }
 
-    /// `cryptsetup`, with device-mapper's udev synchronization off when
-    /// [`Unlocker::available`] turned it off.
-    pub fn cryptsetup(&self) -> Cryptsetup<'_> {
-        Cryptsetup::new(self.context().runner()).without_udev(self.dm_disable_udev)
-    }
-
     /// Opens a volume through cryptsetup's token plugin; cryptsetup reads a
     /// PIN from standard input, followed by a newline.
     ///
@@ -111,13 +105,13 @@ impl Unlocker<'_> {
         id: &str,
         pin: Option<&Secret>,
     ) -> Result<(), LuksError> {
-        let result =
-            self.cryptsetup()
-                .open_with_token(target.device, target.name, id, target.args, pin);
-        let (status, output) = match result {
-            Ok(()) => return Ok(()),
-            Err(CryptError::Failed { status, output }) => (status, output),
-            Err(error) => (127, error.to_string()),
+        let key = zbm_crypt::Key::Token { id, pin };
+        let (status, output) = match crate::unlocker::closed_mapping(target.name, target.device) {
+            Some(mapping) => match self.volumes().open(mapping, key, target.args) {
+                Ok(_) => return Ok(()),
+                Err(failed) => (failed.error.status(), failed.output),
+            },
+            None => (1, "not a device or mapping name".to_owned()),
         };
         zbm_trace::debug!(
             "token {id} on {device} failed ({status}): {output}";
@@ -145,8 +139,8 @@ impl Unlocker<'_> {
             device: target.device.to_owned(),
         };
         let tokens: Vec<Token> = self
-            .cryptsetup()
-            .tokens(header)
+            .volumes()
+            .tokens(Path::new(header))
             .into_iter()
             .filter(Token::has_fields)
             .collect();

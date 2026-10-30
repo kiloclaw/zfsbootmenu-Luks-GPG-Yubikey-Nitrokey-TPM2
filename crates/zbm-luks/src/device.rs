@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use zbm_crypt::Cryptsetup;
+use zbm_crypt::LuksVolumes;
 use zbm_platform::Context;
 use zbm_platform::files::{FileKind, Files};
 use zbm_tools::devices::Devices;
@@ -170,10 +170,18 @@ pub fn is_open(files: &dyn Files, device: &str, check: &OpenCheck) -> bool {
 ///
 /// When that is not a mapping name: the UUID comes from the header, which
 /// whoever wrote the device chose.
-pub fn default_name(context: &Context<'_>, device: &str) -> Result<MappingName, ParseError> {
-    match Cryptsetup::new(context.runner()).luks_uuid(device) {
+pub fn default_name(volumes: &dyn LuksVolumes, header: &Path) -> Result<MappingName, ParseError> {
+    match volumes.uuid(header) {
         Some(uuid) if !uuid.is_empty() => format!("luks-{uuid}"),
-        _ => format!("luks-{}", device.rsplit('/').next().unwrap_or_default()),
+        // `${device##*/}`: empty after a trailing slash.
+        _ => format!(
+            "luks-{}",
+            header
+                .to_string_lossy()
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+        ),
     }
     .parse()
 }
@@ -187,13 +195,13 @@ pub fn default_name(context: &Context<'_>, device: &str) -> Result<MappingName, 
 ///
 /// When the default name is not a mapping name.
 pub fn mapping_name(
-    context: &Context<'_>,
+    volumes: &dyn LuksVolumes,
     name: Option<&MappingName>,
-    header: &str,
+    header: &Path,
 ) -> Result<MappingName, ParseError> {
     match name {
         Some(name) => Ok(name.clone()),
-        None => default_name(context, header),
+        None => default_name(volumes, header),
     }
 }
 
@@ -222,6 +230,7 @@ pub fn describe_device(context: &Context<'_>, device: &str) -> String {
 mod tests {
     use super::*;
     use crate::testing::{legacy_function, legacy_luks, log};
+    use zbm_crypt::Cryptsetup;
     use zbm_platform::exec::{Output, Status};
     use zbm_testkit::fakes::FakeSystem;
     use zbm_testkit::legacy::{log_lines, stub_lines};
@@ -484,14 +493,18 @@ mod tests {
             fake.runner
                 .respond("cryptsetup luksUUID /dev/sda1", 0, &format!("{uuid}\n"));
             assert!(
-                default_name(&fake.context(), "/dev/sda1").is_err(),
+                default_name(&Cryptsetup::new(&fake.runner), Path::new("/dev/sda1")).is_err(),
                 "{uuid}"
             );
         }
         let fake = FakeSystem::new();
         let given: MappingName = "cryptroot".parse().unwrap();
         assert_eq!(
-            mapping_name(&fake.context(), Some(&given), "/dev/sda1"),
+            mapping_name(
+                &Cryptsetup::new(&fake.runner),
+                Some(&given),
+                Path::new("/dev/sda1")
+            ),
             Ok(given)
         );
     }
@@ -505,7 +518,7 @@ mod tests {
             for (function, rust) in [
                 (
                     "luks_default_name",
-                    default_name(&context, device)
+                    default_name(&Cryptsetup::new(context.runner()), Path::new(device))
                         .map_or_else(|_| String::new(), |name| name.to_string()),
                 ),
                 ("luks_describe_device", describe_device(&context, device)),
@@ -521,7 +534,7 @@ mod tests {
         }
         let fake = describe_machine();
         assert_eq!(
-            default_name(&fake.context(), "/dev/sda1")
+            default_name(&Cryptsetup::new(&fake.runner), Path::new("/dev/sda1"))
                 .unwrap()
                 .to_string(),
             format!("luks-{UUID}")

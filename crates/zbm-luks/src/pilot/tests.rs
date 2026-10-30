@@ -57,7 +57,12 @@ impl KeyMethod for Scripted {
         self.calls.set(self.calls.get() + 1);
         if self.opens {
             let key = Secret::copy_from(b"scripted");
-            let open = zbm_crypt::Cryptsetup::new(context.runner()).open(mapping, &key, options);
+            let open = zbm_crypt::LuksVolumes::open(
+                &zbm_crypt::Cryptsetup::new(context.runner()),
+                mapping,
+                zbm_crypt::Key::Secret(&key),
+                &options.args(),
+            );
             return Attempt::Opened(open.unwrap());
         }
         Attempt::Unavailable {
