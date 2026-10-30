@@ -1,6 +1,6 @@
 # ADR 0008: Measured boot
 
-- **Status:** proposed, 30 October 2026
+- **Status:** accepted, 30 October 2026 (proposed the same day)
 - **Decides:** feature #10 of [ROADMAP.md](../../../ROADMAP.md#fe-features-for-users), the measurement half of item SE10
 - **Governs:** SE10, CD10 (`PCR_Extend` in Rust), #11 (re-sealing after firmware updates)
 
@@ -20,7 +20,7 @@ boots by itself.
 What is measured, where, in which log, and how a user predicts the values are choices the booted systems and their
 policy tools will depend on for years, so they are decided here first.
 
-## Decision (proposed)
+## Decision
 
 **Before `kexec`, ZFSBootMenu extends PCRs with the kernel, the initramfs and the command line it loads, records each
 event in a TCG Canonical Event Log (CEL-JSON), and extends a separator once its own unsealing is over; `zbm measure`
@@ -77,12 +77,16 @@ longer unseals in the booted system.
 
 ## Where the work stands
 
-Not started: this record is for the maintainer's decision. The rest of SE10 is done (see Context).
+Accepted; the work has not started. The rest of SE10 is done (see Context).
 
-## Questions for the maintainer
+## Answers of the maintainer
 
-1. PCRs 8 and 9, as GRUB, or others?
-2. The event log as an appended cpio at `/run/log/zfsbootmenu/tpm-measure.json`, plus the saved logs; or the saved
-   logs alone, which need `zbm.save_logs`?
-3. The separator in PCR 9 after the last unseal, and the advice to bind tokens to PCR 9; or a dedicated PCR?
-4. `zbm measure` as an applet of `zbm`, shipped to the booted system by the host packages; or a tool of its own?
+Accepted as proposed, on 30 October 2026:
+
+1. **The PCRs:** 8 for the command line and 9 for the kernel and the initramfs, as GRUB.
+2. **The event log:** CEL-JSON, in a cpio appended to the initramfs, at `/run/log/zfsbootmenu/tpm-measure.json` in
+   the booted system, and in the saved logs on the ESP when they are saved.
+3. **The separator:** PCR 9 is extended with `zbm-unsealed` after the last unseal, and the documentation advises
+   binding ZFSBootMenu's TPM2 tokens to PCR 9 (with 7).
+4. **The prediction:** `zbm measure predict` and `zbm measure log`, applets of `zbm`, shipped to the booted system by
+   the host packages.
