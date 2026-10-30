@@ -366,6 +366,10 @@ impl Running<'_, '_> {
     fn startup_ended(&mut self, pid: u32, status: i32, modes: Option<&Modes>) {
         let supervisor = self.supervisor;
         take_terminal();
+        // The shell shows on the terminal, whatever the menu drew.
+        if let Some(console) = self.attached() {
+            console.lend_screen();
+        }
         self.event(Event::Ended(status));
         supervisor.error(&format!(
             "zfsbootmenu-init ended unexpectedly (wait status {status}); \

@@ -301,12 +301,12 @@ fn the_menu_on_the_cells_shows_what_it_draws() {
     console.draw();
 
     let buffer = expected.backend().buffer();
-    let shown: String = (0..rows)
-        .map(|y| {
-            let row: String = (0..columns).map(|x| buffer[(x, y)].symbol()).collect();
-            format!("{}\n", row.trim_end())
-        })
-        .collect();
+    let mut shown = String::new();
+    for y in 0..rows {
+        let row: String = (0..columns).map(|x| buffer[(x, y)].symbol()).collect();
+        shown.push_str(row.trim_end());
+        shown.push('\n');
+    }
     assert!(shown.contains("STARTING ZFSBOOTMENU"), "{shown}");
     assert_eq!(console.text(), shown);
 }

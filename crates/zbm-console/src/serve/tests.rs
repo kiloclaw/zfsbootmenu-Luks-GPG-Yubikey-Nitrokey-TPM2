@@ -9,6 +9,7 @@ use std::time::Duration;
 use pretty_assertions::assert_eq;
 use zbm_testkit::TempDir;
 
+use super::display::take_seat;
 use super::*;
 
 /// The places of a machine without DRM cards or keyboards, in `dir`.
@@ -29,6 +30,17 @@ fn file(stream: UnixStream) -> File {
 /// Runs the console on `settings` without a display, while the program
 /// writes `hello` and goes; returns what the kernel console showed.
 fn without_display(dir: &TempDir, settings: Settings) -> String {
+    without_display_for(dir, settings, None, || {})
+}
+
+/// [`without_display`], with the console's end of a client channel, and
+/// `relaying` run while the console relays, before the program goes.
+fn without_display_for(
+    dir: &TempDir,
+    settings: Settings,
+    cells: Option<zbm_sys::socket::Connection>,
+    relaying: impl FnOnce(),
+) -> String {
     let places = places(dir);
     std::fs::create_dir_all(&places.base).unwrap();
     std::fs::write(places.base.join("console"), "77\n").unwrap();
@@ -42,7 +54,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             master: &mut master,
             terminal: &mut terminal,
             vt: &vt,
-            cells: None,
+            cells,
         };
         let mut grid = |_, _| {
             asked = true;
@@ -67,6 +79,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
     program.write_all(b"hello").unwrap();
     let mut shown = [0_u8; 12];
     user.read_exact(&mut shown).unwrap();
+    relaying();
     drop(program);
     let asked = console.join().unwrap().unwrap();
 
@@ -87,6 +100,21 @@ fn without_a_card_the_console_relays_on_the_kernel_console() {
         log,
         "<4>ZFSBootMenu: console: no DRM card; going on on the kernel console\n"
     );
+}
+
+#[test]
+fn without_a_display_the_client_channel_closes() {
+    let dir = TempDir::new("zbm-console-serve");
+    let (console, menu) = zbm_sys::socket::Connection::pair().unwrap();
+
+    // The menu finds the console gone while it relays, rather than waiting
+    // for its answer.
+    let mut packet = None;
+    without_display_for(&dir, Settings::default(), Some(console), || {
+        packet = Some(menu.receive(Some(std::time::Duration::from_secs(5))));
+    });
+
+    assert_eq!(packet.unwrap().unwrap(), Some(Vec::new()));
 }
 
 #[test]

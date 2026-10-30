@@ -162,7 +162,8 @@ fn a_clear_blanks_every_cell_and_a_secret_is_said_once() {
 #[test]
 fn the_keys_and_the_sizes_come_and_the_screen_is_lent_and_taken() {
     let (menu, console) = Connection::pair().unwrap();
-    let mut keys = CellKeys::new(Arc::new(menu), CAPS);
+    let (mut shown, terminal) = std::io::pipe().unwrap();
+    let mut keys = CellKeys::new(Arc::new(menu), CAPS).with_terminal(Box::new(terminal));
     let press = KeyPress::new(Key::Char('ä')).with_alt();
     let wait = Duration::from_secs(5);
 
@@ -190,6 +191,11 @@ fn the_keys_and_the_sizes_come_and_the_screen_is_lent_and_taken() {
     keys.release().unwrap();
     keys.take().unwrap();
     assert_eq!(received(&console), [FromClient::Lend, FromClient::Take]);
+    // The programs' terminal was cleared for them.
+    let mut cleared = [0; 7];
+    std::io::Read::read_exact(&mut shown, &mut cleared).unwrap();
+    assert_eq!(&cleared, b"\x1b[H\x1b[2J");
+    assert!(format!("{keys:?}").contains("size"));
 
     drop(console);
     let error = keys.key(wait).unwrap_err();

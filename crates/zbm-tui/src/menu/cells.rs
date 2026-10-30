@@ -33,8 +33,10 @@ use super::frontend::{Input, Surface};
 /// channel, which the supervisor passes the start-up program.
 pub const CELLS_FD: &str = "ZBM_CELLS_FD";
 
-/// How long the console has to answer the menu's hello.
-pub const HANDSHAKE: Duration = Duration::from_secs(1);
+/// How long the console has to answer the menu's hello: it may still be
+/// starting. A console that cannot draw closes its end, which ends the wait
+/// at once.
+pub const HANDSHAKE: Duration = Duration::from_secs(3);
 
 /// How long a frame waits for room in the channel before drawing fails:
 /// a console that reads nothing does not hold the menu up for good.
@@ -61,7 +63,7 @@ fn inherited(number: &str) -> Option<Arc<Connection>> {
 pub fn connect(number: Option<&str>) -> Option<(CellSurface, CellKeys)> {
     let channel = inherited(number?)?;
     let caps = handshake(&channel, HANDSHAKE).ok()??;
-    let mut keys = CellKeys::new(Arc::clone(&channel), caps);
+    let mut keys = CellKeys::new(Arc::clone(&channel), caps).with_terminal(Box::new(io::stdout()));
     keys.take().ok()?;
     Some((CellSurface::new(channel, caps), keys))
 }
@@ -256,10 +258,19 @@ impl Surface for CellSurface {
 }
 
 /// The keys the console sends, and its size.
-#[derive(Debug)]
 pub struct CellKeys {
     channel: Arc<Connection>,
     size: (u16, u16),
+    /// The programs' terminal, cleared when the screen is lent to it.
+    terminal: Option<Box<dyn io::Write>>,
+}
+
+impl std::fmt::Debug for CellKeys {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CellKeys")
+            .field("size", &self.size)
+            .finish_non_exhaustive()
+    }
 }
 
 impl CellKeys {
@@ -268,7 +279,16 @@ impl CellKeys {
         CellKeys {
             channel,
             size: (caps.columns, caps.rows),
+            terminal: None,
         }
+    }
+
+    /// The keys, which clear the programs' `terminal` when the screen is
+    /// lent to it, as the menu on a terminal leaves it.
+    #[must_use]
+    pub fn with_terminal(mut self, terminal: Box<dyn io::Write>) -> CellKeys {
+        self.terminal = Some(terminal);
+        self
     }
 
     /// The next message, if one came: a key, or nothing but the size taken.
@@ -323,8 +343,13 @@ impl Input for CellKeys {
         }
     }
 
-    /// Lends the screen to the programs' terminal.
+    /// Lends the screen to the programs' terminal, cleared, the cursor at
+    /// the top.
     fn release(&mut self) -> io::Result<()> {
+        if let Some(terminal) = &mut self.terminal {
+            terminal.write_all(b"\x1b[H\x1b[2J")?;
+            terminal.flush()?;
+        }
         self.send(&FromClient::Lend)
     }
 

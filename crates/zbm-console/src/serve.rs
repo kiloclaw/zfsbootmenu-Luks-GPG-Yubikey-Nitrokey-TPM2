@@ -19,7 +19,6 @@ use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use zbm_display::display::first_card;
 use zbm_display::input::{DeviceId, Keyboards};
 use zbm_display::layout::{Layout, Source};
 use zbm_display::seat::{self, Seat};
@@ -35,6 +34,7 @@ use crate::mirror::{Mirror, open_mirror};
 use crate::relay::{Relayed, relay};
 use crate::run::{Client, Ended, Shown, run_with_client};
 use crate::screen::{Console, Ring};
+use display::held_seat;
 pub use layouts::{next_layout, switch_layout};
 use setup::{console_for, settle, with_bell};
 
@@ -206,7 +206,7 @@ pub fn serve(
         master: &mut master,
         terminal: &mut terminal,
         vt: &vt,
-        cells: cells.as_ref(),
+        cells,
     };
     let control = (&control, &mut wake);
     with_socket(places, control.0, || {
@@ -253,8 +253,9 @@ pub struct Terminals<'t> {
     pub terminal: &'t mut File,
     /// The virtual terminal to take over while the console draws.
     pub vt: &'t Path,
-    /// The console's end of the client channel, if it has one.
-    pub cells: Option<&'t Connection>,
+    /// The console's end of the client channel, if it has one: closed once
+    /// the console cannot draw, so that the menu draws on its terminal.
+    pub cells: Option<Connection>,
 }
 
 /// Runs the console on the display, with the font's grid and the keyboard
@@ -278,7 +279,7 @@ pub fn serve_on(
         master,
         terminal,
         vt,
-        cells,
+        mut cells,
     } = terminals;
     let (grid, layouts) = fonts;
     let Layouts {
@@ -303,7 +304,7 @@ pub fn serve_on(
             settings,
             places,
             (&mut *grid, layouts),
-            (&mut *master, vt, cells),
+            (&mut *master, vt, cells.as_ref()),
             &mut client,
             (control, &mut *wake),
             (&mut kept, &mut seat),
@@ -314,6 +315,8 @@ pub fn serve_on(
         if let Some(layout) = released.as_deref().filter(|&layout| layout != "us") {
             first = load(layout).ok();
         }
+        // Without the display, the console reads no client.
+        cells = cells.filter(|_| released.is_some());
         let reattach = handed_back(&state, control, released.is_some());
         let _ = terminal.write_all(format!("\x1b[H\x1b[J{}\n", text.trim_end()).as_bytes());
         let relayed = relay(master, terminal, reattach, kept.as_mut());
@@ -486,93 +489,6 @@ fn on_display(
     Ok((ended, text, layout))
 }
 
-/// The seat of the console, taken: the one handed back before, else that
-/// of the card of `settings` and the virtual terminal `vt`; said in the log
-/// with how it draws. A seat that cannot be taken stays in `seat`.
-fn held_seat(
-    settings: &Settings,
-    places: &Places,
-    vt: &Path,
-    seat: &mut Option<Seat<seat::Released>>,
-) -> io::Result<Seat<seat::Held>> {
-    let options = zbm_display::display::Options {
-        mode: settings.mode,
-        single: false,
-    };
-    let released = match seat.take() {
-        Some(released) => released,
-        None => Seat::new(card(settings, places)?, Some(vt.to_path_buf())).with_options(options),
-    };
-    let mut held = take_seat(places, released, HOLD_WAIT).map_err(|(released, error)| {
-        *seat = Some(released);
-        error
-    })?;
-    let buffers = if held.screen().is_flipping() {
-        "two buffers flipped on vertical blank"
-    } else {
-        "one buffer"
-    };
-    let format = held.screen().format();
-    places.log(6, &format!("drawing in {format:?} pixels, {buffers}"));
-    Ok(held)
-}
-
-/// How long the console waits for a display another program holds (C66).
-const HOLD_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// How often it tries again meanwhile.
-const HOLD_RETRY: std::time::Duration = std::time::Duration::from_millis(250);
-
-/// Takes `seat`; when another program is the card's master, as Plymouth
-/// may be until it quits, says which and tries again for up to `wait`.
-fn take_seat(
-    places: &Places,
-    seat: Seat<seat::Released>,
-    wait: std::time::Duration,
-) -> Result<Seat<seat::Held>, (Seat<seat::Released>, io::Error)> {
-    let until = std::time::Instant::now() + wait;
-    let mut seat = seat;
-    let mut said = false;
-    loop {
-        match seat.take() {
-            Ok(held) => return Ok(held),
-            Err((back, error))
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy
-                ) && std::time::Instant::now() < until =>
-            {
-                if !std::mem::replace(&mut said, true) {
-                    let holders = zbm_display::display::holders::holders(
-                        &places.sys.with_file_name("proc"),
-                        back.card(),
-                    );
-                    let names: Vec<String> = holders.iter().map(ToString::to_string).collect();
-                    let who = if names.is_empty() {
-                        "another program".to_owned()
-                    } else {
-                        names.join(", ")
-                    };
-                    places.log(5, &format!("{who} holds the display; waiting for it"));
-                }
-                seat = back;
-                std::thread::sleep(HOLD_RETRY);
-            }
-            Err(failed) => return Err(failed),
-        }
-    }
-}
-
-/// The DRM card the console draws on: the one `settings` names, else the
-/// first.
-fn card(settings: &Settings, places: &Places) -> io::Result<PathBuf> {
-    match &settings.card {
-        Some(card) => Ok(card.clone()),
-        None => first_card(&places.dev)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no DRM card")),
-    }
-}
-
 /// The host of the loop on the display: the programs' terminal `master`,
 /// the keyboards and what `control` asks, woken by `wake` and by new
 /// devices in `places` where the system allows, with its state directory.
@@ -594,6 +510,7 @@ fn real_host<'h>(
 }
 
 mod client;
+mod display;
 mod layouts;
 mod setup;
 

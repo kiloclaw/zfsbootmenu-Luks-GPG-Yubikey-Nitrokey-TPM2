@@ -277,6 +277,21 @@ impl Connection {
         }
     }
 
+    /// Sends `message` as one packet if there is room for it now, whatever
+    /// the socket's mode, which other descriptors of it share.
+    ///
+    /// # Errors
+    ///
+    /// When it is longer than [`MAX_MESSAGE`], there is no room, or the
+    /// other end is gone.
+    pub fn try_send(&self, message: &[u8]) -> io::Result<()> {
+        if message.len() > MAX_MESSAGE {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        send(&self.fd, message, SendFlags::NOSIGNAL | SendFlags::DONTWAIT)?;
+        Ok(())
+    }
+
     /// The next packet, waiting at most `timeout` (without limit when
     /// `None`): `None` when none came in time, an empty one when the other
     /// end is gone or sent an empty one.
@@ -382,6 +397,14 @@ mod tests {
             taken.receive(Some(Duration::ZERO)).unwrap().unwrap(),
             b"hello"
         );
+        // Without room, at once.
+        let error = loop {
+            if let Err(error) = other.try_send(&[0; 1024]) {
+                break error;
+            }
+        };
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+        assert!(other.try_send(&vec![0; MAX_MESSAGE + 1]).is_err());
         // Closed on `exec`, as it was not when passed.
         let flags = rustix::io::fcntl_getfd(&taken).unwrap();
         assert!(flags.contains(rustix::io::FdFlags::CLOEXEC));

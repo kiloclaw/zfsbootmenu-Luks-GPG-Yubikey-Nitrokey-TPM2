@@ -15,6 +15,13 @@
 //! console: the hung-up terminal tells the supervisor that the console is
 //! ending, and it waits for it before it starts anything else.
 //!
+//! The supervisor also makes the client channel (ADR 0004, UI6): a socket
+//! pair, one end for the console (`--cells-fd`), the other for the start-up
+//! program ([`CELLS_FD`]), on which the menu draws its cells; the recovery
+//! shell does not get it. The supervisor keeps the menu's end for the
+//! start-up programs that follow, and lends the screen back to the terminal
+//! when one ends.
+//!
 //! Like the rest of the supervisor, this cannot panic, and it starts the
 //! console itself.
 
@@ -35,6 +42,9 @@ use zbm_sys::console::{
 use super::Program;
 use zbm_console::keys::Flavour;
 use zbm_console::relay::SavedModes;
+use zbm_display::channel::FromClient;
+use zbm_sys::socket::Connection;
+pub use zbm_tui::menu::cells::CELLS_FD;
 
 /// The supervisor's terminal: its standard input.
 fn terminal() -> std::io::Stdin {
@@ -57,6 +67,8 @@ pub struct Attached {
     /// The terminal description the programs run with, as the console
     /// sends keys for it.
     flavour: Flavour,
+    /// The menu's end of the client channel, if it could be made.
+    cells: Option<Connection>,
 }
 
 /// The variable that tells programs they run on the console on the
@@ -80,6 +92,14 @@ impl Attached {
         let (master, slave) = zbm_console::host::open_pty()?;
         let mut command = Command::new(&program.path);
         command.args(&program.args).stdin(Stdio::from(master));
+        // Without it, the menu draws on the terminal.
+        let channel = Connection::pair().ok();
+        if let Some((_, console)) = &channel
+            && let Ok(end) = console.as_fd().try_clone_to_owned()
+        {
+            let number = zbm_sys::pass_fd(&mut command, end);
+            command.args(["--cells-fd", &number.to_string()]);
+        }
         // Without the supervisor's blocked `SIGCHLD`, when it starts again.
         zbm_sys::prepare_child(&mut command, &zbm_sys::ChildSetup::default());
         let child = command.spawn()?;
@@ -90,6 +110,7 @@ impl Attached {
             keyboard,
             modes,
             flavour: Flavour::of_image(Path::exists),
+            cells: channel.map(|(menu, _)| menu),
         })
     }
 
@@ -102,6 +123,7 @@ impl Attached {
             keyboard: None,
             modes: None,
             flavour: Flavour::Xterm,
+            cells: None,
         }
     }
 
@@ -127,6 +149,26 @@ impl Attached {
             command.env("COLORTERM", "truecolor");
         }
         Ok(command)
+    }
+
+    /// Gives the program `command` starts the menu's end of the client
+    /// channel, whose descriptor it finds in [`CELLS_FD`].
+    pub fn pass_cells(&self, command: &mut Command) {
+        if let Some(cells) = &self.cells
+            && let Ok(end) = cells.as_fd().try_clone_to_owned()
+        {
+            let number = zbm_sys::pass_fd(command, end);
+            command.env(CELLS_FD, number.to_string());
+        }
+    }
+
+    /// Lends the screen to the programs' terminal, as the program that drew
+    /// on the console's cells ended; when the console has no room for it
+    /// now, as when it reads nothing, it is not waited for.
+    pub fn lend_screen(&self) {
+        if let Some(cells) = &self.cells {
+            let _ = cells.try_send(&FromClient::Lend.encode());
+        }
     }
 
     /// Has what programs write to `/dev/console` go to the console's
@@ -222,6 +264,7 @@ mod tests {
             keyboard: Some(KeyboardMode::OFF),
             modes,
             flavour: Flavour::Linux,
+            cells: None,
         };
         State::new(&RealFiles, dir.path()).set_console(1).unwrap();
 
@@ -242,6 +285,29 @@ mod tests {
 
         attached.detach(dir.path());
         assert!(!dir.join("console").exists());
+    }
+
+    #[test]
+    fn the_start_up_program_gets_the_channel_and_the_screen_is_lent_back() {
+        let (menu, console) = Connection::pair().unwrap();
+        let attached = Attached {
+            cells: Some(menu),
+            ..Attached::for_tests(1, File::open("/dev/null").unwrap())
+        };
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "[ -e /proc/self/fd/$ZBM_CELLS_FD ]"]);
+        attached.pass_cells(&mut command);
+        assert!(command.status().unwrap().success());
+
+        attached.lend_screen();
+        let packet = console.receive(Some(Duration::from_secs(5))).unwrap();
+        assert_eq!(FromClient::decode(&packet.unwrap()), Some(FromClient::Lend));
+        // Without a channel, neither.
+        let alone = Attached::for_tests(1, File::open("/dev/null").unwrap());
+        let mut command = Command::new("/bin/true");
+        alone.pass_cells(&mut command);
+        assert!(command.get_envs().next().is_none());
+        alone.lend_screen();
     }
 
     #[test]

@@ -50,7 +50,7 @@ Third-party crates:
 
 - `generate-zbm`: `yaml-rust2`
 - `xtask`: `proc-macro2`, `serde_json`, `syn`
-- `zbm`: `serde_json`, `tracing`
+- `zbm`: `ratatui`, `serde_json`, `tracing`
 - `zbm-app`: `serde_json`, `thiserror`, `tracing`
 - `zbm-boot`: `thiserror`, `tracing`
 - `zbm-brush`: `brush-shell`, `rustix`

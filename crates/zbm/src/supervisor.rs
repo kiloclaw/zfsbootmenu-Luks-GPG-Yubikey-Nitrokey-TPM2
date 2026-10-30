@@ -182,7 +182,13 @@ impl Supervisor {
             },
         };
         let mut command = match on_console {
-            Some(Ok(command)) => command,
+            Some(Ok(mut command)) => {
+                // The menu draws on the console's cells; the shell does not.
+                if !shell && let Some(attached) = attached {
+                    attached.pass_cells(&mut command);
+                }
+                command
+            }
             Some(Err(error)) => {
                 self.error(&format!("unable to use the console's terminal: {error}"));
                 return None;

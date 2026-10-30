@@ -53,6 +53,10 @@ pub const NOT_TEXT: &[(&str, &str)] = &[
     ("display", "the display without a terminal, for developers"),
     ("terminal.rs", "the key log of the measures, for developers"),
     (
+        "cells.rs",
+        "the client channel's variable, and errors the menu does not show",
+    ),
+    (
         "model/naming.rs",
         "the names the legacy menu offers for new environments and snapshots",
     ),
