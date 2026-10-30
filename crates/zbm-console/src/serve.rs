@@ -475,7 +475,9 @@ fn on_display(
     let switch = layouts::switcher(places, names, load);
     let mut host = real_host(&mut *master, keyboards, (control, wake), places, switch);
     if let Some(cells) = cells {
-        host = host.with_client(cells);
+        host = host
+            .with_client(cells)
+            .with_notes(|text| places.log(6, text));
     }
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run_with_client(&mut console, held.screen(), &mut host, shown, client)?;

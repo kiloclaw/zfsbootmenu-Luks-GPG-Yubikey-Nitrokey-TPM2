@@ -106,6 +106,20 @@ cells and receives key presses. Programs that need a terminal keep one.**
   the terminal. The keyboards are not part of it: they come and go with hotplug, and the loop that reads them owns
   them. `reattach` takes the same seat again, with the options it had.
 
+- **UI6** (30 October 2026): the client channel is `zbm_display::channel`, a binary encoding of its own
+  (`channel::wire`): a tag byte, then the fields, little-endian. `Input { secret }` became `Secret(bool)`, and two
+  messages carry the `SurfaceLease`: `Lend`, the screen to the programs' terminal, and `Take`, back to the menu. The
+  menu says hello first; the console answers each hello with its own and `Caps` (the grid and true colour, not yet
+  which characters the font has), so a menu that starts again starts afresh; a menu of another version gets the
+  console's hello alone and draws on its terminal. A frame is its `Cells` messages, split to fit a packet, ended by
+  its `Cursor`; the console draws it only then. The supervisor makes the pair when it starts the console and keeps
+  the menu's end for each start-up program, passing descriptors with `zbm_sys::pass_fd`, which the child takes with
+  `Connection::inherited`; when the start-up program ends, it sends `Lend` itself. The console writes to the menu
+  without waiting, so a menu that reads nothing loses keys rather than stopping it; the menu waits at most two
+  seconds for room. A console that cannot draw closes its end, and the menu, which waits three seconds for an answer
+  from a console still starting, draws on its terminal at once. The menu's colours are the Linux console's, which
+  the console shows in its own scheme. `Bell` and `Announce` are in the messages and not used yet.
+
 ## Answers of the maintainer
 
 Accepted as proposed, on 28 October 2026:

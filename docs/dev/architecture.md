@@ -144,7 +144,8 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
 - **front ends**: `zbm` dispatches applets by the name it was called with; `zfsbootmenu-init` runs `zbm-startup`,
   on the menu's start-up view (`zbm::startup::MenuFront` over `zbm_tui::menu::startup`) when the terminal can run
   the menu, and `zluks` performs its actions through `zbm-app`; its supervisor starts the console on the display
-  (`zbm-console`) and the programs on its terminal. No front end uses an adapter crate (`check-deps`,
+  (`zbm-console`) and the programs on its terminal, and hands the console and the start-up program the two ends of
+  the client channel, on which the menu draws its cells (ADR 0004). No front end uses an adapter crate (`check-deps`,
   `NOT_THROUGH`); they reach the plain console through `zbm_boot::prompt`. `zbm-tui` is the menu in the Elm architecture: a `Model`, a pure `update`, a `view` drawn with
   Ratatui, and one key binding table. `zbm-brush` is the shell of the Rust images.
 - **test support**: `zbm-testkit` holds the fakes of the system interfaces (`FakeSystem`, `FakeFiles`, `FakeRunner`,

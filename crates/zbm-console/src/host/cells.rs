@@ -23,6 +23,14 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         self
     }
 
+    /// The host, which says what happens on the channel with `notes`, a
+    /// line each, as in the kernel log.
+    #[must_use]
+    pub fn with_notes(mut self, notes: impl FnMut(&str) + 'h) -> Self {
+        self.notes = Some(Box::new(notes));
+        self
+    }
+
     /// Whether the client's socket is ready, which it is when it is the
     /// last of `ready`, the readiness of what the host waits on.
     pub(super) fn is_client_ready(&self, ready: &[Ready]) -> bool {

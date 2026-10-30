@@ -91,6 +91,10 @@ fn the_client_draws_and_gets_the_keys_until_it_lends_the_screen() {
     // Only the keys typed after the screen was lent reach the programs.
     assert_eq!(host.sent, b"ls");
     assert_eq!(host.layouts, ["fr"]);
+    assert_eq!(
+        host.notes,
+        [format!("{GREETED} (client channel version {VERSION})")]
+    );
     assert!(
         texts.iter().any(|text| text.starts_with("Boot\n")),
         "{texts:?}"
@@ -135,6 +139,13 @@ fn a_client_of_another_version_or_without_a_hello_is_not_drawn() {
     assert_eq!(host.to_client, [FromConsole::Hello { version: VERSION }]);
     assert!(!console.is_showing_cells());
     assert_eq!(host.sent, b"ok");
+    assert_eq!(
+        host.notes,
+        [format!(
+            "a menu of client channel version {} draws on the terminal",
+            VERSION + 1
+        )]
+    );
 }
 
 #[test]

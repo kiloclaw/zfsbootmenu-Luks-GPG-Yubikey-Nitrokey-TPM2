@@ -338,7 +338,9 @@ Following a boot
   console; the shell must take ``echo zbm-back-$(readlink /proc/self/fd/0) > /dev/ttyS0`` and print
   ``zbm-back-/dev/pts/N`` (the shell makes the line the test waits for, so keys that reached something else cannot
   pass for it), and ``dmesg | grep on.the.display > /dev/ttyS0`` must show the supervisor's messages that the console
-  ended and started again. The shell on the kernel console, once the console is given up, is tested by the
+  ended and started again; ``dmesg | grep draws.on.its.cells > /dev/ttyS0`` must show the console's message that the
+  menu said hello on the client channel, so that the countdown was drawn on the console's cells (``ROADMAP.md``, UI6),
+  not on its terminal. The shell on the kernel console, once the console is given up, is tested by the
   supervisor's own tests. On ``simpledrm`` (``vga=0x318``), with ``zbm.console_font=psf``, the console's start must name a
   ``.psf`` font; the countdown runs out, the console must write that it handed the display back, and the boot
   environment must boot.

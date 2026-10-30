@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 
-use super::fallback::{BACK, KILL, LOG, STATE};
+use super::fallback::{BACK, CELLS_LOG, KILL, LOG, STATE};
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 
@@ -48,7 +48,9 @@ fn text_is_typed_with_qemu_s_key_names() {
             "shift-semicolon"
         ]
     );
-    for text in [TTY, KILL, BACK, LOG, STATE[0], STATE[1], STATE[2]] {
+    for text in [
+        TTY, KILL, BACK, LOG, CELLS_LOG, STATE[0], STATE[1], STATE[2],
+    ] {
         assert!(key_names(text).is_some(), "{text}");
     }
     assert_eq!(key_names("S").unwrap(), ["shift-s"]);
@@ -116,7 +118,8 @@ const LOGGED: &str = "speed 38400 baud; isig icanon\r\nSigIgn: 0000000000000000\
     zbm-state-end\r\nzbm-flood-ok\r\nzbm-back-/dev/pts/1\r\n\
     [   40.2] ZFSBootMenu: the console on the display ended (wait status 9); \
     going on on the kernel console\r\n\
-    [   41.2] ZFSBootMenu: the console on the display started again (process 812)\r\n";
+    [   41.2] ZFSBootMenu: the console on the display started again (process 812)\r\n\
+    [    3.1] ZFSBootMenu: console: the menu draws on its cells (client channel version 1)\r\n";
 
 #[test]
 fn the_console_shows_takes_keys_and_falls_back() {
@@ -142,7 +145,7 @@ fn the_console_shows_takes_keys_and_falls_back() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 18, "{checks:?}");
+    assert_eq!(checks.len(), 19, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("ok")),
         "{checks:?}"
@@ -166,7 +169,7 @@ fn a_console_that_shows_nothing_fails_its_checks() {
 
     assert_eq!(guest.finish(), Vec::<String>::new());
     let checks = checks(&test);
-    assert_eq!(checks.len(), 23, "{checks:?}");
+    assert_eq!(checks.len(), 24, "{checks:?}");
     assert!(
         checks.iter().all(|check| check.starts_with("FAIL")),
         "{checks:?}"

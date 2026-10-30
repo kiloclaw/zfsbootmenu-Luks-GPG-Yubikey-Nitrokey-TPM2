@@ -469,11 +469,14 @@ fn the_client_is_read_and_written_and_found_gone() {
     let keyboards = Keyboards::from_files(Vec::new());
     let (console_end, menu) = Connection::pair().unwrap();
     let mut switched = Vec::new();
+    let mut notes = Vec::new();
     let mut host = RealHost::new(master, keyboards, control())
         .with_layouts(Box::new(|_: &mut Keyboards, change: Change<'_>| {
             switched.push(format!("{change:?}"));
         }))
-        .with_client(&console_end);
+        .with_client(&console_end)
+        .with_notes(|text| notes.push(text.to_owned()));
+    host.note("said");
     let timeout = Duration::from_millis(10);
 
     menu.send(&FromClient::Hello { version: VERSION }.encode())
@@ -509,6 +512,7 @@ fn the_client_is_read_and_written_and_found_gone() {
     host.send_client(&FromConsole::Bell);
     drop(host);
     assert_eq!(switched, ["Requested(\"de\")"]);
+    assert_eq!(notes, ["said"]);
 }
 
 #[test]

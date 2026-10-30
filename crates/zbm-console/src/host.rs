@@ -44,6 +44,9 @@ pub use status::POWER_SUPPLY;
 /// in cells as high as asked, or as at the start.
 pub type Fonts<'f> = &'f mut dyn FnMut((u32, u32), Option<u16>) -> io::Result<Grid>;
 
+/// Writes a line of what the host says, as to the kernel log.
+pub type Notes<'n> = Box<dyn FnMut(&str) + 'n>;
+
 /// How much is read at once.
 pub(crate) const CHUNK: usize = 16 * 1024;
 
@@ -247,6 +250,8 @@ pub struct RealHost<'h, M> {
     client: Option<&'h zbm_sys::socket::Connection>,
     /// Whether the client was found gone, which the next wait says.
     is_client_gone: bool,
+    /// Writes a line to the kernel log.
+    notes: Option<Notes<'h>>,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -279,6 +284,7 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             beeper: status::Beeper::default(),
             client: None,
             is_client_gone: false,
+            notes: None,
         }
     }
 
@@ -500,6 +506,12 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
 
     fn layout_name(&self) -> String {
         self.keyboards.layout().to_owned()
+    }
+
+    fn note(&mut self, text: &str) {
+        if let Some(notes) = &mut self.notes {
+            notes(text);
+        }
     }
 
     fn send_client(&mut self, message: &zbm_display::channel::FromConsole) {

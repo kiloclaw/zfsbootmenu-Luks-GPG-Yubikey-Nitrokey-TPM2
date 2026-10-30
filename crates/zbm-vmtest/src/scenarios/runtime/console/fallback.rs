@@ -52,6 +52,14 @@ pub(super) const STATE: [&str; 3] = [
     "echo zbm-state-end > /dev/ttyS0\n",
 ];
 
+/// Typed in the shell last: the console's line of the kernel log that says
+/// the menu said hello on the client channel (ROADMAP.md, UI6).
+pub(super) const CELLS_LOG: &str = "dmesg | grep draws.on.its.cells > /dev/ttyS0\n";
+
+/// That line: the menu drew on the console's cells, not on its terminal
+/// (`zbm_console::run::GREETED`).
+pub(super) const CELLS: &str = r"the menu draws on its cells \(client channel version \d+\)";
+
 /// The supervisor's message when the console ended.
 pub(super) const ENDED: &str = r"console on the display ended";
 
@@ -142,6 +150,12 @@ pub(super) fn check_fallback(
     test.check(
         logged,
         "virtio: the supervisor logged that the console ended and started again",
+    );
+    type_text(vm, monitor, CELLS_LOG, pace.pause)?;
+    let drew = back && vm.expect(&[CELLS], pace.patience.min(30)).is_ok();
+    test.check(
+        drew,
+        "virtio: the menu drew on the console's cells, over the client channel",
     );
     Ok(())
 }

@@ -9,6 +9,10 @@ use zbm_display::keys::KeyPress;
 use super::Host;
 use crate::screen::Console;
 
+/// What the console says in the kernel log when the menu said hello in its
+/// version.
+pub const GREETED: &str = "the menu draws on its cells";
+
 /// What the console knows of its client: whether it said hello, and asks
 /// for a secret.
 #[derive(Debug, Default)]
@@ -37,6 +41,11 @@ impl Client {
                 host.send_client(&FromConsole::Hello { version: VERSION });
                 if self.is_greeted {
                     host.send_client(&FromConsole::Caps(caps(console)));
+                    host.note(&format!("{GREETED} (client channel version {version})"));
+                } else {
+                    host.note(&format!(
+                        "a menu of client channel version {version} draws on the terminal"
+                    ));
                 }
             }
             _ if !self.is_greeted => {}

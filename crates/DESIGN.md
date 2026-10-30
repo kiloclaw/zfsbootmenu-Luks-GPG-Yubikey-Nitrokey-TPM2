@@ -89,7 +89,7 @@ The runtime is split into crates by responsibility. Library crates know nothing 
 | `zbm-startup` | The start-up program: its stages as steps, the recovery shell, the start-up hooks. | `init.d/*`, `zfsbootmenu-init` |
 | `generate-zbm` | The host tool that builds images. | `bin/generate-zbm` |
 | `zbm-tui` | The menu: an Elm architecture on Ratatui and nucleo-matcher. | `zfsbootmenu-ui.sh`, `fzf-defaults.sh`, `fzf` |
-| `zbm-console` | The console on the display: Alacritty's terminal on a pseudo-terminal, drawn through DRM. | the kernel's console |
+| `zbm-console` | The console on the display: Alacritty's terminal on a pseudo-terminal, and the menu's cells on the client channel, drawn through DRM. | the kernel's console |
 | `zbm-brush` | The shell of the Rust images, brush. | Bash |
 | `zbm` | The multi-call program: one applet per legacy executable, the recovery commands (package F) and the supervisor. | `bin/*`, `libexec/*` |
 | `zbm-testkit` | Fakes of every system interface, the legacy code runner for parity tests, seeded inputs. Tests only. | — |

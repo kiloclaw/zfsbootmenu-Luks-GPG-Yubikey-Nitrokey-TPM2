@@ -22,7 +22,7 @@ use crate::screen::zoom::Zoom;
 use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
 use blank::Blanking;
-pub use client::Client;
+pub use client::{Client, GREETED};
 
 mod blank;
 mod client;
@@ -88,6 +88,11 @@ pub trait Host {
     /// The name of the keyboard layout keys are typed on.
     fn layout_name(&self) -> String {
         String::new()
+    }
+
+    /// Says `text` in the kernel log, where the host has one.
+    fn note(&mut self, text: &str) {
+        let _ = text;
     }
 
     /// Sends `message` to the client of the channel, if there is one: one
