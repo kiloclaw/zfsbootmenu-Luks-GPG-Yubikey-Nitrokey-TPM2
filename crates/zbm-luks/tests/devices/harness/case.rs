@@ -310,6 +310,8 @@ impl<'l> Case<'l> {
             console,
             processes: &processes,
             environment: &self.env,
+            // The unlocking boots nothing.
+            kernel: &zbm_platform::NoKernelLoader,
         };
         let mut settings = Settings::from_environment(&self.env);
         settings.colors = false;

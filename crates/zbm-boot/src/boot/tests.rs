@@ -578,6 +578,7 @@ fn failed_exports_and_missing_kernels_are_errors() {
     assert!(defaults.set_hostid && defaults.env.is_empty());
 }
 
+mod kexec;
 mod root_prefix;
 
 #[test]

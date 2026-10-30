@@ -10,6 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use zbm_config::parent::{CommandLineSource, read_kcl_contents, read_kcl_prop};
 use zbm_platform::exec::{Output, Runner};
 use zbm_platform::files::Files;
+use zbm_platform::kernel::KernelLoader;
 use zbm_state::State;
 use zbm_tools::kexec;
 use zbm_trace::Message;
@@ -488,14 +489,15 @@ impl KexecLoad<'_> {
         self.with_image(kexec::load_line)
     }
 
-    /// Runs `kexec -a -l ...`, with its two output streams merged as `2>&1`
-    /// merges them.
+    /// Loads the kernel: with `kexec_file_load` through `loader`, or with
+    /// `kexec -a -l ...` on `runner` for a device tree or what the call does
+    /// not load, its two output streams merged as `2>&1` merges them.
     ///
     /// # Errors
     ///
     /// The error that kept `kexec` from starting.
-    pub fn run(&self, runner: &dyn Runner) -> std::io::Result<Output> {
-        self.with_image(|image| kexec::load(runner, image))
+    pub fn run(&self, loader: &dyn KernelLoader, runner: &dyn Runner) -> std::io::Result<Output> {
+        self.with_image(|image| kexec::load(loader, runner, image))
     }
 }
 

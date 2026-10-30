@@ -96,8 +96,9 @@ On 29 October 2026, when the decision was accepted:
 - Done: `cargo xtask check-links` fails CI when `zbm` links a library other than glibc's, and the metric `c_programs`
   is ratcheted (CD1; 45 programs on 28 October 2026). `openssl`, `sha256sum` and `base64` left Rust images (CD3, SE7);
   `dmesg` and `lsblk` have their replacements, with the programs as the fallback (CD2); ZFS filesystems are mounted
-  with `mount(2)`, with `mount.zfs` as the fallback (SB3).
-- To come: CD4 to CD12, SB4 and SB11, in the order above. `zbm.native=` arrives with CD9 and CD10.
+  with `mount(2)`, with `mount.zfs` as the fallback (SB3); kernels are loaded with `kexec_file_load` and started with
+  `reboot(LINUX_REBOOT_CMD_KEXEC)`, with `kexec` as the fallback and for device trees (SB4).
+- To come: CD4 to CD12 and SB11, in the order above. `zbm.native=` arrives with CD9 and CD10.
 
 ## Answers of the maintainer
 

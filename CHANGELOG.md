@@ -93,6 +93,11 @@ as the legacy runtime does with `zbm.skip`, with every start-up and import optio
 locked encryption root, `load-key.d` hooks or the menu), it logs what it cannot handle yet and opens the recovery
 shell. The legacy runtime stays the default; see `zfsbootmenu(7)`.
 
+The Rust runtime loads the boot environment's kernel with the kernel's own `kexec_file_load` and starts it with
+`reboot`, without running `kexec`. `kexec` still loads a kernel with a device tree (`org.zfsbootmenu:devicetree`),
+and any kernel the call refuses, as on a kernel built without it; a teardown hook can still load a kernel of its
+own, which then boots.
+
 ### Rust runtime, LUKS
 
 The Rust runtime unlocks LUKS volumes (package B of Phase 6): the crypttab, `zbm.luks` and `zbm.luks_key`, discovery

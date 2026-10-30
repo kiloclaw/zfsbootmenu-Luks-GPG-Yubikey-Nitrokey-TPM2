@@ -689,9 +689,10 @@ value bundles, so a function needs only one parameter for all of them.
 | `Console` | prompts, key presses, passphrases, the screen size, output | `Terminal` (standard input and output, with `stty` for the terminal's modes, whose failures are ignored as in the legacy code) | scripted key presses, lines and secrets; everything written |
 | `Processes` | its own process ID, signals to other processes | `SystemProcesses` (`zbm-sys`) | every signal sent |
 | `Environment` | environment variables | `ProcessEnvironment` | the variables the test sets |
+| `KernelLoader` | loading the boot environment's kernel and starting it (ROADMAP.md SB4) | `SystemKernelLoader`: `kexec_file_load` and `reboot(LINUX_REBOOT_CMD_KEXEC)` (`zbm-sys`) | nothing loaded until a test accepts loads, so that `kexec` runs; every kernel loaded and every start |
 
-Devices are files (`/dev/disk/by-*`), so waiting for them is `Files` and `Clock`; mounting, `kexec` and module loading
-are programs. The supervisor's starting of and waiting for children is the one part outside these interfaces (see
+Devices are files (`/dev/disk/by-*`), so waiting for them is `Files` and `Clock`; ZFS mounts are `Files`' system
+calls, with `mount` as the fallback; `kexec` is the fallback of `KernelLoader`; module loading is a program. The supervisor's starting of and waiting for children is the one part outside these interfaces (see
 "The supervisor"); its unit tests run its loop with real programs (what starts next, after which status, and the
 console's restarts), and the VM tests cover the rest. The fakes check what must not happen as well: `FakeSystem::assert_no_leak` fails if a
 secret's bytes appear in any argument, environment variable, written file or console output.

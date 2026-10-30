@@ -3,15 +3,16 @@
 //! [`FakeSystem`] holds one fake of each interface and lends them out as a
 //! [`System`]. Each fake records what the code did: the commands it ran
 //! ([`FakeRunner`]), the files it changed ([`FakeFiles`]), how long it slept
-//! ([`FakeClock`]), what it showed and read ([`FakeConsole`]) and the signals
-//! it sent ([`FakeProcesses`]); [`FakeEnvironment`] holds the variables the
-//! test sets. [`FakeSystem::assert_no_leak`] checks all of
-//! them for a secret.
+//! ([`FakeClock`]), what it showed and read ([`FakeConsole`]), the signals it
+//! sent ([`FakeProcesses`]) and the kernels it loaded ([`FakeKernelLoader`]);
+//! [`FakeEnvironment`] holds the variables the test sets.
+//! [`FakeSystem::assert_no_leak`] checks all of them for a secret.
 
 mod clock;
 mod console;
 mod environment;
 mod files;
+mod kernel;
 mod processes;
 
 use std::ffi::OsStr;
@@ -21,6 +22,7 @@ pub use clock::{FakeClock, START};
 pub use console::{ConsoleInput, FakeConsole};
 pub use environment::FakeEnvironment;
 pub use files::{FakeFiles, FileOperation};
+pub use kernel::{FakeKernelLoader, Loaded, Loads};
 pub use processes::FakeProcesses;
 
 use zbm_platform::exec::Input;
@@ -42,6 +44,8 @@ pub struct FakeSystem {
     pub processes: FakeProcesses,
     /// Environment variables: none until the test sets them.
     pub environment: FakeEnvironment,
+    /// Kernels: none loaded until the test accepts them, so `kexec` runs.
+    pub kernel: FakeKernelLoader,
 }
 
 impl Default for FakeSystem {
@@ -69,6 +73,7 @@ impl FakeSystem {
             clock,
             processes: FakeProcesses::default(),
             environment: FakeEnvironment::new(),
+            kernel: FakeKernelLoader::default(),
         }
     }
 
@@ -81,6 +86,7 @@ impl FakeSystem {
             console: &self.console,
             processes: &self.processes,
             environment: &self.environment,
+            kernel: &self.kernel,
         }
     }
 

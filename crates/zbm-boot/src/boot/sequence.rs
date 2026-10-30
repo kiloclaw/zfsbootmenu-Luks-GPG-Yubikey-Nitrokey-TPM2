@@ -296,7 +296,7 @@ fn find_devicetree(
 fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<String> {
     let mut output = String::new();
     for _ in 0..2 {
-        let (ok, text) = substituted(load.run(system.runner));
+        let (ok, text) = substituted(load.run(system.kernel, system.runner));
         if ok {
             return Some(text);
         }
@@ -470,7 +470,7 @@ fn execute(
         keep_hand_back(system, state, saved);
     }
 
-    let (_, output) = substituted(kexec::execute(system.runner));
+    let (_, output) = substituted(kexec::execute(system.kernel, system.runner));
     // Only a failed kexec returns.
     graphics::take_back(system, Path::new("/"), &gpus);
     take_back(system, state);

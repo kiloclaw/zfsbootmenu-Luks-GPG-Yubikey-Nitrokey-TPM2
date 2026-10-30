@@ -70,6 +70,7 @@ pub mod exec;
 pub mod files;
 pub mod filetest;
 pub mod interaction;
+pub mod kernel;
 pub mod log;
 pub mod process;
 mod quiet;
@@ -88,6 +89,7 @@ pub use env::{Environment, ProcessEnvironment};
 pub use exec::{Command, Input, Output, Runner, Status, Stream, SystemRunner, TerminalRunner};
 pub use files::{FileKind, FileLock, Files, LockWait, Metadata, RealFiles};
 pub use interaction::Interaction;
+pub use kernel::{KernelLoader, NoKernelLoader, SystemKernelLoader};
 pub use log::{FilesAppender, FilesSink, Installed, JOURNAL, JOURNAL_LIMIT, KernelLog};
 pub use process::{Processes, Signal, SystemProcesses};
 pub use quiet::QuietRunner;
@@ -109,6 +111,8 @@ pub struct System<'a> {
     pub processes: &'a dyn Processes,
     /// Environment variables.
     pub environment: &'a dyn Environment,
+    /// Loading and starting another kernel.
+    pub kernel: &'a dyn KernelLoader,
 }
 
 impl<'a> System<'a> {
@@ -141,6 +145,7 @@ pub struct RealSystem {
     clock: SystemClock,
     processes: SystemProcesses,
     environment: ProcessEnvironment,
+    kernel: SystemKernelLoader,
 }
 
 impl RealSystem {
@@ -152,6 +157,7 @@ impl RealSystem {
             clock: SystemClock::new(),
             processes: SystemProcesses,
             environment: ProcessEnvironment,
+            kernel: SystemKernelLoader,
         }
     }
 
@@ -180,6 +186,7 @@ impl RealSystem {
             console,
             processes: &self.processes,
             environment: &self.environment,
+            kernel: &self.kernel,
         }
     }
 }

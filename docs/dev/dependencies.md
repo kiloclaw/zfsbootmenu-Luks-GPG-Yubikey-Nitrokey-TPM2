@@ -73,7 +73,7 @@ stays for a reason:
 | `blkid`, `udevadm` | — | No Rust udev is mature, and `cryptsetup` relies on the device-mapper rules |
 | `lsblk`, `dmesg`, `setsid`, `hostid` | CD2 (done: the runtime no longer runs them but as a fallback, until the VM suites pass the native code, and for the legacy runtime's code) | — |
 | `mount` | SB3 (done for ZFS mounts and single unmounts, with `mount` as the fallback); `mount` stays for block devices, FAT, `efivarfs` and `umount -R` | — |
-| `kexec` | SB4 (`kexec_file_load`); `kexec` stays for device trees, Xen and old kernels | — |
+| `kexec` | SB4 (done: `kexec_file_load` and `reboot(LINUX_REBOOT_CMD_KEXEC)`, with `kexec` as the fallback); `kexec` stays for device trees, Xen, old kernels and what the call refuses | — |
 | `tput`, `stty` | PM11 (done: the Rust runtime runs neither: its screen changes are ECMA-48 sequences, and the terminal's settings and size are `termios` calls) | The legacy runtime, and the recovery shell's `clear` and `reset`, which are `tput`; Rust images drop them with their own list (SB7) |
 | `insmod`, `modinfo`, `lsmod`, `depmod` | CD4 | — |
 | `cryptsetup`, `dmsetup` | CD9; `cryptsetup` stays for enrolment and as the fallback | — |
