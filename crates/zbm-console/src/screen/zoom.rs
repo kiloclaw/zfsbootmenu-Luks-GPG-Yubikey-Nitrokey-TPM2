@@ -145,6 +145,7 @@ impl Console {
             .resize(TermSize::new(usize::from(columns), usize::from(rows)));
         self.forget_match();
         self.repaint();
+        self.resize_cells();
         // The terminal's events of the resize are not for the programs.
         self.events.0.borrow_mut().clear();
     }

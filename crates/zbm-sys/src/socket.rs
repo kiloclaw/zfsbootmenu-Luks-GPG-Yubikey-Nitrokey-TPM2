@@ -6,9 +6,10 @@
 
 use std::fs::{self, DirBuilder};
 use std::io;
-use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::os::fd::{AsFd, BorrowedFd, FromRawFd as _, IntoRawFd as _, OwnedFd};
 use std::os::unix::fs::{DirBuilderExt as _, FileTypeExt as _};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use rustix::net::{
@@ -175,6 +176,59 @@ impl Connection {
         Ok((Connection { fd: one }, Connection { fd: other }))
     }
 
+    /// The end of a connection this process was started with, at the
+    /// descriptor `number` that its parent passed it
+    /// ([`pass_fd`](crate::pass_fd)), closed on `exec` from now on. Each
+    /// number is taken once.
+    ///
+    /// # Errors
+    ///
+    /// When `number` is one of the standard streams, was taken before, or
+    /// is not open on a Unix socket of packets.
+    pub fn inherited(number: i32) -> io::Result<Connection> {
+        static TAKEN: Mutex<Vec<i32>> = Mutex::new(Vec::new());
+        let refused =
+            |why: &str| io::Error::new(io::ErrorKind::InvalidInput, format!("{why}: {number}"));
+        if number <= 2 {
+            return Err(refused("a standard stream"));
+        }
+        let mut taken = TAKEN.lock().unwrap_or_else(PoisonError::into_inner);
+        if taken.contains(&number) {
+            return Err(refused("a descriptor taken before"));
+        }
+        // What the descriptor is, without touching it: `socket:[inode]`
+        // for a socket; nothing for a number that is not open.
+        let link = fs::read_link(format!("/proc/self/fd/{number}"))?;
+        if !link.as_os_str().as_encoded_bytes().starts_with(b"socket:") {
+            return Err(refused("not a socket"));
+        }
+        taken.push(number);
+        // SAFETY: the kernel says `number` is open on a socket, and this
+        // process takes it once: nothing else in it owns a socket it was
+        // started with.
+        let fd = unsafe { OwnedFd::from_raw_fd(number) };
+        let is_packets = sockopt::socket_type(&fd).is_ok_and(|kind| kind == SocketType::SEQPACKET)
+            && sockopt::socket_domain(&fd).is_ok_and(|family| family == AddressFamily::UNIX);
+        if !is_packets {
+            // Not ours to close.
+            let _ = fd.into_raw_fd();
+            return Err(refused("not a Unix socket of packets"));
+        }
+        rustix::io::fcntl_setfd(&fd, rustix::io::FdFlags::CLOEXEC)?;
+        Ok(Connection { fd })
+    }
+
+    /// Has [`Connection::send`] fail with [`io::ErrorKind::WouldBlock`]
+    /// rather than wait while the other end reads nothing.
+    ///
+    /// # Errors
+    ///
+    /// When the socket cannot be changed.
+    pub fn set_nonblocking(&self) -> io::Result<()> {
+        rustix::io::ioctl_fionbio(&self.fd, true)?;
+        Ok(())
+    }
+
     /// Who is at the other end.
     ///
     /// # Errors
@@ -293,6 +347,42 @@ mod tests {
         assert_eq!(server.receive(wait).unwrap().unwrap(), b"");
         drop(listener);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn a_connection_passed_to_this_process_is_taken_once() {
+        use std::os::fd::AsRawFd as _;
+        let (one, other) = Connection::pair().unwrap();
+        let number = one.fd.into_raw_fd();
+
+        let taken = Connection::inherited(number).unwrap();
+        assert_eq!(taken.as_fd().as_raw_fd(), number);
+        let error = Connection::inherited(number).unwrap_err();
+        assert!(error.to_string().contains("taken before"), "{error}");
+        taken.set_nonblocking().unwrap();
+        other.send(b"hello").unwrap();
+        assert_eq!(
+            taken.receive(Some(Duration::ZERO)).unwrap().unwrap(),
+            b"hello"
+        );
+        // Closed on `exec`, as it was not when passed.
+        let flags = rustix::io::fcntl_getfd(&taken).unwrap();
+        assert!(flags.contains(rustix::io::FdFlags::CLOEXEC));
+
+        // Neither a standard stream, a file, a closed number nor a socket
+        // of another kind, which is left open.
+        let file = fs::File::open("/dev/null").unwrap();
+        let stream = rustix::net::socket(AddressFamily::UNIX, SocketType::STREAM, None).unwrap();
+        for (number, why) in [
+            (0, "standard stream"),
+            (file.as_raw_fd(), "not a socket"),
+            (stream.as_raw_fd(), "of packets"),
+        ] {
+            let error = Connection::inherited(number).unwrap_err();
+            assert!(error.to_string().contains(why), "{number}: {error}");
+        }
+        assert!(Connection::inherited(i32::MAX).is_err());
+        assert!(sockopt::socket_type(&stream).is_ok());
     }
 
     #[test]

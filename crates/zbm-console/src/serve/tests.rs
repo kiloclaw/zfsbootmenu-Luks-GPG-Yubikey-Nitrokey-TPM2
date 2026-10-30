@@ -42,6 +42,7 @@ fn without_display(dir: &TempDir, settings: Settings) -> String {
             master: &mut master,
             terminal: &mut terminal,
             vt: &vt,
+            cells: None,
         };
         let mut grid = |_, _| {
             asked = true;

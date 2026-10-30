@@ -6,7 +6,7 @@
 
 use std::ffi::c_int;
 use std::io;
-use std::os::fd::AsFd;
+use std::os::fd::{AsFd, AsRawFd as _, OwnedFd};
 
 use rustix::io::Errno;
 use rustix::ioctl::{IntegerSetter, Opcode, ioctl};
@@ -97,6 +97,28 @@ pub fn prepare_child(process: &mut std::process::Command, setup: &ChildSetup) {
     unsafe {
         process.pre_exec(prepare);
     }
+}
+
+/// Has the program that `process` starts keep `fd`, a copy of a
+/// descriptor this process holds, at the number it has here, which this
+/// returns for its arguments or environment
+/// ([`Connection::inherited`](crate::socket::Connection::inherited)).
+/// Only that program gets it: `fd` stays closed on `exec` here, and the
+/// child clears that for itself between `fork` and `exec`.
+pub fn pass_fd(process: &mut std::process::Command, fd: OwnedFd) -> i32 {
+    use std::os::unix::process::CommandExt;
+    let number = fd.as_raw_fd();
+    let keep = move || {
+        rustix::io::fcntl_setfd(&fd, rustix::io::FdFlags::empty())?;
+        Ok(())
+    };
+    // SAFETY: the closure runs between `fork` and `exec`, where only
+    // async-signal-safe functions may be called: it makes one `fcntl`
+    // system call, and allocates nothing.
+    unsafe {
+        process.pre_exec(keep);
+    }
+    number
 }
 
 /// `SIGTTOU`, which the kernel sends a process of a background group that
@@ -315,6 +337,23 @@ mod tests {
         prepare_child(&mut command, &on_terminal);
         let error = command.status().unwrap_err();
         assert_eq!(error.raw_os_error(), Some(25), "{error}"); // ENOTTY
+    }
+
+    #[test]
+    fn a_descriptor_passed_reaches_that_child_alone() {
+        let file = std::fs::File::open("/dev/null").unwrap();
+        let is_open_in_child = |pass: bool| {
+            let mut command = std::process::Command::new("/bin/sh");
+            let number = if pass {
+                pass_fd(&mut command, file.as_fd().try_clone_to_owned().unwrap())
+            } else {
+                file.as_raw_fd()
+            };
+            let test = format!("[ -e /proc/self/fd/{number} ]");
+            command.args(["-c", &test]).status().unwrap().success()
+        };
+        assert!(is_open_in_child(true));
+        assert!(!is_open_in_child(false));
     }
 
     #[test]

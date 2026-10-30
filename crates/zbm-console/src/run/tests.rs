@@ -69,6 +69,10 @@ struct FakeHost {
     rings: usize,
     /// The screenshots saved: their text.
     shots: Vec<String>,
+    /// What the client of the channel was sent.
+    to_client: Vec<FromConsole>,
+    /// The layouts the client asked for.
+    layouts: Vec<String>,
 }
 
 impl FakeHost {
@@ -88,6 +92,8 @@ impl FakeHost {
             status: None,
             rings: 0,
             shots: Vec::new(),
+            to_client: Vec::new(),
+            layouts: Vec::new(),
         }
     }
 }
@@ -109,6 +115,18 @@ impl Host for FakeHost {
 
     fn next_layout(&mut self) {
         self.next_layouts += 1;
+    }
+
+    fn switch_layout(&mut self, name: &str) {
+        self.layouts.push(name.to_owned());
+    }
+
+    fn layout_name(&self) -> String {
+        "de".to_owned()
+    }
+
+    fn send_client(&mut self, message: &FromConsole) {
+        self.to_client.push(message.clone());
     }
 
     fn pending_accent(&self) -> Option<char> {
@@ -569,7 +587,11 @@ fn the_host_says_the_status_sounds_the_bell_and_keeps_screenshots() {
     assert!(bare.save_screenshot(b"", b"").is_err());
     assert!(bare.status().is_none());
     bare.ring();
+    bare.switch_layout("fr");
+    bare.send_client(&FromConsole::Bell);
+    assert_eq!(bare.layout_name(), "");
 }
 
 mod blanking;
+mod client;
 mod pacing;

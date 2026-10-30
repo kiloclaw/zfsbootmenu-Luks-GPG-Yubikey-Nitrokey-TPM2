@@ -27,7 +27,7 @@ use zbm_display::vt::active_terminal;
 use zbm_platform::RealFiles;
 use zbm_platform::event::{CancelToken, spawn_scoped_traced};
 use zbm_state::State;
-use zbm_sys::socket::Listener;
+use zbm_sys::socket::{Connection, Listener};
 
 use crate::control::{Control, ControlWake};
 use crate::host::{RealHost, Switch, set_size};
@@ -114,6 +114,9 @@ pub struct Settings {
     pub mode: Option<(u16, u16)>,
     /// How long without a key blanks the screen (`zbm.console_blank`).
     pub blank: Option<std::time::Duration>,
+    /// The descriptor of the console's end of the client channel, which
+    /// the supervisor passed it (`--cells-fd`).
+    pub cells_fd: Option<i32>,
 }
 
 impl Settings {
@@ -193,10 +196,17 @@ pub fn serve(
         .custom_flags(O_NOCTTY)
         .open(&vt)
         .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", vt.display())))?;
+    let cells = settings.cells_fd.and_then(|fd| {
+        let taken = Connection::inherited(fd);
+        taken
+            .inspect_err(|error| places.log(4, &format!("no client channel: {error}")))
+            .ok()
+    });
     let console = Terminals {
         master: &mut master,
         terminal: &mut terminal,
         vt: &vt,
+        cells: cells.as_ref(),
     };
     let control = (&control, &mut wake);
     with_socket(places, control.0, || {
@@ -243,6 +253,8 @@ pub struct Terminals<'t> {
     pub terminal: &'t mut File,
     /// The virtual terminal to take over while the console draws.
     pub vt: &'t Path,
+    /// The console's end of the client channel, if it has one.
+    pub cells: Option<&'t Connection>,
 }
 
 /// Runs the console on the display, with the font's grid and the keyboard
@@ -266,6 +278,7 @@ pub fn serve_on(
         master,
         terminal,
         vt,
+        cells,
     } = terminals;
     let (grid, layouts) = fonts;
     let Layouts {
@@ -289,7 +302,7 @@ pub fn serve_on(
             settings,
             places,
             (&mut *grid, layouts),
-            (&mut *master, vt),
+            (&mut *master, vt, cells),
             (control, &mut *wake),
             (&mut kept, &mut seat),
         );
@@ -425,7 +438,7 @@ fn on_display(
     settings: &Settings,
     places: &Places,
     (grid, layouts): (MakeGrid<'_>, Layouts<'_>),
-    (master, vt): (&mut File, &Path),
+    (master, vt, cells): (&mut File, &Path, Option<&Connection>),
     (control, wake): (&Arc<Control>, &mut ControlWake),
     (kept, seat): (&mut Option<Console>, &mut Option<Seat<seat::Released>>),
 ) -> io::Result<(Ended, String, String)> {
@@ -454,7 +467,10 @@ fn on_display(
         .map(Mirror::new);
     let shown = mirror.as_mut().map(|mirror| mirror as &mut dyn Shown);
     let switch = layouts::switcher(places, names, load);
-    let host = real_host(&mut *master, keyboards, (control, wake), places, switch);
+    let mut host = real_host(&mut *master, keyboards, (control, wake), places, switch);
+    if let Some(cells) = cells {
+        host = host.with_client(cells);
+    }
     let mut host = with_bell(host, settings.bell, places).with_fonts(grid);
     let ended = run(&mut console, held.screen(), &mut host, shown)?;
     let layout = host.keyboard_layout().to_owned();

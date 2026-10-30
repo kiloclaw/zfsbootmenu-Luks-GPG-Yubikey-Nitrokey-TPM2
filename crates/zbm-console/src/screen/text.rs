@@ -28,6 +28,9 @@ impl Console {
     /// combining marks after their characters, and `None` at the end of each
     /// row; then the status line's, if there is one.
     fn shown_chars(&self, mut each: impl FnMut(Option<char>)) {
+        if self.is_showing_cells() {
+            return self.cells_chars(each);
+        }
         let grid = self.term.grid();
         let size = (grid.screen_lines(), grid.columns());
         let overlay = self.overlay();

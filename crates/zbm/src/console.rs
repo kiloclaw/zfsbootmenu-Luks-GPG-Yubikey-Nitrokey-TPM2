@@ -95,6 +95,7 @@ Usage: zbm console [--card <path>] [--height <pixels>] [--psf] [--layout <name>]
                    [--palette <name>] [--large] [--status]
                    [--bell none|visual|audible|both] [--compose ralt|rwin|menu|rctrl|caps]
                    [--keyboard <vendor>:<product>=<layout>]... [--mirror <file>]
+                   [--mode <width>x<height>] [--blank <minutes>] [--cells-fd <fd>]
        zbm console release [--timeout <milliseconds>]
        zbm console reattach [--timeout <milliseconds>]
        zbm console layout [<name>]
@@ -148,6 +149,8 @@ pub struct Options {
     pub mode: Option<(u16, u16)>,
     /// The minutes without a key that blank the screen.
     pub blank_minutes: Option<u32>,
+    /// The descriptor of the client channel the supervisor passed.
+    pub cells_fd: Option<i32>,
 }
 
 /// The options in `args`, or `None` when one is wrong.
@@ -186,6 +189,9 @@ pub fn parse(args: &[String]) -> Option<Options> {
             "--blank" => {
                 options.blank_minutes =
                     Some(args.next()?.parse().ok().filter(|&minutes| minutes > 0)?);
+            }
+            "--cells-fd" => {
+                options.cells_fd = Some(args.next()?.parse().ok().filter(|&fd| fd > 2)?);
             }
             _ => return None,
         }
@@ -335,6 +341,7 @@ fn settings(options: &Options, files: &dyn Files, places: &Places, directory: &P
         bell: options.bell,
         compose_key: options.compose_key,
         mode: options.mode,
+        cells_fd: options.cells_fd,
         blank: options
             .blank_minutes
             .map(|minutes| Duration::from_secs(u64::from(minutes) * 60)),

@@ -25,8 +25,8 @@ use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::test::TermSize;
-use alacritty_terminal::term::{Config, Osc52, TermDamage, TermMode};
-use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
+use alacritty_terminal::term::{TermDamage, TermMode};
+use alacritty_terminal::vte::ansi::{CursorShape, Processor};
 use zbm_display::faces::FontFace;
 use zbm_display::frame::{Frame, Rgb};
 use zbm_display::grid::{CellStyle, Grid, Neighbour, Text};
@@ -38,12 +38,16 @@ use crate::scheme::{LINUX, Scheme};
 use crate::typing::Preview;
 pub use bell::Ring;
 pub use blink::BLINK;
+pub use config::NAME;
+use config::config;
 use look::{draw_cursor, look};
 use scroll::Shift;
 pub use status::{Clock, Locks, Status};
 
 mod bell;
 mod blink;
+mod cells;
+mod config;
 mod events;
 mod history;
 mod look;
@@ -120,6 +124,8 @@ pub struct Console {
     hashes: Vec<u64>,
     /// How long without a key blanks the screen (C64).
     blank_after: Option<std::time::Duration>,
+    /// The cells of the client of the channel, while they are shown.
+    cells: Option<cells::Surface>,
 }
 
 /// The cursor as drawn: where, its shape (hidden while it blinks off),
@@ -138,33 +144,6 @@ impl std::fmt::Debug for Console {
             .field("columns", &self.columns)
             .field("rows", &self.rows)
             .finish_non_exhaustive()
-    }
-}
-
-/// The terminal's name, which XTVERSION reports with its version.
-pub const NAME: &str = "ZFSBootMenu";
-
-/// The terminal's settings: no scrollback until one is asked for, no
-/// clipboard, a blinking block for a cursor, which blinks as the Linux
-/// console's does, and a steady one in vi mode, the kitty
-/// keyboard protocol for the programs that ask for it, and ZFSBootMenu's
-/// name and version for those that ask who the terminal is.
-fn config() -> Config {
-    Config {
-        scrolling_history: 0,
-        osc52: Osc52::Disabled,
-        kitty_keyboard: true,
-        default_cursor_style: CursorStyle {
-            shape: CursorShape::Block,
-            blinking: true,
-        },
-        vi_mode_cursor_style: Some(CursorStyle {
-            shape: CursorShape::Block,
-            blinking: false,
-        }),
-        name: NAME.to_owned(),
-        version: zbm_platform::version::ZBM_VERSION.to_owned(),
-        ..Config::default()
     }
 }
 
@@ -206,6 +185,7 @@ impl Console {
             damaged: Vec::new(),
             hashes: Vec::new(),
             blank_after: None,
+            cells: None,
         };
         console.warm();
         console.draw();
@@ -330,6 +310,9 @@ impl Console {
     /// Blinking text shown or hidden draws the screen again, which draws
     /// the rows that changed.
     pub fn draw(&mut self) -> usize {
+        if self.cells.is_some() {
+            return self.draw_cells();
+        }
         let mut lines = std::mem::take(&mut self.damaged);
         lines.clear();
         let is_full = match self.term.damage() {
@@ -570,6 +553,7 @@ impl Console {
     /// Wipes what the terminal shows and the pixels drawn from it: the
     /// screen is cleared, its cells reset, the frame painted black.
     pub fn wipe(&mut self) {
+        self.cells = None;
         // Clearing the screen moves it into the history, which goes after.
         self.feed(b"\x1b[0m\x1b[H\x1b[2J");
         self.wipe_history();

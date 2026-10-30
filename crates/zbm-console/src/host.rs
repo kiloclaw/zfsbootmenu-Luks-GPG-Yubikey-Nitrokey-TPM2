@@ -12,7 +12,7 @@
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, OwnedFd};
+use std::os::fd::AsFd;
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use alacritty_terminal::event::WindowSize;
 use rustix::pty::{OpenptFlags, grantpt, openpt, ptsname, unlockpt};
-use rustix::termios::{self, OptionalActions, Winsize};
+use rustix::termios::{self, Winsize};
 use zbm_display::grid::Grid;
 use zbm_display::input::Keyboards;
 use zbm_sys::console::{Ready, Watch, wait_ready};
@@ -31,8 +31,12 @@ use crate::screen::zoom::Zoom;
 use crate::screen::{Locks, Status};
 use state::StateDir;
 
+mod cells;
+mod modes;
 mod state;
 mod status;
+
+pub use modes::Modes;
 
 pub use status::POWER_SUPPLY;
 
@@ -239,6 +243,10 @@ pub struct RealHost<'h, M> {
     battery: status::Battery,
     /// The PC speaker, for the bell.
     beeper: status::Beeper,
+    /// The client of the channel.
+    client: Option<&'h zbm_sys::socket::Connection>,
+    /// Whether the client was found gone, which the next wait says.
+    is_client_gone: bool,
 }
 
 impl<M: std::fmt::Debug> std::fmt::Debug for RealHost<'_, M> {
@@ -269,6 +277,8 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
             font_request: None,
             battery: status::Battery::default(),
             beeper: status::Beeper::default(),
+            client: None,
+            is_client_gone: false,
         }
     }
 
@@ -374,6 +384,10 @@ impl<'h, M: Read + Write + AsFd> RealHost<'h, M> {
         if let Some(devices) = &self.devices {
             watches.push(Watch::read(devices.as_fd()));
         }
+        // Last, as `is_client_ready` finds it.
+        if let Some(client) = self.client {
+            watches.push(Watch::read(client.as_fd()));
+        }
         (watches, count)
     }
 
@@ -419,6 +433,9 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             }
             return Ok(Input::Release);
         }
+        if let Some(gone) = self.take_client_gone() {
+            return Ok(gone);
+        }
         self.take_requests();
         let (watches, count) = self.watches();
         let ready = wait_ready(&watches, Some(timeout))?;
@@ -430,6 +447,9 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
         }
         if let Some(keys) = self.keys(keyboards)? {
             return Ok(keys);
+        }
+        if self.is_client_ready(&ready) {
+            return Ok(self.read_client());
         }
         if (master.read && !self.keyboards.is_scroll_lock()) || master.closed {
             return read_output(&mut self.master);
@@ -469,6 +489,21 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
             switch(&mut self.keyboards, Change::Next);
             self.control.layout_set(self.keyboards.layout());
         }
+    }
+
+    fn switch_layout(&mut self, name: &str) {
+        if let Some(switch) = &mut self.switch {
+            switch(&mut self.keyboards, Change::Requested(name));
+            self.control.layout_set(self.keyboards.layout());
+        }
+    }
+
+    fn layout_name(&self) -> String {
+        self.keyboards.layout().to_owned()
+    }
+
+    fn send_client(&mut self, message: &zbm_display::channel::FromConsole) {
+        self.send_to_client(message);
     }
 
     fn pending_accent(&self) -> Option<char> {
@@ -530,33 +565,6 @@ impl<M: Read + Write + AsFd> Host for RealHost<'_, M> {
                 && !modes.contains(termios::LocalModes::ECHO)
         });
         is_password || self.control.is_secret()
-    }
-}
-
-/// The modes of a terminal, saved to be restored: a program killed in raw
-/// mode leaves its terminal raw, without Ctrl-C or echo.
-#[derive(Debug)]
-pub struct Modes {
-    terminal: OwnedFd,
-    saved: termios::Termios,
-}
-
-impl Modes {
-    /// The modes of `terminal` now; `None` when it is not a terminal.
-    pub fn save(terminal: impl AsFd) -> Option<Modes> {
-        let saved = termios::tcgetattr(&terminal).ok()?;
-        let terminal = terminal.as_fd().try_clone_to_owned().ok()?;
-        Some(Modes { terminal, saved })
-    }
-
-    /// Gives the terminal the saved modes back.
-    ///
-    /// # Errors
-    ///
-    /// When the terminal cannot be changed.
-    pub fn restore(&self) -> io::Result<()> {
-        termios::tcsetattr(&self.terminal, OptionalActions::Now, &self.saved)
-            .map_err(io::Error::from)
     }
 }
 

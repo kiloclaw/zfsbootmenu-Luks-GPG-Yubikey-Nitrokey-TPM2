@@ -5,6 +5,7 @@ use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 
 use pretty_assertions::assert_eq;
+use rustix::termios::OptionalActions;
 use zbm_app::console::Reply;
 use zbm_display::keys::{Key, KeyPress};
 
@@ -457,4 +458,70 @@ fn a_font_request_is_taken_and_answered() {
     );
     drop(host);
     assert_eq!(grids, [((640, 480), Some(32))]);
+}
+
+#[test]
+fn the_client_is_read_and_written_and_found_gone() {
+    use zbm_display::channel::{FromClient, FromConsole, VERSION};
+    use zbm_sys::socket::Connection;
+
+    let (master, _program) = UnixStream::pair().unwrap();
+    let keyboards = Keyboards::from_files(Vec::new());
+    let (console_end, menu) = Connection::pair().unwrap();
+    let mut switched = Vec::new();
+    let mut host = RealHost::new(master, keyboards, control())
+        .with_layouts(Box::new(|_: &mut Keyboards, change: Change<'_>| {
+            switched.push(format!("{change:?}"));
+        }))
+        .with_client(&console_end);
+    let timeout = Duration::from_millis(10);
+
+    menu.send(&FromClient::Hello { version: VERSION }.encode())
+        .unwrap();
+    assert_eq!(
+        host.wait(timeout).unwrap(),
+        Input::Client(FromClient::Hello { version: VERSION })
+    );
+    // What is not a message is dropped.
+    menu.send(&[99]).unwrap();
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+
+    let key = FromConsole::Key {
+        press: KeyPress::new(Key::Char('a')),
+        layout: host.layout_name(),
+    };
+    host.send_client(&key);
+    let packet = menu.receive(Some(timeout)).unwrap().unwrap();
+    assert_eq!(FromConsole::decode(&packet), Some(key));
+    host.switch_layout("de");
+
+    // A client that reads nothing loses what does not fit, and holds up
+    // nothing.
+    for _ in 0..10_000 {
+        host.send_client(&FromConsole::Bell);
+    }
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+
+    drop(menu);
+    assert_eq!(host.wait(timeout).unwrap(), Input::ClientGone);
+    // Said once; the client is not waited on again.
+    assert_eq!(host.wait(timeout).unwrap(), Input::Nothing);
+    host.send_client(&FromConsole::Bell);
+    drop(host);
+    assert_eq!(switched, ["Requested(\"de\")"]);
+}
+
+#[test]
+fn a_client_that_cannot_be_written_is_gone() {
+    use zbm_display::channel::FromConsole;
+    use zbm_sys::socket::Connection;
+
+    let (master, _program) = UnixStream::pair().unwrap();
+    let (console_end, menu) = Connection::pair().unwrap();
+    let mut host = RealHost::new(master, Keyboards::from_files(Vec::new()), control())
+        .with_client(&console_end);
+    drop(menu);
+
+    host.send_client(&FromConsole::Bell);
+    assert_eq!(host.wait(Duration::ZERO).unwrap(), Input::ClientGone);
 }

@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use alacritty_terminal::event::WindowSize;
+use zbm_display::channel::{FromClient, FromConsole};
 use zbm_display::display::Screen;
 use zbm_display::grid::Grid;
 use zbm_display::keys::KeyPress;
@@ -21,8 +22,10 @@ use crate::screen::zoom::Zoom;
 use crate::screen::{Console, Status};
 use crate::typing::{Preview, Taken, Typing};
 use blank::Blanking;
+use client::Client;
 
 mod blank;
+mod client;
 
 /// How long the loop waits when nothing is due, so that a request to hand
 /// the display back is seen soon.
@@ -43,6 +46,10 @@ pub enum Input {
     Hangup,
     /// The display must be handed back (`zbm console release`).
     Release,
+    /// The client of the channel sent this.
+    Client(FromClient),
+    /// The client of the channel is gone.
+    ClientGone,
     /// The time ran out.
     Nothing,
 }
@@ -71,6 +78,24 @@ pub trait Host {
 
     /// Switches the keyboards to the image's next layout (Super+Space).
     fn next_layout(&mut self) {}
+
+    /// Switches the keyboards to the image's layout `name`, as the client
+    /// of the channel asks.
+    fn switch_layout(&mut self, name: &str) {
+        let _ = name;
+    }
+
+    /// The name of the keyboard layout keys are typed on.
+    fn layout_name(&self) -> String {
+        String::new()
+    }
+
+    /// Sends `message` to the client of the channel, if there is one: one
+    /// it does not take now is lost, and a client gone is told by the next
+    /// wait ([`Input::ClientGone`]).
+    fn send_client(&mut self, message: &FromConsole) {
+        let _ = message;
+    }
 
     /// The accent of a dead key typed, while it waits for its next key.
     fn pending_accent(&self) -> Option<char> {
@@ -173,7 +198,7 @@ const ZOOM_TRIES: usize = 8;
 /// Changes the font's size when the keys or `zbm console font` asked for
 /// it: the console draws in the grid the host makes, says which on its
 /// bar, and the programs are told their new size.
-fn zoom(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
+fn zoom(console: &mut Console, host: &mut dyn Host, client: &Client) -> io::Result<()> {
     let Some(zoom) = console.take_zoom().or_else(|| host.font_request()) else {
         return Ok(());
     };
@@ -195,6 +220,7 @@ fn zoom(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
     } else {
         console.set_notice(&format!("No other size: {font}"));
     }
+    client.resized(console, host);
     host.font_shown(&font, &console.window_size())
 }
 
@@ -276,6 +302,7 @@ pub fn run(
     // When the output read since the last frame started coming.
     let mut burst: Option<Instant> = None;
     let mut typing = Typing::default();
+    let mut client = Client::default();
     let mut pacing = Pacing::new(screen.interval());
     let mut blanking = Blanking::new(console.blank_after(), Instant::now());
     loop {
@@ -286,18 +313,18 @@ pub fn run(
         let deadlines = [console.deadline(), pacing.due(), blanking.due()];
         let timeout = timeout(host, burst.is_some(), is_mirror_pending, &deadlines);
         let input = host.wait(timeout)?;
-        console.set_secret(host.is_secret());
+        console.set_secret(host.is_secret() || client.is_secret());
         let is_output = matches!(input, Input::Output(_));
         if matches!(input, Input::Keys(_)) && blanking.is_woken_by_key(Instant::now()) {
             screen.set_power(true);
             console.unblank();
         }
-        if let Some(ended) = take(console, host, &mut typing, input)? {
+        if let Some(ended) = take(console, host, (&mut typing, &mut client), input)? {
             // A frame that waited for its time is not lost.
             pacing.present(console, screen, &mut shown, None)?;
             return Ok(ended);
         }
-        zoom(console, host)?;
+        zoom(console, host, &client)?;
         tell(console, host);
         let now = Instant::now();
         console.tick(now);
@@ -427,7 +454,12 @@ fn take_keys(
         zbm_sys::wipe_vec(&mut bytes);
         console.set_notice(&notice);
     }
-    let typed = type_keys(host, &kept, console.key_modes());
+    let typed = if console.is_showing_cells() {
+        Client::send_keys(host, &kept);
+        Ok(())
+    } else {
+        type_keys(host, &kept, console.key_modes())
+    };
     zbm_sys::wipe_values(&mut kept, KeyPress::BLANK);
     let preview = typing
         .preview()
@@ -448,12 +480,13 @@ fn send_replies(console: &mut Console, host: &mut dyn Host) -> io::Result<()> {
 }
 
 /// Takes `input`: output to the terminal, wiped once fed, with the
-/// answers it owes sent; keys to the programs, those of the console
-/// through `typing`. Returns why the loop ends, when it does.
+/// answers it owes sent; keys to the programs, or to the client while its
+/// cells are shown, those of the console through `typing`; the client's
+/// messages. Returns why the loop ends, when it does.
 fn take(
     console: &mut Console,
     host: &mut dyn Host,
-    typing: &mut Typing,
+    (typing, client): (&mut Typing, &mut Client),
     input: Input,
 ) -> io::Result<Option<Ended>> {
     match input {
@@ -469,6 +502,8 @@ fn take(
         }
         Input::Hangup => return Ok(Some(Ended::Hangup)),
         Input::Release => return Ok(Some(Ended::Released)),
+        Input::Client(message) => client.take(console, host, message),
+        Input::ClientGone => client.gone(console),
         Input::Nothing => {}
     }
     Ok(None)
