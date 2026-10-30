@@ -35,6 +35,7 @@
 //! ```
 
 pub mod boxes;
+pub mod channel;
 pub mod decor;
 pub mod display;
 pub mod faces;

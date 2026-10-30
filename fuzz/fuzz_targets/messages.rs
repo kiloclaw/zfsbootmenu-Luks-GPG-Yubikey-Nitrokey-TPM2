@@ -6,7 +6,7 @@
 //! layout), and the saved command line. Only ZFSBootMenu writes them, but
 //! hooks (I6) can, so reading them may not panic or hang. Also the messages
 //! on the session's and the console's sockets (I17), which a root login can
-//! send.
+//! send, and on the client channel between the console and the menu (I18).
 
 #![no_main]
 
@@ -61,6 +61,14 @@ fuzz_target!(|data: &[u8]| {
             zbm_app::session::Answer::decode(&encoded),
             Some((zbm_app::session::VERSION, answer))
         );
+    }
+    // The client channel between the console and the menu (I18): what is
+    // decoded is exactly one message, and encodes to the same bytes.
+    if let Some(message) = zbm_display::channel::FromClient::decode(data) {
+        assert_eq!(message.encode(), data);
+    }
+    if let Some(message) = zbm_display::channel::FromConsole::decode(data) {
+        assert_eq!(message.encode(), data);
     }
 
     let files = FakeFiles::new();
