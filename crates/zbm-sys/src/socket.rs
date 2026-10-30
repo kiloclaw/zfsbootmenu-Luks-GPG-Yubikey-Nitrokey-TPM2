@@ -76,12 +76,7 @@ impl Listener {
         reason = "a socket is no file the Files interface reads or writes"
     )]
     pub fn bind(path: &Path) -> io::Result<Listener> {
-        if let Some(directory) = path.parent() {
-            DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(directory)?;
-        }
+        make_directory(path)?;
         let address = SocketAddrUnix::new(path)?;
         if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_socket()) {
             if Connection::connect(path).is_ok() {
@@ -139,6 +134,27 @@ impl Drop for Listener {
     )]
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Makes the directory of the socket at `path`, root's alone, as
+/// [`Listener::bind`] does: for a process that confines its files before
+/// it binds.
+///
+/// # Errors
+///
+/// When it cannot be made.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a socket's directory is no file the Files interface makes"
+)]
+pub fn make_directory(path: &Path) -> io::Result<()> {
+    match path.parent() {
+        Some(directory) => DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(directory),
+        None => Ok(()),
     }
 }
 

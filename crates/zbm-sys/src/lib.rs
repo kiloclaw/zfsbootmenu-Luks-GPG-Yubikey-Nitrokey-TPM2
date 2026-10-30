@@ -14,8 +14,9 @@
 //! it is sound: signal dispositions, the signal mask and `signalfd`, the
 //! terminal and input device `ioctl`s (through `rustix`'s typed `ioctl`),
 //! memory mappings, `memfd_secret`, `explicit_bzero`, a child's set-up
-//! between `fork` and `exec`, and the unwinder. It is the only crate in the
-//! workspace that may contain `unsafe` code.
+//! between `fork` and `exec`, the unwinder, and what a process gives up
+//! ([`sandbox`]: the seccomp filter, landlock, the user of every thread).
+//! It is the only crate in the workspace that may contain `unsafe` code.
 
 #![allow(unsafe_code)]
 
@@ -23,6 +24,7 @@ pub mod console;
 pub mod drm;
 pub mod memory;
 mod process;
+pub mod sandbox;
 pub mod signals;
 pub mod socket;
 mod stack;

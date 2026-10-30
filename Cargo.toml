@@ -93,6 +93,9 @@ syn = { version = "2", default-features = false, features = ["full", "parsing", 
 # every unsafe block.
 unsafe_code = "deny"
 missing_docs = "warn"
+# `cargo llvm-cov` builds with `--cfg coverage`: a confined process then lets
+# its coverage profile be written (zbm_sys::sandbox).
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage)"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

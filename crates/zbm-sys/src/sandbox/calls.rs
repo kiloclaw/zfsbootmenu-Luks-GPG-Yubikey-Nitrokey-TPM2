@@ -1,0 +1,152 @@
+//! The system calls a filter names, with their numbers on each
+//! architecture.
+
+/// The number of the system call `name` on this architecture, if it has
+/// one: the tables of `arch/x86/entry/syscalls/syscall_64.tbl` and of
+/// `include/uapi/asm-generic/unistd.h`, which arm64 uses.
+pub fn call_number(name: &str) -> Option<u32> {
+    CALLS
+        .iter()
+        .find(|(call, _, _)| *call == name)
+        .and_then(|(_, x86_64, aarch64)| {
+            if cfg!(target_arch = "aarch64") {
+                *aarch64
+            } else {
+                *x86_64
+            }
+        })
+}
+
+/// Whether `name`, or `name/argument`, is a call of the table, on either
+/// architecture.
+pub fn is_known_call(name: &str) -> bool {
+    let call = name.split_once('/').map_or(name, |(call, _)| call);
+    CALLS.iter().any(|(known, _, _)| *known == call)
+}
+
+/// System calls by name, with their numbers on x86-64 and arm64.
+pub(super) const CALLS: &[(&str, Option<u32>, Option<u32>)] = &[
+    ("read", Some(0), Some(63)),
+    ("write", Some(1), Some(64)),
+    ("close", Some(3), Some(57)),
+    ("fstat", Some(5), Some(80)),
+    ("poll", Some(7), None),
+    ("lseek", Some(8), Some(62)),
+    ("mmap", Some(9), Some(222)),
+    ("mprotect", Some(10), Some(226)),
+    ("munmap", Some(11), Some(215)),
+    ("brk", Some(12), Some(214)),
+    ("rt_sigaction", Some(13), Some(134)),
+    ("rt_sigprocmask", Some(14), Some(135)),
+    ("rt_sigreturn", Some(15), Some(139)),
+    ("ioctl", Some(16), Some(29)),
+    ("pread64", Some(17), Some(67)),
+    ("pwrite64", Some(18), Some(68)),
+    ("readv", Some(19), Some(65)),
+    ("writev", Some(20), Some(66)),
+    ("sched_yield", Some(24), Some(124)),
+    ("mremap", Some(25), Some(216)),
+    ("madvise", Some(28), Some(233)),
+    ("dup", Some(32), Some(23)),
+    ("nanosleep", Some(35), Some(101)),
+    ("getpid", Some(39), Some(172)),
+    ("sendto", Some(44), Some(206)),
+    ("recvfrom", Some(45), Some(207)),
+    ("sendmsg", Some(46), Some(211)),
+    ("recvmsg", Some(47), Some(212)),
+    ("shutdown", Some(48), Some(210)),
+    ("getsockname", Some(51), Some(204)),
+    ("getpeername", Some(52), Some(205)),
+    ("getsockopt", Some(55), Some(209)),
+    ("setsockopt", Some(54), Some(208)),
+    ("accept4", Some(288), Some(242)),
+    ("clone", Some(56), Some(220)),
+    ("clone3", Some(435), Some(435)),
+    ("exit", Some(60), Some(93)),
+    ("kill", Some(62), Some(129)),
+    ("uname", Some(63), Some(160)),
+    ("fcntl", Some(72), Some(25)),
+    ("fsync", Some(74), Some(82)),
+    ("ftruncate", Some(77), Some(46)),
+    ("getcwd", Some(79), Some(17)),
+    ("rename", Some(82), None),
+    ("readlink", Some(89), None),
+    ("gettimeofday", Some(96), Some(169)),
+    ("getuid", Some(102), Some(174)),
+    ("getgid", Some(104), Some(176)),
+    ("geteuid", Some(107), Some(175)),
+    ("getegid", Some(108), Some(177)),
+    ("getppid", Some(110), Some(173)),
+    ("sigaltstack", Some(131), Some(132)),
+    ("prctl", Some(157), Some(167)),
+    ("gettid", Some(186), Some(178)),
+    ("tkill", Some(200), Some(130)),
+    ("futex", Some(202), Some(98)),
+    ("sched_getaffinity", Some(204), Some(123)),
+    ("getdents64", Some(217), Some(61)),
+    ("set_tid_address", Some(218), Some(96)),
+    ("clock_gettime", Some(228), Some(113)),
+    ("clock_getres", Some(229), Some(114)),
+    ("clock_nanosleep", Some(230), Some(115)),
+    ("exit_group", Some(231), Some(94)),
+    ("epoll_wait", Some(232), None),
+    ("epoll_ctl", Some(233), Some(21)),
+    ("tgkill", Some(234), Some(131)),
+    ("openat", Some(257), Some(56)),
+    ("newfstatat", Some(262), Some(79)),
+    ("readlinkat", Some(267), Some(78)),
+    ("pselect6", Some(270), Some(72)),
+    ("ppoll", Some(271), Some(73)),
+    ("set_robust_list", Some(273), Some(99)),
+    ("epoll_pwait", Some(281), Some(22)),
+    ("signalfd4", Some(289), Some(74)),
+    ("timerfd_create", Some(283), Some(85)),
+    ("timerfd_settime", Some(286), Some(86)),
+    ("eventfd2", Some(290), Some(19)),
+    ("epoll_create1", Some(291), Some(20)),
+    ("dup3", Some(292), Some(24)),
+    ("pipe2", Some(293), Some(59)),
+    ("prlimit64", Some(302), Some(261)),
+    ("getrandom", Some(318), Some(278)),
+    ("memfd_secret", Some(447), Some(447)),
+    ("statx", Some(332), Some(291)),
+    ("rseq", Some(334), Some(293)),
+    ("pidfd_send_signal", Some(424), Some(424)),
+    ("pidfd_open", Some(434), Some(434)),
+    ("futex_waitv", Some(449), Some(449)),
+    ("mlock", Some(149), Some(228)),
+    ("munlock", Some(150), Some(229)),
+    ("mlockall", Some(151), Some(230)),
+    ("getresuid", Some(118), Some(148)),
+    ("getresgid", Some(120), Some(150)),
+    ("sysinfo", Some(99), Some(179)),
+    ("unlinkat", Some(263), Some(35)),
+    ("renameat2", Some(316), Some(276)),
+    ("socket", Some(41), Some(198)),
+    ("connect", Some(42), Some(203)),
+    ("bind", Some(49), Some(200)),
+    ("listen", Some(50), Some(201)),
+    ("socketpair", Some(53), Some(199)),
+    ("execve", Some(59), Some(221)),
+    ("wait4", Some(61), Some(260)),
+    ("waitid", Some(247), Some(95)),
+    ("restart_syscall", Some(219), Some(128)),
+    ("close_range", Some(436), Some(436)),
+    ("faccessat2", Some(439), Some(439)),
+    ("fstatfs", Some(138), Some(44)),
+    ("epoll_pwait2", Some(441), Some(441)),
+    ("membarrier", Some(324), Some(283)),
+    ("inotify_init1", Some(294), Some(26)),
+    ("inotify_add_watch", Some(254), Some(27)),
+    ("inotify_rm_watch", Some(255), Some(28)),
+    ("mkdir", Some(83), None),
+    ("mkdirat", Some(258), Some(34)),
+    ("renameat", Some(264), Some(38)),
+    ("unlink", Some(87), None),
+    ("chmod", Some(90), None),
+    ("fchmod", Some(91), Some(52)),
+    ("fchmodat", Some(268), Some(53)),
+    ("fdatasync", Some(75), Some(83)),
+    ("flock", Some(73), Some(32)),
+    ("msync", Some(26), Some(227)),
+];
