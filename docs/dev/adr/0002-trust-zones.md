@@ -96,6 +96,18 @@ input an attacker controls is parsed where the secrets are not, and drawn where 
   once it let go of the `active` lock. The lock stays, as the record of which menu runs for hooks and users, and the
   signals stay as the fallback for a menu the session does not hold or that does not end in time. The menu over SSH as
   a remote front end, with no menu of its own, is the rest of PM10.
+- **SB10, the keyholder** (30 October 2026): `zbm unlock serve`, an applet of `zbm` as ADR 0003 decided. Its client,
+  the start-up program or `zluks`, starts one for each unlocking run on a socket pair (`SOCK_SEQPACKET`, the peer's
+  user checked), sends it the action (`UnlockRequest`: unlock every volume, open one, open one with a key file), and
+  answers what it asks with its own `Interaction`; the keyholder ends once it said how the run ended. So the request
+  is per run rather than per volume and method: the keyholder runs the key methods in their order, which ask the
+  person mid-way (a TPM2 PIN once the token is read, a YubiKey once it is there), and it holds the secrets cached for
+  several volumes, which must stay in Z1. It also reads the crypttab, which the key methods are described by; the
+  crypttab is the image's. A credential typed in the client moves to the keyholder as a packet of its own, sent from
+  the `Secret` it was typed into, which is then dropped. A keyholder per run, rather than one under Z0, keeps two
+  runs (start-up's and one over SSH) apart as before, by the state directory's locks, and ends each run's secrets
+  with its process. When no keyholder can be started, the client unlocks itself and logs why. The PCR extension of
+  SE10 and a keyholder that lives longer can follow when SE10 or SE11 needs one.
 
 ## Answers of the maintainer
 

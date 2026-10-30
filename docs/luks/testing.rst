@@ -381,8 +381,10 @@ Following a boot
   names the key file on a FAT USB stick (``zbm.luks_key``), and no prompt may appear. A teardown hook runs just before
   ``kexec``: ``zbm debug secrets`` searches the memory of every other process, their command lines and environments, and
   every file on the file systems in memory, for both secrets, given in hexadecimal. It must search and find nothing, and
-  the kernel must say that it zeroes freed memory (``heap free:on``). The test notes how the image's kernel lets secrets
-  be kept (``Secret`` with ``memfd_secret``, else ``Locked``).
+  the kernel must say that it zeroes freed memory (``heap free:on``). The hook also reads the journal: the volume must
+  have been opened by a keyholder (``zbm unlock serve``, ROADMAP.md SB10), the process whose ID its client logged as
+  the one it started. The test notes how the image's kernel lets secrets be kept (``Secret`` with ``memfd_secret``,
+  else ``Locked``).
 
 * ``runtime-rust-saved`` checks the saved boot logs and bug reports (ROADMAP.md #9). Besides d0, the machine has a
   FAT disk labelled ``ZBMLOGS``, made fresh for each run, and both boots have ``zbm.save_logs=LABEL=ZBMLOGS``. The

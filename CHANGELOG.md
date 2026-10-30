@@ -102,6 +102,11 @@ clevis, GnuPG key files with a smart card or passphrase, and YubiKey challenge-r
 the Rust command, and the teardown hook closes the mappings with it. Unlike the legacy runtime, it writes no decrypted
 key to a file, and computes the salted TPM2 PIN in the process instead of passing it to `openssl kdf` as an argument.
 
+The volumes are opened by a keyholder, `zbm unlock serve`: a process that the start-up program and `zluks` start for
+each unlocking run, which asks them for passphrases and PINs and ends with the run. Passphrases shared by several
+volumes, decrypted key files and unsealed TPM2 keys are only ever in the keyholder, never in the start-up program or
+the menu, which hand on what is typed and drop it. A run that cannot start a keyholder unlocks as before, and logs why.
+
 Also fixed in the legacy runtime: a LUKS mapping whose name, read as a pattern, matched a mapping recorded earlier
 (`a.b` after `axb`) was not recorded, so the teardown hook left it open.
 

@@ -136,8 +136,10 @@ Every crate may use `insta`, `pretty_assertions`, `proptest`, `serde` as develop
   `model::Snapshot` of the machine (`snapshot`), apply a `model::Action` (`apply`, quietly or on the console:
   `Through`), and get `model::Event`s back, the last of them the outcome. `App` implements it on a `Context` and the
   `Runtime` of this boot (the options, the state directory, the layouts, how to boot), which it always has; the
-  actions of the LUKS volumes alone are `Volumes`'. The LUKS actions (`UnlockAll`, `Open`, `OpenWithKeyFile`, `Close`) run as
-  unlocking runs of `zbm-luks`, whose requests a front end answers through the `zbm_platform::Interaction` it passes.
+  actions of the LUKS volumes alone are `Volumes`'. The LUKS actions (`UnlockAll`, `Open`, `OpenWithKeyFile`,
+  `Close`) run as unlocking runs of `zbm-luks`; those that open volumes run in a keyholder (`keyholder`, ADR 0002's
+  zone Z1), a process of `zbm unlock serve` that `Volumes::through` starts for the run, whose requests a front end
+  answers through the `zbm_platform::Interaction` it passes.
 - **orchestration**: `zbm-startup` is the start-up program: a list of `Step` values, one per `Stage` (modules, host
   ID, device wait, early hooks, LUKS unlocking, pool import), run in order by `run_steps`, which skips stages an
   earlier run finished and sends their events to a front end (`front::Front`), which also answers what they ask: the

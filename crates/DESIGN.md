@@ -180,7 +180,7 @@ The runtime keeps the legacy process structure, for three reasons:
 | Start-up | `zfsbootmenu-init` | The start-up sequence, the countdown and the automatic boot, then the loop of menu and recovery shell, as in `libexec/zfsbootmenu-init`. Its modes are described below. |
 | Menu | `zfsbootmenu` | The menu loop of `bin/zfsbootmenu`, as users run it over SSH or from the recovery shell. Holds `/zfsbootmenu/active`. On the console the menu runs in the start-up program itself (below). |
 | `fzf` callbacks | `zfsbootmenu-preview`, `zfsbootmenu-help`, `zfsbootmenu-diff`, `zlogtail`, `ztrace`, `zfunc` | Short-lived; read the configuration, the state directory and ZFS, draw or act, and exit. |
-| LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, so that passphrases leave memory when it ends, as the legacy subshell in `init.d/45-luks-unlock` ensures. On the menu's start-up view, the start-up program unlocks itself, asking in the view's dialogs (below, and [Secrets](#secrets)). |
+| LUKS unlocking | `zluks unlock` | The existing `zluks` subcommand. On the plain console, the start-up program runs it as its own process, as the legacy subshell in `init.d/45-luks-unlock` does. Either way the volumes are opened by a keyholder, `zbm unlock serve`, a process that `zluks` or the start-up program starts for the run and answers, on the start-up view in its dialogs (below, and [Secrets](#secrets)). |
 | Recovery shell | `bash -i` | Unchanged. The recovery commands it offers are applets. |
 
 On the console, the start-up program is the session (ADR 0002, PM9): when the terminal can run the menu, the stages
@@ -621,9 +621,13 @@ Passphrases, PINs, YubiKey responses, FIDO2 secrets, unsealed TPM2 secrets and d
   secret yet; it moves to the same reader before it does (R5 step 6, LUKS volumes from the menu).
 - **Derived values** (the SHA-256 authorization value of a TPM2 PIN, systemd's PBKDF2-salted PIN) are computed in the
   process instead of by `sha256sum` and `openssl`.
-- **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end. On the plain
-  console the run is a process of its own (`zluks unlock`); on the start-up view it runs in the start-up program,
-  where the dropped secrets are wiped (decision 11).
+- **Lifetime:** secrets that unlock several volumes are kept for one unlocking run and dropped at its end. The run is
+  a process of its own, the keyholder (`zbm unlock serve`, ROADMAP.md SB10, zone Z1 of ADR 0002): `zluks` and the
+  start-up program start one for each run on a socket pair, send it the action, and answer what it asks
+  (`zbm_app::keyholder`). A secret typed in the client goes to the keyholder as a packet of its own, sent from the
+  `Secret` it was typed into, which is then dropped; the secrets cached for several volumes, decrypted key files and
+  unsealed keys are only ever in the keyholder, which ends with the run. When no keyholder can be started, the
+  client unlocks itself and logs why, as before (decision 11).
 - **Before `kexec`,** which leaves memory as it is, the start-up program drops the clean page cache (key files read
   from key devices) and warns if it still holds a secret (`zbm_boot::boot::wipe_before_kexec`). With `init_on_free=1`
   on its command line, the kernel zeroes every page it frees, so what ended processes and closed pipes left behind is
