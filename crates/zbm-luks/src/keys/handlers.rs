@@ -78,7 +78,7 @@ impl TokenHandler for Tpm2 {
         target: Target<'_>,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
-        session.try_tpm2_token(target, &token.id, token)
+        session.try_tpm2_token(target, token)
     }
 }
 
@@ -100,7 +100,7 @@ impl TokenHandler for Clevis {
         target: Target<'_>,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
-        session.try_clevis_token(target, &token.id, token)
+        session.try_clevis_token(target, token)
     }
 }
 
@@ -122,7 +122,7 @@ impl TokenHandler for Fido2 {
         target: Target<'_>,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
-        session.try_fido2_token(target, &token.id, token)
+        session.try_fido2_token(target, token)
     }
 }
 

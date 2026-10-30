@@ -164,7 +164,8 @@ fn cryptsetup_gets_keys_on_standard_input() {
             Err(LuksError::Open {
                 device: "/dev/sda".to_owned(),
                 name: "v".to_owned(),
-                status: 2
+                status: 2,
+                why: "no key slot of /dev/sda accepts the key".to_owned(),
             })
         );
         assert!(open(Key::File(Path::new("/k"))).is_err());

@@ -26,9 +26,9 @@ impl Unlocker<'_> {
     pub fn try_clevis_token(
         &mut self,
         target: Target<'_>,
-        id: &str,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
+        let id = token.id.as_str();
         let device = target.device();
         let context = *self.context();
         let failed = |failure| target.token_error("clevis", id, failure);
@@ -103,14 +103,10 @@ mod tests {
         with_session(&fake, &settings, |session| {
             let json = r#"{"type":"clevis","keyslots":["3","4"],"jwe":{"protected":"x"}}"#;
             let token = Token::from_export("2", json).unwrap();
-            assert!(session.try_clevis_token(target, "2", &token).is_ok());
+            assert!(session.try_clevis_token(target, &token).is_ok());
             assert!(
                 session
-                    .try_clevis_token(
-                        target,
-                        "2",
-                        &crate::keys::tests::token(r#"{"keyslots":[]}"#)
-                    )
+                    .try_clevis_token(target, &crate::keys::tests::token(r#"{"keyslots":[]}"#))
                     .is_err()
             );
         });
@@ -135,11 +131,7 @@ mod tests {
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
-                    .try_clevis_token(
-                        target,
-                        "2",
-                        &crate::keys::tests::token(r#"{"keyslots":["3"]}"#)
-                    )
+                    .try_clevis_token(target, &crate::keys::tests::token(r#"{"keyslots":["3"]}"#))
                     .is_err()
             );
         });
@@ -151,13 +143,13 @@ mod tests {
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             assert!(
                 session
-                    .try_clevis_token(target, "2", &crate::keys::tests::token("{}"))
+                    .try_clevis_token(target, &crate::keys::tests::token("{}"))
                     .is_err()
             );
         });
         assert!(
             fake.kmsg()
-                .contains("clevis token 2 on /dev/sda needs clevis and jose in the image")
+                .contains("clevis token 0 on /dev/sda needs clevis and jose in the image")
         );
     }
 }

@@ -130,9 +130,9 @@ impl Unlocker<'_> {
     pub fn try_fido2_token(
         &mut self,
         target: Target<'_>,
-        id: &str,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
+        let id = token.id.as_str();
         let device = target.device();
         let failed = |failure| target.token_error("systemd-fido2", id, failure);
         let request = WaitRequest {
@@ -286,7 +286,7 @@ mod tests {
         let settings = Settings::new("/zfsbootmenu");
         with_prompter(&fake, &settings, &prompts, |session| {
             let token = Token::from_export("0", &json).unwrap();
-            assert!(session.try_fido2_token(target, "0", &token).is_ok());
+            assert!(session.try_fido2_token(target, &token).is_ok());
         });
         assert_eq!(prompts.consoles(), 1);
         let lines = fake.runner.lines();
@@ -333,7 +333,7 @@ mod tests {
         let target = crate::testing::target("v", "/dev/sda", &args);
         with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
             let token = crate::keys::tests::token("{}");
-            assert!(session.try_fido2_token(target, "3", &token).is_err());
+            assert!(session.try_fido2_token(target, &token).is_err());
             // The registry's handler does the same.
             let handler = crate::keys::handlers::Fido2;
             assert!(handler.try_open(session, target, &token).is_err());
@@ -345,7 +345,7 @@ mod tests {
         );
         assert!(
             fake.kmsg()
-                .contains("no FIDO2 security key for token 3 on /dev/sda")
+                .contains("no FIDO2 security key for token 0 on /dev/sda")
         );
     }
 
@@ -389,16 +389,8 @@ mod tests {
         fake.console.secret(b"bad").secret(b"1234");
         let settings = Settings::new("/zfsbootmenu");
         with_session(&fake, &settings, |session| {
-            assert!(
-                session
-                    .try_fido2_token(target, "0", &fido2_token(true))
-                    .is_ok()
-            );
-            assert!(
-                session
-                    .try_fido2_token(target, "0", &fido2_token(false))
-                    .is_ok()
-            );
+            assert!(session.try_fido2_token(target, &fido2_token(true)).is_ok());
+            assert!(session.try_fido2_token(target, &fido2_token(false)).is_ok());
         });
         let output = fake.console.output_text();
         assert!(output.contains("The security key did not release the key."));
@@ -411,7 +403,7 @@ mod tests {
                 fake.console.secret(secret);
             }
             let result = with_session(&fake, &settings, |session| {
-                session.try_fido2_token(target, "0", &fido2_token(true))
+                session.try_fido2_token(target, &fido2_token(true))
             });
             assert!(result.is_err());
         }

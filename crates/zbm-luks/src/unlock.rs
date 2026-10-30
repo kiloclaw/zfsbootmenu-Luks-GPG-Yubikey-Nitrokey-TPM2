@@ -102,8 +102,8 @@ impl Unlocker<'_> {
 
     /// Records a mapping this run opened with `method`.
     fn opened(&self, volume: &Volume<Open>, method: Method) -> Opened {
-        let (name, device) = (volume.name().as_str(), volume.device().as_str());
-        self.mappings().record(name, device, volume.entry().origin);
+        self.mappings()
+            .record(volume.name(), volume.device(), volume.entry().origin);
         Opened::Unlocked(method)
     }
 

@@ -150,7 +150,7 @@ impl Unlocker<'_> {
             Ok(open) => return Ok(open),
             Err(failed) => failed,
         };
-        let (status, output) = (failed.error.status(), failed.output);
+        let (status, output) = (failed.error.status(), &failed.output);
         zbm_trace::debug!(
             "token {id} on {device} failed ({status}): {output}";
             %id, device = %target.device(), %status, %output
@@ -159,6 +159,7 @@ impl Unlocker<'_> {
             device: target.device().to_string(),
             name: target.name().to_string(),
             status,
+            why: failed.error.to_string(),
         })
     }
 

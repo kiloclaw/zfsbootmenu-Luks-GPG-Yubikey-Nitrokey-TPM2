@@ -4,7 +4,7 @@ use super::*;
 use crate::testing::{checks, cleanup, settings};
 
 #[test]
-fn the_unlock_pilot_commands_are_those_of_the_python_harness() {
+fn the_key_file_commands_are_those_of_the_python_harness() {
     assert_eq!(
         format_command(),
         "if command -v truncate >/dev/null; then truncate -s 32M /tmp/pilot.img; \
@@ -18,30 +18,30 @@ fn the_unlock_pilot_commands_are_those_of_the_python_harness() {
     );
     assert_eq!(
         open_command("wrong"),
-        "zluks --pilot open \"$dev\" zbm-pilot --key-file /tmp/wrong.key \
+        "zluks open \"$dev\" zbm-pilot --key-file /tmp/wrong.key \
          --journal /tmp/pilot.jsonl"
     );
 }
 
 #[test]
 fn the_journal_must_record_both_attempts_without_the_key() {
-    let settings = settings("runtime-pilot-journal");
-    let test = Test::new(&settings, "runtime-rust-pilot").unwrap();
+    let settings = settings("runtime-keyfile-journal");
+    let test = Test::new(&settings, "runtime-rust-keyfile").unwrap();
 
     check_journal(
         &test,
-        r#"{"message":"refused","stdin":"secret"}
-{"message":"opened","stdin":"secret"}"#,
+        r#"{"message":"refused","line":"cryptsetup open --type luks --key-file=/tmp/pilot.key"}
+{"message":"opened"}"#,
     );
     check_journal(&test, r#"{"message":"opened","key":"zbm-pilot-key-1234"}"#);
 
     assert_eq!(
         checks(&test),
         [
-            "ok   - the journal records that the key went to standard input",
+            "ok   - the journal records that cryptsetup read the key file where it is",
             "ok   - the journal does not contain the key",
             "ok   - the journal records the refused and the successful attempt",
-            "FAIL - the journal records that the key went to standard input",
+            "FAIL - the journal records that cryptsetup read the key file where it is",
             "FAIL - the journal does not contain the key",
             "FAIL - the journal records the refused and the successful attempt",
         ]

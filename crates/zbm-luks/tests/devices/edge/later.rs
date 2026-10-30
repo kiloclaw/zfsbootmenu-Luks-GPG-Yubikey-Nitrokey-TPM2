@@ -124,9 +124,11 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
                 scope.spawn(|| {
                     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
                     c.with_session(&console, |session, _| {
-                        session
-                            .mappings()
-                            .record("v", "/dev/loop99", Origin::Configured);
+                        session.mappings().record(
+                            &"v".parse().unwrap(),
+                            &"/dev/loop99".parse().unwrap(),
+                            Origin::Configured,
+                        );
                     });
                 });
             }
@@ -152,18 +154,26 @@ pub(super) fn races_and_failures(lab: &Lab, checks: &mut Checks, volumes: &Volum
     let c = case(zfs);
     let console = LinesConsole::new(&[], Duration::ZERO, Duration::ZERO);
     c.with_session(&console, |session, _| {
-        session
-            .mappings()
-            .record("axb", "/dev/loop98", Origin::Configured);
-        session
-            .mappings()
-            .record("a.b", "/dev/loop99", Origin::Configured);
-        session
-            .mappings()
-            .record("a*", "/dev/loop97", Origin::Configured);
-        session
-            .mappings()
-            .record("a.b", "/dev/loop96", Origin::Configured);
+        session.mappings().record(
+            &"axb".parse().unwrap(),
+            &"/dev/loop98".parse().unwrap(),
+            Origin::Configured,
+        );
+        session.mappings().record(
+            &"a.b".parse().unwrap(),
+            &"/dev/loop99".parse().unwrap(),
+            Origin::Configured,
+        );
+        session.mappings().record(
+            &"a*".parse().unwrap(),
+            &"/dev/loop97".parse().unwrap(),
+            Origin::Configured,
+        );
+        session.mappings().record(
+            &"a.b".parse().unwrap(),
+            &"/dev/loop96".parse().unwrap(),
+            Origin::Configured,
+        );
     });
     checks.check(
         "a.b recorded after axb",

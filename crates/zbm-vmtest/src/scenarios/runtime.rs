@@ -27,7 +27,8 @@
 //!   - `signals` (`signals`): the signal dispositions of a hook, fzf
 //!     (legacy only: the menu) and the recovery shell, which must take
 //!     Ctrl-C.
-//! - `rust-pilot` (`pilot`): the pilots of `ROADMAP.md` (R0).
+//! - `rust-keyfile` (`key_file`): `zluks open --key-file` on a volume
+//!   formatted in the VM, which the first pilot of `ROADMAP.md` (R0) began.
 //! - `rust-autosize` (`autosize`): the console font follows the display's
 //!   EDID (`zbm.autosize`, HiDPI), on a virtio GPU.
 //! - `rust-colours` (`colours`): the image's console fonts leave the VGA
@@ -88,8 +89,8 @@ mod crash;
 mod drm;
 mod gpu;
 mod host;
+mod key_file;
 mod keysource;
-mod pilot;
 mod record_fixtures;
 mod record_zfs;
 mod saved;
@@ -111,7 +112,7 @@ const COUNTDOWN: &str = r"Booting \S*tplain/ROOT/be\S* in";
 /// redraws only the cells that change.
 const MENU_COUNTDOWN: &str = r"screen:Booting \S*tplain/ROOT/be\S* in";
 
-/// Runs `setup`, `record-zfs`, `rust-pilot`, `rust-crash`, `rust-autosize`,
+/// Runs `setup`, `record-zfs`, `rust-keyfile`, `rust-crash`, `rust-autosize`,
 /// `rust-colours`, `rust-drm`, `rust-console`, `rust-console-start`,
 /// `rust-console-comfort`,
 /// `rust-saved`, `rust-gpu`,
@@ -125,7 +126,7 @@ pub fn run(test: &Test, scenario: &str) -> Result<()> {
         "setup" => setup::run(test),
         "record-zfs" => record_zfs::run(test),
         "record-fixtures" => record_fixtures::run(test),
-        "rust-pilot" => pilot::run(test),
+        "rust-keyfile" => key_file::run(test),
         "rust-crash" => crash::run(test),
         "rust-autosize" => autosize::run(test),
         "rust-colours" => colours::run(test),
@@ -221,7 +222,7 @@ mod tests {
         use crate::testing::{Step, cleanup, scripted, settings};
 
         let settings = settings("runtime-escape");
-        let test = Test::new(&settings, "runtime-rust-pilot").unwrap();
+        let test = Test::new(&settings, "runtime-rust-keyfile").unwrap();
         // The menu's countdown: the space before "in" is a cursor move.
         let script = vec![
             Step::Say("\x1b[2;2HBooting tplain/ROOT/be\x1b[2;25Hin 30 s.\r\n"),

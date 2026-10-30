@@ -20,11 +20,11 @@
 //! standard input (see "Secrets" in `crates/DESIGN.md`).
 //!
 //! An [`unlocker::Unlocker`] unlocks volumes: it tries the key methods of
-//! [`unlock::methods`] in order, LUKS2 tokens through the handlers of
-//! [`keys::handlers`], then the passphrase prompt of [`unlock::prompt`], and
-//! keeps its records in a [`mappings::MappingStore`]. [`pilot`] is the key
-//! file slice of R0 over the typed `cryptsetup` of `zbm-crypt`, which the
-//! application layer's unlock use case moves onto the unlocker in R4.
+//! a [`unlock::methods::Registry`] in order, the LUKS2 tokens through the
+//! handlers of [`keys::handlers`] and the passphrase prompt of
+//! [`unlock::prompt`] last, on a [`volume::Volume`] that only an open
+//! mapping of the LUKS port turns from closed to open, keeps every attempt,
+//! and its records in a [`mappings::MappingStore`].
 
 #![cfg_attr(
     test,
@@ -43,7 +43,6 @@ pub mod error;
 pub mod keyfile;
 pub mod keys;
 pub mod mappings;
-pub mod pilot;
 pub mod tokens;
 pub mod unlock;
 pub mod unlocker;

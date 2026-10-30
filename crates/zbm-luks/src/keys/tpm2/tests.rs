@@ -214,10 +214,10 @@ fn pins_are_asked_for_and_kept_for_other_volumes() {
     let args = [];
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
         let a = crate::testing::target("a", "/dev/sda", &args);
-        assert!(session.try_tpm2_token(a, "0", &json).is_ok());
+        assert!(session.try_tpm2_token(a, &json).is_ok());
         // The second volume gets the PIN that worked, without asking.
         let b = crate::testing::target("b", "/dev/sdb", &args);
-        assert!(session.try_tpm2_token(b, "0", &json).is_ok());
+        assert!(session.try_tpm2_token(b, &json).is_ok());
     });
     let output = fake.console.output_text();
     assert_eq!(output.matches("TPM2 PIN (leave empty").count(), 2);
@@ -252,7 +252,7 @@ fn a_locked_tpm_is_not_asked_for_pins() {
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
         assert!(
             session
-                .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+                .try_tpm2_token(target, &token("token-tpm2-pin.json"))
                 .is_err()
         );
     });
@@ -276,12 +276,12 @@ fn missing_tpm_devices_are_probed_once() {
     with_session(&fake, &Settings::new("/zfsbootmenu"), |session| {
         assert!(
             session
-                .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
+                .try_tpm2_token(target, &crate::keys::tests::token("{}"))
                 .is_err()
         );
         assert!(
             session
-                .try_tpm2_token(target, "0", &crate::keys::tests::token("{}"))
+                .try_tpm2_token(target, &crate::keys::tests::token("{}"))
                 .is_err()
         );
     });
@@ -326,20 +326,20 @@ fn the_plugin_opens_tokens_with_and_without_a_pin() {
     with_session(&fake, &settings, |session| {
         assert!(
             session
-                .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+                .try_tpm2_token(target, &token("token-tpm2-pin.json"))
                 .is_ok()
         );
         // The PIN that worked is tried first on the next volume.
         assert_eq!(session.tpm2_pins.len(), 1);
         assert!(
             session
-                .try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+                .try_tpm2_token(target, &token("token-tpm2-pin.json"))
                 .is_ok()
         );
         assert_eq!(session.tpm2_pins.len(), 1);
         assert!(
             session
-                .try_tpm2_token(target, "0", &token("token-tpm2.json"))
+                .try_tpm2_token(target, &token("token-tpm2.json"))
                 .is_ok()
         );
     });
@@ -351,7 +351,7 @@ fn the_plugin_opens_tokens_with_and_without_a_pin() {
     let (fake, settings) = plugin_machine();
     fake.console.secret(b"");
     let given_up = with_session(&fake, &settings, |session| {
-        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+        session.try_tpm2_token(target, &token("token-tpm2-pin.json"))
     });
     assert!(given_up.is_err());
     let (fake, settings) = plugin_machine();
@@ -361,7 +361,7 @@ fn the_plugin_opens_tokens_with_and_without_a_pin() {
         .secret(b"c")
         .secret(b"d");
     let too_many = with_session(&fake, &settings, |session| {
-        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+        session.try_tpm2_token(target, &token("token-tpm2-pin.json"))
     });
     assert!(too_many.is_err());
     // Three PINs, three attempts to open.
@@ -381,7 +381,7 @@ fn without_plugin_or_tools_a_pin_token_is_unsupported() {
     let args = [];
     let target = crate::testing::target("v", "/dev/sda", &args);
     let result = with_session(&fake, &settings, |session| {
-        session.try_tpm2_token(target, "0", &token("token-tpm2-pin.json"))
+        session.try_tpm2_token(target, &token("token-tpm2-pin.json"))
     });
     assert!(result.is_err());
     assert!(

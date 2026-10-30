@@ -8,6 +8,7 @@
 use std::path::Path;
 
 use zbm_platform::files::{Files, LockWait};
+use zbm_types::{DevicePath, MappingName};
 
 use crate::device::is_open;
 use crate::unlocker::Unlocker;
@@ -143,7 +144,7 @@ impl<'a> MappingStore<'a> {
     /// Records a mapping ZFSBootMenu opened, once. Concurrent sessions
     /// (console and SSH) may record the same mapping at the same time, so
     /// the lock is held across the check and the append.
-    pub fn record(&self, name: &str, device: &str, origin: Origin) {
+    pub fn record(&self, name: &MappingName, device: &DevicePath, origin: Origin) {
         let path = self.mappings;
         self.locked(|| {
             let recorded = self.files.read(path).is_ok_and(|text| {
@@ -153,8 +154,8 @@ impl<'a> MappingStore<'a> {
             });
             if !recorded {
                 let mapping = Mapping {
-                    name: name.to_owned(),
-                    device: device.to_owned(),
+                    name: name.to_string(),
+                    device: device.to_string(),
                     auto: origin.field().to_owned(),
                 };
                 let line = format!("{}\n", mapping.line());
@@ -255,15 +256,21 @@ mod tests {
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
             assert_eq!(session.mappings().read(), None);
-            session
-                .mappings()
-                .record("a", "/dev/sda", Origin::Discovered);
-            session
-                .mappings()
-                .record("ab", "/dev/sdb", Origin::Configured);
-            session
-                .mappings()
-                .record("a", "/dev/sdc", Origin::Configured);
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sda".parse().unwrap(),
+                Origin::Discovered,
+            );
+            session.mappings().record(
+                &"ab".parse().unwrap(),
+                &"/dev/sdb".parse().unwrap(),
+                Origin::Configured,
+            );
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sdc".parse().unwrap(),
+                Origin::Configured,
+            );
             assert_eq!(
                 session.mappings().read().unwrap(),
                 [
@@ -296,12 +303,24 @@ mod tests {
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
             let store = session.mappings();
-            store.record("a", "/dev/sda", Origin::Discovered);
-            store.record("b", "/dev/sdb", Origin::Discovered);
+            store.record(
+                &"a".parse().unwrap(),
+                &"/dev/sda".parse().unwrap(),
+                Origin::Discovered,
+            );
+            store.record(
+                &"b".parse().unwrap(),
+                &"/dev/sdb".parse().unwrap(),
+                Origin::Discovered,
+            );
             // Read before another session records `c`; the removal reads
             // the record again.
             let before = store.read().unwrap();
-            store.record("c", "/dev/sdc", Origin::Configured);
+            store.record(
+                &"c".parse().unwrap(),
+                &"/dev/sdc".parse().unwrap(),
+                Origin::Configured,
+            );
 
             store.remove(&[before[0].name.clone()]);
             store.remove(&[]);
@@ -326,16 +345,20 @@ mod tests {
         let lock = Path::new("/zfsbootmenu/luks-mappings.lock");
         let other = fake.files.lock(lock, LockWait::Try).unwrap();
         with_session(&fake, |session| {
-            session
-                .mappings()
-                .record("a", "/dev/sda", Origin::Configured);
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sda".parse().unwrap(),
+                Origin::Configured,
+            );
         });
         assert_eq!(fake.files.text("/zfsbootmenu/luks-mappings"), None);
         drop(other);
         with_session(&fake, |session| {
-            session
-                .mappings()
-                .record("a", "/dev/sda", Origin::Configured);
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sda".parse().unwrap(),
+                Origin::Configured,
+            );
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),
@@ -427,25 +450,37 @@ mod tests {
         });
         let fake = FakeSystem::new();
         with_session(&fake, |session| {
-            session
-                .mappings()
-                .record("a", "/dev/sda", Origin::Discovered);
-            session
-                .mappings()
-                .record("b", "/dev/sdb", Origin::Configured);
-            session
-                .mappings()
-                .record("a", "/dev/sdc", Origin::Configured);
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sda".parse().unwrap(),
+                Origin::Discovered,
+            );
+            session.mappings().record(
+                &"b".parse().unwrap(),
+                &"/dev/sdb".parse().unwrap(),
+                Origin::Configured,
+            );
+            session.mappings().record(
+                &"a".parse().unwrap(),
+                &"/dev/sdc".parse().unwrap(),
+                Origin::Configured,
+            );
             // Names are text, not patterns (fixed in the legacy code too).
-            session
-                .mappings()
-                .record("axb", "/dev/sdd", Origin::Configured);
-            session
-                .mappings()
-                .record("a.b", "/dev/sde", Origin::Configured);
-            session
-                .mappings()
-                .record("a*", "/dev/sdf", Origin::Configured);
+            session.mappings().record(
+                &"axb".parse().unwrap(),
+                &"/dev/sdd".parse().unwrap(),
+                Origin::Configured,
+            );
+            session.mappings().record(
+                &"a.b".parse().unwrap(),
+                &"/dev/sde".parse().unwrap(),
+                Origin::Configured,
+            );
+            session.mappings().record(
+                &"a*".parse().unwrap(),
+                &"/dev/sdf".parse().unwrap(),
+                Origin::Configured,
+            );
         });
         assert_eq!(
             fake.files.text("/zfsbootmenu/luks-mappings").unwrap(),

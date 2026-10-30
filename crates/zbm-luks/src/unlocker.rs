@@ -394,7 +394,7 @@ impl<'a> Unlocker<'a> {
             Ok(open) => return Ok(open),
             Err(failed) => failed,
         };
-        let (status, output) = (failed.error.status(), failed.output);
+        let (status, output) = (failed.error.status(), &failed.output);
         let (device, name) = (target.device(), target.name());
         zbm_trace::debug!(
             "cryptsetup open {device} {name} failed ({status}): {output}";
@@ -404,6 +404,7 @@ impl<'a> Unlocker<'a> {
             device: device.to_string(),
             name: name.to_string(),
             status,
+            why: failed.error.to_string(),
         })
     }
 }

@@ -1,8 +1,8 @@
-//! `runtime-rust-pilot`: the first pilot of `ROADMAP.md` (R0) in
-//! the Rust image, on the serial console of the recovery shell: `zluks
-//! --pilot open` on a LUKS volume formatted in the VM. The second, the
-//! boot environment list, gave way to the menu itself (R5 step 3), which
-//! the other scenarios drive.
+//! `runtime-rust-keyfile`: `zluks open --key-file` in the Rust image, on
+//! the serial console of the recovery shell, on a LUKS volume formatted in
+//! the VM: the registry of key methods with the key file alone
+//! (ROADMAP.md DM6). It began as the first pilot of the refactoring (R0),
+//! `zluks --pilot open`; the volume and its files keep the pilot's names.
 
 use crate::error::Result;
 use crate::qemu::Machine;
@@ -13,7 +13,7 @@ use crate::vm::Vm;
 /// The key of the pilot's LUKS volume.
 const PILOT_KEY: &str = "zbm-pilot-key-1234";
 
-/// Runs the pilot.
+/// Runs the scenario.
 ///
 /// # Errors
 ///
@@ -43,15 +43,15 @@ fn format_command() -> String {
     )
 }
 
-/// `zluks --pilot open` with the key file `key`.
+/// `zluks open --key-file` with the key file `key`.
 fn open_command(key: &str) -> String {
     format!(
-        "zluks --pilot open \"$dev\" zbm-pilot --key-file /tmp/{key}.key \
+        "zluks open \"$dev\" zbm-pilot --key-file /tmp/{key}.key \
          --journal /tmp/pilot.jsonl"
     )
 }
 
-/// `zluks --pilot open` on a LUKS volume formatted in the VM.
+/// `zluks open --key-file` on a LUKS volume formatted in the VM.
 fn unlock(vm: &mut Vm<'_>) -> Result<()> {
     let test = vm.test();
     let (rc, out) = vm.sh_show("command -v losetup && command -v cryptsetup")?;
@@ -75,7 +75,7 @@ fn unlock(vm: &mut Vm<'_>) -> Result<()> {
     let (rc, out) = vm.sh_show(&open_command("pilot"))?;
     test.check(
         rc == 0 && out.contains("as /dev/mapper/zbm-pilot (key file)"),
-        "zluks --pilot open opens the volume with the key file",
+        "zluks open --key-file opens the volume with the key file",
     );
     let (rc, _) = vm.sh("test -b /dev/mapper/zbm-pilot")?;
     test.check(rc == 0, "/dev/mapper/zbm-pilot exists");
@@ -88,8 +88,8 @@ fn unlock(vm: &mut Vm<'_>) -> Result<()> {
 /// Checks the journal of the two attempts.
 fn check_journal(test: &Test, journal: &str) {
     test.check(
-        journal.contains(r#""stdin":"secret""#),
-        "the journal records that the key went to standard input",
+        journal.contains("--key-file=/tmp/pilot.key"),
+        "the journal records that cryptsetup read the key file where it is",
     );
     test.check(
         !journal.contains(PILOT_KEY),

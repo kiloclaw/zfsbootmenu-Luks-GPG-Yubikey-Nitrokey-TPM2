@@ -46,7 +46,7 @@ pub enum LuksError {
         name: String,
     },
     /// `cryptsetup open` failed.
-    #[error("cryptsetup could not open {device} as {name} (status {status})")]
+    #[error("cryptsetup could not open {device} as {name}: {why}")]
     Open {
         /// The LUKS device.
         device: String,
@@ -54,6 +54,9 @@ pub enum LuksError {
         name: String,
         /// Its exit status (127 when it could not start).
         status: i32,
+        /// Why, as its exit status says: no key slot accepts the key, the
+        /// mapping exists.
+        why: String,
     },
     /// `cryptsetup close` failed.
     #[error("cryptsetup could not close {name}")]
@@ -128,9 +131,8 @@ pub enum LuksError {
         /// the volume.
         attempts: Vec<crate::unlock::methods::Attempt>,
     },
-    /// A key file, or the GnuPG key file decrypted, did not open the
-    /// volume, or could not be read.
-    #[error("the key file {keyspec} did not open {device}")]
+    /// A key file could not be found, read or decrypted.
+    #[error("the key file {keyspec} of {device} could not be read")]
     KeyFile {
         /// The key file specification.
         keyspec: String,
@@ -182,10 +184,10 @@ zbm_types::error_codes! {
     NotUnlocked = 412 => "no key method opened the volume":
         "Every key method was tried and none opened the volume; each attempt and why it failed \
          follow the code. Check the key file, the token, the keyboard layout, or the passphrase.",
-    KeyFile = 416 => "a key file did not open the volume":
-        "The key file of crypttab, or of zluks open --key-file, is missing, cannot be read or \
-         decrypted, or holds a key that no key slot accepts. Check the path, its key device, and \
-         the key slot.",
+    KeyFile = 416 => "a key file could not be read":
+        "The key file of crypttab, or of zluks open --key-file, is missing, cannot be read, or is \
+         a GnuPG key file that could not be decrypted. Check the path, its key device, and the \
+         GnuPG key.",
 }
 
 #[cfg(test)]

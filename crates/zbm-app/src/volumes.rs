@@ -1,15 +1,20 @@
-//! The use cases of LUKS volumes: unlock every volume, open one, close
-//! them ([`Action::UnlockAll`], [`Action::Open`], [`Action::Close`]), as
+//! The use cases of LUKS volumes: unlock every volume, open one, with its
+//! key methods or a key file alone, close them ([`Action::UnlockAll`],
+//! [`Action::Open`], [`Action::OpenWithKeyFile`], [`Action::Close`]), as
 //! `zluks` and start-up need them. Each runs as one unlocking run of
 //! `zbm-luks`, which drops its secrets at the end.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use zbm_config::spec::cmdline::luks::LUKS_KEY;
+use zbm_crypt::OpenOptions;
+use zbm_luks::LuksError;
 use zbm_luks::device::resolve_device;
 use zbm_luks::mappings::{Mapping, Origin};
+use zbm_luks::unlock::methods::{Refusal, Registry};
 use zbm_luks::unlocker::{Luks, Unlocker};
-use zbm_types::MappingName;
+use zbm_types::{DevicePath, MappingName};
 
 use crate::model::{Action, Event, Outcome, UnlockOutcome};
 
@@ -77,6 +82,12 @@ pub(crate) fn perform(luks: Luks<'_>, action: &Action) -> Option<Vec<Event>> {
     Some(match action {
         Action::UnlockAll => unlock_all(luks),
         Action::Open { device, name } => open(luks, device, name.as_ref()),
+        Action::OpenWithKeyFile {
+            device,
+            name,
+            key_file,
+            options,
+        } => open_with_key_file(luks, (device, name), key_file, *options),
         Action::Close(only) => close(luks, only.as_ref()),
         _ => return None,
     })
@@ -161,6 +172,75 @@ fn open(luks: Luks<'_>, spec: &str, name: Option<&MappingName>) -> Vec<Event> {
                 failed(&format!("unable to open {device}"), why),
             ]
         }
+    }
+}
+
+/// Opens `device` as `name` with the key file `key_file` and no other key
+/// method; when it does not open, every attempt is a reason.
+fn open_with_key_file(
+    luks: Luks<'_>,
+    (device, name): (&DevicePath, &MappingName),
+    key_file: &Path,
+    options: OpenOptions,
+) -> Vec<Event> {
+    let Some(session) = session(luks) else {
+        return unavailable();
+    };
+    let mut session = session.with_registry(Registry::key_file());
+    // The crypttab options of the arguments asked for.
+    let text: Vec<&str> = [
+        (options.allow_discards, "discard"),
+        (options.read_only, "readonly"),
+    ]
+    .into_iter()
+    .filter_map(|(is_on, option)| is_on.then_some(option))
+    .collect();
+    let keyspec = key_file.to_string_lossy();
+    let opened = session.open_device(
+        Some(name),
+        device,
+        &keyspec,
+        &text.join(","),
+        Origin::Configured,
+    );
+    session.forget_secrets();
+    let volume = name.to_string();
+    match opened {
+        Ok(_) => vec![
+            Event::UnlockFinished {
+                volume,
+                outcome: UnlockOutcome::Opened,
+            },
+            Event::Finished(Outcome::Done(format!(
+                "opened {device} as {} (key file)",
+                name.mapper_path()
+            ))),
+        ],
+        Err(error) => {
+            let mut why = causes(&error);
+            if let LuksError::NotUnlocked { attempts, .. } = &error {
+                why.extend(attempts.iter().filter_map(|attempt| {
+                    let refusal = attempt.refusal.as_ref()?;
+                    Some(format!("{:?}: {}", attempt.method, describe(refusal)))
+                }));
+            }
+            vec![
+                Event::UnlockFinished {
+                    volume,
+                    outcome: UnlockOutcome::Failed(why.join(": ")),
+                },
+                failed(&format!("unable to open {device}"), why),
+            ]
+        }
+    }
+}
+
+/// Why a key method did not open a volume, for people.
+fn describe(refusal: &Refusal) -> String {
+    match refusal {
+        Refusal::NotApplicable => "does not apply".to_owned(),
+        Refusal::Elsewhere => "opened elsewhere".to_owned(),
+        Refusal::Failed(error) => error.to_string(),
     }
 }
 

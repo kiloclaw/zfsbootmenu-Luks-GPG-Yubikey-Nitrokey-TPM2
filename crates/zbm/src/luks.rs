@@ -23,13 +23,15 @@ Commands:
   unlock               Unlock all configured LUKS volumes (default)
   open <device> [name] Unlock a single LUKS volume; device may be a path or
                        UUID=, PARTUUID=, LABEL=, PARTLABEL=, ID=, PATH=
+  open <device> <name> --key-file <path> [--allow-discards] [--read-only]
+       [--journal <file>] [--verbose]
+                       Open a LUKS volume with a key file and nothing else,
+                       with a JSON line in <file> for every event
   close [name]         Export pools on, and close, mappings opened by
                        ZFSBootMenu (all of them unless a name is given)
   status               List mappings opened by ZFSBootMenu
   list                 List all LUKS volumes on the system and their
                        LUKS2 tokens (TPM2, FIDO2, clevis)
-  --pilot open ...     Open one volume with a key file through the code of
-                       the refactoring (zluks --pilot open --help)
 
 After unlocking, return to ZFSBootMenu (type 'exit') to import pools, or
 run 'zpool import' manually.
@@ -57,8 +59,14 @@ pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf
 /// `/etc/zfsbootmenu.conf` (the state directory, the log level and the retry
 /// delay) and the LUKS variables of the environment.
 pub fn zluks(args: &[String], io: &mut Io) -> i32 {
-    if args.first().is_some_and(|arg| arg == "--pilot") {
-        return crate::pilot::zluks::zluks(args.get(1..).unwrap_or_default(), io);
+    if key_file::is_asked(args) {
+        let installed = key_file::parse(args.get(1..).unwrap_or_default())
+            .and_then(|parsed| key_file::install_tracing(&parsed));
+        if let Err(message) = installed {
+            let _ = writeln!(io.stderr, "zluks: {message}");
+            let _ = io.stderr.write_all(USAGE.as_bytes());
+            return crate::USAGE;
+        }
     }
     let real = RealSystem::new();
     let terminal = match real.terminal() {
@@ -140,6 +148,15 @@ fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
 pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
     let command = args.first().map_or("unlock", String::as_str);
     let rest = args.get(1..).unwrap_or_default();
+    if key_file::is_asked(args) {
+        return match key_file::parse(rest) {
+            Ok(parsed) => key_file::report(&Volumes::new(luks).apply(&parsed.action), io),
+            Err(message) => {
+                let _ = writeln!(io.stderr, "zluks: {message}");
+                crate::USAGE
+            }
+        };
+    }
     match app_action(command, rest) {
         Some(Ok(action)) => return perform(luks, &action, io),
         Some(Err(error)) => {
@@ -247,6 +264,8 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
     }
 }
 
+mod key_file;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,6 +331,47 @@ mod tests {
         fake.runner.respond_program("lsblk", 0, "10G\n");
         fake.runner.respond_program("blkid", 2, "");
         fake
+    }
+
+    #[test]
+    fn a_key_file_alone_opens_a_volume_or_says_why_not() {
+        let fake = machine();
+        fake.files.file("/keys/b.key", "secret");
+        let (code, stdout, stderr) = call(
+            &fake,
+            &["open", "/dev/sdb2", "data", "--key-file", "/keys/b.key"],
+        );
+        assert_eq!((code, stderr.as_str()), (0, ""));
+        assert_eq!(stdout, "opened /dev/sdb2 as /dev/mapper/data (key file)\n");
+        // The key file is read where it is, and no other method is tried.
+        let lines = fake.runner.lines();
+        assert!(
+            lines.contains(
+                &"cryptsetup open --type luks --key-file=/keys/b.key /dev/sdb2 data".to_owned()
+            ),
+            "{lines:?}"
+        );
+        assert!(
+            !lines.iter().any(|line| line.contains("luksDump")),
+            "{lines:?}"
+        );
+
+        let missing = machine();
+        let (code, stdout, stderr) = call(
+            &missing,
+            &["open", "/dev/sdb2", "data", "--key-file", "/keys/none.key"],
+        );
+        assert_eq!((code, stdout.as_str()), (1, ""));
+        assert_eq!(
+            stderr,
+            "zluks: unable to open /dev/sdb2\n  no key method opened /dev/sdb2\n  \
+             KeyFile: the key file /keys/none.key of /dev/sdb2 could not be read\n"
+        );
+        let (code, _, stderr) = call(&missing, &["open", "/dev/sdb2", "--key-file", "/k"]);
+        assert_eq!(
+            (code, stderr.as_str()),
+            (crate::USAGE, "zluks: expected DEVICE and NAME\n")
+        );
     }
 
     #[test]

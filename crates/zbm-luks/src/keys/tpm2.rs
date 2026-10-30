@@ -235,9 +235,9 @@ impl Unlocker<'_> {
     pub fn try_tpm2_token(
         &mut self,
         target: Target<'_>,
-        id: &str,
         token: &Token,
     ) -> Result<OpenMapping, LuksError> {
+        let id = token.id.as_str();
         let device = target.device();
         let failed = |failure| target.token_error("systemd-tpm2", id, failure);
         if !self.have_tpm2() {

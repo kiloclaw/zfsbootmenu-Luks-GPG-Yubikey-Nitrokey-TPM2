@@ -1,11 +1,13 @@
 //! What front ends ask for ([`Action`]) and what they are told
 //! ([`Event`]).
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use zbm_crypt::OpenOptions;
 use zbm_platform::secret::Secret;
 use zbm_types::{
-    Answer, DatasetName, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
+    Answer, DatasetName, DevicePath, ImportPolicy, MappingName, PoolName, SnapshotName, Untrusted,
 };
 
 use super::{Change, Method, Notice, PackageDiff, Plan, Snapshot, StageState};
@@ -99,6 +101,18 @@ pub enum Action {
         device: String,
         /// The mapping name, if one is given.
         name: Option<MappingName>,
+    },
+    /// Open one LUKS volume as `name` with a key file and no other key
+    /// method (`zluks open --key-file`).
+    OpenWithKeyFile {
+        /// The volume.
+        device: DevicePath,
+        /// The mapping name.
+        name: MappingName,
+        /// The key file, read where it is.
+        key_file: PathBuf,
+        /// How to open it beyond the key.
+        options: OpenOptions,
     },
     /// Close the mappings ZFSBootMenu opened, or the one named
     /// (`zluks close`).
