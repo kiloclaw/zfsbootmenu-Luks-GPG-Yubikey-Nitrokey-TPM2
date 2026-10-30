@@ -25,6 +25,7 @@ pub mod saved;
 pub mod secret_search;
 pub mod startup;
 pub mod supervisor;
+pub mod unlock;
 
 /// The program's output streams.
 pub struct Io<'a> {
@@ -66,6 +67,12 @@ const ZLUKS: Applet = Applet {
     name: "zluks",
     summary: "unlock, close and list LUKS volumes",
     run: luks::zluks,
+};
+
+const UNLOCK: Applet = Applet {
+    name: "unlock",
+    summary: "the keyholder, which opens LUKS volumes for start-up and zluks",
+    run: unlock::run,
 };
 
 const CONSOLE_AUTOSIZE: Applet = Applet {
@@ -122,6 +129,7 @@ pub const APPLETS: &[Applet] = &[
     PARSE_COMMANDLINE,
     PREINIT,
     ZLUKS,
+    UNLOCK,
     CONSOLE_AUTOSIZE,
     CONSOLE_FONTS,
     KEYBOARD_LAYOUTS,
@@ -320,6 +328,7 @@ mod tests {
             "zfsbootmenu-parse-commandline",
             "zfsbootmenu-preinit",
             "zluks",
+            "unlock",
             "console-autosize",
             "console-fonts",
             "keyboard-layouts",

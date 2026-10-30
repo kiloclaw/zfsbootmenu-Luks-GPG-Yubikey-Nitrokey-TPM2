@@ -29,6 +29,8 @@ use zbm_boot::prompt::retry_delay;
 use zbm_config::conf::Conf;
 use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::{Luks, Settings};
+
+use crate::unlock::ProcessKeyholders;
 use zbm_platform::event::{CancelToken, Mailbox, NoAnswer, spawn_scoped_traced};
 use zbm_platform::{Context, NoConsole, QuietRunner, System};
 use zbm_pool::{ImportSettings, Imported, Late, Operator, RetryDelay};
@@ -81,6 +83,8 @@ pub struct MenuFront<'a> {
     refused: Mutex<Vec<String>>,
     /// The method the last request asked for.
     last: Mutex<Option<Method>>,
+    /// The keyholders that unlock the volumes; `None`: this process does.
+    keyholders: Option<ProcessKeyholders>,
 }
 
 impl<'a> MenuFront<'a> {
@@ -103,7 +107,15 @@ impl<'a> MenuFront<'a> {
             luks,
             refused: Mutex::new(Vec::new()),
             last: Mutex::new(None),
+            keyholders: None,
         }
+    }
+
+    /// The same front end, which unlocks the volumes through `keyholders`.
+    #[must_use]
+    pub fn through(mut self, keyholders: ProcessKeyholders) -> MenuFront<'a> {
+        self.keyholders = Some(keyholders);
+        self
     }
 
     /// Whether the view is there.
@@ -214,7 +226,12 @@ impl<'a> MenuFront<'a> {
             settings: &settings,
             interaction: self,
         };
-        let events = Volumes::new(luks).apply(&Action::UnlockAll);
+        let volumes = Volumes::new(luks);
+        let events = match &self.keyholders {
+            Some(keyholders) => volumes.through(keyholders),
+            None => volumes,
+        }
+        .apply(&Action::UnlockAll);
         for event in &events {
             if matches!(event, Event::UnlockFinished { .. }) {
                 self.show(event.clone());
@@ -524,7 +541,9 @@ fn stages_on_view(
         }
     };
     let link = MailLink::new(mailbox.sender());
-    let mut front = MenuFront::new((Box::new(link), snapshot), (system, quiet), state, luks);
+    // The keyholder's programs leave the console to the view.
+    let mut front = MenuFront::new((Box::new(link), snapshot), (system, quiet), state, luks)
+        .through(ProcessKeyholders::new().quiet());
     // The stages run on a worker; this thread draws the view until they
     // close it, and then the menu goes on from it.
     let (bootfs, screen) = std::thread::scope(|scope| {

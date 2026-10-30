@@ -19,7 +19,9 @@
 //! hook, which runs after the volume was unlocked, the pool imported and
 //! the kernel loaded, just before `kexec`: `zbm debug secrets` searches the
 //! machine for both secrets, given in hexadecimal. The machine boots with
-//! `init_on_free=1`, which the kernel must confirm.
+//! `init_on_free=1`, which the kernel must confirm. The hook also reads the
+//! journal: the volume must have been opened by a keyholder (ROADMAP.md,
+//! SB10), a process of its own that its client started.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -77,11 +79,21 @@ fn hook() -> String {
          echo ZBMTEST-SECRETS-BEGIN\n\
          /libexec/zbm debug secrets {} {}\n\
          echo \"ZBMTEST-SECRETS-END $?\"\n\
-         echo \"ZBMTEST-MEMINIT $(dmesg | grep -m1 'mem auto-init')\"\n",
+         echo \"ZBMTEST-MEMINIT $(dmesg | grep -m1 'mem auto-init')\"\n\
+         {KEYHOLDER}",
         hex(PASSPHRASE.as_bytes()),
         hex(KEY_FILE.as_bytes()),
     )
 }
+
+/// The hook's lines about the keyholder: the process its client says it
+/// started, and the process that says it performed the run, from the
+/// journal's last lines of each.
+const KEYHOLDER: &str = "J=/zfsbootmenu/journal.jsonl\n\
+     started=$(grep -o '\"keyholder\":[0-9]*' $J | tail -n 1 | cut -d: -f2)\n\
+     performed=$(grep '\"the keyholder performs an action\"' $J | tail -n 1 \
+       | grep -o '\"pid\":[0-9]*' | head -n 1 | cut -d: -f2)\n\
+     echo \"ZBMTEST-KEYHOLDER started=$started performed=$performed\"\n";
 
 /// Runs `setup`, `passphrase` or `keyfile`.
 ///
@@ -146,6 +158,9 @@ struct Search {
     status: String,
     /// The kernel's line about initialising memory.
     meminit: String,
+    /// The keyholder its client started, and the one that performed the
+    /// run: process IDs, empty when the journal has none.
+    keyholder: (String, String),
 }
 
 /// Boots the Rust image, unlocks the volume as `scenario` says and checks
@@ -205,10 +220,13 @@ fn read_search(vm: &mut Vm<'_>) -> Result<Search> {
     let output = vm.before().trim().to_owned();
     let status = vm.group(1);
     vm.expect1(r"ZBMTEST-MEMINIT ([^\r\n]*)\r*\n", 60)?;
+    let meminit = vm.group(1);
+    vm.expect1(r"ZBMTEST-KEYHOLDER started=(\d*) performed=(\d*)\r*\n", 60)?;
     Ok(Search {
         output,
         status,
-        meminit: vm.group(1),
+        meminit,
+        keyholder: (vm.group(1), vm.group(2)),
     })
 }
 
@@ -249,6 +267,14 @@ fn check_search(test: &Test, search: &Search) {
         search.meminit.contains("heap free:on"),
         "the kernel zeroes freed memory (init_on_free=1)",
     );
+    let (started, performed) = &search.keyholder;
+    test.check(
+        !started.is_empty() && started == performed,
+        &format!(
+            "a keyholder opened the volume, a process of its own (started {started:?}, \
+             performed by {performed:?})"
+        ),
+    );
 }
 
 #[cfg(test)]
@@ -263,6 +289,9 @@ mod tests {
         let hook = hook();
         assert!(!hook.contains(PASSPHRASE) && !hook.contains(KEY_FILE));
         assert!(hook.contains(&hex(PASSPHRASE.as_bytes())), "{hook}");
+        assert!(
+            hook.ends_with("echo \"ZBMTEST-KEYHOLDER started=$started performed=$performed\"\n")
+        );
         assert_eq!(hex(b"pw"), "7077");
     }
 
@@ -273,7 +302,8 @@ mod tests {
         let script = vec![Step::Say(
             "found secret 1 in file /run/k\r\nsearched 9 processes, 300 mappings and 800 \
              files; found 1; secrets kept as Secret\r\nZBMTEST-SECRETS-END 1\r\n\
-             ZBMTEST-MEMINIT [0.0] mem auto-init: stack:off, heap alloc:on, heap free:on\r\n",
+             ZBMTEST-MEMINIT [0.0] mem auto-init: stack:off, heap alloc:on, heap free:on\r\n\
+             ZBMTEST-KEYHOLDER started=412 performed=412\r\n",
         )];
         let (mut vm, guest) = scripted(&test, script);
 
@@ -286,6 +316,7 @@ mod tests {
             "{search:?}"
         );
         assert!(search.meminit.ends_with("heap free:on"), "{search:?}");
+        assert_eq!(search.keyholder, ("412".to_owned(), "412".to_owned()));
         cleanup(&settings);
     }
 
@@ -297,12 +328,15 @@ mod tests {
             output: "searched 9 processes, 300 mappings and 800 files; found 0".to_owned(),
             status: "0".to_owned(),
             meminit: "mem auto-init: heap free:on".to_owned(),
+            keyholder: ("412".to_owned(), "412".to_owned()),
         };
         check_search(&test, &clean);
         let found = Search {
             output: format!("found secret 0 in process 1 (zbm) memory\n{}", clean.output),
             status: "1".to_owned(),
             meminit: "mem auto-init: heap free:off".to_owned(),
+            // The session opened it itself.
+            keyholder: ("412".to_owned(), "380".to_owned()),
         };
         check_search(&test, &found);
         check_search(&test, &Search::default());
@@ -313,7 +347,9 @@ mod tests {
             .collect();
         assert_eq!(
             results,
-            [true, true, true, true, false, false, false, false, false]
+            [
+                true, true, true, true, true, false, false, false, false, false, false, false
+            ]
         );
         cleanup(&settings);
     }

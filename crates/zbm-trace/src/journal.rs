@@ -41,6 +41,7 @@ pub const REDACTED: &str = "[redacted]";
 /// workspace record, none of them a secret. A new field joins the list in the
 /// change that adds it, after a look at what it can hold.
 pub const KEPT_FIELDS: &[&str] = &[
+    "action",
     "attempt",
     "device",
     "driver",
@@ -57,6 +58,7 @@ pub const KEPT_FIELDS: &[&str] = &[
     "id",
     "initramfs",
     "kernel",
+    "keyholder",
     "kind",
     "line",
     "message",

@@ -14,6 +14,7 @@ use zbm_platform::{Context, RealSystem};
 use zbm_types::{MappingName, ParseError, RetryDelay};
 
 use crate::Io;
+use crate::unlock::ProcessKeyholders;
 
 /// The usage of `zluks`.
 const USAGE: &str = "\
@@ -59,9 +60,15 @@ pub fn settings(system: &zbm_platform::System<'_>, conf: &zbm_config::conf::Conf
 /// `/etc/zfsbootmenu.conf` (the state directory, the log level and the retry
 /// delay) and the LUKS variables of the environment.
 pub fn zluks(args: &[String], io: &mut Io) -> i32 {
+    // The keyholder that opens the volumes traces where `zluks` does.
+    let mut keyholders = ProcessKeyholders::new();
     if key_file::is_asked(args) {
-        let installed = key_file::parse(args.get(1..).unwrap_or_default())
-            .and_then(|parsed| key_file::install_tracing(&parsed));
+        let installed = key_file::parse(args.get(1..).unwrap_or_default()).and_then(|parsed| {
+            keyholders = keyholders
+                .clone()
+                .traced(parsed.journal.as_deref(), parsed.verbose);
+            key_file::install_tracing(&parsed)
+        });
         if let Err(message) = installed {
             let _ = writeln!(io.stderr, "zluks: {message}");
             let _ = io.stderr.write_all(USAGE.as_bytes());
@@ -93,7 +100,7 @@ pub fn zluks(args: &[String], io: &mut Io) -> i32 {
         settings: &settings,
         interaction: &prompter,
     };
-    run_zluks(luks, args, io)
+    run_zluks(Volumes::new(luks).through(&keyholders), args, io)
 }
 
 /// The action of a `zluks` command that `zbm-app` performs, if it is one,
@@ -123,8 +130,8 @@ fn app_action(command: &str, rest: &[String]) -> Option<Result<Action, ParseErro
 /// Performs `action` through `zbm-app`; the exit status of `zluks`. A failure
 /// that came before any volume was touched is said on standard error, as
 /// the legacy script said it; the others are in the log.
-fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
-    match Volumes::new(luks).apply(action).last() {
+fn perform(volumes: Volumes<'_>, action: &Action, io: &mut Io) -> i32 {
+    match volumes.apply(action).last() {
         Some(Event::Finished(Outcome::Done(_))) => 0,
         Some(Event::Finished(Outcome::Failed { why, .. })) => {
             let not_found = match action {
@@ -143,14 +150,14 @@ fn perform(luks: Luks<'_>, action: &Action, io: &mut Io) -> i32 {
     }
 }
 
-/// The commands of `zluks` with the LUKS ports `luks`: unlocking, opening
-/// and closing through `zbm-app`, the lists here.
-pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
+/// The commands of `zluks` on `volumes`: unlocking, opening and closing
+/// through `zbm-app`, the lists here with its LUKS ports.
+pub fn run_zluks(volumes: Volumes<'_>, args: &[String], io: &mut Io) -> i32 {
     let command = args.first().map_or("unlock", String::as_str);
     let rest = args.get(1..).unwrap_or_default();
     if key_file::is_asked(args) {
         return match key_file::parse(rest) {
-            Ok(parsed) => key_file::report(&Volumes::new(luks).apply(&parsed.action), io),
+            Ok(parsed) => key_file::report(&volumes.apply(&parsed.action), io),
             Err(message) => {
                 let _ = writeln!(io.stderr, "zluks: {message}");
                 crate::USAGE
@@ -158,14 +165,14 @@ pub fn run_zluks(luks: Luks<'_>, args: &[String], io: &mut Io) -> i32 {
         };
     }
     match app_action(command, rest) {
-        Some(Ok(action)) => return perform(luks, &action, io),
+        Some(Ok(action)) => return perform(volumes, &action, io),
         Some(Err(error)) => {
             let _ = writeln!(io.stderr, "ERROR: {error}");
             return 1;
         }
         None => {}
     }
-    let mut session = Unlocker::new(luks);
+    let mut session = Unlocker::new(volumes.luks());
     if !session.available() {
         let _ = writeln!(io.stderr, "ERROR: {NO_CRYPTSETUP}");
         return 1;
@@ -264,7 +271,7 @@ fn print_list(session: &Unlocker<'_>, io: &mut Io) {
     }
 }
 
-mod key_file;
+pub(crate) mod key_file;
 
 #[cfg(test)]
 mod tests {
@@ -285,7 +292,7 @@ mod tests {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
         let code = run_zluks(
-            luks,
+            Volumes::new(luks),
             &args,
             &mut Io {
                 stdout: &mut stdout,

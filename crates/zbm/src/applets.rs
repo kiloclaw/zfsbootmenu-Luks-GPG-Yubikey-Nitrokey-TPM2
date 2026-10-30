@@ -20,7 +20,7 @@ use crate::supervisor::{Program, Supervisor};
 const ZBM: &str = "/libexec/zbm";
 
 /// This program, as the boot image installs it.
-fn zbm() -> PathBuf {
+pub(crate) fn zbm() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from(ZBM))
 }
 

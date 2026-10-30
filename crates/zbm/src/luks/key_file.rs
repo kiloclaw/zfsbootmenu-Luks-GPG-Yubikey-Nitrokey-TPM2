@@ -6,7 +6,7 @@
 
 use std::fs::OpenOptions as FileOptions;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use zbm_app::OpenOptions;
 use zbm_app::model::{Action, Event, Outcome};
@@ -76,12 +76,23 @@ pub fn parse(args: &[String]) -> Result<KeyFileOpen, String> {
 /// # Errors
 ///
 /// When the journal cannot be opened, or traces are sent elsewhere already.
+pub fn install_tracing(parsed: &KeyFileOpen) -> Result<(), String> {
+    install_tracing_to(parsed.journal.as_deref(), parsed.verbose)
+}
+
+/// Sends the program's traces to standard error, informational messages
+/// too when `verbose`, and to `journal`, if any: `zluks open --key-file`'s
+/// and its keyholder's.
+///
+/// # Errors
+///
+/// When the journal cannot be opened, or traces are sent elsewhere already.
 #[allow(
     clippy::disallowed_methods,
     reason = "the journal file is opened by the program, as `--journal` names it"
 )]
-pub fn install_tracing(parsed: &KeyFileOpen) -> Result<(), String> {
-    let journal = match &parsed.journal {
+pub fn install_tracing_to(journal: Option<&Path>, verbose: bool) -> Result<(), String> {
+    let journal = match journal {
         Some(path) => {
             let file = FileOptions::new()
                 .create(true)
@@ -92,7 +103,7 @@ pub fn install_tracing(parsed: &KeyFileOpen) -> Result<(), String> {
         }
         None => None,
     };
-    let stderr = if parsed.verbose {
+    let stderr = if verbose {
         LevelFilter::INFO
     } else {
         LevelFilter::WARN
