@@ -380,6 +380,19 @@ Following a boot
   the terminal's cells hold its characters a cell apart; this shows the search works. ``stty -echo`` opens a prompt
   without echo and a key is typed: the same search must then find nothing in the console's memory.
 
+* ``integrity-setup``, ``integrity-unattended`` and ``integrity-lockdown`` check the boot's integrity in the Rust
+  runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it with
+  ``systemd-cryptenroll`` for TPM2 without a PIN (no PCRs, a software TPM), then creates, in the recovery shell, the
+  pool ``tauto`` on it, ``tplain`` on d1 and ``tforeign`` on d2, left imported by the host ``deadbeef``, each with the
+  test boot environment. ``unattended`` boots three times. With the TPM and ``zbm.prefer=tauto``, the volume unlocks
+  itself with nothing asked, start-up says it holds to it, ``tforeign`` is not adopted (``hostid`` imports as
+  ``strict``), and ``tauto``'s boot environment boots by itself. With the TPM and ``zbm.prefer=tplain``, the menu shows
+  and nothing boots after the countdown, as ``tplain`` is on no volume that unlocked itself, which start-up says.
+  Without the TPM, the passphrase is typed, and ``tplain``'s boot environment boots by itself. ``lockdown`` boots with
+  ``lockdown=integrity`` and only d1: the boot environment's kernel, which is not signed, must not be loaded, and
+  ZFSBootMenu must say that lockdown kept it to ``kexec_file_load``. It needs a ZFSBootMenu kernel with the lockdown
+  LSM; with one that lacks it, or a signed boot environment kernel, the kernel boots and the check fails.
+
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long
   passphrase and a key file, both unlike anything else in memory, and the pool ``tsecret`` on it. The other two boot a

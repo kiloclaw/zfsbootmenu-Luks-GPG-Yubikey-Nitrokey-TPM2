@@ -140,6 +140,21 @@ pub fn is_mount_point(files: &dyn Files, path: &str) -> bool {
         .any(|line| line.split_whitespace().nth(1) == Some(path))
 }
 
+/// Mounts `securityfs` on `/sys/kernel/security`, where the kernel says
+/// whether it is locked down (ROADMAP.md, SE10), unless it is there: the
+/// Rust runtime is process 1, and no init mounted it before. Does nothing
+/// on a kernel without it.
+pub fn mount_securityfs(system: &System<'_>) {
+    let location = "/sys/kernel/security";
+    if is_mount_point(system.files, location) || !system.files.is_dir(Path::new(location)) {
+        return;
+    }
+    zbm_trace::debug!("mounting '{location}'"; %location);
+    if let Err(code) = Mount::new(system.runner, system.files).securityfs(location) {
+        zbm_trace::debug!("securityfs did not mount ({code})"; %code);
+    }
+}
+
 /// Mounts or remounts `efivarfs` read-only (`ro`) or read-write (`rw`) on
 /// `/sys/firmware/efi/efivars`. Does nothing without UEFI.
 pub fn mount_efivarfs(system: &System<'_>, mode: &str) {

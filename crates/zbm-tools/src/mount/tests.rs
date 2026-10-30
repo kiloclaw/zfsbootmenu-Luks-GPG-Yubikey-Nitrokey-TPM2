@@ -134,3 +134,22 @@ fn system_calls_come_first_and_the_programs_after_them_fail() {
         ]
     );
 }
+
+#[test]
+fn securityfs_mounts_read_only_and_a_failure_is_its_exit_status() {
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    let line = "mount -t securityfs securityfs /sys/kernel/security -o ro,nosuid,nodev,noexec";
+    runner.respond(line, 0, "");
+    assert_eq!(
+        Mount::new(&runner, &files).securityfs("/sys/kernel/security"),
+        Ok(())
+    );
+    assert_eq!(runner.lines(), [line]);
+
+    let (runner, files) = (FakeRunner::new(), FakeFiles::new());
+    runner.respond(line, 32, "");
+    assert_eq!(
+        Mount::new(&runner, &files).securityfs("/sys/kernel/security"),
+        Err(32)
+    );
+}

@@ -93,6 +93,11 @@ fn under_lockdown_a_kernel_the_call_refuses_is_not_loaded_by_kexec() {
     );
 
     let lines = fake.runner.lines();
+    // The kernel's lockdown is read from securityfs, which nothing mounted.
+    let securityfs =
+        "mount -t securityfs securityfs /sys/kernel/security -o ro,nosuid,nodev,noexec";
+    assert!(lines.iter().any(|line| line == securityfs), "{lines:?}");
+    let lines = fake.runner.lines();
     assert!(
         !lines.iter().any(|line| line.starts_with("kexec")),
         "{lines:?}"

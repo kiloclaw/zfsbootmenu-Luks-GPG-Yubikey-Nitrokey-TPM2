@@ -226,9 +226,12 @@ impl Machine {
             }
             (program == "tput").then(|| Ok(Output::new(Status::exited(0), "")))
         });
+        // The legacy function reads no lockdown: whatever the host has,
+        // the Rust boot finds no securityfs to mount.
         let files = Redirect::new(&[
             (ETC_HOSTID, &dir.join("etc_hostid")),
             (SPL_HOSTID, &dir.join("spl_hostid")),
+            ("/sys/kernel/security", &dir.join("no-securityfs")),
         ]);
         let system = System {
             files: &files,

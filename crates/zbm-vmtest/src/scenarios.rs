@@ -12,6 +12,7 @@ use crate::settings::Settings;
 pub mod complex;
 pub mod docs;
 pub mod firmware;
+pub mod integrity;
 pub mod keys;
 pub mod layouts;
 pub mod procedures;
@@ -68,6 +69,9 @@ pub const ALL: &[&str] = &[
     "secrets-setup",
     "secrets-passphrase",
     "secrets-keyfile",
+    "integrity-setup",
+    "integrity-unattended",
+    "integrity-lockdown",
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.
@@ -84,6 +88,7 @@ fn dispatch(test: &Test, name: &str) -> Result<()> {
         "procedures" => procedures::run(test),
         "runtime" => runtime::run(test, scenario),
         "secrets" => secrets::run(test, scenario),
+        "integrity" => integrity::run_scenario(test, scenario),
         _ => Err(Error::Setup(format!("unknown test {name}"))),
     }
 }
@@ -135,4 +140,63 @@ pub fn disks(
 pub fn payload(settings: &Settings) -> Result<crate::qemu::Disk> {
     let path = crate::disks::payload_disk(settings)?;
     Ok(crate::qemu::Disk::new(path, crate::qemu::PAYLOAD))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testing::{cleanup, settings};
+
+    #[test]
+    fn a_scenario_whose_setup_did_not_run_fails_and_says_so() {
+        let settings = settings("scenarios-without-setup");
+        for name in ["integrity-unattended", "integrity-lockdown", "keys-plugin"] {
+            let outcome = run(&settings, name).unwrap();
+            assert_eq!(outcome.passed, 0, "{name}");
+            assert!(
+                outcome
+                    .failures
+                    .iter()
+                    .any(|failure| failure.contains("-setup first")),
+                "{name}: {:?}",
+                outcome.failures
+            );
+        }
+        cleanup(&settings);
+    }
+
+    #[test]
+    fn unknown_scenarios_and_groups_fail() {
+        let settings = settings("scenarios-unknown");
+        std::fs::create_dir_all(settings.disks("integrity").join("tpm")).unwrap();
+        let outcome = run(&settings, "integrity-nothing").unwrap();
+        assert!(
+            outcome
+                .failures
+                .iter()
+                .any(|failure| failure.contains("unknown scenario")),
+            "{:?}",
+            outcome.failures
+        );
+        let outcome = run(&settings, "nothing-here").unwrap();
+        assert!(
+            outcome
+                .failures
+                .iter()
+                .any(|failure| failure.contains("unknown test")),
+            "{:?}",
+            outcome.failures
+        );
+        assert!(exists("integrity-setup") && exists("runtime-record-zfs") && !exists("nothing"));
+        cleanup(&settings);
+    }
+
+    #[test]
+    fn the_disks_of_a_group_are_named_by_their_index() {
+        let settings = settings("scenarios-disks");
+        let disks = disks(&settings, "integrity", 0..2, true).unwrap();
+        assert_eq!(disks.len(), 2);
+        assert!(format!("{:?}", disks[1]).contains("d1"), "{:?}", disks[1]);
+        cleanup(&settings);
+    }
 }

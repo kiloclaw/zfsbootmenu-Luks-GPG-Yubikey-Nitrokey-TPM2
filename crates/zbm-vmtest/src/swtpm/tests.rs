@@ -106,3 +106,34 @@ fn without_a_process_id_there_is_nothing_to_stop() {
     assert!(!is_running(u32::MAX));
     assert!(is_running(std::process::id()));
 }
+
+#[test]
+fn a_software_tpm_starts_stops_and_its_lockout_clears() {
+    use crate::settings::program_exists;
+    if !["swtpm", "swtpm_setup", "tpm2_dictionarylockout"]
+        .iter()
+        .all(|program| program_exists(program))
+    {
+        return;
+    }
+    let state = std::env::temp_dir().join(format!("zbm-vmtest-swtpm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&state);
+    let mut tpm = Swtpm::new(&state).unwrap();
+    crate::disks::run(
+        Command::new("swtpm_setup")
+            .args(["--tpm2", "--tpmstate"])
+            .arg(&state)
+            .arg("--overwrite"),
+    )
+    .unwrap();
+    assert_eq!(tcti(2321), "swtpm:host=127.0.0.1,port=2321");
+    tpm.clear_lockout().unwrap();
+    let socket = tpm.start().unwrap();
+    assert!(socket.exists());
+    let pid = tpm.pid.unwrap();
+    assert!(is_running(pid));
+    tpm.stop();
+    assert!(!is_running(pid));
+    drop(tpm);
+    let _ = fs::remove_dir_all(&state);
+}

@@ -167,4 +167,10 @@ mod tests {
         assert_eq!(execute(Command::Help), Ok(true));
         assert_eq!(execute(Command::List), Ok(true));
     }
+
+    #[test]
+    fn help_and_the_list_of_tests_need_no_machine() {
+        assert_eq!(execute(Command::Help), Ok(true));
+        assert_eq!(execute(Command::List), Ok(true));
+    }
 }

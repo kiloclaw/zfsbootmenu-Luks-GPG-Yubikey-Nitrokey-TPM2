@@ -297,6 +297,7 @@ fn load_kernel(system: &System<'_>, load: &KexecLoad<'_>, mnt: &Path) -> Option<
     let mut output = String::new();
     // Lockdown or Secure Boot: the kernel checks what it boots, and loads
     // nothing it refuses (ROADMAP.md, SE10).
+    super::mounts::mount_securityfs(system);
     let checked = kexec::checked_boot(system.files);
     for _ in 0..2 {
         let (ok, text) = substituted(load.run(system.kernel, system.runner, checked));

@@ -166,6 +166,27 @@ impl<'a> Mount<'a> {
         shell_code(&self.runner.run(&shown(command, Shown::Console))) == 0
     }
 
+    /// Mounts `securityfs` read-only on `location`, where the kernel says
+    /// whether it is locked down.
+    ///
+    /// # Errors
+    ///
+    /// The exit status of `mount`, which did not mount it.
+    pub fn securityfs(self, location: &str) -> Result<(), i32> {
+        let command = Command::new("mount").args([
+            "-t",
+            "securityfs",
+            "securityfs",
+            location,
+            "-o",
+            "ro,nosuid,nodev,noexec",
+        ]);
+        match shell_code(&self.runner.run(&shown(command, Shown::Hidden))) {
+            0 => Ok(()),
+            code => Err(code),
+        }
+    }
+
     /// Unmounts `path`: `umount2(2)`, or `umount PATH` with its output where
     /// `output` says; whether it succeeded.
     pub fn unmount(self, path: &Path, output: Shown) -> bool {
