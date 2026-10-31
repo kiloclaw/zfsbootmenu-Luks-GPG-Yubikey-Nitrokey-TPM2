@@ -108,6 +108,9 @@ pub enum FromKeyholder {
     Answered(bool),
     /// The run ended, with its events; the keyholder ends too.
     Finished(Vec<Event>),
+    /// Whether the PIN of [`ToKeyholder::Verify`] is the image's; the
+    /// keyholder ends.
+    Verified(bool),
 }
 
 /// A message to the keyholder.
@@ -138,6 +141,13 @@ pub enum ToKeyholder {
     },
     /// A question about what the keyholder sees.
     Query(Query),
+    /// The other request, first and once: whether the PIN, `length` bytes
+    /// long, which follow in a packet of their own unless there are none,
+    /// is the image's (ROADMAP.md SE9).
+    Verify {
+        /// Its length.
+        length: usize,
+    },
 }
 
 /// Why a message was not read.
@@ -271,6 +281,7 @@ impl ToKeyholder {
             ToKeyholder::Waited(wait) => encoded("waited", json!({"wait": wait_name(*wait)})),
             ToKeyholder::Leased { console } => encoded("leased", json!({"console": console})),
             ToKeyholder::Query(query) => encoded("query", json!({"query": query_name(*query)})),
+            ToKeyholder::Verify { length } => encoded("verify", json!({"length": length})),
         })
     }
 
@@ -288,10 +299,8 @@ impl ToKeyholder {
                 Some("escape") => Some(ToKeyholder::Answer(Answer::Escape)),
                 _ => None,
             },
-            "secret" => number(&object, "length")
-                .and_then(|length| usize::try_from(length).ok())
-                .filter(|length| *length <= zbm_sys::socket::MAX_MESSAGE)
-                .map(|length| ToKeyholder::Secret { length }),
+            "secret" => read_length(&object).map(|length| ToKeyholder::Secret { length }),
+            "verify" => read_length(&object).map(|length| ToKeyholder::Verify { length }),
             "elsewhere" => Some(ToKeyholder::Elsewhere),
             "ended" => Some(ToKeyholder::Ended),
             "waited" => [Wait::Present, Wait::Skipped, Wait::TimedOut]
@@ -351,6 +360,7 @@ impl FromKeyholder {
                 let events: Vec<Value> = events.iter().filter_map(event).collect();
                 encoded("finished", json!({"events": events}))
             }
+            FromKeyholder::Verified(verified) => encoded("verified", json!({"verified": verified})),
         }
     }
 
@@ -369,6 +379,7 @@ impl FromKeyholder {
             "lease" => Some(FromKeyholder::Lease),
             "returned" => Some(FromKeyholder::Returned),
             "answered" => flag(&object, "answer").map(FromKeyholder::Answered),
+            "verified" => flag(&object, "verified").map(FromKeyholder::Verified),
             "finished" => object
                 .get("events")
                 .and_then(Value::as_array)
@@ -378,6 +389,14 @@ impl FromKeyholder {
         };
         message.ok_or(Unread::Malformed)
     }
+}
+
+/// The length of the secret that follows `object`, no longer than a
+/// packet.
+fn read_length(object: &Map<String, Value>) -> Option<usize> {
+    number(object, "length")
+        .and_then(|length| usize::try_from(length).ok())
+        .filter(|length| *length <= zbm_sys::socket::MAX_MESSAGE)
 }
 
 /// The request for a secret in `object`.

@@ -83,6 +83,9 @@ sha2 = { version = "=0.11.1", default-features = false, features = ["zeroize"] }
 sha1 = { version = "=0.11.0", default-features = false }
 pbkdf2 = { version = "=0.13.0", default-features = false, features = ["hmac"] }
 base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
+# The PIN of the locked menu (ROADMAP.md SE9, ADR 0010): its Argon2id hash in the image, in the PHC string format,
+# checked by the keyholder and written by `generate-zbm --lock-hash`.
+argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "password-hash", "zeroize"] }
 
 # `org.zfsbootmenu:kernel` (zbm-types, ROADMAP.md DM4), and the VM tests' console patterns.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
@@ -101,6 +104,14 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage)"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Argon2 hashes 64 MiB three times for each PIN (ROADMAP.md SE9): unoptimised,
+# that takes seconds, in every test that checks one.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
 # Binaries end up in an initramfs, so size matters more than build time.

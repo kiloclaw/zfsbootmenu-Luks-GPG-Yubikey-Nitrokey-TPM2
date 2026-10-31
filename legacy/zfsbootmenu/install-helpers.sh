@@ -674,6 +674,33 @@ zbm_unomit_drivers() {
   printf '%s' "${regex%|}"
 }
 
+# The lock of the menu (ROADMAP.md SE9, ADR 0010): the Argon2id hash of its
+# PIN, which generate-zbm --lock-hash writes, goes into /etc/zfsbootmenu/lock,
+# readable by root alone. A build that asks for a lock it cannot give fails,
+# rather than leave the image open: only the Rust runtime has the lock, and
+# only an Argon2id hash in the PHC format checks a PIN.
+install_zbm_lock() {
+  # shellcheck disable=SC2154
+  [ -n "${zfsbootmenu_lock_hash}" ] || return 0
+
+  if [ "${ZBM_RUNTIME}" != "rust" ]; then
+    zbm_error "the locked menu (zfsbootmenu_lock_hash) needs zfsbootmenu_runtime=rust"
+    return 1
+  fi
+  # shellcheck disable=SC2016
+  case "${zfsbootmenu_lock_hash}" in
+    '$argon2id$'*) ;;
+    *)
+      zbm_error "zfsbootmenu_lock_hash is no Argon2id hash; write one with generate-zbm --lock-hash"
+      return 1
+      ;;
+  esac
+
+  mkdir -p "${BUILDROOT}/etc/zfsbootmenu" || return 1
+  printf '%s\n' "${zfsbootmenu_lock_hash}" > "${BUILDROOT}/etc/zfsbootmenu/lock" || return 1
+  chmod 0400 "${BUILDROOT}/etc/zfsbootmenu/lock"
+}
+
 # Graphics drivers and the firmware of the GPUs the image is for (ROADMAP.md
 # #17), from zfsbootmenu_graphics_drivers and zfsbootmenu_graphics_firmware,
 # which generate-zbm sets from Kernel.GraphicsDrivers. The drivers are

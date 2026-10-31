@@ -387,11 +387,16 @@ fn a_run_asks_the_client_and_ends_with_its_events() {
     let (events, got) = std::thread::scope(|scope| {
         let served = zbm_platform::event::spawn_scoped_traced(scope, || {
             let mut got = Vec::new();
-            serve(&keyholder, &console, |interaction, request| {
-                got = ask_everything(interaction, &console);
-                got.push(format!("{:?}", request.action));
-                vec![Event::Finished(Outcome::Done("unlocked".to_owned()))]
-            })
+            serve(
+                &keyholder,
+                &console,
+                |interaction, request| {
+                    got = ask_everything(interaction, &console);
+                    got.push(format!("{:?}", request.action));
+                    vec![Event::Finished(Outcome::Done("unlocked".to_owned()))]
+                },
+                |_| false,
+            )
             .unwrap();
             got
         });
@@ -456,10 +461,15 @@ fn a_keyholder_asked_nothing_it_does_says_so_and_a_client_gone_gets_no_secret() 
     client.send(br#"{"version":1,"message":"ended"}"#).unwrap();
 
     let mut ran = false;
-    serve(&keyholder, &FakeRunner::new(), |_, _| {
-        ran = true;
-        Vec::new()
-    })
+    serve(
+        &keyholder,
+        &FakeRunner::new(),
+        |_, _| {
+            ran = true;
+            Vec::new()
+        },
+        |_| false,
+    )
     .unwrap();
 
     assert!(!ran);
@@ -482,10 +492,15 @@ fn a_keyholder_asked_nothing_it_does_says_so_and_a_client_gone_gets_no_secret() 
     let console = FakeRunner::new();
     let mut got = Vec::new();
 
-    let result = serve(&keyholder, &console, |interaction, _| {
-        got = ask_everything(interaction, &console);
-        Vec::new()
-    });
+    let result = serve(
+        &keyholder,
+        &console,
+        |interaction, _| {
+            got = ask_everything(interaction, &console);
+            Vec::new()
+        },
+        |_| false,
+    );
 
     assert_eq!(got[0], "Escape");
     assert!(got[1..5].iter().all(|answer| answer == "Ended"), "{got:?}");
@@ -549,10 +564,15 @@ fn a_client_out_of_turn_gets_no_secret_nor_answer() {
     drop(client);
     let mut got = Vec::new();
 
-    let _ = serve(&keyholder, &FakeRunner::new(), |interaction, _| {
-        got = ask_everything(interaction, &FakeRunner::new());
-        Vec::new()
-    });
+    let _ = serve(
+        &keyholder,
+        &FakeRunner::new(),
+        |interaction, _| {
+            got = ask_everything(interaction, &FakeRunner::new());
+            Vec::new()
+        },
+        |_| false,
+    );
 
     assert_eq!(got[..2], ["Escape", "Ended"]);
     assert_eq!(got[5], "TimedOut");

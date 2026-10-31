@@ -358,3 +358,15 @@ fn a_boot_is_unattended_when_silent_key_methods_opened_every_volume() {
     assert_eq!(state.unattended_mappings(), None);
     assert!(state.luks_unlocked().ends_with("luks-unlocked"));
 }
+
+#[test]
+fn a_person_s_unlock_is_seen_among_the_silent_ones() {
+    let files = FakeFiles::new();
+    files.dir("/zfsbootmenu");
+    let state = State::new(&files, "/zfsbootmenu");
+    assert!(!state.has_attended_unlock());
+    state.record_unlocked("auto", false).unwrap();
+    assert!(!state.has_attended_unlock());
+    state.record_unlocked("home", true).unwrap();
+    assert!(state.has_attended_unlock());
+}

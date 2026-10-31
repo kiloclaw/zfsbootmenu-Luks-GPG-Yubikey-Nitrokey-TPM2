@@ -28,6 +28,7 @@ fn the_newest_crash_report_of_the_program_is_named() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
 
     let report = supervisor.crash_report(42, 101 << 8);

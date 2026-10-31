@@ -27,12 +27,15 @@ use std::process::{Child, Command};
 use std::time::Duration;
 
 use zbm_app::Volumes;
-use zbm_app::keyholder::{KEYHOLDER_FD, Keyholder, Keyholders, serve};
+use zbm_app::auth::{self, Lock};
+use zbm_app::keyholder::{KEYHOLDER_FD, Keyholder, Keyholders, UnlockRequest, serve};
 use zbm_app::model::{Event, Outcome};
 use zbm_luks::unlocker::Luks;
 use zbm_platform::env::{Environment as _, ProcessEnvironment};
+use zbm_platform::interaction::Interaction;
 use zbm_platform::sandbox::{self, Sandboxed as _};
-use zbm_platform::{Context, QuietRunner, RealSystem, System};
+use zbm_platform::{Context, QuietRunner, RealSystem, Secret, System};
+use zbm_state::State;
 use zbm_sys::Signal;
 use zbm_sys::signals::Process;
 use zbm_sys::socket::Connection;
@@ -137,13 +140,14 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
     let terminal = real.terminal()?;
     let system = real.with_console(&terminal);
     let Ok(conf) = zbm_startup::preinit::read_conf(&system, Path::new("/")) else {
-        return serve(connection, system.runner, |_, _| {
+        let unread = |_: &dyn Interaction, _: &UnlockRequest| {
             vec![Event::Finished(Outcome::Failed {
                 what: "unable to unlock".to_owned(),
                 why: vec![format!("unable to source {}", zbm_config::conf::PATH)],
                 next: Vec::new(),
             })]
-        });
+        };
+        return serve(connection, system.runner, unread, |_| false);
     };
     let settings = crate::luks::settings(&system, &conf);
     let _log = system.kernel_log(conf.get("loglevel").unwrap_or_default(), &settings.base);
@@ -156,7 +160,8 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
     } else {
         system
     };
-    serve(connection, system.runner, |interaction, request| {
+    let state = State::new(system.files, &settings.base);
+    let unlock = |interaction: &dyn Interaction, request: &UnlockRequest| {
         let mut settings = settings.clone();
         settings.retry = request.retry;
         let luks = Luks {
@@ -165,7 +170,10 @@ fn keep(connection: &Connection, options: &Options) -> io::Result<()> {
             interaction,
         };
         Volumes::new(luks).apply(&request.action)
-    })
+    };
+    // The PIN of the locked menu (ROADMAP.md SE9).
+    let verify = |pin: &Secret| auth::is_image_pin(&system, &state, &Lock::of(system.files), pin);
+    serve(connection, system.runner, unlock, verify)
 }
 
 /// Starts keyholders as processes of this program, `zbm unlock serve`.

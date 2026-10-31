@@ -61,6 +61,10 @@ pub struct Snapshot {
     pub bootfs: Option<DatasetName>,
     /// The keyboard layouts secrets can be typed with.
     pub keyboard: Keyboard,
+    /// Whether the menu is locked (ROADMAP.md SE9): an action that
+    /// [`Action::is_kept_by_lock`] asks for the PIN on the console first.
+    #[serde(default)]
+    pub menu_locked: bool,
 }
 
 /// One stage of start-up.

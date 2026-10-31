@@ -104,6 +104,7 @@ pub fn machine(options: &DemoOptions) -> Snapshot {
         },
         log: log(),
         now: NOW,
+        menu_locked: false,
     }
 }
 

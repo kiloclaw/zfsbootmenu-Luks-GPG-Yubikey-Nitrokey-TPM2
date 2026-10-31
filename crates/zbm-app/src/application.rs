@@ -12,6 +12,9 @@ use zbm_config::options::ZbmOptions;
 use zbm_luks::unlocker::Luks;
 use zbm_platform::{Context, System};
 
+use zbm_types::DatasetName;
+
+use crate::auth::{self, Authority};
 use crate::keyholder::{self, Keyholders, UnlockRequest};
 use crate::model::{Action, Encryption, Event, Keyboard, Outcome, Snapshot};
 use crate::{AppError, SnapshotError, boot, changes, read, volumes};
@@ -191,6 +194,11 @@ pub struct App<'a> {
     pub(crate) runtime: &'a Runtime,
     /// The LUKS session, when the front end has one.
     luks: Option<Luks<'a>>,
+    /// The lock of the menu, and the proof of who may do what it keeps
+    /// (ROADMAP.md SE9).
+    authority: &'a Authority,
+    /// What checks a PIN; without them, what the lock keeps is refused.
+    keyholders: Option<&'a dyn Keyholders>,
 }
 
 impl<'a> App<'a> {
@@ -200,7 +208,66 @@ impl<'a> App<'a> {
             context,
             runtime,
             luks: None,
+            authority: auth::process(),
+            keyholders: None,
         }
+    }
+
+    /// With `keyholders` to check the PIN of a locked menu.
+    #[must_use]
+    pub fn with_keyholders(self, keyholders: &'a dyn Keyholders) -> App<'a> {
+        App {
+            keyholders: Some(keyholders),
+            ..self
+        }
+    }
+
+    /// Behind the lock of `authority`, for tests.
+    #[must_use]
+    pub fn with_authority(self, authority: &'a Authority) -> App<'a> {
+        App { authority, ..self }
+    }
+
+    /// Whether what the lock keeps is locked now, on the machine of `files`.
+    fn is_menu_locked(&self, files: &dyn zbm_platform::Files) -> bool {
+        let state = zbm_state::State::new(files, &self.runtime.base);
+        self.authority
+            .is_locked(state.has_attended_unlock(), self.context.clock().now())
+    }
+
+    /// Whether `action` may run: the lock does not keep it, or someone
+    /// proved themselves, as a person who opened a volume did, or by the
+    /// PIN typed on `system`'s console now, which a keyholder checks.
+    fn is_allowed(&self, action: &Action, system: &System<'_>) -> bool {
+        let state = zbm_state::State::new(system.files, &self.runtime.base);
+        let bootfs: Option<DatasetName> = state.bootfs().and_then(|name| name.parse().ok());
+        if !action.is_kept_by_lock(bootfs.as_ref()) {
+            return true;
+        }
+        let now = system.clock.now();
+        if self
+            .authority
+            .authorized(state.has_attended_unlock(), now)
+            .is_some()
+        {
+            return true;
+        }
+        let Some(keyholders) = self.keyholders else {
+            return false;
+        };
+        let console = system.console;
+        let _ = console.write(auth::LOCKED_PROMPT.as_bytes());
+        let pin = match console.read_secret() {
+            Ok(Some(pin)) if !pin.is_empty() => pin,
+            _ => return false,
+        };
+        let _ = console.write(b"\n");
+        auth::check_pin(self.authority, keyholders, &pin, system.clock.now()).unwrap_or_else(
+            |error| {
+                tracing::error!(%error, "the PIN could not be checked");
+                false
+            },
+        )
     }
 
     /// With a LUKS session: the volumes.
@@ -249,6 +316,9 @@ impl<'a> App<'a> {
         recovery: &dyn Recovery,
     ) -> Vec<Event> {
         let system = console.with_runner(self.context.runner());
+        if !self.is_allowed(action, &system) {
+            return auth::refused();
+        }
         let pools =
             || read::pools(&zbm_zfs::ZfsCli::new(self.context.runner())).unwrap_or_default();
         match action {
@@ -291,6 +361,13 @@ impl<'a> App<'a> {
     fn quietly(&self, action: &Action, console: System<'_>) -> Vec<Event> {
         if let Action::Plan(planned) = action {
             return self.planned(planned, console);
+        }
+        // What the lock keeps takes the console, where the PIN is asked;
+        // a menu that thought it open is told.
+        let state = zbm_state::State::new(console.files, &self.runtime.base);
+        let bootfs: Option<DatasetName> = state.bootfs().and_then(|name| name.parse().ok());
+        if action.is_kept_by_lock(bootfs.as_ref()) && self.is_menu_locked(console.files) {
+            return auth::refused();
         }
         if !action.is_change() {
             return self.alone(action);
@@ -360,6 +437,7 @@ impl Application for App<'_> {
             keyboard: self.keyboard(),
             now,
             bootfs,
+            menu_locked: self.is_menu_locked(files),
             ..Snapshot::default()
         })
     }

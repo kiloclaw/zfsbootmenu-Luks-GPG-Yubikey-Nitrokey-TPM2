@@ -109,6 +109,21 @@ pub fn interactive_shell(runner: &dyn Runner) -> io::Result<Output> {
     ran
 }
 
+/// Runs `zbm lock shell` on the console, as [`interactive_shell`] runs a
+/// shell: the prompt of a locked image, which asks for its PIN and opens
+/// the shell once the PIN is right (ROADMAP.md SE9).
+///
+/// # Errors
+///
+/// The error that kept it from starting.
+pub fn locked_shell(runner: &dyn Runner) -> io::Result<Output> {
+    let command =
+        on_console(Command::new(ZBM).args(["lock", "shell"])).default_signal(Signal::Interrupt);
+    let ran = runner.run(&command);
+    let _ = zbm_sys::take_terminal(io::stdin());
+    ran
+}
+
 /// Runs the applet `program` of ZFSBootMenu with `args` and `env` on the
 /// console, in a process of its own, such as `zluks unlock`.
 ///

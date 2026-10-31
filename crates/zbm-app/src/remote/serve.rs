@@ -90,7 +90,11 @@ pub fn serve(connection: &Connection, served: &Served<'_, '_>) -> io::Result<()>
             }
             let watches = [Watch::read(connection.as_fd()), Watch::read(handle.as_fd())];
             wait_ready(&watches, Some(STOP_POLL))?;
-            forward(connection, &mut handle)?;
+            match forward(connection, &mut handle) {
+                // The menu went while the service reported.
+                Err(error) if is_gone(&error) => return Ok(()),
+                forwarded => forwarded?,
+            }
             let message = match ToSession::receive(connection, Some(Duration::ZERO)) {
                 Ok(Some(received)) => received.message,
                 Ok(None) => continue,
@@ -143,6 +147,15 @@ fn answer(
         }
     }
     Ok(true)
+}
+
+/// Whether `error`, of a send, says the menu's end of the connection is
+/// closed.
+fn is_gone(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+    )
 }
 
 /// Sends the menu what the service reported.

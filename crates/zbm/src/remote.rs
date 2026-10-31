@@ -110,7 +110,9 @@ impl Menu for RemoteMenu<'_, '_> {
         let options = ZbmOptions::from_conf(self.conf);
         let base = preinit::base(self.conf);
         let runtime = Runtime::new(options, &base).with_boot(settings.clone());
-        let app = App::new(Context::new(self.system), &runtime);
+        // The keyholders check the PIN of a locked menu (ROADMAP.md SE9).
+        let keyholders = crate::unlock::ProcessKeyholders::new();
+        let app = App::new(Context::new(self.system), &runtime).with_keyholders(&keyholders);
         let system = self.system;
         let console = |action: &Action| app.apply(action, Through::Console(system, recovery));
         let (handover, until) = (self.handover, self.until);

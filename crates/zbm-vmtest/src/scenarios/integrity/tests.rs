@@ -3,6 +3,7 @@ use std::fmt::Write as _;
 use pretty_assertions::assert_eq;
 use sha2::{Digest as _, Sha256};
 
+use super::measured::*;
 use super::*;
 use crate::testing::{Step, checks, cleanup, scripted, settings};
 

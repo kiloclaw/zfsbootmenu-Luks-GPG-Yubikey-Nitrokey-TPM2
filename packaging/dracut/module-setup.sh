@@ -278,4 +278,9 @@ install() {
 
   install_zbm_keyboard_layouts
   install_zbm_shell_input
+
+  if ! install_zbm_lock; then
+    dfatal "Unable to lock the menu"
+    exit 1
+  fi
 }

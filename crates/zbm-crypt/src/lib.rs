@@ -53,6 +53,7 @@ pub mod fido2;
 pub mod gpg;
 mod mapping;
 pub mod measure;
+pub mod pin;
 mod port;
 pub mod token;
 pub mod tpm2;

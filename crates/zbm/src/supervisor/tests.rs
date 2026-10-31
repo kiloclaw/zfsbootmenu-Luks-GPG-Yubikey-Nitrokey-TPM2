@@ -50,6 +50,7 @@ fn restarts_the_program_after_a_shell() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
     let mut events = Vec::new();
     supervisor.run(Some(2), &mut |event| events.push(event));
@@ -97,6 +98,7 @@ fn a_program_killed_by_a_signal_leaves_a_crash_report() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
 
     let mut events = Vec::new();
@@ -146,6 +148,7 @@ fn a_program_that_lost_its_terminal_did_not_crash() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
 
     let mut events = Vec::new();
@@ -185,6 +188,7 @@ fn a_crash_report_the_program_wrote_is_named() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
 
     supervisor.run(Some(1), &mut |_| {});
@@ -224,6 +228,7 @@ fn without_a_console_the_programs_run_on_the_supervisor_s_terminal() {
             args: Vec::new(),
         }),
         console_restart: Backoff::CONSOLE,
+        lock: Lock::Off,
     };
 
     let mut events = Vec::new();
@@ -261,6 +266,7 @@ fn programs_that_cannot_start_are_logged() {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     };
     let mut events = Vec::new();
     supervisor.run(Some(1), &mut |event| events.push(event));
@@ -293,6 +299,7 @@ fn supervisor_in(dir: &TempDir, startup: PathBuf) -> Supervisor {
         base: dir.path().to_owned(),
         console: None,
         console_restart: Backoff::NEVER,
+        lock: Lock::Off,
     }
 }
 
@@ -405,6 +412,32 @@ fn bash_opens_when_the_shell_fails_at_once_or_cannot_start() {
         [Event::Failed(_), Event::Shell]
     ));
     assert!(dir.join("shell-ran").exists());
+}
+
+#[test]
+fn a_locked_image_asks_for_the_pin_in_place_of_the_shell_and_its_fallback() {
+    let _guard = PROCESSES.lock().unwrap();
+    let dir = TempDir::new("zbm-supervisor");
+    let calls = dir.join("calls");
+    let startup = dir.write_executable(
+        "zbm",
+        format!(
+            "#!/bin/sh\necho \"zbm $*\" >> {}\nexit 1\n",
+            calls.display()
+        ),
+    );
+    let mut supervisor = with_marking_shell(&dir);
+    supervisor.startup.path = startup;
+    supervisor.fallback = Some(supervisor.shell.clone());
+    supervisor.lock = Lock::On("hash".to_owned());
+    let mut events = Vec::new();
+
+    supervisor.run_from(None, Begin::Shell, Some(1), &mut |event| events.push(event));
+
+    // The prompt failed at once, and is no shell whose fallback would run.
+    assert_eq!(events, [Event::Shell]);
+    assert!(!dir.join("shell-ran").exists());
+    assert_eq!(std::fs::read_to_string(&calls).unwrap(), "zbm lock shell\n");
 }
 
 #[test]

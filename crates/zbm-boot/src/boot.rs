@@ -20,7 +20,9 @@ mod zfs;
 mod tests;
 
 pub use discovery::{find_kernels, kernel_property, select_kernel};
-pub use mounts::{Noise, is_mount_point, mount_efivarfs, mount_zfs, recursive_umount};
+pub use mounts::{
+    Noise, is_mount_point, mount_efivarfs, mount_securityfs, mount_zfs, recursive_umount,
+};
 pub use sequence::{BootSettings, kexec_kernel};
 pub(crate) use zfs::zfs_value;
 pub use zfs::{encryption_root, export_pool, is_writable, locked_root};

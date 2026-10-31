@@ -17,6 +17,7 @@
 //! fake machine.
 
 mod application;
+pub mod auth;
 mod boot;
 mod changes;
 pub mod console;

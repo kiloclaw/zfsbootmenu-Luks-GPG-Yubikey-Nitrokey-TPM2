@@ -5,6 +5,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use zbm_app::auth::{self, Authority};
 use zbm_boot::boot;
 use zbm_boot::error::BootError;
 use zbm_boot::prompt::colorize;
@@ -55,12 +56,25 @@ pub fn zluks_unlock(system: &System<'_>, attempt: Attempt) -> Result<(), BootErr
 pub struct Shell<'s, 'a> {
     system: System<'a>,
     state: &'s State<'a>,
+    /// Who may open the shell: the lock of this process's image
+    /// (ROADMAP.md SE9).
+    authority: &'s Authority,
 }
 
 impl<'s, 'a> Shell<'s, 'a> {
-    /// The recovery shell of `system`.
+    /// The recovery shell of `system`, behind the lock of this process.
     pub fn new(system: System<'a>, state: &'s State<'a>) -> Shell<'s, 'a> {
-        Shell { system, state }
+        Shell {
+            system,
+            state,
+            authority: auth::process(),
+        }
+    }
+
+    /// The same shell behind the lock of `authority`, for tests.
+    #[must_use]
+    pub fn with_authority(self, authority: &'s Authority) -> Shell<'s, 'a> {
+        Shell { authority, ..self }
     }
 
     /// Logs each thing the runtime cannot handle yet as an error and opens
@@ -133,7 +147,12 @@ impl Recovery for Shell<'_, '_> {
             boot::mount_efivarfs(system, "rw");
         }
 
-        let _ = programs::interactive_shell(system.runner);
+        let _ = auth::recovery_shell(
+            self.authority,
+            self.state,
+            system.runner,
+            system.clock.now(),
+        );
 
         let mounts = system
             .files

@@ -344,16 +344,21 @@ fn act_through_keyholder(fake: &FakeSystem, action: &Action, none: bool) -> Vec<
     std::thread::scope(|scope| {
         if !none {
             zbm_platform::event::spawn_scoped_traced(scope, || {
-                crate::keyholder::serve(&keyholder, &fake.runner, |interaction, request| {
-                    let mut settings = settings.clone();
-                    settings.retry = request.retry;
-                    let luks = Luks {
-                        context: fake.context(),
-                        settings: &settings,
-                        interaction,
-                    };
-                    crate::Volumes::new(luks).apply(&request.action)
-                })
+                crate::keyholder::serve(
+                    &keyholder,
+                    &fake.runner,
+                    |interaction, request| {
+                        let mut settings = settings.clone();
+                        settings.retry = request.retry;
+                        let luks = Luks {
+                            context: fake.context(),
+                            settings: &settings,
+                            interaction,
+                        };
+                        crate::Volumes::new(luks).apply(&request.action)
+                    },
+                    |_| false,
+                )
                 .unwrap();
             });
         }

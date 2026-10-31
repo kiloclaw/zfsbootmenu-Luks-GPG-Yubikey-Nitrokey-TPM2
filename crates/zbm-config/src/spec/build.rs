@@ -4,7 +4,9 @@
 use super::{Deprecation, Doc, OptionSpec, Reader, Source, Value};
 
 mod console;
+mod lock;
 pub use console::{CONSOLE_FACES, CONSOLE_FALLBACK_FONTS, CONSOLE_FONT};
+pub use lock::LOCK_HASH;
 
 /// The options, in the order of the manual page.
 pub static ALL: &[&OptionSpec] = &[
@@ -19,6 +21,7 @@ pub static ALL: &[&OptionSpec] = &[
     &KEYBOARD_LAYOUTS,
     &GRAPHICS_DRIVERS,
     &GRAPHICS_FIRMWARE,
+    &LOCK_HASH,
     &SKIP_GCC_S,
     &LUKS,
     &LUKS_CRYPTTAB,

@@ -25,7 +25,7 @@ use zbm_sys::{Ended, Process, Signal, SignalSet, Signals};
 
 use super::console::Attached;
 use super::restart::Backoff;
-use super::{CONSOLE_END, Event, Program, QUICK_FAILURE, Supervisor};
+use super::{CONSOLE_END, Event, Program, QUICK_FAILURE, RecoveryPolicy, Supervisor};
 
 /// The longest the loop waits for nothing, as process 1: what a lost
 /// wake-up costs at most.
@@ -396,13 +396,22 @@ impl Running<'_, '_> {
         };
     }
 
-    /// Starts the recovery shell, or its `fallback`.
+    /// Starts the recovery shell, or its `fallback`, through its gate; with
+    /// the image locked, the prompt for its PIN, which has no fallback.
     fn start_shell(&mut self, fallback: bool, now: Instant) {
         let supervisor = self.supervisor;
-        let shell: &Program = match (&supervisor.fallback, fallback) {
-            (Some(program), true) => program,
-            _ => &supervisor.shell,
-        };
+        let locked;
+        let (shell, gate, fallback): (&Program, _, bool) =
+            match RecoveryPolicy::of_image(&supervisor.lock) {
+                RecoveryPolicy::Open(gate) => match (&supervisor.fallback, fallback) {
+                    (Some(program), true) => (program, Some(gate), true),
+                    _ => (&supervisor.shell, Some(gate), fallback),
+                },
+                RecoveryPolicy::Locked => {
+                    locked = supervisor.locked_shell();
+                    (&locked, None, true)
+                }
+            };
         if let Some(message) = self.message.take() {
             match self.attached() {
                 // The terminal turns each line feed into a new line.
@@ -414,7 +423,11 @@ impl Running<'_, '_> {
                 }
             }
         }
-        if let Some(pid) = supervisor.spawn(shell, &[], true, self.attached()) {
+        let started = match &gate {
+            Some(gate) => supervisor.spawn_shell(gate, shell, self.attached()),
+            None => supervisor.spawn(shell, &[], true, self.attached()),
+        };
+        if let Some(pid) = started {
             self.main = Main::InShell {
                 pid,
                 process: Process::open(pid).ok(),

@@ -388,8 +388,8 @@ Following a boot
   there must clear the serial console's screen and write it again. The other console scenarios boot with
   ``zbm.console_serial=off``, so that the serial console stays theirs.
 
-* ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown``, ``integrity-measured`` and
-  ``integrity-hookroot`` check the boot's
+* ``integrity-setup``, ``integrity-unattended``, ``integrity-lockdown``, ``integrity-measured``,
+  ``integrity-hookroot`` and ``integrity-locked`` check the boot's
   integrity in the Rust runtime (ROADMAP.md SE10). ``setup`` formats a LUKS2 volume on d0 on the host and enrols it
   with ``systemd-cryptenroll`` for TPM2 without a PIN, bound to PCR 9 as it is before ZFSBootMenu measures the boot
   (zeros, a software TPM; SeaBIOS leaves PCRs 8 and 9 alone), then creates, in the recovery shell, the
@@ -417,6 +417,11 @@ Following a boot
   It boots ``tauto``'s boot environment twice with the TPM and ``zbm.hookroot`` on a FAT disk: with that hook, the
   hook must run, the volume must unlock with nothing asked, and the log the boot environment kept must replay to the
   value enrolled; with another hook of the same name, the hook runs but the passphrase must be asked.
+  ``locked`` (ADR 0010) boots an integrity image locked with a PIN (``zfsbootmenu_lock_hash``) twice with the TPM. With
+  ``zbm.prefer=tauto``, the default boot must ask nothing. With ``zbm.prefer=tplain``, which waits in the menu, the
+  recovery shell must ask for the PIN, refuse a wrong one, and open with the right one after a delay of a second at
+  least; once it ended, booting ``tauto``'s environment, which is not the default, must ask for the PIN again, on the
+  console, and boot once it is typed.
 
 * ``secrets-setup``, ``secrets-passphrase`` and ``secrets-keyfile`` check that no secret outlives its use
   (ROADMAP.md #1). ``setup`` creates, in the recovery shell, a LUKS2 volume on disk s0 with two key slots, a long

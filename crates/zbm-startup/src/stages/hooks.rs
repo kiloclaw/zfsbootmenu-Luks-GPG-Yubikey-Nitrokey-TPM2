@@ -9,6 +9,7 @@
 
 use std::path::Path;
 
+use zbm_app::auth;
 use zbm_boot::boot::measured::{self, Event, Extended};
 use zbm_boot::hooks::{HOOKS, run_stage};
 use zbm_platform::System;
@@ -235,7 +236,16 @@ pub fn prepare_early_stage(
     hook_root: &str,
     skip: Option<&str>,
 ) -> Result<(), StartupError> {
+    let locked = auth::Lock::of(system.files).is_on();
+    if locked {
+        warn_unless_checked(system);
+    }
     let imported = if hook_root.is_empty() {
+        Ok(())
+    } else if locked {
+        // Whoever names a hook root runs code before the menu: a locked
+        // image takes none (ROADMAP.md SE9).
+        zbm_trace::warn!("the menu is locked: zbm.hookroot={hook_root} is ignored"; %hook_root);
         Ok(())
     } else {
         import_hooks(system, state, root, hook_root)
@@ -244,6 +254,19 @@ pub fn prepare_early_stage(
         skip_hooks(system.files, root, skip);
     }
     imported
+}
+
+/// Warns when the kernel checks nothing it boots, neither lockdown nor
+/// Secure Boot being on: then whoever changes ZFSBootMenu's own command
+/// line, as with `rdinit=/bin/sh`, gets past the lock of the menu.
+fn warn_unless_checked(system: &System<'_>) {
+    zbm_boot::boot::mount_securityfs(system);
+    if zbm_tools::kexec::checked_boot(system.files).is_none() {
+        zbm_trace::warn!(
+            "the menu is locked, but neither lockdown nor Secure Boot is on: \
+             a changed kernel command line gets past the lock"
+        );
+    }
 }
 
 /// Runs the `early-setup.d` hooks below `root` once, on a cleared screen.
@@ -520,6 +543,46 @@ mod tests {
             fake.runner
                 .lines()
                 .contains(&"/libexec/hooks/early-setup.d/10-a".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_locked_image_ignores_the_hook_root_and_says_what_the_lock_is_worth() {
+        let fake = FakeSystem::new();
+        let _log = log(&fake);
+        fake.files.file(
+            auth::LOCK_FILE,
+            "$argon2id$v=19$m=65536,t=3,p=1$c2FsdA$aGFzaA\n",
+        );
+        let state = State::new(&fake.files, "/zfsbootmenu");
+
+        let prepared = prepare_early_stage(
+            &fake.system(),
+            &state,
+            Path::new(HOOKS),
+            "tank/hooks//zbm",
+            None,
+        );
+
+        assert!(prepared.is_ok());
+        // Nothing of the hook root was mounted or copied.
+        assert!(
+            !fake
+                .runner
+                .lines()
+                .iter()
+                .any(|line| line.contains("tank/hooks")),
+            "{:?}",
+            fake.runner.lines()
+        );
+        let logged = fake.kmsg();
+        assert!(
+            logged.contains("zbm.hookroot=tank/hooks//zbm is ignored"),
+            "{logged}"
+        );
+        assert!(
+            logged.contains("neither lockdown nor Secure Boot is on"),
+            "{logged}"
         );
     }
 }

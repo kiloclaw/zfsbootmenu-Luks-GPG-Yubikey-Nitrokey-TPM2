@@ -124,9 +124,23 @@ gate once it is right. The supervisor itself still parses nothing and holds no s
 
 ## Where the work stands
 
-Accepted; the work has not started. Neither the gate nor `RecoveryPolicy` exists yet. The start-up program opens its shell
-with `programs::interactive_shell` (`zbm_startup::shell`), and the supervisor spawns its shell and the fallback itself
-(`zbm::supervisor::running`).
+Implemented, both steps. The gate: `zbm_app::auth` holds the image's `Lock`, the `Authority` of a process with its proof,
+`Authorized`, `ShellGate` and `RecoveryPolicy`; the start-up program's shell (`zbm_startup::shell`) and the supervisor's
+shell and fallback go through it, and `shell_starts` counts the gate's one start. The lock: `zbm_crypt::pin` hashes and
+checks the PIN (`argon2`, 64 MiB, 3 passes); the keyholder answers `verify` with the delay, which it counts in the state
+directory (`lock-failures`); `App` refuses what the lock keeps (`Action::is_kept_by_lock`) and asks for the PIN on the
+console of the action, which the snapshot's `menu_locked` sends there; `zbm lock shell` asks for it before the shell,
+for the supervisor after a crash and for the start-up program; a locked image ignores `zbm.hookroot` and warns without
+lockdown or Secure Boot; `install_zbm_lock` puts the hash into the image. VM test `integrity-locked`.
+
+Refinements of the proposal:
+
+- The hash is written by `zbm lock hash`, not `generate-zbm --lock-hash`: `zbm` is on the machine that builds the image
+  already (the build runs it), and the Perl tool's port keeps its options.
+- A person's unlock is the state directory's record (`luks-unlocked`, `attended`), so it counts in every process of the
+  boot and lasts for the boot; the PIN's proof lasts in the process that checked it, for five idle minutes.
+- The PIN is asked on the console, as a passphrase is before a boot, rather than in a dialog of the menu; the footer's
+  and palette's lock marks are left for UI10.
 
 ## Answers of the maintainer
 

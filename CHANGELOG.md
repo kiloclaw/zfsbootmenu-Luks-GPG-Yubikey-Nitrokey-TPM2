@@ -145,6 +145,15 @@ layouts and its state, can run no program, and makes only the system calls it ne
 kernel logs it as an audit record (type 1326), which `dmesg` shows. The keyholder and the programs it runs can gain
 no privileges.
 
+The Rust runtime can lock its menu (ROADMAP.md SE9, ADR 0010): an image built with `zfsbootmenu_lock_hash`, the Argon2id
+hash of a PIN that `zbm lock hash` prints, asks for the PIN before the recovery shell, an edited command line, another
+boot environment, kernel or snapshot, and every change; the countdown and the default boot need nothing, nor does a
+machine where a person typed a passphrase that opened a volume. The keyholder checks the PIN, and each wrong one doubles
+the wait before the next answer, up to 30 seconds. After a crash, the supervisor asks for the PIN in place of the
+recovery shell. A locked image ignores `zbm.hookroot`, and warns when neither lockdown nor Secure Boot is on, as whoever
+changes its command line then gets past the lock; the lock is for signed images under Secure Boot. Every way to an
+interactive shell now goes through one gate (`zbm_app::auth::ShellGate`).
+
 The console on the display also serves a serial console named on the command line (`console=ttyS0,115200` with
 `zbm.console=drm`; `zbm.console_serial=off` turns it off): the screen is written there as text, in `zbm.columns` by
 `zbm.lines`, and keys typed there reach the menu and the programs. The screen takes the size of the terminal typed on

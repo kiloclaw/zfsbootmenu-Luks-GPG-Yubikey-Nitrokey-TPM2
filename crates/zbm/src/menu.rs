@@ -74,7 +74,9 @@ fn is_taken_over(received: SignalSet) -> bool {
 impl Menu for Terminal<'_, '_> {
     fn show(&mut self, settings: &BootSettings, recovery: &dyn Recovery) {
         let runtime = Runtime::new(self.options.clone(), self.base).with_boot(settings.clone());
-        let app = App::new(Context::new(self.system), &runtime);
+        // The keyholders check the PIN of a locked menu (ROADMAP.md SE9).
+        let keyholders = crate::unlock::ProcessKeyholders::new();
+        let app = App::new(Context::new(self.system), &runtime).with_keyholders(&keyholders);
         let (signals, handover) = (self.signals, self.handover);
         let stop = || {
             signals.is_some_and(|signals| is_taken_over(signals.received()))

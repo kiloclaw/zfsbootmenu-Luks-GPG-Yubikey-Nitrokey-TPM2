@@ -28,7 +28,9 @@
 //!   line the kernel got; PCR 9 no longer holds the value `auto0`'s token is
 //!   bound to, so the booted system cannot unseal it again;
 //! - `hookroot` (ADR 0009): a token bound to PCR 9 after a
-//!   hook root's hook unseals with that hook, and not with another.
+//!   hook root's hook unseals with that hook, and not with another;
+//! - `locked` (ADR 0010): the locked menu boots its default by itself, and
+//!   asks for the PIN before the recovery shell and another boot.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -37,12 +39,10 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-use sha2::{Digest as _, Sha256};
-
 use crate::boot::{Boot, Follow, Kind, check_be, follow_boot, prompt};
 use crate::disks::{loop_partition, partition, run, run_shell};
 use crate::error::{Error, Result};
-use crate::images::{Image, ImageSpec, be_kver, zbm_image};
+use crate::images::{Image, ImageSpec, zbm_image};
 use crate::qemu::{Disk, Machine};
 use crate::record::Test;
 use crate::settings::{FAST_PBKDF, PW, Settings, ZbmRuntime};
@@ -51,6 +51,10 @@ use crate::text::clean;
 use crate::vm::Vm;
 
 mod hookroot;
+mod locked;
+mod measured;
+
+use measured::{Record, printed_log, replay};
 mod logs;
 
 use logs::{LOGS_LABEL, after_refusal, kernel_log_in_shell, logs_disk, saved_log};
@@ -117,8 +121,9 @@ pub fn run_scenario(test: &Test, scenario: &str) -> Result<()> {
     match scenario {
         "unattended" => unattended(test),
         "lockdown" => lockdown(test),
-        "measured" => measured(test),
+        "measured" => measured::run(test),
         "hookroot" => hookroot::run(test),
+        "locked" => locked::run(test),
         _ => {
             test.check(false, &format!("unknown scenario {scenario}"));
             Ok(())
@@ -128,8 +133,15 @@ pub fn run_scenario(test: &Test, scenario: &str) -> Result<()> {
 
 /// The Rust image of the scenarios.
 fn image(settings: &Settings) -> Result<Image> {
-    let mut spec = ImageSpec::new("integrity");
+    image_with(settings, "integrity", "")
+}
+
+/// The Rust image `variant` of the scenarios, with the dracut
+/// configuration `conf` too.
+fn image_with(settings: &Settings, variant: &str, conf: &str) -> Result<Image> {
+    let mut spec = ImageSpec::new(variant);
     spec.runtime = Some(ZbmRuntime::Rust);
+    conf.clone_into(&mut spec.conf);
     zbm_image(settings, &spec)
 }
 
@@ -255,8 +267,19 @@ fn start<'t>(
     (append, indexes): (&str, &[usize]),
     (tpm, logs): (bool, Option<&Path>),
 ) -> Result<Vm<'t>> {
+    let image = image(test.settings())?;
+    start_with(test, scenario, (append, indexes), (tpm, logs), &image)
+}
+
+/// [`start`] with the image `image`.
+fn start_with<'t>(
+    test: &'t Test,
+    scenario: &str,
+    (append, indexes): (&str, &[usize]),
+    (tpm, logs): (bool, Option<&Path>),
+    image: &Image,
+) -> Result<Vm<'t>> {
     let settings = test.settings();
-    let image = image(settings)?;
     let mut disks = indexes
         .iter()
         .map(|&index| disk(settings, index, false))
@@ -266,7 +289,7 @@ fn start<'t>(
         append.push_str(&format!(" zbm.save_logs=LABEL={LOGS_LABEL}"));
         disks.push(Disk::new(logs.to_owned(), "logs"));
     }
-    let mut machine = Machine::boot(&image, &append).with_disks(disks);
+    let mut machine = Machine::boot(image, &append).with_disks(disks);
     if tpm {
         let state = tpm_dir(settings);
         Swtpm::new(&state)?.clear_lockout()?;
@@ -414,169 +437,5 @@ fn check_lockdown(test: &Test, not_loaded: bool, log: &str) {
     test.check(
         log.contains(REFUSED),
         "ZFSBootMenu saw lockdown and kept to kexec_file_load",
-    );
-}
-
-/// `measured`: with the TPM, `tauto`'s boot environment boots by itself,
-/// measured.
-fn measured(test: &Test) -> Result<()> {
-    let append = format!("{BASE} zbm.prefer=tauto");
-    let mut vm = start(test, "measured", (&append, &[0]), (true, None))?;
-    let boot = follow_boot(&mut vm, Follow::default())?;
-    test.check(
-        !boot.has_prompt("luks"),
-        "the TPM unlocked auto0, bound to PCR 9, before the boot was measured",
-    );
-    check_be(test, &boot, "tauto", &["tauto"], &[]);
-    let payload = Payload::read(test.settings(), &be_kver(test.settings())?)?;
-    check_measured(test, &boot, &payload);
-    Ok(())
-}
-
-/// The SHA-256 digests of the boot environment's kernel and initramfs, as
-/// they are on its dataset: the payload's.
-#[derive(Debug, Eq, PartialEq)]
-struct Payload {
-    kernel: Vec<u8>,
-    initramfs: Vec<u8>,
-}
-
-impl Payload {
-    /// The digests of the payload's files, of the kernel `kver`.
-    fn read(settings: &Settings, kver: &str) -> Result<Payload> {
-        let boot = settings.work.join("payload/boot");
-        let digest = |name: String| {
-            let path = boot.join(name);
-            let bytes =
-                fs::read(&path).map_err(Error::io(format!("reading {}", path.display())))?;
-            Ok::<_, Error>(Sha256::digest(&bytes).to_vec())
-        };
-        Ok(Payload {
-            kernel: digest(format!("vmlinuz-{kver}"))?,
-            initramfs: digest(format!("initramfs-{kver}.img"))?,
-        })
-    }
-}
-
-/// One record of the event log, read apart from the runtime's reader, as
-/// ADR 0008 describes it: its PCR, its event, the value it names, and its
-/// SHA-256 digest.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Record {
-    pcr: u64,
-    event: String,
-    value: String,
-    sha256: Vec<u8>,
-}
-
-/// The bytes of the hexadecimal `text`, if it is that.
-fn unhex(text: &str) -> Option<Vec<u8>> {
-    (0..text.len())
-        .step_by(2)
-        .map(|at| u8::from_str_radix(text.get(at..at + 2)?, 16).ok())
-        .collect()
-}
-
-/// The records of the event log the boot environment printed (`BE-ML| `
-/// lines, a JSON record each, whose record separators it printed as
-/// spaces), as far as they read.
-fn printed_log(be: &str) -> Vec<Record> {
-    be.lines()
-        .filter_map(|line| line.split_once("BE-ML| ").map(|(_, record)| record.trim()))
-        .map_while(|record| {
-            let json: serde_json::Value = serde_json::from_str(record).ok()?;
-            let sha256 = json.get("digests")?.as_array()?.iter().find_map(|digest| {
-                (digest.get("hashAlg")?.as_str()? == "sha256")
-                    .then(|| unhex(digest.get("digest")?.as_str()?))?
-            })?;
-            Some(Record {
-                pcr: json.get("pcr")?.as_u64()?,
-                event: json.pointer("/content/event")?.as_str()?.to_owned(),
-                value: json.pointer("/content/value")?.as_str()?.to_owned(),
-                sha256,
-            })
-        })
-        .collect()
-}
-
-/// The SHA-256 value of `pcr` after `records`: from zeros, or a start's
-/// value, each extension the digest of the old value and the record's.
-fn replay(records: &[Record], pcr: u64) -> Vec<u8> {
-    records
-        .iter()
-        .filter(|record| record.pcr == pcr)
-        .fold(vec![0; 32], |value, record| {
-            if record.event == "start" {
-                record.sha256.clone()
-            } else {
-                Sha256::new()
-                    .chain_update(&value)
-                    .chain_update(&record.sha256)
-                    .finalize()
-                    .to_vec()
-            }
-        })
-}
-
-/// The value of `pcr` in the SHA-256 bank that the boot environment read
-/// (`BE-PCR: 9:sha256=...`), if it did.
-fn be_pcr(boot: &Boot, pcr: u64) -> Option<Vec<u8>> {
-    let prefix = format!("{pcr}:sha256=");
-    let text = boot
-        .be_lines
-        .get("BE-PCR")?
-        .iter()
-        .find_map(|line| line.strip_prefix(&prefix))?;
-    unhex(text)
-}
-
-/// The checks of [`measured`], on its `boot` and the `payload`'s digests.
-fn check_measured(test: &Test, boot: &Boot, payload: &Payload) {
-    let records = printed_log(&boot.be);
-    let events: Vec<&str> = records.iter().map(|record| record.event.as_str()).collect();
-    test.check(
-        events
-            == [
-                "start",
-                "start",
-                "kernel",
-                "initramfs",
-                "command-line",
-                "separator",
-            ],
-        &format!("the boot environment kept ZFSBootMenu's event log ({events:?})"),
-    );
-    for pcr in [8, 9] {
-        test.check(
-            be_pcr(boot, pcr) == Some(replay(&records, pcr)),
-            &format!("PCR {pcr} is what the log replays to"),
-        );
-    }
-    let digest = |event: &str| {
-        records
-            .iter()
-            .find(|record| record.event == event)
-            .map(|record| record.sha256.as_slice())
-    };
-    test.check(
-        digest("kernel") == Some(payload.kernel.as_slice())
-            && digest("initramfs") == Some(payload.initramfs.as_slice()),
-        "the kernel and initramfs were measured as they are on the dataset (as predicted)",
-    );
-    let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
-    let measured_line = records
-        .iter()
-        .find(|record| record.event == "command-line")
-        .map(|record| words(&record.value));
-    test.check(
-        measured_line == Some(words(boot.be_line("BE-CMDLINE"))),
-        "the command line measured is the one the kernel got",
-    );
-    let start = records
-        .iter()
-        .find(|record| record.event == "start" && record.pcr == 9);
-    test.check(
-        start.is_some_and(|start| be_pcr(boot, 9).is_some_and(|now| now != start.sha256)),
-        "PCR 9 moved on from the value auto0's token is bound to",
     );
 }

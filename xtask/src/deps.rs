@@ -141,6 +141,7 @@ pub const THIRD_PARTY: &[(&str, &[&str])] = &[
     (
         "zbm-crypt",
         &[
+            "argon2",
             "serde",
             "serde_json",
             "sha1",

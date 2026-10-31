@@ -8,7 +8,7 @@ generate-zbm               0           0               0            0           
 rust-image                 0           0               0            0              0             0             0              0             0              0            0          45
 xtask                      0           0               0            0              0             0             0              0             0              0            0           0
 zbm                        0           0               0            0              0             0             0              0             0              0            0           0
-zbm-app                    0           0               0            0              0             0             0              0             0              0            0           0
+zbm-app                    0           0               0            0              0             1             0              0             0              0            0           0
 zbm-boot                   0           0               0            0              0             0             0              0             0             17            0           0
 zbm-brush                  0           0               0            0              0             0             0              0             0              0            0           0
 zbm-config                 0           0               0            0              0             0             0              0             0              0            0           0
@@ -19,7 +19,7 @@ zbm-kcl                    0           0               0            0           
 zbm-luks                   0           0               0            0              0             0             0              0             0             27            0           0
 zbm-platform               0           0               0            0              0             0             0              0             0              0            0           0
 zbm-pool                   0           0               0            0              0             0             0              0             0              5            0           0
-zbm-startup                0           0               0            0              0             1             0              0             0              0            0           0
+zbm-startup                0           0               0            0              0             0             0              0             0              0            0           0
 zbm-state                  0           0               0            0              0             0             0              0             0              0            0           0
 zbm-sys                    0           0               0            0              0             0             0             50             0              0            0           0
 zbm-testkit                0           0               0            0              0             0             0              0             0              0            0           0

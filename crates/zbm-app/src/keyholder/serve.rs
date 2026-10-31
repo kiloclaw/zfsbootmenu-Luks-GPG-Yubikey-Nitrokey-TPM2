@@ -15,20 +15,32 @@ use super::messages::{
 };
 use crate::model::{Event, Outcome};
 
-/// Answers the one request of the client at the other end of `connection`:
-/// `run` does it, with an [`Interaction`] that asks the client, and
-/// `console` the runner whose programs reach the terminal the client lends.
-/// The events `run` returns go back to the client.
+/// Answers the one request of the client at the other end of `connection`.
+/// An unlocking run: `run` does it, with an [`Interaction`] that asks the
+/// client, and `console` the runner whose programs reach the terminal the
+/// client lends; the events `run` returns go back to the client. A PIN to
+/// check: `verify` says whether it is the image's.
 ///
 /// # Errors
 ///
-/// When the client is gone before the events reach it.
+/// When the client is gone before the answer reaches it.
 pub fn serve(
     connection: &Connection,
     console: &dyn Runner,
     run: impl FnOnce(&dyn Interaction, &UnlockRequest) -> Vec<Event>,
+    verify: impl FnOnce(&Secret) -> bool,
 ) -> io::Result<()> {
     let events = match receive(connection) {
+        Some(ToKeyholder::Verify { length }) => {
+            let client = Client {
+                connection,
+                console,
+            };
+            // A PIN that does not come whole is no PIN.
+            let verified = client.secret_bytes(length).is_some_and(|pin| verify(&pin));
+            tracing::info!(verified, "the keyholder checked a PIN");
+            return connection.send(&FromKeyholder::Verified(verified).encode());
+        }
         Some(ToKeyholder::Unlock(request)) => {
             tracing::info!(action = ?request.action, "the keyholder performs an action");
             let client = Client {

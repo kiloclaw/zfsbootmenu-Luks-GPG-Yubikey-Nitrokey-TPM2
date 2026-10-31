@@ -163,6 +163,56 @@ impl Action {
         )
     }
 
+    /// Whether the locked menu keeps the action (ROADMAP.md SE9, ADR 0010):
+    /// everything but the default boot, the countdown's or of `bootfs` with
+    /// its own kernel and command line, what changes nothing (a diff, a dry
+    /// run) and a pool imported without force. Unlocking
+    /// a volume with its own secret, the recovery shell, which asks for the
+    /// PIN itself, and powering off or rebooting stay open.
+    pub fn is_kept_by_lock(&self, bootfs: Option<&DatasetName>) -> bool {
+        match self {
+            Action::Boot {
+                environment,
+                kernel,
+                command_line,
+                countdown,
+            } => {
+                let is_default =
+                    bootfs == Some(environment) && kernel.is_none() && command_line.is_none();
+                !(*countdown || is_default)
+            }
+            Action::Diff(..)
+            | Action::Unlock { .. }
+            | Action::SkipUnlock(_)
+            | Action::Answer(_)
+            | Action::UnlockAll
+            | Action::Open { .. }
+            | Action::Shell
+            | Action::FirmwareSetup
+            | Action::Reboot
+            | Action::PowerOff
+            | Action::Plan(_) => false,
+            Action::Import(_, policy) => *policy == ImportPolicy::Force,
+            Action::BootSnapshot(_)
+            | Action::SetDefaultEnvironment(_)
+            | Action::SetDefaultKernel(..)
+            | Action::InheritDefaultKernel(_)
+            | Action::CreateSnapshot(_)
+            | Action::Rollback(_)
+            | Action::Clone(..)
+            | Action::CloneAndPromote(..)
+            | Action::Duplicate(..)
+            | Action::RestoreFiles { .. }
+            | Action::ResetBootTries(_)
+            | Action::Reseal(_)
+            | Action::Chroot(_)
+            | Action::ImportReadWrite(_)
+            | Action::RewindCheckpoint(_)
+            | Action::OpenWithKeyFile { .. }
+            | Action::Close(_) => true,
+        }
+    }
+
     /// The environment a change works on, whose pool it writes and whose
     /// key it loads.
     pub fn changed_environment(&self) -> Option<&DatasetName> {
@@ -185,7 +235,10 @@ impl Action {
     /// asked for; and a duplicate whose target may go under a locked
     /// encryption root.
     pub fn needs_console_on(&self, snapshot: &super::Snapshot) -> bool {
-        if self.needs_console() {
+        // The PIN is asked on the console.
+        if self.needs_console()
+            || (snapshot.menu_locked && self.is_kept_by_lock(snapshot.bootfs.as_ref()))
+        {
             return true;
         }
         let Some(environment) = self.changed_environment() else {

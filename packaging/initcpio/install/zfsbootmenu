@@ -279,6 +279,11 @@ build() {
     install_zbm_keyboard_layouts
     install_zbm_shell_input
 
+    if ! install_zbm_lock; then
+        error "Unable to lock the menu"
+        exit 1
+    fi
+
     add_runscript
 }
 

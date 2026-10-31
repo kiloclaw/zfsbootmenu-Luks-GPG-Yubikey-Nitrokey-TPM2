@@ -47,6 +47,7 @@ mod values;
 
 use std::io;
 
+use zbm_platform::Secret;
 use zbm_platform::interaction::{Interaction, SecretRequest, Tell, VolumeRef, WaitRequest};
 use zbm_sys::socket::Connection;
 
@@ -117,6 +118,27 @@ pub fn unlock(
     }))
 }
 
+/// Whether `pin` is the image's PIN, as a keyholder of `keyholders` says
+/// (ROADMAP.md SE9): the PIN's bytes go from the memory it was typed into.
+///
+/// # Errors
+///
+/// When no keyholder can be started, or it did not answer.
+pub fn verify(keyholders: &dyn Keyholders, pin: &Secret) -> io::Result<bool> {
+    let keyholder = keyholders.start()?;
+    let connection = keyholder.connection();
+    let asked = tell(connection, &ToKeyholder::Verify { length: pin.len() }).and_then(|()| {
+        if !pin.is_empty() {
+            send(connection, pin.expose())?;
+        }
+        match next(connection)? {
+            FromKeyholder::Verified(verified) => Ok(verified),
+            _ => Err("a message out of turn".to_owned()),
+        }
+    });
+    asked.map_err(io::Error::other)
+}
+
 impl UnlockRequest {
     /// The message that carries it; `None` for an action the keyholder
     /// does not perform.
@@ -184,7 +206,7 @@ fn answer(connection: &Connection, interaction: &dyn Interaction) -> Result<Vec<
                 lent?;
             }
             FromKeyholder::Finished(events) => return Ok(events),
-            FromKeyholder::Returned | FromKeyholder::Answered(_) => {
+            FromKeyholder::Returned | FromKeyholder::Answered(_) | FromKeyholder::Verified(_) => {
                 return Err("a message out of turn".to_owned());
             }
         }

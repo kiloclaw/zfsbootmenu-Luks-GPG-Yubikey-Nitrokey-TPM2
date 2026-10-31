@@ -75,6 +75,7 @@ pub const ALL: &[&str] = &[
     "integrity-lockdown",
     "integrity-measured",
     "integrity-hookroot",
+    "integrity-locked",
 ];
 
 /// Tests that are not in [`ALL`]: tools rather than tests.

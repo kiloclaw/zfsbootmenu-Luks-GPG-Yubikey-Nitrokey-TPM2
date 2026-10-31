@@ -41,6 +41,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+use zbm_app::auth::{Lock, RecoveryPolicy, ShellGate};
 use zbm_console::host::Modes;
 use zbm_platform::RealFiles;
 
@@ -88,6 +89,10 @@ pub struct Supervisor {
     pub redirect_console: bool,
     /// When the console on the display starts again once it ended.
     pub console_restart: Backoff,
+    /// The image's lock: when it is on, the start-up program's
+    /// `lock shell` asks for the PIN in place of the shell and its fallback
+    /// (ROADMAP.md SE9).
+    pub lock: Lock,
 }
 
 /// What happened, for the log and for tests.
@@ -135,6 +140,7 @@ impl Supervisor {
             console: None,
             redirect_console: true,
             console_restart: Backoff::CONSOLE,
+            lock: Lock::of(&RealFiles),
         }
     }
 
@@ -155,6 +161,26 @@ impl Supervisor {
         if let Ok(mut kmsg) = std::fs::OpenOptions::new().append(true).open(&self.log) {
             let _ = writeln!(kmsg, "<{level}>ZFSBootMenu: {text}");
         }
+    }
+
+    /// What runs in place of the recovery shell while the image is locked:
+    /// the start-up program's `lock shell`, which asks for the PIN.
+    fn locked_shell(&self) -> Program {
+        Program {
+            path: self.startup.path.clone(),
+            args: vec!["lock".to_owned(), "shell".to_owned()],
+        }
+    }
+
+    /// Starts the recovery shell `program` through its `gate`, as
+    /// [`Supervisor::spawn`] does.
+    fn spawn_shell(
+        &self,
+        _gate: &ShellGate,
+        program: &Program,
+        attached: Option<&Attached>,
+    ) -> Option<u32> {
+        self.spawn(program, &[], true, attached)
     }
 
     /// Starts `program`, on the console's terminal when it is `attached`,

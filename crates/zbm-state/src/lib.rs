@@ -484,6 +484,17 @@ impl<'a> State<'a> {
         (!names.is_empty()).then_some(names)
     }
 
+    /// Whether a person opened a LUKS mapping this boot, with a passphrase,
+    /// a PIN, a security key or a key device: who did may do what the
+    /// locked menu keeps (ROADMAP.md SE9).
+    pub fn has_attended_unlock(&self) -> bool {
+        let text = self.files.read(&self.luks_unlocked()).unwrap_or_default();
+        String::from_utf8_lossy(&text).lines().any(|line| {
+            line.rsplit_once('\t')
+                .is_some_and(|(_, how)| how == "attended")
+        })
+    }
+
     /// The LUKS volumes the user skipped (`luks-skipped`), documented in
     /// `zluks(8)`.
     pub fn luks_skipped(&self) -> PathBuf {
